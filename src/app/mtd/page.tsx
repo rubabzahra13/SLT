@@ -3,9 +3,11 @@
 import { useCallback, useMemo, useState } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { FilterPill } from "@/components/ui/FilterPill";
+import { FilterSelect } from "@/components/ui/FilterSelect";
+import { DateFilter, type DateFilterValue } from "@/components/ui/DateFilter";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { DataTable, type Column } from "@/components/ui/DataTable";
-import { InlineInput, InlineSelect } from "@/components/mtd/InlineFields";
+import { InlineInput, InlineSelect, InlineDateInput } from "@/components/mtd/InlineFields";
 import {
   AssignEditorModal,
   type EditorAssignmentResult,
@@ -14,9 +16,12 @@ import { useAppState } from "@/context/AppStateContext";
 import { formatPrice, titleCase } from "@/lib/data";
 import { parsePackage } from "@/lib/package";
 import { complianceLabel } from "@/lib/pricing";
-import { formatSlotForDisplay } from "@/lib/scheduling";
+import { formatSlotForDisplay, suggestMixStartDate } from "@/lib/scheduling";
+import { todayIso } from "@/lib/date-filters";
+import { filterMTDRecords } from "@/lib/mtd-filters";
 import type { MTDRecord } from "@/types";
 import {
+  EDITOR_NAMES,
   EIGHT_CS_OPTIONS,
   SONGS_OPTIONS,
 } from "@/types";
@@ -27,6 +32,11 @@ const categoryFilters = ["All", "Cheer", "Dance", "Outsourced"];
 export default function MTDPage() {
   const { mtdRecords, updateMTD, producers, schedule } = useAppState();
   const [activeFilter, setActiveFilter] = useState("All");
+  const [producerFilter, setProducerFilter] = useState("All");
+  const [dateFilter, setDateFilter] = useState<DateFilterValue>({
+    type: "all",
+    value: null,
+  });
   const [assignRecord, setAssignRecord] = useState<MTDRecord | null>(null);
 
   const handleAssign = useCallback(
@@ -50,11 +60,41 @@ export default function MTDPage() {
     []
   );
 
-  const filtered = mtdRecords.filter((rec) => {
-    if (activeFilter === "All") return true;
-    if (activeFilter === "Outsourced") return rec.status === "outsourced";
-    return rec.category === activeFilter;
-  });
+  const filtered = useMemo(
+    () =>
+      filterMTDRecords(mtdRecords, {
+        category: activeFilter,
+        producer: producerFilter,
+        dateFilter,
+      }),
+    [mtdRecords, activeFilter, producerFilter, dateFilter]
+  );
+
+  const producerOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    let unassigned = 0;
+
+    for (const rec of mtdRecords) {
+      if (!rec.assignedProducer) {
+        unassigned += 1;
+      } else {
+        counts.set(
+          rec.assignedProducer,
+          (counts.get(rec.assignedProducer) ?? 0) + 1
+        );
+      }
+    }
+
+    return [
+      { value: "All", label: "All producers", count: mtdRecords.length },
+      { value: "Unassigned", label: "Unassigned", count: unassigned },
+      ...EDITOR_NAMES.map((name) => ({
+        value: name,
+        label: name,
+        count: counts.get(name) ?? 0,
+      })),
+    ];
+  }, [mtdRecords]);
 
   const columns: Column<MTDRecord>[] = useMemo(
     () => [
@@ -150,21 +190,27 @@ export default function MTDPage() {
       {
         key: "mixDateI",
         header: "Mix date (I)",
-        width: "96px",
-        render: (rec) => (
-          <div>
-            <InlineInput
-              value={rec.mixStartDate}
-              placeholder="YYYY-MM-DD"
-              onChange={(v) => updateMTD(rec.id, { mixStartDate: v })}
-            />
-            {rec.assignedProducer ? (
-              <p className="mt-1 truncate text-[9px] text-brand-success">
-                {formatSlotForDisplay(rec.assignedProducer, producers, schedule)}
-              </p>
-            ) : null}
-          </div>
-        ),
+        width: "128px",
+        render: (rec) => {
+          const template = rec.assignedProducer
+              ? suggestMixStartDate(rec.assignedProducer, producers, schedule)
+              : todayIso();
+
+          return (
+            <div onClick={(e) => e.stopPropagation()}>
+              <InlineDateInput
+                value={rec.mixStartDate}
+                template={template}
+                onChange={(v) => updateMTD(rec.id, { mixStartDate: v })}
+              />
+              {rec.assignedProducer ? (
+                <p className="mt-1 truncate text-[9px] text-brand-success">
+                  {formatSlotForDisplay(rec.assignedProducer, producers, schedule)}
+                </p>
+              ) : null}
+            </div>
+          );
+        },
       },
       {
         key: "eightJ",
@@ -242,19 +288,34 @@ export default function MTDPage() {
       />
 
       <div className="space-y-5 px-4 py-5 sm:px-6 lg:px-8">
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          {categoryFilters.map((filter) => (
-            <FilterPill
-              key={filter}
-              label={filter}
-              active={activeFilter === filter}
-              onClick={() => setActiveFilter(filter)}
+        <div className="flex flex-col gap-3">
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {categoryFilters.map((filter) => (
+              <FilterPill
+                key={filter}
+                label={filter}
+                active={activeFilter === filter}
+                onClick={() => setActiveFilter(filter)}
+              />
+            ))}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <FilterSelect
+              label="Producer"
+              value={producerFilter}
+              options={producerOptions}
+              onChange={setProducerFilter}
             />
-          ))}
+            <DateFilter value={dateFilter} onChange={setDateFilter} />
+            <span className="text-[12px] text-brand-ink-tertiary">
+              {filtered.length} of {mtdRecords.length} entries
+            </span>
+          </div>
         </div>
 
         <DataTable
-          key={activeFilter}
+          key={`${activeFilter}-${producerFilter}-${dateFilter.type}-${String(dateFilter.value)}`}
           columns={columns}
           data={filtered}
           rowKey={(rec) => rec.id}

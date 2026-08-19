@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { InlineInput, InlineSelect } from "@/components/mtd/InlineFields";
+import { InlineInput, InlineSelect, InlineDateInput } from "@/components/mtd/InlineFields";
 import {
   AssignEditorModal,
   type EditorAssignmentResult,
@@ -13,7 +13,8 @@ import {
 import { useAppState } from "@/context/AppStateContext";
 import { formatPrice } from "@/lib/data";
 import { complianceLabel } from "@/lib/pricing";
-import { formatSlotForDisplay } from "@/lib/scheduling";
+import { formatSlotForDisplay, suggestMixStartDate } from "@/lib/scheduling";
+import { todayIso } from "@/lib/date-filters";
 import {
   EIGHT_CS_OPTIONS,
   SONGS_OPTIONS,
@@ -127,8 +128,13 @@ export default function MTDDetailPage({
             <div>
               <span className="text-label">Mix start date (I)</span>
               <div className="mt-1.5">
-                <InlineInput
+                <InlineDateInput
                   value={rec.mixStartDate}
+                  template={
+                    rec.assignedProducer
+                      ? suggestMixStartDate(rec.assignedProducer, producers, schedule)
+                      : todayIso()
+                  }
                   onChange={(v) => updateMTD(rec.id, { mixStartDate: v })}
                 />
               </div>

@@ -64,3 +64,40 @@ export function InlineInput({
     />
   );
 }
+
+type InlineDateInputProps = {
+  value: string;
+  onChange: (value: string) => void;
+  /** Pre-filled date shown when empty (YYYY-MM-DD). */
+  template?: string;
+};
+
+export function InlineDateInput({
+  value,
+  onChange,
+  template,
+}: InlineDateInputProps) {
+  const displayValue = value || template || "";
+  const showingTemplate = !value && Boolean(template);
+
+  return (
+    <input
+      type="date"
+      value={displayValue}
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+      onChange={(e) => {
+        e.stopPropagation();
+        onChange(e.target.value);
+      }}
+      onBlur={() => {
+        if (!value && template) onChange(template);
+      }}
+      className={clsx(
+        "w-full min-w-[108px] rounded-lg border border-brand-line bg-brand-surface px-2 py-1.5 text-[11px] font-medium tabular-nums outline-none focus:border-brand-line-strong",
+        showingTemplate && "text-brand-ink-tertiary"
+      )}
+      title={showingTemplate ? "Suggested mix date — click to edit" : undefined}
+    />
+  );
+}

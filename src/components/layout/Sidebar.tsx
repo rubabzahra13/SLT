@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useMemo } from "react";
 import {
   LayoutDashboard,
   ShoppingBag,
@@ -16,14 +17,16 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import { useSidebar } from "@/context/SidebarContext";
+import { useAppState } from "@/context/AppStateContext";
+import { getInProgressCount } from "@/lib/mtd-filters";
 import { HoverTip } from "@/components/ui/HoverTip";
 
-const navItems = [
+const baseNavItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/orders", label: "Orders", icon: ShoppingBag, badge: 5 },
   { href: "/mtd", label: "MTD", icon: Music2 },
   { href: "/schedule", label: "Schedule", icon: Calendar },
-  { href: "/outsourced", label: "In Progress", icon: Clock, badge: 12 },
+  { href: "/outsourced", label: "In Progress", icon: Clock },
   { href: "/producers", label: "Producers", icon: Users },
   { href: "/pricing", label: "Pricing", icon: DollarSign },
   { href: "/settings", label: "Settings", icon: Settings },
@@ -31,8 +34,24 @@ const navItems = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { mtdRecords } = useAppState();
   const { expanded, toggleExpanded, setExpanded, mobileOpen, setMobileOpen } =
     useSidebar();
+
+  const inProgressCount = useMemo(
+    () => getInProgressCount(mtdRecords),
+    [mtdRecords]
+  );
+
+  const navItems = useMemo(
+    () =>
+      baseNavItems.map((item) =>
+        item.href === "/outsourced"
+          ? { ...item, badge: inProgressCount > 0 ? inProgressCount : undefined }
+          : item
+      ),
+    [inProgressCount]
+  );
 
   const showExpanded = expanded || mobileOpen;
 
