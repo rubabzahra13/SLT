@@ -11,9 +11,6 @@ type ColumnOptions = {
   formType?: OrderFormType;
   cheerFormSubtype?: CheerFormSubtype;
   danceFormSubtype?: DanceFormSubtype;
-  onMarkComplete?: (order: Order) => void;
-  onMoveToMTD?: (order: Order) => void;
-  isInMTD?: (orderId: string) => boolean;
 };
 
 function textCell(value: string, wide = false) {
@@ -187,7 +184,7 @@ function resolveFormColumns(options: ColumnOptions): Column<Order>[] {
 }
 
 export function getOrderColumns(options: ColumnOptions): Column<Order>[] {
-  const { mode, onMarkComplete, onMoveToMTD, isInMTD } = options;
+  const { mode } = options;
   const columns = resolveFormColumns(options);
 
   columns.push({
@@ -219,79 +216,6 @@ export function getOrderColumns(options: ColumnOptions): Column<Order>[] {
       </span>
     ),
   });
-
-  if (mode === "active") {
-    columns.push({
-      key: "actions",
-      header: "",
-      width: "120px",
-      align: "right",
-      nowrap: true,
-      render: (order) => (
-        <div className="flex items-center justify-end gap-2">
-          {!isInMTD?.(order.id) && order.status !== "completed" ? (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onMoveToMTD?.(order);
-              }}
-              className="text-[11px] font-semibold text-brand-info"
-            >
-              To MTD
-            </button>
-          ) : null}
-          {order.status !== "completed" && onMarkComplete ? (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onMarkComplete(order);
-              }}
-              className="text-[11px] font-semibold text-brand-ink-secondary hover:text-brand-success"
-            >
-              Complete
-            </button>
-          ) : null}
-        </div>
-      ),
-    });
-  }
-
-  if (mode === "all") {
-    columns.push({
-      key: "action",
-      header: "",
-      width: "88px",
-      align: "right",
-      nowrap: true,
-      render: (order) => {
-        if (order.status === "completed") return null;
-        if (isInMTD?.(order.id)) {
-          return (
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-brand-success">
-              In MTD
-            </span>
-          );
-        }
-        return (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onMoveToMTD?.(order);
-            }}
-            className="text-[11px] font-semibold text-brand-info hover:text-brand-ink"
-          >
-            To MTD
-          </button>
-        );
-      },
-    });
-  }
 
   return columns;
 }

@@ -66,10 +66,7 @@ function OrdersContent() {
     activeOrders,
     pastOrders,
     allOrders,
-    markComplete,
     addPastOrder,
-    moveOrderToMTD,
-    isInMTD,
   } = useAppState();
 
   const [tab, setTab] = useState<OrderTab>(initialTab);
@@ -148,12 +145,12 @@ function OrdersContent() {
     [cheerSubtype, form, tab, updateUrl]
   );
 
-  const handleMoveToMTD = useCallback(
-    (order: Order) => {
-      moveOrderToMTD(order.id);
-    },
-    [moveOrderToMTD]
-  );
+  const columns = getOrderColumns({
+    mode: tab,
+    formType: form,
+    cheerFormSubtype: form === "school-all-star-cheer" ? cheerSubtype : undefined,
+    danceFormSubtype: form === "school-all-star-dance" ? danceSubtype : undefined,
+  });
 
   const matchesForm = useCallback(
     (order: Order) => {
@@ -237,17 +234,6 @@ function OrdersContent() {
     }
     return counts;
   }, [activeOrders, allOrders, pastOrders, tab]);
-
-  const columns = getOrderColumns({
-    mode: tab,
-    formType: form,
-    cheerFormSubtype: form === "school-all-star-cheer" ? cheerSubtype : undefined,
-    danceFormSubtype: form === "school-all-star-dance" ? danceSubtype : undefined,
-    onMarkComplete:
-      tab === "active" ? (order) => markComplete(order.id) : undefined,
-    onMoveToMTD: handleMoveToMTD,
-    isInMTD,
-  });
 
   const tableData =
     tab === "active"
