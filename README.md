@@ -26,4 +26,15 @@ npm run dev:clean
 
 ## Deploy
 
-Deploy the repository root to Vercel. Build command: `npm run build`.
+Deploy the repository root to [Vercel](https://vercel.com):
+
+| Setting | Value |
+|--------|--------|
+| Framework Preset | **Next.js** |
+| Root Directory | **`./`** (repo root — not `frontend/`) |
+| Build Command | `npm run build` (default) |
+| Output Directory | *(leave default — Vercel sets this for Next.js)* |
+| Install Command | `npm install` (default) |
+| Environment Variables | **None required** (mock data only) |
+
+Click **Deploy**. `vercel.json` in the repo root pins the build settings above.
