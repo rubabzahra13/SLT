@@ -21,7 +21,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <button
           type="button"
           aria-label="Close navigation menu"
-          className="fixed inset-0 z-40 bg-brand-ink/20 backdrop-blur-[1px] md:hidden"
+          className="fixed inset-0 z-40 bg-brand-scrim backdrop-blur-[1px] md:hidden"
           onClick={() => setMobileOpen(false)}
         />
       ) : null}
@@ -29,7 +29,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <Sidebar />
 
       <div
-        className="flex min-h-screen min-w-0 flex-col transition-[margin] duration-300 ease-out md:ml-[var(--sidebar-margin)]"
+        className="app-canvas flex min-h-screen min-w-0 flex-col transition-[margin] duration-300 ease-out md:ml-[var(--sidebar-margin)]"
         style={{ "--sidebar-margin": `${desktopMargin}px` } as React.CSSProperties}
       >
         <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3 border-b border-brand-line bg-brand-surface px-4 md:hidden">
@@ -47,7 +47,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        <main className="min-h-0 min-w-0 flex-1">{children}</main>
+        <main className="app-canvas min-h-0 min-w-0 flex-1">{children}</main>
       </div>
     </>
   );

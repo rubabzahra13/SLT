@@ -40,24 +40,28 @@ export default function SettingsPage() {
         {sections.map(({ title, icon: Icon, items }) => (
           <section
             key={title}
-            className="rounded-2xl border border-ig-border bg-ig-surface p-5"
+            className="surface-premium rounded-2xl p-5"
           >
             <div className="flex items-center gap-3">
-              <div className="rounded-xl bg-ig-bg p-2.5">
+              <div className="rounded-xl bg-brand-accent-soft p-2.5 text-brand-ink-secondary">
                 <Icon className="h-5 w-5" />
               </div>
-              <h2 className="font-semibold">{title}</h2>
+              <h2 className="text-display text-[15px]">{title}</h2>
             </div>
             <ul className="mt-4 space-y-2">
-              {items.map((item) => (
+              {items.map((item, index) => (
                 <li
                   key={item}
-                  className="flex items-center justify-between rounded-xl bg-ig-bg px-4 py-3 text-sm"
+                  className="flex items-center justify-between rounded-xl bg-brand-accent-soft/60 px-4 py-3 text-sm text-brand-ink-secondary"
                 >
                   <span>{item}</span>
                   <button
                     type="button"
-                    className="font-semibold text-ig-blue"
+                    className={
+                      index % 2 === 1
+                        ? "font-semibold text-brand-orange transition hover:text-brand-orange-hover"
+                        : "font-semibold text-brand-blue transition hover:text-brand-blue-hover"
+                    }
                   >
                     Configure
                   </button>

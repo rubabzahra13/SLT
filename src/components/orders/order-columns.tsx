@@ -183,6 +183,17 @@ function resolveFormColumns(options: ColumnOptions): Column<Order>[] {
   return pomFormColumns();
 }
 
+export function getOrderFormColumns(
+  order: Pick<Order, "formType" | "cheerFormSubtype" | "danceFormSubtype">
+): Column<Order>[] {
+  return resolveFormColumns({
+    mode: "active",
+    formType: order.formType,
+    cheerFormSubtype: order.cheerFormSubtype,
+    danceFormSubtype: order.danceFormSubtype,
+  });
+}
+
 export function getOrderColumns(options: ColumnOptions): Column<Order>[] {
   const { mode } = options;
   const columns = resolveFormColumns(options);

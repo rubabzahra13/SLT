@@ -1,48 +1,99 @@
 @import "tailwindcss";
 
 @theme {
-  /* Canvas & surfaces */
-  --color-brand-bg: #f5f5f3;
-  --color-brand-surface: #ffffff;
-  --color-brand-elevated: #ffffff;
+  /*
+   * SLT unified dark studio — blue + burnt orange dual accent
+   */
+
+  /* Brand primitives — blue (cool) */
+  --color-brand-blue: #52c8ee;
+  --color-brand-blue-hover: #7ad8f7;
+  --color-brand-blue-soft: rgba(82, 200, 238, 0.12);
+  --color-brand-blue-muted: rgba(82, 200, 238, 0.22);
+  --color-brand-blue-deep: #3a9ec4;
+
+  /* Brand primitives — orange (warm accent, use sparingly) */
+  --color-brand-orange: #f07840;
+  --color-brand-orange-hover: #ff9460;
+  --color-brand-orange-deep: #e06538;
+  --color-brand-orange-soft: rgba(240, 120, 64, 0.1);
+  --color-brand-orange-muted: rgba(240, 120, 64, 0.2);
+
+  --color-brand-grey: #8b939e;
+  --color-brand-grey-dark: #12151a;
+  --color-brand-grey-light: #6b7280;
+
+  --color-brand-white: #ffffff;
+
+  /* Layered depth — sidebar recesses, workspace lifts, panels float */
+  --color-brand-bg: #151920;
+  --color-brand-bg-subtle: #181d25;
+  --color-brand-surface: #1e242d;
+  --color-brand-elevated: #262d38;
 
   /* Typography */
-  --color-brand-ink: #0a0a0a;
-  --color-brand-ink-secondary: #525252;
-  --color-brand-ink-tertiary: #a3a3a3;
+  --color-brand-ink: #eef0f3;
+  --color-brand-ink-secondary: rgba(238, 240, 243, 0.64);
+  --color-brand-ink-tertiary: rgba(238, 240, 243, 0.38);
 
   /* Structure */
-  --color-brand-line: rgba(0, 0, 0, 0.06);
-  --color-brand-line-strong: rgba(0, 0, 0, 0.1);
+  --color-brand-line: rgba(255, 255, 255, 0.07);
+  --color-brand-line-strong: rgba(255, 255, 255, 0.12);
 
-  /* Accent: refined studio black */
-  --color-brand-accent: #0a0a0a;
-  --color-brand-accent-hover: #262626;
-  --color-brand-accent-soft: #f0efed;
+  /* Emphasis fills */
+  --color-brand-accent: rgba(255, 255, 255, 0.09);
+  --color-brand-accent-hover: rgba(255, 255, 255, 0.13);
+  --color-brand-accent-soft: rgba(255, 255, 255, 0.04);
 
-  /* Status: muted, editorial */
-  --color-brand-info: #2563eb;
-  --color-brand-success: #059669;
-  --color-brand-warning: #d97706;
-  --color-brand-danger: #dc2626;
-  --color-brand-neutral: #737373;
+  /* CTAs */
+  --color-brand-cta: #eef0f3;
+  --color-brand-cta-hover: #d8dce2;
+  --color-brand-cta-text: #12151a;
 
-  /* Legacy aliases (keeps existing class names working) */
+  --color-brand-scrim: rgba(0, 0, 0, 0.6);
+
+  /* Sidebar — deeper rail, same family as canvas */
+  --color-brand-sidebar: #0c0f14;
+  --color-brand-sidebar-elevated: #141820;
+  --color-brand-sidebar-border: rgba(255, 255, 255, 0.09);
+  --color-brand-sidebar-text: var(--color-brand-ink-secondary);
+  --color-brand-sidebar-text-muted: var(--color-brand-ink-tertiary);
+  --color-brand-sidebar-hover: var(--color-brand-accent-soft);
+  --color-brand-sidebar-active: var(--color-brand-blue-soft);
+  --color-brand-sidebar-accent: var(--color-brand-blue);
+
+  --color-brand-signature: #52c8ee;
+  --color-brand-signature-hover: #7ad8f7;
+  --color-brand-signature-soft: rgba(82, 200, 238, 0.12);
+  --color-brand-signature-muted: rgba(82, 200, 238, 0.22);
+
+  /* Functional status */
+  --color-brand-info: #52c8ee;
+  --color-brand-success: #34d399;
+  --color-brand-warning: #fbbf24;
+  --color-brand-danger: #f87171;
+  --color-brand-neutral: #8b939e;
+
+  /* Legacy aliases */
   --color-ig-bg: var(--color-brand-bg);
   --color-ig-surface: var(--color-brand-surface);
-  --color-ig-border: #ececea;
+  --color-ig-border: var(--color-brand-line);
   --color-ig-text: var(--color-brand-ink);
   --color-ig-text-secondary: var(--color-brand-ink-secondary);
-  --color-ig-blue: var(--color-brand-accent);
-  --color-ig-blue-hover: var(--color-brand-accent-hover);
+  --color-ig-blue: var(--color-brand-blue);
+  --color-ig-blue-hover: var(--color-brand-blue-hover);
   --color-ig-red: var(--color-brand-danger);
   --color-ig-green: var(--color-brand-success);
-  --color-ig-orange: var(--color-brand-warning);
-  --color-ig-purple: #7c3aed;
+  --color-ig-orange: var(--color-brand-orange);
+  --color-ig-purple: var(--color-brand-blue);
 
   --font-sans: var(--font-dm), "DM Sans", -apple-system, BlinkMacSystemFont, sans-serif;
-  --shadow-premium: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.04);
-  --shadow-premium-sm: 0 1px 2px rgba(0, 0, 0, 0.03), 0 2px 8px rgba(0, 0, 0, 0.03);
+  --shadow-premium:
+    0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 8px 28px rgba(0, 0, 0, 0.45);
+  --shadow-premium-sm:
+    0 0 0 1px rgba(255, 255, 255, 0.05),
+    0 4px 16px rgba(0, 0, 0, 0.35);
 }
 
 * {
@@ -54,15 +105,22 @@ html {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+  background: var(--color-brand-bg);
+  color-scheme: dark;
 }
 
 body {
   background: var(--color-brand-bg);
   color: var(--color-brand-ink);
   letter-spacing: -0.015em;
+  min-height: 100vh;
 }
 
-/* Premium surface utilities */
+.app-canvas {
+  background: var(--color-brand-bg);
+  min-height: 100vh;
+}
+
 .surface-premium {
   background: var(--color-brand-surface);
   border: 1px solid var(--color-brand-line);
@@ -85,6 +143,7 @@ body {
 .text-display {
   letter-spacing: -0.03em;
   font-weight: 600;
+  color: var(--color-brand-ink);
 }
 
 .link-premium {
@@ -95,21 +154,16 @@ body {
 }
 
 .link-premium:hover {
-  color: var(--color-brand-ink);
+  color: var(--color-brand-signature);
 }
 
-::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
+.scrollbar-hide {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
-::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.12);
-  border-radius: 999px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
 }
 
 @keyframes fade-in {
@@ -121,25 +175,39 @@ body {
   animation: fade-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+@keyframes marquee-x {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+.dashboard-marquee {
+  animation: marquee-x 34s linear infinite;
+  will-change: transform;
+}
+
+.dashboard-marquee:hover {
+  animation-play-state: paused;
+}
+
 @keyframes ring-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
 }
 
 .ring-available {
-  background: linear-gradient(135deg, #059669, #0a0a0a);
+  background: linear-gradient(135deg, #52c8ee, #3a9ec4);
   padding: 2px;
   border-radius: 999px;
 }
 
 .ring-limited {
-  background: linear-gradient(135deg, #d97706, #0a0a0a);
+  background: linear-gradient(135deg, #8b939e, #f07840);
   padding: 2px;
   border-radius: 999px;
 }
 
 .ring-unavailable {
-  background: #e5e5e5;
+  background: rgba(255, 255, 255, 0.12);
   padding: 2px;
   border-radius: 999px;
 }

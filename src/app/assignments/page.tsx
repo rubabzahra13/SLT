@@ -29,14 +29,14 @@ export default function AssignmentsPage() {
           return (
             <article
               key={order.id}
-              className="overflow-hidden rounded-2xl border border-ig-border bg-ig-surface"
+              className="surface-premium overflow-hidden rounded-2xl"
             >
-              <div className="border-b border-ig-border px-5 py-4">
+              <div className="border-b border-brand-line px-5 py-4">
                 <div className="flex flex-wrap items-center gap-3">
-                  <h3 className="font-semibold">{order.programName}</h3>
+                  <h3 className="text-display text-[15px]">{order.programName}</h3>
                   <StatusBadge status={order.status} />
                 </div>
-                <p className="mt-1 text-sm text-ig-text-secondary">
+                <p className="mt-1 text-sm text-brand-ink-secondary">
                   {order.customerName} · {order.category} · {order.package} ·{" "}
                   {formatPrice(order.price)}
                 </p>
@@ -47,35 +47,47 @@ export default function AssignmentsPage() {
               </div>
 
               <div className="p-5">
-                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-ig-text-secondary">
+                <p className="mb-3 text-label">
                   Suggested Producers
                 </p>
                 <div className="space-y-2">
                   {suggestions.map((producer, i) => (
                     <div
                       key={producer.id}
-                      className="flex items-center justify-between rounded-xl border border-ig-border bg-ig-bg p-4"
+                      className="flex items-center justify-between rounded-xl border border-brand-line bg-brand-accent-soft/50 p-4"
                     >
                       <div className="flex items-center gap-3">
-                        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-ig-text text-xs font-bold text-ig-surface">
+                        <span
+                          className={
+                            i === 0
+                              ? "flex h-6 w-6 items-center justify-center rounded-full bg-brand-orange-soft text-xs font-bold text-brand-orange ring-1 ring-brand-orange-muted"
+                              : "flex h-6 w-6 items-center justify-center rounded-full bg-brand-blue-soft text-xs font-bold text-brand-signature ring-1 ring-brand-blue-muted"
+                          }
+                        >
                           {i + 1}
                         </span>
                         <Avatar src={producer.avatar} alt={producer.name} />
                         <div>
-                          <p className="font-semibold">
+                          <p className="font-semibold text-brand-ink">
                             {producer.name}{" "}
-                            <span className="text-ig-text-secondary">
+                            <span className="text-brand-ink-secondary">
                               ({producer.initials})
                             </span>
                           </p>
-                          <p className="text-sm text-ig-green">
+                          <p
+                            className={
+                              i === 0
+                                ? "text-sm text-brand-orange"
+                                : "text-sm text-brand-blue"
+                            }
+                          >
                             Available {producer.nextAvailable}
                           </p>
                         </div>
                       </div>
                       <button
                         type="button"
-                        className="rounded-xl bg-ig-blue px-5 py-2 text-sm font-semibold text-white hover:bg-ig-blue-hover"
+                        className="rounded-xl bg-brand-cta px-5 py-2 text-sm font-semibold text-brand-cta-text transition hover:bg-brand-cta-hover"
                       >
                         Assign
                       </button>

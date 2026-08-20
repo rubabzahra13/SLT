@@ -19,6 +19,7 @@ import { getData } from "@/lib/data";
 import { normalizeOrder } from "@/lib/order-form";
 import {
   detectCompliance,
+  getDefaultPackagePrices,
   getPriceForPackage,
 } from "@/lib/pricing";
 import { suggestMixStartDate } from "@/lib/scheduling";
@@ -28,12 +29,14 @@ type AppStateContextValue = {
   pastOrders: Order[];
   allOrders: Order[];
   mtdRecords: MTDRecord[];
+  packagePrices: Record<string, number>;
   producers: Producer[];
   schedule: ScheduleEntry[];
   notifications: AppNotification[];
   unreadCount: number;
   moveOrderToMTD: (orderId: string) => MTDRecord | null;
   updateMTD: (id: string, patch: Partial<MTDRecord>) => void;
+  setPackagePrices: (prices: Record<string, number>) => void;
   markComplete: (orderId: string) => void;
   addPastOrder: (order: Order) => void;
   markNotificationRead: (id: string) => void;
@@ -68,6 +71,9 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const [mtdRecords, setMtdRecords] = useState<MTDRecord[]>(() =>
     normalizeMTD(seed.mtdRecords)
   );
+  const [packagePrices, setPackagePricesState] = useState<Record<string, number>>(
+    () => getDefaultPackagePrices()
+  );
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [initialized, setInitialized] = useState(false);
 
@@ -95,7 +101,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         type: "new_order",
         title: `${newOrders.length} new order${newOrders.length > 1 ? "s" : ""}`,
         message: `${newOrders[0].programName} and others awaiting review.`,
-        href: "/orders?tab=active",
+        href: "/mtd",
       });
     }
     setInitialized(true);
@@ -123,7 +129,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
       const compliance = order.priceCompliance || detectCompliance(order.musicTheme);
       const price =
-        order.price || getPriceForPackage(order.package, compliance, order.price);
+        order.price ||
+        getPriceForPackage(order.package, compliance, order.price, packagePrices);
 
       const producerInitials =
         order.editorRequest !== "FA" && order.editorRequest !== "NA"
@@ -190,8 +197,27 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
       return newRecord;
     },
-    [activeOrders, isInMTD, producers, schedule, addNotification]
+    [activeOrders, isInMTD, producers, schedule, addNotification, packagePrices]
   );
+
+  const setPackagePrices = useCallback((prices: Record<string, number>) => {
+    setPackagePricesState(prices);
+    setMtdRecords((prev) =>
+      prev.map((record) => {
+        const compliance =
+          record.priceCompliance || detectCompliance(record.musicTheme);
+        return {
+          ...record,
+          price: getPriceForPackage(
+            record.package,
+            compliance,
+            record.price,
+            prices
+          ),
+        };
+      })
+    );
+  }, []);
 
   const updateMTD = useCallback((id: string, patch: Partial<MTDRecord>) => {
     setMtdRecords((prev) =>
@@ -237,11 +263,14 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
             patch.priceCompliance ||
             detectCompliance(patch.musicTheme ?? r.musicTheme);
           updated.priceCompliance = compliance;
-          updated.price = getPriceForPackage(
-            patch.package ?? r.package,
-            compliance,
-            r.price
-          );
+          if (patch.price === undefined) {
+            updated.price = getPriceForPackage(
+              patch.package ?? r.package,
+              compliance,
+              r.price,
+              packagePrices
+            );
+          }
         }
 
         const needsCs = updated.eightCountSheet.toUpperCase().includes("NEED");
@@ -251,7 +280,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         return updated;
       })
     );
-  }, [producers, schedule]);
+  }, [producers, schedule, packagePrices]);
 
   const markComplete = useCallback(
     (orderId: string) => {
@@ -296,12 +325,14 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     pastOrders,
     allOrders,
     mtdRecords,
+    packagePrices,
     producers,
     schedule,
     notifications,
     unreadCount,
     moveOrderToMTD,
     updateMTD,
+    setPackagePrices,
     markComplete,
     addPastOrder,
     markNotificationRead,

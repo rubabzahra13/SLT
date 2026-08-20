@@ -1,25 +1,45 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import { Pencil } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { FilterPill } from "@/components/ui/FilterPill";
 import { FilterSelect } from "@/components/ui/FilterSelect";
 import { DateFilter, type DateFilterValue } from "@/components/ui/DateFilter";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { DataTable, type Column } from "@/components/ui/DataTable";
-import { InlineInput, InlineSelect, InlineDateInput } from "@/components/mtd/InlineFields";
+import { OrderFormFilters } from "@/components/orders/OrderFormFilters";
+import {
+  InlineSelect,
+  InlineDateInput,
+} from "@/components/mtd/InlineFields";
 import {
   AssignEditorModal,
   type EditorAssignmentResult,
 } from "@/components/mtd/AssignEditorModal";
+import { SetPricingModal } from "@/components/mtd/SetPricingModal";
+import { SetInvoicesModal } from "@/components/mtd/SetInvoicesModal";
+import { SetInvoiceModal } from "@/components/mtd/SetInvoiceModal";
+import { SetRecordPricingModal } from "@/components/mtd/SetRecordPricingModal";
 import { useAppState } from "@/context/AppStateContext";
 import { formatPrice, titleCase } from "@/lib/data";
 import { parsePackage } from "@/lib/package";
+import { parseMusicTheme } from "@/lib/music-theme";
 import { complianceLabel } from "@/lib/pricing";
 import { formatSlotForDisplay, suggestMixStartDate } from "@/lib/scheduling";
 import { todayIso } from "@/lib/date-filters";
-import { filterMTDRecords } from "@/lib/mtd-filters";
-import type { MTDRecord } from "@/types";
+import {
+  countMTDByCheerSubtype,
+  countMTDByDanceSubtype,
+  countMTDByForm,
+  filterMTDRecords,
+} from "@/lib/mtd-filters";
+import type {
+  CheerFormSubtype,
+  DanceFormSubtype,
+  MTDRecord,
+  OrderFormType,
+  PriceCompliance,
+} from "@/types";
 import {
   EDITOR_NAMES,
   EIGHT_CS_OPTIONS,
@@ -27,17 +47,60 @@ import {
 } from "@/types";
 import clsx from "clsx";
 
-const categoryFilters = ["All", "Cheer", "Dance", "Outsourced"];
+const DEFAULT_FORM: OrderFormType = "school-all-star-cheer";
+const DEFAULT_CHEER_SUBTYPE: CheerFormSubtype = "all-star-cheer";
+const DEFAULT_DANCE_SUBTYPE: DanceFormSubtype = "pom";
+
+const actionButtonClass = (filled: boolean) =>
+  clsx(
+    "mt-1 rounded-md border px-2 py-1 text-[11px] font-medium transition",
+    filled
+      ? "border-brand-line/70 text-brand-ink-secondary hover:border-brand-line hover:bg-brand-bg/50"
+      : "border-brand-orange/40 bg-brand-orange-soft text-brand-orange hover:bg-brand-orange-muted/30"
+  );
 
 export default function MTDPage() {
-  const { mtdRecords, updateMTD, producers, schedule } = useAppState();
-  const [activeFilter, setActiveFilter] = useState("All");
+  const {
+    mtdRecords,
+    allOrders,
+    updateMTD,
+    setPackagePrices,
+    packagePrices,
+    producers,
+    schedule,
+  } = useAppState();
+  const [form, setForm] = useState<OrderFormType>(DEFAULT_FORM);
+  const [cheerSubtype, setCheerSubtype] = useState<CheerFormSubtype>(
+    DEFAULT_CHEER_SUBTYPE
+  );
+  const [danceSubtype, setDanceSubtype] = useState<DanceFormSubtype>(
+    DEFAULT_DANCE_SUBTYPE
+  );
   const [producerFilter, setProducerFilter] = useState("All");
   const [dateFilter, setDateFilter] = useState<DateFilterValue>({
     type: "all",
     value: null,
   });
   const [assignRecord, setAssignRecord] = useState<MTDRecord | null>(null);
+  const [invoiceRecord, setInvoiceRecord] = useState<MTDRecord | null>(null);
+  const [pricingRecord, setPricingRecord] = useState<MTDRecord | null>(null);
+  const [invoicesOpen, setInvoicesOpen] = useState(false);
+  const [pricingOpen, setPricingOpen] = useState(false);
+
+  const orderById = useMemo(
+    () => new Map(allOrders.map((order) => [order.id, order])),
+    [allOrders]
+  );
+
+  const switchForm = useCallback((next: OrderFormType) => {
+    setForm(next);
+    if (next !== "school-all-star-cheer") {
+      setCheerSubtype(DEFAULT_CHEER_SUBTYPE);
+    }
+    if (next !== "school-all-star-dance") {
+      setDanceSubtype(DEFAULT_DANCE_SUBTYPE);
+    }
+  }, []);
 
   const handleAssign = useCallback(
     (recordId: string, result: EditorAssignmentResult) => {
@@ -60,14 +123,84 @@ export default function MTDPage() {
     []
   );
 
+  const openInvoiceModal = useCallback(
+    (rec: MTDRecord, e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setInvoiceRecord(rec);
+    },
+    []
+  );
+
+  const openRecordPricingModal = useCallback(
+    (rec: MTDRecord, e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setPricingRecord(rec);
+    },
+    []
+  );
+
+  const handleInvoiceSave = useCallback(
+    (recordId: string, invoice: string) => {
+      updateMTD(recordId, { invoice });
+    },
+    [updateMTD]
+  );
+
+  const handleRecordPricingSave = useCallback(
+    (
+      recordId: string,
+      patch: { price: number; priceCompliance: PriceCompliance }
+    ) => {
+      updateMTD(recordId, patch);
+    },
+    [updateMTD]
+  );
+
+  const handleInvoicesSave = useCallback(
+    (updates: Record<string, string>) => {
+      for (const [id, invoice] of Object.entries(updates)) {
+        updateMTD(id, { invoice: invoice.trim() });
+      }
+    },
+    [updateMTD]
+  );
+
   const filtered = useMemo(
     () =>
       filterMTDRecords(mtdRecords, {
-        category: activeFilter,
         producer: producerFilter,
         dateFilter,
+        form,
+        cheerSubtype,
+        danceSubtype,
+        orderById,
       }),
-    [mtdRecords, activeFilter, producerFilter, dateFilter]
+    [
+      mtdRecords,
+      producerFilter,
+      dateFilter,
+      form,
+      cheerSubtype,
+      danceSubtype,
+      orderById,
+    ]
+  );
+
+  const formCounts = useMemo(
+    () => countMTDByForm(mtdRecords, orderById),
+    [mtdRecords, orderById]
+  );
+
+  const cheerSubtypeCounts = useMemo(
+    () => countMTDByCheerSubtype(mtdRecords, orderById),
+    [mtdRecords, orderById]
+  );
+
+  const danceSubtypeCounts = useMemo(
+    () => countMTDByDanceSubtype(mtdRecords, orderById),
+    [mtdRecords, orderById]
   );
 
   const producerOptions = useMemo(() => {
@@ -101,9 +234,10 @@ export default function MTDPage() {
       {
         key: "contactC",
         header: "Contact (C)",
-        width: "96px",
+        width: "160px",
+        nowrap: false,
         render: (rec) => (
-          <span className="text-brand-ink-secondary">
+          <span className="whitespace-nowrap text-brand-ink-secondary">
             {titleCase(rec.contactName)}
           </span>
         ),
@@ -133,12 +267,25 @@ export default function MTDPage() {
       {
         key: "limitE",
         header: "Limit",
-        width: "108px",
+        width: "72px",
         render: (rec) => {
           const { limit } = parsePackage(rec.package);
           return (
-            <span className="text-[12px] text-brand-ink-secondary tabular-nums">
-              {titleCase(limit)}
+            <span className="text-[12px] tabular-nums text-brand-ink-secondary">
+              {limit}
+            </span>
+          );
+        },
+      },
+      {
+        key: "splitE",
+        header: "Split",
+        width: "88px",
+        render: (rec) => {
+          const { split } = parsePackage(rec.package);
+          return (
+            <span className="text-[12px] text-brand-ink-secondary">
+              {split}
             </span>
           );
         },
@@ -148,11 +295,27 @@ export default function MTDPage() {
         header: "Music (F)",
         width: "180px",
         nowrap: false,
-        render: (rec) => (
-          <span className="text-[11px] text-brand-ink-tertiary">
-            {titleCase(rec.musicTheme)}
-          </span>
-        ),
+        render: (rec) => {
+          const { music } = parseMusicTheme(rec.musicTheme);
+          return (
+            <span className="text-[11px] text-brand-ink-tertiary">
+              {titleCase(music)}
+            </span>
+          );
+        },
+      },
+      {
+        key: "chosenInitialsF",
+        header: "Requested editor",
+        width: "108px",
+        render: (rec) => {
+          const { chosenInitials } = parseMusicTheme(rec.musicTheme);
+          return (
+            <span className="text-[12px] font-medium uppercase tabular-nums text-brand-ink-secondary">
+              {chosenInitials}
+            </span>
+          );
+        },
       },
       {
         key: "priceG",
@@ -176,25 +339,13 @@ export default function MTDPage() {
         ),
       },
       {
-        key: "invoiceH",
-        header: "Invoice (H)",
-        width: "80px",
-        render: (rec) => (
-          <InlineInput
-            value={rec.invoice}
-            placeholder="#"
-            onChange={(v) => updateMTD(rec.id, { invoice: v })}
-          />
-        ),
-      },
-      {
         key: "mixDateI",
         header: "Mix date (I)",
         width: "128px",
         render: (rec) => {
           const template = rec.assignedProducer
-              ? suggestMixStartDate(rec.assignedProducer, producers, schedule)
-              : todayIso();
+            ? suggestMixStartDate(rec.assignedProducer, producers, schedule)
+            : todayIso();
 
           return (
             <div onClick={(e) => e.stopPropagation()}>
@@ -205,7 +356,11 @@ export default function MTDPage() {
               />
               {rec.assignedProducer ? (
                 <p className="mt-1 truncate text-[9px] text-brand-success">
-                  {formatSlotForDisplay(rec.assignedProducer, producers, schedule)}
+                  {formatSlotForDisplay(
+                    rec.assignedProducer,
+                    producers,
+                    schedule
+                  )}
                 </p>
               ) : null}
             </div>
@@ -241,43 +396,112 @@ export default function MTDPage() {
         header: "Editor (B)",
         width: "108px",
         render: (rec) => (
-          <div className="min-w-[88px]">
+          <div className="min-w-[88px]" onClick={(e) => e.stopPropagation()}>
             {rec.assignedProducer ? (
-              <div className="space-y-0.5">
-                <p className="truncate text-[12px] font-medium">
-                  {rec.assignedProducer}
-                </p>
-                {rec.editorRequest === "FA" ? (
-                  <p className="text-[9px] uppercase tracking-wide text-brand-info">
-                    First available
+              <div className="flex items-start gap-1.5">
+                <div className="min-w-0 flex-1 space-y-0.5">
+                  <p className="truncate text-[12px] font-medium">
+                    {rec.assignedProducer}
                   </p>
-                ) : null}
-                {rec.bookedUntil ? (
-                  <p className="text-[9px] tabular-nums text-brand-ink-tertiary">
-                    thru {rec.bookedUntil}
-                  </p>
-                ) : null}
+                  {rec.editorRequest === "FA" ? (
+                    <p className="text-[9px] uppercase tracking-wide text-brand-info">
+                      First available
+                    </p>
+                  ) : null}
+                  {rec.bookedUntil ? (
+                    <p className="text-[9px] tabular-nums text-brand-ink-tertiary">
+                      thru {rec.bookedUntil}
+                    </p>
+                  ) : null}
+                </div>
+                <button
+                  type="button"
+                  onClick={(e) => openAssignModal(rec, e)}
+                  className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-brand-ink-tertiary transition hover:bg-brand-bg hover:text-brand-orange"
+                  title="Reassign editor"
+                  aria-label="Reassign editor"
+                >
+                  <Pencil className="h-3 w-3" strokeWidth={2} />
+                </button>
               </div>
-            ) : rec.editorRequest === "NA" ? (
-              <span className="text-[12px] text-brand-ink-tertiary">NA</span>
-            ) : null}
+            ) : (
+              <>
+                {rec.editorRequest === "NA" ? (
+                  <span className="text-[12px] text-brand-ink-tertiary">NA</span>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={(e) => openAssignModal(rec, e)}
+                  className={actionButtonClass(false)}
+                >
+                  Assign
+                </button>
+              </>
+            )}
+          </div>
+        ),
+      },
+      {
+        key: "invoiceAction",
+        header: "Invoice",
+        width: "112px",
+        render: (rec) => {
+          const invoice = rec.invoice?.trim() ?? "";
+          return (
+            <div className="min-w-[88px]" onClick={(e) => e.stopPropagation()}>
+              {invoice ? (
+                <div className="flex items-center gap-1.5">
+                  <span className="min-w-0 truncate text-[12px] font-medium tabular-nums text-brand-ink">
+                    {invoice}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={(e) => openInvoiceModal(rec, e)}
+                    className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-brand-ink-tertiary transition hover:bg-brand-bg hover:text-brand-orange"
+                    title="Edit invoice"
+                    aria-label="Edit invoice"
+                  >
+                    <Pencil className="h-3 w-3" strokeWidth={2} />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={(e) => openInvoiceModal(rec, e)}
+                  className={actionButtonClass(false)}
+                >
+                  Invoice
+                </button>
+              )}
+            </div>
+          );
+        },
+      },
+      {
+        key: "pricingAction",
+        header: "Pricing",
+        width: "108px",
+        render: (rec) => (
+          <div className="min-w-[88px]" onClick={(e) => e.stopPropagation()}>
             <button
               type="button"
-              onClick={(e) => openAssignModal(rec, e)}
-              className={clsx(
-                "mt-1 rounded-md border px-2 py-1 text-[11px] font-medium transition",
-                rec.assignedProducer
-                  ? "border-brand-line/70 text-brand-ink-secondary hover:border-brand-line hover:bg-brand-bg/50"
-                  : "border-brand-info/40 bg-brand-info/10 text-brand-info hover:bg-brand-info/15"
-              )}
+              onClick={(e) => openRecordPricingModal(rec, e)}
+              className={actionButtonClass(rec.price > 0)}
             >
-              {rec.assignedProducer ? "Reassign" : "Assign"}
+              Pricing
             </button>
           </div>
         ),
       },
     ],
-    [updateMTD, producers, schedule, openAssignModal]
+    [
+      updateMTD,
+      producers,
+      schedule,
+      openAssignModal,
+      openInvoiceModal,
+      openRecordPricingModal,
+    ]
   );
 
   return (
@@ -287,42 +511,49 @@ export default function MTDPage() {
         subtitle={`${mtdRecords.length} entries · spreadsheet cols B through K`}
       />
 
-      <div className="space-y-5 px-4 py-5 sm:px-6 lg:px-8">
-        <div className="flex flex-col gap-3">
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {categoryFilters.map((filter) => (
-              <FilterPill
-                key={filter}
-                label={filter}
-                active={activeFilter === filter}
-                onClick={() => setActiveFilter(filter)}
+      <div className="px-6 py-6 lg:px-8">
+        <div className="overflow-hidden rounded-xl border border-brand-line bg-brand-surface shadow-[var(--shadow-premium-sm)]">
+          <OrderFormFilters
+            form={form}
+            cheerSubtype={cheerSubtype}
+            danceSubtype={danceSubtype}
+            onFormChange={switchForm}
+            onCheerSubtypeChange={setCheerSubtype}
+            onDanceSubtypeChange={setDanceSubtype}
+            formCounts={formCounts}
+            cheerCounts={cheerSubtypeCounts}
+            danceCounts={danceSubtypeCounts}
+            onInvoiceClick={() => setInvoicesOpen(true)}
+            onPricingClick={() => setPricingOpen(true)}
+          />
+
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-brand-line bg-brand-bg/30 px-4 py-2.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <FilterSelect
+                label="Producer"
+                value={producerFilter}
+                options={producerOptions}
+                onChange={setProducerFilter}
+                accent="orange"
               />
-            ))}
+              <DateFilter value={dateFilter} onChange={setDateFilter} />
+              <span className="text-[12px] text-brand-ink-tertiary">
+                {filtered.length} of {mtdRecords.length} entries
+              </span>
+            </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <FilterSelect
-              label="Producer"
-              value={producerFilter}
-              options={producerOptions}
-              onChange={setProducerFilter}
-            />
-            <DateFilter value={dateFilter} onChange={setDateFilter} />
-            <span className="text-[12px] text-brand-ink-tertiary">
-              {filtered.length} of {mtdRecords.length} entries
-            </span>
-          </div>
+          <DataTable
+            key={`${form}-${cheerSubtype}-${danceSubtype}-${producerFilter}-${dateFilter.type}-${String(dateFilter.value)}`}
+            columns={columns}
+            data={filtered}
+            rowKey={(rec) => rec.id}
+            href={(rec) => `/mtd/${rec.id}`}
+            emptyMessage="No MTD entries match this filter."
+            pageSize={15}
+            embedded
+          />
         </div>
-
-        <DataTable
-          key={`${activeFilter}-${producerFilter}-${dateFilter.type}-${String(dateFilter.value)}`}
-          columns={columns}
-          data={filtered}
-          rowKey={(rec) => rec.id}
-          href={(rec) => `/mtd/${rec.id}`}
-          emptyMessage="No MTD entries match this filter."
-          pageSize={15}
-        />
       </div>
 
       <AssignEditorModal
@@ -333,6 +564,35 @@ export default function MTDPage() {
         schedule={schedule}
         onClose={() => setAssignRecord(null)}
         onAssign={handleAssign}
+      />
+
+      <SetInvoiceModal
+        open={Boolean(invoiceRecord)}
+        record={invoiceRecord}
+        onClose={() => setInvoiceRecord(null)}
+        onSave={handleInvoiceSave}
+      />
+
+      <SetRecordPricingModal
+        open={Boolean(pricingRecord)}
+        record={pricingRecord}
+        packagePrices={packagePrices}
+        onClose={() => setPricingRecord(null)}
+        onSave={handleRecordPricingSave}
+      />
+
+      <SetInvoicesModal
+        open={invoicesOpen}
+        records={filtered}
+        onClose={() => setInvoicesOpen(false)}
+        onSave={handleInvoicesSave}
+      />
+
+      <SetPricingModal
+        open={pricingOpen}
+        prices={packagePrices}
+        onClose={() => setPricingOpen(false)}
+        onSave={setPackagePrices}
       />
     </>
   );

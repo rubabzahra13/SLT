@@ -1,125 +1,184 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { FilterPill } from "@/components/ui/FilterPill";
-import { Avatar } from "@/components/ui/Avatar";
-import { getData } from "@/lib/data";
-import clsx from "clsx";
+import { TeamScheduleMatrix } from "@/components/schedule/TeamScheduleMatrix";
+import {
+  ScheduleDayDrawer,
+  TeamScheduleCalendar,
+} from "@/components/schedule/TeamScheduleCalendar";
+import { ProducerScheduleDrawer } from "@/components/schedule/ProducerScheduleDrawer";
+import { useAppState } from "@/context/AppStateContext";
+import {
+  aggregateColumns,
+  buildTeamSchedule,
+  type CalendarDay,
+  type ScheduleCell,
+  type ScheduleViewRange,
+  type TeamScheduleRow,
+} from "@/lib/schedule-view";
 
-const days = ["Mon Aug 18", "Tue Aug 19", "Wed Aug 20", "Thu Aug 21", "Fri Aug 22"];
+const ANCHOR_DATE = new Date(2026, 7, 19);
+
+const specialtyFilters = ["All", "Cheer", "Dance", "Marching Band"];
+const presentationFilters = ["Matrix", "Calendar"] as const;
+type SchedulePresentation = "matrix" | "calendar";
 
 export default function SchedulePage() {
-  const { producers, schedule } = getData();
-  const [selectedProducer, setSelectedProducer] = useState<string>("All");
-  const [view, setView] = useState<"week" | "month">("week");
+  const { producers, schedule } = useAppState();
+  const [view, setView] = useState<ScheduleViewRange>("week");
+  const [presentation, setPresentation] = useState<SchedulePresentation>("matrix");
+  const [specialty, setSpecialty] = useState("All");
+  const [drawerRow, setDrawerRow] = useState<TeamScheduleRow | null>(null);
+  const [focusCell, setFocusCell] = useState<ScheduleCell | null>(null);
+  const [selectedDay, setSelectedDay] = useState<CalendarDay | null>(null);
 
-  const filteredProducers =
-    selectedProducer === "All"
-      ? producers
-      : producers.filter((p) => p.initials === selectedProducer);
+  const filteredProducers = useMemo(
+    () =>
+      specialty === "All"
+        ? producers
+        : producers.filter((p) => p.specialty === specialty),
+    [producers, specialty]
+  );
+
+  const teamRows = useMemo(
+    () => buildTeamSchedule(filteredProducers, schedule, view, ANCHOR_DATE),
+    [filteredProducers, schedule, view]
+  );
+
+  const columns = useMemo(
+    () => aggregateColumns(teamRows, ANCHOR_DATE),
+    [teamRows]
+  );
+
+  const calendarRange: "week" | "month" = view === "90days" ? "month" : view;
+
+  function handleSelectProducer(row: TeamScheduleRow, cell?: ScheduleCell) {
+    setSelectedDay(null);
+    setDrawerRow(row);
+    setFocusCell(cell ?? null);
+  }
+
+  function closeDrawer() {
+    setDrawerRow(null);
+    setFocusCell(null);
+  }
+
+  function handlePresentationChange(next: SchedulePresentation) {
+    setPresentation(next);
+    setSelectedDay(null);
+    if (next === "calendar" && view === "90days") {
+      setView("month");
+    }
+  }
+
+  function handleSelectDay(day: CalendarDay) {
+    setDrawerRow(null);
+    setFocusCell(null);
+    setSelectedDay(day);
+  }
+
+  function handleOpenProducerFromDay(producerId: string, dayKey: string) {
+    const row = teamRows.find((entry) => entry.producer.id === producerId);
+    if (!row) return;
+    const cell = row.cells.find((entry) => entry.key === dayKey);
+    setSelectedDay(null);
+    setDrawerRow(row);
+    setFocusCell(cell ?? null);
+  }
 
   return (
     <>
       <PageHeader
         title="Producer Schedule"
-        subtitle="See availability by producer without scrolling the spreadsheet"
       />
 
-      <div className="space-y-6 p-8">
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          <FilterPill
-            label="All"
-            active={selectedProducer === "All"}
-            onClick={() => setSelectedProducer("All")}
+      <div className="space-y-2.5 px-2 py-2.5 lg:px-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <nav className="flex flex-wrap gap-2" aria-label="Producer specialty">
+            {specialtyFilters.map((filter) => (
+              <FilterPill
+                key={filter}
+                label={filter}
+                active={specialty === filter}
+                onClick={() => setSpecialty(filter)}
+              />
+            ))}
+          </nav>
+
+          <nav className="flex flex-wrap gap-2" aria-label="Schedule presentation">
+            {presentationFilters.map((label) => {
+              const next = label.toLowerCase() as SchedulePresentation;
+              return (
+                <FilterPill
+                  key={label}
+                  label={label}
+                  active={presentation === next}
+                  accent="orange"
+                  onClick={() => handlePresentationChange(next)}
+                />
+              );
+            })}
+          </nav>
+
+          <nav
+            className="ml-auto flex flex-wrap gap-2"
+            aria-label="Schedule range"
+          >
+            <FilterPill
+              label="Weekly"
+              active={view === "week"}
+              onClick={() => setView("week")}
+            />
+            <FilterPill
+              label="Monthly"
+              active={view === "month"}
+              onClick={() => setView("month")}
+            />
+            {presentation === "matrix" ? (
+              <FilterPill
+                label="90 days"
+                active={view === "90days"}
+                onClick={() => setView("90days")}
+              />
+            ) : null}
+          </nav>
+        </div>
+
+        {presentation === "matrix" ? (
+          <TeamScheduleMatrix
+            rows={teamRows}
+            columns={columns}
+            range={view}
+            activeProducerId={drawerRow?.producer.id}
+            onSelectProducer={handleSelectProducer}
           />
-          {producers.map((p) => (
-            <button
-              key={p.id}
-              type="button"
-              onClick={() => setSelectedProducer(p.initials)}
-              className={clsx(
-                "flex shrink-0 items-center gap-2.5 rounded-full border px-3 py-1.5 transition",
-                selectedProducer === p.initials
-                  ? "border-brand-accent bg-brand-accent text-white"
-                  : "border-brand-line bg-brand-surface text-brand-ink-secondary hover:border-brand-line-strong"
-              )}
-            >
-              <Avatar src={p.avatar} alt={p.name} size="sm" />
-              <span className="text-[12px] font-medium">{p.initials}</span>
-            </button>
-          ))}
-        </div>
-
-        <div className="flex gap-2">
-          <FilterPill label="Weekly" active={view === "week"} onClick={() => setView("week")} />
-          <FilterPill label="Monthly" active={view === "month"} onClick={() => setView("month")} />
-        </div>
-
-        {filteredProducers.map((producer) => {
-          const producerSchedule = schedule.filter(
-            (s) => s.producer === producer.initials
-          );
-
-          return (
-            <div key={producer.id} className="surface-premium overflow-hidden rounded-2xl">
-              <div className="flex items-center justify-between border-b border-brand-line px-6 py-4">
-                <div className="flex items-center gap-3">
-                  <Avatar src={producer.avatar} alt={producer.name} />
-                  <div>
-                    <p className="text-display text-[14px]">{producer.name}</p>
-                    <p className="text-[12px] text-brand-ink-tertiary">
-                      {producer.specialty} · Next {producer.nextAvailable}
-                    </p>
-                  </div>
-                </div>
-                <span
-                  className={clsx(
-                    "rounded-md px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide ring-1 ring-inset",
-                    producer.status === "available" &&
-                      "bg-[#ecfdf5] text-brand-success ring-[#a7f3d0]",
-                    producer.status === "limited" &&
-                      "bg-[#fffbeb] text-brand-warning ring-[#fde68a]",
-                    producer.status === "unavailable" &&
-                      "bg-brand-bg text-brand-neutral ring-brand-line"
-                  )}
-                >
-                  {producer.status}
-                </span>
-              </div>
-
-              <div className="grid grid-cols-5">
-                {days.map((day) => {
-                  const entry = producerSchedule.find((s) => s.day === day);
-                  const status = entry?.status || "available";
-
-                  return (
-                    <div
-                      key={day}
-                      className="border-r border-brand-line px-4 py-5 text-center last:border-r-0"
-                    >
-                      <p className="text-label">{day.split(" ")[0]}</p>
-                      <p className="mt-0.5 text-[11px] text-brand-ink-tertiary">
-                        {day.split(" ").slice(1).join(" ")}
-                      </p>
-                      <div
-                        className={clsx(
-                          "mx-auto mt-4 flex h-10 w-10 items-center justify-center rounded-full text-[10px] font-semibold uppercase tracking-wide",
-                          status === "mix" && "bg-brand-accent text-white",
-                          status === "available" && "bg-brand-bg text-brand-ink-secondary ring-1 ring-brand-line",
-                          status === "off" && "bg-brand-bg text-brand-ink-tertiary"
-                        )}
-                      >
-                        {status === "mix" ? "Mix" : status === "off" ? "Off" : "Open"}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
+        ) : (
+          <TeamScheduleCalendar
+            rows={teamRows}
+            range={calendarRange}
+            selectedDayKey={selectedDay?.key}
+            onSelectDay={handleSelectDay}
+          />
+        )}
       </div>
+
+      <ScheduleDayDrawer
+        open={Boolean(selectedDay)}
+        day={selectedDay}
+        onClose={() => setSelectedDay(null)}
+        onSelectProducer={handleOpenProducerFromDay}
+      />
+
+      <ProducerScheduleDrawer
+        open={Boolean(drawerRow)}
+        producer={drawerRow?.producer ?? null}
+        cells={drawerRow?.cells ?? []}
+        range={view}
+        focusCell={focusCell}
+        onClose={closeDrawer}
+      />
     </>
   );
 }

@@ -64,19 +64,19 @@ export function titleCase(text: string): string {
 export function getStatusColor(status: string): string {
   switch (status) {
     case "new":
-      return "bg-[#eff6ff] text-brand-info ring-[#bfdbfe]";
+      return "bg-brand-blue-soft text-brand-signature ring-brand-blue-muted";
     case "active":
-      return "bg-[#ecfdf5] text-brand-success ring-[#a7f3d0]";
+      return "bg-brand-accent-soft text-brand-ink-secondary ring-brand-line";
     case "needs_attention":
-      return "bg-[#fffbeb] text-brand-warning ring-[#fde68a]";
+      return "bg-brand-orange-soft text-brand-orange ring-brand-orange-muted";
     case "outsourced":
-      return "bg-[#f5f3ff] text-[#6d28d9] ring-[#ddd6fe]";
+      return "bg-brand-orange-soft/70 text-brand-orange ring-brand-orange-muted";
     case "completed":
-      return "bg-brand-bg text-brand-neutral ring-brand-line";
+      return "bg-brand-accent-soft text-brand-ink-tertiary ring-brand-line";
     case "in_mtd":
-      return "bg-[#f0fdf4] text-brand-success ring-[#bbf7d0]";
+      return "bg-brand-blue-soft text-brand-signature ring-brand-blue-muted";
     default:
-      return "bg-brand-bg text-brand-neutral ring-brand-line";
+      return "bg-brand-accent-soft text-brand-neutral ring-brand-line";
   }
 }
 

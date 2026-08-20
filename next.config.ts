@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Hide Next.js dev indicator ("N" badge) in development
+  devIndicators: false,
   images: {
     remotePatterns: [{ protocol: "https", hostname: "api.dicebear.com" }],
   },

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useAppState } from "@/context/AppStateContext";
-import { formatPrice } from "@/lib/data";
+import { formatPrice, titleCase } from "@/lib/data";
 import { getInProgressRecords } from "@/lib/mtd-filters";
 
 export default function OutsourcedPage() {
@@ -28,7 +28,7 @@ export default function OutsourcedPage() {
             <Link
               key={rec.id}
               href={`/mtd/${rec.id}`}
-              className="group rounded-2xl border border-brand-line bg-brand-surface p-5 transition hover:shadow-md"
+              className="group rounded-2xl border border-brand-line bg-brand-surface p-5 transition hover:border-brand-orange-muted hover:shadow-md"
             >
               <div className="flex items-start justify-between gap-2">
                 <StatusBadge
@@ -40,11 +40,12 @@ export default function OutsourcedPage() {
                   </span>
                 ) : null}
               </div>
-              <h3 className="mt-3 font-semibold group-hover:text-brand-info">
-                {rec.programName}
+              <h3 className="mt-3 font-semibold transition group-hover:text-brand-orange">
+                {titleCase(rec.programName)}
               </h3>
               <p className="mt-1 text-sm text-brand-ink-secondary">
-                {rec.assignedProducer} · {rec.package}
+                {titleCase(rec.assignedProducer ?? "")} ·{" "}
+                {titleCase(rec.package)}
               </p>
               <div className="mt-4 rounded-xl bg-brand-bg p-3">
                 <p className="text-xs font-medium text-brand-ink-secondary">

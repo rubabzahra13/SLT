@@ -12,8 +12,8 @@ type PageHeaderProps = {
 
 export function PageHeader({ title, subtitle, action, tabs }: PageHeaderProps) {
   return (
-    <header className="sticky top-0 z-30 border-b border-brand-line bg-brand-surface/95 shadow-[0_1px_0_rgba(0,0,0,0.03)] backdrop-blur-xl backdrop-saturate-150">
-      <div className="px-6 lg:px-8">
+    <header className="sticky top-0 z-30 border-b border-brand-line bg-brand-bg/95 shadow-[var(--shadow-premium-sm)] backdrop-blur-xl backdrop-saturate-150">
+      <div className="px-4 lg:px-5">
         <div className="flex items-center justify-between gap-4 py-4">
           <div className="min-w-0">
             <h1 className="text-display text-[20px] leading-none tracking-[-0.03em]">
@@ -33,7 +33,7 @@ export function PageHeader({ title, subtitle, action, tabs }: PageHeaderProps) {
               <input
                 type="search"
                 placeholder="Search"
-                className="h-8 w-40 rounded-lg border border-brand-line bg-brand-bg/80 pl-9 pr-3 text-[13px] outline-none transition placeholder:text-brand-ink-tertiary focus:border-brand-line-strong focus:bg-brand-surface lg:w-48"
+                className="h-8 w-40 rounded-lg border border-brand-line bg-brand-accent-soft pl-9 pr-3 text-[13px] outline-none transition placeholder:text-brand-ink-tertiary focus:border-brand-blue/30 focus:bg-brand-surface focus:ring-2 focus:ring-brand-blue-muted lg:w-48"
               />
             </div>
 
@@ -43,7 +43,7 @@ export function PageHeader({ title, subtitle, action, tabs }: PageHeaderProps) {
               <button
                 type="button"
                 onClick={action.onClick}
-                className="flex items-center gap-1.5 rounded-lg bg-brand-accent px-3.5 py-2 text-[13px] font-semibold text-white shadow-sm transition hover:bg-brand-accent-hover"
+                className="flex items-center gap-1.5 rounded-lg bg-brand-cta px-3.5 py-2 text-[13px] font-semibold text-brand-cta-text shadow-sm transition hover:bg-brand-cta-hover"
               >
                 <Plus className="h-3.5 w-3.5" strokeWidth={2.5} />
                 <span className="hidden sm:inline">{action.label}</span>

@@ -3,7 +3,6 @@ import { DM_Sans } from "next/font/google";
 import { AppStateProvider } from "@/context/AppStateContext";
 import { SidebarProvider } from "@/context/SidebarContext";
 import { AppShell } from "@/components/layout/AppShell";
-import { ToastStack } from "@/components/notifications/NotificationBell";
 import "./globals.css";
 
 const dmSans = DM_Sans({
@@ -29,7 +28,6 @@ export default function RootLayout({
         <AppStateProvider>
           <SidebarProvider>
             <AppShell>{children}</AppShell>
-            <ToastStack />
           </SidebarProvider>
         </AppStateProvider>
       </body>

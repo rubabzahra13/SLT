@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
 import clsx from "clsx";
+import { DottedScroll } from "@/components/ui/DottedScroll";
 import {
   defaultBookedUntil,
   getSuggestedEditors,
@@ -123,12 +124,12 @@ export function AssignEditorModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <button
         type="button"
-        className="absolute inset-0 bg-brand-ink/20 backdrop-blur-sm"
+        className="absolute inset-0 bg-brand-scrim backdrop-blur-sm"
         onClick={onClose}
         aria-label="Close"
       />
-      <div className="surface-premium relative max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl p-6 shadow-[var(--shadow-premium)]">
-        <div className="mb-6 flex items-start justify-between gap-4">
+      <div className="surface-premium relative flex max-h-[90vh] w-full max-w-lg flex-col rounded-2xl shadow-[var(--shadow-premium)]">
+        <div className="flex items-start justify-between gap-4 p-6 pb-0">
           <div>
             <p className="text-label">Editor assignment</p>
             <h2 className="text-display mt-1 text-[18px]">Assign producer</h2>
@@ -145,7 +146,12 @@ export function AssignEditorModal({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <DottedScroll
+          className="min-h-0 flex-1"
+          scrollClassName="overflow-y-scroll scrollbar-hide px-6 pb-6"
+          indicatorPlacement="gutter"
+        >
+        <form onSubmit={handleSubmit} className="space-y-5 pt-6">
           <fieldset className="space-y-2">
             <legend className="text-label mb-2">Assignment type</legend>
             <div className="grid gap-2 sm:grid-cols-3">
@@ -185,7 +191,12 @@ export function AssignEditorModal({
                   instead.
                 </p>
               ) : (
-                <div className="max-h-52 space-y-2 overflow-y-auto pr-1">
+                <DottedScroll
+                  className="max-h-52"
+                  scrollClassName="max-h-52 overflow-y-scroll scrollbar-hide"
+                  indicatorPlacement="gutter"
+                  contentClassName="space-y-2"
+                >
                   {suggestions.map((suggestion) => (
                     <label
                       key={suggestion.name}
@@ -213,7 +224,7 @@ export function AssignEditorModal({
                       </span>
                     </label>
                   ))}
-                </div>
+                </DottedScroll>
               )}
             </div>
           ) : null}
@@ -268,12 +279,13 @@ export function AssignEditorModal({
             <button
               type="submit"
               disabled={!canSubmit}
-              className="rounded-lg bg-brand-ink px-4 py-2 text-[13px] font-medium text-brand-surface transition hover:bg-brand-ink/90 disabled:cursor-not-allowed disabled:opacity-45"
+              className="rounded-lg bg-brand-cta px-4 py-2 text-[13px] font-medium text-brand-cta-text transition hover:bg-brand-cta-hover disabled:cursor-not-allowed disabled:opacity-45"
             >
               Assign
             </button>
           </div>
         </form>
+        </DottedScroll>
       </div>
     </div>
   );

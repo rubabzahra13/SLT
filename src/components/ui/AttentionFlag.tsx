@@ -10,16 +10,16 @@ export function AttentionFlag({ reason, compact }: AttentionFlagProps) {
   return (
     <div
       className={clsx(
-        "flex items-start gap-3 rounded-xl border border-brand-warning/20 bg-[#fffbeb] transition hover:border-brand-warning/30",
+        "flex items-start gap-3 rounded-xl border border-brand-line bg-brand-surface transition hover:border-brand-line-strong hover:shadow-[var(--shadow-premium-sm)]",
         compact ? "p-3" : "p-4"
       )}
     >
       <AlertCircle
-        className="mt-0.5 h-4 w-4 shrink-0 text-brand-warning"
+        className="mt-0.5 h-4 w-4 shrink-0 text-brand-orange"
         strokeWidth={1.75}
       />
       <div>
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-brand-warning">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-brand-ink-secondary">
           Needs attention
         </p>
         {!compact ? (

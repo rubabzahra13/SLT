@@ -1,6 +1,7 @@
 "use client";
 
 import clsx from "clsx";
+import { DottedScroll } from "@/components/ui/DottedScroll";
 import type { CheerFormSubtype } from "@/types";
 
 export type CheerMainCategory = "all-star-cheer" | "school-cheer" | "youth-rec-cheer";
@@ -52,10 +53,13 @@ export function OrderCheerSubTabs({ subtype, onChange, counts }: OrderCheerSubTa
 
   return (
     <div className="border-b border-brand-line bg-brand-bg/20">
-      <nav
-        className="flex gap-1 overflow-x-auto px-4 py-2 scrollbar-none"
-        aria-label="Cheer form categories"
+      <DottedScroll
+        orientation="horizontal"
+        scrollClassName="overflow-x-scroll scrollbar-hide"
+        indicatorPlacement="below"
+        contentClassName="flex w-max min-w-full px-4 py-2"
       >
+        <nav className="flex gap-1" aria-label="Cheer form categories">
         {MAIN_CATEGORIES.map(({ id, label }) => {
           const active = category === id;
           return (
@@ -75,13 +79,17 @@ export function OrderCheerSubTabs({ subtype, onChange, counts }: OrderCheerSubTa
             </button>
           );
         })}
-      </nav>
+        </nav>
+      </DottedScroll>
 
       {category === "school-cheer" ? (
-        <nav
-          className="flex gap-1 border-t border-brand-line/60 px-4 py-2 pl-6 scrollbar-none"
-          aria-label="School Cheer form types"
+        <DottedScroll
+          orientation="horizontal"
+          scrollClassName="overflow-x-scroll scrollbar-hide"
+          indicatorPlacement="below"
+          contentClassName="flex w-max min-w-full border-t border-brand-line/60 px-4 py-2 pl-6"
         >
+          <nav className="flex gap-1" aria-label="School Cheer form types">
           <button
             type="button"
             onClick={() => onChange("school-cheer-viroc-yes")}
@@ -122,7 +130,8 @@ export function OrderCheerSubTabs({ subtype, onChange, counts }: OrderCheerSubTa
               {counts["school-cheer-viroc-no"] ?? 0}
             </span>
           </button>
-        </nav>
+          </nav>
+        </DottedScroll>
       ) : null}
     </div>
   );

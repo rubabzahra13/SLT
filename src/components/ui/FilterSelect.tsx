@@ -1,5 +1,6 @@
 import clsx from "clsx";
 import { ChevronDown } from "lucide-react";
+import type { BrandAccent } from "@/lib/brand-colors";
 
 export type FilterSelectOption = {
   value: string;
@@ -13,6 +14,12 @@ type FilterSelectProps = {
   options: FilterSelectOption[];
   onChange: (value: string) => void;
   className?: string;
+  accent?: BrandAccent;
+};
+
+const accentDot: Record<BrandAccent, string> = {
+  blue: "bg-brand-blue",
+  orange: "bg-brand-orange",
 };
 
 export function FilterSelect({
@@ -21,6 +28,7 @@ export function FilterSelect({
   options,
   onChange,
   className,
+  accent = "blue",
 }: FilterSelectProps) {
   return (
     <label
@@ -29,6 +37,10 @@ export function FilterSelect({
         className
       )}
     >
+      <span
+        className={clsx("h-1.5 w-1.5 shrink-0 rounded-full", accentDot[accent])}
+        aria-hidden
+      />
       <span className="text-[10px] font-semibold uppercase tracking-wide text-brand-ink-tertiary">
         {label}
       </span>

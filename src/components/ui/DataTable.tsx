@@ -4,6 +4,7 @@ import clsx from "clsx";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { DottedScroll } from "@/components/ui/DottedScroll";
 
 export type Column<T> = {
   key: string;
@@ -90,7 +91,12 @@ export function DataTable<T>({
         embedded ? "" : "surface-premium overflow-hidden rounded-2xl"
       )}
     >
-      <div className="overflow-x-auto">
+      <DottedScroll
+        orientation="horizontal"
+        scrollClassName="w-full overflow-x-scroll scrollbar-hide"
+        indicatorPlacement="below"
+        contentClassName="block w-max min-w-full"
+      >
         <table className="w-full min-w-max border-collapse">
           <colgroup>
             {columns.map((col) => (
@@ -154,7 +160,7 @@ export function DataTable<T>({
             )}
           </tbody>
         </table>
-      </div>
+      </DottedScroll>
 
       {pageSize && pageSize > 0 && data.length > pageSize ? (
         <div className="flex items-center justify-between gap-3 border-t border-brand-line px-4 py-2.5">

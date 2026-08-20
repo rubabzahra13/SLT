@@ -1,6 +1,7 @@
 "use client";
 
 import clsx from "clsx";
+import { DottedScroll } from "@/components/ui/DottedScroll";
 import { DANCE_FORM_SUBTABS, type DanceFormSubtype } from "@/types";
 
 type OrderDanceSubTabsProps = {
@@ -21,11 +22,14 @@ export function OrderDanceSubTabs({ subtype, onChange, counts }: OrderDanceSubTa
     (counts["jazz-kick"] ?? 0);
 
   return (
-    <div className="border-b border-brand-line bg-brand-bg/20">
-      <nav
-        className="flex gap-1 overflow-x-auto px-4 py-2 scrollbar-none"
-        aria-label="Dance form types"
-      >
+    <DottedScroll
+      orientation="horizontal"
+      className="border-b border-brand-line bg-brand-bg/20"
+      scrollClassName="overflow-x-scroll scrollbar-hide"
+      indicatorPlacement="below"
+      contentClassName="flex w-max min-w-full px-4 py-2"
+    >
+      <nav className="flex gap-1" aria-label="Dance form types">
         <button
           type="button"
           onClick={() => onChange("pom")}
@@ -133,7 +137,7 @@ export function OrderDanceSubTabs({ subtype, onChange, counts }: OrderDanceSubTa
           </button>
         </div>
       </nav>
-    </div>
+    </DottedScroll>
   );
 }
 

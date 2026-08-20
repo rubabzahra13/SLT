@@ -287,7 +287,7 @@ export function DateFilter({ value, onChange, className }: DateFilterProps) {
           onClick={() =>
             handleSelectType("custom", { start: customStart, end: customEnd })
           }
-          className="w-full rounded-lg bg-brand-ink py-2 text-[13px] font-semibold text-brand-surface transition hover:bg-brand-ink/90 disabled:cursor-not-allowed disabled:opacity-45"
+          className="w-full rounded-lg bg-brand-cta py-2 text-[13px] font-semibold text-brand-cta-text transition hover:bg-brand-cta-hover disabled:cursor-not-allowed disabled:opacity-45"
         >
           Apply range
         </button>

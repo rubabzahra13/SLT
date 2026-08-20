@@ -3,11 +3,12 @@ import clsx from "clsx";
 type AvatarProps = {
   src: string;
   alt: string;
-  size?: "sm" | "md" | "lg";
+  size?: "xs" | "sm" | "md" | "lg";
   ring?: boolean;
 };
 
 const sizeMap = {
+  xs: "h-6 w-6",
   sm: "h-8 w-8",
   md: "h-10 w-10",
   lg: "h-[52px] w-[52px]",
