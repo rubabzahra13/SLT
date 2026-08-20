@@ -20,10 +20,31 @@ export type MTDRecord = {
   mixStartDate: string;
   /** How long the assigned producer is booked for this order */
   bookedUntil?: string | null;
+  /** What production is waiting on (in-progress board) */
+  waitingOn?: string | null;
   eightCountSheet: string;
   haveSongs: string;
   needsAttention: boolean;
   status: "active" | "outsourced" | "needs_attention" | "completed";
+};
+
+export type Weekday =
+  | "sun"
+  | "mon"
+  | "tue"
+  | "wed"
+  | "thu"
+  | "fri"
+  | "sat";
+
+export type ProducerTimeOff = {
+  id: string;
+  /** Inclusive start YYYY-MM-DD */
+  startDate: string;
+  /** Inclusive end YYYY-MM-DD (same as start for a single day) */
+  endDate: string;
+  type: "holiday" | "personal";
+  reason: string;
 };
 
 export type Producer = {
@@ -36,7 +57,37 @@ export type Producer = {
   mixesThisWeek: number;
   nextAvailable: string;
   status: "available" | "limited" | "unavailable";
+  /** Days of the week this producer normally works */
+  workDays: Weekday[];
+  /** Holidays or personal unavailability windows */
+  timeOff: ProducerTimeOff[];
 };
+
+export const WEEKDAYS: { id: Weekday; label: string; short: string }[] = [
+  { id: "sun", label: "Sunday", short: "Sun" },
+  { id: "mon", label: "Monday", short: "Mon" },
+  { id: "tue", label: "Tuesday", short: "Tue" },
+  { id: "wed", label: "Wednesday", short: "Wed" },
+  { id: "thu", label: "Thursday", short: "Thu" },
+  { id: "fri", label: "Friday", short: "Fri" },
+  { id: "sat", label: "Saturday", short: "Sat" },
+];
+
+export const DEFAULT_WORK_DAYS: Weekday[] = [
+  "mon",
+  "tue",
+  "wed",
+  "thu",
+  "fri",
+];
+
+export const PRODUCER_CATEGORIES = [
+  "Cheer",
+  "Dance",
+  "Marching Band",
+  "Hip-Hop",
+  "School",
+] as const;
 
 export type OrderFormType =
   | "school-all-star-cheer"

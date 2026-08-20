@@ -47,7 +47,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        <main className="app-canvas min-h-0 min-w-0 flex-1">{children}</main>
+        <main className="app-canvas flex min-h-0 min-w-0 flex-1 flex-col">{children}</main>
       </div>
     </>
   );

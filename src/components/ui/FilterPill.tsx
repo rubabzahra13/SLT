@@ -10,7 +10,7 @@ type FilterPillProps = {
 
 const activeStyles: Record<BrandAccent, string> = {
   blue:
-    "border-brand-blue-muted bg-brand-blue-soft text-brand-signature shadow-sm",
+    "border-brand-line bg-gradient-to-b from-brand-blue-soft to-brand-bg-subtle/90 text-brand-ink-secondary shadow-sm",
   orange:
     "border-brand-orange-muted bg-brand-orange-soft text-brand-orange shadow-sm",
 };
@@ -29,7 +29,7 @@ export function FilterPill({
         "shrink-0 rounded-full border px-3 py-1 text-[11px] font-medium transition-all duration-200",
         active
           ? activeStyles[accent]
-          : "border-brand-line bg-brand-surface text-brand-ink-secondary hover:border-brand-line-strong hover:bg-brand-accent-soft hover:text-brand-ink"
+          : "border-brand-line bg-brand-elevated text-brand-ink-secondary shadow-sm hover:border-brand-line-strong hover:bg-brand-accent-soft hover:text-brand-ink"
       )}
     >
       {label}

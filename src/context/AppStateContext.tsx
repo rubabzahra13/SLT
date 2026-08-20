@@ -23,6 +23,8 @@ import {
   getPriceForPackage,
 } from "@/lib/pricing";
 import { suggestMixStartDate } from "@/lib/scheduling";
+import { normalizeProducer } from "@/lib/producers";
+import { toIsoDateString } from "@/lib/dates";
 
 type AppStateContextValue = {
   activeOrders: Order[];
@@ -39,6 +41,9 @@ type AppStateContextValue = {
   setPackagePrices: (prices: Record<string, number>) => void;
   markComplete: (orderId: string) => void;
   addPastOrder: (order: Order) => void;
+  addProducer: (producer: Producer) => void;
+  updateProducer: (id: string, patch: Partial<Producer>) => void;
+  removeProducer: (id: string) => void;
   markNotificationRead: (id: string) => void;
   markAllNotificationsRead: () => void;
   isInMTD: (orderId: string) => boolean;
@@ -56,6 +61,10 @@ function normalizeMTD(records: MTDRecord[]): MTDRecord[] {
     editorRequest: r.editorRequest || "FA",
     contactName: r.contactName || r.editorInitials,
     priceCompliance: r.priceCompliance || detectCompliance(r.musicTheme),
+    mixStartDate: toIsoDateString(r.mixStartDate) || r.mixStartDate,
+    bookedUntil: r.bookedUntil
+      ? toIsoDateString(r.bookedUntil) || r.bookedUntil
+      : r.bookedUntil,
   }));
 }
 
@@ -76,8 +85,10 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   );
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [initialized, setInitialized] = useState(false);
+  const [producers, setProducers] = useState<Producer[]>(() =>
+    seed.producers.map((p) => normalizeProducer(p))
+  );
 
-  const producers = seed.producers;
   const schedule = seed.schedule;
 
   const addNotification = useCallback(
@@ -308,6 +319,22 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     setPastOrders((prev) => [order, ...prev]);
   }, []);
 
+  const addProducer = useCallback((producer: Producer) => {
+    setProducers((prev) => [normalizeProducer(producer), ...prev]);
+  }, []);
+
+  const updateProducer = useCallback((id: string, patch: Partial<Producer>) => {
+    setProducers((prev) =>
+      prev.map((p) =>
+        p.id === id ? normalizeProducer({ ...p, ...patch, id }) : p
+      )
+    );
+  }, []);
+
+  const removeProducer = useCallback((id: string) => {
+    setProducers((prev) => prev.filter((p) => p.id !== id));
+  }, []);
+
   const markNotificationRead = useCallback((id: string) => {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, read: true } : n))
@@ -335,6 +362,9 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     setPackagePrices,
     markComplete,
     addPastOrder,
+    addProducer,
+    updateProducer,
+    removeProducer,
     markNotificationRead,
     markAllNotificationsRead,
     isInMTD,

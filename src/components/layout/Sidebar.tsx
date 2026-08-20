@@ -42,7 +42,7 @@ function BrandMonogram({ className }: { className?: string }) {
   return (
     <span
       className={clsx(
-        "flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand-signature via-brand-blue-hover to-brand-orange p-[2px] shadow-[0_0_10px_rgba(82,200,238,0.18)]",
+        "flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand-blue to-brand-orange p-[1.5px]",
         className
       )}
     >
@@ -85,8 +85,8 @@ export function Sidebar() {
       "group relative flex h-10 items-center rounded-xl transition-all duration-200",
       showExpanded ? "w-full gap-3 px-3" : "relative w-10 justify-center px-0",
       active
-        ? "bg-brand-blue-soft font-semibold text-brand-ink"
-        : "text-brand-ink-secondary hover:bg-brand-accent-soft hover:text-brand-ink"
+        ? "bg-brand-sidebar-active font-semibold text-brand-sidebar-ink"
+        : "text-brand-sidebar-text hover:bg-brand-sidebar-hover hover:text-brand-sidebar-ink"
     );
 
   return (
@@ -116,10 +116,10 @@ export function Sidebar() {
             >
               <BrandMonogram />
               <div className="min-w-0">
-                <p className="whitespace-nowrap text-[15px] font-semibold leading-tight tracking-[-0.02em] text-brand-ink">
+                <p className="whitespace-nowrap text-[12px] font-semibold uppercase leading-tight tracking-[0.06em] text-brand-sidebar-accent">
                   Sounds Like That
                 </p>
-                <p className="mt-0.5 whitespace-nowrap text-[10px] font-semibold uppercase leading-none tracking-[0.06em] text-brand-ink-tertiary">
+                <p className="mt-0.5 whitespace-nowrap text-[10px] font-semibold uppercase leading-none tracking-[0.06em] text-brand-sidebar-text-muted">
                   Admin Studio
                 </p>
               </div>
@@ -129,7 +129,7 @@ export function Sidebar() {
               <button
                 type="button"
                 onClick={() => setMobileOpen(false)}
-                className="absolute right-2 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-brand-ink-tertiary transition hover:bg-brand-accent-soft hover:text-brand-ink md:hidden"
+                className="absolute right-2 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-brand-sidebar-text-muted transition hover:bg-brand-sidebar-hover hover:text-brand-sidebar-ink md:hidden"
                 aria-label="Close menu"
               >
                 <X className="h-4 w-4" />
@@ -140,7 +140,7 @@ export function Sidebar() {
               <button
                 type="button"
                 onClick={toggleExpanded}
-                className="absolute right-2 top-1/2 hidden h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-brand-ink-tertiary transition hover:bg-brand-accent-soft hover:text-brand-ink md:inline-flex"
+                className="absolute right-2 top-1/2 hidden h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-brand-sidebar-text-muted transition hover:bg-brand-sidebar-hover hover:text-brand-sidebar-ink md:inline-flex"
                 aria-label="Collapse sidebar"
                 aria-expanded="true"
               >
@@ -200,14 +200,14 @@ export function Sidebar() {
                 aria-label={label}
               >
                 {active && showExpanded ? (
-                  <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-brand-signature" />
+                  <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-brand-blue" />
                 ) : null}
                 <Icon
                   className={clsx(
                     "h-[19px] w-[19px] shrink-0",
                     active
-                      ? "text-brand-signature"
-                      : "text-brand-ink-tertiary group-hover:text-brand-ink-secondary"
+                      ? "text-brand-blue"
+                      : "text-brand-sidebar-text-muted group-hover:text-brand-sidebar-text"
                   )}
                   strokeWidth={active ? 2.25 : 1.75}
                 />
@@ -216,19 +216,21 @@ export function Sidebar() {
                     <span
                       className={clsx(
                         "flex-1 text-[14px]",
-                        active ? "font-semibold text-brand-ink" : "font-medium"
+                        active
+                          ? "font-semibold text-brand-sidebar-ink"
+                          : "font-medium"
                       )}
                     >
                       {label}
                     </span>
                     {badge ? (
-                      <span className="min-w-[22px] rounded-md bg-brand-blue-soft px-1.5 py-0.5 text-center text-[11px] font-semibold tabular-nums text-brand-signature">
+                      <span className="min-w-[22px] rounded-md bg-brand-sidebar-active px-1.5 py-0.5 text-center text-[11px] font-semibold tabular-nums text-brand-blue">
                         {badge}
                       </span>
                     ) : null}
                   </>
                 ) : badge ? (
-                  <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-brand-signature" />
+                  <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-brand-orange" />
                 ) : null}
               </Link>
             </HoverTip>
@@ -254,12 +256,12 @@ export function Sidebar() {
               if (!showExpanded) setExpanded(true);
             }}
             className={clsx(
-              "flex items-center rounded-xl text-left transition hover:bg-brand-accent-soft",
+              "flex items-center rounded-xl text-left transition hover:bg-brand-sidebar-hover",
               showExpanded ? "w-full gap-2.5 px-0 py-2" : "h-9 w-9 justify-center"
             )}
             aria-label={showExpanded ? "Account" : "Expand sidebar for account"}
           >
-            <div className="h-9 w-9 shrink-0 overflow-hidden rounded-full bg-brand-surface ring-1 ring-brand-line">
+            <div className="h-9 w-9 shrink-0 overflow-hidden rounded-full bg-brand-sidebar-elevated ring-1 ring-brand-sidebar-border">
               <img
                 src="https://api.dicebear.com/7.x/notionists/svg?seed=Megan&backgroundColor=f5f5f3"
                 alt="Megan"
@@ -268,8 +270,10 @@ export function Sidebar() {
             </div>
             {showExpanded ? (
               <div className="min-w-0 flex-1">
-                <p className="truncate text-[13px] font-semibold text-white">Megan</p>
-                <p className="truncate text-[11px] text-brand-ink-tertiary">
+                <p className="truncate text-[13px] font-semibold text-brand-sidebar-ink">
+                  Megan
+                </p>
+                <p className="truncate text-[11px] text-brand-sidebar-text-muted">
                   Administrator
                 </p>
               </div>

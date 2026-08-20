@@ -38,7 +38,7 @@ export function OrderFormFilters({
   onPricingClick,
 }: OrderFormFiltersProps) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-brand-line bg-brand-bg/30 px-4 py-2.5">
+    <div className="panel-toolbar flex flex-wrap items-center justify-between gap-2 px-4 py-2.5">
       <div className="flex flex-wrap items-center gap-2">
         <FilterSelect
           label="Form"
@@ -85,14 +85,14 @@ export function OrderFormFilters({
         <button
           type="button"
           onClick={onInvoiceClick}
-          className="rounded-lg border border-brand-line bg-brand-surface px-3 py-1.5 text-[12px] font-semibold text-brand-ink transition hover:border-brand-line-strong hover:bg-brand-bg"
+          className="rounded-lg border border-brand-line bg-brand-elevated px-3 py-1.5 text-[12px] font-semibold text-brand-ink shadow-sm transition hover:border-brand-blue-muted hover:bg-brand-blue-soft"
         >
           Invoice
         </button>
         <button
           type="button"
           onClick={onPricingClick}
-          className="rounded-lg border border-brand-orange/40 bg-brand-orange-soft px-3 py-1.5 text-[12px] font-semibold text-brand-orange transition hover:bg-brand-orange-muted/30"
+          className="rounded-lg border border-brand-orange/35 bg-brand-orange-soft px-3 py-1.5 text-[12px] font-semibold text-brand-orange shadow-sm transition hover:bg-brand-orange-muted/40"
         >
           Pricing
         </button>

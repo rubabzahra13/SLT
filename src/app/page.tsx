@@ -17,7 +17,7 @@ const TODAY_LABEL = "Wednesday, August 19, 2026";
 const PANEL_SCROLL_HEIGHT = "max-h-[18.5rem]";
 
 const toneDot = {
-  blocked: "bg-brand-danger",
+  blocked: "bg-brand-signature",
   match: "bg-brand-blue",
   assign: "bg-brand-orange",
 } as const;
@@ -31,9 +31,9 @@ export default function DashboardPage() {
       .map((record) => [record.orderId as string, record.id])
   );
 
-  const pulse = buildDashboardPulse(orders, mtdRecords, producers);
+  const pulse = buildDashboardPulse(mtdRecords, producers);
   const priority = buildPriorityQueue(orders, mtdRecords, mtdByOrderId);
-  const pipeline = buildCategoryPipeline(orders);
+  const pipeline = buildCategoryPipeline(mtdRecords);
 
   return (
     <>
@@ -42,15 +42,11 @@ export default function DashboardPage() {
       <div className="flex min-h-0 flex-1 flex-col gap-6 p-6 lg:gap-7 lg:p-8">
         {/* 1 · Studio pulse */}
         <section aria-label="Studio overview">
-          <PanelHeader
-            step="1"
-            title="Overview"
-            detail="Current studio load"
-          />
-          <div className="mt-3 overflow-hidden rounded-xl border border-brand-line bg-brand-surface">
-            <div className="grid grid-cols-2 divide-x divide-y divide-brand-line lg:grid-cols-4 lg:divide-y-0">
+          <PanelHeader title="Overview" detail="From Music To Do" />
+          <div className="mt-4 overflow-hidden rounded-[20px] border border-brand-line bg-brand-elevated shadow-[var(--shadow-premium-sm)]">
+            <div className="grid grid-cols-2 divide-x divide-y divide-brand-line/80 lg:grid-cols-4 lg:divide-y-0">
               <InsightCell
-                href="/orders"
+                href="/mtd"
                 value={pulse.toAssign}
                 label="To assign"
               />
@@ -58,10 +54,9 @@ export default function DashboardPage() {
                 href="/mtd"
                 value={pulse.blocked}
                 label="Blocked"
-                highlight={pulse.blocked > 0}
               />
               <InsightCell
-                href="/mtd"
+                href="/outsourced"
                 value={pulse.inProduction}
                 label="In production"
               />
@@ -77,12 +72,11 @@ export default function DashboardPage() {
         {/* 2 · Team availability */}
         <section aria-label="Team availability">
           <PanelHeader
-            step="2"
             title="Team"
             detail="Who is open right now"
             action={{ label: "Open schedule", href: "/schedule" }}
           />
-          <div className="mt-3 overflow-hidden rounded-xl border border-brand-line bg-brand-surface px-4 py-4">
+          <div className="mt-3 overflow-hidden rounded-2xl border border-brand-line bg-brand-elevated px-4 py-4 shadow-[var(--shadow-premium-sm)]">
             <div className="dashboard-marquee group flex w-max gap-5 pb-1">
               {[...producers, ...producers].map((producer, index) => (
                 <Link
@@ -121,7 +115,6 @@ export default function DashboardPage() {
         <div className="grid gap-6 xl:grid-cols-12 xl:items-start">
           <section className="xl:col-span-8" aria-label="Priority queue">
             <PanelHeader
-              step="3"
               title="Needs attention"
               detail="Blocked items, new orders, and First Available matches"
               action={{ label: "Open MTD", href: "/mtd" }}
@@ -175,14 +168,13 @@ export default function DashboardPage() {
 
           <section className="xl:col-span-4" aria-label="Order pipeline">
             <PanelHeader
-              step="4"
               title="Pipeline"
-              detail="Open orders by category"
-              action={{ label: "All orders", href: "/orders" }}
+              detail="Open MTD by category"
+              action={{ label: "Open MTD", href: "/mtd" }}
             />
             <div
               className={clsx(
-                "mt-3 overflow-hidden rounded-xl border border-brand-line bg-brand-surface",
+                "mt-3 overflow-hidden rounded-2xl border border-brand-line bg-brand-elevated shadow-[var(--shadow-premium-sm)]",
                 PANEL_SCROLL_HEIGHT,
                 "h-[18.5rem]"
               )}
@@ -208,7 +200,7 @@ function DashboardScrollPanel({
   return (
     <div
       className={clsx(
-        "mt-3 overflow-hidden rounded-xl border border-brand-line bg-brand-surface",
+        "mt-3 overflow-hidden rounded-2xl border border-brand-line bg-brand-elevated shadow-[var(--shadow-premium-sm)]",
         !isEmpty && PANEL_SCROLL_HEIGHT
       )}
     >
@@ -228,31 +220,28 @@ function DashboardScrollPanel({
 }
 
 function PanelHeader({
-  step,
   title,
   detail,
   action,
 }: {
-  step: string;
   title: string;
   detail: string;
   action?: { label: string; href: string };
 }) {
   return (
     <div className="flex items-start justify-between gap-4">
-      <div className="flex min-w-0 items-start gap-3">
-        <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-accent-soft text-[11px] font-semibold tabular-nums text-brand-ink-secondary">
-          {step}
-        </span>
-        <div className="min-w-0">
-          <h2 className="text-[15px] font-semibold text-brand-ink">{title}</h2>
-          <p className="mt-0.5 text-[12px] text-brand-ink-secondary">{detail}</p>
-        </div>
+      <div className="min-w-0">
+        <h2 className="text-[17px] font-semibold tracking-[-0.02em] text-brand-ink">
+          {title}
+        </h2>
+        <p className="mt-1 text-[13px] leading-snug text-brand-ink-secondary">
+          {detail}
+        </p>
       </div>
       {action ? (
         <Link
           href={action.href}
-          className="shrink-0 text-[13px] font-semibold text-brand-blue hover:text-brand-blue-hover"
+          className="shrink-0 pt-0.5 text-[13px] font-medium text-brand-signature transition hover:text-brand-signature-hover"
         >
           {action.label}
         </Link>
@@ -265,29 +254,22 @@ function InsightCell({
   href,
   value,
   label,
-  highlight,
 }: {
   href: string;
   value: number | string;
   label: string;
-  highlight?: boolean;
 }) {
   return (
     <Link
       href={href}
-      className="flex flex-col items-center justify-center px-3 py-5 transition hover:bg-brand-accent-soft/40 active:bg-brand-accent-soft/60"
+      className="group flex flex-col gap-3 px-5 py-5 transition-colors hover:bg-[#f7fafc] sm:px-7 sm:py-6"
     >
-      <p
-        className={clsx(
-          "text-[22px] font-semibold leading-none tabular-nums tracking-[-0.02em] lg:text-[24px]",
-          highlight ? "text-brand-danger" : "text-brand-ink"
-        )}
-      >
-        {value}
-      </p>
-      <p className="mt-2 text-center text-[12px] text-brand-ink-secondary">
+      <span className="text-[12px] font-medium tracking-[-0.01em] text-brand-ink-tertiary">
         {label}
-      </p>
+      </span>
+      <span className="text-[28px] font-semibold leading-none tabular-nums tracking-[-0.045em] text-brand-ink transition-colors group-hover:text-brand-signature sm:text-[32px]">
+        {value}
+      </span>
     </Link>
   );
 }

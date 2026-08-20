@@ -75,7 +75,7 @@ export function ProducerScheduleDrawer({
         </div>
 
         {focusCell ? (
-          <div className="border-b border-brand-line/70 bg-brand-accent-soft/30 px-5 py-4">
+          <div className="border-b border-brand-line/70 bg-brand-blue-soft/60 px-5 py-4">
             <p className="text-label">Selected day</p>
             <p className="mt-1 text-[15px] font-semibold">
               {focusCell.dayLabel}, {focusCell.dateLabel}
@@ -104,8 +104,8 @@ export function ProducerScheduleDrawer({
                 className={clsx(
                   "flex items-center justify-between rounded-xl px-3 py-2.5",
                   focusCell?.key === cell.key
-                    ? "bg-brand-accent-soft"
-                    : "bg-brand-bg/50"
+                    ? "bg-brand-blue-soft ring-1 ring-brand-blue/25"
+                    : "bg-brand-surface"
                 )}
               >
                 <div>
@@ -119,7 +119,9 @@ export function ProducerScheduleDrawer({
                 <span
                   className={clsx(
                     "h-3 w-3 rounded-[3px]",
-                    cell.unavailable ? "bg-brand-accent" : "bg-brand-line/60"
+                    cell.unavailable
+                      ? "bg-brand-signature"
+                      : "bg-brand-surface ring-1 ring-inset ring-brand-line/80"
                   )}
                 />
               </div>

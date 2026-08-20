@@ -46,15 +46,15 @@ export function TeamScheduleCalendar({
   return (
     <div
       className={clsx(
-        "overflow-hidden rounded-2xl border border-brand-line/80 bg-brand-surface shadow-[var(--shadow-premium-sm)]",
+        "overflow-hidden rounded-2xl border border-brand-line/80 bg-brand-elevated shadow-[var(--shadow-premium-sm)]",
         className
       )}
     >
       {/* weekday header */}
-      <div className="grid grid-cols-7 border-b border-brand-line/60 bg-brand-accent-soft/40">
+      <div className="grid grid-cols-7 border-b border-brand-blue/20 bg-gradient-to-b from-brand-blue-soft to-brand-bg-subtle/90">
         {WEEKDAY_HEADERS.map((d) => (
-          <div key={d} className="border-r border-brand-line/30 px-2.5 py-2 text-center last:border-r-0">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-brand-ink-tertiary">
+          <div key={d} className="border-r border-brand-blue/15 px-2.5 py-2 text-center last:border-r-0">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-brand-signature">
               {d}
             </p>
           </div>
@@ -196,11 +196,11 @@ function CalendarDayCard({
       onClick={onClick}
       disabled={isOtherMonth}
       className={clsx(
-        "group flex min-h-[130px] flex-col gap-2.5 bg-brand-surface px-2.5 py-2.5 text-left transition",
-        !isOtherMonth && "hover:bg-brand-bg/30",
-        isOtherMonth && "cursor-default bg-brand-bg/25 opacity-40",
-        day.isToday && "bg-brand-signature-soft",
-        selected && "ring-1 ring-inset ring-brand-signature/40 bg-brand-signature-soft"
+        "group flex min-h-[130px] flex-col gap-2.5 bg-brand-elevated px-2.5 py-2.5 text-left transition",
+        !isOtherMonth && "hover:bg-brand-blue-soft/40",
+        isOtherMonth && "cursor-default bg-brand-bg/40 opacity-40",
+        day.isToday && "bg-brand-blue-soft",
+        selected && "bg-brand-blue-soft ring-1 ring-inset ring-brand-signature/40"
       )}
     >
       {/* date number + badge */}
@@ -209,7 +209,7 @@ function CalendarDayCard({
           className={clsx(
             "flex h-7 w-7 items-center justify-center rounded-full text-[13px] font-semibold tabular-nums leading-none",
             day.isToday
-              ? "bg-brand-cta text-brand-cta-text"
+              ? "bg-brand-signature text-white"
               : "text-brand-ink"
           )}
         >
@@ -217,11 +217,11 @@ function CalendarDayCard({
         </span>
 
         {day.unavailableCount > 0 ? (
-          <span className="rounded-full bg-brand-accent-soft px-2 py-0.5 text-[10px] font-medium tabular-nums text-brand-ink-tertiary">
+          <span className="rounded-full bg-brand-orange-soft px-2 py-0.5 text-[10px] font-medium tabular-nums text-brand-orange">
             {day.unavailableCount} off
           </span>
         ) : (
-          <span className="rounded-full bg-brand-accent-soft px-2 py-0.5 text-[10px] font-medium text-brand-ink-tertiary">
+          <span className="rounded-full bg-brand-blue-soft px-2 py-0.5 text-[10px] font-medium text-brand-signature">
             Open
           </span>
         )}

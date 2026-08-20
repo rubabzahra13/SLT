@@ -1,4 +1,5 @@
 import type { MTDRecord, Order, Producer } from "@/types";
+import { getInProgressCount } from "@/lib/mtd-filters";
 
 export type DashboardPulse = {
   toAssign: number;
@@ -29,31 +30,28 @@ function isFirstAvailable(value?: string | null) {
   return /^(fa|first available)$/i.test(value.trim());
 }
 
+/** Overview metrics from MTD rows only (plus producer roster for team). */
 export function buildDashboardPulse(
-  orders: Order[],
   mtdRecords: MTDRecord[],
   producers: Producer[]
 ): DashboardPulse {
-  const toAssign = orders.filter(
-    (o) =>
-      o.status === "new" ||
-      isFirstAvailable(o.requestedProducer) ||
-      isFirstAvailable(o.editorRequest)
+  const open = mtdRecords.filter((r) => r.status !== "completed");
+
+  const toAssign = open.filter(
+    (r) => !r.assignedProducer && r.editorRequest !== "NA"
   ).length;
 
-  const blockedOrders = orders.filter((o) => o.needsAttention).length;
-  const blockedMtd = mtdRecords.filter(
-    (r) => r.needsAttention && r.status !== "completed"
-  ).length;
+  const blocked = open.filter((r) => r.needsAttention).length;
 
-  const inProduction = mtdRecords.filter((r) => r.status === "active").length;
+  const inProduction = getInProgressCount(mtdRecords);
+
   const availableProducers = producers.filter(
     (p) => p.status === "available"
   ).length;
 
   return {
     toAssign,
-    blocked: Math.max(blockedOrders, blockedMtd),
+    blocked,
     inProduction,
     availableProducers,
     totalProducers: producers.length,
@@ -141,11 +139,11 @@ export function buildPriorityQueue(
     .slice(0, 8);
 }
 
-export function buildCategoryPipeline(orders: Order[]): CategorySlice[] {
+export function buildCategoryPipeline(mtdRecords: MTDRecord[]): CategorySlice[] {
   const counts = new Map<string, number>();
-  for (const order of orders) {
-    if (order.status === "completed") continue;
-    counts.set(order.category, (counts.get(order.category) || 0) + 1);
+  for (const rec of mtdRecords) {
+    if (rec.status === "completed") continue;
+    counts.set(rec.category, (counts.get(rec.category) || 0) + 1);
   }
   const total = [...counts.values()].reduce((a, b) => a + b, 0) || 1;
   return [...counts.entries()]

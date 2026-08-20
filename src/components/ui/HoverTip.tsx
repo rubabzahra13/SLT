@@ -4,7 +4,8 @@ import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 type HoverTipProps = {
-  label: string;
+  label?: string;
+  content?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
   placement?: "bottom" | "top" | "right" | "left";
@@ -12,6 +13,7 @@ type HoverTipProps = {
 
 export function HoverTip({
   label,
+  content,
   children,
   className = "",
   placement = "bottom",
@@ -24,9 +26,12 @@ export function HoverTip({
     transform: "translateX(-50%)",
   });
 
+  const tip = content ?? (label ? <span>{label}</span> : null);
+  const hasTip = Boolean(tip);
+
   const show = () => {
     const el = ref.current;
-    if (!el || !label) return;
+    if (!el || !hasTip) return;
     const rect = el.getBoundingClientRect();
 
     if (placement === "right") {
@@ -38,18 +43,18 @@ export function HoverTip({
     } else if (placement === "left") {
       setCoords({
         top: rect.top + rect.height / 2,
-        left: rect.left - 8,
+        left: rect.left - 14,
         transform: "translate(-100%, -50%)",
       });
     } else if (placement === "top") {
       setCoords({
-        top: rect.top - 6,
+        top: rect.top - 8,
         left: rect.left + rect.width / 2,
         transform: "translate(-50%, -100%)",
       });
     } else {
       setCoords({
-        top: rect.bottom + 6,
+        top: rect.bottom + 8,
         left: rect.left + rect.width / 2,
         transform: "translateX(-50%)",
       });
@@ -67,18 +72,22 @@ export function HoverTip({
       onBlur={() => setOpen(false)}
     >
       {children}
-      {open && label
+      {open && tip
         ? createPortal(
             <span
               role="tooltip"
-              className="pointer-events-none fixed z-[200] whitespace-nowrap rounded-md bg-brand-accent px-2 py-1 text-[11px] font-semibold leading-none text-white shadow-md"
+              className={
+                content
+                  ? "pointer-events-none fixed z-[200] max-w-[240px] rounded-xl border border-brand-line/80 bg-brand-elevated px-3 py-2.5 text-left shadow-[var(--shadow-premium)]"
+                  : "pointer-events-none fixed z-[200] whitespace-nowrap rounded-md bg-brand-accent px-2 py-1 text-[11px] font-semibold leading-none text-white shadow-md"
+              }
               style={{
                 top: coords.top,
                 left: coords.left,
                 transform: coords.transform,
               }}
             >
-              {label}
+              {tip}
             </span>,
             document.body
           )

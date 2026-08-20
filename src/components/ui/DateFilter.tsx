@@ -301,10 +301,10 @@ export function DateFilter({ value, onChange, className }: DateFilterProps) {
         type="button"
         onClick={() => setOpen((prev) => !prev)}
         className={clsx(
-          "inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-[12px] font-medium transition",
+          "inline-flex h-8 items-center gap-2 rounded-lg border px-3 text-[12px] font-medium shadow-sm transition",
           hasFilter
-            ? "border-brand-info/40 bg-brand-info/8 text-brand-ink"
-            : "border-brand-line bg-brand-surface text-brand-ink-secondary hover:border-brand-line-strong hover:bg-brand-bg"
+            ? "border-brand-blue/35 bg-brand-blue-soft text-brand-signature"
+            : "border-brand-line bg-brand-elevated text-brand-ink-secondary hover:border-brand-line-strong hover:bg-brand-blue-soft/50 hover:text-brand-ink"
         )}
       >
         <Calendar

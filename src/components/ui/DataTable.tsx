@@ -12,7 +12,7 @@ export type Column<T> = {
   width?: string;
   align?: "left" | "right" | "center";
   nowrap?: boolean;
-  render: (row: T) => React.ReactNode;
+  render: (row: T, index: number) => React.ReactNode;
 };
 
 type DataTableProps<T> = {
@@ -104,14 +104,14 @@ export function DataTable<T>({
             ))}
           </colgroup>
           <thead>
-            <tr className="border-b border-brand-line bg-brand-bg/40">
+            <tr className="table-header-row">
               {columns.map((col) => (
                 <th
                   key={col.key}
                   scope="col"
                   className={clsx(
                     cellClass,
-                    "text-label border-r border-brand-line/50 font-medium last:border-r-0",
+                    "text-label table-header-cell border-r font-semibold last:border-r-0",
                     alignClass(col.align)
                   )}
                 >
@@ -131,13 +131,15 @@ export function DataTable<T>({
                 </td>
               </tr>
             ) : (
-              visibleData.map((row) => (
+              visibleData.map((row, rowOffset) => {
+                const rowIndex = rangeStart - 1 + rowOffset;
+                return (
                 <tr
                   key={rowKey(row)}
                   className={clsx(
-                    "border-b border-brand-line/70 transition-colors last:border-b-0",
-                    variant === "muted" && "bg-brand-bg/10",
-                    isInteractive && "cursor-pointer hover:bg-brand-bg/45"
+                    "border-b border-brand-line/70 bg-brand-elevated transition-colors last:border-b-0",
+                    variant === "muted" && "bg-brand-surface",
+                    isInteractive && "cursor-pointer hover:bg-brand-blue-soft/40"
                   )}
                   onClick={isInteractive ? () => handleRowClick(row) : undefined}
                 >
@@ -152,11 +154,12 @@ export function DataTable<T>({
                         col.nowrap !== false && "max-w-0 truncate whitespace-nowrap"
                       )}
                     >
-                      {col.render(row)}
+                      {col.render(row, rowIndex)}
                     </td>
                   ))}
                 </tr>
-              ))
+                );
+              })
             )}
           </tbody>
         </table>

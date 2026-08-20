@@ -3,6 +3,7 @@ import {
   isDateInBounds,
   type DateFilterValue,
 } from "@/lib/date-filters";
+import { toIsoDateString } from "@/lib/dates";
 import {
   inferCheerFormSubtype,
   inferDanceFormSubtype,
@@ -129,18 +130,34 @@ export function countMTDByDanceSubtype(
   return counts;
 }
 
-export function isInProgressRecord(rec: MTDRecord): boolean {
+export function isOngoingRecord(rec: MTDRecord): boolean {
   if (!rec.assignedProducer) return false;
+  if (rec.status === "outsourced" || rec.section === "OUTSOURCED MIXES") {
+    return false;
+  }
+  return rec.status === "active";
+}
 
+export function isOutsourcedRecord(rec: MTDRecord): boolean {
   return (
-    rec.status === "active" ||
-    rec.status === "outsourced" ||
-    rec.section === "OUTSOURCED MIXES"
+    rec.status === "outsourced" || rec.section === "OUTSOURCED MIXES"
   );
+}
+
+export function isInProgressRecord(rec: MTDRecord): boolean {
+  return isOngoingRecord(rec) || isOutsourcedRecord(rec);
 }
 
 export function getInProgressRecords(records: MTDRecord[]): MTDRecord[] {
   return records.filter(isInProgressRecord);
+}
+
+export function getOngoingRecords(records: MTDRecord[]): MTDRecord[] {
+  return records.filter(isOngoingRecord);
+}
+
+export function getOutsourcedRecords(records: MTDRecord[]): MTDRecord[] {
+  return records.filter(isOutsourcedRecord);
 }
 
 export function getInProgressCount(records: MTDRecord[]): number {
@@ -177,8 +194,8 @@ export function matchesDateFilter(
   if (dateFilter.type === "all") return true;
 
   const bounds = calculateDateBounds(dateFilter.type, dateFilter.value);
-  const mixDate = rec.mixStartDate?.trim();
-  const bookedUntil = rec.bookedUntil?.trim();
+  const mixDate = toIsoDateString(rec.mixStartDate);
+  const bookedUntil = toIsoDateString(rec.bookedUntil);
 
   if (mixDate && isDateInBounds(mixDate, bounds)) return true;
   if (bookedUntil && isDateInBounds(bookedUntil, bounds)) return true;

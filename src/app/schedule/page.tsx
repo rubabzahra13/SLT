@@ -8,6 +8,7 @@ import {
   ScheduleDayDrawer,
   TeamScheduleCalendar,
 } from "@/components/schedule/TeamScheduleCalendar";
+import { ScheduleInsightPanel } from "@/components/schedule/ScheduleInsightPanel";
 import { ProducerScheduleDrawer } from "@/components/schedule/ProducerScheduleDrawer";
 import { useAppState } from "@/context/AppStateContext";
 import {
@@ -26,7 +27,7 @@ const presentationFilters = ["Matrix", "Calendar"] as const;
 type SchedulePresentation = "matrix" | "calendar";
 
 export default function SchedulePage() {
-  const { producers, schedule } = useAppState();
+  const { producers, schedule, mtdRecords } = useAppState();
   const [view, setView] = useState<ScheduleViewRange>("week");
   const [presentation, setPresentation] = useState<SchedulePresentation>("matrix");
   const [specialty, setSpecialty] = useState("All");
@@ -43,8 +44,15 @@ export default function SchedulePage() {
   );
 
   const teamRows = useMemo(
-    () => buildTeamSchedule(filteredProducers, schedule, view, ANCHOR_DATE),
-    [filteredProducers, schedule, view]
+    () =>
+      buildTeamSchedule(
+        filteredProducers,
+        schedule,
+        view,
+        ANCHOR_DATE,
+        mtdRecords
+      ),
+    [filteredProducers, schedule, view, mtdRecords]
   );
 
   const columns = useMemo(
@@ -89,13 +97,14 @@ export default function SchedulePage() {
   }
 
   return (
-    <>
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <PageHeader
         title="Producer Schedule"
+        subtitle="Team availability, bookings, and open capacity"
       />
 
-      <div className="space-y-2.5 px-2 py-2.5 lg:px-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-hidden px-3 py-2.5 lg:px-4">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-xl border border-brand-line/70 bg-brand-elevated/90 px-3 py-2 shadow-[var(--shadow-premium-sm)]">
           <nav className="flex flex-wrap gap-2" aria-label="Producer specialty">
             {specialtyFilters.map((filter) => (
               <FilterPill
@@ -127,18 +136,18 @@ export default function SchedulePage() {
             aria-label="Schedule range"
           >
             <FilterPill
-              label="Weekly"
+              label="This week"
               active={view === "week"}
               onClick={() => setView("week")}
             />
             <FilterPill
-              label="Monthly"
+              label="This month"
               active={view === "month"}
               onClick={() => setView("month")}
             />
             {presentation === "matrix" ? (
               <FilterPill
-                label="90 days"
+                label="90 days from today"
                 active={view === "90days"}
                 onClick={() => setView("90days")}
               />
@@ -147,20 +156,33 @@ export default function SchedulePage() {
         </div>
 
         {presentation === "matrix" ? (
-          <TeamScheduleMatrix
-            rows={teamRows}
-            columns={columns}
-            range={view}
-            activeProducerId={drawerRow?.producer.id}
-            onSelectProducer={handleSelectProducer}
-          />
+          <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-hidden lg:flex-row lg:items-stretch lg:max-h-[calc(100dvh-9.25rem)]">
+            <div className="flex min-h-0 min-w-0 flex-1 self-stretch overflow-hidden">
+              <TeamScheduleMatrix
+                rows={teamRows}
+                columns={columns}
+                range={view}
+                activeProducerId={drawerRow?.producer.id}
+                onSelectProducer={handleSelectProducer}
+              />
+            </div>
+            <ScheduleInsightPanel
+              rows={teamRows}
+              columns={columns}
+              activeProducerId={drawerRow?.producer.id}
+              onSelectProducer={(row) => handleSelectProducer(row)}
+              className="min-h-0 w-full lg:w-[300px] lg:max-w-[300px] lg:flex-none"
+            />
+          </div>
         ) : (
-          <TeamScheduleCalendar
-            rows={teamRows}
-            range={calendarRange}
-            selectedDayKey={selectedDay?.key}
-            onSelectDay={handleSelectDay}
-          />
+          <div className="min-h-0 flex-1 overflow-auto lg:max-h-[calc(100dvh-9.25rem)]">
+            <TeamScheduleCalendar
+              rows={teamRows}
+              range={calendarRange}
+              selectedDayKey={selectedDay?.key}
+              onSelectDay={handleSelectDay}
+            />
+          </div>
         )}
       </div>
 
@@ -179,6 +201,6 @@ export default function SchedulePage() {
         focusCell={focusCell}
         onClose={closeDrawer}
       />
-    </>
+    </div>
   );
 }

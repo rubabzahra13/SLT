@@ -7,13 +7,13 @@ type PipelineChartProps = {
   href?: string;
 };
 
-export function PipelineChart({ pipeline, href = "/orders" }: PipelineChartProps) {
+export function PipelineChart({ pipeline, href = "/mtd" }: PipelineChartProps) {
   const total = pipeline.reduce((sum, slice) => sum + slice.count, 0);
 
   if (total === 0) {
     return (
       <p className="px-4 py-10 text-center text-[13px] text-brand-ink-secondary">
-        No open orders right now.
+        No open MTD entries right now.
       </p>
     );
   }
@@ -79,7 +79,7 @@ function PipelineDonut({
       height={size}
       viewBox={`0 0 ${size} ${size}`}
       role="img"
-      aria-label={`Open orders by category, ${total} total`}
+      aria-label={`Open MTD by category, ${total} total`}
       className="block"
     >
       <circle
@@ -87,7 +87,7 @@ function PipelineDonut({
         cy={center}
         r={radius}
         fill="none"
-        stroke="rgba(255,255,255,0.06)"
+        stroke="rgba(18,21,26,0.08)"
         strokeWidth={stroke}
       />
       {pipeline.map((slice, index) => {

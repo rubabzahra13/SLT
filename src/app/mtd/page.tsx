@@ -55,7 +55,7 @@ const actionButtonClass = (filled: boolean) =>
   clsx(
     "mt-1 rounded-md border px-2 py-1 text-[11px] font-medium transition",
     filled
-      ? "border-brand-line/70 text-brand-ink-secondary hover:border-brand-line hover:bg-brand-bg/50"
+      ? "border-brand-line/70 text-brand-ink hover:border-brand-line hover:bg-brand-bg/50"
       : "border-brand-orange/40 bg-brand-orange-soft text-brand-orange hover:bg-brand-orange-muted/30"
   );
 
@@ -232,12 +232,24 @@ export default function MTDPage() {
   const columns: Column<MTDRecord>[] = useMemo(
     () => [
       {
+        key: "rowId",
+        header: "ID",
+        width: "56px",
+        align: "center",
+        render: (_rec, index) => (
+          <span className="tabular-nums text-brand-ink">
+            {index + 1}
+          </span>
+        ),
+      },
+      {
         key: "contactC",
         header: "Contact (C)",
         width: "160px",
+        align: "center",
         nowrap: false,
         render: (rec) => (
-          <span className="whitespace-nowrap text-brand-ink-secondary">
+          <span className="whitespace-nowrap text-brand-ink">
             {titleCase(rec.contactName)}
           </span>
         ),
@@ -246,12 +258,16 @@ export default function MTDPage() {
         key: "programD",
         header: "Program (D)",
         width: "200px",
+        align: "center",
+        nowrap: false,
         render: (rec) => (
-          <div className="flex items-start gap-1.5">
+          <div className="inline-flex max-w-full flex-col items-center justify-center gap-1">
             {rec.needsAttention ? (
               <StatusBadge status="needs_attention" />
             ) : null}
-            <span className="font-medium">{titleCase(rec.programName)}</span>
+            <span className="text-[11px] leading-snug text-brand-ink">
+              {titleCase(rec.programName)}
+            </span>
           </div>
         ),
       },
@@ -259,19 +275,21 @@ export default function MTDPage() {
         key: "packageE",
         header: "Package (E)",
         width: "88px",
+        align: "center",
         render: (rec) => {
           const { tier } = parsePackage(rec.package);
-          return <span className="font-medium">{titleCase(tier)}</span>;
+          return <span className="font-medium text-brand-ink">{titleCase(tier)}</span>;
         },
       },
       {
         key: "limitE",
         header: "Limit",
         width: "72px",
+        align: "center",
         render: (rec) => {
           const { limit } = parsePackage(rec.package);
           return (
-            <span className="text-[12px] tabular-nums text-brand-ink-secondary">
+            <span className="text-[12px] tabular-nums text-brand-ink">
               {limit}
             </span>
           );
@@ -281,10 +299,11 @@ export default function MTDPage() {
         key: "splitE",
         header: "Split",
         width: "88px",
+        align: "center",
         render: (rec) => {
           const { split } = parsePackage(rec.package);
           return (
-            <span className="text-[12px] text-brand-ink-secondary">
+            <span className="text-[12px] text-brand-ink">
               {split}
             </span>
           );
@@ -294,11 +313,12 @@ export default function MTDPage() {
         key: "themeF",
         header: "Music (F)",
         width: "180px",
+        align: "center",
         nowrap: false,
         render: (rec) => {
           const { music } = parseMusicTheme(rec.musicTheme);
           return (
-            <span className="text-[11px] text-brand-ink-tertiary">
+            <span className="text-[11px] text-brand-ink">
               {titleCase(music)}
             </span>
           );
@@ -308,10 +328,11 @@ export default function MTDPage() {
         key: "chosenInitialsF",
         header: "Requested editor",
         width: "108px",
+        align: "center",
         render: (rec) => {
           const { chosenInitials } = parseMusicTheme(rec.musicTheme);
           return (
-            <span className="text-[12px] font-medium uppercase tabular-nums text-brand-ink-secondary">
+            <span className="text-[12px] font-medium uppercase tabular-nums text-brand-ink">
               {chosenInitials}
             </span>
           );
@@ -321,10 +342,10 @@ export default function MTDPage() {
         key: "priceG",
         header: "Price (G)",
         width: "96px",
-        align: "right",
+        align: "center",
         render: (rec) => (
-          <div className="text-right">
-            <p className="font-medium tabular-nums">{formatPrice(rec.price)}</p>
+          <div className="text-center">
+            <p className="font-medium tabular-nums text-brand-ink">{formatPrice(rec.price)}</p>
             <p
               className={clsx(
                 "text-[10px] font-medium",
@@ -342,6 +363,7 @@ export default function MTDPage() {
         key: "mixDateI",
         header: "Mix date (I)",
         width: "128px",
+        align: "center",
         render: (rec) => {
           const template = rec.assignedProducer
             ? suggestMixStartDate(rec.assignedProducer, producers, schedule)
@@ -371,6 +393,7 @@ export default function MTDPage() {
         key: "eightJ",
         header: "8CS (J)",
         width: "120px",
+        align: "center",
         render: (rec) => (
           <InlineSelect
             value={rec.eightCountSheet || EIGHT_CS_OPTIONS[2]}
@@ -383,6 +406,7 @@ export default function MTDPage() {
         key: "songsK",
         header: "Songs (K)",
         width: "88px",
+        align: "center",
         render: (rec) => (
           <InlineSelect
             value={rec.haveSongs || SONGS_OPTIONS[1]}
@@ -395,12 +419,13 @@ export default function MTDPage() {
         key: "editorB",
         header: "Editor (B)",
         width: "108px",
+        align: "center",
         render: (rec) => (
-          <div className="min-w-[88px]" onClick={(e) => e.stopPropagation()}>
+          <div className="mx-auto min-w-[88px]" onClick={(e) => e.stopPropagation()}>
             {rec.assignedProducer ? (
-              <div className="flex items-start gap-1.5">
-                <div className="min-w-0 flex-1 space-y-0.5">
-                  <p className="truncate text-[12px] font-medium">
+              <div className="flex items-center justify-center gap-1.5">
+                <div className="min-w-0 space-y-0.5 text-center">
+                  <p className="truncate text-[12px] font-medium text-brand-ink">
                     {rec.assignedProducer}
                   </p>
                   {rec.editorRequest === "FA" ? (
@@ -409,7 +434,7 @@ export default function MTDPage() {
                     </p>
                   ) : null}
                   {rec.bookedUntil ? (
-                    <p className="text-[9px] tabular-nums text-brand-ink-tertiary">
+                    <p className="text-[9px] tabular-nums text-brand-ink">
                       thru {rec.bookedUntil}
                     </p>
                   ) : null}
@@ -425,9 +450,9 @@ export default function MTDPage() {
                 </button>
               </div>
             ) : (
-              <>
+              <div className="flex flex-col items-center gap-1">
                 {rec.editorRequest === "NA" ? (
-                  <span className="text-[12px] text-brand-ink-tertiary">NA</span>
+                  <span className="text-[12px] text-brand-ink">NA</span>
                 ) : null}
                 <button
                   type="button"
@@ -436,7 +461,7 @@ export default function MTDPage() {
                 >
                   Assign
                 </button>
-              </>
+              </div>
             )}
           </div>
         ),
@@ -445,12 +470,13 @@ export default function MTDPage() {
         key: "invoiceAction",
         header: "Invoice",
         width: "112px",
+        align: "center",
         render: (rec) => {
           const invoice = rec.invoice?.trim() ?? "";
           return (
-            <div className="min-w-[88px]" onClick={(e) => e.stopPropagation()}>
+            <div className="mx-auto min-w-[88px]" onClick={(e) => e.stopPropagation()}>
               {invoice ? (
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center justify-center gap-1.5">
                   <span className="min-w-0 truncate text-[12px] font-medium tabular-nums text-brand-ink">
                     {invoice}
                   </span>
@@ -481,8 +507,9 @@ export default function MTDPage() {
         key: "pricingAction",
         header: "Pricing",
         width: "108px",
+        align: "center",
         render: (rec) => (
-          <div className="min-w-[88px]" onClick={(e) => e.stopPropagation()}>
+          <div className="mx-auto min-w-[88px]" onClick={(e) => e.stopPropagation()}>
             <button
               type="button"
               onClick={(e) => openRecordPricingModal(rec, e)}
@@ -508,11 +535,11 @@ export default function MTDPage() {
     <>
       <PageHeader
         title="Music To Do"
-        subtitle={`${mtdRecords.length} entries · spreadsheet cols B through K`}
+        subtitle={`${mtdRecords.length} entries`}
       />
 
       <div className="px-6 py-6 lg:px-8">
-        <div className="overflow-hidden rounded-xl border border-brand-line bg-brand-surface shadow-[var(--shadow-premium-sm)]">
+        <div className="panel-shell overflow-hidden rounded-2xl">
           <OrderFormFilters
             form={form}
             cheerSubtype={cheerSubtype}
@@ -527,7 +554,7 @@ export default function MTDPage() {
             onPricingClick={() => setPricingOpen(true)}
           />
 
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-brand-line bg-brand-bg/30 px-4 py-2.5">
+          <div className="panel-toolbar flex flex-wrap items-center justify-between gap-2 px-4 py-2.5">
             <div className="flex flex-wrap items-center gap-2">
               <FilterSelect
                 label="Producer"

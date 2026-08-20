@@ -1,6 +1,12 @@
-import type { Producer, ScheduleEntry } from "@/types";
+import type { MTDRecord, Producer, ScheduleEntry } from "@/types";
+import { parseFlexibleDate } from "@/lib/dates";
 
 export type ScheduleViewRange = "week" | "month" | "90days";
+
+export type CellBooking = {
+  work: string;
+  until: string;
+};
 
 export type ScheduleCell = {
   key: string;
@@ -9,6 +15,7 @@ export type ScheduleCell = {
   dateLabel: string;
   status: "available" | "mix" | "off";
   unavailable: boolean;
+  booking?: CellBooking | null;
 };
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -72,6 +79,96 @@ function inferStatus(
   return seed % 6 === 0 ? "mix" : "available";
 }
 
+function addDays(date: Date, days: number): Date {
+  const next = new Date(date);
+  next.setHours(0, 0, 0, 0);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function formatDisplayDate(date: Date): string {
+  return `${MONTH_NAMES[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
+}
+
+function producerMatchesAssignment(producer: Producer, assigned: string): boolean {
+  const key = assigned.trim().toUpperCase();
+  return (
+    key === producer.name.toUpperCase() ||
+    key === producer.initials.toUpperCase() ||
+    key === producerScheduleId(producer)
+  );
+}
+
+function producerAssignments(
+  producer: Producer,
+  mtdRecords: MTDRecord[]
+): MTDRecord[] {
+  return mtdRecords.filter(
+    (rec) =>
+      rec.assignedProducer &&
+      producerMatchesAssignment(producer, rec.assignedProducer) &&
+      rec.status === "active"
+  );
+}
+
+function resolveBooking(
+  producer: Producer,
+  date: Date,
+  status: ScheduleCell["status"],
+  assignments: MTDRecord[]
+): CellBooking | null {
+  if (status === "available") return null;
+
+  if (status === "off") {
+    const until =
+      date.getDay() === 0 || date.getDay() === 6
+        ? addDays(date, date.getDay() === 6 ? 1 : 0)
+        : date;
+    return {
+      work: "Unavailable",
+      until: formatDisplayDate(until),
+    };
+  }
+
+  const seed = hashSeed(`${producer.id}-${date.toISOString().slice(0, 10)}`);
+  const covering = assignments.find((rec) => {
+    const start = parseFlexibleDate(rec.mixStartDate);
+    const end = parseFlexibleDate(rec.bookedUntil);
+    if (!start) return false;
+    const day = new Date(date);
+    day.setHours(12, 0, 0, 0);
+    const startDay = new Date(start);
+    startDay.setHours(0, 0, 0, 0);
+    if (day < startDay) return false;
+    if (end) {
+      const endDay = new Date(end);
+      endDay.setHours(23, 59, 59, 999);
+      return day <= endDay;
+    }
+    return day.getTime() - startDay.getTime() <= 7 * 86400000;
+  });
+
+  const pick =
+    covering ??
+    (assignments.length > 0 ? assignments[seed % assignments.length] : null);
+
+  if (!pick) {
+    return {
+      work: `${producer.specialty} mix`,
+      until: formatDisplayDate(addDays(date, 2 + (seed % 5))),
+    };
+  }
+
+  const untilDate =
+    parseFlexibleDate(pick.bookedUntil) ??
+    addDays(parseFlexibleDate(pick.mixStartDate) ?? date, 3 + (seed % 4));
+
+  return {
+    work: pick.programName,
+    until: formatDisplayDate(untilDate),
+  };
+}
+
 function startOfCalendarWeek(date: Date): Date {
   const start = new Date(date);
   start.setHours(0, 0, 0, 0);
@@ -108,7 +205,8 @@ export function getScheduleCells(
   producer: Producer,
   schedule: ScheduleEntry[],
   range: ScheduleViewRange,
-  anchorDate = new Date(2026, 7, 19)
+  anchorDate = new Date(2026, 7, 19),
+  mtdRecords: MTDRecord[] = []
 ): ScheduleCell[] {
   const scheduleId = producerScheduleId(producer);
   const scheduleByDay = new Map(
@@ -116,6 +214,7 @@ export function getScheduleCells(
       .filter((entry) => entry.producer === scheduleId)
       .map((entry) => [entry.day, entry])
   );
+  const assignments = producerAssignments(producer, mtdRecords);
 
   return buildDateRange(range, anchorDate).map((date) => {
     const status = inferStatus(producer, date, scheduleByDay);
@@ -126,6 +225,7 @@ export function getScheduleCells(
       dateLabel: `${MONTH_NAMES[date.getMonth()]} ${date.getDate()}`,
       status,
       unavailable: status === "off" || status === "mix",
+      booking: resolveBooking(producer, date, status, assignments),
     };
   });
 }
@@ -230,11 +330,12 @@ export function buildTeamSchedule(
   producers: Producer[],
   schedule: ScheduleEntry[],
   range: ScheduleViewRange,
-  anchorDate = new Date(2026, 7, 19)
+  anchorDate = new Date(2026, 7, 19),
+  mtdRecords: MTDRecord[] = []
 ): TeamScheduleRow[] {
   return producers.map((producer) => ({
     producer,
-    cells: getScheduleCells(producer, schedule, range, anchorDate),
+    cells: getScheduleCells(producer, schedule, range, anchorDate, mtdRecords),
   }));
 }
 
@@ -369,52 +470,56 @@ export function statusLabel(status: ScheduleCell["status"]): string {
 
 export type MatrixDateDisplay = {
   top: string;
-  bottom: string;
+  day: string;
   title: string;
+  emphasizeTop?: boolean;
+};
+
+export type MatrixMonthGroup = {
+  key: string;
+  label: string;
+  startIndex: number;
+  rowCount: number;
 };
 
 export function formatMatrixDateCell(
   column: ColumnAggregate,
-  range: ScheduleViewRange,
-  previousKey?: string
+  _range: ScheduleViewRange,
+  _previousKey?: string
 ): MatrixDateDisplay {
   const title = `${column.dayLabel}, ${column.label}`;
-  const [, monthStr, dayStr] = column.key.split("-");
-  const month = Number(monthStr);
-  const day = Number(dayStr);
+  const dayStr = column.key.split("-")[2];
+  const day = String(Number(dayStr));
   const weekday = column.dayLabel.slice(0, 3).toUpperCase();
-  const monthShort = MONTH_NAMES[month - 1];
 
   if (column.isToday) {
-    return { top: "Today", bottom: String(day), title };
+    return { top: "Today", day, title, emphasizeTop: true };
   }
 
-  if (range === "week") {
-    return { top: weekday, bottom: String(day), title };
+  return { top: weekday, day, title };
+}
+
+/** Group matrix day columns by calendar month for longer ranges. */
+export function buildMatrixMonthGroups(
+  columns: ColumnAggregate[]
+): MatrixMonthGroup[] {
+  const groups: MatrixMonthGroup[] = [];
+
+  for (let i = 0; i < columns.length; i += 1) {
+    const monthKey = columns[i].key.slice(0, 7); // YYYY-MM
+    const last = groups[groups.length - 1];
+    if (last && last.key === monthKey) {
+      last.rowCount += 1;
+      continue;
+    }
+    const month = Number(monthKey.split("-")[1]);
+    groups.push({
+      key: monthKey,
+      label: MONTH_NAMES[month - 1],
+      startIndex: i,
+      rowCount: 1,
+    });
   }
 
-  if (range === "90days") {
-    return {
-      top: `${month}/${day}`,
-      bottom: weekday,
-      title,
-    };
-  }
-
-  const prevMonth = previousKey?.split("-")[1];
-  const monthChanged = !previousKey || prevMonth !== monthStr;
-
-  if (monthChanged) {
-    return {
-      top: monthShort,
-      bottom: `${weekday} ${day}`,
-      title,
-    };
-  }
-
-  return {
-    top: String(day),
-    bottom: weekday,
-    title,
-  };
+  return groups;
 }

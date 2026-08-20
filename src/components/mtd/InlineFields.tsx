@@ -1,5 +1,6 @@
 "use client";
 
+import { toIsoDateString } from "@/lib/dates";
 import clsx from "clsx";
 
 type InlineSelectProps = {
@@ -77,8 +78,9 @@ export function InlineDateInput({
   onChange,
   template,
 }: InlineDateInputProps) {
-  const displayValue = value || template || "";
-  const showingTemplate = !value && Boolean(template);
+  const normalized = toIsoDateString(value);
+  const displayValue = normalized || template || "";
+  const showingTemplate = !normalized && Boolean(template);
 
   return (
     <input
@@ -91,7 +93,10 @@ export function InlineDateInput({
         onChange(e.target.value);
       }}
       onBlur={() => {
-        if (!value && template) onChange(template);
+        if (!normalized && template) onChange(template);
+        else if (value && normalized && value !== normalized) {
+          onChange(normalized);
+        }
       }}
       className={clsx(
         "w-full min-w-[108px] rounded-lg border border-brand-line bg-brand-surface px-2 py-1.5 text-[11px] font-medium tabular-nums outline-none focus:border-brand-line-strong",

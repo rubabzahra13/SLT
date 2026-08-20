@@ -33,7 +33,7 @@ export function FilterSelect({
   return (
     <label
       className={clsx(
-        "inline-flex items-center gap-2 rounded-lg border border-brand-line bg-brand-surface px-2.5 py-1",
+        "inline-flex items-center gap-2 rounded-lg border border-brand-line bg-brand-elevated px-2.5 py-1 shadow-sm",
         className
       )}
     >
@@ -41,7 +41,7 @@ export function FilterSelect({
         className={clsx("h-1.5 w-1.5 shrink-0 rounded-full", accentDot[accent])}
         aria-hidden
       />
-      <span className="text-[10px] font-semibold uppercase tracking-wide text-brand-ink-tertiary">
+      <span className="text-[10px] font-semibold uppercase tracking-[0.06em] text-brand-ink-tertiary">
         {label}
       </span>
       <span className="relative inline-flex items-center">

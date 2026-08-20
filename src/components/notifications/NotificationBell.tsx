@@ -7,7 +7,11 @@ import { useAppState } from "@/context/AppStateContext";
 import { DottedScroll } from "@/components/ui/DottedScroll";
 import { useState } from "react";
 
-export function NotificationBell() {
+export function NotificationBell({
+  tone = "light",
+}: {
+  tone?: "light" | "dark" | "glass";
+}) {
   const {
     notifications,
     unreadCount,
@@ -21,10 +25,26 @@ export function NotificationBell() {
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-brand-line bg-brand-surface transition hover:bg-brand-bg"
+        className={clsx(
+          "relative flex h-8 w-8 items-center justify-center rounded-lg border transition",
+          tone === "glass" &&
+            "border-white/[0.1] bg-white/[0.06] hover:bg-white/[0.12]",
+          tone === "dark" &&
+            "border-brand-sidebar-border bg-brand-sidebar-elevated hover:bg-brand-sidebar-hover",
+          tone === "light" &&
+            "border-brand-line bg-brand-elevated/90 hover:bg-brand-elevated"
+        )}
         aria-label="Notifications"
       >
-        <Bell className="h-4 w-4 text-brand-ink-secondary" strokeWidth={1.75} />
+        <Bell
+          className={clsx(
+            "h-4 w-4",
+            tone === "light"
+              ? "text-brand-ink-secondary"
+              : "text-brand-sidebar-text"
+          )}
+          strokeWidth={1.75}
+        />
         {unreadCount > 0 ? (
           <span
             className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#f07840] px-1 text-[9px] font-bold text-white"
