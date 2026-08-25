@@ -18,8 +18,8 @@ export type MTDRecord = {
   priceCompliance: PriceCompliance;
   invoice: string;
   mixStartDate: string;
-  /** How long the assigned producer is booked for this order */
-  bookedUntil?: string | null;
+  /** Target completion date for the mix */
+  mixEndDate?: string;
   /** What production is waiting on (in-progress board) */
   waitingOn?: string | null;
   eightCountSheet: string;
@@ -61,6 +61,10 @@ export type Producer = {
   workDays: Weekday[];
   /** Holidays or personal unavailability windows */
   timeOff: ProducerTimeOff[];
+  /** Max mixes per working day; null = no limit (default) */
+  maxMixesPerDay: number | null;
+  /** One-off extra work days (YYYY-MM-DD), outside regular workDays */
+  overtimeDays: string[];
 };
 
 export const WEEKDAYS: { id: Weekday; label: string; short: string }[] = [
@@ -97,8 +101,8 @@ export type OrderFormType =
   | "school-anthem";
 
 export const ORDER_FORM_TABS: { id: OrderFormType; label: string }[] = [
-  { id: "school-all-star-cheer", label: "School/All Star Cheer" },
-  { id: "school-all-star-dance", label: "School/All Star Dance" },
+  { id: "school-all-star-cheer", label: "All Star Cheer" },
+  { id: "school-all-star-dance", label: "All Star Dance" },
   { id: "marching-band", label: "Marching Band" },
   { id: "sports-entertainment", label: "Sports Entertainment" },
   { id: "school-anthem", label: "School Anthem" },
@@ -226,9 +230,17 @@ export type AppNotification = {
   createdAt: string;
 };
 
+export type DiscountCode = {
+  id: string;
+  /** Customer-facing promo code (stored uppercase) */
+  code: string;
+  description: string;
+};
+
 export type AppData = {
   mtdRecords: MTDRecord[];
   producers: Producer[];
+  discountCodes: DiscountCode[];
   orders: Order[];
   pastOrders: Order[];
   schedule: ScheduleEntry[];
@@ -255,15 +267,20 @@ export const EIGHT_CS_OPTIONS = [
 export const SONGS_OPTIONS = ["HAVE", "NEED SONGS", "HAVE MIX"] as const;
 
 export const EDITOR_NAMES = [
-  "CASEY",
-  "MATT",
-  "NATE",
+  "CM",
+  "MS",
+  "NC",
   "ANNE",
-  "STEVE",
-  "BRENT",
-  "MARK",
+  "SS",
+  "BV",
+  "MM",
   "LAUREN",
   "WALTER",
   "SHELLY",
   "KENDALL",
+  "JD",
+  "G",
+  "JM",
+  "JOP",
+  "R",
 ] as const;

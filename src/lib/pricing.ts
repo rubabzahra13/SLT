@@ -4,6 +4,19 @@ export type PackagePriceEntry = {
   category: "Cheer" | "Dance" | "School" | "Marching Band" | "Other";
 };
 
+export type SecretMenuExtraSongTier = {
+  extraSongs: number;
+  extraCost: number;
+  editingCost: number;
+};
+
+export type SecretMenuPricing = {
+  packageName: string;
+  menuTitle: string;
+  basePrice: number;
+  extraSongTiers: SecretMenuExtraSongTier[];
+};
+
 export const PACKAGE_CATALOG: PackagePriceEntry[] = [
   { key: "BRONZE 1:30 NO SPLIT", name: "Bronze 1:30 No Split", category: "Cheer" },
   { key: "SILVER 1:30 NO SPLIT", name: "Silver 1:30 No Split", category: "Cheer" },
@@ -48,8 +61,27 @@ const DEFAULT_PACKAGE_PRICES: Record<string, number> = {
 
 const NON_COMPLIANT_SURCHARGE = 0.15;
 
-export function getDefaultPackagePrices(): Record<string, number> {
-  return { ...DEFAULT_PACKAGE_PRICES };
+const DEFAULT_SECRET_MENU_PRICING: SecretMenuPricing = {
+  packageName: "Semi-Custom Plus Package",
+  menuTitle: "Semi-Custom Hip Hop & Custom POM Package Secret Menu",
+  basePrice: 850,
+  extraSongTiers: [
+    { extraSongs: 1, extraCost: 15, editingCost: 30 },
+    { extraSongs: 2, extraCost: 30, editingCost: 60 },
+    { extraSongs: 3, extraCost: 45, editingCost: 90 },
+    { extraSongs: 4, extraCost: 60, editingCost: 120 },
+    { extraSongs: 5, extraCost: 75, editingCost: 150 },
+    { extraSongs: 6, extraCost: 90, editingCost: 180 },
+  ],
+};
+
+export function getDefaultSecretMenuPricing(): SecretMenuPricing {
+  return {
+    ...DEFAULT_SECRET_MENU_PRICING,
+    extraSongTiers: DEFAULT_SECRET_MENU_PRICING.extraSongTiers.map((tier) => ({
+      ...tier,
+    })),
+  };
 }
 
 export function detectCompliance(musicTheme: string): "compliant" | "non-compliant" {
@@ -88,6 +120,17 @@ export function getPriceForPackage(
 
 export function complianceLabel(compliance: "compliant" | "non-compliant"): string {
   return compliance === "compliant" ? "Compliant" : "Non-compliant";
+}
+
+export function getDefaultPackagePrices(): Record<string, number> {
+  return { ...DEFAULT_PACKAGE_PRICES };
+}
+
+export function parseIntegerInput(value: string): number | null {
+  const cleaned = value.replace(/[^0-9]/g, "");
+  if (!cleaned) return null;
+  const num = Number(cleaned);
+  return Number.isFinite(num) && num >= 0 ? Math.round(num) : null;
 }
 
 export function parsePriceInput(value: string): number | null {

@@ -1,14 +1,14 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
 import { Pencil } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { FilterSelect } from "@/components/ui/FilterSelect";
-import { DateFilter, type DateFilterValue } from "@/components/ui/DateFilter";
-import { StatusBadge } from "@/components/ui/StatusBadge";
+import { Avatar } from "@/components/ui/Avatar";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import { OrderFormFilters } from "@/components/orders/OrderFormFilters";
 import {
+  InlineCell,
   InlineSelect,
   InlineDateInput,
 } from "@/components/mtd/InlineFields";
@@ -20,18 +20,32 @@ import { SetPricingModal } from "@/components/mtd/SetPricingModal";
 import { SetInvoicesModal } from "@/components/mtd/SetInvoicesModal";
 import { SetInvoiceModal } from "@/components/mtd/SetInvoiceModal";
 import { SetRecordPricingModal } from "@/components/mtd/SetRecordPricingModal";
+import {
+  DEFAULT_MTD_TABLE_FILTERS,
+  MTDTableFilters,
+  type MTDTableFilterState,
+} from "@/components/mtd/MTDTableFilters";
 import { useAppState } from "@/context/AppStateContext";
 import { formatPrice, titleCase } from "@/lib/data";
 import { parsePackage } from "@/lib/package";
 import { parseMusicTheme } from "@/lib/music-theme";
 import { complianceLabel } from "@/lib/pricing";
-import { formatSlotForDisplay, suggestMixStartDate } from "@/lib/scheduling";
+import { formatSlotForDisplay, suggestMixEndDate, suggestMixStartDate } from "@/lib/scheduling";
+import { toIsoDateString } from "@/lib/dates";
 import { todayIso } from "@/lib/date-filters";
+import {
+  formatRequestedEditorLabel,
+  findLinkedOrder,
+  findProducerByAssignmentKey,
+  getRequestedEditorFromRecord,
+  isRequestedEditorUnavailableForMixWindow,
+} from "@/lib/editor-assignment";
 import {
   countMTDByCheerSubtype,
   countMTDByDanceSubtype,
   countMTDByForm,
   filterMTDRecords,
+  hasMixStartDate,
 } from "@/lib/mtd-filters";
 import type {
   CheerFormSubtype,
@@ -40,11 +54,7 @@ import type {
   OrderFormType,
   PriceCompliance,
 } from "@/types";
-import {
-  EDITOR_NAMES,
-  EIGHT_CS_OPTIONS,
-  SONGS_OPTIONS,
-} from "@/types";
+import { EIGHT_CS_OPTIONS, SONGS_OPTIONS } from "@/types";
 import clsx from "clsx";
 
 const DEFAULT_FORM: OrderFormType = "school-all-star-cheer";
@@ -59,13 +69,21 @@ const actionButtonClass = (filled: boolean) =>
       : "border-brand-orange/40 bg-brand-orange-soft text-brand-orange hover:bg-brand-orange-muted/30"
   );
 
+const clickableChipClass =
+  "cursor-pointer border border-brand-line/70 bg-brand-bg/60 shadow-sm transition hover:border-brand-orange/40 hover:bg-brand-orange-soft/35 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange/25";
+
+const bookedTagClass =
+  "inline-flex items-center rounded-full bg-brand-warning/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.04em] text-brand-warning ring-1 ring-inset ring-brand-warning/25";
+
 export default function MTDPage() {
   const {
     mtdRecords,
     allOrders,
     updateMTD,
     setPackagePrices,
+    setSecretMenuPrices,
     packagePrices,
+    secretMenuPrices,
     producers,
     schedule,
   } = useAppState();
@@ -76,11 +94,9 @@ export default function MTDPage() {
   const [danceSubtype, setDanceSubtype] = useState<DanceFormSubtype>(
     DEFAULT_DANCE_SUBTYPE
   );
-  const [producerFilter, setProducerFilter] = useState("All");
-  const [dateFilter, setDateFilter] = useState<DateFilterValue>({
-    type: "all",
-    value: null,
-  });
+  const [tableFilters, setTableFilters] = useState<MTDTableFilterState>(
+    DEFAULT_MTD_TABLE_FILTERS
+  );
   const [assignRecord, setAssignRecord] = useState<MTDRecord | null>(null);
   const [invoiceRecord, setInvoiceRecord] = useState<MTDRecord | null>(null);
   const [pricingRecord, setPricingRecord] = useState<MTDRecord | null>(null);
@@ -107,8 +123,8 @@ export default function MTDPage() {
       updateMTD(recordId, {
         editorRequest: result.editorRequest,
         assignedProducer: result.assignedProducer,
-        bookedUntil: result.bookedUntil,
         ...(result.mixStartDate ? { mixStartDate: result.mixStartDate } : {}),
+        ...(result.mixEndDate ? { mixEndDate: result.mixEndDate } : {}),
       });
     },
     [updateMTD]
@@ -132,7 +148,7 @@ export default function MTDPage() {
     []
   );
 
-  const openRecordPricingModal = useCallback(
+  const openPricingModal = useCallback(
     (rec: MTDRecord, e: React.MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
@@ -170,21 +186,27 @@ export default function MTDPage() {
   const filtered = useMemo(
     () =>
       filterMTDRecords(mtdRecords, {
-        producer: producerFilter,
-        dateFilter,
+        packageTier: tableFilters.packageTier,
+        timeLimit: tableFilters.timeLimit,
+        split: tableFilters.split,
+        assignedProducer: tableFilters.assignedProducer,
+        requestedProducer: tableFilters.requestedProducer,
+        dateFilter: tableFilters.dateFilter,
+        scheduleFilter: tableFilters.scheduleFilter,
         form,
         cheerSubtype,
         danceSubtype,
         orderById,
+        producers,
       }),
     [
       mtdRecords,
-      producerFilter,
-      dateFilter,
+      tableFilters,
       form,
       cheerSubtype,
       danceSubtype,
       orderById,
+      producers,
     ]
   );
 
@@ -203,31 +225,16 @@ export default function MTDPage() {
     [mtdRecords, orderById]
   );
 
-  const producerOptions = useMemo(() => {
-    const counts = new Map<string, number>();
-    let unassigned = 0;
-
-    for (const rec of mtdRecords) {
-      if (!rec.assignedProducer) {
-        unassigned += 1;
-      } else {
-        counts.set(
-          rec.assignedProducer,
-          (counts.get(rec.assignedProducer) ?? 0) + 1
-        );
-      }
-    }
-
-    return [
-      { value: "All", label: "All producers", count: mtdRecords.length },
-      { value: "Unassigned", label: "Unassigned", count: unassigned },
-      ...EDITOR_NAMES.map((name) => ({
-        value: name,
-        label: name,
-        count: counts.get(name) ?? 0,
-      })),
-    ];
-  }, [mtdRecords]);
+  const tableFilterKey = [
+    tableFilters.packageTier,
+    tableFilters.timeLimit,
+    tableFilters.split,
+    tableFilters.assignedProducer,
+    tableFilters.requestedProducer,
+    tableFilters.scheduleFilter,
+    tableFilters.dateFilter.type,
+    String(tableFilters.dateFilter.value),
+  ].join("-");
 
   const columns: Column<MTDRecord>[] = useMemo(
     () => [
@@ -244,7 +251,7 @@ export default function MTDPage() {
       },
       {
         key: "contactC",
-        header: "Contact (C)",
+        header: "Contact",
         width: "160px",
         align: "center",
         nowrap: false,
@@ -256,24 +263,30 @@ export default function MTDPage() {
       },
       {
         key: "programD",
-        header: "Program (D)",
+        header: "Program & division",
         width: "200px",
         align: "center",
         nowrap: false,
-        render: (rec) => (
-          <div className="inline-flex max-w-full flex-col items-center justify-center gap-1">
-            {rec.needsAttention ? (
-              <StatusBadge status="needs_attention" />
-            ) : null}
-            <span className="text-[11px] leading-snug text-brand-ink">
-              {titleCase(rec.programName)}
-            </span>
-          </div>
-        ),
+        render: (rec) => {
+          const linked = findLinkedOrder(rec, allOrders);
+          const division = linked?.division?.trim();
+          return (
+            <div className="inline-flex max-w-full flex-col items-center justify-center gap-1">
+              <span className="text-[11px] leading-snug text-brand-ink">
+                {titleCase(rec.programName)}
+              </span>
+              {division ? (
+                <span className="text-[10px] leading-snug text-brand-ink-tertiary">
+                  {titleCase(division)}
+                </span>
+              ) : null}
+            </div>
+          );
+        },
       },
       {
         key: "packageE",
-        header: "Package (E)",
+        header: "Package",
         width: "88px",
         align: "center",
         render: (rec) => {
@@ -283,7 +296,7 @@ export default function MTDPage() {
       },
       {
         key: "limitE",
-        header: "Limit",
+        header: "Time limit",
         width: "72px",
         align: "center",
         render: (rec) => {
@@ -311,7 +324,7 @@ export default function MTDPage() {
       },
       {
         key: "themeF",
-        header: "Music (F)",
+        header: "Music & theme",
         width: "180px",
         align: "center",
         nowrap: false,
@@ -330,38 +343,79 @@ export default function MTDPage() {
         width: "108px",
         align: "center",
         render: (rec) => {
-          const { chosenInitials } = parseMusicTheme(rec.musicTheme);
+          const linked = findLinkedOrder(rec, allOrders);
+          const label = formatRequestedEditorLabel(rec, producers, linked);
+          const requested = getRequestedEditorFromRecord(rec, producers, linked);
+          const isFa = label === "FA";
+          const showBooked =
+            !isFa &&
+            requested &&
+            isRequestedEditorUnavailableForMixWindow(
+              rec,
+              requested,
+              mtdRecords,
+              producers
+            );
+
           return (
-            <span className="text-[12px] font-medium uppercase tabular-nums text-brand-ink">
-              {chosenInitials}
-            </span>
+            <div className="inline-flex flex-col items-center gap-1">
+              <span
+                className={clsx(
+                  "text-[12px] font-medium uppercase tabular-nums",
+                  isFa ? "text-brand-info" : "text-brand-ink"
+                )}
+              >
+                {isFa ? "FA" : label}
+              </span>
+              {showBooked ? (
+                <span
+                  className={bookedTagClass}
+                  title="Requested editor is unavailable during this mix window"
+                >
+                  Booked
+                </span>
+              ) : null}
+            </div>
           );
         },
       },
       {
         key: "priceG",
-        header: "Price (G)",
+        header: "Price",
         width: "96px",
         align: "center",
         render: (rec) => (
-          <div className="text-center">
-            <p className="font-medium tabular-nums text-brand-ink">{formatPrice(rec.price)}</p>
-            <p
+          <div className="mx-auto min-w-[88px]" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              onClick={(e) => openPricingModal(rec, e)}
+              title="Edit pricing"
+              aria-label={`Edit pricing ${formatPrice(rec.price)}`}
               className={clsx(
-                "text-[10px] font-medium",
-                rec.priceCompliance === "compliant"
-                  ? "text-brand-success"
-                  : "text-brand-warning"
+                clickableChipClass,
+                "max-w-full rounded-lg px-2.5 py-1 text-center"
               )}
             >
-              {complianceLabel(rec.priceCompliance)}
-            </p>
+              <p className="font-medium tabular-nums text-[12px] text-brand-ink hover:text-brand-orange">
+                {formatPrice(rec.price)}
+              </p>
+              <p
+                className={clsx(
+                  "text-[10px] font-medium",
+                  rec.priceCompliance === "compliant"
+                    ? "text-brand-success"
+                    : "text-brand-warning"
+                )}
+              >
+                {complianceLabel(rec.priceCompliance)}
+              </p>
+            </button>
           </div>
         ),
       },
       {
         key: "mixDateI",
-        header: "Mix date (I)",
+        header: "Mix start date",
         width: "128px",
         align: "center",
         render: (rec) => {
@@ -370,105 +424,150 @@ export default function MTDPage() {
             : todayIso();
 
           return (
-            <div onClick={(e) => e.stopPropagation()}>
+            <InlineCell
+              footer={
+                rec.assignedProducer && !hasMixStartDate(rec) ? (
+                  <span
+                    className="text-brand-ink-tertiary"
+                    title="Next open slot for this producer on the team schedule"
+                  >
+                    Next slot ·{" "}
+                    {formatSlotForDisplay(
+                      rec.assignedProducer,
+                      producers,
+                      schedule
+                    )}
+                  </span>
+                ) : null
+              }
+            >
               <InlineDateInput
                 value={rec.mixStartDate}
                 template={template}
-                onChange={(v) => updateMTD(rec.id, { mixStartDate: v })}
+                onChange={(v) => {
+                  const patch: Partial<MTDRecord> = { mixStartDate: v };
+                  if (v && !toIsoDateString(rec.mixEndDate ?? "")) {
+                    patch.mixEndDate = suggestMixEndDate(v, rec.package);
+                  }
+                  updateMTD(rec.id, patch);
+                }}
               />
-              {rec.assignedProducer ? (
-                <p className="mt-1 truncate text-[9px] text-brand-success">
-                  {formatSlotForDisplay(
-                    rec.assignedProducer,
-                    producers,
-                    schedule
-                  )}
-                </p>
-              ) : null}
-            </div>
+            </InlineCell>
+          );
+        },
+      },
+      {
+        key: "mixEndDate",
+        header: "Mix end date",
+        width: "128px",
+        align: "center",
+        render: (rec) => {
+          const template =
+            hasMixStartDate(rec) && !toIsoDateString(rec.mixEndDate ?? "")
+              ? suggestMixEndDate(rec.mixStartDate, rec.package)
+              : "";
+
+          return (
+            <InlineCell>
+              <InlineDateInput
+                value={rec.mixEndDate ?? ""}
+                template={template}
+                onChange={(v) => updateMTD(rec.id, { mixEndDate: v })}
+              />
+            </InlineCell>
           );
         },
       },
       {
         key: "eightJ",
-        header: "8CS (J)",
+        header: "8CS",
         width: "120px",
         align: "center",
         render: (rec) => (
-          <InlineSelect
-            value={rec.eightCountSheet || EIGHT_CS_OPTIONS[2]}
-            options={[...EIGHT_CS_OPTIONS]}
-            onChange={(v) => updateMTD(rec.id, { eightCountSheet: v })}
-          />
+          <InlineCell>
+            <InlineSelect
+              value={rec.eightCountSheet || EIGHT_CS_OPTIONS[2]}
+              options={[...EIGHT_CS_OPTIONS]}
+              onChange={(v) => updateMTD(rec.id, { eightCountSheet: v })}
+            />
+          </InlineCell>
         ),
       },
       {
         key: "songsK",
-        header: "Songs (K)",
+        header: "Songs",
         width: "88px",
         align: "center",
         render: (rec) => (
-          <InlineSelect
-            value={rec.haveSongs || SONGS_OPTIONS[1]}
-            options={[...SONGS_OPTIONS]}
-            onChange={(v) => updateMTD(rec.id, { haveSongs: v })}
-          />
+          <InlineCell>
+            <InlineSelect
+              value={rec.haveSongs || SONGS_OPTIONS[1]}
+              options={[...SONGS_OPTIONS]}
+              onChange={(v) => updateMTD(rec.id, { haveSongs: v })}
+            />
+          </InlineCell>
         ),
       },
       {
         key: "editorB",
-        header: "Editor (B)",
-        width: "108px",
+        header: "Editor",
+        width: "128px",
         align: "center",
-        render: (rec) => (
-          <div className="mx-auto min-w-[88px]" onClick={(e) => e.stopPropagation()}>
-            {rec.assignedProducer ? (
-              <div className="flex items-center justify-center gap-1.5">
-                <div className="min-w-0 space-y-0.5 text-center">
-                  <p className="truncate text-[12px] font-medium text-brand-ink">
-                    {rec.assignedProducer}
-                  </p>
-                  {rec.editorRequest === "FA" ? (
-                    <p className="text-[9px] uppercase tracking-wide text-brand-info">
-                      First available
-                    </p>
-                  ) : null}
-                  {rec.bookedUntil ? (
-                    <p className="text-[9px] tabular-nums text-brand-ink">
-                      thru {rec.bookedUntil}
-                    </p>
-                  ) : null}
+        render: (rec) => {
+          const assigned = rec.assignedProducer;
+          const producer = assigned
+            ? findProducerByAssignmentKey(assigned, producers)
+            : undefined;
+
+          return (
+            <div
+              className="mx-auto min-w-[96px]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {assigned ? (
+                <button
+                  type="button"
+                  onClick={(e) => openAssignModal(rec, e)}
+                  title="Edit assignment"
+                  aria-label={`Edit assignment for ${assigned}`}
+                  className={clsx(
+                    clickableChipClass,
+                    "inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full py-0.5 pl-0.5 pr-2.5"
+                  )}
+                >
+                  {producer?.avatar ? (
+                    <Avatar
+                      src={producer.avatar}
+                      alt={producer.name}
+                      size="xs"
+                    />
+                  ) : (
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-signature-soft text-[10px] font-bold text-brand-signature">
+                      {assigned.slice(0, 2)}
+                    </span>
+                  )}
+                  <span className="truncate text-[12px] font-semibold leading-none text-brand-ink">
+                    {assigned}
+                  </span>
+                </button>
+              ) : (
+                <div className="flex flex-col items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={(e) => openAssignModal(rec, e)}
+                    className={actionButtonClass(false)}
+                  >
+                    Assign
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={(e) => openAssignModal(rec, e)}
-                  className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-brand-ink-tertiary transition hover:bg-brand-bg hover:text-brand-orange"
-                  title="Reassign editor"
-                  aria-label="Reassign editor"
-                >
-                  <Pencil className="h-3 w-3" strokeWidth={2} />
-                </button>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center gap-1">
-                {rec.editorRequest === "NA" ? (
-                  <span className="text-[12px] text-brand-ink">NA</span>
-                ) : null}
-                <button
-                  type="button"
-                  onClick={(e) => openAssignModal(rec, e)}
-                  className={actionButtonClass(false)}
-                >
-                  Assign
-                </button>
-              </div>
-            )}
-          </div>
-        ),
+              )}
+            </div>
+          );
+        },
       },
       {
         key: "invoiceAction",
-        header: "Invoice",
+        header: "Invoice #",
         width: "112px",
         align: "center",
         render: (rec) => {
@@ -476,20 +575,18 @@ export default function MTDPage() {
           return (
             <div className="mx-auto min-w-[88px]" onClick={(e) => e.stopPropagation()}>
               {invoice ? (
-                <div className="flex items-center justify-center gap-1.5">
-                  <span className="min-w-0 truncate text-[12px] font-medium tabular-nums text-brand-ink">
-                    {invoice}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={(e) => openInvoiceModal(rec, e)}
-                    className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-brand-ink-tertiary transition hover:bg-brand-bg hover:text-brand-orange"
-                    title="Edit invoice"
-                    aria-label="Edit invoice"
-                  >
-                    <Pencil className="h-3 w-3" strokeWidth={2} />
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={(e) => openInvoiceModal(rec, e)}
+                  title="Edit invoice"
+                  aria-label={`Edit invoice ${invoice}`}
+                  className={clsx(
+                    clickableChipClass,
+                    "max-w-full rounded-lg px-2.5 py-1 text-[12px] font-medium tabular-nums text-brand-ink hover:text-brand-orange"
+                  )}
+                >
+                  <span className="truncate">{invoice}</span>
+                </button>
               ) : (
                 <button
                   type="button"
@@ -504,30 +601,35 @@ export default function MTDPage() {
         },
       },
       {
-        key: "pricingAction",
-        header: "Pricing",
-        width: "108px",
+        key: "actions",
+        header: "Actions",
+        width: "72px",
         align: "center",
+        sticky: "right",
+        nowrap: false,
         render: (rec) => (
-          <div className="mx-auto min-w-[88px]" onClick={(e) => e.stopPropagation()}>
-            <button
-              type="button"
-              onClick={(e) => openRecordPricingModal(rec, e)}
-              className={actionButtonClass(rec.price > 0)}
+          <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
+            <Link
+              href={`/mtd/${rec.id}`}
+              title="Open record"
+              aria-label={`Open ${rec.programName}`}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-brand-line/70 bg-brand-bg/60 text-brand-ink-secondary shadow-sm transition hover:border-brand-orange/40 hover:bg-brand-orange-soft/35 hover:text-brand-orange focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange/25"
             >
-              Pricing
-            </button>
+              <Pencil className="h-3.5 w-3.5" strokeWidth={2} />
+            </Link>
           </div>
         ),
       },
     ],
     [
       updateMTD,
+      allOrders,
+      mtdRecords,
       producers,
       schedule,
       openAssignModal,
       openInvoiceModal,
-      openRecordPricingModal,
+      openPricingModal,
     ]
   );
 
@@ -554,24 +656,20 @@ export default function MTDPage() {
             onPricingClick={() => setPricingOpen(true)}
           />
 
-          <div className="panel-toolbar flex flex-wrap items-center justify-between gap-2 px-4 py-2.5">
-            <div className="flex flex-wrap items-center gap-2">
-              <FilterSelect
-                label="Producer"
-                value={producerFilter}
-                options={producerOptions}
-                onChange={setProducerFilter}
-                accent="orange"
-              />
-              <DateFilter value={dateFilter} onChange={setDateFilter} />
-              <span className="text-[12px] text-brand-ink-tertiary">
-                {filtered.length} of {mtdRecords.length} entries
-              </span>
-            </div>
-          </div>
+          <MTDTableFilters
+            records={mtdRecords}
+            producers={producers}
+            orderById={orderById}
+            filters={tableFilters}
+            filteredCount={filtered.length}
+            onChange={(patch) =>
+              setTableFilters((prev) => ({ ...prev, ...patch }))
+            }
+            onReset={() => setTableFilters(DEFAULT_MTD_TABLE_FILTERS)}
+          />
 
           <DataTable
-            key={`${form}-${cheerSubtype}-${danceSubtype}-${producerFilter}-${dateFilter.type}-${String(dateFilter.value)}`}
+            key={`${form}-${cheerSubtype}-${danceSubtype}-${tableFilterKey}`}
             columns={columns}
             data={filtered}
             rowKey={(rec) => rec.id}
@@ -587,6 +685,7 @@ export default function MTDPage() {
         open={Boolean(assignRecord)}
         record={assignRecord}
         mtdRecords={mtdRecords}
+        allOrders={allOrders}
         producers={producers}
         schedule={schedule}
         onClose={() => setAssignRecord(null)}
@@ -618,8 +717,12 @@ export default function MTDPage() {
       <SetPricingModal
         open={pricingOpen}
         prices={packagePrices}
+        secretMenuPrices={secretMenuPrices}
         onClose={() => setPricingOpen(false)}
-        onSave={setPackagePrices}
+        onSave={(prices, secretMenu) => {
+          setPackagePrices(prices);
+          setSecretMenuPrices(secretMenu);
+        }}
       />
     </>
   );

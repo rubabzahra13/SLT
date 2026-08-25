@@ -1,6 +1,28 @@
 {
   "mtdRecords": [
     {
+      "id": "mtd-demo",
+      "orderId": "ord-demo",
+      "section": "CHEERLEADING MUSIC",
+      "assignedProducer": null,
+      "category": "Cheer",
+      "editorInitials": "DEMO",
+      "programName": "DEMO GYM — SENIOR LARGE",
+      "package": "PLATINUM 2:30 NO SPLIT",
+      "musicTheme": "PM & UTB COVERS \"GAME DAY\" SEE NOTES (CM)",
+      "price": 1400,
+      "invoice": "",
+      "mixStartDate": "",
+      "eightCountSheet": "NEED CS",
+      "haveSongs": "NEED SONGS",
+      "needsAttention": true,
+      "status": "active",
+      "editorRequest": "FA",
+      "contactName": "Demo Coach",
+      "priceCompliance": "compliant",
+      "mixEndDate": ""
+    },
+    {
       "id": "mtd-1",
       "section": "OUTSOURCED MIXES",
       "assignedProducer": "CM",
@@ -11,7 +33,7 @@
       "musicTheme": "SONGS FOR CHEER EDITORS CHOICE (CM)",
       "price": 1400,
       "invoice": "25653",
-      "mixStartDate": "46225",
+      "mixStartDate": "2026-07-22",
       "eightCountSheet": "HAVE CS",
       "haveSongs": "HAVE",
       "needsAttention": false,
@@ -19,7 +41,8 @@
       "editorRequest": "FA",
       "contactName": "WALTER",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-07-29"
     },
     {
       "id": "mtd-2",
@@ -32,7 +55,7 @@
       "musicTheme": "SONGS FOR CHEER EDITORS CHOICE (CM)",
       "price": 1400,
       "invoice": "25653",
-      "mixStartDate": "46230",
+      "mixStartDate": "2026-07-27",
       "eightCountSheet": "HAVE CS",
       "haveSongs": "HAVE",
       "needsAttention": false,
@@ -40,7 +63,8 @@
       "editorRequest": "FA",
       "contactName": "WALTER",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-08-03"
     },
     {
       "id": "mtd-3",
@@ -53,7 +77,7 @@
       "musicTheme": "SONGS FOR CHEER CASEY CAN CHOOSE (CM)",
       "price": 1400,
       "invoice": "25653",
-      "mixStartDate": "46231",
+      "mixStartDate": "2026-07-28",
       "eightCountSheet": "HAVE CS",
       "haveSongs": "HAVE",
       "needsAttention": false,
@@ -61,7 +85,8 @@
       "editorRequest": "FA",
       "contactName": "WALTER",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-08-04"
     },
     {
       "id": "mtd-4",
@@ -74,7 +99,7 @@
       "musicTheme": "SONGS FOR CHEER CASEY CAN CHOOSE (CM)",
       "price": 1400,
       "invoice": "25653",
-      "mixStartDate": "46232",
+      "mixStartDate": "2026-07-29",
       "eightCountSheet": "HAVE CS",
       "haveSongs": "HAVE",
       "needsAttention": false,
@@ -82,7 +107,8 @@
       "editorRequest": "FA",
       "contactName": "WALTER",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-08-05"
     },
     {
       "id": "mtd-5",
@@ -95,7 +121,7 @@
       "musicTheme": "PM & UTB COVERS SEE NOTES (CM)",
       "price": 1000,
       "invoice": "25433",
-      "mixStartDate": "46233",
+      "mixStartDate": "2026-07-30",
       "eightCountSheet": "HAVE CS & VIDEO",
       "haveSongs": "HAVE",
       "needsAttention": false,
@@ -103,7 +129,8 @@
       "editorRequest": "FA",
       "contactName": "CALVIN",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-08-06"
     },
     {
       "id": "mtd-6",
@@ -116,7 +143,7 @@
       "musicTheme": "SONGS FOR CHEER CASEY CAN CHOOSE (CM)",
       "price": 1400,
       "invoice": "25653",
-      "mixStartDate": "46234",
+      "mixStartDate": "2026-07-31",
       "eightCountSheet": "HAVE CS",
       "haveSongs": "HAVE",
       "needsAttention": false,
@@ -124,7 +151,8 @@
       "editorRequest": "FA",
       "contactName": "WALTER",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-08-07"
     },
     {
       "id": "mtd-7",
@@ -137,7 +165,7 @@
       "musicTheme": "PM & UTB COVERS \"ROYAL\" SEE NOTES (CM)",
       "price": 1000,
       "invoice": "25433",
-      "mixStartDate": "46233",
+      "mixStartDate": "2026-07-30",
       "eightCountSheet": "HAVE CS & VIDEO",
       "haveSongs": "HAVE",
       "needsAttention": false,
@@ -145,7 +173,8 @@
       "editorRequest": "FA",
       "contactName": "CALVIN",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-08-06"
     },
     {
       "id": "mtd-8",
@@ -158,7 +187,7 @@
       "musicTheme": "SONGS FOR CHEER SEE NOTES (CM)",
       "price": 1150,
       "invoice": "25469",
-      "mixStartDate": "46238",
+      "mixStartDate": "2026-08-04",
       "eightCountSheet": "HAVE CS",
       "haveSongs": "HAVE",
       "needsAttention": false,
@@ -166,7 +195,8 @@
       "editorRequest": "FA",
       "contactName": "SHELLY",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-08-11"
     },
     {
       "id": "mtd-9",
@@ -179,7 +209,7 @@
       "musicTheme": "SONGS FOR CHEER CASEY CAN CHOOSE (CM)",
       "price": 1400,
       "invoice": "25653",
-      "mixStartDate": "46234",
+      "mixStartDate": "2026-07-31",
       "eightCountSheet": "HAVE CS",
       "haveSongs": "HAVE",
       "needsAttention": false,
@@ -187,7 +217,8 @@
       "editorRequest": "FA",
       "contactName": "WALTER",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-08-07"
     },
     {
       "id": "mtd-10",
@@ -200,7 +231,7 @@
       "musicTheme": "PM & UTB COVERS SEE NOTES CM)",
       "price": 1150,
       "invoice": "25469",
-      "mixStartDate": "46237",
+      "mixStartDate": "2026-08-03",
       "eightCountSheet": "HAVE CS & VIDEO",
       "haveSongs": "HAVE",
       "needsAttention": false,
@@ -208,7 +239,8 @@
       "editorRequest": "FA",
       "contactName": "SHELLY",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-08-10"
     },
     {
       "id": "mtd-11",
@@ -221,7 +253,7 @@
       "musicTheme": "PM & UTB COVERS SEE NOTES CM)",
       "price": 1150,
       "invoice": "25469",
-      "mixStartDate": "46237",
+      "mixStartDate": "2026-08-03",
       "eightCountSheet": "HAVE CS",
       "haveSongs": "HAVE",
       "needsAttention": false,
@@ -229,12 +261,13 @@
       "editorRequest": "FA",
       "contactName": "SHELLY/MACEY",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-08-10"
     },
     {
       "id": "mtd-12",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "SHELLY",
       "programName": "PRO SPIRIT AS DIAMONDZ JR 2.2 PREP",
@@ -242,7 +275,7 @@
       "musicTheme": "PM & UTB COVERS EDITORS CHOICE (CM)",
       "price": 1150,
       "invoice": "25469",
-      "mixStartDate": "46238",
+      "mixStartDate": "2026-08-04",
       "eightCountSheet": "HAVE CS",
       "haveSongs": "HAVE",
       "needsAttention": false,
@@ -250,12 +283,13 @@
       "editorRequest": "FA",
       "contactName": "SHELLY",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-08-11"
     },
     {
       "id": "mtd-13",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "WALTER",
       "programName": "SPIRIT XTREME AS GLOW MINI 1",
@@ -263,7 +297,7 @@
       "musicTheme": "PM & UTB COVERS EDITORS CHOICE (CM)",
       "price": 470,
       "invoice": "25653",
-      "mixStartDate": "46238",
+      "mixStartDate": "2026-08-04",
       "eightCountSheet": "HAVE CS",
       "haveSongs": "HAVE",
       "needsAttention": false,
@@ -271,12 +305,13 @@
       "editorRequest": "FA",
       "contactName": "WALTER",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-08-08"
     },
     {
       "id": "mtd-14",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "SHELLY/KAYLYN",
       "programName": "PRO SPIRIT AS LADY ONYX JR 3.2 AG PREP",
@@ -284,7 +319,7 @@
       "musicTheme": "SONGS FOR CHEER SEE NOTES (CM)",
       "price": 1150,
       "invoice": "25469",
-      "mixStartDate": "46239",
+      "mixStartDate": "2026-08-05",
       "eightCountSheet": "HAVE CS & VIDEO",
       "haveSongs": "HAVE",
       "needsAttention": false,
@@ -292,12 +327,13 @@
       "editorRequest": "FA",
       "contactName": "SHELLY/KAYLYN",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-08-12"
     },
     {
       "id": "mtd-15",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "SHELLY/MADDIE",
       "programName": "PRO SPIRIT AS LUCKY STARZ CHEERABILITIES COED",
@@ -305,7 +341,7 @@
       "musicTheme": "PM & UTB COVERS \"BACK AND BETTER THAN EVER\" SEE NOTES (CM)",
       "price": 850,
       "invoice": "25469",
-      "mixStartDate": "46239",
+      "mixStartDate": "2026-08-05",
       "eightCountSheet": "HAVE CS",
       "haveSongs": "HAVE",
       "needsAttention": false,
@@ -313,12 +349,13 @@
       "editorRequest": "FA",
       "contactName": "SHELLY/MADDIE",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-08-12"
     },
     {
       "id": "mtd-16",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "WALTER",
       "programName": "SPIRIT XTREME AS SHINE MINI 1",
@@ -326,7 +363,7 @@
       "musicTheme": "PM & UTB COVERS EDITORS CHOICE (CM)",
       "price": 470,
       "invoice": "25653",
-      "mixStartDate": "46239",
+      "mixStartDate": "2026-08-05",
       "eightCountSheet": "HAVE CS",
       "haveSongs": "HAVE",
       "needsAttention": false,
@@ -334,12 +371,13 @@
       "editorRequest": "FA",
       "contactName": "WALTER",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-08-09"
     },
     {
       "id": "mtd-17",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "AMIE/STACI/SANDI",
       "programName": "SEABREEZE HS SMALL ALL GIRL",
@@ -347,7 +385,7 @@
       "musicTheme": "PM & UTB COVERS EDITORS CHOICE (CM)",
       "price": 1000,
       "invoice": "25492",
-      "mixStartDate": "46240",
+      "mixStartDate": "2026-08-06",
       "eightCountSheet": "HAVE CS & VIDEO",
       "haveSongs": "HAVE",
       "needsAttention": false,
@@ -355,12 +393,13 @@
       "editorRequest": "FA",
       "contactName": "AMIE/STACI/SANDI",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-08-13"
     },
     {
       "id": "mtd-18",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "KENDALL",
       "programName": "MAGIC CITY AS BIRM OUTLAWS SM JR 4 FLEX AG",
@@ -368,7 +407,7 @@
       "musicTheme": "PM & UTB COVERS \"VIDEO GAME\" SEE NOTES (CM)",
       "price": 1400,
       "invoice": "25579",
-      "mixStartDate": "46240",
+      "mixStartDate": "2026-08-06",
       "eightCountSheet": "HAVE CS & VIDEO",
       "haveSongs": "HAVE",
       "needsAttention": false,
@@ -376,12 +415,13 @@
       "editorRequest": "FA",
       "contactName": "KENDALL",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-08-13"
     },
     {
       "id": "mtd-19",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "WALTER",
       "programName": "SPIRIT XTREME AS LADY X SR 5",
@@ -389,7 +429,7 @@
       "musicTheme": "CASEY KNOWS (CM)",
       "price": 1400,
       "invoice": "25653",
-      "mixStartDate": "46241",
+      "mixStartDate": "2026-08-07",
       "eightCountSheet": "HAVE CS & VIDEO",
       "haveSongs": "NO",
       "needsAttention": false,
@@ -397,12 +437,13 @@
       "editorRequest": "FA",
       "contactName": "WALTER",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-08-12"
     },
     {
       "id": "mtd-20",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "WALTER",
       "programName": "SPIRIT XTREME AS GLITZ JR 1",
@@ -410,7 +451,7 @@
       "musicTheme": "PM & UTB COVERS EDITORS CHOICE (CM)",
       "price": 470,
       "invoice": "25653",
-      "mixStartDate": "46242",
+      "mixStartDate": "2026-08-08",
       "eightCountSheet": "HAVE CS",
       "haveSongs": "HAVE",
       "needsAttention": false,
@@ -418,12 +459,13 @@
       "editorRequest": "FA",
       "contactName": "WALTER",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-08-12"
     },
     {
       "id": "mtd-21",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "SARAH",
       "programName": "TAHQUITZ HS LRG COED",
@@ -431,7 +473,7 @@
       "musicTheme": "SONGS FOR CHEER EDITORS CHOICE (CM)",
       "price": 1000,
       "invoice": "25065",
-      "mixStartDate": "46244",
+      "mixStartDate": "2026-08-10",
       "eightCountSheet": "NEED ORDER FORM, CS, & VIDEO",
       "haveSongs": "HAVE",
       "needsAttention": true,
@@ -439,12 +481,13 @@
       "editorRequest": "FA",
       "contactName": "SARAH",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-08-17"
     },
     {
       "id": "mtd-22",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "BRANDON/JOMAR",
       "programName": "VALLEY HS TBD",
@@ -452,7 +495,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 600,
       "invoice": "25543",
-      "mixStartDate": "46244",
+      "mixStartDate": "2026-08-10",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -460,12 +503,13 @@
       "editorRequest": "FA",
       "contactName": "BRANDON/JOMAR",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-08-15"
     },
     {
       "id": "mtd-23",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "KENDALL",
       "programName": "MAGIC CITY AS BIRM CITY GIRLS MINI 1",
@@ -473,7 +517,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 850,
       "invoice": "25579",
-      "mixStartDate": "46244",
+      "mixStartDate": "2026-08-10",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -481,12 +525,13 @@
       "editorRequest": "FA",
       "contactName": "KENDALL",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-08-15"
     },
     {
       "id": "mtd-24",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "KENDALL",
       "programName": "MAGIC CITY AS BIRM LEGACY YTH 3 FLEX",
@@ -494,7 +539,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 1400,
       "invoice": "25579",
-      "mixStartDate": "46245",
+      "mixStartDate": "2026-08-11",
       "eightCountSheet": "NEED ORDER FORM, CS, & VIDEO",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -502,12 +547,13 @@
       "editorRequest": "FA",
       "contactName": "KENDALL",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-08-18"
     },
     {
       "id": "mtd-25",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "NIKKI/ROSALIND",
       "programName": "PREMIER ATHLETICS KY GLAMOUR GIRLS MINI 1",
@@ -515,7 +561,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 1400,
       "invoice": "25786",
-      "mixStartDate": "46245",
+      "mixStartDate": "2026-08-11",
       "eightCountSheet": "NEED ORDER FORM, CS, & VIDEO",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -523,12 +569,13 @@
       "editorRequest": "FA",
       "contactName": "NIKKI/ROSALIND",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-08-18"
     },
     {
       "id": "mtd-26",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "KENDALL",
       "programName": "MAGIC CITY AS BIRM LADY LEGION YTH 2 FLEX",
@@ -536,7 +583,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 1000,
       "invoice": "25579",
-      "mixStartDate": "46246",
+      "mixStartDate": "2026-08-12",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -544,12 +591,13 @@
       "editorRequest": "FA",
       "contactName": "KENDALL",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-08-17"
     },
     {
       "id": "mtd-27",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "KENDALL",
       "programName": "MAGIC CITY AS BIRM IRON ELITE MINI 1",
@@ -557,7 +605,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 1000,
       "invoice": "25579",
-      "mixStartDate": "46246",
+      "mixStartDate": "2026-08-12",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -565,12 +613,13 @@
       "editorRequest": "FA",
       "contactName": "KENDALL",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-08-17"
     },
     {
       "id": "mtd-28",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "EVE/BLAKE",
       "programName": "HARRISBURG HS ALL GIRL",
@@ -578,7 +627,7 @@
       "musicTheme": "PM & UTB COVERS SEE NOTES (CM)",
       "price": 850,
       "invoice": "25808",
-      "mixStartDate": "46246",
+      "mixStartDate": "2026-08-12",
       "eightCountSheet": "HAVE CS & VIDEO",
       "haveSongs": "HAVE",
       "needsAttention": false,
@@ -586,12 +635,13 @@
       "editorRequest": "FA",
       "contactName": "EVE/BLAKE",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-08-19"
     },
     {
       "id": "mtd-29",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "WALTER",
       "programName": "SPIRIT XTREME AS GLORY JR 4",
@@ -599,7 +649,7 @@
       "musicTheme": "CASEY KNOWS (CM)",
       "price": 1400,
       "invoice": "25653",
-      "mixStartDate": "46247",
+      "mixStartDate": "2026-08-13",
       "eightCountSheet": "NEED CS & VIDEO",
       "haveSongs": "NEED NOTES",
       "needsAttention": true,
@@ -607,12 +657,13 @@
       "editorRequest": "FA",
       "contactName": "WALTER",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-08-18"
     },
     {
       "id": "mtd-30",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "WALTER",
       "programName": "SPIRIT XTREME AS STRENGTH SR COED 4",
@@ -620,7 +671,7 @@
       "musicTheme": "CASEY KNOWS (CM)",
       "price": 1400,
       "invoice": "25653",
-      "mixStartDate": "46248",
+      "mixStartDate": "2026-08-14",
       "eightCountSheet": "NEED CS & VIDEO",
       "haveSongs": "NEED NOTES",
       "needsAttention": true,
@@ -628,12 +679,13 @@
       "editorRequest": "FA",
       "contactName": "WALTER",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-08-19"
     },
     {
       "id": "mtd-31",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "JASON/CAMERON",
       "programName": "BECKMAN HS SM ADV COED",
@@ -641,7 +693,7 @@
       "musicTheme": "PM & UTB COVERS \"CALIFORNIA GIRLS\" SEE NOTES (CM)",
       "price": 1000,
       "invoice": "25893",
-      "mixStartDate": "46249",
+      "mixStartDate": "2026-08-15",
       "eightCountSheet": "HAVE CS & VIDEO",
       "haveSongs": "HAVE",
       "needsAttention": false,
@@ -649,12 +701,13 @@
       "editorRequest": "FA",
       "contactName": "JASON/CAMERON",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-08-22"
     },
     {
       "id": "mtd-32",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "SHELLY/KAYLYN",
       "programName": "PRO SPIRIT AS NEON YTH 2 FLEX ELITE AG",
@@ -662,7 +715,7 @@
       "musicTheme": "FULLY CUSTOM.CASEY KNOWS \"PARTY\" SEE NOTES (CM)",
       "price": 1400,
       "invoice": "25469",
-      "mixStartDate": "46251",
+      "mixStartDate": "2026-08-17",
       "eightCountSheet": "HAVE CS & VIDEO",
       "haveSongs": "HAVE",
       "needsAttention": false,
@@ -670,12 +723,13 @@
       "editorRequest": "FA",
       "contactName": "SHELLY/KAYLYN",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-08-22"
     },
     {
       "id": "mtd-33",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "ASHLEY.JASON",
       "programName": "AMERICAN CHEER MINI BLUE MINI 2",
@@ -683,7 +737,7 @@
       "musicTheme": "TBD (CM)",
       "price": 1400,
       "invoice": "25451",
-      "mixStartDate": "46252",
+      "mixStartDate": "2026-08-18",
       "eightCountSheet": "NEED CS & VIDEO",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -691,12 +745,13 @@
       "editorRequest": "FA",
       "contactName": "ASHLEY.JASON",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-08-25"
     },
     {
       "id": "mtd-34",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "BRANDON/JOMAR",
       "programName": "MOUNTAIN RIDGE HS JV TBD",
@@ -704,7 +759,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 700,
       "invoice": "25545",
-      "mixStartDate": "46252",
+      "mixStartDate": "2026-08-18",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -712,12 +767,13 @@
       "editorRequest": "FA",
       "contactName": "BRANDON/JOMAR",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-08-23"
     },
     {
       "id": "mtd-35",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "ASHLEY.JASON",
       "programName": "AMERICAN CHEER YOUTH WHITE",
@@ -725,7 +781,7 @@
       "musicTheme": "TBD (CM)",
       "price": 1400,
       "invoice": "25451",
-      "mixStartDate": "46253",
+      "mixStartDate": "2026-08-19",
       "eightCountSheet": "NEED CS & VIDEO",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -733,12 +789,13 @@
       "editorRequest": "FA",
       "contactName": "ASHLEY.JASON",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-08-26"
     },
     {
       "id": "mtd-36",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "BRANDON/JOMAR",
       "programName": "XAVIER PREP HS TBD",
@@ -746,7 +803,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 1000,
       "invoice": "25544",
-      "mixStartDate": "46253",
+      "mixStartDate": "2026-08-19",
       "eightCountSheet": "NEED ORDER FORM, CS, & VIDEO",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -754,12 +811,13 @@
       "editorRequest": "FA",
       "contactName": "BRANDON/JOMAR",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-08-26"
     },
     {
       "id": "mtd-37",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "ASHLEY.JASON",
       "programName": "AMERICAN CHEER YOUTH BLUE",
@@ -767,7 +825,7 @@
       "musicTheme": "TBD (CM)",
       "price": 1400,
       "invoice": "25451",
-      "mixStartDate": "46254",
+      "mixStartDate": "2026-08-20",
       "eightCountSheet": "NEED CS & VIDEO",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -775,12 +833,13 @@
       "editorRequest": "FA",
       "contactName": "ASHLEY.JASON",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-08-27"
     },
     {
       "id": "mtd-38",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "TIFFANY",
       "programName": "ALMADEN SPIRIT ATHLETICS AQUA JR 1",
@@ -788,7 +847,7 @@
       "musicTheme": "TBD (CM)",
       "price": 1400,
       "invoice": "25866",
-      "mixStartDate": "46254",
+      "mixStartDate": "2026-08-20",
       "eightCountSheet": "NEED ORDER FORM, CS, & VIDEO",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -796,12 +855,13 @@
       "editorRequest": "FA",
       "contactName": "TIFFANY",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-08-27"
     },
     {
       "id": "mtd-39",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "WALTER",
       "programName": "SPIRIT XTREME AS INTEGRITY U16 LV 3",
@@ -809,7 +869,7 @@
       "musicTheme": "CASEY KNOWS (CM)",
       "price": 1400,
       "invoice": "25653",
-      "mixStartDate": "46255",
+      "mixStartDate": "2026-08-21",
       "eightCountSheet": "NEED CS & VIDEO",
       "haveSongs": "NEED NOTES",
       "needsAttention": true,
@@ -817,12 +877,13 @@
       "editorRequest": "FA",
       "contactName": "WALTER",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-08-26"
     },
     {
       "id": "mtd-40",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "MICHAEL",
       "programName": "DESERT VISTA HS GOLDEN GIRLS SMALL VARSITY",
@@ -830,7 +891,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 1000,
       "invoice": "25360",
-      "mixStartDate": "46258",
+      "mixStartDate": "2026-08-24",
       "eightCountSheet": "NEED ORDER FORM, CS, & VIDEO",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -838,12 +899,13 @@
       "editorRequest": "FA",
       "contactName": "MICHAEL",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-08-31"
     },
     {
       "id": "mtd-41",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "BRANDON/JOMAR",
       "programName": "PARADISE HONORS HS TBD",
@@ -851,7 +913,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 700,
       "invoice": "25546",
-      "mixStartDate": "46258",
+      "mixStartDate": "2026-08-24",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -859,12 +921,13 @@
       "editorRequest": "FA",
       "contactName": "BRANDON/JOMAR",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-08-29"
     },
     {
       "id": "mtd-42",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "STEF",
       "programName": "RIO VISTA MS TBD",
@@ -872,7 +935,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 700,
       "invoice": "25869",
-      "mixStartDate": "46258",
+      "mixStartDate": "2026-08-24",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -880,12 +943,13 @@
       "editorRequest": "FA",
       "contactName": "STEF",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-08-29"
     },
     {
       "id": "mtd-43",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "ASHLEY.JASON",
       "programName": "AMERICAN CHEER JBLACK",
@@ -893,7 +957,7 @@
       "musicTheme": "NEED NOTES (CM)",
       "price": 1400,
       "invoice": "25451",
-      "mixStartDate": "46259",
+      "mixStartDate": "2026-08-25",
       "eightCountSheet": "NEED CS & VIDEO",
       "haveSongs": "NEED NOTES",
       "needsAttention": true,
@@ -901,12 +965,13 @@
       "editorRequest": "FA",
       "contactName": "ASHLEY.JASON",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-08-30"
     },
     {
       "id": "mtd-44",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "ASHLEY.JASON",
       "programName": "AMERICAN CHEER SR WHITE",
@@ -914,7 +979,7 @@
       "musicTheme": "NEED NOTES (CM)",
       "price": 1400,
       "invoice": "25451",
-      "mixStartDate": "46260",
+      "mixStartDate": "2026-08-26",
       "eightCountSheet": "NEED CS & VIDEO",
       "haveSongs": "NEED NOTES",
       "needsAttention": true,
@@ -922,12 +987,13 @@
       "editorRequest": "FA",
       "contactName": "ASHLEY.JASON",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-08-31"
     },
     {
       "id": "mtd-45",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "ASHLEY.JASON",
       "programName": "AMERICAN CHEER SR BLUE",
@@ -935,7 +1001,7 @@
       "musicTheme": "NEED NOTES (CM)",
       "price": 1400,
       "invoice": "25451",
-      "mixStartDate": "46261",
+      "mixStartDate": "2026-08-27",
       "eightCountSheet": "NEED CS & VIDEO",
       "haveSongs": "NEED NOTES",
       "needsAttention": true,
@@ -943,12 +1009,13 @@
       "editorRequest": "FA",
       "contactName": "ASHLEY.JASON",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-09-01"
     },
     {
       "id": "mtd-46",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "ASHLEY.JASON",
       "programName": "AMERICAN CHEER SR RED",
@@ -956,7 +1023,7 @@
       "musicTheme": "NEED NOTES (CM)",
       "price": 1400,
       "invoice": "25451",
-      "mixStartDate": "46262",
+      "mixStartDate": "2026-08-28",
       "eightCountSheet": "NEED CS & VIDEO",
       "haveSongs": "NEED NOTES",
       "needsAttention": true,
@@ -964,12 +1031,13 @@
       "editorRequest": "FA",
       "contactName": "ASHLEY.JASON",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-09-02"
     },
     {
       "id": "mtd-47",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "JAMIE",
       "programName": "CHEER SKILLZ ACADEMY ASTRO ANGELS YTH PREP 2.2",
@@ -977,7 +1045,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 525,
       "invoice": "25346",
-      "mixStartDate": "46263",
+      "mixStartDate": "2026-08-29",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -985,12 +1053,13 @@
       "editorRequest": "FA",
       "contactName": "JAMIE",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-09-02"
     },
     {
       "id": "mtd-48",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "JAMIE",
       "programName": "CHEER SKILLZ ACADEMY DELTA DOLLS YTH PREP 2.1",
@@ -998,7 +1067,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 525,
       "invoice": "25346",
-      "mixStartDate": "46263",
+      "mixStartDate": "2026-08-29",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -1006,12 +1075,13 @@
       "editorRequest": "FA",
       "contactName": "JAMIE",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-09-02"
     },
     {
       "id": "mtd-49",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "WALTER",
       "programName": "SPIRIT XTREME AS PASSION SR 4.2",
@@ -1019,7 +1089,7 @@
       "musicTheme": "CASEY KNOWS (CM)",
       "price": 1400,
       "invoice": "25653",
-      "mixStartDate": "46265",
+      "mixStartDate": "2026-08-31",
       "eightCountSheet": "NEED CS & VIDEO",
       "haveSongs": "NEED NOTES",
       "needsAttention": true,
@@ -1027,12 +1097,13 @@
       "editorRequest": "FA",
       "contactName": "WALTER",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-09-05"
     },
     {
       "id": "mtd-50",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "JAMIE",
       "programName": "CHEER SKILLZ ACADEMY MISS MISSION JR FLEX 2",
@@ -1040,7 +1111,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 1000,
       "invoice": "25346",
-      "mixStartDate": "46266",
+      "mixStartDate": "2026-09-01",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -1048,12 +1119,13 @@
       "editorRequest": "FA",
       "contactName": "JAMIE",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-09-06"
     },
     {
       "id": "mtd-51",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "CRYSTAL",
       "programName": "TUALATIN HS LRG VAR ADV COED",
@@ -1061,7 +1133,7 @@
       "musicTheme": "TBD (CM)",
       "price": 1000,
       "invoice": "25049",
-      "mixStartDate": "46266",
+      "mixStartDate": "2026-09-01",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -1069,12 +1141,13 @@
       "editorRequest": "FA",
       "contactName": "CRYSTAL",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-09-08"
     },
     {
       "id": "mtd-52",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "EMILY/BRICE",
       "programName": "WESTLAKE HS SM VAR NT AG D2",
@@ -1082,7 +1155,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 700,
       "invoice": "25125",
-      "mixStartDate": "46266",
+      "mixStartDate": "2026-09-01",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -1090,12 +1163,13 @@
       "editorRequest": "FA",
       "contactName": "EMILY/BRICE",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-09-06"
     },
     {
       "id": "mtd-53",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "SAVANNA/BLAKE",
       "programName": "CULLMAN HS LRG JV AG",
@@ -1103,7 +1177,7 @@
       "musicTheme": "PM & UTB COVERS SEE NOTES (CM)",
       "price": 1000,
       "invoice": "25894",
-      "mixStartDate": "46267",
+      "mixStartDate": "2026-09-02",
       "eightCountSheet": "HAVE CS",
       "haveSongs": "HAVE",
       "needsAttention": false,
@@ -1111,12 +1185,13 @@
       "editorRequest": "FA",
       "contactName": "SAVANNA/BLAKE",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-09-09"
     },
     {
       "id": "mtd-54",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "JAMIE",
       "programName": "CHEER SKILLZ ACADEMY COMET CUTIES MINI NOV 1",
@@ -1124,7 +1199,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 375,
       "invoice": "25346",
-      "mixStartDate": "46267",
+      "mixStartDate": "2026-09-02",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -1132,12 +1207,13 @@
       "editorRequest": "FA",
       "contactName": "JAMIE",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-09-06"
     },
     {
       "id": "mtd-55",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "JAMIE",
       "programName": "CHEER SKILLZ ACADEMY SATURN SWEETIES MINI PREP 2.1",
@@ -1145,7 +1221,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 525,
       "invoice": "25346",
-      "mixStartDate": "46267",
+      "mixStartDate": "2026-09-02",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -1153,12 +1229,13 @@
       "editorRequest": "FA",
       "contactName": "JAMIE",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-09-06"
     },
     {
       "id": "mtd-56",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "BRANDON/JOMAR",
       "programName": "NORTHRIDGE HS TBD",
@@ -1166,7 +1243,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 700,
       "invoice": "25547",
-      "mixStartDate": "46267",
+      "mixStartDate": "2026-09-02",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -1174,12 +1251,13 @@
       "editorRequest": "FA",
       "contactName": "BRANDON/JOMAR",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-09-07"
     },
     {
       "id": "mtd-57",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "TRAVIS",
       "programName": "MIRA COSTA HS MED NT AG",
@@ -1187,7 +1265,7 @@
       "musicTheme": "PM & UTB COVERS SEE NOTES (CM)",
       "price": 1000,
       "invoice": "25000",
-      "mixStartDate": "46273",
+      "mixStartDate": "2026-09-08",
       "eightCountSheet": "HAVE CS & VIDEO",
       "haveSongs": "HAVE",
       "needsAttention": false,
@@ -1195,12 +1273,13 @@
       "editorRequest": "FA",
       "contactName": "TRAVIS",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-09-15"
     },
     {
       "id": "mtd-58",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "DELAINA/CAMERON",
       "programName": "EL DORADO HS SM VARSITY AG",
@@ -1208,7 +1287,7 @@
       "musicTheme": "PM & UTB COVERS SEE NOTES (CM)",
       "price": 1000,
       "invoice": "25923",
-      "mixStartDate": "46273",
+      "mixStartDate": "2026-09-08",
       "eightCountSheet": "NEED CS & VIDEO",
       "haveSongs": "HAVE",
       "needsAttention": true,
@@ -1216,12 +1295,13 @@
       "editorRequest": "FA",
       "contactName": "DELAINA/CAMERON",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-09-15"
     },
     {
       "id": "mtd-59",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "BRANDON/JOMAR",
       "programName": "SEVERANCE HS TBD",
@@ -1229,7 +1309,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 700,
       "invoice": "25548",
-      "mixStartDate": "46273",
+      "mixStartDate": "2026-09-08",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -1237,12 +1317,13 @@
       "editorRequest": "FA",
       "contactName": "BRANDON/JOMAR",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-09-13"
     },
     {
       "id": "mtd-60",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "NIKKI/ROSALIND",
       "programName": "PREMIER ATHLETICS KY LADY LAMBO SM YTH 2",
@@ -1250,7 +1331,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 1400,
       "invoice": "25786",
-      "mixStartDate": "46274",
+      "mixStartDate": "2026-09-09",
       "eightCountSheet": "NEED ORDER FORM, CS, & VIDEO",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -1258,12 +1339,13 @@
       "editorRequest": "FA",
       "contactName": "NIKKI/ROSALIND",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-09-16"
     },
     {
       "id": "mtd-61",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "NIKKI/ROSALIND",
       "programName": "PREMIER ATHLETICS KY DIAMOND GIRLS SM JR 1",
@@ -1271,7 +1353,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 1400,
       "invoice": "25786",
-      "mixStartDate": "46274",
+      "mixStartDate": "2026-09-09",
       "eightCountSheet": "NEED ORDER FORM, CS, & VIDEO",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -1279,12 +1361,13 @@
       "editorRequest": "FA",
       "contactName": "NIKKI/ROSALIND",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-09-16"
     },
     {
       "id": "mtd-62",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "NIKKI/ROSALIND",
       "programName": "PREMIER ATHLETICS KY CHEERY BOMBS SM YTH 3 FLEX",
@@ -1292,7 +1375,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 1400,
       "invoice": "25786",
-      "mixStartDate": "46275",
+      "mixStartDate": "2026-09-10",
       "eightCountSheet": "NEED ORDER FORM, CS, & VIDEO",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -1300,12 +1383,13 @@
       "editorRequest": "FA",
       "contactName": "NIKKI/ROSALIND",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-09-17"
     },
     {
       "id": "mtd-63",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "TIFFANY",
       "programName": "ALMADEN SPIRIT ATHLETICS RUBY JR 1",
@@ -1313,7 +1397,7 @@
       "musicTheme": "TBD (CM)",
       "price": 1400,
       "invoice": "25866",
-      "mixStartDate": "46275",
+      "mixStartDate": "2026-09-10",
       "eightCountSheet": "NEED ORDER FORM, CS, & VIDEO",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -1321,12 +1405,13 @@
       "editorRequest": "FA",
       "contactName": "TIFFANY",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-09-17"
     },
     {
       "id": "mtd-64",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "NIKKI/ROSALIND",
       "programName": "PREMIER ATHLETICS KY VOGUE U16 LV 3",
@@ -1334,7 +1419,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 1400,
       "invoice": "25786",
-      "mixStartDate": "46276",
+      "mixStartDate": "2026-09-11",
       "eightCountSheet": "NEED ORDER FORM, CS, & VIDEO",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -1342,12 +1427,13 @@
       "editorRequest": "FA",
       "contactName": "NIKKI/ROSALIND",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-09-16"
     },
     {
       "id": "mtd-65",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "MICHAEL",
       "programName": "DESERT VISTA HS JV",
@@ -1355,7 +1441,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 700,
       "invoice": "25471",
-      "mixStartDate": "46277",
+      "mixStartDate": "2026-09-12",
       "eightCountSheet": "NEED CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -1363,12 +1449,13 @@
       "editorRequest": "FA",
       "contactName": "MICHAEL",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-09-17"
     },
     {
       "id": "mtd-66",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "LAUREN/ROGER/AUDREY",
       "programName": "TOP GUN AS ORLANDO CLOUD 9 MINI 1 SM",
@@ -1376,7 +1463,7 @@
       "musicTheme": "TBD (CM)",
       "price": 1000,
       "invoice": "25063",
-      "mixStartDate": "46279",
+      "mixStartDate": "2026-09-14",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -1384,12 +1471,13 @@
       "editorRequest": "FA",
       "contactName": "LAUREN/ROGER/AUDREY",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-09-19"
     },
     {
       "id": "mtd-67",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "LAUREN/ROGER/AUDREY",
       "programName": "TOP GUN AS ORLANDO MINI REIGN MINI 1 MED",
@@ -1397,7 +1485,7 @@
       "musicTheme": "TBD (CM)",
       "price": 1000,
       "invoice": "25063",
-      "mixStartDate": "46279",
+      "mixStartDate": "2026-09-14",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -1405,12 +1493,13 @@
       "editorRequest": "FA",
       "contactName": "LAUREN/ROGER/AUDREY",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-09-19"
     },
     {
       "id": "mtd-68",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "TALEEN/JEWELL",
       "programName": "CLOVIS WEST HS D1 SMALL ALL GIRL",
@@ -1418,7 +1507,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 700,
       "invoice": "25470",
-      "mixStartDate": "46279",
+      "mixStartDate": "2026-09-14",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -1426,12 +1515,13 @@
       "editorRequest": "FA",
       "contactName": "TALEEN/JEWELL",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-09-19"
     },
     {
       "id": "mtd-69",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "MELISSA/ALEXIS",
       "programName": "ONE DREAM CHEER 18U MISS FAME",
@@ -1439,7 +1529,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 1400,
       "invoice": "25413",
-      "mixStartDate": "46280",
+      "mixStartDate": "2026-09-15",
       "eightCountSheet": "NEED CS & VIDEO",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -1447,12 +1537,13 @@
       "editorRequest": "FA",
       "contactName": "MELISSA/ALEXIS",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-09-22"
     },
     {
       "id": "mtd-70",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "MELISSA/ALEXIS",
       "programName": "ONE DREAM CHEER 16U LADY LEGENDS",
@@ -1460,7 +1551,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 1400,
       "invoice": "25413",
-      "mixStartDate": "46280",
+      "mixStartDate": "2026-09-15",
       "eightCountSheet": "NEED CS & VIDEO",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -1468,12 +1559,13 @@
       "editorRequest": "FA",
       "contactName": "MELISSA/ALEXIS",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-09-22"
     },
     {
       "id": "mtd-71",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "MELISSA/ALEXIS",
       "programName": "ONE DREAM CHEER 14U BLUE CREW",
@@ -1481,7 +1573,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 1400,
       "invoice": "25413",
-      "mixStartDate": "46281",
+      "mixStartDate": "2026-09-16",
       "eightCountSheet": "NEED CS & VIDEO",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -1489,12 +1581,13 @@
       "editorRequest": "FA",
       "contactName": "MELISSA/ALEXIS",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-09-23"
     },
     {
       "id": "mtd-72",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "MELISSA/ALEXIS",
       "programName": "ONE DREAM CHEER 14U GLAMOUR GIRLS",
@@ -1502,7 +1595,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 1400,
       "invoice": "25413",
-      "mixStartDate": "46281",
+      "mixStartDate": "2026-09-16",
       "eightCountSheet": "NEED CS & VIDEO",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -1510,12 +1603,13 @@
       "editorRequest": "FA",
       "contactName": "MELISSA/ALEXIS",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-09-23"
     },
     {
       "id": "mtd-73",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "NIKKI/ROSALIND",
       "programName": "PREMIER ATHLETICS KY DERBY SM SR 4",
@@ -1523,7 +1617,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 1400,
       "invoice": "25786",
-      "mixStartDate": "46282",
+      "mixStartDate": "2026-09-17",
       "eightCountSheet": "NEED ORDER FORM, CS, & VIDEO",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -1531,12 +1625,13 @@
       "editorRequest": "FA",
       "contactName": "NIKKI/ROSALIND",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-09-22"
     },
     {
       "id": "mtd-74",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "TIFFANY",
       "programName": "ALMADEN SPIRIT ATHLETICS AMBER YTH 1",
@@ -1544,7 +1639,7 @@
       "musicTheme": "TBD (CM)",
       "price": 1400,
       "invoice": "25866",
-      "mixStartDate": "46283",
+      "mixStartDate": "2026-09-18",
       "eightCountSheet": "NEED ORDER FORM, CS, & VIDEO",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -1552,12 +1647,13 @@
       "editorRequest": "FA",
       "contactName": "TIFFANY",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-09-25"
     },
     {
       "id": "mtd-75",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "BRANDON/JOMAR",
       "programName": "GREELEY CENTRAL HS TBD",
@@ -1565,7 +1661,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 700,
       "invoice": "25549",
-      "mixStartDate": "46283",
+      "mixStartDate": "2026-09-18",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -1573,12 +1669,13 @@
       "editorRequest": "FA",
       "contactName": "BRANDON/JOMAR",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-09-23"
     },
     {
       "id": "mtd-76",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "BLAKE",
       "programName": "BROTHER MARTIN HS LRG VARSITY COED D1",
@@ -1586,7 +1683,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 550,
       "invoice": "25130",
-      "mixStartDate": "46283",
+      "mixStartDate": "2026-09-18",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -1594,12 +1691,13 @@
       "editorRequest": "FA",
       "contactName": "BLAKE",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-09-22"
     },
     {
       "id": "mtd-77",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "MELISSA/ALEXIS",
       "programName": "ONE DREAM CHEER 12 GOLDEN GIRLS",
@@ -1607,7 +1705,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 1000,
       "invoice": "25414",
-      "mixStartDate": "46286",
+      "mixStartDate": "2026-09-21",
       "eightCountSheet": "NEED CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -1615,12 +1713,13 @@
       "editorRequest": "FA",
       "contactName": "MELISSA/ALEXIS",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-09-26"
     },
     {
       "id": "mtd-78",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "KELLY/JOHN",
       "programName": "KELLENBURG MEMORIAL HS VARSITY D1",
@@ -1628,7 +1727,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 600,
       "invoice": "25261",
-      "mixStartDate": "46286",
+      "mixStartDate": "2026-09-21",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -1636,12 +1735,13 @@
       "editorRequest": "FA",
       "contactName": "KELLY/JOHN",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-09-26"
     },
     {
       "id": "mtd-79",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "ASHLEY.JASON",
       "programName": "AMERICAN CHEER TINY TWINKLES",
@@ -1649,7 +1749,7 @@
       "musicTheme": "TBD (CM)",
       "price": 600,
       "invoice": "25451",
-      "mixStartDate": "46286",
+      "mixStartDate": "2026-09-21",
       "eightCountSheet": "NEED CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -1657,12 +1757,13 @@
       "editorRequest": "FA",
       "contactName": "ASHLEY.JASON",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-09-26"
     },
     {
       "id": "mtd-80",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "MELISSA/ALEXIS",
       "programName": "ONE DREAM CHEER 12 VOGUE",
@@ -1670,7 +1771,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 1400,
       "invoice": "25414",
-      "mixStartDate": "46287",
+      "mixStartDate": "2026-09-22",
       "eightCountSheet": "NEED CS & VIDEO",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -1678,12 +1779,13 @@
       "editorRequest": "FA",
       "contactName": "MELISSA/ALEXIS",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-09-29"
     },
     {
       "id": "mtd-81",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "ASHLEY.JASON",
       "programName": "AMERICAN CHEER TINY STARS",
@@ -1691,7 +1793,7 @@
       "musicTheme": "SAME FROM TINY TWINKLES (CM)",
       "price": 312.5,
       "invoice": "25451",
-      "mixStartDate": "46287",
+      "mixStartDate": "2026-09-22",
       "eightCountSheet": "NEED CS",
       "haveSongs": "HAVE",
       "needsAttention": true,
@@ -1699,12 +1801,13 @@
       "editorRequest": "FA",
       "contactName": "ASHLEY.JASON",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-09-27"
     },
     {
       "id": "mtd-82",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "ASHLEY.JASON",
       "programName": "AMERICAN CHEER MINI STARS",
@@ -1712,7 +1815,7 @@
       "musicTheme": "SAME FROM TINY TWINKLES (CM)",
       "price": 312.5,
       "invoice": "25451",
-      "mixStartDate": "46287",
+      "mixStartDate": "2026-09-22",
       "eightCountSheet": "NEED CS",
       "haveSongs": "HAVE",
       "needsAttention": true,
@@ -1720,12 +1823,13 @@
       "editorRequest": "FA",
       "contactName": "ASHLEY.JASON",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-09-27"
     },
     {
       "id": "mtd-83",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "ASHLEY.JASON",
       "programName": "AMERICAN CHEER YOUTH STARS",
@@ -1733,7 +1837,7 @@
       "musicTheme": "SAME FROM TINY TWINKLES (CM)",
       "price": 312.5,
       "invoice": "25451",
-      "mixStartDate": "46287",
+      "mixStartDate": "2026-09-22",
       "eightCountSheet": "NEED CS",
       "haveSongs": "HAVE",
       "needsAttention": true,
@@ -1741,12 +1845,13 @@
       "editorRequest": "FA",
       "contactName": "ASHLEY.JASON",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-09-27"
     },
     {
       "id": "mtd-84",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "ASHLEY.JASON",
       "programName": "AMERICAN CHEER JR STARS",
@@ -1754,7 +1859,7 @@
       "musicTheme": "SAME FROM TINY TWINKLES (CM)",
       "price": 312.5,
       "invoice": "25451",
-      "mixStartDate": "46287",
+      "mixStartDate": "2026-09-22",
       "eightCountSheet": "NEED CS",
       "haveSongs": "HAVE",
       "needsAttention": true,
@@ -1762,12 +1867,13 @@
       "editorRequest": "FA",
       "contactName": "ASHLEY.JASON",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-09-27"
     },
     {
       "id": "mtd-85",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "MELISSA/ALEXIS",
       "programName": "ONE DREAM CHEER 10U MISS BLUSH",
@@ -1775,7 +1881,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 1000,
       "invoice": "25414",
-      "mixStartDate": "46288",
+      "mixStartDate": "2026-09-23",
       "eightCountSheet": "NEED CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -1783,12 +1889,13 @@
       "editorRequest": "FA",
       "contactName": "MELISSA/ALEXIS",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-09-28"
     },
     {
       "id": "mtd-86",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "MELISSA/ALEXIS",
       "programName": "ONE DREAM CHEER 8U GOSSIP GIRLS",
@@ -1796,7 +1903,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 1000,
       "invoice": "25414",
-      "mixStartDate": "46288",
+      "mixStartDate": "2026-09-23",
       "eightCountSheet": "NEED CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -1804,12 +1911,13 @@
       "editorRequest": "FA",
       "contactName": "MELISSA/ALEXIS",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-09-28"
     },
     {
       "id": "mtd-87",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "TIFFANY",
       "programName": "ALMADEN SPIRIT ATHLETICS QUARTZ JR PREP 1.1",
@@ -1817,7 +1925,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 850,
       "invoice": "25866",
-      "mixStartDate": "46288",
+      "mixStartDate": "2026-09-23",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -1825,12 +1933,13 @@
       "editorRequest": "FA",
       "contactName": "TIFFANY",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-09-28"
     },
     {
       "id": "mtd-88",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "MELISSA/ALEXIS",
       "programName": "ONE DREAM CHEER 6U TINY QUEENS",
@@ -1838,7 +1947,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 1000,
       "invoice": "25414",
-      "mixStartDate": "46289",
+      "mixStartDate": "2026-09-24",
       "eightCountSheet": "NEED CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -1846,12 +1955,13 @@
       "editorRequest": "FA",
       "contactName": "MELISSA/ALEXIS",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-09-29"
     },
     {
       "id": "mtd-89",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "MELISSA/ALEXIS",
       "programName": "ONE DREAM CHEER 12 LADY ICONS",
@@ -1859,7 +1969,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 1000,
       "invoice": "25414",
-      "mixStartDate": "46289",
+      "mixStartDate": "2026-09-24",
       "eightCountSheet": "NEED CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -1867,12 +1977,13 @@
       "editorRequest": "FA",
       "contactName": "MELISSA/ALEXIS",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-09-29"
     },
     {
       "id": "mtd-90",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "TIFFANY",
       "programName": "ALMADEN SPIRIT ATHLETICS COBALT YTH PREP 1.1",
@@ -1880,7 +1991,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 850,
       "invoice": "25866",
-      "mixStartDate": "46289",
+      "mixStartDate": "2026-09-24",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -1888,12 +1999,13 @@
       "editorRequest": "FA",
       "contactName": "TIFFANY",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-09-29"
     },
     {
       "id": "mtd-91",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "MELISSA/ALEXIS",
       "programName": "ONE DREAM CHEER 12 2.1 DIVAS",
@@ -1901,7 +2013,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 1400,
       "invoice": "25414",
-      "mixStartDate": "46290",
+      "mixStartDate": "2026-09-25",
       "eightCountSheet": "NEED CS & VIDEO",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -1909,12 +2021,13 @@
       "editorRequest": "FA",
       "contactName": "MELISSA/ALEXIS",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-10-02"
     },
     {
       "id": "mtd-92",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "GRETCHEN",
       "programName": "ALASKA GOLDEN HEART APEX ANGELS XSM SR 3",
@@ -1922,7 +2035,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 1000,
       "invoice": "25556",
-      "mixStartDate": "46290",
+      "mixStartDate": "2026-09-25",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -1930,12 +2043,13 @@
       "editorRequest": "FA",
       "contactName": "GRETCHEN",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-09-30"
     },
     {
       "id": "mtd-93",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "LAUREN/ROGER/AUDREY",
       "programName": "TOP GUN AS ORLANDO BULLET GOLD YTH MED 1",
@@ -1943,7 +2057,7 @@
       "musicTheme": "TBD (CM)",
       "price": 1400,
       "invoice": "25063",
-      "mixStartDate": "46293",
+      "mixStartDate": "2026-09-28",
       "eightCountSheet": "NEED CS & VIDEO",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -1951,12 +2065,13 @@
       "editorRequest": "FA",
       "contactName": "LAUREN/ROGER/AUDREY",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-10-05"
     },
     {
       "id": "mtd-94",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "CINDY",
       "programName": "BELLEVUE HS VARSITY INT",
@@ -1964,7 +2079,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 700,
       "invoice": "25216",
-      "mixStartDate": "46293",
+      "mixStartDate": "2026-09-28",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -1972,12 +2087,13 @@
       "editorRequest": "FA",
       "contactName": "CINDY",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-10-03"
     },
     {
       "id": "mtd-95",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "LAUREN/ROGER/AUDREY",
       "programName": "TOP GUN AS ORLANDO UNITY YTH FLEX 1",
@@ -1985,7 +2101,7 @@
       "musicTheme": "TBD (CM)",
       "price": 1400,
       "invoice": "25063",
-      "mixStartDate": "46294",
+      "mixStartDate": "2026-09-29",
       "eightCountSheet": "NEED CS & VIDEO",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -1993,12 +2109,13 @@
       "editorRequest": "FA",
       "contactName": "LAUREN/ROGER/AUDREY",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-10-06"
     },
     {
       "id": "mtd-96",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "VICKI",
       "programName": "VICTORY VIPERS TBD",
@@ -2006,7 +2123,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 750,
       "invoice": "25361",
-      "mixStartDate": "46294",
+      "mixStartDate": "2026-09-29",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -2014,12 +2131,13 @@
       "editorRequest": "FA",
       "contactName": "VICKI",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-10-04"
     },
     {
       "id": "mtd-97",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "LAUREN/ROGER/AUDREY",
       "programName": "TOP GUN AS ORLANDO HALO YTH SM 2",
@@ -2027,7 +2145,7 @@
       "musicTheme": "TBD (CM)",
       "price": 1400,
       "invoice": "25063",
-      "mixStartDate": "46295",
+      "mixStartDate": "2026-09-30",
       "eightCountSheet": "NEED CS & VIDEO",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -2035,12 +2153,13 @@
       "editorRequest": "FA",
       "contactName": "LAUREN/ROGER/AUDREY",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-10-07"
     },
     {
       "id": "mtd-98",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "VICKI",
       "programName": "VICTORY VIPERS TBD",
@@ -2048,7 +2167,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 750,
       "invoice": "25361",
-      "mixStartDate": "46295",
+      "mixStartDate": "2026-09-30",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -2056,12 +2175,13 @@
       "editorRequest": "FA",
       "contactName": "VICKI",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-10-05"
     },
     {
       "id": "mtd-99",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "LAUREN/ROGER/AUDREY",
       "programName": "TOP GUN AS ORLANDO DEJA 2 YTH 2 SM",
@@ -2069,7 +2189,7 @@
       "musicTheme": "TBD (CM)",
       "price": 1400,
       "invoice": "25063",
-      "mixStartDate": "46296",
+      "mixStartDate": "2026-10-01",
       "eightCountSheet": "NEED CS & VIDEO",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -2077,12 +2197,13 @@
       "editorRequest": "FA",
       "contactName": "LAUREN/ROGER/AUDREY",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-10-08"
     },
     {
       "id": "mtd-100",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "VICKI",
       "programName": "VICTORY VIPERS TBD",
@@ -2090,7 +2211,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 750,
       "invoice": "25361",
-      "mixStartDate": "46296",
+      "mixStartDate": "2026-10-01",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -2098,12 +2219,13 @@
       "editorRequest": "FA",
       "contactName": "VICKI",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-10-06"
     },
     {
       "id": "mtd-101",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "LAUREN/ROGER/AUDREY",
       "programName": "TOP GUN AS ORLANDO RAPTURE YTH FLEX 2",
@@ -2111,7 +2233,7 @@
       "musicTheme": "TBD (CM)",
       "price": 1400,
       "invoice": "25063",
-      "mixStartDate": "46297",
+      "mixStartDate": "2026-10-02",
       "eightCountSheet": "NEED CS & VIDEO",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -2119,12 +2241,13 @@
       "editorRequest": "FA",
       "contactName": "LAUREN/ROGER/AUDREY",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-10-09"
     },
     {
       "id": "mtd-102",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "GRETCHEN",
       "programName": "ALASKA GOLDEN HEART SPEED QUEENS XSM SR 2",
@@ -2132,7 +2255,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 1000,
       "invoice": "25556",
-      "mixStartDate": "46297",
+      "mixStartDate": "2026-10-02",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -2140,12 +2263,13 @@
       "editorRequest": "FA",
       "contactName": "GRETCHEN",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-10-07"
     },
     {
       "id": "mtd-103",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "LAUREN/ROGER/AUDREY",
       "programName": "TOP GUN AS ORLANDO Y2K YTH MED 2",
@@ -2153,7 +2277,7 @@
       "musicTheme": "TBD (CM)",
       "price": 1400,
       "invoice": "25063",
-      "mixStartDate": "46300",
+      "mixStartDate": "2026-10-05",
       "eightCountSheet": "NEED CS & VIDEO",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -2161,12 +2285,13 @@
       "editorRequest": "FA",
       "contactName": "LAUREN/ROGER/AUDREY",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-10-12"
     },
     {
       "id": "mtd-104",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "GRETCHEN",
       "programName": "ALASKA GOLDEN HEART LANE LADIES XSM JR 2",
@@ -2174,7 +2299,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 1000,
       "invoice": "25556",
-      "mixStartDate": "46300",
+      "mixStartDate": "2026-10-05",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -2182,12 +2307,13 @@
       "editorRequest": "FA",
       "contactName": "GRETCHEN",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-10-10"
     },
     {
       "id": "mtd-105",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "LAUREN/ROGER/AUDREY",
       "programName": "TOP GUN AS ORLANDO YOUNG GUNZ YTH MED 3",
@@ -2195,7 +2321,7 @@
       "musicTheme": "TBD (CM)",
       "price": 1400,
       "invoice": "25063",
-      "mixStartDate": "46301",
+      "mixStartDate": "2026-10-06",
       "eightCountSheet": "NEED CS & VIDEO",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -2203,12 +2329,13 @@
       "editorRequest": "FA",
       "contactName": "LAUREN/ROGER/AUDREY",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-10-13"
     },
     {
       "id": "mtd-106",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "GRETCHEN",
       "programName": "ALASKA GOLDEN HEART OVERDIRVE DIVAS YTH SM 1",
@@ -2216,7 +2343,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 1000,
       "invoice": "25556",
-      "mixStartDate": "46301",
+      "mixStartDate": "2026-10-06",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -2224,12 +2351,13 @@
       "editorRequest": "FA",
       "contactName": "GRETCHEN",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-10-11"
     },
     {
       "id": "mtd-107",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "LAUREN/ROGER/AUDREY",
       "programName": "TOP GUN AS ORLANDO JAG SWAG JR MED 2",
@@ -2237,7 +2365,7 @@
       "musicTheme": "TBD (CM)",
       "price": 1400,
       "invoice": "25063",
-      "mixStartDate": "46302",
+      "mixStartDate": "2026-10-07",
       "eightCountSheet": "NEED CS & VIDEO",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -2245,12 +2373,13 @@
       "editorRequest": "FA",
       "contactName": "LAUREN/ROGER/AUDREY",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-10-14"
     },
     {
       "id": "mtd-108",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "GRETCHEN",
       "programName": "ALASKA GOLDEN HEART RALLY RACERS YTH PREP 1.1",
@@ -2258,7 +2387,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 650,
       "invoice": "25556",
-      "mixStartDate": "46302",
+      "mixStartDate": "2026-10-07",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -2266,12 +2395,13 @@
       "editorRequest": "FA",
       "contactName": "GRETCHEN",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-10-11"
     },
     {
       "id": "mtd-109",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "STEFANIE",
       "programName": "BREA OLINDA HS VARSITY LRG NT",
@@ -2279,7 +2409,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 700,
       "invoice": "25867",
-      "mixStartDate": "46302",
+      "mixStartDate": "2026-10-07",
       "eightCountSheet": "NEED CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -2287,12 +2417,13 @@
       "editorRequest": "FA",
       "contactName": "STEFANIE",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-10-12"
     },
     {
       "id": "mtd-110",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "LAUREN/ROGER/AUDREY",
       "programName": "TOP GUN AS ORLANDO KNOCKOUTS U16 3",
@@ -2300,7 +2431,7 @@
       "musicTheme": "TBD (CM)",
       "price": 1400,
       "invoice": "25063",
-      "mixStartDate": "46303",
+      "mixStartDate": "2026-10-08",
       "eightCountSheet": "NEED CS & VIDEO",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -2308,12 +2439,13 @@
       "editorRequest": "FA",
       "contactName": "LAUREN/ROGER/AUDREY",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-10-13"
     },
     {
       "id": "mtd-111",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "ASHLEY/NANCY",
       "programName": "CHARTER OAK HS VARSITY NOVICE",
@@ -2321,7 +2453,7 @@
       "musicTheme": "NEED NOTES (CM)",
       "price": 1400,
       "invoice": "25452",
-      "mixStartDate": "46304",
+      "mixStartDate": "2026-10-09",
       "eightCountSheet": "NEED ORDER FORM, CS, & VIDEO",
       "haveSongs": "NEED NOTES",
       "needsAttention": true,
@@ -2329,12 +2461,13 @@
       "editorRequest": "FA",
       "contactName": "ASHLEY/NANCY",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-10-14"
     },
     {
       "id": "mtd-112",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "GRETCHEN",
       "programName": "ALASKA GOLDEN HEART ZOON CREW JR PREP 1.1",
@@ -2342,7 +2475,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 650,
       "invoice": "25556",
-      "mixStartDate": "46304",
+      "mixStartDate": "2026-10-09",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -2350,12 +2483,13 @@
       "editorRequest": "FA",
       "contactName": "GRETCHEN",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-10-13"
     },
     {
       "id": "mtd-113",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "STEFANIE",
       "programName": "BREA OLINDA HS JV INT",
@@ -2363,7 +2497,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 700,
       "invoice": "25867",
-      "mixStartDate": "46305",
+      "mixStartDate": "2026-10-10",
       "eightCountSheet": "NEED CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -2371,12 +2505,13 @@
       "editorRequest": "FA",
       "contactName": "STEFANIE",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-10-15"
     },
     {
       "id": "mtd-114",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "LAUREN/ROGER/AUDREY",
       "programName": "TOP GUN AS ORLANDO ROYALTY SM JR 4",
@@ -2384,7 +2519,7 @@
       "musicTheme": "TBD (CM)",
       "price": 1400,
       "invoice": "25063",
-      "mixStartDate": "46307",
+      "mixStartDate": "2026-10-12",
       "eightCountSheet": "NEED CS & VIDEO",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -2392,12 +2527,13 @@
       "editorRequest": "FA",
       "contactName": "LAUREN/ROGER/AUDREY",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-10-17"
     },
     {
       "id": "mtd-115",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "LAUREN/ROGER/AUDREY",
       "programName": "TOP GUN AS ORLANDO GLORY JR MED 4",
@@ -2405,7 +2541,7 @@
       "musicTheme": "TBD (CM)",
       "price": 1800,
       "invoice": "25063",
-      "mixStartDate": "46308",
+      "mixStartDate": "2026-10-13",
       "eightCountSheet": "NEED CS & VIDEO",
       "haveSongs": "NEED NOTES",
       "needsAttention": true,
@@ -2413,12 +2549,13 @@
       "editorRequest": "FA",
       "contactName": "LAUREN/ROGER/AUDREY",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-10-18"
     },
     {
       "id": "mtd-116",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "JOANNA",
       "programName": "DAKOTA SPIRIT AS ATOMIC YTH 1",
@@ -2426,7 +2563,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 1400,
       "invoice": "25276",
-      "mixStartDate": "46309",
+      "mixStartDate": "2026-10-14",
       "eightCountSheet": "NEED ORDER FORM, CS, & VIDEO",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -2434,12 +2571,13 @@
       "editorRequest": "FA",
       "contactName": "JOANNA",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-10-21"
     },
     {
       "id": "mtd-117",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "GRETCHEN",
       "programName": "ALASKA GOLDEN HEART MINI MOTORS MINI PREP 1.1",
@@ -2447,7 +2585,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 650,
       "invoice": "25556",
-      "mixStartDate": "46309",
+      "mixStartDate": "2026-10-14",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -2455,12 +2593,13 @@
       "editorRequest": "FA",
       "contactName": "GRETCHEN",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-10-18"
     },
     {
       "id": "mtd-118",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "JOANNA",
       "programName": "DAKOTA SPIRIT AS IGNITE YTH 2",
@@ -2468,7 +2607,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 1400,
       "invoice": "25276",
-      "mixStartDate": "46310",
+      "mixStartDate": "2026-10-15",
       "eightCountSheet": "NEED ORDER FORM, CS, & VIDEO",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -2476,12 +2615,13 @@
       "editorRequest": "FA",
       "contactName": "JOANNA",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-10-22"
     },
     {
       "id": "mtd-119",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "BRANDON/JOMAR",
       "programName": "VALLEY HS JV TBD",
@@ -2489,7 +2629,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 700,
       "invoice": "25550",
-      "mixStartDate": "46310",
+      "mixStartDate": "2026-10-15",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -2497,12 +2637,13 @@
       "editorRequest": "FA",
       "contactName": "BRANDON/JOMAR",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-10-20"
     },
     {
       "id": "mtd-120",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "JOANNA",
       "programName": "DAKOTA SPIRIT AS SMOKE JR 3",
@@ -2510,7 +2651,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 1400,
       "invoice": "25276",
-      "mixStartDate": "46311",
+      "mixStartDate": "2026-10-16",
       "eightCountSheet": "NEED ORDER FORM, CS, & VIDEO",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -2518,12 +2659,13 @@
       "editorRequest": "FA",
       "contactName": "JOANNA",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-10-23"
     },
     {
       "id": "mtd-121",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "BAILEIGH/THERESA",
       "programName": "ROSEDALE MS ALL GIRL",
@@ -2531,7 +2673,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 1400,
       "invoice": "25754",
-      "mixStartDate": "46311",
+      "mixStartDate": "2026-10-16",
       "eightCountSheet": "NEED CS & VIDEO",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -2539,12 +2681,13 @@
       "editorRequest": "FA",
       "contactName": "BAILEIGH/THERESA",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-10-23"
     },
     {
       "id": "mtd-122",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "CONNER",
       "programName": "DOWNEY HS VARSITY",
@@ -2552,7 +2695,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 1000,
       "invoice": "25639",
-      "mixStartDate": "46312",
+      "mixStartDate": "2026-10-17",
       "eightCountSheet": "NEED ORDER FORM, CS, & VIDEO",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -2560,12 +2703,13 @@
       "editorRequest": "FA",
       "contactName": "CONNER",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-10-24"
     },
     {
       "id": "mtd-123",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "TIFFANY",
       "programName": "ALMADEN SPIRIT ATHLETICS STEEL SR 4.2",
@@ -2573,7 +2717,7 @@
       "musicTheme": "TBD (CM)",
       "price": 1800,
       "invoice": "25866",
-      "mixStartDate": "46314",
+      "mixStartDate": "2026-10-19",
       "eightCountSheet": "NEED ORDER FORM, CS, & VIDEO",
       "haveSongs": "NEED NOTES",
       "needsAttention": true,
@@ -2581,12 +2725,13 @@
       "editorRequest": "FA",
       "contactName": "TIFFANY",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-10-24"
     },
     {
       "id": "mtd-124",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "TIFFANY",
       "programName": "ALMADEN SPIRIT ATHLETICS OBSIDIAN SR 3",
@@ -2594,7 +2739,7 @@
       "musicTheme": "TBD (CM)",
       "price": 1800,
       "invoice": "25866",
-      "mixStartDate": "46315",
+      "mixStartDate": "2026-10-20",
       "eightCountSheet": "NEED ORDER FORM, CS, & VIDEO",
       "haveSongs": "NEED NOTES",
       "needsAttention": true,
@@ -2602,12 +2747,13 @@
       "editorRequest": "FA",
       "contactName": "TIFFANY",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-10-25"
     },
     {
       "id": "mtd-125",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "ROBERT",
       "programName": "MT SAN ANTONIO COLLEGE SM COED ADV",
@@ -2615,7 +2761,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 1400,
       "invoice": "25809",
-      "mixStartDate": "46316",
+      "mixStartDate": "2026-10-21",
       "eightCountSheet": "NEED CS & VIDEO",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -2623,12 +2769,13 @@
       "editorRequest": "FA",
       "contactName": "ROBERT",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-10-28"
     },
     {
       "id": "mtd-126",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "KALE",
       "programName": "LIMITLESS AS BLITZ/ INTL OPEN SM COED 5",
@@ -2636,7 +2783,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 1400,
       "invoice": "25908",
-      "mixStartDate": "46316",
+      "mixStartDate": "2026-10-21",
       "eightCountSheet": "NEED ORDER FORM, CS, & VIDEO",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -2644,12 +2791,13 @@
       "editorRequest": "FA",
       "contactName": "KALE",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-10-28"
     },
     {
       "id": "mtd-127",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "TIFFANY",
       "programName": "ALMADEN SPIRIT ATHLETICS SLATE SR NOV 1",
@@ -2657,7 +2805,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 600,
       "invoice": "25866",
-      "mixStartDate": "46317",
+      "mixStartDate": "2026-10-22",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -2665,12 +2813,13 @@
       "editorRequest": "FA",
       "contactName": "TIFFANY",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-10-27"
     },
     {
       "id": "mtd-128",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "BRANDON/JOMAR",
       "programName": "CRISMON MS TBD",
@@ -2678,7 +2827,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 700,
       "invoice": "25551",
-      "mixStartDate": "46317",
+      "mixStartDate": "2026-10-22",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -2686,12 +2835,13 @@
       "editorRequest": "FA",
       "contactName": "BRANDON/JOMAR",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-10-27"
     },
     {
       "id": "mtd-129",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "TIFFANY",
       "programName": "ALMADEN SPIRIT ATHLETICS CORAL MINI PREP 1.1",
@@ -2699,7 +2849,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 850,
       "invoice": "25866",
-      "mixStartDate": "46317",
+      "mixStartDate": "2026-10-22",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -2707,12 +2857,13 @@
       "editorRequest": "FA",
       "contactName": "TIFFANY",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-10-27"
     },
     {
       "id": "mtd-130",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "BRANDON/JOMAR",
       "programName": "VISTA GRANDE HS TBD",
@@ -2720,7 +2871,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 700,
       "invoice": "25551",
-      "mixStartDate": "46317",
+      "mixStartDate": "2026-10-22",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -2728,12 +2879,13 @@
       "editorRequest": "FA",
       "contactName": "BRANDON/JOMAR",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-10-27"
     },
     {
       "id": "mtd-131",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "BRANDON/JOMAR",
       "programName": "ORGAN MOUNTAIN HS TBD",
@@ -2741,7 +2893,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 700,
       "invoice": "25551",
-      "mixStartDate": "46317",
+      "mixStartDate": "2026-10-22",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -2749,12 +2901,13 @@
       "editorRequest": "FA",
       "contactName": "BRANDON/JOMAR",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-10-27"
     },
     {
       "id": "mtd-132",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "TIFFANY",
       "programName": "ALMADEN SPIRIT ATHLETICS PEBBLES MINI NOV 1",
@@ -2762,7 +2915,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 600,
       "invoice": "25866",
-      "mixStartDate": "46317",
+      "mixStartDate": "2026-10-22",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -2770,12 +2923,13 @@
       "editorRequest": "FA",
       "contactName": "TIFFANY",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-10-27"
     },
     {
       "id": "mtd-133",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "CHRIS/LAUREN",
       "programName": "MAGIC CITY AS PIKE SHOCKWAVE YTH 2.2 PREP",
@@ -2783,7 +2937,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 850,
       "invoice": "25697",
-      "mixStartDate": "46318",
+      "mixStartDate": "2026-10-23",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -2791,12 +2945,13 @@
       "editorRequest": "FA",
       "contactName": "CHRIS/LAUREN",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-10-28"
     },
     {
       "id": "mtd-134",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "CHRIS/LAUREN",
       "programName": "MAGIC CITY AS PIKE LADY ELECTRIC YTH 1.1 PREP",
@@ -2804,7 +2959,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 850,
       "invoice": "25697",
-      "mixStartDate": "46318",
+      "mixStartDate": "2026-10-23",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -2812,12 +2967,13 @@
       "editorRequest": "FA",
       "contactName": "CHRIS/LAUREN",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-10-28"
     },
     {
       "id": "mtd-135",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "TIFFANY",
       "programName": "ALMADEN SPIRIT ATHLETICS CRYSTAL YTH NOV 1",
@@ -2825,7 +2981,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 600,
       "invoice": "25866",
-      "mixStartDate": "46318",
+      "mixStartDate": "2026-10-23",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -2833,12 +2989,13 @@
       "editorRequest": "FA",
       "contactName": "TIFFANY",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-10-28"
     },
     {
       "id": "mtd-136",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "TIFFANY",
       "programName": "ALMADEN SPIRIT ATHLETICS HILLITES YTH NOV 1",
@@ -2846,7 +3003,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 600,
       "invoice": "25866",
-      "mixStartDate": "46318",
+      "mixStartDate": "2026-10-23",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -2854,12 +3011,13 @@
       "editorRequest": "FA",
       "contactName": "TIFFANY",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-10-28"
     },
     {
       "id": "mtd-137",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "BRIA",
       "programName": "HORIZON HS (FL) SM VAR NT AG",
@@ -2867,7 +3025,7 @@
       "musicTheme": "SONGS FOR CHEER & PM ORIGINALS (CM)",
       "price": 1000,
       "invoice": "25358",
-      "mixStartDate": "46321",
+      "mixStartDate": "2026-10-26",
       "eightCountSheet": "NEED CS & VIDEO",
       "haveSongs": "HAVE",
       "needsAttention": true,
@@ -2875,12 +3033,13 @@
       "editorRequest": "FA",
       "contactName": "BRIA",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-11-02"
     },
     {
       "id": "mtd-138",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "CHRIS/LAUREN",
       "programName": "MAGIC CITY AS PIKE FUSE SR 3",
@@ -2888,7 +3047,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 1000,
       "invoice": "25697",
-      "mixStartDate": "46321",
+      "mixStartDate": "2026-10-26",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -2896,12 +3055,13 @@
       "editorRequest": "FA",
       "contactName": "CHRIS/LAUREN",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-10-31"
     },
     {
       "id": "mtd-139",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "BRANDON/JOMAR",
       "programName": "LAS CRUCES HS TBD",
@@ -2909,7 +3069,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 600,
       "invoice": "25553",
-      "mixStartDate": "46321",
+      "mixStartDate": "2026-10-26",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -2917,12 +3077,13 @@
       "editorRequest": "FA",
       "contactName": "BRANDON/JOMAR",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-10-31"
     },
     {
       "id": "mtd-140",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "CHRIS/LAUREN",
       "programName": "MAGIC CITY AS PIKE VOLTAGE JR 3",
@@ -2930,7 +3091,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 1000,
       "invoice": "25697",
-      "mixStartDate": "46322",
+      "mixStartDate": "2026-10-27",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -2938,12 +3099,13 @@
       "editorRequest": "FA",
       "contactName": "CHRIS/LAUREN",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-11-01"
     },
     {
       "id": "mtd-141",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "BRANDON/JOMAR",
       "programName": "GODDARD HS TBD",
@@ -2951,7 +3113,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 600,
       "invoice": "25551",
-      "mixStartDate": "46322",
+      "mixStartDate": "2026-10-27",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -2959,12 +3121,13 @@
       "editorRequest": "FA",
       "contactName": "BRANDON/JOMAR",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-11-01"
     },
     {
       "id": "mtd-142",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "BRANDON/JOMAR",
       "programName": "BLOOMFIELD HS TBD",
@@ -2972,7 +3135,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 600,
       "invoice": "25552",
-      "mixStartDate": "46322",
+      "mixStartDate": "2026-10-27",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -2980,12 +3143,13 @@
       "editorRequest": "FA",
       "contactName": "BRANDON/JOMAR",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-11-01"
     },
     {
       "id": "mtd-143",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "CHRIS/LAUREN",
       "programName": "MAGIC CITY AS PIKE SPARK MINI 1.1 PREP",
@@ -2993,7 +3157,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 850,
       "invoice": "25697",
-      "mixStartDate": "46323",
+      "mixStartDate": "2026-10-28",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -3001,12 +3165,13 @@
       "editorRequest": "FA",
       "contactName": "CHRIS/LAUREN",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-11-02"
     },
     {
       "id": "mtd-144",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "BRANDON/JOMAR",
       "programName": "QUESTA HS TBD",
@@ -3014,7 +3179,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 600,
       "invoice": "25552",
-      "mixStartDate": "46323",
+      "mixStartDate": "2026-10-28",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -3022,12 +3187,13 @@
       "editorRequest": "FA",
       "contactName": "BRANDON/JOMAR",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-11-02"
     },
     {
       "id": "mtd-145",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "BRANDON/JOMAR",
       "programName": "HOBBS HS TBD",
@@ -3035,7 +3201,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 600,
       "invoice": "25580",
-      "mixStartDate": "46323",
+      "mixStartDate": "2026-10-28",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -3043,12 +3209,13 @@
       "editorRequest": "FA",
       "contactName": "BRANDON/JOMAR",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-11-02"
     },
     {
       "id": "mtd-146",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "JOANNA",
       "programName": "DAKOTA SPIRIT AS BLAZE YTH 3",
@@ -3056,7 +3223,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 1400,
       "invoice": "25277",
-      "mixStartDate": "46328",
+      "mixStartDate": "2026-11-02",
       "eightCountSheet": "NEED ORDER FORM, CS, & VIDEO",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -3064,12 +3231,13 @@
       "editorRequest": "FA",
       "contactName": "JOANNA",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-11-09"
     },
     {
       "id": "mtd-147",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "STEF",
       "programName": "PYRAMID ATHLETICS YOUTH LUX",
@@ -3077,7 +3245,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 1000,
       "invoice": "25870",
-      "mixStartDate": "46328",
+      "mixStartDate": "2026-11-02",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -3085,12 +3253,13 @@
       "editorRequest": "FA",
       "contactName": "STEF",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-11-07"
     },
     {
       "id": "mtd-148",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "STEF",
       "programName": "PYRAMID ATHLETICS VENOM",
@@ -3098,7 +3267,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 850,
       "invoice": "25870",
-      "mixStartDate": "46329",
+      "mixStartDate": "2026-11-03",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -3106,12 +3275,13 @@
       "editorRequest": "FA",
       "contactName": "STEF",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-11-08"
     },
     {
       "id": "mtd-149",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "STEF",
       "programName": "PYRAMID ATHLETICS YOUTH GODDESS",
@@ -3119,7 +3289,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 850,
       "invoice": "25870",
-      "mixStartDate": "46329",
+      "mixStartDate": "2026-11-03",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -3127,12 +3297,13 @@
       "editorRequest": "FA",
       "contactName": "STEF",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-11-08"
     },
     {
       "id": "mtd-150",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "CONNER",
       "programName": "DOWNEY JV",
@@ -3140,7 +3311,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 700,
       "invoice": "25639",
-      "mixStartDate": "46329",
+      "mixStartDate": "2026-11-03",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -3148,12 +3319,13 @@
       "editorRequest": "FA",
       "contactName": "CONNER",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-11-08"
     },
     {
       "id": "mtd-151",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "BRIDGET",
       "programName": "CELEBRATION HS SM VAR NT",
@@ -3161,7 +3333,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 1000,
       "invoice": "25755",
-      "mixStartDate": "46330",
+      "mixStartDate": "2026-11-04",
       "eightCountSheet": "NEED ORDER FORM, CS, & VIDEO",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -3169,12 +3341,13 @@
       "editorRequest": "FA",
       "contactName": "BRIDGET",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-11-11"
     },
     {
       "id": "mtd-152",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "DALTON",
       "programName": "LOUISIANA STATE UNIVERSITY D1A LRG COED",
@@ -3182,7 +3355,7 @@
       "musicTheme": "NEED NOTES (CM)",
       "price": 1400,
       "invoice": "25434",
-      "mixStartDate": "46335",
+      "mixStartDate": "2026-11-09",
       "eightCountSheet": "NEED ORDER FORM, CS, & VIDEO",
       "haveSongs": "NEED NOTES",
       "needsAttention": true,
@@ -3190,12 +3363,13 @@
       "editorRequest": "FA",
       "contactName": "DALTON",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-11-14"
     },
     {
       "id": "mtd-153",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "MELIA",
       "programName": "WEST LINN YOUTH CHEER JR AG",
@@ -3203,7 +3377,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 850,
       "invoice": "25493",
-      "mixStartDate": "46363",
+      "mixStartDate": "2026-12-07",
       "eightCountSheet": "NEED ORDER FORM, CS, & VIDEO",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -3211,12 +3385,13 @@
       "editorRequest": "FA",
       "contactName": "MELIA",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-12-14"
     },
     {
       "id": "mtd-154",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "BRANDON/JOMAR",
       "programName": "ROSWELL HS TBD",
@@ -3224,7 +3399,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 600,
       "invoice": "25554",
-      "mixStartDate": "46363",
+      "mixStartDate": "2026-12-07",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -3232,12 +3407,13 @@
       "editorRequest": "FA",
       "contactName": "BRANDON/JOMAR",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-12-12"
     },
     {
       "id": "mtd-155",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "ALICIA/KEYANNA",
       "programName": "OKLAHOMA CITY UNIVERSITY ADV SM COED NAIA",
@@ -3245,7 +3421,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 1400,
       "invoice": "25909",
-      "mixStartDate": "46370",
+      "mixStartDate": "2026-12-14",
       "eightCountSheet": "NEED ORDER FORM, CS, & VIDEO",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -3253,12 +3429,13 @@
       "editorRequest": "FA",
       "contactName": "ALICIA/KEYANNA",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-12-21"
     },
     {
       "id": "mtd-156",
       "section": "CHEERLEADING MUSIC",
-      "assignedProducer": "CASEY",
+      "assignedProducer": "CM",
       "category": "Cheer",
       "editorInitials": "BRANDON/JOMAR",
       "programName": "TULAROSA HS TBD",
@@ -3266,7 +3443,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 600,
       "invoice": "25555",
-      "mixStartDate": "46370",
+      "mixStartDate": "2026-12-14",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -3274,7 +3451,8 @@
       "editorRequest": "FA",
       "contactName": "BRANDON/JOMAR",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-12-19"
     },
     {
       "id": "mtd-157",
@@ -3295,7 +3473,8 @@
       "editorRequest": "FA",
       "contactName": "DONALD",
       "priceCompliance": "non-compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": ""
     },
     {
       "id": "mtd-158",
@@ -3316,7 +3495,8 @@
       "editorRequest": "FA",
       "contactName": "WALTER",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": ""
     },
     {
       "id": "mtd-159",
@@ -3337,7 +3517,8 @@
       "editorRequest": "FA",
       "contactName": "KRISTEN",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": ""
     },
     {
       "id": "mtd-160",
@@ -3358,7 +3539,8 @@
       "editorRequest": "FA",
       "contactName": "KRISTEN",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": ""
     },
     {
       "id": "mtd-161",
@@ -3379,7 +3561,8 @@
       "editorRequest": "FA",
       "contactName": "KRISTEN",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": ""
     },
     {
       "id": "mtd-162",
@@ -3400,7 +3583,8 @@
       "editorRequest": "FA",
       "contactName": "KRISTEN",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": ""
     },
     {
       "id": "mtd-163",
@@ -3421,7 +3605,8 @@
       "editorRequest": "FA",
       "contactName": "KRISTEN",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": ""
     },
     {
       "id": "mtd-164",
@@ -3442,7 +3627,8 @@
       "editorRequest": "FA",
       "contactName": "NADER/BRIAN",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": ""
     },
     {
       "id": "mtd-165",
@@ -3463,7 +3649,8 @@
       "editorRequest": "FA",
       "contactName": "NADER/CONNER",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": ""
     },
     {
       "id": "mtd-166",
@@ -3476,7 +3663,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 1000,
       "invoice": "",
-      "mixStartDate": "46258",
+      "mixStartDate": "2026-08-24",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -3484,7 +3671,8 @@
       "editorRequest": "FA",
       "contactName": "STEPHANIE",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-08-29"
     },
     {
       "id": "mtd-167",
@@ -3497,7 +3685,7 @@
       "musicTheme": "",
       "price": 0,
       "invoice": "",
-      "mixStartDate": "46256",
+      "mixStartDate": "2026-08-22",
       "eightCountSheet": "",
       "haveSongs": "",
       "needsAttention": false,
@@ -3505,7 +3693,8 @@
       "editorRequest": "FA",
       "contactName": "STEPHANIE",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-08-27"
     },
     {
       "id": "mtd-168",
@@ -3518,7 +3707,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 1000,
       "invoice": "",
-      "mixStartDate": "46244",
+      "mixStartDate": "2026-08-10",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -3526,7 +3715,8 @@
       "editorRequest": "FA",
       "contactName": "STEPHANIE",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-08-15"
     },
     {
       "id": "mtd-169",
@@ -3539,7 +3729,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 1400,
       "invoice": "",
-      "mixStartDate": "46245",
+      "mixStartDate": "2026-08-11",
       "eightCountSheet": "NEED ORDER FORM, CS, & VIDEO",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -3547,7 +3737,8 @@
       "editorRequest": "FA",
       "contactName": "STEPHANIE",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-08-18"
     },
     {
       "id": "mtd-170",
@@ -3568,7 +3759,8 @@
       "editorRequest": "FA",
       "contactName": "WALTER",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": ""
     },
     {
       "id": "mtd-171",
@@ -3581,7 +3773,7 @@
       "musicTheme": "TBD (CM)",
       "price": 600,
       "invoice": "25412",
-      "mixStartDate": "46221",
+      "mixStartDate": "2026-07-18",
       "eightCountSheet": "NO CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -3589,7 +3781,8 @@
       "editorRequest": "FA",
       "contactName": "MELISSA/ALEXIS",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-07-23"
     },
     {
       "id": "mtd-172",
@@ -3610,7 +3803,8 @@
       "editorRequest": "FA",
       "contactName": "KYLIE",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": ""
     },
     {
       "id": "mtd-173",
@@ -3631,7 +3825,8 @@
       "editorRequest": "FA",
       "contactName": "KYLIE",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": ""
     },
     {
       "id": "mtd-174",
@@ -3652,7 +3847,8 @@
       "editorRequest": "FA",
       "contactName": "NANCY/JASON",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": ""
     },
     {
       "id": "mtd-175",
@@ -3673,7 +3869,8 @@
       "editorRequest": "FA",
       "contactName": "ALEJANDRO",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": ""
     },
     {
       "id": "mtd-176",
@@ -3694,7 +3891,8 @@
       "editorRequest": "FA",
       "contactName": "SABRINA/SHANNON",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": ""
     },
     {
       "id": "mtd-177",
@@ -3715,7 +3913,8 @@
       "editorRequest": "FA",
       "contactName": "SABRINA/SHANNON",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": ""
     },
     {
       "id": "mtd-178",
@@ -3736,7 +3935,8 @@
       "editorRequest": "FA",
       "contactName": "JANA",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": ""
     },
     {
       "id": "mtd-179",
@@ -3757,7 +3957,8 @@
       "editorRequest": "FA",
       "contactName": "JANA",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": ""
     },
     {
       "id": "mtd-180",
@@ -3778,7 +3979,8 @@
       "editorRequest": "FA",
       "contactName": "AUTUMN/TAMI",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": ""
     },
     {
       "id": "mtd-181",
@@ -3791,7 +3993,7 @@
       "musicTheme": "PM & UTB COVERS SEE NOTES (CM)",
       "price": 1000,
       "invoice": "25044",
-      "mixStartDate": "46223",
+      "mixStartDate": "2026-07-20",
       "eightCountSheet": "HAVE ORDER FORM & CS, NEED VIDEO",
       "haveSongs": "HAVE",
       "needsAttention": true,
@@ -3799,7 +4001,8 @@
       "editorRequest": "FA",
       "contactName": "KRISTIAN/BLAKE",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-07-27"
     },
     {
       "id": "mtd-182",
@@ -3812,7 +4015,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 850,
       "invoice": "",
-      "mixStartDate": "46286",
+      "mixStartDate": "2026-09-21",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -3820,7 +4023,8 @@
       "editorRequest": "FA",
       "contactName": "SUMER",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-09-26"
     },
     {
       "id": "mtd-183",
@@ -3833,7 +4037,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 850,
       "invoice": "",
-      "mixStartDate": "46286",
+      "mixStartDate": "2026-09-21",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -3841,7 +4045,8 @@
       "editorRequest": "FA",
       "contactName": "SUMER",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-09-26"
     },
     {
       "id": "mtd-184",
@@ -3854,7 +4059,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 1000,
       "invoice": "",
-      "mixStartDate": "46286",
+      "mixStartDate": "2026-09-21",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -3862,7 +4067,8 @@
       "editorRequest": "FA",
       "contactName": "SUMER",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-09-26"
     },
     {
       "id": "mtd-185",
@@ -3875,7 +4081,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 1000,
       "invoice": "",
-      "mixStartDate": "46286",
+      "mixStartDate": "2026-09-21",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -3883,7 +4089,8 @@
       "editorRequest": "FA",
       "contactName": "SUMER",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-09-26"
     },
     {
       "id": "mtd-186",
@@ -3896,7 +4103,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 1000,
       "invoice": "",
-      "mixStartDate": "46286",
+      "mixStartDate": "2026-09-21",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -3904,7 +4111,8 @@
       "editorRequest": "FA",
       "contactName": "SUMER",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-09-26"
     },
     {
       "id": "mtd-187",
@@ -3917,7 +4125,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 1000,
       "invoice": "",
-      "mixStartDate": "46286",
+      "mixStartDate": "2026-09-21",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -3925,7 +4133,8 @@
       "editorRequest": "FA",
       "contactName": "SUMER",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-09-26"
     },
     {
       "id": "mtd-188",
@@ -3946,7 +4155,8 @@
       "editorRequest": "FA",
       "contactName": "KATIE",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": ""
     },
     {
       "id": "mtd-189",
@@ -3967,7 +4177,8 @@
       "editorRequest": "FA",
       "contactName": "KATIE",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": ""
     },
     {
       "id": "mtd-190",
@@ -3980,7 +4191,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 550,
       "invoice": "",
-      "mixStartDate": "46251",
+      "mixStartDate": "2026-08-17",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -3988,7 +4199,8 @@
       "editorRequest": "FA",
       "contactName": "OI/DAVE",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-08-21"
     },
     {
       "id": "mtd-191",
@@ -4001,7 +4213,7 @@
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "price": 550,
       "invoice": "",
-      "mixStartDate": "46272",
+      "mixStartDate": "2026-09-07",
       "eightCountSheet": "NEED ORDER FORM & CS",
       "haveSongs": "NEED SONGS",
       "needsAttention": true,
@@ -4009,7 +4221,8 @@
       "editorRequest": "FA",
       "contactName": "OI/DAVE",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": "2026-09-11"
     },
     {
       "id": "mtd-192",
@@ -4030,7 +4243,8 @@
       "editorRequest": "FA",
       "contactName": "DAVID/JASON",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": ""
     },
     {
       "id": "mtd-193",
@@ -4051,7 +4265,8 @@
       "editorRequest": "FA",
       "contactName": "WALTER",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": ""
     },
     {
       "id": "mtd-194",
@@ -4072,7 +4287,8 @@
       "editorRequest": "FA",
       "contactName": "WALTER",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": ""
     },
     {
       "id": "mtd-195",
@@ -4093,7 +4309,8 @@
       "editorRequest": "FA",
       "contactName": "JOSH/GRANT",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": ""
     },
     {
       "id": "mtd-196",
@@ -4114,122 +4331,178 @@
       "editorRequest": "FA",
       "contactName": "WALTER",
       "priceCompliance": "compliant",
-      "orderId": null
+      "orderId": null,
+      "mixEndDate": ""
     }
   ],
   "producers": [
     {
       "id": "prod-1",
-      "name": "Anne",
-      "initials": "AN",
-      "email": "anne@soundslikethat.com",
-      "specialty": "Cheer",
-      "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=ANNE",
-      "mixesThisWeek": 0,
-      "nextAvailable": "Sep 2, 2026",
-      "status": "available"
-    },
-    {
-      "id": "prod-2",
-      "name": "Brent",
-      "initials": "BR",
-      "email": "brent@soundslikethat.com",
-      "specialty": "Dance",
-      "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=BRENT",
-      "mixesThisWeek": 0,
-      "nextAvailable": "Sep 2, 2026",
-      "status": "available"
-    },
-    {
-      "id": "prod-3",
       "name": "Casey",
-      "initials": "CA",
+      "initials": "CM",
       "email": "casey@soundslikethat.com",
       "specialty": "Cheer",
-      "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=CASEY",
+      "avatar": "https://api.dicebear.com/9.x/avataaars/svg?seed=CASEY",
       "mixesThisWeek": 145,
       "nextAvailable": "Aug 27, 2026",
       "status": "limited"
     },
     {
+      "id": "prod-2",
+      "name": "Justin",
+      "initials": "JD",
+      "email": "justin@soundslikethat.com",
+      "specialty": "Cheer",
+      "avatar": "https://api.dicebear.com/9.x/avataaars/svg?seed=JUSTIN",
+      "mixesThisWeek": 12,
+      "nextAvailable": "Aug 25, 2026",
+      "status": "available"
+    },
+    {
+      "id": "prod-3",
+      "name": "Matt",
+      "initials": "MS",
+      "email": "matt@soundslikethat.com",
+      "specialty": "Cheer",
+      "avatar": "https://api.dicebear.com/9.x/avataaars/svg?seed=MATT",
+      "mixesThisWeek": 28,
+      "nextAvailable": "Aug 27, 2026",
+      "status": "available"
+    },
+    {
       "id": "prod-4",
-      "name": "Jp",
-      "initials": "JP",
-      "email": "jp@soundslikethat.com",
-      "specialty": "Marching Band",
-      "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=JP",
-      "mixesThisWeek": 0,
-      "nextAvailable": "Sep 2, 2026",
+      "name": "Nate",
+      "initials": "NC",
+      "email": "nate@soundslikethat.com",
+      "specialty": "Cheer",
+      "avatar": "https://api.dicebear.com/9.x/avataaars/svg?seed=NATE",
+      "mixesThisWeek": 22,
+      "nextAvailable": "Aug 27, 2026",
       "status": "available"
     },
     {
       "id": "prod-5",
-      "name": "Lauren",
-      "initials": "LA",
-      "email": "lauren@soundslikethat.com",
-      "specialty": "Cheer",
-      "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=LAUREN",
-      "mixesThisWeek": 0,
-      "nextAvailable": "Sep 2, 2026",
+      "name": "Mark",
+      "initials": "MM",
+      "email": "mark@soundslikethat.com",
+      "specialty": "Dance",
+      "avatar": "https://api.dicebear.com/9.x/avataaars/svg?seed=MARK",
+      "mixesThisWeek": 18,
+      "nextAvailable": "Aug 26, 2026",
       "status": "available"
     },
     {
       "id": "prod-6",
-      "name": "Mark",
-      "initials": "MA",
-      "email": "mark@soundslikethat.com",
-      "specialty": "Dance",
-      "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=MARK",
-      "mixesThisWeek": 0,
-      "nextAvailable": "Sep 2, 2026",
+      "name": "Griffin",
+      "initials": "G",
+      "email": "griffin@soundslikethat.com",
+      "specialty": "Cheer",
+      "avatar": "https://api.dicebear.com/9.x/avataaars/svg?seed=GRIFFIN",
+      "mixesThisWeek": 8,
+      "nextAvailable": "Aug 28, 2026",
       "status": "available"
     },
     {
       "id": "prod-7",
-      "name": "Matt",
-      "initials": "MA",
-      "email": "matt@soundslikethat.com",
-      "specialty": "Cheer",
-      "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=MATT",
-      "mixesThisWeek": 0,
-      "nextAvailable": "Aug 27, 2026",
+      "name": "Josh",
+      "initials": "JM",
+      "email": "josh@soundslikethat.com",
+      "specialty": "Dance",
+      "avatar": "https://api.dicebear.com/9.x/avataaars/svg?seed=JOSH",
+      "mixesThisWeek": 15,
+      "nextAvailable": "Aug 29, 2026",
       "status": "available"
     },
     {
       "id": "prod-8",
-      "name": "Nate",
-      "initials": "NA",
-      "email": "nate@soundslikethat.com",
+      "name": "Joel",
+      "initials": "JOP",
+      "email": "joel@soundslikethat.com",
       "specialty": "Cheer",
-      "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=NATE",
-      "mixesThisWeek": 0,
-      "nextAvailable": "Aug 27, 2026",
+      "avatar": "https://api.dicebear.com/9.x/avataaars/svg?seed=JOEL",
+      "mixesThisWeek": 10,
+      "nextAvailable": "Aug 30, 2026",
       "status": "available"
     },
     {
       "id": "prod-9",
-      "name": "Rory",
-      "initials": "RO",
-      "email": "rory@soundslikethat.com",
+      "name": "Brent",
+      "initials": "BV",
+      "email": "brent@soundslikethat.com",
       "specialty": "Dance",
-      "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=RORY",
-      "mixesThisWeek": 0,
-      "nextAvailable": "Sep 2, 2026",
+      "avatar": "https://api.dicebear.com/9.x/avataaars/svg?seed=BRENT",
+      "mixesThisWeek": 20,
+      "nextAvailable": "Aug 26, 2026",
       "status": "available"
     },
     {
       "id": "prod-10",
+      "name": "Riley",
+      "initials": "R",
+      "email": "riley@soundslikethat.com",
+      "specialty": "Cheer",
+      "avatar": "https://api.dicebear.com/9.x/avataaars/svg?seed=RILEY",
+      "mixesThisWeek": 6,
+      "nextAvailable": "Sep 1, 2026",
+      "status": "available"
+    },
+    {
+      "id": "prod-11",
       "name": "Steve",
-      "initials": "ST",
+      "initials": "SS",
       "email": "steve@soundslikethat.com",
       "specialty": "Hip-Hop",
-      "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=STEVE",
-      "mixesThisWeek": 0,
+      "avatar": "https://api.dicebear.com/9.x/avataaars/svg?seed=STEVE",
+      "mixesThisWeek": 14,
       "nextAvailable": "Sep 2, 2026",
       "status": "available"
     }
   ],
   "orders": [
+    {
+      "id": "ord-demo",
+      "mtdId": "mtd-demo",
+      "gymName": "Demo Gym Athletics",
+      "gymBillingAddress": "1200 Victory Lane, Suite 200",
+      "city": "Dallas",
+      "stateProvince": "TX",
+      "zipPostalCode": "75201",
+      "country": "United States",
+      "teamName": "Demo Gym — Senior Large",
+      "teamCoedAllGirl": "All-Girl",
+      "teamColors": "Navy, gold, white",
+      "numberOfCopies": "6",
+      "coachName": "Demo Coach",
+      "coachPhone": "2145550198",
+      "coachEmail": "demo.coach@demogym.com",
+      "billingPersonName": "Demo Billing",
+      "billingPersonEmail": "billing@demogym.com",
+      "sendingEightCountSheets": "Yes — sending by Friday",
+      "songListSuggestions": "PM & UTB covers \"Game Day\" — see routine notes",
+      "routineNotes": "High-energy game day feel. Build to standing tumbling sequence at 1:15. Keep intro under 16 counts.",
+      "couponCode": "DEMO2026",
+      "howDidYouFindOut": "Referred by another gym owner",
+      "packageType": "Platinum 2:30 No Split",
+      "timeLengthOfMix": "2:30",
+      "musicAffiliate": "Power Music Covers",
+      "customerName": "Demo Coach",
+      "programName": "DEMO GYM — SENIOR LARGE",
+      "category": "Cheer",
+      "division": "Senior Large — Demo",
+      "package": "PLATINUM 2:30 NO SPLIT",
+      "requestedProducer": "MS",
+      "requestedEditor": "MS",
+      "price": 1400,
+      "status": "in_mtd",
+      "createdAt": "2026-08-19",
+      "needsAttention": true,
+      "attentionReason": "missing_materials",
+      "musicTheme": "PM & UTB COVERS \"GAME DAY\" SEE NOTES (CM)",
+      "contactName": "Demo Coach",
+      "editorRequest": "MS",
+      "formType": "school-all-star-cheer",
+      "cheerFormSubtype": "all-star-cheer"
+    },
     {
       "id": "ord-pom-fowler",
       "schoolProgramName": "FOWLER HIGH SCHOOL",
@@ -4486,7 +4759,7 @@
       "programName": "PRO SPIRIT AS DIAMONDZ JR 2.2 PREP",
       "category": "Cheer",
       "package": "PLATINUM 2:00 NO SPLIT",
-      "requestedProducer": "CASEY",
+      "requestedProducer": "CM",
       "price": 1150,
       "status": "active",
       "createdAt": "2026-08-04",
@@ -4494,7 +4767,7 @@
       "attentionReason": null,
       "musicTheme": "PM & UTB COVERS EDITORS CHOICE (CM)",
       "contactName": "SHELLY",
-      "editorRequest": "CASEY",
+      "editorRequest": "CM",
       "formType": "school-all-star-cheer",
       "cheerFormSubtype": "youth-rec-cheer"
     },
@@ -4505,7 +4778,7 @@
       "programName": "SPIRIT XTREME AS GLOW MINI 1",
       "category": "Cheer",
       "package": "SILVER 1:30 NO SPLIT",
-      "requestedProducer": "CASEY",
+      "requestedProducer": "CM",
       "price": 470,
       "status": "active",
       "createdAt": "2026-08-04",
@@ -4513,7 +4786,7 @@
       "attentionReason": null,
       "musicTheme": "PM & UTB COVERS EDITORS CHOICE (CM)",
       "contactName": "WALTER",
-      "editorRequest": "CASEY",
+      "editorRequest": "CM",
       "formType": "school-all-star-cheer",
       "cheerFormSubtype": "all-star-cheer"
     },
@@ -4524,7 +4797,7 @@
       "programName": "PRO SPIRIT AS LADY ONYX JR 3.2 AG PREP",
       "category": "Cheer",
       "package": "PLATINUM 2:00 NO SPLIT",
-      "requestedProducer": "CASEY",
+      "requestedProducer": "CM",
       "price": 1150,
       "status": "active",
       "createdAt": "2026-08-04",
@@ -4532,7 +4805,7 @@
       "attentionReason": null,
       "musicTheme": "SONGS FOR CHEER SEE NOTES (CM)",
       "contactName": "SHELLY/KAYLYN",
-      "editorRequest": "CASEY",
+      "editorRequest": "CM",
       "formType": "school-all-star-cheer",
       "cheerFormSubtype": "school-cheer-viroc-yes"
     },
@@ -4543,7 +4816,7 @@
       "programName": "PRO SPIRIT AS LUCKY STARZ CHEERABILITIES COED",
       "category": "Cheer",
       "package": "PLATINUM 1:30 NO SPLIT",
-      "requestedProducer": "CASEY",
+      "requestedProducer": "CM",
       "price": 850,
       "status": "active",
       "createdAt": "2026-08-04",
@@ -4551,7 +4824,7 @@
       "attentionReason": null,
       "musicTheme": "PM & UTB COVERS \"BACK AND BETTER THAN EVER\" SEE NOTES (CM)",
       "contactName": "SHELLY/MADDIE",
-      "editorRequest": "CASEY",
+      "editorRequest": "CM",
       "formType": "school-all-star-cheer",
       "cheerFormSubtype": "school-cheer-viroc-no"
     },
@@ -4562,7 +4835,7 @@
       "programName": "SPIRIT XTREME AS SHINE MINI 1",
       "category": "Cheer",
       "package": "SILVER 1:30 NO SPLIT",
-      "requestedProducer": "CASEY",
+      "requestedProducer": "CM",
       "price": 470,
       "status": "active",
       "createdAt": "2026-08-04",
@@ -4570,7 +4843,7 @@
       "attentionReason": null,
       "musicTheme": "PM & UTB COVERS EDITORS CHOICE (CM)",
       "contactName": "WALTER",
-      "editorRequest": "CASEY",
+      "editorRequest": "CM",
       "formType": "school-all-star-cheer",
       "cheerFormSubtype": "youth-rec-cheer"
     },
@@ -4581,7 +4854,7 @@
       "programName": "SEABREEZE HS SMALL ALL GIRL",
       "category": "Cheer",
       "package": "PLATINUM 1:45 NO SPLIT",
-      "requestedProducer": "CASEY",
+      "requestedProducer": "CM",
       "price": 1000,
       "status": "active",
       "createdAt": "2026-08-04",
@@ -4589,7 +4862,7 @@
       "attentionReason": null,
       "musicTheme": "PM & UTB COVERS EDITORS CHOICE (CM)",
       "contactName": "AMIE/STACI/SANDI",
-      "editorRequest": "CASEY",
+      "editorRequest": "CM",
       "formType": "school-all-star-cheer",
       "cheerFormSubtype": "all-star-cheer"
     },
@@ -4600,7 +4873,7 @@
       "programName": "MAGIC CITY AS BIRM OUTLAWS SM JR 4 FLEX AG",
       "category": "Cheer",
       "package": "PLATINUM 2:30 NO SPLIT",
-      "requestedProducer": "CASEY",
+      "requestedProducer": "CM",
       "price": 1400,
       "status": "active",
       "createdAt": "2026-08-04",
@@ -4608,7 +4881,7 @@
       "attentionReason": null,
       "musicTheme": "PM & UTB COVERS \"VIDEO GAME\" SEE NOTES (CM)",
       "contactName": "KENDALL",
-      "editorRequest": "CASEY",
+      "editorRequest": "CM",
       "formType": "school-all-star-cheer",
       "cheerFormSubtype": "school-cheer-viroc-yes"
     },
@@ -4619,7 +4892,7 @@
       "programName": "SPIRIT XTREME AS LADY X SR 5",
       "category": "Cheer",
       "package": "TITANIUM 2:30 NO SPLIT",
-      "requestedProducer": "CASEY",
+      "requestedProducer": "CM",
       "price": 1400,
       "status": "active",
       "createdAt": "2026-08-04",
@@ -4627,7 +4900,7 @@
       "attentionReason": null,
       "musicTheme": "CASEY KNOWS (CM)",
       "contactName": "WALTER",
-      "editorRequest": "CASEY",
+      "editorRequest": "CM",
       "formType": "school-all-star-cheer",
       "cheerFormSubtype": "school-cheer-viroc-no"
     },
@@ -4638,7 +4911,7 @@
       "programName": "SPIRIT XTREME AS GLITZ JR 1",
       "category": "Cheer",
       "package": "SILVER 1:30 NO SPLIT",
-      "requestedProducer": "CASEY",
+      "requestedProducer": "CM",
       "price": 470,
       "status": "active",
       "createdAt": "2026-08-04",
@@ -4646,7 +4919,7 @@
       "attentionReason": null,
       "musicTheme": "PM & UTB COVERS EDITORS CHOICE (CM)",
       "contactName": "WALTER",
-      "editorRequest": "CASEY",
+      "editorRequest": "CM",
       "formType": "school-all-star-cheer",
       "cheerFormSubtype": "youth-rec-cheer"
     },
@@ -4657,7 +4930,7 @@
       "programName": "TAHQUITZ HS LRG COED",
       "category": "Cheer",
       "package": "PLATINUM 1:45 TBD",
-      "requestedProducer": "CASEY",
+      "requestedProducer": "CM",
       "price": 1000,
       "status": "needs_attention",
       "createdAt": "2026-08-04",
@@ -4665,7 +4938,7 @@
       "attentionReason": "Missing order form & songs",
       "musicTheme": "SONGS FOR CHEER EDITORS CHOICE (CM)",
       "contactName": "SARAH",
-      "editorRequest": "CASEY",
+      "editorRequest": "CM",
       "formType": "school-all-star-cheer",
       "cheerFormSubtype": "all-star-cheer"
     },
@@ -4676,7 +4949,7 @@
       "programName": "VALLEY HS TBD",
       "category": "Cheer",
       "package": "GOLD 1:30 TBD",
-      "requestedProducer": "CASEY",
+      "requestedProducer": "CM",
       "price": 600,
       "status": "needs_attention",
       "createdAt": "2026-08-04",
@@ -4684,7 +4957,7 @@
       "attentionReason": "Missing order form & songs",
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "contactName": "BRANDON/JOMAR",
-      "editorRequest": "CASEY",
+      "editorRequest": "CM",
       "formType": "school-all-star-cheer",
       "cheerFormSubtype": "school-cheer-viroc-yes"
     },
@@ -4695,7 +4968,7 @@
       "programName": "MAGIC CITY AS BIRM CITY GIRLS MINI 1",
       "category": "Cheer",
       "package": "GOLD 2:00 NO SPLIT",
-      "requestedProducer": "CASEY",
+      "requestedProducer": "CM",
       "price": 850,
       "status": "needs_attention",
       "createdAt": "2026-08-04",
@@ -4703,7 +4976,7 @@
       "attentionReason": "Missing order form & songs",
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "contactName": "KENDALL",
-      "editorRequest": "CASEY",
+      "editorRequest": "CM",
       "formType": "school-all-star-cheer",
       "cheerFormSubtype": "school-cheer-viroc-no"
     },
@@ -4714,7 +4987,7 @@
       "programName": "MAGIC CITY AS BIRM LEGACY YTH 3 FLEX",
       "category": "Cheer",
       "package": "PLATINUM 2:30 NO SPLIT",
-      "requestedProducer": "CASEY",
+      "requestedProducer": "CM",
       "price": 1400,
       "status": "needs_attention",
       "createdAt": "2026-08-04",
@@ -4722,7 +4995,7 @@
       "attentionReason": "Missing order form & songs",
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "contactName": "KENDALL",
-      "editorRequest": "CASEY",
+      "editorRequest": "CM",
       "formType": "school-all-star-cheer",
       "cheerFormSubtype": "youth-rec-cheer"
     },
@@ -4733,7 +5006,7 @@
       "programName": "PREMIER ATHLETICS KY GLAMOUR GIRLS MINI 1",
       "category": "Cheer",
       "package": "PLATINUM 2:30 NO SPLIT",
-      "requestedProducer": "CASEY",
+      "requestedProducer": "CM",
       "price": 1400,
       "status": "needs_attention",
       "createdAt": "2026-08-04",
@@ -4741,7 +5014,7 @@
       "attentionReason": "Missing order form & songs",
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "contactName": "NIKKI/ROSALIND",
-      "editorRequest": "CASEY",
+      "editorRequest": "CM",
       "formType": "school-all-star-cheer",
       "cheerFormSubtype": "all-star-cheer"
     },
@@ -4752,7 +5025,7 @@
       "programName": "MAGIC CITY AS BIRM LADY LEGION YTH 2 FLEX",
       "category": "Cheer",
       "package": "GOLD 2:30 NO SPLIT",
-      "requestedProducer": "CASEY",
+      "requestedProducer": "CM",
       "price": 1000,
       "status": "needs_attention",
       "createdAt": "2026-08-04",
@@ -4760,7 +5033,7 @@
       "attentionReason": "Missing order form & songs",
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "contactName": "KENDALL",
-      "editorRequest": "CASEY",
+      "editorRequest": "CM",
       "formType": "school-all-star-cheer",
       "cheerFormSubtype": "school-cheer-viroc-yes"
     },
@@ -4771,7 +5044,7 @@
       "programName": "MAGIC CITY AS BIRM IRON ELITE MINI 1",
       "category": "Cheer",
       "package": "GOLD 2:30 NO SPLIT",
-      "requestedProducer": "CASEY",
+      "requestedProducer": "CM",
       "price": 1000,
       "status": "needs_attention",
       "createdAt": "2026-08-04",
@@ -4779,7 +5052,7 @@
       "attentionReason": "Missing order form & songs",
       "musicTheme": "PM & UTB COVERS TBD (CM)",
       "contactName": "KENDALL",
-      "editorRequest": "CASEY",
+      "editorRequest": "CM",
       "formType": "school-all-star-cheer",
       "cheerFormSubtype": "school-cheer-viroc-no"
     },
@@ -4790,7 +5063,7 @@
       "programName": "HARRISBURG HS ALL GIRL",
       "category": "Cheer",
       "package": "PLATINUM 1:30 NO SPLIT",
-      "requestedProducer": "CASEY",
+      "requestedProducer": "CM",
       "price": 850,
       "status": "active",
       "createdAt": "2026-08-04",
@@ -4798,7 +5071,7 @@
       "attentionReason": null,
       "musicTheme": "PM & UTB COVERS SEE NOTES (CM)",
       "contactName": "EVE/BLAKE",
-      "editorRequest": "CASEY",
+      "editorRequest": "CM",
       "formType": "school-all-star-cheer",
       "cheerFormSubtype": "youth-rec-cheer"
     },
@@ -4809,7 +5082,7 @@
       "programName": "SPIRIT XTREME AS GLORY JR 4",
       "category": "Cheer",
       "package": "TITANIUM 2:30 NO SPLIT",
-      "requestedProducer": "CASEY",
+      "requestedProducer": "CM",
       "price": 1400,
       "status": "needs_attention",
       "createdAt": "2026-08-04",
@@ -4817,7 +5090,7 @@
       "attentionReason": "Missing order form & songs",
       "musicTheme": "CASEY KNOWS (CM)",
       "contactName": "WALTER",
-      "editorRequest": "CASEY",
+      "editorRequest": "CM",
       "formType": "school-all-star-cheer",
       "cheerFormSubtype": "all-star-cheer"
     },
@@ -4828,7 +5101,7 @@
       "programName": "SPIRIT XTREME AS STRENGTH SR COED 4",
       "category": "Cheer",
       "package": "TITANIUM 2:30 NO SPLIT",
-      "requestedProducer": "CASEY",
+      "requestedProducer": "CM",
       "price": 1400,
       "status": "needs_attention",
       "createdAt": "2026-08-04",
@@ -4836,7 +5109,7 @@
       "attentionReason": "Missing order form & songs",
       "musicTheme": "CASEY KNOWS (CM)",
       "contactName": "WALTER",
-      "editorRequest": "CASEY",
+      "editorRequest": "CM",
       "formType": "school-all-star-cheer",
       "cheerFormSubtype": "school-cheer-viroc-yes"
     },
@@ -4857,7 +5130,7 @@
       "price": 450,
       "needsAttention": false,
       "attentionReason": null,
-      "requestedProducer": "CASEY",
+      "requestedProducer": "CM",
       "editorRequest": "FA"
     },
     {
@@ -4877,7 +5150,7 @@
       "price": 350,
       "needsAttention": false,
       "attentionReason": null,
-      "requestedProducer": "MATT",
+      "requestedProducer": "MS",
       "editorRequest": "FA"
     },
     {
@@ -4941,7 +5214,7 @@
       "price": 500,
       "needsAttention": false,
       "attentionReason": null,
-      "requestedProducer": "MATT",
+      "requestedProducer": "MS",
       "editorRequest": "FA"
     },
     {
@@ -4963,7 +5236,7 @@
       "price": 425,
       "needsAttention": false,
       "attentionReason": null,
-      "requestedProducer": "CASEY",
+      "requestedProducer": "CM",
       "editorRequest": "FA"
     },
     {
@@ -4985,190 +5258,687 @@
       "price": 550,
       "needsAttention": false,
       "attentionReason": null,
-      "requestedProducer": "NATE",
+      "requestedProducer": "NC",
       "editorRequest": "FA"
     }
   ],
   "schedule": [
     {
-      "producer": "ANNE",
-      "day": "Mon Aug 18",
+      "producer": "CM",
+      "day": "Wed Aug 19",
       "status": "mix",
       "count": 1
     },
     {
-      "producer": "ANNE",
-      "day": "Tue Aug 19",
-      "status": "mix",
-      "count": 1
-    },
-    {
-      "producer": "ANNE",
-      "day": "Wed Aug 20",
-      "status": "mix",
-      "count": 1
-    },
-    {
-      "producer": "ANNE",
-      "day": "Thu Aug 21",
+      "producer": "CM",
+      "day": "Thu Aug 20",
       "status": "available",
       "count": 0
     },
     {
-      "producer": "ANNE",
-      "day": "Fri Aug 22",
+      "producer": "CM",
+      "day": "Fri Aug 21",
       "status": "available",
       "count": 0
     },
     {
-      "producer": "BRENT",
-      "day": "Mon Aug 18",
+      "producer": "CM",
+      "day": "Sat Aug 22",
       "status": "mix",
       "count": 1
     },
     {
-      "producer": "BRENT",
-      "day": "Tue Aug 19",
-      "status": "mix",
-      "count": 1
-    },
-    {
-      "producer": "BRENT",
-      "day": "Wed Aug 20",
-      "status": "mix",
-      "count": 1
-    },
-    {
-      "producer": "BRENT",
-      "day": "Thu Aug 21",
-      "status": "available",
-      "count": 0
-    },
-    {
-      "producer": "BRENT",
-      "day": "Fri Aug 22",
-      "status": "available",
-      "count": 0
-    },
-    {
-      "producer": "CASEY",
-      "day": "Mon Aug 18",
-      "status": "mix",
-      "count": 1
-    },
-    {
-      "producer": "CASEY",
-      "day": "Tue Aug 19",
-      "status": "mix",
-      "count": 1
-    },
-    {
-      "producer": "CASEY",
-      "day": "Wed Aug 20",
-      "status": "mix",
-      "count": 1
-    },
-    {
-      "producer": "CASEY",
-      "day": "Thu Aug 21",
-      "status": "available",
-      "count": 0
-    },
-    {
-      "producer": "CASEY",
-      "day": "Fri Aug 22",
+      "producer": "CM",
+      "day": "Sun Aug 23",
       "status": "off",
       "count": 0
     },
     {
-      "producer": "JP",
-      "day": "Mon Aug 18",
+      "producer": "CM",
+      "day": "Mon Aug 24",
       "status": "mix",
       "count": 1
     },
     {
-      "producer": "JP",
-      "day": "Tue Aug 19",
-      "status": "mix",
-      "count": 1
-    },
-    {
-      "producer": "JP",
-      "day": "Wed Aug 20",
-      "status": "mix",
-      "count": 1
-    },
-    {
-      "producer": "JP",
-      "day": "Thu Aug 21",
+      "producer": "CM",
+      "day": "Tue Aug 25",
       "status": "available",
       "count": 0
     },
     {
-      "producer": "JP",
-      "day": "Fri Aug 22",
+      "producer": "CM",
+      "day": "Wed Aug 26",
       "status": "available",
       "count": 0
     },
     {
-      "producer": "LAUREN",
-      "day": "Mon Aug 18",
-      "status": "mix",
-      "count": 1
-    },
-    {
-      "producer": "LAUREN",
-      "day": "Tue Aug 19",
-      "status": "mix",
-      "count": 1
-    },
-    {
-      "producer": "LAUREN",
-      "day": "Wed Aug 20",
-      "status": "mix",
-      "count": 1
-    },
-    {
-      "producer": "LAUREN",
-      "day": "Thu Aug 21",
+      "producer": "CM",
+      "day": "Thu Aug 27",
       "status": "available",
       "count": 0
     },
     {
-      "producer": "LAUREN",
-      "day": "Fri Aug 22",
+      "producer": "CM",
+      "day": "Fri Aug 28",
       "status": "available",
       "count": 0
     },
     {
-      "producer": "MARK",
-      "day": "Mon Aug 18",
-      "status": "mix",
-      "count": 1
-    },
-    {
-      "producer": "MARK",
-      "day": "Tue Aug 19",
-      "status": "mix",
-      "count": 1
-    },
-    {
-      "producer": "MARK",
-      "day": "Wed Aug 20",
-      "status": "mix",
-      "count": 1
-    },
-    {
-      "producer": "MARK",
-      "day": "Thu Aug 21",
+      "producer": "JD",
+      "day": "Wed Aug 19",
       "status": "available",
       "count": 0
     },
     {
-      "producer": "MARK",
-      "day": "Fri Aug 22",
+      "producer": "JD",
+      "day": "Thu Aug 20",
       "status": "available",
       "count": 0
+    },
+    {
+      "producer": "JD",
+      "day": "Fri Aug 21",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "JD",
+      "day": "Sat Aug 22",
+      "status": "mix",
+      "count": 1
+    },
+    {
+      "producer": "JD",
+      "day": "Sun Aug 23",
+      "status": "off",
+      "count": 0
+    },
+    {
+      "producer": "JD",
+      "day": "Mon Aug 24",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "JD",
+      "day": "Tue Aug 25",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "JD",
+      "day": "Wed Aug 26",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "JD",
+      "day": "Thu Aug 27",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "JD",
+      "day": "Fri Aug 28",
+      "status": "mix",
+      "count": 1
+    },
+    {
+      "producer": "MS",
+      "day": "Wed Aug 19",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "MS",
+      "day": "Thu Aug 20",
+      "status": "mix",
+      "count": 1
+    },
+    {
+      "producer": "MS",
+      "day": "Fri Aug 21",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "MS",
+      "day": "Sat Aug 22",
+      "status": "mix",
+      "count": 1
+    },
+    {
+      "producer": "MS",
+      "day": "Sun Aug 23",
+      "status": "off",
+      "count": 0
+    },
+    {
+      "producer": "MS",
+      "day": "Mon Aug 24",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "MS",
+      "day": "Tue Aug 25",
+      "status": "mix",
+      "count": 1
+    },
+    {
+      "producer": "MS",
+      "day": "Wed Aug 26",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "MS",
+      "day": "Thu Aug 27",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "MS",
+      "day": "Fri Aug 28",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "NC",
+      "day": "Wed Aug 19",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "NC",
+      "day": "Thu Aug 20",
+      "status": "mix",
+      "count": 1
+    },
+    {
+      "producer": "NC",
+      "day": "Fri Aug 21",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "NC",
+      "day": "Sat Aug 22",
+      "status": "mix",
+      "count": 1
+    },
+    {
+      "producer": "NC",
+      "day": "Sun Aug 23",
+      "status": "off",
+      "count": 0
+    },
+    {
+      "producer": "NC",
+      "day": "Mon Aug 24",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "NC",
+      "day": "Tue Aug 25",
+      "status": "mix",
+      "count": 1
+    },
+    {
+      "producer": "NC",
+      "day": "Wed Aug 26",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "NC",
+      "day": "Thu Aug 27",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "NC",
+      "day": "Fri Aug 28",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "MM",
+      "day": "Wed Aug 19",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "MM",
+      "day": "Thu Aug 20",
+      "status": "mix",
+      "count": 1
+    },
+    {
+      "producer": "MM",
+      "day": "Fri Aug 21",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "MM",
+      "day": "Sat Aug 22",
+      "status": "mix",
+      "count": 1
+    },
+    {
+      "producer": "MM",
+      "day": "Sun Aug 23",
+      "status": "off",
+      "count": 0
+    },
+    {
+      "producer": "MM",
+      "day": "Mon Aug 24",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "MM",
+      "day": "Tue Aug 25",
+      "status": "mix",
+      "count": 1
+    },
+    {
+      "producer": "MM",
+      "day": "Wed Aug 26",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "MM",
+      "day": "Thu Aug 27",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "MM",
+      "day": "Fri Aug 28",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "G",
+      "day": "Wed Aug 19",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "G",
+      "day": "Thu Aug 20",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "G",
+      "day": "Fri Aug 21",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "G",
+      "day": "Sat Aug 22",
+      "status": "mix",
+      "count": 1
+    },
+    {
+      "producer": "G",
+      "day": "Sun Aug 23",
+      "status": "off",
+      "count": 0
+    },
+    {
+      "producer": "G",
+      "day": "Mon Aug 24",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "G",
+      "day": "Tue Aug 25",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "G",
+      "day": "Wed Aug 26",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "G",
+      "day": "Thu Aug 27",
+      "status": "mix",
+      "count": 1
+    },
+    {
+      "producer": "G",
+      "day": "Fri Aug 28",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "JM",
+      "day": "Wed Aug 19",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "JM",
+      "day": "Thu Aug 20",
+      "status": "mix",
+      "count": 1
+    },
+    {
+      "producer": "JM",
+      "day": "Fri Aug 21",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "JM",
+      "day": "Sat Aug 22",
+      "status": "mix",
+      "count": 1
+    },
+    {
+      "producer": "JM",
+      "day": "Sun Aug 23",
+      "status": "off",
+      "count": 0
+    },
+    {
+      "producer": "JM",
+      "day": "Mon Aug 24",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "JM",
+      "day": "Tue Aug 25",
+      "status": "mix",
+      "count": 1
+    },
+    {
+      "producer": "JM",
+      "day": "Wed Aug 26",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "JM",
+      "day": "Thu Aug 27",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "JM",
+      "day": "Fri Aug 28",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "JOP",
+      "day": "Wed Aug 19",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "JOP",
+      "day": "Thu Aug 20",
+      "status": "mix",
+      "count": 1
+    },
+    {
+      "producer": "JOP",
+      "day": "Fri Aug 21",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "JOP",
+      "day": "Sat Aug 22",
+      "status": "mix",
+      "count": 1
+    },
+    {
+      "producer": "JOP",
+      "day": "Sun Aug 23",
+      "status": "off",
+      "count": 0
+    },
+    {
+      "producer": "JOP",
+      "day": "Mon Aug 24",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "JOP",
+      "day": "Tue Aug 25",
+      "status": "mix",
+      "count": 1
+    },
+    {
+      "producer": "JOP",
+      "day": "Wed Aug 26",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "JOP",
+      "day": "Thu Aug 27",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "JOP",
+      "day": "Fri Aug 28",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "BV",
+      "day": "Wed Aug 19",
+      "status": "mix",
+      "count": 1
+    },
+    {
+      "producer": "BV",
+      "day": "Thu Aug 20",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "BV",
+      "day": "Fri Aug 21",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "BV",
+      "day": "Sat Aug 22",
+      "status": "mix",
+      "count": 1
+    },
+    {
+      "producer": "BV",
+      "day": "Sun Aug 23",
+      "status": "off",
+      "count": 0
+    },
+    {
+      "producer": "BV",
+      "day": "Mon Aug 24",
+      "status": "mix",
+      "count": 1
+    },
+    {
+      "producer": "BV",
+      "day": "Tue Aug 25",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "BV",
+      "day": "Wed Aug 26",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "BV",
+      "day": "Thu Aug 27",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "BV",
+      "day": "Fri Aug 28",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "R",
+      "day": "Wed Aug 19",
+      "status": "mix",
+      "count": 1
+    },
+    {
+      "producer": "R",
+      "day": "Thu Aug 20",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "R",
+      "day": "Fri Aug 21",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "R",
+      "day": "Sat Aug 22",
+      "status": "mix",
+      "count": 1
+    },
+    {
+      "producer": "R",
+      "day": "Sun Aug 23",
+      "status": "off",
+      "count": 0
+    },
+    {
+      "producer": "R",
+      "day": "Mon Aug 24",
+      "status": "mix",
+      "count": 1
+    },
+    {
+      "producer": "R",
+      "day": "Tue Aug 25",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "R",
+      "day": "Wed Aug 26",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "R",
+      "day": "Thu Aug 27",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "R",
+      "day": "Fri Aug 28",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "SS",
+      "day": "Wed Aug 19",
+      "status": "mix",
+      "count": 1
+    },
+    {
+      "producer": "SS",
+      "day": "Thu Aug 20",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "SS",
+      "day": "Fri Aug 21",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "SS",
+      "day": "Sat Aug 22",
+      "status": "mix",
+      "count": 1
+    },
+    {
+      "producer": "SS",
+      "day": "Sun Aug 23",
+      "status": "off",
+      "count": 0
+    },
+    {
+      "producer": "SS",
+      "day": "Mon Aug 24",
+      "status": "mix",
+      "count": 1
+    },
+    {
+      "producer": "SS",
+      "day": "Tue Aug 25",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "SS",
+      "day": "Wed Aug 26",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "SS",
+      "day": "Thu Aug 27",
+      "status": "available",
+      "count": 0
+    },
+    {
+      "producer": "SS",
+      "day": "Fri Aug 28",
+      "status": "available",
+      "count": 0
+    }
+  ],
+  "discountCodes": [
+    {
+      "id": "disc-1",
+      "code": "DEMO2026",
+      "description": "Demo showcase discount for new teams"
+    },
+    {
+      "id": "disc-2",
+      "code": "SUMMER25",
+      "description": "Summer 2025 seasonal promotion"
+    },
+    {
+      "id": "disc-3",
+      "code": "RETURN10",
+      "description": "Returning customer loyalty code"
     }
   ],
   "stats": {
@@ -5185,8 +5955,8 @@
       "programName": "TUALATIN HS LRG VAR ADV COED",
       "category": "Marching Band",
       "package": "PLATINUM 1:45 TBD",
-      "requestedProducer": "CASEY",
-      "assignedProducer": "CASEY",
+      "requestedProducer": "CM",
+      "assignedProducer": "CM",
       "price": 1000,
       "status": "completed",
       "createdAt": "2026-06-15",
@@ -5195,7 +5965,7 @@
       "attentionReason": null,
       "musicTheme": "PM & UTB COVERS EDITORS CHOICE (CM)",
       "contactName": "CRYSTAL",
-      "editorRequest": "CASEY",
+      "editorRequest": "CM",
       "formType": "marching-band"
     },
     {
@@ -5205,8 +5975,8 @@
       "programName": "WESTLAKE HS SM VAR NT AG D2",
       "category": "Marching Band",
       "package": "GOLD 1:45 NO SPLIT",
-      "requestedProducer": "MATT",
-      "assignedProducer": "MATT",
+      "requestedProducer": "MS",
+      "assignedProducer": "MS",
       "price": 700,
       "status": "completed",
       "createdAt": "2026-06-15",
@@ -5215,7 +5985,7 @@
       "attentionReason": null,
       "musicTheme": "PM & UTB COVERS EDITORS CHOICE (CM)",
       "contactName": "EMILY/BRICE",
-      "editorRequest": "MATT",
+      "editorRequest": "MS",
       "formType": "marching-band"
     },
     {
@@ -5225,8 +5995,8 @@
       "programName": "CULLMAN HS LRG JV AG",
       "category": "Marching Band",
       "package": "PLATINUM 1:45 NO SPLIT",
-      "requestedProducer": "NATE",
-      "assignedProducer": "NATE",
+      "requestedProducer": "NC",
+      "assignedProducer": "NC",
       "price": 1000,
       "status": "completed",
       "createdAt": "2026-06-15",
@@ -5235,7 +6005,7 @@
       "attentionReason": null,
       "musicTheme": "PM & UTB COVERS EDITORS CHOICE (CM)",
       "contactName": "SAVANNA/BLAKE",
-      "editorRequest": "NATE",
+      "editorRequest": "NC",
       "formType": "marching-band"
     },
     {
@@ -5265,8 +6035,8 @@
       "programName": "CHEER SKILLZ ACADEMY SATURN SWEETIES MINI PREP 2.1",
       "category": "Marching Band",
       "package": "SILVER 2:00 NO SPLIT",
-      "requestedProducer": "STEVE",
-      "assignedProducer": "STEVE",
+      "requestedProducer": "SS",
+      "assignedProducer": "SS",
       "price": 525,
       "status": "completed",
       "createdAt": "2026-06-15",
@@ -5275,7 +6045,7 @@
       "attentionReason": null,
       "musicTheme": "PM & UTB COVERS EDITORS CHOICE (CM)",
       "contactName": "JAMIE",
-      "editorRequest": "STEVE",
+      "editorRequest": "SS",
       "formType": "marching-band"
     },
     {
@@ -5285,8 +6055,8 @@
       "programName": "NORTHRIDGE HS TBD",
       "category": "Sports Entertainment",
       "package": "GOLD 1:45 TBD",
-      "requestedProducer": "BRENT",
-      "assignedProducer": "BRENT",
+      "requestedProducer": "BV",
+      "assignedProducer": "BV",
       "price": 700,
       "status": "completed",
       "createdAt": "2026-06-15",
@@ -5295,7 +6065,7 @@
       "attentionReason": null,
       "musicTheme": "PM & UTB COVERS EDITORS CHOICE (CM)",
       "contactName": "BRANDON/JOMAR",
-      "editorRequest": "BRENT",
+      "editorRequest": "BV",
       "formType": "sports-entertainment"
     },
     {
@@ -5305,8 +6075,8 @@
       "programName": "MIRA COSTA HS MED NT AG",
       "category": "Sports Entertainment",
       "package": "PLATINUM 1:45 NO SPLIT",
-      "requestedProducer": "MARK",
-      "assignedProducer": "MARK",
+      "requestedProducer": "MM",
+      "assignedProducer": "MM",
       "price": 1000,
       "status": "completed",
       "createdAt": "2026-06-15",
@@ -5315,7 +6085,7 @@
       "attentionReason": null,
       "musicTheme": "PM & UTB COVERS EDITORS CHOICE (CM)",
       "contactName": "TRAVIS",
-      "editorRequest": "MARK",
+      "editorRequest": "MM",
       "formType": "sports-entertainment"
     },
     {
@@ -5345,8 +6115,8 @@
       "programName": "SEVERANCE HS TBD",
       "category": "Sports Entertainment",
       "package": "GOLD 1:45 TBD",
-      "requestedProducer": "CASEY",
-      "assignedProducer": "CASEY",
+      "requestedProducer": "CM",
+      "assignedProducer": "CM",
       "price": 700,
       "status": "completed",
       "createdAt": "2026-06-15",
@@ -5355,7 +6125,7 @@
       "attentionReason": null,
       "musicTheme": "PM & UTB COVERS EDITORS CHOICE (CM)",
       "contactName": "BRANDON/JOMAR",
-      "editorRequest": "CASEY",
+      "editorRequest": "CM",
       "formType": "sports-entertainment"
     },
     {
@@ -5365,8 +6135,8 @@
       "programName": "PREMIER ATHLETICS KY LADY LAMBO SM YTH 2",
       "category": "Sports Entertainment",
       "package": "PLATINUM 2:30 NO SPLIT",
-      "requestedProducer": "MATT",
-      "assignedProducer": "MATT",
+      "requestedProducer": "MS",
+      "assignedProducer": "MS",
       "price": 1400,
       "status": "completed",
       "createdAt": "2026-06-15",
@@ -5375,7 +6145,7 @@
       "attentionReason": null,
       "musicTheme": "PM & UTB COVERS EDITORS CHOICE (CM)",
       "contactName": "NIKKI/ROSALIND",
-      "editorRequest": "MATT",
+      "editorRequest": "MS",
       "formType": "sports-entertainment"
     },
     {
@@ -5385,8 +6155,8 @@
       "programName": "PREMIER ATHLETICS KY DIAMOND GIRLS SM JR 1",
       "category": "School Anthem",
       "package": "PLATINUM 2:30 NO SPLIT",
-      "requestedProducer": "NATE",
-      "assignedProducer": "NATE",
+      "requestedProducer": "NC",
+      "assignedProducer": "NC",
       "price": 1400,
       "status": "completed",
       "createdAt": "2026-06-15",
@@ -5395,7 +6165,7 @@
       "attentionReason": null,
       "musicTheme": "PM & UTB COVERS EDITORS CHOICE (CM)",
       "contactName": "NIKKI/ROSALIND",
-      "editorRequest": "NATE",
+      "editorRequest": "NC",
       "formType": "school-anthem"
     },
     {
@@ -5425,8 +6195,8 @@
       "programName": "ALMADEN SPIRIT ATHLETICS RUBY JR 1",
       "category": "School Anthem",
       "package": "PLATINUM 2:30 NO SPLIT",
-      "requestedProducer": "STEVE",
-      "assignedProducer": "STEVE",
+      "requestedProducer": "SS",
+      "assignedProducer": "SS",
       "price": 1400,
       "status": "completed",
       "createdAt": "2026-06-15",
@@ -5435,7 +6205,7 @@
       "attentionReason": null,
       "musicTheme": "PM & UTB COVERS EDITORS CHOICE (CM)",
       "contactName": "TIFFANY",
-      "editorRequest": "STEVE",
+      "editorRequest": "SS",
       "formType": "school-anthem"
     },
     {
@@ -5445,8 +6215,8 @@
       "programName": "PREMIER ATHLETICS KY VOGUE U16 LV 3",
       "category": "School Anthem",
       "package": "TITANIUM 2:30 NO SPLIT",
-      "requestedProducer": "BRENT",
-      "assignedProducer": "BRENT",
+      "requestedProducer": "BV",
+      "assignedProducer": "BV",
       "price": 1400,
       "status": "completed",
       "createdAt": "2026-06-15",
@@ -5455,7 +6225,7 @@
       "attentionReason": null,
       "musicTheme": "PM & UTB COVERS EDITORS CHOICE (CM)",
       "contactName": "NIKKI/ROSALIND",
-      "editorRequest": "BRENT",
+      "editorRequest": "BV",
       "formType": "school-anthem"
     },
     {
@@ -5465,8 +6235,8 @@
       "programName": "DESERT VISTA HS JV",
       "category": "School Anthem",
       "package": "GOLD 1:45 TBD",
-      "requestedProducer": "MARK",
-      "assignedProducer": "MARK",
+      "requestedProducer": "MM",
+      "assignedProducer": "MM",
       "price": 700,
       "status": "completed",
       "createdAt": "2026-06-15",
@@ -5475,7 +6245,7 @@
       "attentionReason": null,
       "musicTheme": "PM & UTB COVERS EDITORS CHOICE (CM)",
       "contactName": "MICHAEL",
-      "editorRequest": "MARK",
+      "editorRequest": "MM",
       "formType": "school-anthem"
     },
     {
@@ -5506,8 +6276,8 @@
       "programName": "TOP GUN AS ORLANDO MINI REIGN MINI 1 MED",
       "category": "Cheer",
       "package": "GOLD 2:30 NO SPLIT",
-      "requestedProducer": "CASEY",
-      "assignedProducer": "CASEY",
+      "requestedProducer": "CM",
+      "assignedProducer": "CM",
       "price": 1000,
       "status": "completed",
       "createdAt": "2026-06-15",
@@ -5516,7 +6286,7 @@
       "attentionReason": null,
       "musicTheme": "PM & UTB COVERS EDITORS CHOICE (CM)",
       "contactName": "LAUREN/ROGER/AUDREY",
-      "editorRequest": "CASEY",
+      "editorRequest": "CM",
       "formType": "school-all-star-cheer",
       "cheerFormSubtype": "youth-rec-cheer"
     },
@@ -5527,8 +6297,8 @@
       "programName": "CLOVIS WEST HS D1 SMALL ALL GIRL",
       "category": "Cheer",
       "package": "GOLD 1:45 TBD",
-      "requestedProducer": "MATT",
-      "assignedProducer": "MATT",
+      "requestedProducer": "MS",
+      "assignedProducer": "MS",
       "price": 700,
       "status": "completed",
       "createdAt": "2026-06-15",
@@ -5537,7 +6307,7 @@
       "attentionReason": null,
       "musicTheme": "PM & UTB COVERS EDITORS CHOICE (CM)",
       "contactName": "TALEEN/JEWELL",
-      "editorRequest": "MATT",
+      "editorRequest": "MS",
       "formType": "school-all-star-cheer",
       "cheerFormSubtype": "all-star-cheer"
     },
@@ -5548,8 +6318,8 @@
       "programName": "ONE DREAM CHEER 18U MISS FAME",
       "category": "Cheer",
       "package": "PLATINUM 2:30 NO SPLIT",
-      "requestedProducer": "NATE",
-      "assignedProducer": "NATE",
+      "requestedProducer": "NC",
+      "assignedProducer": "NC",
       "price": 1400,
       "status": "completed",
       "createdAt": "2026-06-15",
@@ -5558,7 +6328,7 @@
       "attentionReason": null,
       "musicTheme": "PM & UTB COVERS EDITORS CHOICE (CM)",
       "contactName": "MELISSA/ALEXIS",
-      "editorRequest": "NATE",
+      "editorRequest": "NC",
       "formType": "school-all-star-cheer",
       "cheerFormSubtype": "school-cheer-viroc-yes"
     },
@@ -5590,8 +6360,8 @@
       "programName": "ONE DREAM CHEER 14U BLUE CREW",
       "category": "Cheer",
       "package": "PLATINUM 2:30 NO SPLIT",
-      "requestedProducer": "STEVE",
-      "assignedProducer": "STEVE",
+      "requestedProducer": "SS",
+      "assignedProducer": "SS",
       "price": 1400,
       "status": "completed",
       "createdAt": "2026-06-15",
@@ -5600,7 +6370,7 @@
       "attentionReason": null,
       "musicTheme": "PM & UTB COVERS EDITORS CHOICE (CM)",
       "contactName": "MELISSA/ALEXIS",
-      "editorRequest": "STEVE",
+      "editorRequest": "SS",
       "formType": "school-all-star-cheer",
       "cheerFormSubtype": "youth-rec-cheer"
     },
@@ -5611,8 +6381,8 @@
       "programName": "ONE DREAM CHEER 14U GLAMOUR GIRLS",
       "category": "Cheer",
       "package": "PLATINUM 2:30 NO SPLIT",
-      "requestedProducer": "BRENT",
-      "assignedProducer": "BRENT",
+      "requestedProducer": "BV",
+      "assignedProducer": "BV",
       "price": 1400,
       "status": "completed",
       "createdAt": "2026-06-15",
@@ -5621,7 +6391,7 @@
       "attentionReason": null,
       "musicTheme": "PM & UTB COVERS EDITORS CHOICE (CM)",
       "contactName": "MELISSA/ALEXIS",
-      "editorRequest": "BRENT",
+      "editorRequest": "BV",
       "formType": "school-all-star-cheer",
       "cheerFormSubtype": "all-star-cheer"
     },
@@ -5632,8 +6402,8 @@
       "programName": "PREMIER ATHLETICS KY DERBY SM SR 4",
       "category": "Cheer",
       "package": "TITANIUM 2:30 NO SPLIT",
-      "requestedProducer": "MARK",
-      "assignedProducer": "MARK",
+      "requestedProducer": "MM",
+      "assignedProducer": "MM",
       "price": 1400,
       "status": "completed",
       "createdAt": "2026-06-15",
@@ -5642,7 +6412,7 @@
       "attentionReason": null,
       "musicTheme": "PM & UTB COVERS EDITORS CHOICE (CM)",
       "contactName": "NIKKI/ROSALIND",
-      "editorRequest": "MARK",
+      "editorRequest": "MM",
       "formType": "school-all-star-cheer",
       "cheerFormSubtype": "school-cheer-viroc-yes"
     },
@@ -5674,8 +6444,8 @@
       "programName": "GREELEY CENTRAL HS TBD",
       "category": "Cheer",
       "package": "GOLD 1:45 TBD",
-      "requestedProducer": "CASEY",
-      "assignedProducer": "CASEY",
+      "requestedProducer": "CM",
+      "assignedProducer": "CM",
       "price": 700,
       "status": "completed",
       "createdAt": "2026-06-15",
@@ -5684,7 +6454,7 @@
       "attentionReason": null,
       "musicTheme": "PM & UTB COVERS EDITORS CHOICE (CM)",
       "contactName": "BRANDON/JOMAR",
-      "editorRequest": "CASEY",
+      "editorRequest": "CM",
       "formType": "school-all-star-cheer",
       "cheerFormSubtype": "youth-rec-cheer"
     },
@@ -5695,8 +6465,8 @@
       "programName": "BROTHER MARTIN HS LRG VARSITY COED D1",
       "category": "Cheer",
       "package": "SILVER 1:45 TBD",
-      "requestedProducer": "MATT",
-      "assignedProducer": "MATT",
+      "requestedProducer": "MS",
+      "assignedProducer": "MS",
       "price": 550,
       "status": "completed",
       "createdAt": "2026-06-15",
@@ -5705,7 +6475,7 @@
       "attentionReason": null,
       "musicTheme": "PM & UTB COVERS EDITORS CHOICE (CM)",
       "contactName": "BLAKE",
-      "editorRequest": "MATT",
+      "editorRequest": "MS",
       "formType": "school-all-star-cheer",
       "cheerFormSubtype": "all-star-cheer"
     },
@@ -5716,8 +6486,8 @@
       "programName": "ONE DREAM CHEER 12 GOLDEN GIRLS",
       "category": "Cheer",
       "package": "GOLD 2:30 NO SPLIT",
-      "requestedProducer": "NATE",
-      "assignedProducer": "NATE",
+      "requestedProducer": "NC",
+      "assignedProducer": "NC",
       "price": 1000,
       "status": "completed",
       "createdAt": "2026-06-15",
@@ -5726,7 +6496,7 @@
       "attentionReason": null,
       "musicTheme": "PM & UTB COVERS EDITORS CHOICE (CM)",
       "contactName": "MELISSA/ALEXIS",
-      "editorRequest": "NATE",
+      "editorRequest": "NC",
       "formType": "school-all-star-cheer",
       "cheerFormSubtype": "school-cheer-viroc-yes"
     },
@@ -5758,8 +6528,8 @@
       "programName": "AMERICAN CHEER TINY TWINKLES",
       "category": "Cheer",
       "package": "GOLD 1:30 NO SPLIT",
-      "requestedProducer": "STEVE",
-      "assignedProducer": "STEVE",
+      "requestedProducer": "SS",
+      "assignedProducer": "SS",
       "price": 600,
       "status": "completed",
       "createdAt": "2026-06-15",
@@ -5768,7 +6538,7 @@
       "attentionReason": null,
       "musicTheme": "PM & UTB COVERS EDITORS CHOICE (CM)",
       "contactName": "ASHLEY.JASON",
-      "editorRequest": "STEVE",
+      "editorRequest": "SS",
       "formType": "school-all-star-cheer",
       "cheerFormSubtype": "youth-rec-cheer"
     },
@@ -5779,8 +6549,8 @@
       "programName": "ONE DREAM CHEER 12 VOGUE",
       "category": "Cheer",
       "package": "PLATINUM 2:30 NO SPLIT",
-      "requestedProducer": "BRENT",
-      "assignedProducer": "BRENT",
+      "requestedProducer": "BV",
+      "assignedProducer": "BV",
       "price": 1400,
       "status": "completed",
       "createdAt": "2026-06-15",
@@ -5789,7 +6559,7 @@
       "attentionReason": null,
       "musicTheme": "PM & UTB COVERS EDITORS CHOICE (CM)",
       "contactName": "MELISSA/ALEXIS",
-      "editorRequest": "BRENT",
+      "editorRequest": "BV",
       "formType": "school-all-star-cheer",
       "cheerFormSubtype": "all-star-cheer"
     }

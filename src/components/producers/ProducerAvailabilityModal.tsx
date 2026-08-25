@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { ChevronDown, Plus, Trash2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { CalendarPlus, ChevronDown, Minus, Plus, Trash2, X } from "lucide-react";
 import clsx from "clsx";
 import {
   defaultReasonForTimeOffType,
@@ -15,11 +15,18 @@ import {
   type Weekday,
 } from "@/types";
 
+type AvailabilityPatch = {
+  workDays: Weekday[];
+  timeOff: ProducerTimeOff[];
+  maxMixesPerDay: number | null;
+  overtimeDays: string[];
+};
+
 type ProducerAvailabilityModalProps = {
   open: boolean;
   onClose: () => void;
   producer: Producer | null;
-  onSave: (patch: { workDays: Weekday[]; timeOff: ProducerTimeOff[] }) => void;
+  onSave: (patch: AvailabilityPatch) => void;
 };
 
 type DraftTimeOff = {
@@ -30,6 +37,17 @@ type DraftTimeOff = {
   reason: string;
 };
 
+function formatOvertimeLabel(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const date = new Date(y, m - 1, d);
+  return date.toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
 export function ProducerAvailabilityModal({
   open,
   onClose,
@@ -38,6 +56,11 @@ export function ProducerAvailabilityModal({
 }: ProducerAvailabilityModalProps) {
   const [workDays, setWorkDays] = useState<Weekday[]>([...DEFAULT_WORK_DAYS]);
   const [timeOff, setTimeOff] = useState<DraftTimeOff[]>([]);
+  const [hasMaxCapacity, setHasMaxCapacity] = useState(false);
+  const [maxMixesPerDay, setMaxMixesPerDay] = useState(6);
+  const [overtimeDays, setOvertimeDays] = useState<string[]>([]);
+  const [overtimeDraft, setOvertimeDraft] = useState("");
+  const overtimeInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!open || !producer) return;
@@ -51,6 +74,10 @@ export function ProducerAvailabilityModal({
         reason: entry.reason,
       }))
     );
+    setHasMaxCapacity(producer.maxMixesPerDay != null);
+    setMaxMixesPerDay(producer.maxMixesPerDay ?? 6);
+    setOvertimeDays([...producer.overtimeDays]);
+    setOvertimeDraft("");
   }, [open, producer]);
 
   if (!open || !producer) return null;
@@ -85,6 +112,19 @@ export function ProducerAvailabilityModal({
     setTimeOff((prev) => prev.filter((entry) => entry.key !== key));
   }
 
+  function addOvertimeDay(iso?: string) {
+    const value = (iso ?? overtimeDraft).trim();
+    if (!value) return;
+    setOvertimeDays((prev) =>
+      [...new Set([...prev, value])].sort((a, b) => a.localeCompare(b))
+    );
+    setOvertimeDraft("");
+  }
+
+  function removeOvertimeDay(iso: string) {
+    setOvertimeDays((prev) => prev.filter((day) => day !== iso));
+  }
+
   function handleDone() {
     onSave({
       workDays,
@@ -97,6 +137,8 @@ export function ProducerAvailabilityModal({
           type: entry.type,
           reason: entry.reason.trim(),
         })),
+      maxMixesPerDay: hasMaxCapacity ? Math.max(1, maxMixesPerDay) : null,
+      overtimeDays,
     });
     onClose();
   }
@@ -120,7 +162,7 @@ export function ProducerAvailabilityModal({
             Cancel
           </button>
           <h2 className="absolute left-1/2 -translate-x-1/2 text-[16px] font-semibold tracking-[-0.01em] text-brand-ink">
-            Days & time off
+            Schedule & capacity
           </h2>
           <button
             type="button"
@@ -152,7 +194,7 @@ export function ProducerAvailabilityModal({
             Days they work
           </p>
           <p className="mt-0.5 text-[12px] text-brand-ink-tertiary">
-            Tap the days they are scheduled.
+            Regular weekly schedule. Mon–Fri by default.
           </p>
           <div className="mt-4 flex justify-between gap-1">
             {WEEKDAYS.map((day) => {
@@ -173,6 +215,136 @@ export function ProducerAvailabilityModal({
                 </button>
               );
             })}
+          </div>
+
+          <div className="mt-8">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[13px] font-semibold text-brand-ink">
+                  Overtime
+                </p>
+                <p className="mt-0.5 text-[12px] text-brand-ink-tertiary">
+                  Extra days they will work outside their regular schedule.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => overtimeInputRef.current?.showPicker?.()}
+                className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full bg-brand-bg px-3 text-[13px] font-semibold text-brand-blue ring-1 ring-inset ring-black/[0.06] transition hover:bg-brand-bg-subtle"
+              >
+                <CalendarPlus className="h-3.5 w-3.5" strokeWidth={2.5} />
+                Add day
+              </button>
+            </div>
+
+            <input
+              ref={overtimeInputRef}
+              type="date"
+              value={overtimeDraft}
+              onChange={(e) => {
+                const value = e.target.value;
+                setOvertimeDraft(value);
+                if (value) addOvertimeDay(value);
+              }}
+              className="pointer-events-none absolute h-0 w-0 opacity-0"
+              tabIndex={-1}
+              aria-hidden
+            />
+
+            {overtimeDays.length === 0 ? (
+              <p className="mt-4 text-center text-[13px] text-brand-ink-tertiary">
+                No overtime days added.
+              </p>
+            ) : (
+              <ul className="mt-4 flex flex-wrap gap-2">
+                {overtimeDays.map((iso) => (
+                  <li key={iso}>
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-blue-soft py-1.5 pl-3 pr-1.5 text-[12px] font-semibold text-brand-blue-deep ring-1 ring-inset ring-brand-blue-muted">
+                      {formatOvertimeLabel(iso)}
+                      <button
+                        type="button"
+                        onClick={() => removeOvertimeDay(iso)}
+                        className="rounded-full p-1 text-brand-blue-deep/70 transition hover:bg-brand-blue-muted hover:text-brand-blue-deep"
+                        aria-label={`Remove ${iso}`}
+                      >
+                        <X className="h-3 w-3" strokeWidth={2.5} />
+                      </button>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="mt-8">
+            <p className="text-[13px] font-semibold text-brand-ink">
+              Daily mix limit
+            </p>
+            <p className="mt-0.5 text-[12px] text-brand-ink-tertiary">
+              How many mixes they can take on a scheduled day.
+            </p>
+
+            <div className="mt-4 flex gap-1 rounded-full bg-brand-bg p-1 ring-1 ring-inset ring-black/[0.06]">
+              <button
+                type="button"
+                onClick={() => setHasMaxCapacity(false)}
+                className={clsx(
+                  "flex-1 rounded-full py-2 text-[13px] font-semibold transition",
+                  !hasMaxCapacity
+                    ? "bg-brand-ink text-white shadow-sm"
+                    : "text-brand-ink-secondary hover:text-brand-ink"
+                )}
+              >
+                No limit
+              </button>
+              <button
+                type="button"
+                onClick={() => setHasMaxCapacity(true)}
+                className={clsx(
+                  "flex-1 rounded-full py-2 text-[13px] font-semibold transition",
+                  hasMaxCapacity
+                    ? "bg-brand-ink text-white shadow-sm"
+                    : "text-brand-ink-secondary hover:text-brand-ink"
+                )}
+              >
+                Set limit
+              </button>
+            </div>
+
+            {hasMaxCapacity ? (
+              <div className="mt-4 flex items-center justify-between rounded-2xl bg-brand-bg px-4 py-3 ring-1 ring-inset ring-black/[0.06]">
+                <span className="text-[13px] font-medium text-brand-ink">
+                  Max mixes per day
+                </span>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setMaxMixesPerDay((value) => Math.max(1, value - 1))
+                    }
+                    disabled={maxMixesPerDay <= 1}
+                    className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-elevated text-brand-ink ring-1 ring-inset ring-black/[0.06] transition hover:bg-brand-bg-subtle disabled:opacity-40"
+                    aria-label="Decrease limit"
+                  >
+                    <Minus className="h-3.5 w-3.5" strokeWidth={2.5} />
+                  </button>
+                  <span className="min-w-[2ch] text-center text-[18px] font-semibold tabular-nums text-brand-ink">
+                    {maxMixesPerDay}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setMaxMixesPerDay((value) => Math.min(10, value + 1))
+                    }
+                    disabled={maxMixesPerDay >= 10}
+                    className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-elevated text-brand-ink ring-1 ring-inset ring-black/[0.06] transition hover:bg-brand-bg-subtle disabled:opacity-40"
+                    aria-label="Increase limit"
+                  >
+                    <Plus className="h-3.5 w-3.5" strokeWidth={2.5} />
+                  </button>
+                </div>
+              </div>
+            ) : null}
           </div>
 
           <div className="mt-8 flex items-center justify-between">

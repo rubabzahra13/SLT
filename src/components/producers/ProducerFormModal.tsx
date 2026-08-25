@@ -93,6 +93,8 @@ export function ProducerFormModal({
       status: producer?.status || "available",
       workDays: producer?.workDays ?? [...DEFAULT_WORK_DAYS],
       timeOff: producer?.timeOff ?? [],
+      maxMixesPerDay: producer?.maxMixesPerDay ?? null,
+      overtimeDays: producer?.overtimeDays ?? [],
     });
     onClose();
   }

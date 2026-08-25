@@ -12,6 +12,7 @@ export type Column<T> = {
   width?: string;
   align?: "left" | "right" | "center";
   nowrap?: boolean;
+  sticky?: "left" | "right";
   render: (row: T, index: number) => React.ReactNode;
 };
 
@@ -84,6 +85,21 @@ export function DataTable<T>({
 
   const isInteractive = Boolean(href || onRowClick);
 
+  const stickyClass = (sticky?: Column<T>["sticky"], header = false) =>
+    sticky === "right"
+      ? clsx(
+          "sticky right-0 z-10 shadow-[-6px_0_10px_-8px_rgba(15,30,45,0.18)]",
+          header ? "bg-[inherit]" : "bg-brand-elevated",
+          variant === "muted" && !header && "bg-brand-surface"
+        )
+      : sticky === "left"
+        ? clsx(
+            "sticky left-0 z-10 shadow-[6px_0_10px_-8px_rgba(15,30,45,0.18)]",
+            header ? "bg-[inherit]" : "bg-brand-elevated",
+            variant === "muted" && !header && "bg-brand-surface"
+          )
+        : undefined;
+
   return (
     <div
       className={clsx(
@@ -112,7 +128,8 @@ export function DataTable<T>({
                   className={clsx(
                     cellClass,
                     "text-label table-header-cell border-r font-semibold last:border-r-0",
-                    alignClass(col.align)
+                    alignClass(col.align),
+                    stickyClass(col.sticky, true)
                   )}
                 >
                   {col.header}
@@ -151,7 +168,8 @@ export function DataTable<T>({
                         textSize,
                         alignClass(col.align),
                         "border-r border-brand-line/50 align-middle last:border-r-0",
-                        col.nowrap !== false && "max-w-0 truncate whitespace-nowrap"
+                        col.nowrap !== false && "max-w-0 truncate whitespace-nowrap",
+                        stickyClass(col.sticky)
                       )}
                     >
                       {col.render(row, rowIndex)}

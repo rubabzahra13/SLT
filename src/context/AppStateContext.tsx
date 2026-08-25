@@ -4,12 +4,12 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
   useState,
 } from "react";
 import type {
   AppNotification,
+  DiscountCode,
   MTDRecord,
   Order,
   Producer,
@@ -20,10 +20,18 @@ import { normalizeOrder } from "@/lib/order-form";
 import {
   detectCompliance,
   getDefaultPackagePrices,
+  getDefaultSecretMenuPricing,
   getPriceForPackage,
+  type SecretMenuPricing,
 } from "@/lib/pricing";
-import { suggestMixStartDate } from "@/lib/scheduling";
+import {
+  editorRequestForAssignment,
+  getSuggestedEditors,
+  pickDefaultEditor,
+} from "@/lib/editor-assignment";
+import { suggestMixStartDate, suggestMixEndDate } from "@/lib/scheduling";
 import { normalizeProducer } from "@/lib/producers";
+import { normalizeDiscountCode } from "@/lib/discount-codes";
 import { toIsoDateString } from "@/lib/dates";
 
 type AppStateContextValue = {
@@ -32,18 +40,27 @@ type AppStateContextValue = {
   allOrders: Order[];
   mtdRecords: MTDRecord[];
   packagePrices: Record<string, number>;
+  secretMenuPrices: SecretMenuPricing;
   producers: Producer[];
+  discountCodes: DiscountCode[];
   schedule: ScheduleEntry[];
   notifications: AppNotification[];
   unreadCount: number;
   moveOrderToMTD: (orderId: string) => MTDRecord | null;
   updateMTD: (id: string, patch: Partial<MTDRecord>) => void;
+  updateOrder: (id: string, patch: Partial<Order>, seed?: Order) => void;
   setPackagePrices: (prices: Record<string, number>) => void;
+  setSecretMenuPrices: (pricing: SecretMenuPricing) => void;
   markComplete: (orderId: string) => void;
   addPastOrder: (order: Order) => void;
+  /** Incoming customer order — adds to active list and notifies the bell. */
+  receiveOrder: (order: Order) => void;
   addProducer: (producer: Producer) => void;
   updateProducer: (id: string, patch: Partial<Producer>) => void;
   removeProducer: (id: string) => void;
+  addDiscountCode: (discountCode: DiscountCode) => void;
+  updateDiscountCode: (id: string, patch: Partial<DiscountCode>) => void;
+  removeDiscountCode: (id: string) => void;
   markNotificationRead: (id: string) => void;
   markAllNotificationsRead: () => void;
   isInMTD: (orderId: string) => boolean;
@@ -56,16 +73,23 @@ function normalizeOrders(orders: Order[]): Order[] {
 }
 
 function normalizeMTD(records: MTDRecord[]): MTDRecord[] {
-  return records.map((r) => ({
-    ...r,
-    editorRequest: r.editorRequest || "FA",
-    contactName: r.contactName || r.editorInitials,
-    priceCompliance: r.priceCompliance || detectCompliance(r.musicTheme),
-    mixStartDate: toIsoDateString(r.mixStartDate) || r.mixStartDate,
-    bookedUntil: r.bookedUntil
-      ? toIsoDateString(r.bookedUntil) || r.bookedUntil
-      : r.bookedUntil,
-  }));
+  return records.map((r) => {
+    const legacyBookedUntil = (r as MTDRecord & { bookedUntil?: string | null })
+      .bookedUntil;
+    const mixEndRaw = r.mixEndDate || legacyBookedUntil;
+    const mixEnd = mixEndRaw
+      ? toIsoDateString(mixEndRaw) || mixEndRaw
+      : undefined;
+
+    return {
+      ...r,
+      editorRequest: r.editorRequest || "FA",
+      contactName: r.contactName || r.editorInitials,
+      priceCompliance: r.priceCompliance || detectCompliance(r.musicTheme),
+      mixStartDate: toIsoDateString(r.mixStartDate) || r.mixStartDate,
+      ...(mixEnd ? { mixEndDate: mixEnd } : {}),
+    };
+  });
 }
 
 export function AppStateProvider({ children }: { children: React.ReactNode }) {
@@ -83,10 +107,31 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const [packagePrices, setPackagePricesState] = useState<Record<string, number>>(
     () => getDefaultPackagePrices()
   );
-  const [notifications, setNotifications] = useState<AppNotification[]>([]);
-  const [initialized, setInitialized] = useState(false);
+  const [secretMenuPrices, setSecretMenuPricesState] = useState<SecretMenuPricing>(
+    () => getDefaultSecretMenuPricing()
+  );
+  const [notifications, setNotifications] = useState<AppNotification[]>(() => {
+    const newOrders = seed.orders
+      .filter((o) => o.status === "new")
+      .slice(0, 8);
+    // Seed unread "order received" items for the bell without toasting on refresh.
+    return [...newOrders].reverse().map((order, index) => ({
+      id: `notif-seed-${order.id}-${index}`,
+      type: "new_order" as const,
+      title: "New order received",
+      message: `${order.programName} · ${
+        order.contactName || order.customerName || "Customer"
+      }`,
+      href: "/mtd",
+      read: false,
+      createdAt: order.createdAt || new Date().toISOString(),
+    }));
+  });
   const [producers, setProducers] = useState<Producer[]>(() =>
     seed.producers.map((p) => normalizeProducer(p))
+  );
+  const [discountCodes, setDiscountCodes] = useState<DiscountCode[]>(() =>
+    (seed.discountCodes ?? []).map((entry) => normalizeDiscountCode(entry))
   );
 
   const schedule = seed.schedule;
@@ -103,20 +148,6 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     },
     []
   );
-
-  useEffect(() => {
-    if (initialized) return;
-    const newOrders = activeOrders.filter((o) => o.status === "new");
-    if (newOrders.length > 0) {
-      addNotification({
-        type: "new_order",
-        title: `${newOrders.length} new order${newOrders.length > 1 ? "s" : ""}`,
-        message: `${newOrders[0].programName} and others awaiting review.`,
-        href: "/mtd",
-      });
-    }
-    setInitialized(true);
-  }, [initialized, activeOrders, addNotification]);
 
   const allOrders = useMemo(
     () => [...activeOrders, ...pastOrders],
@@ -143,23 +174,13 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         order.price ||
         getPriceForPackage(order.package, compliance, order.price, packagePrices);
 
-      const producerInitials =
-        order.editorRequest !== "FA" && order.editorRequest !== "NA"
-          ? order.editorRequest
-          : order.requestedProducer !== "First Available"
-            ? order.requestedProducer
-            : null;
-
-      const assignedProducer = producerInitials;
-      const mixStartDate = assignedProducer
-        ? suggestMixStartDate(assignedProducer, producers, schedule)
-        : "";
-
-      const newRecord: MTDRecord = {
-        id: `mtd-${Date.now()}`,
+      const draftId = `mtd-${Date.now()}`;
+      const draftRecord: MTDRecord = {
+        id: draftId,
         orderId: order.id,
-        section: order.category === "Dance" ? "DANCE MUSIC" : "CHEERLEADING MUSIC",
-        assignedProducer,
+        section:
+          order.category === "Dance" ? "DANCE MUSIC" : "CHEERLEADING MUSIC",
+        assignedProducer: null,
         category: order.category,
         editorRequest: order.editorRequest,
         contactName: order.contactName || order.customerName,
@@ -170,11 +191,50 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         price,
         priceCompliance: compliance,
         invoice: "",
-        mixStartDate,
+        mixStartDate: "",
         eightCountSheet: "NEED CS",
         haveSongs: "NEED SONGS",
         needsAttention: true,
         status: "needs_attention",
+      };
+
+      const pick = pickDefaultEditor(
+        draftRecord,
+        producers,
+        mtdRecords,
+        schedule,
+        order
+      );
+      const availableNames = getSuggestedEditors(
+        mtdRecords,
+        producers,
+        schedule,
+        order.category,
+        draftId,
+        draftRecord
+      ).map((suggestion) => suggestion.name);
+      const assignedProducer = pick.editor || null;
+      const editorRequest = assignedProducer
+        ? editorRequestForAssignment(
+            pick.editor,
+            pick.requestedEditor,
+            availableNames
+          )
+        : order.editorRequest;
+      const mixStartDate = assignedProducer
+        ? suggestMixStartDate(assignedProducer, producers, schedule)
+        : "";
+      const mixEndDate =
+        mixStartDate && assignedProducer
+          ? suggestMixEndDate(mixStartDate, order.package)
+          : undefined;
+
+      const newRecord: MTDRecord = {
+        ...draftRecord,
+        assignedProducer,
+        editorRequest,
+        mixStartDate,
+        ...(mixEndDate ? { mixEndDate } : {}),
       };
 
       setMtdRecords((prev) => [newRecord, ...prev]);
@@ -189,11 +249,15 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       const slotMsg = assignedProducer
         ? ` Next slot: ${formatSlot(assignedProducer, producers, schedule)}.`
         : "";
+      const busyFallback =
+        pick.reason === "requested_busy"
+          ? ` ${pick.requestedEditor} was booked — assigned ${assignedProducer} (FA).`
+          : "";
 
       addNotification({
         type: "mtd_move",
         title: "Moved to MTD",
-        message: `${order.programName} is now in Music To Do.${slotMsg}`,
+        message: `${order.programName} is now in Music To Do.${busyFallback}${slotMsg}`,
         href: `/mtd/${newRecord.id}`,
       });
 
@@ -208,7 +272,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
       return newRecord;
     },
-    [activeOrders, isInMTD, producers, schedule, addNotification, packagePrices]
+    [activeOrders, isInMTD, mtdRecords, producers, schedule, addNotification, packagePrices]
   );
 
   const setPackagePrices = useCallback((prices: Record<string, number>) => {
@@ -230,6 +294,10 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     );
   }, []);
 
+  const setSecretMenuPrices = useCallback((pricing: SecretMenuPricing) => {
+    setSecretMenuPricesState(pricing);
+  }, []);
+
   const updateMTD = useCallback((id: string, patch: Partial<MTDRecord>) => {
     setMtdRecords((prev) =>
       prev.map((r) => {
@@ -238,9 +306,6 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
         if (patch.editorRequest === "NA") {
           updated.assignedProducer = null;
-          if (patch.bookedUntil === undefined) {
-            updated.bookedUntil = null;
-          }
         } else if (patch.assignedProducer !== undefined) {
           updated.assignedProducer = patch.assignedProducer;
           if (patch.assignedProducer) {
@@ -249,7 +314,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
               producers,
               schedule
             );
-            if (mixDate && patch.mixStartDate === undefined) {
+            if (mixDate && patch.mixStartDate === undefined && !updated.mixStartDate) {
               updated.mixStartDate = mixDate;
             }
           }
@@ -264,9 +329,19 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
             producers,
             schedule
           );
-          if (mixDate && patch.mixStartDate === undefined) {
+          if (mixDate && patch.mixStartDate === undefined && !updated.mixStartDate) {
             updated.mixStartDate = mixDate;
           }
+        }
+
+        const startIso = toIsoDateString(updated.mixStartDate);
+        const endIso = toIsoDateString(updated.mixEndDate ?? "");
+        if (
+          startIso &&
+          !endIso &&
+          patch.mixEndDate === undefined
+        ) {
+          updated.mixEndDate = suggestMixEndDate(startIso, updated.package);
         }
 
         if (patch.package || patch.priceCompliance || patch.musicTheme) {
@@ -292,6 +367,27 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       })
     );
   }, [producers, schedule, packagePrices]);
+
+  const updateOrder = useCallback(
+    (id: string, patch: Partial<Order>, seed?: Order) => {
+      const merge = (order: Order) => normalizeOrder({ ...order, ...patch, id });
+
+      setActiveOrders((prev) => {
+        if (prev.some((order) => order.id === id)) {
+          return prev.map((order) => (order.id === id ? merge(order) : order));
+        }
+        if (seed) return [merge(seed), ...prev];
+        return prev;
+      });
+      setPastOrders((prev) => {
+        if (prev.some((order) => order.id === id)) {
+          return prev.map((order) => (order.id === id ? merge(order) : order));
+        }
+        return prev;
+      });
+    },
+    []
+  );
 
   const markComplete = useCallback(
     (orderId: string) => {
@@ -319,6 +415,28 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     setPastOrders((prev) => [order, ...prev]);
   }, []);
 
+  const receiveOrder = useCallback(
+    (order: Order) => {
+      const incoming = normalizeOrder({
+        ...order,
+        status: order.status || "new",
+      });
+      setActiveOrders((prev) => {
+        if (prev.some((o) => o.id === incoming.id)) return prev;
+        return [incoming, ...prev];
+      });
+      addNotification({
+        type: "new_order",
+        title: "New order received",
+        message: `${incoming.programName} · ${
+          incoming.contactName || incoming.customerName || "Customer"
+        }`,
+        href: "/mtd",
+      });
+    },
+    [addNotification]
+  );
+
   const addProducer = useCallback((producer: Producer) => {
     setProducers((prev) => [normalizeProducer(producer), ...prev]);
   }, []);
@@ -333,6 +451,30 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
   const removeProducer = useCallback((id: string) => {
     setProducers((prev) => prev.filter((p) => p.id !== id));
+  }, []);
+
+  const addDiscountCode = useCallback((discountCode: DiscountCode) => {
+    setDiscountCodes((prev) => [
+      normalizeDiscountCode(discountCode),
+      ...prev,
+    ]);
+  }, []);
+
+  const updateDiscountCode = useCallback(
+    (id: string, patch: Partial<DiscountCode>) => {
+      setDiscountCodes((prev) =>
+        prev.map((entry) =>
+          entry.id === id
+            ? normalizeDiscountCode({ ...entry, ...patch, id })
+            : entry
+        )
+      );
+    },
+    []
+  );
+
+  const removeDiscountCode = useCallback((id: string) => {
+    setDiscountCodes((prev) => prev.filter((entry) => entry.id !== id));
   }, []);
 
   const markNotificationRead = useCallback((id: string) => {
@@ -353,18 +495,26 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     allOrders,
     mtdRecords,
     packagePrices,
+    secretMenuPrices,
     producers,
+    discountCodes,
     schedule,
     notifications,
     unreadCount,
     moveOrderToMTD,
     updateMTD,
+    updateOrder,
     setPackagePrices,
+    setSecretMenuPrices,
     markComplete,
     addPastOrder,
+    receiveOrder,
     addProducer,
     updateProducer,
     removeProducer,
+    addDiscountCode,
+    updateDiscountCode,
+    removeDiscountCode,
     markNotificationRead,
     markAllNotificationsRead,
     isInMTD,

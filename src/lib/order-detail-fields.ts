@@ -1,13 +1,9 @@
 import { getOrderFormColumns } from "@/components/orders/order-columns";
 import { displayMultiline, displayText, normalizeOrder } from "@/lib/order-form";
+import { parsePackage } from "@/lib/package";
 import { resolveMTDFormMeta } from "@/lib/mtd-filters";
 import type { MTDRecord, Order } from "@/types";
-
-export type OrderDetailField = {
-  label: string;
-  value: string;
-  multiline?: boolean;
-};
+import type { OrderDetailField } from "@/lib/order-detail-sections";
 
 const FIELD_GETTERS: Record<string, (order: Order) => string> = {
   schoolProgramName: (o) => o.schoolProgramName,
@@ -58,7 +54,7 @@ const FIELD_GETTERS: Record<string, (order: Order) => string> = {
   customVoiceovers: (o) => o.customVoiceovers,
 };
 
-function rawFieldValue(order: Order, key: string): string {
+export function rawFieldValue(order: Order, key: string): string {
   const getter = FIELD_GETTERS[key];
   if (getter) return getter(order) || "";
   const direct = order[key as keyof Order];
@@ -74,12 +70,40 @@ export function getOrderDetailFields(order: Order): OrderDetailField[] {
       const raw = rawFieldValue(order, col.key);
       const multiline = col.nowrap === false;
       return {
+        key: col.key,
         label: col.header,
         value: multiline ? displayMultiline(raw, 500) : displayText(raw),
         multiline,
       };
     })
     .filter((field) => field.value !== "—");
+}
+
+function enrichOrderFromMTD(rec: {
+  package: string;
+  musicTheme: string;
+  editorRequest: string;
+  contactName: string;
+  programName: string;
+  category: string;
+  section?: string;
+  eightCountSheet?: string;
+  haveSongs?: string;
+}): Partial<Order> {
+  const { limit } = parsePackage(rec.package);
+  return {
+    packageType: rec.package,
+    timeLengthOfMix: limit !== "-" ? limit : "",
+    teamName: rec.programName,
+    gymName: rec.programName.split(" — ")[0]?.trim() || rec.programName,
+    requestedEditor:
+      rec.editorRequest === "FA" ? "First Available" : String(rec.editorRequest),
+    songListSuggestions: rec.musicTheme,
+    routineNotes: rec.musicTheme,
+    sendingEightCountSheets: rec.eightCountSheet || "",
+    musicAffiliate: "Power Music Covers",
+    division: rec.section || rec.category,
+  };
 }
 
 export function orderFromMTDRecord(
@@ -105,7 +129,7 @@ export function orderFromMTDRecord(
     stateProvince: "",
     zipPostalCode: "",
     country: "United States",
-    division: rec.category,
+    division: rec.section,
     coachName: rec.contactName,
     coachPhone: "",
     coachEmail: "",
@@ -115,7 +139,7 @@ export function orderFromMTDRecord(
     choreographerEmail: "N/A",
     numberOfCopies: "",
     packageType: rec.package,
-    requestedEditor: String(rec.editorRequest),
+    requestedEditor: rec.editorRequest === "FA" ? "First Available" : String(rec.editorRequest),
     timeLengthOfMix: "",
     musicAffiliate: "Power Music Covers",
     powerMusicCovers: rec.musicTheme,
@@ -131,5 +155,6 @@ export function orderFromMTDRecord(
     createdAt: "",
     needsAttention: rec.needsAttention,
     attentionReason: null,
+    ...enrichOrderFromMTD(rec),
   });
 }

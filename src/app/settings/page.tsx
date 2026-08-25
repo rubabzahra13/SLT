@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Bell, Shield, Palette } from "lucide-react";
 
@@ -6,27 +7,30 @@ const sections = [
     title: "Producer Settings",
     icon: Shield,
     items: [
-      "Manage producer roster",
-      "Set specializations by genre",
-      "Configure availability defaults",
+      { label: "Manage producer roster" },
+      { label: "Set specializations by genre" },
+      { label: "Configure availability defaults" },
     ],
   },
   {
     title: "Pricing Rules",
     icon: Palette,
     items: [
-      "Compliant vs non-compliant rates",
-      "Package pricing templates",
-      "Discount codes & affiliates",
+      { label: "Compliant vs non-compliant rates" },
+      { label: "Package pricing templates" },
+      {
+        label: "Discount codes",
+        href: "/settings/discount-codes",
+      },
     ],
   },
   {
     title: "Notifications",
     icon: Bell,
     items: [
-      "Needs attention alerts",
-      "New order notifications",
-      "Producer assignment confirmations",
+      { label: "Needs attention alerts" },
+      { label: "New order notifications" },
+      { label: "Producer assignment confirmations" },
     ],
   },
 ];
@@ -51,20 +55,33 @@ export default function SettingsPage() {
             <ul className="mt-4 space-y-2">
               {items.map((item, index) => (
                 <li
-                  key={item}
+                  key={item.label}
                   className="flex items-center justify-between rounded-xl bg-brand-accent-soft/60 px-4 py-3 text-sm text-brand-ink-secondary"
                 >
-                  <span>{item}</span>
-                  <button
-                    type="button"
-                    className={
-                      index % 2 === 1
-                        ? "font-semibold text-brand-orange transition hover:text-brand-orange-hover"
-                        : "font-semibold text-brand-blue transition hover:text-brand-blue-hover"
-                    }
-                  >
-                    Configure
-                  </button>
+                  <span>{item.label}</span>
+                  {item.href ? (
+                    <Link
+                      href={item.href}
+                      className={
+                        index % 2 === 1
+                          ? "font-semibold text-brand-orange transition hover:text-brand-orange-hover"
+                          : "font-semibold text-brand-blue transition hover:text-brand-blue-hover"
+                      }
+                    >
+                      Configure
+                    </Link>
+                  ) : (
+                    <button
+                      type="button"
+                      className={
+                        index % 2 === 1
+                          ? "font-semibold text-brand-orange transition hover:text-brand-orange-hover"
+                          : "font-semibold text-brand-blue transition hover:text-brand-blue-hover"
+                      }
+                    >
+                      Configure
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>

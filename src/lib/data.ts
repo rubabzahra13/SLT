@@ -1,5 +1,6 @@
-import type { AppData, Order, Producer } from "@/types";
+import type { AppData, DiscountCode, Order, Producer } from "@/types";
 import { normalizeOrder } from "@/lib/order-form";
+import { normalizeDiscountCode } from "@/lib/discount-codes";
 import { normalizeProducer } from "@/lib/producers";
 import data from "@/data/mock-data.json";
 
@@ -8,6 +9,9 @@ export function getData(): AppData {
   return {
     ...raw,
     producers: (raw.producers as Producer[]).map((p) => normalizeProducer(p)),
+    discountCodes: (raw.discountCodes ?? []).map((entry) =>
+      normalizeDiscountCode(entry as DiscountCode)
+    ),
     orders: raw.orders.map((o) => normalizeOrder(o as Order)),
     pastOrders: (raw.pastOrders ?? []).map((o) => normalizeOrder(o as Order)),
   };

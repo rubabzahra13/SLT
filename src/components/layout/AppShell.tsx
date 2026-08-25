@@ -6,6 +6,7 @@ import {
   useSidebar,
 } from "@/context/SidebarContext";
 import { Sidebar } from "@/components/layout/Sidebar";
+import { NotificationToaster } from "@/components/notifications/NotificationToaster";
 import { Menu } from "lucide-react";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -27,6 +28,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       ) : null}
 
       <Sidebar />
+      <NotificationToaster />
 
       <div
         className="app-canvas flex min-h-screen min-w-0 flex-col transition-[margin] duration-300 ease-out md:ml-[var(--sidebar-margin)]"

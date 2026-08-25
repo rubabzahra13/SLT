@@ -45,15 +45,9 @@ async function main() {
   }
 
   const nextDir = join(root, ".next");
-  if (cleanAll && existsSync(nextDir)) {
+  if (existsSync(nextDir)) {
     rmSync(nextDir, { recursive: true, force: true });
-    console.log("Removed .next (clean start)");
-  } else {
-    const cacheDir = join(nextDir, "cache");
-    if (existsSync(cacheDir)) {
-      rmSync(cacheDir, { recursive: true, force: true });
-      console.log("Cleared .next/cache");
-    }
+    console.log(cleanAll ? "Removed .next (clean start)" : "Removed .next (fresh dev build)");
   }
 
   console.log(`Starting dev server at http://localhost:${port}`);

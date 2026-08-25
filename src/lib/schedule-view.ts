@@ -133,7 +133,7 @@ function resolveBooking(
   const seed = hashSeed(`${producer.id}-${date.toISOString().slice(0, 10)}`);
   const covering = assignments.find((rec) => {
     const start = parseFlexibleDate(rec.mixStartDate);
-    const end = parseFlexibleDate(rec.bookedUntil);
+    const end = parseFlexibleDate(rec.mixEndDate);
     if (!start) return false;
     const day = new Date(date);
     day.setHours(12, 0, 0, 0);
@@ -160,7 +160,7 @@ function resolveBooking(
   }
 
   const untilDate =
-    parseFlexibleDate(pick.bookedUntil) ??
+    parseFlexibleDate(pick.mixEndDate) ??
     addDays(parseFlexibleDate(pick.mixStartDate) ?? date, 3 + (seed % 4));
 
   return {

@@ -9,7 +9,7 @@ import { ProducerAvailabilityModal } from "@/components/producers/ProducerAvaila
 import { ProducerFormModal } from "@/components/producers/ProducerFormModal";
 import { Avatar } from "@/components/ui/Avatar";
 import { useAppState } from "@/context/AppStateContext";
-import { formatTimeOffRange, formatWorkDays } from "@/lib/producers";
+import { formatTimeOffRange } from "@/lib/producers";
 import type { Producer, ProducerTimeOff, Weekday } from "@/types";
 
 export default function ProducersPage() {
@@ -42,6 +42,8 @@ export default function ProducersPage() {
   function handleSaveAvailability(patch: {
     workDays: Weekday[];
     timeOff: ProducerTimeOff[];
+    maxMixesPerDay: number | null;
+    overtimeDays: string[];
   }) {
     if (!availabilityProducer) return;
     updateProducer(availabilityProducer.id, patch);
@@ -126,9 +128,6 @@ export default function ProducersPage() {
                 />
                 <span>{producer.mixesThisWeek} mixes this week</span>
               </div>
-              <p className="text-[12px] text-brand-ink-secondary">
-                Works {formatWorkDays(producer.workDays)}
-              </p>
               {producer.timeOff.length > 0 ? (
                 <div className="rounded-xl border border-brand-line bg-brand-bg/60 px-3 py-2.5 text-left">
                   <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-brand-ink-tertiary">
@@ -163,7 +162,7 @@ export default function ProducersPage() {
               onClick={() => setAvailabilityProducer(producer)}
               className="mt-5 w-full rounded-xl bg-brand-ink py-2.5 text-[13px] font-semibold text-white transition hover:bg-brand-accent-hover"
             >
-              Days & time off
+              Days & schedule
             </button>
           </article>
         ))}

@@ -22,7 +22,20 @@ export function normalizeProducer(raw: Partial<Producer> & { id: string }): Prod
         ? raw.workDays
         : [...DEFAULT_WORK_DAYS],
     timeOff: Array.isArray(raw.timeOff) ? raw.timeOff : [],
+    maxMixesPerDay:
+      raw.maxMixesPerDay != null && raw.maxMixesPerDay > 0
+        ? raw.maxMixesPerDay
+        : null,
+    overtimeDays: Array.isArray(raw.overtimeDays)
+      ? [...new Set(raw.overtimeDays.filter(Boolean))].sort()
+      : [],
   };
+}
+
+export function formatMaxMixCapacity(maxMixesPerDay: number | null): string {
+  if (maxMixesPerDay == null) return "No daily limit";
+  if (maxMixesPerDay === 1) return "1 mix per day max";
+  return `${maxMixesPerDay} mixes per day max`;
 }
 
 export function formatWorkDays(days: Weekday[]): string {
