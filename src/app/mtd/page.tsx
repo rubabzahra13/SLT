@@ -21,7 +21,10 @@ import { SetInvoicesModal } from "@/components/mtd/SetInvoicesModal";
 import { SetInvoiceModal } from "@/components/mtd/SetInvoiceModal";
 import { SetRecordPricingModal } from "@/components/mtd/SetRecordPricingModal";
 import { CompleteToPayrollModal } from "@/components/mtd/CompleteToPayrollModal";
-import { CompletionBlockedModal } from "@/components/mtd/CompletionBlockedModal";
+import {
+  CompletionBlockedModal,
+  type StatusBlockReason,
+} from "@/components/mtd/CompletionBlockedModal";
 import {
   DEFAULT_MTD_TABLE_FILTERS,
   MTDTableFilters,
@@ -36,10 +39,11 @@ import { formatSlotForDisplay, suggestMixEndDate, suggestMixStartDate } from "@/
 import { inferMTDRecordStatus, patchFromRecordStatus } from "@/lib/mtd-status";
 import {
   canCompleteForPayroll,
+  canSetOngoingOrOutsourced,
   getMTDBoardRecords,
   patchMoveToPayroll,
 } from "@/lib/mtd-completion";
-import { toIsoDateString } from "@/lib/dates";
+import { isIsoDateAfter, isIsoDateBefore, toIsoDateString } from "@/lib/dates";
 import { todayIso } from "@/lib/date-filters";
 import {
   formatRequestedEditorLabel,
@@ -81,7 +85,7 @@ const actionButtonClass = (filled: boolean) =>
 const clickableChipClass =
   "cursor-pointer border border-brand-line/70 bg-brand-bg/60 shadow-sm transition hover:border-brand-orange/40 hover:bg-brand-orange-soft/35 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange/25";
 
-const bookedTagClass =
+const unavailableTagClass =
   "inline-flex items-center rounded-full bg-brand-warning/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.04em] text-brand-warning ring-1 ring-inset ring-brand-warning/25";
 
 export default function MTDPage() {
@@ -106,13 +110,22 @@ export default function MTDPage() {
   const [tableFilters, setTableFilters] = useState<MTDTableFilterState>(
     DEFAULT_MTD_TABLE_FILTERS
   );
-  const [assignRecord, setAssignRecord] = useState<MTDRecord | null>(null);
+  const [assignRecordId, setAssignRecordId] = useState<string | null>(null);
+  const assignRecord = useMemo(
+    () =>
+      assignRecordId
+        ? mtdRecords.find((record) => record.id === assignRecordId) ?? null
+        : null,
+    [assignRecordId, mtdRecords]
+  );
   const [invoiceRecord, setInvoiceRecord] = useState<MTDRecord | null>(null);
   const [pricingRecord, setPricingRecord] = useState<MTDRecord | null>(null);
   const [invoicesOpen, setInvoicesOpen] = useState(false);
   const [pricingOpen, setPricingOpen] = useState(false);
   const [completeRecord, setCompleteRecord] = useState<MTDRecord | null>(null);
   const [blockedRecord, setBlockedRecord] = useState<MTDRecord | null>(null);
+  const [blockedReason, setBlockedReason] =
+    useState<StatusBlockReason>("completed");
 
   const mtdBoardRecords = useMemo(
     () => getMTDBoardRecords(mtdRecords),
@@ -141,6 +154,12 @@ export default function MTDPage() {
         assignedProducer: result.assignedProducer,
         ...(result.mixStartDate ? { mixStartDate: result.mixStartDate } : {}),
         ...(result.mixEndDate ? { mixEndDate: result.mixEndDate } : {}),
+        ...(result.recordStatus
+          ? {
+              recordStatus: result.recordStatus,
+              ...(result.status ? { status: result.status } : {}),
+            }
+          : {}),
       });
     },
     [updateMTD]
@@ -150,7 +169,7 @@ export default function MTDPage() {
     (rec: MTDRecord, e: React.MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      setAssignRecord(rec);
+      setAssignRecordId(rec.id);
     },
     []
   );
@@ -205,11 +224,20 @@ export default function MTDPage() {
       if (nextStatus === "Completed") {
         const check = canCompleteForPayroll(rec);
         if (!check.ready) {
+          setBlockedReason("completed");
           setBlockedRecord(rec);
           return;
         }
         setCompleteRecord(rec);
         return;
+      }
+      if (nextStatus === "Ongoing" || nextStatus === "Outsourced") {
+        const check = canSetOngoingOrOutsourced(rec);
+        if (!check.ready) {
+          setBlockedReason("assignment");
+          setBlockedRecord(rec);
+          return;
+        }
       }
       updateMTD(rec.id, patchFromRecordStatus(nextStatus));
     },
@@ -388,7 +416,7 @@ export default function MTDPage() {
           const label = formatRequestedEditorLabel(rec, producers, linked);
           const requested = getRequestedEditorFromRecord(rec, producers, linked);
           const isFa = label === "FA";
-          const showBooked =
+          const showUnavailable =
             !isFa &&
             requested &&
             isRequestedEditorUnavailableForMixWindow(
@@ -408,12 +436,12 @@ export default function MTDPage() {
               >
                 {isFa ? "FA" : label}
               </span>
-              {showBooked ? (
+              {showUnavailable ? (
                 <span
-                  className={bookedTagClass}
+                  className={unavailableTagClass}
                   title="Requested editor is unavailable during this mix window"
                 >
-                  Booked
+                  Unavailable
                 </span>
               ) : null}
             </div>
@@ -463,6 +491,7 @@ export default function MTDPage() {
           const template = rec.assignedProducer
             ? suggestMixStartDate(rec.assignedProducer, producers, schedule)
             : todayIso();
+          const endIso = toIsoDateString(rec.mixEndDate ?? "");
 
           return (
             <InlineCell
@@ -485,9 +514,16 @@ export default function MTDPage() {
               <InlineDateInput
                 value={rec.mixStartDate}
                 template={template}
+                max={endIso || undefined}
                 onChange={(v) => {
+                  if (!v) {
+                    updateMTD(rec.id, { mixStartDate: v });
+                    return;
+                  }
                   const patch: Partial<MTDRecord> = { mixStartDate: v };
-                  if (v && !toIsoDateString(rec.mixEndDate ?? "")) {
+                  if (!endIso) {
+                    patch.mixEndDate = suggestMixEndDate(v, rec.package);
+                  } else if (isIsoDateAfter(v, endIso)) {
                     patch.mixEndDate = suggestMixEndDate(v, rec.package);
                   }
                   updateMTD(rec.id, patch);
@@ -503,8 +539,9 @@ export default function MTDPage() {
         width: "128px",
         align: "center",
         render: (rec) => {
+          const startIso = toIsoDateString(rec.mixStartDate);
           const template =
-            hasMixStartDate(rec) && !toIsoDateString(rec.mixEndDate ?? "")
+            startIso && !toIsoDateString(rec.mixEndDate ?? "")
               ? suggestMixEndDate(rec.mixStartDate, rec.package)
               : "";
 
@@ -513,7 +550,17 @@ export default function MTDPage() {
               <InlineDateInput
                 value={rec.mixEndDate ?? ""}
                 template={template}
-                onChange={(v) => updateMTD(rec.id, { mixEndDate: v })}
+                min={startIso || undefined}
+                onChange={(v) => {
+                  if (!v) {
+                    updateMTD(rec.id, { mixEndDate: v });
+                    return;
+                  }
+                  if (startIso && isIsoDateBefore(v, startIso)) {
+                    return;
+                  }
+                  updateMTD(rec.id, { mixEndDate: v });
+                }}
               />
             </InlineCell>
           );
@@ -746,7 +793,7 @@ export default function MTDPage() {
         allOrders={allOrders}
         producers={producers}
         schedule={schedule}
-        onClose={() => setAssignRecord(null)}
+        onClose={() => setAssignRecordId(null)}
         onAssign={handleAssign}
       />
 
@@ -793,6 +840,7 @@ export default function MTDPage() {
       <CompletionBlockedModal
         open={Boolean(blockedRecord)}
         record={blockedRecord}
+        reason={blockedReason}
         onClose={() => setBlockedRecord(null)}
       />
     </>

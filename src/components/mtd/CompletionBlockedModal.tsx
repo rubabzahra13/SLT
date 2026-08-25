@@ -3,19 +3,41 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { AlertCircle } from "lucide-react";
-import { getCompletionRequirements } from "@/lib/mtd-completion";
+import {
+  canCompleteForPayroll,
+  canSetOngoingOrOutsourced,
+} from "@/lib/mtd-completion";
 import { titleCase } from "@/lib/data";
 import type { MTDRecord } from "@/types";
+
+export type StatusBlockReason = "completed" | "assignment";
 
 type CompletionBlockedModalProps = {
   open: boolean;
   record: MTDRecord | null;
+  reason?: StatusBlockReason;
   onClose: () => void;
+};
+
+const copy: Record<
+  StatusBlockReason,
+  { title: string; description: string }
+> = {
+  completed: {
+    title: "Cannot mark completed yet",
+    description: "still needs a few fields before it can move to payroll.",
+  },
+  assignment: {
+    title: "Cannot set status yet",
+    description:
+      "needs an assigned editor and mix dates before it can be marked Ongoing or Outsourced.",
+  },
 };
 
 export function CompletionBlockedModal({
   open,
   record,
+  reason = "completed",
   onClose,
 }: CompletionBlockedModalProps) {
   const [mounted, setMounted] = useState(false);
@@ -35,7 +57,11 @@ export function CompletionBlockedModal({
 
   if (!mounted || !open || !record) return null;
 
-  const requirements = getCompletionRequirements(record);
+  const requirements =
+    reason === "assignment"
+      ? canSetOngoingOrOutsourced(record).requirements
+      : canCompleteForPayroll(record).requirements;
+  const { title, description } = copy[reason];
 
   return createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -60,11 +86,10 @@ export function CompletionBlockedModal({
             id="completion-blocked-title"
             className="mt-4 text-[18px] font-semibold tracking-[-0.02em] text-brand-ink"
           >
-            Cannot mark completed yet
+            {title}
           </h2>
           <p className="mt-2 text-[13px] leading-relaxed text-brand-ink-secondary">
-            {titleCase(record.programName)} still needs a few fields before it
-            can move to payroll.
+            {titleCase(record.programName)} {description}
           </p>
         </div>
 

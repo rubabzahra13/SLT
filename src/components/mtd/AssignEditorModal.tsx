@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, CheckCircle2, Lock, Sparkles, UserX, X } from "lucide-react";
+import { CalendarDays, Lock, X } from "lucide-react";
 import clsx from "clsx";
 import { DottedScroll } from "@/components/ui/DottedScroll";
 import { Avatar } from "@/components/ui/Avatar";
@@ -12,20 +12,23 @@ import {
   getEditorWorkload,
   getRequestedEditorFromRecord,
   getSuggestedEditors,
-  isEditorBooked,
   findProducerByAssignmentKey,
   pickDefaultEditor,
   type SuggestedEditor,
 } from "@/lib/editor-assignment";
-import { suggestMixEndDate, suggestMixStartDate } from "@/lib/scheduling";
+import { normalizeProducerKey, producerKeysMatch } from "@/lib/producer-keys";
+import { suggestMixStartDate } from "@/lib/scheduling";
 import { formatDisplayDate, toIsoDateString } from "@/lib/dates";
-import type { MTDRecord, Order, Producer, ScheduleEntry } from "@/types";
+import { patchFromRecordStatus } from "@/lib/mtd-status";
+import type { MTDRecord, MTDRecordStatus, Order, Producer, ScheduleEntry } from "@/types";
 
 export type EditorAssignmentResult = {
   editorRequest: string;
   assignedProducer: string | null;
   mixStartDate?: string;
   mixEndDate?: string;
+  recordStatus?: MTDRecordStatus;
+  status?: MTDRecord["status"];
 };
 
 type AssignEditorModalProps = {
@@ -103,108 +106,6 @@ function groupSuggestionsByDate(suggestions: SuggestedEditor[]): DateGroup[] {
   return Array.from(groups.values()).sort((a, b) => a.sortTime - b.sortTime);
 }
 
-type SelectionNote =
-  | {
-      type: "requested_available";
-      requested: string;
-    }
-  | {
-      type: "requested_busy";
-      requested: string;
-      selected: string;
-    }
-  | {
-      type: "first_available";
-      selected: string;
-    }
-  | {
-      type: "override_busy";
-      requested: string;
-    }
-  | null;
-
-function EditorSelectionNote({ note }: { note: SelectionNote }) {
-  if (!note) return null;
-
-  if (note.type === "requested_available") {
-    return (
-      <div className="mt-2 flex items-start gap-2.5 rounded-xl border border-brand-success/25 bg-brand-success/8 px-3 py-2.5">
-        <CheckCircle2
-          className="mt-0.5 h-4 w-4 shrink-0 text-brand-success"
-          strokeWidth={2}
-        />
-        <div className="min-w-0">
-          <p className="text-[12px] font-semibold text-brand-ink">
-            {note.requested} is available
-          </p>
-          <p className="mt-0.5 text-[11px] leading-snug text-brand-ink-secondary">
-            Pre-selected — matches the order request.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  if (note.type === "requested_busy") {
-    return (
-      <div className="mt-2 flex items-start gap-2.5 rounded-xl border border-brand-info/25 bg-brand-info/8 px-3 py-2.5">
-        <UserX
-          className="mt-0.5 h-4 w-4 shrink-0 text-brand-info"
-          strokeWidth={2}
-        />
-        <div className="min-w-0">
-          <p className="text-[12px] font-semibold text-brand-ink">
-            {note.requested} is already booked
-          </p>
-          <p className="mt-0.5 text-[11px] leading-snug text-brand-ink-secondary">
-            Suggested{" "}
-            <span className="font-semibold text-brand-ink">{note.selected}</span>{" "}
-            — soonest free editor.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  if (note.type === "first_available") {
-    return (
-      <div className="mt-2 flex items-start gap-2.5 rounded-xl border border-brand-line/80 bg-brand-bg/60 px-3 py-2.5">
-        <Sparkles
-          className="mt-0.5 h-4 w-4 shrink-0 text-brand-signature"
-          strokeWidth={2}
-        />
-        <div className="min-w-0">
-          <p className="text-[12px] font-semibold text-brand-ink">
-            No specific editor requested
-          </p>
-          <p className="mt-0.5 text-[11px] leading-snug text-brand-ink-secondary">
-            Suggested{" "}
-            <span className="font-semibold text-brand-ink">{note.selected}</span>{" "}
-            — soonest free editor.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="mt-2 flex items-start gap-2.5 rounded-xl border border-brand-warning/25 bg-brand-warning/8 px-3 py-2.5">
-      <UserX
-        className="mt-0.5 h-4 w-4 shrink-0 text-brand-warning"
-        strokeWidth={2}
-      />
-      <div className="min-w-0">
-        <p className="text-[12px] font-semibold text-brand-ink">
-          {note.requested} is already booked
-        </p>
-        <p className="mt-0.5 text-[11px] leading-snug text-brand-ink-secondary">
-          Override — assigning them to this mix anyway.
-        </p>
-      </div>
-    </div>
-  );
-}
-
 export function AssignEditorModal({
   open,
   record,
@@ -224,8 +125,8 @@ export function AssignEditorModal({
   );
 
   const [selectedEditor, setSelectedEditor] = useState<string>("");
-  const [isAssignmentLocked, setIsAssignmentLocked] = useState(false);
-  const [showReassignHint, setShowReassignHint] = useState(false);
+
+  const isAssignmentLocked = Boolean(record?.assignedProducer?.trim());
 
   const suggestions = useMemo(
     () =>
@@ -270,20 +171,25 @@ export function AssignEditorModal({
     [mtdRecords, record?.id]
   );
 
+  const availableEditorKeys = useMemo(
+    () => new Set(availableNames.map((name) => normalizeProducerKey(name))),
+    [availableNames]
+  );
+
   const { availableEditors, bookedEditors } = useMemo(() => {
     const available: string[] = [];
     const booked: string[] = [];
     for (const name of categoryEditors) {
-      if (editorWorkload.has(name.toUpperCase())) {
-        booked.push(name);
-      } else {
+      if (availableEditorKeys.has(normalizeProducerKey(name))) {
         available.push(name);
+      } else {
+        booked.push(name);
       }
     }
     return { availableEditors: available, bookedEditors: booked };
-  }, [categoryEditors, editorWorkload]);
+  }, [categoryEditors, availableEditorKeys]);
 
-  const currentAssignee = record?.assignedProducer?.toUpperCase() ?? "";
+  const currentAssignee = record?.assignedProducer ?? "";
 
   const assignedProducer = useMemo(
     () =>
@@ -292,52 +198,6 @@ export function AssignEditorModal({
         : undefined,
     [isAssignmentLocked, record?.assignedProducer, producers]
   );
-
-  const selectionNote = useMemo((): SelectionNote => {
-    if (!record || !selectedEditor || isAssignmentLocked) return null;
-
-    if (
-      requestedEditor &&
-      selectedEditor === requestedEditor &&
-      availableNames.includes(requestedEditor)
-    ) {
-      return { type: "requested_available", requested: requestedEditor };
-    }
-
-    if (
-      requestedEditor &&
-      selectedEditor === requestedEditor &&
-      !availableNames.includes(requestedEditor)
-    ) {
-      if (isEditorBooked(requestedEditor, mtdRecords, record.id)) {
-        return { type: "override_busy", requested: requestedEditor };
-      }
-    }
-
-    if (
-      requestedEditor &&
-      isEditorBooked(requestedEditor, mtdRecords, record.id) &&
-      selectedEditor !== requestedEditor
-    ) {
-      const soonest = availableNames[0];
-      if (soonest && selectedEditor === soonest) {
-        return {
-          type: "requested_busy",
-          requested: requestedEditor,
-          selected: selectedEditor,
-        };
-      }
-    }
-
-    if (!requestedEditor) {
-      const soonest = availableNames[0];
-      if (soonest && selectedEditor === soonest) {
-        return { type: "first_available", selected: selectedEditor };
-      }
-    }
-
-    return null;
-  }, [record, selectedEditor, requestedEditor, availableNames, mtdRecords, isAssignmentLocked]);
 
   function pickEditorForOpen(active: MTDRecord): string {
     const pick = pickDefaultEditor(
@@ -350,9 +210,8 @@ export function AssignEditorModal({
 
     let editor = pick.editor;
     const booked = getEditorWorkload(mtdRecords, active.id);
-    const isCurrent =
-      active.assignedProducer?.toUpperCase() === editor.toUpperCase();
-    if (editor && booked.has(editor.toUpperCase()) && !isCurrent) {
+    const isCurrent = producerKeysMatch(active.assignedProducer ?? "", editor);
+    if (editor && booked.has(normalizeProducerKey(editor)) && !isCurrent) {
       editor =
         getSuggestedEditors(
           mtdRecords,
@@ -370,37 +229,21 @@ export function AssignEditorModal({
   useEffect(() => {
     if (!record || !open) return;
 
-    const assigned = record.assignedProducer?.toUpperCase() ?? "";
-    setIsAssignmentLocked(Boolean(assigned));
-    setShowReassignHint(false);
+    const assignedKey = record.assignedProducer?.trim() || null;
 
-    if (assigned) {
-      setSelectedEditor(assigned);
-      return;
+    if (assignedKey) {
+      const match = categoryEditors.find((name) =>
+        producerKeysMatch(name, assignedKey)
+      );
+      setSelectedEditor(match ?? assignedKey.toUpperCase());
+    } else {
+      setSelectedEditor(pickEditorForOpen(record));
     }
+  }, [open, record, categoryEditors, mtdRecords, producers, schedule, linkedOrder]);
 
-    setSelectedEditor(pickEditorForOpen(record));
-  }, [record, open, mtdRecords, producers, schedule, linkedOrder]);
-
-  const bookingFrom = useMemo(() => {
-    if (!record) return "";
-    const existing = toIsoDateString(record.mixStartDate);
-    if (existing) return existing;
-    if (selectedEditor) {
-      return suggestMixStartDate(selectedEditor, producers, schedule);
-    }
-    return "";
-  }, [record, selectedEditor, producers, schedule]);
-
-  const bookingUntil = useMemo(() => {
-    if (!record) return "";
-    const existing = toIsoDateString(record.mixEndDate ?? "");
-    if (existing) return existing;
-    if (bookingFrom) {
-      return suggestMixEndDate(bookingFrom, record.package);
-    }
-    return "";
-  }, [record, bookingFrom]);
+  const mixStartIso = toIsoDateString(record?.mixStartDate ?? "");
+  const mixEndIso = toIsoDateString(record?.mixEndDate ?? "");
+  const showProducerBooking = Boolean(mixStartIso && mixEndIso);
 
   if (!open || !record) return null;
 
@@ -408,16 +251,14 @@ export function AssignEditorModal({
   const canSubmit = Boolean(selectedEditor) && !isAssignmentLocked;
   const genreLabel = activeRecord.category || "this";
 
-  function handleUnassign() {
+  function handleUnassign(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
     onAssign(activeRecord.id, {
       editorRequest: "NA",
       assignedProducer: null,
+      ...patchFromRecordStatus("Waiting for Data"),
     });
-    setIsAssignmentLocked(false);
-    setShowReassignHint(true);
-    setSelectedEditor(
-      pickEditorForOpen({ ...activeRecord, assignedProducer: null })
-    );
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -425,15 +266,9 @@ export function AssignEditorModal({
     if (!canSubmit) return;
 
     const existingStart = toIsoDateString(activeRecord.mixStartDate);
-    const existingEnd = toIsoDateString(activeRecord.mixEndDate ?? "");
     const mixStartDate =
       existingStart ||
       suggestMixStartDate(selectedEditor, producers, schedule);
-    const mixEndDate =
-      existingEnd ||
-      (mixStartDate
-        ? suggestMixEndDate(mixStartDate, activeRecord.package)
-        : "");
 
     onAssign(activeRecord.id, {
       editorRequest: editorRequestForAssignment(
@@ -443,7 +278,6 @@ export function AssignEditorModal({
       ),
       assignedProducer: selectedEditor,
       ...(!existingStart && mixStartDate ? { mixStartDate } : {}),
-      ...(!existingEnd && mixEndDate ? { mixEndDate } : {}),
     });
     onClose();
   }
@@ -625,17 +459,6 @@ export function AssignEditorModal({
                       </span>
                     </p>
                   )}
-                  {showReassignHint ? (
-                    <div className="mt-2 flex items-start gap-2 rounded-xl border border-brand-info/25 bg-brand-info/8 px-3 py-2">
-                      <Sparkles
-                        className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand-info"
-                        strokeWidth={2}
-                      />
-                      <p className="text-[11px] leading-snug text-brand-ink-secondary">
-                        Editor cleared — pick a new one below.
-                      </p>
-                    </div>
-                  ) : null}
                   {isAssignmentLocked && activeRecord.assignedProducer ? (
                     <div className="mt-1.5 rounded-xl border border-brand-line/70 bg-brand-bg/50 px-3 py-2.5">
                       <div className="flex items-center gap-2.5">
@@ -691,8 +514,12 @@ export function AssignEditorModal({
                             <optgroup label="Booked on other mixes">
                               {bookedEditors.map((name) => {
                                 const count =
-                                  editorWorkload.get(name.toUpperCase()) ?? 0;
-                                const isCurrent = currentAssignee === name;
+                                  editorWorkload.get(normalizeProducerKey(name)) ??
+                                  0;
+                                const isCurrent = producerKeysMatch(
+                                  currentAssignee,
+                                  name
+                                );
                                 return (
                                   <option
                                     key={name}
@@ -710,30 +537,31 @@ export function AssignEditorModal({
                       )}
                     </select>
                   )}
-                  <EditorSelectionNote note={selectionNote} />
                 </div>
 
-                <div className="rounded-xl border border-brand-line/70 bg-brand-bg/40 px-3 py-2.5">
-                  <p className="text-label">Producer booking</p>
-                  <p className="mt-0.5 text-[11px] leading-snug text-brand-ink-tertiary">
-                    Same as mix start &amp; end in the table — edit those
-                    columns to change this window.
-                  </p>
-                  <dl className="mt-2.5 space-y-1.5">
-                    <div className="flex items-baseline justify-between gap-3 text-[12px]">
-                      <dt className="text-brand-ink-tertiary">From</dt>
-                      <dd className="font-medium tabular-nums text-brand-ink">
-                        {bookingFrom ? formatDisplayDate(bookingFrom) : "—"}
-                      </dd>
-                    </div>
-                    <div className="flex items-baseline justify-between gap-3 text-[12px]">
-                      <dt className="text-brand-ink-tertiary">Until</dt>
-                      <dd className="font-medium tabular-nums text-brand-ink">
-                        {bookingUntil ? formatDisplayDate(bookingUntil) : "—"}
-                      </dd>
-                    </div>
-                  </dl>
-                </div>
+                {showProducerBooking ? (
+                  <div className="rounded-xl border border-brand-line/70 bg-brand-bg/40 px-3 py-2.5">
+                    <p className="text-label">Producer booking</p>
+                    <p className="mt-0.5 text-[11px] leading-snug text-brand-ink-tertiary">
+                      Same as mix start &amp; end in the table. Edit those
+                      columns to change this window.
+                    </p>
+                    <dl className="mt-2.5 space-y-1.5">
+                      <div className="flex items-baseline justify-between gap-3 text-[12px]">
+                        <dt className="text-brand-ink-tertiary">From</dt>
+                        <dd className="font-medium tabular-nums text-brand-ink">
+                          {formatDisplayDate(mixStartIso)}
+                        </dd>
+                      </div>
+                      <div className="flex items-baseline justify-between gap-3 text-[12px]">
+                        <dt className="text-brand-ink-tertiary">Until</dt>
+                        <dd className="font-medium tabular-nums text-brand-ink">
+                          {formatDisplayDate(mixEndIso)}
+                        </dd>
+                      </div>
+                    </dl>
+                  </div>
+                ) : null}
               </div>
 
               <div

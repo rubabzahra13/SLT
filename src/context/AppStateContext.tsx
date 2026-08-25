@@ -78,16 +78,23 @@ function normalizeMTD(records: MTDRecord[]): MTDRecord[] {
     const legacyBookedUntil = (r as MTDRecord & { bookedUntil?: string | null })
       .bookedUntil;
     const mixEndRaw = r.mixEndDate || legacyBookedUntil;
-    const mixEnd = mixEndRaw
+    const mixStartDate = toIsoDateString(r.mixStartDate) || r.mixStartDate;
+    let mixEnd = mixEndRaw
       ? toIsoDateString(mixEndRaw) || mixEndRaw
       : undefined;
+
+    const startIso = toIsoDateString(mixStartDate);
+    const endIso = mixEnd ? toIsoDateString(mixEnd) : "";
+    if (startIso && endIso && endIso < startIso) {
+      mixEnd = suggestMixEndDate(startIso, r.package);
+    }
 
     return {
       ...r,
       editorRequest: r.editorRequest || "FA",
       contactName: r.contactName || r.editorInitials,
       priceCompliance: r.priceCompliance || detectCompliance(r.musicTheme),
-      mixStartDate: toIsoDateString(r.mixStartDate) || r.mixStartDate,
+      mixStartDate,
       recordStatus: inferMTDRecordStatus(r),
       inPayroll: Boolean(r.inPayroll),
       ...(mixEnd ? { mixEndDate: mixEnd } : {}),
@@ -227,17 +234,12 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       const mixStartDate = assignedProducer
         ? suggestMixStartDate(assignedProducer, producers, schedule)
         : "";
-      const mixEndDate =
-        mixStartDate && assignedProducer
-          ? suggestMixEndDate(mixStartDate, order.package)
-          : undefined;
 
       const newRecord: MTDRecord = {
         ...draftRecord,
         assignedProducer,
         editorRequest,
         mixStartDate,
-        ...(mixEndDate ? { mixEndDate } : {}),
       };
 
       setMtdRecords((prev) => [newRecord, ...prev]);
@@ -307,7 +309,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         if (r.id !== id) return r;
         const updated = { ...r, ...patch };
 
-        if (patch.editorRequest === "NA") {
+        if (patch.editorRequest === "NA" || patch.assignedProducer === null) {
           updated.assignedProducer = null;
         } else if (patch.assignedProducer !== undefined) {
           updated.assignedProducer = patch.assignedProducer;
@@ -340,10 +342,16 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         const startIso = toIsoDateString(updated.mixStartDate);
         const endIso = toIsoDateString(updated.mixEndDate ?? "");
         if (
+          patch.mixStartDate !== undefined &&
+          patch.assignedProducer === undefined &&
           startIso &&
           !endIso &&
           patch.mixEndDate === undefined
         ) {
+          updated.mixEndDate = suggestMixEndDate(startIso, updated.package);
+        }
+
+        if (startIso && endIso && endIso < startIso) {
           updated.mixEndDate = suggestMixEndDate(startIso, updated.package);
         }
 

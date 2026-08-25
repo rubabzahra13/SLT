@@ -8,6 +8,8 @@ export type CompletionRequirement = {
   met: boolean;
 };
 
+export type StatusRequirementKey = CompletionRequirement["key"];
+
 export function getCompletionRequirements(rec: MTDRecord): CompletionRequirement[] {
   return [
     {
@@ -33,18 +35,58 @@ export function getCompletionRequirements(rec: MTDRecord): CompletionRequirement
   ];
 }
 
-export function canCompleteForPayroll(rec: MTDRecord): {
+export function getStatusRequirements(
+  rec: MTDRecord,
+  keys: StatusRequirementKey[]
+): CompletionRequirement[] {
+  const keySet = new Set(keys);
+  return getCompletionRequirements(rec).filter((item) => keySet.has(item.key));
+}
+
+export function checkStatusRequirements(
+  rec: MTDRecord,
+  keys: StatusRequirementKey[]
+): {
   ready: boolean;
   missing: string[];
   requirements: CompletionRequirement[];
 } {
-  const requirements = getCompletionRequirements(rec);
+  const requirements = getStatusRequirements(rec, keys);
   const missing = requirements.filter((item) => !item.met).map((item) => item.label);
   return {
     ready: missing.length === 0,
     missing,
     requirements,
   };
+}
+
+const COMPLETED_STATUS_KEYS: StatusRequirementKey[] = [
+  "editor",
+  "invoice",
+  "mixStartDate",
+  "mixEndDate",
+];
+
+const ASSIGNMENT_STATUS_KEYS: StatusRequirementKey[] = [
+  "editor",
+  "mixStartDate",
+  "mixEndDate",
+];
+
+export function canCompleteForPayroll(rec: MTDRecord): {
+  ready: boolean;
+  missing: string[];
+  requirements: CompletionRequirement[];
+} {
+  return checkStatusRequirements(rec, COMPLETED_STATUS_KEYS);
+}
+
+export function canSetOngoingOrOutsourced(rec: MTDRecord): {
+  ready: boolean;
+  missing: string[];
+  requirements: CompletionRequirement[];
+} {
+  return checkStatusRequirements(rec, ASSIGNMENT_STATUS_KEYS);
 }
 
 export function patchMoveToPayroll(): Partial<MTDRecord> {

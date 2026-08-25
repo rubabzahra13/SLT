@@ -285,7 +285,7 @@ export function getEditorWorkload(
   for (const rec of mtdRecords) {
     if (rec.id === excludeRecordId) continue;
     if (!rec.assignedProducer) continue;
-    const key = rec.assignedProducer.toUpperCase();
+    const key = normalizeProducerKey(rec.assignedProducer);
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
   return counts;
@@ -296,7 +296,9 @@ export function isEditorBooked(
   mtdRecords: MTDRecord[],
   excludeRecordId?: string
 ): boolean {
-  return getEditorWorkload(mtdRecords, excludeRecordId).has(editor.toUpperCase());
+  return getEditorWorkload(mtdRecords, excludeRecordId).has(
+    normalizeProducerKey(editor)
+  );
 }
 
 function mixWindowForRecord(rec: MTDRecord): MixWindow | null {
@@ -354,7 +356,7 @@ export function getUnassignedEditors(
 ): string[] {
   const assigned = getAssignedEditors(mtdRecords, excludeRecordId);
   return getEditorNamesForCategory(producers, category).filter(
-    (name) => !assigned.has(name.toUpperCase())
+    (name) => !assigned.has(normalizeProducerKey(name))
   );
 }
 

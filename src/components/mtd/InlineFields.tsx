@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { toIsoDateString } from "@/lib/dates";
+import { toIsoDateString, isIsoDateAfter, isIsoDateBefore } from "@/lib/dates";
 import clsx from "clsx";
 
 const inlineControlClass =
@@ -145,20 +145,38 @@ type InlineDateInputProps = {
   onChange: (value: string) => void;
   /** Pre-filled date shown when empty (YYYY-MM-DD). */
   template?: string;
+  /** Earliest selectable date (YYYY-MM-DD). */
+  min?: string;
+  /** Latest selectable date (YYYY-MM-DD). */
+  max?: string;
 };
 
 export function InlineDateInput({
   value,
   onChange,
   template,
+  min,
+  max,
 }: InlineDateInputProps) {
   const normalized = toIsoDateString(value);
+  const minIso = toIsoDateString(min);
+  const maxIso = toIsoDateString(max);
+  const effectiveMin =
+    minIso && normalized && isIsoDateBefore(normalized, minIso)
+      ? undefined
+      : minIso || undefined;
+  const effectiveMax =
+    maxIso && normalized && isIsoDateAfter(normalized, maxIso)
+      ? undefined
+      : maxIso || undefined;
   const isUnset = !normalized;
 
   return (
     <input
       type="date"
       value={normalized}
+      min={effectiveMin}
+      max={effectiveMax}
       onClick={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.stopPropagation()}
       onChange={(e) => {

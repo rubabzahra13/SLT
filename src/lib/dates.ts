@@ -51,3 +51,27 @@ export function formatDisplayDate(value?: string | null): string {
     year: "numeric",
   });
 }
+
+export function compareIsoDates(
+  a?: string | null,
+  b?: string | null
+): number {
+  const isoA = toIsoDateString(a);
+  const isoB = toIsoDateString(b);
+  if (!isoA || !isoB) return 0;
+  return isoA.localeCompare(isoB);
+}
+
+export function isIsoDateBefore(
+  a?: string | null,
+  b?: string | null
+): boolean {
+  return compareIsoDates(a, b) < 0;
+}
+
+export function isIsoDateAfter(
+  a?: string | null,
+  b?: string | null
+): boolean {
+  return compareIsoDates(a, b) > 0;
+}

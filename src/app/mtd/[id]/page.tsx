@@ -136,6 +136,12 @@ export default function MTDDetailPage({
         assignedProducer: result.assignedProducer,
         ...(result.mixStartDate ? { mixStartDate: result.mixStartDate } : {}),
         ...(result.mixEndDate ? { mixEndDate: result.mixEndDate } : {}),
+        ...(result.recordStatus
+          ? {
+              recordStatus: result.recordStatus,
+              ...(result.status ? { status: result.status } : {}),
+            }
+          : {}),
       });
     },
     [updateMTD]
