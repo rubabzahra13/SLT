@@ -1,12 +1,14 @@
 "use client";
 
-import type { Order } from "@/types";
+import type { DiscountCode, Order } from "@/types";
 import { getOrderDetailSections } from "@/lib/order-detail-sections";
 import { rawFieldValue } from "@/lib/order-detail-fields";
+import { CouponCodeField } from "@/components/mtd/CouponCodeField";
 import { DetailInput, DetailTextarea } from "@/components/mtd/InlineFields";
 
 type MTDOrderDetailsProps = {
   order: Order;
+  discountCodes?: DiscountCode[];
   editable?: boolean;
   onFieldChange?: (key: string, value: string) => void;
 };
@@ -18,6 +20,7 @@ export function formatDetailDisplay(value: string): string {
 
 export function MTDOrderDetails({
   order,
+  discountCodes = [],
   editable = false,
   onFieldChange,
 }: MTDOrderDetailsProps) {
@@ -40,6 +43,23 @@ export function MTDOrderDetails({
             {section.fields.map((field) => {
               const rawValue = rawFieldValue(order, field.key);
               const displayValue = formatDetailDisplay(field.value);
+
+              if (field.key === "couponCode") {
+                return (
+                  <div key={field.key}>
+                    <CouponCodeField
+                      value={rawValue}
+                      discountCodes={discountCodes}
+                      editable={editable}
+                      onChange={
+                        onFieldChange
+                          ? (value) => onFieldChange(field.key, value)
+                          : undefined
+                      }
+                    />
+                  </div>
+                );
+              }
 
               return (
                 <div

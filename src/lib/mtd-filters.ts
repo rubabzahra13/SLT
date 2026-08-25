@@ -402,6 +402,8 @@ export function matchesDateFilter(
 
 export type MixScheduleFilter = "all" | "scheduled" | "not_scheduled";
 
+export type InfoFilter = "all" | "missing" | "complete";
+
 export function hasMixStartDate(rec: MTDRecord): boolean {
   return Boolean(toIsoDateString(rec.mixStartDate));
 }
@@ -414,6 +416,30 @@ export function matchesMixScheduleFilter(
   const scheduled = hasMixStartDate(rec);
   if (filter === "scheduled") return scheduled;
   return !scheduled;
+}
+
+export function matchesInfoFilter(
+  rec: MTDRecord,
+  filter: InfoFilter
+): boolean {
+  if (filter === "all") return true;
+  if (filter === "missing") return rec.needsAttention;
+  return !rec.needsAttention;
+}
+
+export function buildInfoOptions(records: MTDRecord[]) {
+  let missing = 0;
+  let complete = 0;
+  for (const rec of records) {
+    if (rec.needsAttention) missing += 1;
+    else complete += 1;
+  }
+
+  return [
+    { value: "all", label: "All", count: records.length },
+    { value: "missing", label: "Missing info", count: missing },
+    { value: "complete", label: "Complete", count: complete },
+  ];
 }
 
 export function filterMTDRecords(
@@ -429,6 +455,7 @@ export function filterMTDRecords(
     producers?: Producer[];
     dateFilter?: DateFilterValue;
     scheduleFilter?: MixScheduleFilter;
+    infoFilter?: InfoFilter;
     form?: OrderFormType;
     cheerSubtype?: CheerFormSubtype;
     danceSubtype?: DanceFormSubtype;
@@ -446,6 +473,7 @@ export function filterMTDRecords(
     producers = [],
     dateFilter = { type: "all", value: null },
     scheduleFilter = "all",
+    infoFilter = "all",
     form,
     cheerSubtype = DEFAULT_CHEER_SUBTYPE,
     danceSubtype = DEFAULT_DANCE_SUBTYPE,
@@ -472,6 +500,7 @@ export function filterMTDRecords(
     if (!matchesSplitFilter(rec, split)) return false;
     if (!matchesDateFilter(rec, dateFilter)) return false;
     if (!matchesMixScheduleFilter(rec, scheduleFilter)) return false;
+    if (!matchesInfoFilter(rec, infoFilter)) return false;
     if (form && orderById) {
       if (!matchesFormFilter(rec, orderById, form, cheerSubtype, danceSubtype)) {
         return false;

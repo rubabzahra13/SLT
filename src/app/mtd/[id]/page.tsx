@@ -84,6 +84,7 @@ export default function MTDDetailPage({
     packagePrices,
     producers,
     schedule,
+    discountCodes,
   } = useAppState();
   const [assignOpen, setAssignOpen] = useState(false);
   const [pricingOpen, setPricingOpen] = useState(false);
@@ -495,6 +496,7 @@ export default function MTDDetailPage({
           </div>
           <MTDOrderDetails
             order={orderForm}
+            discountCodes={discountCodes}
             editable={orderFormEditing}
             onFieldChange={handleOrderDraftChange}
           />

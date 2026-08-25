@@ -26,6 +26,10 @@ export type MTDRecord = {
   haveSongs: string;
   needsAttention: boolean;
   status: "active" | "outsourced" | "needs_attention" | "completed";
+  recordStatus?: MTDRecordStatus;
+  /** Completed mixes moved off the MTD board into payroll */
+  inPayroll?: boolean;
+  completedAt?: string;
 };
 
 export type Weekday =
@@ -265,6 +269,15 @@ export const EIGHT_CS_OPTIONS = [
 ] as const;
 
 export const SONGS_OPTIONS = ["HAVE", "NEED SONGS", "HAVE MIX"] as const;
+
+export const MTD_RECORD_STATUS_OPTIONS = [
+  "Waiting for Data",
+  "Completed",
+  "Outsourced",
+  "Ongoing",
+] as const;
+
+export type MTDRecordStatus = (typeof MTD_RECORD_STATUS_OPTIONS)[number];
 
 export const EDITOR_NAMES = [
   "CM",

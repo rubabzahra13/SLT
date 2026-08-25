@@ -32,6 +32,7 @@ import {
 import { suggestMixStartDate, suggestMixEndDate } from "@/lib/scheduling";
 import { normalizeProducer } from "@/lib/producers";
 import { normalizeDiscountCode } from "@/lib/discount-codes";
+import { inferMTDRecordStatus } from "@/lib/mtd-status";
 import { toIsoDateString } from "@/lib/dates";
 
 type AppStateContextValue = {
@@ -87,6 +88,8 @@ function normalizeMTD(records: MTDRecord[]): MTDRecord[] {
       contactName: r.contactName || r.editorInitials,
       priceCompliance: r.priceCompliance || detectCompliance(r.musicTheme),
       mixStartDate: toIsoDateString(r.mixStartDate) || r.mixStartDate,
+      recordStatus: inferMTDRecordStatus(r),
+      inPayroll: Boolean(r.inPayroll),
       ...(mixEnd ? { mixEndDate: mixEnd } : {}),
     };
   });

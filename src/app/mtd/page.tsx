@@ -20,6 +20,8 @@ import { SetPricingModal } from "@/components/mtd/SetPricingModal";
 import { SetInvoicesModal } from "@/components/mtd/SetInvoicesModal";
 import { SetInvoiceModal } from "@/components/mtd/SetInvoiceModal";
 import { SetRecordPricingModal } from "@/components/mtd/SetRecordPricingModal";
+import { CompleteToPayrollModal } from "@/components/mtd/CompleteToPayrollModal";
+import { CompletionBlockedModal } from "@/components/mtd/CompletionBlockedModal";
 import {
   DEFAULT_MTD_TABLE_FILTERS,
   MTDTableFilters,
@@ -31,6 +33,12 @@ import { parsePackage } from "@/lib/package";
 import { parseMusicTheme } from "@/lib/music-theme";
 import { complianceLabel } from "@/lib/pricing";
 import { formatSlotForDisplay, suggestMixEndDate, suggestMixStartDate } from "@/lib/scheduling";
+import { inferMTDRecordStatus, patchFromRecordStatus } from "@/lib/mtd-status";
+import {
+  canCompleteForPayroll,
+  getMTDBoardRecords,
+  patchMoveToPayroll,
+} from "@/lib/mtd-completion";
 import { toIsoDateString } from "@/lib/dates";
 import { todayIso } from "@/lib/date-filters";
 import {
@@ -51,10 +59,11 @@ import type {
   CheerFormSubtype,
   DanceFormSubtype,
   MTDRecord,
+  MTDRecordStatus,
   OrderFormType,
   PriceCompliance,
 } from "@/types";
-import { EIGHT_CS_OPTIONS, SONGS_OPTIONS } from "@/types";
+import { EIGHT_CS_OPTIONS, MTD_RECORD_STATUS_OPTIONS, SONGS_OPTIONS } from "@/types";
 import clsx from "clsx";
 
 const DEFAULT_FORM: OrderFormType = "school-all-star-cheer";
@@ -102,6 +111,13 @@ export default function MTDPage() {
   const [pricingRecord, setPricingRecord] = useState<MTDRecord | null>(null);
   const [invoicesOpen, setInvoicesOpen] = useState(false);
   const [pricingOpen, setPricingOpen] = useState(false);
+  const [completeRecord, setCompleteRecord] = useState<MTDRecord | null>(null);
+  const [blockedRecord, setBlockedRecord] = useState<MTDRecord | null>(null);
+
+  const mtdBoardRecords = useMemo(
+    () => getMTDBoardRecords(mtdRecords),
+    [mtdRecords]
+  );
 
   const orderById = useMemo(
     () => new Map(allOrders.map((order) => [order.id, order])),
@@ -183,9 +199,32 @@ export default function MTDPage() {
     [updateMTD]
   );
 
+  const handleRecordStatusChange = useCallback(
+    (rec: MTDRecord, value: string) => {
+      const nextStatus = value as MTDRecordStatus;
+      if (nextStatus === "Completed") {
+        const check = canCompleteForPayroll(rec);
+        if (!check.ready) {
+          setBlockedRecord(rec);
+          return;
+        }
+        setCompleteRecord(rec);
+        return;
+      }
+      updateMTD(rec.id, patchFromRecordStatus(nextStatus));
+    },
+    [updateMTD]
+  );
+
+  const confirmCompleteToPayroll = useCallback(() => {
+    if (!completeRecord) return;
+    updateMTD(completeRecord.id, patchMoveToPayroll());
+    setCompleteRecord(null);
+  }, [completeRecord, updateMTD]);
+
   const filtered = useMemo(
     () =>
-      filterMTDRecords(mtdRecords, {
+      filterMTDRecords(mtdBoardRecords, {
         packageTier: tableFilters.packageTier,
         timeLimit: tableFilters.timeLimit,
         split: tableFilters.split,
@@ -193,6 +232,7 @@ export default function MTDPage() {
         requestedProducer: tableFilters.requestedProducer,
         dateFilter: tableFilters.dateFilter,
         scheduleFilter: tableFilters.scheduleFilter,
+        infoFilter: tableFilters.infoFilter ?? "all",
         form,
         cheerSubtype,
         danceSubtype,
@@ -200,7 +240,7 @@ export default function MTDPage() {
         producers,
       }),
     [
-      mtdRecords,
+      mtdBoardRecords,
       tableFilters,
       form,
       cheerSubtype,
@@ -211,18 +251,18 @@ export default function MTDPage() {
   );
 
   const formCounts = useMemo(
-    () => countMTDByForm(mtdRecords, orderById),
-    [mtdRecords, orderById]
+    () => countMTDByForm(mtdBoardRecords, orderById),
+    [mtdBoardRecords, orderById]
   );
 
   const cheerSubtypeCounts = useMemo(
-    () => countMTDByCheerSubtype(mtdRecords, orderById),
-    [mtdRecords, orderById]
+    () => countMTDByCheerSubtype(mtdBoardRecords, orderById),
+    [mtdBoardRecords, orderById]
   );
 
   const danceSubtypeCounts = useMemo(
-    () => countMTDByDanceSubtype(mtdRecords, orderById),
-    [mtdRecords, orderById]
+    () => countMTDByDanceSubtype(mtdBoardRecords, orderById),
+    [mtdBoardRecords, orderById]
   );
 
   const tableFilterKey = [
@@ -232,6 +272,7 @@ export default function MTDPage() {
     tableFilters.assignedProducer,
     tableFilters.requestedProducer,
     tableFilters.scheduleFilter,
+    tableFilters.infoFilter,
     tableFilters.dateFilter.type,
     String(tableFilters.dateFilter.value),
   ].join("-");
@@ -601,6 +642,22 @@ export default function MTDPage() {
         },
       },
       {
+        key: "recordStatus",
+        header: "Status",
+        width: "148px",
+        align: "center",
+        render: (rec) => (
+          <InlineCell>
+            <InlineSelect
+              value={inferMTDRecordStatus(rec)}
+              options={[...MTD_RECORD_STATUS_OPTIONS]}
+              onChange={(value) => handleRecordStatusChange(rec, value)}
+              className="h-auto min-h-[36px] min-w-[132px] rounded-lg px-2 py-1.5 text-[11px]"
+            />
+          </InlineCell>
+        ),
+      },
+      {
         key: "actions",
         header: "Actions",
         width: "72px",
@@ -622,6 +679,7 @@ export default function MTDPage() {
       },
     ],
     [
+      handleRecordStatusChange,
       updateMTD,
       allOrders,
       mtdRecords,
@@ -637,7 +695,7 @@ export default function MTDPage() {
     <>
       <PageHeader
         title="Music To Do"
-        subtitle={`${mtdRecords.length} entries`}
+        subtitle={`${mtdBoardRecords.length} entries`}
       />
 
       <div className="px-6 py-6 lg:px-8">
@@ -657,7 +715,7 @@ export default function MTDPage() {
           />
 
           <MTDTableFilters
-            records={mtdRecords}
+            records={mtdBoardRecords}
             producers={producers}
             orderById={orderById}
             filters={tableFilters}
@@ -723,6 +781,19 @@ export default function MTDPage() {
           setPackagePrices(prices);
           setSecretMenuPrices(secretMenu);
         }}
+      />
+
+      <CompleteToPayrollModal
+        open={Boolean(completeRecord)}
+        record={completeRecord}
+        onClose={() => setCompleteRecord(null)}
+        onConfirm={confirmCompleteToPayroll}
+      />
+
+      <CompletionBlockedModal
+        open={Boolean(blockedRecord)}
+        record={blockedRecord}
+        onClose={() => setBlockedRecord(null)}
       />
     </>
   );

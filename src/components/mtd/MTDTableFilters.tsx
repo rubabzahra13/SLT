@@ -6,11 +6,13 @@ import { FilterMenu } from "@/components/ui/FilterMenu";
 import { DateFilter, type DateFilterValue } from "@/components/ui/DateFilter";
 import {
   buildAssignedProducerOptions,
+  buildInfoOptions,
   buildPackageTierOptions,
   buildRequestedProducerOptions,
   buildSplitOptions,
   buildTimeLimitOptions,
   hasMixStartDate,
+  type InfoFilter,
   type MixScheduleFilter,
   type SplitFilter,
 } from "@/lib/mtd-filters";
@@ -24,6 +26,7 @@ export type MTDTableFilterState = {
   assignedProducer: string;
   requestedProducer: string;
   scheduleFilter: MixScheduleFilter;
+  infoFilter: InfoFilter;
   dateFilter: DateFilterValue;
 };
 
@@ -45,6 +48,7 @@ function hasActiveFilters(filters: MTDTableFilterState): boolean {
     filters.assignedProducer !== "All" ||
     filters.requestedProducer !== "All" ||
     filters.scheduleFilter !== "all" ||
+    (filters.infoFilter ?? "all") !== "all" ||
     filters.dateFilter.type !== "all"
   );
 }
@@ -96,6 +100,8 @@ export function MTDTableFilters({
     ];
   }, [records]);
 
+  const infoOptions = useMemo(() => buildInfoOptions(records), [records]);
+
   const active = hasActiveFilters(filters);
 
   return (
@@ -135,12 +141,19 @@ export function MTDTableFilters({
           accent="orange"
         />
         <FilterMenu
-          label="Scheduled"
+          label="Schedule status"
           value={filters.scheduleFilter}
           options={scheduleOptions}
           onChange={(value) =>
             onChange({ scheduleFilter: value as MixScheduleFilter })
           }
+        />
+        <FilterMenu
+          label="Data"
+          value={filters.infoFilter ?? "all"}
+          options={infoOptions}
+          onChange={(value) => onChange({ infoFilter: value as InfoFilter })}
+          accent="orange"
         />
         <DateFilter
           value={filters.dateFilter}
@@ -174,5 +187,6 @@ export const DEFAULT_MTD_TABLE_FILTERS: MTDTableFilterState = {
   assignedProducer: "All",
   requestedProducer: "All",
   scheduleFilter: "all",
+  infoFilter: "all",
   dateFilter: { type: "all", value: null },
 };

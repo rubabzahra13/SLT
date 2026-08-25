@@ -4,12 +4,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useMemo } from "react";
 import {
+  Calendar,
   LayoutDashboard,
   Music2,
-  Calendar,
-  Clock,
-  Users,
   Settings,
+  Users,
+  Wallet,
   PanelLeftClose,
   X,
 } from "lucide-react";
@@ -17,6 +17,7 @@ import clsx from "clsx";
 import { useSidebar } from "@/context/SidebarContext";
 import { useAppState } from "@/context/AppStateContext";
 import { getInProgressCount } from "@/lib/mtd-filters";
+import { getPayrollRecords } from "@/lib/mtd-completion";
 import { HoverTip } from "@/components/ui/HoverTip";
 import { DottedScroll } from "@/components/ui/DottedScroll";
 
@@ -32,8 +33,8 @@ type NavItem = {
 const baseNavItems: NavItem[] = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/mtd", label: "MTD", icon: Music2 },
+  { href: "/payroll", label: "Payroll", icon: Wallet },
   { href: "/schedule", label: "Schedule", icon: Calendar },
-  { href: "/outsourced", label: "In Progress", icon: Clock },
   { href: "/producers", label: "Producers", icon: Users },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
@@ -68,14 +69,29 @@ export function Sidebar() {
     [mtdRecords]
   );
 
+  const payrollCount = useMemo(
+    () => getPayrollRecords(mtdRecords).length,
+    [mtdRecords]
+  );
+
   const navItems = useMemo(
     () =>
-      baseNavItems.map((item) =>
-        item.href === "/outsourced"
-          ? { ...item, badge: inProgressCount > 0 ? inProgressCount : undefined }
-          : item
-      ),
-    [inProgressCount]
+      baseNavItems.map((item) => {
+        if (item.href === "/mtd") {
+          return {
+            ...item,
+            badge: inProgressCount > 0 ? inProgressCount : undefined,
+          };
+        }
+        if (item.href === "/payroll") {
+          return {
+            ...item,
+            badge: payrollCount > 0 ? payrollCount : undefined,
+          };
+        }
+        return item;
+      }),
+    [inProgressCount, payrollCount]
   );
 
   const showExpanded = expanded || mobileOpen;

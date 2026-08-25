@@ -129,8 +129,11 @@ export function InlineTextarea({
 const detailInputClass =
   "h-auto min-h-[36px] rounded-lg px-3 py-2 text-[13px]";
 
-export function DetailInput(props: Omit<InlineInputProps, "className">) {
-  return <InlineInput {...props} className={detailInputClass} />;
+export function DetailInput({
+  className,
+  ...props
+}: Omit<InlineInputProps, "className"> & { className?: string }) {
+  return <InlineInput {...props} className={clsx(detailInputClass, className)} />;
 }
 
 export function DetailTextarea(props: Omit<InlineTextareaProps, "className">) {

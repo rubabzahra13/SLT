@@ -5927,8 +5927,13 @@
   "discountCodes": [
     {
       "id": "disc-1",
-      "code": "DEMO2026",
+      "code": "DEMO 2026",
       "description": "Demo showcase discount for new teams"
+    },
+    {
+      "id": "disc-4",
+      "code": "DEMO 2025",
+      "description": "Demo showcase discount for 2025 teams"
     },
     {
       "id": "disc-2",
