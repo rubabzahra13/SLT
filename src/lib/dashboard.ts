@@ -19,6 +19,8 @@ export const DASHBOARD_ANCHOR_DATE = new Date(2026, 7, 19);
 export type DashboardPulse = {
   toAssign: number;
   blocked: number;
+  assigned: number;
+  missingData: number;
   inProduction: number;
   outgoing: number;
   outsourced: number;
@@ -51,6 +53,14 @@ export type RevenueStage = {
   value: number;
   color: string;
   href: string;
+};
+
+export type IncomingOrdersPoint = {
+  label: string;
+  shortLabel: string;
+  iso: string;
+  count: number;
+  isToday: boolean;
 };
 
 export type WorkflowStage = {
@@ -143,12 +153,18 @@ export function buildDashboardPulse(
     (r) => !r.assignedProducer && r.editorRequest !== "NA"
   ).length;
 
+  const assigned = openBoard.filter((r) => !!r.assignedProducer).length;
+
   const blocked = open.filter((r) => r.needsAttention).length;
   const outgoing = getOngoingRecords(mtdRecords).length;
   const outsourced = getOutsourcedRecords(mtdRecords).length;
 
   const readyToComplete = openBoard.filter(
     (rec) => canCompleteForPayroll(rec).ready
+  ).length;
+
+  const missingData = openBoard.filter(
+    (rec) => !canCompleteForPayroll(rec).ready
   ).length;
 
   let dueThisWeek = 0;
@@ -188,6 +204,8 @@ export function buildDashboardPulse(
   return {
     toAssign,
     blocked,
+    assigned,
+    missingData,
     inProduction: inProgress.length,
     outgoing,
     outsourced,
@@ -368,6 +386,32 @@ export function buildRevenueStages(pulse: DashboardPulse): RevenueStage[] {
   ];
 }
 
+export function buildIncomingOrdersSeries(
+  orders: Order[],
+  pastOrders: Order[] = [],
+  anchor: Date = DASHBOARD_ANCHOR_DATE,
+  days = 14
+): IncomingOrdersPoint[] {
+  const all = [...orders, ...pastOrders];
+  const anchorKey = anchor.toISOString().slice(0, 10);
+  const start = new Date(`${anchorKey}T12:00:00`);
+
+  return Array.from({ length: days }, (_, index) => {
+    const day = new Date(start);
+    day.setDate(day.getDate() - (days - 1 - index));
+    const iso = day.toISOString().slice(0, 10);
+    const count = all.filter((order) => toIsoDateString(order.createdAt) === iso).length;
+
+    return {
+      iso,
+      label: day.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      shortLabel: day.toLocaleDateString("en-US", { weekday: "narrow" }),
+      count,
+      isToday: iso === anchorKey,
+    };
+  });
+}
+
 export function buildWorkflowStages(pulse: DashboardPulse): WorkflowStage[] {
   return [
     {
@@ -428,21 +472,21 @@ export function buildWeeklyCapacity(
 export function buildMixOpsSlices(pulse: DashboardPulse): MixOpsSlice[] {
   return [
     {
-      label: "Ready",
-      count: pulse.readyToComplete,
-      color: "#059669",
+      label: "Missing data",
+      count: pulse.missingData,
+      color: "#f07840",
       href: "/mtd",
     },
     {
-      label: "Due week",
-      count: pulse.dueThisWeek,
+      label: "Assigned",
+      count: pulse.assigned,
       color: "#1f8fb3",
       href: "/mtd",
     },
     {
-      label: "Overdue",
-      count: pulse.overdue,
-      color: "#f07840",
+      label: "Due this week",
+      count: pulse.dueThisWeek,
+      color: "#1f8fb3",
       href: "/mtd",
     },
     {

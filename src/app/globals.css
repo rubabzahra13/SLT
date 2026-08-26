@@ -246,12 +246,29 @@ body {
   min-height: 0;
   flex: 1;
   gap: 0.75rem;
+  overflow: hidden;
 }
 
 @media (min-width: 1280px) {
   .dashboard-body-grid {
     grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
   }
+}
+
+.dashboard-ops-col {
+  display: grid;
+  min-height: 0;
+  overflow: hidden;
+  grid-template-rows: minmax(0, 1.1fr) minmax(0, 0.9fr);
+  gap: 0.75rem;
+}
+
+.dashboard-insights-col {
+  display: grid;
+  min-height: 0;
+  overflow: hidden;
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
 }
 
 .dashboard-charts-row {
