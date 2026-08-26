@@ -6,6 +6,7 @@ import { Pencil } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Avatar } from "@/components/ui/Avatar";
 import { DataTable, type Column } from "@/components/ui/DataTable";
+import { TruncatedText } from "@/components/ui/TruncatedText";
 import {
   InlineCell,
   InlineMultiCheckGroup,
@@ -96,57 +97,30 @@ const unavailableTagClass =
 const tableDateClass = "!w-auto min-w-[108px] max-w-full";
 const tableStatusSelectClass =
   "!h-8 !min-h-0 !w-auto min-w-[132px] max-w-full !py-0";
+const compactCellClass = "!px-1 !py-1 overflow-hidden";
+const compactHeaderClass = "!px-1 !py-1.5";
+const compactTextClass = "text-[12px] leading-none text-brand-ink";
 
-function formatWordLines(
-  value: string,
-  mode: "even" | "staggered" = "even",
-  max = 140
-): string {
-  if (!value?.trim()) return "—";
-  const cleaned = value.replace(/\s+/g, " ").trim();
-  let text = titleCase(cleaned);
-  let ellipsis = false;
-  if (text.length > max) {
-    text = text.slice(0, max).trim();
-    ellipsis = true;
-  }
-  const words = text.split(/\s+/).filter(Boolean);
-  const lines: string[] = [];
-
-  if (mode === "staggered") {
-    let index = 0;
-    if (words.length > 0) {
-      lines.push(words.slice(index, index + 3).join(" "));
-      index += 3;
-    }
-    while (index < words.length) {
-      lines.push(words.slice(index, index + 2).join(" "));
-      index += 2;
-    }
-  } else {
-    for (let i = 0; i < words.length; i += 3) {
-      lines.push(words.slice(i, i + 3).join(" "));
-    }
+function multilineTableCell(value: string, maxWidth = "180px") {
+  if (!value?.trim()) {
+    return (
+      <span
+        className={clsx("mx-auto block w-full min-w-0 max-w-full truncate text-center", compactTextClass)}
+        style={{ maxWidth }}
+      >
+        —
+      </span>
+    );
   }
 
-  if (ellipsis && lines.length > 0) {
-    lines[lines.length - 1] = `${lines[lines.length - 1]}…`;
-  }
-  return lines.join("\n");
-}
+  const display = titleCase(value.replace(/\s+/g, " ").trim());
 
-function multilineTableCell(
-  value: string,
-  maxWidth = "180px",
-  mode: "even" | "staggered" = "even"
-) {
   return (
-    <span
-      className="mx-auto block whitespace-pre-line text-center text-[12px] leading-snug text-brand-ink"
+    <TruncatedText
+      text={display}
+      className={clsx("mx-auto block w-full min-w-0 max-w-full truncate text-center", compactTextClass)}
       style={{ maxWidth }}
-    >
-      {formatWordLines(value, mode)}
-    </span>
+    />
   );
 }
 
@@ -383,54 +357,60 @@ export default function MTDPage() {
       {
         key: "contactC",
         header: "Contact",
-        width: "96px",
+        width: "100px",
         align: "center",
-        cellClassName: "!px-3",
-        headerClassName: "!px-3",
+        nowrap: false,
+        cellClassName: clsx(compactCellClass, "max-w-[100px]"),
+        headerClassName: compactHeaderClass,
         render: (rec) => (
-          <span className="block truncate text-[12px] leading-snug text-brand-ink">
-            {titleCase(rec.contactName)}
-          </span>
+          <TruncatedText
+            text={titleCase(rec.contactName)}
+            className={clsx("mx-auto w-full min-w-0 text-center", compactTextClass)}
+            style={{ maxWidth: "100%" }}
+          />
         ),
       },
       {
         key: "programD",
         header: "Program",
-        width: "128px",
+        width: "100px",
         align: "center",
         nowrap: false,
-        cellClassName: "!px-1.5 !py-2",
-        headerClassName: "!px-1.5 !py-2",
-        render: (rec) => multilineTableCell(rec.programName, "120px"),
+        cellClassName: clsx(compactCellClass, "max-w-[100px]"),
+        headerClassName: compactHeaderClass,
+        render: (rec) => multilineTableCell(rec.programName, "100%"),
       },
       {
         key: "packageE",
         header: "Package",
-        width: "72px",
+        width: "100px",
         align: "center",
         nowrap: false,
-        cellClassName: "!px-1 !py-2",
-        headerClassName: "!px-1 !py-2",
+        cellClassName: clsx(compactCellClass, "max-w-[100px]"),
+        headerClassName: compactHeaderClass,
         render: (rec) => {
           const { tier } = parsePackage(rec.package);
           return (
-            <span className="mx-auto block text-center text-[12px] font-medium text-brand-ink">
-              {titleCase(tier)}
-            </span>
+            <TruncatedText
+              text={titleCase(tier)}
+              className={clsx("mx-auto w-full min-w-0 text-center font-medium", compactTextClass)}
+              style={{ maxWidth: "100%" }}
+            />
           );
         },
       },
       {
         key: "limitE",
         header: "Time limit",
-        width: "60px",
+        width: "100px",
         align: "center",
-        cellClassName: "!px-1.5 !py-2",
-        headerClassName: "!px-1.5 !py-2",
+        nowrap: false,
+        cellClassName: clsx(compactCellClass, "max-w-[100px]"),
+        headerClassName: compactHeaderClass,
         render: (rec) => {
           const { limit } = parsePackage(rec.package);
           return (
-            <span className="text-[12px] tabular-nums text-brand-ink">
+            <span className={clsx("mx-auto block text-center tabular-nums", compactTextClass)}>
               {limit}
             </span>
           );
@@ -439,37 +419,40 @@ export default function MTDPage() {
       {
         key: "splitE",
         header: "Split",
-        width: "76px",
+        width: "100px",
         align: "center",
-        cellClassName: "!px-1.5 !py-2",
-        headerClassName: "!px-1.5 !py-2",
+        nowrap: false,
+        cellClassName: clsx(compactCellClass, "max-w-[100px]"),
+        headerClassName: compactHeaderClass,
         render: (rec) => {
           const { split } = parsePackage(rec.package);
           return (
-            <span className="text-[12px] text-brand-ink">
-              {split}
-            </span>
+            <TruncatedText
+              text={split}
+              className={clsx("mx-auto w-full min-w-0 text-center", compactTextClass)}
+              style={{ maxWidth: "100%" }}
+            />
           );
         },
       },
       {
         key: "themeF",
         header: "Music",
-        width: "128px",
+        width: "100px",
         align: "center",
         nowrap: false,
-        cellClassName: "!px-1.5 !py-2",
-        headerClassName: "!px-1.5 !py-2",
-        render: (rec) => multilineTableCell(rec.musicTheme, "120px"),
+        cellClassName: clsx(compactCellClass, "max-w-[100px]"),
+        headerClassName: compactHeaderClass,
+        render: (rec) => multilineTableCell(rec.musicTheme, "100%"),
       },
       {
         key: "chosenInitialsF",
         header: "Requested editor",
-        width: "96px",
+        width: "100px",
         align: "center",
         nowrap: false,
-        cellClassName: "!px-2 !py-1.5",
-        headerClassName: "!px-2 !py-2",
+        cellClassName: clsx(compactCellClass, "max-w-[100px]"),
+        headerClassName: compactHeaderClass,
         render: (rec) => {
           const linked = findLinkedOrder(rec, allOrders);
           const label = formatRequestedEditorLabel(rec, producers, linked);
@@ -489,7 +472,8 @@ export default function MTDPage() {
             <div className="inline-flex flex-col items-center gap-0.5">
               <span
                 className={clsx(
-                  "text-[12px] font-medium uppercase tabular-nums leading-none",
+                  "font-medium uppercase tabular-nums",
+                  compactTextClass,
                   isFa ? "text-brand-info" : "text-brand-ink"
                 )}
               >
@@ -702,9 +686,11 @@ export default function MTDPage() {
       {
         key: "editorB",
         header: "Editor",
-        width: "128px",
+        width: "100px",
         align: "center",
         nowrap: false,
+        cellClassName: clsx(compactCellClass, "max-w-[100px]"),
+        headerClassName: compactHeaderClass,
         render: (rec) => {
           const assigned = rec.assignedProducer;
           const producer = assigned
@@ -738,7 +724,7 @@ export default function MTDPage() {
                       {assigned.slice(0, 2)}
                     </span>
                   )}
-                  <span className="truncate text-[12px] font-semibold leading-none text-brand-ink">
+                  <span className={clsx("truncate font-semibold", compactTextClass)}>
                     {assigned}
                   </span>
                 </button>
@@ -760,9 +746,11 @@ export default function MTDPage() {
       {
         key: "invoiceAction",
         header: "Invoice #",
-        width: "112px",
+        width: "100px",
         align: "center",
         nowrap: false,
+        cellClassName: clsx(compactCellClass, "max-w-[100px]"),
+        headerClassName: compactHeaderClass,
         render: (rec) => {
           const invoice = rec.invoice?.trim() ?? "";
           return (
@@ -775,7 +763,8 @@ export default function MTDPage() {
                   aria-label={`Edit invoice ${invoice}`}
                   className={clsx(
                     clickableChipClass,
-                    "max-w-full rounded-lg px-2.5 py-1 text-[12px] font-medium tabular-nums text-brand-ink hover:text-brand-orange"
+                    "max-w-full rounded-lg px-2 py-1 tabular-nums hover:text-brand-orange",
+                    compactTextClass
                   )}
                 >
                   <span className="truncate">{invoice}</span>
@@ -804,6 +793,7 @@ export default function MTDPage() {
         render: (rec) => (
           <InlineCell centered>
             <InlineSelect
+              centered
               value={inferMTDRecordStatus(rec)}
               options={[...MTD_RECORD_STATUS_OPTIONS]}
               onChange={(value) => handleRecordStatusChange(rec, value)}
@@ -815,11 +805,11 @@ export default function MTDPage() {
       {
         key: "actions",
         header: "Actions",
-        width: "88px",
+        width: "100px",
         align: "center",
         nowrap: false,
-        cellClassName: "pl-5",
-        headerClassName: "pl-5",
+        cellClassName: clsx(compactCellClass, "max-w-[100px]"),
+        headerClassName: compactHeaderClass,
         render: (rec) => (
           <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
             <Link

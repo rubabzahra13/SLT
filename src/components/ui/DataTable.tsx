@@ -160,7 +160,7 @@ export function DataTable<T>({
                 <tr
                   key={rowKey(row)}
                   className={clsx(
-                    "border-b border-brand-line/40 bg-brand-elevated transition-colors last:border-b-0",
+                    "border-b border-brand-line-strong bg-brand-elevated transition-colors last:border-b-0",
                     variant === "muted" && "bg-brand-surface",
                     isInteractive && "cursor-pointer hover:bg-brand-blue-soft/25"
                   )}
@@ -173,7 +173,7 @@ export function DataTable<T>({
                         cellClass,
                         textSize,
                         alignClass(col.align),
-                        "border-r border-brand-line/20 align-middle last:border-r-0",
+                        "border-r border-brand-line-strong align-middle last:border-r-0",
                         col.nowrap !== false &&
                           "max-w-0 truncate whitespace-nowrap",
                         stickyClass(col.sticky),
@@ -192,7 +192,7 @@ export function DataTable<T>({
       </DottedScroll>
 
       {pageSize && pageSize > 0 && data.length > pageSize ? (
-        <div className="flex items-center justify-between gap-3 border-t border-brand-line/40 bg-brand-elevated/50 px-4 py-3">
+        <div className="flex items-center justify-between gap-3 border-t border-brand-line-strong bg-brand-elevated/50 px-4 py-3">
           <p className="text-[12px] font-medium text-brand-ink-tertiary">
             {rangeStart}–{rangeEnd} of {data.length}
           </p>

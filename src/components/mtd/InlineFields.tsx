@@ -60,6 +60,7 @@ type InlineSelectProps = {
   options: readonly string[] | string[];
   onChange: (value: string) => void;
   className?: string;
+  centered?: boolean;
 };
 
 type MenuPosition = {
@@ -75,6 +76,7 @@ export function InlineSelect({
   options,
   onChange,
   className,
+  centered = false,
 }: InlineSelectProps) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -182,14 +184,24 @@ export function InlineSelect({
         onKeyDown={handleKeyDown}
         className={clsx(
           inlineControlClass,
-          "flex cursor-pointer items-center justify-between gap-1.5 pr-2 text-left",
+          centered
+            ? "relative flex cursor-pointer items-center justify-center px-6 text-center"
+            : "flex cursor-pointer items-center justify-between gap-1.5 pr-2 text-left",
           className
         )}
       >
-        <span className="min-w-0 flex-1 truncate">{value}</span>
+        <span
+          className={clsx(
+            "min-w-0 truncate",
+            centered ? "w-full text-center" : "flex-1"
+          )}
+        >
+          {value}
+        </span>
         <ChevronDown
           className={clsx(
             "h-3.5 w-3.5 shrink-0 text-brand-ink-tertiary transition-transform duration-150",
+            centered && "absolute right-2 top-1/2 -translate-y-1/2",
             open && "rotate-180"
           )}
           strokeWidth={2.25}
