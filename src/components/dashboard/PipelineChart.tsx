@@ -1,20 +1,16 @@
+"use client";
+
 import Link from "next/link";
 import type { CategorySlice } from "@/lib/dashboard";
-import {
-  BRAND_BLUE,
-  BRAND_BLUE_DEEP,
-  BRAND_ORANGE,
-  BRAND_ORANGE_DEEP,
-  BRAND_SIGNATURE,
-  chartGradientStops,
-} from "@/lib/brand-colors";
+import { pipelineCategoryInsight } from "@/lib/dashboard-tooltips";
+import { BRAND_BLUE, BRAND_ORANGE, BRAND_SIGNATURE } from "@/lib/brand-colors";
+import { DashboardTip } from "@/components/dashboard/DashboardTip";
 
 const PREMIUM_PIPELINE_COLORS = [
   BRAND_SIGNATURE,
   BRAND_ORANGE,
   BRAND_BLUE,
-  BRAND_ORANGE_DEEP,
-  BRAND_BLUE_DEEP,
+  "#187a9a",
 ] as const;
 
 function pipelineColor(index: number): string {
@@ -87,7 +83,7 @@ export function PipelineChart({
             : "px-5 py-8 text-center text-[12px] text-brand-ink-tertiary"
         }
       >
-        No open MTD entries.
+        No active MTD entries.
       </p>
     );
   }
@@ -116,84 +112,80 @@ export function PipelineChart({
           : "flex items-center justify-center gap-6 px-5 py-4"
       }
     >
-      <div className="relative shrink-0">
-        <svg
-          width={size}
-          height={size}
-          viewBox={`0 0 ${size} ${size}`}
-          role="img"
-          aria-label={`Pipeline breakdown, ${total} total mixes`}
-        >
-          <defs>
-            {arcs.map(({ index }) => {
-              const color = pipelineColor(index);
-              const [from, to] = chartGradientStops(color);
-              return (
-                <linearGradient
-                  key={`grad-${index}`}
-                  id={`pipeline-grad-${index}`}
-                  x1="0%"
-                  y1="0%"
-                  x2="100%"
-                  y2="100%"
-                >
-                  <stop offset="0%" stopColor={from} />
-                  <stop offset="100%" stopColor={to} />
-                </linearGradient>
-              );
-            })}
-          </defs>
-
-          {arcs.map(({ category, count, startAngle, endAngle, index }) => (
-            <path
-              key={category}
-              d={describeDonutSlice(cx, cy, outerR, innerR, startAngle, endAngle)}
-              fill={`url(#pipeline-grad-${index})`}
-              className="transition-opacity hover:opacity-90"
-            >
-              <title>{`${category}: ${count}`}</title>
-            </path>
-          ))}
-        </svg>
-
-        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-          <p
-            className={
-              compact
-                ? "text-[20px] font-bold leading-none tabular-nums tracking-[-0.04em] text-brand-ink"
-                : "text-[26px] font-bold leading-none tabular-nums tracking-[-0.04em] text-brand-ink"
-            }
+      <DashboardTip
+        title="Active pipeline"
+        body={`${total} mixes on the MTD board split by category. Hover legend items for each genre.`}
+        className="relative shrink-0"
+        placement="right"
+      >
+        <div className="relative">
+          <svg
+            width={size}
+            height={size}
+            viewBox={`0 0 ${size} ${size}`}
+            role="img"
+            aria-label={`Pipeline breakdown, ${total} total mixes`}
           >
-            {total}
-          </p>
-          <p className="mt-0.5 text-[9px] font-semibold uppercase tracking-[0.06em] text-brand-ink-tertiary">
-            total
-          </p>
+            {arcs.map(({ category, count, startAngle, endAngle, index }) => (
+              <path
+                key={category}
+                d={describeDonutSlice(cx, cy, outerR, innerR, startAngle, endAngle)}
+                fill={pipelineColor(index)}
+                stroke="#ffffff"
+                strokeWidth={1.5}
+                className="transition-opacity hover:opacity-90"
+              >
+                <title>{`${category}: ${count}`}</title>
+              </path>
+            ))}
+          </svg>
+
+          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+            <p
+              className={
+                compact
+                  ? "text-[20px] font-bold leading-none tabular-nums tracking-[-0.04em] text-brand-ink"
+                  : "text-[26px] font-bold leading-none tabular-nums tracking-[-0.04em] text-brand-ink"
+              }
+            >
+              {total}
+            </p>
+            <p className="mt-0.5 text-[9px] font-semibold uppercase tracking-[0.06em] text-brand-ink-tertiary">
+              total
+            </p>
+          </div>
         </div>
-      </div>
+      </DashboardTip>
 
       <ul className="min-h-0 min-w-0 max-w-[140px] flex-1 space-y-1 overflow-hidden">
         {visible.map((slice, index) => {
           const color = pipelineColor(index);
-          const [from] = chartGradientStops(color);
+          const insight = pipelineCategoryInsight(slice);
           return (
             <li key={slice.category}>
-              <Link
-                href={href}
-                className="group flex items-center gap-2.5 rounded-lg px-1 py-1 transition-colors hover:bg-brand-blue-soft/12"
+              <DashboardTip
+                title={insight.title}
+                body={insight.body}
+                className="block w-full"
+                placement="left"
               >
-                <span
-                  className="h-2.5 w-2.5 shrink-0 rounded-full ring-2 ring-white ring-offset-1"
-                  style={{ backgroundColor: from }}
-                  aria-hidden
-                />
-                <span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-brand-ink group-hover:text-brand-signature">
-                  {slice.category}
-                </span>
-                <span className="shrink-0 text-[11px] font-bold tabular-nums text-brand-ink">
-                  {slice.count}
-                </span>
-              </Link>
+                <Link
+                  href={href}
+                  className="group flex items-center gap-2.5 rounded-lg px-1 py-1 transition-colors hover:bg-brand-bg-subtle/80"
+                >
+                  <span
+                    className="h-2.5 w-2.5 shrink-0 rounded-full ring-2 ring-white ring-offset-1"
+                    style={{ backgroundColor: color }}
+                    aria-hidden
+                  />
+                  <span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-brand-ink-secondary group-hover:text-brand-ink">
+                    {slice.category}
+                  </span>
+                  <span className="shrink-0 text-[11px] font-bold tabular-nums text-brand-ink">
+                    {slice.count}
+                  </span>
+                </Link>
+              </DashboardTip>
             </li>
           );
         })}

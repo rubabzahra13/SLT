@@ -11,6 +11,7 @@ type PageHeaderProps = {
   action?: { label: string; onClick?: () => void };
   tabs?: React.ReactNode;
   toolbar?: React.ReactNode;
+  meta?: React.ReactNode;
 };
 
 export function PageHeader({
@@ -21,9 +22,10 @@ export function PageHeader({
   action,
   tabs,
   toolbar,
+  meta,
 }: PageHeaderProps) {
   return (
-    <header className="sticky top-0 z-30 shrink-0 border-b border-brand-line/35 bg-[color-mix(in_srgb,var(--color-brand-bg)_97%,transparent)] shadow-[0_1px_0_rgba(15,30,45,0.04)] backdrop-blur-xl backdrop-saturate-150">
+    <header className="sticky top-0 z-30 shrink-0 border-b border-brand-line-strong/50 bg-white">
       <div className={compact ? "px-6 py-3 lg:px-8" : "px-6 py-4 lg:px-8"}>
         <div className="flex items-center justify-between gap-6">
           <div className="flex min-w-0 flex-1 items-center gap-3">
@@ -47,14 +49,15 @@ export function PageHeader({
                     {badge}
                   </span>
                 ) : null}
-                {compact && subtitle ? (
-                  <span className="hidden text-[12px] text-brand-ink-tertiary lg:inline">
-                    {subtitle}
-                  </span>
-                ) : null}
               </div>
-              {!compact && subtitle ? (
-                <p className="mt-1 text-[13px] leading-relaxed text-brand-ink-tertiary">
+              {subtitle ? (
+                <p
+                  className={
+                    compact
+                      ? "mt-0.5 text-[12px] leading-snug text-brand-ink-tertiary"
+                      : "mt-1 text-[13px] leading-relaxed text-brand-ink-tertiary"
+                  }
+                >
                   {subtitle}
                 </p>
               ) : null}
@@ -93,8 +96,11 @@ export function PageHeader({
 
         {tabs ? <div className="mt-4 -mb-px">{tabs}</div> : null}
 
-        {toolbar ? (
-          <div className="mt-5">{toolbar}</div>
+        {toolbar || meta ? (
+          <div className={compact ? "mt-4" : "mt-5"}>
+            {toolbar ? <div className="min-w-0">{toolbar}</div> : null}
+            {meta ? <div className={toolbar ? "mt-3" : undefined}>{meta}</div> : null}
+          </div>
         ) : (
           <div className="h-0" aria-hidden />
         )}

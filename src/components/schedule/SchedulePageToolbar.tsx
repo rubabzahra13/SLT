@@ -1,7 +1,9 @@
 "use client";
 
+import clsx from "clsx";
 import { FilterPill } from "@/components/ui/FilterPill";
-import type { ScheduleViewRange } from "@/lib/schedule-view";
+import { ScheduleHeaderMeta } from "@/components/schedule/ScheduleHeaderMeta";
+import type { ColumnAggregate, ScheduleViewRange } from "@/lib/schedule-view";
 
 const specialtyFilters = ["All", "Cheer", "Dance", "Marching Band"];
 const presentationFilters = ["Matrix", "Calendar"] as const;
@@ -11,30 +13,58 @@ type SchedulePageToolbarProps = {
   specialty: string;
   presentation: SchedulePresentation;
   view: ScheduleViewRange;
+  columns: ColumnAggregate[];
+  availableToday: number;
+  totalProducers: number;
   onSpecialtyChange: (value: string) => void;
   onPresentationChange: (value: SchedulePresentation) => void;
   onViewChange: (value: ScheduleViewRange) => void;
 };
 
+function FilterGroup({
+  label,
+  children,
+  className,
+}: {
+  label: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={clsx("flex min-w-0 flex-col gap-1.5", className)}>
+      <p className="px-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-brand-ink-tertiary">
+        {label}
+      </p>
+      <div
+        className="inline-flex flex-wrap items-center gap-0.5 rounded-xl bg-white p-1 shadow-sm ring-1 ring-inset ring-brand-line/45"
+        role="group"
+        aria-label={label}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
 export function SchedulePageToolbar({
   specialty,
   presentation,
   view,
+  columns,
+  availableToday,
+  totalProducers,
   onSpecialtyChange,
   onPresentationChange,
   onViewChange,
 }: SchedulePageToolbarProps) {
   return (
-    <div className="flex flex-wrap items-center gap-2.5">
+    <div className="flex flex-col gap-3.5">
       <div
-        className="inline-flex flex-wrap items-center gap-0.5 rounded-xl bg-brand-elevated/80 p-0.5 ring-1 ring-inset ring-brand-line/40"
+        className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.4fr)_auto_minmax(0,1fr)] xl:items-end"
         role="toolbar"
         aria-label="Schedule filters"
       >
-        <nav
-          className="inline-flex flex-wrap items-center gap-0.5"
-          aria-label="Producer specialty"
-        >
+        <FilterGroup label="Team">
           {specialtyFilters.map((filter) => (
             <FilterPill
               key={filter}
@@ -44,17 +74,9 @@ export function SchedulePageToolbar({
               onClick={() => onSpecialtyChange(filter)}
             />
           ))}
-        </nav>
+        </FilterGroup>
 
-        <span
-          className="mx-0.5 hidden h-5 w-px shrink-0 bg-brand-line/45 sm:block"
-          aria-hidden
-        />
-
-        <nav
-          className="inline-flex flex-wrap items-center gap-0.5"
-          aria-label="Schedule presentation"
-        >
+        <FilterGroup label="View" className="sm:justify-self-start xl:justify-self-center">
           {presentationFilters.map((label) => {
             const next = label.toLowerCase() as SchedulePresentation;
             return (
@@ -68,17 +90,9 @@ export function SchedulePageToolbar({
               />
             );
           })}
-        </nav>
+        </FilterGroup>
 
-        <span
-          className="mx-0.5 hidden h-5 w-px shrink-0 bg-brand-line/45 sm:block"
-          aria-hidden
-        />
-
-        <nav
-          className="inline-flex flex-wrap items-center gap-0.5"
-          aria-label="Schedule range"
-        >
+        <FilterGroup label="Range" className="sm:col-span-2 xl:col-span-1 xl:justify-self-end">
           <FilterPill
             label="This week"
             active={view === "week"}
@@ -93,13 +107,21 @@ export function SchedulePageToolbar({
           />
           {presentation === "matrix" ? (
             <FilterPill
-              label="90 days from today"
+              label="90 days"
               active={view === "90days"}
               variant="grouped"
               onClick={() => onViewChange("90days")}
             />
           ) : null}
-        </nav>
+        </FilterGroup>
+      </div>
+
+      <div className="border-t border-brand-line/30 px-1 pt-3.5">
+        <ScheduleHeaderMeta
+          columns={columns}
+          availableToday={availableToday}
+          totalProducers={totalProducers}
+        />
       </div>
     </div>
   );

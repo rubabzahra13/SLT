@@ -12,10 +12,10 @@ export function getNextAvailableSlot(
   );
 
   const entries = schedule.filter((s) => s.producer === producerInitials);
-  const open = entries.find((e) => e.status === "available");
+  const availableEntry = entries.find((e) => e.status === "available");
 
-  if (open) {
-    return { date: open.day, label: open.day };
+  if (availableEntry) {
+    return { date: availableEntry.day, label: availableEntry.day };
   }
 
   if (producer?.nextAvailable) {

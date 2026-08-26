@@ -1,11 +1,15 @@
+"use client";
+
 import Link from "next/link";
 import type { IncomingOrdersPoint } from "@/lib/dashboard";
+import { ordersChartInsight } from "@/lib/dashboard-tooltips";
 import {
   BRAND_BLUE,
   BRAND_ORANGE,
   BRAND_SIGNATURE,
   chartGradientStops,
 } from "@/lib/brand-colors";
+import { DashboardTip } from "@/components/dashboard/DashboardTip";
 
 type OrdersIncomingChartProps = {
   points: IncomingOrdersPoint[];
@@ -77,33 +81,62 @@ export function OrdersIncomingChart({
   const linePath = buildSmoothLinePath(plotPoints);
   const areaPath = buildAreaPath(plotPoints, baseline);
   const labelStride = compact ? 3 : 2;
+  const peak = points.reduce<{ label: string; count: number } | null>((best, point) => {
+    if (!best || point.count > best.count) {
+      return { label: point.isToday ? "Today" : point.label, count: point.count };
+    }
+    return best;
+  }, null);
+  const chartInsight = ordersChartInsight(total, todayCount, peak);
 
   return (
     <div className={compact ? "flex h-full min-h-0 flex-col px-3 py-2" : "px-5 py-4"}>
       <div className="mb-1.5 flex shrink-0 items-end justify-between gap-3">
-        <div>
-          <p className="text-[18px] font-bold leading-none tabular-nums tracking-[-0.04em] text-brand-ink">
-            {total}
-          </p>
-          <p className="mt-0.5 text-[9px] font-semibold uppercase tracking-[0.06em] text-brand-ink-tertiary">
-            last 14 days
-          </p>
-        </div>
-        <div className="text-right">
-          <p className="text-[16px] font-bold leading-none tabular-nums tracking-[-0.03em] text-brand-orange">
-            {todayCount}
-          </p>
-          <p className="mt-0.5 text-[9px] font-semibold uppercase tracking-[0.06em] text-brand-ink-tertiary">
-            today
-          </p>
-        </div>
+        <DashboardTip
+          title={chartInsight.title}
+          body={chartInsight.body}
+          placement="top"
+        >
+          <div className="cursor-default">
+            <p className="text-[18px] font-bold leading-none tabular-nums tracking-[-0.04em] text-brand-ink">
+              {total}
+            </p>
+            <p className="mt-0.5 text-[9px] font-semibold uppercase tracking-[0.06em] text-brand-ink-tertiary">
+              last 14 days
+            </p>
+          </div>
+        </DashboardTip>
+        <DashboardTip
+          title="Today"
+          body={
+            todayCount > 0
+              ? `${todayCount} new order${todayCount === 1 ? "" : "s"} logged today — check Orders for details.`
+              : "No new orders logged yet today."
+          }
+          placement="left"
+        >
+          <div className="cursor-default text-right">
+            <p className="text-[16px] font-bold leading-none tabular-nums tracking-[-0.03em] text-brand-ink">
+              {todayCount}
+            </p>
+            <p className="mt-0.5 text-[9px] font-semibold uppercase tracking-[0.06em] text-brand-ink-tertiary">
+              today
+            </p>
+          </div>
+        </DashboardTip>
       </div>
 
-      <Link
-        href={href}
-        className="group block min-h-0 flex-1 overflow-hidden transition-opacity hover:opacity-95"
-        aria-label={`${total} orders in the last 14 days`}
+      <DashboardTip
+        title="Daily volume"
+        body="Hover chart points for day-by-day order counts."
+        className="block min-h-0 flex-1"
+        placement="top"
       >
+        <Link
+          href={href}
+          className="group block min-h-0 flex-1 overflow-hidden transition-opacity hover:opacity-95"
+          aria-label={`${total} orders in the last 14 days`}
+        >
         <svg
           viewBox={`0 0 ${width} ${height}`}
           className="h-full w-full"
@@ -117,8 +150,8 @@ export function OrdersIncomingChart({
               <stop offset="100%" stopColor={lineTo} />
             </linearGradient>
             <linearGradient id="orders-area-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor={areaFrom} stopOpacity={0.28} />
-              <stop offset="100%" stopColor={areaFrom} stopOpacity={0.02} />
+              <stop offset="0%" stopColor={areaFrom} stopOpacity={0.2} />
+              <stop offset="100%" stopColor={areaFrom} stopOpacity={0.01} />
             </linearGradient>
           </defs>
 
@@ -142,19 +175,20 @@ export function OrdersIncomingChart({
             d={linePath}
             fill="none"
             stroke="url(#orders-line-gradient)"
-            strokeWidth={2.5}
+            strokeWidth={2}
             strokeLinecap="round"
             strokeLinejoin="round"
           />
 
           {plotPoints.map((point) => (
             <g key={point.iso}>
+              <title>{`${point.label}: ${point.count} order${point.count === 1 ? "" : "s"}`}</title>
               {point.isToday ? (
                 <circle
                   cx={point.x}
                   cy={point.y}
                   r={6}
-                  fill="rgba(240, 120, 64, 0.14)"
+                  fill="rgba(240, 120, 64, 0.1)"
                 />
               ) : null}
               <circle
@@ -182,7 +216,8 @@ export function OrdersIncomingChart({
             ) : null
           )}
         </svg>
-      </Link>
+        </Link>
+      </DashboardTip>
     </div>
   );
 }

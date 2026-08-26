@@ -69,6 +69,7 @@ export function DataTable<T>({
       : data.length;
 
   const cellClass = compact ? "px-3 py-2" : "px-4 py-3";
+  const headerCellClass = compact ? "px-3 py-2.5" : "px-4 py-3";
   const textSize = compact ? "text-[12px]" : "text-[13px]";
 
   const alignClass = (align?: Column<T>["align"]) =>
@@ -131,8 +132,8 @@ export function DataTable<T>({
                   key={col.key}
                   scope="col"
                   className={clsx(
-                    cellClass,
-                    "text-label table-header-cell border-r font-semibold last:border-r-0",
+                    headerCellClass,
+                    "table-header-label table-header-cell border-r last:border-r-0",
                     alignClass(col.align),
                     stickyClass(col.sticky, true),
                     col.headerClassName
@@ -160,8 +161,13 @@ export function DataTable<T>({
                 <tr
                   key={rowKey(row)}
                   className={clsx(
-                    "border-b border-brand-line-strong bg-brand-elevated transition-colors last:border-b-0",
-                    variant === "muted" && "bg-brand-surface",
+                    "border-b border-brand-line-strong transition-colors last:border-b-0",
+                    embedded
+                      ? "dashboard-table-row"
+                      : clsx(
+                          "bg-brand-elevated",
+                          variant === "muted" && "bg-brand-surface"
+                        ),
                     isInteractive && "cursor-pointer hover:bg-brand-blue-soft/25"
                   )}
                   onClick={isInteractive ? () => handleRowClick(row) : undefined}
@@ -192,7 +198,12 @@ export function DataTable<T>({
       </DottedScroll>
 
       {pageSize && pageSize > 0 && data.length > pageSize ? (
-        <div className="flex items-center justify-between gap-3 border-t border-brand-line-strong bg-brand-elevated/50 px-4 py-3">
+        <div
+          className={clsx(
+            "flex items-center justify-between gap-3 border-t border-brand-line-strong px-4 py-3",
+            embedded ? "dashboard-table-footer" : "bg-brand-elevated/50"
+          )}
+        >
           <p className="text-[12px] font-medium text-brand-ink-tertiary">
             {rangeStart}–{rangeEnd} of {data.length}
           </p>

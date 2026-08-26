@@ -18,6 +18,7 @@ import { useSidebar } from "@/context/SidebarContext";
 import { useAppState } from "@/context/AppStateContext";
 import { getInProgressCount } from "@/lib/mtd-filters";
 import { getPayrollRecords } from "@/lib/mtd-completion";
+import { BrandMonogram } from "@/components/layout/BrandMonogram";
 import { HoverTip } from "@/components/ui/HoverTip";
 import { DottedScroll } from "@/components/ui/DottedScroll";
 
@@ -38,25 +39,6 @@ const baseNavItems: NavItem[] = [
   { href: "/producers", label: "Producers", icon: Users },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
-
-function BrandMonogram({ className }: { className?: string }) {
-  return (
-    <span
-      className={clsx(
-        "flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand-blue to-brand-orange p-[1.5px]",
-        className
-      )}
-    >
-      <span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-white">
-        <img
-          src="/ChatGPT Image Aug 20, 2026, 12_27_46 PM.png"
-          alt=""
-          className="h-full w-full translate-x-[6px] scale-[1.24] object-contain object-center"
-        />
-      </span>
-    </span>
-  );
-}
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -108,7 +90,7 @@ export function Sidebar() {
   return (
     <aside
       className={clsx(
-        "fixed inset-y-0 left-0 z-50 flex flex-col border-r border-brand-sidebar-border bg-brand-sidebar shadow-[4px_0_28px_rgba(0,0,0,0.35)] transition-[width,transform] duration-300 ease-out md:translate-x-0",
+        "fixed inset-y-0 left-0 z-50 flex flex-col border-r border-brand-sidebar-border bg-brand-sidebar shadow-[1px_0_0_rgba(15,20,25,0.06),4px_0_24px_rgba(0,0,0,0.12)] transition-[width,transform] duration-300 ease-out md:translate-x-0",
         mobileOpen ? "translate-x-0" : "-translate-x-full",
         showExpanded
           ? "w-[min(252px,88vw)] md:w-[228px]"
@@ -223,7 +205,7 @@ export function Sidebar() {
                     "h-[19px] w-[19px] shrink-0",
                     active
                       ? "text-brand-blue"
-                      : "text-brand-sidebar-text-muted group-hover:text-brand-sidebar-text"
+                      : "text-brand-sidebar-text group-hover:text-brand-sidebar-ink"
                   )}
                   strokeWidth={active ? 2.25 : 1.75}
                 />

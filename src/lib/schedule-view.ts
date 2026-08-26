@@ -318,7 +318,7 @@ export type CalendarDay = {
 
 export type ColumnAggregate = {
   key: string;
-  openCount: number;
+  availableCount: number;
   unavailableCount: number;
   total: number;
   label: string;
@@ -349,15 +349,35 @@ export function aggregateColumns(
 
   return rows[0].cells.map((cell, index) => {
     const unavailableCount = rows.filter((row) => row.cells[index]?.unavailable).length;
-    const openCount = rows.length - unavailableCount;
+    const availableCount = rows.length - unavailableCount;
     return {
       key: cell.key,
-      openCount,
+      availableCount,
       unavailableCount,
       total: rows.length,
       label: cell.dateLabel,
       dayLabel: cell.dayLabel,
       isToday: cell.key === todayKey,
+    };
+  });
+}
+
+export function buildScheduleColumnAggregates(
+  range: ScheduleViewRange,
+  anchorDate = new Date(2026, 7, 19)
+): ColumnAggregate[] {
+  const todayKey = anchorDate.toISOString().slice(0, 10);
+
+  return buildDateRange(range, anchorDate).map((date) => {
+    const key = date.toISOString().slice(0, 10);
+    return {
+      key,
+      availableCount: 0,
+      unavailableCount: 0,
+      total: 0,
+      label: `${MONTH_NAMES[date.getMonth()]} ${date.getDate()}`,
+      dayLabel: DAY_NAMES[date.getDay()],
+      isToday: key === todayKey,
     };
   });
 }
@@ -465,7 +485,7 @@ export function cellSizeForRange(range: ScheduleViewRange): "sm" | "md" | "lg" {
 export function statusLabel(status: ScheduleCell["status"]): string {
   if (status === "mix") return "Booked";
   if (status === "off") return "Off";
-  return "Open";
+  return "Available";
 }
 
 export type MatrixDateDisplay = {

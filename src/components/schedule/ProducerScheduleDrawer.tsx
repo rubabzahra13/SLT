@@ -64,7 +64,7 @@ export function ProducerScheduleDrawer({
         </div>
 
         <div className="grid grid-cols-3 gap-3 border-b border-brand-line/70 p-5">
-          <Stat label="Open" value={available} tone="success" />
+          <Stat label="Available" value={available} tone="success" />
           <Stat label="Unavailable" value={unavailable} tone="neutral" />
           <Stat
             label="Status"
@@ -84,7 +84,7 @@ export function ProducerScheduleDrawer({
               {statusLabel(focusCell.status)}
               {focusCell.unavailable
                 ? " — not available for new assignments"
-                : " — open for booking"}
+                : " — available for booking"}
             </p>
           </div>
         ) : null}

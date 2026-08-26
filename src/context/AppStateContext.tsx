@@ -548,9 +548,9 @@ function formatSlot(
   schedule: ScheduleEntry[]
 ): string {
   const producer = producers.find((p) => p.initials === initials);
-  const open = schedule.find(
+  const availableEntry = schedule.find(
     (s) => s.producer === initials && s.status === "available"
   );
-  if (open) return open.day;
+  if (availableEntry) return availableEntry.day;
   return producer?.nextAvailable ?? "TBD";
 }

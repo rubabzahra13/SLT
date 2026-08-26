@@ -21,17 +21,20 @@ type TeamScheduleMatrixProps = {
   range: ScheduleViewRange;
   activeProducerId?: string | null;
   onSelectProducer: (row: TeamScheduleRow, cell?: ScheduleCell) => void;
+  emptyMessage?: string;
   className?: string;
 };
 
-type DayRow = {
-  column: ColumnAggregate;
-  entries: { row: TeamScheduleRow; cell: ScheduleCell }[];
+type ProducerRow = {
+  row: TeamScheduleRow;
+  availableCount: number;
+  bookingCount: number;
+  entries: { column: ColumnAggregate; cell: ScheduleCell }[];
 };
 
 const LAYOUT = {
   dateCol: 88,
-  offCol: 72,
+  statCol: 56,
   monthBarH: {
     month: 28,
     "90days": 26,
@@ -104,6 +107,7 @@ function ScheduleCellButton({
 }) {
   const isWeek = range === "week";
   const booking = cell.booking;
+  const isOff = cell.status === "off";
 
   const button = (
     <button
@@ -115,11 +119,13 @@ function ScheduleCellButton({
           : `${cell.dayLabel} ${cell.dateLabel} · ${statusLabel(cell.status)}`
       }
       className={clsx(
-        "mx-auto w-full rounded-md transition-all duration-150 hover:scale-[1.04] hover:ring-1 hover:ring-brand-blue/40",
+        "mx-auto w-full rounded-md transition-all duration-150 hover:scale-[1.04] hover:ring-1",
         isWeek ? "h-6 max-h-8 min-h-5" : "h-3.5",
-        cell.unavailable
-          ? "bg-gradient-to-b from-brand-blue to-brand-signature shadow-[0_1px_2px_rgba(15,30,45,0.18)]"
-          : "bg-white ring-1 ring-inset ring-brand-line/70 hover:bg-brand-blue-soft/40",
+        isOff
+          ? "bg-brand-orange/80 shadow-[0_1px_2px_rgba(240,120,64,0.16)] hover:ring-brand-orange/30"
+          : cell.unavailable
+            ? "bg-gradient-to-b from-brand-blue to-brand-signature shadow-[0_1px_2px_rgba(15,30,45,0.18)] hover:ring-brand-blue/40"
+            : "bg-white ring-1 ring-inset ring-brand-line/70 hover:bg-brand-blue-soft/40 hover:ring-brand-blue/40",
         selected &&
           "ring-2 ring-brand-orange ring-offset-1 ring-offset-white"
       )}
@@ -140,7 +146,12 @@ function ScheduleCellButton({
       placement="top"
       content={
         <div className="min-w-[160px]">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-brand-signature">
+          <p
+            className={clsx(
+              "text-[10px] font-semibold uppercase tracking-[0.06em]",
+              isOff ? "text-brand-orange" : "text-brand-signature"
+            )}
+          >
             {statusLabel(cell.status)}
           </p>
           <p className="mt-1 text-[12px] font-medium leading-snug text-brand-ink">
@@ -163,188 +174,273 @@ export function TeamScheduleMatrix({
   range,
   activeProducerId,
   onSelectProducer,
+  emptyMessage = "No producers in this view.",
   className,
 }: TeamScheduleMatrixProps) {
   const isWeek = range === "week";
   const showMonthBars = !isWeek;
+  const hasProducers = rows.length > 0;
 
   const monthGroups = useMemo(
     () => (showMonthBars ? buildMatrixMonthGroups(columns) : []),
     [columns, showMonthBars]
   );
 
-  const groupByStart = useMemo(() => {
-    const map = new Map<number, MatrixMonthGroup>();
-    for (const group of monthGroups) {
-      map.set(group.startIndex, group);
-    }
-    return map;
-  }, [monthGroups]);
-
-  const dayRows = useMemo<DayRow[]>(() => {
-    return columns.map((column, dayIndex) => ({
-      column,
-      entries: rows.map((row) => ({
-        row,
+  const producerRows = useMemo<ProducerRow[]>(() => {
+    return rows.map((row) => ({
+      row,
+      availableCount: row.cells.filter((cell) => !cell.unavailable).length,
+      bookingCount: row.cells.filter((cell) => cell.unavailable).length,
+      entries: columns.map((column, dayIndex) => ({
+        column,
         cell: row.cells[dayIndex],
       })),
     }));
   }, [columns, rows]);
 
-  const teamTotal = rows.length;
-  const producerCount = Math.max(rows.length, 1);
-  const producerCol = LAYOUT.producerCol[range];
+  const producerCount = hasProducers ? rows.length : 1;
   const dayCount = Math.max(columns.length, 1);
+  const producerLabelCol = LAYOUT.dateCol;
+  const statCol = LAYOUT.statCol;
+  const dayCol = LAYOUT.producerCol[range];
+  const monthBarH = isWeek ? 0 : LAYOUT.monthBarH[range];
+  const stickyStatCount = 2;
 
   const matrixWidth =
-    LAYOUT.dateCol + LAYOUT.offCol + producerCount * producerCol;
+    producerLabelCol + statCol * stickyStatCount + dayCount * dayCol;
 
   const gridTemplateColumns = useMemo(() => {
-    return `${LAYOUT.dateCol}px ${LAYOUT.offCol}px repeat(${producerCount}, minmax(${producerCol}px, 1fr))`;
-  }, [producerCount, producerCol]);
+    return `${producerLabelCol}px ${statCol}px ${statCol}px repeat(${dayCount}, minmax(${dayCol}px, 1fr))`;
+  }, [dayCol, dayCount, producerLabelCol, statCol]);
 
   const gridTemplateRows = useMemo(() => {
-    if (isWeek) {
-      return `${LAYOUT.headerH.week}px repeat(${dayCount}, minmax(0, 1fr))`;
+    const parts = [`${LAYOUT.headerH[range]}px`];
+    if (showMonthBars) {
+      parts.push(`${monthBarH}px`);
     }
-    return `${LAYOUT.headerH[range]}px`;
-  }, [dayCount, isWeek, range]);
+    parts.push(`repeat(${producerCount}, minmax(0, 1fr))`);
+    return parts.join(" ");
+  }, [monthBarH, producerCount, range, showMonthBars]);
 
-  const dateStickyLeft = 0;
-  const availableStickyLeft = LAYOUT.dateCol;
-  const monthBarTop = LAYOUT.headerH[range];
-  const monthBarH =
-    range === "week" ? 0 : LAYOUT.monthBarH[range];
+  const producerStickyLeft = 0;
+  const freeStickyLeft = producerLabelCol;
+  const bookingsStickyLeft = producerLabelCol + statCol;
+  const dateColOffset = 3;
+  const bodyGridRow = showMonthBars ? 3 : 2;
+  const emptyBodyTop = LAYOUT.headerH[range] + (showMonthBars ? monthBarH : 0);
+
+  const emptyStateOverlay = !hasProducers ? (
+    <div
+      className="pointer-events-none absolute inset-x-0 bottom-0 z-30 flex items-center justify-center px-6"
+      style={{ top: emptyBodyTop }}
+    >
+      <div className="max-w-md text-center">
+        <p className="text-[13px] font-semibold text-brand-ink">{emptyMessage}</p>
+        <p className="mt-1 text-[12px] leading-relaxed text-brand-ink-tertiary">
+          Try another team filter or add a producer with this specialty.
+        </p>
+      </div>
+    </div>
+  ) : null;
 
   const grid = (
     <div
-      className={clsx(
-        "grid w-full min-w-0 text-[11px]",
-        isWeek ? "h-full min-h-0" : "h-auto"
-      )}
+      className="schedule-matrix-grid grid min-h-0 w-full min-w-0 flex-1 text-[11px]"
       style={{
         minWidth: matrixWidth,
-        height: isWeek ? "100%" : undefined,
+        minHeight: "100%",
+        height: "100%",
         gridTemplateColumns,
         gridTemplateRows,
-        gridAutoRows: isWeek ? undefined : `${LAYOUT.rowH[range]}px`,
       }}
     >
-      <div
-        className="sticky left-0 top-0 z-40 flex items-center justify-center border-b border-r border-brand-line/60 bg-brand-bg-subtle/95 px-2 py-2 backdrop-blur-md"
-      >
+      <div className="schedule-chrome-header sticky left-0 top-0 z-40 flex items-center justify-center border-r border-brand-line/60 px-2 py-2">
         <p className="text-center text-[9px] font-bold uppercase tracking-[0.06em] text-brand-ink-tertiary">
-          Date
+          Producer
         </p>
       </div>
       <div
-        className="sticky top-0 z-40 flex items-center justify-center border-b border-r border-brand-line/60 bg-brand-bg-subtle/95 px-1.5 py-2 text-center backdrop-blur-md"
-        style={{ left: availableStickyLeft }}
+        className="schedule-chrome-header sticky top-0 z-40 flex items-center justify-center border-r border-brand-line/60 px-1 py-2 text-center"
+        style={{ left: freeStickyLeft }}
       >
-        <div className="relative flex w-full flex-col items-center justify-center">
-          <p className="text-[9px] font-bold uppercase leading-tight tracking-[0.06em] text-brand-ink-tertiary">
-            Available
-          </p>
-          <p className="absolute top-full mt-0.5 text-[10px] font-semibold tabular-nums text-brand-ink-tertiary">
-            out of {teamTotal}
-          </p>
-        </div>
+        <p className="text-[9px] font-bold uppercase leading-tight tracking-[0.06em] text-brand-ink-tertiary">
+          Free
+        </p>
+      </div>
+      <div
+        className="schedule-chrome-header sticky top-0 z-40 flex items-center justify-center border-r border-brand-line/60 px-1 py-2 text-center"
+        style={{ left: bookingsStickyLeft }}
+      >
+        <p className="text-[9px] font-bold uppercase leading-tight tracking-[0.06em] text-brand-ink-tertiary">
+          Booked
+        </p>
       </div>
 
-      {rows.map((row, index) => {
-        const isActive = row.producer.id === activeProducerId;
-        const isLast = index === rows.length - 1;
+      {columns.map((column, index) => {
+        const isLast = index === columns.length - 1;
         return (
-          <button
-            key={row.producer.id}
-            type="button"
-            onClick={() => onSelectProducer(row)}
-            title={row.producer.name}
+          <div
+            key={column.key}
             className={clsx(
-              "sticky top-0 z-30 flex min-h-0 min-w-0 w-full flex-col items-center justify-center gap-1 overflow-visible border-b border-r border-brand-line/60 bg-brand-bg-subtle/95 px-0.5 py-1.5 backdrop-blur-md transition hover:bg-brand-blue-soft/60",
-              isLast && "border-r-0",
-              isActive && "bg-brand-orange-soft hover:bg-brand-orange-soft"
+              "schedule-chrome-header sticky top-0 z-30 flex items-center justify-center border-r border-brand-line/60 px-1 py-2",
+              isLast && "border-r-0"
             )}
           >
-            <div
-              className={clsx(
-                "shrink-0 rounded-full ring-1 ring-offset-1 ring-offset-white",
-                isActive ? "ring-brand-orange/60" : "ring-brand-blue/30"
-              )}
-            >
-              <Avatar
-                src={row.producer.avatar}
-                alt={row.producer.name}
-                size="sm"
-              />
-            </div>
-            <span
-              className={clsx(
-                "max-w-full shrink-0 truncate text-[10px] font-bold leading-none",
-                isActive ? "text-brand-orange-deep" : "text-brand-ink-secondary"
-              )}
-            >
-              {row.producer.initials}
-            </span>
-          </button>
+            <DateColumnCell column={column} range={range} />
+          </div>
         );
       })}
 
-      {dayRows.map(({ column, entries }, rowIndex) => {
-        const monthStart = groupByStart.get(rowIndex);
+      {showMonthBars ? (
+        <>
+          <div className="sticky left-0 z-20 border-b border-r border-brand-line/60 bg-brand-bg-subtle/95" />
+          <div
+            className="sticky z-20 border-b border-r border-brand-line/60 bg-brand-bg-subtle/95"
+            style={{ left: freeStickyLeft }}
+          />
+          <div
+            className="sticky z-20 border-b border-r border-brand-line/60 bg-brand-bg-subtle/95"
+            style={{ left: bookingsStickyLeft }}
+          />
+          {monthGroups.map((group) => (
+            <div
+              key={group.key}
+              className="sticky z-[25] flex items-center border-b border-r border-brand-line/60 bg-brand-bg-subtle/95 px-3"
+              style={{
+                gridColumn: `${group.startIndex + dateColOffset + 1} / span ${group.rowCount}`,
+                top: LAYOUT.headerH[range],
+                height: monthBarH,
+                minHeight: monthBarH,
+              }}
+            >
+              <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-brand-ink-secondary">
+                {group.label}
+              </p>
+            </div>
+          ))}
+        </>
+      ) : null}
+
+      {!hasProducers ? (
+        <>
+          <div
+            className="sticky left-0 z-20 h-full min-h-0 self-stretch border-b border-r border-brand-line/60 bg-white"
+            style={{ gridRow: bodyGridRow }}
+          />
+          <div
+            className="sticky z-20 h-full min-h-0 self-stretch border-b border-r border-brand-line/60 bg-white"
+            style={{ left: freeStickyLeft, gridRow: bodyGridRow }}
+          />
+          <div
+            className="sticky z-20 h-full min-h-0 self-stretch border-b border-r border-brand-line/60 bg-white"
+            style={{ left: bookingsStickyLeft, gridRow: bodyGridRow }}
+          />
+          {columns.map((column, index) => {
+            const isLast = index === columns.length - 1;
+            return (
+              <div
+                key={column.key}
+                className={clsx(
+                  "h-full min-h-0 self-stretch border-b border-r border-brand-line/20 bg-white",
+                  isLast && "border-r-0"
+                )}
+                style={{ gridRow: bodyGridRow }}
+              />
+            );
+          })}
+        </>
+      ) : null}
+
+      {hasProducers
+        ? producerRows.map(({ row, availableCount, bookingCount, entries }, rowIndex) => {
+        const isActive = row.producer.id === activeProducerId;
+        const isLastRow = rowIndex === producerRows.length - 1;
 
         return (
-          <Fragment key={column.key}>
-            {monthStart ? (
+          <Fragment key={row.producer.id}>
+            <button
+              type="button"
+              onClick={() => onSelectProducer(row)}
+              title={row.producer.name}
+              className={clsx(
+                "sticky left-0 z-20 flex h-full min-h-0 min-w-0 w-full flex-col items-center justify-center gap-1 self-stretch overflow-visible border-b border-r border-brand-line/60 bg-white px-0.5 py-1.5 transition hover:bg-brand-blue-soft/30",
+                isLastRow && "border-b-0",
+                isActive && "bg-brand-orange-soft/40 hover:bg-brand-orange-soft/40"
+              )}
+            >
               <div
-                className="sticky z-[25] flex items-center border border-brand-line/60 bg-brand-bg-subtle/95 px-3 backdrop-blur-md"
-                style={{
-                  gridColumn: "1 / -1",
-                  top: monthBarTop,
-                  height: monthBarH,
-                  minHeight: monthBarH,
-                }}
+                className={clsx(
+                  "shrink-0 rounded-full ring-1 ring-offset-1 ring-offset-white",
+                  isActive ? "ring-brand-orange/60" : "ring-brand-blue/30"
+                )}
               >
-                <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-brand-ink-secondary">
-                  {monthStart.label}
-                </p>
+                <Avatar
+                  src={row.producer.avatar}
+                  alt={row.producer.name}
+                  size="sm"
+                />
               </div>
-            ) : null}
+              <span
+                className={clsx(
+                  "max-w-full shrink-0 truncate text-[10px] font-bold leading-none",
+                  isActive ? "text-brand-orange-deep" : "text-brand-ink-secondary"
+                )}
+              >
+                {row.producer.initials}
+              </span>
+            </button>
 
             <div
-              className="sticky left-0 z-20 flex items-center border-b border-r border-brand-line/70 bg-white px-1.5 py-1.5"
-              style={{ left: dateStickyLeft }}
-            >
-              <DateColumnCell column={column} range={range} />
-            </div>
-            <div
-              className="sticky z-20 flex items-center border-b border-r border-brand-line/70 bg-white px-1 py-1.5"
-              style={{ left: availableStickyLeft }}
+              className={clsx(
+                "sticky z-20 flex h-full min-h-0 items-center self-stretch border-b border-r border-brand-line/70 bg-white px-1 py-1.5",
+                isLastRow && "border-b-0"
+              )}
+              style={{ left: freeStickyLeft }}
             >
               <p
                 className={clsx(
-                  "w-full text-center text-[11px] font-semibold tabular-nums leading-none",
-                  column.openCount === column.total
+                  "w-full text-center text-[11px] font-medium tabular-nums leading-none",
+                  availableCount === columns.length
                     ? "text-brand-signature"
-                    : column.openCount === 0
+                    : availableCount === 0
                       ? "text-brand-orange"
                       : "text-brand-ink-secondary"
                 )}
-                title={`${column.openCount} of ${column.total} available`}
+                title={`${availableCount} free days in view`}
               >
-                {column.openCount}
+                {availableCount}
               </p>
             </div>
 
-            {entries.map(({ row, cell }, entryIndex) => {
-              const isActive = row.producer.id === activeProducerId;
-              const isLast = entryIndex === entries.length - 1;
+            <div
+              className={clsx(
+                "sticky z-20 flex h-full min-h-0 items-center self-stretch border-b border-r border-brand-line/70 bg-white px-1 py-1.5",
+                isLastRow && "border-b-0"
+              )}
+              style={{ left: bookingsStickyLeft }}
+            >
+              <p
+                className={clsx(
+                  "w-full text-center text-[11px] tabular-nums leading-none",
+                  bookingCount === 0
+                    ? "text-brand-ink-tertiary"
+                    : "text-brand-orange"
+                )}
+                title={`${bookingCount} bookings in view`}
+              >
+                {bookingCount}
+              </p>
+            </div>
+
+            {entries.map(({ column, cell }, entryIndex) => {
+              const isLastCol = entryIndex === entries.length - 1;
               return (
                 <div
-                  key={`${column.key}-${row.producer.id}`}
+                  key={`${row.producer.id}-${column.key}`}
                   className={clsx(
-                    "group/cell flex min-h-0 min-w-0 items-center justify-center border-b border-r border-brand-line/20 bg-white px-0.5 py-1 transition-colors",
-                    isLast && "border-r-0",
+                    "group/cell flex h-full min-h-0 min-w-0 items-center justify-center self-stretch border-b border-r border-brand-line/20 bg-white px-0.5 py-1 transition-colors",
+                    isLastRow && "border-b-0",
+                    isLastCol && "border-r-0",
                     isActive
                       ? "bg-brand-orange-soft/40"
                       : "hover:bg-brand-blue-soft/25"
@@ -361,14 +457,15 @@ export function TeamScheduleMatrix({
             })}
           </Fragment>
         );
-      })}
+      })
+        : null}
     </div>
   );
 
   return (
     <div
       className={clsx(
-        "flex h-full min-h-0 w-full flex-col overflow-hidden rounded-xl border border-brand-line/50 bg-white shadow-[var(--shadow-premium-sm)] ring-1 ring-inset ring-brand-line/20",
+        "dashboard-panel dashboard-panel-framed flex h-full min-h-0 w-full flex-col overflow-hidden",
         className
       )}
       style={{
@@ -378,13 +475,10 @@ export function TeamScheduleMatrix({
         minHeight: 0,
       }}
     >
-      {isWeek ? (
-        <div className="min-h-0 flex-1 overflow-x-auto overflow-y-hidden">
-          {grid}
-        </div>
-      ) : (
-        <div className="min-h-0 flex-1 overflow-auto scrollbar-hide">{grid}</div>
-      )}
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-x-auto overflow-y-hidden">
+        {grid}
+        {emptyStateOverlay}
+      </div>
     </div>
   );
 }

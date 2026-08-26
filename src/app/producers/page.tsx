@@ -72,29 +72,37 @@ export default function ProducersPage() {
         action={{ label: "Add Producer", onClick: openAdd }}
       />
 
-      <div className="grid gap-4 p-8 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <div className="grid gap-4 px-6 pb-6 pt-5 sm:grid-cols-2 lg:grid-cols-3 lg:px-8 xl:grid-cols-4">
         {producers.map((producer) => (
           <article
             key={producer.id}
-            className="surface-premium relative rounded-2xl p-6 transition hover:shadow-[var(--shadow-premium)]"
+            className="dashboard-panel relative flex flex-col"
           >
-            <button
-              type="button"
-              onClick={() => openEdit(producer)}
-              className="absolute left-3 top-3 rounded-full p-2 text-brand-ink-tertiary transition hover:bg-brand-bg hover:text-brand-ink"
-              aria-label={`Edit ${producer.name}`}
-            >
-              <Pencil className="h-4 w-4" strokeWidth={1.75} />
-            </button>
-            <button
-              type="button"
-              onClick={() => setDeleting(producer)}
-              className="absolute right-3 top-3 rounded-full p-2 text-brand-ink-tertiary transition hover:bg-brand-orange-soft hover:text-brand-danger"
-              aria-label={`Delete ${producer.name}`}
-            >
-              <Trash2 className="h-4 w-4" strokeWidth={1.75} />
-            </button>
+            <div className="dashboard-panel-head dashboard-panel-head-accent flex shrink-0 items-center justify-between gap-2 px-4 py-3">
+              <span className="dashboard-panel-title truncate text-[11px] uppercase tracking-[0.06em]">
+                {producer.specialty}
+              </span>
+              <div className="flex shrink-0 items-center">
+                <button
+                  type="button"
+                  onClick={() => openEdit(producer)}
+                  className="rounded-lg p-1.5 text-brand-ink-tertiary transition hover:bg-brand-blue-soft/25 hover:text-brand-ink"
+                  aria-label={`Edit ${producer.name}`}
+                >
+                  <Pencil className="h-3.5 w-3.5" strokeWidth={1.75} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDeleting(producer)}
+                  className="rounded-lg p-1.5 text-brand-ink-tertiary transition hover:bg-brand-orange-soft hover:text-brand-danger"
+                  aria-label={`Delete ${producer.name}`}
+                >
+                  <Trash2 className="h-3.5 w-3.5" strokeWidth={1.75} />
+                </button>
+              </div>
+            </div>
 
+            <div className="dashboard-panel-body flex flex-1 flex-col p-6 pt-4">
             <div className="flex flex-col items-center text-center">
               <div
                 className={clsx(
@@ -109,9 +117,6 @@ export default function ProducersPage() {
               <p className="mt-0.5 text-[12px] font-medium text-brand-ink-tertiary">
                 {producer.initials}
               </p>
-              <span className="mt-3 rounded-full border border-brand-line bg-brand-bg px-3 py-1 text-[11px] font-medium text-brand-ink-secondary">
-                {producer.specialty}
-              </span>
             </div>
 
             <div className="mt-5 space-y-2.5 border-t border-brand-line pt-5">
@@ -161,20 +166,39 @@ export default function ProducersPage() {
             <button
               type="button"
               onClick={() => setAvailabilityProducer(producer)}
-              className="mt-5 w-full rounded-xl bg-brand-ink py-2.5 text-[13px] font-semibold text-white transition hover:bg-brand-accent-hover"
+              className="mt-5 w-full rounded-xl border border-brand-line/50 bg-white/80 py-2.5 text-[13px] font-semibold text-brand-ink-secondary transition hover:border-brand-blue/30 hover:bg-brand-blue-soft/20 hover:text-brand-ink"
             >
               Days & schedule
             </button>
+            </div>
           </article>
         ))}
 
         <button
           type="button"
           onClick={openAdd}
-          className="flex min-h-[300px] flex-col items-center justify-center rounded-2xl border border-dashed border-brand-line-strong bg-brand-bg/50 text-brand-ink-tertiary transition hover:border-brand-ink-tertiary hover:text-brand-ink"
+          className="dashboard-panel dashboard-panel-dashed flex min-h-[300px] flex-col border-dashed !border-brand-line/45 bg-brand-bg-subtle/30 text-brand-ink-tertiary transition hover:!border-brand-blue/35 hover:bg-brand-blue-soft/15 hover:text-brand-ink"
         >
-          <Plus className="h-6 w-6" strokeWidth={1.5} />
-          <span className="mt-2 text-[13px] font-medium">Add producer</span>
+          <div
+            className="dashboard-panel-head flex shrink-0 items-center justify-between gap-2 px-4 py-3"
+            aria-hidden
+          >
+            <span className="dashboard-panel-title pointer-events-none text-[11px] uppercase tracking-[0.06em] opacity-0">
+              Add producer
+            </span>
+            <div className="flex shrink-0 items-center opacity-0">
+              <span className="rounded-lg p-1.5">
+                <span className="block h-3.5 w-3.5" />
+              </span>
+              <span className="rounded-lg p-1.5">
+                <span className="block h-3.5 w-3.5" />
+              </span>
+            </div>
+          </div>
+          <span className="dashboard-panel-body flex flex-1 flex-col items-center justify-center">
+            <Plus className="h-6 w-6" strokeWidth={1.5} />
+            <span className="mt-2 text-[13px] font-medium">Add producer</span>
+          </span>
         </button>
       </div>
 

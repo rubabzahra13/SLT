@@ -98,7 +98,7 @@ const tableDateClass = "!w-auto min-w-[108px] max-w-full";
 const tableStatusSelectClass =
   "!h-8 !min-h-0 !w-auto min-w-[132px] max-w-full !py-0";
 const compactCellClass = "!px-1 !py-1 overflow-hidden";
-const compactHeaderClass = "!px-1 !py-1.5";
+const compactHeaderClass = "!px-2";
 const compactTextClass = "text-[12px] leading-none text-brand-ink";
 
 function multilineTableCell(value: string, maxWidth = "180px") {
@@ -538,7 +538,7 @@ export default function MTDPage() {
         align: "center",
         nowrap: false,
         cellClassName: "!px-2 !py-1.5",
-        headerClassName: "!px-2 !py-2",
+        headerClassName: "!px-2",
         render: (rec) => {
           const template = rec.assignedProducer
             ? suggestMixStartDate(rec.assignedProducer, producers, schedule)
@@ -552,7 +552,7 @@ export default function MTDPage() {
                 rec.assignedProducer && !hasMixStartDate(rec) ? (
                   <span
                     className="text-brand-ink-tertiary"
-                    title="Next open slot for this producer on the team schedule"
+                    title="Next available slot for this producer on the team schedule"
                   >
                     Next slot ·{" "}
                     {formatSlotForDisplay(
@@ -594,7 +594,7 @@ export default function MTDPage() {
         align: "center",
         nowrap: false,
         cellClassName: "!px-2 !py-1.5",
-        headerClassName: "!px-2 !py-2",
+        headerClassName: "!px-2",
         render: (rec) => {
           const startIso = toIsoDateString(rec.mixStartDate);
           const template =
@@ -631,7 +631,7 @@ export default function MTDPage() {
         align: "center",
         nowrap: false,
         cellClassName: "!px-2 !py-2",
-        headerClassName: "!px-2 !py-2",
+        headerClassName: "!px-2",
         render: (rec) => {
           const current = rec.eightCountSheet || EIGHT_CS_OPTIONS[2];
           const flags = parseEightCsFlags(current);
@@ -662,7 +662,7 @@ export default function MTDPage() {
         align: "center",
         nowrap: false,
         cellClassName: "!px-2 !py-2",
-        headerClassName: "!px-2 !py-2",
+        headerClassName: "!px-2",
         render: (rec) => {
           const current = rec.haveSongs || SONGS_OPTIONS[1];
           const flags = parseSongsFlags(current);
@@ -789,7 +789,7 @@ export default function MTDPage() {
         align: "center",
         nowrap: false,
         cellClassName: "!px-2 !py-1.5 pr-5",
-        headerClassName: "!px-2 !py-2 pr-5",
+        headerClassName: "!px-2 pr-5",
         render: (rec) => (
           <InlineCell centered>
             <InlineSelect
@@ -868,7 +868,7 @@ export default function MTDPage() {
       />
 
       <div className="px-6 pb-6 pt-5 lg:px-8">
-        <div className="panel-shell overflow-hidden rounded-2xl">
+        <div className="dashboard-panel dashboard-panel-framed overflow-hidden">
           <DataTable
             key={`${form}-${cheerSubtype}-${danceSubtype}-${tableFilterKey}`}
             columns={columns}

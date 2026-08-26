@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Bell, ChevronRight, Palette, Shield } from "lucide-react";
+import { Bell, ChevronRight, Palette } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 
@@ -18,38 +18,10 @@ type SettingSection = {
 
 const sections: SettingSection[] = [
   {
-    title: "Producer settings",
-    description: "Roster, specialties, and availability",
-    icon: Shield,
-    items: [
-      {
-        label: "Producer roster",
-        description: "Add, edit, and remove team members",
-        href: "/producers",
-      },
-      {
-        label: "Specializations",
-        description: "Genre and category assignments",
-      },
-      {
-        label: "Availability defaults",
-        description: "Work days and time-off rules",
-      },
-    ],
-  },
-  {
     title: "Pricing rules",
     description: "Rates, packages, and discounts",
     icon: Palette,
     items: [
-      {
-        label: "Compliance rates",
-        description: "Compliant vs non-compliant pricing",
-      },
-      {
-        label: "Package templates",
-        description: "Tier and time-limit defaults",
-      },
       {
         label: "Discount codes",
         description: "Promo codes and usage rules",
@@ -90,35 +62,27 @@ export default function SettingsPage() {
       <div className="px-6 pb-6 pt-5 lg:px-8">
         <div className="mx-auto flex max-w-2xl flex-col gap-4">
           {sections.map((section) => (
-            <section
-              key={section.title}
-              className="panel-shell overflow-hidden rounded-2xl"
-            >
-              <div className="border-b border-brand-line/30 bg-gradient-to-b from-brand-bg-subtle/90 to-white px-5 py-3.5">
-                <div className="flex items-start gap-3">
+            <section key={section.title} className="dashboard-panel flex flex-col">
+              <div className="flex shrink-0 items-center gap-3 border-b border-brand-line/30 px-4 py-3">
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand-bg-subtle/80 ring-1 ring-inset ring-brand-line/40">
                   <section.icon
-                    className="mt-0.5 h-4 w-4 shrink-0 text-brand-signature"
+                    className="h-3.5 w-3.5 text-brand-ink-tertiary"
                     strokeWidth={2}
                   />
-                  <div className="min-w-0">
-                    <h2 className="text-[13px] font-semibold tracking-[-0.01em] text-brand-ink">
-                      {section.title}
-                    </h2>
-                    <p className="mt-0.5 text-[12px] leading-snug text-brand-ink-tertiary">
-                      {section.description}
-                    </p>
-                  </div>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h2 className="truncate text-[10px] font-bold uppercase tracking-[0.06em] text-brand-ink-tertiary">
+                    {section.title}
+                  </h2>
+                  <p className="mt-1 truncate text-[11px] font-medium text-brand-ink-tertiary">
+                    {section.description}
+                  </p>
                 </div>
               </div>
 
-              <ul>
-                {section.items.map((item, itemIndex) => (
-                  <li
-                    key={item.label}
-                    className={
-                      itemIndex > 0 ? "border-t border-brand-line/25" : undefined
-                    }
-                  >
+              <ul className="dashboard-panel-body divide-y divide-brand-line/30">
+                {section.items.map((item) => (
+                  <li key={item.label}>
                     <SettingRow item={item} />
                   </li>
                 ))}
@@ -155,8 +119,9 @@ function SettingRow({ item }: { item: SettingItem }) {
     </>
   );
 
-  const rowClass =
-    "group flex w-full items-center justify-between gap-4 px-5 py-3.5 text-left transition-colors hover:bg-brand-blue-soft/15";
+  const rowClass = item.href
+    ? "group flex w-full items-center justify-between gap-4 px-4 py-3.5 text-left transition-colors hover:bg-brand-blue-soft/20"
+    : "flex w-full items-center justify-between gap-4 px-4 py-3.5";
 
   if (item.href) {
     return (
@@ -166,9 +131,5 @@ function SettingRow({ item }: { item: SettingItem }) {
     );
   }
 
-  return (
-    <div className="flex w-full items-center justify-between gap-4 px-5 py-3.5">
-      {content}
-    </div>
-  );
+  return <div className={rowClass}>{content}</div>;
 }

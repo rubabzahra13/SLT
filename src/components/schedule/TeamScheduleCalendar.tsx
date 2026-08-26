@@ -9,9 +9,12 @@ import {
   buildMonthGrid,
   statusLabel,
   type CalendarDay,
+  type CalendarDayProducer,
+  type ScheduleCell,
   type ScheduleViewRange,
   type TeamScheduleRow,
 } from "@/lib/schedule-view";
+import type { Producer } from "@/types";
 
 const WEEKDAY_HEADERS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const ANCHOR_DATE = new Date(2026, 7, 19);
@@ -45,16 +48,13 @@ export function TeamScheduleCalendar({
 
   return (
     <div
-      className={clsx(
-        "overflow-hidden rounded-2xl border border-brand-line/80 bg-brand-elevated shadow-[var(--shadow-premium-sm)]",
-        className
-      )}
+      className={clsx("overflow-hidden", className)}
     >
       {/* weekday header */}
-      <div className="grid grid-cols-7 border-b border-brand-blue/20 bg-gradient-to-b from-brand-blue-soft to-brand-bg-subtle/90">
+      <div className="schedule-chrome-header grid grid-cols-7 border-b border-brand-line/30">
         {WEEKDAY_HEADERS.map((d) => (
-          <div key={d} className="border-r border-brand-blue/15 px-2.5 py-2 text-center last:border-r-0">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-brand-signature">
+          <div key={d} className="border-r border-brand-line/30 px-2.5 py-2 text-center last:border-r-0">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-brand-ink-tertiary">
               {d}
             </p>
           </div>
@@ -135,7 +135,7 @@ export function ScheduleDayDrawer({
         >
           {day.unavailableProducers.length === 0 ? (
             <div className="rounded-2xl border border-brand-line/70 bg-brand-bg/40 px-4 py-5">
-              <p className="text-[14px] font-medium text-brand-ink">Everyone is open.</p>
+              <p className="text-[14px] font-medium text-brand-ink">Everyone is available.</p>
               <p className="mt-1 text-[12px] text-brand-ink-secondary">
                 No producers are marked unavailable on this day.
               </p>
@@ -162,7 +162,7 @@ export function ScheduleDayDrawer({
                     {statusLabel(cell.status)}
                   </p>
                   <p className="mt-0.5 text-[11px] text-brand-ink-tertiary">
-                    Open producer
+                    View producer
                   </p>
                 </div>
               </button>
@@ -170,6 +170,66 @@ export function ScheduleDayDrawer({
           )}
         </DottedScroll>
       </aside>
+    </div>
+  );
+}
+
+function UnavailableProducerAvatar({
+  producer,
+  cell,
+  compact,
+}: {
+  producer: Producer;
+  cell: ScheduleCell;
+  compact?: boolean;
+}) {
+  const isOff = cell.status === "off";
+
+  return (
+    <div
+      className="flex shrink-0 flex-col items-center gap-0.5"
+      title={`${producer.name}${isOff ? " · Off" : " · Booked"}`}
+    >
+      <div className="relative">
+        <div
+          className={clsx(
+            "rounded-full ring-1 ring-offset-1 ring-offset-brand-elevated",
+            isOff ? "ring-brand-orange/55" : "ring-brand-blue/45"
+          )}
+        >
+          <Avatar src={producer.avatar} alt={producer.name} size="xs" />
+        </div>
+        <div
+          className={clsx(
+            "pointer-events-none absolute inset-0 flex items-center justify-center rounded-full",
+            isOff
+              ? "bg-brand-orange/40"
+              : "bg-gradient-to-b from-brand-blue/55 to-brand-signature/55"
+          )}
+        >
+          <svg
+            viewBox="0 0 10 10"
+            className="h-3 w-3 text-white/90"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.75"
+            strokeLinecap="round"
+            aria-hidden
+          >
+            <line x1="2" y1="2" x2="8" y2="8" />
+            <line x1="8" y1="2" x2="2" y2="8" />
+          </svg>
+        </div>
+      </div>
+      <span
+        className={clsx(
+          "max-w-[2rem] truncate font-semibold leading-none",
+          compact ? "text-[7.5px] tracking-[0.02em]" : "text-[8.5px] tracking-[0.03em]",
+          isOff ? "text-brand-orange-deep" : "text-brand-signature"
+        )}
+      >
+        {producer.initials}
+      </span>
     </div>
   );
 }
@@ -185,10 +245,8 @@ function CalendarDayCard({
   selected?: boolean;
   onClick: () => void;
 }) {
-  const maxVisible = compact ? 4 : 5;
-  const visibleProducers = day.unavailableProducers.slice(0, maxVisible);
-  const moreCount = day.unavailableProducers.length - visibleProducers.length;
   const isOtherMonth = !day.isCurrentMonth;
+  const unavailable = day.unavailableProducers;
 
   return (
     <button
@@ -196,69 +254,41 @@ function CalendarDayCard({
       onClick={onClick}
       disabled={isOtherMonth}
       className={clsx(
-        "group flex min-h-[130px] flex-col gap-2.5 bg-brand-elevated px-2.5 py-2.5 text-left transition",
+        "group flex min-h-[130px] flex-col bg-brand-elevated px-2.5 py-2.5 text-left transition",
         !isOtherMonth && "hover:bg-brand-blue-soft/40",
         isOtherMonth && "cursor-default bg-brand-bg/40 opacity-40",
         day.isToday && "bg-brand-blue-soft",
         selected && "bg-brand-blue-soft ring-1 ring-inset ring-brand-signature/40"
       )}
     >
-      {/* date number + badge */}
-      <div className="flex items-center justify-between gap-1">
+      <div className="flex items-start">
         <span
           className={clsx(
             "flex h-7 w-7 items-center justify-center rounded-full text-[13px] font-semibold tabular-nums leading-none",
-            day.isToday
-              ? "bg-brand-signature text-white"
-              : "text-brand-ink"
+            day.isToday ? "bg-brand-signature text-white" : "text-brand-ink"
           )}
         >
           {day.date.getDate()}
         </span>
-
-        {day.unavailableCount > 0 ? (
-          <span className="rounded-full bg-brand-orange-soft px-2 py-0.5 text-[10px] font-medium tabular-nums text-brand-orange">
-            {day.unavailableCount} off
-          </span>
-        ) : (
-          <span className="rounded-full bg-brand-blue-soft px-2 py-0.5 text-[10px] font-medium text-brand-signature">
-            Open
-          </span>
-        )}
       </div>
 
-      {/* crossed-out producer avatars */}
-      {day.unavailableCount > 0 && (
-        <div className="flex flex-wrap items-end gap-1.5">
-          {visibleProducers.map(({ producer }) => (
-            <div
-              key={`${day.key}-${producer.id}`}
-              className="flex flex-col items-center gap-0.5"
-              title={producer.name}
-            >
-              <div className="relative">
-                <Avatar src={producer.avatar} alt={producer.name} size="xs" />
-                <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-full bg-black/25">
-                  <svg viewBox="0 0 10 10" className="h-3 w-3 text-white/80" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-                    <line x1="2" y1="2" x2="8" y2="8" />
-                    <line x1="8" y1="2" x2="2" y2="8" />
-                  </svg>
-                </div>
-              </div>
-              <span className="text-[8.5px] font-semibold leading-none text-brand-ink-secondary">
-                {producer.initials}
-              </span>
-            </div>
-          ))}
-          {moreCount > 0 && (
-            <div className="flex flex-col items-center gap-0.5">
-              <div className="flex h-6 w-6 items-center justify-center rounded-full border border-brand-line/70 bg-brand-bg text-[9px] font-semibold text-brand-ink-secondary">
-                +{moreCount}
-              </div>
-            </div>
+      {unavailable.length > 0 ? (
+        <div
+          className={clsx(
+            "mt-auto flex flex-wrap content-end gap-1.5 pt-2",
+            compact && "gap-1"
           )}
+        >
+          {unavailable.map(({ producer, cell }: CalendarDayProducer) => (
+            <UnavailableProducerAvatar
+              key={`${day.key}-${producer.id}`}
+              producer={producer}
+              cell={cell}
+              compact={compact}
+            />
+          ))}
         </div>
-      )}
+      ) : null}
     </button>
   );
 }

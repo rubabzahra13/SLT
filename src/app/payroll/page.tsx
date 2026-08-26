@@ -239,7 +239,7 @@ export default function PayrollPage() {
       />
 
       <div className="px-6 pb-6 pt-5 lg:px-8">
-        <div className="panel-shell overflow-hidden rounded-2xl">
+        <div className="dashboard-panel dashboard-panel-framed overflow-hidden">
           <DataTable
             columns={columns}
             data={payrollRecords}

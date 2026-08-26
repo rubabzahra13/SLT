@@ -11,11 +11,11 @@ import {
   ScheduleDayDrawer,
   TeamScheduleCalendar,
 } from "@/components/schedule/TeamScheduleCalendar";
-import { ScheduleInsightPanel } from "@/components/schedule/ScheduleInsightPanel";
 import { ProducerScheduleDrawer } from "@/components/schedule/ProducerScheduleDrawer";
 import { useAppState } from "@/context/AppStateContext";
 import {
   aggregateColumns,
+  buildScheduleColumnAggregates,
   buildTeamSchedule,
   type CalendarDay,
   type ScheduleCell,
@@ -55,8 +55,11 @@ export default function SchedulePage() {
   );
 
   const columns = useMemo(
-    () => aggregateColumns(teamRows, ANCHOR_DATE),
-    [teamRows]
+    () =>
+      teamRows.length > 0
+        ? aggregateColumns(teamRows, ANCHOR_DATE)
+        : buildScheduleColumnAggregates(view, ANCHOR_DATE),
+    [teamRows, view]
   );
 
   const calendarRange: "week" | "month" = view === "90days" ? "month" : view;
@@ -95,7 +98,7 @@ export default function SchedulePage() {
     setFocusCell(cell ?? null);
   }
 
-  const openToday = useMemo(() => {
+  const availableToday = useMemo(() => {
     const today = columns.find((col) => col.isToday);
     return today != null ? today.total - today.unavailableCount : teamRows.length;
   }, [columns, teamRows.length]);
@@ -103,14 +106,17 @@ export default function SchedulePage() {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <PageHeader
+        compact
         title="Producer Schedule"
-        badge={`${openToday}/${teamRows.length} open`}
-        subtitle="Team availability, bookings, and open capacity"
+        subtitle="Team availability, bookings, and available capacity"
         toolbar={
           <SchedulePageToolbar
             specialty={specialty}
             presentation={presentation}
             view={view}
+            columns={columns}
+            availableToday={availableToday}
+            totalProducers={teamRows.length}
             onSpecialtyChange={setSpecialty}
             onPresentationChange={handlePresentationChange}
             onViewChange={setView}
@@ -118,33 +124,31 @@ export default function SchedulePage() {
         }
       />
 
-      <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-hidden px-3 py-2.5 lg:px-4">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-6 pb-6 pt-5 lg:px-8">
         {presentation === "matrix" ? (
-          <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-hidden lg:flex-row lg:items-stretch lg:max-h-[calc(100dvh-9.25rem)]">
-            <div className="flex min-h-0 min-w-0 flex-1 self-stretch overflow-hidden">
-              <TeamScheduleMatrix
-                rows={teamRows}
-                columns={columns}
-                range={view}
-                activeProducerId={drawerRow?.producer.id}
-                onSelectProducer={handleSelectProducer}
-              />
-            </div>
-            <ScheduleInsightPanel
+          <div className="flex min-h-0 w-full flex-1 flex-col">
+            <TeamScheduleMatrix
               rows={teamRows}
               columns={columns}
+              range={view}
               activeProducerId={drawerRow?.producer.id}
-              onSelectProducer={(row) => handleSelectProducer(row)}
-              className="min-h-0 w-full lg:w-[300px] lg:max-w-[300px] lg:flex-none"
+              onSelectProducer={handleSelectProducer}
+              emptyMessage={
+                specialty === "All"
+                  ? "No producers in this view."
+                  : `No producers specialize in ${specialty}.`
+              }
+              className="min-h-0 w-full flex-1"
             />
           </div>
         ) : (
-          <div className="min-h-0 flex-1 overflow-auto lg:max-h-[calc(100dvh-9.25rem)]">
+          <div className="min-h-0 w-full flex-1 overflow-auto">
             <TeamScheduleCalendar
               rows={teamRows}
               range={calendarRange}
               selectedDayKey={selectedDay?.key}
               onSelectDay={handleSelectDay}
+              className="dashboard-panel dashboard-panel-framed h-full min-h-0"
             />
           </div>
         )}

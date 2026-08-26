@@ -73,7 +73,7 @@ export type WorkflowStage = {
 export type WeekCapacityDay = {
   dayLabel: string;
   label: string;
-  open: number;
+  available: number;
   booked: number;
   total: number;
   isToday: boolean;
@@ -462,7 +462,7 @@ export function buildWeeklyCapacity(
   return aggregateColumns(rows, DASHBOARD_ANCHOR_DATE).map((col) => ({
     dayLabel: col.dayLabel,
     label: col.label,
-    open: col.total - col.unavailableCount,
+    available: col.total - col.unavailableCount,
     booked: col.unavailableCount,
     total: col.total,
     isToday: col.isToday,
