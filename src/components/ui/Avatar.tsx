@@ -3,7 +3,7 @@ import clsx from "clsx";
 type AvatarProps = {
   src: string;
   alt: string;
-  size?: "xs" | "sm" | "md" | "lg";
+  size?: "xs" | "sm" | "md" | "lg" | "xl";
   ring?: boolean;
 };
 
@@ -12,6 +12,7 @@ const sizeMap = {
   sm: "h-8 w-8",
   md: "h-10 w-10",
   lg: "h-[52px] w-[52px]",
+  xl: "h-16 w-16",
 };
 
 export function Avatar({ src, alt, size = "md", ring }: AvatarProps) {

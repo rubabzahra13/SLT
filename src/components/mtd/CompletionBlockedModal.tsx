@@ -107,7 +107,7 @@ export function CompletionBlockedModal({
                     : "text-[11px] font-semibold uppercase tracking-wide text-brand-warning"
                 }
               >
-                {item.met ? "Ready" : "Missing"}
+                {item.met ? "Filled" : "Missing"}
               </span>
             </li>
           ))}

@@ -13,6 +13,7 @@ export default function AssignmentsPage() {
     <>
       <PageHeader
         title="Assignments"
+        badge={`${pending.length} pending`}
         subtitle="Match orders to the right producer by genre and availability"
       />
 

@@ -9,6 +9,7 @@ export type OrderDetailField = {
   label: string;
   value: string;
   multiline?: boolean;
+  wide?: boolean;
   preserveCase?: boolean;
 };
 
@@ -21,6 +22,7 @@ type FieldDef = {
   key: string;
   label: string;
   multiline?: boolean;
+  wide?: boolean;
   preserveCase?: boolean;
 };
 
@@ -51,6 +53,7 @@ const ALL_STAR_CHEER_FIELDS: { title: string; fields: FieldDef[] }[] = [
         key: "numberOfCopies",
         label:
           "How many copies of your music will you need to send out to your coaches and participants?",
+        wide: true,
       },
     ],
   },
@@ -122,6 +125,7 @@ function formatFieldValue(
     label: def.label,
     value,
     multiline: def.multiline,
+    wide: def.wide ?? def.label.length > 42,
     preserveCase: def.preserveCase,
   };
 }

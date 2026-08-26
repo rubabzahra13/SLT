@@ -18,11 +18,13 @@ type FilterMenuProps = {
   onChange: (value: string) => void;
   accent?: BrandAccent;
   className?: string;
+  hideLabel?: boolean;
+  grouped?: boolean;
 };
 
-const accentDot: Record<BrandAccent, string> = {
-  blue: "bg-brand-blue",
-  orange: "bg-brand-orange",
+const accentActive: Record<BrandAccent, string> = {
+  blue: "border-brand-blue/35 bg-brand-blue-soft/45 text-brand-ink",
+  orange: "border-brand-orange/35 bg-brand-orange-soft/70 text-brand-ink",
 };
 
 export function FilterMenu({
@@ -32,10 +34,13 @@ export function FilterMenu({
   onChange,
   accent = "blue",
   className,
+  hideLabel = false,
+  grouped = false,
 }: FilterMenuProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const selected = options.find((o) => o.value === value);
+  const isActive = value !== options[0]?.value;
 
   useEffect(() => {
     if (!open) return;
@@ -52,25 +57,51 @@ export function FilterMenu({
     <div ref={rootRef} className={clsx("relative", className)}>
       <button
         type="button"
+        aria-label={hideLabel ? label : undefined}
         onClick={() => setOpen((v) => !v)}
         className={clsx(
-          "inline-flex h-8 items-center gap-2 rounded-lg border px-3 text-[12px] font-medium shadow-sm transition",
-          open
-            ? "border-brand-line-strong bg-brand-bg text-brand-ink"
-            : "border-brand-line bg-brand-elevated text-brand-ink-secondary hover:border-brand-line-strong hover:bg-brand-accent-soft hover:text-brand-ink"
+          "inline-flex h-8 items-center gap-1.5 text-[12px] font-medium transition",
+          hideLabel
+            ? grouped
+              ? clsx(
+                  "rounded-lg px-2.5",
+                  open && "bg-brand-elevated shadow-sm ring-1 ring-brand-line/35",
+                  isActive
+                    ? accent === "orange"
+                      ? "bg-brand-orange-soft/80 font-semibold text-brand-ink"
+                      : "bg-brand-blue-soft/70 font-semibold text-brand-ink"
+                    : "text-brand-ink-secondary hover:bg-brand-elevated/90 hover:text-brand-ink",
+                  open && !isActive && "bg-brand-elevated text-brand-ink"
+                )
+              : clsx(
+                  "rounded-full border px-3 shadow-sm",
+                  open && "ring-2 ring-brand-blue/15",
+                  isActive
+                    ? accentActive[accent]
+                    : "border-brand-line/55 bg-brand-elevated/90 text-brand-ink-secondary hover:border-brand-line-strong hover:bg-brand-elevated",
+                  open &&
+                    !isActive &&
+                    "border-brand-line-strong bg-brand-elevated text-brand-ink"
+                )
+            : clsx(
+                "rounded-lg border px-3 shadow-sm",
+                open
+                  ? "border-brand-line-strong bg-brand-bg text-brand-ink"
+                  : "border-brand-line bg-brand-elevated text-brand-ink-secondary hover:border-brand-line-strong hover:bg-brand-accent-soft hover:text-brand-ink"
+              )
         )}
       >
-        <span
-          className={clsx("h-1.5 w-1.5 shrink-0 rounded-full", accentDot[accent])}
-          aria-hidden
-        />
-        <span className="text-[10px] font-semibold uppercase tracking-[0.06em] text-brand-ink-tertiary">
-          {label}
-        </span>
-        <span className="max-w-[160px] truncate text-brand-ink">
+        {!hideLabel ? (
+          <span className="text-[10px] font-semibold uppercase tracking-[0.06em] text-brand-ink-tertiary">
+            {label}
+          </span>
+        ) : null}
+        <span className="max-w-[148px] truncate text-brand-ink">
           {selected?.label ?? "—"}
-          {selected?.count !== undefined ? ` (${selected.count})` : ""}
         </span>
+        {!hideLabel && selected?.count !== undefined ? (
+          <span className="text-brand-ink-tertiary">({selected.count})</span>
+        ) : null}
         <ChevronDown
           className={clsx(
             "h-3.5 w-3.5 shrink-0 text-brand-ink-tertiary transition",

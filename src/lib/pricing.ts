@@ -7,7 +7,7 @@ export type PackagePriceEntry = {
 export type SecretMenuExtraSongTier = {
   extraSongs: number;
   extraCost: number;
-  editingCost: number;
+  editingMinutes: number;
 };
 
 export type SecretMenuPricing = {
@@ -66,12 +66,12 @@ const DEFAULT_SECRET_MENU_PRICING: SecretMenuPricing = {
   menuTitle: "Semi-Custom Hip Hop & Custom POM Package Secret Menu",
   basePrice: 850,
   extraSongTiers: [
-    { extraSongs: 1, extraCost: 15, editingCost: 30 },
-    { extraSongs: 2, extraCost: 30, editingCost: 60 },
-    { extraSongs: 3, extraCost: 45, editingCost: 90 },
-    { extraSongs: 4, extraCost: 60, editingCost: 120 },
-    { extraSongs: 5, extraCost: 75, editingCost: 150 },
-    { extraSongs: 6, extraCost: 90, editingCost: 180 },
+    { extraSongs: 1, extraCost: 15, editingMinutes: 30 },
+    { extraSongs: 2, extraCost: 30, editingMinutes: 60 },
+    { extraSongs: 3, extraCost: 45, editingMinutes: 90 },
+    { extraSongs: 4, extraCost: 60, editingMinutes: 120 },
+    { extraSongs: 5, extraCost: 75, editingMinutes: 150 },
+    { extraSongs: 6, extraCost: 90, editingMinutes: 180 },
   ],
 };
 

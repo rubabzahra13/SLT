@@ -153,7 +153,8 @@ export default function OutsourcedPage() {
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <PageHeader
         title="In Progress / Outsourced"
-        subtitle={`${all.length} mixes · ${outgoing.length} outgoing · ${outsourced.length} outsourced`}
+        badge={`${all.length} mixes`}
+        subtitle="Outgoing and outsourced mixes in production"
       />
 
       <div className="min-h-0 flex-1 overflow-auto px-6 py-6 lg:px-8">

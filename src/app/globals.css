@@ -128,7 +128,7 @@ body {
 
 .panel-shell {
   background: var(--color-brand-elevated);
-  border: 1px solid var(--color-brand-line);
+  border: 1px solid rgba(15, 30, 45, 0.07);
   box-shadow: var(--shadow-premium-sm);
   border-radius: 16px;
 }
@@ -145,26 +145,27 @@ body {
 .table-header-row {
   background: linear-gradient(
     180deg,
-    rgba(82, 200, 238, 0.12) 0%,
-    rgba(220, 229, 239, 0.9) 100%
+    #ffffff 0%,
+    var(--color-brand-bg-subtle) 100%
   );
-  border-bottom: 1px solid var(--color-brand-line);
+  border-bottom: 1px solid rgba(15, 30, 45, 0.09);
 }
 
 .table-header-cell {
-  border-right-color: rgba(15, 30, 45, 0.08);
+  border-right-color: rgba(15, 30, 45, 0.05);
 }
 
 .text-label {
   font-size: 10px;
   font-weight: 600;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--color-brand-ink-tertiary);
 }
 
 .table-header-cell.text-label {
-  color: var(--color-brand-ink-secondary);
+  color: rgba(15, 30, 45, 0.55);
+  font-weight: 700;
 }
 
 .text-display {
@@ -231,6 +232,104 @@ body {
   animation: toast-bar 6s linear forwards;
 }
 
+.dashboard-fit {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.75rem;
+  overflow: hidden;
+}
+
+.dashboard-body-grid {
+  display: grid;
+  min-height: 0;
+  flex: 1;
+  gap: 0.75rem;
+}
+
+@media (min-width: 1280px) {
+  .dashboard-body-grid {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  }
+}
+
+.dashboard-charts-row {
+  display: grid;
+  min-height: 0;
+  flex: 1;
+  gap: 0.75rem;
+}
+
+@media (min-width: 768px) {
+  .dashboard-charts-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.dashboard-kpi-strip {
+  background: var(--color-brand-elevated);
+  border: 1px solid var(--color-brand-line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.dashboard-kpi-cell {
+  padding: 0.875rem 1rem;
+  transition: background 0.15s ease;
+}
+
+.dashboard-kpi-cell:hover {
+  background: var(--color-brand-bg-subtle);
+}
+
+.dashboard-panel {
+  background: var(--color-brand-elevated);
+  border: 1px solid var(--color-brand-line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.dashboard-panel-head {
+  background: var(--color-brand-elevated);
+  border-bottom: 1px solid var(--color-brand-line);
+}
+
+.dashboard-panel-count {
+  background: var(--color-brand-blue-soft);
+  color: var(--color-brand-signature);
+}
+
+.dashboard-team-track {
+  border-color: var(--color-brand-line);
+  background: var(--color-brand-bg-subtle);
+}
+
+.dashboard-team-fade-left {
+  background: linear-gradient(
+    to right,
+    var(--color-brand-bg-subtle) 0%,
+    transparent 100%
+  );
+}
+
+.dashboard-team-fade-right {
+  background: linear-gradient(
+    to left,
+    var(--color-brand-bg-subtle) 0%,
+    transparent 100%
+  );
+}
+
+.dashboard-team-card {
+  border: 1px solid var(--color-brand-line);
+  background: var(--color-brand-elevated);
+}
+
+.dashboard-team-card:hover {
+  background: var(--color-brand-elevated);
+}
+
 .dashboard-marquee {
   animation: marquee-x 34s linear infinite;
   will-change: transform;
@@ -240,6 +339,25 @@ body {
   animation-play-state: paused;
 }
 
+.dashboard-producer-tile {
+  border: 1px solid rgba(15, 30, 45, 0.08);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 1) 0%,
+    rgba(250, 251, 252, 0.9) 100%
+  );
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
+}
+
+.dashboard-producer-tile:hover {
+  border-color: rgba(82, 200, 238, 0.35);
+  box-shadow: 0 6px 20px rgba(15, 20, 25, 0.06);
+  transform: translateY(-1px);
+}
+
 .ring-available {
   background: linear-gradient(135deg, #52c8ee, #2a8fb0);
   padding: 2px;
@@ -247,13 +365,13 @@ body {
 }
 
 .ring-limited {
-  background: linear-gradient(135deg, #8b939e, #f07840);
+  background: linear-gradient(135deg, #6b7280, #f07840);
   padding: 2px;
   border-radius: 999px;
 }
 
 .ring-unavailable {
-  background: rgba(15, 30, 45, 0.12);
+  background: rgba(15, 20, 25, 0.14);
   padding: 2px;
   border-radius: 999px;
 }

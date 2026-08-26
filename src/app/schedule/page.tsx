@@ -2,7 +2,10 @@
 
 import { useMemo, useState } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { FilterPill } from "@/components/ui/FilterPill";
+import {
+  SchedulePageToolbar,
+  type SchedulePresentation,
+} from "@/components/schedule/SchedulePageToolbar";
 import { TeamScheduleMatrix } from "@/components/schedule/TeamScheduleMatrix";
 import {
   ScheduleDayDrawer,
@@ -21,10 +24,6 @@ import {
 } from "@/lib/schedule-view";
 
 const ANCHOR_DATE = new Date(2026, 7, 19);
-
-const specialtyFilters = ["All", "Cheer", "Dance", "Marching Band"];
-const presentationFilters = ["Matrix", "Calendar"] as const;
-type SchedulePresentation = "matrix" | "calendar";
 
 export default function SchedulePage() {
   const { producers, schedule, mtdRecords } = useAppState();
@@ -96,65 +95,30 @@ export default function SchedulePage() {
     setFocusCell(cell ?? null);
   }
 
+  const openToday = useMemo(() => {
+    const today = columns.find((col) => col.isToday);
+    return today != null ? today.total - today.unavailableCount : teamRows.length;
+  }, [columns, teamRows.length]);
+
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <PageHeader
         title="Producer Schedule"
+        badge={`${openToday}/${teamRows.length} open`}
         subtitle="Team availability, bookings, and open capacity"
+        toolbar={
+          <SchedulePageToolbar
+            specialty={specialty}
+            presentation={presentation}
+            view={view}
+            onSpecialtyChange={setSpecialty}
+            onPresentationChange={handlePresentationChange}
+            onViewChange={setView}
+          />
+        }
       />
 
       <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-hidden px-3 py-2.5 lg:px-4">
-        <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-xl border border-brand-line/70 bg-brand-elevated/90 px-3 py-2 shadow-[var(--shadow-premium-sm)]">
-          <nav className="flex flex-wrap gap-2" aria-label="Producer specialty">
-            {specialtyFilters.map((filter) => (
-              <FilterPill
-                key={filter}
-                label={filter}
-                active={specialty === filter}
-                onClick={() => setSpecialty(filter)}
-              />
-            ))}
-          </nav>
-
-          <nav className="flex flex-wrap gap-2" aria-label="Schedule presentation">
-            {presentationFilters.map((label) => {
-              const next = label.toLowerCase() as SchedulePresentation;
-              return (
-                <FilterPill
-                  key={label}
-                  label={label}
-                  active={presentation === next}
-                  accent="orange"
-                  onClick={() => handlePresentationChange(next)}
-                />
-              );
-            })}
-          </nav>
-
-          <nav
-            className="ml-auto flex flex-wrap gap-2"
-            aria-label="Schedule range"
-          >
-            <FilterPill
-              label="This week"
-              active={view === "week"}
-              onClick={() => setView("week")}
-            />
-            <FilterPill
-              label="This month"
-              active={view === "month"}
-              onClick={() => setView("month")}
-            />
-            {presentation === "matrix" ? (
-              <FilterPill
-                label="90 days from today"
-                active={view === "90days"}
-                onClick={() => setView("90days")}
-              />
-            ) : null}
-          </nav>
-        </div>
-
         {presentation === "matrix" ? (
           <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-hidden lg:flex-row lg:items-stretch lg:max-h-[calc(100dvh-9.25rem)]">
             <div className="flex min-h-0 min-w-0 flex-1 self-stretch overflow-hidden">

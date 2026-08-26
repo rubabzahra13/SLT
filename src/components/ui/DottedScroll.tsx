@@ -23,8 +23,10 @@ type DottedScrollProps = {
   scrollClassName?: string;
   orientation?: "vertical" | "horizontal";
   indicatorPlacement?: "overlay" | "below" | "gutter";
+  indicatorDistribution?: "center" | "even";
   indicatorClassName?: string;
   tone?: "light" | "dark";
+  showIndicator?: boolean;
 };
 
 export function DottedScroll({
@@ -34,8 +36,10 @@ export function DottedScroll({
   scrollClassName,
   orientation = "vertical",
   indicatorPlacement,
+  indicatorDistribution = "center",
   indicatorClassName = "",
   tone = "light",
+  showIndicator = true,
 }: DottedScrollProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -126,7 +130,7 @@ export function DottedScroll({
     </>
   );
 
-  const dots = canScroll ? (
+  const dots = showIndicator && canScroll ? (
     <div
       className={clsx(
         "pointer-events-none",
@@ -137,7 +141,12 @@ export function DottedScroll({
           "absolute bottom-1.5 left-1/2 z-[2] flex -translate-x-1/2 items-center gap-2",
         !isHorizontal &&
           indicatorsGutter &&
-          "absolute inset-y-0 right-0 z-[2] flex w-4 flex-col items-center justify-center gap-2",
+          clsx(
+            "absolute inset-y-0 right-0 z-[2] flex w-5 flex-col items-center",
+            indicatorDistribution === "even"
+              ? "justify-between py-5"
+              : "justify-center gap-2"
+          ),
         !isHorizontal &&
           !indicatorsGutter &&
           "absolute top-1/2 flex -translate-y-1/2 flex-col items-center gap-2 py-3",

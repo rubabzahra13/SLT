@@ -13,6 +13,8 @@ export type Column<T> = {
   align?: "left" | "right" | "center";
   nowrap?: boolean;
   sticky?: "left" | "right";
+  cellClassName?: string;
+  headerClassName?: string;
   render: (row: T, index: number) => React.ReactNode;
 };
 
@@ -27,6 +29,7 @@ type DataTableProps<T> = {
   pageSize?: number;
   embedded?: boolean;
   compact?: boolean;
+  showScrollIndicator?: boolean;
 };
 
 export function DataTable<T>({
@@ -40,6 +43,7 @@ export function DataTable<T>({
   pageSize,
   embedded = false,
   compact = false,
+  showScrollIndicator = true,
 }: DataTableProps<T>) {
   const router = useRouter();
   const [page, setPage] = useState(0);
@@ -112,6 +116,7 @@ export function DataTable<T>({
         scrollClassName="w-full overflow-x-scroll scrollbar-hide"
         indicatorPlacement="below"
         contentClassName="block w-max min-w-full"
+        showIndicator={showScrollIndicator}
       >
         <table className="w-full min-w-max border-collapse">
           <colgroup>
@@ -129,7 +134,8 @@ export function DataTable<T>({
                     cellClass,
                     "text-label table-header-cell border-r font-semibold last:border-r-0",
                     alignClass(col.align),
-                    stickyClass(col.sticky, true)
+                    stickyClass(col.sticky, true),
+                    col.headerClassName
                   )}
                 >
                   {col.header}
@@ -142,7 +148,7 @@ export function DataTable<T>({
               <tr>
                 <td
                   colSpan={columns.length}
-                  className="px-4 py-12 text-center text-[13px] text-brand-ink-tertiary"
+                  className="px-4 py-16 text-center text-[13px] font-medium text-brand-ink-tertiary"
                 >
                   {emptyMessage}
                 </td>
@@ -154,9 +160,9 @@ export function DataTable<T>({
                 <tr
                   key={rowKey(row)}
                   className={clsx(
-                    "border-b border-brand-line/70 bg-brand-elevated transition-colors last:border-b-0",
+                    "border-b border-brand-line/40 bg-brand-elevated transition-colors last:border-b-0",
                     variant === "muted" && "bg-brand-surface",
-                    isInteractive && "cursor-pointer hover:bg-brand-blue-soft/40"
+                    isInteractive && "cursor-pointer hover:bg-brand-blue-soft/25"
                   )}
                   onClick={isInteractive ? () => handleRowClick(row) : undefined}
                 >
@@ -167,9 +173,11 @@ export function DataTable<T>({
                         cellClass,
                         textSize,
                         alignClass(col.align),
-                        "border-r border-brand-line/50 align-middle last:border-r-0",
-                        col.nowrap !== false && "max-w-0 truncate whitespace-nowrap",
-                        stickyClass(col.sticky)
+                        "border-r border-brand-line/20 align-middle last:border-r-0",
+                        col.nowrap !== false &&
+                          "max-w-0 truncate whitespace-nowrap",
+                        stickyClass(col.sticky),
+                        col.cellClassName
                       )}
                     >
                       {col.render(row, rowIndex)}
@@ -184,31 +192,31 @@ export function DataTable<T>({
       </DottedScroll>
 
       {pageSize && pageSize > 0 && data.length > pageSize ? (
-        <div className="flex items-center justify-between gap-3 border-t border-brand-line px-4 py-2.5">
-          <p className="text-[12px] text-brand-ink-tertiary">
+        <div className="flex items-center justify-between gap-3 border-t border-brand-line/40 bg-brand-elevated/50 px-4 py-3">
+          <p className="text-[12px] font-medium text-brand-ink-tertiary">
             {rangeStart}–{rangeEnd} of {data.length}
           </p>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5">
             <button
               type="button"
               disabled={safePage === 0}
               onClick={() => setPage((p) => Math.max(0, p - 1))}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-brand-ink-secondary transition hover:bg-brand-bg disabled:opacity-40"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-brand-ink-secondary transition hover:bg-brand-bg hover:text-brand-ink disabled:opacity-30"
               aria-label="Previous page"
             >
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeft className="h-4 w-4" strokeWidth={2} />
             </button>
-            <span className="min-w-[4.5rem] text-center text-[12px] font-medium tabular-nums text-brand-ink-secondary">
+            <span className="min-w-[4.5rem] text-center text-[12px] font-semibold tabular-nums text-brand-ink-secondary">
               {safePage + 1} / {totalPages}
             </span>
             <button
               type="button"
               disabled={safePage >= totalPages - 1}
               onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-brand-ink-secondary transition hover:bg-brand-bg disabled:opacity-40"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-brand-ink-secondary transition hover:bg-brand-bg hover:text-brand-ink disabled:opacity-30"
               aria-label="Next page"
             >
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="h-4 w-4" strokeWidth={2} />
             </button>
           </div>
         </div>

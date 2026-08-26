@@ -117,6 +117,7 @@ export default function DiscountCodesPage() {
     <>
       <PageHeader
         title="Discount codes"
+        badge={`${sortedCodes.length} codes`}
         subtitle="Manage promo codes and what each one is for"
         action={{ label: "Add code", onClick: openAdd }}
       />

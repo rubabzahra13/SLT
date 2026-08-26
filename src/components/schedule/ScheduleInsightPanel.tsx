@@ -61,40 +61,40 @@ export function ScheduleInsightPanel({
   return (
     <aside
       className={clsx(
-        "flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border border-brand-line/80 bg-brand-bg shadow-[var(--shadow-premium-sm)]",
+        "flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border border-brand-line/50 bg-white/90 shadow-[var(--shadow-premium-sm)] ring-1 ring-inset ring-brand-line/20 backdrop-blur-xl",
         className
       )}
     >
-      <div className="shrink-0 border-b border-brand-line bg-brand-bg-subtle/80 px-4 py-3">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-brand-ink-secondary">
+      <div className="shrink-0 border-b border-brand-line/40 px-4 py-3">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-brand-ink-tertiary">
           Snapshot
         </p>
       </div>
 
-      <div className="grid shrink-0 grid-cols-2 gap-px border-b border-brand-line bg-brand-line/60">
-        <div className="bg-brand-bg-subtle/80 px-4 py-3.5">
-          <p className="text-[11px] text-brand-ink-tertiary">Available today</p>
-          <p className="mt-1 text-[22px] font-semibold tabular-nums tracking-[-0.03em] text-brand-ink">
+      <div className="grid shrink-0 grid-cols-2 gap-px border-b border-brand-line/40 bg-brand-line/30">
+        <div className="bg-gradient-to-b from-brand-blue-soft/60 to-white px-4 py-3.5">
+          <p className="text-[11px] font-medium text-brand-ink-tertiary">Available today</p>
+          <p className="mt-1 text-[22px] font-semibold tabular-nums tracking-[-0.03em] text-brand-signature">
             {openToday}
             <span className="text-[13px] font-medium text-brand-ink-tertiary">
               /{rows.length}
             </span>
           </p>
         </div>
-        <div className="bg-brand-bg-subtle/80 px-4 py-3.5">
-          <p className="text-[11px] text-brand-ink-tertiary">Busiest day</p>
+        <div className="bg-gradient-to-b from-brand-orange-soft/50 to-white px-4 py-3.5">
+          <p className="text-[11px] font-medium text-brand-ink-tertiary">Busiest day</p>
           <p className="mt-1 text-[15px] font-semibold text-brand-ink">
             {busiest ? `${busiest.dayLabel} ${busiest.label}` : "—"}
           </p>
           {busiest ? (
-            <p className="mt-0.5 text-[12px] tabular-nums text-brand-orange">
+            <p className="mt-0.5 text-[12px] font-medium tabular-nums text-brand-orange">
               {busiest.unavailableCount}/{busiest.total} booked
             </p>
           ) : null}
         </div>
       </div>
 
-      <div className="shrink-0 border-b border-brand-line bg-brand-bg-subtle/50 px-4 py-3.5">
+      <div className="shrink-0 border-b border-brand-line/40 px-4 py-3.5">
         <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-brand-ink-tertiary">
           Legend
         </p>
@@ -106,7 +106,7 @@ export function ScheduleInsightPanel({
             </span>
           </div>
           <div className="flex items-center gap-2.5">
-            <span className="h-3.5 w-8 rounded-[4px] bg-brand-surface ring-1 ring-inset ring-brand-line/80" />
+            <span className="h-3.5 w-8 rounded-[4px] bg-white ring-1 ring-inset ring-brand-line/70" />
             <span className="text-[12px] text-brand-ink-secondary">
               Available
             </span>
@@ -133,8 +133,8 @@ export function ScheduleInsightPanel({
                 className={clsx(
                   "flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition",
                   active
-                    ? "bg-brand-orange-soft ring-1 ring-brand-orange/30"
-                    : "hover:bg-brand-blue-soft/50"
+                    ? "bg-brand-orange-soft ring-1 ring-inset ring-brand-orange/30"
+                    : "hover:bg-brand-blue-soft/40"
                 )}
               >
                 <Avatar

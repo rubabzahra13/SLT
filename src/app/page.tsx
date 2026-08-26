@@ -1,29 +1,46 @@
 import Link from "next/link";
-import { ChevronRight } from "lucide-react";
+import clsx from "clsx";
+import { ArrowUpRight } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Avatar } from "@/components/ui/Avatar";
-import { DottedScroll } from "@/components/ui/DottedScroll";
-import { getData, formatPrice } from "@/lib/data";
 import { PipelineChart } from "@/components/dashboard/PipelineChart";
+import { RevenueChart } from "@/components/dashboard/RevenueChart";
+import { ScheduleWeekChart } from "@/components/dashboard/ScheduleWeekChart";
+import { MixOpsChart } from "@/components/dashboard/MixOpsChart";
+import { getData, formatPrice } from "@/lib/data";
+import {
+  BRAND_BLUE,
+  BRAND_BLUE_DEEP,
+  BRAND_SIGNATURE,
+} from "@/lib/brand-colors";
 import {
   buildCategoryPipeline,
   buildDashboardPulse,
+  buildMixOpsSlices,
   buildPriorityQueue,
+  buildRevenueStages,
+  buildWeeklyCapacity,
+  sortProducersForCapacity,
+  type PriorityItem,
 } from "@/lib/dashboard";
-import clsx from "clsx";
+import type { Producer } from "@/types";
 
 const TODAY_LABEL = "Wednesday, August 19, 2026";
 
-const PANEL_SCROLL_HEIGHT = "max-h-[18.5rem]";
-
 const toneDot = {
-  blocked: "bg-brand-signature",
+  blocked: "bg-brand-orange",
   match: "bg-brand-blue",
-  assign: "bg-brand-orange",
+  assign: "bg-brand-signature",
+} as const;
+
+const statusLabel = {
+  available: "Open",
+  limited: "Limited",
+  unavailable: "Booked",
 } as const;
 
 export default function DashboardPage() {
-  const { orders, producers, mtdRecords } = getData();
+  const { orders, producers, mtdRecords, schedule } = getData();
 
   const mtdByOrderId = new Map(
     mtdRecords
@@ -31,245 +48,299 @@ export default function DashboardPage() {
       .map((record) => [record.orderId as string, record.id])
   );
 
-  const pulse = buildDashboardPulse(mtdRecords, producers);
+  const pulse = buildDashboardPulse(mtdRecords, producers, schedule);
   const priority = buildPriorityQueue(orders, mtdRecords, mtdByOrderId);
   const pipeline = buildCategoryPipeline(mtdRecords);
+  const team = sortProducersForCapacity(producers);
+  const revenueStages = buildRevenueStages(pulse).map((stage, index) => ({
+    ...stage,
+    color: [BRAND_SIGNATURE, BRAND_BLUE, BRAND_BLUE_DEEP][index] ?? BRAND_SIGNATURE,
+  }));
+  const weekCapacity = buildWeeklyCapacity(producers, schedule, mtdRecords);
+  const mixOps = buildMixOpsSlices(pulse);
+
+  const kpis = [
+    { href: "/mtd", label: "Unassigned", value: pulse.toAssign, accent: true },
+    { href: "/mtd", label: "In queue", value: pulse.blocked },
+    { href: "/outsourced", label: "Outgoing", value: pulse.outgoing },
+    { href: "/outsourced", label: "Outsourced", value: pulse.outsourced },
+    {
+      href: "/payroll",
+      label: "In payroll",
+      value: pulse.payrollCount,
+      detail: formatPrice(pulse.payrollValue),
+    },
+  ] as const;
+
+  const pipelineTotal = pipeline.reduce((sum, slice) => sum + slice.count, 0);
+  const totalPipelineValue =
+    pulse.openValue + pulse.inProductionValue + pulse.payrollValue;
 
   return (
-    <>
-      <PageHeader title="Dashboard" subtitle={TODAY_LABEL} />
+    <div className="flex h-[calc(100dvh-3.5rem-3.25rem)] flex-col overflow-hidden md:h-[calc(100dvh-3.25rem)]">
+      <PageHeader
+        compact
+        title="Dashboard"
+        badge={`${mtdRecords.length} mixes`}
+        subtitle={TODAY_LABEL}
+      />
 
-      <div className="flex min-h-0 flex-1 flex-col gap-6 p-6 lg:gap-7 lg:p-8">
-        {/* 1 · Studio pulse */}
-        <section aria-label="Studio overview">
-          <PanelHeader title="Overview" detail="From Music To Do" />
-          <div className="mt-4 overflow-hidden rounded-[20px] border border-brand-line bg-brand-elevated shadow-[var(--shadow-premium-sm)]">
-            <div className="grid grid-cols-2 divide-x divide-y divide-brand-line/80 lg:grid-cols-4 lg:divide-y-0">
-              <InsightCell
-                href="/mtd"
-                value={pulse.toAssign}
-                label="To assign"
-              />
-              <InsightCell
-                href="/mtd"
-                value={pulse.blocked}
-                label="Blocked"
-              />
-              <InsightCell
-                href="/outsourced"
-                value={pulse.inProduction}
-                label="In production"
-              />
-              <InsightCell
-                href="/schedule"
-                value={`${pulse.availableProducers}/${pulse.totalProducers}`}
-                label="Team open"
-              />
-            </div>
-          </div>
-        </section>
-
-        {/* 2 · Team availability */}
-        <section aria-label="Team availability">
-          <PanelHeader
-            title="Team"
-            detail="Who is open right now"
-            action={{ label: "Open schedule", href: "/schedule" }}
-          />
-          <div className="mt-3 overflow-hidden rounded-2xl border border-brand-line bg-brand-elevated px-4 py-4 shadow-[var(--shadow-premium-sm)]">
-            <div className="dashboard-marquee group flex w-max gap-5 pb-1">
-              {[...producers, ...producers].map((producer, index) => (
-                <Link
-                  key={`${producer.id}-${index}`}
-                  href={`/schedule?producer=${producer.initials}`}
-                  className="group flex w-[76px] shrink-0 flex-col items-center gap-2"
+      <div className="dashboard-fit px-6 pb-4 pt-3 lg:px-8">
+        <section className="dashboard-kpi-strip shrink-0">
+          <div className="grid grid-cols-2 divide-y divide-brand-line/40 sm:grid-cols-3 sm:divide-x sm:divide-y-0 lg:grid-cols-5">
+            {kpis.map((kpi) => (
+              <Link
+                key={kpi.label}
+                href={kpi.href}
+                className="dashboard-kpi-cell group block min-w-0"
+              >
+                <p
+                  className={clsx(
+                    "text-[22px] font-bold leading-none tabular-nums tracking-[-0.04em] text-brand-ink",
+                    "accent" in kpi && kpi.accent && "text-brand-orange"
+                  )}
                 >
-                  <div
-                    className={clsx(
-                      producer.status === "available" && "ring-available",
-                      producer.status === "limited" && "ring-limited",
-                      producer.status === "unavailable" && "ring-unavailable"
-                    )}
-                  >
-                    <Avatar
-                      src={producer.avatar}
-                      alt={producer.name}
-                      size="lg"
-                    />
-                  </div>
-                  <div className="w-full text-center">
-                    <p className="truncate text-[12px] font-semibold text-brand-ink">
-                      {producer.initials}
-                    </p>
-                    <p className="truncate text-[10px] text-brand-ink-tertiary">
-                      {producer.nextAvailable}
-                    </p>
-                  </div>
-                </Link>
-              ))}
-            </div>
+                  {kpi.value}
+                </p>
+                <p className="text-label mt-1.5">{kpi.label}</p>
+                {"detail" in kpi && kpi.detail ? (
+                  <p className="mt-0.5 truncate text-[10px] font-medium text-brand-ink-tertiary">
+                    {kpi.detail}
+                  </p>
+                ) : null}
+              </Link>
+            ))}
           </div>
         </section>
 
-        {/* 3 · Work queue + pipeline */}
-        <div className="grid gap-6 xl:grid-cols-12 xl:items-start">
-          <section className="xl:col-span-8" aria-label="Priority queue">
-            <PanelHeader
-              title="Needs attention"
-              detail="Blocked items, new orders, and First Available matches"
-              action={{ label: "Open MTD", href: "/mtd" }}
-            />
-            <DashboardScrollPanel
-              isEmpty={priority.length === 0}
-              empty={
-                <p className="flex items-center justify-center px-4 py-12 text-[13px] text-brand-ink-secondary">
-                  You&apos;re all caught up.
-                </p>
-              }
+        <div className="dashboard-body-grid min-h-0">
+          <div className="flex min-h-0 flex-col gap-3">
+            <DashboardPanel
+              title="Team today"
+              count={`${pulse.availableProducers}/${pulse.totalProducers}`}
+              href="/schedule"
+              linkLabel="Schedule"
             >
-              <ul className="divide-y divide-brand-line">
-                {priority.map((item) => (
-                  <li key={item.id}>
-                    <Link
-                      href={item.href}
-                      className="flex items-center gap-3 px-4 py-3.5 transition hover:bg-brand-accent-soft/40 active:bg-brand-accent-soft/60"
-                    >
-                      <span
-                        className={clsx(
-                          "h-2 w-2 shrink-0 rounded-full",
-                          toneDot[item.tone]
-                        )}
-                        aria-hidden
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-[14px] font-semibold text-brand-ink">
-                          {item.title}
-                        </p>
-                        <p className="mt-0.5 truncate text-[12px] text-brand-ink-secondary">
-                          {item.reason}
-                        </p>
-                        <p className="mt-0.5 truncate text-[12px] text-brand-ink-tertiary">
-                          {item.meta}
-                          {item.price != null
-                            ? ` · ${formatPrice(item.price)}`
-                            : ""}
-                        </p>
-                      </div>
-                      <ChevronRight
-                        className="h-4 w-4 shrink-0 text-brand-ink-tertiary"
-                        strokeWidth={2}
-                      />
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </DashboardScrollPanel>
-          </section>
+              <div className="flex min-h-0 flex-1 p-3">
+                <TeamRosterMarquee team={team} />
+              </div>
+            </DashboardPanel>
 
-          <section className="xl:col-span-4" aria-label="Order pipeline">
-            <PanelHeader
-              title="Pipeline"
-              detail="Open MTD by category"
-              action={{ label: "Open MTD", href: "/mtd" }}
-            />
-            <div
-              className={clsx(
-                "mt-3 overflow-hidden rounded-2xl border border-brand-line bg-brand-elevated shadow-[var(--shadow-premium-sm)]",
-                PANEL_SCROLL_HEIGHT,
-                "h-[18.5rem]"
-              )}
+            <DashboardPanel
+              fill
+              title="Needs attention"
+              count={priority.length}
+              href="/mtd"
+              linkLabel="MTD"
             >
-              <PipelineChart pipeline={pipeline} />
+              {priority.length === 0 ? (
+                <p className="flex flex-1 items-center justify-center px-4 text-[12px] text-brand-ink-tertiary">
+                  All caught up.
+                </p>
+              ) : (
+                <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                  <table className="w-full min-w-0 border-collapse">
+                    <thead className="table-header-row sticky top-0 z-[1]">
+                      <tr>
+                        <th className="table-header-cell text-label px-3 py-2 text-left">
+                          Program
+                        </th>
+                        <th className="table-header-cell text-label px-3 py-2 text-right">
+                          Price
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {priority.map((item) => (
+                        <PriorityRow key={item.id} item={item} />
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </DashboardPanel>
+          </div>
+
+          <div className="flex min-h-0 flex-col gap-3">
+            <DashboardPanel
+              title="Pipeline"
+              count={pipelineTotal}
+              href="/mtd"
+              linkLabel="MTD"
+            >
+              <PipelineChart pipeline={pipeline} compact limit={4} />
+            </DashboardPanel>
+
+            <DashboardPanel
+              title="Revenue"
+              subtitle={formatPrice(totalPipelineValue)}
+              href="/mtd"
+              linkLabel="MTD"
+            >
+              <RevenueChart stages={revenueStages} compact />
+            </DashboardPanel>
+
+            <div className="dashboard-charts-row min-h-0 flex-1">
+              <DashboardPanel fill title="Week capacity" href="/schedule" linkLabel="Schedule">
+                <ScheduleWeekChart days={weekCapacity} compact />
+              </DashboardPanel>
+
+              <DashboardPanel fill title="Mix timeline" href="/mtd" linkLabel="MTD">
+                <MixOpsChart slices={mixOps} compact />
+              </DashboardPanel>
             </div>
-          </section>
+          </div>
         </div>
       </div>
-    </>
-  );
-}
-
-function DashboardScrollPanel({
-  children,
-  empty,
-  isEmpty,
-}: {
-  children?: React.ReactNode;
-  empty?: React.ReactNode;
-  isEmpty?: boolean;
-}) {
-  return (
-    <div
-      className={clsx(
-        "mt-3 overflow-hidden rounded-2xl border border-brand-line bg-brand-elevated shadow-[var(--shadow-premium-sm)]",
-        !isEmpty && PANEL_SCROLL_HEIGHT
-      )}
-    >
-      {isEmpty ? (
-        empty
-      ) : (
-        <DottedScroll
-          className={PANEL_SCROLL_HEIGHT}
-          scrollClassName={`${PANEL_SCROLL_HEIGHT} overflow-y-scroll scrollbar-hide`}
-          indicatorPlacement="overlay"
-        >
-          {children}
-        </DottedScroll>
-      )}
     </div>
   );
 }
 
-function PanelHeader({
+function TeamRosterMarquee({ team }: { team: Producer[] }) {
+  const roster = [...team, ...team];
+
+  return (
+    <div className="dashboard-team-track relative flex min-h-[220px] flex-1 overflow-hidden rounded-xl border">
+      <div
+        className="dashboard-team-fade-left pointer-events-none absolute inset-y-0 left-0 z-10 w-16"
+        aria-hidden
+      />
+      <div
+        className="dashboard-team-fade-right pointer-events-none absolute inset-y-0 right-0 z-10 w-16"
+        aria-hidden
+      />
+      <div className="flex min-h-[220px] flex-1 items-center py-3">
+        <div className="dashboard-marquee flex w-max items-stretch gap-5 px-4">
+          {roster.map((producer, index) => (
+            <Link
+              key={`${producer.id}-${index}`}
+              href={`/schedule?producer=${producer.initials}`}
+              className="dashboard-team-card group flex w-[152px] shrink-0 flex-col items-center gap-3 rounded-xl px-4 py-5 text-center transition-colors hover:border-brand-signature/35"
+            >
+              <div
+                className={clsx(
+                  "rounded-full ring-2 ring-offset-2 ring-offset-white",
+                  producer.status === "available" && "ring-brand-signature",
+                  producer.status === "limited" && "ring-brand-orange",
+                  producer.status === "unavailable" && "ring-brand-line"
+                )}
+              >
+                <Avatar src={producer.avatar} alt={producer.name} size="xl" />
+              </div>
+              <div className="min-w-0 w-full">
+                <p className="truncate text-[15px] font-bold tracking-[-0.03em] text-brand-ink">
+                  {producer.initials}
+                </p>
+                <p className="mt-0.5 truncate text-[11px] font-medium text-brand-ink-secondary">
+                  {producer.name}
+                </p>
+                <span
+                  className={clsx(
+                    "mt-2.5 inline-flex rounded-full px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.06em]",
+                    producer.status === "available" && "bg-brand-blue-soft text-brand-signature",
+                    producer.status === "limited" && "bg-brand-orange-soft text-brand-orange",
+                    producer.status === "unavailable" && "bg-brand-bg-subtle text-brand-ink-tertiary"
+                  )}
+                >
+                  {statusLabel[producer.status]}
+                </span>
+                <p className="mt-2 truncate text-[10px] font-semibold text-brand-ink-tertiary">
+                  {producer.nextAvailable}
+                </p>
+              </div>
+            </Link>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PriorityRow({ item }: { item: PriorityItem }) {
+  return (
+    <tr className="group border-b border-brand-line/12 last:border-b-0 transition-colors hover:bg-brand-blue-soft/10">
+      <td className="px-3 py-2">
+        <Link href={item.href} className="flex min-w-0 items-center gap-2">
+          <span
+            className={clsx("h-1.5 w-1.5 shrink-0 rounded-full", toneDot[item.tone])}
+            aria-hidden
+          />
+          <div className="min-w-0">
+            <p className="truncate text-[12px] font-semibold text-brand-ink group-hover:text-brand-signature">
+              {item.title}
+            </p>
+            <p className="truncate text-[10px] text-brand-ink-secondary">{item.reason}</p>
+          </div>
+        </Link>
+      </td>
+      <td className="px-4 py-2.5 text-right">
+        <Link href={item.href} className="block">
+          <span className="text-[12px] font-bold tabular-nums text-brand-ink">
+            {item.price != null ? formatPrice(item.price) : "—"}
+          </span>
+        </Link>
+      </td>
+    </tr>
+  );
+}
+
+function DashboardPanel({
   title,
-  detail,
-  action,
+  subtitle,
+  count,
+  href,
+  linkLabel,
+  children,
+  className,
+  fill = false,
 }: {
   title: string;
-  detail: string;
-  action?: { label: string; href: string };
+  subtitle?: string;
+  count?: string | number;
+  href?: string;
+  linkLabel?: string;
+  children: React.ReactNode;
+  className?: string;
+  fill?: boolean;
 }) {
-  return (
-    <div className="flex items-start justify-between gap-4">
-      <div className="min-w-0">
-        <h2 className="text-[17px] font-semibold tracking-[-0.02em] text-brand-ink">
-          {title}
-        </h2>
-        <p className="mt-1 text-[13px] leading-snug text-brand-ink-secondary">
-          {detail}
-        </p>
-      </div>
-      {action ? (
-        <Link
-          href={action.href}
-          className="shrink-0 pt-0.5 text-[13px] font-medium text-brand-signature transition hover:text-brand-signature-hover"
-        >
-          {action.label}
-        </Link>
-      ) : null}
-    </div>
-  );
-}
+  const showCount =
+    count != null && (typeof count === "string" || count !== 0);
 
-function InsightCell({
-  href,
-  value,
-  label,
-}: {
-  href: string;
-  value: number | string;
-  label: string;
-}) {
   return (
-    <Link
-      href={href}
-      className="group flex flex-col gap-3 px-5 py-5 transition-colors hover:bg-[#f7fafc] sm:px-7 sm:py-6"
+    <section
+      className={clsx(
+        "dashboard-panel flex min-h-0 flex-col",
+        fill && "flex-1",
+        className
+      )}
     >
-      <span className="text-[12px] font-medium tracking-[-0.01em] text-brand-ink-tertiary">
-        {label}
-      </span>
-      <span className="text-[28px] font-semibold leading-none tabular-nums tracking-[-0.045em] text-brand-ink transition-colors group-hover:text-brand-signature sm:text-[32px]">
-        {value}
-      </span>
-    </Link>
+      <div className="dashboard-panel-head flex shrink-0 items-center justify-between gap-3 px-4 py-2.5">
+        <div className="flex min-w-0 items-center gap-2">
+          <h2 className="truncate text-[13px] font-bold tracking-[-0.02em] text-brand-ink">
+            {title}
+          </h2>
+          {showCount ? (
+            <span className="dashboard-panel-count shrink-0 rounded-md px-1.5 py-0.5 text-[9px] font-bold tabular-nums">
+              {count}
+            </span>
+          ) : null}
+          {subtitle ? (
+            <span className="hidden truncate text-[10px] font-medium text-brand-ink-tertiary lg:inline">
+              {subtitle}
+            </span>
+          ) : null}
+        </div>
+        {href && linkLabel ? (
+          <Link
+            href={href}
+            className="inline-flex shrink-0 items-center gap-0.5 text-[10px] font-semibold text-brand-signature transition hover:text-brand-signature-hover"
+          >
+            {linkLabel}
+            <ArrowUpRight className="h-3 w-3" strokeWidth={2.5} />
+          </Link>
+        ) : null}
+      </div>
+      <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+    </section>
   );
 }

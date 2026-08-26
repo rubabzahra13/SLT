@@ -115,13 +115,13 @@ function ScheduleCellButton({
           : `${cell.dayLabel} ${cell.dateLabel} · ${statusLabel(cell.status)}`
       }
       className={clsx(
-        "mx-auto w-full rounded-[4px] transition-colors hover:ring-1 hover:ring-brand-blue/40",
+        "mx-auto w-full rounded-md transition-all duration-150 hover:scale-[1.04] hover:ring-1 hover:ring-brand-blue/40",
         isWeek ? "h-6 max-h-8 min-h-5" : "h-3.5",
         cell.unavailable
-          ? "bg-brand-signature"
-          : "bg-brand-surface ring-1 ring-inset ring-brand-line/80",
+          ? "bg-gradient-to-b from-brand-blue to-brand-signature shadow-[0_1px_2px_rgba(15,30,45,0.18)]"
+          : "bg-white ring-1 ring-inset ring-brand-line/70 hover:bg-brand-blue-soft/40",
         selected &&
-          "ring-2 ring-brand-orange ring-offset-1 ring-offset-brand-elevated"
+          "ring-2 ring-brand-orange ring-offset-1 ring-offset-white"
       )}
       style={{ maxWidth: LAYOUT.barMax[range] }}
       aria-label={
@@ -231,21 +231,21 @@ export function TeamScheduleMatrix({
       }}
     >
       <div
-        className="sticky left-0 top-0 z-40 flex items-center justify-center border-b border-r border-brand-line bg-gradient-to-b from-brand-blue-soft to-brand-bg-subtle/90 px-2 py-2 backdrop-blur-md"
+        className="sticky left-0 top-0 z-40 flex items-center justify-center border-b border-r border-brand-line/60 bg-brand-bg-subtle/95 px-2 py-2 backdrop-blur-md"
       >
-        <p className="text-center text-[9px] font-bold uppercase tracking-[0.05em] text-brand-ink-secondary">
+        <p className="text-center text-[9px] font-bold uppercase tracking-[0.06em] text-brand-ink-tertiary">
           Date
         </p>
       </div>
       <div
-        className="sticky top-0 z-40 flex items-center justify-center border-b border-r border-brand-line bg-gradient-to-b from-brand-blue-soft to-brand-bg-subtle/90 px-1.5 py-2 text-center backdrop-blur-md"
+        className="sticky top-0 z-40 flex items-center justify-center border-b border-r border-brand-line/60 bg-brand-bg-subtle/95 px-1.5 py-2 text-center backdrop-blur-md"
         style={{ left: availableStickyLeft }}
       >
         <div className="relative flex w-full flex-col items-center justify-center">
-          <p className="text-[9px] font-bold uppercase leading-tight tracking-[0.05em] text-brand-ink-secondary">
+          <p className="text-[9px] font-bold uppercase leading-tight tracking-[0.06em] text-brand-ink-tertiary">
             Available
           </p>
-          <p className="absolute top-full mt-0.5 text-[10px] font-semibold tabular-nums text-brand-ink-secondary">
+          <p className="absolute top-full mt-0.5 text-[10px] font-semibold tabular-nums text-brand-ink-tertiary">
             out of {teamTotal}
           </p>
         </div>
@@ -261,15 +261,15 @@ export function TeamScheduleMatrix({
             onClick={() => onSelectProducer(row)}
             title={row.producer.name}
             className={clsx(
-              "sticky top-0 z-30 flex min-h-0 min-w-0 w-full flex-col items-center justify-center gap-1 overflow-visible border-b border-r border-brand-line bg-gradient-to-b from-brand-blue-soft to-brand-bg-subtle/90 px-0.5 py-1.5 backdrop-blur-md transition hover:from-brand-blue-soft hover:to-brand-blue-muted/40",
+              "sticky top-0 z-30 flex min-h-0 min-w-0 w-full flex-col items-center justify-center gap-1 overflow-visible border-b border-r border-brand-line/60 bg-brand-bg-subtle/95 px-0.5 py-1.5 backdrop-blur-md transition hover:bg-brand-blue-soft/60",
               isLast && "border-r-0",
-              isActive && "from-brand-orange-soft to-brand-orange-soft/50"
+              isActive && "bg-brand-orange-soft hover:bg-brand-orange-soft"
             )}
           >
             <div
               className={clsx(
-                "shrink-0 rounded-full ring-1 ring-offset-1 ring-offset-brand-elevated",
-                isActive ? "ring-brand-orange/60" : "ring-brand-blue/35"
+                "shrink-0 rounded-full ring-1 ring-offset-1 ring-offset-white",
+                isActive ? "ring-brand-orange/60" : "ring-brand-blue/30"
               )}
             >
               <Avatar
@@ -297,7 +297,7 @@ export function TeamScheduleMatrix({
           <Fragment key={column.key}>
             {monthStart ? (
               <div
-                className="sticky z-[25] flex items-center border border-brand-line bg-gradient-to-r from-brand-blue-soft via-brand-bg-subtle/90 to-brand-blue-soft px-3 backdrop-blur-md"
+                className="sticky z-[25] flex items-center border border-brand-line/60 bg-brand-bg-subtle/95 px-3 backdrop-blur-md"
                 style={{
                   gridColumn: "1 / -1",
                   top: monthBarTop,
@@ -312,13 +312,13 @@ export function TeamScheduleMatrix({
             ) : null}
 
             <div
-              className="sticky left-0 z-20 flex items-center border-b border-r border-brand-line/70 bg-brand-elevated px-1.5 py-1.5"
+              className="sticky left-0 z-20 flex items-center border-b border-r border-brand-line/70 bg-white px-1.5 py-1.5"
               style={{ left: dateStickyLeft }}
             >
               <DateColumnCell column={column} range={range} />
             </div>
             <div
-              className="sticky z-20 flex items-center border-b border-r border-brand-line/70 bg-brand-elevated px-1 py-1.5"
+              className="sticky z-20 flex items-center border-b border-r border-brand-line/70 bg-white px-1 py-1.5"
               style={{ left: availableStickyLeft }}
             >
               <p
@@ -343,9 +343,11 @@ export function TeamScheduleMatrix({
                 <div
                   key={`${column.key}-${row.producer.id}`}
                   className={clsx(
-                    "flex min-h-0 min-w-0 items-center justify-center border-b border-r border-brand-line/25 px-0.5 py-1",
+                    "group/cell flex min-h-0 min-w-0 items-center justify-center border-b border-r border-brand-line/20 bg-white px-0.5 py-1 transition-colors",
                     isLast && "border-r-0",
-                    isActive && "bg-brand-orange-soft/40"
+                    isActive
+                      ? "bg-brand-orange-soft/40"
+                      : "hover:bg-brand-blue-soft/25"
                   )}
                 >
                   <ScheduleCellButton
@@ -366,7 +368,7 @@ export function TeamScheduleMatrix({
   return (
     <div
       className={clsx(
-        "flex h-full min-h-0 w-full flex-col overflow-hidden rounded-xl border border-brand-line/80 bg-brand-elevated shadow-[var(--shadow-premium-sm)]",
+        "flex h-full min-h-0 w-full flex-col overflow-hidden rounded-xl border border-brand-line/50 bg-white shadow-[var(--shadow-premium-sm)] ring-1 ring-inset ring-brand-line/20",
         className
       )}
       style={{

@@ -6,9 +6,9 @@ import { Pencil } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Avatar } from "@/components/ui/Avatar";
 import { DataTable, type Column } from "@/components/ui/DataTable";
-import { OrderFormFilters } from "@/components/orders/OrderFormFilters";
 import {
   InlineCell,
+  InlineMultiCheckGroup,
   InlineSelect,
   InlineDateInput,
 } from "@/components/mtd/InlineFields";
@@ -27,13 +27,12 @@ import {
 } from "@/components/mtd/CompletionBlockedModal";
 import {
   DEFAULT_MTD_TABLE_FILTERS,
-  MTDTableFilters,
   type MTDTableFilterState,
 } from "@/components/mtd/MTDTableFilters";
+import { MTDPageToolbar } from "@/components/mtd/MTDPageToolbar";
 import { useAppState } from "@/context/AppStateContext";
 import { formatPrice, titleCase } from "@/lib/data";
 import { parsePackage } from "@/lib/package";
-import { parseMusicTheme } from "@/lib/music-theme";
 import { complianceLabel } from "@/lib/pricing";
 import { formatSlotForDisplay, suggestMixEndDate, suggestMixStartDate } from "@/lib/scheduling";
 import { inferMTDRecordStatus, patchFromRecordStatus } from "@/lib/mtd-status";
@@ -59,6 +58,12 @@ import {
   filterMTDRecords,
   hasMixStartDate,
 } from "@/lib/mtd-filters";
+import {
+  encodeEightCs,
+  encodeSongs,
+  parseEightCsFlags,
+  parseSongsFlags,
+} from "@/lib/mtd-checklist";
 import type {
   CheerFormSubtype,
   DanceFormSubtype,
@@ -76,10 +81,10 @@ const DEFAULT_DANCE_SUBTYPE: DanceFormSubtype = "pom";
 
 const actionButtonClass = (filled: boolean) =>
   clsx(
-    "mt-1 rounded-md border px-2 py-1 text-[11px] font-medium transition",
+    "mt-1 rounded-md border px-2 py-1 text-[11px] font-semibold transition shadow-sm",
     filled
-      ? "border-brand-line/70 text-brand-ink hover:border-brand-line hover:bg-brand-bg/50"
-      : "border-brand-orange/40 bg-brand-orange-soft text-brand-orange hover:bg-brand-orange-muted/30"
+      ? "border-brand-line/70 bg-brand-elevated text-brand-ink hover:border-brand-line hover:bg-brand-bg/50"
+      : "border-brand-orange-deep bg-brand-orange text-white hover:bg-brand-orange-hover"
   );
 
 const clickableChipClass =
@@ -87,6 +92,63 @@ const clickableChipClass =
 
 const unavailableTagClass =
   "inline-flex items-center rounded-full bg-brand-warning/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.04em] text-brand-warning ring-1 ring-inset ring-brand-warning/25";
+
+const tableDateClass = "!w-auto min-w-[108px] max-w-full";
+const tableStatusSelectClass =
+  "!h-8 !min-h-0 !w-auto min-w-[132px] max-w-full !py-0";
+
+function formatWordLines(
+  value: string,
+  mode: "even" | "staggered" = "even",
+  max = 140
+): string {
+  if (!value?.trim()) return "—";
+  const cleaned = value.replace(/\s+/g, " ").trim();
+  let text = titleCase(cleaned);
+  let ellipsis = false;
+  if (text.length > max) {
+    text = text.slice(0, max).trim();
+    ellipsis = true;
+  }
+  const words = text.split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+
+  if (mode === "staggered") {
+    let index = 0;
+    if (words.length > 0) {
+      lines.push(words.slice(index, index + 3).join(" "));
+      index += 3;
+    }
+    while (index < words.length) {
+      lines.push(words.slice(index, index + 2).join(" "));
+      index += 2;
+    }
+  } else {
+    for (let i = 0; i < words.length; i += 3) {
+      lines.push(words.slice(i, i + 3).join(" "));
+    }
+  }
+
+  if (ellipsis && lines.length > 0) {
+    lines[lines.length - 1] = `${lines[lines.length - 1]}…`;
+  }
+  return lines.join("\n");
+}
+
+function multilineTableCell(
+  value: string,
+  maxWidth = "180px",
+  mode: "even" | "staggered" = "even"
+) {
+  return (
+    <span
+      className="mx-auto block whitespace-pre-line text-center text-[12px] leading-snug text-brand-ink"
+      style={{ maxWidth }}
+    >
+      {formatWordLines(value, mode)}
+    </span>
+  );
+}
 
 export default function MTDPage() {
   const {
@@ -313,7 +375,7 @@ export default function MTDPage() {
         width: "56px",
         align: "center",
         render: (_rec, index) => (
-          <span className="tabular-nums text-brand-ink">
+          <span className="tabular-nums text-[12px] text-brand-ink">
             {index + 1}
           </span>
         ),
@@ -321,53 +383,50 @@ export default function MTDPage() {
       {
         key: "contactC",
         header: "Contact",
-        width: "160px",
+        width: "96px",
         align: "center",
-        nowrap: false,
+        cellClassName: "!px-3",
+        headerClassName: "!px-3",
         render: (rec) => (
-          <span className="whitespace-nowrap text-brand-ink">
+          <span className="block truncate text-[12px] leading-snug text-brand-ink">
             {titleCase(rec.contactName)}
           </span>
         ),
       },
       {
         key: "programD",
-        header: "Program & division",
-        width: "200px",
+        header: "Program",
+        width: "128px",
         align: "center",
         nowrap: false,
-        render: (rec) => {
-          const linked = findLinkedOrder(rec, allOrders);
-          const division = linked?.division?.trim();
-          return (
-            <div className="inline-flex max-w-full flex-col items-center justify-center gap-1">
-              <span className="text-[11px] leading-snug text-brand-ink">
-                {titleCase(rec.programName)}
-              </span>
-              {division ? (
-                <span className="text-[10px] leading-snug text-brand-ink-tertiary">
-                  {titleCase(division)}
-                </span>
-              ) : null}
-            </div>
-          );
-        },
+        cellClassName: "!px-1.5 !py-2",
+        headerClassName: "!px-1.5 !py-2",
+        render: (rec) => multilineTableCell(rec.programName, "120px"),
       },
       {
         key: "packageE",
         header: "Package",
-        width: "88px",
+        width: "72px",
         align: "center",
+        nowrap: false,
+        cellClassName: "!px-1 !py-2",
+        headerClassName: "!px-1 !py-2",
         render: (rec) => {
           const { tier } = parsePackage(rec.package);
-          return <span className="font-medium text-brand-ink">{titleCase(tier)}</span>;
+          return (
+            <span className="mx-auto block text-center text-[12px] font-medium text-brand-ink">
+              {titleCase(tier)}
+            </span>
+          );
         },
       },
       {
         key: "limitE",
         header: "Time limit",
-        width: "72px",
+        width: "60px",
         align: "center",
+        cellClassName: "!px-1.5 !py-2",
+        headerClassName: "!px-1.5 !py-2",
         render: (rec) => {
           const { limit } = parsePackage(rec.package);
           return (
@@ -380,8 +439,10 @@ export default function MTDPage() {
       {
         key: "splitE",
         header: "Split",
-        width: "88px",
+        width: "76px",
         align: "center",
+        cellClassName: "!px-1.5 !py-2",
+        headerClassName: "!px-1.5 !py-2",
         render: (rec) => {
           const { split } = parsePackage(rec.package);
           return (
@@ -393,24 +454,22 @@ export default function MTDPage() {
       },
       {
         key: "themeF",
-        header: "Music & theme",
-        width: "180px",
+        header: "Music",
+        width: "128px",
         align: "center",
         nowrap: false,
-        render: (rec) => {
-          const { music } = parseMusicTheme(rec.musicTheme);
-          return (
-            <span className="text-[11px] text-brand-ink">
-              {titleCase(music)}
-            </span>
-          );
-        },
+        cellClassName: "!px-1.5 !py-2",
+        headerClassName: "!px-1.5 !py-2",
+        render: (rec) => multilineTableCell(rec.musicTheme, "120px"),
       },
       {
         key: "chosenInitialsF",
         header: "Requested editor",
-        width: "108px",
+        width: "96px",
         align: "center",
+        nowrap: false,
+        cellClassName: "!px-2 !py-1.5",
+        headerClassName: "!px-2 !py-2",
         render: (rec) => {
           const linked = findLinkedOrder(rec, allOrders);
           const label = formatRequestedEditorLabel(rec, producers, linked);
@@ -427,10 +486,10 @@ export default function MTDPage() {
             );
 
           return (
-            <div className="inline-flex flex-col items-center gap-1">
+            <div className="inline-flex flex-col items-center gap-0.5">
               <span
                 className={clsx(
-                  "text-[12px] font-medium uppercase tabular-nums",
+                  "text-[12px] font-medium uppercase tabular-nums leading-none",
                   isFa ? "text-brand-info" : "text-brand-ink"
                 )}
               >
@@ -453,8 +512,14 @@ export default function MTDPage() {
         header: "Price",
         width: "96px",
         align: "center",
+        nowrap: false,
+        cellClassName: "!px-2",
+        headerClassName: "!px-2",
         render: (rec) => (
-          <div className="mx-auto min-w-[88px]" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="mx-auto flex w-full flex-col items-center"
+            onClick={(e) => e.stopPropagation()}
+          >
             <button
               type="button"
               onClick={(e) => openPricingModal(rec, e)}
@@ -462,7 +527,7 @@ export default function MTDPage() {
               aria-label={`Edit pricing ${formatPrice(rec.price)}`}
               className={clsx(
                 clickableChipClass,
-                "max-w-full rounded-lg px-2.5 py-1 text-center"
+                "flex w-full flex-col items-center rounded-lg px-2 py-1 text-center"
               )}
             >
               <p className="font-medium tabular-nums text-[12px] text-brand-ink hover:text-brand-orange">
@@ -472,8 +537,8 @@ export default function MTDPage() {
                 className={clsx(
                   "text-[10px] font-medium",
                   rec.priceCompliance === "compliant"
-                    ? "text-brand-success"
-                    : "text-brand-warning"
+                    ? "text-brand-signature"
+                    : "text-brand-orange"
                 )}
               >
                 {complianceLabel(rec.priceCompliance)}
@@ -487,6 +552,9 @@ export default function MTDPage() {
         header: "Mix start date",
         width: "128px",
         align: "center",
+        nowrap: false,
+        cellClassName: "!px-2 !py-1.5",
+        headerClassName: "!px-2 !py-2",
         render: (rec) => {
           const template = rec.assignedProducer
             ? suggestMixStartDate(rec.assignedProducer, producers, schedule)
@@ -495,6 +563,7 @@ export default function MTDPage() {
 
           return (
             <InlineCell
+              centered
               footer={
                 rec.assignedProducer && !hasMixStartDate(rec) ? (
                   <span
@@ -515,6 +584,7 @@ export default function MTDPage() {
                 value={rec.mixStartDate}
                 template={template}
                 max={endIso || undefined}
+                className={tableDateClass}
                 onChange={(v) => {
                   if (!v) {
                     updateMTD(rec.id, { mixStartDate: v });
@@ -538,6 +608,9 @@ export default function MTDPage() {
         header: "Mix end date",
         width: "128px",
         align: "center",
+        nowrap: false,
+        cellClassName: "!px-2 !py-1.5",
+        headerClassName: "!px-2 !py-2",
         render: (rec) => {
           const startIso = toIsoDateString(rec.mixStartDate);
           const template =
@@ -546,11 +619,12 @@ export default function MTDPage() {
               : "";
 
           return (
-            <InlineCell>
+            <InlineCell centered>
               <InlineDateInput
                 value={rec.mixEndDate ?? ""}
                 template={template}
                 min={startIso || undefined}
+                className={tableDateClass}
                 onChange={(v) => {
                   if (!v) {
                     updateMTD(rec.id, { mixEndDate: v });
@@ -569,38 +643,68 @@ export default function MTDPage() {
       {
         key: "eightJ",
         header: "8CS",
-        width: "120px",
+        width: "132px",
         align: "center",
-        render: (rec) => (
-          <InlineCell>
-            <InlineSelect
-              value={rec.eightCountSheet || EIGHT_CS_OPTIONS[2]}
-              options={[...EIGHT_CS_OPTIONS]}
-              onChange={(v) => updateMTD(rec.id, { eightCountSheet: v })}
-            />
-          </InlineCell>
-        ),
+        nowrap: false,
+        cellClassName: "!px-2 !py-2",
+        headerClassName: "!px-2 !py-2",
+        render: (rec) => {
+          const current = rec.eightCountSheet || EIGHT_CS_OPTIONS[2];
+          const flags = parseEightCsFlags(current);
+
+          return (
+            <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
+              <InlineMultiCheckGroup
+                items={[
+                  { id: "cs", label: "CS", checked: flags.cs },
+                  { id: "video", label: "Video", checked: flags.video },
+                  { id: "form", label: "Form", checked: flags.form },
+                ]}
+                onToggle={(id, checked) => {
+                  const next = { ...flags, [id]: checked };
+                  updateMTD(rec.id, {
+                    eightCountSheet: encodeEightCs(next, current),
+                  });
+                }}
+              />
+            </div>
+          );
+        },
       },
       {
         key: "songsK",
         header: "Songs",
-        width: "88px",
+        width: "104px",
         align: "center",
-        render: (rec) => (
-          <InlineCell>
-            <InlineSelect
-              value={rec.haveSongs || SONGS_OPTIONS[1]}
-              options={[...SONGS_OPTIONS]}
-              onChange={(v) => updateMTD(rec.id, { haveSongs: v })}
-            />
-          </InlineCell>
-        ),
+        nowrap: false,
+        cellClassName: "!px-2 !py-2",
+        headerClassName: "!px-2 !py-2",
+        render: (rec) => {
+          const current = rec.haveSongs || SONGS_OPTIONS[1];
+          const flags = parseSongsFlags(current);
+
+          return (
+            <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
+              <InlineMultiCheckGroup
+                items={[
+                  { id: "songs", label: "Songs", checked: flags.songs },
+                  { id: "mix", label: "Mix", checked: flags.mix },
+                ]}
+                onToggle={(id, checked) => {
+                  const next = { ...flags, [id]: checked };
+                  updateMTD(rec.id, { haveSongs: encodeSongs(next) });
+                }}
+              />
+            </div>
+          );
+        },
       },
       {
         key: "editorB",
         header: "Editor",
         width: "128px",
         align: "center",
+        nowrap: false,
         render: (rec) => {
           const assigned = rec.assignedProducer;
           const producer = assigned
@@ -609,7 +713,7 @@ export default function MTDPage() {
 
           return (
             <div
-              className="mx-auto min-w-[96px]"
+              className="flex justify-center"
               onClick={(e) => e.stopPropagation()}
             >
               {assigned ? (
@@ -658,10 +762,11 @@ export default function MTDPage() {
         header: "Invoice #",
         width: "112px",
         align: "center",
+        nowrap: false,
         render: (rec) => {
           const invoice = rec.invoice?.trim() ?? "";
           return (
-            <div className="mx-auto min-w-[88px]" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
               {invoice ? (
                 <button
                   type="button"
@@ -693,13 +798,16 @@ export default function MTDPage() {
         header: "Status",
         width: "148px",
         align: "center",
+        nowrap: false,
+        cellClassName: "!px-2 !py-1.5 pr-5",
+        headerClassName: "!px-2 !py-2 pr-5",
         render: (rec) => (
-          <InlineCell>
+          <InlineCell centered>
             <InlineSelect
               value={inferMTDRecordStatus(rec)}
               options={[...MTD_RECORD_STATUS_OPTIONS]}
               onChange={(value) => handleRecordStatusChange(rec, value)}
-              className="h-auto min-h-[36px] min-w-[132px] rounded-lg px-2 py-1.5 text-[11px]"
+              className={tableStatusSelectClass}
             />
           </InlineCell>
         ),
@@ -707,10 +815,11 @@ export default function MTDPage() {
       {
         key: "actions",
         header: "Actions",
-        width: "72px",
+        width: "88px",
         align: "center",
-        sticky: "right",
         nowrap: false,
+        cellClassName: "pl-5",
+        headerClassName: "pl-5",
         render: (rec) => (
           <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
             <Link
@@ -742,12 +851,10 @@ export default function MTDPage() {
     <>
       <PageHeader
         title="Music To Do"
-        subtitle={`${mtdBoardRecords.length} entries`}
-      />
-
-      <div className="px-6 py-6 lg:px-8">
-        <div className="panel-shell overflow-hidden rounded-2xl">
-          <OrderFormFilters
+        badge={`${filtered.length} of ${mtdBoardRecords.length}`}
+        subtitle="Assign editors, set pricing, and track mix progress"
+        toolbar={
+          <MTDPageToolbar
             form={form}
             cheerSubtype={cheerSubtype}
             danceSubtype={danceSubtype}
@@ -757,22 +864,21 @@ export default function MTDPage() {
             formCounts={formCounts}
             cheerCounts={cheerSubtypeCounts}
             danceCounts={danceSubtypeCounts}
-            onInvoiceClick={() => setInvoicesOpen(true)}
-            onPricingClick={() => setPricingOpen(true)}
-          />
-
-          <MTDTableFilters
             records={mtdBoardRecords}
             producers={producers}
             orderById={orderById}
             filters={tableFilters}
-            filteredCount={filtered.length}
-            onChange={(patch) =>
+            onFiltersChange={(patch) =>
               setTableFilters((prev) => ({ ...prev, ...patch }))
             }
-            onReset={() => setTableFilters(DEFAULT_MTD_TABLE_FILTERS)}
+            onFiltersReset={() => setTableFilters(DEFAULT_MTD_TABLE_FILTERS)}
+            onPricingClick={() => setPricingOpen(true)}
           />
+        }
+      />
 
+      <div className="px-6 pb-6 pt-5 lg:px-8">
+        <div className="panel-shell overflow-hidden rounded-2xl">
           <DataTable
             key={`${form}-${cheerSubtype}-${danceSubtype}-${tableFilterKey}`}
             columns={columns}
@@ -782,6 +888,7 @@ export default function MTDPage() {
             emptyMessage="No MTD entries match this filter."
             pageSize={15}
             embedded
+            showScrollIndicator={false}
           />
         </div>
       </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { FilterSelect } from "@/components/ui/FilterSelect";
+import { FilterMenu } from "@/components/ui/FilterMenu";
 import {
   CHEER_FORM_SUBTABS,
   DANCE_FORM_SUBTABS,
@@ -20,8 +20,7 @@ type OrderFormFiltersProps = {
   formCounts: Record<OrderFormType, number>;
   cheerCounts: Record<CheerFormSubtype, number>;
   danceCounts: Record<DanceFormSubtype, number>;
-  onInvoiceClick?: () => void;
-  onPricingClick?: () => void;
+  grouped?: boolean;
 };
 
 export function OrderFormFilters({
@@ -34,69 +33,55 @@ export function OrderFormFilters({
   formCounts,
   cheerCounts,
   danceCounts,
-  onInvoiceClick,
-  onPricingClick,
+  grouped = false,
 }: OrderFormFiltersProps) {
   return (
-    <div className="panel-toolbar flex flex-wrap items-center justify-between gap-2 px-4 py-2.5">
-      <div className="flex flex-wrap items-center gap-2">
-        <FilterSelect
-          label="Form"
-          value={form}
-          onChange={(v) => onFormChange(v as OrderFormType)}
-          accent="blue"
-          options={ORDER_FORM_TABS.map(({ id, label }) => ({
+    <>
+      <FilterMenu
+        label="Form"
+        hideLabel
+        grouped={grouped}
+        value={form}
+        onChange={(v) => onFormChange(v as OrderFormType)}
+        accent="blue"
+        options={ORDER_FORM_TABS.map(({ id, label }) => ({
+          value: id,
+          label,
+          count: formCounts[id] ?? 0,
+        }))}
+      />
+
+      {form === "school-all-star-cheer" ? (
+        <FilterMenu
+          label="Cheer"
+          hideLabel
+          grouped={grouped}
+          value={cheerSubtype}
+          onChange={(v) => onCheerSubtypeChange(v as CheerFormSubtype)}
+          accent="orange"
+          options={CHEER_FORM_SUBTABS.map(({ id, label }) => ({
             value: id,
             label,
-            count: formCounts[id] ?? 0,
+            count: cheerCounts[id] ?? 0,
           }))}
         />
+      ) : null}
 
-        {form === "school-all-star-cheer" ? (
-          <FilterSelect
-            label="Cheer"
-            value={cheerSubtype}
-            onChange={(v) => onCheerSubtypeChange(v as CheerFormSubtype)}
-            accent="orange"
-            options={CHEER_FORM_SUBTABS.map(({ id, label }) => ({
-              value: id,
-              label,
-              count: cheerCounts[id] ?? 0,
-            }))}
-          />
-        ) : null}
-
-        {form === "school-all-star-dance" ? (
-          <FilterSelect
-            label="Dance"
-            value={danceSubtype}
-            onChange={(v) => onDanceSubtypeChange(v as DanceFormSubtype)}
-            accent="orange"
-            options={DANCE_FORM_SUBTABS.map(({ id, label }) => ({
-              value: id,
-              label,
-              count: danceCounts[id] ?? 0,
-            }))}
-          />
-        ) : null}
-      </div>
-
-      <div className="flex shrink-0 items-center gap-2">
-        <button
-          type="button"
-          onClick={onInvoiceClick}
-          className="rounded-lg border border-brand-line bg-brand-elevated px-3 py-1.5 text-[12px] font-semibold text-brand-ink shadow-sm transition hover:border-brand-blue-muted hover:bg-brand-blue-soft"
-        >
-          Invoice
-        </button>
-        <button
-          type="button"
-          onClick={onPricingClick}
-          className="rounded-lg border border-brand-orange/35 bg-brand-orange-soft px-3 py-1.5 text-[12px] font-semibold text-brand-orange shadow-sm transition hover:bg-brand-orange-muted/40"
-        >
-          Pricing
-        </button>
-      </div>
-    </div>
+      {form === "school-all-star-dance" ? (
+        <FilterMenu
+          label="Dance"
+          hideLabel
+          grouped={grouped}
+          value={danceSubtype}
+          onChange={(v) => onDanceSubtypeChange(v as DanceFormSubtype)}
+          accent="orange"
+          options={DANCE_FORM_SUBTABS.map(({ id, label }) => ({
+            value: id,
+            label,
+            count: danceCounts[id] ?? 0,
+          }))}
+        />
+      ) : null}
+    </>
   );
 }

@@ -19,6 +19,7 @@ import {
 } from "@/components/mtd/AssignEditorModal";
 import { MTDOrderDetails, formatDetailDisplay } from "@/components/mtd/MTDOrderDetails";
 import { SetRecordPricingModal } from "@/components/mtd/SetRecordPricingModal";
+import { SetPricingModal } from "@/components/mtd/SetPricingModal";
 import { useAppState } from "@/context/AppStateContext";
 import { formatPrice } from "@/lib/data";
 import { orderFromMTDRecord, rawFieldValue } from "@/lib/order-detail-fields";
@@ -68,7 +69,7 @@ function spreadsheetDraftFromRec(rec: MTDRecord): SpreadsheetDraft {
 }
 
 const clickableChipClass =
-  "cursor-pointer border border-brand-line/70 bg-brand-bg/60 shadow-sm transition hover:border-brand-orange/40 hover:bg-brand-orange-soft/35 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange/25";
+  "cursor-pointer border border-brand-line/60 bg-brand-elevated shadow-sm transition hover:border-brand-orange/50 hover:bg-brand-orange-soft/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange/30";
 
 export default function MTDDetailPage({
   params,
@@ -82,12 +83,16 @@ export default function MTDDetailPage({
     updateMTD,
     updateOrder,
     packagePrices,
+    secretMenuPrices,
+    setPackagePrices,
+    setSecretMenuPrices,
     producers,
     schedule,
     discountCodes,
   } = useAppState();
   const [assignOpen, setAssignOpen] = useState(false);
-  const [pricingOpen, setPricingOpen] = useState(false);
+  const [recordPricingOpen, setRecordPricingOpen] = useState(false);
+  const [packagePricingOpen, setPackagePricingOpen] = useState(false);
   const [spreadsheetEditing, setSpreadsheetEditing] = useState(false);
   const [spreadsheetDraft, setSpreadsheetDraft] = useState<SpreadsheetDraft | null>(
     null
@@ -262,232 +267,243 @@ export default function MTDDetailPage({
 
   return (
     <>
-      <PageHeader title="MTD Record" />
-      <div className="mx-auto max-w-5xl space-y-6 p-8">
-        <Link href="/mtd" className="link-premium inline-flex items-center gap-2">
-          <ArrowLeft className="h-4 w-4" strokeWidth={1.75} /> Back to MTD
-        </Link>
-
-        <article className="surface-premium rounded-2xl p-6">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <h1 className="text-display text-[18px]">
-                {formatDetailDisplay(rec.programName) || rec.programName}
-              </h1>
-              <p className="text-[13px] text-brand-ink-secondary">
-                {rec.section}
-                {formLabel ? `, ${formLabel}` : ""}
-              </p>
+      <PageHeader
+        title="MTD Record"
+        badge={rec.invoice ? `#${rec.invoice}` : undefined}
+        subtitle={formatDetailDisplay(rec.programName) || rec.programName}
+        toolbar={
+          <div className="flex items-center justify-between gap-2">
+            <Link
+              href="/mtd"
+              className="link-premium inline-flex items-center gap-2 text-[13px] font-medium"
+            >
+              <ArrowLeft className="h-4 w-4" strokeWidth={2} /> Back to MTD
+            </Link>
+            <button
+              type="button"
+              onClick={() => setPackagePricingOpen(true)}
+              className="inline-flex h-8 shrink-0 items-center rounded-lg bg-brand-orange px-3.5 text-[12px] font-semibold text-white shadow-sm transition hover:bg-brand-orange-hover"
+            >
+              Pricing
+            </button>
+          </div>
+        }
+      />
+      <div className="mx-auto max-w-5xl space-y-6 px-6 py-6 lg:px-8">
+        <article className="overflow-hidden rounded-2xl border border-brand-line/50 bg-white shadow-[var(--shadow-premium-sm)] ring-1 ring-inset ring-brand-line/20">
+          <div className="border-b border-brand-line/40 bg-gradient-to-r from-brand-blue-soft/50 via-white to-brand-orange-soft/20 px-6 py-5">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="min-w-0">
+                <h1 className="text-[22px] font-bold tracking-[-0.03em] text-brand-ink">
+                  {formatDetailDisplay(rec.programName) || rec.programName}
+                </h1>
+                <p className="mt-1.5 text-[13px] font-medium text-brand-ink-secondary">
+                  {rec.section}
+                  {formLabel ? ` · ${formLabel}` : ""}
+                </p>
+              </div>
+              {rec.needsAttention ? (
+                <AttentionFlag reason="Missing materials or order form items" />
+              ) : null}
             </div>
           </div>
 
-          {rec.needsAttention ? (
-            <div className="mt-4">
-              <AttentionFlag reason="Missing materials or order form items" />
-            </div>
-          ) : null}
+          <div className="flex items-center justify-between gap-3 border-b border-brand-line/35 px-6 py-3.5">
+            <h2 className="text-[12px] font-bold uppercase tracking-[0.08em] text-brand-ink-tertiary">
+              Spreadsheet fields
+            </h2>
+            <DetailSectionActions
+              editing={spreadsheetEditing}
+              onEdit={startSpreadsheetEdit}
+              onCancel={cancelSpreadsheetEdit}
+              onSave={saveSpreadsheetEdit}
+              editLabel="Edit spreadsheet fields"
+            />
+          </div>
 
-          <div className="mt-6">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <h2 className="text-label">Spreadsheet fields</h2>
-              <DetailSectionActions
-                editing={spreadsheetEditing}
-                onEdit={startSpreadsheetEdit}
-                onCancel={cancelSpreadsheetEdit}
-                onSave={saveSpreadsheetEdit}
-                editLabel="Edit spreadsheet fields"
-              />
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <EditableField label="Contact">
-                {spreadsheetEditing ? (
-                  <DetailInput
-                    value={sheet.contactName}
-                    onChange={(value) =>
-                      updateSpreadsheetDraft({ contactName: value })
-                    }
-                  />
+          <div className="grid grid-cols-1 gap-3 p-6">
+            <FieldTile label="Contact">
+              {spreadsheetEditing ? (
+                <DetailInput
+                  value={sheet.contactName}
+                  onChange={(value) =>
+                    updateSpreadsheetDraft({ contactName: value })
+                  }
+                />
+              ) : (
+                <ReadOnlyValue value={rec.contactName} />
+              )}
+            </FieldTile>
+            <FieldTile label="Package">
+              {spreadsheetEditing ? (
+                <DetailInput
+                  value={sheet.package}
+                  onChange={(value) =>
+                    updateSpreadsheetDraft({ package: value })
+                  }
+                />
+              ) : (
+                <ReadOnlyValue value={rec.package} />
+              )}
+            </FieldTile>
+            <FieldTile label="Editor">
+              <div className="space-y-2">
+                {rec.assignedProducer ? (
+                  <p className="text-[13px] font-semibold text-brand-ink">
+                    {rec.assignedProducer}
+                  </p>
+                ) : rec.editorRequest === "NA" ? (
+                  <p className="text-[13px] text-brand-ink-tertiary">Not assigned</p>
                 ) : (
-                  <ReadOnlyValue value={rec.contactName} />
+                  <p className="text-[13px] text-brand-ink-tertiary">Unassigned</p>
                 )}
-              </EditableField>
-              <EditableField label="Package">
-                {spreadsheetEditing ? (
-                  <DetailInput
-                    value={sheet.package}
-                    onChange={(value) =>
-                      updateSpreadsheetDraft({ package: value })
-                    }
-                  />
-                ) : (
-                  <ReadOnlyValue value={rec.package} />
-                )}
-              </EditableField>
-              <div>
-                <span className="text-label">Editor</span>
-                <div className="mt-1.5 space-y-2">
-                  {rec.assignedProducer ? (
-                    <p className="text-[13px] font-semibold">{rec.assignedProducer}</p>
-                  ) : rec.editorRequest === "NA" ? (
-                    <p className="text-[13px] text-brand-ink-tertiary">Not assigned</p>
-                  ) : (
-                    <p className="text-[13px] text-brand-ink-tertiary">Unassigned</p>
-                  )}
-                  {rec.editorRequest === "FA" && rec.assignedProducer ? (
-                    <p className="text-[11px] uppercase tracking-wide text-brand-info">
-                      First available request
-                    </p>
-                  ) : null}
-                  {spreadsheetEditing ? (
-                    <button
-                      type="button"
-                      onClick={() => setAssignOpen(true)}
-                      className="rounded-lg border border-brand-orange/40 bg-brand-orange-soft px-3 py-1.5 text-[12px] font-medium text-brand-orange transition hover:bg-brand-orange-muted/30"
-                    >
-                      {rec.assignedProducer ? "Reassign editor" : "Assign editor"}
-                    </button>
-                  ) : null}
-                </div>
-              </div>
-              <EditableField label="Price">
+                {rec.editorRequest === "FA" && rec.assignedProducer ? (
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-brand-signature">
+                    First available request
+                  </p>
+                ) : null}
                 {spreadsheetEditing ? (
                   <button
                     type="button"
-                    onClick={() => setPricingOpen(true)}
-                    title="Edit pricing"
-                    aria-label={`Edit pricing ${formatPrice(sheet.price)}`}
+                    onClick={() => setAssignOpen(true)}
+                    className="rounded-lg border border-brand-orange/40 bg-brand-orange-soft/50 px-3 py-1.5 text-[12px] font-semibold text-brand-orange transition hover:bg-brand-orange-soft"
+                  >
+                    {rec.assignedProducer ? "Reassign editor" : "Assign editor"}
+                  </button>
+                ) : null}
+              </div>
+            </FieldTile>
+            <FieldTile label="Price">
+              {spreadsheetEditing ? (
+                <button
+                  type="button"
+                  onClick={() => setRecordPricingOpen(true)}
+                  title="Edit pricing"
+                  aria-label={`Edit pricing ${formatPrice(sheet.price)}`}
+                  className={clsx(
+                    clickableChipClass,
+                    "w-full rounded-lg px-3 py-2 text-left"
+                  )}
+                >
+                  <p className="text-[13px] font-semibold tabular-nums text-brand-ink hover:text-brand-orange">
+                    {formatPrice(sheet.price)}
+                  </p>
+                  <p
                     className={clsx(
-                      clickableChipClass,
-                      "rounded-lg px-3 py-2 text-left"
+                      "text-[11px] font-medium",
+                      sheet.priceCompliance === "compliant"
+                        ? "text-brand-signature"
+                        : "text-brand-orange"
                     )}
                   >
-                    <p className="font-semibold tabular-nums text-[13px] text-brand-ink hover:text-brand-orange">
-                      {formatPrice(sheet.price)}
-                    </p>
-                    <p
-                      className={clsx(
-                        "text-[11px] font-medium",
-                        sheet.priceCompliance === "compliant"
-                          ? "text-brand-success"
-                          : "text-brand-warning"
-                      )}
-                    >
-                      {complianceLabel(sheet.priceCompliance)}
-                    </p>
-                  </button>
-                ) : (
-                  <div>
-                    <p className="text-[13px] font-semibold tabular-nums text-brand-ink">
-                      {formatPrice(rec.price)}
-                    </p>
-                    <p
-                      className={clsx(
-                        "text-[11px] font-medium",
-                        rec.priceCompliance === "compliant"
-                          ? "text-brand-success"
-                          : "text-brand-warning"
-                      )}
-                    >
-                      {complianceLabel(rec.priceCompliance)}
-                    </p>
-                  </div>
-                )}
-              </EditableField>
-              <EditableField label="Invoice">
-                {spreadsheetEditing ? (
-                  <InlineInput
-                    value={sheet.invoice}
-                    onChange={(value) =>
-                      updateSpreadsheetDraft({ invoice: value })
-                    }
-                    className="h-auto min-h-[36px] rounded-lg px-3 py-2 text-[13px]"
-                  />
-                ) : (
-                  <ReadOnlyValue
-                    value={rec.invoice}
-                    muted={!rec.invoice}
-                  />
-                )}
-              </EditableField>
-              <EditableField label="Mix start date">
-                {spreadsheetEditing ? (
-                  <>
-                    <InlineDateInput
-                      value={sheet.mixStartDate}
-                      template={
-                        rec.assignedProducer
-                          ? suggestMixStartDate(rec.assignedProducer, producers, schedule)
-                          : todayIso()
-                      }
-                      onChange={(value) =>
-                        updateSpreadsheetDraft({ mixStartDate: value })
-                      }
-                    />
-                    {slotLabel ? (
-                      <p className="mt-1.5 text-[11px] text-brand-success">
-                        Next available slot: {slotLabel}
-                      </p>
-                    ) : null}
-                  </>
-                ) : (
-                  <ReadOnlyValue
-                    value={rec.mixStartDate}
-                    muted={!rec.mixStartDate}
-                  />
-                )}
-              </EditableField>
-              <div className="sm:col-span-2">
-                <span className="text-label">Music / theme</span>
-                <div className="mt-1.5">
-                  {spreadsheetEditing ? (
-                    <DetailTextarea
-                      value={sheet.musicTheme}
-                      onChange={(value) =>
-                        updateSpreadsheetDraft({ musicTheme: value })
-                      }
-                      rows={3}
-                    />
-                  ) : (
-                    <ReadOnlyValue value={rec.musicTheme} multiline />
-                  )}
+                    {complianceLabel(sheet.priceCompliance)}
+                  </p>
+                </button>
+              ) : (
+                <div>
+                  <p className="text-[13px] font-semibold tabular-nums text-brand-ink">
+                    {formatPrice(rec.price)}
+                  </p>
+                  <p
+                    className={clsx(
+                      "text-[11px] font-medium",
+                      rec.priceCompliance === "compliant"
+                        ? "text-brand-signature"
+                        : "text-brand-orange"
+                    )}
+                  >
+                    {complianceLabel(rec.priceCompliance)}
+                  </p>
                 </div>
-              </div>
-              <EditableField label="8 count sheet">
-                {spreadsheetEditing ? (
-                  <InlineSelect
-                    value={sheet.eightCountSheet}
-                    options={[...EIGHT_CS_OPTIONS]}
-                    onChange={(value) =>
-                      updateSpreadsheetDraft({ eightCountSheet: value })
+              )}
+            </FieldTile>
+            <FieldTile label="Invoice">
+              {spreadsheetEditing ? (
+                <InlineInput
+                  value={sheet.invoice}
+                  onChange={(value) =>
+                    updateSpreadsheetDraft({ invoice: value })
+                  }
+                  className="h-auto min-h-[36px] rounded-lg px-3 py-2 text-[13px]"
+                />
+              ) : (
+                <ReadOnlyValue value={rec.invoice} muted={!rec.invoice} />
+              )}
+            </FieldTile>
+            <FieldTile label="Mix start date">
+              {spreadsheetEditing ? (
+                <>
+                  <InlineDateInput
+                    value={sheet.mixStartDate}
+                    template={
+                      rec.assignedProducer
+                        ? suggestMixStartDate(rec.assignedProducer, producers, schedule)
+                        : todayIso()
                     }
-                    className="h-auto min-h-[36px] rounded-lg px-3 py-2 text-[13px]"
-                  />
-                ) : (
-                  <ReadOnlyValue value={rec.eightCountSheet} />
-                )}
-              </EditableField>
-              <EditableField label="Songs">
-                {spreadsheetEditing ? (
-                  <InlineSelect
-                    value={sheet.haveSongs}
-                    options={[...SONGS_OPTIONS]}
                     onChange={(value) =>
-                      updateSpreadsheetDraft({ haveSongs: value })
+                      updateSpreadsheetDraft({ mixStartDate: value })
                     }
-                    className="h-auto min-h-[36px] rounded-lg px-3 py-2 text-[13px]"
                   />
-                ) : (
-                  <ReadOnlyValue value={rec.haveSongs} />
-                )}
-              </EditableField>
-            </div>
+                  {slotLabel ? (
+                    <p className="mt-1.5 text-[11px] font-medium text-brand-signature">
+                      Next available slot: {slotLabel}
+                    </p>
+                  ) : null}
+                </>
+              ) : (
+                <ReadOnlyValue value={rec.mixStartDate} muted={!rec.mixStartDate} />
+              )}
+            </FieldTile>
+            <FieldTile label="Music / theme">
+              {spreadsheetEditing ? (
+                <DetailTextarea
+                  value={sheet.musicTheme}
+                  onChange={(value) =>
+                    updateSpreadsheetDraft({ musicTheme: value })
+                  }
+                  rows={3}
+                />
+              ) : (
+                <ReadOnlyValue value={rec.musicTheme} multiline />
+              )}
+            </FieldTile>
+            <FieldTile label="8 count sheet">
+              {spreadsheetEditing ? (
+                <InlineSelect
+                  value={sheet.eightCountSheet}
+                  options={[...EIGHT_CS_OPTIONS]}
+                  onChange={(value) =>
+                    updateSpreadsheetDraft({ eightCountSheet: value })
+                  }
+                  className="h-auto min-h-[36px] rounded-lg px-3 py-2 text-[13px]"
+                />
+              ) : (
+                <ReadOnlyValue value={rec.eightCountSheet} />
+              )}
+            </FieldTile>
+            <FieldTile label="Songs">
+              {spreadsheetEditing ? (
+                <InlineSelect
+                  value={sheet.haveSongs}
+                  options={[...SONGS_OPTIONS]}
+                  onChange={(value) =>
+                    updateSpreadsheetDraft({ haveSongs: value })
+                  }
+                  className="h-auto min-h-[36px] rounded-lg px-3 py-2 text-[13px]"
+                />
+              ) : (
+                <ReadOnlyValue value={rec.haveSongs} />
+              )}
+            </FieldTile>
           </div>
         </article>
 
-        <article className="surface-premium rounded-2xl p-6">
-          <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <article className="overflow-hidden rounded-2xl border border-brand-line/50 bg-white shadow-[var(--shadow-premium-sm)] ring-1 ring-inset ring-brand-line/20">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-brand-line/40 bg-gradient-to-r from-brand-bg-subtle/80 via-white to-white px-6 py-4">
             <div>
-              <h2 className="text-display text-[16px]">Order form</h2>
+              <h2 className="text-[18px] font-bold tracking-[-0.02em] text-brand-ink">
+                Order form
+              </h2>
               <p className="mt-1 text-[13px] text-brand-ink-secondary">
                 Full submission details previously shown on the Orders tab
               </p>
@@ -500,12 +516,14 @@ export default function MTDDetailPage({
               editLabel="Edit order form fields"
             />
           </div>
-          <MTDOrderDetails
-            order={orderForm}
-            discountCodes={discountCodes}
-            editable={orderFormEditing}
-            onFieldChange={handleOrderDraftChange}
-          />
+          <div className="p-6">
+            <MTDOrderDetails
+              order={orderForm}
+              discountCodes={discountCodes}
+              editable={orderFormEditing}
+              onFieldChange={handleOrderDraftChange}
+            />
+          </div>
         </article>
       </div>
 
@@ -521,21 +539,32 @@ export default function MTDDetailPage({
       />
 
       <SetRecordPricingModal
-        open={pricingOpen}
+        open={recordPricingOpen}
         record={
           spreadsheetEditing && spreadsheetDraft
             ? { ...rec, ...spreadsheetDraft }
             : rec
         }
         packagePrices={packagePrices}
-        onClose={() => setPricingOpen(false)}
+        onClose={() => setRecordPricingOpen(false)}
         onSave={handleRecordPricingSave}
+      />
+
+      <SetPricingModal
+        open={packagePricingOpen}
+        prices={packagePrices}
+        secretMenuPrices={secretMenuPrices}
+        onClose={() => setPackagePricingOpen(false)}
+        onSave={(prices, secretMenu) => {
+          setPackagePrices(prices);
+          setSecretMenuPrices(secretMenu);
+        }}
       />
     </>
   );
 }
 
-function EditableField({
+function FieldTile({
   label,
   children,
 }: {
@@ -543,15 +572,17 @@ function EditableField({
   children: React.ReactNode;
 }) {
   return (
-    <div>
-      <span className="text-label">{label}</span>
-      <div className="mt-1.5">{children}</div>
+    <div className="rounded-xl border border-brand-line/40 bg-brand-bg-subtle/40 px-4 py-3.5 ring-1 ring-inset ring-brand-line/10">
+      <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-brand-ink-tertiary">
+        {label}
+      </p>
+      <div className="mt-2">{children}</div>
     </div>
   );
 }
 
 const detailEditButtonClass =
-  "inline-flex h-8 w-8 items-center justify-center rounded-lg border border-brand-line/70 bg-brand-bg/60 text-brand-ink-secondary shadow-sm transition hover:border-brand-orange/40 hover:bg-brand-orange-soft/35 hover:text-brand-orange focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange/25";
+  "inline-flex h-9 w-9 items-center justify-center rounded-xl border border-brand-line/60 bg-white text-brand-ink-secondary shadow-sm transition hover:border-brand-orange/50 hover:bg-brand-orange-soft/40 hover:text-brand-orange focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange/30";
 
 function DetailSectionActions({
   editing,
@@ -572,7 +603,7 @@ function DetailSectionActions({
         <button
           type="button"
           onClick={onSave}
-          className="rounded-lg bg-brand-cta px-3 py-1.5 text-[12px] font-semibold text-brand-cta-text transition hover:bg-brand-cta-hover"
+          className="rounded-xl bg-brand-orange px-4 py-2 text-[13px] font-semibold text-white shadow-sm transition hover:bg-brand-orange-hover"
         >
           Save
         </button>
@@ -604,13 +635,13 @@ function DetailEditButton({
       aria-pressed={active}
       className={clsx(
         detailEditButtonClass,
-        active && "border-brand-orange/40 bg-brand-orange-soft/35 text-brand-orange"
+        active && "border-brand-orange/60 bg-brand-orange-soft/50 text-brand-orange shadow-md"
       )}
     >
       {active ? (
-        <X className="h-3.5 w-3.5" strokeWidth={2.5} />
+        <X className="h-4 w-4" strokeWidth={2.5} />
       ) : (
-        <Pencil className="h-3.5 w-3.5" strokeWidth={2} />
+        <Pencil className="h-4 w-4" strokeWidth={2} />
       )}
     </button>
   );
