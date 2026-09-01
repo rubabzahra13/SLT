@@ -4,7 +4,12 @@ import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
 import { Pencil } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { MTDPageToolbar } from "@/components/mtd/MTDPageToolbar";
 import { ReturnToMTDModal } from "@/components/mtd/ReturnToMTDModal";
+import {
+  DEFAULT_MTD_TABLE_FILTERS,
+  type MTDTableFilterState,
+} from "@/components/mtd/MTDTableFilters";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import { useAppState } from "@/context/AppStateContext";
 import { formatDisplayDate, toIsoDateString } from "@/lib/dates";
@@ -13,15 +18,42 @@ import {
   getPayrollRecords,
   patchReturnFromPayroll,
 } from "@/lib/mtd-completion";
+import {
+  countMTDByCheerSubtype,
+  countMTDByDanceSubtype,
+  countMTDByForm,
+  filterMTDRecords,
+  matchesMTDSearch,
+} from "@/lib/mtd-filters";
 import { parsePackage } from "@/lib/package";
-import type { MTDRecord } from "@/types";
+import type {
+  CheerFormSubtype,
+  DanceFormSubtype,
+  MTDRecord,
+  OrderFormType,
+} from "@/types";
+
+const DEFAULT_FORM: OrderFormType = "school-all-star-cheer";
+const DEFAULT_CHEER_SUBTYPE: CheerFormSubtype = "all-star-cheer";
+const DEFAULT_DANCE_SUBTYPE: DanceFormSubtype = "pom";
 
 const actionLinkClass =
   "inline-flex h-8 w-8 items-center justify-center rounded-lg border border-brand-line/70 bg-brand-bg/60 text-brand-ink-secondary shadow-sm transition hover:border-brand-orange/40 hover:bg-brand-orange-soft/35 hover:text-brand-orange focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange/25";
 
 export default function PayrollPage() {
-  const { mtdRecords, updateMTD } = useAppState();
+  const { mtdRecords, allOrders, producers, updateMTD } = useAppState();
   const [returnRecord, setReturnRecord] = useState<MTDRecord | null>(null);
+  const [form, setForm] = useState<OrderFormType>(DEFAULT_FORM);
+  const [cheerSubtype, setCheerSubtype] = useState<CheerFormSubtype>(
+    DEFAULT_CHEER_SUBTYPE
+  );
+  const [danceSubtype, setDanceSubtype] = useState<DanceFormSubtype>(
+    DEFAULT_DANCE_SUBTYPE
+  );
+  const [tableFilters, setTableFilters] = useState<MTDTableFilterState>(
+    DEFAULT_MTD_TABLE_FILTERS
+  );
+  const [searchQuery, setSearchQuery] = useState("");
 
   const payrollRecords = useMemo(
     () =>
@@ -31,10 +63,87 @@ export default function PayrollPage() {
     [mtdRecords]
   );
 
-  const totalPayroll = useMemo(
-    () => payrollRecords.reduce((sum, rec) => sum + rec.price, 0),
-    [payrollRecords]
+  const orderById = useMemo(
+    () => new Map(allOrders.map((order) => [order.id, order])),
+    [allOrders]
   );
+
+  const switchForm = useCallback((next: OrderFormType) => {
+    setForm(next);
+    if (next !== "school-all-star-cheer") {
+      setCheerSubtype(DEFAULT_CHEER_SUBTYPE);
+    }
+    if (next !== "school-all-star-dance") {
+      setDanceSubtype(DEFAULT_DANCE_SUBTYPE);
+    }
+  }, []);
+
+  const tableFiltered = useMemo(
+    () =>
+      filterMTDRecords(payrollRecords, {
+        packageTier: tableFilters.packageTier,
+        timeLimit: tableFilters.timeLimit,
+        split: tableFilters.split,
+        assignedProducer: tableFilters.assignedProducer,
+        requestedProducer: tableFilters.requestedProducer,
+        dateFilter: tableFilters.dateFilter,
+        scheduleFilter: tableFilters.scheduleFilter,
+        infoFilter: tableFilters.infoFilter ?? "all",
+        form,
+        cheerSubtype,
+        danceSubtype,
+        orderById,
+        producers,
+      }),
+    [
+      payrollRecords,
+      tableFilters,
+      form,
+      cheerSubtype,
+      danceSubtype,
+      orderById,
+      producers,
+    ]
+  );
+
+  const filtered = useMemo(() => {
+    const q = searchQuery.trim();
+    if (!q) return tableFiltered;
+    return tableFiltered.filter((rec) => matchesMTDSearch(rec, q));
+  }, [tableFiltered, searchQuery]);
+
+  const totalPayroll = useMemo(
+    () => filtered.reduce((sum, rec) => sum + rec.price, 0),
+    [filtered]
+  );
+
+  const formCounts = useMemo(
+    () => countMTDByForm(payrollRecords, orderById),
+    [payrollRecords, orderById]
+  );
+
+  const cheerSubtypeCounts = useMemo(
+    () => countMTDByCheerSubtype(payrollRecords, orderById),
+    [payrollRecords, orderById]
+  );
+
+  const danceSubtypeCounts = useMemo(
+    () => countMTDByDanceSubtype(payrollRecords, orderById),
+    [payrollRecords, orderById]
+  );
+
+  const tableFilterKey = [
+    tableFilters.packageTier,
+    tableFilters.timeLimit,
+    tableFilters.split,
+    tableFilters.assignedProducer,
+    tableFilters.requestedProducer,
+    tableFilters.scheduleFilter,
+    tableFilters.infoFilter,
+    tableFilters.dateFilter.type,
+    String(tableFilters.dateFilter.value),
+    searchQuery,
+  ].join("-");
 
   const confirmReturn = useCallback(() => {
     if (!returnRecord) return;
@@ -234,15 +343,42 @@ export default function PayrollPage() {
     <>
       <PageHeader
         title="Payroll"
-        badge={`${payrollRecords.length} · ${formatPrice(totalPayroll)}`}
+        badge={`${filtered.length} of ${payrollRecords.length} · ${formatPrice(totalPayroll)}`}
         subtitle="Completed mixes ready for payout"
+        search={{
+          value: searchQuery,
+          onChange: setSearchQuery,
+          placeholder: "Contact, invoice…",
+        }}
+        toolbar={
+          <MTDPageToolbar
+            form={form}
+            cheerSubtype={cheerSubtype}
+            danceSubtype={danceSubtype}
+            onFormChange={switchForm}
+            onCheerSubtypeChange={setCheerSubtype}
+            onDanceSubtypeChange={setDanceSubtype}
+            formCounts={formCounts}
+            cheerCounts={cheerSubtypeCounts}
+            danceCounts={danceSubtypeCounts}
+            records={payrollRecords}
+            producers={producers}
+            orderById={orderById}
+            filters={tableFilters}
+            onFiltersChange={(patch) =>
+              setTableFilters((prev) => ({ ...prev, ...patch }))
+            }
+            onFiltersReset={() => setTableFilters(DEFAULT_MTD_TABLE_FILTERS)}
+          />
+        }
       />
 
       <div className="px-6 pb-6 pt-5 lg:px-8">
         <div className="dashboard-panel dashboard-panel-framed overflow-hidden">
           <DataTable
+            key={`${form}-${cheerSubtype}-${danceSubtype}-${tableFilterKey}`}
             columns={columns}
-            data={payrollRecords}
+            data={filtered}
             rowKey={(rec) => rec.id}
             href={(rec) => `/mtd/${rec.id}`}
             emptyMessage="No completed mixes in payroll yet. Mark a mix as Completed on MTD when it's ready."
