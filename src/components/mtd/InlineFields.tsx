@@ -375,6 +375,7 @@ export function InlineTriStateCheckGroup({
 }: InlineTriStateCheckGroupProps) {
   return (
     <div
+      data-stop-row-nav
       className={clsx(
         "inline-flex max-w-full items-center gap-1 rounded-xl bg-brand-bg-subtle/90 p-1 ring-1 ring-inset ring-brand-line/40",
         className

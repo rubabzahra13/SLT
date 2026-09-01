@@ -78,7 +78,7 @@ import type {
   OrderFormType,
   PriceCompliance,
 } from "@/types";
-import { EIGHT_CS_OPTIONS, MTD_RECORD_STATUS_OPTIONS, SONGS_OPTIONS } from "@/types";
+import { MTD_RECORD_STATUS_OPTIONS } from "@/types";
 import clsx from "clsx";
 
 const DEFAULT_FORM: OrderFormType = "school-all-star-cheer";
@@ -633,8 +633,7 @@ export default function MTDPage() {
         cellClassName: "!px-2 !py-2",
         headerClassName: "!px-2",
         render: (rec) => {
-          const current = rec.eightCountSheet || EIGHT_CS_OPTIONS[2];
-          const state = parseEightCsState(current);
+          const state = parseEightCsState(rec.eightCountSheet ?? "");
 
           return (
             <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
@@ -665,8 +664,7 @@ export default function MTDPage() {
         cellClassName: "!px-2 !py-2",
         headerClassName: "!px-2",
         render: (rec) => {
-          const current = rec.haveSongs || SONGS_OPTIONS[1];
-          const state = parseSongsState(current);
+          const state = parseSongsState(rec.haveSongs ?? "");
 
           return (
             <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>

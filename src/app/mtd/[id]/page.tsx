@@ -11,7 +11,7 @@ import {
   DetailTextarea,
   InlineDateInput,
   InlineInput,
-  InlineSelect,
+  InlineTriStateCheckGroup,
 } from "@/components/mtd/InlineFields";
 import {
   AssignEditorModal,
@@ -26,6 +26,14 @@ import { orderFromMTDRecord, rawFieldValue } from "@/lib/order-detail-fields";
 import { getOrderDetailSections } from "@/lib/order-detail-sections";
 import { findLinkedOrder } from "@/lib/editor-assignment";
 import {
+  cycleEightCsItem,
+  cycleSongsItem,
+  encodeEightCsState,
+  encodeSongsState,
+  parseEightCsState,
+  parseSongsState,
+} from "@/lib/mtd-checklist";
+import {
   mtdPatchFromOrderField,
   orderPatchFromMTD,
   orderPatchFromOrderField,
@@ -34,8 +42,6 @@ import { complianceLabel } from "@/lib/pricing";
 import { formatSlotForDisplay } from "@/lib/scheduling";
 import {
   ORDER_FORM_TABS,
-  EIGHT_CS_OPTIONS,
-  SONGS_OPTIONS,
   type MTDRecord,
   type Order,
   type PriceCompliance,
@@ -259,6 +265,8 @@ export default function MTDDetailPage({
   }
 
   const sheet = spreadsheetDraft ?? spreadsheetDraftFromRec(rec);
+  const eightCsState = parseEightCsState(rec.eightCountSheet ?? "");
+  const songsState = parseSongsState(rec.haveSongs ?? "");
   const slotLabel = rec.assignedProducer
     ? formatSlotForDisplay(rec.assignedProducer, producers, schedule)
     : null;
@@ -462,32 +470,38 @@ export default function MTDDetailPage({
               )}
             </FieldTile>
             <FieldTile label="8 count sheet">
-              {spreadsheetEditing ? (
-                <InlineSelect
-                  value={sheet.eightCountSheet}
-                  options={[...EIGHT_CS_OPTIONS]}
-                  onChange={(value) =>
-                    updateSpreadsheetDraft({ eightCountSheet: value })
+              <InlineTriStateCheckGroup
+                items={[
+                  { id: "cs", label: "CS", state: eightCsState.cs },
+                  { id: "video", label: "Video", state: eightCsState.video },
+                  { id: "form", label: "Form", state: eightCsState.form },
+                  { id: "mix", label: "Mix", state: eightCsState.mix },
+                ]}
+                onCycle={(id) => {
+                  const next = cycleEightCsItem(eightCsState, id as keyof typeof eightCsState);
+                  const encoded = encodeEightCsState(next);
+                  patchMTD({ eightCountSheet: encoded });
+                  if (spreadsheetEditing) {
+                    updateSpreadsheetDraft({ eightCountSheet: encoded });
                   }
-                  className="h-auto min-h-[36px] rounded-lg px-3 py-2 text-[13px]"
-                />
-              ) : (
-                <ReadOnlyValue value={rec.eightCountSheet} />
-              )}
+                }}
+              />
             </FieldTile>
             <FieldTile label="Songs">
-              {spreadsheetEditing ? (
-                <InlineSelect
-                  value={sheet.haveSongs}
-                  options={[...SONGS_OPTIONS]}
-                  onChange={(value) =>
-                    updateSpreadsheetDraft({ haveSongs: value })
+              <InlineTriStateCheckGroup
+                items={[
+                  { id: "songs", label: "Songs", state: songsState.songs },
+                  { id: "notes", label: "Notes", state: songsState.notes },
+                ]}
+                onCycle={(id) => {
+                  const next = cycleSongsItem(songsState, id as keyof typeof songsState);
+                  const encoded = encodeSongsState(next);
+                  patchMTD({ haveSongs: encoded });
+                  if (spreadsheetEditing) {
+                    updateSpreadsheetDraft({ haveSongs: encoded });
                   }
-                  className="h-auto min-h-[36px] rounded-lg px-3 py-2 text-[13px]"
-                />
-              ) : (
-                <ReadOnlyValue value={rec.haveSongs} />
-              )}
+                }}
+              />
             </FieldTile>
           </div>
         </article>
