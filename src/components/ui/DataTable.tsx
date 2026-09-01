@@ -79,7 +79,17 @@ export function DataTable<T>({
       !align && "text-left"
     );
 
-  const handleRowClick = (row: T) => {
+  const isInteractiveTarget = (target: EventTarget | null) =>
+    target instanceof Element &&
+    Boolean(
+      target.closest(
+        'button, a, input, select, textarea, label, [role="button"], [role="combobox"], [role="listbox"], [data-stop-row-nav]'
+      )
+    );
+
+  const handleRowClick = (row: T, event: React.MouseEvent<HTMLTableRowElement>) => {
+    if (isInteractiveTarget(event.target)) return;
+
     const target = href?.(row);
     if (target) {
       router.push(target);
@@ -170,7 +180,9 @@ export function DataTable<T>({
                         ),
                     isInteractive && "cursor-pointer hover:bg-brand-blue-soft/25"
                   )}
-                  onClick={isInteractive ? () => handleRowClick(row) : undefined}
+                  onClick={
+                    isInteractive ? (event) => handleRowClick(row, event) : undefined
+                  }
                 >
                   {columns.map((col) => (
                     <td

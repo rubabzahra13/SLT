@@ -2,9 +2,11 @@ import type { MTDRecord, Order, Producer, ScheduleEntry } from "@/types";
 import { EDITOR_NAMES } from "@/types";
 import {
   isProducerUnavailableForRecord,
+  mixEndIsoForRecord,
   mixWindowForRecord as availabilityMixWindow,
   type MixWindow,
 } from "@/lib/producer-availability";
+import { parseFlexibleDate } from "@/lib/dates";
 import {
   normalizeProducerKey,
   producerAssignmentKey,
@@ -291,6 +293,34 @@ export function getEditorWorkload(
   return counts;
 }
 
+/** Latest mix end date across an editor's assigned MTD records. */
+export function getEditorBookedUntilIso(
+  editor: string,
+  mtdRecords: MTDRecord[],
+  excludeRecordId?: string
+): string {
+  const editorKey = normalizeProducerKey(editor);
+  let latestEnd: Date | null = null;
+  let latestIso = "";
+
+  for (const rec of mtdRecords) {
+    if (rec.id === excludeRecordId) continue;
+    if (!rec.assignedProducer) continue;
+    if (!producerKeysMatch(rec.assignedProducer, editorKey)) continue;
+
+    const endIso = mixEndIsoForRecord(rec);
+    if (!endIso) continue;
+    const end = parseFlexibleDate(endIso);
+    if (!end) continue;
+    if (!latestEnd || end > latestEnd) {
+      latestEnd = end;
+      latestIso = endIso;
+    }
+  }
+
+  return latestIso;
+}
+
 export function isEditorBooked(
   editor: string,
   mtdRecords: MTDRecord[],
@@ -325,7 +355,9 @@ export function isRequestedEditorUnavailableForMixWindow(
   }
 
   const window = mixWindowForRecord(rec);
-  if (!window) return false;
+  if (!window) {
+    return isEditorBooked(requestedEditor, mtdRecords, rec.id);
+  }
 
   for (const other of mtdRecords) {
     if (other.id === rec.id) continue;

@@ -104,7 +104,8 @@ export function NotificationBell({
                           "mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full",
                           n.type === "new_order" && "bg-brand-orange",
                           n.type === "mtd_move" && "bg-brand-success",
-                          n.type === "schedule" && "bg-brand-warning"
+                          n.type === "schedule" && "bg-brand-warning",
+                          n.type === "payroll" && "bg-brand-blue"
                         )}
                       />
                       <div>

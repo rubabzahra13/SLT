@@ -509,3 +509,13 @@ export function filterMTDRecords(
     return true;
   });
 }
+
+export function matchesMTDSearch(rec: MTDRecord, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+
+  const contact = (rec.contactName || rec.editorInitials || "").toLowerCase();
+  const invoice = (rec.invoice || "").toLowerCase();
+
+  return contact.includes(q) || invoice.includes(q);
+}

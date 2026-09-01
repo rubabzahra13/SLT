@@ -29,7 +29,7 @@ import {
   getSuggestedEditors,
   pickDefaultEditor,
 } from "@/lib/editor-assignment";
-import { suggestMixStartDate, suggestMixEndDate } from "@/lib/scheduling";
+import { suggestMixEndDate } from "@/lib/scheduling";
 import { normalizeProducer } from "@/lib/producers";
 import { normalizeDiscountCode } from "@/lib/discount-codes";
 import { inferMTDRecordStatus } from "@/lib/mtd-status";
@@ -231,15 +231,10 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
             availableNames
           )
         : order.editorRequest;
-      const mixStartDate = assignedProducer
-        ? suggestMixStartDate(assignedProducer, producers, schedule)
-        : "";
-
       const newRecord: MTDRecord = {
         ...draftRecord,
         assignedProducer,
         editorRequest,
-        mixStartDate,
       };
 
       setMtdRecords((prev) => [newRecord, ...prev]);
@@ -265,15 +260,6 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         message: `${order.programName} is now in Music To Do.${busyFallback}${slotMsg}`,
         href: `/mtd/${newRecord.id}`,
       });
-
-      if (assignedProducer && mixStartDate) {
-        addNotification({
-          type: "schedule",
-          title: "Mix slot identified",
-          message: `${assignedProducer} · ${order.programName} · start ${mixStartDate}`,
-          href: "/schedule",
-        });
-      }
 
       return newRecord;
     },
@@ -304,55 +290,37 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const updateMTD = useCallback((id: string, patch: Partial<MTDRecord>) => {
+    let payrollNotice: Omit<AppNotification, "id" | "read" | "createdAt"> | null =
+      null;
+
     setMtdRecords((prev) =>
       prev.map((r) => {
         if (r.id !== id) return r;
+
+        if (patch.inPayroll === true && !r.inPayroll) {
+          const producer = r.assignedProducer?.trim();
+          payrollNotice = {
+            type: "payroll",
+            title: "Moved to payroll",
+            message: producer
+              ? `${r.programName} · ${producer}`
+              : r.programName,
+            href: "/payroll",
+          };
+        }
+
         const updated = { ...r, ...patch };
 
         if (patch.editorRequest === "NA" || patch.assignedProducer === null) {
           updated.assignedProducer = null;
         } else if (patch.assignedProducer !== undefined) {
           updated.assignedProducer = patch.assignedProducer;
-          if (patch.assignedProducer) {
-            const mixDate = suggestMixStartDate(
-              patch.assignedProducer,
-              producers,
-              schedule
-            );
-            if (mixDate && patch.mixStartDate === undefined && !updated.mixStartDate) {
-              updated.mixStartDate = mixDate;
-            }
-          }
         } else if (
           patch.editorRequest &&
           patch.editorRequest !== "FA" &&
           patch.editorRequest !== "NA"
         ) {
           updated.assignedProducer = patch.editorRequest;
-          const mixDate = suggestMixStartDate(
-            patch.editorRequest,
-            producers,
-            schedule
-          );
-          if (mixDate && patch.mixStartDate === undefined && !updated.mixStartDate) {
-            updated.mixStartDate = mixDate;
-          }
-        }
-
-        const startIso = toIsoDateString(updated.mixStartDate);
-        const endIso = toIsoDateString(updated.mixEndDate ?? "");
-        if (
-          patch.mixStartDate !== undefined &&
-          patch.assignedProducer === undefined &&
-          startIso &&
-          !endIso &&
-          patch.mixEndDate === undefined
-        ) {
-          updated.mixEndDate = suggestMixEndDate(startIso, updated.package);
-        }
-
-        if (startIso && endIso && endIso < startIso) {
-          updated.mixEndDate = suggestMixEndDate(startIso, updated.package);
         }
 
         if (patch.package || patch.priceCompliance || patch.musicTheme) {
@@ -377,7 +345,11 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         return updated;
       })
     );
-  }, [producers, schedule, packagePrices]);
+
+    if (payrollNotice) {
+      addNotification(payrollNotice);
+    }
+  }, [addNotification, packagePrices]);
 
   const updateOrder = useCallback(
     (id: string, patch: Partial<Order>, seed?: Order) => {

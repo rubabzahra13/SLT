@@ -6,10 +6,15 @@ import clsx from "clsx";
 import { DottedScroll } from "@/components/ui/DottedScroll";
 import { Avatar } from "@/components/ui/Avatar";
 import {
+  EditorSelectDropdown,
+  type EditorSelectGroup,
+} from "@/components/mtd/EditorSelectDropdown";
+import {
   editorRequestForAssignment,
   findLinkedOrder,
   getEditorNamesForCategory,
   getEditorWorkload,
+  getEditorBookedUntilIso,
   getRequestedEditorFromRecord,
   getSuggestedEditors,
   findProducerByAssignmentKey,
@@ -17,7 +22,6 @@ import {
   type SuggestedEditor,
 } from "@/lib/editor-assignment";
 import { normalizeProducerKey, producerKeysMatch } from "@/lib/producer-keys";
-import { suggestMixStartDate } from "@/lib/scheduling";
 import { formatDisplayDate, toIsoDateString } from "@/lib/dates";
 import { patchFromRecordStatus } from "@/lib/mtd-status";
 import type { MTDRecord, MTDRecordStatus, Order, Producer, ScheduleEntry } from "@/types";
@@ -50,9 +54,6 @@ type DateGroup = {
   month: string;
   editors: SuggestedEditor[];
 };
-
-const inputClass =
-  "w-full rounded-lg border border-brand-line/80 bg-brand-surface px-3 py-2 text-[13px] text-brand-ink outline-none transition focus:border-brand-info/60 focus:ring-2 focus:ring-brand-info/15";
 
 function parseSlotDate(label: string): Date | null {
   if (!label || label === "TBD" || label === "No slot found") return null;
@@ -171,6 +172,17 @@ export function AssignEditorModal({
     [mtdRecords, record?.id]
   );
 
+  const editorBookedUntil = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const name of categoryEditors) {
+      const until = getEditorBookedUntilIso(name, mtdRecords, record?.id);
+      if (until) {
+        map.set(normalizeProducerKey(name), until);
+      }
+    }
+    return map;
+  }, [categoryEditors, mtdRecords, record?.id]);
+
   const availableEditorKeys = useMemo(
     () => new Set(availableNames.map((name) => normalizeProducerKey(name))),
     [availableNames]
@@ -190,6 +202,56 @@ export function AssignEditorModal({
   }, [categoryEditors, availableEditorKeys]);
 
   const currentAssignee = record?.assignedProducer ?? "";
+
+  const requestedBookedEditors = useMemo(() => {
+    if (!requestedEditor) return [];
+    return bookedEditors.filter((name) =>
+      producerKeysMatch(name, requestedEditor)
+    );
+  }, [requestedEditor, bookedEditors]);
+
+  const editorSelectGroups = useMemo((): EditorSelectGroup[] => {
+    const toOption = (name: string, tone: EditorSelectGroup["tone"]) => {
+      const key = normalizeProducerKey(name);
+      const producer = findProducerByAssignmentKey(name, producers);
+      const mixCount = editorWorkload.get(key) ?? 0;
+      const bookedUntil = editorBookedUntil.get(key);
+      const isCurrent = producerKeysMatch(currentAssignee, name);
+
+      return {
+        name,
+        producer,
+        mixCount: tone === "booked" ? mixCount : undefined,
+        bookedUntil: tone === "booked" ? bookedUntil : undefined,
+        disabled: tone === "booked" && !isCurrent,
+      };
+    };
+
+    const groups: EditorSelectGroup[] = [
+      {
+        label: "Available",
+        tone: "available",
+        options: availableEditors.map((name) => toOption(name, "available")),
+      },
+    ];
+
+    if (requestedBookedEditors.length > 0) {
+      groups.push({
+        label: "Booked on other mixes",
+        tone: "booked",
+        options: requestedBookedEditors.map((name) => toOption(name, "booked")),
+      });
+    }
+
+    return groups;
+  }, [
+    availableEditors,
+    requestedBookedEditors,
+    producers,
+    editorWorkload,
+    editorBookedUntil,
+    currentAssignee,
+  ]);
 
   const assignedProducer = useMemo(
     () =>
@@ -237,9 +299,27 @@ export function AssignEditorModal({
       );
       setSelectedEditor(match ?? assignedKey.toUpperCase());
     } else {
-      setSelectedEditor(pickEditorForOpen(record));
+      let editor = pickEditorForOpen(record);
+      const isBooked =
+        editor &&
+        !availableEditorKeys.has(normalizeProducerKey(editor)) &&
+        !producerKeysMatch(record.assignedProducer ?? "", editor);
+      if (isBooked) {
+        editor = availableEditors[0] ?? "";
+      }
+      setSelectedEditor(editor);
     }
-  }, [open, record, categoryEditors, mtdRecords, producers, schedule, linkedOrder]);
+  }, [
+    open,
+    record,
+    categoryEditors,
+    mtdRecords,
+    producers,
+    schedule,
+    linkedOrder,
+    availableEditorKeys,
+    availableEditors,
+  ]);
 
   const mixStartIso = toIsoDateString(record?.mixStartDate ?? "");
   const mixEndIso = toIsoDateString(record?.mixEndDate ?? "");
@@ -265,11 +345,6 @@ export function AssignEditorModal({
     e.preventDefault();
     if (!canSubmit) return;
 
-    const existingStart = toIsoDateString(activeRecord.mixStartDate);
-    const mixStartDate =
-      existingStart ||
-      suggestMixStartDate(selectedEditor, producers, schedule);
-
     onAssign(activeRecord.id, {
       editorRequest: editorRequestForAssignment(
         selectedEditor,
@@ -277,7 +352,6 @@ export function AssignEditorModal({
         availableNames
       ),
       assignedProducer: selectedEditor,
-      ...(!existingStart && mixStartDate ? { mixStartDate } : {}),
     });
     onClose();
   }
@@ -490,52 +564,15 @@ export function AssignEditorModal({
                       </p>
                     </div>
                   ) : (
-                    <select
+                    <EditorSelectDropdown
                       id="editor-select"
                       value={selectedEditor}
-                      onChange={(e) => setSelectedEditor(e.target.value)}
+                      onChange={setSelectedEditor}
+                      groups={editorSelectGroups}
+                      requestedEditor={requestedEditor}
                       disabled={categoryEditors.length === 0}
-                      className={clsx(inputClass, "mt-1.5")}
-                    >
-                      {categoryEditors.length === 0 ? (
-                        <option value="">No matching editors</option>
-                      ) : (
-                        <>
-                          {availableEditors.length > 0 ? (
-                            <optgroup label="Available">
-                              {availableEditors.map((name) => (
-                                <option key={name} value={name}>
-                                  {name}
-                                </option>
-                              ))}
-                            </optgroup>
-                          ) : null}
-                          {bookedEditors.length > 0 ? (
-                            <optgroup label="Booked on other mixes">
-                              {bookedEditors.map((name) => {
-                                const count =
-                                  editorWorkload.get(normalizeProducerKey(name)) ??
-                                  0;
-                                const isCurrent = producerKeysMatch(
-                                  currentAssignee,
-                                  name
-                                );
-                                return (
-                                  <option
-                                    key={name}
-                                    value={name}
-                                    disabled={!isCurrent}
-                                  >
-                                    {name} · {count} mix
-                                    {count === 1 ? "" : "es"}
-                                  </option>
-                                );
-                              })}
-                            </optgroup>
-                          ) : null}
-                        </>
-                      )}
-                    </select>
+                      emptyLabel="No matching editors"
+                    />
                   )}
                 </div>
 

@@ -409,6 +409,28 @@ body {
   border-bottom: 1px solid rgba(196, 85, 40, 0.32);
 }
 
+.dashboard-panel-dashed {
+  border-style: dashed !important;
+  border-color: rgba(90, 100, 115, 0.28) !important;
+  background: rgba(245, 246, 248, 0.55);
+  box-shadow: none;
+}
+
+.dashboard-panel-dashed:hover {
+  border-color: rgba(82, 200, 238, 0.45) !important;
+  background: rgba(82, 200, 238, 0.08);
+}
+
+.dashboard-panel-dashed .dashboard-panel-head {
+  background: rgba(255, 255, 255, 0.35);
+  box-shadow: inset 0 -1px 0 rgba(90, 100, 115, 0.12);
+}
+
+.dashboard-panel-dashed .dashboard-panel-title {
+  color: rgba(90, 100, 115, 0.72);
+  text-shadow: none;
+}
+
 .schedule-matrix-grid {
   align-content: stretch;
   align-items: stretch;

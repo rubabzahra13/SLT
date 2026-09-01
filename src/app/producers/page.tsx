@@ -72,11 +72,11 @@ export default function ProducersPage() {
         action={{ label: "Add Producer", onClick: openAdd }}
       />
 
-      <div className="grid gap-4 px-6 pb-6 pt-5 sm:grid-cols-2 lg:grid-cols-3 lg:px-8 xl:grid-cols-4">
+      <div className="grid auto-rows-fr items-stretch gap-4 px-6 pb-6 pt-5 sm:grid-cols-2 lg:grid-cols-3 lg:px-8 xl:grid-cols-4">
         {producers.map((producer) => (
           <article
             key={producer.id}
-            className="dashboard-panel relative flex flex-col"
+            className="dashboard-panel relative flex h-full min-h-[300px] flex-col"
           >
             <div className="dashboard-panel-head dashboard-panel-head-accent flex shrink-0 items-center justify-between gap-2 px-4 py-3">
               <span className="dashboard-panel-title truncate text-[11px] uppercase tracking-[0.06em]">
@@ -177,27 +177,26 @@ export default function ProducersPage() {
         <button
           type="button"
           onClick={openAdd}
-          className="dashboard-panel dashboard-panel-dashed flex min-h-[300px] flex-col border-dashed !border-brand-line/45 bg-brand-bg-subtle/30 text-brand-ink-tertiary transition hover:!border-brand-blue/35 hover:bg-brand-blue-soft/15 hover:text-brand-ink"
+          className="dashboard-panel dashboard-panel-dashed flex h-full min-h-[300px] w-full flex-col text-brand-ink-tertiary transition hover:text-brand-ink"
         >
-          <div
-            className="dashboard-panel-head flex shrink-0 items-center justify-between gap-2 px-4 py-3"
-            aria-hidden
-          >
-            <span className="dashboard-panel-title pointer-events-none text-[11px] uppercase tracking-[0.06em] opacity-0">
+          <div className="dashboard-panel-head flex shrink-0 items-center justify-between gap-2 px-4 py-3">
+            <span className="dashboard-panel-title truncate text-[11px] uppercase tracking-[0.06em]">
               Add producer
             </span>
-            <div className="flex shrink-0 items-center opacity-0">
-              <span className="rounded-lg p-1.5">
+            <div className="flex shrink-0 items-center" aria-hidden>
+              <span className="rounded-lg p-1.5 opacity-0">
                 <span className="block h-3.5 w-3.5" />
               </span>
-              <span className="rounded-lg p-1.5">
+              <span className="rounded-lg p-1.5 opacity-0">
                 <span className="block h-3.5 w-3.5" />
               </span>
             </div>
           </div>
-          <span className="dashboard-panel-body flex flex-1 flex-col items-center justify-center">
-            <Plus className="h-6 w-6" strokeWidth={1.5} />
-            <span className="mt-2 text-[13px] font-medium">Add producer</span>
+          <span className="dashboard-panel-body flex flex-1 flex-col items-center justify-center px-6 py-8">
+            <span className="flex h-12 w-12 items-center justify-center rounded-full border border-dashed border-brand-line-strong/80 bg-brand-bg/40">
+              <Plus className="h-5 w-5" strokeWidth={1.75} />
+            </span>
+            <span className="mt-3 text-[13px] font-medium">Add producer</span>
           </span>
         </button>
       </div>

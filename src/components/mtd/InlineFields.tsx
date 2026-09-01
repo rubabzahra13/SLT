@@ -11,6 +11,7 @@ import { createPortal } from "react-dom";
 import { Check, ChevronDown, ChevronLeft, ChevronRight, Calendar } from "lucide-react";
 import { toIsoDateString, isIsoDateAfter, isIsoDateBefore, formatDisplayDate } from "@/lib/dates";
 import clsx from "clsx";
+import { HoverTip } from "@/components/ui/HoverTip";
 
 const inlineControlClass =
   "h-8 w-full rounded-lg border border-brand-line/60 bg-white px-2.5 text-[12px] font-medium text-brand-ink shadow-[0_1px_1px_rgba(15,30,45,0.04)] outline-none transition-colors hover:border-brand-line-strong focus:border-brand-blue/50 focus:ring-2 focus:ring-brand-blue/15";
@@ -334,11 +335,77 @@ type InlineMultiCheckItem = {
   checked: boolean;
 };
 
+type InlineTriState = "none" | "have" | "need";
+
+type InlineTriStateItem = {
+  id: string;
+  label: string;
+  state: InlineTriState;
+};
+
 type InlineMultiCheckGroupProps = {
   items: InlineMultiCheckItem[];
   onToggle: (id: string, checked: boolean) => void;
   className?: string;
 };
+
+type InlineTriStateCheckGroupProps = {
+  items: InlineTriStateItem[];
+  onCycle: (id: string) => void;
+  className?: string;
+};
+
+const triStateClassName: Record<InlineTriState, string> = {
+  none: "bg-brand-elevated/90 text-brand-ink-tertiary ring-1 ring-inset ring-brand-line/45 hover:bg-brand-elevated hover:text-brand-ink hover:ring-brand-line-strong",
+  have: "bg-brand-success/22 text-emerald-800 ring-1 ring-inset ring-brand-success/35",
+  need: "bg-brand-danger/18 text-red-700 ring-1 ring-inset ring-brand-danger/32",
+};
+
+const triStateTitle: Record<InlineTriState, string> = {
+  none: "Not used",
+  have: "Have",
+  need: "Need",
+};
+
+/** Horizontal tri-state toggles: none (white) → have (green) → need (red). */
+export function InlineTriStateCheckGroup({
+  items,
+  onCycle,
+  className,
+}: InlineTriStateCheckGroupProps) {
+  return (
+    <div
+      className={clsx(
+        "inline-flex max-w-full items-center gap-1 rounded-xl bg-brand-bg-subtle/90 p-1 ring-1 ring-inset ring-brand-line/40",
+        className
+      )}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {items.map((item) => (
+        <HoverTip
+          key={item.id}
+          label={`${item.label} · ${triStateTitle[item.state]}`}
+          placement="top"
+        >
+          <button
+            type="button"
+            aria-label={`${item.label}: ${triStateTitle[item.state]}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onCycle(item.id);
+            }}
+            className={clsx(
+              "relative whitespace-nowrap rounded-lg px-2 py-1 text-[12px] font-medium leading-none transition-all duration-150",
+              triStateClassName[item.state]
+            )}
+          >
+            {item.label}
+          </button>
+        </HoverTip>
+      ))}
+    </div>
+  );
+}
 
 /** Horizontal segmented toggles for compact table cells. */
 export function InlineMultiCheckGroup({

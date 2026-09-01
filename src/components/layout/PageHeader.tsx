@@ -12,6 +12,11 @@ type PageHeaderProps = {
   tabs?: React.ReactNode;
   toolbar?: React.ReactNode;
   meta?: React.ReactNode;
+  search?: {
+    value: string;
+    onChange: (value: string) => void;
+    placeholder?: string;
+  };
 };
 
 export function PageHeader({
@@ -23,6 +28,7 @@ export function PageHeader({
   tabs,
   toolbar,
   meta,
+  search,
 }: PageHeaderProps) {
   return (
     <header className="sticky top-0 z-30 shrink-0 border-b border-brand-line-strong/50 bg-white">
@@ -65,17 +71,22 @@ export function PageHeader({
           </div>
 
           <div className="flex shrink-0 items-center gap-2.5">
-            <div className="relative hidden md:block">
-              <Search
-                className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-brand-ink-tertiary"
-                strokeWidth={2}
-              />
-              <input
-                type="search"
-                placeholder="Search..."
-                className="h-9 w-48 rounded-xl border border-brand-line/50 bg-white/80 pl-9 pr-3 text-[13px] text-brand-ink outline-none ring-0 transition placeholder:text-brand-ink-tertiary focus:border-brand-blue/45 focus:bg-white focus:ring-2 focus:ring-brand-blue/15 lg:w-56"
-              />
-            </div>
+            {search ? (
+              <div className="relative hidden md:block">
+                <Search
+                  className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-brand-ink-tertiary"
+                  strokeWidth={2}
+                />
+                <input
+                  type="search"
+                  value={search.value}
+                  onChange={(event) => search.onChange(event.target.value)}
+                  placeholder={search.placeholder ?? "Search..."}
+                  aria-label={search.placeholder ?? "Search"}
+                  className="h-9 w-48 rounded-xl border border-brand-line/50 bg-white/80 pl-9 pr-3 text-[13px] text-brand-ink outline-none ring-0 transition placeholder:text-brand-ink-tertiary focus:border-brand-blue/45 focus:bg-white focus:ring-2 focus:ring-brand-blue/15 lg:w-56"
+                />
+              </div>
+            ) : null}
 
             <NotificationBell />
 

@@ -31,8 +31,7 @@ import {
   orderPatchFromOrderField,
 } from "@/lib/mtd-order-sync";
 import { complianceLabel } from "@/lib/pricing";
-import { formatSlotForDisplay, suggestMixStartDate } from "@/lib/scheduling";
-import { todayIso } from "@/lib/date-filters";
+import { formatSlotForDisplay } from "@/lib/scheduling";
 import {
   ORDER_FORM_TABS,
   EIGHT_CS_OPTIONS,
@@ -435,11 +434,6 @@ export default function MTDDetailPage({
                 <>
                   <InlineDateInput
                     value={sheet.mixStartDate}
-                    template={
-                      rec.assignedProducer
-                        ? suggestMixStartDate(rec.assignedProducer, producers, schedule)
-                        : todayIso()
-                    }
                     onChange={(value) =>
                       updateSpreadsheetDraft({ mixStartDate: value })
                     }

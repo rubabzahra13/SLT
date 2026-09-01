@@ -226,7 +226,7 @@ export type ScheduleEntry = {
 
 export type AppNotification = {
   id: string;
-  type: "new_order" | "mtd_move" | "schedule";
+  type: "new_order" | "mtd_move" | "schedule" | "payroll";
   title: string;
   message: string;
   href?: string;
@@ -268,7 +268,7 @@ export const EIGHT_CS_OPTIONS = [
   "NEED ORDER FORM, CS, & VIDEO",
 ] as const;
 
-export const SONGS_OPTIONS = ["HAVE", "NEED SONGS", "HAVE MIX"] as const;
+export const SONGS_OPTIONS = ["HAVE", "NEED SONGS", "NEED NOTES", "NO"] as const;
 
 export const MTD_RECORD_STATUS_OPTIONS = [
   "Waiting for Data",

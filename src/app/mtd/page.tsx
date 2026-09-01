@@ -6,10 +6,11 @@ import { Pencil } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Avatar } from "@/components/ui/Avatar";
 import { DataTable, type Column } from "@/components/ui/DataTable";
+import { HoverTip } from "@/components/ui/HoverTip";
 import { TruncatedText } from "@/components/ui/TruncatedText";
 import {
   InlineCell,
-  InlineMultiCheckGroup,
+  InlineTriStateCheckGroup,
   InlineSelect,
   InlineDateInput,
 } from "@/components/mtd/InlineFields";
@@ -35,7 +36,7 @@ import { useAppState } from "@/context/AppStateContext";
 import { formatPrice, titleCase } from "@/lib/data";
 import { parsePackage } from "@/lib/package";
 import { complianceLabel } from "@/lib/pricing";
-import { formatSlotForDisplay, suggestMixEndDate, suggestMixStartDate } from "@/lib/scheduling";
+import { formatSlotForDisplay } from "@/lib/scheduling";
 import { inferMTDRecordStatus, patchFromRecordStatus } from "@/lib/mtd-status";
 import {
   canCompleteForPayroll,
@@ -43,14 +44,15 @@ import {
   getMTDBoardRecords,
   patchMoveToPayroll,
 } from "@/lib/mtd-completion";
-import { isIsoDateAfter, isIsoDateBefore, toIsoDateString } from "@/lib/dates";
-import { todayIso } from "@/lib/date-filters";
+import { formatDisplayDate, isIsoDateBefore, toIsoDateString } from "@/lib/dates";
 import {
   formatRequestedEditorLabel,
   findLinkedOrder,
   findProducerByAssignmentKey,
+  getEditorBookedUntilIso,
   getRequestedEditorFromRecord,
   isRequestedEditorUnavailableForMixWindow,
+  producerKeysMatch,
 } from "@/lib/editor-assignment";
 import {
   countMTDByCheerSubtype,
@@ -58,12 +60,15 @@ import {
   countMTDByForm,
   filterMTDRecords,
   hasMixStartDate,
+  matchesMTDSearch,
 } from "@/lib/mtd-filters";
 import {
-  encodeEightCs,
-  encodeSongs,
-  parseEightCsFlags,
-  parseSongsFlags,
+  cycleEightCsItem,
+  cycleSongsItem,
+  encodeEightCsState,
+  encodeSongsState,
+  parseEightCsState,
+  parseSongsState,
 } from "@/lib/mtd-checklist";
 import type {
   CheerFormSubtype,
@@ -146,6 +151,7 @@ export default function MTDPage() {
   const [tableFilters, setTableFilters] = useState<MTDTableFilterState>(
     DEFAULT_MTD_TABLE_FILTERS
   );
+  const [searchQuery, setSearchQuery] = useState("");
   const [assignRecordId, setAssignRecordId] = useState<string | null>(null);
   const assignRecord = useMemo(
     () =>
@@ -286,7 +292,7 @@ export default function MTDPage() {
     setCompleteRecord(null);
   }, [completeRecord, updateMTD]);
 
-  const filtered = useMemo(
+  const tableFiltered = useMemo(
     () =>
       filterMTDRecords(mtdBoardRecords, {
         packageTier: tableFilters.packageTier,
@@ -314,6 +320,12 @@ export default function MTDPage() {
     ]
   );
 
+  const filtered = useMemo(() => {
+    const q = searchQuery.trim();
+    if (!q) return tableFiltered;
+    return tableFiltered.filter((rec) => matchesMTDSearch(rec, q));
+  }, [tableFiltered, searchQuery]);
+
   const formCounts = useMemo(
     () => countMTDByForm(mtdBoardRecords, orderById),
     [mtdBoardRecords, orderById]
@@ -339,6 +351,7 @@ export default function MTDPage() {
     tableFilters.infoFilter,
     tableFilters.dateFilter.type,
     String(tableFilters.dateFilter.value),
+    searchQuery,
   ].join("-");
 
   const columns: Column<MTDRecord>[] = useMemo(
@@ -466,7 +479,18 @@ export default function MTDPage() {
               requested,
               mtdRecords,
               producers
-            );
+            ) &&
+            (!rec.assignedProducer ||
+              !producerKeysMatch(rec.assignedProducer, requested));
+
+          const bookedUntil = requested
+            ? getEditorBookedUntilIso(requested, mtdRecords, rec.id)
+            : "";
+          const unavailableTitle = requested
+            ? bookedUntil
+              ? `${requested} booked till ${formatDisplayDate(bookedUntil)}`
+              : `${requested} is booked on other mixes`
+            : "Requested editor is unavailable";
 
           return (
             <div className="inline-flex flex-col items-center gap-0.5">
@@ -480,12 +504,9 @@ export default function MTDPage() {
                 {isFa ? "FA" : label}
               </span>
               {showUnavailable ? (
-                <span
-                  className={unavailableTagClass}
-                  title="Requested editor is unavailable during this mix window"
-                >
-                  Unavailable
-                </span>
+                <HoverTip label={unavailableTitle} placement="top">
+                  <span className={unavailableTagClass}>Unavailable</span>
+                </HoverTip>
               ) : null}
             </div>
           );
@@ -540,9 +561,6 @@ export default function MTDPage() {
         cellClassName: "!px-2 !py-1.5",
         headerClassName: "!px-2",
         render: (rec) => {
-          const template = rec.assignedProducer
-            ? suggestMixStartDate(rec.assignedProducer, producers, schedule)
-            : todayIso();
           const endIso = toIsoDateString(rec.mixEndDate ?? "");
 
           return (
@@ -566,22 +584,9 @@ export default function MTDPage() {
             >
               <InlineDateInput
                 value={rec.mixStartDate}
-                template={template}
                 max={endIso || undefined}
                 className={tableDateClass}
-                onChange={(v) => {
-                  if (!v) {
-                    updateMTD(rec.id, { mixStartDate: v });
-                    return;
-                  }
-                  const patch: Partial<MTDRecord> = { mixStartDate: v };
-                  if (!endIso) {
-                    patch.mixEndDate = suggestMixEndDate(v, rec.package);
-                  } else if (isIsoDateAfter(v, endIso)) {
-                    patch.mixEndDate = suggestMixEndDate(v, rec.package);
-                  }
-                  updateMTD(rec.id, patch);
-                }}
+                onChange={(v) => updateMTD(rec.id, { mixStartDate: v })}
               />
             </InlineCell>
           );
@@ -597,16 +602,11 @@ export default function MTDPage() {
         headerClassName: "!px-2",
         render: (rec) => {
           const startIso = toIsoDateString(rec.mixStartDate);
-          const template =
-            startIso && !toIsoDateString(rec.mixEndDate ?? "")
-              ? suggestMixEndDate(rec.mixStartDate, rec.package)
-              : "";
 
           return (
             <InlineCell centered>
               <InlineDateInput
                 value={rec.mixEndDate ?? ""}
-                template={template}
                 min={startIso || undefined}
                 className={tableDateClass}
                 onChange={(v) => {
@@ -627,27 +627,28 @@ export default function MTDPage() {
       {
         key: "eightJ",
         header: "8CS",
-        width: "132px",
+        width: "168px",
         align: "center",
         nowrap: false,
         cellClassName: "!px-2 !py-2",
         headerClassName: "!px-2",
         render: (rec) => {
           const current = rec.eightCountSheet || EIGHT_CS_OPTIONS[2];
-          const flags = parseEightCsFlags(current);
+          const state = parseEightCsState(current);
 
           return (
             <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
-              <InlineMultiCheckGroup
+              <InlineTriStateCheckGroup
                 items={[
-                  { id: "cs", label: "CS", checked: flags.cs },
-                  { id: "video", label: "Video", checked: flags.video },
-                  { id: "form", label: "Form", checked: flags.form },
+                  { id: "cs", label: "CS", state: state.cs },
+                  { id: "video", label: "Video", state: state.video },
+                  { id: "form", label: "Form", state: state.form },
+                  { id: "mix", label: "Mix", state: state.mix },
                 ]}
-                onToggle={(id, checked) => {
-                  const next = { ...flags, [id]: checked };
+                onCycle={(id) => {
+                  const next = cycleEightCsItem(state, id as keyof typeof state);
                   updateMTD(rec.id, {
-                    eightCountSheet: encodeEightCs(next, current),
+                    eightCountSheet: encodeEightCsState(next),
                   });
                 }}
               />
@@ -658,25 +659,27 @@ export default function MTDPage() {
       {
         key: "songsK",
         header: "Songs",
-        width: "104px",
+        width: "132px",
         align: "center",
         nowrap: false,
         cellClassName: "!px-2 !py-2",
         headerClassName: "!px-2",
         render: (rec) => {
           const current = rec.haveSongs || SONGS_OPTIONS[1];
-          const flags = parseSongsFlags(current);
+          const state = parseSongsState(current);
 
           return (
             <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
-              <InlineMultiCheckGroup
+              <InlineTriStateCheckGroup
                 items={[
-                  { id: "songs", label: "Songs", checked: flags.songs },
-                  { id: "mix", label: "Mix", checked: flags.mix },
+                  { id: "songs", label: "Songs", state: state.songs },
+                  { id: "notes", label: "Notes", state: state.notes },
                 ]}
-                onToggle={(id, checked) => {
-                  const next = { ...flags, [id]: checked };
-                  updateMTD(rec.id, { haveSongs: encodeSongs(next) });
+                onCycle={(id) => {
+                  const next = cycleSongsItem(state, id as keyof typeof state);
+                  updateMTD(rec.id, {
+                    haveSongs: encodeSongsState(next),
+                  });
                 }}
               />
             </div>
@@ -705,6 +708,7 @@ export default function MTDPage() {
               {assigned ? (
                 <button
                   type="button"
+                  onMouseDown={(e) => e.stopPropagation()}
                   onClick={(e) => openAssignModal(rec, e)}
                   title="Edit assignment"
                   aria-label={`Edit assignment for ${assigned}`}
@@ -732,6 +736,7 @@ export default function MTDPage() {
                 <div className="flex flex-col items-center gap-1">
                   <button
                     type="button"
+                    onMouseDown={(e) => e.stopPropagation()}
                     onClick={(e) => openAssignModal(rec, e)}
                     className={actionButtonClass(false)}
                   >
@@ -843,6 +848,11 @@ export default function MTDPage() {
         title="Music To Do"
         badge={`${filtered.length} of ${mtdBoardRecords.length}`}
         subtitle="Assign editors, set pricing, and track mix progress"
+        search={{
+          value: searchQuery,
+          onChange: setSearchQuery,
+          placeholder: "Contact, invoice…",
+        }}
         toolbar={
           <MTDPageToolbar
             form={form}
@@ -884,7 +894,7 @@ export default function MTDPage() {
       </div>
 
       <AssignEditorModal
-        open={Boolean(assignRecord)}
+        open={assignRecordId !== null}
         record={assignRecord}
         mtdRecords={mtdRecords}
         allOrders={allOrders}
