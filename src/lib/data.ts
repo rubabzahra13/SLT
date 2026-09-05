@@ -41,7 +41,7 @@ const TITLE_CASE_ACRONYMS = new Set([
   "NT",
   "D2",
   "COED",
-  "8CS",
+  "COLLECTIONS",
   "CM",
   "YT",
   "YTH",

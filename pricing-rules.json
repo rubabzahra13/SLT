@@ -1,0 +1,1272 @@
+{
+  "$schema_version": "2.0.0",
+  "meta": {
+    "description": "Machine-readable pricing source of truth for the Sounds Like That (SLT) CRM pricing engine. v2: rebuilt against the REAL src/data/mock-data.json (formType / cheerFormSubtype / danceFormSubtype / musicAffiliate / priceCompliance fields) instead of the field list alone. Package prices still sourced from 'Nabeeha_Copy_of_SLT_Package_Pricing.xlsx' (each tab individually signed off 'Double checked this page and it is accurate. - Megan Marlow'); compensation figures from the client's '#3 Producer Compensation' email; misc payroll add-ons from '#5 Recurring Miscellaneous Payroll Items' email.",
+    "source_documents": [
+      "Nabeeha_Copy_of_SLT_Package_Pricing.xlsx (12 rate-card tabs)",
+      "src/data/mock-data.json (real structure: mtdRecords, producers, orders, schedule, discountCodes, stats, pastOrders)",
+      "Client email: '#5. Recurring Miscellaneous Payroll Items'",
+      "Client email: '#3 Producer Compensation'"
+    ],
+    "currency": "USD",
+    "order_form_type_count_resolved": "CONFIRMED: mock-data.json's real formType/subtype fields show exactly 11 order-form types across 5 form-type categories (school-all-star-cheer: 3 subtypes, school-all-star-dance: 5 subtypes, marching-band: 1, sports-entertainment: 1, school-anthem: 1 = 11 total). The 'School Cheer' and 'V!ROC Cheer Rates' tabs are the SAME subtype ('school-cheer') with a price-neutral viroc-yes/viroc-no flag -- not two separate types. This resolves the count ambiguity flagged in the v1 deliverable."
+  },
+  "order_form_types": [
+    {
+      "form_type": "school-all-star-cheer",
+      "category": "Cheer",
+      "name": "School / All-Star Cheer",
+      "mock_data_field_mapping": {
+        "category_field": "category = 'Cheer'",
+        "form_type_field": "formType = 'school-all-star-cheer'",
+        "subtype_field": "cheerFormSubtype"
+      },
+      "subtypes": [
+        {
+          "subtype_id": "all-star-cheer",
+          "name": "All-Star Cheer",
+          "accepted_subtype_values": [
+            "all-star-cheer"
+          ],
+          "rate_card_source": "ALL STAR CHEER tab",
+          "packages": [
+            {
+              "id": "gold_1_30",
+              "name": "GOLD 1:30",
+              "customer_facing_price": 700,
+              "payroll_base_price": {
+                "compliant": 600,
+                "non_compliant": 700
+              },
+              "compliance_sensitive": true
+            },
+            {
+              "id": "gold_2_00",
+              "name": "GOLD 2:00",
+              "customer_facing_price": 950,
+              "payroll_base_price": {
+                "compliant": 850,
+                "non_compliant": 950
+              },
+              "compliance_sensitive": true
+            },
+            {
+              "id": "gold_2_30",
+              "name": "GOLD 2:30",
+              "customer_facing_price": 1100,
+              "payroll_base_price": {
+                "compliant": 1000,
+                "non_compliant": 1100
+              },
+              "compliance_sensitive": true
+            },
+            {
+              "id": "platinum_1_30",
+              "name": "PLATINUM 1:30",
+              "customer_facing_price": 1050,
+              "payroll_base_price": {
+                "compliant": 850,
+                "non_compliant": 1050
+              },
+              "compliance_sensitive": true
+            },
+            {
+              "id": "platinum_2_00",
+              "name": "PLATINUM 2:00",
+              "customer_facing_price": 1350,
+              "payroll_base_price": {
+                "compliant": 1150,
+                "non_compliant": 1350
+              },
+              "compliance_sensitive": true
+            },
+            {
+              "id": "platinum_2_30",
+              "name": "PLATINUM 2:30",
+              "customer_facing_price": 1600,
+              "payroll_base_price": {
+                "compliant": 1400,
+                "non_compliant": 1600
+              },
+              "compliance_sensitive": true
+            },
+            {
+              "id": "titanium_1_30",
+              "name": "TITANIUM 1:30",
+              "customer_facing_price": 1800,
+              "payroll_base_price": {
+                "compliant": 1800,
+                "non_compliant": 1800
+              },
+              "compliance_sensitive": false,
+              "note": "Titanium packages are fully licensed with or without a compliant affiliate; price to payroll is always the full amount."
+            },
+            {
+              "id": "titanium_2_00",
+              "name": "TITANIUM 2:00",
+              "customer_facing_price": 2300,
+              "payroll_base_price": {
+                "compliant": 2300,
+                "non_compliant": 2300
+              },
+              "compliance_sensitive": false,
+              "note": "Titanium packages are fully licensed with or without a compliant affiliate; price to payroll is always the full amount."
+            },
+            {
+              "id": "titanium_2_30",
+              "name": "TITANIUM 2:30",
+              "customer_facing_price": 2800,
+              "payroll_base_price": {
+                "compliant": 2800,
+                "non_compliant": 2800
+              },
+              "compliance_sensitive": false,
+              "note": "Titanium packages are fully licensed with or without a compliant affiliate; price to payroll is always the full amount."
+            }
+          ]
+        },
+        {
+          "subtype_id": "school-cheer",
+          "name": "School Cheer (V!ROC)",
+          "accepted_subtype_values": [
+            "school-cheer-viroc-yes",
+            "school-cheer-viroc-no"
+          ],
+          "viroc_flag": {
+            "description": "The 'viroc-yes' / 'viroc-no' suffix on this subtype is an informational flag only (whether the team is part of the V!ROC affiliate program) -- it does NOT change price. The 'V!ROC Cheer Rates' tab and the 'SCHOOL CHEER' tab in the source workbook contain byte-for-byte identical prices, confirming this is one pricing subtype with a yes/no attribute, not two separate rate cards. This resolves the ambiguity flagged in the previous version of this file."
+          },
+          "rate_card_source": "SCHOOL CHEER tab (identical to V!ROC Cheer Rates tab)",
+          "packages": [
+            {
+              "id": "silver_1_00",
+              "name": "SILVER 1:00",
+              "customer_facing_price": 450,
+              "payroll_base_price": {
+                "compliant": 350,
+                "non_compliant": 450
+              },
+              "compliance_sensitive": true
+            },
+            {
+              "id": "silver_1_30",
+              "name": "SILVER 1:30",
+              "customer_facing_price": 570,
+              "payroll_base_price": {
+                "compliant": 470,
+                "non_compliant": 570
+              },
+              "compliance_sensitive": true
+            },
+            {
+              "id": "silver_1_45",
+              "name": "SILVER 1:45",
+              "customer_facing_price": 650,
+              "payroll_base_price": {
+                "compliant": 550,
+                "non_compliant": 650
+              },
+              "compliance_sensitive": true
+            },
+            {
+              "id": "silver_2_00",
+              "name": "SILVER 2:00",
+              "customer_facing_price": 750,
+              "payroll_base_price": {
+                "compliant": 650,
+                "non_compliant": 750
+              },
+              "compliance_sensitive": true
+            },
+            {
+              "id": "silver_2_15",
+              "name": "SILVER 2:15",
+              "customer_facing_price": 900,
+              "payroll_base_price": {
+                "compliant": 800,
+                "non_compliant": 900
+              },
+              "compliance_sensitive": true
+            },
+            {
+              "id": "silver_2_30",
+              "name": "SILVER 2:30",
+              "customer_facing_price": 900,
+              "payroll_base_price": {
+                "compliant": 800,
+                "non_compliant": 900
+              },
+              "compliance_sensitive": true
+            },
+            {
+              "id": "gold_1_00",
+              "name": "GOLD 1:00",
+              "customer_facing_price": 570,
+              "payroll_base_price": {
+                "compliant": 470,
+                "non_compliant": 570
+              },
+              "compliance_sensitive": true
+            },
+            {
+              "id": "gold_1_30",
+              "name": "GOLD 1:30",
+              "customer_facing_price": 700,
+              "payroll_base_price": {
+                "compliant": 600,
+                "non_compliant": 700
+              },
+              "compliance_sensitive": true
+            },
+            {
+              "id": "gold_1_45",
+              "name": "GOLD 1:45",
+              "customer_facing_price": 800,
+              "payroll_base_price": {
+                "compliant": 700,
+                "non_compliant": 800
+              },
+              "compliance_sensitive": true
+            },
+            {
+              "id": "gold_2_00",
+              "name": "GOLD 2:00",
+              "customer_facing_price": 950,
+              "payroll_base_price": {
+                "compliant": 850,
+                "non_compliant": 950
+              },
+              "compliance_sensitive": true
+            },
+            {
+              "id": "gold_2_15",
+              "name": "GOLD 2:15",
+              "customer_facing_price": 1100,
+              "payroll_base_price": {
+                "compliant": 1000,
+                "non_compliant": 1100
+              },
+              "compliance_sensitive": true
+            },
+            {
+              "id": "gold_2_30",
+              "name": "GOLD 2:30",
+              "customer_facing_price": 1100,
+              "payroll_base_price": {
+                "compliant": 1000,
+                "non_compliant": 1100
+              },
+              "compliance_sensitive": true
+            },
+            {
+              "id": "platinum_1_00",
+              "name": "PLATINUM 1:00",
+              "customer_facing_price": 800,
+              "payroll_base_price": {
+                "compliant": 700,
+                "non_compliant": 800
+              },
+              "compliance_sensitive": true
+            },
+            {
+              "id": "platinum_1_30",
+              "name": "PLATINUM 1:30",
+              "customer_facing_price": 1050,
+              "payroll_base_price": {
+                "compliant": 850,
+                "non_compliant": 1050
+              },
+              "compliance_sensitive": true
+            },
+            {
+              "id": "platinum_1_45",
+              "name": "PLATINUM 1:45",
+              "customer_facing_price": 1200,
+              "payroll_base_price": {
+                "compliant": 1000,
+                "non_compliant": 1200
+              },
+              "compliance_sensitive": true
+            },
+            {
+              "id": "platinum_2_00",
+              "name": "PLATINUM 2:00",
+              "customer_facing_price": 1350,
+              "payroll_base_price": {
+                "compliant": 1150,
+                "non_compliant": 1350
+              },
+              "compliance_sensitive": true
+            },
+            {
+              "id": "platinum_2_15",
+              "name": "PLATINUM 2:15",
+              "customer_facing_price": 1600,
+              "payroll_base_price": {
+                "compliant": 1400,
+                "non_compliant": 1600
+              },
+              "compliance_sensitive": true
+            },
+            {
+              "id": "platinum_2_30",
+              "name": "PLATINUM 2:30",
+              "customer_facing_price": 1600,
+              "payroll_base_price": {
+                "compliant": 1400,
+                "non_compliant": 1600
+              },
+              "compliance_sensitive": true
+            },
+            {
+              "id": "titanium_1_00",
+              "name": "TITANIUM 1:00",
+              "customer_facing_price": 1500,
+              "payroll_base_price": {
+                "compliant": 1500,
+                "non_compliant": 1500
+              },
+              "compliance_sensitive": false,
+              "note": "Titanium: price to payroll always full amount regardless of compliance."
+            },
+            {
+              "id": "titanium_1_30",
+              "name": "TITANIUM 1:30",
+              "customer_facing_price": 1800,
+              "payroll_base_price": {
+                "compliant": 1800,
+                "non_compliant": 1800
+              },
+              "compliance_sensitive": false,
+              "note": "Titanium: price to payroll always full amount regardless of compliance."
+            },
+            {
+              "id": "titanium_1_45",
+              "name": "TITANIUM 1:45",
+              "customer_facing_price": 2000,
+              "payroll_base_price": {
+                "compliant": 2000,
+                "non_compliant": 2000
+              },
+              "compliance_sensitive": false,
+              "note": "Titanium: price to payroll always full amount regardless of compliance."
+            },
+            {
+              "id": "titanium_2_00",
+              "name": "TITANIUM 2:00",
+              "customer_facing_price": 2300,
+              "payroll_base_price": {
+                "compliant": 2300,
+                "non_compliant": 2300
+              },
+              "compliance_sensitive": false,
+              "note": "Titanium: price to payroll always full amount regardless of compliance."
+            },
+            {
+              "id": "titanium_2_15",
+              "name": "TITANIUM 2:15",
+              "customer_facing_price": 2800,
+              "payroll_base_price": {
+                "compliant": 2800,
+                "non_compliant": 2800
+              },
+              "compliance_sensitive": false,
+              "note": "Titanium: price to payroll always full amount regardless of compliance."
+            },
+            {
+              "id": "titanium_2_30",
+              "name": "TITANIUM 2:30",
+              "customer_facing_price": 2800,
+              "payroll_base_price": {
+                "compliant": 2800,
+                "non_compliant": 2800
+              },
+              "compliance_sensitive": false,
+              "note": "Titanium: price to payroll always full amount regardless of compliance."
+            },
+            {
+              "id": "rally_mix",
+              "name": "RALLY MIX",
+              "customer_facing_price": 350,
+              "payroll_base_price": {
+                "compliant": 350,
+                "non_compliant": 350
+              },
+              "compliance_sensitive": false,
+              "note": "Flat price; no compliance adjustment observed in source sheet."
+            }
+          ]
+        },
+        {
+          "subtype_id": "youth-rec-cheer",
+          "name": "Youth Rec Cheer",
+          "accepted_subtype_values": [
+            "youth-rec-cheer"
+          ],
+          "rate_card_source": "YOUTH REC CHEER tab",
+          "packages": [
+            {
+              "id": "bronze_1_00",
+              "name": "BRONZE 1:00",
+              "customer_facing_price": 450,
+              "payroll_base_price": {
+                "compliant": 350,
+                "non_compliant": 450
+              },
+              "compliance_sensitive": true
+            },
+            {
+              "id": "bronze_1_30",
+              "name": "BRONZE 1:30",
+              "customer_facing_price": 570,
+              "payroll_base_price": {
+                "compliant": 470,
+                "non_compliant": 570
+              },
+              "compliance_sensitive": true
+            },
+            {
+              "id": "bronze_1_45",
+              "name": "BRONZE 1:45",
+              "customer_facing_price": 650,
+              "payroll_base_price": {
+                "compliant": 550,
+                "non_compliant": 650
+              },
+              "compliance_sensitive": true
+            },
+            {
+              "id": "bronze_2_00",
+              "name": "BRONZE 2:00",
+              "customer_facing_price": 750,
+              "payroll_base_price": {
+                "compliant": 650,
+                "non_compliant": 750
+              },
+              "compliance_sensitive": true
+            },
+            {
+              "id": "bronze_2_15",
+              "name": "BRONZE 2:15",
+              "customer_facing_price": 900,
+              "payroll_base_price": {
+                "compliant": 800,
+                "non_compliant": 900
+              },
+              "compliance_sensitive": true
+            },
+            {
+              "id": "bronze_2_30",
+              "name": "BRONZE 2:30",
+              "customer_facing_price": 900,
+              "payroll_base_price": {
+                "compliant": 800,
+                "non_compliant": 900
+              },
+              "compliance_sensitive": true
+            }
+          ],
+          "line_item_addons": [
+            {
+              "id": "extend_2_8ct_phrase_raps",
+              "name": "Extend 2 8ct phrase/raps",
+              "customer_facing_price": 25,
+              "payroll_base_price": {
+                "compliant": 25,
+                "non_compliant": 25
+              },
+              "compliance_sensitive": false,
+              "note": "Set price; does not change regardless of compliance."
+            },
+            {
+              "id": "processing_8ct_sheets",
+              "name": "Processing 8ct sheets",
+              "customer_facing_price": 50,
+              "payroll_base_price": {
+                "compliant": 50,
+                "non_compliant": 50
+              },
+              "compliance_sensitive": false,
+              "note": "Set price; does not change regardless of compliance."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "form_type": "school-all-star-dance",
+      "category": "Dance",
+      "name": "School / All-Star Dance",
+      "mock_data_field_mapping": {
+        "category_field": "category = 'Dance'",
+        "form_type_field": "formType = 'school-all-star-dance'",
+        "subtype_field": "danceFormSubtype"
+      },
+      "subtypes": [
+        {
+          "subtype_id": "pom",
+          "name": "Pom",
+          "accepted_subtype_values": [
+            "pom"
+          ],
+          "rate_card_source": "POM tab",
+          "packages": [
+            {
+              "id": "dance_mix",
+              "name": "DANCE MIX",
+              "customer_facing_price": 475,
+              "payroll_base_price": {
+                "compliant": 375,
+                "non_compliant": 475
+              },
+              "compliance_sensitive": true
+            },
+            {
+              "id": "dance_plus",
+              "name": "DANCE PLUS",
+              "customer_facing_price": 575,
+              "payroll_base_price": {
+                "compliant": 430,
+                "non_compliant": 575
+              },
+              "compliance_sensitive": true
+            },
+            {
+              "id": "custom_pom",
+              "name": "CUSTOM POM",
+              "customer_facing_price": 850,
+              "payroll_base_price": {
+                "compliant": 730,
+                "non_compliant": 850
+              },
+              "compliance_sensitive": true
+            }
+          ],
+          "line_item_addons": [
+            {
+              "id": "traditional_vos_school_name_team_name_mascot",
+              "name": "Traditional VOs (School Name, Team Name, Mascot)",
+              "customer_facing_price": 25,
+              "payroll_base_price": {
+                "compliant": 25,
+                "non_compliant": 25
+              },
+              "compliance_sensitive": false,
+              "note": "Set price; does not change regardless of compliance."
+            },
+            {
+              "id": "themed_voice_overs_up_to_5",
+              "name": "Themed Voice Overs (up to 5)",
+              "customer_facing_price": 75,
+              "payroll_base_price": {
+                "compliant": 75,
+                "non_compliant": 75
+              },
+              "compliance_sensitive": false,
+              "note": "Set price; does not change regardless of compliance."
+            }
+          ]
+        },
+        {
+          "subtype_id": "hip-hop",
+          "name": "Hip Hop",
+          "accepted_subtype_values": [
+            "hip-hop"
+          ],
+          "rate_card_source": "HIP HOP tab (prices identical to POM)",
+          "packages": [
+            {
+              "id": "dance_mix",
+              "name": "DANCE MIX",
+              "customer_facing_price": 475,
+              "payroll_base_price": {
+                "compliant": 375,
+                "non_compliant": 475
+              },
+              "compliance_sensitive": true
+            },
+            {
+              "id": "dance_plus",
+              "name": "DANCE PLUS",
+              "customer_facing_price": 575,
+              "payroll_base_price": {
+                "compliant": 430,
+                "non_compliant": 575
+              },
+              "compliance_sensitive": true
+            },
+            {
+              "id": "custom_pom",
+              "name": "CUSTOM POM",
+              "customer_facing_price": 850,
+              "payroll_base_price": {
+                "compliant": 730,
+                "non_compliant": 850
+              },
+              "compliance_sensitive": true
+            }
+          ],
+          "line_item_addons": [
+            {
+              "id": "traditional_vos_school_name_team_name_mascot",
+              "name": "Traditional VOs (School Name, Team Name, Mascot)",
+              "customer_facing_price": 25,
+              "payroll_base_price": {
+                "compliant": 25,
+                "non_compliant": 25
+              },
+              "compliance_sensitive": false,
+              "note": "Set price; does not change regardless of compliance."
+            },
+            {
+              "id": "themed_voice_overs_up_to_5",
+              "name": "Themed Voice Overs (up to 5)",
+              "customer_facing_price": 75,
+              "payroll_base_price": {
+                "compliant": 75,
+                "non_compliant": 75
+              },
+              "compliance_sensitive": false,
+              "note": "Set price; does not change regardless of compliance."
+            }
+          ]
+        },
+        {
+          "subtype_id": "team-performance-variety",
+          "name": "Team Performance & Variety",
+          "accepted_subtype_values": [
+            "team-performance-variety"
+          ],
+          "rate_card_source": "TEAM PERFORMANCE & VARIETY tab",
+          "packages": [
+            {
+              "id": "tp_mix",
+              "name": "TP MIX",
+              "customer_facing_price": 500,
+              "payroll_base_price": {
+                "compliant": 400,
+                "non_compliant": 500
+              },
+              "compliance_sensitive": true
+            },
+            {
+              "id": "tp_plus_mix",
+              "name": "TP PLUS MIX",
+              "customer_facing_price": 600,
+              "payroll_base_price": {
+                "compliant": 475,
+                "non_compliant": 600
+              },
+              "compliance_sensitive": true
+            }
+          ],
+          "line_item_addons": [
+            {
+              "id": "traditional_vos_school_name_team_name_mascot",
+              "name": "Traditional VOs (School Name, Team Name, Mascot)",
+              "customer_facing_price": 25,
+              "payroll_base_price": {
+                "compliant": 25,
+                "non_compliant": 25
+              },
+              "compliance_sensitive": false,
+              "note": "Set price; does not change regardless of compliance."
+            },
+            {
+              "id": "themed_voice_overs_up_to_5",
+              "name": "Themed Voice Overs (up to 5)",
+              "customer_facing_price": 75,
+              "payroll_base_price": {
+                "compliant": 75,
+                "non_compliant": 75
+              },
+              "compliance_sensitive": false,
+              "note": "Set price; does not change regardless of compliance."
+            }
+          ]
+        },
+        {
+          "subtype_id": "gameday",
+          "name": "Gameday",
+          "accepted_subtype_values": [
+            "gameday"
+          ],
+          "rate_card_source": "GAMEDAY tab",
+          "packages": [
+            {
+              "id": "performance_mix",
+              "name": "PERFORMANCE MIX",
+              "customer_facing_price": 100,
+              "payroll_base_price": {
+                "compliant": 85,
+                "non_compliant": 100
+              },
+              "compliance_sensitive": true
+            },
+            {
+              "id": "performance_plus",
+              "name": "PERFORMANCE PLUS",
+              "customer_facing_price": 150,
+              "payroll_base_price": {
+                "compliant": 120,
+                "non_compliant": 150
+              },
+              "compliance_sensitive": true
+            },
+            {
+              "id": "performance_extreme",
+              "name": "PERFORMANCE EXTREME",
+              "customer_facing_price": 200,
+              "payroll_base_price": {
+                "compliant": 140,
+                "non_compliant": 200
+              },
+              "compliance_sensitive": true
+            }
+          ],
+          "line_item_addons": [
+            {
+              "id": "traditional_vos_school_name_team_name_mascot",
+              "name": "Traditional VOs (School Name, Team Name, Mascot)",
+              "customer_facing_price": 25,
+              "payroll_base_price": {
+                "compliant": 25,
+                "non_compliant": 25
+              },
+              "compliance_sensitive": false,
+              "note": "Set price; does not change regardless of compliance."
+            },
+            {
+              "id": "themed_voice_overs_up_to_5",
+              "name": "Themed Voice Overs (up to 5)",
+              "customer_facing_price": 75,
+              "payroll_base_price": {
+                "compliant": 75,
+                "non_compliant": 75
+              },
+              "compliance_sensitive": false,
+              "note": "Set price; does not change regardless of compliance."
+            }
+          ]
+        },
+        {
+          "subtype_id": "jazz-kick",
+          "name": "Jazz/Kick",
+          "accepted_subtype_values": [
+            "jazz-kick"
+          ],
+          "rate_card_source": "JAZZKICK tab",
+          "packages": [
+            {
+              "id": "jazz_kick_mix",
+              "name": "JAZZ/KICK MIX",
+              "customer_facing_price": 200,
+              "payroll_base_price": {
+                "compliant": 150,
+                "non_compliant": 200
+              },
+              "compliance_sensitive": true
+            },
+            {
+              "id": "jazz_simple_cut",
+              "name": "JAZZ SIMPLE CUT",
+              "customer_facing_price": 100,
+              "payroll_base_price": {
+                "compliant": 100,
+                "non_compliant": 100
+              },
+              "compliance_sensitive": false,
+              "note": "This package uses a non-compliant song with only cuts for time by definition; price to payroll always stays the same regardless of the music-affiliate compliance flag."
+            }
+          ],
+          "line_item_addons": [
+            {
+              "id": "traditional_vos_school_name_team_name_mascot",
+              "name": "Traditional VOs (School Name, Team Name, Mascot)",
+              "customer_facing_price": 25,
+              "payroll_base_price": {
+                "compliant": 25,
+                "non_compliant": 25
+              },
+              "compliance_sensitive": false,
+              "note": "Set price; does not change regardless of compliance."
+            },
+            {
+              "id": "themed_voice_overs_up_to_5",
+              "name": "Themed Voice Overs (up to 5)",
+              "customer_facing_price": 75,
+              "payroll_base_price": {
+                "compliant": 75,
+                "non_compliant": 75
+              },
+              "compliance_sensitive": false,
+              "note": "Set price; does not change regardless of compliance."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "form_type": "marching-band",
+      "category": "Marching Band",
+      "name": "Marching Band",
+      "mock_data_field_mapping": {
+        "category_field": "category = 'Marching Band'",
+        "form_type_field": "formType = 'marching-band'",
+        "subtype_field": "none -- no subtype dimension"
+      },
+      "subtypes": null,
+      "packages": [
+        {
+          "id": "band_chant",
+          "name": "BAND CHANT",
+          "customer_facing_price": 600,
+          "payroll_base_price": {
+            "compliant": 300,
+            "non_compliant": 600
+          },
+          "compliance_sensitive": true
+        },
+        {
+          "id": "drum_cadence_original",
+          "name": "DRUM CADENCE ORIGINAL",
+          "customer_facing_price": 350,
+          "payroll_base_price": {
+            "compliant": 150,
+            "non_compliant": 350
+          },
+          "compliance_sensitive": true
+        },
+        {
+          "id": "sheet_music_add",
+          "name": "SHEET MUSIC ADD",
+          "customer_facing_price": 50,
+          "payroll_base_price": {
+            "compliant": 50,
+            "non_compliant": 50
+          },
+          "compliance_sensitive": false,
+          "note": "No differential shown between compliant/non-compliant in source sheet."
+        },
+        {
+          "id": "add_vocals",
+          "name": "ADD VOCALS",
+          "customer_facing_price": 75,
+          "payroll_base_price": {
+            "compliant": 75,
+            "non_compliant": 75
+          },
+          "compliance_sensitive": false,
+          "note": "No differential shown between compliant/non-compliant in source sheet."
+        },
+        {
+          "id": "fight_song_alma_mater",
+          "name": "FIGHT SONG / ALMA MATER",
+          "customer_facing_price": 1100,
+          "payroll_base_price": {
+            "compliant": 1100,
+            "non_compliant": 1100
+          },
+          "compliance_sensitive": false,
+          "note": "Source sheet says 'PULL FULL AMT' for both compliant and non-compliant columns -- always pull the full customer price to payroll."
+        },
+        {
+          "id": "fight_song_alma_mater_plus_written_recorded_lyrics",
+          "name": "FIGHT SONG / ALMA MATER PLUS (Written & Recorded Lyrics)",
+          "customer_facing_price": 2250,
+          "payroll_base_price": {
+            "compliant": 2250,
+            "non_compliant": 2250
+          },
+          "compliance_sensitive": false,
+          "note": "Source sheet says 'PULL FULL AMT' for both compliant and non-compliant columns -- always pull the full customer price to payroll."
+        }
+      ]
+    },
+    {
+      "form_type": "sports-entertainment",
+      "category": "Sports Entertainment",
+      "name": "Sports Entertainment Pro Teams",
+      "mock_data_field_mapping": {
+        "category_field": "category = 'Sports Entertainment'",
+        "form_type_field": "formType = 'sports-entertainment'",
+        "subtype_field": "none -- no subtype dimension"
+      },
+      "subtypes": null,
+      "packages": [
+        {
+          "id": "quarter_break_timeout_remixed",
+          "name": "QUARTER BREAK / TIMEOUT REMIXED",
+          "customer_facing_price": 150,
+          "payroll_base_price": {
+            "compliant": 150,
+            "non_compliant": 150
+          },
+          "compliance_sensitive": false,
+          "note": "Same value in both compliance columns in source sheet."
+        },
+        {
+          "id": "pre_game_halftime_remixed",
+          "name": "PRE-GAME / HALFTIME REMIXED",
+          "customer_facing_price": 250,
+          "payroll_base_price": {
+            "compliant": 250,
+            "non_compliant": 250
+          },
+          "compliance_sensitive": false,
+          "note": "Same value in both compliance columns in source sheet."
+        },
+        {
+          "id": "other_mixes_longer_than_2_30",
+          "name": "OTHER (mixes longer than 2:30)",
+          "customer_facing_price": null,
+          "payroll_base_price": {
+            "compliant": null,
+            "non_compliant": null
+          },
+          "compliance_sensitive": false,
+          "note": "Source sheet marks this 'TBD VIA EMAIL' -- price is quoted manually per order and is not in the rate card. The pricing engine must support a manual/quoted price for this package."
+        }
+      ]
+    },
+    {
+      "form_type": "school-anthem",
+      "category": "School Anthem",
+      "name": "School Anthems",
+      "mock_data_field_mapping": {
+        "category_field": "category = 'School Anthem'",
+        "form_type_field": "formType = 'school-anthem'",
+        "subtype_field": "none -- no subtype dimension"
+      },
+      "subtypes": null,
+      "packages": [
+        {
+          "id": "school_anthems",
+          "name": "SCHOOL ANTHEMS",
+          "customer_facing_price": 1250,
+          "payroll_base_price": {
+            "compliant": 1250,
+            "non_compliant": 1250
+          },
+          "compliance_sensitive": false,
+          "note": "Source sheet: 'DON'T do anything for this other than pull the full amount over. We rarely do these.' Always pull the full customer price to payroll regardless of compliance."
+        }
+      ]
+    }
+  ],
+  "package_naming_conventions": {
+    "split_flag": {
+      "description": "Cheer package names in mock-data.json/MTD carry a 'NO SPLIT' / 'SPLIT' / 'TBD' suffix (e.g. 'PLATINUM 2:30 NO SPLIT'). Cross-checked against every priced package in mtdRecords: the price is identical across all three suffix variants of the same tier+time (e.g. GOLD 1:45 NO SPLIT / SPLIT / TBD are all $700). This confirms the split flag is a delivery-format attribute (whether the routine is mixed/delivered as one continuous file or split into sections) and is PRICE-NEUTRAL. The pricing engine should store it as metadata on the order, not as a pricing input.",
+      "values": [
+        "NO SPLIT",
+        "SPLIT",
+        "TBD"
+      ]
+    }
+  },
+  "global_addons": {
+    "voiceovers": {
+      "description": "Recurring miscellaneous voiceover charges from the client's payroll email. Distinct from the per-subtype 'Traditional VOs' / 'Themed VOs' catalog line items already embedded in the pom/hip-hop/team-performance-variety/gameday/jazz-kick subtypes above -- those are fixed-price items tied to a specific subtype; the items below are the general recurring dropdown options and apply wherever a voiceover charge is selected.",
+      "dance_voiceover": {
+        "input_type": "dropdown_single_select",
+        "options": [
+          25,
+          75,
+          100
+        ],
+        "note": "Email: 'Dance Voiceovers - can be $25, $75, or $100.' The $25/$75 tiers match the Traditional VOs / Themed VOs line items already in the dance subtypes; the $100 tier has no definition anywhere -- flagged in Assumptions."
+      },
+      "cheer_voiceover": {
+        "input_type": "dropdown_single_select",
+        "options": [
+          20,
+          40
+        ],
+        "note": "Email: 'Cheer Voiceovers - can be $20 or $40.' No cheer voiceover line item exists in any cheer rate-card tab or in mock-data.json -- defined only by the email."
+      }
+    },
+    "rush_fee": {
+      "input_type": "dropdown_single_select",
+      "options": [
+        {
+          "id": "rush_standard",
+          "label": "Rush Fee",
+          "amount": 150
+        },
+        {
+          "id": "rush_double",
+          "label": "Double Rush Fee",
+          "amount": 300
+        }
+      ],
+      "note": "Email: 'Rush fee option? $150' and 'Double rush fee - $300.' No triggering rule (turnaround threshold) defined anywhere; not present in mock-data.json today."
+    },
+    "eight_count_sheets": {
+      "input_type": "dropdown_single_select",
+      "options": [
+        50
+      ],
+      "note": "Email: '8 count sheets. $50.00.' Matches the 'Processing 8ct sheets' line item already priced at $50 inside the youth-rec-cheer subtype. Mock-data.json already has a related but DIFFERENT field: mtdRecords[].eightCountSheet, which is a status string ('HAVE CS' / 'NEED CS' / 'NEED CS & VIDEO' / 'NEED ORDER FORM, CS, & VIDEO'), not a billable line item. Do not confuse the two -- the status field just tracks whether the counts sheet has been received; the $50 addon here is a separate billable service for SLT to produce that sheet."
+    },
+    "extra_song": {
+      "input_type": "quantity",
+      "unit_amount": 15,
+      "note": "Email: 'Extra song - $15 ... quantity ... 3 extra songs; another may need 5.' Total = unit_amount x quantity."
+    },
+    "extra_song_added_time_fee": {
+      "input_type": "quantity",
+      "unit_amount": 30,
+      "note": "Email: 'Extra song added time spent fee - $30 ... quantity.' Total = unit_amount x quantity. Whether this stacks with extra_song per song or is an alternative billing path is unconfirmed (see Assumptions)."
+    }
+  },
+  "compliance_rules": {
+    "field_required_on_order": "musicAffiliate",
+    "existing_mock_data_fields": {
+      "orders[].musicAffiliate": "Already exists in mock-data.json (e.g. 'Power Music Covers'), but is populated on only 2 of 39 sample orders -- the other 37 are null. This is the correct field to drive compliance; it just needs to be populated consistently going forward.",
+      "mtdRecords[].priceCompliance": "Already exists in mock-data.json as 'compliant' / 'non-compliant' -- this is exactly the COMPLIANT/NON-COMPLIANT status the Mark-as-Completed modal needs to show. However, 196 of 197 sample mtdRecords are hardcoded 'compliant' (only one 'non-compliant' row exists), so the sample data can't meaningfully exercise the non-compliant path yet."
+    },
+    "value_normalization_needed": "orders[].musicAffiliate uses the value 'Power Music Covers', which does not exactly string-match the rate-card's affiliate list ('Power Music', 'Power Music + Unleash the Beats', 'Unleash the Beats', 'Library Music'). The engine needs a normalization/synonym table (e.g. 'Power Music Covers' -> 'Power Music') rather than a strict equality check, or the order-form's affiliate dropdown needs to be constrained to the exact 4 rate-card values. Flagged in Assumptions.",
+    "compliant_affiliates": [
+      "Power Music",
+      "Power Music + Unleash the Beats",
+      "Unleash the Beats",
+      "Library Music"
+    ],
+    "compliant_rule": "If order.musicAffiliate normalizes to a value in compliant_affiliates AND the package is compliance_sensitive == true, use package.payroll_base_price.compliant, and set priceCompliance = 'compliant'.",
+    "non_compliant_rule": "Otherwise, use package.payroll_base_price.non_compliant, and set priceCompliance = 'non-compliant'.",
+    "non_sensitive_rule": "If compliance_sensitive == false (Titanium tiers, Fight Song/Alma Mater, School Anthems, JAZZ SIMPLE CUT, most flat VO/addon line items), the compliant and non-compliant payroll-base amounts are equal by design, but priceCompliance should still be computed and shown for transparency.",
+    "unresolved_affiliate_rule": "If musicAffiliate is missing/blank/unrecognized (currently true for 37 of 39 sample orders), the engine must flag the order for manual review rather than silently defaulting to either value."
+  },
+  "producer_compensation": {
+    "description": "Producer payout = payroll_base_price x the producer's applicable rate. SLT Portion = Final Customer Price - Producer Payout. Matched against the ACTUAL producers already seeded in mock-data.json's producers[] array (11 records, by first name + initials), not just the names in the client's email.",
+    "reconciliation_with_mock_data": {
+      "matched": "10 of 11 producers already in mock-data.json have a compensation rule in the client's email (matched by first name): Casey, Justin, Matt, Nate, Mark, Griffin, Josh, Joel, Brent, Steve.",
+      "unmatched_in_system": "'Riley' (prod-10, initials 'R') exists in mock-data.json's producers[] array with NO compensation rule anywhere in the client's email. This must be confirmed with the client before Riley can be paid automatically.",
+      "referenced_but_not_seeded": "'Anne' is referenced as requestedProducer/requestedEditor/editorRequest on real order records (e.g. ord-pom-fowler), and the email gives Anne Jacobs a 72% rate -- but there is NO 'Anne' record in mock-data.json's producers[] array at all. The same is true for Lauren Von'Ohlen, Rory Fowler, John Peters, Max Thompson, Chris Chawi, and Joe Bell: the client's email pays all seven of these people, but none of them exist as a producer record in the current mock data. The producers[] array needs these added before the payroll engine can resolve their orders."
+    },
+    "compensation_model_options": [
+      "percentage_of_payroll_base",
+      "hourly_manual",
+      "not_paid_for_mixing"
+    ],
+    "producers": [
+      {
+        "producer_id": "prod-1",
+        "name": "Casey",
+        "initials": "CM",
+        "matched_email_name": "Casey Marlow",
+        "compensation_model": "percentage_of_payroll_base",
+        "rates": {
+          "old_pricing": 0.72,
+          "new_pricing": 0.7,
+          "dance_voiceover": 0.8,
+          "cheer_voiceover": 1.0
+        },
+        "manual_input_fields": [
+          {
+            "label": "100% Manual Field 1 (rush orders & vocal reimbursements)",
+            "rate": 1.0
+          },
+          {
+            "label": "100% Manual Field 2 (rush orders & vocal reimbursements)",
+            "rate": 1.0
+          },
+          {
+            "label": "Cheer Song Reimbursement (manual dollar amount, producer's own purchases)",
+            "rate": null
+          }
+        ],
+        "note": "No stated trigger for old (72%) vs new (70%) pricing -- see Assumptions."
+      },
+      {
+        "producer_id": "prod-2",
+        "name": "Justin",
+        "initials": "JD",
+        "matched_email_name": "Justin Deglado",
+        "compensation_model": "percentage_of_payroll_base",
+        "rates": {
+          "all": 0.5
+        }
+      },
+      {
+        "producer_id": "prod-3",
+        "name": "Matt",
+        "initials": "MS",
+        "matched_email_name": "Matt Sturgis",
+        "compensation_model": "percentage_of_payroll_base",
+        "rates": {
+          "all": 0.6
+        }
+      },
+      {
+        "producer_id": "prod-4",
+        "name": "Nate",
+        "initials": "NC",
+        "matched_email_name": "Nate Cryns",
+        "compensation_model": "percentage_of_payroll_base",
+        "rates": {
+          "all": 0.6
+        }
+      },
+      {
+        "producer_id": "prod-5",
+        "name": "Mark",
+        "initials": "MM",
+        "matched_email_name": "Mark Maynor",
+        "compensation_model": "percentage_of_payroll_base",
+        "rates_by_category": {
+          "jazz-kick": 0.72,
+          "pom": 0.72,
+          "hip-hop": 0.72,
+          "team-performance-variety": 0.72,
+          "all-star-cheer": 0.6,
+          "school-cheer": 0.6,
+          "youth-rec-cheer": 0.6
+        },
+        "note": "Email: '72% for jazz, pom, & team performance; 60% for cheerleading.' Mapped to the 11 real subtype ids above. Whether Hip Hop should be bundled into the 72% dance group with Pom/Jazz-Kick/Team Performance is inferred, not stated -- confirm with client."
+      },
+      {
+        "producer_id": "prod-6",
+        "name": "Griffin",
+        "initials": "G",
+        "matched_email_name": "Griffin Poole",
+        "compensation_model": "hourly_manual",
+        "rates": null,
+        "note": "Hourly employee, paid manually via pay sheet."
+      },
+      {
+        "producer_id": "prod-7",
+        "name": "Josh",
+        "initials": "JM",
+        "matched_email_name": "Josh Munnell",
+        "compensation_model": "hourly_manual",
+        "rates": null,
+        "note": "Hourly employee, paid manually via pay sheet."
+      },
+      {
+        "producer_id": "prod-8",
+        "name": "Joel",
+        "initials": "JOP",
+        "matched_email_name": "Joel Piedt",
+        "compensation_model": "percentage_of_payroll_base",
+        "rates": {
+          "all": 0.5
+        }
+      },
+      {
+        "producer_id": "prod-9",
+        "name": "Brent",
+        "initials": "BV",
+        "matched_email_name": "Brent Vincent",
+        "compensation_model": "percentage_of_payroll_base",
+        "rates": {
+          "all": 0.5
+        }
+      },
+      {
+        "producer_id": "prod-10",
+        "name": "Riley",
+        "initials": "R",
+        "matched_email_name": null,
+        "compensation_model": null,
+        "rates": null,
+        "note": "NO COMPENSATION RULE PROVIDED. Riley exists in mock-data.json's producers[] array but is absent from the client's compensation email entirely. Must be confirmed before go-live."
+      },
+      {
+        "producer_id": "prod-11",
+        "name": "Steve",
+        "initials": "SS",
+        "matched_email_name": "Steve",
+        "compensation_model": "not_paid_for_mixing",
+        "rates": null,
+        "note": "Email: 'doesn't get paid for mixing.' Payout is always $0 on mixing orders."
+      },
+      {
+        "producer_id": null,
+        "name": "Anne",
+        "initials": null,
+        "matched_email_name": "Anne Jacobs",
+        "compensation_model": "percentage_of_payroll_base",
+        "rates": {
+          "all": 0.72
+        },
+        "note": "NOT YET A PRODUCER RECORD in mock-data.json, despite being referenced as requestedProducer/editorRequest on real orders. Must be added to producers[] before payroll can resolve Anne's orders."
+      },
+      {
+        "producer_id": null,
+        "name": "Lauren Von'Ohlen",
+        "initials": null,
+        "matched_email_name": "Lauren Von'Ohlen",
+        "compensation_model": "percentage_of_payroll_base",
+        "rates": {
+          "all": 0.72
+        },
+        "note": "NOT YET A PRODUCER RECORD in mock-data.json."
+      },
+      {
+        "producer_id": null,
+        "name": "Rory Fowler",
+        "initials": null,
+        "matched_email_name": "Rory Fowler",
+        "compensation_model": "percentage_of_payroll_base",
+        "rates": {
+          "all": 0.72
+        },
+        "note": "NOT YET A PRODUCER RECORD in mock-data.json."
+      },
+      {
+        "producer_id": null,
+        "name": "John Peters",
+        "initials": null,
+        "matched_email_name": "John Peters",
+        "compensation_model": "percentage_of_payroll_base",
+        "rates": {
+          "all": 0.72
+        },
+        "note": "NOT YET A PRODUCER RECORD in mock-data.json."
+      },
+      {
+        "producer_id": null,
+        "name": "Max Thompson",
+        "initials": null,
+        "matched_email_name": "Max Thompson",
+        "compensation_model": "percentage_of_payroll_base",
+        "rates": {
+          "all": 0.72
+        },
+        "note": "NOT YET A PRODUCER RECORD in mock-data.json."
+      },
+      {
+        "producer_id": null,
+        "name": "Chris Chawi",
+        "initials": null,
+        "matched_email_name": "Chris Chawi",
+        "compensation_model": "percentage_of_payroll_base",
+        "rates": {
+          "all": 0.72
+        },
+        "note": "NOT YET A PRODUCER RECORD in mock-data.json."
+      },
+      {
+        "producer_id": null,
+        "name": "Joe Bell",
+        "initials": null,
+        "matched_email_name": "Joe Bell",
+        "compensation_model": "hourly_manual",
+        "rates": null,
+        "note": "NOT YET A PRODUCER RECORD in mock-data.json. Hourly employee, paid manually via pay sheet."
+      }
+    ]
+  },
+  "calculation_formulas": {
+    "customer_facing_price": "package.customer_facing_price + sum(selected_addons.customer_facing_amount)",
+    "payroll_base_price": "compliant ? package.payroll_base_price.compliant : package.payroll_base_price.non_compliant, plus addons' own amounts (addons are not compliance-sensitive)",
+    "final_customer_price": "system_calculated_customer_price, unless megan_override is set, in which case final_customer_price = megan_override (system_calculated_customer_price is retained separately for audit)",
+    "producer_payout": "payroll_base_price * producer_rate (or a manual dollar entry for hourly/manual/reimbursement fields)",
+    "slt_portion": "final_customer_price - producer_payout"
+  },
+  "mock_data_reconciliation_notes": {
+    "mtdRecords_price_field": "Cross-checking every mtdRecords[] row against the rate card shows the existing `price` field is overwhelmingly storing the COMPLIANT PAYROLL-BASE amount, not the customer-facing price (e.g. every 'GOLD 1:30' row is priced at $600 -- the rate card's compliant/payroll amount -- never $700, the actual customer price). This is precisely the conflation the client's task asked us to eliminate, and it's now demonstrated with real data, not just theory.",
+    "dance_marching_band_sports_anthem_samples": "The sample rows for Marching Band, Sports Entertainment, School Anthem, and most Dance subtypes (Gameday, Jazz/Kick) use package names and prices that do not correspond to anything in the rate-card workbook (e.g. a Marching Band order priced with a Cheer-style package name 'GOLD 2:00' at $450; a Gameday order at $425 when the real Gameday rate card tops out at $200). These look like generic placeholder data rather than real historical orders, and will need to be replaced with representative, rate-card-accurate rows to actually demonstrate the pricing engine.",
+    "discount_codes_undefined": "discountCodes[] exists (4 codes) but carries no percentage/amount value anywhere -- if discounts are meant to affect pricing, that rule doesn't exist yet in any source document and is out of scope until defined."
+  }
+}

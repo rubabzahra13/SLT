@@ -469,7 +469,7 @@ export default function MTDDetailPage({
                 <ReadOnlyValue value={rec.musicTheme} multiline />
               )}
             </FieldTile>
-            <FieldTile label="8 count sheet">
+            <FieldTile label="Collections">
               <InlineTriStateCheckGroup
                 items={[
                   { id: "cs", label: "CS", state: eightCsState.cs },

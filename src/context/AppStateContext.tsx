@@ -4,6 +4,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
 } from "react";
@@ -34,6 +35,22 @@ import { normalizeProducer } from "@/lib/producers";
 import { normalizeDiscountCode } from "@/lib/discount-codes";
 import { inferMTDRecordStatus } from "@/lib/mtd-status";
 import { toIsoDateString } from "@/lib/dates";
+import {
+  fetchProducersApi,
+  createProducerApi,
+  updateProducerApi,
+  deleteProducerApi,
+  fetchOrdersApi,
+  createOrderApi,
+  updateOrderApi,
+  fetchMTDRecordsApi,
+  createMTDRecordApi,
+  updateMTDRecordApi,
+  fetchDiscountCodesApi,
+  createDiscountCodeApi,
+  updateDiscountCodeApi,
+  deleteDiscountCodeApi,
+} from "@/lib/api";
 
 type AppStateContextValue = {
   activeOrders: Order[];
@@ -47,6 +64,7 @@ type AppStateContextValue = {
   schedule: ScheduleEntry[];
   notifications: AppNotification[];
   unreadCount: number;
+  isBackendConnected: boolean;
   moveOrderToMTD: (orderId: string) => MTDRecord | null;
   updateMTD: (id: string, patch: Partial<MTDRecord>) => void;
   updateOrder: (id: string, patch: Partial<Order>, seed?: Order) => void;
@@ -124,7 +142,6 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     const newOrders = seed.orders
       .filter((o) => o.status === "new")
       .slice(0, 8);
-    // Seed unread "order received" items for the bell without toasting on refresh.
     return [...newOrders].reverse().map((order, index) => ({
       id: `notif-seed-${order.id}-${index}`,
       type: "new_order" as const,
@@ -143,8 +160,59 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const [discountCodes, setDiscountCodes] = useState<DiscountCode[]>(() =>
     (seed.discountCodes ?? []).map((entry) => normalizeDiscountCode(entry))
   );
+  const [isBackendConnected, setIsBackendConnected] = useState<boolean>(false);
 
   const schedule = seed.schedule;
+
+  // Load data from FastAPI Backend on Mount
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadBackendData() {
+      try {
+        const [producersData, ordersData, mtdData, codesData] = await Promise.all([
+          fetchProducersApi(),
+          fetchOrdersApi(),
+          fetchMTDRecordsApi(),
+          fetchDiscountCodesApi(),
+        ]);
+
+        if (!isMounted) return;
+
+        if (producersData && producersData.length > 0) {
+          setProducers(producersData.map((p) => normalizeProducer(p)));
+        }
+
+        if (ordersData) {
+          setActiveOrders(normalizeOrders(ordersData.activeOrders));
+          setPastOrders(normalizeOrders(ordersData.pastOrders));
+        }
+
+        if (mtdData && mtdData.length > 0) {
+          setMtdRecords(normalizeMTD(mtdData));
+        }
+
+        if (codesData && codesData.length > 0) {
+          setDiscountCodes(codesData.map((c) => normalizeDiscountCode(c)));
+        }
+
+        setIsBackendConnected(true);
+      } catch (err) {
+        if (!isMounted) return;
+        setIsBackendConnected(false);
+        console.warn(
+          "FastAPI backend unavailable or unreachable. Falling back to local state.",
+          err
+        );
+      }
+    }
+
+    loadBackendData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const addNotification = useCallback(
     (n: Omit<AppNotification, "id" | "read" | "createdAt">) => {
@@ -244,6 +312,14 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
             ? { ...o, status: "in_mtd" as const, mtdId: newRecord.id }
             : o
         )
+      );
+
+      // Persist to Backend API
+      createMTDRecordApi(newRecord).catch((err) =>
+        console.error("Failed to persist MTD Record to backend:", err)
+      );
+      updateOrderApi(orderId, { status: "in_mtd" }).catch((err) =>
+        console.error("Failed to persist Order status to backend:", err)
       );
 
       const slotMsg = assignedProducer
@@ -346,6 +422,11 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       })
     );
 
+    // Persist MTD patch to backend API
+    updateMTDRecordApi(id, patch).catch((err) =>
+      console.error("Failed to persist MTD Record update to backend:", err)
+    );
+
     if (payrollNotice) {
       addNotification(payrollNotice);
     }
@@ -368,6 +449,11 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         }
         return prev;
       });
+
+      // Persist Order patch to backend API
+      updateOrderApi(id, patch).catch((err) =>
+        console.error("Failed to persist Order update to backend:", err)
+      );
     },
     []
   );
@@ -390,12 +476,23 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
       setActiveOrders((prev) => prev.filter((o) => o.id !== orderId));
       setPastOrders((prev) => [completed, ...prev]);
+
+      // Persist completed status to backend API
+      updateOrderApi(orderId, {
+        status: "completed",
+        completedAt: completed.completedAt,
+      }).catch((err) =>
+        console.error("Failed to persist Order completion to backend:", err)
+      );
     },
     [activeOrders]
   );
 
   const addPastOrder = useCallback((order: Order) => {
     setPastOrders((prev) => [order, ...prev]);
+    updateOrderApi(order.id, { status: "completed", completedAt: order.completedAt }).catch((err) =>
+      console.error("Failed to persist past order to backend:", err)
+    );
   }, []);
 
   const receiveOrder = useCallback(
@@ -408,6 +505,12 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         if (prev.some((o) => o.id === incoming.id)) return prev;
         return [incoming, ...prev];
       });
+
+      // Persist new incoming order to backend API
+      createOrderApi(incoming).catch((err) =>
+        console.error("Failed to persist new order to backend:", err)
+      );
+
       addNotification({
         type: "new_order",
         title: "New order received",
@@ -421,7 +524,11 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   );
 
   const addProducer = useCallback((producer: Producer) => {
-    setProducers((prev) => [normalizeProducer(producer), ...prev]);
+    const normalized = normalizeProducer(producer);
+    setProducers((prev) => [normalized, ...prev]);
+    createProducerApi(normalized).catch((err) =>
+      console.error("Failed to persist new producer to backend:", err)
+    );
   }, []);
 
   const updateProducer = useCallback((id: string, patch: Partial<Producer>) => {
@@ -430,17 +537,24 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         p.id === id ? normalizeProducer({ ...p, ...patch, id }) : p
       )
     );
+    updateProducerApi(id, patch).catch((err) =>
+      console.error("Failed to persist producer update to backend:", err)
+    );
   }, []);
 
   const removeProducer = useCallback((id: string) => {
     setProducers((prev) => prev.filter((p) => p.id !== id));
+    deleteProducerApi(id).catch((err) =>
+      console.error("Failed to delete producer from backend:", err)
+    );
   }, []);
 
   const addDiscountCode = useCallback((discountCode: DiscountCode) => {
-    setDiscountCodes((prev) => [
-      normalizeDiscountCode(discountCode),
-      ...prev,
-    ]);
+    const normalized = normalizeDiscountCode(discountCode);
+    setDiscountCodes((prev) => [normalized, ...prev]);
+    createDiscountCodeApi(normalized).catch((err) =>
+      console.error("Failed to persist new discount code to backend:", err)
+    );
   }, []);
 
   const updateDiscountCode = useCallback(
@@ -452,12 +566,18 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
             : entry
         )
       );
+      updateDiscountCodeApi(id, patch).catch((err) =>
+        console.error("Failed to persist discount code update to backend:", err)
+      );
     },
     []
   );
 
   const removeDiscountCode = useCallback((id: string) => {
     setDiscountCodes((prev) => prev.filter((entry) => entry.id !== id));
+    deleteDiscountCodeApi(id).catch((err) =>
+      console.error("Failed to delete discount code from backend:", err)
+    );
   }, []);
 
   const markNotificationRead = useCallback((id: string) => {
@@ -484,6 +604,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     schedule,
     notifications,
     unreadCount,
+    isBackendConnected,
     moveOrderToMTD,
     updateMTD,
     updateOrder,

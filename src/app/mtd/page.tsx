@@ -626,7 +626,7 @@ export default function MTDPage() {
       },
       {
         key: "eightJ",
-        header: "8CS",
+        header: "COLLECTIONS",
         width: "168px",
         align: "center",
         nowrap: false,
