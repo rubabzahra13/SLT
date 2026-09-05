@@ -1,5 +1,5 @@
 import { apiClient } from "./client";
-import type { Producer } from "@/types";
+import type { Producer, ProducerCompensationModel, ProducerManualInputField } from "@/types";
 
 export interface BackendProducer {
   id: string;
@@ -22,6 +22,12 @@ export interface BackendProducer {
   }[];
   max_mixes_per_day?: number | null;
   overtime_days?: string[];
+  compensation_model?: ProducerCompensationModel;
+  default_rate?: number | null;
+  rates_by_category?: Record<string, number> | null;
+  rate_overrides?: Record<string, number> | null;
+  manual_input_fields?: ProducerManualInputField[] | null;
+  notes?: string | null;
 }
 
 export function transformProducer(bp: BackendProducer): Producer {
@@ -45,6 +51,12 @@ export function transformProducer(bp: BackendProducer): Producer {
     })),
     maxMixesPerDay: bp.max_mixes_per_day ?? null,
     overtimeDays: bp.overtime_days || [],
+    compensationModel: bp.compensation_model ?? null,
+    defaultRate: bp.default_rate ?? null,
+    ratesByCategory: bp.rates_by_category ?? null,
+    rateOverrides: bp.rate_overrides ?? null,
+    manualInputFields: bp.manual_input_fields ?? null,
+    notes: bp.notes ?? null,
   };
 }
 
@@ -64,6 +76,12 @@ export async function createProducerApi(producer: Producer): Promise<Producer> {
     work_days: producer.workDays,
     max_mixes_per_day: producer.maxMixesPerDay,
     overtime_days: producer.overtimeDays,
+    compensation_model: producer.compensationModel,
+    default_rate: producer.defaultRate,
+    rates_by_category: producer.ratesByCategory,
+    rate_overrides: producer.rateOverrides,
+    manual_input_fields: producer.manualInputFields,
+    notes: producer.notes,
   };
   const res = await apiClient.post<BackendProducer>("/api/producers", payload);
   return transformProducer(res);
@@ -85,6 +103,12 @@ export async function updateProducerApi(
   if (patch.overtimeDays !== undefined) payload.overtime_days = patch.overtimeDays;
   if (patch.mixesThisWeek !== undefined) payload.mixes_this_week = patch.mixesThisWeek;
   if (patch.nextAvailable !== undefined) payload.next_available = patch.nextAvailable;
+  if (patch.compensationModel !== undefined) payload.compensation_model = patch.compensationModel;
+  if (patch.defaultRate !== undefined) payload.default_rate = patch.defaultRate;
+  if (patch.ratesByCategory !== undefined) payload.rates_by_category = patch.ratesByCategory;
+  if (patch.rateOverrides !== undefined) payload.rate_overrides = patch.rateOverrides;
+  if (patch.manualInputFields !== undefined) payload.manual_input_fields = patch.manualInputFields;
+  if (patch.notes !== undefined) payload.notes = patch.notes;
 
   const res = await apiClient.patch<BackendProducer>(`/api/producers/${id}`, payload);
   return transformProducer(res);

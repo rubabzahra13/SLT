@@ -6,6 +6,9 @@ from app.models.schedule_entry import ScheduleEntry
 from app.models.discount_code import DiscountCode
 from app.models.package_price import PackagePrice
 from app.models.secret_menu_pricing import SecretMenuPricing
+from app.models.pricing_rule import PricingRule
+from app.models.addon_rule import AddonRule
+from app.models.compliant_affiliate import CompliantAffiliate
 
 __all__ = [
     "Base",
@@ -17,4 +20,7 @@ __all__ = [
     "DiscountCode",
     "PackagePrice",
     "SecretMenuPricing",
+    "PricingRule",
+    "AddonRule",
+    "CompliantAffiliate",
 ]

@@ -75,6 +75,7 @@ import type {
   DanceFormSubtype,
   MTDRecord,
   MTDRecordStatus,
+  Order,
   OrderFormType,
   PriceCompliance,
 } from "@/types";
@@ -134,6 +135,7 @@ export default function MTDPage() {
     mtdRecords,
     allOrders,
     updateMTD,
+    updateOrder,
     setPackagePrices,
     setSecretMenuPrices,
     packagePrices,
@@ -286,11 +288,18 @@ export default function MTDPage() {
     [updateMTD]
   );
 
-  const confirmCompleteToPayroll = useCallback(() => {
-    if (!completeRecord) return;
-    updateMTD(completeRecord.id, patchMoveToPayroll());
-    setCompleteRecord(null);
-  }, [completeRecord, updateMTD]);
+  const confirmCompleteToPayroll = useCallback(
+    (mtdPatch?: Partial<MTDRecord>, orderPatch?: Partial<Order>) => {
+      if (!completeRecord) return;
+      const basePatch = patchMoveToPayroll();
+      updateMTD(completeRecord.id, { ...basePatch, ...mtdPatch });
+      if (completeRecord.orderId && orderPatch) {
+        updateOrder(completeRecord.orderId, orderPatch);
+      }
+      setCompleteRecord(null);
+    },
+    [completeRecord, updateMTD, updateOrder]
+  );
 
   const tableFiltered = useMemo(
     () =>
@@ -520,37 +529,57 @@ export default function MTDPage() {
         nowrap: false,
         cellClassName: "!px-2",
         headerClassName: "!px-2",
-        render: (rec) => (
-          <div
-            className="mx-auto flex w-full flex-col items-center"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              type="button"
-              onClick={(e) => openPricingModal(rec, e)}
-              title="Edit pricing"
-              aria-label={`Edit pricing ${formatPrice(rec.price)}`}
-              className={clsx(
-                clickableChipClass,
-                "flex w-full flex-col items-center rounded-lg px-2 py-1 text-center"
-              )}
+        render: (rec) => {
+          const order = findLinkedOrder(rec, allOrders);
+          const displayPrice =
+            order?.finalCustomerPrice ??
+            order?.systemCalculatedCustomerPrice ??
+            rec.finalCustomerPrice ??
+            rec.systemCalculatedCustomerPrice ??
+            rec.price;
+          const isOverridden = Boolean(
+            order?.finalCustomerPriceOverridden ?? rec.finalCustomerPriceOverridden
+          );
+
+          return (
+            <div
+              className="mx-auto flex w-full flex-col items-center"
+              onClick={(e) => e.stopPropagation()}
             >
-              <p className="font-medium tabular-nums text-[12px] text-brand-ink hover:text-brand-orange">
-                {formatPrice(rec.price)}
-              </p>
-              <p
+              <button
+                type="button"
+                onClick={(e) => openPricingModal(rec, e)}
+                title="Edit pricing"
+                aria-label={`Edit pricing ${formatPrice(displayPrice)}`}
                 className={clsx(
-                  "text-[10px] font-medium",
-                  rec.priceCompliance === "compliant"
-                    ? "text-brand-signature"
-                    : "text-brand-orange"
+                  clickableChipClass,
+                  "flex w-full flex-col items-center rounded-lg px-2 py-1 text-center"
                 )}
               >
-                {complianceLabel(rec.priceCompliance)}
-              </p>
-            </button>
-          </div>
-        ),
+                <div className="flex items-center justify-center gap-1">
+                  <p className="font-medium tabular-nums text-[12px] text-brand-ink hover:text-brand-orange">
+                    {formatPrice(displayPrice)}
+                  </p>
+                  {isOverridden && (
+                    <span className="rounded bg-brand-orange/10 px-1 py-0.2 text-[9px] font-semibold uppercase text-brand-orange ring-1 ring-inset ring-brand-orange/20">
+                      edited
+                    </span>
+                  )}
+                </div>
+                <p
+                  className={clsx(
+                    "text-[10px] font-medium",
+                    rec.priceCompliance === "compliant"
+                      ? "text-brand-signature"
+                      : "text-brand-orange"
+                  )}
+                >
+                  {complianceLabel(rec.priceCompliance)}
+                </p>
+              </button>
+            </div>
+          );
+        },
       },
       {
         key: "mixDateI",
@@ -938,6 +967,8 @@ export default function MTDPage() {
       <CompleteToPayrollModal
         open={Boolean(completeRecord)}
         record={completeRecord}
+        allOrders={allOrders}
+        producers={producers}
         onClose={() => setCompleteRecord(null)}
         onConfirm={confirmCompleteToPayroll}
       />

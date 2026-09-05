@@ -29,8 +29,15 @@ export function normalizeProducer(raw: Partial<Producer> & { id: string }): Prod
     overtimeDays: Array.isArray(raw.overtimeDays)
       ? [...new Set(raw.overtimeDays.filter(Boolean))].sort()
       : [],
+    compensationModel: raw.compensationModel ?? null,
+    defaultRate: raw.defaultRate ?? null,
+    ratesByCategory: raw.ratesByCategory ?? null,
+    rateOverrides: raw.rateOverrides ?? null,
+    manualInputFields: raw.manualInputFields ?? null,
+    notes: raw.notes ?? null,
   };
 }
+
 
 export function formatMaxMixCapacity(maxMixesPerDay: number | null): string {
   if (maxMixesPerDay == null) return "No daily limit";

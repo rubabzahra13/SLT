@@ -1,3 +1,4 @@
+import uuid
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -6,6 +7,18 @@ from app.models.producer import Producer
 from app.schemas.producer import ProducerSchema, ProducerCreateSchema, ProducerUpdateSchema
 
 router = APIRouter()
+
+def is_valid_uuid(val: str) -> bool:
+    try:
+        uuid.UUID(val)
+        return True
+    except (ValueError, TypeError, AttributeError):
+        return False
+
+def _find_producer(db: Session, producer_id: str) -> Producer | None:
+    if is_valid_uuid(producer_id):
+        return db.query(Producer).filter((Producer.id == uuid.UUID(producer_id)) | (Producer.legacy_id == producer_id)).first()
+    return db.query(Producer).filter(Producer.legacy_id == producer_id).first()
 
 @router.get("/producers", response_model=List[ProducerSchema])
 def get_producers(db: Session = Depends(get_db)):
@@ -21,8 +34,7 @@ def create_producer(payload: ProducerCreateSchema, db: Session = Depends(get_db)
 
 @router.patch("/producers/{producer_id}", response_model=ProducerSchema)
 def update_producer(producer_id: str, payload: ProducerUpdateSchema, db: Session = Depends(get_db)):
-    # Look up by UUID or legacy_id
-    producer = db.query(Producer).filter((Producer.id == producer_id) | (Producer.legacy_id == producer_id)).first()
+    producer = _find_producer(db, producer_id)
     if not producer:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Producer not found")
 
@@ -36,7 +48,7 @@ def update_producer(producer_id: str, payload: ProducerUpdateSchema, db: Session
 
 @router.delete("/producers/{producer_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_producer(producer_id: str, db: Session = Depends(get_db)):
-    producer = db.query(Producer).filter((Producer.id == producer_id) | (Producer.legacy_id == producer_id)).first()
+    producer = _find_producer(db, producer_id)
     if not producer:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Producer not found")
 

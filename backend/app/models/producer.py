@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, Integer, JSON, DateTime, ForeignKey, func, Date, Text
+from sqlalchemy import Column, String, Integer, JSON, DateTime, ForeignKey, func, Date, Text, Numeric
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from app.core.database import Base
@@ -20,6 +20,13 @@ class Producer(Base):
     work_days = Column(JSON, default=lambda: ["mon", "tue", "wed", "thu", "fri"], nullable=False)
     max_mixes_per_day = Column(Integer, nullable=True)
     overtime_days = Column(JSON, default=list, nullable=False)
+
+    compensation_model = Column(String, nullable=True)
+    default_rate = Column(Numeric(5, 4), nullable=True)
+    rates_by_category = Column(JSON, nullable=True)
+    rate_overrides = Column(JSON, nullable=True)
+    manual_input_fields = Column(JSON, nullable=True)
+    notes = Column(Text, nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)

@@ -209,9 +209,10 @@ export function editorRequestForAssignment(
 export type EditorAssignmentMode = "fa" | "na" | "specific";
 
 export function findProducerByAssignmentKey(
-  key: string,
+  key: string | null | undefined,
   producers: Producer[]
 ): Producer | undefined {
+  if (!key) return undefined;
   const normalized = normalizeProducerKey(key);
   if (!normalized) return undefined;
 

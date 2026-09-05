@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, Boolean, Text, Numeric, DateTime, func
+from sqlalchemy import Column, String, Boolean, Text, Numeric, DateTime, func, JSON
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from app.core.database import Base
@@ -85,4 +85,20 @@ class Order(Base):
     is_past_order = Column(Boolean, default=False, nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
+    # --- Pricing Engine Fields (populated at complete-pricing time) ---
+    system_calculated_customer_price = Column(Numeric(10, 2), nullable=True)
+    final_customer_price = Column(Numeric(10, 2), nullable=True)
+    final_customer_price_overridden = Column(Boolean, default=False, nullable=False)
+    # Full pricing breakdown JSON (PricingBreakdown serialized)
+    pricing_breakdown = Column(JSON, nullable=True)
+
+    # --- Payroll Fields (populated at finalize-payroll time) ---
+    rate_used = Column(Numeric(5, 4), nullable=True)
+    rate_source = Column(String, nullable=True)   # "default_rate" | "rates_by_category[jazz-kick]" | ...
+    producer_payout = Column(Numeric(10, 2), nullable=True)
+    slt_portion = Column(Numeric(10, 2), nullable=True)
+    payroll_finalized = Column(Boolean, default=False, nullable=False)
+    payroll_breakdown = Column(JSON, nullable=True)
+
     mtd_record = relationship("MTDRecord", back_populates="order", uselist=False)
+

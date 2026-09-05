@@ -28,6 +28,16 @@ export interface BackendMTDRecord {
   record_status?: string | null;
   in_payroll: boolean;
   completed_at?: string | null;
+  system_calculated_customer_price?: number | null;
+  final_customer_price?: number | null;
+  final_customer_price_overridden?: boolean;
+  pricing_breakdown?: any;
+  rate_used?: number | null;
+  rate_source?: string | null;
+  producer_payout?: number | null;
+  slt_portion?: number | null;
+  payroll_finalized?: boolean;
+  payroll_breakdown?: any;
 }
 
 export function transformMTDRecord(bm: BackendMTDRecord): MTDRecord {
@@ -56,6 +66,16 @@ export function transformMTDRecord(bm: BackendMTDRecord): MTDRecord {
     recordStatus: (bm.record_status as MTDRecordStatus) || undefined,
     inPayroll: Boolean(bm.in_payroll),
     completedAt: bm.completed_at || undefined,
+    systemCalculatedCustomerPrice: bm.system_calculated_customer_price ?? null,
+    finalCustomerPrice: bm.final_customer_price ?? null,
+    finalCustomerPriceOverridden: Boolean(bm.final_customer_price_overridden),
+    pricingBreakdown: bm.pricing_breakdown || null,
+    rateUsed: bm.rate_used ?? null,
+    rateSource: bm.rate_source || null,
+    producerPayout: bm.producer_payout ?? null,
+    sltPortion: bm.slt_portion ?? null,
+    payrollFinalized: Boolean(bm.payroll_finalized),
+    payrollBreakdown: bm.payroll_breakdown || null,
   };
 }
 

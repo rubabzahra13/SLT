@@ -30,6 +30,16 @@ export type MTDRecord = {
   /** Completed mixes moved off the MTD board into payroll */
   inPayroll?: boolean;
   completedAt?: string;
+  systemCalculatedCustomerPrice?: number | null;
+  finalCustomerPrice?: number | null;
+  finalCustomerPriceOverridden?: boolean;
+  pricingBreakdown?: any;
+  rateUsed?: number | null;
+  rateSource?: string | null;
+  producerPayout?: number | null;
+  sltPortion?: number | null;
+  payrollFinalized?: boolean;
+  payrollBreakdown?: any;
 };
 
 export type Weekday =
@@ -51,6 +61,17 @@ export type ProducerTimeOff = {
   reason: string;
 };
 
+export type ProducerCompensationModel =
+  | "percentage_of_payroll_base"
+  | "hourly_manual"
+  | "not_paid_for_mixing"
+  | null;
+
+export type ProducerManualInputField = {
+  label: string;
+  rate_or_null: number | null;
+};
+
 export type Producer = {
   id: string;
   name: string;
@@ -69,6 +90,12 @@ export type Producer = {
   maxMixesPerDay: number | null;
   /** One-off extra work days (YYYY-MM-DD), outside regular workDays */
   overtimeDays: string[];
+  compensationModel?: ProducerCompensationModel;
+  defaultRate?: number | null;
+  ratesByCategory?: Record<string, number> | null;
+  rateOverrides?: Record<string, number> | null;
+  manualInputFields?: ProducerManualInputField[] | null;
+  notes?: string | null;
 };
 
 export const WEEKDAYS: { id: Weekday; label: string; short: string }[] = [
@@ -215,6 +242,16 @@ export type Order = {
   completedAt?: string | null;
   needsAttention: boolean;
   attentionReason: string | null;
+  systemCalculatedCustomerPrice?: number | null;
+  finalCustomerPrice?: number | null;
+  finalCustomerPriceOverridden?: boolean;
+  pricingBreakdown?: any;
+  rateUsed?: number | null;
+  rateSource?: string | null;
+  producerPayout?: number | null;
+  sltPortion?: number | null;
+  payrollFinalized?: boolean;
+  payrollBreakdown?: any;
 };
 
 export type ScheduleEntry = {

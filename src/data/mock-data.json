@@ -4344,7 +4344,31 @@
       "avatar": "https://api.dicebear.com/9.x/avataaars/svg?seed=CASEY",
       "mixesThisWeek": 145,
       "nextAvailable": "Aug 27, 2026",
-      "status": "limited"
+      "status": "limited",
+      "compensationModel": "percentage_of_payroll_base",
+      "defaultRate": null,
+      "ratesByCategory": null,
+      "rateOverrides": {
+        "old_pricing": 0.72,
+        "new_pricing": 0.7,
+        "dance_voiceover": 0.8,
+        "cheer_voiceover": 1.0
+      },
+      "manualInputFields": [
+        {
+          "label": "100% Manual Field 1 (rush orders & vocal reimbursements)",
+          "rate_or_null": 1.0
+        },
+        {
+          "label": "100% Manual Field 2 (rush orders & vocal reimbursements)",
+          "rate_or_null": 1.0
+        },
+        {
+          "label": "Cheer Song Reimbursement (manual dollar amount, producer's own purchases)",
+          "rate_or_null": null
+        }
+      ],
+      "notes": "No stated trigger for old (72%) vs new (70%) pricing -- see Assumptions."
     },
     {
       "id": "prod-2",
@@ -4355,7 +4379,13 @@
       "avatar": "https://api.dicebear.com/9.x/avataaars/svg?seed=JUSTIN",
       "mixesThisWeek": 12,
       "nextAvailable": "Aug 25, 2026",
-      "status": "available"
+      "status": "available",
+      "compensationModel": "percentage_of_payroll_base",
+      "defaultRate": 0.5,
+      "ratesByCategory": null,
+      "rateOverrides": null,
+      "manualInputFields": null,
+      "notes": null
     },
     {
       "id": "prod-3",
@@ -4366,7 +4396,13 @@
       "avatar": "https://api.dicebear.com/9.x/avataaars/svg?seed=MATT",
       "mixesThisWeek": 28,
       "nextAvailable": "Aug 27, 2026",
-      "status": "available"
+      "status": "available",
+      "compensationModel": "percentage_of_payroll_base",
+      "defaultRate": 0.6,
+      "ratesByCategory": null,
+      "rateOverrides": null,
+      "manualInputFields": null,
+      "notes": null
     },
     {
       "id": "prod-4",
@@ -4377,7 +4413,13 @@
       "avatar": "https://api.dicebear.com/9.x/avataaars/svg?seed=NATE",
       "mixesThisWeek": 22,
       "nextAvailable": "Aug 27, 2026",
-      "status": "available"
+      "status": "available",
+      "compensationModel": "percentage_of_payroll_base",
+      "defaultRate": 0.6,
+      "ratesByCategory": null,
+      "rateOverrides": null,
+      "manualInputFields": null,
+      "notes": null
     },
     {
       "id": "prod-5",
@@ -4388,7 +4430,21 @@
       "avatar": "https://api.dicebear.com/9.x/avataaars/svg?seed=MARK",
       "mixesThisWeek": 18,
       "nextAvailable": "Aug 26, 2026",
-      "status": "available"
+      "status": "available",
+      "compensationModel": "percentage_of_payroll_base",
+      "defaultRate": null,
+      "ratesByCategory": {
+        "jazz-kick": 0.72,
+        "pom": 0.72,
+        "hip-hop": 0.72,
+        "team-performance-variety": 0.72,
+        "all-star-cheer": 0.6,
+        "school-cheer": 0.6,
+        "youth-rec-cheer": 0.6
+      },
+      "rateOverrides": null,
+      "manualInputFields": null,
+      "notes": "72% for jazz, pom, & team performance; 60% for cheerleading."
     },
     {
       "id": "prod-6",
@@ -4399,7 +4455,13 @@
       "avatar": "https://api.dicebear.com/9.x/avataaars/svg?seed=GRIFFIN",
       "mixesThisWeek": 8,
       "nextAvailable": "Aug 28, 2026",
-      "status": "available"
+      "status": "available",
+      "compensationModel": "hourly_manual",
+      "defaultRate": null,
+      "ratesByCategory": null,
+      "rateOverrides": null,
+      "manualInputFields": null,
+      "notes": "Hourly employee, paid manually via pay sheet."
     },
     {
       "id": "prod-7",
@@ -4410,7 +4472,13 @@
       "avatar": "https://api.dicebear.com/9.x/avataaars/svg?seed=JOSH",
       "mixesThisWeek": 15,
       "nextAvailable": "Aug 29, 2026",
-      "status": "available"
+      "status": "available",
+      "compensationModel": "hourly_manual",
+      "defaultRate": null,
+      "ratesByCategory": null,
+      "rateOverrides": null,
+      "manualInputFields": null,
+      "notes": "Hourly employee, paid manually via pay sheet."
     },
     {
       "id": "prod-8",
@@ -4421,7 +4489,13 @@
       "avatar": "https://api.dicebear.com/9.x/avataaars/svg?seed=JOEL",
       "mixesThisWeek": 10,
       "nextAvailable": "Aug 30, 2026",
-      "status": "available"
+      "status": "available",
+      "compensationModel": "percentage_of_payroll_base",
+      "defaultRate": 0.5,
+      "ratesByCategory": null,
+      "rateOverrides": null,
+      "manualInputFields": null,
+      "notes": null
     },
     {
       "id": "prod-9",
@@ -4432,7 +4506,13 @@
       "avatar": "https://api.dicebear.com/9.x/avataaars/svg?seed=BRENT",
       "mixesThisWeek": 20,
       "nextAvailable": "Aug 26, 2026",
-      "status": "available"
+      "status": "available",
+      "compensationModel": "percentage_of_payroll_base",
+      "defaultRate": 0.5,
+      "ratesByCategory": null,
+      "rateOverrides": null,
+      "manualInputFields": null,
+      "notes": null
     },
     {
       "id": "prod-10",
@@ -4443,7 +4523,13 @@
       "avatar": "https://api.dicebear.com/9.x/avataaars/svg?seed=RILEY",
       "mixesThisWeek": 6,
       "nextAvailable": "Sep 1, 2026",
-      "status": "available"
+      "status": "available",
+      "compensationModel": null,
+      "defaultRate": null,
+      "ratesByCategory": null,
+      "rateOverrides": null,
+      "manualInputFields": null,
+      "notes": "No compensation rule on file - confirm with Megan before enabling payroll for Riley's orders"
     },
     {
       "id": "prod-11",
@@ -4454,9 +4540,135 @@
       "avatar": "https://api.dicebear.com/9.x/avataaars/svg?seed=STEVE",
       "mixesThisWeek": 14,
       "nextAvailable": "Sep 2, 2026",
-      "status": "available"
+      "status": "available",
+      "compensationModel": "not_paid_for_mixing",
+      "defaultRate": null,
+      "ratesByCategory": null,
+      "rateOverrides": null,
+      "manualInputFields": null,
+      "notes": "Doesn't get paid for mixing. Payout is always $0 on mixing orders."
+    },
+    {
+      "id": "prod-12",
+      "name": "Anne Jacobs",
+      "initials": "AJ",
+      "email": "anne@soundslikethat.com",
+      "specialty": "Dance",
+      "avatar": "https://api.dicebear.com/9.x/avataaars/svg?seed=ANNE",
+      "mixesThisWeek": 0,
+      "nextAvailable": "Mon",
+      "status": "available",
+      "compensationModel": "percentage_of_payroll_base",
+      "defaultRate": 0.72,
+      "ratesByCategory": null,
+      "rateOverrides": null,
+      "manualInputFields": null,
+      "notes": "Inferred from client compensation email & order references. Flat 72% rate."
+    },
+    {
+      "id": "prod-13",
+      "name": "Lauren Von'Ohlen",
+      "initials": "LV",
+      "email": "lauren@soundslikethat.com",
+      "specialty": "Dance",
+      "avatar": "https://api.dicebear.com/9.x/avataaars/svg?seed=LAUREN",
+      "mixesThisWeek": 0,
+      "nextAvailable": "Mon",
+      "status": "available",
+      "compensationModel": "percentage_of_payroll_base",
+      "defaultRate": 0.72,
+      "ratesByCategory": null,
+      "rateOverrides": null,
+      "manualInputFields": null,
+      "notes": "Inferred from client compensation email. Flat 72% rate."
+    },
+    {
+      "id": "prod-14",
+      "name": "Rory Fowler",
+      "initials": "RF",
+      "email": "rory@soundslikethat.com",
+      "specialty": "Cheer",
+      "avatar": "https://api.dicebear.com/9.x/avataaars/svg?seed=RORY",
+      "mixesThisWeek": 0,
+      "nextAvailable": "Mon",
+      "status": "available",
+      "compensationModel": "percentage_of_payroll_base",
+      "defaultRate": 0.72,
+      "ratesByCategory": null,
+      "rateOverrides": null,
+      "manualInputFields": null,
+      "notes": "Inferred from client compensation email. Flat 72% rate."
+    },
+    {
+      "id": "prod-15",
+      "name": "John Peters",
+      "initials": "JP",
+      "email": "john@soundslikethat.com",
+      "specialty": "Cheer",
+      "avatar": "https://api.dicebear.com/9.x/avataaars/svg?seed=JOHN",
+      "mixesThisWeek": 0,
+      "nextAvailable": "Mon",
+      "status": "available",
+      "compensationModel": "percentage_of_payroll_base",
+      "defaultRate": 0.72,
+      "ratesByCategory": null,
+      "rateOverrides": null,
+      "manualInputFields": null,
+      "notes": "Inferred from client compensation email. Flat 72% rate."
+    },
+    {
+      "id": "prod-16",
+      "name": "Max Thompson",
+      "initials": "MT",
+      "email": "max@soundslikethat.com",
+      "specialty": "Cheer",
+      "avatar": "https://api.dicebear.com/9.x/avataaars/svg?seed=MAX",
+      "mixesThisWeek": 0,
+      "nextAvailable": "Mon",
+      "status": "available",
+      "compensationModel": "percentage_of_payroll_base",
+      "defaultRate": 0.72,
+      "ratesByCategory": null,
+      "rateOverrides": null,
+      "manualInputFields": null,
+      "notes": "Inferred from client compensation email. Flat 72% rate."
+    },
+    {
+      "id": "prod-17",
+      "name": "Chris Chawi",
+      "initials": "CC",
+      "email": "chris@soundslikethat.com",
+      "specialty": "Cheer",
+      "avatar": "https://api.dicebear.com/9.x/avataaars/svg?seed=CHRIS",
+      "mixesThisWeek": 0,
+      "nextAvailable": "Mon",
+      "status": "available",
+      "compensationModel": "percentage_of_payroll_base",
+      "defaultRate": 0.72,
+      "ratesByCategory": null,
+      "rateOverrides": null,
+      "manualInputFields": null,
+      "notes": "Inferred from client compensation email. Flat 72% rate."
+    },
+    {
+      "id": "prod-18",
+      "name": "Joe Bell",
+      "initials": "JB",
+      "email": "joe@soundslikethat.com",
+      "specialty": "Cheer",
+      "avatar": "https://api.dicebear.com/9.x/avataaars/svg?seed=JOE",
+      "mixesThisWeek": 0,
+      "nextAvailable": "Mon",
+      "status": "available",
+      "compensationModel": "hourly_manual",
+      "defaultRate": null,
+      "ratesByCategory": null,
+      "rateOverrides": null,
+      "manualInputFields": null,
+      "notes": "Inferred from client compensation email. Hourly employee, paid manually via pay sheet."
     }
   ],
+
   "orders": [
     {
       "id": "ord-demo",

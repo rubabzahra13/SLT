@@ -26,6 +26,7 @@ import {
   matchesMTDSearch,
 } from "@/lib/mtd-filters";
 import { parsePackage } from "@/lib/package";
+import { findLinkedOrder, findProducerByAssignmentKey } from "@/lib/editor-assignment";
 import type {
   CheerFormSubtype,
   DanceFormSubtype,
@@ -113,8 +114,13 @@ export default function PayrollPage() {
   }, [tableFiltered, searchQuery]);
 
   const totalPayroll = useMemo(
-    () => filtered.reduce((sum, rec) => sum + rec.price, 0),
-    [filtered]
+    () =>
+      filtered.reduce((sum, rec) => {
+        const order = orderById.get(rec.orderId || "");
+        const payout = rec.producerPayout ?? order?.producerPayout ?? 0;
+        return sum + payout;
+      }, 0),
+    [filtered, orderById]
   );
 
   const formCounts = useMemo(
@@ -279,16 +285,128 @@ export default function PayrollPage() {
       },
       {
         key: "price",
-        header: "Price",
-        width: "96px",
+        header: "Customer Price",
+        width: "110px",
         align: "center",
         cellClassName: "!px-2 !py-1.5",
         headerClassName: "!px-2 !py-2",
-        render: (rec) => (
-          <span className="text-[12px] font-semibold tabular-nums text-brand-ink">
-            {formatPrice(rec.price)}
-          </span>
-        ),
+        render: (rec) => {
+          const order = findLinkedOrder(rec, allOrders);
+          const custPrice =
+            order?.finalCustomerPrice ??
+            order?.systemCalculatedCustomerPrice ??
+            rec.finalCustomerPrice ??
+            rec.systemCalculatedCustomerPrice ??
+            rec.price;
+          const isOverridden = Boolean(
+            order?.finalCustomerPriceOverridden ?? rec.finalCustomerPriceOverridden
+          );
+
+          return (
+            <div className="flex flex-col items-center">
+              <div className="flex items-center justify-center gap-1">
+                <span className="text-[12px] font-semibold tabular-nums text-brand-ink">
+                  {formatPrice(custPrice)}
+                </span>
+                {isOverridden && (
+                  <span
+                    className="rounded bg-brand-orange/10 px-1 py-0.2 text-[9px] font-semibold uppercase text-brand-orange ring-1 ring-inset ring-brand-orange/20"
+                    title="Customer price overridden"
+                  >
+                    edited
+                  </span>
+                )}
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        key: "payout",
+        header: "Producer Payout / SLT",
+        width: "148px",
+        align: "center",
+        cellClassName: "!px-2 !py-1.5",
+        headerClassName: "!px-2 !py-2",
+        render: (rec) => {
+          const order = findLinkedOrder(rec, allOrders);
+          const producerObj = findProducerByAssignmentKey(
+            rec.assignedProducer,
+            producers
+          );
+          const model = producerObj?.compensationModel;
+
+          const payout = rec.producerPayout ?? order?.producerPayout;
+          const slt = rec.sltPortion ?? order?.sltPortion;
+          const isRateOverridden =
+            rec.rateSource === "manual_override" ||
+            order?.rateSource === "manual_override";
+          const isPriceOverridden = Boolean(
+            rec.finalCustomerPriceOverridden || order?.finalCustomerPriceOverridden
+          );
+
+          if (model === "not_paid_for_mixing") {
+            return (
+              <div className="flex flex-col items-center">
+                <span className="text-[12px] font-semibold tabular-nums text-brand-ink">
+                  $0.00
+                </span>
+                <span className="text-[10px] text-brand-ink-tertiary">
+                  Not Paid for Mixing
+                </span>
+              </div>
+            );
+          }
+
+          if (model === "hourly_manual") {
+            return (
+              <div className="flex flex-col items-center">
+                <span className="text-[12px] font-semibold tabular-nums text-brand-ink">
+                  {payout !== undefined && payout !== null
+                    ? formatPrice(payout)
+                    : "Hourly"}
+                </span>
+                <span className="text-[10px] text-brand-ink-tertiary">
+                  Manual Pay Sheet
+                </span>
+              </div>
+            );
+          }
+
+          if (payout === undefined || payout === null) {
+            return (
+              <div className="flex flex-col items-center">
+                <span className="text-[12px] font-semibold tabular-nums text-brand-orange">
+                  Needs Review
+                </span>
+                <span className="text-[10px] text-brand-ink-tertiary">
+                  No rate on file
+                </span>
+              </div>
+            );
+          }
+
+          return (
+            <div className="flex flex-col items-center">
+              <div className="flex items-center justify-center gap-1">
+                <span className="text-[12px] font-bold tabular-nums text-brand-success">
+                  {formatPrice(payout)}
+                </span>
+                {(isRateOverridden || isPriceOverridden) && (
+                  <span
+                    className="rounded bg-brand-orange/10 px-1 py-0.2 text-[9px] font-semibold uppercase text-brand-orange ring-1 ring-inset ring-brand-orange/20"
+                    title="Rate or customer price overridden"
+                  >
+                    edited
+                  </span>
+                )}
+              </div>
+              <span className="text-[10px] text-brand-ink-secondary tabular-nums">
+                SLT: {slt !== undefined && slt !== null ? formatPrice(slt) : "—"}
+              </span>
+            </div>
+          );
+        },
       },
       {
         key: "completedAt",
@@ -336,7 +454,7 @@ export default function PayrollPage() {
         ),
       },
     ],
-    []
+    [allOrders, producers]
   );
 
   return (

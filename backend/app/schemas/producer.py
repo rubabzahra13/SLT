@@ -1,5 +1,5 @@
 from pydantic import BaseModel, ConfigDict
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from uuid import UUID
 
 class ProducerTimeOffSchema(BaseModel):
@@ -27,6 +27,13 @@ class ProducerSchema(BaseModel):
     max_mixes_per_day: Optional[int] = None
     overtime_days: List[str] = []
 
+    compensation_model: Optional[str] = None
+    default_rate: Optional[float] = None
+    rates_by_category: Optional[Dict[str, float]] = None
+    rate_overrides: Optional[Dict[str, float]] = None
+    manual_input_fields: Optional[List[Dict[str, Any]]] = None
+    notes: Optional[str] = None
+
     model_config = ConfigDict(from_attributes=True)
 
 class ProducerCreateSchema(BaseModel):
@@ -40,6 +47,13 @@ class ProducerCreateSchema(BaseModel):
     max_mixes_per_day: Optional[int] = None
     overtime_days: Optional[List[str]] = []
 
+    compensation_model: Optional[str] = None
+    default_rate: Optional[float] = None
+    rates_by_category: Optional[Dict[str, float]] = None
+    rate_overrides: Optional[Dict[str, float]] = None
+    manual_input_fields: Optional[List[Dict[str, Any]]] = None
+    notes: Optional[str] = None
+
 class ProducerUpdateSchema(BaseModel):
     name: Optional[str] = None
     initials: Optional[str] = None
@@ -52,3 +66,10 @@ class ProducerUpdateSchema(BaseModel):
     work_days: Optional[List[str]] = None
     max_mixes_per_day: Optional[int] = None
     overtime_days: Optional[List[str]] = None
+
+    compensation_model: Optional[str] = None
+    default_rate: Optional[float] = None
+    rates_by_category: Optional[Dict[str, float]] = None
+    rate_overrides: Optional[Dict[str, float]] = None
+    manual_input_fields: Optional[List[Dict[str, Any]]] = None
+    notes: Optional[str] = None
