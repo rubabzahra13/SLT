@@ -5,7 +5,7 @@ import { resolveMTDFormMeta } from "@/lib/mtd-filters";
 import type { MTDRecord, Order } from "@/types";
 import type { OrderDetailField } from "@/lib/order-detail-sections";
 
-const FIELD_GETTERS: Record<string, (order: Order) => string> = {
+const FIELD_GETTERS: Record<string, (order: Order) => string | undefined> = {
   schoolProgramName: (o) => o.schoolProgramName,
   schoolAddress: (o) => o.schoolAddress,
   gymName: (o) => o.gymName || o.schoolProgramName,

@@ -1,24 +1,24 @@
-import type { MTDRecord, Order, Producer, ScheduleEntry } from "@/types";
-import { EDITOR_NAMES } from "@/types";
+import type { MTDRecord, Order, Producer, ScheduleEntry } from "../types";
+import { EDITOR_NAMES } from "../types";
 import {
   isProducerUnavailableForRecord,
   mixEndIsoForRecord,
   mixWindowForRecord as availabilityMixWindow,
   type MixWindow,
-} from "@/lib/producer-availability";
-import { parseFlexibleDate } from "@/lib/dates";
+} from "./producer-availability";
+import { parseFlexibleDate } from "./dates";
 import {
   normalizeProducerKey,
   producerAssignmentKey,
   producerKeysMatch,
-} from "@/lib/producer-keys";
-import { formatSlotForDisplay } from "@/lib/scheduling";
+} from "./producer-keys";
+import { formatSlotForDisplay } from "./scheduling";
 
 export {
   normalizeProducerKey,
   producerAssignmentKey,
   producerKeysMatch,
-} from "@/lib/producer-keys";
+} from "./producer-keys";
 
 export function isFirstAvailableRequest(
   value: string | null | undefined
@@ -38,11 +38,30 @@ export function findLinkedOrder(
   record: MTDRecord,
   orders: Order[]
 ): Order | undefined {
-  if (record.orderId) {
-    const byId = orders.find((order) => order.id === record.orderId);
-    if (byId) return byId;
+  if (!record || !orders || orders.length === 0) return undefined;
+  const targetId = record.orderId || record.id;
+
+  if (targetId) {
+    const matched = orders.find(
+      (order) =>
+        order.id === targetId ||
+        order.legacyId === targetId ||
+        order.uuid === targetId ||
+        order.mtdId === record.id ||
+        order.id === record.id ||
+        order.legacyId === record.id
+    );
+    if (matched) return matched;
   }
-  return orders.find((order) => order.mtdId === record.id);
+
+  return orders.find(
+    (order) =>
+      order.mtdId === record.id ||
+      (order.contactName &&
+        record.contactName &&
+        order.contactName.trim().toLowerCase() === record.contactName.trim().toLowerCase() &&
+        order.package === record.package)
+  );
 }
 
 export function resolveProducerKey(

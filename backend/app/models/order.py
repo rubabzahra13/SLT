@@ -12,6 +12,7 @@ class Order(Base):
     form_type = Column(String, default="school-all-star-cheer", nullable=False)
     cheer_form_subtype = Column(String, nullable=True)
     dance_form_subtype = Column(String, nullable=True)
+    varsity_viroc_customer = Column(String, nullable=True)
 
     # Program & Address info
     school_program_name = Column(String, nullable=True)

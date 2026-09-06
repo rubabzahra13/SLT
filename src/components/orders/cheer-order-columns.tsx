@@ -6,7 +6,7 @@ import { displayMultiline, displayText } from "@/lib/order-form";
 function textCol(
   key: string,
   header: string,
-  accessor: (o: Order) => string,
+  accessor: (o: Order) => string | undefined,
   width = "140px",
   wide = false
 ): Column<Order> {
@@ -26,7 +26,7 @@ function textCol(
 function multiCol(
   key: string,
   header: string,
-  accessor: (o: Order) => string,
+  accessor: (o: Order) => string | undefined,
   width = "220px"
 ): Column<Order> {
   return {

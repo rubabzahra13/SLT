@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Pencil } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Avatar } from "@/components/ui/Avatar";
@@ -11,6 +11,7 @@ import { TruncatedText } from "@/components/ui/TruncatedText";
 import {
   InlineCell,
   InlineTriStateCheckGroup,
+  InlineTwoStateToggle,
   InlineSelect,
   InlineDateInput,
 } from "@/components/mtd/InlineFields";
@@ -36,6 +37,10 @@ import { useAppState } from "@/context/AppStateContext";
 import { formatPrice, titleCase } from "@/lib/data";
 import { parsePackage } from "@/lib/package";
 import { complianceLabel } from "@/lib/pricing";
+import {
+  calculateCheerOrderPricing,
+  determineComplianceStatus,
+} from "@/lib/pricing-engine";
 import { formatSlotForDisplay } from "@/lib/scheduling";
 import { inferMTDRecordStatus, patchFromRecordStatus } from "@/lib/mtd-status";
 import {
@@ -61,6 +66,7 @@ import {
   filterMTDRecords,
   hasMixStartDate,
   matchesMTDSearch,
+  resolveMTDFormMeta,
 } from "@/lib/mtd-filters";
 import {
   cycleEightCsItem,
@@ -72,6 +78,7 @@ import {
 } from "@/lib/mtd-checklist";
 import type {
   CheerFormSubtype,
+  CheerFormSubtypeFilter,
   DanceFormSubtype,
   MTDRecord,
   MTDRecordStatus,
@@ -143,13 +150,48 @@ export default function MTDPage() {
     producers,
     schedule,
   } = useAppState();
-  const [form, setForm] = useState<OrderFormType>(DEFAULT_FORM);
-  const [cheerSubtype, setCheerSubtype] = useState<CheerFormSubtype>(
+  const [formState, setFormState] = useState<OrderFormType>(DEFAULT_FORM);
+  const [cheerSubtypeState, setCheerSubtypeState] = useState<CheerFormSubtypeFilter>(
     DEFAULT_CHEER_SUBTYPE
   );
-  const [danceSubtype, setDanceSubtype] = useState<DanceFormSubtype>(
+  const [danceSubtypeState, setDanceSubtypeState] = useState<DanceFormSubtype>(
     DEFAULT_DANCE_SUBTYPE
   );
+
+  const [form, setForm] = [
+    formState,
+    (next: OrderFormType) => {
+      setFormState(next);
+      if (typeof window !== "undefined") sessionStorage.setItem("slt_mtd_form", next);
+    },
+  ];
+
+  const [cheerSubtype, setCheerSubtype] = [
+    cheerSubtypeState,
+    (next: CheerFormSubtypeFilter) => {
+      setCheerSubtypeState(next);
+      if (typeof window !== "undefined") sessionStorage.setItem("slt_mtd_cheer_subtype", next);
+    },
+  ];
+
+  const [danceSubtype, setDanceSubtype] = [
+    danceSubtypeState,
+    (next: DanceFormSubtype) => {
+      setDanceSubtypeState(next);
+      if (typeof window !== "undefined") sessionStorage.setItem("slt_mtd_dance_subtype", next);
+    },
+  ];
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const savedForm = sessionStorage.getItem("slt_mtd_form") as OrderFormType | null;
+    const savedCheer = sessionStorage.getItem("slt_mtd_cheer_subtype") as CheerFormSubtypeFilter | null;
+    const savedDance = sessionStorage.getItem("slt_mtd_dance_subtype") as DanceFormSubtype | null;
+    if (savedForm) setFormState(savedForm);
+    if (savedCheer) setCheerSubtypeState(savedCheer);
+    if (savedDance) setDanceSubtypeState(savedDance);
+  }, []);
+
   const [tableFilters, setTableFilters] = useState<MTDTableFilterState>(
     DEFAULT_MTD_TABLE_FILTERS
   );
@@ -176,10 +218,15 @@ export default function MTDPage() {
     [mtdRecords]
   );
 
-  const orderById = useMemo(
-    () => new Map(allOrders.map((order) => [order.id, order])),
-    [allOrders]
-  );
+  const orderById = useMemo(() => {
+    const map = new Map<string, Order>();
+    for (const order of allOrders) {
+      if (order.id) map.set(order.id, order);
+      if (order.legacyId) map.set(order.legacyId, order);
+      if (order.uuid) map.set(order.uuid, order);
+    }
+    return map;
+  }, [allOrders]);
 
   const switchForm = useCallback((next: OrderFormType) => {
     setForm(next);
@@ -189,7 +236,7 @@ export default function MTDPage() {
     if (next !== "school-all-star-dance") {
       setDanceSubtype(DEFAULT_DANCE_SUBTYPE);
     }
-  }, []);
+  }, [setForm, setCheerSubtype, setDanceSubtype]);
 
   const handleAssign = useCallback(
     (recordId: string, result: EditorAssignmentResult) => {
@@ -363,8 +410,18 @@ export default function MTDPage() {
     searchQuery,
   ].join("-");
 
-  const columns: Column<MTDRecord>[] = useMemo(
-    () => [
+  const columns: Column<MTDRecord>[] = useMemo(() => {
+    const showRallyMix =
+      form === "school-all-star-cheer" &&
+      (cheerSubtype === "school-cheer-viroc-yes" ||
+        cheerSubtype === "school-cheer-viroc-no" ||
+        cheerSubtype === "all");
+
+    const showYouthAddons =
+      form === "school-all-star-cheer" &&
+      (cheerSubtype === "youth-rec-cheer" || cheerSubtype === "all");
+
+    const baseCols: Column<MTDRecord>[] = [
       {
         key: "rowId",
         header: "ID",
@@ -447,13 +504,70 @@ export default function MTDPage() {
         cellClassName: clsx(compactCellClass, "max-w-[100px]"),
         headerClassName: compactHeaderClass,
         render: (rec) => {
-          const { split } = parsePackage(rec.package);
+          const meta = resolveMTDFormMeta(rec, orderById);
+          if (meta.cheerFormSubtype === "all-star-cheer") {
+            return (
+              <span className={clsx("mx-auto block text-center text-brand-ink-tertiary", compactTextClass)}>
+                N/A
+              </span>
+            );
+          }
+          const linked = rec.orderId ? orderById.get(rec.orderId) : undefined;
+          const splitVal = linked?.splitOrNoSplit || parsePackage(rec.package).split;
           return (
             <TruncatedText
-              text={split}
+              text={splitVal || "N/A"}
               className={clsx("mx-auto w-full min-w-0 text-center", compactTextClass)}
               style={{ maxWidth: "100%" }}
             />
+          );
+        },
+      },
+      {
+        key: "musicAffiliateCol",
+        header: "Music Affiliate",
+        width: "120px",
+        align: "center",
+        nowrap: false,
+        cellClassName: clsx(compactCellClass, "max-w-[120px]"),
+        headerClassName: compactHeaderClass,
+        render: (rec) => {
+          const meta = resolveMTDFormMeta(rec, orderById);
+          const linked = rec.orderId ? orderById.get(rec.orderId) : undefined;
+          const affiliate = linked?.musicAffiliate ?? (rec as any).musicAffiliate;
+          if (!affiliate) {
+            return (
+              <span className={clsx("mx-auto block text-center text-brand-ink-tertiary", compactTextClass)}>
+                N/A
+              </span>
+            );
+          }
+
+          const compliance = determineComplianceStatus(
+            meta.cheerFormSubtype,
+            affiliate
+          );
+
+          return (
+            <div className="mx-auto flex w-full min-w-0 flex-col items-center gap-0.5">
+              <TruncatedText
+                text={titleCase(affiliate)}
+                className={clsx("mx-auto w-full min-w-0 text-center font-medium", compactTextClass)}
+                style={{ maxWidth: "100%" }}
+              />
+              {compliance !== "unknown-no-affiliate-field" && (
+                <span
+                  className={clsx(
+                    "text-[10px] font-semibold tracking-tight",
+                    compliance === "compliant"
+                      ? "text-brand-signature"
+                      : "text-brand-orange"
+                  )}
+                >
+                  {complianceLabel(compliance)}
+                </span>
+              )}
+            </div>
           );
         },
       },
@@ -523,23 +637,34 @@ export default function MTDPage() {
       },
       {
         key: "priceG",
-        header: "Price",
-        width: "96px",
+        header: "Customer Price",
+        width: "110px",
         align: "center",
         nowrap: false,
         cellClassName: "!px-2",
         headerClassName: "!px-2",
         render: (rec) => {
           const order = findLinkedOrder(rec, allOrders);
-          const displayPrice =
-            order?.finalCustomerPrice ??
-            order?.systemCalculatedCustomerPrice ??
-            rec.finalCustomerPrice ??
-            rec.systemCalculatedCustomerPrice ??
-            rec.price;
+          const meta = resolveMTDFormMeta(rec, orderById);
+          const enginePricing = calculateCheerOrderPricing({
+            cheerFormSubtype: meta.cheerFormSubtype,
+            packageType: order?.packageType || rec.package,
+            timeLengthOfMix: order?.timeLengthOfMix,
+            musicAffiliate: order?.musicAffiliate,
+            hasRallyMix: rec.hasRallyMix,
+            hasExtend8ctAddon: rec.hasExtend8ctAddon,
+            hasProcessing8ctSheetsAddon: rec.hasProcessing8ctSheetsAddon,
+          });
+
           const isOverridden = Boolean(
             order?.finalCustomerPriceOverridden ?? rec.finalCustomerPriceOverridden
           );
+
+          const displayPrice = isOverridden
+            ? (order?.finalCustomerPrice ?? rec.finalCustomerPrice ?? enginePricing.customerFacingPrice)
+            : (enginePricing.customerFacingPrice > 0
+                ? enginePricing.customerFacingPrice
+                : (order?.finalCustomerPrice ?? rec.price));
 
           return (
             <div
@@ -549,15 +674,15 @@ export default function MTDPage() {
               <button
                 type="button"
                 onClick={(e) => openPricingModal(rec, e)}
-                title="Edit pricing"
-                aria-label={`Edit pricing ${formatPrice(displayPrice)}`}
+                title="Edit Customer Price"
+                aria-label={`Edit Customer Price ${formatPrice(displayPrice)}`}
                 className={clsx(
                   clickableChipClass,
                   "flex w-full flex-col items-center rounded-lg px-2 py-1 text-center"
                 )}
               >
                 <div className="flex items-center justify-center gap-1">
-                  <p className="font-medium tabular-nums text-[12px] text-brand-ink hover:text-brand-orange">
+                  <p className="font-semibold tabular-nums text-[12px] text-brand-ink hover:text-brand-orange">
                     {formatPrice(displayPrice)}
                   </p>
                   {isOverridden && (
@@ -566,16 +691,6 @@ export default function MTDPage() {
                     </span>
                   )}
                 </div>
-                <p
-                  className={clsx(
-                    "text-[10px] font-medium",
-                    rec.priceCompliance === "compliant"
-                      ? "text-brand-signature"
-                      : "text-brand-orange"
-                  )}
-                >
-                  {complianceLabel(rec.priceCompliance)}
-                </p>
               </button>
             </div>
           );
@@ -713,6 +828,75 @@ export default function MTDPage() {
           );
         },
       },
+    ];
+
+    if (showRallyMix) {
+      baseCols.push({
+        key: "rallyMixCol",
+        header: "Rally Mix",
+        width: "90px",
+        align: "center",
+        nowrap: false,
+        cellClassName: "!px-2 !py-2",
+        headerClassName: "!px-2",
+        render: (rec) => (
+            <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
+              <InlineTwoStateToggle
+                value={Boolean(rec.hasRallyMix)}
+                onToggle={() =>
+                  updateMTD(rec.id, { hasRallyMix: !rec.hasRallyMix })
+                }
+              />
+            </div>
+          ),
+      });
+    }
+
+    if (showYouthAddons) {
+      baseCols.push({
+        key: "extend8ctCol",
+        header: "Extend 8-CS",
+        width: "90px",
+        align: "center",
+        nowrap: false,
+        cellClassName: "!px-2 !py-2",
+        headerClassName: "!px-2",
+        render: (rec) => (
+            <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
+              <InlineTwoStateToggle
+                value={Boolean(rec.hasExtend8ctAddon)}
+                onToggle={() =>
+                  updateMTD(rec.id, { hasExtend8ctAddon: !rec.hasExtend8ctAddon })
+                }
+              />
+            </div>
+          ),
+      });
+
+      baseCols.push({
+        key: "process8ctCol",
+        header: "Process 8-CS",
+        width: "95px",
+        align: "center",
+        nowrap: false,
+        cellClassName: "!px-2 !py-2",
+        headerClassName: "!px-2",
+        render: (rec) => (
+            <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
+              <InlineTwoStateToggle
+                value={Boolean(rec.hasProcessing8ctSheetsAddon)}
+                onToggle={() =>
+                  updateMTD(rec.id, {
+                    hasProcessing8ctSheetsAddon: !rec.hasProcessing8ctSheetsAddon,
+                  })
+                }
+              />
+            </div>
+          ),
+      });
+    }
+
+    baseCols.push(
       {
         key: "editorB",
         header: "Editor",
@@ -854,10 +1038,14 @@ export default function MTDPage() {
             </Link>
           </div>
         ),
-      },
-    ],
-    [
-      handleRecordStatusChange,
+      }
+    );
+
+    return baseCols;
+  },
+  [
+    form,
+    cheerSubtype,
       updateMTD,
       allOrders,
       mtdRecords,

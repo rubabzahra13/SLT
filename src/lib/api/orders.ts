@@ -82,6 +82,8 @@ export interface BackendOrder {
 export function transformOrder(bo: BackendOrder): Order {
   return {
     id: bo.legacy_id || bo.id,
+    legacyId: bo.legacy_id || undefined,
+    uuid: bo.id,
     formType: (bo.form_type as OrderFormType) || "school-all-star-cheer",
     cheerFormSubtype: bo.cheer_form_subtype as CheerFormSubtype | undefined,
     danceFormSubtype: bo.dance_form_subtype as DanceFormSubtype | undefined,

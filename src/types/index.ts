@@ -4,6 +4,8 @@ export type EditorRequest = "FA" | "NA" | string;
 
 export type MTDRecord = {
   id: string;
+  legacyId?: string;
+  uuid?: string;
   orderId?: string | null;
   section: string;
   assignedProducer: string | null;
@@ -30,6 +32,9 @@ export type MTDRecord = {
   /** Completed mixes moved off the MTD board into payroll */
   inPayroll?: boolean;
   completedAt?: string;
+  hasRallyMix?: boolean;
+  hasExtend8ctAddon?: boolean;
+  hasProcessing8ctSheetsAddon?: boolean;
   systemCalculatedCustomerPrice?: number | null;
   finalCustomerPrice?: number | null;
   finalCustomerPriceOverridden?: boolean;
@@ -145,11 +150,18 @@ export type CheerFormSubtype =
   | "school-cheer-viroc-no"
   | "youth-rec-cheer";
 
+export type CheerFormSubtypeFilter = "all" | CheerFormSubtype;
+
 export const CHEER_FORM_SUBTABS: { id: CheerFormSubtype; label: string }[] = [
   { id: "all-star-cheer", label: "All Star Cheer" },
   { id: "school-cheer-viroc-yes", label: "School Cheer · VIROC Yes" },
   { id: "school-cheer-viroc-no", label: "School Cheer · VIROC No" },
   { id: "youth-rec-cheer", label: "Youth Rec Cheer" },
+];
+
+export const CHEER_FORM_SUBTABS_WITH_ALL: { id: CheerFormSubtypeFilter; label: string }[] = [
+  { id: "all", label: "All Cheer" },
+  ...CHEER_FORM_SUBTABS,
 ];
 
 export type DanceFormSubtype =
@@ -167,23 +179,123 @@ export const DANCE_FORM_SUBTABS: { id: DanceFormSubtype; label: string }[] = [
   { id: "jazz-kick", label: "Jazz/Kick" },
 ];
 
-export type Order = {
+export type BaseOrderAdminFields = {
   id: string;
+  legacyId?: string;
+  uuid?: string;
   mtdId?: string;
-  formType: OrderFormType;
-  /** Cheer sub-form when formType is school-all-star-cheer */
-  cheerFormSubtype?: CheerFormSubtype;
-  /** Dance sub-form when formType is school-all-star-dance */
-  danceFormSubtype?: DanceFormSubtype;
-  /** POM order form — school / program */
-  schoolProgramName: string;
-  schoolAddress: string;
+  customerName: string;
+  contactName: string;
+  programName: string;
+  category: string;
+  package: string;
+  musicTheme: string;
+  editorRequest: EditorRequest;
+  requestedProducer: string;
+  assignedProducer?: string | null;
+  price: number;
+  priceCompliance?: PriceCompliance;
+  status: "new" | "active" | "needs_attention" | "completed" | "in_mtd";
+  createdAt: string;
+  completedAt?: string | null;
+  needsAttention: boolean;
+  attentionReason: string | null;
+  eightCountSheet?: string;
+  haveSongs?: string;
+  invoice?: string;
+  mixStartDate?: string;
+  mixEndDate?: string;
+  hasRallyMix?: boolean;
+  hasExtend8ctAddon?: boolean;
+  hasProcessing8ctSheetsAddon?: boolean;
+  systemCalculatedCustomerPrice?: number | null;
+  finalCustomerPrice?: number | null;
+  finalCustomerPriceOverridden?: boolean;
+  pricingBreakdown?: any;
+  rateUsed?: number | null;
+  rateSource?: string | null;
+  producerPayout?: number | null;
+  sltPortion?: number | null;
+  payrollFinalized?: boolean;
+  payrollBreakdown?: any;
+};
+
+/** All-Star Cheer (all-star-cheer) customer-submitted fields */
+export type AllStarCheerCustomerFields = {
+  gymName: string;
+  gymBillingAddress: string;
   city: string;
   stateProvince: string;
   zipPostalCode: string;
   country: string;
+  teamName: string;
   division: string;
-  /** Contact */
+  teamCoedAllGirl: string;
+  teamColors: string;
+  numberOfCopies: string;
+  coachName: string;
+  coachPhone: string;
+  coachEmail: string;
+  billingPersonName: string;
+  billingPersonEmail: string;
+  requestedEditor: string;
+  packageType: string;
+  timeLengthOfMix: string;
+  musicAffiliate: string;
+  sendingEightCountSheets: string;
+  songListSuggestions: string;
+  routineNotes: string;
+  couponCode: string;
+  howDidYouFindOut: string;
+};
+
+/** School Cheer, VIROC Yes (school-cheer-viroc-yes) customer-submitted fields */
+export type SchoolCheerVirocYesCustomerFields = {
+  varsityVirocCustomer: "Yes";
+  schoolName: string;
+  schoolBillingAddress: string;
+  city: string;
+  stateProvince: string;
+  zipPostalCode: string;
+  country: string;
+  mascot: string;
+  division: string;
+  teamCoedAllGirl: string;
+  teamColors: string;
+  numberOfCopies: string;
+  coachName: string;
+  coachPhone: string;
+  coachEmail: string;
+  billingPersonName: string;
+  billingPersonEmail: string;
+  virocChoreographerName: string;
+  virocChoreographerEmail: string;
+  requestedEditor: string;
+  packageType: string;
+  timeLengthOfMix: string;
+  splitOrNoSplit: string;
+  musicAffiliate: string;
+  sendingEightCountSheets: string;
+  songListSuggestions: string;
+  routineNotes: string;
+  couponCode: string;
+  howDidYouFindOut: string;
+};
+
+/** School Cheer, VIROC No (school-cheer-viroc-no) customer-submitted fields */
+export type SchoolCheerVirocNoCustomerFields = {
+  varsityVirocCustomer: "No";
+  schoolName: string;
+  schoolBillingAddress: string;
+  city: string;
+  stateProvince: string;
+  zipPostalCode: string;
+  country: string;
+  mascot: string;
+  division: string;
+  teamCoedAllGirl: string;
+  teamColors: string;
+  numberOfCopies: string;
   coachName: string;
   coachPhone: string;
   coachEmail: string;
@@ -191,15 +303,113 @@ export type Order = {
   billingPersonEmail: string;
   choreographerName: string;
   choreographerEmail: string;
-  /** Mix */
-  numberOfCopies: string;
-  packageType: string;
   requestedEditor: string;
+  packageType: string;
   timeLengthOfMix: string;
+  splitOrNoSplit: string;
   musicAffiliate: string;
-  powerMusicCovers: string;
+  sendingEightCountSheets: string;
+  songListSuggestions: string;
   routineNotes: string;
-  customVoiceovers: string;
+  couponCode: string;
+  howDidYouFindOut: string;
+};
+
+/** Youth Rec Cheer (youth-rec-cheer) customer-submitted fields */
+export type YouthRecCheerCustomerFields = {
+  programName: string;
+  teamName: string;
+  colors: string;
+  billingAddress: string;
+  city: string;
+  stateProvince: string;
+  zipPostalCode: string;
+  country: string;
+  coachContactFullName: string;
+  coachEmailAddress: string;
+  coachPhone: string;
+  emailAddress: string;
+  packageType: string;
+  timeLengthOfMix: string;
+  splitOrNoSplit: string;
+  numberOfCopies: string;
+  usingEightCountSheets: string;
+  songListSuggestions: string;
+  routineNotes: string;
+  couponCode: string;
+  howDidYouFindOut: string;
+};
+
+export type AllStarCheerOrder = BaseOrderAdminFields &
+  AllStarCheerCustomerFields & {
+    formType: "school-all-star-cheer";
+    cheerFormSubtype: "all-star-cheer";
+  };
+
+export type SchoolCheerVirocYesOrder = BaseOrderAdminFields &
+  SchoolCheerVirocYesCustomerFields & {
+    formType: "school-all-star-cheer";
+    cheerFormSubtype: "school-cheer-viroc-yes";
+  };
+
+export type SchoolCheerVirocNoOrder = BaseOrderAdminFields &
+  SchoolCheerVirocNoCustomerFields & {
+    formType: "school-all-star-cheer";
+    cheerFormSubtype: "school-cheer-viroc-no";
+  };
+
+export type YouthRecCheerOrder = BaseOrderAdminFields &
+  YouthRecCheerCustomerFields & {
+    formType: "school-all-star-cheer";
+    cheerFormSubtype: "youth-rec-cheer";
+  };
+
+export type CheerOrder =
+  | AllStarCheerOrder
+  | SchoolCheerVirocYesOrder
+  | SchoolCheerVirocNoOrder
+  | YouthRecCheerOrder;
+
+export type Order = {
+  id: string;
+  legacyId?: string;
+  uuid?: string;
+  mtdId?: string;
+  formType: OrderFormType;
+  /** Cheer sub-form when formType is school-all-star-cheer */
+  cheerFormSubtype?: CheerFormSubtype;
+  /** Dance sub-form when formType is school-all-star-dance */
+  danceFormSubtype?: DanceFormSubtype;
+  varsityVirocCustomer?: "Yes" | "No";
+  /** Add-on indicators */
+  hasRallyMix?: boolean;
+  hasExtend8ctAddon?: boolean;
+  hasProcessing8ctSheetsAddon?: boolean;
+  /** POM order form — school / program */
+  schoolProgramName?: string;
+  schoolAddress?: string;
+  city?: string;
+  stateProvince?: string;
+  zipPostalCode?: string;
+  country?: string;
+  division?: string;
+  /** Contact */
+  coachName?: string;
+  coachPhone?: string;
+  coachEmail?: string;
+  billingPersonName?: string;
+  billingPersonEmail?: string;
+  choreographerName?: string;
+  choreographerEmail?: string;
+  /** Mix */
+  numberOfCopies?: string;
+  packageType?: string;
+  requestedEditor?: string;
+  timeLengthOfMix?: string;
+  musicAffiliate?: string;
+  powerMusicCovers?: string;
+  routineNotes?: string;
+  customVoiceovers?: string;
   /** All Star Cheer */
   gymName?: string;
   gymBillingAddress?: string;

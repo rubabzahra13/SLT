@@ -26,6 +26,8 @@ export interface PricingBreakdown {
   needs_manual_pricing: boolean;
   needs_manual_review: boolean;
   summary_line: string;
+  coupon_code?: string | null;
+  coupon_evaluation?: any;
 }
 
 export interface CompensationResult {

@@ -7,6 +7,8 @@ Next.js admin dashboard for music order operations: orders, MTD spreadsheet, sch
 ```bash
 npm install
 npm run dev
+uvicorn app.main:app --reload --port 8001
+
 ```
 
 Open [http://localhost:3000](http://localhost:3000).

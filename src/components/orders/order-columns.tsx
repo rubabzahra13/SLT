@@ -13,7 +13,7 @@ type ColumnOptions = {
   danceFormSubtype?: DanceFormSubtype;
 };
 
-function textCell(value: string, wide = false) {
+function textCell(value?: string, wide = false) {
   return (
     <span className={wide ? "block max-w-[220px] truncate" : "block truncate"}>
       {displayText(value)}
@@ -21,7 +21,7 @@ function textCell(value: string, wide = false) {
   );
 }
 
-function multilineCell(value: string) {
+function multilineCell(value?: string) {
   return (
     <span className="block max-w-[240px] text-[12px] leading-snug text-brand-ink-secondary">
       {displayMultiline(value, 140)}

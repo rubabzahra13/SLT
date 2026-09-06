@@ -69,8 +69,8 @@ export function SetRecordPricingModal({
       <div className="surface-premium relative w-full max-w-md rounded-2xl shadow-[var(--shadow-premium)]">
         <div className="flex items-start justify-between gap-4 border-b border-brand-line/70 p-6">
           <div>
-            <p className="text-label">Price (G)</p>
-            <h2 className="text-display mt-1 text-[18px]">Set pricing</h2>
+            <p className="text-label">Customer Price</p>
+            <h2 className="text-display mt-1 text-[18px]">Edit Customer Price</h2>
             <p className="mt-1 text-[13px] text-brand-ink-secondary">
               {record.programName} · {record.package}
             </p>
@@ -85,31 +85,8 @@ export function SetRecordPricingModal({
         </div>
 
         <div className="space-y-4 p-6">
-          <div>
-            <p className="text-label">Compliance</p>
-            <div className="mt-1.5 grid grid-cols-2 gap-2">
-              {(["compliant", "non-compliant"] as const).map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  onClick={() => applyCatalogPrice(option)}
-                  className={clsx(
-                    "rounded-lg border px-3 py-2 text-[12px] font-semibold transition",
-                    compliance === option
-                      ? option === "compliant"
-                        ? "border-brand-success/40 bg-brand-success/10 text-brand-success"
-                        : "border-brand-orange/40 bg-brand-orange-soft text-brand-orange"
-                      : "border-brand-line text-brand-ink-secondary hover:bg-brand-bg"
-                  )}
-                >
-                  {complianceLabel(option)}
-                </button>
-              ))}
-            </div>
-          </div>
-
           <label className="block">
-            <span className="text-label">Price</span>
+            <span className="text-label">Customer Price</span>
             <input
               type="text"
               inputMode="decimal"
@@ -118,16 +95,7 @@ export function SetRecordPricingModal({
               className="mt-1.5 w-full rounded-lg border border-brand-line/80 bg-brand-surface px-3 py-2 text-[13px] font-semibold tabular-nums text-brand-ink outline-none transition focus:border-brand-orange/50 focus:ring-2 focus:ring-brand-orange-muted"
             />
             <p className="mt-1.5 text-[11px] text-brand-ink-tertiary">
-              Catalog{" "}
-              {formatPrice(
-                getPriceForPackage(
-                  record.package,
-                  compliance,
-                  record.price,
-                  packagePrices
-                )
-              )}{" "}
-              · current {formatPrice(record.price)}
+              Current MTD Customer Price: {formatPrice(record.price)}
             </p>
           </label>
         </div>

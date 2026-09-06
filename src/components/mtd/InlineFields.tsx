@@ -408,6 +408,40 @@ export function InlineTriStateCheckGroup({
   );
 }
 
+type InlineTwoStateToggleProps = {
+  value: boolean;
+  onToggle: () => void;
+  className?: string;
+};
+
+/** 2-state toggle chip: No (red) <-> Yes (green). No 3rd state. */
+export function InlineTwoStateToggle({
+  value,
+  onToggle,
+  className,
+}: InlineTwoStateToggleProps) {
+  return (
+    <button
+      type="button"
+      data-stop-row-nav
+      aria-label={`Toggle: ${value ? "Yes" : "No"}`}
+      onClick={(e) => {
+        e.stopPropagation();
+        onToggle();
+      }}
+      className={clsx(
+        "inline-flex items-center justify-center rounded-lg px-2.5 py-1 text-[11px] font-semibold leading-none shadow-xs transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange/30",
+        value
+          ? "bg-brand-success/22 text-emerald-800 ring-1 ring-inset ring-brand-success/35 hover:bg-brand-success/30"
+          : "bg-brand-danger/18 text-red-700 ring-1 ring-inset ring-brand-danger/32 hover:bg-brand-danger/25",
+        className
+      )}
+    >
+      {value ? "Yes" : "No"}
+    </button>
+  );
+}
+
 /** Horizontal segmented toggles for compact table cells. */
 export function InlineMultiCheckGroup({
   items,

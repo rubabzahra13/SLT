@@ -165,6 +165,7 @@ def seed_all(db: Session):
                     form_type=o.get("formType", "school-all-star-cheer"),
                     cheer_form_subtype=o.get("cheerFormSubtype"),
                     dance_form_subtype=o.get("danceFormSubtype"),
+                    varsity_viroc_customer=o.get("varsityVirocCustomer"),
                     school_program_name=o.get("schoolProgramName"),
                     school_address=o.get("schoolAddress"),
                     city=o.get("city"),

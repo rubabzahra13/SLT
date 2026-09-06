@@ -1,4 +1,4 @@
-import type { DiscountCode } from "@/types";
+import type { DiscountCode } from "../types";
 
 export type CouponCodeMatchReason = "exact" | "spacing" | "typo";
 

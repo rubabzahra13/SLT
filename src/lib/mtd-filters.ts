@@ -2,31 +2,33 @@ import {
   calculateDateBounds,
   isDateInBounds,
   type DateFilterValue,
-} from "@/lib/date-filters";
-import { toIsoDateString } from "@/lib/dates";
-import { getRequestedEditorFromRecord } from "@/lib/editor-assignment";
+} from "./date-filters";
+import { toIsoDateString } from "./dates";
+import { getRequestedEditorFromRecord } from "./editor-assignment";
 import {
   inferCheerFormSubtype,
   inferDanceFormSubtype,
   inferFormType,
-} from "@/lib/order-form";
-import { parsePackage } from "@/lib/package";
+} from "./order-form";
+import { parsePackage } from "./package";
 import type {
   CheerFormSubtype,
+  CheerFormSubtypeFilter,
   DanceFormSubtype,
   MTDRecord,
   Order,
   OrderFormType,
   Producer,
-} from "@/types";
+} from "../types";
 import {
   CHEER_FORM_SUBTABS,
+  CHEER_FORM_SUBTABS_WITH_ALL,
   DANCE_FORM_SUBTABS,
   ORDER_FORM_TABS,
-} from "@/types";
+} from "../types";
 
-const DEFAULT_CHEER_SUBTYPE: CheerFormSubtype = "all-star-cheer";
-const DEFAULT_DANCE_SUBTYPE: DanceFormSubtype = "pom";
+export const DEFAULT_CHEER_SUBTYPE: CheerFormSubtypeFilter = "all-star-cheer";
+export const DEFAULT_DANCE_SUBTYPE: DanceFormSubtype = "pom";
 
 export type MTDFormMeta = {
   formType: OrderFormType;
@@ -38,13 +40,26 @@ export function resolveMTDFormMeta(
   rec: MTDRecord,
   orderById: Map<string, Order>
 ): MTDFormMeta {
-  const linked = rec.orderId ? orderById.get(rec.orderId) : undefined;
+  const targetId = rec.orderId || rec.id;
+  const linked = targetId
+    ? orderById.get(targetId) ||
+      (rec.legacyId ? orderById.get(rec.legacyId) : undefined) ||
+      (rec.uuid ? orderById.get(rec.uuid) : undefined)
+    : undefined;
 
   if (linked) {
     return {
-      formType: linked.formType,
-      cheerFormSubtype: linked.cheerFormSubtype || DEFAULT_CHEER_SUBTYPE,
-      danceFormSubtype: linked.danceFormSubtype || DEFAULT_DANCE_SUBTYPE,
+      formType: linked.formType || (rec as any).formType || "school-all-star-cheer",
+      cheerFormSubtype: linked.cheerFormSubtype || (rec as any).cheerFormSubtype || "all-star-cheer",
+      danceFormSubtype: linked.danceFormSubtype || (rec as any).danceFormSubtype || DEFAULT_DANCE_SUBTYPE,
+    };
+  }
+
+  if ((rec as any).cheerFormSubtype || (rec as any).formType) {
+    return {
+      formType: (rec as any).formType || "school-all-star-cheer",
+      cheerFormSubtype: (rec as any).cheerFormSubtype || "all-star-cheer",
+      danceFormSubtype: (rec as any).danceFormSubtype || DEFAULT_DANCE_SUBTYPE,
     };
   }
 
@@ -59,9 +74,13 @@ export function resolveMTDFormMeta(
   return {
     formType,
     cheerFormSubtype:
-      inferCheerFormSubtype({ ...partial, formType }) || DEFAULT_CHEER_SUBTYPE,
+      (rec as any).cheerFormSubtype ||
+      inferCheerFormSubtype({ ...partial, formType }) ||
+      "all-star-cheer",
     danceFormSubtype:
-      inferDanceFormSubtype({ ...partial, formType }) || DEFAULT_DANCE_SUBTYPE,
+      (rec as any).danceFormSubtype ||
+      inferDanceFormSubtype({ ...partial, formType }) ||
+      DEFAULT_DANCE_SUBTYPE,
   };
 }
 
@@ -69,12 +88,13 @@ export function matchesFormFilter(
   rec: MTDRecord,
   orderById: Map<string, Order>,
   form: OrderFormType,
-  cheerSubtype: CheerFormSubtype,
+  cheerSubtype: CheerFormSubtypeFilter,
   danceSubtype: DanceFormSubtype
 ): boolean {
   const meta = resolveMTDFormMeta(rec, orderById);
   if (meta.formType !== form) return false;
   if (form === "school-all-star-cheer") {
+    if (cheerSubtype === "all") return true;
     return meta.cheerFormSubtype === cheerSubtype;
   }
   if (form === "school-all-star-dance") {
@@ -102,15 +122,19 @@ export function countMTDByForm(
 export function countMTDByCheerSubtype(
   records: MTDRecord[],
   orderById: Map<string, Order>
-): Record<CheerFormSubtype, number> {
-  const counts = Object.fromEntries(
-    CHEER_FORM_SUBTABS.map(({ id }) => [id, 0])
-  ) as Record<CheerFormSubtype, number>;
+): Record<CheerFormSubtypeFilter, number> {
+  const counts = {
+    all: 0,
+    ...Object.fromEntries(CHEER_FORM_SUBTABS.map(({ id }) => [id, 0])),
+  } as Record<CheerFormSubtypeFilter, number>;
 
   for (const rec of records) {
     const meta = resolveMTDFormMeta(rec, orderById);
     if (meta.formType !== "school-all-star-cheer") continue;
-    counts[meta.cheerFormSubtype] += 1;
+    counts.all += 1;
+    if (counts[meta.cheerFormSubtype] !== undefined) {
+      counts[meta.cheerFormSubtype] += 1;
+    }
   }
 
   return counts;
@@ -457,7 +481,7 @@ export function filterMTDRecords(
     scheduleFilter?: MixScheduleFilter;
     infoFilter?: InfoFilter;
     form?: OrderFormType;
-    cheerSubtype?: CheerFormSubtype;
+    cheerSubtype?: CheerFormSubtypeFilter;
     danceSubtype?: DanceFormSubtype;
     orderById?: Map<string, Order>;
   }

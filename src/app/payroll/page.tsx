@@ -29,13 +29,14 @@ import { parsePackage } from "@/lib/package";
 import { findLinkedOrder, findProducerByAssignmentKey } from "@/lib/editor-assignment";
 import type {
   CheerFormSubtype,
+  CheerFormSubtypeFilter,
   DanceFormSubtype,
   MTDRecord,
   OrderFormType,
 } from "@/types";
 
 const DEFAULT_FORM: OrderFormType = "school-all-star-cheer";
-const DEFAULT_CHEER_SUBTYPE: CheerFormSubtype = "all-star-cheer";
+const DEFAULT_CHEER_SUBTYPE: CheerFormSubtypeFilter = "all";
 const DEFAULT_DANCE_SUBTYPE: DanceFormSubtype = "pom";
 
 const actionLinkClass =
@@ -45,7 +46,7 @@ export default function PayrollPage() {
   const { mtdRecords, allOrders, producers, updateMTD } = useAppState();
   const [returnRecord, setReturnRecord] = useState<MTDRecord | null>(null);
   const [form, setForm] = useState<OrderFormType>(DEFAULT_FORM);
-  const [cheerSubtype, setCheerSubtype] = useState<CheerFormSubtype>(
+  const [cheerSubtype, setCheerSubtype] = useState<CheerFormSubtypeFilter>(
     DEFAULT_CHEER_SUBTYPE
   );
   const [danceSubtype, setDanceSubtype] = useState<DanceFormSubtype>(
@@ -323,7 +324,7 @@ export default function PayrollPage() {
       },
       {
         key: "payout",
-        header: "Producer Payout / SLT",
+        header: "Producer Payout",
         width: "148px",
         align: "center",
         cellClassName: "!px-2 !py-1.5",

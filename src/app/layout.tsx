@@ -23,8 +23,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={dmSans.variable}>
-      <body className={`${dmSans.className} min-h-screen antialiased`}>
+    <html lang="en" className={dmSans.variable} suppressHydrationWarning>
+      <body className={`${dmSans.className} min-h-screen antialiased`} suppressHydrationWarning>
         <AppStateProvider>
           <SidebarProvider>
             <AppShell>{children}</AppShell>

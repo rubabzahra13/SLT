@@ -23,9 +23,23 @@ def _find_mtd(db: Session, mtd_id: str) -> MTDRecord | None:
     return db.query(MTDRecord).filter(MTDRecord.legacy_id == mtd_id).first()
 
 @router.get("/mtd", response_model=List[MTDRecordSchema])
-def get_mtd_records(db: Session = Depends(get_db)):
-    records = db.query(MTDRecord).all()
-    return records
+def get_mtd_records(
+    form_type: str | None = None,
+    cheer_form_subtype: str | None = None,
+    category: str | None = None,
+    status: str | None = None,
+    db: Session = Depends(get_db)
+):
+    query = db.query(MTDRecord)
+    if cheer_form_subtype and cheer_form_subtype != "all":
+        query = query.join(Order, MTDRecord.order_id == Order.id).filter(Order.cheer_form_subtype == cheer_form_subtype)
+    elif form_type:
+        query = query.join(Order, MTDRecord.order_id == Order.id).filter(Order.form_type == form_type)
+    if category and category != "All":
+        query = query.filter(MTDRecord.category == category)
+    if status:
+        query = query.filter(MTDRecord.status == status)
+    return query.all()
 
 @router.get("/mtd/{mtd_id}", response_model=MTDRecordSchema)
 def get_mtd_record(mtd_id: str, db: Session = Depends(get_db)):

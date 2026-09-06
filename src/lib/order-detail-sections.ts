@@ -100,6 +100,226 @@ const ALL_STAR_CHEER_FIELDS: { title: string; fields: FieldDef[] }[] = [
   },
 ];
 
+const SCHOOL_CHEER_VIROC_YES_FIELDS: { title: string; fields: FieldDef[] }[] = [
+  {
+    title: "School",
+    fields: [
+      { key: "schoolName", label: "School Name" },
+      { key: "schoolBillingAddress", label: "School Billing Address", multiline: true },
+      { key: "city", label: "City" },
+      { key: "stateProvince", label: "School State/Province" },
+      { key: "zipPostalCode", label: "ZIP/Postal Code", preserveCase: true },
+      { key: "country", label: "Country" },
+    ],
+  },
+  {
+    title: "Team information",
+    fields: [
+      { key: "mascot", label: "Mascot" },
+      {
+        key: "division",
+        label: "Division that your team competes in",
+        multiline: true,
+      },
+      { key: "teamCoedAllGirl", label: "My team is (Coed/All Girl)" },
+      { key: "teamColors", label: "Team colors" },
+      {
+        key: "numberOfCopies",
+        label:
+          "How many copies of your music will you need to send out to your coaches and participants?",
+        wide: true,
+      },
+    ],
+  },
+  {
+    title: "Contact & Choreographer information",
+    fields: [
+      { key: "coachName", label: "Coach (full name)" },
+      { key: "coachPhone", label: "Coach phone #", preserveCase: true },
+      { key: "coachEmail", label: "Coach email", preserveCase: true },
+      { key: "billingPersonName", label: "Billing person (full name)" },
+      { key: "billingPersonEmail", label: "Billing person email", preserveCase: true },
+      { key: "virocChoreographerName", label: "V!ROC Choreographer (full name)" },
+      { key: "virocChoreographerEmail", label: "V!ROC Choreographer email", preserveCase: true },
+    ],
+  },
+  {
+    title: "Mix information",
+    fields: [
+      { key: "requestedEditor", label: "Requested editor", preserveCase: true },
+      { key: "packageType", label: "Package type", multiline: true },
+      { key: "timeLengthOfMix", label: "Length of mix", preserveCase: true },
+      { key: "splitOrNoSplit", label: "Split or No Split" },
+      { key: "musicAffiliate", label: "Music affiliate" },
+      {
+        key: "sendingEightCountSheets",
+        label: "Will you be sending 8 count sheets?",
+      },
+      {
+        key: "songListSuggestions",
+        label: "Song list/suggestions",
+        multiline: true,
+        preserveCase: true,
+      },
+      {
+        key: "routineNotes",
+        label: "Routine notes",
+        multiline: true,
+        preserveCase: true,
+      },
+      { key: "couponCode", label: "Coupon code", preserveCase: true },
+      {
+        key: "howDidYouFindOut",
+        label: "How did you find out about Sounds Like That?",
+        multiline: true,
+      },
+    ],
+  },
+];
+
+const SCHOOL_CHEER_VIROC_NO_FIELDS: { title: string; fields: FieldDef[] }[] = [
+  {
+    title: "School",
+    fields: [
+      { key: "schoolName", label: "School Name" },
+      { key: "schoolBillingAddress", label: "School Billing Address", multiline: true },
+      { key: "city", label: "City" },
+      { key: "stateProvince", label: "School State/Province" },
+      { key: "zipPostalCode", label: "ZIP/Postal Code", preserveCase: true },
+      { key: "country", label: "Country" },
+    ],
+  },
+  {
+    title: "Team information",
+    fields: [
+      { key: "mascot", label: "Mascot" },
+      {
+        key: "division",
+        label: "Division that your team competes in",
+        multiline: true,
+      },
+      { key: "teamCoedAllGirl", label: "My team is (Coed/All Girl)" },
+      { key: "teamColors", label: "Team colors" },
+      {
+        key: "numberOfCopies",
+        label:
+          "How many copies of your music will you need to send out to your coaches and participants?",
+        wide: true,
+      },
+    ],
+  },
+  {
+    title: "Contact & Choreographer information",
+    fields: [
+      { key: "coachName", label: "Coach (full name)" },
+      { key: "coachPhone", label: "Coach phone #", preserveCase: true },
+      { key: "coachEmail", label: "Coach email", preserveCase: true },
+      { key: "billingPersonName", label: "Billing person (full name)" },
+      { key: "billingPersonEmail", label: "Billing person email", preserveCase: true },
+      { key: "choreographerName", label: "Choreographer (full name)" },
+      { key: "choreographerEmail", label: "Choreographer email", preserveCase: true },
+    ],
+  },
+  {
+    title: "Mix information",
+    fields: [
+      { key: "requestedEditor", label: "Requested editor", preserveCase: true },
+      { key: "packageType", label: "Package type", multiline: true },
+      { key: "timeLengthOfMix", label: "Length of mix", preserveCase: true },
+      { key: "splitOrNoSplit", label: "Split or No Split" },
+      { key: "musicAffiliate", label: "Music affiliate" },
+      {
+        key: "sendingEightCountSheets",
+        label: "Will you be sending 8 count sheets?",
+      },
+      {
+        key: "songListSuggestions",
+        label: "Song list/suggestions",
+        multiline: true,
+        preserveCase: true,
+      },
+      {
+        key: "routineNotes",
+        label: "Routine notes",
+        multiline: true,
+        preserveCase: true,
+      },
+      { key: "couponCode", label: "Coupon code", preserveCase: true },
+      {
+        key: "howDidYouFindOut",
+        label: "How did you find out about Sounds Like That?",
+        multiline: true,
+      },
+    ],
+  },
+];
+
+const YOUTH_REC_CHEER_FIELDS: { title: string; fields: FieldDef[] }[] = [
+  {
+    title: "Program & Team information",
+    fields: [
+      { key: "programName", label: "Program Name" },
+      { key: "teamName", label: "Team Name" },
+      { key: "colors", label: "Colors" },
+    ],
+  },
+  {
+    title: "Billing Address",
+    fields: [
+      { key: "billingAddress", label: "Billing Address", multiline: true },
+      { key: "city", label: "City" },
+      { key: "stateProvince", label: "State/Province" },
+      { key: "zipPostalCode", label: "ZIP/Postal Code", preserveCase: true },
+      { key: "country", label: "Country" },
+    ],
+  },
+  {
+    title: "Contact information",
+    fields: [
+      { key: "coachContactFullName", label: "Coach Contact (full name)" },
+      { key: "coachEmailAddress", label: "Coach Email Address", preserveCase: true },
+      { key: "coachPhone", label: "Coach Phone #", preserveCase: true },
+      { key: "emailAddress", label: "Email Address", preserveCase: true },
+    ],
+  },
+  {
+    title: "Mix information",
+    fields: [
+      { key: "packageType", label: "Package" },
+      { key: "timeLengthOfMix", label: "Mix Length", preserveCase: true },
+      { key: "splitOrNoSplit", label: "Split or No Split" },
+      {
+        key: "numberOfCopies",
+        label:
+          "How many copies of your music will you need to send out to your coaches and participants?",
+        wide: true,
+      },
+      {
+        key: "usingEightCountSheets",
+        label: "Will you be using 8 count sheets?",
+      },
+      {
+        key: "songListSuggestions",
+        label: "Song list/suggestions",
+        multiline: true,
+        preserveCase: true,
+      },
+      {
+        key: "routineNotes",
+        label: "Routine notes",
+        multiline: true,
+        preserveCase: true,
+      },
+      { key: "couponCode", label: "Coupon code", preserveCase: true },
+      {
+        key: "howDidYouFindOut",
+        label: "How did you find out about Sounds Like That?",
+        multiline: true,
+      },
+    ],
+  },
+];
+
 const CHEER_FORM_CODES: Partial<Record<CheerFormSubtype, string>> = {
   "all-star-cheer": "A",
   "school-cheer-viroc-yes": "B",
@@ -159,11 +379,19 @@ export function getOrderFormBadge(order: Order): string | null {
 }
 
 export function getOrderDetailSections(order: Order): OrderDetailSection[] {
-  if (
-    order.formType === "school-all-star-cheer" &&
-    order.cheerFormSubtype === "all-star-cheer"
-  ) {
-    return buildSections(ALL_STAR_CHEER_FIELDS, order);
+  if (order.formType === "school-all-star-cheer") {
+    switch (order.cheerFormSubtype) {
+      case "all-star-cheer":
+        return buildSections(ALL_STAR_CHEER_FIELDS, order);
+      case "school-cheer-viroc-yes":
+        return buildSections(SCHOOL_CHEER_VIROC_YES_FIELDS, order);
+      case "school-cheer-viroc-no":
+        return buildSections(SCHOOL_CHEER_VIROC_NO_FIELDS, order);
+      case "youth-rec-cheer":
+        return buildSections(YOUTH_REC_CHEER_FIELDS, order);
+      default:
+        return buildSections(ALL_STAR_CHEER_FIELDS, order);
+    }
   }
 
   return [

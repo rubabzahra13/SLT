@@ -9,6 +9,7 @@ class OrderSchema(BaseModel):
     form_type: Optional[str] = "school-all-star-cheer"
     cheer_form_subtype: Optional[str] = None
     dance_form_subtype: Optional[str] = None
+    varsity_viroc_customer: Optional[str] = None
 
     school_program_name: Optional[str] = None
     school_address: Optional[str] = None
@@ -87,6 +88,8 @@ class OrderCreateSchema(BaseModel):
     editor_request: Optional[str] = "FA"
     requested_producer: Optional[str] = None
     form_type: Optional[str] = "school-all-star-cheer"
+    cheer_form_subtype: Optional[str] = None
+    varsity_viroc_customer: Optional[str] = None
     status: Optional[str] = "new"
 
 class OrderUpdateSchema(BaseModel):
@@ -99,6 +102,7 @@ class OrderUpdateSchema(BaseModel):
     music_theme: Optional[str] = None
     editor_request: Optional[str] = None
     requested_producer: Optional[str] = None
+    varsity_viroc_customer: Optional[str] = None
     status: Optional[str] = None
     needs_attention: Optional[bool] = None
     attention_reason: Optional[str] = None

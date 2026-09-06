@@ -28,6 +28,12 @@ export interface BackendMTDRecord {
   record_status?: string | null;
   in_payroll: boolean;
   completed_at?: string | null;
+  has_rally_mix?: boolean;
+  has_extend_8ct_addon?: boolean;
+  has_processing_8ct_sheets_addon?: boolean;
+  hasRallyMix?: boolean;
+  hasExtend8ctAddon?: boolean;
+  hasProcessing8ctSheetsAddon?: boolean;
   system_calculated_customer_price?: number | null;
   final_customer_price?: number | null;
   final_customer_price_overridden?: boolean;
@@ -43,6 +49,8 @@ export interface BackendMTDRecord {
 export function transformMTDRecord(bm: BackendMTDRecord): MTDRecord {
   return {
     id: bm.legacy_id || bm.id,
+    legacyId: bm.legacy_id || undefined,
+    uuid: bm.id,
     orderId: bm.order_id || undefined,
     section: bm.section || "CHEERLEADING MUSIC",
     assignedProducer: bm.assigned_producer || bm.editor_initials || null,
@@ -66,6 +74,9 @@ export function transformMTDRecord(bm: BackendMTDRecord): MTDRecord {
     recordStatus: (bm.record_status as MTDRecordStatus) || undefined,
     inPayroll: Boolean(bm.in_payroll),
     completedAt: bm.completed_at || undefined,
+    hasRallyMix: Boolean(bm.has_rally_mix ?? bm.hasRallyMix),
+    hasExtend8ctAddon: Boolean(bm.has_extend_8ct_addon ?? bm.hasExtend8ctAddon),
+    hasProcessing8ctSheetsAddon: Boolean(bm.has_processing_8ct_sheets_addon ?? bm.hasProcessing8ctSheetsAddon),
     systemCalculatedCustomerPrice: bm.system_calculated_customer_price ?? null,
     finalCustomerPrice: bm.final_customer_price ?? null,
     finalCustomerPriceOverridden: Boolean(bm.final_customer_price_overridden),
@@ -101,6 +112,9 @@ export async function createMTDRecordApi(record: Partial<MTDRecord>): Promise<MT
     have_songs: record.haveSongs || "NEED SONGS",
     needs_attention: record.needsAttention ?? true,
     status: record.status || "needs_attention",
+    has_rally_mix: Boolean(record.hasRallyMix),
+    has_extend_8ct_addon: Boolean(record.hasExtend8ctAddon),
+    has_processing_8ct_sheets_addon: Boolean(record.hasProcessing8ctSheetsAddon),
   };
   const res = await apiClient.post<BackendMTDRecord>("/api/mtd", payload);
   return transformMTDRecord(res);
@@ -133,6 +147,9 @@ export async function updateMTDRecordApi(
   if (patch.recordStatus !== undefined) payload.record_status = patch.recordStatus;
   if (patch.inPayroll !== undefined) payload.in_payroll = patch.inPayroll;
   if (patch.completedAt !== undefined) payload.completed_at = patch.completedAt;
+  if (patch.hasRallyMix !== undefined) payload.has_rally_mix = patch.hasRallyMix;
+  if (patch.hasExtend8ctAddon !== undefined) payload.has_extend_8ct_addon = patch.hasExtend8ctAddon;
+  if (patch.hasProcessing8ctSheetsAddon !== undefined) payload.has_processing_8ct_sheets_addon = patch.hasProcessing8ctSheetsAddon;
 
   const res = await apiClient.patch<BackendMTDRecord>(`/api/mtd/${id}`, payload);
   return transformMTDRecord(res);

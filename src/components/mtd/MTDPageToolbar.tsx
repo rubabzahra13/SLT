@@ -8,20 +8,20 @@ import {
 } from "@/components/mtd/MTDTableFilters";
 import type { MTDRecord, Order, Producer } from "@/types";
 import type {
-  CheerFormSubtype,
+  CheerFormSubtypeFilter,
   DanceFormSubtype,
   OrderFormType,
 } from "@/types";
 
 type MTDPageToolbarProps = {
   form: OrderFormType;
-  cheerSubtype: CheerFormSubtype;
+  cheerSubtype: CheerFormSubtypeFilter;
   danceSubtype: DanceFormSubtype;
   onFormChange: (form: OrderFormType) => void;
-  onCheerSubtypeChange: (subtype: CheerFormSubtype) => void;
+  onCheerSubtypeChange: (subtype: CheerFormSubtypeFilter) => void;
   onDanceSubtypeChange: (subtype: DanceFormSubtype) => void;
   formCounts: Record<OrderFormType, number>;
-  cheerCounts: Record<CheerFormSubtype, number>;
+  cheerCounts: Record<CheerFormSubtypeFilter, number>;
   danceCounts: Record<DanceFormSubtype, number>;
   records: MTDRecord[];
   producers: Producer[];

@@ -1,0 +1,355 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.DASHBOARD_ANCHOR_DATE = void 0;
+exports.buildDashboardPulse = buildDashboardPulse;
+exports.buildEditorLoad = buildEditorLoad;
+exports.buildWaitingOnBreakdown = buildWaitingOnBreakdown;
+exports.buildPriorityQueue = buildPriorityQueue;
+exports.buildCategoryPipeline = buildCategoryPipeline;
+exports.sortProducersForCapacity = sortProducersForCapacity;
+exports.buildRevenueStages = buildRevenueStages;
+exports.buildIncomingOrdersSeries = buildIncomingOrdersSeries;
+exports.buildWorkflowStages = buildWorkflowStages;
+exports.buildWeeklyCapacity = buildWeeklyCapacity;
+exports.buildMixOpsSlices = buildMixOpsSlices;
+exports.toBarChartRows = toBarChartRows;
+const dates_1 = require("@/lib/dates");
+const editor_assignment_1 = require("@/lib/editor-assignment");
+const mtd_filters_1 = require("@/lib/mtd-filters");
+const mtd_completion_1 = require("@/lib/mtd-completion");
+const schedule_view_1 = require("@/lib/schedule-view");
+/** Dashboard “today” — matches schedule anchor (Aug 19, 2026). */
+exports.DASHBOARD_ANCHOR_DATE = new Date(2026, 7, 19);
+function isFirstAvailable(value) {
+    if (!value)
+        return false;
+    return /^(fa|first available)$/i.test(value.trim());
+}
+function isOpenBoardRecord(rec) {
+    return !rec.inPayroll && rec.status !== "completed";
+}
+function dayOffsetFromAnchor(iso, anchor) {
+    const normalized = (0, dates_1.toIsoDateString)(iso);
+    if (!normalized)
+        return null;
+    const anchorKey = anchor.toISOString().slice(0, 10);
+    const start = new Date(`${anchorKey}T12:00:00`);
+    const end = new Date(`${normalized}T12:00:00`);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()))
+        return null;
+    return Math.round((end.getTime() - start.getTime()) / 86400000);
+}
+function resolveWaitingOn(rec) {
+    if (rec.waitingOn?.trim())
+        return rec.waitingOn.trim();
+    return rec.eightCountSheet.includes("NEED")
+        ? "Materials & customization"
+        : "Voiceover / instrumentation";
+}
+function sumPrices(records) {
+    return records.reduce((sum, rec) => sum + (rec.price || 0), 0);
+}
+/** Overview metrics aligned with MTD, outsourced, payroll, and schedule tabs. */
+function buildDashboardPulse(mtdRecords, producers, schedule = []) {
+    const openBoard = mtdRecords.filter(isOpenBoardRecord);
+    const open = mtdRecords.filter((r) => r.status !== "completed" && !r.inPayroll);
+    const inProgress = (0, mtd_filters_1.getInProgressRecords)(mtdRecords);
+    const payroll = (0, mtd_completion_1.getPayrollRecords)(mtdRecords);
+    const toAssign = open.filter((r) => !r.assignedProducer && r.editorRequest !== "NA").length;
+    const assigned = openBoard.filter((r) => !!r.assignedProducer).length;
+    const blocked = open.filter((r) => r.needsAttention).length;
+    const outgoing = (0, mtd_filters_1.getOngoingRecords)(mtdRecords).length;
+    const outsourced = (0, mtd_filters_1.getOutsourcedRecords)(mtdRecords).length;
+    const readyToComplete = openBoard.filter((rec) => (0, mtd_completion_1.canCompleteForPayroll)(rec).ready).length;
+    const missingData = openBoard.filter((rec) => !(0, mtd_completion_1.canCompleteForPayroll)(rec).ready).length;
+    let dueThisWeek = 0;
+    let overdue = 0;
+    let startingToday = 0;
+    for (const rec of openBoard) {
+        const endOffset = rec.mixEndDate
+            ? dayOffsetFromAnchor(rec.mixEndDate, exports.DASHBOARD_ANCHOR_DATE)
+            : null;
+        const startOffset = rec.mixStartDate
+            ? dayOffsetFromAnchor(rec.mixStartDate, exports.DASHBOARD_ANCHOR_DATE)
+            : null;
+        if (endOffset != null) {
+            if (endOffset < 0)
+                overdue += 1;
+            else if (endOffset <= 7)
+                dueThisWeek += 1;
+        }
+        if (startOffset === 0)
+            startingToday += 1;
+    }
+    const teamRows = (0, schedule_view_1.buildTeamSchedule)(producers, schedule, "week", exports.DASHBOARD_ANCHOR_DATE, mtdRecords);
+    const columns = (0, schedule_view_1.aggregateColumns)(teamRows, exports.DASHBOARD_ANCHOR_DATE);
+    const todayCol = columns.find((col) => col.isToday);
+    const busiest = columns.reduce((best, col) => {
+        if (!best || col.unavailableCount > best.unavailableCount)
+            return col;
+        return best;
+    }, null) ?? null;
+    return {
+        toAssign,
+        blocked,
+        assigned,
+        missingData,
+        inProduction: inProgress.length,
+        outgoing,
+        outsourced,
+        payrollCount: payroll.length,
+        payrollValue: sumPrices(payroll),
+        openValue: sumPrices(openBoard),
+        inProductionValue: sumPrices(inProgress),
+        readyToComplete,
+        dueThisWeek,
+        overdue,
+        startingToday,
+        availableProducers: producers.filter((p) => p.status === "available").length,
+        totalProducers: producers.length,
+        bookedToday: todayCol?.unavailableCount ?? 0,
+        busiestDay: busiest
+            ? {
+                dayLabel: busiest.dayLabel,
+                label: busiest.label,
+                unavailableCount: busiest.unavailableCount,
+                total: busiest.total,
+            }
+            : null,
+    };
+}
+function buildEditorLoad(mtdRecords, limit = 4) {
+    const workload = (0, editor_assignment_1.getEditorWorkload)(mtdRecords);
+    return [...workload.entries()]
+        .map(([editor, count]) => ({ editor, count }))
+        .sort((a, b) => b.count - a.count || a.editor.localeCompare(b.editor))
+        .slice(0, limit);
+}
+function buildWaitingOnBreakdown(mtdRecords, limit = 4) {
+    const counts = new Map();
+    for (const rec of (0, mtd_filters_1.getOutsourcedRecords)(mtdRecords)) {
+        const label = resolveWaitingOn(rec);
+        counts.set(label, (counts.get(label) ?? 0) + 1);
+    }
+    return [...counts.entries()]
+        .map(([label, count]) => ({ label, count }))
+        .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label))
+        .slice(0, limit);
+}
+function buildPriorityQueue(orders, mtdRecords, mtdByOrderId) {
+    const items = [];
+    for (const order of orders) {
+        const href = order.mtdId
+            ? `/mtd/${order.mtdId}`
+            : mtdByOrderId.get(order.id)
+                ? `/mtd/${mtdByOrderId.get(order.id)}`
+                : `/orders/${order.id}`;
+        if (order.needsAttention) {
+            items.push({
+                id: `attn-${order.id}`,
+                href,
+                title: order.programName,
+                meta: `${order.customerName} · ${order.category}`,
+                reason: order.attentionReason || "Needs attention",
+                tone: "blocked",
+                price: order.price,
+            });
+            continue;
+        }
+        if (order.status === "new") {
+            items.push({
+                id: `new-${order.id}`,
+                href,
+                title: order.programName,
+                meta: `${order.customerName} · ${order.category}`,
+                reason: isFirstAvailable(order.requestedProducer)
+                    ? "New · match First Available"
+                    : `New · requested ${order.requestedProducer || "editor"}`,
+                tone: isFirstAvailable(order.requestedProducer) ? "match" : "assign",
+                price: order.price,
+            });
+            continue;
+        }
+        if (isFirstAvailable(order.requestedProducer) && !order.assignedProducer) {
+            items.push({
+                id: `fa-${order.id}`,
+                href,
+                title: order.programName,
+                meta: `${order.customerName} · ${order.category}`,
+                reason: "First Available — needs producer match",
+                tone: "match",
+                price: order.price,
+            });
+        }
+    }
+    // Surface a few MTD-only blockers not already covered by orders
+    const coveredTitles = new Set(items.map((i) => i.title.toLowerCase()));
+    for (const rec of mtdRecords) {
+        if (!rec.needsAttention || rec.status === "completed")
+            continue;
+        if (coveredTitles.has(rec.programName.toLowerCase()))
+            continue;
+        items.push({
+            id: `mtd-${rec.id}`,
+            href: `/mtd/${rec.id}`,
+            title: rec.programName,
+            meta: `${rec.contactName || "MTD"} · ${rec.category}`,
+            reason: rec.haveSongs?.toUpperCase().includes("NEED")
+                ? "Missing songs / materials"
+                : "MTD needs attention",
+            tone: "blocked",
+            price: rec.price,
+        });
+        if (items.length >= 12)
+            break;
+    }
+    const weight = { blocked: 0, match: 1, assign: 2 };
+    return items
+        .sort((a, b) => weight[a.tone] - weight[b.tone])
+        .slice(0, 8);
+}
+function buildCategoryPipeline(mtdRecords) {
+    const counts = new Map();
+    for (const rec of mtdRecords) {
+        if (rec.status === "completed" || rec.inPayroll)
+            continue;
+        counts.set(rec.category, (counts.get(rec.category) || 0) + 1);
+    }
+    const total = [...counts.values()].reduce((a, b) => a + b, 0) || 1;
+    return [...counts.entries()]
+        .map(([category, count]) => ({
+        category,
+        count,
+        share: count / total,
+    }))
+        .sort((a, b) => b.count - a.count);
+}
+function sortProducersForCapacity(producers) {
+    const rank = { unavailable: 0, limited: 1, available: 2 };
+    return [...producers].sort((a, b) => {
+        const byStatus = rank[a.status] - rank[b.status];
+        if (byStatus !== 0)
+            return byStatus;
+        return a.nextAvailable.localeCompare(b.nextAvailable);
+    });
+}
+function buildRevenueStages(pulse) {
+    return [
+        {
+            label: "Open",
+            value: pulse.openValue,
+            color: "#1f8fb3",
+            href: "/mtd",
+        },
+        {
+            label: "In production",
+            value: pulse.inProductionValue,
+            color: "#52c8ee",
+            href: "/outsourced",
+        },
+        {
+            label: "Payroll",
+            value: pulse.payrollValue,
+            color: "#059669",
+            href: "/payroll",
+        },
+    ];
+}
+function buildIncomingOrdersSeries(orders, pastOrders = [], anchor = exports.DASHBOARD_ANCHOR_DATE, days = 14) {
+    const all = [...orders, ...pastOrders];
+    const anchorKey = anchor.toISOString().slice(0, 10);
+    const start = new Date(`${anchorKey}T12:00:00`);
+    return Array.from({ length: days }, (_, index) => {
+        const day = new Date(start);
+        day.setDate(day.getDate() - (days - 1 - index));
+        const iso = day.toISOString().slice(0, 10);
+        const count = all.filter((order) => (0, dates_1.toIsoDateString)(order.createdAt) === iso).length;
+        return {
+            iso,
+            label: day.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+            shortLabel: day.toLocaleDateString("en-US", { weekday: "narrow" }),
+            count,
+            isToday: iso === anchorKey,
+        };
+    });
+}
+function buildWorkflowStages(pulse) {
+    return [
+        {
+            label: "Unassigned",
+            count: pulse.toAssign,
+            color: "#f07840",
+            href: "/mtd",
+        },
+        {
+            label: "In queue",
+            count: pulse.blocked,
+            color: "#1f8fb3",
+            href: "/mtd",
+        },
+        {
+            label: "Outgoing",
+            count: pulse.outgoing,
+            color: "#52c8ee",
+            href: "/outsourced",
+        },
+        {
+            label: "Outsourced",
+            count: pulse.outsourced,
+            color: "#6b7280",
+            href: "/outsourced",
+        },
+        {
+            label: "Payroll",
+            count: pulse.payrollCount,
+            color: "#059669",
+            href: "/payroll",
+        },
+    ];
+}
+function buildWeeklyCapacity(producers, schedule, mtdRecords) {
+    const rows = (0, schedule_view_1.buildTeamSchedule)(producers, schedule, "week", exports.DASHBOARD_ANCHOR_DATE, mtdRecords);
+    return (0, schedule_view_1.aggregateColumns)(rows, exports.DASHBOARD_ANCHOR_DATE).map((col) => ({
+        dayLabel: col.dayLabel,
+        label: col.label,
+        available: col.total - col.unavailableCount,
+        booked: col.unavailableCount,
+        total: col.total,
+        isToday: col.isToday,
+    }));
+}
+function buildMixOpsSlices(pulse) {
+    return [
+        {
+            label: "Missing data",
+            count: pulse.missingData,
+            color: "#f07840",
+            href: "/mtd",
+        },
+        {
+            label: "Assigned",
+            count: pulse.assigned,
+            color: "#1f8fb3",
+            href: "/mtd",
+        },
+        {
+            label: "Due this week",
+            count: pulse.dueThisWeek,
+            color: "#1f8fb3",
+            href: "/mtd",
+        },
+        {
+            label: "Start today",
+            count: pulse.startingToday,
+            color: "#52c8ee",
+            href: "/schedule",
+        },
+    ];
+}
+function toBarChartRows(rows, color = "#1f8fb3") {
+    return rows.map((row) => ({
+        label: row.label,
+        value: row.count,
+        color,
+    }));
+}

@@ -2,23 +2,23 @@
 
 import { FilterMenu } from "@/components/ui/FilterMenu";
 import {
-  CHEER_FORM_SUBTABS,
+  CHEER_FORM_SUBTABS_WITH_ALL,
   DANCE_FORM_SUBTABS,
   ORDER_FORM_TABS,
-  type CheerFormSubtype,
+  type CheerFormSubtypeFilter,
   type DanceFormSubtype,
   type OrderFormType,
 } from "@/types";
 
 type OrderFormFiltersProps = {
   form: OrderFormType;
-  cheerSubtype: CheerFormSubtype;
+  cheerSubtype: CheerFormSubtypeFilter;
   danceSubtype: DanceFormSubtype;
   onFormChange: (form: OrderFormType) => void;
-  onCheerSubtypeChange: (subtype: CheerFormSubtype) => void;
+  onCheerSubtypeChange: (subtype: CheerFormSubtypeFilter) => void;
   onDanceSubtypeChange: (subtype: DanceFormSubtype) => void;
   formCounts: Record<OrderFormType, number>;
-  cheerCounts: Record<CheerFormSubtype, number>;
+  cheerCounts: Record<CheerFormSubtypeFilter, number>;
   danceCounts: Record<DanceFormSubtype, number>;
   grouped?: boolean;
 };
@@ -57,9 +57,9 @@ export function OrderFormFilters({
           hideLabel
           grouped={grouped}
           value={cheerSubtype}
-          onChange={(v) => onCheerSubtypeChange(v as CheerFormSubtype)}
+          onChange={(v) => onCheerSubtypeChange(v as CheerFormSubtypeFilter)}
           accent="orange"
-          options={CHEER_FORM_SUBTABS.map(({ id, label }) => ({
+          options={CHEER_FORM_SUBTABS_WITH_ALL.map(({ id, label }) => ({
             value: id,
             label,
             count: cheerCounts[id] ?? 0,

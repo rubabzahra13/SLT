@@ -260,15 +260,19 @@ export function normalizeOrder(
       (requestedEditor.toLowerCase() === "first available" ? "FA" : requestedEditor),
   };
 
+  if (cheerFormSubtype === "youth-rec-cheer") {
+    delete (normalized as Partial<Order>).musicAffiliate;
+  }
+
   return normalized;
 }
 
-export function displayText(value: string): string {
+export function displayText(value?: string): string {
   if (!value?.trim()) return "—";
   return titleCase(value);
 }
 
-export function displayMultiline(value: string, max = 120): string {
+export function displayMultiline(value?: string, max = 120): string {
   if (!value?.trim()) return "—";
   const cleaned = value.replace(/\s+/g, " ").trim();
   if (cleaned.length <= max) return titleCase(cleaned);

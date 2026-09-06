@@ -21,8 +21,23 @@ def _find_order(db: Session, order_id: str) -> Order | None:
     return db.query(Order).filter(Order.legacy_id == order_id).first()
 
 @router.get("/orders", response_model=List[OrderSchema])
-def get_orders(db: Session = Depends(get_db)):
-    return db.query(Order).all()
+def get_orders(
+    form_type: str | None = None,
+    cheer_form_subtype: str | None = None,
+    category: str | None = None,
+    status: str | None = None,
+    db: Session = Depends(get_db)
+):
+    query = db.query(Order)
+    if cheer_form_subtype and cheer_form_subtype != "all":
+        query = query.filter(Order.cheer_form_subtype == cheer_form_subtype)
+    elif form_type:
+        query = query.filter(Order.form_type == form_type)
+    if category and category != "All":
+        query = query.filter(Order.category == category)
+    if status:
+        query = query.filter(Order.status == status)
+    return query.all()
 
 @router.get("/orders/{order_id}", response_model=OrderSchema)
 def get_order(order_id: str, db: Session = Depends(get_db)):

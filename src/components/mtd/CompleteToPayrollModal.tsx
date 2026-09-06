@@ -19,10 +19,16 @@ import { formatPrice, titleCase } from "@/lib/data";
 import { formatDisplayDate, toIsoDateString } from "@/lib/dates";
 import { findLinkedOrder, findProducerByAssignmentKey } from "@/lib/editor-assignment";
 import { getFullClassificationLabel, computeClientPayroll } from "@/lib/pricing-display";
+import { useAppState } from "@/context/AppStateContext";
+import { resolveMTDFormMeta } from "@/lib/mtd-filters";
+import { calculateCheerOrderPricing } from "@/lib/pricing-engine";
+import { parsePackage } from "@/lib/package";
+import { evaluateCouponCode } from "@/lib/discount-codes";
 import {
   calculatePricingApi,
   completePricingApi,
   finalizePayrollApi,
+  type AddOnLineItem,
   type PricingBreakdown,
 } from "@/lib/api/pricing";
 import type { MTDRecord, Order, Producer } from "@/types";
@@ -73,6 +79,8 @@ export function CompleteToPayrollModal({
     };
   }, [open]);
 
+  const { discountCodes } = useAppState();
+
   // Find linked order and assigned producer
   const linkedOrder = useMemo(() => {
     if (!record) return undefined;
@@ -100,25 +108,116 @@ export function CompleteToPayrollModal({
       setLoading(true);
       try {
         const order = linkedOrder;
-        const res = await calculatePricingApi({
-          form_type: order?.formType || "school-all-star-cheer",
-          cheer_form_subtype: order?.cheerFormSubtype || null,
-          dance_form_subtype: order?.danceFormSubtype || null,
-          package_name: currentRec.package || order?.package || "TBD",
-          music_affiliate: order?.musicAffiliate || currentRec.musicTheme || null,
+        const orderById = new Map<string, Order>();
+        for (const o of allOrders) {
+          if (o.id) orderById.set(o.id, o);
+          if (o.legacyId) orderById.set(o.legacyId, o);
+          if (o.uuid) orderById.set(o.uuid, o);
+        }
+        const meta = resolveMTDFormMeta(currentRec, orderById);
+        const cheerSubtype = meta.cheerFormSubtype;
+        const pkgName = order?.packageType || currentRec.package;
+        const mixLen = order?.timeLengthOfMix || parsePackage(currentRec.package).limit;
+        const affiliate = order?.musicAffiliate || currentRec.musicTheme || (currentRec as any).musicAffiliate;
+        const rawCouponCode = order?.couponCode || (order as any)?.formData?.couponCode || "";
+
+        const enginePricing = calculateCheerOrderPricing({
+          cheerFormSubtype: cheerSubtype,
+          packageType: pkgName,
+          timeLengthOfMix: mixLen,
+          musicAffiliate: affiliate,
+          hasRallyMix: currentRec.hasRallyMix,
+          hasExtend8ctAddon: currentRec.hasExtend8ctAddon,
+          hasProcessing8ctSheetsAddon: currentRec.hasProcessing8ctSheetsAddon,
+          couponCode: rawCouponCode,
         });
 
-        setBreakdown(res);
+        const couponEval = evaluateCouponCode(rawCouponCode, discountCodes);
+
+        let complianceReason = "";
+        if (cheerSubtype === "youth-rec-cheer") {
+          complianceReason = "Youth Rec Cheer does not require music affiliate compliance; compliant rate card applies.";
+        } else if (enginePricing.complianceStatus === "compliant") {
+          complianceReason = `Music affiliate '${affiliate || "Approved Affiliate"}' is on the compliant affiliate list.`;
+        } else if (enginePricing.complianceStatus === "non-compliant") {
+          complianceReason = `Music affiliate '${affiliate || "Unapproved"}' is not on the compliant list; non-compliant rate card applies.`;
+        } else {
+          complianceReason = "No music affiliate specified on order.";
+        }
+
+        const addons: AddOnLineItem[] = [];
+        if (
+          (cheerSubtype === "school-cheer-viroc-yes" || cheerSubtype === "school-cheer-viroc-no") &&
+          currentRec.hasRallyMix
+        ) {
+          addons.push({
+            addon_id: "rally_mix",
+            label: "Rally Mix Add-On",
+            customer_amount: 350,
+            payroll_amount: 350,
+            quantity: 1,
+            note: "Fixed fee add-on (School Cheer)",
+          });
+        }
+
+        if (cheerSubtype === "youth-rec-cheer") {
+          if (currentRec.hasExtend8ctAddon) {
+            addons.push({
+              addon_id: "extend_8ct",
+              label: "Extend 2 8cs Phrase / Raps",
+              customer_amount: 25,
+              payroll_amount: 25,
+              quantity: 1,
+              note: "Megan-controlled add-on (Youth Rec)",
+            });
+          }
+          if (currentRec.hasProcessing8ctSheetsAddon) {
+            addons.push({
+              addon_id: "process_8ct",
+              label: "Processing 8cs Sheets",
+              customer_amount: 50,
+              payroll_amount: 50,
+              quantity: 1,
+              note: "Megan-controlled add-on (Youth Rec)",
+            });
+          }
+        }
+
+        const baseCust = enginePricing.matchedEntry?.customer ?? currentRec.price;
+        const basePay = enginePricing.matchedEntry
+          ? (enginePricing.complianceStatus === "non-compliant" ? enginePricing.matchedEntry.nonCompliant : enginePricing.matchedEntry.compliant)
+          : currentRec.price;
+
+        const calculatedBreakdown: PricingBreakdown = {
+          form_type: order?.formType || "school-all-star-cheer",
+          canonical_subtype_id: cheerSubtype,
+          package_id: enginePricing.matchedEntry ? `${enginePricing.matchedEntry.tier}-${enginePricing.matchedEntry.limit}` : "pkg-local",
+          package_name: enginePricing.matchedEntry ? `${enginePricing.matchedEntry.tier} ${enginePricing.matchedEntry.limit}` : currentRec.package,
+          pricing_rule_id: null,
+          compliance_status: enginePricing.complianceStatus === "non-compliant" ? "non-compliant" : "compliant",
+          compliance_reason: complianceReason,
+          canonical_affiliate: affiliate || null,
+          base_customer_price: baseCust,
+          base_payroll_price: basePay,
+          addons,
+          system_calculated_customer_price: enginePricing.customerFacingPrice > 0 ? enginePricing.customerFacingPrice : currentRec.price,
+          payroll_base_price: enginePricing.payrollBasePrice > 0 ? enginePricing.payrollBasePrice : currentRec.price,
+          needs_manual_pricing: false,
+          needs_manual_review: false,
+          summary_line: `Subtype: ${cheerSubtype} | Package: ${enginePricing.packageName} ${enginePricing.timeLengthOfMix} | Customer: $${enginePricing.customerFacingPrice} | Payroll Base: $${enginePricing.payrollBasePrice}`,
+          coupon_code: rawCouponCode,
+          coupon_evaluation: couponEval,
+        };
+
+        setBreakdown(calculatedBreakdown);
 
         const initialCustomerPrice =
           order?.finalCustomerPrice ??
-          res.system_calculated_customer_price ??
-          currentRec.price;
+          (enginePricing.customerFacingPrice > 0 ? enginePricing.customerFacingPrice : currentRec.price);
 
         setFinalCustomerPriceInput(String(initialCustomerPrice));
       } catch (err) {
-        console.warn("Failed to calculate pricing from backend endpoint. Falling back to local estimate.", err);
-        // Local fallback breakdown
+        console.warn("Failed to calculate pricing breakdown. Falling back to local record price.", err);
         const sysPrice = currentRec.price || 700;
         setBreakdown({
           form_type: linkedOrder?.formType || "school-all-star-cheer",
@@ -145,7 +244,7 @@ export function CompleteToPayrollModal({
     }
 
     loadBreakdown();
-  }, [open, record, linkedOrder]);
+  }, [open, record, linkedOrder, allOrders, discountCodes]);
 
   if (!mounted || !open || !record) return null;
 
@@ -341,18 +440,25 @@ export function CompleteToPayrollModal({
           {/* STEP 1: PRICING BREAKDOWN */}
           {step === 1 && (
             <div className="space-y-4">
-              {/* Classification */}
+              {/* Form Subtype & Package Header */}
               <div className="rounded-xl border border-brand-line/70 bg-brand-bg/40 p-4">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-brand-ink-tertiary">
-                  Order Classification
-                </p>
-                <p className="mt-1 text-[13.5px] font-semibold text-brand-ink">
-                  {getFullClassificationLabel(
-                    breakdown?.form_type,
-                    breakdown?.canonical_subtype_id,
-                    breakdown?.package_name || record.package
-                  )}
-                </p>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-brand-ink-tertiary">
+                      Form Subtype & Package
+                    </p>
+                    <p className="mt-1 text-[14px] font-bold text-brand-ink">
+                      {getFullClassificationLabel(
+                        breakdown?.form_type,
+                        breakdown?.canonical_subtype_id,
+                        breakdown?.package_name || record.package
+                      )}
+                    </p>
+                  </div>
+                  <span className="rounded-lg bg-brand-signature/10 px-2.5 py-1 text-[12px] font-bold text-brand-signature ring-1 ring-inset ring-brand-signature/20">
+                    {breakdown?.package_name || record.package}
+                  </span>
+                </div>
               </div>
 
               {/* Compliance status banner */}
@@ -385,7 +491,7 @@ export function CompleteToPayrollModal({
                   </div>
 
                   <span className="text-[11px] font-medium text-brand-ink-secondary">
-                    {breakdown?.canonical_affiliate ? `Affiliate: ${breakdown.canonical_affiliate}` : "No Affiliate"}
+                    {breakdown?.canonical_affiliate ? `Affiliate: ${breakdown.canonical_affiliate}` : "No Affiliate Required"}
                   </span>
                 </div>
                 <p className="mt-2 text-[12px] leading-relaxed text-brand-ink-secondary">
@@ -393,30 +499,66 @@ export function CompleteToPayrollModal({
                 </p>
               </div>
 
-              {/* Line items pricing breakdown */}
+              {/* Itemized Line-Items Pricing Breakdown */}
               <div className="rounded-xl border border-brand-line/70 bg-brand-elevated overflow-hidden">
                 <div className="bg-brand-bg/60 px-4 py-2.5 border-b border-brand-line/60 flex items-center justify-between">
                   <span className="text-[11.5px] font-semibold uppercase tracking-wider text-brand-ink-tertiary">
-                    Pricing Breakdown
+                    Itemized Pricing Breakdown
                   </span>
                   <span className="text-[11.5px] text-brand-ink-tertiary">
-                    Customer Amount
+                    Amount
                   </span>
                 </div>
 
                 <div className="divide-y divide-brand-line/40 px-4 text-[12.5px]">
-                  {/* Base Package Price */}
+                  {/* Customer Facing Price */}
                   <div className="flex items-center justify-between py-2.5">
                     <div>
-                      <span className="font-medium text-brand-ink">
-                        Base Package: {breakdown?.package_name || record.package}
+                      <span className="font-semibold text-brand-ink">
+                        Customer Price
                       </span>
                       <p className="text-[11px] text-brand-ink-tertiary">
-                        Rate card standard customer price
+                        Exact customer-facing package price stored/displayed in MTD
                       </p>
                     </div>
                     <span className="font-semibold tabular-nums text-brand-ink">
-                      {formatPrice(breakdown?.base_customer_price ?? record.price)}
+                      {formatPrice(breakdown?.system_calculated_customer_price ?? record.price)}
+                    </span>
+                  </div>
+
+                  {/* Music Compliance Adjustment */}
+                  <div className="flex items-center justify-between py-2.5">
+                    <div>
+                      <span className="font-medium text-brand-ink">
+                        Music Compliance Adjustment
+                      </span>
+                      <p className="text-[11px] text-brand-ink-tertiary">
+                        {breakdown?.package_name?.toUpperCase().includes("TITANIUM")
+                          ? "Titanium (Fully Licensed) — No adjustment"
+                          : breakdown?.compliance_status === "compliant"
+                          ? "Compliant Music Affiliate — Licensing fee removed"
+                          : "Non-Compliant Music Affiliate — No adjustment"}
+                      </p>
+                    </div>
+                    <span
+                      className={clsx(
+                        "font-semibold tabular-nums",
+                        breakdown?.compliance_status === "compliant" &&
+                          !breakdown?.package_name?.toUpperCase().includes("TITANIUM")
+                          ? "text-brand-success"
+                          : "text-brand-ink-secondary"
+                      )}
+                    >
+                      {breakdown?.package_name?.toUpperCase().includes("TITANIUM")
+                        ? "$0"
+                        : breakdown?.compliance_status === "compliant"
+                        ? `-${formatPrice(
+                            Math.abs(
+                              (breakdown?.base_customer_price ?? record.price) -
+                                (breakdown?.base_payroll_price ?? record.price)
+                            )
+                          )}`
+                        : "$0"}
                     </span>
                   </div>
 
@@ -429,58 +571,70 @@ export function CompleteToPayrollModal({
                           <p className="text-[11px] text-brand-ink-tertiary">{addon.note}</p>
                         )}
                       </div>
-                      <span className="font-semibold tabular-nums text-brand-ink">
+                      <span className="font-semibold tabular-nums text-brand-success">
                         +{formatPrice(addon.customer_amount)}
                       </span>
                     </div>
                   ))}
 
-                  {/* System Calculated Total */}
-                  <div className="flex items-center justify-between py-3 bg-brand-bg/30 -mx-4 px-4 border-t border-brand-line/70">
-                    <span className="font-bold text-brand-ink">
-                      System Calculated Customer Price
-                    </span>
-                    <span className="font-bold text-[14px] tabular-nums text-brand-ink">
-                      {formatPrice(breakdown?.system_calculated_customer_price ?? record.price)}
-                    </span>
-                  </div>
-                </div>
-              </div>
+                  {/* Coupon Code Line Item */}
+                  {breakdown?.coupon_code ? (
+                    <div className="flex items-center justify-between py-2.5">
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <Tag className="h-3.5 w-3.5 text-brand-signature" />
+                          <span className="font-medium text-brand-ink">
+                            Coupon Code: <span className="font-bold uppercase">{breakdown.coupon_code}</span>
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-brand-ink-tertiary mt-0.5">
+                          {breakdown.coupon_evaluation?.status === "valid" && breakdown.coupon_evaluation.match?.description
+                            ? breakdown.coupon_evaluation.match.description
+                            : breakdown.coupon_evaluation?.status === "valid"
+                            ? "Valid coupon code applied to order"
+                            : breakdown.coupon_evaluation?.status === "potential"
+                            ? "Possible match to saved coupon"
+                            : "Coupon code unrecognized"}
+                        </p>
+                      </div>
+                      <div>
+                        {breakdown.coupon_evaluation?.status === "valid" ? (
+                          <span className="rounded bg-brand-success/15 px-2 py-0.5 text-[10px] font-bold uppercase text-brand-success ring-1 ring-inset ring-brand-success/25">
+                            Valid Code
+                          </span>
+                        ) : breakdown.coupon_evaluation?.status === "potential" ? (
+                          <span className="rounded bg-brand-info/15 px-2 py-0.5 text-[10px] font-bold uppercase text-brand-signature ring-1 ring-inset ring-brand-info/25">
+                            Suggested
+                          </span>
+                        ) : (
+                          <span className="rounded bg-brand-warning/15 px-2 py-0.5 text-[10px] font-bold uppercase text-brand-warning ring-1 ring-inset ring-brand-warning/25">
+                            Unrecognized
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between py-2.5 text-brand-ink-tertiary">
+                      <span className="font-medium text-brand-ink-secondary">Coupon Code</span>
+                      <span>None</span>
+                    </div>
+                  )}
 
-              {/* Editable Final Customer Price */}
-              <div className="rounded-xl border border-brand-line/80 bg-brand-bg/50 p-4 space-y-2">
-                <div className="flex items-center justify-between">
-                  <label htmlFor="final-customer-price-input" className="text-[13px] font-semibold text-brand-ink flex items-center gap-1.5">
-                    Final Customer Price
-                    {isCustomerPriceOverridden && (
-                      <span className="inline-flex items-center gap-1 rounded bg-brand-orange/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-brand-orange ring-1 ring-inset ring-brand-orange/25">
-                        <Edit3 className="h-2.5 w-2.5" /> edited
+                  {/* Final Payroll Price */}
+                  <div className="flex items-center justify-between py-3 bg-brand-blue-soft/30 -mx-4 px-4 border-t border-brand-line/70">
+                    <div>
+                      <span className="font-bold text-brand-signature">
+                        Payroll Price
                       </span>
-                    )}
-                  </label>
-
-                  <span className="text-[11px] text-brand-ink-tertiary">
-                    Defaulted to system price
-                  </span>
-                </div>
-
-                <div className="relative">
-                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-brand-ink-tertiary">
-                    <DollarSign className="h-4 w-4" />
+                      <p className="text-[11px] text-brand-ink-secondary">
+                        Final system-calculated amount passed to payroll
+                      </p>
+                    </div>
+                    <span className="font-bold text-[14px] tabular-nums text-brand-signature">
+                      {formatPrice(breakdown?.payroll_base_price ?? record.price)}
+                    </span>
                   </div>
-                  <input
-                    id="final-customer-price-input"
-                    type="number"
-                    step="0.01"
-                    value={finalCustomerPriceInput}
-                    onChange={(e) => setFinalCustomerPriceInput(e.target.value)}
-                    className="w-full rounded-lg border border-brand-line bg-brand-elevated py-2 pl-8 pr-3 text-[14px] font-semibold tabular-nums text-brand-ink focus:border-brand-signature focus:outline-none focus:ring-2 focus:ring-brand-signature/20"
-                    placeholder="Enter customer price"
-                  />
                 </div>
-                <p className="text-[11px] text-brand-ink-tertiary leading-normal">
-                  Persisted distinctly from system-calculated price for audit transparency.
-                </p>
               </div>
             </div>
           )}
@@ -488,7 +642,7 @@ export function CompleteToPayrollModal({
           {/* STEP 2: PAYROLL TRANSITION */}
           {step === 2 && (
             <div className="space-y-4">
-              {/* Producer Info & Final Customer Price Summary */}
+              {/* Producer Info & Customer Price Summary */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="rounded-xl border border-brand-line/70 bg-brand-bg/40 p-3.5">
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-brand-ink-tertiary">
@@ -505,7 +659,7 @@ export function CompleteToPayrollModal({
                 <div className="rounded-xl border border-brand-line/70 bg-brand-bg/40 p-3.5">
                   <div className="flex items-center justify-between">
                     <p className="text-[11px] font-semibold uppercase tracking-wider text-brand-ink-tertiary">
-                      Final Customer Price
+                      Customer Price
                     </p>
                     {isCustomerPriceOverridden && (
                       <span className="rounded bg-brand-orange/10 px-1 py-0.2 text-[9px] font-semibold uppercase text-brand-orange">
