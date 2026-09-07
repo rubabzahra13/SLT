@@ -59,6 +59,8 @@ export function CompleteToPayrollModal({
   // Pricing Breakdown from backend calculation
   const [breakdown, setBreakdown] = useState<PricingBreakdown | null>(null);
   const [finalCustomerPriceInput, setFinalCustomerPriceInput] = useState<string>("");
+  const [finalPayrollPriceInput, setFinalPayrollPriceInput] = useState<string>("");
+  const [calculatedEnginePricing, setCalculatedEnginePricing] = useState<any>(null);
 
   // Step 2 Payroll state
   const [selectedCaseyRate, setSelectedCaseyRate] = useState<number | null>(null); // 0.72 or 0.70
@@ -121,6 +123,9 @@ export function CompleteToPayrollModal({
         const affiliate = order?.musicAffiliate || currentRec.musicTheme || (currentRec as any).musicAffiliate;
         const rawCouponCode = order?.couponCode || (order as any)?.formData?.couponCode || "";
 
+        const couponEval = evaluateCouponCode(rawCouponCode, discountCodes);
+        const matchedDiscountCode = couponEval.status === "valid" ? couponEval.match ?? null : null;
+
         const enginePricing = calculateCheerOrderPricing({
           cheerFormSubtype: cheerSubtype,
           packageType: pkgName,
@@ -130,9 +135,10 @@ export function CompleteToPayrollModal({
           hasExtend8ctAddon: currentRec.hasExtend8ctAddon,
           hasProcessing8ctSheetsAddon: currentRec.hasProcessing8ctSheetsAddon,
           couponCode: rawCouponCode,
+          discountCodeObj: matchedDiscountCode,
         });
 
-        const couponEval = evaluateCouponCode(rawCouponCode, discountCodes);
+        setCalculatedEnginePricing(enginePricing);
 
         let complianceReason = "";
         if (cheerSubtype === "youth-rec-cheer") {
@@ -215,7 +221,11 @@ export function CompleteToPayrollModal({
           order?.finalCustomerPrice ??
           (enginePricing.customerFacingPrice > 0 ? enginePricing.customerFacingPrice : currentRec.price);
 
+        const initialPayrollPrice =
+          enginePricing.payrollBasePrice > 0 ? enginePricing.payrollBasePrice : currentRec.price;
+
         setFinalCustomerPriceInput(String(initialCustomerPrice));
+        setFinalPayrollPriceInput(String(initialPayrollPrice));
       } catch (err) {
         console.warn("Failed to calculate pricing breakdown. Falling back to local record price.", err);
         const sysPrice = currentRec.price || 700;
@@ -238,6 +248,7 @@ export function CompleteToPayrollModal({
           summary_line: `Package: ${record.package} | Customer price: $${sysPrice}`,
         });
         setFinalCustomerPriceInput(String(record.price || sysPrice));
+        setFinalPayrollPriceInput(String(record.price || sysPrice));
       } finally {
         setLoading(false);
       }
@@ -246,14 +257,26 @@ export function CompleteToPayrollModal({
     loadBreakdown();
   }, [open, record, linkedOrder, allOrders, discountCodes]);
 
-  if (!mounted || !open || !record) return null;
-
   // Parsed numerical price
   const finalCustomerPriceNum = parseFloat(finalCustomerPriceInput) || 0;
-  const systemPriceNum = breakdown?.system_calculated_customer_price ?? record.price;
+  const systemPriceNum = breakdown?.system_calculated_customer_price ?? record?.price ?? 0;
   const isCustomerPriceOverridden =
     breakdown?.system_calculated_customer_price !== null &&
     Math.abs(finalCustomerPriceNum - systemPriceNum) > 0.001;
+
+  const finalPayrollPriceNum = parseFloat(finalPayrollPriceInput) || breakdown?.payroll_base_price || 0;
+  const sysPayrollPrice = calculatedEnginePricing?.payrollBasePrice ?? breakdown?.payroll_base_price ?? record?.price ?? 0;
+  const isPayrollPriceOverridden =
+    breakdown !== null &&
+    Math.abs(finalPayrollPriceNum - sysPayrollPrice) > 0.001;
+
+  const effectiveBreakdown = useMemo(() => {
+    if (!breakdown) return null;
+    return {
+      ...breakdown,
+      payroll_base_price: finalPayrollPriceNum,
+    };
+  }, [breakdown, finalPayrollPriceNum]);
 
   // Client-side real-time payroll calculation for Step 2
   const activeRateNum = customRateInput !== ""
@@ -265,13 +288,15 @@ export function CompleteToPayrollModal({
   const clientPayroll = computeClientPayroll(
     assignedProducerObj,
     finalCustomerPriceNum,
-    breakdown,
+    effectiveBreakdown,
     activeRateNum,
     activeManualPayoutNum,
     breakdown?.canonical_subtype_id
   );
 
   const isRateOverridden = customRateInput !== "" || (selectedCaseyRate !== null && assignedProducerObj?.initials !== "CM");
+
+  if (!mounted || !open || !record) return null;
 
   // Step 1 confirm handler
   const handleProceedToPayroll = async () => {
@@ -597,11 +622,20 @@ export function CompleteToPayrollModal({
                             : "Coupon code unrecognized"}
                         </p>
                       </div>
-                      <div>
-                        {breakdown.coupon_evaluation?.status === "valid" ? (
-                          <span className="rounded bg-brand-success/15 px-2 py-0.5 text-[10px] font-bold uppercase text-brand-success ring-1 ring-inset ring-brand-success/25">
-                            Valid Code
-                          </span>
+                      <div className="text-right">
+                        {breakdown.coupon_evaluation?.status === "valid" && breakdown.coupon_evaluation.match ? (
+                          <div className="flex flex-col items-end gap-0.5">
+                            <span className="rounded bg-brand-success/15 px-2 py-0.5 text-[10px] font-bold uppercase text-brand-success ring-1 ring-inset ring-brand-success/25">
+                              {breakdown.coupon_evaluation.match.discountType === "percentage"
+                                ? `${breakdown.coupon_evaluation.match.discountValue}% OFF`
+                                : `-$${breakdown.coupon_evaluation.match.discountValue}`}
+                            </span>
+                            {(calculatedEnginePricing?.discountAmount ?? 0) > 0 && (
+                              <span className="font-semibold tabular-nums text-brand-success text-[12.5px]">
+                                -{formatPrice(calculatedEnginePricing.discountAmount)}
+                              </span>
+                            )}
+                          </div>
                         ) : breakdown.coupon_evaluation?.status === "potential" ? (
                           <span className="rounded bg-brand-info/15 px-2 py-0.5 text-[10px] font-bold uppercase text-brand-signature ring-1 ring-inset ring-brand-info/25">
                             Suggested
@@ -620,19 +654,42 @@ export function CompleteToPayrollModal({
                     </div>
                   )}
 
-                  {/* Final Payroll Price */}
-                  <div className="flex items-center justify-between py-3 bg-brand-blue-soft/30 -mx-4 px-4 border-t border-brand-line/70">
+                  {/* Final Payroll Price (Editable Input) */}
+                  <div className="flex items-center justify-between py-3 bg-brand-signature/10 -mx-4 px-4 border-t border-brand-signature/20">
                     <div>
-                      <span className="font-bold text-brand-signature">
-                        Payroll Price
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-brand-signature text-[14px]">
+                          Payroll Price
+                        </span>
+                        {isPayrollPriceOverridden && (
+                          <span className="inline-flex items-center gap-1 rounded bg-brand-orange/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-brand-orange ring-1 ring-inset ring-brand-orange/25">
+                            <Edit3 className="h-2.5 w-2.5" /> edited
+                          </span>
+                        )}
+                      </div>
                       <p className="text-[11px] text-brand-ink-secondary">
-                        Final system-calculated amount passed to payroll
+                        Amount passed to payroll engine to calculate producer payout
                       </p>
                     </div>
-                    <span className="font-bold text-[14px] tabular-nums text-brand-signature">
-                      {formatPrice(breakdown?.payroll_base_price ?? record.price)}
-                    </span>
+
+                    <div className="relative w-[130px]">
+                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 font-bold text-brand-signature text-[14px]">
+                        $
+                      </span>
+                      <input
+                        type="number"
+                        step="1"
+                        min="0"
+                        value={finalPayrollPriceInput}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setFinalPayrollPriceInput(val);
+                          const num = parseFloat(val) || 0;
+                          setBreakdown((prev) => (prev ? { ...prev, payroll_base_price: num } : null));
+                        }}
+                        className="w-full rounded-lg border border-brand-signature/40 bg-brand-elevated py-1.5 pl-7 pr-2.5 text-right font-bold text-[15px] tabular-nums text-brand-signature outline-none focus:border-brand-signature focus:ring-2 focus:ring-brand-signature/20"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>

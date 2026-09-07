@@ -8979,22 +8979,30 @@
         {
             "id": "disc-1",
             "code": "DEMO 2026",
-            "description": "Demo showcase discount for new teams"
+            "description": "Demo showcase discount for new teams",
+            "discountType": "fixed",
+            "discountValue": 200
         },
         {
             "id": "disc-4",
             "code": "DEMO 2025",
-            "description": "Demo showcase discount for 2025 teams"
+            "description": "Demo showcase discount for 2025 teams",
+            "discountType": "percentage",
+            "discountValue": 10
         },
         {
             "id": "disc-2",
             "code": "SUMMER25",
-            "description": "Summer 2025 seasonal promotion"
+            "description": "Summer 2025 seasonal promotion",
+            "discountType": "fixed",
+            "discountValue": 150
         },
         {
             "id": "disc-3",
             "code": "RETURN10",
-            "description": "Returning customer loyalty code"
+            "description": "Returning customer loyalty code",
+            "discountType": "percentage",
+            "discountValue": 10
         }
     ],
     "stats": {

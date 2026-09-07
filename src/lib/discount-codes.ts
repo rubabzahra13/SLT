@@ -22,10 +22,22 @@ export function normalizeCouponCode(code: string): string {
 export function normalizeDiscountCode(
   raw: Partial<DiscountCode> & { id: string }
 ): DiscountCode {
+  const type =
+    raw.discountType === "percentage"
+      ? "percentage"
+      : raw.discountType === "fixed"
+      ? "fixed"
+      : undefined;
+  const val =
+    typeof raw.discountValue === "number" && !isNaN(raw.discountValue)
+      ? Math.max(0, raw.discountValue)
+      : undefined;
   return {
     id: raw.id,
     code: (raw.code || "").trim().toUpperCase(),
     description: (raw.description || "").trim(),
+    discountType: type,
+    discountValue: val,
   };
 }
 

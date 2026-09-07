@@ -125,6 +125,9 @@ function calculateCheerOrderPricing(input) {
             matchedEntry: null,
             packageName: input.packageType,
             timeLengthOfMix: input.timeLengthOfMix ?? "",
+            discountAmount: 0,
+            preDiscountPayrollBasePrice: 0,
+            preDiscountCustomerFacingPrice: 0,
         };
     }
     let addOnTotal = 0;
@@ -139,19 +142,33 @@ function calculateCheerOrderPricing(input) {
         if (input.hasProcessing8ctSheetsAddon)
             addOnTotal += 50;
     }
-    const customerFacingPrice = matchedEntry.customer + addOnTotal;
+    const preDiscountCustomerFacingPrice = matchedEntry.customer + addOnTotal;
     const compliantPayrollBasePrice = matchedEntry.compliant + addOnTotal;
     const nonCompliantPayrollBasePrice = matchedEntry.nonCompliant + addOnTotal;
-    let payrollBasePrice = compliantPayrollBasePrice;
+    let preDiscountPayrollBasePrice = compliantPayrollBasePrice;
     if (matchedEntry.isTitanium) {
-        payrollBasePrice = compliantPayrollBasePrice;
+        preDiscountPayrollBasePrice = compliantPayrollBasePrice;
     }
     else if (complianceStatus === "non-compliant") {
-        payrollBasePrice = nonCompliantPayrollBasePrice;
+        preDiscountPayrollBasePrice = nonCompliantPayrollBasePrice;
     }
     else if (complianceStatus === "compliant" || complianceStatus === "unknown-no-affiliate-field") {
-        payrollBasePrice = compliantPayrollBasePrice;
+        preDiscountPayrollBasePrice = compliantPayrollBasePrice;
     }
+    // Calculate discount based on discountCodeObj
+    let discountAmount = 0;
+    const discObj = input.discountCodeObj;
+    if (discObj && discObj.discountType && typeof discObj.discountValue === "number" && discObj.discountValue > 0) {
+        if (discObj.discountType === "fixed") {
+            discountAmount = Math.min(preDiscountPayrollBasePrice, Math.max(0, discObj.discountValue));
+        }
+        else if (discObj.discountType === "percentage") {
+            const percentage = Math.max(0, Math.min(100, discObj.discountValue));
+            discountAmount = Math.min(preDiscountPayrollBasePrice, Math.round(preDiscountPayrollBasePrice * (percentage / 100)));
+        }
+    }
+    const payrollBasePrice = Math.max(0, preDiscountPayrollBasePrice - discountAmount);
+    const customerFacingPrice = Math.max(0, preDiscountCustomerFacingPrice - discountAmount);
     return {
         customerFacingPrice,
         payrollBasePrice,
@@ -162,5 +179,10 @@ function calculateCheerOrderPricing(input) {
         matchedEntry,
         packageName: matchedEntry.tier,
         timeLengthOfMix: matchedEntry.limit,
+        discountAmount,
+        discountType: discObj?.discountType,
+        discountValue: discObj?.discountValue,
+        preDiscountPayrollBasePrice,
+        preDiscountCustomerFacingPrice,
     };
 }

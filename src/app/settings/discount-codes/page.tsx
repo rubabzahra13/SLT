@@ -45,7 +45,31 @@ export default function DiscountCodesPage() {
         key: "description",
         header: "Description",
         render: (entry) => (
-          <span className="text-brand-ink-secondary">{entry.description}</span>
+          <span className="text-brand-ink-secondary">
+            {entry.description || "—"}
+          </span>
+        ),
+      },
+      {
+        key: "discountType",
+        header: "Type",
+        width: "120px",
+        render: (entry) => (
+          <span className="inline-flex items-center rounded-md bg-brand-bg px-2 py-0.5 text-[12px] font-semibold text-brand-ink-secondary border border-black/[0.06]">
+            {entry.discountType === "percentage" ? "Percentage" : "Fixed"}
+          </span>
+        ),
+      },
+      {
+        key: "discountValue",
+        header: "Value",
+        width: "110px",
+        render: (entry) => (
+          <span className="font-semibold tabular-nums text-brand-ink">
+            {entry.discountType === "percentage"
+              ? `${entry.discountValue ?? 0}%`
+              : `$${(entry.discountValue ?? 0).toLocaleString()}`}
+          </span>
         ),
       },
       {

@@ -17,7 +17,12 @@ def create_discount_code(payload: DiscountCodeCreateSchema, db: Session = Depend
     existing = db.query(DiscountCode).filter(DiscountCode.code == code_str).first()
     if existing:
         raise HTTPException(status_code=400, detail="Discount code already exists")
-    dc = DiscountCode(code=code_str, description=payload.description)
+    dc = DiscountCode(
+        code=code_str,
+        description=payload.description,
+        discount_type=payload.discount_type,
+        discount_value=payload.discount_value,
+    )
     db.add(dc)
     db.commit()
     db.refresh(dc)

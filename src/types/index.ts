@@ -340,6 +340,148 @@ export type YouthRecCheerCustomerFields = {
   howDidYouFindOut: string;
 };
 
+/** POM (pom) customer-submitted fields */
+export type PomCustomerFields = {
+  schoolProgramName: string;
+  schoolGymAddress: string;
+  city: string;
+  stateProvince: string;
+  zipPostalCode: string;
+  country: string;
+  divisionOfTeam: string;
+  coachName: string;
+  coachPhone: string;
+  coachEmail: string;
+  billingPersonName: string;
+  billingPersonEmail: string;
+  choreographerName: string;
+  choreographerEmail: string;
+  numberOfCopies: string;
+  packageType: string;
+  requestedEditor: string;
+  timeLengthOfMix: string;
+  musicAffiliate: string;
+  routineNotes: string;
+  customVoiceovers: "yes" | "no" | string;
+  voiceoverScript: string;
+  pronunciationGuidance: string;
+  couponCode: string;
+};
+
+/** Hip Hop (hip-hop) customer-submitted fields (no Division of Team) */
+export type HipHopCustomerFields = {
+  schoolProgramName: string;
+  schoolGymAddress: string;
+  city: string;
+  stateProvince: string;
+  zipPostalCode: string;
+  country: string;
+  coachName: string;
+  coachPhone: string;
+  coachEmail: string;
+  billingPersonName: string;
+  billingPersonEmail: string;
+  choreographerName: string;
+  choreographerEmail: string;
+  numberOfCopies: string;
+  packageType: string;
+  requestedEditor: string;
+  timeLengthOfMix: string;
+  musicAffiliate: string;
+  routineNotes: string;
+  customVoiceovers: "yes" | "no" | string;
+  voiceoverScript: string;
+  pronunciationGuidance: string;
+  couponCode: string;
+};
+
+/** Team Performance & Variety (team-performance-variety) customer-submitted fields */
+export type TeamPerformanceVarietyCustomerFields = {
+  schoolProgramName: string;
+  schoolGymAddress: string;
+  city: string;
+  stateProvince: string;
+  zipPostalCode: string;
+  country: string;
+  coachName: string;
+  coachPhone: string;
+  coachEmail: string;
+  billingPersonName: string;
+  billingPersonEmail: string;
+  choreographerName: string;
+  choreographerEmail: string;
+  numberOfCopies: string;
+  divisionOfTeam: string;
+  style: string;
+  requestedEditor: string;
+  packageType: string;
+  timeLengthOfMix: string;
+  musicAffiliate: string;
+  routineNotes: string;
+  customVoiceovers: "yes" | "no" | string;
+  voiceoverScript: string;
+  pronunciationGuidance: string;
+  couponCode: string;
+};
+
+/** Gameday (gameday) customer-submitted fields (no Division of Team, no generic Style field) */
+export type GamedayCustomerFields = {
+  schoolProgramName: string;
+  schoolGymAddress: string;
+  city: string;
+  stateProvince: string;
+  zipPostalCode: string;
+  country: string;
+  coachName: string;
+  coachPhone: string;
+  coachEmail: string;
+  billingPersonName: string;
+  billingPersonEmail: string;
+  choreographerName: string;
+  choreographerEmail: string;
+  numberOfCopies: string;
+  packageType: string;
+  styleOfGamedayMix: string;
+  timeLengthOfMix: string;
+  requestedEditor: string;
+  musicAffiliate: string;
+  routineNotes: string;
+  customVoiceovers: "yes" | "no" | string;
+  voiceoverScript: string;
+  pronunciationGuidance: string;
+  couponCode: string;
+};
+
+/** Jazz/Kick (jazz-kick) customer-submitted fields */
+export type JazzKickCustomerFields = {
+  schoolProgramName: string;
+  schoolGymAddress: string;
+  city: string;
+  stateProvince: string;
+  zipPostalCode: string;
+  country: string;
+  coachName: string;
+  coachPhone: string;
+  coachEmail: string;
+  billingPersonName: string;
+  billingPersonEmail: string;
+  choreographerName: string;
+  choreographerEmail: string;
+  numberOfCopies: string;
+  divisionOfTeam: string;
+  style: string;
+  requestedEditor: string;
+  packageType: string;
+  timeLengthOfMix: string;
+  licensingRequired: "yes" | "no" | string;
+  musicAffiliate: string;
+  routineNotes: string;
+  customVoiceovers: "yes" | "no" | string;
+  voiceoverScript: string;
+  pronunciationGuidance: string;
+  couponCode: string;
+};
+
 export type AllStarCheerOrder = BaseOrderAdminFields &
   AllStarCheerCustomerFields & {
     formType: "school-all-star-cheer";
@@ -370,6 +512,43 @@ export type CheerOrder =
   | SchoolCheerVirocNoOrder
   | YouthRecCheerOrder;
 
+export type PomOrder = BaseOrderAdminFields &
+  PomCustomerFields & {
+    formType: "school-all-star-dance";
+    danceFormSubtype: "pom";
+  };
+
+export type HipHopOrder = BaseOrderAdminFields &
+  HipHopCustomerFields & {
+    formType: "school-all-star-dance";
+    danceFormSubtype: "hip-hop";
+  };
+
+export type TeamPerformanceVarietyOrder = BaseOrderAdminFields &
+  TeamPerformanceVarietyCustomerFields & {
+    formType: "school-all-star-dance";
+    danceFormSubtype: "team-performance-variety";
+  };
+
+export type GamedayOrder = BaseOrderAdminFields &
+  GamedayCustomerFields & {
+    formType: "school-all-star-dance";
+    danceFormSubtype: "gameday";
+  };
+
+export type JazzKickOrder = BaseOrderAdminFields &
+  JazzKickCustomerFields & {
+    formType: "school-all-star-dance";
+    danceFormSubtype: "jazz-kick";
+  };
+
+export type DanceOrder =
+  | PomOrder
+  | HipHopOrder
+  | TeamPerformanceVarietyOrder
+  | GamedayOrder
+  | JazzKickOrder;
+
 export type Order = {
   id: string;
   legacyId?: string;
@@ -388,11 +567,18 @@ export type Order = {
   /** POM order form — school / program */
   schoolProgramName?: string;
   schoolAddress?: string;
+  schoolGymAddress?: string;
   city?: string;
   stateProvince?: string;
   zipPostalCode?: string;
   country?: string;
   division?: string;
+  divisionOfTeam?: string;
+  style?: string;
+  styleOfGamedayMix?: string;
+  licensingRequired?: "yes" | "no" | string;
+  voiceoverScript?: string;
+  pronunciationGuidance?: string;
   /** Contact */
   coachName?: string;
   coachPhone?: string;
@@ -481,11 +667,15 @@ export type AppNotification = {
   createdAt: string;
 };
 
+export type DiscountCodeType = "fixed" | "percentage";
+
 export type DiscountCode = {
   id: string;
   /** Customer-facing promo code (stored uppercase) */
   code: string;
-  description: string;
+  description?: string;
+  discountType?: DiscountCodeType;
+  discountValue?: number;
 };
 
 export type AppData = {
