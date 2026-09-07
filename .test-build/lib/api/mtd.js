@@ -133,8 +133,8 @@ async function updateMTDRecordApi(id, patch) {
         return transformMTDRecord(res);
     }
     catch (err) {
-        if (err instanceof client_1.ApiClientError && err.status === 404) {
-            console.warn(`MTD Record ${id} not found on backend (local/seed record). Update persisted locally.`);
+        if (err instanceof client_1.ApiClientError) {
+            console.warn(`MTD Record ${id} update not persisted to backend (${err.message}). Local update retained.`);
             return { id, ...patch };
         }
         throw err;

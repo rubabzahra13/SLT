@@ -269,22 +269,26 @@ export default function PayrollPage() {
           );
         },
       },
-      {
-        key: "timeLimit",
-        header: "Time limit",
-        width: "80px",
-        align: "center",
-        cellClassName: "!px-2 !py-1.5",
-        headerClassName: "!px-2 !py-2",
-        render: (rec) => {
-          const { limit } = parsePackage(rec.package);
-          return (
-            <span className="text-[12px] tabular-nums text-brand-ink">
-              {limit}
-            </span>
-          );
-        },
-      },
+      ...(form === "school-all-star-cheer"
+        ? [
+            {
+              key: "timeLimit",
+              header: "Time limit",
+              width: "80px",
+              align: "center" as const,
+              cellClassName: "!px-2 !py-1.5",
+              headerClassName: "!px-2 !py-2",
+              render: (rec: MTDRecord) => {
+                const { limit } = parsePackage(rec.package);
+                return (
+                  <span className="text-[12px] tabular-nums text-brand-ink">
+                    {limit}
+                  </span>
+                );
+              },
+            },
+          ]
+        : []),
       {
         key: "price",
         header: "Customer Price",

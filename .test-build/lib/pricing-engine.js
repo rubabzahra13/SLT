@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.MUSIC_AFFILIATE_ALIASES = exports.COMPLIANT_MUSIC_AFFILIATES = exports.JAZZ_KICK_RATE_CARD = exports.GAMEDAY_RATE_CARD = exports.TEAM_PERFORMANCE_VARIETY_RATE_CARD = exports.HIP_HOP_RATE_CARD = exports.POM_RATE_CARD = exports.YOUTH_REC_CHEER_RATE_CARD = exports.SCHOOL_CHEER_RATE_CARD = exports.ALL_STAR_CHEER_RATE_CARD = void 0;
+exports.SCHOOL_ANTHEM_RATE_CARD = exports.SPORTS_ENTERTAINMENT_RATE_CARD = exports.MARCHING_BAND_RATE_CARD = exports.MUSIC_AFFILIATE_ALIASES = exports.COMPLIANT_MUSIC_AFFILIATES = exports.JAZZ_KICK_RATE_CARD = exports.GAMEDAY_RATE_CARD = exports.TEAM_PERFORMANCE_VARIETY_RATE_CARD = exports.HIP_HOP_RATE_CARD = exports.POM_RATE_CARD = exports.YOUTH_REC_CHEER_RATE_CARD = exports.SCHOOL_CHEER_RATE_CARD = exports.ALL_STAR_CHEER_RATE_CARD = void 0;
 exports.normalizeMusicAffiliate = normalizeMusicAffiliate;
 exports.getRateCardForSubtype = getRateCardForSubtype;
 exports.getDanceRateCardForSubtype = getDanceRateCardForSubtype;
@@ -9,6 +9,12 @@ exports.lookupRateCardEntry = lookupRateCardEntry;
 exports.lookupDanceRateCardEntry = lookupDanceRateCardEntry;
 exports.calculateCheerOrderPricing = calculateCheerOrderPricing;
 exports.calculateDanceOrderPricing = calculateDanceOrderPricing;
+exports.lookupMarchingBandRateCardEntry = lookupMarchingBandRateCardEntry;
+exports.calculateMarchingBandOrderPricing = calculateMarchingBandOrderPricing;
+exports.lookupSportsEntertainmentRateCardEntry = lookupSportsEntertainmentRateCardEntry;
+exports.calculateSportsEntertainmentOrderPricing = calculateSportsEntertainmentOrderPricing;
+exports.lookupSchoolAnthemRateCardEntry = lookupSchoolAnthemRateCardEntry;
+exports.calculateSchoolAnthemOrderPricing = calculateSchoolAnthemOrderPricing;
 const package_1 = require("./package");
 /** All-Star Cheer Pricing Table (Customer, Compliant, Non-Compliant) */
 exports.ALL_STAR_CHEER_RATE_CARD = [
@@ -314,6 +320,195 @@ function calculateDanceOrderPricing(input) {
         nonCompliantPayrollBasePrice,
         complianceStatus,
         alwaysFixedPayroll,
+        matchedEntry,
+        packageName: matchedEntry.package,
+    };
+}
+/** Marching Band Pricing Table */
+exports.MARCHING_BAND_RATE_CARD = [
+    { package: "BAND CHANT", customer: 600, compliant: 300, nonCompliant: 600 },
+    { package: "DRUM CADENCE ORIGINAL", customer: 350, compliant: 150, nonCompliant: 350 },
+    {
+        package: "FIGHT SONG / ALMA MATER",
+        customer: 1100,
+        compliant: 1100,
+        nonCompliant: 1100,
+        alwaysFixedPayroll: true,
+    },
+    {
+        package: "FIGHT SONG / ALMA MATER PLUS (Written & Recorded Lyrics)",
+        customer: 2250,
+        compliant: 2250,
+        nonCompliant: 2250,
+        alwaysFixedPayroll: true,
+    },
+];
+function lookupMarchingBandRateCardEntry(packageType) {
+    if (!packageType || !packageType.trim())
+        return null;
+    const target = packageType.toUpperCase().trim();
+    // Direct exact match first
+    let matched = exports.MARCHING_BAND_RATE_CARD.find((entry) => entry.package.toUpperCase() === target);
+    if (matched)
+        return matched;
+    // Substring or prefix match - sort by length descending to match more specific variants first
+    const sorted = [...exports.MARCHING_BAND_RATE_CARD].sort((a, b) => b.package.length - a.package.length);
+    matched = sorted.find((entry) => {
+        const pkgUpper = entry.package.toUpperCase();
+        const pkgCore = pkgUpper.split("(")[0]?.trim() || pkgUpper;
+        return (target.includes(pkgUpper) ||
+            pkgUpper.includes(target) ||
+            target.includes(pkgCore) ||
+            pkgCore.includes(target));
+    });
+    return matched ?? null;
+}
+function calculateMarchingBandOrderPricing(input) {
+    const matchedEntry = lookupMarchingBandRateCardEntry(input?.packageType ?? "");
+    const complianceStatus = determineComplianceStatus("marching-band", input?.musicAffiliate);
+    if (!matchedEntry) {
+        return {
+            customerFacingPrice: 0,
+            payrollBasePrice: 0,
+            compliantPayrollBasePrice: 0,
+            nonCompliantPayrollBasePrice: 0,
+            complianceStatus,
+            alwaysFixedPayroll: false,
+            matchedEntry: null,
+            packageName: input?.packageType ?? "",
+        };
+    }
+    const addOnTotal = (input.hasSheetMusicAdd ? 50 : 0) +
+        (input.hasAddVocals ? 75 : 0);
+    const customerFacingPrice = matchedEntry.customer + addOnTotal;
+    const compliantPayrollBasePrice = matchedEntry.compliant + addOnTotal;
+    const nonCompliantPayrollBasePrice = matchedEntry.nonCompliant + addOnTotal;
+    const alwaysFixedPayroll = Boolean(matchedEntry.alwaysFixedPayroll);
+    let payrollBasePrice = compliantPayrollBasePrice;
+    if (alwaysFixedPayroll) {
+        // Fight Song / Alma Mater (both variants): "pull full amount", compliance-insensitive
+        payrollBasePrice = customerFacingPrice;
+    }
+    else if (complianceStatus === "non-compliant") {
+        payrollBasePrice = nonCompliantPayrollBasePrice;
+    }
+    else if (complianceStatus === "unknown-no-affiliate-field") {
+        // Per Conflict #1: no affiliate on file, return unknown-no-affiliate-field status
+        // payrollBasePrice defaults to non-compliant / full package amount ($600 / $350 + add-ons)
+        payrollBasePrice = nonCompliantPayrollBasePrice;
+    }
+    else {
+        payrollBasePrice = compliantPayrollBasePrice;
+    }
+    return {
+        customerFacingPrice,
+        payrollBasePrice,
+        compliantPayrollBasePrice,
+        nonCompliantPayrollBasePrice,
+        complianceStatus,
+        alwaysFixedPayroll,
+        matchedEntry,
+        packageName: matchedEntry.package,
+    };
+}
+/** Sports Entertainment Pricing Table */
+exports.SPORTS_ENTERTAINMENT_RATE_CARD = [
+    { package: "QUARTER BREAK / TIMEOUT REMIXED", customer: 150, compliant: 150, nonCompliant: 150 },
+    { package: "PRE-GAME / HALFTIME REMIXED", customer: 250, compliant: 250, nonCompliant: 250 },
+    {
+        package: "OTHER (mixes longer than 2:30)",
+        customer: null,
+        compliant: null,
+        nonCompliant: null,
+        isUnpriced: true,
+    },
+];
+function lookupSportsEntertainmentRateCardEntry(packageType) {
+    if (!packageType || !packageType.trim())
+        return null;
+    const target = packageType.toUpperCase().trim();
+    // Direct exact match first
+    let matched = exports.SPORTS_ENTERTAINMENT_RATE_CARD.find((entry) => entry.package.toUpperCase() === target);
+    if (matched)
+        return matched;
+    // Substring or prefix match
+    const sorted = [...exports.SPORTS_ENTERTAINMENT_RATE_CARD].sort((a, b) => b.package.length - a.package.length);
+    matched = sorted.find((entry) => {
+        const pkgUpper = entry.package.toUpperCase();
+        return (target.includes(pkgUpper) ||
+            pkgUpper.includes(target) ||
+            (entry.isUnpriced && (target.includes("OTHER") || target.includes("2:30"))));
+    });
+    return matched ?? null;
+}
+function calculateSportsEntertainmentOrderPricing(input) {
+    const matchedEntry = lookupSportsEntertainmentRateCardEntry(input?.packageType ?? "");
+    const isRush = input?.isRushOrder === "yes" ||
+        input?.isRushOrder === true ||
+        String(input?.isRushOrder).toLowerCase() === "yes";
+    const rushFeeAmount = isRush ? 100 : 0;
+    if (!matchedEntry) {
+        return {
+            customerFacingPrice: 0,
+            payrollBasePrice: 0,
+            compliantPayrollBasePrice: 0,
+            nonCompliantPayrollBasePrice: 0,
+            complianceStatus: "unknown-no-affiliate-field",
+            isUnpriced: false,
+            needsManualQuote: false,
+            matchedEntry: null,
+            packageName: input?.packageType ?? "",
+            hasRushFee: isRush,
+            rushFeeAmount,
+        };
+    }
+    if (matchedEntry.isUnpriced || matchedEntry.customer === null) {
+        return {
+            customerFacingPrice: null,
+            payrollBasePrice: null,
+            compliantPayrollBasePrice: null,
+            nonCompliantPayrollBasePrice: null,
+            complianceStatus: "unknown-no-affiliate-field",
+            isUnpriced: true,
+            needsManualQuote: true,
+            matchedEntry,
+            packageName: matchedEntry.package,
+            hasRushFee: isRush,
+            rushFeeAmount,
+        };
+    }
+    const customerFacingPrice = matchedEntry.customer + rushFeeAmount;
+    const payrollBasePrice = customerFacingPrice;
+    return {
+        customerFacingPrice,
+        payrollBasePrice,
+        compliantPayrollBasePrice: customerFacingPrice,
+        nonCompliantPayrollBasePrice: customerFacingPrice,
+        complianceStatus: "unknown-no-affiliate-field",
+        isUnpriced: false,
+        needsManualQuote: false,
+        matchedEntry,
+        packageName: matchedEntry.package,
+        hasRushFee: isRush,
+        rushFeeAmount,
+    };
+}
+/** School Anthems Pricing Table (Single package: $1,250 flat) */
+exports.SCHOOL_ANTHEM_RATE_CARD = [
+    { package: "SCHOOL ANTHEMS", customer: 1250, compliant: 1250, nonCompliant: 1250 },
+];
+function lookupSchoolAnthemRateCardEntry(_packageType) {
+    // Always returns the single SCHOOL ANTHEMS package ($1,250)
+    return exports.SCHOOL_ANTHEM_RATE_CARD[0];
+}
+function calculateSchoolAnthemOrderPricing(input) {
+    const matchedEntry = lookupSchoolAnthemRateCardEntry(input?.packageType);
+    return {
+        customerFacingPrice: matchedEntry.customer,
+        payrollBasePrice: matchedEntry.compliant,
+        compliantPayrollBasePrice: matchedEntry.customer,
+        nonCompliantPayrollBasePrice: matchedEntry.customer,
+        complianceStatus: "unknown-no-affiliate-field",
         matchedEntry,
         packageName: matchedEntry.package,
     };

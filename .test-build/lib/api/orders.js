@@ -149,8 +149,8 @@ async function updateOrderApi(id, patch) {
         return transformOrder(res);
     }
     catch (err) {
-        if (err instanceof client_1.ApiClientError && err.status === 404) {
-            console.warn(`Order ${id} not found on backend (local/seed order). Update persisted locally.`);
+        if (err instanceof client_1.ApiClientError) {
+            console.warn(`Order ${id} update not persisted to backend (${err.message}). Local update retained.`);
             return { id, ...patch };
         }
         throw err;

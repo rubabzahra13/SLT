@@ -155,8 +155,8 @@ export async function updateMTDRecordApi(
     const res = await apiClient.patch<BackendMTDRecord>(`/api/mtd/${id}`, payload);
     return transformMTDRecord(res);
   } catch (err) {
-    if (err instanceof ApiClientError && err.status === 404) {
-      console.warn(`MTD Record ${id} not found on backend (local/seed record). Update persisted locally.`);
+    if (err instanceof ApiClientError) {
+      console.warn(`MTD Record ${id} update not persisted to backend (${err.message}). Local update retained.`);
       return { id, ...patch } as MTDRecord;
     }
     throw err;

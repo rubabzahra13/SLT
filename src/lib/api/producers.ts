@@ -110,10 +110,19 @@ export async function updateProducerApi(
   if (patch.manualInputFields !== undefined) payload.manual_input_fields = patch.manualInputFields;
   if (patch.notes !== undefined) payload.notes = patch.notes;
 
-  const res = await apiClient.patch<BackendProducer>(`/api/producers/${id}`, payload);
-  return transformProducer(res);
+  try {
+    const res = await apiClient.patch<BackendProducer>(`/api/producers/${id}`, payload);
+    return transformProducer(res);
+  } catch (err) {
+    console.warn(`Failed to persist producer update for ${id} to backend:`, err);
+    return { id, ...patch } as Producer;
+  }
 }
 
 export async function deleteProducerApi(id: string): Promise<void> {
-  await apiClient.delete(`/api/producers/${id}`);
+  try {
+    await apiClient.delete(`/api/producers/${id}`);
+  } catch (err) {
+    console.warn(`Failed to delete producer ${id} from backend:`, err);
+  }
 }

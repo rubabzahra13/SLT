@@ -37,6 +37,9 @@ export type MTDRecord = {
   hasProcessing8ctSheetsAddon?: boolean;
   hasTraditionalVoiceover?: boolean;
   hasThemedVoiceover?: boolean;
+  hasSheetMusicAdd?: boolean;
+  hasAddVocals?: boolean;
+  isRushOrder?: "yes" | "no" | boolean | string;
   systemCalculatedCustomerPrice?: number | null;
   finalCustomerPrice?: number | null;
   finalCustomerPriceOverridden?: boolean;
@@ -219,6 +222,9 @@ export type BaseOrderAdminFields = {
   hasProcessing8ctSheetsAddon?: boolean;
   hasTraditionalVoiceover?: boolean;
   hasThemedVoiceover?: boolean;
+  hasSheetMusicAdd?: boolean;
+  hasAddVocals?: boolean;
+  isRushOrder?: "yes" | "no" | boolean | string;
   systemCalculatedCustomerPrice?: number | null;
   finalCustomerPrice?: number | null;
   finalCustomerPriceOverridden?: boolean;
@@ -493,6 +499,67 @@ export type JazzKickCustomerFields = {
   couponCode: string;
 };
 
+/** Marching Band (marching-band) customer-submitted fields (no subtype) */
+export type MarchingBandCustomerFields = {
+  schoolProgramName: string;
+  schoolGymAddress: string;
+  city: string;
+  stateProvince: string;
+  zipPostalCode: string;
+  country: string;
+  coachName: string;
+  coachPhone: string;
+  coachEmail: string;
+  billingPersonName: string;
+  billingPersonEmail: string;
+  packageType: string;
+  timeLengthOfMix: string;
+  instrumentationNotes: string;
+  lyricalNotes: string;
+};
+
+/** Sports Entertainment (sports-entertainment) customer-submitted fields (no subtype) */
+export type SportsEntertainmentCustomerFields = {
+  organizationName: string;
+  billingAddress: string;
+  city: string;
+  stateProvince: string;
+  zipPostalCode: string;
+  country: string;
+  musicContactName: string;
+  musicContactPhone: string;
+  musicContactEmail: string;
+  billingContactName: string;
+  billingContactEmail: string;
+  packageType: string;
+  isRushOrder: "yes" | "no" | boolean | string;
+  timeLengthOfMix: string;
+  customerSongs: string;
+  additionalNotes: string;
+};
+
+/** School Anthems (school-anthem) customer-submitted fields (no subtype) */
+export type SchoolAnthemCustomerFields = {
+  schoolOrganizationName: string;
+  schoolBillingAddress: string;
+  city: string;
+  stateProvince: string;
+  zipPostalCode: string;
+  country: string;
+  musicContactName: string;
+  musicContactPhone: string;
+  musicContactEmail: string;
+  billingPersonName: string;
+  billingPersonEmail: string;
+  mascot: string;
+  schoolProgramColors: string;
+  nicknames: string;
+  vocalsPreference: string;
+  instrumentalStylePreference: string;
+  lyricalNotes: string;
+  couponCode: string;
+};
+
 export type AllStarCheerOrder = BaseOrderAdminFields &
   AllStarCheerCustomerFields & {
     formType: "school-all-star-cheer";
@@ -560,6 +627,21 @@ export type DanceOrder =
   | GamedayOrder
   | JazzKickOrder;
 
+export type MarchingBandOrder = BaseOrderAdminFields &
+  MarchingBandCustomerFields & {
+    formType: "marching-band";
+  };
+
+export type SportsEntertainmentOrder = BaseOrderAdminFields &
+  SportsEntertainmentCustomerFields & {
+    formType: "sports-entertainment";
+  };
+
+export type SchoolAnthemOrder = BaseOrderAdminFields &
+  SchoolAnthemCustomerFields & {
+    formType: "school-anthem";
+  };
+
 export type Order = {
   id: string;
   legacyId?: string;
@@ -577,6 +659,24 @@ export type Order = {
   hasProcessing8ctSheetsAddon?: boolean;
   hasTraditionalVoiceover?: boolean;
   hasThemedVoiceover?: boolean;
+  hasSheetMusicAdd?: boolean;
+  hasAddVocals?: boolean;
+  isRushOrder?: "yes" | "no" | boolean | string;
+  instrumentationNotes?: string;
+  lyricalNotes?: string;
+  organizationName?: string;
+  musicContactName?: string;
+  musicContactPhone?: string;
+  musicContactEmail?: string;
+  billingContactName?: string;
+  billingContactEmail?: string;
+  customerSongs?: string;
+  additionalNotes?: string;
+  schoolOrganizationName?: string;
+  schoolProgramColors?: string;
+  nicknames?: string;
+  vocalsPreference?: string;
+  instrumentalStylePreference?: string;
   /** POM order form — school / program */
   schoolProgramName?: string;
   schoolAddress?: string;

@@ -40,6 +40,9 @@ import { complianceLabel } from "@/lib/pricing";
 import {
   calculateCheerOrderPricing,
   calculateDanceOrderPricing,
+  calculateMarchingBandOrderPricing,
+  calculateSportsEntertainmentOrderPricing,
+  calculateSchoolAnthemOrderPricing,
   determineComplianceStatus,
 } from "@/lib/pricing-engine";
 import { formatSlotForDisplay } from "@/lib/scheduling";
@@ -189,9 +192,31 @@ export default function MTDPage() {
     const savedForm = sessionStorage.getItem("slt_mtd_form") as OrderFormType | null;
     const savedCheer = sessionStorage.getItem("slt_mtd_cheer_subtype") as CheerFormSubtypeFilter | null;
     const savedDance = sessionStorage.getItem("slt_mtd_dance_subtype") as DanceFormSubtypeFilter | null;
-    if (savedForm) setFormState(savedForm);
-    if (savedCheer) setCheerSubtypeState(savedCheer);
-    if (savedDance) setDanceSubtypeState(savedDance);
+    const validForms: OrderFormType[] = [
+      "school-all-star-cheer",
+      "school-all-star-dance",
+      "marching-band",
+      "sports-entertainment",
+      "school-anthem",
+    ];
+    const validCheerSubtypes: CheerFormSubtypeFilter[] = [
+      "all",
+      "all-star-cheer",
+      "school-cheer-viroc-yes",
+      "school-cheer-viroc-no",
+      "youth-rec-cheer",
+    ];
+    const validDanceSubtypes: DanceFormSubtypeFilter[] = [
+      "all",
+      "pom",
+      "hip-hop",
+      "team-performance-variety",
+      "gameday",
+      "jazz-kick",
+    ];
+    if (savedForm && validForms.includes(savedForm)) setFormState(savedForm);
+    if (savedCheer && validCheerSubtypes.includes(savedCheer)) setCheerSubtypeState(savedCheer);
+    if (savedDance && validDanceSubtypes.includes(savedDance)) setDanceSubtypeState(savedDance);
   }, []);
 
   const [tableFilters, setTableFilters] = useState<MTDTableFilterState>(
@@ -424,6 +449,10 @@ export default function MTDPage() {
       (cheerSubtype === "youth-rec-cheer" || cheerSubtype === "all");
 
     const showDanceVoiceover = form === "school-all-star-dance";
+    const showMusicAffiliate =
+      form === "school-all-star-cheer" || form === "school-all-star-dance";
+    const showMarchingAddons = form === "marching-band";
+    const showSportsRush = form === "sports-entertainment";
 
     const baseCols: Column<MTDRecord>[] = [
       {
@@ -482,7 +511,7 @@ export default function MTDPage() {
           );
         },
       },
-      ...(form !== "school-all-star-dance"
+      ...(form === "school-all-star-cheer"
         ? [
             {
               key: "limitE",
@@ -531,56 +560,60 @@ export default function MTDPage() {
             },
           ]
         : []),
-      {
-        key: "musicAffiliateCol",
-        header: "Music Affiliate",
-        width: "120px",
-        align: "center",
-        nowrap: false,
-        cellClassName: clsx(compactCellClass, "max-w-[120px]"),
-        headerClassName: compactHeaderClass,
-        render: (rec) => {
-          const meta = resolveMTDFormMeta(rec, orderById);
-          const linked = rec.orderId ? orderById.get(rec.orderId) : undefined;
-          const affiliate = linked?.musicAffiliate ?? (rec as any).musicAffiliate;
-          if (!affiliate) {
-            return (
-              <span className={clsx("mx-auto block text-center text-brand-ink-tertiary", compactTextClass)}>
-                N/A
-              </span>
-            );
-          }
+      ...(showMusicAffiliate
+        ? [
+            {
+              key: "musicAffiliateCol",
+              header: "Music Affiliate",
+              width: "120px",
+              align: "center" as const,
+              nowrap: false,
+              cellClassName: clsx(compactCellClass, "max-w-[120px]"),
+              headerClassName: compactHeaderClass,
+              render: (rec: MTDRecord) => {
+                const meta = resolveMTDFormMeta(rec, orderById);
+                const linked = rec.orderId ? orderById.get(rec.orderId) : undefined;
+                const affiliate = linked?.musicAffiliate ?? (rec as any).musicAffiliate;
+                if (!affiliate) {
+                  return (
+                    <span className={clsx("mx-auto block text-center text-brand-ink-tertiary", compactTextClass)}>
+                      N/A
+                    </span>
+                  );
+                }
 
-          const compliance = determineComplianceStatus(
-            meta.formType === "school-all-star-dance"
-              ? meta.danceFormSubtype
-              : meta.cheerFormSubtype,
-            affiliate
-          );
+                const compliance = determineComplianceStatus(
+                  meta.formType === "school-all-star-dance"
+                    ? meta.danceFormSubtype
+                    : meta.cheerFormSubtype,
+                  affiliate
+                );
 
-          return (
-            <div className="mx-auto flex w-full min-w-0 flex-col items-center gap-0.5">
-              <TruncatedText
-                text={titleCase(affiliate)}
-                className={clsx("mx-auto w-full min-w-0 text-center font-medium", compactTextClass)}
-                style={{ maxWidth: "100%" }}
-              />
-              {compliance !== "unknown-no-affiliate-field" && (
-                <span
-                  className={clsx(
-                    "text-[10px] font-semibold tracking-tight",
-                    compliance === "compliant"
-                      ? "text-brand-signature"
-                      : "text-brand-orange"
-                  )}
-                >
-                  {complianceLabel(compliance)}
-                </span>
-              )}
-            </div>
-          );
-        },
-      },
+                return (
+                  <div className="mx-auto flex w-full min-w-0 flex-col items-center gap-0.5">
+                    <TruncatedText
+                      text={titleCase(affiliate)}
+                      className={clsx("mx-auto w-full min-w-0 text-center font-medium", compactTextClass)}
+                      style={{ maxWidth: "100%" }}
+                    />
+                    {compliance !== "unknown-no-affiliate-field" && (
+                      <span
+                        className={clsx(
+                          "text-[10px] font-semibold tracking-tight",
+                          compliance === "compliant"
+                            ? "text-brand-signature"
+                            : "text-brand-orange"
+                        )}
+                      >
+                        {complianceLabel(compliance)}
+                      </span>
+                    )}
+                  </div>
+                );
+              },
+            },
+          ]
+        : []),
       {
         key: "themeF",
         header: "Music",
@@ -656,7 +689,8 @@ export default function MTDPage() {
         render: (rec) => {
           const order = findLinkedOrder(rec, allOrders);
           const meta = resolveMTDFormMeta(rec, orderById);
-          let engineCustomerPrice = 0;
+          let engineCustomerPrice: number | null = 0;
+          let isUnpriced = false;
 
           if (meta.formType === "school-all-star-dance") {
             const dancePricing = calculateDanceOrderPricing({
@@ -667,6 +701,26 @@ export default function MTDPage() {
               hasThemedVoiceover: rec.hasThemedVoiceover,
             });
             engineCustomerPrice = dancePricing.customerFacingPrice;
+          } else if (meta.formType === "marching-band") {
+            const mbPricing = calculateMarchingBandOrderPricing({
+              packageType: order?.packageType || rec.package,
+              musicAffiliate: order?.musicAffiliate,
+              hasSheetMusicAdd: rec.hasSheetMusicAdd,
+              hasAddVocals: rec.hasAddVocals,
+            });
+            engineCustomerPrice = mbPricing.customerFacingPrice;
+          } else if (meta.formType === "sports-entertainment") {
+            const sePricing = calculateSportsEntertainmentOrderPricing({
+              packageType: order?.packageType || rec.package,
+              isRushOrder: rec.isRushOrder ?? (order as any)?.isRushOrder,
+            });
+            isUnpriced = sePricing.isUnpriced || sePricing.customerFacingPrice === null;
+            engineCustomerPrice = sePricing.customerFacingPrice;
+          } else if (meta.formType === "school-anthem") {
+            const saPricing = calculateSchoolAnthemOrderPricing({
+              packageType: order?.packageType || rec.package,
+            });
+            engineCustomerPrice = saPricing.customerFacingPrice;
           } else {
             const enginePricing = calculateCheerOrderPricing({
               cheerFormSubtype: meta.cheerFormSubtype,
@@ -680,14 +734,40 @@ export default function MTDPage() {
             engineCustomerPrice = enginePricing.customerFacingPrice;
           }
 
+          if (isUnpriced) {
+            return (
+              <div
+                className="mx-auto flex w-full flex-col items-center"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <button
+                  type="button"
+                  onClick={(e) => openPricingModal(rec, e)}
+                  title="Edit Customer Price (Needs Quote)"
+                  aria-label="Edit Customer Price: Needs Quote"
+                  className={clsx(
+                    clickableChipClass,
+                    "flex w-full flex-col items-center rounded-lg px-2 py-1 text-center border-brand-warning/35 bg-brand-warning/10"
+                  )}
+                >
+                  <span className="text-[11px] font-semibold text-brand-warning whitespace-nowrap">
+                    Needs Quote
+                  </span>
+                </button>
+              </div>
+            );
+          }
+
           const isOverridden = Boolean(
             order?.finalCustomerPriceOverridden ?? rec.finalCustomerPriceOverridden
           );
 
+          const numericEnginePrice = engineCustomerPrice ?? 0;
+
           const displayPrice = isOverridden
-            ? (order?.finalCustomerPrice ?? rec.finalCustomerPrice ?? engineCustomerPrice)
-            : (engineCustomerPrice > 0
-                ? engineCustomerPrice
+            ? (order?.finalCustomerPrice ?? rec.finalCustomerPrice ?? numericEnginePrice)
+            : (numericEnginePrice > 0
+                ? numericEnginePrice
                 : (order?.finalCustomerPrice ?? rec.price));
 
           return (
@@ -976,6 +1056,77 @@ export default function MTDPage() {
             </button>
           </div>
         ),
+      });
+    }
+
+    if (showMarchingAddons) {
+      baseCols.push({
+        key: "sheetMusicCol",
+        header: "Sheet Music",
+        width: "95px",
+        align: "center",
+        nowrap: false,
+        cellClassName: "!px-2 !py-2",
+        headerClassName: "!px-2",
+        render: (rec) => (
+          <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
+            <InlineTwoStateToggle
+              value={Boolean(rec.hasSheetMusicAdd)}
+              onToggle={() =>
+                updateMTD(rec.id, { hasSheetMusicAdd: !rec.hasSheetMusicAdd })
+              }
+            />
+          </div>
+        ),
+      });
+
+      baseCols.push({
+        key: "addVocalsCol",
+        header: "Add Vocals",
+        width: "95px",
+        align: "center",
+        nowrap: false,
+        cellClassName: "!px-2 !py-2",
+        headerClassName: "!px-2",
+        render: (rec) => (
+          <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
+            <InlineTwoStateToggle
+              value={Boolean(rec.hasAddVocals)}
+              onToggle={() =>
+                updateMTD(rec.id, { hasAddVocals: !rec.hasAddVocals })
+              }
+            />
+          </div>
+        ),
+      });
+    }
+
+    if (showSportsRush) {
+      baseCols.push({
+        key: "rushOrderCol",
+        header: "Rush Order",
+        width: "95px",
+        align: "center",
+        nowrap: false,
+        cellClassName: "!px-2 !py-2",
+        headerClassName: "!px-2",
+        render: (rec) => {
+          const isRush = rec.isRushOrder === "yes" || rec.isRushOrder === true;
+          return (
+            <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
+              <InlineTwoStateToggle
+                value={isRush}
+                onToggle={() => {
+                  const nextRush = isRush ? "no" : "yes";
+                  updateMTD(rec.id, { isRushOrder: nextRush });
+                  if (rec.orderId) {
+                    updateOrder(rec.orderId, { isRushOrder: nextRush });
+                  }
+                }}
+              />
+            </div>
+          );
+        },
       });
     }
 

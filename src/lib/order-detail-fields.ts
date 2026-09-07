@@ -59,6 +59,26 @@ const FIELD_GETTERS: Record<string, (order: Order) => string | undefined> = {
   licensingRequired: (o) => o.licensingRequired,
   voiceoverScript: (o) => o.voiceoverScript,
   pronunciationGuidance: (o) => o.pronunciationGuidance,
+  organizationName: (o) => (o as any).organizationName || o.schoolProgramName,
+  schoolOrganizationName: (o) => (o as any).schoolOrganizationName || o.schoolProgramName,
+  musicContactName: (o) => (o as any).musicContactName || o.coachName,
+  musicContactPhone: (o) => (o as any).musicContactPhone || o.coachPhone,
+  musicContactEmail: (o) => (o as any).musicContactEmail || o.coachEmail,
+  billingContactName: (o) => (o as any).billingContactName || o.billingPersonName,
+  billingContactEmail: (o) => (o as any).billingContactEmail || o.billingPersonEmail,
+  isRushOrder: (o) => {
+    const val = (o as any).isRushOrder;
+    if (val === undefined || val === null) return "";
+    return String(val);
+  },
+  customerSongs: (o) => (o as any).customerSongs || o.songListSuggestions,
+  additionalNotes: (o) => (o as any).additionalNotes || o.routineNotes,
+  instrumentationNotes: (o) => (o as any).instrumentationNotes,
+  lyricalNotes: (o) => (o as any).lyricalNotes,
+  schoolProgramColors: (o) => (o as any).schoolProgramColors || o.colors,
+  nicknames: (o) => (o as any).nicknames,
+  vocalsPreference: (o) => (o as any).vocalsPreference,
+  instrumentalStylePreference: (o) => (o as any).instrumentalStylePreference,
 };
 
 export function rawFieldValue(order: Order, key: string): string {

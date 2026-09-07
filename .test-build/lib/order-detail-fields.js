@@ -58,6 +58,27 @@ const FIELD_GETTERS = {
     licensingRequired: (o) => o.licensingRequired,
     voiceoverScript: (o) => o.voiceoverScript,
     pronunciationGuidance: (o) => o.pronunciationGuidance,
+    organizationName: (o) => o.organizationName || o.schoolProgramName,
+    schoolOrganizationName: (o) => o.schoolOrganizationName || o.schoolProgramName,
+    musicContactName: (o) => o.musicContactName || o.coachName,
+    musicContactPhone: (o) => o.musicContactPhone || o.coachPhone,
+    musicContactEmail: (o) => o.musicContactEmail || o.coachEmail,
+    billingContactName: (o) => o.billingContactName || o.billingPersonName,
+    billingContactEmail: (o) => o.billingContactEmail || o.billingPersonEmail,
+    isRushOrder: (o) => {
+        const val = o.isRushOrder;
+        if (val === undefined || val === null)
+            return "";
+        return String(val);
+    },
+    customerSongs: (o) => o.customerSongs || o.songListSuggestions,
+    additionalNotes: (o) => o.additionalNotes || o.routineNotes,
+    instrumentationNotes: (o) => o.instrumentationNotes,
+    lyricalNotes: (o) => o.lyricalNotes,
+    schoolProgramColors: (o) => o.schoolProgramColors || o.colors,
+    nicknames: (o) => o.nicknames,
+    vocalsPreference: (o) => o.vocalsPreference,
+    instrumentalStylePreference: (o) => o.instrumentalStylePreference,
 };
 function rawFieldValue(order, key) {
     const getter = FIELD_GETTERS[key];

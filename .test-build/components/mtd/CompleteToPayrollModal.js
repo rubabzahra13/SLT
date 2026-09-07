@@ -29,6 +29,7 @@ function CompleteToPayrollModal({ open, record, allOrders, producers, onClose, o
     const [finalCustomerPriceInput, setFinalCustomerPriceInput] = (0, react_1.useState)("");
     const [finalPayrollPriceInput, setFinalPayrollPriceInput] = (0, react_1.useState)("");
     const [calculatedEnginePricing, setCalculatedEnginePricing] = (0, react_1.useState)(null);
+    const [modalCouponCode, setModalCouponCode] = (0, react_1.useState)("");
     // Step 2 Payroll state
     const [selectedCaseyRate, setSelectedCaseyRate] = (0, react_1.useState)(null); // 0.72 or 0.70
     const [customRateInput, setCustomRateInput] = (0, react_1.useState)(""); // e.g. "72"
@@ -58,7 +59,7 @@ function CompleteToPayrollModal({ open, record, allOrders, producers, onClose, o
             return undefined;
         return (0, editor_assignment_1.findProducerByAssignmentKey)(record.assignedProducer, producers);
     }, [record, producers]);
-    // Reset & load pricing breakdown when modal opens
+    // Reset modal state on open
     (0, react_1.useEffect)(() => {
         if (!open || !record)
             return;
@@ -67,6 +68,14 @@ function CompleteToPayrollModal({ open, record, allOrders, producers, onClose, o
         setSelectedCaseyRate(null);
         setCustomRateInput("");
         setManualPayoutInput("");
+        const order = linkedOrder;
+        const initialCoupon = order?.couponCode || order?.formData?.couponCode || record?.couponCode || "";
+        setModalCouponCode(initialCoupon);
+    }, [open, record, linkedOrder]);
+    // Reset & load pricing breakdown when modal opens or coupon code changes
+    (0, react_1.useEffect)(() => {
+        if (!open || !record)
+            return;
         async function loadBreakdown() {
             if (!record)
                 return;
@@ -89,11 +98,17 @@ function CompleteToPayrollModal({ open, record, allOrders, producers, onClose, o
                 const pkgName = order?.packageType || currentRec.package;
                 const mixLen = order?.timeLengthOfMix || (0, package_1.parsePackage)(currentRec.package).limit;
                 const affiliate = order?.musicAffiliate || currentRec.musicTheme || currentRec.musicAffiliate;
-                const rawCouponCode = order?.couponCode || order?.formData?.couponCode || "";
-                const couponEval = (0, discount_codes_1.evaluateCouponCode)(rawCouponCode, discountCodes);
+                const activeCoupon = modalCouponCode !== undefined
+                    ? modalCouponCode
+                    : (order?.couponCode || order?.formData?.couponCode || currentRec?.couponCode || "");
+                const couponEval = (0, discount_codes_1.evaluateCouponCode)(activeCoupon, discountCodes);
                 const matchedDiscountCode = couponEval.status === "valid" ? couponEval.match ?? null : null;
                 let enginePricing;
                 let canonicalSubtypeId = "";
+                let complianceReason = "";
+                const addons = [];
+                let baseCust = 0;
+                let basePay = 0;
                 if (meta.formType === "school-all-star-dance") {
                     canonicalSubtypeId = danceSubtype;
                     const danceResult = (0, pricing_engine_1.calculateDanceOrderPricing)({
@@ -128,24 +143,6 @@ function CompleteToPayrollModal({ open, record, allOrders, producers, onClose, o
                         packageName: danceResult.matchedEntry?.package || pkgName,
                         timeLengthOfMix: "",
                     };
-                }
-                else {
-                    canonicalSubtypeId = cheerSubtype;
-                    enginePricing = (0, pricing_engine_1.calculateCheerOrderPricing)({
-                        cheerFormSubtype: cheerSubtype,
-                        packageType: pkgName,
-                        timeLengthOfMix: mixLen,
-                        musicAffiliate: affiliate,
-                        hasRallyMix: currentRec.hasRallyMix,
-                        hasExtend8ctAddon: currentRec.hasExtend8ctAddon,
-                        hasProcessing8ctSheetsAddon: currentRec.hasProcessing8ctSheetsAddon,
-                        couponCode: rawCouponCode,
-                        discountCodeObj: matchedDiscountCode,
-                    });
-                }
-                setCalculatedEnginePricing(enginePricing);
-                let complianceReason = "";
-                if (meta.formType === "school-all-star-dance") {
                     if (enginePricing.alwaysFixedPayroll) {
                         complianceReason = "Jazz Simple Cut uses non-compliant song with time cuts only; fixed $100 payroll base applies.";
                     }
@@ -158,23 +155,6 @@ function CompleteToPayrollModal({ open, record, allOrders, producers, onClose, o
                     else {
                         complianceReason = "No music affiliate specified on order.";
                     }
-                }
-                else {
-                    if (cheerSubtype === "youth-rec-cheer") {
-                        complianceReason = "Youth Rec Cheer does not require music affiliate compliance; compliant rate card applies.";
-                    }
-                    else if (enginePricing.complianceStatus === "compliant") {
-                        complianceReason = `Music affiliate '${affiliate || "Approved Affiliate"}' is on the compliant affiliate list.`;
-                    }
-                    else if (enginePricing.complianceStatus === "non-compliant") {
-                        complianceReason = `Music affiliate '${affiliate || "Unapproved"}' is not on the compliant list; non-compliant rate card applies.`;
-                    }
-                    else {
-                        complianceReason = "No music affiliate specified on order.";
-                    }
-                }
-                const addons = [];
-                if (meta.formType === "school-all-star-dance") {
                     if (currentRec.hasTraditionalVoiceover) {
                         addons.push({
                             addon_id: "traditional_vo",
@@ -195,8 +175,205 @@ function CompleteToPayrollModal({ open, record, allOrders, producers, onClose, o
                             note: "Fixed fee add-on (Dance)",
                         });
                     }
+                    baseCust = danceResult.matchedEntry?.customer ?? currentRec.price;
+                    basePay = danceResult.matchedEntry
+                        ? (danceResult.alwaysFixedPayroll
+                            ? danceResult.matchedEntry.compliant
+                            : danceResult.complianceStatus === "non-compliant"
+                                ? danceResult.matchedEntry.nonCompliant
+                                : danceResult.matchedEntry.compliant)
+                        : currentRec.price;
+                }
+                else if (meta.formType === "marching-band") {
+                    canonicalSubtypeId = "marching-band";
+                    const sheetMusic = Boolean(currentRec.hasSheetMusicAdd ?? order?.hasSheetMusicAdd);
+                    const addVocals = Boolean(currentRec.hasAddVocals ?? order?.hasAddVocals);
+                    const mbResult = (0, pricing_engine_1.calculateMarchingBandOrderPricing)({
+                        packageType: pkgName,
+                        musicAffiliate: affiliate,
+                        hasSheetMusicAdd: sheetMusic,
+                        hasAddVocals: addVocals,
+                    });
+                    const preDiscountCust = mbResult.customerFacingPrice;
+                    const preDiscountPay = mbResult.payrollBasePrice;
+                    let discountAmount = 0;
+                    if (matchedDiscountCode && matchedDiscountCode.discountType && typeof matchedDiscountCode.discountValue === "number" && matchedDiscountCode.discountValue > 0) {
+                        if (matchedDiscountCode.discountType === "fixed") {
+                            discountAmount = Math.min(preDiscountPay, Math.max(0, matchedDiscountCode.discountValue));
+                        }
+                        else if (matchedDiscountCode.discountType === "percentage") {
+                            const pct = Math.max(0, Math.min(100, matchedDiscountCode.discountValue));
+                            discountAmount = Math.min(preDiscountPay, Math.round(preDiscountPay * (pct / 100)));
+                        }
+                    }
+                    enginePricing = {
+                        ...mbResult,
+                        customerFacingPrice: Math.max(0, preDiscountCust - discountAmount),
+                        payrollBasePrice: Math.max(0, preDiscountPay - discountAmount),
+                        preDiscountCustomerFacingPrice: preDiscountCust,
+                        preDiscountPayrollBasePrice: preDiscountPay,
+                        discountAmount,
+                        discountType: matchedDiscountCode?.discountType,
+                        discountValue: matchedDiscountCode?.discountValue,
+                        packageName: mbResult.matchedEntry?.package || pkgName,
+                        timeLengthOfMix: "",
+                    };
+                    if (mbResult.alwaysFixedPayroll) {
+                        complianceReason = "Fight Song / Alma Mater uses fixed customer/payroll pricing ($1,100 / $2,250); compliance-insensitive.";
+                    }
+                    else if (mbResult.complianceStatus === "unknown-no-affiliate-field") {
+                        complianceReason = "Unknown / No Affiliate Field Required on Marching Band customer form.";
+                    }
+                    else if (mbResult.complianceStatus === "compliant") {
+                        complianceReason = `Music affiliate '${affiliate || "Approved Affiliate"}' is on the compliant affiliate list.`;
+                    }
+                    else {
+                        complianceReason = `Music affiliate '${affiliate || "Unapproved"}' is not on the compliant list; non-compliant rate card applies.`;
+                    }
+                    if (sheetMusic) {
+                        addons.push({
+                            addon_id: "sheet_music_add",
+                            label: "Sheet Music Add",
+                            customer_amount: 50,
+                            payroll_amount: 50,
+                            quantity: 1,
+                            note: "Fixed fee add-on (Marching Band)",
+                        });
+                    }
+                    if (addVocals) {
+                        addons.push({
+                            addon_id: "add_vocals",
+                            label: "Add Vocals",
+                            customer_amount: 75,
+                            payroll_amount: 75,
+                            quantity: 1,
+                            note: "Fixed fee add-on (Marching Band)",
+                        });
+                    }
+                    baseCust = mbResult.matchedEntry?.customer ?? currentRec.price;
+                    basePay = mbResult.matchedEntry?.compliant ?? currentRec.price;
+                }
+                else if (meta.formType === "sports-entertainment") {
+                    canonicalSubtypeId = "sports-entertainment";
+                    const isRush = currentRec.isRushOrder ?? order?.isRushOrder;
+                    const seResult = (0, pricing_engine_1.calculateSportsEntertainmentOrderPricing)({
+                        packageType: pkgName,
+                        isRushOrder: isRush,
+                    });
+                    if (seResult.hasRushFee) {
+                        addons.push({
+                            addon_id: "rush_order",
+                            label: "Rush Order Add-On (2-day turnaround)",
+                            customer_amount: 100,
+                            payroll_amount: 100,
+                            quantity: 1,
+                            note: "Rush fee (Sports Entertainment)",
+                        });
+                    }
+                    if (seResult.isUnpriced) {
+                        complianceReason = "OTHER package (mixes > 2:30) requires a manual price quote before completion.";
+                        enginePricing = {
+                            ...seResult,
+                            customerFacingPrice: null,
+                            payrollBasePrice: null,
+                            preDiscountCustomerFacingPrice: null,
+                            preDiscountPayrollBasePrice: null,
+                            discountAmount: 0,
+                            packageName: seResult.matchedEntry?.package || pkgName,
+                            timeLengthOfMix: "",
+                        };
+                        baseCust = null;
+                        basePay = null;
+                    }
+                    else {
+                        const preDiscountCust = seResult.customerFacingPrice ?? 0;
+                        const preDiscountPay = seResult.payrollBasePrice ?? 0;
+                        let discountAmount = 0;
+                        if (matchedDiscountCode && matchedDiscountCode.discountType && typeof matchedDiscountCode.discountValue === "number" && matchedDiscountCode.discountValue > 0) {
+                            if (matchedDiscountCode.discountType === "fixed") {
+                                discountAmount = Math.min(preDiscountPay, Math.max(0, matchedDiscountCode.discountValue));
+                            }
+                            else if (matchedDiscountCode.discountType === "percentage") {
+                                const pct = Math.max(0, Math.min(100, matchedDiscountCode.discountValue));
+                                discountAmount = Math.min(preDiscountPay, Math.round(preDiscountPay * (pct / 100)));
+                            }
+                        }
+                        enginePricing = {
+                            ...seResult,
+                            customerFacingPrice: Math.max(0, preDiscountCust - discountAmount),
+                            payrollBasePrice: Math.max(0, preDiscountPay - discountAmount),
+                            preDiscountCustomerFacingPrice: preDiscountCust,
+                            preDiscountPayrollBasePrice: preDiscountPay,
+                            discountAmount,
+                            discountType: matchedDiscountCode?.discountType,
+                            discountValue: matchedDiscountCode?.discountValue,
+                            packageName: seResult.matchedEntry?.package || pkgName,
+                            timeLengthOfMix: "",
+                        };
+                        complianceReason = "Unknown / No Affiliate Field Required on Sports Entertainment customer form.";
+                        baseCust = seResult.matchedEntry?.customer ?? currentRec.price;
+                        basePay = seResult.matchedEntry?.compliant ?? currentRec.price;
+                    }
+                }
+                else if (meta.formType === "school-anthem") {
+                    canonicalSubtypeId = "school-anthem";
+                    const saResult = (0, pricing_engine_1.calculateSchoolAnthemOrderPricing)({
+                        packageType: pkgName,
+                    });
+                    const preDiscountCust = saResult.customerFacingPrice;
+                    const preDiscountPay = saResult.payrollBasePrice;
+                    let discountAmount = 0;
+                    if (matchedDiscountCode && matchedDiscountCode.discountType && typeof matchedDiscountCode.discountValue === "number" && matchedDiscountCode.discountValue > 0) {
+                        if (matchedDiscountCode.discountType === "fixed") {
+                            discountAmount = Math.min(preDiscountPay, Math.max(0, matchedDiscountCode.discountValue));
+                        }
+                        else if (matchedDiscountCode.discountType === "percentage") {
+                            const pct = Math.max(0, Math.min(100, matchedDiscountCode.discountValue));
+                            discountAmount = Math.min(preDiscountPay, Math.round(preDiscountPay * (pct / 100)));
+                        }
+                    }
+                    enginePricing = {
+                        ...saResult,
+                        customerFacingPrice: Math.max(0, preDiscountCust - discountAmount),
+                        payrollBasePrice: Math.max(0, preDiscountPay - discountAmount),
+                        preDiscountCustomerFacingPrice: preDiscountCust,
+                        preDiscountPayrollBasePrice: preDiscountPay,
+                        discountAmount,
+                        discountType: matchedDiscountCode?.discountType,
+                        discountValue: matchedDiscountCode?.discountValue,
+                        packageName: saResult.matchedEntry?.package || pkgName,
+                        timeLengthOfMix: "",
+                    };
+                    complianceReason = "Flat $1,250 rate card unconditionally; no compliance adjustment required.";
+                    baseCust = 1250;
+                    basePay = 1250;
                 }
                 else {
+                    // Cheer fallback
+                    canonicalSubtypeId = cheerSubtype;
+                    enginePricing = (0, pricing_engine_1.calculateCheerOrderPricing)({
+                        cheerFormSubtype: cheerSubtype,
+                        packageType: pkgName,
+                        timeLengthOfMix: mixLen,
+                        musicAffiliate: affiliate,
+                        hasRallyMix: currentRec.hasRallyMix,
+                        hasExtend8ctAddon: currentRec.hasExtend8ctAddon,
+                        hasProcessing8ctSheetsAddon: currentRec.hasProcessing8ctSheetsAddon,
+                        couponCode: activeCoupon,
+                        discountCodeObj: matchedDiscountCode,
+                    });
+                    if (cheerSubtype === "youth-rec-cheer") {
+                        complianceReason = "Youth Rec Cheer does not require music affiliate compliance; compliant rate card applies.";
+                    }
+                    else if (enginePricing.complianceStatus === "compliant") {
+                        complianceReason = `Music affiliate '${affiliate || "Approved Affiliate"}' is on the compliant affiliate list.`;
+                    }
+                    else if (enginePricing.complianceStatus === "non-compliant") {
+                        complianceReason = `Music affiliate '${affiliate || "Unapproved"}' is not on the compliant list; non-compliant rate card applies.`;
+                    }
+                    else {
+                        complianceReason = "No music affiliate specified on order.";
+                    }
                     if ((cheerSubtype === "school-cheer-viroc-yes" || cheerSubtype === "school-cheer-viroc-no") &&
                         currentRec.hasRallyMix) {
                         addons.push({
@@ -230,59 +407,72 @@ function CompleteToPayrollModal({ open, record, allOrders, producers, onClose, o
                             });
                         }
                     }
-                }
-                let baseCust = 0;
-                let basePay = 0;
-                if (meta.formType === "school-all-star-dance") {
-                    baseCust = enginePricing.matchedEntry?.customer ?? currentRec.price;
-                    basePay = enginePricing.matchedEntry
-                        ? (enginePricing.alwaysFixedPayroll
-                            ? enginePricing.matchedEntry.compliant
-                            : enginePricing.complianceStatus === "non-compliant"
-                                ? enginePricing.matchedEntry.nonCompliant
-                                : enginePricing.matchedEntry.compliant)
-                        : currentRec.price;
-                }
-                else {
                     baseCust = enginePricing.matchedEntry?.customer ?? currentRec.price;
                     basePay = enginePricing.matchedEntry
                         ? (enginePricing.complianceStatus === "non-compliant" ? enginePricing.matchedEntry.nonCompliant : enginePricing.matchedEntry.compliant)
                         : currentRec.price;
                 }
+                setCalculatedEnginePricing(enginePricing);
+                const isUnpricedSE = meta.formType === "sports-entertainment" && enginePricing.isUnpriced;
                 const calculatedBreakdown = {
                     form_type: order?.formType || meta.formType || "school-all-star-cheer",
                     canonical_subtype_id: canonicalSubtypeId,
                     package_id: enginePricing.matchedEntry
-                        ? (meta.formType === "school-all-star-dance"
+                        ? (meta.formType === "school-all-star-dance" || meta.formType === "marching-band" || meta.formType === "sports-entertainment" || meta.formType === "school-anthem"
                             ? enginePricing.matchedEntry.package
                             : `${enginePricing.matchedEntry.tier}-${enginePricing.matchedEntry.limit}`)
                         : "pkg-local",
                     package_name: enginePricing.matchedEntry
-                        ? (meta.formType === "school-all-star-dance"
+                        ? (meta.formType === "school-all-star-dance" || meta.formType === "marching-band" || meta.formType === "sports-entertainment" || meta.formType === "school-anthem"
                             ? enginePricing.matchedEntry.package
                             : `${enginePricing.matchedEntry.tier} ${enginePricing.matchedEntry.limit}`)
                         : currentRec.package,
                     pricing_rule_id: null,
-                    compliance_status: enginePricing.complianceStatus === "non-compliant" ? "non-compliant" : "compliant",
+                    compliance_status: enginePricing.complianceStatus === "non-compliant"
+                        ? "non-compliant"
+                        : enginePricing.complianceStatus === "unknown-no-affiliate-field"
+                            ? "needs_manual_review"
+                            : "compliant",
                     compliance_reason: complianceReason,
                     canonical_affiliate: affiliate || null,
                     base_customer_price: baseCust,
                     base_payroll_price: basePay,
                     addons,
-                    system_calculated_customer_price: enginePricing.customerFacingPrice > 0 ? enginePricing.customerFacingPrice : currentRec.price,
-                    payroll_base_price: enginePricing.payrollBasePrice > 0 ? enginePricing.payrollBasePrice : currentRec.price,
-                    needs_manual_pricing: false,
-                    needs_manual_review: false,
-                    summary_line: `Subtype: ${canonicalSubtypeId} | Package: ${enginePricing.packageName} ${enginePricing.timeLengthOfMix || ""} | Customer: $${enginePricing.customerFacingPrice} | Payroll Base: $${enginePricing.payrollBasePrice}`,
-                    coupon_code: rawCouponCode,
+                    system_calculated_customer_price: isUnpricedSE
+                        ? null
+                        : (enginePricing.customerFacingPrice > 0 ? enginePricing.customerFacingPrice : currentRec.price),
+                    payroll_base_price: isUnpricedSE
+                        ? null
+                        : (enginePricing.payrollBasePrice > 0 ? enginePricing.payrollBasePrice : currentRec.price),
+                    needs_manual_pricing: isUnpricedSE,
+                    needs_manual_review: isUnpricedSE,
+                    summary_line: `Category: ${meta.formType} | Subtype: ${canonicalSubtypeId} | Package: ${enginePricing.packageName} | Customer: $${enginePricing.customerFacingPrice ?? 'TBD'} | Payroll Base: $${enginePricing.payrollBasePrice ?? 'TBD'}`,
+                    coupon_code: activeCoupon,
                     coupon_evaluation: couponEval,
                 };
                 setBreakdown(calculatedBreakdown);
-                const initialCustomerPrice = order?.finalCustomerPrice ??
-                    (enginePricing.customerFacingPrice > 0 ? enginePricing.customerFacingPrice : currentRec.price);
-                const initialPayrollPrice = enginePricing.payrollBasePrice > 0 ? enginePricing.payrollBasePrice : currentRec.price;
-                setFinalCustomerPriceInput(String(initialCustomerPrice));
-                setFinalPayrollPriceInput(String(initialPayrollPrice));
+                let initialCustStr = "";
+                let initialPayStr = "";
+                if (isUnpricedSE) {
+                    if (order?.finalCustomerPrice && order.finalCustomerPrice > 0) {
+                        initialCustStr = String(order.finalCustomerPrice);
+                    }
+                    else if (currentRec.price && currentRec.price > 0) {
+                        initialCustStr = String(currentRec.price);
+                    }
+                    else {
+                        initialCustStr = "";
+                    }
+                    initialPayStr = initialCustStr;
+                }
+                else {
+                    const custVal = order?.finalCustomerPrice ?? (enginePricing.customerFacingPrice > 0 ? enginePricing.customerFacingPrice : currentRec.price);
+                    const payVal = enginePricing.payrollBasePrice > 0 ? enginePricing.payrollBasePrice : currentRec.price;
+                    initialCustStr = String(custVal);
+                    initialPayStr = String(payVal);
+                }
+                setFinalCustomerPriceInput(initialCustStr);
+                setFinalPayrollPriceInput(initialPayStr);
             }
             catch (err) {
                 console.warn("Failed to calculate pricing breakdown. Falling back to local record price.", err);
@@ -313,7 +503,7 @@ function CompleteToPayrollModal({ open, record, allOrders, producers, onClose, o
             }
         }
         loadBreakdown();
-    }, [open, record, linkedOrder, allOrders, discountCodes]);
+    }, [open, record, linkedOrder, allOrders, discountCodes, modalCouponCode]);
     // Parsed numerical price
     const finalCustomerPriceNum = parseFloat(finalCustomerPriceInput) || 0;
     const systemPriceNum = breakdown?.system_calculated_customer_price ?? record?.price ?? 0;
@@ -342,6 +532,12 @@ function CompleteToPayrollModal({ open, record, allOrders, producers, onClose, o
         return null;
     // Step 1 confirm handler
     const handleProceedToPayroll = async () => {
+        if (breakdown?.needs_manual_pricing || calculatedEnginePricing?.isUnpriced) {
+            if (!finalCustomerPriceInput || finalCustomerPriceNum <= 0) {
+                setError("This Sports Entertainment order (OTHER package) requires a manual price quote before it can be completed. Please enter a valid price quote greater than $0.");
+                return;
+            }
+        }
         setLoading(true);
         setError(null);
         try {
@@ -429,7 +625,7 @@ function CompleteToPayrollModal({ open, record, allOrders, producers, onClose, o
                                                     ? "bg-brand-signature text-white"
                                                     : "bg-brand-bg text-brand-ink-tertiary"), children: "2" }), (0, jsx_runtime_1.jsx)("span", { className: "text-[13px] font-medium text-brand-ink-secondary", children: "2. Payroll Setup" })] }), (0, jsx_runtime_1.jsx)("span", { className: "rounded-full bg-brand-bg px-2.5 py-1 text-[11px] font-medium text-brand-ink-tertiary border border-brand-line/60", children: record.invoice ? `Inv #${record.invoice}` : "MTD Move" })] }), (0, jsx_runtime_1.jsx)("h2", { id: "complete-payroll-title", className: "mt-3 text-[18px] font-semibold tracking-[-0.02em] text-brand-ink", children: step === 1 ? "Order Pricing & Compliance" : "Producer Payroll Finalization" }), (0, jsx_runtime_1.jsx)("p", { className: "mt-1 text-[12px] leading-relaxed text-brand-ink-secondary", children: step === 1
                                     ? `${(0, data_1.titleCase)(record.programName)} · ${(0, data_1.titleCase)(record.contactName)}`
-                                    : `Assigned Producer: ${record.assignedProducer ? (0, data_1.titleCase)(record.assignedProducer) : "Unassigned"}` })] }), (0, jsx_runtime_1.jsxs)("div", { className: "flex-1 overflow-y-auto px-6 py-5 space-y-5", children: [error && ((0, jsx_runtime_1.jsxs)("div", { className: "flex items-start gap-2.5 rounded-xl border border-brand-warning/30 bg-brand-warning/10 p-3.5 text-[12.5px] text-brand-ink", children: [(0, jsx_runtime_1.jsx)(lucide_react_1.AlertTriangle, { className: "h-4 w-4 shrink-0 text-brand-warning mt-0.5" }), (0, jsx_runtime_1.jsx)("p", { children: error })] })), step === 1 && ((0, jsx_runtime_1.jsxs)("div", { className: "space-y-4", children: [(0, jsx_runtime_1.jsx)("div", { className: "rounded-xl border border-brand-line/70 bg-brand-bg/40 p-4", children: (0, jsx_runtime_1.jsxs)("div", { className: "flex items-center justify-between", children: [(0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsx)("p", { className: "text-[11px] font-semibold uppercase tracking-wider text-brand-ink-tertiary", children: "Form Subtype & Package" }), (0, jsx_runtime_1.jsx)("p", { className: "mt-1 text-[14px] font-bold text-brand-ink", children: (0, pricing_display_1.getFullClassificationLabel)(breakdown?.form_type, breakdown?.canonical_subtype_id, breakdown?.package_name || record.package) })] }), (0, jsx_runtime_1.jsx)("span", { className: "rounded-lg bg-brand-signature/10 px-2.5 py-1 text-[12px] font-bold text-brand-signature ring-1 ring-inset ring-brand-signature/20", children: breakdown?.package_name || record.package })] }) }), (0, jsx_runtime_1.jsxs)("div", { className: (0, clsx_1.default)("rounded-xl border p-4 transition", breakdown?.compliance_status === "compliant"
+                                    : `Assigned Producer: ${record.assignedProducer ? (0, data_1.titleCase)(record.assignedProducer) : "Unassigned"}` })] }), (0, jsx_runtime_1.jsxs)("div", { className: "flex-1 overflow-y-auto px-6 py-5 space-y-5", children: [error && ((0, jsx_runtime_1.jsxs)("div", { className: "flex items-start gap-2.5 rounded-xl border border-brand-warning/30 bg-brand-warning/10 p-3.5 text-[12.5px] text-brand-ink", children: [(0, jsx_runtime_1.jsx)(lucide_react_1.AlertTriangle, { className: "h-4 w-4 shrink-0 text-brand-warning mt-0.5" }), (0, jsx_runtime_1.jsx)("p", { children: error })] })), step === 1 && ((0, jsx_runtime_1.jsxs)("div", { className: "space-y-4", children: [calculatedEnginePricing?.isUnpriced && ((0, jsx_runtime_1.jsxs)("div", { className: "flex items-start gap-2.5 rounded-xl border border-brand-warning/40 bg-brand-warning/10 p-3.5 text-[12.5px] text-brand-ink", children: [(0, jsx_runtime_1.jsx)(lucide_react_1.AlertTriangle, { className: "h-5 w-5 shrink-0 text-brand-warning mt-0.5" }), (0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsx)("p", { className: "font-bold text-brand-warning text-[13px]", children: "Manual Price Quote Required" }), (0, jsx_runtime_1.jsxs)("p", { className: "mt-1 text-[12px] leading-relaxed text-brand-ink-secondary", children: ["This Sports Entertainment order uses the ", (0, jsx_runtime_1.jsx)("strong", { children: "OTHER (mixes longer than 2:30)" }), " package and cannot be priced automatically. Please enter the agreed price quote below before completing the order."] })] })] })), (0, jsx_runtime_1.jsx)("div", { className: "rounded-xl border border-brand-line/70 bg-brand-bg/40 p-4", children: (0, jsx_runtime_1.jsxs)("div", { className: "flex items-center justify-between", children: [(0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsx)("p", { className: "text-[11px] font-semibold uppercase tracking-wider text-brand-ink-tertiary", children: "Form Subtype & Package" }), (0, jsx_runtime_1.jsx)("p", { className: "mt-1 text-[14px] font-bold text-brand-ink", children: (0, pricing_display_1.getFullClassificationLabel)(breakdown?.form_type, breakdown?.canonical_subtype_id, breakdown?.package_name || record.package) })] }), (0, jsx_runtime_1.jsx)("span", { className: "rounded-lg bg-brand-signature/10 px-2.5 py-1 text-[12px] font-bold text-brand-signature ring-1 ring-inset ring-brand-signature/20", children: breakdown?.package_name || record.package })] }) }), (0, jsx_runtime_1.jsxs)("div", { className: (0, clsx_1.default)("rounded-xl border p-4 transition", breakdown?.compliance_status === "compliant"
                                             ? "border-brand-success/30 bg-brand-success/8"
                                             : breakdown?.compliance_status === "non-compliant"
                                                 ? "border-brand-warning/30 bg-brand-warning/8"
@@ -437,27 +633,50 @@ function CompleteToPayrollModal({ open, record, allOrders, producers, onClose, o
                                                                     ? "COMPLIANT"
                                                                     : breakdown?.compliance_status === "non-compliant"
                                                                         ? "NON-COMPLIANT"
-                                                                        : "NEEDS MANUAL REVIEW" })] }), (0, jsx_runtime_1.jsx)("span", { className: "text-[11px] font-medium text-brand-ink-secondary", children: breakdown?.canonical_affiliate ? `Affiliate: ${breakdown.canonical_affiliate}` : "No Affiliate Required" })] }), (0, jsx_runtime_1.jsx)("p", { className: "mt-2 text-[12px] leading-relaxed text-brand-ink-secondary", children: breakdown?.compliance_reason || "Verified against pricing rules & compliant affiliates map." })] }), (0, jsx_runtime_1.jsxs)("div", { className: "rounded-xl border border-brand-line/70 bg-brand-elevated overflow-hidden", children: [(0, jsx_runtime_1.jsxs)("div", { className: "bg-brand-bg/60 px-4 py-2.5 border-b border-brand-line/60 flex items-center justify-between", children: [(0, jsx_runtime_1.jsx)("span", { className: "text-[11.5px] font-semibold uppercase tracking-wider text-brand-ink-tertiary", children: "Itemized Pricing Breakdown" }), (0, jsx_runtime_1.jsx)("span", { className: "text-[11.5px] text-brand-ink-tertiary", children: "Amount" })] }), (0, jsx_runtime_1.jsxs)("div", { className: "divide-y divide-brand-line/40 px-4 text-[12.5px]", children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex items-center justify-between py-2.5", children: [(0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsx)("span", { className: "font-semibold text-brand-ink", children: "Customer Price" }), (0, jsx_runtime_1.jsx)("p", { className: "text-[11px] text-brand-ink-tertiary", children: "Exact customer-facing package price stored/displayed in MTD" })] }), (0, jsx_runtime_1.jsx)("span", { className: "font-semibold tabular-nums text-brand-ink", children: (0, data_1.formatPrice)(breakdown?.system_calculated_customer_price ?? record.price) })] }), (0, jsx_runtime_1.jsxs)("div", { className: "flex items-center justify-between py-2.5", children: [(0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsx)("span", { className: "font-medium text-brand-ink", children: "Music Compliance Adjustment" }), (0, jsx_runtime_1.jsx)("p", { className: "text-[11px] text-brand-ink-tertiary", children: breakdown?.package_name?.toUpperCase().includes("TITANIUM")
+                                                                        : breakdown?.compliance_reason?.includes("Unknown")
+                                                                            ? "UNKNOWN (NO AFFILIATE FIELD)"
+                                                                            : "NEEDS MANUAL REVIEW" })] }), (0, jsx_runtime_1.jsx)("span", { className: "text-[11px] font-medium text-brand-ink-secondary", children: breakdown?.canonical_affiliate
+                                                            ? `Affiliate: ${breakdown.canonical_affiliate}`
+                                                            : "No Affiliate Field Required" })] }), (0, jsx_runtime_1.jsx)("p", { className: "mt-2 text-[12px] leading-relaxed text-brand-ink-secondary", children: breakdown?.compliance_reason || "Verified against pricing rules & compliant affiliates map." })] }), (0, jsx_runtime_1.jsxs)("div", { className: "rounded-xl border border-brand-line/70 bg-brand-elevated overflow-hidden", children: [(0, jsx_runtime_1.jsxs)("div", { className: "bg-brand-bg/60 px-4 py-2.5 border-b border-brand-line/60 flex items-center justify-between", children: [(0, jsx_runtime_1.jsx)("span", { className: "text-[11.5px] font-semibold uppercase tracking-wider text-brand-ink-tertiary", children: "Itemized Pricing Breakdown" }), (0, jsx_runtime_1.jsx)("span", { className: "text-[11.5px] text-brand-ink-tertiary", children: "Amount" })] }), (0, jsx_runtime_1.jsxs)("div", { className: "divide-y divide-brand-line/40 px-4 text-[12.5px]", children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex items-center justify-between py-2.5", children: [(0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex items-center gap-1.5", children: [(0, jsx_runtime_1.jsx)("span", { className: "font-semibold text-brand-ink", children: "Customer Price" }), isCustomerPriceOverridden && ((0, jsx_runtime_1.jsxs)("span", { className: "inline-flex items-center gap-1 rounded bg-brand-orange/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-brand-orange ring-1 ring-inset ring-brand-orange/25", children: [(0, jsx_runtime_1.jsx)(lucide_react_1.Edit3, { className: "h-2.5 w-2.5" }), " edited"] }))] }), (0, jsx_runtime_1.jsx)("p", { className: "text-[11px] text-brand-ink-tertiary", children: calculatedEnginePricing?.isUnpriced
+                                                                            ? "OTHER package (mixes > 2:30) — Manual quote required"
+                                                                            : "Exact customer-facing package price stored/displayed in MTD" })] }), (0, jsx_runtime_1.jsxs)("div", { className: "relative w-[130px]", children: [(0, jsx_runtime_1.jsx)("span", { className: "pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 font-semibold text-brand-ink text-[14px]", children: "$" }), (0, jsx_runtime_1.jsx)("input", { type: "number", step: "1", min: "0", placeholder: "Enter quote", value: finalCustomerPriceInput, onChange: (e) => {
+                                                                            const val = e.target.value;
+                                                                            setFinalCustomerPriceInput(val);
+                                                                            const num = parseFloat(val) || 0;
+                                                                            setBreakdown((prev) => (prev ? { ...prev, system_calculated_customer_price: num } : null));
+                                                                            if (calculatedEnginePricing?.isUnpriced && (!finalPayrollPriceInput || finalPayrollPriceInput === "0")) {
+                                                                                setFinalPayrollPriceInput(val);
+                                                                            }
+                                                                        }, className: (0, clsx_1.default)("w-full rounded-lg border py-1.5 pl-7 pr-2.5 text-right font-bold text-[14px] tabular-nums outline-none focus:ring-2", calculatedEnginePricing?.isUnpriced && (!finalCustomerPriceInput || finalCustomerPriceNum <= 0)
+                                                                            ? "border-brand-warning bg-brand-warning/10 text-brand-warning ring-2 ring-brand-warning/30"
+                                                                            : "border-brand-line/80 bg-brand-elevated text-brand-ink focus:border-brand-signature focus:ring-brand-signature/20") })] })] }), (0, jsx_runtime_1.jsxs)("div", { className: "flex items-center justify-between py-2.5", children: [(0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsx)("span", { className: "font-medium text-brand-ink", children: "Music Compliance Adjustment" }), (0, jsx_runtime_1.jsx)("p", { className: "text-[11px] text-brand-ink-tertiary", children: breakdown?.package_name?.toUpperCase().includes("TITANIUM")
                                                                             ? "Titanium (Fully Licensed) — No adjustment"
                                                                             : breakdown?.compliance_status === "compliant"
                                                                                 ? "Compliant Music Affiliate — Licensing fee removed"
-                                                                                : "Non-Compliant Music Affiliate — No adjustment" })] }), (0, jsx_runtime_1.jsx)("span", { className: (0, clsx_1.default)("font-semibold tabular-nums", breakdown?.compliance_status === "compliant" &&
+                                                                                : breakdown?.compliance_reason?.includes("Unknown")
+                                                                                    ? "No affiliate required for this category"
+                                                                                    : "Non-Compliant Music Affiliate — No adjustment" })] }), (0, jsx_runtime_1.jsx)("span", { className: (0, clsx_1.default)("font-semibold tabular-nums", breakdown?.compliance_status === "compliant" &&
                                                                     !breakdown?.package_name?.toUpperCase().includes("TITANIUM")
                                                                     ? "text-brand-success"
-                                                                    : "text-brand-ink-secondary"), children: breakdown?.package_name?.toUpperCase().includes("TITANIUM")
+                                                                    : "text-brand-ink-secondary"), children: breakdown?.package_name?.toUpperCase().includes("TITANIUM") || breakdown?.compliance_reason?.includes("Unknown")
                                                                     ? "$0"
                                                                     : breakdown?.compliance_status === "compliant"
                                                                         ? `-${(0, data_1.formatPrice)(Math.abs((breakdown?.base_customer_price ?? record.price) -
                                                                             (breakdown?.base_payroll_price ?? record.price)))}`
-                                                                        : "$0" })] }), breakdown?.addons.map((addon) => ((0, jsx_runtime_1.jsxs)("div", { className: "flex items-center justify-between py-2.5", children: [(0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsx)("span", { className: "font-medium text-brand-ink", children: addon.label }), addon.note && ((0, jsx_runtime_1.jsx)("p", { className: "text-[11px] text-brand-ink-tertiary", children: addon.note }))] }), (0, jsx_runtime_1.jsxs)("span", { className: "font-semibold tabular-nums text-brand-success", children: ["+", (0, data_1.formatPrice)(addon.customer_amount)] })] }, addon.addon_id))), breakdown?.coupon_code ? ((0, jsx_runtime_1.jsxs)("div", { className: "flex items-center justify-between py-2.5", children: [(0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex items-center gap-1.5", children: [(0, jsx_runtime_1.jsx)(lucide_react_1.Tag, { className: "h-3.5 w-3.5 text-brand-signature" }), (0, jsx_runtime_1.jsxs)("span", { className: "font-medium text-brand-ink", children: ["Coupon Code: ", (0, jsx_runtime_1.jsx)("span", { className: "font-bold uppercase", children: breakdown.coupon_code })] })] }), (0, jsx_runtime_1.jsx)("p", { className: "text-[11px] text-brand-ink-tertiary mt-0.5", children: breakdown.coupon_evaluation?.status === "valid" && breakdown.coupon_evaluation.match?.description
+                                                                        : "$0" })] }), breakdown?.addons.map((addon) => ((0, jsx_runtime_1.jsxs)("div", { className: "flex items-center justify-between py-2.5", children: [(0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsx)("span", { className: "font-medium text-brand-ink", children: addon.label }), addon.note && ((0, jsx_runtime_1.jsx)("p", { className: "text-[11px] text-brand-ink-tertiary", children: addon.note }))] }), (0, jsx_runtime_1.jsxs)("span", { className: "font-semibold tabular-nums text-brand-success", children: ["+", (0, data_1.formatPrice)(addon.customer_amount)] })] }, addon.addon_id))), (0, jsx_runtime_1.jsxs)("div", { className: "flex items-center justify-between py-2.5", children: [(0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex items-center gap-1.5", children: [(0, jsx_runtime_1.jsx)(lucide_react_1.Tag, { className: "h-3.5 w-3.5 text-brand-signature" }), (0, jsx_runtime_1.jsx)("span", { className: "font-medium text-brand-ink", children: "Coupon Code" })] }), (0, jsx_runtime_1.jsx)("p", { className: "text-[11px] text-brand-ink-tertiary mt-0.5", children: breakdown?.coupon_evaluation?.status === "valid" && breakdown.coupon_evaluation.match?.description
                                                                             ? breakdown.coupon_evaluation.match.description
-                                                                            : breakdown.coupon_evaluation?.status === "valid"
+                                                                            : breakdown?.coupon_evaluation?.status === "valid"
                                                                                 ? "Valid coupon code applied to order"
-                                                                                : breakdown.coupon_evaluation?.status === "potential"
+                                                                                : breakdown?.coupon_evaluation?.status === "potential"
                                                                                     ? "Possible match to saved coupon"
-                                                                                    : "Coupon code unrecognized" })] }), (0, jsx_runtime_1.jsx)("div", { className: "text-right", children: breakdown.coupon_evaluation?.status === "valid" && breakdown.coupon_evaluation.match ? ((0, jsx_runtime_1.jsxs)("div", { className: "flex flex-col items-end gap-0.5", children: [(0, jsx_runtime_1.jsx)("span", { className: "rounded bg-brand-success/15 px-2 py-0.5 text-[10px] font-bold uppercase text-brand-success ring-1 ring-inset ring-brand-success/25", children: breakdown.coupon_evaluation.match.discountType === "percentage"
-                                                                                ? `${breakdown.coupon_evaluation.match.discountValue}% OFF`
-                                                                                : `-$${breakdown.coupon_evaluation.match.discountValue}` }), (calculatedEnginePricing?.discountAmount ?? 0) > 0 && ((0, jsx_runtime_1.jsxs)("span", { className: "font-semibold tabular-nums text-brand-success text-[12.5px]", children: ["-", (0, data_1.formatPrice)(calculatedEnginePricing.discountAmount)] }))] })) : breakdown.coupon_evaluation?.status === "potential" ? ((0, jsx_runtime_1.jsx)("span", { className: "rounded bg-brand-info/15 px-2 py-0.5 text-[10px] font-bold uppercase text-brand-signature ring-1 ring-inset ring-brand-info/25", children: "Suggested" })) : ((0, jsx_runtime_1.jsx)("span", { className: "rounded bg-brand-warning/15 px-2 py-0.5 text-[10px] font-bold uppercase text-brand-warning ring-1 ring-inset ring-brand-warning/25", children: "Unrecognized" })) })] })) : ((0, jsx_runtime_1.jsxs)("div", { className: "flex items-center justify-between py-2.5 text-brand-ink-tertiary", children: [(0, jsx_runtime_1.jsx)("span", { className: "font-medium text-brand-ink-secondary", children: "Coupon Code" }), (0, jsx_runtime_1.jsx)("span", { children: "None" })] })), (0, jsx_runtime_1.jsxs)("div", { className: "flex items-center justify-between py-3 bg-brand-signature/10 -mx-4 px-4 border-t border-brand-signature/20", children: [(0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex items-center gap-1.5", children: [(0, jsx_runtime_1.jsx)("span", { className: "font-bold text-brand-signature text-[14px]", children: "Payroll Price" }), isPayrollPriceOverridden && ((0, jsx_runtime_1.jsxs)("span", { className: "inline-flex items-center gap-1 rounded bg-brand-orange/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-brand-orange ring-1 ring-inset ring-brand-orange/25", children: [(0, jsx_runtime_1.jsx)(lucide_react_1.Edit3, { className: "h-2.5 w-2.5" }), " edited"] }))] }), (0, jsx_runtime_1.jsx)("p", { className: "text-[11px] text-brand-ink-secondary", children: "Amount passed to payroll engine to calculate producer payout" })] }), (0, jsx_runtime_1.jsxs)("div", { className: "relative w-[130px]", children: [(0, jsx_runtime_1.jsx)("span", { className: "pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 font-bold text-brand-signature text-[14px]", children: "$" }), (0, jsx_runtime_1.jsx)("input", { type: "number", step: "1", min: "0", value: finalPayrollPriceInput, onChange: (e) => {
+                                                                                    : modalCouponCode
+                                                                                        ? "Coupon code unrecognized"
+                                                                                        : "Apply or edit promo code for this order" })] }), (0, jsx_runtime_1.jsxs)("div", { className: "flex items-center gap-2", children: [(0, jsx_runtime_1.jsx)("input", { type: "text", placeholder: "PROMO CODE", value: modalCouponCode, onChange: (e) => {
+                                                                            const val = e.target.value.toUpperCase();
+                                                                            setModalCouponCode(val);
+                                                                        }, className: "w-[110px] rounded border border-brand-line bg-brand-elevated px-2 py-1 text-right text-[11px] font-bold uppercase tracking-wider text-brand-ink outline-none focus:border-brand-signature focus:ring-1 focus:ring-brand-signature/30" }), breakdown?.coupon_evaluation?.status === "valid" && breakdown.coupon_evaluation.match ? ((0, jsx_runtime_1.jsxs)("div", { className: "flex flex-col items-end gap-0.5", children: [(0, jsx_runtime_1.jsx)("span", { className: "rounded bg-brand-success/15 px-2 py-0.5 text-[10px] font-bold uppercase text-brand-success ring-1 ring-inset ring-brand-success/25", children: breakdown.coupon_evaluation.match.discountType === "percentage"
+                                                                                    ? `${breakdown.coupon_evaluation.match.discountValue}% OFF`
+                                                                                    : `-$${breakdown.coupon_evaluation.match.discountValue}` }), (calculatedEnginePricing?.discountAmount ?? 0) > 0 && ((0, jsx_runtime_1.jsxs)("span", { className: "font-semibold tabular-nums text-brand-success text-[12.5px]", children: ["-", (0, data_1.formatPrice)(calculatedEnginePricing.discountAmount)] }))] })) : breakdown?.coupon_evaluation?.status === "potential" ? ((0, jsx_runtime_1.jsx)("span", { className: "rounded bg-brand-info/15 px-2 py-0.5 text-[10px] font-bold uppercase text-brand-signature ring-1 ring-inset ring-brand-info/25", children: "Suggested" })) : modalCouponCode ? ((0, jsx_runtime_1.jsx)("span", { className: "rounded bg-brand-warning/15 px-2 py-0.5 text-[10px] font-bold uppercase text-brand-warning ring-1 ring-inset ring-brand-warning/25", children: "Unrecognized" })) : null] })] }), (0, jsx_runtime_1.jsxs)("div", { className: "flex items-center justify-between py-3 bg-brand-signature/10 -mx-4 px-4 border-t border-brand-signature/20", children: [(0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex items-center gap-1.5", children: [(0, jsx_runtime_1.jsx)("span", { className: "font-bold text-brand-signature text-[14px]", children: "Payroll Price" }), isPayrollPriceOverridden && ((0, jsx_runtime_1.jsxs)("span", { className: "inline-flex items-center gap-1 rounded bg-brand-orange/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-brand-orange ring-1 ring-inset ring-brand-orange/25", children: [(0, jsx_runtime_1.jsx)(lucide_react_1.Edit3, { className: "h-2.5 w-2.5" }), " edited"] }))] }), (0, jsx_runtime_1.jsx)("p", { className: "text-[11px] text-brand-ink-secondary", children: "Amount passed to payroll engine to calculate producer payout" })] }), (0, jsx_runtime_1.jsxs)("div", { className: "relative w-[130px]", children: [(0, jsx_runtime_1.jsx)("span", { className: "pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 font-bold text-brand-signature text-[14px]", children: "$" }), (0, jsx_runtime_1.jsx)("input", { type: "number", step: "1", min: "0", value: finalPayrollPriceInput, onChange: (e) => {
                                                                             const val = e.target.value;
                                                                             setFinalPayrollPriceInput(val);
                                                                             const num = parseFloat(val) || 0;

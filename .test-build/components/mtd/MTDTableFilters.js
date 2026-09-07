@@ -21,10 +21,10 @@ const date_filters_1 = require("@/lib/date-filters");
 const mtd_filters_1 = require("@/lib/mtd-filters");
 const types_1 = require("@/types");
 function hasActiveMTDFilters(filters, form) {
-    const isDance = form === "school-all-star-dance";
+    const isCheer = !form || form === "school-all-star-cheer";
     return (filters.packageTier !== "All" ||
-        (!isDance && filters.timeLimit !== "All") ||
-        (!isDance && filters.split !== "all") ||
+        (isCheer && filters.timeLimit !== "All") ||
+        (isCheer && filters.split !== "all") ||
         filters.assignedProducer !== "All" ||
         filters.requestedProducer !== "All" ||
         filters.scheduleFilter !== "all" ||
@@ -32,13 +32,13 @@ function hasActiveMTDFilters(filters, form) {
         filters.dateFilter.type !== "all");
 }
 function countTableFilters(filters, form) {
-    const isDance = form === "school-all-star-dance";
+    const isCheer = !form || form === "school-all-star-cheer";
     let count = 0;
     if (filters.packageTier !== "All")
         count += 1;
-    if (!isDance && filters.timeLimit !== "All")
+    if (isCheer && filters.timeLimit !== "All")
         count += 1;
-    if (!isDance && filters.split !== "all")
+    if (isCheer && filters.split !== "all")
         count += 1;
     if (filters.assignedProducer !== "All")
         count += 1;
@@ -76,7 +76,7 @@ function MTDTableFilterPanel({ records, producers, orderById, filters, onChange,
         ];
     }, [records]);
     const infoOptions = (0, react_1.useMemo)(() => (0, mtd_filters_1.buildInfoOptions)(records), [records]);
-    const isDance = form === "school-all-star-dance";
+    const isCheer = !form || form === "school-all-star-cheer";
     const activeCount = countTableFilters(filters, form);
     (0, react_1.useEffect)(() => {
         if (!open)
@@ -98,7 +98,7 @@ function MTDTableFilterPanel({ records, producers, orderById, filters, onChange,
                         : "border-brand-line/55 bg-brand-elevated/90 text-brand-ink-secondary hover:border-brand-line-strong hover:bg-brand-elevated", open && "ring-2 ring-brand-blue/15")), children: [(0, jsx_runtime_1.jsx)(lucide_react_1.SlidersHorizontal, { className: "h-3.5 w-3.5 shrink-0", strokeWidth: 2 }), "Filters", activeCount > 0 ? ((0, jsx_runtime_1.jsx)("span", { className: "flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-blue-deep px-1 text-[10px] font-bold tabular-nums text-white", children: activeCount })) : null] }), open ? ((0, jsx_runtime_1.jsxs)("div", { className: "absolute left-0 top-[calc(100%+8px)] z-40 w-[min(92vw,560px)] rounded-2xl border border-brand-line bg-brand-surface p-4 shadow-[var(--shadow-premium)]", children: [(0, jsx_runtime_1.jsxs)("div", { className: "mb-3 flex items-center justify-between gap-3", children: [(0, jsx_runtime_1.jsx)("p", { className: "text-[13px] font-semibold text-brand-ink", children: "Table filters" }), activeCount > 0 ? ((0, jsx_runtime_1.jsx)("button", { type: "button", onClick: () => {
                                     onReset();
                                     setOpen(false);
-                                }, className: "text-[12px] font-medium text-brand-signature hover:underline", children: "Clear all" })) : null] }), (0, jsx_runtime_1.jsxs)("div", { className: "grid gap-3 sm:grid-cols-2", children: [(0, jsx_runtime_1.jsx)(FilterMenu_1.FilterMenu, { label: "Package", value: filters.packageTier, options: packageOptions, onChange: (value) => onChange({ packageTier: value }), accent: "blue" }), !isDance ? ((0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsx)(FilterMenu_1.FilterMenu, { label: "Time limit", value: filters.timeLimit, options: timeLimitOptions, onChange: (value) => onChange({ timeLimit: value }) }), (0, jsx_runtime_1.jsx)(FilterMenu_1.FilterMenu, { label: "Split", value: filters.split, options: splitOptions, onChange: (value) => onChange({ split: value }) })] })) : null, (0, jsx_runtime_1.jsx)(FilterMenu_1.FilterMenu, { label: "Assigned", value: filters.assignedProducer, options: assignedOptions, onChange: (value) => onChange({ assignedProducer: value }), accent: "orange" }), (0, jsx_runtime_1.jsx)(FilterMenu_1.FilterMenu, { label: "Requested", value: filters.requestedProducer, options: requestedOptions, onChange: (value) => onChange({ requestedProducer: value }), accent: "orange" }), (0, jsx_runtime_1.jsx)(FilterMenu_1.FilterMenu, { label: "Schedule", value: filters.scheduleFilter, options: scheduleOptions, onChange: (value) => onChange({ scheduleFilter: value }) }), (0, jsx_runtime_1.jsx)(FilterMenu_1.FilterMenu, { label: "Data", value: filters.infoFilter ?? "all", options: infoOptions, onChange: (value) => onChange({ infoFilter: value }), accent: "orange" }), (0, jsx_runtime_1.jsx)(DateFilter_1.DateFilter, { value: filters.dateFilter, onChange: (dateFilter) => onChange({ dateFilter }) })] })] })) : null] }));
+                                }, className: "text-[12px] font-medium text-brand-signature hover:underline", children: "Clear all" })) : null] }), (0, jsx_runtime_1.jsxs)("div", { className: "grid gap-3 sm:grid-cols-2", children: [(0, jsx_runtime_1.jsx)(FilterMenu_1.FilterMenu, { label: "Package", value: filters.packageTier, options: packageOptions, onChange: (value) => onChange({ packageTier: value }), accent: "blue" }), isCheer ? ((0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsx)(FilterMenu_1.FilterMenu, { label: "Time limit", value: filters.timeLimit, options: timeLimitOptions, onChange: (value) => onChange({ timeLimit: value }) }), (0, jsx_runtime_1.jsx)(FilterMenu_1.FilterMenu, { label: "Split", value: filters.split, options: splitOptions, onChange: (value) => onChange({ split: value }) })] })) : null, (0, jsx_runtime_1.jsx)(FilterMenu_1.FilterMenu, { label: "Assigned", value: filters.assignedProducer, options: assignedOptions, onChange: (value) => onChange({ assignedProducer: value }), accent: "orange" }), (0, jsx_runtime_1.jsx)(FilterMenu_1.FilterMenu, { label: "Requested", value: filters.requestedProducer, options: requestedOptions, onChange: (value) => onChange({ requestedProducer: value }), accent: "orange" }), (0, jsx_runtime_1.jsx)(FilterMenu_1.FilterMenu, { label: "Schedule", value: filters.scheduleFilter, options: scheduleOptions, onChange: (value) => onChange({ scheduleFilter: value }) }), (0, jsx_runtime_1.jsx)(FilterMenu_1.FilterMenu, { label: "Data", value: filters.infoFilter ?? "all", options: infoOptions, onChange: (value) => onChange({ infoFilter: value }), accent: "orange" }), (0, jsx_runtime_1.jsx)(DateFilter_1.DateFilter, { value: filters.dateFilter, onChange: (dateFilter) => onChange({ dateFilter }) })] })] })) : null] }));
 }
 function MTDActiveFilterChips({ chips, }) {
     if (chips.length === 0)
@@ -111,7 +111,7 @@ function MTDFilterChipsRow(props) {
 }
 function useMTDFilterChips(props) {
     const { records, producers, orderById, filters, onChange, form } = props;
-    const isDance = form === "school-all-star-dance";
+    const isCheer = !form || form === "school-all-star-cheer";
     const packageOptions = (0, react_1.useMemo)(() => (0, mtd_filters_1.buildPackageTierOptions)(records), [records]);
     const timeLimitOptions = (0, react_1.useMemo)(() => (0, mtd_filters_1.buildTimeLimitOptions)(records), [records]);
     const splitOptions = (0, react_1.useMemo)(() => (0, mtd_filters_1.buildSplitOptions)(records), [records]);
@@ -144,7 +144,7 @@ function useMTDFilterChips(props) {
                 onClear: () => onChange({ packageTier: "All" }),
             });
         }
-        if (!isDance && filters.timeLimit !== "All") {
+        if (isCheer && filters.timeLimit !== "All") {
             const label = timeLimitOptions.find((o) => o.value === filters.timeLimit)?.label ??
                 filters.timeLimit;
             items.push({
@@ -153,7 +153,7 @@ function useMTDFilterChips(props) {
                 onClear: () => onChange({ timeLimit: "All" }),
             });
         }
-        if (!isDance && filters.split !== "all") {
+        if (isCheer && filters.split !== "all") {
             const label = splitOptions.find((o) => o.value === filters.split)?.label ??
                 filters.split;
             items.push({

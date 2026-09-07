@@ -459,3 +459,322 @@ export function calculateDanceOrderPricing(
   };
 }
 
+export type MarchingBandRateCardEntry = {
+  package: string;
+  customer: number;
+  compliant: number;
+  nonCompliant: number;
+  alwaysFixedPayroll?: boolean;
+};
+
+/** Marching Band Pricing Table */
+export const MARCHING_BAND_RATE_CARD: MarchingBandRateCardEntry[] = [
+  { package: "BAND CHANT", customer: 600, compliant: 300, nonCompliant: 600 },
+  { package: "DRUM CADENCE ORIGINAL", customer: 350, compliant: 150, nonCompliant: 350 },
+  {
+    package: "FIGHT SONG / ALMA MATER",
+    customer: 1100,
+    compliant: 1100,
+    nonCompliant: 1100,
+    alwaysFixedPayroll: true,
+  },
+  {
+    package: "FIGHT SONG / ALMA MATER PLUS (Written & Recorded Lyrics)",
+    customer: 2250,
+    compliant: 2250,
+    nonCompliant: 2250,
+    alwaysFixedPayroll: true,
+  },
+];
+
+export function lookupMarchingBandRateCardEntry(
+  packageType: string
+): MarchingBandRateCardEntry | null {
+  if (!packageType || !packageType.trim()) return null;
+  const target = packageType.toUpperCase().trim();
+
+  // Direct exact match first
+  let matched = MARCHING_BAND_RATE_CARD.find(
+    (entry) => entry.package.toUpperCase() === target
+  );
+  if (matched) return matched;
+
+  // Substring or prefix match - sort by length descending to match more specific variants first
+  const sorted = [...MARCHING_BAND_RATE_CARD].sort(
+    (a, b) => b.package.length - a.package.length
+  );
+
+  matched = sorted.find((entry) => {
+    const pkgUpper = entry.package.toUpperCase();
+    const pkgCore = pkgUpper.split("(")[0]?.trim() || pkgUpper;
+    return (
+      target.includes(pkgUpper) ||
+      pkgUpper.includes(target) ||
+      target.includes(pkgCore) ||
+      pkgCore.includes(target)
+    );
+  });
+
+  return matched ?? null;
+}
+
+export type MarchingBandPricingEngineInput = {
+  packageType?: string;
+  musicAffiliate?: string;
+  hasSheetMusicAdd?: boolean;
+  hasAddVocals?: boolean;
+};
+
+export type MarchingBandPricingEngineResult = {
+  customerFacingPrice: number;
+  payrollBasePrice: number;
+  compliantPayrollBasePrice: number;
+  nonCompliantPayrollBasePrice: number;
+  complianceStatus: ComplianceStatus;
+  alwaysFixedPayroll: boolean;
+  matchedEntry: MarchingBandRateCardEntry | null;
+  packageName: string;
+};
+
+export function calculateMarchingBandOrderPricing(
+  input: MarchingBandPricingEngineInput
+): MarchingBandPricingEngineResult {
+  const matchedEntry = lookupMarchingBandRateCardEntry(input?.packageType ?? "");
+
+  const complianceStatus = determineComplianceStatus(
+    "marching-band" as any,
+    input?.musicAffiliate
+  );
+
+  if (!matchedEntry) {
+    return {
+      customerFacingPrice: 0,
+      payrollBasePrice: 0,
+      compliantPayrollBasePrice: 0,
+      nonCompliantPayrollBasePrice: 0,
+      complianceStatus,
+      alwaysFixedPayroll: false,
+      matchedEntry: null,
+      packageName: input?.packageType ?? "",
+    };
+  }
+
+  const addOnTotal =
+    (input.hasSheetMusicAdd ? 50 : 0) +
+    (input.hasAddVocals ? 75 : 0);
+
+  const customerFacingPrice = matchedEntry.customer + addOnTotal;
+  const compliantPayrollBasePrice = matchedEntry.compliant + addOnTotal;
+  const nonCompliantPayrollBasePrice = matchedEntry.nonCompliant + addOnTotal;
+  const alwaysFixedPayroll = Boolean(matchedEntry.alwaysFixedPayroll);
+
+  let payrollBasePrice = compliantPayrollBasePrice;
+  if (alwaysFixedPayroll) {
+    // Fight Song / Alma Mater (both variants): "pull full amount", compliance-insensitive
+    payrollBasePrice = customerFacingPrice;
+  } else if (complianceStatus === "non-compliant") {
+    payrollBasePrice = nonCompliantPayrollBasePrice;
+  } else if (complianceStatus === "unknown-no-affiliate-field") {
+    // Per Conflict #1: no affiliate on file, return unknown-no-affiliate-field status
+    // payrollBasePrice defaults to non-compliant / full package amount ($600 / $350 + add-ons)
+    payrollBasePrice = nonCompliantPayrollBasePrice;
+  } else {
+    payrollBasePrice = compliantPayrollBasePrice;
+  }
+
+  return {
+    customerFacingPrice,
+    payrollBasePrice,
+    compliantPayrollBasePrice,
+    nonCompliantPayrollBasePrice,
+    complianceStatus,
+    alwaysFixedPayroll,
+    matchedEntry,
+    packageName: matchedEntry.package,
+  };
+}
+
+export type SportsEntertainmentRateCardEntry = {
+  package: string;
+  customer: number | null;
+  compliant: number | null;
+  nonCompliant: number | null;
+  isUnpriced?: boolean;
+};
+
+/** Sports Entertainment Pricing Table */
+export const SPORTS_ENTERTAINMENT_RATE_CARD: SportsEntertainmentRateCardEntry[] = [
+  { package: "QUARTER BREAK / TIMEOUT REMIXED", customer: 150, compliant: 150, nonCompliant: 150 },
+  { package: "PRE-GAME / HALFTIME REMIXED", customer: 250, compliant: 250, nonCompliant: 250 },
+  {
+    package: "OTHER (mixes longer than 2:30)",
+    customer: null,
+    compliant: null,
+    nonCompliant: null,
+    isUnpriced: true,
+  },
+];
+
+export function lookupSportsEntertainmentRateCardEntry(
+  packageType: string
+): SportsEntertainmentRateCardEntry | null {
+  if (!packageType || !packageType.trim()) return null;
+  const target = packageType.toUpperCase().trim();
+
+  // Direct exact match first
+  let matched = SPORTS_ENTERTAINMENT_RATE_CARD.find(
+    (entry) => entry.package.toUpperCase() === target
+  );
+  if (matched) return matched;
+
+  // Substring or prefix match
+  const sorted = [...SPORTS_ENTERTAINMENT_RATE_CARD].sort(
+    (a, b) => b.package.length - a.package.length
+  );
+
+  matched = sorted.find((entry) => {
+    const pkgUpper = entry.package.toUpperCase();
+    return (
+      target.includes(pkgUpper) ||
+      pkgUpper.includes(target) ||
+      (entry.isUnpriced && (target.includes("OTHER") || target.includes("2:30")))
+    );
+  });
+
+  return matched ?? null;
+}
+
+export type SportsEntertainmentPricingEngineInput = {
+  packageType?: string;
+  isRushOrder?: "yes" | "no" | boolean | string;
+};
+
+export type SportsEntertainmentPricingEngineResult = {
+  customerFacingPrice: number | null;
+  payrollBasePrice: number | null;
+  compliantPayrollBasePrice: number | null;
+  nonCompliantPayrollBasePrice: number | null;
+  complianceStatus: ComplianceStatus;
+  isUnpriced: boolean;
+  needsManualQuote: boolean;
+  matchedEntry: SportsEntertainmentRateCardEntry | null;
+  packageName: string;
+  hasRushFee: boolean;
+  rushFeeAmount: number;
+};
+
+export function calculateSportsEntertainmentOrderPricing(
+  input: SportsEntertainmentPricingEngineInput
+): SportsEntertainmentPricingEngineResult {
+  const matchedEntry = lookupSportsEntertainmentRateCardEntry(input?.packageType ?? "");
+
+  const isRush =
+    input?.isRushOrder === "yes" ||
+    input?.isRushOrder === true ||
+    String(input?.isRushOrder).toLowerCase() === "yes";
+
+  const rushFeeAmount = isRush ? 100 : 0;
+
+  if (!matchedEntry) {
+    return {
+      customerFacingPrice: 0,
+      payrollBasePrice: 0,
+      compliantPayrollBasePrice: 0,
+      nonCompliantPayrollBasePrice: 0,
+      complianceStatus: "unknown-no-affiliate-field",
+      isUnpriced: false,
+      needsManualQuote: false,
+      matchedEntry: null,
+      packageName: input?.packageType ?? "",
+      hasRushFee: isRush,
+      rushFeeAmount,
+    };
+  }
+
+  if (matchedEntry.isUnpriced || matchedEntry.customer === null) {
+    return {
+      customerFacingPrice: null,
+      payrollBasePrice: null,
+      compliantPayrollBasePrice: null,
+      nonCompliantPayrollBasePrice: null,
+      complianceStatus: "unknown-no-affiliate-field",
+      isUnpriced: true,
+      needsManualQuote: true,
+      matchedEntry,
+      packageName: matchedEntry.package,
+      hasRushFee: isRush,
+      rushFeeAmount,
+    };
+  }
+
+  const customerFacingPrice = matchedEntry.customer + rushFeeAmount;
+  const payrollBasePrice = customerFacingPrice;
+
+  return {
+    customerFacingPrice,
+    payrollBasePrice,
+    compliantPayrollBasePrice: customerFacingPrice,
+    nonCompliantPayrollBasePrice: customerFacingPrice,
+    complianceStatus: "unknown-no-affiliate-field",
+    isUnpriced: false,
+    needsManualQuote: false,
+    matchedEntry,
+    packageName: matchedEntry.package,
+    hasRushFee: isRush,
+    rushFeeAmount,
+  };
+}
+
+export type SchoolAnthemRateCardEntry = {
+  package: string;
+  customer: number;
+  compliant: number;
+  nonCompliant: number;
+};
+
+/** School Anthems Pricing Table (Single package: $1,250 flat) */
+export const SCHOOL_ANTHEM_RATE_CARD: SchoolAnthemRateCardEntry[] = [
+  { package: "SCHOOL ANTHEMS", customer: 1250, compliant: 1250, nonCompliant: 1250 },
+];
+
+export function lookupSchoolAnthemRateCardEntry(
+  _packageType?: string
+): SchoolAnthemRateCardEntry {
+  // Always returns the single SCHOOL ANTHEMS package ($1,250)
+  return SCHOOL_ANTHEM_RATE_CARD[0];
+}
+
+export type SchoolAnthemPricingEngineInput = {
+  packageType?: string;
+  couponCode?: string;
+};
+
+export type SchoolAnthemPricingEngineResult = {
+  customerFacingPrice: number;
+  payrollBasePrice: number;
+  compliantPayrollBasePrice: number;
+  nonCompliantPayrollBasePrice: number;
+  complianceStatus: ComplianceStatus;
+  matchedEntry: SchoolAnthemRateCardEntry;
+  packageName: string;
+};
+
+export function calculateSchoolAnthemOrderPricing(
+  input?: SchoolAnthemPricingEngineInput
+): SchoolAnthemPricingEngineResult {
+  const matchedEntry = lookupSchoolAnthemRateCardEntry(input?.packageType);
+
+  return {
+    customerFacingPrice: matchedEntry.customer,
+    payrollBasePrice: matchedEntry.compliant,
+    compliantPayrollBasePrice: matchedEntry.customer,
+    nonCompliantPayrollBasePrice: matchedEntry.customer,
+    complianceStatus: "unknown-no-affiliate-field",
+    matchedEntry,
+    packageName: matchedEntry.package,
+  };
+}
+
+
+
+

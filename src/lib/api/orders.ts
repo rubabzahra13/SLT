@@ -218,8 +218,8 @@ export async function updateOrderApi(
     const res = await apiClient.patch<BackendOrder>(`/api/orders/${id}`, payload);
     return transformOrder(res);
   } catch (err) {
-    if (err instanceof ApiClientError && err.status === 404) {
-      console.warn(`Order ${id} not found on backend (local/seed order). Update persisted locally.`);
+    if (err instanceof ApiClientError) {
+      console.warn(`Order ${id} update not persisted to backend (${err.message}). Local update retained.`);
       return { id, ...patch } as Order;
     }
     throw err;

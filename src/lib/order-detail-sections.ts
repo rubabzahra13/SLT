@@ -636,6 +636,134 @@ const JAZZ_KICK_DANCE_FIELDS: { title: string; fields: FieldDef[] }[] = [
   },
 ];
 
+const MARCHING_BAND_FIELDS: { title: string; fields: FieldDef[] }[] = [
+  {
+    title: "School / Program information",
+    fields: [
+      { key: "schoolProgramName", label: "School/Program Name" },
+      { key: "schoolGymAddress", label: "School/Gym Address", multiline: true },
+      { key: "city", label: "City" },
+      { key: "stateProvince", label: "State/Province" },
+      { key: "zipPostalCode", label: "ZIP/Postal Code", preserveCase: true },
+      { key: "country", label: "Country" },
+    ],
+  },
+  {
+    title: "Contact & Billing information",
+    fields: [
+      { key: "coachName", label: "Coach (full name)" },
+      { key: "coachPhone", label: "Coach phone #", preserveCase: true },
+      { key: "coachEmail", label: "Coach email", preserveCase: true },
+      { key: "billingPersonName", label: "Billing person (full name)" },
+      { key: "billingPersonEmail", label: "Billing person email", preserveCase: true },
+    ],
+  },
+  {
+    title: "Package & Production information",
+    fields: [
+      { key: "packageType", label: "Package type", multiline: true },
+      { key: "timeLengthOfMix", label: "Time length of mix", preserveCase: true },
+      {
+        key: "instrumentationNotes",
+        label: "Notes to producer regarding instrumentation",
+        multiline: true,
+        preserveCase: true,
+      },
+      {
+        key: "lyricalNotes",
+        label: "Notes to producer regarding lyrics",
+        multiline: true,
+        preserveCase: true,
+      },
+    ],
+  },
+];
+
+const SPORTS_ENTERTAINMENT_FIELDS: { title: string; fields: FieldDef[] }[] = [
+  {
+    title: "Organization information",
+    fields: [
+      { key: "organizationName", label: "Organization Name" },
+      { key: "billingAddress", label: "Organization's Billing Address", multiline: true },
+      { key: "city", label: "City" },
+      { key: "stateProvince", label: "State/Province" },
+      { key: "zipPostalCode", label: "ZIP/Postal Code", preserveCase: true },
+      { key: "country", label: "Country" },
+    ],
+  },
+  {
+    title: "Contact & Billing information",
+    fields: [
+      { key: "musicContactName", label: "Music Contact Name" },
+      { key: "musicContactPhone", label: "Music Contact Phone", preserveCase: true },
+      { key: "musicContactEmail", label: "Music Contact Email", preserveCase: true },
+      { key: "billingContactName", label: "Billing Contact Name" },
+      { key: "billingContactEmail", label: "Billing Contact Email", preserveCase: true },
+    ],
+  },
+  {
+    title: "Package & Production information",
+    fields: [
+      { key: "packageType", label: "Package type", multiline: true },
+      { key: "isRushOrder", label: "Do You Need A Rush Order?" },
+      { key: "timeLengthOfMix", label: "Time length of mix", preserveCase: true },
+      {
+        key: "customerSongs",
+        label: "Customer-submitted song list",
+        multiline: true,
+        preserveCase: true,
+      },
+      {
+        key: "additionalNotes",
+        label: "Additional notes",
+        multiline: true,
+        preserveCase: true,
+      },
+    ],
+  },
+];
+
+const SCHOOL_ANTHEMS_FIELDS: { title: string; fields: FieldDef[] }[] = [
+  {
+    title: "School / Organization information",
+    fields: [
+      { key: "schoolOrganizationName", label: "School/Organization Name" },
+      { key: "schoolBillingAddress", label: "School Billing Address", multiline: true },
+      { key: "city", label: "City" },
+      { key: "stateProvince", label: "State/Province" },
+      { key: "zipPostalCode", label: "ZIP/Postal Code", preserveCase: true },
+      { key: "country", label: "Country" },
+    ],
+  },
+  {
+    title: "Contact & Billing information",
+    fields: [
+      { key: "musicContactName", label: "Music Contact Name" },
+      { key: "musicContactPhone", label: "Music Contact Phone", preserveCase: true },
+      { key: "musicContactEmail", label: "Music Contact Email", preserveCase: true },
+      { key: "billingPersonName", label: "Billing person (full name)" },
+      { key: "billingPersonEmail", label: "Billing person email", preserveCase: true },
+    ],
+  },
+  {
+    title: "Anthem Preferences & Details",
+    fields: [
+      { key: "mascot", label: "Mascot" },
+      { key: "schoolProgramColors", label: "School/Program Colors" },
+      { key: "nicknames", label: "Nicknames / Terms / Sayings", multiline: true },
+      { key: "vocalsPreference", label: "Vocals Preference" },
+      { key: "instrumentalStylePreference", label: "Instrumental Style Preference" },
+      {
+        key: "lyricalNotes",
+        label: "Lyrical Notes / Ideas",
+        multiline: true,
+        preserveCase: true,
+      },
+      { key: "couponCode", label: "Coupon code", preserveCase: true },
+    ],
+  },
+];
+
 const CHEER_FORM_CODES: Partial<Record<CheerFormSubtype, string>> = {
   "all-star-cheer": "A",
   "school-cheer-viroc-yes": "B",
@@ -725,6 +853,18 @@ export function getOrderDetailSections(order: Order): OrderDetailSection[] {
       default:
         return buildSections(POM_DANCE_FIELDS, order);
     }
+  }
+
+  if (order.formType === "marching-band") {
+    return buildSections(MARCHING_BAND_FIELDS, order);
+  }
+
+  if (order.formType === "sports-entertainment") {
+    return buildSections(SPORTS_ENTERTAINMENT_FIELDS, order);
+  }
+
+  if (order.formType === "school-anthem") {
+    return buildSections(SCHOOL_ANTHEMS_FIELDS, order);
   }
 
   return [
