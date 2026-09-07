@@ -96,9 +96,17 @@ export function ProducerScheduleDrawer({
           contentClassName="flex flex-col gap-1.5"
         >
           <p className="text-label mb-3">
-            {range === "week" ? "This week" : range === "month" ? "Last 30 days" : "Last 90 days"}
+            {range === "week"
+              ? "This week"
+              : range === "month"
+                ? "Last 30 days"
+                : range === "90days"
+                  ? "Last 90 days"
+                  : "Last 6 months"}
           </p>
-          {cells.map((cell) => (
+          {cells.map((cell) => {
+            const bookings = cell.bookings ?? (cell.booking ? [cell.booking] : []);
+            return (
               <div
                 key={cell.key}
                 className={clsx(
@@ -114,18 +122,24 @@ export function ProducerScheduleDrawer({
                   </p>
                   <p className="text-[11px] text-brand-ink-tertiary">
                     {statusLabel(cell.status)}
+                    {bookings.length > 0 && bookings[0].work
+                      ? ` · ${bookings.map((b) => b.work).join(", ")}`
+                      : ""}
                   </p>
                 </div>
                 <span
                   className={clsx(
                     "h-3 w-3 rounded-[3px]",
-                    cell.unavailable
-                      ? "bg-brand-signature"
-                      : "bg-brand-surface ring-1 ring-inset ring-brand-line/80"
+                    cell.status === "off"
+                      ? "bg-brand-orange"
+                      : cell.unavailable
+                        ? "bg-brand-signature"
+                        : "bg-emerald-500 ring-1 ring-emerald-600/30"
                   )}
                 />
               </div>
-            ))}
+            );
+          })}
         </DottedScroll>
       </aside>
     </div>

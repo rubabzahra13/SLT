@@ -459,7 +459,7 @@ export default function MTDPage() {
         key: "rowId",
         header: "ID",
         width: "56px",
-        align: "center",
+        align: "center" as const,
         render: (_rec, index) => (
           <span className="tabular-nums text-[12px] text-brand-ink">
             {index + 1}
@@ -470,7 +470,7 @@ export default function MTDPage() {
         key: "contactC",
         header: "Contact",
         width: "100px",
-        align: "center",
+        align: "center" as const,
         nowrap: false,
         cellClassName: clsx(compactCellClass, "max-w-[100px]"),
         headerClassName: compactHeaderClass,
@@ -486,7 +486,7 @@ export default function MTDPage() {
         key: "programD",
         header: "Program",
         width: "100px",
-        align: "center",
+        align: "center" as const,
         nowrap: false,
         cellClassName: clsx(compactCellClass, "max-w-[100px]"),
         headerClassName: compactHeaderClass,
@@ -496,7 +496,7 @@ export default function MTDPage() {
         key: "packageE",
         header: "Package",
         width: "100px",
-        align: "center",
+        align: "center" as const,
         nowrap: false,
         cellClassName: clsx(compactCellClass, "max-w-[100px]"),
         headerClassName: compactHeaderClass,
@@ -618,7 +618,7 @@ export default function MTDPage() {
         key: "themeF",
         header: "Music",
         width: "100px",
-        align: "center",
+        align: "center" as const,
         nowrap: false,
         cellClassName: clsx(compactCellClass, "max-w-[100px]"),
         headerClassName: compactHeaderClass,
@@ -628,7 +628,7 @@ export default function MTDPage() {
         key: "chosenInitialsF",
         header: "Requested editor",
         width: "100px",
-        align: "center",
+        align: "center" as const,
         nowrap: false,
         cellClassName: clsx(compactCellClass, "max-w-[100px]"),
         headerClassName: compactHeaderClass,
@@ -682,7 +682,7 @@ export default function MTDPage() {
         key: "priceG",
         header: "Customer Price",
         width: "110px",
-        align: "center",
+        align: "center" as const,
         nowrap: false,
         cellClassName: "!px-2",
         headerClassName: "!px-2",
@@ -804,7 +804,7 @@ export default function MTDPage() {
         key: "mixDateI",
         header: "Mix start date",
         width: "128px",
-        align: "center",
+        align: "center" as const,
         nowrap: false,
         cellClassName: "!px-2 !py-1.5",
         headerClassName: "!px-2",
@@ -844,7 +844,7 @@ export default function MTDPage() {
         key: "mixEndDate",
         header: "Mix end date",
         width: "128px",
-        align: "center",
+        align: "center" as const,
         nowrap: false,
         cellClassName: "!px-2 !py-1.5",
         headerClassName: "!px-2",
@@ -872,42 +872,46 @@ export default function MTDPage() {
           );
         },
       },
-      {
-        key: "eightJ",
-        header: "COLLECTIONS",
-        width: "168px",
-        align: "center",
-        nowrap: false,
-        cellClassName: "!px-2 !py-2",
-        headerClassName: "!px-2",
-        render: (rec) => {
-          const state = parseEightCsState(rec.eightCountSheet ?? "");
+      ...(form === "school-all-star-cheer"
+        ? [
+            {
+              key: "eightJ",
+              header: "COLLECTIONS",
+              width: "168px",
+              align: "center" as const,
+              nowrap: false,
+              cellClassName: "!px-2 !py-2",
+              headerClassName: "!px-2",
+              render: (rec: MTDRecord) => {
+                const state = parseEightCsState(rec.eightCountSheet ?? "");
 
-          return (
-            <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
-              <InlineTriStateCheckGroup
-                items={[
-                  { id: "cs", label: "CS", state: state.cs },
-                  { id: "video", label: "Video", state: state.video },
-                  { id: "form", label: "Form", state: state.form },
-                  { id: "mix", label: "Mix", state: state.mix },
-                ]}
-                onCycle={(id) => {
-                  const next = cycleEightCsItem(state, id as keyof typeof state);
-                  updateMTD(rec.id, {
-                    eightCountSheet: encodeEightCsState(next),
-                  });
-                }}
-              />
-            </div>
-          );
-        },
-      },
+                return (
+                  <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
+                    <InlineTriStateCheckGroup
+                      items={[
+                        { id: "cs", label: "CS", state: state.cs },
+                        { id: "video", label: "Video", state: state.video },
+                        { id: "form", label: "Form", state: state.form },
+                        { id: "mix", label: "Mix", state: state.mix },
+                      ]}
+                      onCycle={(id) => {
+                        const next = cycleEightCsItem(state, id as keyof typeof state);
+                        updateMTD(rec.id, {
+                          eightCountSheet: encodeEightCsState(next),
+                        });
+                      }}
+                    />
+                  </div>
+                );
+              },
+            },
+          ]
+        : []),
       {
         key: "songsK",
         header: "Songs",
         width: "132px",
-        align: "center",
+        align: "center" as const,
         nowrap: false,
         cellClassName: "!px-2 !py-2",
         headerClassName: "!px-2",

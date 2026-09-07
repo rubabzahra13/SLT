@@ -62,7 +62,8 @@ export default function SchedulePage() {
     [teamRows, view]
   );
 
-  const calendarRange: "week" | "month" = view === "90days" ? "month" : view;
+  const calendarRange: "week" | "month" =
+    view === "90days" || view === "6months" ? "month" : view;
 
   function handleSelectProducer(row: TeamScheduleRow, cell?: ScheduleCell) {
     setSelectedDay(null);
@@ -78,7 +79,7 @@ export default function SchedulePage() {
   function handlePresentationChange(next: SchedulePresentation) {
     setPresentation(next);
     setSelectedDay(null);
-    if (next === "calendar" && view === "90days") {
+    if (next === "calendar" && (view === "90days" || view === "6months")) {
       setView("month");
     }
   }

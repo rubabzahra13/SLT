@@ -94,24 +94,32 @@ export function SchedulePageToolbar({
 
         <FilterGroup label="Range" className="sm:col-span-2 xl:col-span-1 xl:justify-self-end">
           <FilterPill
-            label="This week"
+            label="This Week"
             active={view === "week"}
             variant="grouped"
             onClick={() => onViewChange("week")}
           />
           <FilterPill
-            label="This month"
+            label="This Month"
             active={view === "month"}
             variant="grouped"
             onClick={() => onViewChange("month")}
           />
           {presentation === "matrix" ? (
-            <FilterPill
-              label="90 days"
-              active={view === "90days"}
-              variant="grouped"
-              onClick={() => onViewChange("90days")}
-            />
+            <>
+              <FilterPill
+                label="90 Day"
+                active={view === "90days"}
+                variant="grouped"
+                onClick={() => onViewChange("90days")}
+              />
+              <FilterPill
+                label="6 Month"
+                active={view === "6months"}
+                variant="grouped"
+                onClick={() => onViewChange("6months")}
+              />
+            </>
           ) : null}
         </FilterGroup>
       </div>

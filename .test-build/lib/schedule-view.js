@@ -51,7 +51,7 @@ function inferStatus(producer, date, scheduleByDay) {
     if (entry)
         return entry.status;
     const day = date.getDay();
-    const seed = hashSeed(`${producer.id}-${date.toISOString().slice(0, 10)}`);
+    const seed = hashSeed(`${producer.id}-${toLocalIsoDate(date)}`);
     if (day === 0 || day === 6) {
         return seed % 4 === 0 ? "mix" : "off";
     }
@@ -71,6 +71,12 @@ function addDays(date, days) {
     next.setDate(next.getDate() + days);
     return next;
 }
+function toLocalIsoDate(date) {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+}
 function formatDisplayDate(date) {
     return `${MONTH_NAMES[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
 }
@@ -85,20 +91,8 @@ function producerAssignments(producer, mtdRecords) {
         producerMatchesAssignment(producer, rec.assignedProducer) &&
         rec.status === "active");
 }
-function resolveBooking(producer, date, status, assignments) {
-    if (status === "available")
-        return null;
-    if (status === "off") {
-        const until = date.getDay() === 0 || date.getDay() === 6
-            ? addDays(date, date.getDay() === 6 ? 1 : 0)
-            : date;
-        return {
-            work: "Unavailable",
-            until: formatDisplayDate(until),
-        };
-    }
-    const seed = hashSeed(`${producer.id}-${date.toISOString().slice(0, 10)}`);
-    const covering = assignments.find((rec) => {
+function resolveBookings(producer, date, status, assignments) {
+    const covering = assignments.filter((rec) => {
         const start = (0, dates_1.parseFlexibleDate)(rec.mixStartDate);
         const end = (0, dates_1.parseFlexibleDate)(rec.mixEndDate);
         if (!start)
@@ -116,20 +110,55 @@ function resolveBooking(producer, date, status, assignments) {
         }
         return day.getTime() - startDay.getTime() <= 7 * 86400000;
     });
-    const pick = covering ??
-        (assignments.length > 0 ? assignments[seed % assignments.length] : null);
+    if (covering.length > 0) {
+        return covering.map((pick) => {
+            const untilDate = (0, dates_1.parseFlexibleDate)(pick.mixEndDate) ??
+                addDays((0, dates_1.parseFlexibleDate)(pick.mixStartDate) ?? date, 3);
+            return {
+                work: pick.programName,
+                until: formatDisplayDate(untilDate),
+                mixId: pick.id,
+                status: pick.status,
+            };
+        });
+    }
+    if (status === "available")
+        return [];
+    if (status === "off") {
+        const until = date.getDay() === 0 || date.getDay() === 6
+            ? addDays(date, date.getDay() === 6 ? 1 : 0)
+            : date;
+        return [
+            {
+                work: "Unavailable",
+                until: formatDisplayDate(until),
+            },
+        ];
+    }
+    const seed = hashSeed(`${producer.id}-${toLocalIsoDate(date)}`);
+    const pick = assignments.length > 0 ? assignments[seed % assignments.length] : null;
     if (!pick) {
-        return {
-            work: `${producer.specialty} mix`,
-            until: formatDisplayDate(addDays(date, 2 + (seed % 5))),
-        };
+        return [
+            {
+                work: `${producer.specialty} mix`,
+                until: formatDisplayDate(addDays(date, 2 + (seed % 5))),
+            },
+        ];
     }
     const untilDate = (0, dates_1.parseFlexibleDate)(pick.mixEndDate) ??
         addDays((0, dates_1.parseFlexibleDate)(pick.mixStartDate) ?? date, 3 + (seed % 4));
-    return {
-        work: pick.programName,
-        until: formatDisplayDate(untilDate),
-    };
+    return [
+        {
+            work: pick.programName,
+            until: formatDisplayDate(untilDate),
+            mixId: pick.id,
+            status: pick.status,
+        },
+    ];
+}
+function resolveBooking(producer, date, status, assignments) {
+    const bookings = resolveBookings(producer, date, status, assignments);
+    return bookings[0] ?? null;
 }
 function startOfCalendarWeek(date) {
     const start = new Date(date);
@@ -150,7 +179,7 @@ function buildDateRange(range, anchor) {
         }
         return dates;
     }
-    const days = range === "month" ? 30 : 90;
+    const days = range === "month" ? 30 : range === "90days" ? 90 : 180;
     const dates = [];
     for (let i = days - 1; i >= 0; i -= 1) {
         const d = new Date(end);
@@ -166,15 +195,20 @@ function getScheduleCells(producer, schedule, range, anchorDate = new Date(2026,
         .map((entry) => [entry.day, entry]));
     const assignments = producerAssignments(producer, mtdRecords);
     return buildDateRange(range, anchorDate).map((date) => {
-        const status = inferStatus(producer, date, scheduleByDay);
+        let status = inferStatus(producer, date, scheduleByDay);
+        const bookings = resolveBookings(producer, date, status, assignments);
+        if (bookings.length > 0 && status === "available") {
+            status = "mix";
+        }
         return {
-            key: date.toISOString().slice(0, 10),
+            key: toLocalIsoDate(date),
             date,
             dayLabel: DAY_NAMES[date.getDay()],
             dateLabel: `${MONTH_NAMES[date.getMonth()]} ${date.getDate()}`,
             status,
-            unavailable: status === "off" || status === "mix",
-            booking: resolveBooking(producer, date, status, assignments),
+            unavailable: status === "off" || status === "mix" || bookings.length > 0,
+            booking: bookings[0] ?? null,
+            bookings,
         };
     });
 }
@@ -232,7 +266,9 @@ function rangeLabel(range, anchorDate = new Date(2026, 7, 19)) {
     }
     if (range === "month")
         return "Last 30 days";
-    return "Last 90 days";
+    if (range === "90days")
+        return "Last 90 days";
+    return "Last 6 months";
 }
 function buildTeamSchedule(producers, schedule, range, anchorDate = new Date(2026, 7, 19), mtdRecords = []) {
     return producers.map((producer) => ({
@@ -243,7 +279,7 @@ function buildTeamSchedule(producers, schedule, range, anchorDate = new Date(202
 function aggregateColumns(rows, anchorDate = new Date(2026, 7, 19)) {
     if (rows.length === 0)
         return [];
-    const todayKey = anchorDate.toISOString().slice(0, 10);
+    const todayKey = toLocalIsoDate(anchorDate);
     return rows[0].cells.map((cell, index) => {
         const unavailableCount = rows.filter((row) => row.cells[index]?.unavailable).length;
         const availableCount = rows.length - unavailableCount;
@@ -259,9 +295,9 @@ function aggregateColumns(rows, anchorDate = new Date(2026, 7, 19)) {
     });
 }
 function buildScheduleColumnAggregates(range, anchorDate = new Date(2026, 7, 19)) {
-    const todayKey = anchorDate.toISOString().slice(0, 10);
+    const todayKey = toLocalIsoDate(anchorDate);
     return buildDateRange(range, anchorDate).map((date) => {
-        const key = date.toISOString().slice(0, 10);
+        const key = toLocalIsoDate(date);
         return {
             key,
             availableCount: 0,
@@ -274,7 +310,7 @@ function buildScheduleColumnAggregates(range, anchorDate = new Date(2026, 7, 19)
     });
 }
 function buildCalendarDays(rows, range, anchorDate = new Date(2026, 7, 19)) {
-    const todayKey = anchorDate.toISOString().slice(0, 10);
+    const todayKey = toLocalIsoDate(anchorDate);
     const dates = range === "week"
         ? buildDateRange("week", anchorDate)
         : (() => {
@@ -287,7 +323,7 @@ function buildCalendarDays(rows, range, anchorDate = new Date(2026, 7, 19)) {
             return days;
         })();
     return dates.map((date) => {
-        const key = date.toISOString().slice(0, 10);
+        const key = toLocalIsoDate(date);
         const unavailableProducers = rows
             .map((row) => {
             const cell = row.cells.find((entry) => entry.key === key);
@@ -338,7 +374,7 @@ function createPaddedCalendarDay(baseDate, offsetDays) {
     const date = new Date(baseDate);
     date.setDate(baseDate.getDate() + offsetDays);
     return {
-        key: `pad-${date.toISOString().slice(0, 10)}`,
+        key: `pad-${toLocalIsoDate(date)}`,
         date,
         dayLabel: DAY_NAMES[date.getDay()],
         dateLabel: `${MONTH_NAMES[date.getMonth()]} ${date.getDate()}`,

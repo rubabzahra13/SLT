@@ -38,26 +38,31 @@ const LAYOUT = {
   monthBarH: {
     month: 28,
     "90days": 26,
+    "6months": 26,
   },
   producerCol: {
     week: 58,
     month: 52,
     "90days": 48,
+    "6months": 44,
   },
   barMax: {
     week: 48,
     month: 28,
     "90days": 24,
+    "6months": 20,
   },
   headerH: {
     week: 88,
     month: 86,
     "90days": 84,
+    "6months": 84,
   },
   rowH: {
     week: 34,
     month: 32,
     "90days": 30,
+    "6months": 30,
   },
 } as const;
 
@@ -106,8 +111,50 @@ function ScheduleCellButton({
   onClick: () => void;
 }) {
   const isWeek = range === "week";
-  const booking = cell.booking;
   const isOff = cell.status === "off";
+  const bookings = cell.bookings ?? (cell.booking ? [cell.booking] : []);
+
+  if (bookings.length > 1) {
+    return (
+      <div className="flex w-full flex-col gap-0.5 items-center justify-center">
+        {bookings.map((b, idx) => (
+          <HoverTip
+            key={b.mixId ?? `${cell.key}-${idx}`}
+            className="w-full justify-center"
+            placement="top"
+            content={
+              <div className="min-w-[160px]">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-brand-signature">
+                  {statusLabel(cell.status)} {bookings.length > 1 ? `(#${idx + 1})` : ""}
+                </p>
+                <p className="mt-1 text-[12px] font-medium leading-snug text-brand-ink">
+                  {b.work}
+                </p>
+                <p className="mt-1.5 text-[11px] text-brand-ink-secondary">
+                  Until {b.until}
+                </p>
+              </div>
+            }
+          >
+            <button
+              type="button"
+              onClick={onClick}
+              className={clsx(
+                "mx-auto w-full rounded-md transition-all duration-150 hover:scale-[1.04] hover:ring-1",
+                isWeek ? "h-2.5 max-h-3" : "h-2",
+                "bg-gradient-to-b from-brand-blue to-brand-signature shadow-[0_1px_2px_rgba(15,30,45,0.18)] hover:ring-brand-blue/40",
+                selected && "ring-2 ring-brand-orange ring-offset-1 ring-offset-white"
+              )}
+              style={{ maxWidth: LAYOUT.barMax[range] }}
+              aria-label={`${statusLabel(cell.status)}: ${b.work}, until ${b.until}`}
+            />
+          </HoverTip>
+        ))}
+      </div>
+    );
+  }
+
+  const booking = bookings[0] ?? cell.booking;
 
   const button = (
     <button
@@ -125,7 +172,7 @@ function ScheduleCellButton({
           ? "bg-brand-orange/80 shadow-[0_1px_2px_rgba(240,120,64,0.16)] hover:ring-brand-orange/30"
           : cell.unavailable
             ? "bg-gradient-to-b from-brand-blue to-brand-signature shadow-[0_1px_2px_rgba(15,30,45,0.18)] hover:ring-brand-blue/40"
-            : "bg-white ring-1 ring-inset ring-brand-line/70 hover:bg-brand-blue-soft/40 hover:ring-brand-blue/40",
+            : "bg-emerald-50/80 ring-1 ring-inset ring-emerald-400/60 shadow-[0_1px_2px_rgba(16,185,129,0.12)] hover:bg-emerald-100 hover:ring-emerald-500/70",
         selected &&
           "ring-2 ring-brand-orange ring-offset-1 ring-offset-white"
       )}
@@ -190,7 +237,10 @@ export function TeamScheduleMatrix({
     return rows.map((row) => ({
       row,
       availableCount: row.cells.filter((cell) => !cell.unavailable).length,
-      bookingCount: row.cells.filter((cell) => cell.unavailable).length,
+      bookingCount: row.cells.reduce(
+        (acc, cell) => acc + (cell.bookings?.length ?? (cell.unavailable ? 1 : 0)),
+        0
+      ),
       entries: columns.map((column, dayIndex) => ({
         column,
         cell: row.cells[dayIndex],

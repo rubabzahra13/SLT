@@ -1,11 +1,13 @@
 import type { MTDRecord, Producer, ScheduleEntry } from "@/types";
 import { parseFlexibleDate } from "@/lib/dates";
 
-export type ScheduleViewRange = "week" | "month" | "90days";
+export type ScheduleViewRange = "week" | "month" | "90days" | "6months";
 
 export type CellBooking = {
   work: string;
   until: string;
+  mixId?: string;
+  status?: string;
 };
 
 export type ScheduleCell = {
@@ -16,6 +18,7 @@ export type ScheduleCell = {
   status: "available" | "mix" | "off";
   unavailable: boolean;
   booking?: CellBooking | null;
+  bookings?: CellBooking[];
 };
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -61,7 +64,7 @@ function inferStatus(
   if (entry) return entry.status;
 
   const day = date.getDay();
-  const seed = hashSeed(`${producer.id}-${date.toISOString().slice(0, 10)}`);
+  const seed = hashSeed(`${producer.id}-${toLocalIsoDate(date)}`);
 
   if (day === 0 || day === 6) {
     return seed % 4 === 0 ? "mix" : "off";
@@ -84,6 +87,13 @@ function addDays(date: Date, days: number): Date {
   next.setHours(0, 0, 0, 0);
   next.setDate(next.getDate() + days);
   return next;
+}
+
+function toLocalIsoDate(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 }
 
 function formatDisplayDate(date: Date): string {
@@ -111,27 +121,13 @@ function producerAssignments(
   );
 }
 
-function resolveBooking(
+function resolveBookings(
   producer: Producer,
   date: Date,
   status: ScheduleCell["status"],
   assignments: MTDRecord[]
-): CellBooking | null {
-  if (status === "available") return null;
-
-  if (status === "off") {
-    const until =
-      date.getDay() === 0 || date.getDay() === 6
-        ? addDays(date, date.getDay() === 6 ? 1 : 0)
-        : date;
-    return {
-      work: "Unavailable",
-      until: formatDisplayDate(until),
-    };
-  }
-
-  const seed = hashSeed(`${producer.id}-${date.toISOString().slice(0, 10)}`);
-  const covering = assignments.find((rec) => {
+): CellBooking[] {
+  const covering = assignments.filter((rec) => {
     const start = parseFlexibleDate(rec.mixStartDate);
     const end = parseFlexibleDate(rec.mixEndDate);
     if (!start) return false;
@@ -148,25 +144,70 @@ function resolveBooking(
     return day.getTime() - startDay.getTime() <= 7 * 86400000;
   });
 
+  if (covering.length > 0) {
+    return covering.map((pick) => {
+      const untilDate =
+        parseFlexibleDate(pick.mixEndDate) ??
+        addDays(parseFlexibleDate(pick.mixStartDate) ?? date, 3);
+      return {
+        work: pick.programName,
+        until: formatDisplayDate(untilDate),
+        mixId: pick.id,
+        status: pick.status,
+      };
+    });
+  }
+
+  if (status === "available") return [];
+
+  if (status === "off") {
+    const until =
+      date.getDay() === 0 || date.getDay() === 6
+        ? addDays(date, date.getDay() === 6 ? 1 : 0)
+        : date;
+    return [
+      {
+        work: "Unavailable",
+        until: formatDisplayDate(until),
+      },
+    ];
+  }
+
+  const seed = hashSeed(`${producer.id}-${toLocalIsoDate(date)}`);
   const pick =
-    covering ??
-    (assignments.length > 0 ? assignments[seed % assignments.length] : null);
+    assignments.length > 0 ? assignments[seed % assignments.length] : null;
 
   if (!pick) {
-    return {
-      work: `${producer.specialty} mix`,
-      until: formatDisplayDate(addDays(date, 2 + (seed % 5))),
-    };
+    return [
+      {
+        work: `${producer.specialty} mix`,
+        until: formatDisplayDate(addDays(date, 2 + (seed % 5))),
+      },
+    ];
   }
 
   const untilDate =
     parseFlexibleDate(pick.mixEndDate) ??
     addDays(parseFlexibleDate(pick.mixStartDate) ?? date, 3 + (seed % 4));
 
-  return {
-    work: pick.programName,
-    until: formatDisplayDate(untilDate),
-  };
+  return [
+    {
+      work: pick.programName,
+      until: formatDisplayDate(untilDate),
+      mixId: pick.id,
+      status: pick.status,
+    },
+  ];
+}
+
+function resolveBooking(
+  producer: Producer,
+  date: Date,
+  status: ScheduleCell["status"],
+  assignments: MTDRecord[]
+): CellBooking | null {
+  const bookings = resolveBookings(producer, date, status, assignments);
+  return bookings[0] ?? null;
 }
 
 function startOfCalendarWeek(date: Date): Date {
@@ -191,7 +232,7 @@ function buildDateRange(range: ScheduleViewRange, anchor: Date): Date[] {
     return dates;
   }
 
-  const days = range === "month" ? 30 : 90;
+  const days = range === "month" ? 30 : range === "90days" ? 90 : 180;
   const dates: Date[] = [];
   for (let i = days - 1; i >= 0; i -= 1) {
     const d = new Date(end);
@@ -217,15 +258,20 @@ export function getScheduleCells(
   const assignments = producerAssignments(producer, mtdRecords);
 
   return buildDateRange(range, anchorDate).map((date) => {
-    const status = inferStatus(producer, date, scheduleByDay);
+    let status = inferStatus(producer, date, scheduleByDay);
+    const bookings = resolveBookings(producer, date, status, assignments);
+    if (bookings.length > 0 && status === "available") {
+      status = "mix";
+    }
     return {
-      key: date.toISOString().slice(0, 10),
+      key: toLocalIsoDate(date),
       date,
       dayLabel: DAY_NAMES[date.getDay()],
       dateLabel: `${MONTH_NAMES[date.getMonth()]} ${date.getDate()}`,
       status,
-      unavailable: status === "off" || status === "mix",
-      booking: resolveBooking(producer, date, status, assignments),
+      unavailable: status === "off" || status === "mix" || bookings.length > 0,
+      booking: bookings[0] ?? null,
+      bookings,
     };
   });
 }
@@ -292,7 +338,8 @@ export function rangeLabel(
     return `Week of ${MONTH_NAMES[start.getMonth()]} ${start.getDate()}–${MONTH_NAMES[end.getMonth()]} ${end.getDate()}`;
   }
   if (range === "month") return "Last 30 days";
-  return "Last 90 days";
+  if (range === "90days") return "Last 90 days";
+  return "Last 6 months";
 }
 
 export type TeamScheduleRow = {
@@ -345,7 +392,7 @@ export function aggregateColumns(
 ): ColumnAggregate[] {
   if (rows.length === 0) return [];
 
-  const todayKey = anchorDate.toISOString().slice(0, 10);
+  const todayKey = toLocalIsoDate(anchorDate);
 
   return rows[0].cells.map((cell, index) => {
     const unavailableCount = rows.filter((row) => row.cells[index]?.unavailable).length;
@@ -366,10 +413,10 @@ export function buildScheduleColumnAggregates(
   range: ScheduleViewRange,
   anchorDate = new Date(2026, 7, 19)
 ): ColumnAggregate[] {
-  const todayKey = anchorDate.toISOString().slice(0, 10);
+  const todayKey = toLocalIsoDate(anchorDate);
 
   return buildDateRange(range, anchorDate).map((date) => {
-    const key = date.toISOString().slice(0, 10);
+    const key = toLocalIsoDate(date);
     return {
       key,
       availableCount: 0,
@@ -387,7 +434,7 @@ export function buildCalendarDays(
   range: Extract<ScheduleViewRange, "week" | "month">,
   anchorDate = new Date(2026, 7, 19)
 ): CalendarDay[] {
-  const todayKey = anchorDate.toISOString().slice(0, 10);
+  const todayKey = toLocalIsoDate(anchorDate);
   const dates =
     range === "week"
       ? buildDateRange("week", anchorDate)
@@ -402,7 +449,7 @@ export function buildCalendarDays(
         })();
 
   return dates.map((date) => {
-    const key = date.toISOString().slice(0, 10);
+    const key = toLocalIsoDate(date);
     const unavailableProducers = rows
       .map((row) => {
         const cell = row.cells.find((entry) => entry.key === key);
@@ -465,7 +512,7 @@ function createPaddedCalendarDay(baseDate: Date, offsetDays: number): CalendarDa
   date.setDate(baseDate.getDate() + offsetDays);
 
   return {
-    key: `pad-${date.toISOString().slice(0, 10)}`,
+    key: `pad-${toLocalIsoDate(date)}`,
     date,
     dayLabel: DAY_NAMES[date.getDay()],
     dateLabel: `${MONTH_NAMES[date.getMonth()]} ${date.getDate()}`,
