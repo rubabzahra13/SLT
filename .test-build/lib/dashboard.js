@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.DASHBOARD_ANCHOR_DATE = void 0;
+exports.getDashboardMixStatus = getDashboardMixStatus;
 exports.buildDashboardPulse = buildDashboardPulse;
 exports.buildEditorLoad = buildEditorLoad;
 exports.buildWaitingOnBreakdown = buildWaitingOnBreakdown;
@@ -18,8 +19,38 @@ const editor_assignment_1 = require("@/lib/editor-assignment");
 const mtd_filters_1 = require("@/lib/mtd-filters");
 const mtd_completion_1 = require("@/lib/mtd-completion");
 const schedule_view_1 = require("@/lib/schedule-view");
-/** Dashboard “today” — matches schedule anchor (Aug 19, 2026). */
-exports.DASHBOARD_ANCHOR_DATE = new Date(2026, 7, 19);
+/** Dashboard "today" — defaults to current system date. */
+exports.DASHBOARD_ANCHOR_DATE = new Date();
+/**
+ * Date-aware status classification for dashboard metrics.
+ *
+ * Rules:
+ * 1. Completed/inPayroll -> "completed"
+ * 2. Status === "outsourced" -> "outsourced"
+ * 3. Producer NOT assigned -> "unassigned" (producer assignment takes precedence)
+ * 4. Producer assigned + mixStartDate in future (> today) -> "in_queue"
+ * 5. Producer assigned + mixStartDate today or past (<= today) -> "in_production"
+ */
+function getDashboardMixStatus(rec, todayInput = new Date()) {
+    if (rec.status === "completed" || rec.inPayroll) {
+        return "completed";
+    }
+    if (rec.status === "outsourced") {
+        return "outsourced";
+    }
+    const hasProducer = Boolean(rec.assignedProducer?.trim());
+    if (!hasProducer) {
+        return "unassigned";
+    }
+    const todayIso = typeof todayInput === "string"
+        ? (0, dates_1.toIsoDateString)(todayInput)
+        : (0, dates_1.toIsoDateString)(todayInput.toISOString());
+    const startIso = (0, dates_1.toIsoDateString)(rec.mixStartDate);
+    if (startIso && startIso > todayIso) {
+        return "in_queue";
+    }
+    return "in_production";
+}
 function isFirstAvailable(value) {
     if (!value)
         return false;
@@ -50,27 +81,60 @@ function sumPrices(records) {
     return records.reduce((sum, rec) => sum + (rec.price || 0), 0);
 }
 /** Overview metrics aligned with MTD, outsourced, payroll, and schedule tabs. */
-function buildDashboardPulse(mtdRecords, producers, schedule = []) {
-    const openBoard = mtdRecords.filter(isOpenBoardRecord);
-    const open = mtdRecords.filter((r) => r.status !== "completed" && !r.inPayroll);
-    const inProgress = (0, mtd_filters_1.getInProgressRecords)(mtdRecords);
-    const payroll = (0, mtd_completion_1.getPayrollRecords)(mtdRecords);
-    const toAssign = open.filter((r) => !r.assignedProducer && r.editorRequest !== "NA").length;
-    const assigned = openBoard.filter((r) => !!r.assignedProducer).length;
-    const blocked = open.filter((r) => r.needsAttention).length;
-    const outgoing = (0, mtd_filters_1.getOngoingRecords)(mtdRecords).length;
-    const outsourced = (0, mtd_filters_1.getOutsourcedRecords)(mtdRecords).length;
+function buildDashboardPulse(mtdRecords, producers, schedule = [], todayInput = new Date()) {
+    const todayIso = typeof todayInput === "string"
+        ? (0, dates_1.toIsoDateString)(todayInput)
+        : (0, dates_1.toIsoDateString)(todayInput.toISOString());
+    const anchorDate = typeof todayInput === "string"
+        ? (0, dates_1.parseFlexibleDate)(todayInput) ?? new Date()
+        : todayInput;
+    let toAssign = 0;
+    let inQueue = 0;
+    let inProduction = 0;
+    let outsourced = 0;
+    let payrollCount = 0;
+    const inProductionRecords = [];
+    const openBoard = [];
+    const payroll = [];
+    for (const rec of mtdRecords) {
+        const status = getDashboardMixStatus(rec, todayIso);
+        switch (status) {
+            case "unassigned":
+                toAssign += 1;
+                openBoard.push(rec);
+                break;
+            case "in_queue":
+                inQueue += 1;
+                openBoard.push(rec);
+                break;
+            case "in_production":
+                inProduction += 1;
+                inProductionRecords.push(rec);
+                openBoard.push(rec);
+                break;
+            case "outsourced":
+                outsourced += 1;
+                openBoard.push(rec);
+                break;
+            case "completed":
+                payrollCount += 1;
+                payroll.push(rec);
+                break;
+        }
+    }
+    const assigned = openBoard.filter((r) => Boolean(r.assignedProducer?.trim())).length;
     const readyToComplete = openBoard.filter((rec) => (0, mtd_completion_1.canCompleteForPayroll)(rec).ready).length;
     const missingData = openBoard.filter((rec) => !(0, mtd_completion_1.canCompleteForPayroll)(rec).ready).length;
+    const blocked = openBoard.filter((r) => r.needsAttention).length;
     let dueThisWeek = 0;
     let overdue = 0;
     let startingToday = 0;
     for (const rec of openBoard) {
         const endOffset = rec.mixEndDate
-            ? dayOffsetFromAnchor(rec.mixEndDate, exports.DASHBOARD_ANCHOR_DATE)
+            ? dayOffsetFromAnchor(rec.mixEndDate, anchorDate)
             : null;
         const startOffset = rec.mixStartDate
-            ? dayOffsetFromAnchor(rec.mixStartDate, exports.DASHBOARD_ANCHOR_DATE)
+            ? dayOffsetFromAnchor(rec.mixStartDate, anchorDate)
             : null;
         if (endOffset != null) {
             if (endOffset < 0)
@@ -81,8 +145,8 @@ function buildDashboardPulse(mtdRecords, producers, schedule = []) {
         if (startOffset === 0)
             startingToday += 1;
     }
-    const teamRows = (0, schedule_view_1.buildTeamSchedule)(producers, schedule, "week", exports.DASHBOARD_ANCHOR_DATE, mtdRecords);
-    const columns = (0, schedule_view_1.aggregateColumns)(teamRows, exports.DASHBOARD_ANCHOR_DATE);
+    const teamRows = (0, schedule_view_1.buildTeamSchedule)(producers, schedule, "week", anchorDate, mtdRecords);
+    const columns = (0, schedule_view_1.aggregateColumns)(teamRows, anchorDate);
     const todayCol = columns.find((col) => col.isToday);
     const busiest = columns.reduce((best, col) => {
         if (!best || col.unavailableCount > best.unavailableCount)
@@ -91,17 +155,15 @@ function buildDashboardPulse(mtdRecords, producers, schedule = []) {
     }, null) ?? null;
     return {
         toAssign,
-        blocked,
-        assigned,
-        missingData,
-        inProduction: inProgress.length,
-        outgoing,
+        inQueue,
+        inProduction,
         outsourced,
-        payrollCount: payroll.length,
+        payrollCount,
         payrollValue: sumPrices(payroll),
         openValue: sumPrices(openBoard),
-        inProductionValue: sumPrices(inProgress),
+        inProductionValue: sumPrices(inProductionRecords),
         readyToComplete,
+        missingData,
         dueThisWeek,
         overdue,
         startingToday,
@@ -116,6 +178,9 @@ function buildDashboardPulse(mtdRecords, producers, schedule = []) {
                 total: busiest.total,
             }
             : null,
+        blocked,
+        assigned,
+        outgoing: inProduction,
     };
 }
 function buildEditorLoad(mtdRecords, limit = 4) {
@@ -283,27 +348,21 @@ function buildWorkflowStages(pulse) {
         },
         {
             label: "In queue",
-            count: pulse.blocked,
+            count: pulse.inQueue,
             color: "#1f8fb3",
             href: "/mtd",
         },
         {
-            label: "Outgoing",
-            count: pulse.outgoing,
+            label: "In production",
+            count: pulse.inProduction,
             color: "#52c8ee",
-            href: "/outsourced",
+            href: "/mtd",
         },
         {
             label: "Outsourced",
             count: pulse.outsourced,
             color: "#6b7280",
             href: "/outsourced",
-        },
-        {
-            label: "Payroll",
-            count: pulse.payrollCount,
-            color: "#059669",
-            href: "/payroll",
         },
     ];
 }

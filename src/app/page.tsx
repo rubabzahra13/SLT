@@ -23,29 +23,28 @@ import {
   weekCapacityPanelInsight,
 } from "@/lib/dashboard-tooltips";
 
-const TODAY_LABEL = "Wednesday, August 19, 2026";
-
 export default function DashboardPage() {
   const { orders, pastOrders, producers, mtdRecords, schedule } = getData();
+  const currentDate = new Date();
+  const todayLabel = currentDate.toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
 
-  const pulse = buildDashboardPulse(mtdRecords, producers, schedule);
+  const pulse = buildDashboardPulse(mtdRecords, producers, schedule, currentDate);
   const pipeline = buildCategoryPipeline(mtdRecords);
   const team = sortProducersForCapacity(producers);
-  const incomingOrders = buildIncomingOrdersSeries(orders, pastOrders);
+  const incomingOrders = buildIncomingOrdersSeries(orders, pastOrders, currentDate);
   const weekCapacity = buildWeeklyCapacity(producers, schedule, mtdRecords);
   const mixOps = buildMixOpsSlices(pulse);
 
   const kpis = [
     { href: "/mtd", label: "Unassigned", value: pulse.toAssign },
-    { href: "/mtd", label: "In queue", value: pulse.blocked },
-    { href: "/outsourced", label: "Outgoing", value: pulse.outgoing },
+    { href: "/mtd", label: "In queue", value: pulse.inQueue },
+    { href: "/mtd", label: "In production", value: pulse.inProduction },
     { href: "/outsourced", label: "Outsourced", value: pulse.outsourced },
-    {
-      href: "/payroll",
-      label: "In payroll",
-      value: pulse.payrollCount,
-      detail: formatPayrollDetail(pulse),
-    },
   ];
 
   const pipelineTotal = pipeline.reduce((sum, slice) => sum + slice.count, 0);
@@ -61,7 +60,7 @@ export default function DashboardPage() {
         <PageHeader
           compact
           title="Dashboard"
-          subtitle={TODAY_LABEL}
+          subtitle={todayLabel}
         />
       </div>
 

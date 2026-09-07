@@ -11,30 +11,24 @@ export function kpiInsight(
     case "Unassigned":
       return {
         title: "Needs assignment",
-        body: `${pulse.toAssign} mix${pulse.toAssign === 1 ? "" : "es"} have no producer yet. ${pulse.assigned} already assigned on the active board.`,
+        body: "Mixes that still need a producer to be assigned.",
       };
     case "In queue":
+    case "In Queue":
       return {
-        title: "Blocked in MTD",
-        body: `${pulse.blocked} waiting on materials, voiceover, or other attention flags before production can move.`,
+        title: "Scheduled future start",
+        body: "Mixes assigned to a producer and scheduled to start on a future date.",
       };
-    case "Outgoing":
+    case "In production":
+    case "In Production":
       return {
-        title: "In production",
-        body: `${pulse.outgoing} mixes actively in progress internally — not outsourced or closed.`,
+        title: "Active production",
+        body: "Mixes assigned to a producer whose scheduled start date has arrived and are still in production.",
       };
     case "Outsourced":
       return {
-        title: "External production",
-        body: `${pulse.outsourced} mixes handed off to outside editors or vendors.`,
-      };
-    case "In payroll":
-      return {
-        title: "Ready to pay",
-        body:
-          pulse.payrollCount > 0
-            ? `${pulse.payrollCount} completed mix${pulse.payrollCount === 1 ? "" : "es"} in payroll${detail ? ` · ${detail}` : ""}.`
-            : "No mixes in payroll right now.",
+        title: "Longer turnaround",
+        body: "Mixes that have been started but are on a longer turnaround and have not yet been delivered.",
       };
     default:
       return { title: label, body: detail ?? "View details" };

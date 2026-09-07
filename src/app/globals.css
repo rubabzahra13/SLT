@@ -545,12 +545,7 @@ body {
 }
 
 .dashboard-marquee {
-  animation: marquee-x 34s linear infinite;
-  will-change: transform;
-}
-
-.dashboard-marquee:hover {
-  animation-play-state: paused;
+  /* Static producer roster — animation disabled */
 }
 
 .dashboard-producer-tile {

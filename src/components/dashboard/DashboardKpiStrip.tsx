@@ -20,7 +20,7 @@ type DashboardKpiStripProps = {
 export function DashboardKpiStrip({ kpis, pulse }: DashboardKpiStripProps) {
   return (
     <section className="dashboard-kpi-strip dashboard-surface-neutral shrink-0 overflow-hidden rounded-xl">
-      <div className="grid grid-cols-2 divide-y divide-brand-line/30 sm:grid-cols-3 sm:divide-x sm:divide-y-0 lg:grid-cols-5">
+      <div className="flex w-full divide-x divide-brand-line/30">
         {kpis.map((kpi) => {
           const insight = kpiInsight(kpi.label, pulse, kpi.detail);
           return (
@@ -28,7 +28,7 @@ export function DashboardKpiStrip({ kpis, pulse }: DashboardKpiStripProps) {
               key={kpi.label}
               title={insight.title}
               body={insight.body}
-              className="block min-w-0"
+              className="flex-1 min-w-0"
               placement="bottom"
             >
               <Link
