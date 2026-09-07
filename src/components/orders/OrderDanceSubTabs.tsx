@@ -2,12 +2,12 @@
 
 import clsx from "clsx";
 import { DottedScroll } from "@/components/ui/DottedScroll";
-import { DANCE_FORM_SUBTABS, type DanceFormSubtype } from "@/types";
+import { DANCE_FORM_SUBTABS, type DanceFormSubtype, type DanceFormSubtypeFilter } from "@/types";
 
 type OrderDanceSubTabsProps = {
-  subtype: DanceFormSubtype;
-  onChange: (subtype: DanceFormSubtype) => void;
-  counts: Record<DanceFormSubtype, number>;
+  subtype: DanceFormSubtypeFilter;
+  onChange: (subtype: DanceFormSubtypeFilter) => void;
+  counts: Record<DanceFormSubtypeFilter, number>;
 };
 
 export function OrderDanceSubTabs({ subtype, onChange, counts }: OrderDanceSubTabsProps) {
@@ -30,6 +30,20 @@ export function OrderDanceSubTabs({ subtype, onChange, counts }: OrderDanceSubTa
       contentClassName="flex w-max min-w-full px-4 py-2"
     >
       <nav className="flex gap-1" aria-label="Dance form types">
+        <button
+          type="button"
+          onClick={() => onChange("all")}
+          className={clsx(
+            "shrink-0 rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors",
+            subtype === "all"
+              ? "bg-brand-accent-soft text-brand-ink ring-1 ring-brand-line-strong"
+              : "text-brand-ink-secondary hover:bg-brand-surface hover:text-brand-ink"
+          )}
+        >
+          All Dance
+          <span className="ml-1 tabular-nums text-brand-ink-tertiary">{counts.all ?? 0}</span>
+        </button>
+
         <button
           type="button"
           onClick={() => onChange("pom")}

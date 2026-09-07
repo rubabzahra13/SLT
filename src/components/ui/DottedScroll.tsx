@@ -159,6 +159,20 @@ export function DottedScroll({
     </div>
   ) : null;
 
+  const handleWheel = useCallback(
+    (e: React.WheelEvent<HTMLDivElement>) => {
+      if (isHorizontal && containerRef.current) {
+        const el = containerRef.current;
+        if (el.scrollWidth > el.clientWidth) {
+          if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+            el.scrollLeft += e.deltaY;
+          }
+        }
+      }
+    },
+    [isHorizontal]
+  );
+
   return (
     <div
       className={clsx(
@@ -171,7 +185,7 @@ export function DottedScroll({
         className
       )}
     >
-      <div ref={containerRef} className={resolvedScrollClass}>
+      <div ref={containerRef} className={resolvedScrollClass} onWheel={handleWheel}>
         <div className={resolvedContentClass}>{children}</div>
       </div>
       {dots}

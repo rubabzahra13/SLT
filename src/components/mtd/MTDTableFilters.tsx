@@ -18,7 +18,7 @@ import {
   type MixScheduleFilter,
   type SplitFilter,
 } from "@/lib/mtd-filters";
-import type { MTDRecord, Order, Producer } from "@/types";
+import type { MTDRecord, Order, OrderFormType, Producer } from "@/types";
 import { EDITOR_NAMES } from "@/types";
 
 export type MTDTableFilterState = {
@@ -39,13 +39,15 @@ type MTDTableFilterPanelProps = {
   filters: MTDTableFilterState;
   onChange: (patch: Partial<MTDTableFilterState>) => void;
   onReset: () => void;
+  form?: OrderFormType;
 };
 
-export function hasActiveMTDFilters(filters: MTDTableFilterState): boolean {
+export function hasActiveMTDFilters(filters: MTDTableFilterState, form?: OrderFormType): boolean {
+  const isDance = form === "school-all-star-dance";
   return (
     filters.packageTier !== "All" ||
-    filters.timeLimit !== "All" ||
-    filters.split !== "all" ||
+    (!isDance && filters.timeLimit !== "All") ||
+    (!isDance && filters.split !== "all") ||
     filters.assignedProducer !== "All" ||
     filters.requestedProducer !== "All" ||
     filters.scheduleFilter !== "all" ||
@@ -54,11 +56,12 @@ export function hasActiveMTDFilters(filters: MTDTableFilterState): boolean {
   );
 }
 
-function countTableFilters(filters: MTDTableFilterState): number {
+function countTableFilters(filters: MTDTableFilterState, form?: OrderFormType): number {
+  const isDance = form === "school-all-star-dance";
   let count = 0;
   if (filters.packageTier !== "All") count += 1;
-  if (filters.timeLimit !== "All") count += 1;
-  if (filters.split !== "all") count += 1;
+  if (!isDance && filters.timeLimit !== "All") count += 1;
+  if (!isDance && filters.split !== "all") count += 1;
   if (filters.assignedProducer !== "All") count += 1;
   if (filters.requestedProducer !== "All") count += 1;
   if (filters.scheduleFilter !== "all") count += 1;
@@ -74,6 +77,7 @@ export function MTDTableFilterPanel({
   filters,
   onChange,
   onReset,
+  form,
   grouped = false,
 }: MTDTableFilterPanelProps & { grouped?: boolean }) {
   const [open, setOpen] = useState(false);
@@ -119,7 +123,8 @@ export function MTDTableFilterPanel({
 
   const infoOptions = useMemo(() => buildInfoOptions(records), [records]);
 
-  const activeCount = countTableFilters(filters);
+  const isDance = form === "school-all-star-dance";
+  const activeCount = countTableFilters(filters, form);
 
   useEffect(() => {
     if (!open) return;
@@ -193,18 +198,22 @@ export function MTDTableFilterPanel({
                 onChange={(value) => onChange({ packageTier: value })}
                 accent="blue"
               />
-              <FilterMenu
-                label="Time limit"
-                value={filters.timeLimit}
-                options={timeLimitOptions}
-                onChange={(value) => onChange({ timeLimit: value })}
-              />
-              <FilterMenu
-                label="Split"
-                value={filters.split}
-                options={splitOptions}
-                onChange={(value) => onChange({ split: value as SplitFilter })}
-              />
+              {!isDance ? (
+                <>
+                  <FilterMenu
+                    label="Time limit"
+                    value={filters.timeLimit}
+                    options={timeLimitOptions}
+                    onChange={(value) => onChange({ timeLimit: value })}
+                  />
+                  <FilterMenu
+                    label="Split"
+                    value={filters.split}
+                    options={splitOptions}
+                    onChange={(value) => onChange({ split: value as SplitFilter })}
+                  />
+                </>
+              ) : null}
               <FilterMenu
                 label="Assigned"
                 value={filters.assignedProducer}
@@ -277,7 +286,8 @@ export function MTDFilterChipsRow(props: MTDTableFilterPanelProps) {
 export function useMTDFilterChips(
   props: MTDTableFilterPanelProps
 ): Array<{ key: string; label: string; onClear: () => void }> {
-  const { records, producers, orderById, filters, onChange } = props;
+  const { records, producers, orderById, filters, onChange, form } = props;
+  const isDance = form === "school-all-star-dance";
 
   const packageOptions = useMemo(
     () => buildPackageTierOptions(records),
@@ -331,7 +341,7 @@ export function useMTDFilterChips(
         onClear: () => onChange({ packageTier: "All" }),
       });
     }
-    if (filters.timeLimit !== "All") {
+    if (!isDance && filters.timeLimit !== "All") {
       const label =
         timeLimitOptions.find((o) => o.value === filters.timeLimit)?.label ??
         filters.timeLimit;
@@ -341,7 +351,7 @@ export function useMTDFilterChips(
         onClear: () => onChange({ timeLimit: "All" }),
       });
     }
-    if (filters.split !== "all") {
+    if (!isDance && filters.split !== "all") {
       const label =
         splitOptions.find((o) => o.value === filters.split)?.label ??
         filters.split;

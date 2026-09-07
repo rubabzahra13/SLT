@@ -35,6 +35,8 @@ export type MTDRecord = {
   hasRallyMix?: boolean;
   hasExtend8ctAddon?: boolean;
   hasProcessing8ctSheetsAddon?: boolean;
+  hasTraditionalVoiceover?: boolean;
+  hasThemedVoiceover?: boolean;
   systemCalculatedCustomerPrice?: number | null;
   finalCustomerPrice?: number | null;
   finalCustomerPriceOverridden?: boolean;
@@ -171,12 +173,19 @@ export type DanceFormSubtype =
   | "gameday"
   | "jazz-kick";
 
+export type DanceFormSubtypeFilter = "all" | DanceFormSubtype;
+
 export const DANCE_FORM_SUBTABS: { id: DanceFormSubtype; label: string }[] = [
   { id: "pom", label: "POM" },
   { id: "hip-hop", label: "Hip Hop" },
   { id: "team-performance-variety", label: "Team Performance & Variety" },
   { id: "gameday", label: "Gameday" },
   { id: "jazz-kick", label: "Jazz/Kick" },
+];
+
+export const DANCE_FORM_SUBTABS_WITH_ALL: { id: DanceFormSubtypeFilter; label: string }[] = [
+  { id: "all", label: "All Dance" },
+  ...DANCE_FORM_SUBTABS,
 ];
 
 export type BaseOrderAdminFields = {
@@ -208,6 +217,8 @@ export type BaseOrderAdminFields = {
   hasRallyMix?: boolean;
   hasExtend8ctAddon?: boolean;
   hasProcessing8ctSheetsAddon?: boolean;
+  hasTraditionalVoiceover?: boolean;
+  hasThemedVoiceover?: boolean;
   systemCalculatedCustomerPrice?: number | null;
   finalCustomerPrice?: number | null;
   finalCustomerPriceOverridden?: boolean;
@@ -564,6 +575,8 @@ export type Order = {
   hasRallyMix?: boolean;
   hasExtend8ctAddon?: boolean;
   hasProcessing8ctSheetsAddon?: boolean;
+  hasTraditionalVoiceover?: boolean;
+  hasThemedVoiceover?: boolean;
   /** POM order form — school / program */
   schoolProgramName?: string;
   schoolAddress?: string;

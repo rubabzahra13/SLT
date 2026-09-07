@@ -50,8 +50,14 @@ const FIELD_GETTERS = {
     powerMusicCovers: (o) => o.powerMusicCovers,
     routineNotes: (o) => o.routineNotes,
     couponCode: (o) => o.couponCode || "",
-    howDidYouFindOut: (o) => o.howDidYouFindOut || "",
     customVoiceovers: (o) => o.customVoiceovers,
+    schoolGymAddress: (o) => o.schoolGymAddress || o.schoolAddress || o.gymBillingAddress || o.billingAddress,
+    divisionOfTeam: (o) => o.divisionOfTeam || o.division,
+    style: (o) => o.style,
+    styleOfGamedayMix: (o) => o.styleOfGamedayMix,
+    licensingRequired: (o) => o.licensingRequired,
+    voiceoverScript: (o) => o.voiceoverScript,
+    pronunciationGuidance: (o) => o.pronunciationGuidance,
 };
 function rawFieldValue(order, key) {
     const getter = FIELD_GETTERS[key];

@@ -15,13 +15,18 @@ const discount_codes_1 = require("@/lib/discount-codes");
 const producers_1 = require("@/lib/producers");
 const mock_data_json_1 = __importDefault(require("@/data/mock-data.json"));
 const cheer_demo_orders_1 = require("@/data/cheer-demo-orders");
+const dance_demo_orders_1 = require("@/data/dance-demo-orders");
 function getData() {
     const raw = mock_data_json_1.default;
     const existingOrders = raw.orders.map((o) => (0, order_form_1.normalizeOrder)(o));
     const existingIds = new Set(existingOrders.map((o) => o.id));
-    const newDemoOrders = cheer_demo_orders_1.CHEER_DEMO_ORDERS.filter((o) => !existingIds.has(o.id)).map((o) => (0, order_form_1.normalizeOrder)(o));
+    const combinedDemoOrders = [...cheer_demo_orders_1.CHEER_DEMO_ORDERS, ...dance_demo_orders_1.DANCE_DEMO_ORDERS];
+    const newDemoOrders = combinedDemoOrders
+        .filter((o) => !existingIds.has(o.id))
+        .map((o) => (0, order_form_1.normalizeOrder)(o));
     const existingMtdIds = new Set((raw.mtdRecords || []).map((r) => r.id));
-    const newDemoMtdRecords = cheer_demo_orders_1.CHEER_DEMO_MTD_RECORDS.filter((r) => !existingMtdIds.has(r.id));
+    const combinedDemoMtdRecords = [...cheer_demo_orders_1.CHEER_DEMO_MTD_RECORDS, ...dance_demo_orders_1.DANCE_DEMO_MTD_RECORDS];
+    const newDemoMtdRecords = combinedDemoMtdRecords.filter((r) => !existingMtdIds.has(r.id));
     return {
         ...raw,
         producers: raw.producers.map((p) => (0, producers_1.normalizeProducer)(p)),

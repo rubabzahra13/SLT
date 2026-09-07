@@ -1,4 +1,4 @@
-import { apiClient } from "./client";
+import { apiClient, ApiClientError } from "./client";
 import type { MTDRecord, PriceCompliance, EditorRequest, MTDRecordStatus } from "@/types";
 
 export interface BackendMTDRecord {
@@ -151,6 +151,14 @@ export async function updateMTDRecordApi(
   if (patch.hasExtend8ctAddon !== undefined) payload.has_extend_8ct_addon = patch.hasExtend8ctAddon;
   if (patch.hasProcessing8ctSheetsAddon !== undefined) payload.has_processing_8ct_sheets_addon = patch.hasProcessing8ctSheetsAddon;
 
-  const res = await apiClient.patch<BackendMTDRecord>(`/api/mtd/${id}`, payload);
-  return transformMTDRecord(res);
+  try {
+    const res = await apiClient.patch<BackendMTDRecord>(`/api/mtd/${id}`, payload);
+    return transformMTDRecord(res);
+  } catch (err) {
+    if (err instanceof ApiClientError && err.status === 404) {
+      console.warn(`MTD Record ${id} not found on backend (local/seed record). Update persisted locally.`);
+      return { id, ...patch } as MTDRecord;
+    }
+    throw err;
+  }
 }

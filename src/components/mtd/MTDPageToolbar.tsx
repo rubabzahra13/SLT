@@ -9,20 +9,20 @@ import {
 import type { MTDRecord, Order, Producer } from "@/types";
 import type {
   CheerFormSubtypeFilter,
-  DanceFormSubtype,
+  DanceFormSubtypeFilter,
   OrderFormType,
 } from "@/types";
 
 type MTDPageToolbarProps = {
   form: OrderFormType;
   cheerSubtype: CheerFormSubtypeFilter;
-  danceSubtype: DanceFormSubtype;
+  danceSubtype: DanceFormSubtypeFilter;
   onFormChange: (form: OrderFormType) => void;
   onCheerSubtypeChange: (subtype: CheerFormSubtypeFilter) => void;
-  onDanceSubtypeChange: (subtype: DanceFormSubtype) => void;
+  onDanceSubtypeChange: (subtype: DanceFormSubtypeFilter) => void;
   formCounts: Record<OrderFormType, number>;
   cheerCounts: Record<CheerFormSubtypeFilter, number>;
-  danceCounts: Record<DanceFormSubtype, number>;
+  danceCounts: Record<DanceFormSubtypeFilter, number>;
   records: MTDRecord[];
   producers: Producer[];
   orderById: Map<string, Order>;
@@ -82,6 +82,7 @@ export function MTDPageToolbar({
             filters={filters}
             onChange={onFiltersChange}
             onReset={onFiltersReset}
+            form={form}
           />
         </div>
 
@@ -103,6 +104,7 @@ export function MTDPageToolbar({
         filters={filters}
         onChange={onFiltersChange}
         onReset={onFiltersReset}
+        form={form}
       />
     </div>
   );

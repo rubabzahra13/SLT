@@ -4,15 +4,21 @@ import { normalizeDiscountCode } from "@/lib/discount-codes";
 import { normalizeProducer } from "@/lib/producers";
 import data from "@/data/mock-data.json";
 import { CHEER_DEMO_ORDERS, CHEER_DEMO_MTD_RECORDS } from "@/data/cheer-demo-orders";
+import { DANCE_DEMO_ORDERS, DANCE_DEMO_MTD_RECORDS } from "@/data/dance-demo-orders";
 
 export function getData(): AppData {
   const raw = data as AppData;
   const existingOrders = raw.orders.map((o) => normalizeOrder(o as Order));
   const existingIds = new Set(existingOrders.map((o) => o.id));
-  const newDemoOrders = CHEER_DEMO_ORDERS.filter((o) => !existingIds.has(o.id)).map((o) => normalizeOrder(o));
+
+  const combinedDemoOrders = [...CHEER_DEMO_ORDERS, ...DANCE_DEMO_ORDERS];
+  const newDemoOrders = combinedDemoOrders
+    .filter((o) => !existingIds.has(o.id))
+    .map((o) => normalizeOrder(o));
 
   const existingMtdIds = new Set((raw.mtdRecords || []).map((r) => r.id));
-  const newDemoMtdRecords = CHEER_DEMO_MTD_RECORDS.filter((r) => !existingMtdIds.has(r.id));
+  const combinedDemoMtdRecords = [...CHEER_DEMO_MTD_RECORDS, ...DANCE_DEMO_MTD_RECORDS];
+  const newDemoMtdRecords = combinedDemoMtdRecords.filter((r) => !existingMtdIds.has(r.id));
 
   return {
     ...raw,

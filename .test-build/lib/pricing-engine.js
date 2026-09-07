@@ -1,10 +1,14 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.COMPLIANT_MUSIC_AFFILIATES = exports.YOUTH_REC_CHEER_RATE_CARD = exports.SCHOOL_CHEER_RATE_CARD = exports.ALL_STAR_CHEER_RATE_CARD = void 0;
+exports.MUSIC_AFFILIATE_ALIASES = exports.COMPLIANT_MUSIC_AFFILIATES = exports.JAZZ_KICK_RATE_CARD = exports.GAMEDAY_RATE_CARD = exports.TEAM_PERFORMANCE_VARIETY_RATE_CARD = exports.HIP_HOP_RATE_CARD = exports.POM_RATE_CARD = exports.YOUTH_REC_CHEER_RATE_CARD = exports.SCHOOL_CHEER_RATE_CARD = exports.ALL_STAR_CHEER_RATE_CARD = void 0;
+exports.normalizeMusicAffiliate = normalizeMusicAffiliate;
 exports.getRateCardForSubtype = getRateCardForSubtype;
+exports.getDanceRateCardForSubtype = getDanceRateCardForSubtype;
 exports.determineComplianceStatus = determineComplianceStatus;
 exports.lookupRateCardEntry = lookupRateCardEntry;
+exports.lookupDanceRateCardEntry = lookupDanceRateCardEntry;
 exports.calculateCheerOrderPricing = calculateCheerOrderPricing;
+exports.calculateDanceOrderPricing = calculateDanceOrderPricing;
 const package_1 = require("./package");
 /** All-Star Cheer Pricing Table (Customer, Compliant, Non-Compliant) */
 exports.ALL_STAR_CHEER_RATE_CARD = [
@@ -54,12 +58,71 @@ exports.YOUTH_REC_CHEER_RATE_CARD = [
     { tier: "BRONZE", limit: "2:15", customer: 900, compliant: 800, nonCompliant: 900, isTitanium: false },
     { tier: "BRONZE", limit: "2:30", customer: 900, compliant: 800, nonCompliant: 900, isTitanium: false },
 ];
+/** POM Rate Card */
+exports.POM_RATE_CARD = [
+    { package: "DANCE MIX", customer: 475, compliant: 375, nonCompliant: 475 },
+    { package: "DANCE PLUS", customer: 575, compliant: 430, nonCompliant: 575 },
+    { package: "CUSTOM POM", customer: 850, compliant: 730, nonCompliant: 850 },
+];
+/** Hip Hop Rate Card (identical to POM rate card per spec) */
+exports.HIP_HOP_RATE_CARD = [
+    { package: "DANCE MIX", customer: 475, compliant: 375, nonCompliant: 475 },
+    { package: "DANCE PLUS", customer: 575, compliant: 430, nonCompliant: 575 },
+    { package: "CUSTOM POM", customer: 850, compliant: 730, nonCompliant: 850 },
+];
+/** Team Performance & Variety Rate Card */
+exports.TEAM_PERFORMANCE_VARIETY_RATE_CARD = [
+    { package: "TP MIX", customer: 500, compliant: 400, nonCompliant: 500 },
+    { package: "TP PLUS MIX", customer: 600, compliant: 475, nonCompliant: 600 },
+];
+/** Gameday Rate Card */
+exports.GAMEDAY_RATE_CARD = [
+    { package: "PERFORMANCE MIX", customer: 100, compliant: 85, nonCompliant: 100 },
+    { package: "PERFORMANCE PLUS", customer: 150, compliant: 120, nonCompliant: 150 },
+    { package: "PERFORMANCE EXTREME", customer: 200, compliant: 140, nonCompliant: 200 },
+];
+/** Jazz/Kick Rate Card */
+exports.JAZZ_KICK_RATE_CARD = [
+    { package: "JAZZ/KICK MIX", customer: 200, compliant: 150, nonCompliant: 200 },
+    {
+        package: "JAZZ SIMPLE CUT",
+        customer: 100,
+        compliant: 100,
+        nonCompliant: 100,
+        alwaysFixedPayroll: true,
+    },
+];
 exports.COMPLIANT_MUSIC_AFFILIATES = [
     "POWER MUSIC",
     "POWER MUSIC + UNLEASH THE BEATS",
     "UNLEASH THE BEATS",
     "LIBRARY MUSIC",
 ];
+/**
+ * Normalization / Alias table for Music Affiliates.
+ * INFERRED MAPPING pending confirmation from Megan:
+ * treating "* Covers" variants as aliases for core compliant music affiliates.
+ */
+exports.MUSIC_AFFILIATE_ALIASES = {
+    "POWER MUSIC COVERS": "POWER MUSIC",
+    "UNLEASH THE BEATS COVERS": "UNLEASH THE BEATS",
+};
+/**
+ * Normalizes a raw music affiliate string by applying alias lookups
+ * before checking compliance status.
+ */
+function normalizeMusicAffiliate(musicAffiliate) {
+    if (musicAffiliate === undefined || musicAffiliate === null)
+        return undefined;
+    const trimmed = musicAffiliate.trim();
+    if (!trimmed)
+        return undefined;
+    const upper = trimmed.toUpperCase();
+    if (exports.MUSIC_AFFILIATE_ALIASES[upper]) {
+        return exports.MUSIC_AFFILIATE_ALIASES[upper];
+    }
+    return trimmed;
+}
 function getRateCardForSubtype(cheerFormSubtype) {
     switch (cheerFormSubtype) {
         case "all-star-cheer":
@@ -73,16 +136,32 @@ function getRateCardForSubtype(cheerFormSubtype) {
             return exports.ALL_STAR_CHEER_RATE_CARD;
     }
 }
-function determineComplianceStatus(cheerFormSubtype, musicAffiliate) {
+function getDanceRateCardForSubtype(danceFormSubtype) {
+    switch (danceFormSubtype) {
+        case "pom":
+            return exports.POM_RATE_CARD;
+        case "hip-hop":
+            return exports.HIP_HOP_RATE_CARD;
+        case "team-performance-variety":
+            return exports.TEAM_PERFORMANCE_VARIETY_RATE_CARD;
+        case "gameday":
+            return exports.GAMEDAY_RATE_CARD;
+        case "jazz-kick":
+            return exports.JAZZ_KICK_RATE_CARD;
+        default:
+            return exports.POM_RATE_CARD;
+    }
+}
+function determineComplianceStatus(subType, musicAffiliate) {
     if (musicAffiliate === undefined ||
         musicAffiliate === null) {
         return "unknown-no-affiliate-field";
     }
-    const trimmed = musicAffiliate.trim();
-    if (!trimmed) {
+    const normalized = normalizeMusicAffiliate(musicAffiliate);
+    if (!normalized) {
         return "unknown-no-affiliate-field";
     }
-    const upper = trimmed.toUpperCase();
+    const upper = normalized.toUpperCase();
     const isCompliant = upper.includes("POWER MUSIC") ||
         upper.includes("UNLEASH THE BEATS") ||
         upper.includes("UNLEASH") ||
@@ -109,6 +188,16 @@ function lookupRateCardEntry(cheerFormSubtype, packageType, timeLengthOfMix) {
     // Fallback 2: substring match on raw packageType
     const upperPkg = fullPkg.toUpperCase();
     matched = rateCard.find((entry) => upperPkg.includes(entry.tier) && upperPkg.includes(entry.limit));
+    return matched ?? null;
+}
+function lookupDanceRateCardEntry(danceFormSubtype, packageType) {
+    const rateCard = getDanceRateCardForSubtype(danceFormSubtype);
+    const target = packageType.toUpperCase().trim();
+    let matched = rateCard.find((entry) => entry.package.toUpperCase() === target);
+    if (matched)
+        return matched;
+    matched = rateCard.find((entry) => target.includes(entry.package.toUpperCase()) ||
+        entry.package.toUpperCase().includes(target));
     return matched ?? null;
 }
 function calculateCheerOrderPricing(input) {
@@ -184,5 +273,48 @@ function calculateCheerOrderPricing(input) {
         discountValue: discObj?.discountValue,
         preDiscountPayrollBasePrice,
         preDiscountCustomerFacingPrice,
+    };
+}
+function calculateDanceOrderPricing(input) {
+    const matchedEntry = lookupDanceRateCardEntry(input.danceFormSubtype, input.packageType);
+    const complianceStatus = determineComplianceStatus(input.danceFormSubtype, input.musicAffiliate);
+    if (!matchedEntry) {
+        return {
+            customerFacingPrice: 0,
+            payrollBasePrice: 0,
+            compliantPayrollBasePrice: 0,
+            nonCompliantPayrollBasePrice: 0,
+            complianceStatus,
+            alwaysFixedPayroll: false,
+            matchedEntry: null,
+            packageName: input.packageType,
+        };
+    }
+    const voAddonTotal = (input.hasTraditionalVoiceover ? 25 : 0) +
+        (input.hasThemedVoiceover ? 75 : 0);
+    const customerFacingPrice = matchedEntry.customer + voAddonTotal;
+    const compliantPayrollBasePrice = matchedEntry.compliant + voAddonTotal;
+    const nonCompliantPayrollBasePrice = matchedEntry.nonCompliant + voAddonTotal;
+    const alwaysFixedPayroll = Boolean(matchedEntry.alwaysFixedPayroll);
+    let payrollBasePrice = compliantPayrollBasePrice;
+    if (alwaysFixedPayroll) {
+        // Jazz Simple Cut: payroll-base is always $100 + VO add-ons regardless of compliance input
+        payrollBasePrice = matchedEntry.compliant + voAddonTotal;
+    }
+    else if (complianceStatus === "non-compliant") {
+        payrollBasePrice = nonCompliantPayrollBasePrice;
+    }
+    else {
+        payrollBasePrice = compliantPayrollBasePrice;
+    }
+    return {
+        customerFacingPrice,
+        payrollBasePrice,
+        compliantPayrollBasePrice,
+        nonCompliantPayrollBasePrice,
+        complianceStatus,
+        alwaysFixedPayroll,
+        matchedEntry,
+        packageName: matchedEntry.package,
     };
 }

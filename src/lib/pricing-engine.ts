@@ -1,4 +1,4 @@
-import type { CheerFormSubtype, DiscountCode } from "../types";
+import type { CheerFormSubtype, DanceFormSubtype, DiscountCode } from "../types";
 import { parsePackage } from "./package";
 
 export type ComplianceStatus =
@@ -7,7 +7,7 @@ export type ComplianceStatus =
   | "unknown-no-affiliate-field";
 
 export type RateCardEntry = {
-  tier: "BRONZE" | "SILVER" | "GOLD" | "PLATINUM" | "TITANIUM";
+  tier: "BRONZE" | "SILVER" | "GOLD" | "PLATINUM" | "TITANIUM" | string;
   limit: string; // e.g. "1:00", "1:30", "1:45", "2:00", "2:15", "2:30"
   customer: number;
   compliant: number;
@@ -66,12 +66,84 @@ export const YOUTH_REC_CHEER_RATE_CARD: RateCardEntry[] = [
   { tier: "BRONZE", limit: "2:30", customer: 900, compliant: 800, nonCompliant: 900, isTitanium: false },
 ];
 
+export type DanceRateCardEntry = {
+  package: string;
+  customer: number;
+  compliant: number;
+  nonCompliant: number;
+  alwaysFixedPayroll?: boolean;
+};
+
+/** POM Rate Card */
+export const POM_RATE_CARD: DanceRateCardEntry[] = [
+  { package: "DANCE MIX", customer: 475, compliant: 375, nonCompliant: 475 },
+  { package: "DANCE PLUS", customer: 575, compliant: 430, nonCompliant: 575 },
+  { package: "CUSTOM POM", customer: 850, compliant: 730, nonCompliant: 850 },
+];
+
+/** Hip Hop Rate Card (identical to POM rate card per spec) */
+export const HIP_HOP_RATE_CARD: DanceRateCardEntry[] = [
+  { package: "DANCE MIX", customer: 475, compliant: 375, nonCompliant: 475 },
+  { package: "DANCE PLUS", customer: 575, compliant: 430, nonCompliant: 575 },
+  { package: "CUSTOM POM", customer: 850, compliant: 730, nonCompliant: 850 },
+];
+
+/** Team Performance & Variety Rate Card */
+export const TEAM_PERFORMANCE_VARIETY_RATE_CARD: DanceRateCardEntry[] = [
+  { package: "TP MIX", customer: 500, compliant: 400, nonCompliant: 500 },
+  { package: "TP PLUS MIX", customer: 600, compliant: 475, nonCompliant: 600 },
+];
+
+/** Gameday Rate Card */
+export const GAMEDAY_RATE_CARD: DanceRateCardEntry[] = [
+  { package: "PERFORMANCE MIX", customer: 100, compliant: 85, nonCompliant: 100 },
+  { package: "PERFORMANCE PLUS", customer: 150, compliant: 120, nonCompliant: 150 },
+  { package: "PERFORMANCE EXTREME", customer: 200, compliant: 140, nonCompliant: 200 },
+];
+
+/** Jazz/Kick Rate Card */
+export const JAZZ_KICK_RATE_CARD: DanceRateCardEntry[] = [
+  { package: "JAZZ/KICK MIX", customer: 200, compliant: 150, nonCompliant: 200 },
+  {
+    package: "JAZZ SIMPLE CUT",
+    customer: 100,
+    compliant: 100,
+    nonCompliant: 100,
+    alwaysFixedPayroll: true,
+  },
+];
+
 export const COMPLIANT_MUSIC_AFFILIATES = [
   "POWER MUSIC",
   "POWER MUSIC + UNLEASH THE BEATS",
   "UNLEASH THE BEATS",
   "LIBRARY MUSIC",
 ] as const;
+
+/**
+ * Normalization / Alias table for Music Affiliates.
+ * INFERRED MAPPING pending confirmation from Megan:
+ * treating "* Covers" variants as aliases for core compliant music affiliates.
+ */
+export const MUSIC_AFFILIATE_ALIASES: Record<string, string> = {
+  "POWER MUSIC COVERS": "POWER MUSIC",
+  "UNLEASH THE BEATS COVERS": "UNLEASH THE BEATS",
+};
+
+/**
+ * Normalizes a raw music affiliate string by applying alias lookups
+ * before checking compliance status.
+ */
+export function normalizeMusicAffiliate(musicAffiliate?: string): string | undefined {
+  if (musicAffiliate === undefined || musicAffiliate === null) return undefined;
+  const trimmed = musicAffiliate.trim();
+  if (!trimmed) return undefined;
+  const upper = trimmed.toUpperCase();
+  if (MUSIC_AFFILIATE_ALIASES[upper]) {
+    return MUSIC_AFFILIATE_ALIASES[upper];
+  }
+  return trimmed;
+}
 
 export function getRateCardForSubtype(cheerFormSubtype: CheerFormSubtype): RateCardEntry[] {
   switch (cheerFormSubtype) {
@@ -87,8 +159,27 @@ export function getRateCardForSubtype(cheerFormSubtype: CheerFormSubtype): RateC
   }
 }
 
+export function getDanceRateCardForSubtype(
+  danceFormSubtype: DanceFormSubtype
+): DanceRateCardEntry[] {
+  switch (danceFormSubtype) {
+    case "pom":
+      return POM_RATE_CARD;
+    case "hip-hop":
+      return HIP_HOP_RATE_CARD;
+    case "team-performance-variety":
+      return TEAM_PERFORMANCE_VARIETY_RATE_CARD;
+    case "gameday":
+      return GAMEDAY_RATE_CARD;
+    case "jazz-kick":
+      return JAZZ_KICK_RATE_CARD;
+    default:
+      return POM_RATE_CARD;
+  }
+}
+
 export function determineComplianceStatus(
-  cheerFormSubtype: CheerFormSubtype,
+  subType: CheerFormSubtype | DanceFormSubtype,
   musicAffiliate?: string
 ): ComplianceStatus {
   if (
@@ -98,12 +189,12 @@ export function determineComplianceStatus(
     return "unknown-no-affiliate-field";
   }
 
-  const trimmed = musicAffiliate.trim();
-  if (!trimmed) {
+  const normalized = normalizeMusicAffiliate(musicAffiliate);
+  if (!normalized) {
     return "unknown-no-affiliate-field";
   }
 
-  const upper = trimmed.toUpperCase();
+  const upper = normalized.toUpperCase();
 
   const isCompliant =
     upper.includes("POWER MUSIC") ||
@@ -146,6 +237,27 @@ export function lookupRateCardEntry(
   const upperPkg = fullPkg.toUpperCase();
   matched = rateCard.find(
     (entry) => upperPkg.includes(entry.tier) && upperPkg.includes(entry.limit)
+  );
+
+  return matched ?? null;
+}
+
+export function lookupDanceRateCardEntry(
+  danceFormSubtype: DanceFormSubtype,
+  packageType: string
+): DanceRateCardEntry | null {
+  const rateCard = getDanceRateCardForSubtype(danceFormSubtype);
+  const target = packageType.toUpperCase().trim();
+
+  let matched = rateCard.find(
+    (entry) => entry.package.toUpperCase() === target
+  );
+  if (matched) return matched;
+
+  matched = rateCard.find(
+    (entry) =>
+      target.includes(entry.package.toUpperCase()) ||
+      entry.package.toUpperCase().includes(target)
   );
 
   return matched ?? null;
@@ -270,3 +382,80 @@ export function calculateCheerOrderPricing(
     preDiscountCustomerFacingPrice,
   };
 }
+
+export type DancePricingEngineInput = {
+  danceFormSubtype: DanceFormSubtype;
+  packageType: string;
+  musicAffiliate?: string;
+  hasTraditionalVoiceover?: boolean;
+  hasThemedVoiceover?: boolean;
+};
+
+export type DancePricingEngineResult = {
+  customerFacingPrice: number;
+  payrollBasePrice: number;
+  compliantPayrollBasePrice: number;
+  nonCompliantPayrollBasePrice: number;
+  complianceStatus: ComplianceStatus;
+  alwaysFixedPayroll: boolean;
+  matchedEntry: DanceRateCardEntry | null;
+  packageName: string;
+};
+
+export function calculateDanceOrderPricing(
+  input: DancePricingEngineInput
+): DancePricingEngineResult {
+  const matchedEntry = lookupDanceRateCardEntry(
+    input.danceFormSubtype,
+    input.packageType
+  );
+
+  const complianceStatus = determineComplianceStatus(
+    input.danceFormSubtype,
+    input.musicAffiliate
+  );
+
+  if (!matchedEntry) {
+    return {
+      customerFacingPrice: 0,
+      payrollBasePrice: 0,
+      compliantPayrollBasePrice: 0,
+      nonCompliantPayrollBasePrice: 0,
+      complianceStatus,
+      alwaysFixedPayroll: false,
+      matchedEntry: null,
+      packageName: input.packageType,
+    };
+  }
+
+  const voAddonTotal =
+    (input.hasTraditionalVoiceover ? 25 : 0) +
+    (input.hasThemedVoiceover ? 75 : 0);
+
+  const customerFacingPrice = matchedEntry.customer + voAddonTotal;
+  const compliantPayrollBasePrice = matchedEntry.compliant + voAddonTotal;
+  const nonCompliantPayrollBasePrice = matchedEntry.nonCompliant + voAddonTotal;
+  const alwaysFixedPayroll = Boolean(matchedEntry.alwaysFixedPayroll);
+
+  let payrollBasePrice = compliantPayrollBasePrice;
+  if (alwaysFixedPayroll) {
+    // Jazz Simple Cut: payroll-base is always $100 + VO add-ons regardless of compliance input
+    payrollBasePrice = matchedEntry.compliant + voAddonTotal;
+  } else if (complianceStatus === "non-compliant") {
+    payrollBasePrice = nonCompliantPayrollBasePrice;
+  } else {
+    payrollBasePrice = compliantPayrollBasePrice;
+  }
+
+  return {
+    customerFacingPrice,
+    payrollBasePrice,
+    compliantPayrollBasePrice,
+    nonCompliantPayrollBasePrice,
+    complianceStatus,
+    alwaysFixedPayroll,
+    matchedEntry,
+    packageName: matchedEntry.package,
+  };
+}
+

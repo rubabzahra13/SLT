@@ -180,20 +180,48 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         if (!isMounted) return;
 
         if (producersData && producersData.length > 0) {
-          setProducers(producersData.map((p) => normalizeProducer(p)));
+          const normalizedProducers = producersData.map((p) => normalizeProducer(p));
+          const backendIds = new Set(normalizedProducers.map((p) => p.id));
+          const seedProducers = seed.producers.map((p) => normalizeProducer(p));
+          const missingSeed = seedProducers.filter((p) => !backendIds.has(p.id));
+          setProducers([...normalizedProducers, ...missingSeed]);
         }
 
         if (ordersData) {
-          setActiveOrders(normalizeOrders(ordersData.activeOrders));
-          setPastOrders(normalizeOrders(ordersData.pastOrders));
+          const backendActive = normalizeOrders(ordersData.activeOrders);
+          const backendPast = normalizeOrders(ordersData.pastOrders);
+          const backendOrderIds = new Set([
+            ...backendActive.map((o) => o.id),
+            ...backendPast.map((o) => o.id),
+          ]);
+          const seedActive = normalizeOrders(
+            seed.orders.filter((o) => o.status !== "completed")
+          );
+          const seedPast = normalizeOrders(seed.pastOrders ?? []);
+          const missingSeedActive = seedActive.filter((o) => !backendOrderIds.has(o.id));
+          const missingSeedPast = seedPast.filter((o) => !backendOrderIds.has(o.id));
+
+          setActiveOrders([...backendActive, ...missingSeedActive]);
+          setPastOrders([...backendPast, ...missingSeedPast]);
         }
 
-        if (mtdData && mtdData.length > 0) {
-          setMtdRecords(normalizeMTD(mtdData));
+        if (mtdData) {
+          const normalizedMtd = normalizeMTD(mtdData);
+          const backendMtdIds = new Set(normalizedMtd.map((r) => r.id));
+          const seedMtd = normalizeMTD(seed.mtdRecords);
+          const missingSeedMtd = seedMtd.filter((r) => !backendMtdIds.has(r.id));
+
+          setMtdRecords([...normalizedMtd, ...missingSeedMtd]);
         }
 
         if (codesData && codesData.length > 0) {
-          setDiscountCodes(codesData.map((c) => normalizeDiscountCode(c)));
+          const normalizedCodes = codesData.map((c) => normalizeDiscountCode(c));
+          const backendCodeIds = new Set(normalizedCodes.map((c) => c.id));
+          const seedCodes = (seed.discountCodes ?? []).map((entry) =>
+            normalizeDiscountCode(entry)
+          );
+          const missingSeedCodes = seedCodes.filter((c) => !backendCodeIds.has(c.id));
+          setDiscountCodes([...normalizedCodes, ...missingSeedCodes]);
         }
 
         setIsBackendConnected(true);

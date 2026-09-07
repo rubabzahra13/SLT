@@ -1,0 +1,16 @@
+"use strict";
+"use client";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.ScheduleHeaderMeta = ScheduleHeaderMeta;
+const jsx_runtime_1 = require("react/jsx-runtime");
+function MetaStat({ label, children, }) {
+    return ((0, jsx_runtime_1.jsxs)("div", { className: "flex min-w-0 items-baseline gap-2", children: [(0, jsx_runtime_1.jsx)("span", { className: "shrink-0 text-[10px] font-semibold uppercase tracking-[0.08em] text-brand-ink-tertiary", children: label }), (0, jsx_runtime_1.jsx)("div", { className: "flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0 text-[13px] font-semibold leading-none text-brand-ink", children: children })] }));
+}
+function ScheduleHeaderMeta({ columns, availableToday, totalProducers, }) {
+    const busiest = columns.reduce((best, col) => {
+        if (!best || col.unavailableCount > best.unavailableCount)
+            return col;
+        return best;
+    }, null);
+    return ((0, jsx_runtime_1.jsxs)("div", { className: "flex w-full flex-wrap items-center justify-between gap-x-6 gap-y-3", children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex min-w-0 flex-wrap items-center gap-x-5 gap-y-2", children: [(0, jsx_runtime_1.jsxs)(MetaStat, { label: "Available today", children: [(0, jsx_runtime_1.jsx)("span", { className: "tabular-nums text-brand-signature", children: availableToday }), (0, jsx_runtime_1.jsxs)("span", { className: "text-[12px] font-medium text-brand-ink-tertiary", children: ["/ ", totalProducers] })] }), busiest ? ((0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsx)("span", { className: "hidden h-3.5 w-px shrink-0 bg-brand-line/45 sm:block", "aria-hidden": true }), (0, jsx_runtime_1.jsxs)(MetaStat, { label: "Busiest", children: [(0, jsx_runtime_1.jsxs)("span", { className: "truncate", children: [busiest.dayLabel, " ", busiest.label] }), (0, jsx_runtime_1.jsxs)("span", { className: "text-[12px] font-medium tabular-nums text-brand-orange", children: [busiest.unavailableCount, "/", busiest.total, " booked"] })] })] })) : null] }), (0, jsx_runtime_1.jsxs)("div", { className: "inline-flex flex-wrap items-center gap-x-3 gap-y-1.5", children: [(0, jsx_runtime_1.jsx)("span", { className: "text-[10px] font-semibold uppercase tracking-[0.08em] text-brand-ink-tertiary", children: "Legend" }), (0, jsx_runtime_1.jsxs)("div", { className: "inline-flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-brand-ink-secondary", children: [(0, jsx_runtime_1.jsxs)("span", { className: "inline-flex items-center gap-1.5", children: [(0, jsx_runtime_1.jsx)("span", { className: "h-2.5 w-4 shrink-0 rounded-[3px] bg-brand-signature", "aria-hidden": true }), "Booked"] }), (0, jsx_runtime_1.jsxs)("span", { className: "inline-flex items-center gap-1.5", children: [(0, jsx_runtime_1.jsx)("span", { className: "h-2.5 w-4 shrink-0 rounded-[3px] bg-brand-orange/80", "aria-hidden": true }), "Off"] }), (0, jsx_runtime_1.jsxs)("span", { className: "inline-flex items-center gap-1.5", children: [(0, jsx_runtime_1.jsx)("span", { className: "h-2.5 w-4 shrink-0 rounded-[3px] bg-white ring-1 ring-inset ring-brand-line/70", "aria-hidden": true }), "Available"] })] })] })] }));
+}

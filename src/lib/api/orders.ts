@@ -1,4 +1,4 @@
-import { apiClient } from "./client";
+import { apiClient, ApiClientError } from "./client";
 import type { Order, OrderFormType, CheerFormSubtype, DanceFormSubtype } from "@/types";
 
 export interface BackendOrder {
@@ -214,6 +214,14 @@ export async function updateOrderApi(
   if (patch.attentionReason !== undefined) payload.attention_reason = patch.attentionReason;
   if (patch.completedAt !== undefined) payload.completed_at = patch.completedAt;
 
-  const res = await apiClient.patch<BackendOrder>(`/api/orders/${id}`, payload);
-  return transformOrder(res);
+  try {
+    const res = await apiClient.patch<BackendOrder>(`/api/orders/${id}`, payload);
+    return transformOrder(res);
+  } catch (err) {
+    if (err instanceof ApiClientError && err.status === 404) {
+      console.warn(`Order ${id} not found on backend (local/seed order). Update persisted locally.`);
+      return { id, ...patch } as Order;
+    }
+    throw err;
+  }
 }

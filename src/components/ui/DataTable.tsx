@@ -124,7 +124,7 @@ export function DataTable<T>({
     >
       <DottedScroll
         orientation="horizontal"
-        scrollClassName="w-full overflow-x-scroll scrollbar-hide"
+        scrollClassName="w-full overflow-x-auto"
         indicatorPlacement="below"
         contentClassName="block w-max min-w-full"
         showIndicator={showScrollIndicator}

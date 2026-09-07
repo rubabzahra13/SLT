@@ -2,19 +2,16 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getOrderFormColumns = getOrderFormColumns;
 exports.getOrderColumns = getOrderColumns;
+const jsx_runtime_1 = require("react/jsx-runtime");
 const StatusBadge_1 = require("@/components/ui/StatusBadge");
 const order_form_1 = require("@/lib/order-form");
 const cheer_order_columns_1 = require("@/components/orders/cheer-order-columns");
 const lucide_react_1 = require("lucide-react");
 function textCell(value, wide = false) {
-    return (<span className={wide ? "block max-w-[220px] truncate" : "block truncate"}>
-      {(0, order_form_1.displayText)(value)}
-    </span>);
+    return ((0, jsx_runtime_1.jsx)("span", { className: wide ? "block max-w-[220px] truncate" : "block truncate", children: (0, order_form_1.displayText)(value) }));
 }
 function multilineCell(value) {
-    return (<span className="block max-w-[240px] text-[12px] leading-snug text-brand-ink-secondary">
-      {(0, order_form_1.displayMultiline)(value, 140)}
-    </span>);
+    return ((0, jsx_runtime_1.jsx)("span", { className: "block max-w-[240px] text-[12px] leading-snug text-brand-ink-secondary", children: (0, order_form_1.displayMultiline)(value, 140) }));
 }
 function pomFormColumns() {
     return [
@@ -41,7 +38,7 @@ function pomFormColumns() {
             key: "zipPostalCode",
             header: "ZIP",
             width: "80px",
-            render: (o) => <span className="tabular-nums">{o.zipPostalCode || "—"}</span>,
+            render: (o) => (0, jsx_runtime_1.jsx)("span", { className: "tabular-nums", children: o.zipPostalCode || "—" }),
         },
         {
             key: "country",
@@ -66,13 +63,13 @@ function pomFormColumns() {
             key: "coachPhone",
             header: "Coach Phone",
             width: "110px",
-            render: (o) => <span className="tabular-nums">{o.coachPhone || "—"}</span>,
+            render: (o) => (0, jsx_runtime_1.jsx)("span", { className: "tabular-nums", children: o.coachPhone || "—" }),
         },
         {
             key: "coachEmail",
             header: "Coach Email",
             width: "180px",
-            render: (o) => (<span className="block truncate text-brand-ink-secondary">{o.coachEmail || "—"}</span>),
+            render: (o) => ((0, jsx_runtime_1.jsx)("span", { className: "block truncate text-brand-ink-secondary", children: o.coachEmail || "—" })),
         },
         {
             key: "billingPersonName",
@@ -84,9 +81,7 @@ function pomFormColumns() {
             key: "billingPersonEmail",
             header: "Billing Email",
             width: "180px",
-            render: (o) => (<span className="block truncate text-brand-ink-secondary">
-          {o.billingPersonEmail || "—"}
-        </span>),
+            render: (o) => ((0, jsx_runtime_1.jsx)("span", { className: "block truncate text-brand-ink-secondary", children: o.billingPersonEmail || "—" })),
         },
         {
             key: "choreographerName",
@@ -98,16 +93,14 @@ function pomFormColumns() {
             key: "choreographerEmail",
             header: "Choreographer Email",
             width: "180px",
-            render: (o) => (<span className="block truncate text-brand-ink-secondary">
-          {o.choreographerEmail || "—"}
-        </span>),
+            render: (o) => ((0, jsx_runtime_1.jsx)("span", { className: "block truncate text-brand-ink-secondary", children: o.choreographerEmail || "—" })),
         },
         {
             key: "numberOfCopies",
             header: "Copies",
             width: "72px",
             align: "center",
-            render: (o) => <span className="tabular-nums">{o.numberOfCopies || "—"}</span>,
+            render: (o) => (0, jsx_runtime_1.jsx)("span", { className: "tabular-nums", children: o.numberOfCopies || "—" }),
         },
         {
             key: "packageType",
@@ -126,7 +119,7 @@ function pomFormColumns() {
             key: "timeLengthOfMix",
             header: "Mix Length",
             width: "100px",
-            render: (o) => <span>{o.timeLengthOfMix || "—"}</span>,
+            render: (o) => (0, jsx_runtime_1.jsx)("span", { children: o.timeLengthOfMix || "—" }),
         },
         {
             key: "musicAffiliate",
@@ -178,10 +171,7 @@ function getOrderColumns(options) {
         header: "Status",
         width: "96px",
         nowrap: true,
-        render: (order) => (<div className="flex items-center gap-1.5">
-        {mode === "active" && order.needsAttention ? (<lucide_react_1.AlertCircle className="h-3.5 w-3.5 shrink-0 text-brand-warning" strokeWidth={1.75}/>) : null}
-        <StatusBadge_1.StatusBadge status={order.status}/>
-      </div>),
+        render: (order) => ((0, jsx_runtime_1.jsxs)("div", { className: "flex items-center gap-1.5", children: [mode === "active" && order.needsAttention ? ((0, jsx_runtime_1.jsx)(lucide_react_1.AlertCircle, { className: "h-3.5 w-3.5 shrink-0 text-brand-warning", strokeWidth: 1.75 })) : null, (0, jsx_runtime_1.jsx)(StatusBadge_1.StatusBadge, { status: order.status })] })),
     });
     columns.push({
         key: "date",
@@ -189,11 +179,9 @@ function getOrderColumns(options) {
         width: "96px",
         align: "right",
         nowrap: true,
-        render: (order) => (<span className="text-[12px] text-brand-ink-tertiary tabular-nums">
-        {mode === "past" || order.status === "completed"
+        render: (order) => ((0, jsx_runtime_1.jsx)("span", { className: "text-[12px] text-brand-ink-tertiary tabular-nums", children: mode === "past" || order.status === "completed"
                 ? order.completedAt || order.createdAt
-                : order.createdAt}
-      </span>),
+                : order.createdAt })),
     });
     return columns;
 }

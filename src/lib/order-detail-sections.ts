@@ -320,6 +320,322 @@ const YOUTH_REC_CHEER_FIELDS: { title: string; fields: FieldDef[] }[] = [
   },
 ];
 
+const POM_DANCE_FIELDS: { title: string; fields: FieldDef[] }[] = [
+  {
+    title: "School / Program information",
+    fields: [
+      { key: "schoolProgramName", label: "School/Program Name" },
+      { key: "schoolGymAddress", label: "School/Gym Address", multiline: true },
+      { key: "city", label: "City" },
+      { key: "stateProvince", label: "State/Province" },
+      { key: "zipPostalCode", label: "ZIP/Postal Code", preserveCase: true },
+      { key: "country", label: "Country" },
+      { key: "divisionOfTeam", label: "Division of Team", multiline: true },
+    ],
+  },
+  {
+    title: "Contact & Choreographer information",
+    fields: [
+      { key: "coachName", label: "Coach (full name)" },
+      { key: "coachPhone", label: "Coach phone #", preserveCase: true },
+      { key: "coachEmail", label: "Coach email", preserveCase: true },
+      { key: "billingPersonName", label: "Billing person (full name)" },
+      { key: "billingPersonEmail", label: "Billing person email", preserveCase: true },
+      { key: "choreographerName", label: "Choreographer (full name)" },
+      { key: "choreographerEmail", label: "Choreographer email", preserveCase: true },
+    ],
+  },
+  {
+    title: "Mix & Routine information",
+    fields: [
+      {
+        key: "numberOfCopies",
+        label:
+          "How many copies of your music will you need to send out to your coaches and participants?",
+        wide: true,
+      },
+      { key: "packageType", label: "Package type", multiline: true },
+      { key: "requestedEditor", label: "Requested editor", preserveCase: true },
+      { key: "timeLengthOfMix", label: "Time length of mix", preserveCase: true },
+      { key: "musicAffiliate", label: "Music affiliate" },
+      {
+        key: "routineNotes",
+        label: "Routine notes",
+        multiline: true,
+        preserveCase: true,
+      },
+      { key: "customVoiceovers", label: "Custom Voiceovers for your mix?" },
+      {
+        key: "voiceoverScript",
+        label: "What do you want the voiceovers to say?",
+        multiline: true,
+        preserveCase: true,
+      },
+      {
+        key: "pronunciationGuidance",
+        label: "Pronunciation guidance",
+        multiline: true,
+        preserveCase: true,
+      },
+      { key: "couponCode", label: "Coupon code", preserveCase: true },
+    ],
+  },
+];
+
+const HIP_HOP_DANCE_FIELDS: { title: string; fields: FieldDef[] }[] = [
+  {
+    title: "School / Program information",
+    fields: [
+      { key: "schoolProgramName", label: "School/Program Name" },
+      { key: "schoolGymAddress", label: "School/Gym Address", multiline: true },
+      { key: "city", label: "City" },
+      { key: "stateProvince", label: "State/Province" },
+      { key: "zipPostalCode", label: "ZIP/Postal Code", preserveCase: true },
+      { key: "country", label: "Country" },
+    ],
+  },
+  {
+    title: "Contact & Choreographer information",
+    fields: [
+      { key: "coachName", label: "Coach (full name)" },
+      { key: "coachPhone", label: "Coach phone #", preserveCase: true },
+      { key: "coachEmail", label: "Coach email", preserveCase: true },
+      { key: "billingPersonName", label: "Billing person (full name)" },
+      { key: "billingPersonEmail", label: "Billing person email", preserveCase: true },
+      { key: "choreographerName", label: "Choreographer (full name)" },
+      { key: "choreographerEmail", label: "Choreographer email", preserveCase: true },
+    ],
+  },
+  {
+    title: "Mix & Routine information",
+    fields: [
+      {
+        key: "numberOfCopies",
+        label:
+          "How many copies of your music will you need to send out to your coaches and participants?",
+        wide: true,
+      },
+      { key: "packageType", label: "Package type", multiline: true },
+      { key: "requestedEditor", label: "Requested editor", preserveCase: true },
+      { key: "timeLengthOfMix", label: "Time length of mix", preserveCase: true },
+      { key: "musicAffiliate", label: "Music affiliate" },
+      {
+        key: "routineNotes",
+        label: "Routine notes",
+        multiline: true,
+        preserveCase: true,
+      },
+      { key: "customVoiceovers", label: "Custom Voiceovers for your mix?" },
+      {
+        key: "voiceoverScript",
+        label: "What do you want the voiceovers to say?",
+        multiline: true,
+        preserveCase: true,
+      },
+      {
+        key: "pronunciationGuidance",
+        label: "Pronunciation guidance",
+        multiline: true,
+        preserveCase: true,
+      },
+      { key: "couponCode", label: "Coupon code", preserveCase: true },
+    ],
+  },
+];
+
+const TEAM_PERFORMANCE_VARIETY_DANCE_FIELDS: { title: string; fields: FieldDef[] }[] = [
+  {
+    title: "School / Program information",
+    fields: [
+      { key: "schoolProgramName", label: "School/Program Name" },
+      { key: "schoolGymAddress", label: "School/Gym Address", multiline: true },
+      { key: "city", label: "City" },
+      { key: "stateProvince", label: "State/Province" },
+      { key: "zipPostalCode", label: "ZIP/Postal Code", preserveCase: true },
+      { key: "country", label: "Country" },
+    ],
+  },
+  {
+    title: "Contact & Choreographer information",
+    fields: [
+      { key: "coachName", label: "Coach (full name)" },
+      { key: "coachPhone", label: "Coach phone #", preserveCase: true },
+      { key: "coachEmail", label: "Coach email", preserveCase: true },
+      { key: "billingPersonName", label: "Billing person (full name)" },
+      { key: "billingPersonEmail", label: "Billing person email", preserveCase: true },
+      { key: "choreographerName", label: "Choreographer (full name)" },
+      { key: "choreographerEmail", label: "Choreographer email", preserveCase: true },
+    ],
+  },
+  {
+    title: "Mix & Routine information",
+    fields: [
+      {
+        key: "numberOfCopies",
+        label:
+          "How many copies of your music will you need to send out to your coaches and participants?",
+        wide: true,
+      },
+      { key: "divisionOfTeam", label: "Division of Team", multiline: true },
+      { key: "style", label: "Style" },
+      { key: "requestedEditor", label: "Requested editor", preserveCase: true },
+      { key: "packageType", label: "Package type", multiline: true },
+      { key: "timeLengthOfMix", label: "Time length of mix", preserveCase: true },
+      { key: "musicAffiliate", label: "Music affiliate" },
+      {
+        key: "routineNotes",
+        label: "Routine notes",
+        multiline: true,
+        preserveCase: true,
+      },
+      { key: "customVoiceovers", label: "Custom Voiceovers for your mix?" },
+      {
+        key: "voiceoverScript",
+        label: "What do you want the voiceovers to say?",
+        multiline: true,
+        preserveCase: true,
+      },
+      {
+        key: "pronunciationGuidance",
+        label: "Pronunciation guidance",
+        multiline: true,
+        preserveCase: true,
+      },
+      { key: "couponCode", label: "Coupon code", preserveCase: true },
+    ],
+  },
+];
+
+const GAMEDAY_DANCE_FIELDS: { title: string; fields: FieldDef[] }[] = [
+  {
+    title: "School / Program information",
+    fields: [
+      { key: "schoolProgramName", label: "School/Program Name" },
+      { key: "schoolGymAddress", label: "School/Gym Address", multiline: true },
+      { key: "city", label: "City" },
+      { key: "stateProvince", label: "State/Province" },
+      { key: "zipPostalCode", label: "ZIP/Postal Code", preserveCase: true },
+      { key: "country", label: "Country" },
+    ],
+  },
+  {
+    title: "Contact & Choreographer information",
+    fields: [
+      { key: "coachName", label: "Coach (full name)" },
+      { key: "coachPhone", label: "Coach phone #", preserveCase: true },
+      { key: "coachEmail", label: "Coach email", preserveCase: true },
+      { key: "billingPersonName", label: "Billing person (full name)" },
+      { key: "billingPersonEmail", label: "Billing person email", preserveCase: true },
+      { key: "choreographerName", label: "Choreographer (full name)" },
+      { key: "choreographerEmail", label: "Choreographer email", preserveCase: true },
+    ],
+  },
+  {
+    title: "Mix & Routine information",
+    fields: [
+      {
+        key: "numberOfCopies",
+        label:
+          "How many copies of your music will you need to send out to your coaches and participants?",
+        wide: true,
+      },
+      { key: "packageType", label: "Package type", multiline: true },
+      { key: "styleOfGamedayMix", label: "Style of Gameday Mix" },
+      { key: "timeLengthOfMix", label: "Time length of mix", preserveCase: true },
+      { key: "requestedEditor", label: "Requested editor", preserveCase: true },
+      { key: "musicAffiliate", label: "Music affiliate" },
+      {
+        key: "routineNotes",
+        label: "Routine notes",
+        multiline: true,
+        preserveCase: true,
+      },
+      { key: "customVoiceovers", label: "Custom Voiceovers for your mix?" },
+      {
+        key: "voiceoverScript",
+        label: "What do you want the voiceovers to say?",
+        multiline: true,
+        preserveCase: true,
+      },
+      {
+        key: "pronunciationGuidance",
+        label: "Pronunciation guidance",
+        multiline: true,
+        preserveCase: true,
+      },
+      { key: "couponCode", label: "Coupon code", preserveCase: true },
+    ],
+  },
+];
+
+const JAZZ_KICK_DANCE_FIELDS: { title: string; fields: FieldDef[] }[] = [
+  {
+    title: "School / Program information",
+    fields: [
+      { key: "schoolProgramName", label: "School/Program Name" },
+      { key: "schoolGymAddress", label: "School/Gym Address", multiline: true },
+      { key: "city", label: "City" },
+      { key: "stateProvince", label: "State/Province" },
+      { key: "zipPostalCode", label: "ZIP/Postal Code", preserveCase: true },
+      { key: "country", label: "Country" },
+      { key: "divisionOfTeam", label: "Division of Team", multiline: true },
+    ],
+  },
+  {
+    title: "Contact & Choreographer information",
+    fields: [
+      { key: "coachName", label: "Coach (full name)" },
+      { key: "coachPhone", label: "Coach phone #", preserveCase: true },
+      { key: "coachEmail", label: "Coach email", preserveCase: true },
+      { key: "billingPersonName", label: "Billing person (full name)" },
+      { key: "billingPersonEmail", label: "Billing person email", preserveCase: true },
+      { key: "choreographerName", label: "Choreographer (full name)" },
+      { key: "choreographerEmail", label: "Choreographer email", preserveCase: true },
+    ],
+  },
+  {
+    title: "Mix & Routine information",
+    fields: [
+      {
+        key: "numberOfCopies",
+        label:
+          "How many copies of your music will you need to send out to your coaches and participants?",
+        wide: true,
+      },
+      { key: "style", label: "Style" },
+      { key: "requestedEditor", label: "Requested editor", preserveCase: true },
+      { key: "packageType", label: "Package type", multiline: true },
+      { key: "timeLengthOfMix", label: "Time length of mix", preserveCase: true },
+      {
+        key: "licensingRequired",
+        label: "Do you attend any event where you are required to show proper licensing?",
+        preserveCase: true,
+      },
+      { key: "musicAffiliate", label: "Music affiliate" },
+      {
+        key: "routineNotes",
+        label: "Routine notes",
+        multiline: true,
+        preserveCase: true,
+      },
+      { key: "customVoiceovers", label: "Custom Voiceovers for your mix?" },
+      {
+        key: "voiceoverScript",
+        label: "What do you want the voiceovers to say?",
+        multiline: true,
+        preserveCase: true,
+      },
+      {
+        key: "pronunciationGuidance",
+        label: "Pronunciation guidance",
+        multiline: true,
+        preserveCase: true,
+      },
+      { key: "couponCode", label: "Coupon code", preserveCase: true },
+    ],
+  },
+];
+
 const CHEER_FORM_CODES: Partial<Record<CheerFormSubtype, string>> = {
   "all-star-cheer": "A",
   "school-cheer-viroc-yes": "B",
@@ -391,6 +707,23 @@ export function getOrderDetailSections(order: Order): OrderDetailSection[] {
         return buildSections(YOUTH_REC_CHEER_FIELDS, order);
       default:
         return buildSections(ALL_STAR_CHEER_FIELDS, order);
+    }
+  }
+
+  if (order.formType === "school-all-star-dance") {
+    switch (order.danceFormSubtype) {
+      case "pom":
+        return buildSections(POM_DANCE_FIELDS, order);
+      case "hip-hop":
+        return buildSections(HIP_HOP_DANCE_FIELDS, order);
+      case "team-performance-variety":
+        return buildSections(TEAM_PERFORMANCE_VARIETY_DANCE_FIELDS, order);
+      case "gameday":
+        return buildSections(GAMEDAY_DANCE_FIELDS, order);
+      case "jazz-kick":
+        return buildSections(JAZZ_KICK_DANCE_FIELDS, order);
+      default:
+        return buildSections(POM_DANCE_FIELDS, order);
     }
   }
 

@@ -39,6 +39,7 @@ import { parsePackage } from "@/lib/package";
 import { complianceLabel } from "@/lib/pricing";
 import {
   calculateCheerOrderPricing,
+  calculateDanceOrderPricing,
   determineComplianceStatus,
 } from "@/lib/pricing-engine";
 import { formatSlotForDisplay } from "@/lib/scheduling";
@@ -80,6 +81,7 @@ import type {
   CheerFormSubtype,
   CheerFormSubtypeFilter,
   DanceFormSubtype,
+  DanceFormSubtypeFilter,
   MTDRecord,
   MTDRecordStatus,
   Order,
@@ -91,7 +93,7 @@ import clsx from "clsx";
 
 const DEFAULT_FORM: OrderFormType = "school-all-star-cheer";
 const DEFAULT_CHEER_SUBTYPE: CheerFormSubtype = "all-star-cheer";
-const DEFAULT_DANCE_SUBTYPE: DanceFormSubtype = "pom";
+const DEFAULT_DANCE_SUBTYPE: DanceFormSubtypeFilter = "all";
 
 const actionButtonClass = (filled: boolean) =>
   clsx(
@@ -154,7 +156,7 @@ export default function MTDPage() {
   const [cheerSubtypeState, setCheerSubtypeState] = useState<CheerFormSubtypeFilter>(
     DEFAULT_CHEER_SUBTYPE
   );
-  const [danceSubtypeState, setDanceSubtypeState] = useState<DanceFormSubtype>(
+  const [danceSubtypeState, setDanceSubtypeState] = useState<DanceFormSubtypeFilter>(
     DEFAULT_DANCE_SUBTYPE
   );
 
@@ -176,7 +178,7 @@ export default function MTDPage() {
 
   const [danceSubtype, setDanceSubtype] = [
     danceSubtypeState,
-    (next: DanceFormSubtype) => {
+    (next: DanceFormSubtypeFilter) => {
       setDanceSubtypeState(next);
       if (typeof window !== "undefined") sessionStorage.setItem("slt_mtd_dance_subtype", next);
     },
@@ -186,7 +188,7 @@ export default function MTDPage() {
     if (typeof window === "undefined") return;
     const savedForm = sessionStorage.getItem("slt_mtd_form") as OrderFormType | null;
     const savedCheer = sessionStorage.getItem("slt_mtd_cheer_subtype") as CheerFormSubtypeFilter | null;
-    const savedDance = sessionStorage.getItem("slt_mtd_dance_subtype") as DanceFormSubtype | null;
+    const savedDance = sessionStorage.getItem("slt_mtd_dance_subtype") as DanceFormSubtypeFilter | null;
     if (savedForm) setFormState(savedForm);
     if (savedCheer) setCheerSubtypeState(savedCheer);
     if (savedDance) setDanceSubtypeState(savedDance);
@@ -421,6 +423,8 @@ export default function MTDPage() {
       form === "school-all-star-cheer" &&
       (cheerSubtype === "youth-rec-cheer" || cheerSubtype === "all");
 
+    const showDanceVoiceover = form === "school-all-star-dance";
+
     const baseCols: Column<MTDRecord>[] = [
       {
         key: "rowId",
@@ -478,51 +482,55 @@ export default function MTDPage() {
           );
         },
       },
-      {
-        key: "limitE",
-        header: "Time limit",
-        width: "100px",
-        align: "center",
-        nowrap: false,
-        cellClassName: clsx(compactCellClass, "max-w-[100px]"),
-        headerClassName: compactHeaderClass,
-        render: (rec) => {
-          const { limit } = parsePackage(rec.package);
-          return (
-            <span className={clsx("mx-auto block text-center tabular-nums", compactTextClass)}>
-              {limit}
-            </span>
-          );
-        },
-      },
-      {
-        key: "splitE",
-        header: "Split",
-        width: "100px",
-        align: "center",
-        nowrap: false,
-        cellClassName: clsx(compactCellClass, "max-w-[100px]"),
-        headerClassName: compactHeaderClass,
-        render: (rec) => {
-          const meta = resolveMTDFormMeta(rec, orderById);
-          if (meta.cheerFormSubtype === "all-star-cheer") {
-            return (
-              <span className={clsx("mx-auto block text-center text-brand-ink-tertiary", compactTextClass)}>
-                N/A
-              </span>
-            );
-          }
-          const linked = rec.orderId ? orderById.get(rec.orderId) : undefined;
-          const splitVal = linked?.splitOrNoSplit || parsePackage(rec.package).split;
-          return (
-            <TruncatedText
-              text={splitVal || "N/A"}
-              className={clsx("mx-auto w-full min-w-0 text-center", compactTextClass)}
-              style={{ maxWidth: "100%" }}
-            />
-          );
-        },
-      },
+      ...(form !== "school-all-star-dance"
+        ? [
+            {
+              key: "limitE",
+              header: "Time limit",
+              width: "100px",
+              align: "center" as const,
+              nowrap: false,
+              cellClassName: clsx(compactCellClass, "max-w-[100px]"),
+              headerClassName: compactHeaderClass,
+              render: (rec: MTDRecord) => {
+                const { limit } = parsePackage(rec.package);
+                return (
+                  <span className={clsx("mx-auto block text-center tabular-nums", compactTextClass)}>
+                    {limit}
+                  </span>
+                );
+              },
+            },
+            {
+              key: "splitE",
+              header: "Split",
+              width: "100px",
+              align: "center" as const,
+              nowrap: false,
+              cellClassName: clsx(compactCellClass, "max-w-[100px]"),
+              headerClassName: compactHeaderClass,
+              render: (rec: MTDRecord) => {
+                const meta = resolveMTDFormMeta(rec, orderById);
+                if (meta.cheerFormSubtype === "all-star-cheer") {
+                  return (
+                    <span className={clsx("mx-auto block text-center text-brand-ink-tertiary", compactTextClass)}>
+                      N/A
+                    </span>
+                  );
+                }
+                const linked = rec.orderId ? orderById.get(rec.orderId) : undefined;
+                const splitVal = linked?.splitOrNoSplit || parsePackage(rec.package).split;
+                return (
+                  <TruncatedText
+                    text={splitVal || "N/A"}
+                    className={clsx("mx-auto w-full min-w-0 text-center", compactTextClass)}
+                    style={{ maxWidth: "100%" }}
+                  />
+                );
+              },
+            },
+          ]
+        : []),
       {
         key: "musicAffiliateCol",
         header: "Music Affiliate",
@@ -544,7 +552,9 @@ export default function MTDPage() {
           }
 
           const compliance = determineComplianceStatus(
-            meta.cheerFormSubtype,
+            meta.formType === "school-all-star-dance"
+              ? meta.danceFormSubtype
+              : meta.cheerFormSubtype,
             affiliate
           );
 
@@ -646,24 +656,38 @@ export default function MTDPage() {
         render: (rec) => {
           const order = findLinkedOrder(rec, allOrders);
           const meta = resolveMTDFormMeta(rec, orderById);
-          const enginePricing = calculateCheerOrderPricing({
-            cheerFormSubtype: meta.cheerFormSubtype,
-            packageType: order?.packageType || rec.package,
-            timeLengthOfMix: order?.timeLengthOfMix,
-            musicAffiliate: order?.musicAffiliate,
-            hasRallyMix: rec.hasRallyMix,
-            hasExtend8ctAddon: rec.hasExtend8ctAddon,
-            hasProcessing8ctSheetsAddon: rec.hasProcessing8ctSheetsAddon,
-          });
+          let engineCustomerPrice = 0;
+
+          if (meta.formType === "school-all-star-dance") {
+            const dancePricing = calculateDanceOrderPricing({
+              danceFormSubtype: meta.danceFormSubtype,
+              packageType: order?.packageType || rec.package,
+              musicAffiliate: order?.musicAffiliate,
+              hasTraditionalVoiceover: rec.hasTraditionalVoiceover,
+              hasThemedVoiceover: rec.hasThemedVoiceover,
+            });
+            engineCustomerPrice = dancePricing.customerFacingPrice;
+          } else {
+            const enginePricing = calculateCheerOrderPricing({
+              cheerFormSubtype: meta.cheerFormSubtype,
+              packageType: order?.packageType || rec.package,
+              timeLengthOfMix: order?.timeLengthOfMix,
+              musicAffiliate: order?.musicAffiliate,
+              hasRallyMix: rec.hasRallyMix,
+              hasExtend8ctAddon: rec.hasExtend8ctAddon,
+              hasProcessing8ctSheetsAddon: rec.hasProcessing8ctSheetsAddon,
+            });
+            engineCustomerPrice = enginePricing.customerFacingPrice;
+          }
 
           const isOverridden = Boolean(
             order?.finalCustomerPriceOverridden ?? rec.finalCustomerPriceOverridden
           );
 
           const displayPrice = isOverridden
-            ? (order?.finalCustomerPrice ?? rec.finalCustomerPrice ?? enginePricing.customerFacingPrice)
-            : (enginePricing.customerFacingPrice > 0
-                ? enginePricing.customerFacingPrice
+            ? (order?.finalCustomerPrice ?? rec.finalCustomerPrice ?? engineCustomerPrice)
+            : (engineCustomerPrice > 0
+                ? engineCustomerPrice
                 : (order?.finalCustomerPrice ?? rec.price));
 
           return (
@@ -896,6 +920,65 @@ export default function MTDPage() {
       });
     }
 
+    if (showDanceVoiceover) {
+      baseCols.push({
+        key: "voiceoverCol",
+        header: "Voice Over",
+        width: "135px",
+        align: "center",
+        nowrap: false,
+        cellClassName: "!px-2 !py-2",
+        headerClassName: "!px-2",
+        render: (rec) => (
+          <div
+            className="flex items-center justify-center gap-1.5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              data-stop-row-nav
+              title="Traditional VO (+$25)"
+              aria-label={`Traditional Voice Over: ${rec.hasTraditionalVoiceover ? "Yes" : "No"}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                updateMTD(rec.id, {
+                  hasTraditionalVoiceover: !rec.hasTraditionalVoiceover,
+                });
+              }}
+              className={clsx(
+                "whitespace-nowrap rounded-lg px-2 py-1 text-[10px] font-semibold leading-none shadow-xs transition-all duration-150 focus-visible:outline-none",
+                rec.hasTraditionalVoiceover
+                  ? "bg-brand-success/22 text-emerald-800 ring-1 ring-inset ring-brand-success/35 hover:bg-brand-success/30"
+                  : "bg-brand-danger/18 text-red-700 ring-1 ring-inset ring-brand-danger/32 hover:bg-brand-danger/25"
+              )}
+            >
+              Trad
+            </button>
+            <button
+              type="button"
+              data-stop-row-nav
+              title="Themed VO (+$75)"
+              aria-label={`Themed Voice Over: ${rec.hasThemedVoiceover ? "Yes" : "No"}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                updateMTD(rec.id, {
+                  hasThemedVoiceover: !rec.hasThemedVoiceover,
+                });
+              }}
+              className={clsx(
+                "whitespace-nowrap rounded-lg px-2 py-1 text-[10px] font-semibold leading-none shadow-xs transition-all duration-150 focus-visible:outline-none",
+                rec.hasThemedVoiceover
+                  ? "bg-brand-success/22 text-emerald-800 ring-1 ring-inset ring-brand-success/35 hover:bg-brand-success/30"
+                  : "bg-brand-danger/18 text-red-700 ring-1 ring-inset ring-brand-danger/32 hover:bg-brand-danger/25"
+              )}
+            >
+              Themed
+            </button>
+          </div>
+        ),
+      });
+    }
+
     baseCols.push(
       {
         key: "editorB",
@@ -1103,7 +1186,7 @@ export default function MTDPage() {
             emptyMessage="No MTD entries match this filter."
             pageSize={15}
             embedded
-            showScrollIndicator={false}
+            showScrollIndicator={true}
           />
         </div>
       </div>

@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getCheerOrderColumns = getCheerOrderColumns;
+const jsx_runtime_1 = require("react/jsx-runtime");
 const order_form_1 = require("@/lib/order-form");
 function textCol(key, header, accessor, width = "140px", wide = false) {
     return {
@@ -8,9 +9,7 @@ function textCol(key, header, accessor, width = "140px", wide = false) {
         header,
         width,
         nowrap: !wide,
-        render: (o) => (<span className={wide ? "block max-w-[220px] truncate" : "block truncate"}>
-        {(0, order_form_1.displayText)(accessor(o))}
-      </span>),
+        render: (o) => ((0, jsx_runtime_1.jsx)("span", { className: wide ? "block max-w-[220px] truncate" : "block truncate", children: (0, order_form_1.displayText)(accessor(o)) })),
     };
 }
 function multiCol(key, header, accessor, width = "220px") {
@@ -19,9 +18,7 @@ function multiCol(key, header, accessor, width = "220px") {
         header,
         width,
         nowrap: false,
-        render: (o) => (<span className="block max-w-[240px] text-[12px] leading-snug text-brand-ink-secondary">
-        {(0, order_form_1.displayMultiline)(accessor(o), 140)}
-      </span>),
+        render: (o) => ((0, jsx_runtime_1.jsx)("span", { className: "block max-w-[240px] text-[12px] leading-snug text-brand-ink-secondary", children: (0, order_form_1.displayMultiline)(accessor(o), 140) })),
     };
 }
 function addressCols(prefix, includeName = true) {
@@ -40,7 +37,7 @@ function addressCols(prefix, includeName = true) {
         key: "zipPostalCode",
         header: "ZIP/Postal Code",
         width: "90px",
-        render: (o) => <span className="tabular-nums">{o.zipPostalCode || "—"}</span>,
+        render: (o) => (0, jsx_runtime_1.jsx)("span", { className: "tabular-nums", children: o.zipPostalCode || "—" }),
     }, textCol("country", "Country", (o) => o.country, "110px"));
     return cols;
 }
@@ -54,7 +51,7 @@ function teamInfoCols(includeMascot = false) {
         header: "Copies",
         width: "72px",
         align: "center",
-        render: (o) => <span className="tabular-nums">{o.numberOfCopies || "—"}</span>,
+        render: (o) => (0, jsx_runtime_1.jsx)("span", { className: "tabular-nums", children: o.numberOfCopies || "—" }),
     });
     return cols;
 }
@@ -65,7 +62,7 @@ function contactCols() {
             key: "coachPhone",
             header: "Coach Phone",
             width: "110px",
-            render: (o) => <span className="tabular-nums">{o.coachPhone || "—"}</span>,
+            render: (o) => (0, jsx_runtime_1.jsx)("span", { className: "tabular-nums", children: o.coachPhone || "—" }),
         },
         textCol("coachEmail", "Coach Email", (o) => o.coachEmail || o.coachEmailAddress || "", "180px"),
         textCol("billingPersonName", "Billing Contact", (o) => o.billingPersonName, "120px"),
@@ -121,7 +118,7 @@ function youthRecCheerColumns() {
             key: "coachPhone",
             header: "Phone #",
             width: "110px",
-            render: (o) => <span className="tabular-nums">{o.coachPhone || "—"}</span>,
+            render: (o) => (0, jsx_runtime_1.jsx)("span", { className: "tabular-nums", children: o.coachPhone || "—" }),
         },
         textCol("emailAddress", "Email Address", (o) => o.emailAddress || o.billingPersonEmail, "180px"),
         ...mixInfoCols({

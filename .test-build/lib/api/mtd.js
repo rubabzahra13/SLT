@@ -128,6 +128,15 @@ async function updateMTDRecordApi(id, patch) {
         payload.has_extend_8ct_addon = patch.hasExtend8ctAddon;
     if (patch.hasProcessing8ctSheetsAddon !== undefined)
         payload.has_processing_8ct_sheets_addon = patch.hasProcessing8ctSheetsAddon;
-    const res = await client_1.apiClient.patch(`/api/mtd/${id}`, payload);
-    return transformMTDRecord(res);
+    try {
+        const res = await client_1.apiClient.patch(`/api/mtd/${id}`, payload);
+        return transformMTDRecord(res);
+    }
+    catch (err) {
+        if (err instanceof client_1.ApiClientError && err.status === 404) {
+            console.warn(`MTD Record ${id} not found on backend (local/seed record). Update persisted locally.`);
+            return { id, ...patch };
+        }
+        throw err;
+    }
 }

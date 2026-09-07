@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.EDITOR_NAMES = exports.MTD_RECORD_STATUS_OPTIONS = exports.SONGS_OPTIONS = exports.EIGHT_CS_OPTIONS = exports.EDITOR_REQUEST_OPTIONS = exports.DANCE_FORM_SUBTABS = exports.CHEER_FORM_SUBTABS_WITH_ALL = exports.CHEER_FORM_SUBTABS = exports.ORDER_FORM_TABS = exports.PRODUCER_CATEGORIES = exports.DEFAULT_WORK_DAYS = exports.WEEKDAYS = void 0;
+exports.EDITOR_NAMES = exports.MTD_RECORD_STATUS_OPTIONS = exports.SONGS_OPTIONS = exports.EIGHT_CS_OPTIONS = exports.EDITOR_REQUEST_OPTIONS = exports.DANCE_FORM_SUBTABS_WITH_ALL = exports.DANCE_FORM_SUBTABS = exports.CHEER_FORM_SUBTABS_WITH_ALL = exports.CHEER_FORM_SUBTABS = exports.ORDER_FORM_TABS = exports.PRODUCER_CATEGORIES = exports.DEFAULT_WORK_DAYS = exports.WEEKDAYS = void 0;
 exports.WEEKDAYS = [
     { id: "sun", label: "Sunday", short: "Sun" },
     { id: "mon", label: "Monday", short: "Mon" },
@@ -47,6 +47,10 @@ exports.DANCE_FORM_SUBTABS = [
     { id: "team-performance-variety", label: "Team Performance & Variety" },
     { id: "gameday", label: "Gameday" },
     { id: "jazz-kick", label: "Jazz/Kick" },
+];
+exports.DANCE_FORM_SUBTABS_WITH_ALL = [
+    { id: "all", label: "All Dance" },
+    ...exports.DANCE_FORM_SUBTABS,
 ];
 exports.EDITOR_REQUEST_OPTIONS = ["FA", "NA"];
 exports.EIGHT_CS_OPTIONS = [

@@ -39,7 +39,7 @@ const order_form_1 = require("./order-form");
 const package_1 = require("./package");
 const types_1 = require("../types");
 exports.DEFAULT_CHEER_SUBTYPE = "all-star-cheer";
-exports.DEFAULT_DANCE_SUBTYPE = "pom";
+exports.DEFAULT_DANCE_SUBTYPE = "all";
 function resolveMTDFormMeta(rec, orderById) {
     const targetId = rec.orderId || rec.id;
     const linked = targetId
@@ -88,6 +88,8 @@ function matchesFormFilter(rec, orderById, form, cheerSubtype, danceSubtype) {
         return meta.cheerFormSubtype === cheerSubtype;
     }
     if (form === "school-all-star-dance") {
+        if (danceSubtype === "all")
+            return true;
         return meta.danceFormSubtype === danceSubtype;
     }
     return true;
@@ -118,12 +120,18 @@ function countMTDByCheerSubtype(records, orderById) {
     return counts;
 }
 function countMTDByDanceSubtype(records, orderById) {
-    const counts = Object.fromEntries(types_1.DANCE_FORM_SUBTABS.map(({ id }) => [id, 0]));
+    const counts = {
+        all: 0,
+        ...Object.fromEntries(types_1.DANCE_FORM_SUBTABS.map(({ id }) => [id, 0])),
+    };
     for (const rec of records) {
         const meta = resolveMTDFormMeta(rec, orderById);
         if (meta.formType !== "school-all-star-dance")
             continue;
-        counts[meta.danceFormSubtype] += 1;
+        counts.all += 1;
+        if (counts[meta.danceFormSubtype] !== undefined) {
+            counts[meta.danceFormSubtype] += 1;
+        }
     }
     return counts;
 }

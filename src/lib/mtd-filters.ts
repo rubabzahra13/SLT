@@ -15,6 +15,7 @@ import type {
   CheerFormSubtype,
   CheerFormSubtypeFilter,
   DanceFormSubtype,
+  DanceFormSubtypeFilter,
   MTDRecord,
   Order,
   OrderFormType,
@@ -24,11 +25,12 @@ import {
   CHEER_FORM_SUBTABS,
   CHEER_FORM_SUBTABS_WITH_ALL,
   DANCE_FORM_SUBTABS,
+  DANCE_FORM_SUBTABS_WITH_ALL,
   ORDER_FORM_TABS,
 } from "../types";
 
 export const DEFAULT_CHEER_SUBTYPE: CheerFormSubtypeFilter = "all-star-cheer";
-export const DEFAULT_DANCE_SUBTYPE: DanceFormSubtype = "pom";
+export const DEFAULT_DANCE_SUBTYPE: DanceFormSubtypeFilter = "all";
 
 export type MTDFormMeta = {
   formType: OrderFormType;
@@ -89,7 +91,7 @@ export function matchesFormFilter(
   orderById: Map<string, Order>,
   form: OrderFormType,
   cheerSubtype: CheerFormSubtypeFilter,
-  danceSubtype: DanceFormSubtype
+  danceSubtype: DanceFormSubtypeFilter
 ): boolean {
   const meta = resolveMTDFormMeta(rec, orderById);
   if (meta.formType !== form) return false;
@@ -98,6 +100,7 @@ export function matchesFormFilter(
     return meta.cheerFormSubtype === cheerSubtype;
   }
   if (form === "school-all-star-dance") {
+    if (danceSubtype === "all") return true;
     return meta.danceFormSubtype === danceSubtype;
   }
   return true;
@@ -143,15 +146,19 @@ export function countMTDByCheerSubtype(
 export function countMTDByDanceSubtype(
   records: MTDRecord[],
   orderById: Map<string, Order>
-): Record<DanceFormSubtype, number> {
-  const counts = Object.fromEntries(
-    DANCE_FORM_SUBTABS.map(({ id }) => [id, 0])
-  ) as Record<DanceFormSubtype, number>;
+): Record<DanceFormSubtypeFilter, number> {
+  const counts = {
+    all: 0,
+    ...Object.fromEntries(DANCE_FORM_SUBTABS.map(({ id }) => [id, 0])),
+  } as Record<DanceFormSubtypeFilter, number>;
 
   for (const rec of records) {
     const meta = resolveMTDFormMeta(rec, orderById);
     if (meta.formType !== "school-all-star-dance") continue;
-    counts[meta.danceFormSubtype] += 1;
+    counts.all += 1;
+    if (counts[meta.danceFormSubtype] !== undefined) {
+      counts[meta.danceFormSubtype] += 1;
+    }
   }
 
   return counts;
@@ -482,7 +489,7 @@ export function filterMTDRecords(
     infoFilter?: InfoFilter;
     form?: OrderFormType;
     cheerSubtype?: CheerFormSubtypeFilter;
-    danceSubtype?: DanceFormSubtype;
+    danceSubtype?: DanceFormSubtypeFilter;
     orderById?: Map<string, Order>;
   }
 ): MTDRecord[] {

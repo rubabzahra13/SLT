@@ -50,8 +50,15 @@ const FIELD_GETTERS: Record<string, (order: Order) => string | undefined> = {
   powerMusicCovers: (o) => o.powerMusicCovers,
   routineNotes: (o) => o.routineNotes,
   couponCode: (o) => o.couponCode || "",
-  howDidYouFindOut: (o) => o.howDidYouFindOut || "",
   customVoiceovers: (o) => o.customVoiceovers,
+  schoolGymAddress: (o) =>
+    o.schoolGymAddress || o.schoolAddress || o.gymBillingAddress || o.billingAddress,
+  divisionOfTeam: (o) => o.divisionOfTeam || o.division,
+  style: (o) => o.style,
+  styleOfGamedayMix: (o) => o.styleOfGamedayMix,
+  licensingRequired: (o) => o.licensingRequired,
+  voiceoverScript: (o) => o.voiceoverScript,
+  pronunciationGuidance: (o) => o.pronunciationGuidance,
 };
 
 export function rawFieldValue(order: Order, key: string): string {

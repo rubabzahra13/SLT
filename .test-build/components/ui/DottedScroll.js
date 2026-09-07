@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.DottedScroll = DottedScroll;
+const jsx_runtime_1 = require("react/jsx-runtime");
 const react_1 = require("react");
 const clsx_1 = __importDefault(require("clsx"));
 const DOT_COUNT = 3;
@@ -74,14 +75,12 @@ function DottedScroll({ children, className = "", contentClassName, scrollClassN
             resizeObserver.disconnect();
         };
     }, [updateScrollState]);
-    const dotMarks = (<>
-      {Array.from({ length: DOT_COUNT }).map((_, index) => (<span key={index} className={(0, clsx_1.default)("rounded-full transition-all duration-150", index === activeIndex
+    const dotMarks = ((0, jsx_runtime_1.jsx)(jsx_runtime_1.Fragment, { children: Array.from({ length: DOT_COUNT }).map((_, index) => ((0, jsx_runtime_1.jsx)("span", { className: (0, clsx_1.default)("rounded-full transition-all duration-150", index === activeIndex
                 ? "h-2 w-2 bg-brand-signature"
                 : tone === "dark"
                     ? "h-1.5 w-1.5 bg-white/20"
-                    : "h-1.5 w-1.5 bg-brand-line-strong")}/>))}
-    </>);
-    const dots = showIndicator && canScroll ? (<div className={(0, clsx_1.default)("pointer-events-none", indicatorsBelow &&
+                    : "h-1.5 w-1.5 bg-brand-line-strong") }, index))) }));
+    const dots = showIndicator && canScroll ? ((0, jsx_runtime_1.jsx)("div", { className: (0, clsx_1.default)("pointer-events-none", indicatorsBelow &&
             "mt-2 flex items-center justify-center gap-2", isHorizontal &&
             !indicatorsBelow &&
             "absolute bottom-1.5 left-1/2 z-[2] flex -translate-x-1/2 items-center gap-2", !isHorizontal &&
@@ -90,17 +89,20 @@ function DottedScroll({ children, className = "", contentClassName, scrollClassN
                 ? "justify-between py-5"
                 : "justify-center gap-2"), !isHorizontal &&
             !indicatorsGutter &&
-            "absolute top-1/2 flex -translate-y-1/2 flex-col items-center gap-2 py-3", indicatorClassName, !isHorizontal && !indicatorsGutter && !indicatorClassName && "right-1")} aria-hidden="true">
-      {dotMarks}
-    </div>) : null;
-    return (<div className={(0, clsx_1.default)("relative", bounded
+            "absolute top-1/2 flex -translate-y-1/2 flex-col items-center gap-2 py-3", indicatorClassName, !isHorizontal && !indicatorsGutter && !indicatorClassName && "right-1"), "aria-hidden": "true", children: dotMarks })) : null;
+    const handleWheel = (0, react_1.useCallback)((e) => {
+        if (isHorizontal && containerRef.current) {
+            const el = containerRef.current;
+            if (el.scrollWidth > el.clientWidth) {
+                if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+                    el.scrollLeft += e.deltaY;
+                }
+            }
+        }
+    }, [isHorizontal]);
+    return ((0, jsx_runtime_1.jsxs)("div", { className: (0, clsx_1.default)("relative", bounded
             ? "w-full shrink-0"
             : isHorizontal
                 ? "min-w-0 w-full"
-                : "min-h-0 flex-1", className)}>
-      <div ref={containerRef} className={resolvedScrollClass}>
-        <div className={resolvedContentClass}>{children}</div>
-      </div>
-      {dots}
-    </div>);
+                : "min-h-0 flex-1", className), children: [(0, jsx_runtime_1.jsx)("div", { ref: containerRef, className: resolvedScrollClass, onWheel: handleWheel, children: (0, jsx_runtime_1.jsx)("div", { className: resolvedContentClass, children: children }) }), dots] }));
 }

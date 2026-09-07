@@ -21,7 +21,7 @@ import { findLinkedOrder, findProducerByAssignmentKey } from "@/lib/editor-assig
 import { getFullClassificationLabel, computeClientPayroll } from "@/lib/pricing-display";
 import { useAppState } from "@/context/AppStateContext";
 import { resolveMTDFormMeta } from "@/lib/mtd-filters";
-import { calculateCheerOrderPricing } from "@/lib/pricing-engine";
+import { calculateCheerOrderPricing, calculateDanceOrderPricing } from "@/lib/pricing-engine";
 import { parsePackage } from "@/lib/package";
 import { evaluateCouponCode } from "@/lib/discount-codes";
 import {
@@ -118,6 +118,7 @@ export function CompleteToPayrollModal({
         }
         const meta = resolveMTDFormMeta(currentRec, orderById);
         const cheerSubtype = meta.cheerFormSubtype;
+        const danceSubtype = meta.danceFormSubtype;
         const pkgName = order?.packageType || currentRec.package;
         const mixLen = order?.timeLengthOfMix || parsePackage(currentRec.package).limit;
         const affiliate = order?.musicAffiliate || currentRec.musicTheme || (currentRec as any).musicAffiliate;
@@ -126,79 +127,178 @@ export function CompleteToPayrollModal({
         const couponEval = evaluateCouponCode(rawCouponCode, discountCodes);
         const matchedDiscountCode = couponEval.status === "valid" ? couponEval.match ?? null : null;
 
-        const enginePricing = calculateCheerOrderPricing({
-          cheerFormSubtype: cheerSubtype,
-          packageType: pkgName,
-          timeLengthOfMix: mixLen,
-          musicAffiliate: affiliate,
-          hasRallyMix: currentRec.hasRallyMix,
-          hasExtend8ctAddon: currentRec.hasExtend8ctAddon,
-          hasProcessing8ctSheetsAddon: currentRec.hasProcessing8ctSheetsAddon,
-          couponCode: rawCouponCode,
-          discountCodeObj: matchedDiscountCode,
-        });
+        let enginePricing: any;
+        let canonicalSubtypeId: string = "";
+
+        if (meta.formType === "school-all-star-dance") {
+          canonicalSubtypeId = danceSubtype;
+          const danceResult = calculateDanceOrderPricing({
+            danceFormSubtype: danceSubtype,
+            packageType: pkgName,
+            musicAffiliate: affiliate,
+            hasTraditionalVoiceover: currentRec.hasTraditionalVoiceover,
+            hasThemedVoiceover: currentRec.hasThemedVoiceover,
+          });
+
+          let discountAmount = 0;
+          if (matchedDiscountCode && matchedDiscountCode.discountType && typeof matchedDiscountCode.discountValue === "number" && matchedDiscountCode.discountValue > 0) {
+            const preDiscountBase = danceResult.payrollBasePrice;
+            if (matchedDiscountCode.discountType === "fixed") {
+              discountAmount = Math.min(preDiscountBase, Math.max(0, matchedDiscountCode.discountValue));
+            } else if (matchedDiscountCode.discountType === "percentage") {
+              const pct = Math.max(0, Math.min(100, matchedDiscountCode.discountValue));
+              discountAmount = Math.min(preDiscountBase, Math.round(preDiscountBase * (pct / 100)));
+            }
+          }
+
+          const preDiscountCust = danceResult.customerFacingPrice;
+          const preDiscountPay = danceResult.payrollBasePrice;
+
+          enginePricing = {
+            ...danceResult,
+            customerFacingPrice: Math.max(0, preDiscountCust - discountAmount),
+            payrollBasePrice: Math.max(0, preDiscountPay - discountAmount),
+            preDiscountCustomerFacingPrice: preDiscountCust,
+            preDiscountPayrollBasePrice: preDiscountPay,
+            discountAmount,
+            discountType: matchedDiscountCode?.discountType,
+            discountValue: matchedDiscountCode?.discountValue,
+            packageName: danceResult.matchedEntry?.package || pkgName,
+            timeLengthOfMix: "",
+          };
+        } else {
+          canonicalSubtypeId = cheerSubtype;
+          enginePricing = calculateCheerOrderPricing({
+            cheerFormSubtype: cheerSubtype,
+            packageType: pkgName,
+            timeLengthOfMix: mixLen,
+            musicAffiliate: affiliate,
+            hasRallyMix: currentRec.hasRallyMix,
+            hasExtend8ctAddon: currentRec.hasExtend8ctAddon,
+            hasProcessing8ctSheetsAddon: currentRec.hasProcessing8ctSheetsAddon,
+            couponCode: rawCouponCode,
+            discountCodeObj: matchedDiscountCode,
+          });
+        }
 
         setCalculatedEnginePricing(enginePricing);
 
         let complianceReason = "";
-        if (cheerSubtype === "youth-rec-cheer") {
-          complianceReason = "Youth Rec Cheer does not require music affiliate compliance; compliant rate card applies.";
-        } else if (enginePricing.complianceStatus === "compliant") {
-          complianceReason = `Music affiliate '${affiliate || "Approved Affiliate"}' is on the compliant affiliate list.`;
-        } else if (enginePricing.complianceStatus === "non-compliant") {
-          complianceReason = `Music affiliate '${affiliate || "Unapproved"}' is not on the compliant list; non-compliant rate card applies.`;
+        if (meta.formType === "school-all-star-dance") {
+          if (enginePricing.alwaysFixedPayroll) {
+            complianceReason = "Jazz Simple Cut uses non-compliant song with time cuts only; fixed $100 payroll base applies.";
+          } else if (enginePricing.complianceStatus === "compliant") {
+            complianceReason = `Music affiliate '${affiliate || "Approved Affiliate"}' is on the compliant affiliate list.`;
+          } else if (enginePricing.complianceStatus === "non-compliant") {
+            complianceReason = `Music affiliate '${affiliate || "Unapproved"}' is not on the compliant list; non-compliant rate card applies.`;
+          } else {
+            complianceReason = "No music affiliate specified on order.";
+          }
         } else {
-          complianceReason = "No music affiliate specified on order.";
+          if (cheerSubtype === "youth-rec-cheer") {
+            complianceReason = "Youth Rec Cheer does not require music affiliate compliance; compliant rate card applies.";
+          } else if (enginePricing.complianceStatus === "compliant") {
+            complianceReason = `Music affiliate '${affiliate || "Approved Affiliate"}' is on the compliant affiliate list.`;
+          } else if (enginePricing.complianceStatus === "non-compliant") {
+            complianceReason = `Music affiliate '${affiliate || "Unapproved"}' is not on the compliant list; non-compliant rate card applies.`;
+          } else {
+            complianceReason = "No music affiliate specified on order.";
+          }
         }
 
         const addons: AddOnLineItem[] = [];
-        if (
-          (cheerSubtype === "school-cheer-viroc-yes" || cheerSubtype === "school-cheer-viroc-no") &&
-          currentRec.hasRallyMix
-        ) {
-          addons.push({
-            addon_id: "rally_mix",
-            label: "Rally Mix Add-On",
-            customer_amount: 350,
-            payroll_amount: 350,
-            quantity: 1,
-            note: "Fixed fee add-on (School Cheer)",
-          });
-        }
-
-        if (cheerSubtype === "youth-rec-cheer") {
-          if (currentRec.hasExtend8ctAddon) {
+        if (meta.formType === "school-all-star-dance") {
+          if (currentRec.hasTraditionalVoiceover) {
             addons.push({
-              addon_id: "extend_8ct",
-              label: "Extend 2 8cs Phrase / Raps",
+              addon_id: "traditional_vo",
+              label: "Traditional Voice Over",
               customer_amount: 25,
               payroll_amount: 25,
               quantity: 1,
-              note: "Megan-controlled add-on (Youth Rec)",
+              note: "Fixed fee add-on (Dance)",
             });
           }
-          if (currentRec.hasProcessing8ctSheetsAddon) {
+          if (currentRec.hasThemedVoiceover) {
             addons.push({
-              addon_id: "process_8ct",
-              label: "Processing 8cs Sheets",
-              customer_amount: 50,
-              payroll_amount: 50,
+              addon_id: "themed_vo",
+              label: "Themed Voice Over",
+              customer_amount: 75,
+              payroll_amount: 75,
               quantity: 1,
-              note: "Megan-controlled add-on (Youth Rec)",
+              note: "Fixed fee add-on (Dance)",
             });
+          }
+        } else {
+          if (
+            (cheerSubtype === "school-cheer-viroc-yes" || cheerSubtype === "school-cheer-viroc-no") &&
+            currentRec.hasRallyMix
+          ) {
+            addons.push({
+              addon_id: "rally_mix",
+              label: "Rally Mix Add-On",
+              customer_amount: 350,
+              payroll_amount: 350,
+              quantity: 1,
+              note: "Fixed fee add-on (School Cheer)",
+            });
+          }
+
+          if (cheerSubtype === "youth-rec-cheer") {
+            if (currentRec.hasExtend8ctAddon) {
+              addons.push({
+                addon_id: "extend_8ct",
+                label: "Extend 2 8cs Phrase / Raps",
+                customer_amount: 25,
+                payroll_amount: 25,
+                quantity: 1,
+                note: "Megan-controlled add-on (Youth Rec)",
+              });
+            }
+            if (currentRec.hasProcessing8ctSheetsAddon) {
+              addons.push({
+                addon_id: "process_8ct",
+                label: "Processing 8cs Sheets",
+                customer_amount: 50,
+                payroll_amount: 50,
+                quantity: 1,
+                note: "Megan-controlled add-on (Youth Rec)",
+              });
+            }
           }
         }
 
-        const baseCust = enginePricing.matchedEntry?.customer ?? currentRec.price;
-        const basePay = enginePricing.matchedEntry
-          ? (enginePricing.complianceStatus === "non-compliant" ? enginePricing.matchedEntry.nonCompliant : enginePricing.matchedEntry.compliant)
-          : currentRec.price;
+        let baseCust = 0;
+        let basePay = 0;
+
+        if (meta.formType === "school-all-star-dance") {
+          baseCust = enginePricing.matchedEntry?.customer ?? currentRec.price;
+          basePay = enginePricing.matchedEntry
+            ? (enginePricing.alwaysFixedPayroll
+                ? enginePricing.matchedEntry.compliant
+                : enginePricing.complianceStatus === "non-compliant"
+                ? enginePricing.matchedEntry.nonCompliant
+                : enginePricing.matchedEntry.compliant)
+            : currentRec.price;
+        } else {
+          baseCust = enginePricing.matchedEntry?.customer ?? currentRec.price;
+          basePay = enginePricing.matchedEntry
+            ? (enginePricing.complianceStatus === "non-compliant" ? enginePricing.matchedEntry.nonCompliant : enginePricing.matchedEntry.compliant)
+            : currentRec.price;
+        }
 
         const calculatedBreakdown: PricingBreakdown = {
-          form_type: order?.formType || "school-all-star-cheer",
-          canonical_subtype_id: cheerSubtype,
-          package_id: enginePricing.matchedEntry ? `${enginePricing.matchedEntry.tier}-${enginePricing.matchedEntry.limit}` : "pkg-local",
-          package_name: enginePricing.matchedEntry ? `${enginePricing.matchedEntry.tier} ${enginePricing.matchedEntry.limit}` : currentRec.package,
+          form_type: order?.formType || meta.formType || "school-all-star-cheer",
+          canonical_subtype_id: canonicalSubtypeId,
+          package_id: enginePricing.matchedEntry
+            ? (meta.formType === "school-all-star-dance"
+                ? enginePricing.matchedEntry.package
+                : `${enginePricing.matchedEntry.tier}-${enginePricing.matchedEntry.limit}`)
+            : "pkg-local",
+          package_name: enginePricing.matchedEntry
+            ? (meta.formType === "school-all-star-dance"
+                ? enginePricing.matchedEntry.package
+                : `${enginePricing.matchedEntry.tier} ${enginePricing.matchedEntry.limit}`)
+            : currentRec.package,
           pricing_rule_id: null,
           compliance_status: enginePricing.complianceStatus === "non-compliant" ? "non-compliant" : "compliant",
           compliance_reason: complianceReason,
@@ -210,7 +310,7 @@ export function CompleteToPayrollModal({
           payroll_base_price: enginePricing.payrollBasePrice > 0 ? enginePricing.payrollBasePrice : currentRec.price,
           needs_manual_pricing: false,
           needs_manual_review: false,
-          summary_line: `Subtype: ${cheerSubtype} | Package: ${enginePricing.packageName} ${enginePricing.timeLengthOfMix} | Customer: $${enginePricing.customerFacingPrice} | Payroll Base: $${enginePricing.payrollBasePrice}`,
+          summary_line: `Subtype: ${canonicalSubtypeId} | Package: ${enginePricing.packageName} ${enginePricing.timeLengthOfMix || ""} | Customer: $${enginePricing.customerFacingPrice} | Payroll Base: $${enginePricing.payrollBasePrice}`,
           coupon_code: rawCouponCode,
           coupon_evaluation: couponEval,
         };

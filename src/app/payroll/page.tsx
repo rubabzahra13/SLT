@@ -31,13 +31,14 @@ import type {
   CheerFormSubtype,
   CheerFormSubtypeFilter,
   DanceFormSubtype,
+  DanceFormSubtypeFilter,
   MTDRecord,
   OrderFormType,
 } from "@/types";
 
 const DEFAULT_FORM: OrderFormType = "school-all-star-cheer";
 const DEFAULT_CHEER_SUBTYPE: CheerFormSubtypeFilter = "all";
-const DEFAULT_DANCE_SUBTYPE: DanceFormSubtype = "pom";
+const DEFAULT_DANCE_SUBTYPE: DanceFormSubtypeFilter = "all";
 
 const actionLinkClass =
   "inline-flex h-8 w-8 items-center justify-center rounded-lg border border-brand-line/70 bg-brand-bg/60 text-brand-ink-secondary shadow-sm transition hover:border-brand-orange/40 hover:bg-brand-orange-soft/35 hover:text-brand-orange focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange/25";
@@ -49,7 +50,7 @@ export default function PayrollPage() {
   const [cheerSubtype, setCheerSubtype] = useState<CheerFormSubtypeFilter>(
     DEFAULT_CHEER_SUBTYPE
   );
-  const [danceSubtype, setDanceSubtype] = useState<DanceFormSubtype>(
+  const [danceSubtype, setDanceSubtype] = useState<DanceFormSubtypeFilter>(
     DEFAULT_DANCE_SUBTYPE
   );
   const [tableFilters, setTableFilters] = useState<MTDTableFilterState>(
