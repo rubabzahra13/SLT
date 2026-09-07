@@ -20,18 +20,25 @@ export type DashboardMixStatus =
   | "unassigned"
   | "in_queue"
   | "in_production"
+  | "waiting_for_data"
   | "outsourced"
   | "completed";
 
+function isWaitingForData(rec: MTDRecord): boolean {
+  return Boolean(rec.needsAttention) || rec.status === "needs_attention";
+}
+
 /**
  * Date-aware status classification for dashboard metrics.
- * 
+ *
  * Rules:
  * 1. Completed/inPayroll -> "completed"
  * 2. Status === "outsourced" -> "outsourced"
- * 3. Producer NOT assigned -> "unassigned" (producer assignment takes precedence)
- * 4. Producer assigned + mixStartDate in future (> today) -> "in_queue"
- * 5. Producer assigned + mixStartDate today or past (<= today) -> "in_production"
+ * 3. Producer NOT assigned -> "unassigned"
+ * 4. Waiting on materials/data -> "waiting_for_data"
+ * 5. Producer assigned + scheduled future start -> "in_queue"
+ * 6. Producer assigned + start today/past -> "in_production"
+ * 7. Producer assigned but no start date yet -> "waiting_for_data"
  */
 export function getDashboardMixStatus(
   rec: MTDRecord,
@@ -50,6 +57,10 @@ export function getDashboardMixStatus(
     return "unassigned";
   }
 
+  if (isWaitingForData(rec)) {
+    return "waiting_for_data";
+  }
+
   const todayIso =
     typeof todayInput === "string"
       ? toIsoDateString(todayInput)
@@ -59,6 +70,10 @@ export function getDashboardMixStatus(
 
   if (startIso && startIso > todayIso) {
     return "in_queue";
+  }
+
+  if (!startIso) {
+    return "waiting_for_data";
   }
 
   return "in_production";
@@ -228,6 +243,9 @@ export function buildDashboardPulse(
       case "in_production":
         inProduction += 1;
         inProductionRecords.push(rec);
+        openBoard.push(rec);
+        break;
+      case "waiting_for_data":
         openBoard.push(rec);
         break;
       case "outsourced":

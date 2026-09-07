@@ -16,8 +16,8 @@ export function kpiInsight(
     case "In queue":
     case "In Queue":
       return {
-        title: "Scheduled future start",
-        body: "Mixes assigned to a producer and scheduled to start on a future date.",
+        title: "In queue",
+        body: "Mixes that are scheduled but not currently being worked on — assigned with a future mix start date.",
       };
     case "In production":
     case "In Production":

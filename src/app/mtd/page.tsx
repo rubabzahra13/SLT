@@ -872,28 +872,35 @@ export default function MTDPage() {
           );
         },
       },
-      ...(form === "school-all-star-cheer"
+      ...(form === "school-all-star-cheer" || form === "school-all-star-dance"
         ? [
             {
               key: "eightJ",
               header: "COLLECTIONS",
-              width: "168px",
+              width: form === "school-all-star-cheer" ? "168px" : "100px",
               align: "center" as const,
               nowrap: false,
               cellClassName: "!px-2 !py-2",
               headerClassName: "!px-2",
               render: (rec: MTDRecord) => {
                 const state = parseEightCsState(rec.eightCountSheet ?? "");
-
-                return (
-                  <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
-                    <InlineTriStateCheckGroup
-                      items={[
+                const items =
+                  form === "school-all-star-cheer"
+                    ? [
                         { id: "cs", label: "CS", state: state.cs },
                         { id: "video", label: "Video", state: state.video },
                         { id: "form", label: "Form", state: state.form },
                         { id: "mix", label: "Mix", state: state.mix },
-                      ]}
+                      ]
+                    : [
+                        { id: "form", label: "Form", state: state.form },
+                        { id: "mix", label: "Mix", state: state.mix },
+                      ];
+
+                return (
+                  <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
+                    <InlineTriStateCheckGroup
+                      items={items}
                       onCycle={(id) => {
                         const next = cycleEightCsItem(state, id as keyof typeof state);
                         updateMTD(rec.id, {

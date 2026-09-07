@@ -21,15 +21,20 @@ const mtd_completion_1 = require("@/lib/mtd-completion");
 const schedule_view_1 = require("@/lib/schedule-view");
 /** Dashboard "today" — defaults to current system date. */
 exports.DASHBOARD_ANCHOR_DATE = new Date();
+function isWaitingForData(rec) {
+    return Boolean(rec.needsAttention) || rec.status === "needs_attention";
+}
 /**
  * Date-aware status classification for dashboard metrics.
  *
  * Rules:
  * 1. Completed/inPayroll -> "completed"
  * 2. Status === "outsourced" -> "outsourced"
- * 3. Producer NOT assigned -> "unassigned" (producer assignment takes precedence)
- * 4. Producer assigned + mixStartDate in future (> today) -> "in_queue"
- * 5. Producer assigned + mixStartDate today or past (<= today) -> "in_production"
+ * 3. Producer NOT assigned -> "unassigned"
+ * 4. Waiting on materials/data -> "waiting_for_data" (on board, not queued or in active production)
+ * 5. Producer assigned + scheduled future start -> "in_queue"
+ * 6. Producer assigned + start today/past -> "in_production"
+ * 7. Producer assigned but no start date yet -> "waiting_for_data"
  */
 function getDashboardMixStatus(rec, todayInput = new Date()) {
     if (rec.status === "completed" || rec.inPayroll) {
@@ -42,12 +47,18 @@ function getDashboardMixStatus(rec, todayInput = new Date()) {
     if (!hasProducer) {
         return "unassigned";
     }
+    if (isWaitingForData(rec)) {
+        return "waiting_for_data";
+    }
     const todayIso = typeof todayInput === "string"
         ? (0, dates_1.toIsoDateString)(todayInput)
         : (0, dates_1.toIsoDateString)(todayInput.toISOString());
     const startIso = (0, dates_1.toIsoDateString)(rec.mixStartDate);
     if (startIso && startIso > todayIso) {
         return "in_queue";
+    }
+    if (!startIso) {
+        return "waiting_for_data";
     }
     return "in_production";
 }
@@ -110,6 +121,9 @@ function buildDashboardPulse(mtdRecords, producers, schedule = [], todayInput = 
             case "in_production":
                 inProduction += 1;
                 inProductionRecords.push(rec);
+                openBoard.push(rec);
+                break;
+            case "waiting_for_data":
                 openBoard.push(rec);
                 break;
             case "outsourced":
