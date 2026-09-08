@@ -33,13 +33,13 @@ describe("Prompt 6 — Sports Entertainment Pricing Engine Unit Tests", () => {
     assert.equal(res.rushFeeAmount, 0);
   });
 
-  it("QUARTER BREAK / TIMEOUT REMIXED with rush = yes: customerFacingPrice = 250 ($150 + $100)", () => {
+  it("QUARTER BREAK / TIMEOUT REMIXED with rush = yes: customerFacingPrice = 150 (base), payrollBasePrice = 250 ($150 + $100)", () => {
     const res = calculateSportsEntertainmentOrderPricing({
       packageType: "QUARTER BREAK / TIMEOUT REMIXED",
       isRushOrder: "yes",
     });
 
-    assert.equal(res.customerFacingPrice, 250);
+    assert.equal(res.customerFacingPrice, 150);
     assert.equal(res.payrollBasePrice, 250);
     assert.equal(res.hasRushFee, true);
     assert.equal(res.rushFeeAmount, 100);
@@ -56,13 +56,13 @@ describe("Prompt 6 — Sports Entertainment Pricing Engine Unit Tests", () => {
     assert.equal(res.hasRushFee, false);
   });
 
-  it("PRE-GAME / HALFTIME REMIXED with rush = yes: customerFacingPrice = 350 ($250 + $100)", () => {
+  it("PRE-GAME / HALFTIME REMIXED with rush = yes: customerFacingPrice = 250 (base), payrollBasePrice = 350 ($250 + $100)", () => {
     const res = calculateSportsEntertainmentOrderPricing({
       packageType: "PRE-GAME / HALFTIME REMIXED",
       isRushOrder: "yes",
     });
 
-    assert.equal(res.customerFacingPrice, 350);
+    assert.equal(res.customerFacingPrice, 250);
     assert.equal(res.payrollBasePrice, 350);
     assert.equal(res.hasRushFee, true);
     assert.equal(res.rushFeeAmount, 100);
@@ -90,12 +90,14 @@ describe("Prompt 6 — Sports Entertainment Pricing Engine Unit Tests", () => {
       packageType: "PRE-GAME / HALFTIME REMIXED",
       isRushOrder: true,
     });
-    assert.equal(resBool.customerFacingPrice, 350);
+    assert.equal(resBool.customerFacingPrice, 250);
+    assert.equal(resBool.payrollBasePrice, 350);
 
     const resUpper = calculateSportsEntertainmentOrderPricing({
       packageType: "PRE-GAME / HALFTIME REMIXED",
       isRushOrder: "YES",
     });
-    assert.equal(resUpper.customerFacingPrice, 350);
+    assert.equal(resUpper.customerFacingPrice, 250);
+    assert.equal(resUpper.payrollBasePrice, 350);
   });
 });

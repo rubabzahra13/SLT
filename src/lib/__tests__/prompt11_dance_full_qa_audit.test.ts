@@ -73,18 +73,22 @@ describe("Prompt 11 — Full Dance Pricing QA and Regression Audit", () => {
       assert.ok(!allKeys.includes("licensingRequired"), "licensingRequired must NOT render on POM");
     });
 
-    it("POM: VO Toggles Math → $475 / $500 / $550 / $575", () => {
+    it("POM: VO Toggles Math → $475 Package Price (base), Payroll Base $375 / $400 / $450 / $475", () => {
       const base = calculateDanceOrderPricing({ danceFormSubtype: "pom", packageType: "DANCE MIX", musicAffiliate: "Power Music Covers" });
       assert.equal(base.customerFacingPrice, 475);
+      assert.equal(base.payrollBasePrice, 375);
 
       const trad = calculateDanceOrderPricing({ danceFormSubtype: "pom", packageType: "DANCE MIX", musicAffiliate: "Power Music Covers", hasTraditionalVoiceover: true });
-      assert.equal(trad.customerFacingPrice, 500);
+      assert.equal(trad.customerFacingPrice, 475);
+      assert.equal(trad.payrollBasePrice, 400);
 
       const themed = calculateDanceOrderPricing({ danceFormSubtype: "pom", packageType: "DANCE MIX", musicAffiliate: "Power Music Covers", hasThemedVoiceover: true });
-      assert.equal(themed.customerFacingPrice, 550);
+      assert.equal(themed.customerFacingPrice, 475);
+      assert.equal(themed.payrollBasePrice, 450);
 
       const both = calculateDanceOrderPricing({ danceFormSubtype: "pom", packageType: "DANCE MIX", musicAffiliate: "Power Music Covers", hasTraditionalVoiceover: true, hasThemedVoiceover: true });
-      assert.equal(both.customerFacingPrice, 575);
+      assert.equal(both.customerFacingPrice, 475);
+      assert.equal(both.payrollBasePrice, 475);
     });
 
     it("POM: Completion Breakdown & Coupon + Payroll Integration", () => {

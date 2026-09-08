@@ -12,7 +12,12 @@ import {
   InlineDateInput,
   InlineInput,
   InlineTriStateCheckGroup,
+  InlineDanceVoiceoverPills,
+  InlineCheerVoiceoverPills,
+  InlineRushFeePills,
+  InlineQuantityStepper,
 } from "@/components/mtd/InlineFields";
+import { resolveMTDFormMeta } from "@/lib/mtd-filters";
 import {
   AssignEditorModal,
   type EditorAssignmentResult,
@@ -271,6 +276,7 @@ export default function MTDDetailPage({
     ? formatSlotForDisplay(rec.assignedProducer, producers, schedule)
     : null;
   const orderForm = orderDraft ?? order;
+  const meta = resolveMTDFormMeta(rec, orderById);
 
   return (
     <>
@@ -503,6 +509,45 @@ export default function MTDDetailPage({
                 }}
               />
             </FieldTile>
+            {meta.formType === "school-all-star-dance" && (
+              <FieldTile label="Voice Over">
+                <InlineDanceVoiceoverPills
+                  record={rec}
+                  onUpdate={(_id, patch) => patchMTD(patch)}
+                />
+              </FieldTile>
+            )}
+            {meta.formType === "school-all-star-cheer" && (
+              <FieldTile label="Voice Over">
+                <InlineCheerVoiceoverPills
+                  record={rec}
+                  onUpdate={(_id, patch) => patchMTD(patch)}
+                />
+              </FieldTile>
+            )}
+            <FieldTile label="Rush Fee">
+              <InlineRushFeePills
+                record={rec}
+                onUpdate={(_id, patch) => patchMTD(patch)}
+                onUpdateOrder={(orderId, patch) => updateOrder(orderId, patch)}
+              />
+            </FieldTile>
+            <FieldTile label="Extra Songs">
+              <InlineQuantityStepper
+                quantity={rec.extraSongsQuantity ?? 0}
+                unitCost={15}
+                label="Extra Songs"
+                onChange={(qty) => patchMTD({ extraSongsQuantity: qty })}
+              />
+            </FieldTile>
+            <FieldTile label="Extra Song Editing Time">
+              <InlineQuantityStepper
+                quantity={rec.extraSongEditingTimeQuantity ?? 0}
+                unitCost={30}
+                label="Extra Song Time"
+                onChange={(qty) => patchMTD({ extraSongEditingTimeQuantity: qty })}
+              />
+            </FieldTile>
           </div>
         </article>
 
@@ -560,13 +605,9 @@ export default function MTDDetailPage({
 
       <SetPricingModal
         open={packagePricingOpen}
-        prices={packagePrices}
-        secretMenuPrices={secretMenuPrices}
+        order={order}
+        record={rec}
         onClose={() => setPackagePricingOpen(false)}
-        onSave={(prices, secretMenu) => {
-          setPackagePrices(prices);
-          setSecretMenuPrices(secretMenu);
-        }}
       />
     </>
   );

@@ -64,15 +64,19 @@ const discount_codes_1 = require("../discount-codes");
             strict_1.default.ok(!allKeys.includes("styleOfGamedayMix"), "styleOfGamedayMix must NOT render on POM");
             strict_1.default.ok(!allKeys.includes("licensingRequired"), "licensingRequired must NOT render on POM");
         });
-        (0, node_test_1.it)("POM: VO Toggles Math → $475 / $500 / $550 / $575", () => {
+        (0, node_test_1.it)("POM: VO Toggles Math → $475 Package Price (base), Payroll Base $375 / $400 / $450 / $475", () => {
             const base = (0, pricing_engine_1.calculateDanceOrderPricing)({ danceFormSubtype: "pom", packageType: "DANCE MIX", musicAffiliate: "Power Music Covers" });
             strict_1.default.equal(base.customerFacingPrice, 475);
+            strict_1.default.equal(base.payrollBasePrice, 375);
             const trad = (0, pricing_engine_1.calculateDanceOrderPricing)({ danceFormSubtype: "pom", packageType: "DANCE MIX", musicAffiliate: "Power Music Covers", hasTraditionalVoiceover: true });
-            strict_1.default.equal(trad.customerFacingPrice, 500);
+            strict_1.default.equal(trad.customerFacingPrice, 475);
+            strict_1.default.equal(trad.payrollBasePrice, 400);
             const themed = (0, pricing_engine_1.calculateDanceOrderPricing)({ danceFormSubtype: "pom", packageType: "DANCE MIX", musicAffiliate: "Power Music Covers", hasThemedVoiceover: true });
-            strict_1.default.equal(themed.customerFacingPrice, 550);
+            strict_1.default.equal(themed.customerFacingPrice, 475);
+            strict_1.default.equal(themed.payrollBasePrice, 450);
             const both = (0, pricing_engine_1.calculateDanceOrderPricing)({ danceFormSubtype: "pom", packageType: "DANCE MIX", musicAffiliate: "Power Music Covers", hasTraditionalVoiceover: true, hasThemedVoiceover: true });
-            strict_1.default.equal(both.customerFacingPrice, 575);
+            strict_1.default.equal(both.customerFacingPrice, 475);
+            strict_1.default.equal(both.payrollBasePrice, 475);
         });
         (0, node_test_1.it)("POM: Completion Breakdown & Coupon + Payroll Integration", () => {
             const couponEval = (0, discount_codes_1.evaluateCouponCode)("AUSTIN2026", discountCodes);

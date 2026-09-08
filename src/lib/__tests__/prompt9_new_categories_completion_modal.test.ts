@@ -25,7 +25,7 @@ describe("Prompt 9 — New Categories Completion Modal Pricing & Coupon Integrat
 
       assert.equal(result.matchedEntry?.package, "BAND CHANT");
       assert.equal(result.matchedEntry?.customer, 600);
-      assert.equal(result.customerFacingPrice, 600 + 50 + 75); // $725
+      assert.equal(result.customerFacingPrice, 600); // Base package price $600 (add-ons are separate)
       assert.equal(result.complianceStatus, "unknown-no-affiliate-field");
 
       // Wire coupon code
@@ -35,7 +35,7 @@ describe("Prompt 9 — New Categories Completion Modal Pricing & Coupon Integrat
 
       const discountAmount = couponEval.match?.discountValue || 0;
       const finalCustPrice = Math.max(0, result.customerFacingPrice - discountAmount);
-      assert.equal(finalCustPrice, 675);
+      assert.equal(finalCustPrice, 550);
     });
 
     it("surfaces explicit unknown-no-affiliate-field state for Band Chant and Drum Cadence", () => {
@@ -57,7 +57,7 @@ describe("Prompt 9 — New Categories Completion Modal Pricing & Coupon Integrat
       assert.equal(result.matchedEntry?.customer, 250);
       assert.equal(result.hasRushFee, true);
       assert.equal(result.rushFeeAmount, 100);
-      assert.equal(result.customerFacingPrice, 350);
+      assert.equal(result.customerFacingPrice, 250); // Base package price $250
       assert.equal(result.isUnpriced, false);
       assert.equal(result.needsManualQuote, false);
     });

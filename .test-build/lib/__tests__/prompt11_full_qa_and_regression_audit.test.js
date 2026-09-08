@@ -31,13 +31,13 @@ const mockDiscountCodes = [
                 strict_1.default.equal(rec.category, "Marching Band");
             }
         });
-        (0, node_test_1.it)("1.2 MTD Pricing & Add-on Math: BAND CHANT ($600) + Sheet Music ($50) + Vocals ($75) = $725", () => {
+        (0, node_test_1.it)("1.2 MTD Pricing & Add-on Math: BAND CHANT ($600) + Sheet Music ($50) + Vocals ($75) = $600 Package Price / $725 Payroll Base", () => {
             const result = (0, pricing_engine_1.calculateMarchingBandOrderPricing)({
                 packageType: "BAND CHANT",
                 hasSheetMusicAdd: true,
                 hasAddVocals: true,
             });
-            strict_1.default.equal(result.customerFacingPrice, 725);
+            strict_1.default.equal(result.customerFacingPrice, 600);
             strict_1.default.equal(result.payrollBasePrice, 725); // $600 non-compliant base (no affiliate) + $125 add-ons
         });
         (0, node_test_1.it)("1.3 Compliance: Surfaces unknown-no-affiliate-field state plainly for Band Chant & Drum Cadence", () => {
@@ -46,7 +46,7 @@ const mockDiscountCodes = [
             const dc = (0, pricing_engine_1.calculateMarchingBandOrderPricing)({ packageType: "DRUM CADENCE ORIGINAL" });
             strict_1.default.equal(dc.complianceStatus, "unknown-no-affiliate-field");
         });
-        (0, node_test_1.it)("1.4 Completion Modal & Coupon: Applies SAVE50 ($50 off) to $725 -> $675 final customer price", () => {
+        (0, node_test_1.it)("1.4 Completion Modal & Coupon: Applies SAVE50 ($50 off) to $600 -> $550 final customer price", () => {
             const result = (0, pricing_engine_1.calculateMarchingBandOrderPricing)({
                 packageType: "BAND CHANT",
                 hasSheetMusicAdd: true,
@@ -56,19 +56,19 @@ const mockDiscountCodes = [
             strict_1.default.equal(couponEval.status, "valid");
             const discount = couponEval.match?.discountValue || 0;
             const finalPrice = result.customerFacingPrice - discount;
-            strict_1.default.equal(finalPrice, 675);
+            strict_1.default.equal(finalPrice, 550);
         });
-        (0, node_test_1.it)("1.5 Payroll Transition: Moves to Payroll with $675 customer price", () => {
+        (0, node_test_1.it)("1.5 Payroll Transition: Moves to Payroll with $550 customer price", () => {
             const completedRec = {
                 ...new_categories_demo_orders_1.NEW_CATEGORIES_DEMO_MTD_RECORDS[0],
                 inPayroll: true,
                 status: "completed",
-                finalCustomerPrice: 675,
+                finalCustomerPrice: 550,
                 producerPayout: 270,
             };
             const payrollRecords = (0, mtd_completion_1.getPayrollRecords)([completedRec]);
             strict_1.default.equal(payrollRecords.length, 1);
-            strict_1.default.equal(payrollRecords[0].finalCustomerPrice, 675);
+            strict_1.default.equal(payrollRecords[0].finalCustomerPrice, 550);
         });
     });
     (0, node_test_1.describe)("Part 2: End-to-End QA for Sports Entertainment", () => {
@@ -82,12 +82,13 @@ const mockDiscountCodes = [
                 strict_1.default.equal(rec.category, "Sports Entertainment");
             }
         });
-        (0, node_test_1.it)("2.2 MTD Pricing & Rush Toggle: PRE-GAME / HALFTIME REMIXED ($250) + Rush ($100) = $350", () => {
+        (0, node_test_1.it)("2.2 MTD Pricing & Rush Toggle: PRE-GAME / HALFTIME REMIXED ($250) + Rush ($100) = $250 Package Price / $350 Payroll Base", () => {
             const result = (0, pricing_engine_1.calculateSportsEntertainmentOrderPricing)({
                 packageType: "PRE-GAME / HALFTIME REMIXED",
                 isRushOrder: "yes",
             });
-            strict_1.default.equal(result.customerFacingPrice, 350);
+            strict_1.default.equal(result.customerFacingPrice, 250);
+            strict_1.default.equal(result.payrollBasePrice, 350);
             strict_1.default.equal(result.hasRushFee, true);
         });
         (0, node_test_1.it)("2.3 OTHER TBD Package: blocks automatic pricing, returns isUnpriced = true and null customer price", () => {
@@ -145,7 +146,7 @@ const mockDiscountCodes = [
         });
     });
     (0, node_test_1.describe)("Part 4: Cheer and Dance Regression Pass", () => {
-        (0, node_test_1.it)("4.1 Cheer Pricing Engine: GOLD 1:30 ($700) and Rally Mix Add-on ($350) work unchanged", () => {
+        (0, node_test_1.it)("4.1 Cheer Pricing Engine: GOLD 1:30 ($700) and Rally Mix Add-on ($350) keeps $700 Package Price, $950 Payroll Base", () => {
             const cheerResult = (0, pricing_engine_1.calculateCheerOrderPricing)({
                 cheerFormSubtype: "school-cheer-viroc-yes",
                 packageType: "GOLD 1:30",
@@ -153,10 +154,11 @@ const mockDiscountCodes = [
                 musicAffiliate: "Power Music",
                 hasRallyMix: true,
             });
-            strict_1.default.equal(cheerResult.customerFacingPrice, 700 + 350); // $1,050
+            strict_1.default.equal(cheerResult.customerFacingPrice, 700); // $700 base package price
+            strict_1.default.equal(cheerResult.payrollBasePrice, 950); // $600 compliant + $350 Rally Mix
             strict_1.default.equal(cheerResult.complianceStatus, "compliant");
         });
-        (0, node_test_1.it)("4.2 Dance Pricing Engine: POM CUSTOM ($850) + Traditional VO ($25) + Themed VO ($75) = $950", () => {
+        (0, node_test_1.it)("4.2 Dance Pricing Engine: POM CUSTOM ($850) + Traditional VO ($25) + Themed VO ($75) = $850 Package Price, $830 Payroll Base", () => {
             const danceResult = (0, pricing_engine_1.calculateDanceOrderPricing)({
                 danceFormSubtype: "pom",
                 packageType: "CUSTOM POM",
@@ -164,7 +166,8 @@ const mockDiscountCodes = [
                 hasTraditionalVoiceover: true,
                 hasThemedVoiceover: true,
             });
-            strict_1.default.equal(danceResult.customerFacingPrice, 850 + 25 + 75); // $950
+            strict_1.default.equal(danceResult.customerFacingPrice, 850); // $850 base package price
+            strict_1.default.equal(danceResult.payrollBasePrice, 830); // $730 + $100 VO
             strict_1.default.equal(danceResult.complianceStatus, "compliant");
         });
         (0, node_test_1.it)("4.3 Form Counts: counts records by formType without cross-category interference", () => {

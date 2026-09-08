@@ -25,13 +25,13 @@ const pricing_engine_1 = require("../pricing-engine");
         strict_1.default.equal(res.complianceStatus, "unknown-no-affiliate-field");
         strict_1.default.equal(res.payrollBasePrice, 600);
     });
-    (0, node_test_1.it)("BAND CHANT + Sheet Music Add + Add Vocals: customerFacingPrice = 725 ($600 + $50 + $75)", () => {
+    (0, node_test_1.it)("BAND CHANT + Sheet Music Add + Add Vocals: customerFacingPrice = 600 (base), payrollBasePrice = 725 ($600 + $50 + $75)", () => {
         const res = (0, pricing_engine_1.calculateMarchingBandOrderPricing)({
             packageType: "BAND CHANT",
             hasSheetMusicAdd: true,
             hasAddVocals: true,
         });
-        strict_1.default.equal(res.customerFacingPrice, 725);
+        strict_1.default.equal(res.customerFacingPrice, 600);
         strict_1.default.equal(res.payrollBasePrice, 725);
         strict_1.default.equal(res.complianceStatus, "unknown-no-affiliate-field");
     });
@@ -59,13 +59,13 @@ const pricing_engine_1 = require("../pricing-engine");
         strict_1.default.equal(res.payrollBasePrice, 2250);
         strict_1.default.equal(res.alwaysFixedPayroll, true);
     });
-    (0, node_test_1.it)("FIGHT SONG / ALMA MATER PLUS with short name lookup & both add-ons: customerFacingPrice = 2375 ($2250 + $50 + $75)", () => {
+    (0, node_test_1.it)("FIGHT SONG / ALMA MATER PLUS with short name lookup & both add-ons: customerFacingPrice = 2250 (base), payrollBasePrice = 2375 ($2250 + $50 + $75)", () => {
         const res = (0, pricing_engine_1.calculateMarchingBandOrderPricing)({
             packageType: "FIGHT SONG / ALMA MATER PLUS",
             hasSheetMusicAdd: true,
             hasAddVocals: true,
         });
-        strict_1.default.equal(res.customerFacingPrice, 2375);
+        strict_1.default.equal(res.customerFacingPrice, 2250);
         strict_1.default.equal(res.payrollBasePrice, 2375);
         strict_1.default.equal(res.alwaysFixedPayroll, true);
     });

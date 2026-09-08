@@ -12,6 +12,7 @@ import { Check, ChevronDown, ChevronLeft, ChevronRight, Calendar } from "lucide-
 import { toIsoDateString, isIsoDateAfter, isIsoDateBefore, formatDisplayDate } from "@/lib/dates";
 import clsx from "clsx";
 import { HoverTip } from "@/components/ui/HoverTip";
+import type { MTDRecord, Order } from "@/types";
 
 const inlineControlClass =
   "h-8 w-full rounded-lg border border-brand-line/60 bg-white px-2.5 text-[12px] font-medium text-brand-ink shadow-[0_1px_1px_rgba(15,30,45,0.04)] outline-none transition-colors hover:border-brand-line-strong focus:border-brand-blue/50 focus:ring-2 focus:ring-brand-blue/15";
@@ -884,5 +885,325 @@ export function InlineDateInput({
           )
         : null}
     </>
+  );
+}
+
+type InlineDanceVoiceoverPillsProps = {
+  record?: MTDRecord;
+  onUpdate?: (id: string, patch: Partial<MTDRecord>) => void;
+  value?: "25" | "75" | "100" | null;
+  hasTraditionalVoiceover?: boolean;
+  hasThemedVoiceover?: boolean;
+  onChange?: (val: "25" | "75" | "100" | null) => void;
+  className?: string;
+};
+
+export function InlineDanceVoiceoverPills({
+  record,
+  onUpdate,
+  value,
+  hasTraditionalVoiceover,
+  hasThemedVoiceover,
+  onChange,
+  className,
+}: InlineDanceVoiceoverPillsProps) {
+  const currentVal = value ?? record?.danceVoiceover ?? null;
+  const currentTrad = hasTraditionalVoiceover ?? record?.hasTraditionalVoiceover ?? false;
+  const currentThemed = hasThemedVoiceover ?? record?.hasThemedVoiceover ?? false;
+
+  let effectiveVal: "25" | "75" | "100" | null = currentVal;
+  if (effectiveVal === null) {
+    if (currentTrad && currentThemed) effectiveVal = "100";
+    else if (currentThemed) effectiveVal = "75";
+    else if (currentTrad) effectiveVal = "25";
+  }
+
+  const handleSelect = (nextVal: "25" | "75" | "100" | null) => {
+    if (onChange) onChange(nextVal);
+    if (record && onUpdate) {
+      const patch: Partial<MTDRecord> = {
+        danceVoiceover: nextVal,
+        hasTraditionalVoiceover: nextVal === "25" || nextVal === "100",
+        hasThemedVoiceover: nextVal === "75" || nextVal === "100",
+      };
+      onUpdate(record.id, patch);
+    }
+  };
+
+  const options = [
+    { id: "25" as const, label: "+$25", tooltip: "Traditional" },
+    { id: "75" as const, label: "+$75", tooltip: "Themed" },
+    { id: "100" as const, label: "+$100", tooltip: "Both" },
+  ];
+
+  return (
+    <div
+      data-stop-row-nav
+      className={clsx(
+        "inline-flex max-w-full items-center gap-1 rounded-xl bg-brand-bg-subtle/90 p-1 ring-1 ring-inset ring-brand-line/40",
+        className
+      )}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {options.map((opt) => {
+        const isSelected = effectiveVal === opt.id;
+        return (
+          <HoverTip key={opt.id} label={opt.tooltip} placement="top">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleSelect(isSelected ? null : opt.id);
+              }}
+              className={clsx(
+                "relative whitespace-nowrap rounded-lg px-2 py-1 text-[11px] font-semibold leading-none transition-all duration-150",
+                isSelected
+                  ? "bg-brand-success/22 text-emerald-800 ring-1 ring-inset ring-brand-success/35 hover:bg-brand-success/30"
+                  : "bg-white text-brand-ink-tertiary ring-1 ring-inset ring-brand-line/45 hover:bg-brand-elevated hover:text-brand-ink hover:ring-brand-line-strong"
+              )}
+            >
+              {opt.label}
+            </button>
+          </HoverTip>
+        );
+      })}
+    </div>
+  );
+}
+
+type InlineCheerVoiceoverPillsProps = {
+  record?: MTDRecord;
+  onUpdate?: (id: string, patch: Partial<MTDRecord>) => void;
+  has20?: boolean;
+  has40?: boolean;
+  onChange?: (patch: { cheerVoiceover20?: boolean; cheerVoiceover40?: boolean }) => void;
+  className?: string;
+};
+
+export function InlineCheerVoiceoverPills({
+  record,
+  onUpdate,
+  has20,
+  has40,
+  onChange,
+  className,
+}: InlineCheerVoiceoverPillsProps) {
+  const current20 = has20 ?? record?.cheerVoiceover20 ?? false;
+  const current40 = has40 ?? record?.cheerVoiceover40 ?? false;
+
+  const handleToggle = (patch: { cheerVoiceover20?: boolean; cheerVoiceover40?: boolean }) => {
+    if (onChange) onChange(patch);
+    if (record && onUpdate) {
+      onUpdate(record.id, patch);
+    }
+  };
+
+  return (
+    <div
+      data-stop-row-nav
+      className={clsx(
+        "inline-flex max-w-full items-center gap-1 rounded-xl bg-brand-bg-subtle/90 p-1 ring-1 ring-inset ring-brand-line/40",
+        className
+      )}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <HoverTip label="Cheer Voiceover Option 1 (+$20)" placement="top">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleToggle({ cheerVoiceover20: !current20 });
+          }}
+          className={clsx(
+            "relative whitespace-nowrap rounded-lg px-2 py-1 text-[11px] font-semibold leading-none transition-all duration-150",
+            current20
+              ? "bg-brand-success/22 text-emerald-800 ring-1 ring-inset ring-brand-success/35 hover:bg-brand-success/30"
+              : "bg-white text-brand-ink-tertiary ring-1 ring-inset ring-brand-line/45 hover:bg-brand-elevated hover:text-brand-ink hover:ring-brand-line-strong"
+          )}
+        >
+          +$20
+        </button>
+      </HoverTip>
+      <HoverTip label="Cheer Voiceover Option 2 (+$40)" placement="top">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleToggle({ cheerVoiceover40: !current40 });
+          }}
+          className={clsx(
+            "relative whitespace-nowrap rounded-lg px-2 py-1 text-[11px] font-semibold leading-none transition-all duration-150",
+            current40
+              ? "bg-brand-success/22 text-emerald-800 ring-1 ring-inset ring-brand-success/35 hover:bg-brand-success/30"
+              : "bg-white text-brand-ink-tertiary ring-1 ring-inset ring-brand-line/45 hover:bg-brand-elevated hover:text-brand-ink hover:ring-brand-line-strong"
+          )}
+        >
+          +$40
+        </button>
+      </HoverTip>
+    </div>
+  );
+}
+
+type InlineRushFeePillsProps = {
+  record?: MTDRecord;
+  onUpdate?: (id: string, patch: Partial<MTDRecord>) => void;
+  onUpdateOrder?: (orderId: string, patch: Partial<Order>) => void;
+  value?: "none" | "single" | "double" | string | null;
+  onChange?: (val: "none" | "single" | "double") => void;
+  className?: string;
+};
+
+export function InlineRushFeePills({
+  record,
+  onUpdate,
+  onUpdateOrder,
+  value,
+  onChange,
+  className,
+}: InlineRushFeePillsProps) {
+  const rawVal =
+    value ??
+    record?.rushFeeOption ??
+    (record?.isRushOrder === "yes" || record?.isRushOrder === true ? "single" : "none");
+
+  const normVal =
+    rawVal === "double"
+      ? "double"
+      : rawVal === "single" || rawVal === "yes" || String(rawVal).toLowerCase() === "yes"
+      ? "single"
+      : "none";
+
+  const handleSelect = (next: "none" | "single" | "double") => {
+    if (onChange) onChange(next);
+    if (record && onUpdate) {
+      const isRush = next !== "none";
+      onUpdate(record.id, {
+        rushFeeOption: next,
+        isRushOrder: isRush ? "yes" : "no",
+      });
+      if (record.orderId && onUpdateOrder) {
+        onUpdateOrder(record.orderId, {
+          rushFeeOption: next,
+          isRushOrder: isRush ? "yes" : "no",
+        });
+      }
+    }
+  };
+
+  return (
+    <div
+      data-stop-row-nav
+      className={clsx(
+        "inline-flex max-w-full items-center gap-1 rounded-xl bg-brand-bg-subtle/90 p-1 ring-1 ring-inset ring-brand-line/40",
+        className
+      )}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <HoverTip label="Single Rush (+$150)" placement="top">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleSelect(normVal === "single" ? "none" : "single");
+          }}
+          className={clsx(
+            "relative whitespace-nowrap rounded-lg px-2 py-1 text-[11px] font-semibold leading-none transition-all duration-150",
+            normVal === "single"
+              ? "bg-brand-success/22 text-emerald-800 ring-1 ring-inset ring-brand-success/35 hover:bg-brand-success/30"
+              : "bg-white text-brand-ink-tertiary ring-1 ring-inset ring-brand-line/45 hover:bg-brand-elevated hover:text-brand-ink hover:ring-brand-line-strong"
+          )}
+        >
+          $150
+        </button>
+      </HoverTip>
+      <HoverTip label="Double Rush (+$300)" placement="top">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleSelect(normVal === "double" ? "none" : "double");
+          }}
+          className={clsx(
+            "relative whitespace-nowrap rounded-lg px-2 py-1 text-[11px] font-semibold leading-none transition-all duration-150",
+            normVal === "double"
+              ? "bg-brand-success/22 text-emerald-800 ring-1 ring-inset ring-brand-success/35 hover:bg-brand-success/30"
+              : "bg-white text-brand-ink-tertiary ring-1 ring-inset ring-brand-line/45 hover:bg-brand-elevated hover:text-brand-ink hover:ring-brand-line-strong"
+          )}
+        >
+          $300
+        </button>
+      </HoverTip>
+    </div>
+  );
+}
+
+type InlineQuantityStepperProps = {
+  quantity?: number;
+  value?: number;
+  unitCost: number;
+  label: string;
+  onChange: (val: number) => void;
+  className?: string;
+};
+
+export function InlineQuantityStepper({
+  quantity,
+  value,
+  unitCost,
+  label,
+  onChange,
+  className,
+}: InlineQuantityStepperProps) {
+  const qty = Math.max(0, quantity ?? value ?? 0);
+  const cost = qty * unitCost;
+
+  return (
+    <div
+      data-stop-row-nav
+      className={clsx(
+        "inline-flex max-w-full items-center gap-1 rounded-xl bg-brand-bg-subtle/90 p-1 ring-1 ring-inset ring-brand-line/40",
+        className
+      )}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <button
+        type="button"
+        disabled={qty <= 0}
+        onClick={(e) => {
+          e.stopPropagation();
+          onChange(Math.max(0, qty - 1));
+        }}
+        className="flex h-5 w-5 items-center justify-center rounded-md bg-white text-[12px] font-bold text-brand-ink shadow-xs transition hover:bg-brand-elevated disabled:opacity-40"
+        title="Decrease quantity"
+      >
+        −
+      </button>
+
+      <HoverTip label={`${qty} ${label} = $${cost}`} placement="top">
+        <span
+          className={clsx(
+            "inline-flex items-center px-1.5 py-0.5 text-[11px] font-semibold leading-none rounded-md transition tabular-nums",
+            qty > 0
+              ? "bg-brand-success/22 text-emerald-800 ring-1 ring-inset ring-brand-success/35"
+              : "text-brand-ink-tertiary"
+          )}
+        >
+          {qty > 0 ? `${qty} ($${cost})` : "0"}
+        </span>
+      </HoverTip>
+
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onChange(qty + 1);
+        }}
+        className="flex h-5 w-5 items-center justify-center rounded-md bg-white text-[12px] font-bold text-brand-ink shadow-xs transition hover:bg-brand-elevated"
+        title="Increase quantity"
+      >
+        +
+      </button>
+    </div>
   );
 }

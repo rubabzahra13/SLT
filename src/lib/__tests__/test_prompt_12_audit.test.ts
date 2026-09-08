@@ -88,7 +88,7 @@ describe("Prompt 12 — End-to-End Regression Audit Across All 4 Cheer Subtypes"
       musicAffiliate: scOrder.musicAffiliate,
       hasRallyMix: true,
     });
-    assert.equal(rallySc.customerFacingPrice, baseSc.customerFacingPrice + 350);
+    assert.equal(rallySc.customerFacingPrice, baseSc.customerFacingPrice);
     assert.equal(rallySc.payrollBasePrice, baseSc.payrollBasePrice + 350);
 
     // Youth Rec Cheer Add-Ons ($25 + $50 = $75)
@@ -105,7 +105,7 @@ describe("Prompt 12 — End-to-End Regression Audit Across All 4 Cheer Subtypes"
       hasExtend8ctAddon: true,
       hasProcessing8ctSheetsAddon: true,
     });
-    assert.equal(addOnYr.customerFacingPrice, baseYr.customerFacingPrice + 75);
+    assert.equal(addOnYr.customerFacingPrice, baseYr.customerFacingPrice);
     assert.equal(addOnYr.payrollBasePrice, baseYr.payrollBasePrice + 75);
   });
 

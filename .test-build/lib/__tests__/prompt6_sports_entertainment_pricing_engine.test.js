@@ -27,12 +27,12 @@ const pricing_engine_1 = require("../pricing-engine");
         strict_1.default.equal(res.hasRushFee, false);
         strict_1.default.equal(res.rushFeeAmount, 0);
     });
-    (0, node_test_1.it)("QUARTER BREAK / TIMEOUT REMIXED with rush = yes: customerFacingPrice = 250 ($150 + $100)", () => {
+    (0, node_test_1.it)("QUARTER BREAK / TIMEOUT REMIXED with rush = yes: customerFacingPrice = 150 (base), payrollBasePrice = 250 ($150 + $100)", () => {
         const res = (0, pricing_engine_1.calculateSportsEntertainmentOrderPricing)({
             packageType: "QUARTER BREAK / TIMEOUT REMIXED",
             isRushOrder: "yes",
         });
-        strict_1.default.equal(res.customerFacingPrice, 250);
+        strict_1.default.equal(res.customerFacingPrice, 150);
         strict_1.default.equal(res.payrollBasePrice, 250);
         strict_1.default.equal(res.hasRushFee, true);
         strict_1.default.equal(res.rushFeeAmount, 100);
@@ -46,12 +46,12 @@ const pricing_engine_1 = require("../pricing-engine");
         strict_1.default.equal(res.payrollBasePrice, 250);
         strict_1.default.equal(res.hasRushFee, false);
     });
-    (0, node_test_1.it)("PRE-GAME / HALFTIME REMIXED with rush = yes: customerFacingPrice = 350 ($250 + $100)", () => {
+    (0, node_test_1.it)("PRE-GAME / HALFTIME REMIXED with rush = yes: customerFacingPrice = 250 (base), payrollBasePrice = 350 ($250 + $100)", () => {
         const res = (0, pricing_engine_1.calculateSportsEntertainmentOrderPricing)({
             packageType: "PRE-GAME / HALFTIME REMIXED",
             isRushOrder: "yes",
         });
-        strict_1.default.equal(res.customerFacingPrice, 350);
+        strict_1.default.equal(res.customerFacingPrice, 250);
         strict_1.default.equal(res.payrollBasePrice, 350);
         strict_1.default.equal(res.hasRushFee, true);
         strict_1.default.equal(res.rushFeeAmount, 100);
@@ -75,11 +75,13 @@ const pricing_engine_1 = require("../pricing-engine");
             packageType: "PRE-GAME / HALFTIME REMIXED",
             isRushOrder: true,
         });
-        strict_1.default.equal(resBool.customerFacingPrice, 350);
+        strict_1.default.equal(resBool.customerFacingPrice, 250);
+        strict_1.default.equal(resBool.payrollBasePrice, 350);
         const resUpper = (0, pricing_engine_1.calculateSportsEntertainmentOrderPricing)({
             packageType: "PRE-GAME / HALFTIME REMIXED",
             isRushOrder: "YES",
         });
-        strict_1.default.equal(resUpper.customerFacingPrice, 350);
+        strict_1.default.equal(resUpper.customerFacingPrice, 250);
+        strict_1.default.equal(resUpper.payrollBasePrice, 350);
     });
 });

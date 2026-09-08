@@ -69,8 +69,8 @@ export function SetRecordPricingModal({
       <div className="surface-premium relative w-full max-w-md rounded-2xl shadow-[var(--shadow-premium)]">
         <div className="flex items-start justify-between gap-4 border-b border-brand-line/70 p-6">
           <div>
-            <p className="text-label">Customer Price</p>
-            <h2 className="text-display mt-1 text-[18px]">Edit Customer Price</h2>
+            <p className="text-label">Package Price</p>
+            <h2 className="text-display mt-1 text-[18px]">Edit Package Price</h2>
             <p className="mt-1 text-[13px] text-brand-ink-secondary">
               {record.programName} · {record.package}
             </p>
@@ -86,7 +86,7 @@ export function SetRecordPricingModal({
 
         <div className="space-y-4 p-6">
           <label className="block">
-            <span className="text-label">Customer Price</span>
+            <span className="text-label">Package Price</span>
             <input
               type="text"
               inputMode="decimal"
@@ -95,7 +95,7 @@ export function SetRecordPricingModal({
               className="mt-1.5 w-full rounded-lg border border-brand-line/80 bg-brand-surface px-3 py-2 text-[13px] font-semibold tabular-nums text-brand-ink outline-none transition focus:border-brand-orange/50 focus:ring-2 focus:ring-brand-orange-muted"
             />
             <p className="mt-1.5 text-[11px] text-brand-ink-tertiary">
-              Current MTD Customer Price: {formatPrice(record.price)}
+              Current MTD Package Price: {formatPrice(record.price)}
             </p>
           </label>
         </div>

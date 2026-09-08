@@ -36,7 +36,7 @@ describe("Prompt 9 — Completion Modal Pricing Breakdown + Coupon Integration f
       hasThemedVoiceover: true,
     });
 
-    assert.equal(danceResult.customerFacingPrice, 950); // 850 + 100
+    assert.equal(danceResult.customerFacingPrice, 850); // 850 base (VO is separate add-on)
     assert.equal(danceResult.payrollBasePrice, 830); // 730 + 100 (compliant)
 
     // Calculate coupon discount against pre-discount payroll base
@@ -44,10 +44,10 @@ describe("Prompt 9 — Completion Modal Pricing Breakdown + Coupon Integration f
     const discountAmount = Math.round(preDiscountPay * (matchedDiscount.discountValue! / 100)); // 830 * 10% = 83
     assert.equal(discountAmount, 83);
 
-    const finalCustomerPrice = danceResult.customerFacingPrice - discountAmount; // 950 - 83 = 867
+    const finalCustomerPrice = danceResult.customerFacingPrice - discountAmount; // 850 - 83 = 767
     const finalPayrollPrice = danceResult.payrollBasePrice - discountAmount; // 830 - 83 = 747
 
-    assert.equal(finalCustomerPrice, 867);
+    assert.equal(finalCustomerPrice, 767);
     assert.equal(finalPayrollPrice, 747);
   });
 
@@ -72,7 +72,7 @@ describe("Prompt 9 — Completion Modal Pricing Breakdown + Coupon Integration f
       hasThemedVoiceover: false,
     });
 
-    assert.equal(danceResult.customerFacingPrice, 525); // 500 + 25
+    assert.equal(danceResult.customerFacingPrice, 500); // 500 base
     assert.equal(danceResult.payrollBasePrice, 525); // 500 (non-compliant) + 25
     assert.equal(danceResult.complianceStatus, "non-compliant");
   });
@@ -91,16 +91,16 @@ describe("Prompt 9 — Completion Modal Pricing Breakdown + Coupon Integration f
       hasThemedVoiceover: true,
     });
 
-    assert.equal(danceResult.customerFacingPrice, 275); // 200 + 75
+    assert.equal(danceResult.customerFacingPrice, 200); // 200 base
     assert.equal(danceResult.payrollBasePrice, 215); // 140 + 75
 
     const discountAmount = Math.min(danceResult.payrollBasePrice, matchedDiscount.discountValue!); // 50
     assert.equal(discountAmount, 50);
 
-    const finalCustomerPrice = danceResult.customerFacingPrice - discountAmount; // 275 - 50 = 225
+    const finalCustomerPrice = danceResult.customerFacingPrice - discountAmount; // 200 - 50 = 150
     const finalPayrollPrice = danceResult.payrollBasePrice - discountAmount; // 215 - 50 = 165
 
-    assert.equal(finalCustomerPrice, 225);
+    assert.equal(finalCustomerPrice, 150);
     assert.equal(finalPayrollPrice, 165);
   });
 
@@ -113,7 +113,7 @@ describe("Prompt 9 — Completion Modal Pricing Breakdown + Coupon Integration f
       hasThemedVoiceover: true,
     });
 
-    assert.equal(danceResult.customerFacingPrice, 200); // 100 + 100
+    assert.equal(danceResult.customerFacingPrice, 100); // 100 base
     assert.equal(danceResult.payrollBasePrice, 200); // 100 (always fixed) + 100
     assert.equal(danceResult.alwaysFixedPayroll, true);
   });

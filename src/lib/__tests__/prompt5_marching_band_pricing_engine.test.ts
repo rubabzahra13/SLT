@@ -31,14 +31,14 @@ describe("Prompt 5 — Marching Band Pricing Engine Unit Tests", () => {
     assert.equal(res.payrollBasePrice, 600);
   });
 
-  it("BAND CHANT + Sheet Music Add + Add Vocals: customerFacingPrice = 725 ($600 + $50 + $75)", () => {
+  it("BAND CHANT + Sheet Music Add + Add Vocals: customerFacingPrice = 600 (base), payrollBasePrice = 725 ($600 + $50 + $75)", () => {
     const res = calculateMarchingBandOrderPricing({
       packageType: "BAND CHANT",
       hasSheetMusicAdd: true,
       hasAddVocals: true,
     });
 
-    assert.equal(res.customerFacingPrice, 725);
+    assert.equal(res.customerFacingPrice, 600);
     assert.equal(res.payrollBasePrice, 725);
     assert.equal(res.complianceStatus, "unknown-no-affiliate-field");
   });
@@ -73,14 +73,14 @@ describe("Prompt 5 — Marching Band Pricing Engine Unit Tests", () => {
     assert.equal(res.alwaysFixedPayroll, true);
   });
 
-  it("FIGHT SONG / ALMA MATER PLUS with short name lookup & both add-ons: customerFacingPrice = 2375 ($2250 + $50 + $75)", () => {
+  it("FIGHT SONG / ALMA MATER PLUS with short name lookup & both add-ons: customerFacingPrice = 2250 (base), payrollBasePrice = 2375 ($2250 + $50 + $75)", () => {
     const res = calculateMarchingBandOrderPricing({
       packageType: "FIGHT SONG / ALMA MATER PLUS",
       hasSheetMusicAdd: true,
       hasAddVocals: true,
     });
 
-    assert.equal(res.customerFacingPrice, 2375);
+    assert.equal(res.customerFacingPrice, 2250);
     assert.equal(res.payrollBasePrice, 2375);
     assert.equal(res.alwaysFixedPayroll, true);
   });

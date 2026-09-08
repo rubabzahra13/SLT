@@ -27,6 +27,7 @@ import {
   calculateMarchingBandOrderPricing,
   calculateSportsEntertainmentOrderPricing,
   calculateSchoolAnthemOrderPricing,
+  calculateMiscellaneousPayrollAddons,
 } from "@/lib/pricing-engine";
 import { parsePackage } from "@/lib/package";
 import { evaluateCouponCode } from "@/lib/discount-codes";
@@ -159,8 +160,7 @@ export function CompleteToPayrollModal({
             danceFormSubtype: danceSubtype,
             packageType: pkgName,
             musicAffiliate: affiliate,
-            hasTraditionalVoiceover: currentRec.hasTraditionalVoiceover,
-            hasThemedVoiceover: currentRec.hasThemedVoiceover,
+            ...currentRec,
           });
 
           let discountAmount = 0;
@@ -198,27 +198,6 @@ export function CompleteToPayrollModal({
             complianceReason = `Music affiliate '${affiliate || "Unapproved"}' is not on the compliant list; non-compliant rate card applies.`;
           } else {
             complianceReason = "No music affiliate specified on order.";
-          }
-
-          if (currentRec.hasTraditionalVoiceover) {
-            addons.push({
-              addon_id: "traditional_vo",
-              label: "Traditional Voice Over",
-              customer_amount: 25,
-              payroll_amount: 25,
-              quantity: 1,
-              note: "Fixed fee add-on (Dance)",
-            });
-          }
-          if (currentRec.hasThemedVoiceover) {
-            addons.push({
-              addon_id: "themed_vo",
-              label: "Themed Voice Over",
-              customer_amount: 75,
-              payroll_amount: 75,
-              quantity: 1,
-              note: "Fixed fee add-on (Dance)",
-            });
           }
 
           baseCust = danceResult.matchedEntry?.customer ?? currentRec.price;
@@ -415,9 +394,7 @@ export function CompleteToPayrollModal({
             packageType: pkgName,
             timeLengthOfMix: mixLen,
             musicAffiliate: affiliate,
-            hasRallyMix: currentRec.hasRallyMix,
-            hasExtend8ctAddon: currentRec.hasExtend8ctAddon,
-            hasProcessing8ctSheetsAddon: currentRec.hasProcessing8ctSheetsAddon,
+            ...currentRec,
             couponCode: activeCoupon,
             discountCodeObj: matchedDiscountCode,
           });
@@ -446,33 +423,24 @@ export function CompleteToPayrollModal({
             });
           }
 
-          if (cheerSubtype === "youth-rec-cheer") {
-            if (currentRec.hasExtend8ctAddon) {
-              addons.push({
-                addon_id: "extend_8ct",
-                label: "Extend 2 8cs Phrase / Raps",
-                customer_amount: 25,
-                payroll_amount: 25,
-                quantity: 1,
-                note: "Megan-controlled add-on (Youth Rec)",
-              });
-            }
-            if (currentRec.hasProcessing8ctSheetsAddon) {
-              addons.push({
-                addon_id: "process_8ct",
-                label: "Processing 8cs Sheets",
-                customer_amount: 50,
-                payroll_amount: 50,
-                quantity: 1,
-                note: "Megan-controlled add-on (Youth Rec)",
-              });
-            }
-          }
-
           baseCust = enginePricing.matchedEntry?.customer ?? currentRec.price;
           basePay = enginePricing.matchedEntry
             ? (enginePricing.complianceStatus === "non-compliant" ? enginePricing.matchedEntry.nonCompliant : enginePricing.matchedEntry.compliant)
             : currentRec.price;
+        }
+
+        const miscAddonResult = calculateMiscellaneousPayrollAddons(currentRec);
+        for (const addOn of miscAddonResult.items) {
+          if (!addons.some((a) => a.addon_id === addOn.id)) {
+            addons.push({
+              addon_id: addOn.id,
+              label: addOn.label,
+              customer_amount: 0,
+              payroll_amount: addOn.payrollAmount,
+              quantity: addOn.quantity ?? 1,
+              note: addOn.note ?? "Miscellaneous Payroll Add-On",
+            });
+          }
         }
 
         setCalculatedEnginePricing(enginePricing);
@@ -873,12 +841,12 @@ export function CompleteToPayrollModal({
                 </div>
 
                 <div className="divide-y divide-brand-line/40 px-4 text-[12.5px]">
-                  {/* Customer Facing Price */}
+                  {/* Package Price */}
                   <div className="flex items-center justify-between py-2.5">
                     <div>
                       <div className="flex items-center gap-1.5">
                         <span className="font-semibold text-brand-ink">
-                          Customer Price
+                          Package Price
                         </span>
                         {isCustomerPriceOverridden && (
                           <span className="inline-flex items-center gap-1 rounded bg-brand-orange/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-brand-orange ring-1 ring-inset ring-brand-orange/25">
@@ -889,7 +857,7 @@ export function CompleteToPayrollModal({
                       <p className="text-[11px] text-brand-ink-tertiary">
                         {calculatedEnginePricing?.isUnpriced
                           ? "OTHER package (mixes > 2:30) — Manual quote required"
-                          : "Exact customer-facing package price stored/displayed in MTD"}
+                          : "Exact base package price stored/displayed in MTD"}
                       </p>
                     </div>
                     <div className="relative w-[130px]">
@@ -969,7 +937,7 @@ export function CompleteToPayrollModal({
                         )}
                       </div>
                       <span className="font-semibold tabular-nums text-brand-success">
-                        +{formatPrice(addon.customer_amount)}
+                        +{formatPrice(addon.payroll_amount > 0 ? addon.payroll_amount : addon.customer_amount)}
                       </span>
                     </div>
                   ))}

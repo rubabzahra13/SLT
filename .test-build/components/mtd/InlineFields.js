@@ -15,6 +15,10 @@ exports.InlineTextarea = InlineTextarea;
 exports.DetailInput = DetailInput;
 exports.DetailTextarea = DetailTextarea;
 exports.InlineDateInput = InlineDateInput;
+exports.InlineDanceVoiceoverPills = InlineDanceVoiceoverPills;
+exports.InlineCheerVoiceoverPills = InlineCheerVoiceoverPills;
+exports.InlineRushFeePills = InlineRushFeePills;
+exports.InlineQuantityStepper = InlineQuantityStepper;
 const jsx_runtime_1 = require("react/jsx-runtime");
 const react_1 = require("react");
 const react_dom_1 = require("react-dom");
@@ -345,4 +349,117 @@ function InlineDateInput({ value, onChange, template, min, max, className, }) {
                                         setOpen(false);
                                     }, className: "rounded-lg px-2 py-1 text-[11px] font-semibold text-brand-ink-secondary transition hover:bg-white hover:text-brand-ink", children: "Clear" })) : null] })] }), document.body)
                 : null] }));
+}
+function InlineDanceVoiceoverPills({ record, onUpdate, value, hasTraditionalVoiceover, hasThemedVoiceover, onChange, className, }) {
+    const currentVal = value ?? record?.danceVoiceover ?? null;
+    const currentTrad = hasTraditionalVoiceover ?? record?.hasTraditionalVoiceover ?? false;
+    const currentThemed = hasThemedVoiceover ?? record?.hasThemedVoiceover ?? false;
+    let effectiveVal = currentVal;
+    if (effectiveVal === null) {
+        if (currentTrad && currentThemed)
+            effectiveVal = "100";
+        else if (currentThemed)
+            effectiveVal = "75";
+        else if (currentTrad)
+            effectiveVal = "25";
+    }
+    const handleSelect = (nextVal) => {
+        if (onChange)
+            onChange(nextVal);
+        if (record && onUpdate) {
+            const patch = {
+                danceVoiceover: nextVal,
+                hasTraditionalVoiceover: nextVal === "25" || nextVal === "100",
+                hasThemedVoiceover: nextVal === "75" || nextVal === "100",
+            };
+            onUpdate(record.id, patch);
+        }
+    };
+    const options = [
+        { id: "25", label: "+$25", tooltip: "Traditional" },
+        { id: "75", label: "+$75", tooltip: "Themed" },
+        { id: "100", label: "+$100", tooltip: "Both" },
+    ];
+    return ((0, jsx_runtime_1.jsx)("div", { "data-stop-row-nav": true, className: (0, clsx_1.default)("inline-flex max-w-full items-center gap-1 rounded-xl bg-brand-bg-subtle/90 p-1 ring-1 ring-inset ring-brand-line/40", className), onClick: (e) => e.stopPropagation(), children: options.map((opt) => {
+            const isSelected = effectiveVal === opt.id;
+            return ((0, jsx_runtime_1.jsx)(HoverTip_1.HoverTip, { label: opt.tooltip, placement: "top", children: (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: (e) => {
+                        e.stopPropagation();
+                        handleSelect(isSelected ? null : opt.id);
+                    }, className: (0, clsx_1.default)("relative whitespace-nowrap rounded-lg px-2 py-1 text-[11px] font-semibold leading-none transition-all duration-150", isSelected
+                        ? "bg-brand-success/22 text-emerald-800 ring-1 ring-inset ring-brand-success/35 hover:bg-brand-success/30"
+                        : "bg-white text-brand-ink-tertiary ring-1 ring-inset ring-brand-line/45 hover:bg-brand-elevated hover:text-brand-ink hover:ring-brand-line-strong"), children: opt.label }) }, opt.id));
+        }) }));
+}
+function InlineCheerVoiceoverPills({ record, onUpdate, has20, has40, onChange, className, }) {
+    const current20 = has20 ?? record?.cheerVoiceover20 ?? false;
+    const current40 = has40 ?? record?.cheerVoiceover40 ?? false;
+    const handleToggle = (patch) => {
+        if (onChange)
+            onChange(patch);
+        if (record && onUpdate) {
+            onUpdate(record.id, patch);
+        }
+    };
+    return ((0, jsx_runtime_1.jsxs)("div", { "data-stop-row-nav": true, className: (0, clsx_1.default)("inline-flex max-w-full items-center gap-1 rounded-xl bg-brand-bg-subtle/90 p-1 ring-1 ring-inset ring-brand-line/40", className), onClick: (e) => e.stopPropagation(), children: [(0, jsx_runtime_1.jsx)(HoverTip_1.HoverTip, { label: "Cheer Voiceover Option 1 (+$20)", placement: "top", children: (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: (e) => {
+                        e.stopPropagation();
+                        handleToggle({ cheerVoiceover20: !current20 });
+                    }, className: (0, clsx_1.default)("relative whitespace-nowrap rounded-lg px-2 py-1 text-[11px] font-semibold leading-none transition-all duration-150", current20
+                        ? "bg-brand-success/22 text-emerald-800 ring-1 ring-inset ring-brand-success/35 hover:bg-brand-success/30"
+                        : "bg-white text-brand-ink-tertiary ring-1 ring-inset ring-brand-line/45 hover:bg-brand-elevated hover:text-brand-ink hover:ring-brand-line-strong"), children: "+$20" }) }), (0, jsx_runtime_1.jsx)(HoverTip_1.HoverTip, { label: "Cheer Voiceover Option 2 (+$40)", placement: "top", children: (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: (e) => {
+                        e.stopPropagation();
+                        handleToggle({ cheerVoiceover40: !current40 });
+                    }, className: (0, clsx_1.default)("relative whitespace-nowrap rounded-lg px-2 py-1 text-[11px] font-semibold leading-none transition-all duration-150", current40
+                        ? "bg-brand-success/22 text-emerald-800 ring-1 ring-inset ring-brand-success/35 hover:bg-brand-success/30"
+                        : "bg-white text-brand-ink-tertiary ring-1 ring-inset ring-brand-line/45 hover:bg-brand-elevated hover:text-brand-ink hover:ring-brand-line-strong"), children: "+$40" }) })] }));
+}
+function InlineRushFeePills({ record, onUpdate, onUpdateOrder, value, onChange, className, }) {
+    const rawVal = value ??
+        record?.rushFeeOption ??
+        (record?.isRushOrder === "yes" || record?.isRushOrder === true ? "single" : "none");
+    const normVal = rawVal === "double"
+        ? "double"
+        : rawVal === "single" || rawVal === "yes" || String(rawVal).toLowerCase() === "yes"
+            ? "single"
+            : "none";
+    const handleSelect = (next) => {
+        if (onChange)
+            onChange(next);
+        if (record && onUpdate) {
+            const isRush = next !== "none";
+            onUpdate(record.id, {
+                rushFeeOption: next,
+                isRushOrder: isRush ? "yes" : "no",
+            });
+            if (record.orderId && onUpdateOrder) {
+                onUpdateOrder(record.orderId, {
+                    rushFeeOption: next,
+                    isRushOrder: isRush ? "yes" : "no",
+                });
+            }
+        }
+    };
+    return ((0, jsx_runtime_1.jsxs)("div", { "data-stop-row-nav": true, className: (0, clsx_1.default)("inline-flex max-w-full items-center gap-1 rounded-xl bg-brand-bg-subtle/90 p-1 ring-1 ring-inset ring-brand-line/40", className), onClick: (e) => e.stopPropagation(), children: [(0, jsx_runtime_1.jsx)(HoverTip_1.HoverTip, { label: "Single Rush (+$150)", placement: "top", children: (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: (e) => {
+                        e.stopPropagation();
+                        handleSelect(normVal === "single" ? "none" : "single");
+                    }, className: (0, clsx_1.default)("relative whitespace-nowrap rounded-lg px-2 py-1 text-[11px] font-semibold leading-none transition-all duration-150", normVal === "single"
+                        ? "bg-brand-success/22 text-emerald-800 ring-1 ring-inset ring-brand-success/35 hover:bg-brand-success/30"
+                        : "bg-white text-brand-ink-tertiary ring-1 ring-inset ring-brand-line/45 hover:bg-brand-elevated hover:text-brand-ink hover:ring-brand-line-strong"), children: "$150" }) }), (0, jsx_runtime_1.jsx)(HoverTip_1.HoverTip, { label: "Double Rush (+$300)", placement: "top", children: (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: (e) => {
+                        e.stopPropagation();
+                        handleSelect(normVal === "double" ? "none" : "double");
+                    }, className: (0, clsx_1.default)("relative whitespace-nowrap rounded-lg px-2 py-1 text-[11px] font-semibold leading-none transition-all duration-150", normVal === "double"
+                        ? "bg-brand-success/22 text-emerald-800 ring-1 ring-inset ring-brand-success/35 hover:bg-brand-success/30"
+                        : "bg-white text-brand-ink-tertiary ring-1 ring-inset ring-brand-line/45 hover:bg-brand-elevated hover:text-brand-ink hover:ring-brand-line-strong"), children: "$300" }) })] }));
+}
+function InlineQuantityStepper({ quantity, value, unitCost, label, onChange, className, }) {
+    const qty = Math.max(0, quantity ?? value ?? 0);
+    const cost = qty * unitCost;
+    return ((0, jsx_runtime_1.jsxs)("div", { "data-stop-row-nav": true, className: (0, clsx_1.default)("inline-flex max-w-full items-center gap-1 rounded-xl bg-brand-bg-subtle/90 p-1 ring-1 ring-inset ring-brand-line/40", className), onClick: (e) => e.stopPropagation(), children: [(0, jsx_runtime_1.jsx)("button", { type: "button", disabled: qty <= 0, onClick: (e) => {
+                    e.stopPropagation();
+                    onChange(Math.max(0, qty - 1));
+                }, className: "flex h-5 w-5 items-center justify-center rounded-md bg-white text-[12px] font-bold text-brand-ink shadow-xs transition hover:bg-brand-elevated disabled:opacity-40", title: "Decrease quantity", children: "\u2212" }), (0, jsx_runtime_1.jsx)(HoverTip_1.HoverTip, { label: `${qty} ${label} = $${cost}`, placement: "top", children: (0, jsx_runtime_1.jsx)("span", { className: (0, clsx_1.default)("inline-flex items-center px-1.5 py-0.5 text-[11px] font-semibold leading-none rounded-md transition tabular-nums", qty > 0
+                        ? "bg-brand-success/22 text-emerald-800 ring-1 ring-inset ring-brand-success/35"
+                        : "text-brand-ink-tertiary"), children: qty > 0 ? `${qty} ($${cost})` : "0" }) }), (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: (e) => {
+                    e.stopPropagation();
+                    onChange(qty + 1);
+                }, className: "flex h-5 w-5 items-center justify-center rounded-md bg-white text-[12px] font-bold text-brand-ink shadow-xs transition hover:bg-brand-elevated", title: "Increase quantity", children: "+" })] }));
 }

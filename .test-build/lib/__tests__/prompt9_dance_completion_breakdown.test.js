@@ -36,15 +36,15 @@ const discount_codes_1 = require("../discount-codes");
             hasTraditionalVoiceover: true,
             hasThemedVoiceover: true,
         });
-        strict_1.default.equal(danceResult.customerFacingPrice, 950); // 850 + 100
+        strict_1.default.equal(danceResult.customerFacingPrice, 850); // 850 base (VO is separate add-on)
         strict_1.default.equal(danceResult.payrollBasePrice, 830); // 730 + 100 (compliant)
         // Calculate coupon discount against pre-discount payroll base
         const preDiscountPay = danceResult.payrollBasePrice;
         const discountAmount = Math.round(preDiscountPay * (matchedDiscount.discountValue / 100)); // 830 * 10% = 83
         strict_1.default.equal(discountAmount, 83);
-        const finalCustomerPrice = danceResult.customerFacingPrice - discountAmount; // 950 - 83 = 867
+        const finalCustomerPrice = danceResult.customerFacingPrice - discountAmount; // 850 - 83 = 767
         const finalPayrollPrice = danceResult.payrollBasePrice - discountAmount; // 830 - 83 = 747
-        strict_1.default.equal(finalCustomerPrice, 867);
+        strict_1.default.equal(finalCustomerPrice, 767);
         strict_1.default.equal(finalPayrollPrice, 747);
     });
     (0, node_test_1.it)("Subtype 2 (Hip Hop): DANCE PLUS ($575) + Unleash the Beats Covers (compliant) + No VO + No Coupon", () => {
@@ -65,7 +65,7 @@ const discount_codes_1 = require("../discount-codes");
             hasTraditionalVoiceover: true,
             hasThemedVoiceover: false,
         });
-        strict_1.default.equal(danceResult.customerFacingPrice, 525); // 500 + 25
+        strict_1.default.equal(danceResult.customerFacingPrice, 500); // 500 base
         strict_1.default.equal(danceResult.payrollBasePrice, 525); // 500 (non-compliant) + 25
         strict_1.default.equal(danceResult.complianceStatus, "non-compliant");
     });
@@ -81,13 +81,13 @@ const discount_codes_1 = require("../discount-codes");
             hasTraditionalVoiceover: false,
             hasThemedVoiceover: true,
         });
-        strict_1.default.equal(danceResult.customerFacingPrice, 275); // 200 + 75
+        strict_1.default.equal(danceResult.customerFacingPrice, 200); // 200 base
         strict_1.default.equal(danceResult.payrollBasePrice, 215); // 140 + 75
         const discountAmount = Math.min(danceResult.payrollBasePrice, matchedDiscount.discountValue); // 50
         strict_1.default.equal(discountAmount, 50);
-        const finalCustomerPrice = danceResult.customerFacingPrice - discountAmount; // 275 - 50 = 225
+        const finalCustomerPrice = danceResult.customerFacingPrice - discountAmount; // 200 - 50 = 150
         const finalPayrollPrice = danceResult.payrollBasePrice - discountAmount; // 215 - 50 = 165
-        strict_1.default.equal(finalCustomerPrice, 225);
+        strict_1.default.equal(finalCustomerPrice, 150);
         strict_1.default.equal(finalPayrollPrice, 165);
     });
     (0, node_test_1.it)("Subtype 5 (Jazz/Kick): JAZZ SIMPLE CUT ($100) + Non-Compliant Affiliate + Both VO (+100)", () => {
@@ -98,7 +98,7 @@ const discount_codes_1 = require("../discount-codes");
             hasTraditionalVoiceover: true,
             hasThemedVoiceover: true,
         });
-        strict_1.default.equal(danceResult.customerFacingPrice, 200); // 100 + 100
+        strict_1.default.equal(danceResult.customerFacingPrice, 100); // 100 base
         strict_1.default.equal(danceResult.payrollBasePrice, 200); // 100 (always fixed) + 100
         strict_1.default.equal(danceResult.alwaysFixedPayroll, true);
     });

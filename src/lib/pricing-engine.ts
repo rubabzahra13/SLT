@@ -263,6 +263,215 @@ export function lookupDanceRateCardEntry(
   return matched ?? null;
 }
 
+export type MiscellaneousAddOnItem = {
+  id: string;
+  label: string;
+  customerAmount: number;
+  payrollAmount: number;
+  quantity: number;
+  note?: string;
+};
+
+export type MiscellaneousAddOnsResult = {
+  items: MiscellaneousAddOnItem[];
+  totalPayrollAddOns: number;
+};
+
+export function calculateMiscellaneousPayrollAddons(
+  item: Record<string, any> | null | undefined
+): MiscellaneousAddOnsResult {
+  if (!item) {
+    return { items: [], totalPayrollAddOns: 0 };
+  }
+
+  const items: MiscellaneousAddOnItem[] = [];
+  let totalPayrollAddOns = 0;
+
+  // 1. Dance Voiceover
+  const danceVo = item.danceVoiceover;
+  const tradVo = Boolean(item.hasTraditionalVoiceover);
+  const themedVo = Boolean(item.hasThemedVoiceover);
+
+  if (danceVo === "100" || (tradVo && themedVo)) {
+    items.push({
+      id: "dance_vo_100",
+      label: "Dance Voiceover — Both",
+      customerAmount: 0,
+      payrollAmount: 100,
+      quantity: 1,
+      note: "Dance Voiceover (Both Traditional & Themed)",
+    });
+    totalPayrollAddOns += 100;
+  } else if (danceVo === "75" || themedVo) {
+    items.push({
+      id: "dance_vo_75",
+      label: "Dance Voiceover — Themed",
+      customerAmount: 0,
+      payrollAmount: 75,
+      quantity: 1,
+      note: "Dance Voiceover (Themed)",
+    });
+    totalPayrollAddOns += 75;
+  } else if (danceVo === "25" || tradVo) {
+    items.push({
+      id: "dance_vo_25",
+      label: "Dance Voiceover — Traditional",
+      customerAmount: 0,
+      payrollAmount: 25,
+      quantity: 1,
+      note: "Dance Voiceover (Traditional)",
+    });
+    totalPayrollAddOns += 25;
+  }
+
+  // 2. Cheer Voiceover
+  const cheer20 = Boolean(item.cheerVoiceover20);
+  const cheer40 = Boolean(item.cheerVoiceover40);
+
+  if (cheer20) {
+    items.push({
+      id: "cheer_vo_20",
+      label: "Cheer Voiceover (+$20)",
+      customerAmount: 0,
+      payrollAmount: 20,
+      quantity: 1,
+      note: "Cheer Voiceover Option 1",
+    });
+    totalPayrollAddOns += 20;
+  }
+  if (cheer40) {
+    items.push({
+      id: "cheer_vo_40",
+      label: "Cheer Voiceover (+$40)",
+      customerAmount: 0,
+      payrollAmount: 40,
+      quantity: 1,
+      note: "Cheer Voiceover Option 2",
+    });
+    totalPayrollAddOns += 40;
+  }
+
+  // 3. Rush Fee
+  const rushOpt = item.rushFeeOption;
+  const isDoubleRush = rushOpt === "double";
+  const isSingleRush = rushOpt === "single";
+
+  if (isDoubleRush) {
+    items.push({
+      id: "rush_fee_double",
+      label: "Rush Fee — Double",
+      customerAmount: 0,
+      payrollAmount: 300,
+      quantity: 1,
+      note: "Double Rush Fee",
+    });
+    totalPayrollAddOns += 300;
+  } else if (isSingleRush) {
+    items.push({
+      id: "rush_fee_single",
+      label: "Rush Fee — Single",
+      customerAmount: 0,
+      payrollAmount: 150,
+      quantity: 1,
+      note: "Single Rush Fee",
+    });
+    totalPayrollAddOns += 150;
+  }
+
+  // 4. Extra Songs
+  const extraSongsQty = Math.max(0, parseInt(item.extraSongsQuantity, 10) || 0);
+  if (extraSongsQty > 0) {
+    const extraSongsCost = extraSongsQty * 15;
+    items.push({
+      id: "extra_songs",
+      label: `Extra Songs — ${extraSongsQty}`,
+      customerAmount: 0,
+      payrollAmount: extraSongsCost,
+      quantity: extraSongsQty,
+      note: `$15 × ${extraSongsQty} extra song${extraSongsQty > 1 ? "s" : ""}`,
+    });
+    totalPayrollAddOns += extraSongsCost;
+  }
+
+  // 5. Extra Song Editing Time
+  const extraSongTimeQty = Math.max(0, parseInt(item.extraSongEditingTimeQuantity, 10) || 0);
+  if (extraSongTimeQty > 0) {
+    const extraSongTimeCost = extraSongTimeQty * 30;
+    items.push({
+      id: "extra_song_editing_time",
+      label: `Extra Song Editing Time — ${extraSongTimeQty}`,
+      customerAmount: 0,
+      payrollAmount: extraSongTimeCost,
+      quantity: extraSongTimeQty,
+      note: `$30 × ${extraSongTimeQty} editing time unit${extraSongTimeQty > 1 ? "s" : ""}`,
+    });
+    totalPayrollAddOns += extraSongTimeCost;
+  }
+
+  // 6. Existing Cheer / School Addons
+  if (Boolean(item.hasRallyMix)) {
+    items.push({
+      id: "rally_mix",
+      label: "Rally Mix Add-On",
+      customerAmount: 0,
+      payrollAmount: 350,
+      quantity: 1,
+      note: "Fixed fee add-on (School Cheer)",
+    });
+    totalPayrollAddOns += 350;
+  }
+
+  if (Boolean(item.hasExtend8ctAddon)) {
+    items.push({
+      id: "extend_8ct",
+      label: "Extend 2 8cs Phrase / Raps",
+      customerAmount: 0,
+      payrollAmount: 25,
+      quantity: 1,
+      note: "Add-on (Youth Rec)",
+    });
+    totalPayrollAddOns += 25;
+  }
+
+  if (Boolean(item.hasProcessing8ctSheetsAddon)) {
+    items.push({
+      id: "process_8ct",
+      label: "Processing 8cs Sheets",
+      customerAmount: 0,
+      payrollAmount: 50,
+      quantity: 1,
+      note: "Add-on (Youth Rec)",
+    });
+    totalPayrollAddOns += 50;
+  }
+
+  if (Boolean(item.hasSheetMusicAdd)) {
+    items.push({
+      id: "sheet_music_add",
+      label: "Sheet Music Add",
+      customerAmount: 0,
+      payrollAmount: 50,
+      quantity: 1,
+      note: "Add-on (Marching Band)",
+    });
+    totalPayrollAddOns += 50;
+  }
+
+  if (Boolean(item.hasAddVocals)) {
+    items.push({
+      id: "add_vocals",
+      label: "Add Vocals",
+      customerAmount: 0,
+      payrollAmount: 75,
+      quantity: 1,
+      note: "Add-on (Marching Band)",
+    });
+    totalPayrollAddOns += 75;
+  }
+
+  return { items, totalPayrollAddOns };
+}
+
 export type PricingEngineInput = {
   cheerFormSubtype: CheerFormSubtype;
   packageType: string;
@@ -271,6 +480,13 @@ export type PricingEngineInput = {
   hasRallyMix?: boolean;
   hasExtend8ctAddon?: boolean;
   hasProcessing8ctSheetsAddon?: boolean;
+  danceVoiceover?: "25" | "75" | "100" | null;
+  cheerVoiceover20?: boolean;
+  cheerVoiceover40?: boolean;
+  rushFeeOption?: "none" | "single" | "double" | string | null;
+  isRushOrder?: "yes" | "no" | boolean | string;
+  extraSongsQuantity?: number;
+  extraSongEditingTimeQuantity?: number;
   couponCode?: string;
   discountCodeObj?: DiscountCode | null;
 };
@@ -323,21 +539,10 @@ export function calculateCheerOrderPricing(
     };
   }
 
-  let addOnTotal = 0;
-  if (
-    (input.cheerFormSubtype === "school-cheer-viroc-yes" ||
-      input.cheerFormSubtype === "school-cheer-viroc-no") &&
-    input.hasRallyMix
-  ) {
-    addOnTotal += 350;
-  }
+  const miscAddons = calculateMiscellaneousPayrollAddons(input);
+  const addOnTotal = miscAddons.totalPayrollAddOns;
 
-  if (input.cheerFormSubtype === "youth-rec-cheer") {
-    if (input.hasExtend8ctAddon) addOnTotal += 25;
-    if (input.hasProcessing8ctSheetsAddon) addOnTotal += 50;
-  }
-
-  const preDiscountCustomerFacingPrice = matchedEntry.customer + addOnTotal;
+  const preDiscountCustomerFacingPrice = matchedEntry.customer;
   const compliantPayrollBasePrice = matchedEntry.compliant + addOnTotal;
   const nonCompliantPayrollBasePrice = matchedEntry.nonCompliant + addOnTotal;
 
@@ -387,8 +592,13 @@ export type DancePricingEngineInput = {
   danceFormSubtype: DanceFormSubtype;
   packageType: string;
   musicAffiliate?: string;
+  danceVoiceover?: "25" | "75" | "100" | null;
   hasTraditionalVoiceover?: boolean;
   hasThemedVoiceover?: boolean;
+  rushFeeOption?: "none" | "single" | "double" | string | null;
+  isRushOrder?: "yes" | "no" | boolean | string;
+  extraSongsQuantity?: number;
+  extraSongEditingTimeQuantity?: number;
 };
 
 export type DancePricingEngineResult = {
@@ -428,11 +638,10 @@ export function calculateDanceOrderPricing(
     };
   }
 
-  const voAddonTotal =
-    (input.hasTraditionalVoiceover ? 25 : 0) +
-    (input.hasThemedVoiceover ? 75 : 0);
+  const miscAddons = calculateMiscellaneousPayrollAddons(input);
+  const voAddonTotal = miscAddons.totalPayrollAddOns;
 
-  const customerFacingPrice = matchedEntry.customer + voAddonTotal;
+  const customerFacingPrice = matchedEntry.customer;
   const compliantPayrollBasePrice = matchedEntry.compliant + voAddonTotal;
   const nonCompliantPayrollBasePrice = matchedEntry.nonCompliant + voAddonTotal;
   const alwaysFixedPayroll = Boolean(matchedEntry.alwaysFixedPayroll);
@@ -559,11 +768,10 @@ export function calculateMarchingBandOrderPricing(
     };
   }
 
-  const addOnTotal =
-    (input.hasSheetMusicAdd ? 50 : 0) +
-    (input.hasAddVocals ? 75 : 0);
+  const miscAddons = calculateMiscellaneousPayrollAddons(input);
+  const addOnTotal = miscAddons.totalPayrollAddOns;
 
-  const customerFacingPrice = matchedEntry.customer + addOnTotal;
+  const customerFacingPrice = matchedEntry.customer;
   const compliantPayrollBasePrice = matchedEntry.compliant + addOnTotal;
   const nonCompliantPayrollBasePrice = matchedEntry.nonCompliant + addOnTotal;
   const alwaysFixedPayroll = Boolean(matchedEntry.alwaysFixedPayroll);
@@ -571,7 +779,7 @@ export function calculateMarchingBandOrderPricing(
   let payrollBasePrice = compliantPayrollBasePrice;
   if (alwaysFixedPayroll) {
     // Fight Song / Alma Mater (both variants): "pull full amount", compliance-insensitive
-    payrollBasePrice = customerFacingPrice;
+    payrollBasePrice = compliantPayrollBasePrice;
   } else if (complianceStatus === "non-compliant") {
     payrollBasePrice = nonCompliantPayrollBasePrice;
   } else if (complianceStatus === "unknown-no-affiliate-field") {
@@ -616,7 +824,7 @@ export const SPORTS_ENTERTAINMENT_RATE_CARD: SportsEntertainmentRateCardEntry[] 
 ];
 
 export function lookupSportsEntertainmentRateCardEntry(
-  packageType: string
+  packageType?: string
 ): SportsEntertainmentRateCardEntry | null {
   if (!packageType || !packageType.trim()) return null;
   const target = packageType.toUpperCase().trim();
@@ -647,6 +855,10 @@ export function lookupSportsEntertainmentRateCardEntry(
 export type SportsEntertainmentPricingEngineInput = {
   packageType?: string;
   isRushOrder?: "yes" | "no" | boolean | string;
+  rushFeeOption?: "none" | "single" | "double" | string | null;
+  extraSongsQuantity?: number;
+  extraSongEditingTimeQuantity?: number;
+  [key: string]: any;
 };
 
 export type SportsEntertainmentPricingEngineResult = {
@@ -673,7 +885,8 @@ export function calculateSportsEntertainmentOrderPricing(
     input?.isRushOrder === true ||
     String(input?.isRushOrder).toLowerCase() === "yes";
 
-  const rushFeeAmount = isRush ? 100 : 0;
+  const miscAddons = calculateMiscellaneousPayrollAddons(input);
+  const rushFeeAmount = (isRush ? 100 : 0) + miscAddons.totalPayrollAddOns;
 
   if (!matchedEntry) {
     return {
@@ -707,14 +920,14 @@ export function calculateSportsEntertainmentOrderPricing(
     };
   }
 
-  const customerFacingPrice = matchedEntry.customer + rushFeeAmount;
-  const payrollBasePrice = customerFacingPrice;
+  const customerFacingPrice = matchedEntry.customer ?? 0;
+  const payrollBasePrice = customerFacingPrice + rushFeeAmount;
 
   return {
     customerFacingPrice,
     payrollBasePrice,
-    compliantPayrollBasePrice: customerFacingPrice,
-    nonCompliantPayrollBasePrice: customerFacingPrice,
+    compliantPayrollBasePrice: payrollBasePrice,
+    nonCompliantPayrollBasePrice: payrollBasePrice,
     complianceStatus: "unknown-no-affiliate-field",
     isUnpriced: false,
     needsManualQuote: false,
@@ -747,6 +960,7 @@ export function lookupSchoolAnthemRateCardEntry(
 export type SchoolAnthemPricingEngineInput = {
   packageType?: string;
   couponCode?: string;
+  [key: string]: any;
 };
 
 export type SchoolAnthemPricingEngineResult = {
@@ -763,18 +977,15 @@ export function calculateSchoolAnthemOrderPricing(
   input?: SchoolAnthemPricingEngineInput
 ): SchoolAnthemPricingEngineResult {
   const matchedEntry = lookupSchoolAnthemRateCardEntry(input?.packageType);
+  const miscAddons = calculateMiscellaneousPayrollAddons(input);
 
   return {
     customerFacingPrice: matchedEntry.customer,
-    payrollBasePrice: matchedEntry.compliant,
-    compliantPayrollBasePrice: matchedEntry.customer,
-    nonCompliantPayrollBasePrice: matchedEntry.customer,
+    payrollBasePrice: matchedEntry.compliant + miscAddons.totalPayrollAddOns,
+    compliantPayrollBasePrice: matchedEntry.customer + miscAddons.totalPayrollAddOns,
+    nonCompliantPayrollBasePrice: matchedEntry.customer + miscAddons.totalPayrollAddOns,
     complianceStatus: "unknown-no-affiliate-field",
     matchedEntry,
     packageName: matchedEntry.package,
   };
 }
-
-
-
-

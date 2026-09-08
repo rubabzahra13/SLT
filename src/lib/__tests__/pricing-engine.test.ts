@@ -129,7 +129,7 @@ describe("Central Pricing Engine — Core Rules Unit Tests (Prompt 8)", () => {
         musicAffiliate: "Power Music",
         hasRallyMix: true,
       });
-      assert.equal(rallyResult.customerFacingPrice, 1300); // 950 + 350
+      assert.equal(rallyResult.customerFacingPrice, 950); // 950 base (add-ons are separate)
       assert.equal(rallyResult.payrollBasePrice, 1200); // 850 + 350
 
       // Live 2-way toggle off returns to base
@@ -166,7 +166,7 @@ describe("Central Pricing Engine — Core Rules Unit Tests (Prompt 8)", () => {
         packageType: "BRONZE 2:00",
         hasExtend8ctAddon: true,
       });
-      assert.equal(extendOnly.customerFacingPrice, 775); // 750 + 25
+      assert.equal(extendOnly.customerFacingPrice, 750); // 750 base
       assert.equal(extendOnly.payrollBasePrice, 675); // 650 + 25
 
       const processOnly = calculateCheerOrderPricing({
@@ -174,7 +174,7 @@ describe("Central Pricing Engine — Core Rules Unit Tests (Prompt 8)", () => {
         packageType: "BRONZE 2:00",
         hasProcessing8ctSheetsAddon: true,
       });
-      assert.equal(processOnly.customerFacingPrice, 800); // 750 + 50
+      assert.equal(processOnly.customerFacingPrice, 750); // 750 base
       assert.equal(processOnly.payrollBasePrice, 700); // 650 + 50
 
       const bothAddons = calculateCheerOrderPricing({
@@ -183,7 +183,7 @@ describe("Central Pricing Engine — Core Rules Unit Tests (Prompt 8)", () => {
         hasExtend8ctAddon: true,
         hasProcessing8ctSheetsAddon: true,
       });
-      assert.equal(bothAddons.customerFacingPrice, 825); // 750 + 25 + 50
+      assert.equal(bothAddons.customerFacingPrice, 750); // 750 base
       assert.equal(bothAddons.payrollBasePrice, 725); // 650 + 25 + 50
     });
 

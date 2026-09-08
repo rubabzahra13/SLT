@@ -15,6 +15,10 @@ import {
   InlineTwoStateToggle,
   InlineSelect,
   InlineDateInput,
+  InlineDanceVoiceoverPills,
+  InlineCheerVoiceoverPills,
+  InlineRushFeePills,
+  InlineQuantityStepper,
 } from "@/components/mtd/InlineFields";
 import {
   AssignEditorModal,
@@ -461,11 +465,11 @@ function MTDPageContent() {
       form === "school-all-star-cheer" &&
       (cheerSubtype === "youth-rec-cheer" || cheerSubtype === "all");
 
+    const showCheerVoiceover = form === "school-all-star-cheer";
     const showDanceVoiceover = form === "school-all-star-dance";
     const showMusicAffiliate =
       form === "school-all-star-cheer" || form === "school-all-star-dance";
     const showMarchingAddons = form === "marching-band";
-    const showSportsRush = form === "sports-entertainment";
 
     const baseCols: Column<MTDRecord>[] = [
       {
@@ -693,7 +697,7 @@ function MTDPageContent() {
       },
       {
         key: "priceG",
-        header: "Customer Price",
+        header: "Package Price",
         width: "110px",
         align: "center" as const,
         nowrap: false,
@@ -756,8 +760,8 @@ function MTDPageContent() {
                 <button
                   type="button"
                   onClick={(e) => openPricingModal(rec, e)}
-                  title="Edit Customer Price (Needs Quote)"
-                  aria-label="Edit Customer Price: Needs Quote"
+                  title="Edit Package Price (Needs Quote)"
+                  aria-label="Edit Package Price: Needs Quote"
                   className={clsx(
                     clickableChipClass,
                     "flex w-full flex-col items-center rounded-lg px-2 py-1 text-center border-brand-warning/35 bg-brand-warning/10"
@@ -791,8 +795,8 @@ function MTDPageContent() {
               <button
                 type="button"
                 onClick={(e) => openPricingModal(rec, e)}
-                title="Edit Customer Price"
-                aria-label={`Edit Customer Price ${formatPrice(displayPrice)}`}
+                title="Edit Package Price"
+                aria-label={`Edit Package Price ${formatPrice(displayPrice)}`}
                 className={clsx(
                   clickableChipClass,
                   "flex w-full flex-col items-center rounded-lg px-2 py-1 text-center"
@@ -1028,56 +1032,37 @@ function MTDPageContent() {
       baseCols.push({
         key: "voiceoverCol",
         header: "Voice Over",
+        width: "165px",
+        align: "center",
+        nowrap: false,
+        cellClassName: "!px-2 !py-2",
+        headerClassName: "!px-2",
+        render: (rec) => (
+          <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
+            <InlineDanceVoiceoverPills
+              record={rec}
+              onUpdate={(id, patch) => updateMTD(id, patch)}
+            />
+          </div>
+        ),
+      });
+    }
+
+    if (showCheerVoiceover) {
+      baseCols.push({
+        key: "cheerVoiceoverCol",
+        header: "Voice Over",
         width: "135px",
         align: "center",
         nowrap: false,
         cellClassName: "!px-2 !py-2",
         headerClassName: "!px-2",
         render: (rec) => (
-          <div
-            className="flex items-center justify-center gap-1.5"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              type="button"
-              data-stop-row-nav
-              title="Traditional VO (+$25)"
-              aria-label={`Traditional Voice Over: ${rec.hasTraditionalVoiceover ? "Yes" : "No"}`}
-              onClick={(e) => {
-                e.stopPropagation();
-                updateMTD(rec.id, {
-                  hasTraditionalVoiceover: !rec.hasTraditionalVoiceover,
-                });
-              }}
-              className={clsx(
-                "whitespace-nowrap rounded-lg px-2 py-1 text-[10px] font-semibold leading-none shadow-xs transition-all duration-150 focus-visible:outline-none",
-                rec.hasTraditionalVoiceover
-                  ? "bg-brand-success/22 text-emerald-800 ring-1 ring-inset ring-brand-success/35 hover:bg-brand-success/30"
-                  : "bg-brand-danger/18 text-red-700 ring-1 ring-inset ring-brand-danger/32 hover:bg-brand-danger/25"
-              )}
-            >
-              Trad
-            </button>
-            <button
-              type="button"
-              data-stop-row-nav
-              title="Themed VO (+$75)"
-              aria-label={`Themed Voice Over: ${rec.hasThemedVoiceover ? "Yes" : "No"}`}
-              onClick={(e) => {
-                e.stopPropagation();
-                updateMTD(rec.id, {
-                  hasThemedVoiceover: !rec.hasThemedVoiceover,
-                });
-              }}
-              className={clsx(
-                "whitespace-nowrap rounded-lg px-2 py-1 text-[10px] font-semibold leading-none shadow-xs transition-all duration-150 focus-visible:outline-none",
-                rec.hasThemedVoiceover
-                  ? "bg-brand-success/22 text-emerald-800 ring-1 ring-inset ring-brand-success/35 hover:bg-brand-success/30"
-                  : "bg-brand-danger/18 text-red-700 ring-1 ring-inset ring-brand-danger/32 hover:bg-brand-danger/25"
-              )}
-            >
-              Themed
-            </button>
+          <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
+            <InlineCheerVoiceoverPills
+              record={rec}
+              onUpdate={(id, patch) => updateMTD(id, patch)}
+            />
           </div>
         ),
       });
@@ -1125,34 +1110,47 @@ function MTDPageContent() {
       });
     }
 
-    if (showSportsRush) {
-      baseCols.push({
-        key: "rushOrderCol",
-        header: "Rush Order",
-        width: "95px",
-        align: "center",
-        nowrap: false,
-        cellClassName: "!px-2 !py-2",
-        headerClassName: "!px-2",
-        render: (rec) => {
-          const isRush = rec.isRushOrder === "yes" || rec.isRushOrder === true;
-          return (
-            <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
-              <InlineTwoStateToggle
-                value={isRush}
-                onToggle={() => {
-                  const nextRush = isRush ? "no" : "yes";
-                  updateMTD(rec.id, { isRushOrder: nextRush });
-                  if (rec.orderId) {
-                    updateOrder(rec.orderId, { isRushOrder: nextRush });
-                  }
-                }}
-              />
-            </div>
-          );
-        },
-      });
-    }
+    baseCols.push({
+      key: "extraSongsCol",
+      header: "Extra Songs",
+      width: "140px",
+      align: "center",
+      nowrap: false,
+      cellClassName: "!px-2 !py-2",
+      headerClassName: "!px-2",
+      render: (rec) => (
+        <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
+          <InlineQuantityStepper
+            quantity={rec.extraSongsQuantity ?? 0}
+            unitCost={15}
+            label="Extra Songs"
+            onChange={(qty) => updateMTD(rec.id, { extraSongsQuantity: qty })}
+          />
+        </div>
+      ),
+    });
+
+    baseCols.push({
+      key: "extraSongTimeCol",
+      header: "Extra Song Time",
+      width: "140px",
+      align: "center",
+      nowrap: false,
+      cellClassName: "!px-2 !py-2",
+      headerClassName: "!px-2",
+      render: (rec) => (
+        <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
+          <InlineQuantityStepper
+            quantity={rec.extraSongEditingTimeQuantity ?? 0}
+            unitCost={30}
+            label="Extra Song Time"
+            onChange={(qty) =>
+              updateMTD(rec.id, { extraSongEditingTimeQuantity: qty })
+            }
+          />
+        </div>
+      ),
+    });
 
     baseCols.push(
       {
@@ -1206,7 +1204,6 @@ function MTDPageContent() {
                   <button
                     type="button"
                     onMouseDown={(e) => e.stopPropagation()}
-                    onClick={(e) => openAssignModal(rec, e)}
                     className={actionButtonClass(false)}
                   >
                     Assign
@@ -1216,6 +1213,24 @@ function MTDPageContent() {
             </div>
           );
         },
+      },
+      {
+        key: "rushFeeCol",
+        header: "Rush Fee",
+        width: "165px",
+        align: "center",
+        nowrap: false,
+        cellClassName: "!px-2 !py-2",
+        headerClassName: "!px-2",
+        render: (rec) => (
+          <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
+            <InlineRushFeePills
+              record={rec}
+              onUpdate={(id, patch) => updateMTD(id, patch)}
+              onUpdateOrder={(orderId, patch) => updateOrder(orderId, patch)}
+            />
+          </div>
+        ),
       },
       {
         key: "invoiceAction",
@@ -1401,13 +1416,10 @@ function MTDPageContent() {
 
       <SetPricingModal
         open={pricingOpen}
-        prices={packagePrices}
-        secretMenuPrices={secretMenuPrices}
+        form={form}
+        cheerSubtype={cheerSubtype}
+        danceSubtype={danceSubtype}
         onClose={() => setPricingOpen(false)}
-        onSave={(prices, secretMenu) => {
-          setPackagePrices(prices);
-          setSecretMenuPrices(secretMenu);
-        }}
       />
 
       <CompleteToPayrollModal

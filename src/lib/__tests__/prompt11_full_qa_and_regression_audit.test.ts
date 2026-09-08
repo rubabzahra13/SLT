@@ -39,13 +39,13 @@ describe("Prompt 11 — Full End-to-End QA and Regression Audit", () => {
       }
     });
 
-    it("1.2 MTD Pricing & Add-on Math: BAND CHANT ($600) + Sheet Music ($50) + Vocals ($75) = $725", () => {
+    it("1.2 MTD Pricing & Add-on Math: BAND CHANT ($600) + Sheet Music ($50) + Vocals ($75) = $600 Package Price / $725 Payroll Base", () => {
       const result = calculateMarchingBandOrderPricing({
         packageType: "BAND CHANT",
         hasSheetMusicAdd: true,
         hasAddVocals: true,
       });
-      assert.equal(result.customerFacingPrice, 725);
+      assert.equal(result.customerFacingPrice, 600);
       assert.equal(result.payrollBasePrice, 725); // $600 non-compliant base (no affiliate) + $125 add-ons
     });
 
@@ -57,7 +57,7 @@ describe("Prompt 11 — Full End-to-End QA and Regression Audit", () => {
       assert.equal(dc.complianceStatus, "unknown-no-affiliate-field");
     });
 
-    it("1.4 Completion Modal & Coupon: Applies SAVE50 ($50 off) to $725 -> $675 final customer price", () => {
+    it("1.4 Completion Modal & Coupon: Applies SAVE50 ($50 off) to $600 -> $550 final customer price", () => {
       const result = calculateMarchingBandOrderPricing({
         packageType: "BAND CHANT",
         hasSheetMusicAdd: true,
@@ -68,21 +68,21 @@ describe("Prompt 11 — Full End-to-End QA and Regression Audit", () => {
 
       const discount = couponEval.match?.discountValue || 0;
       const finalPrice = result.customerFacingPrice - discount;
-      assert.equal(finalPrice, 675);
+      assert.equal(finalPrice, 550);
     });
 
-    it("1.5 Payroll Transition: Moves to Payroll with $675 customer price", () => {
+    it("1.5 Payroll Transition: Moves to Payroll with $550 customer price", () => {
       const completedRec: MTDRecord = {
         ...NEW_CATEGORIES_DEMO_MTD_RECORDS[0],
         inPayroll: true,
         status: "completed",
-        finalCustomerPrice: 675,
+        finalCustomerPrice: 550,
         producerPayout: 270,
       };
 
       const payrollRecords = getPayrollRecords([completedRec]);
       assert.equal(payrollRecords.length, 1);
-      assert.equal(payrollRecords[0].finalCustomerPrice, 675);
+      assert.equal(payrollRecords[0].finalCustomerPrice, 550);
     });
   });
 
@@ -98,12 +98,13 @@ describe("Prompt 11 — Full End-to-End QA and Regression Audit", () => {
       }
     });
 
-    it("2.2 MTD Pricing & Rush Toggle: PRE-GAME / HALFTIME REMIXED ($250) + Rush ($100) = $350", () => {
+    it("2.2 MTD Pricing & Rush Toggle: PRE-GAME / HALFTIME REMIXED ($250) + Rush ($100) = $250 Package Price / $350 Payroll Base", () => {
       const result = calculateSportsEntertainmentOrderPricing({
         packageType: "PRE-GAME / HALFTIME REMIXED",
         isRushOrder: "yes",
       });
-      assert.equal(result.customerFacingPrice, 350);
+      assert.equal(result.customerFacingPrice, 250);
+      assert.equal(result.payrollBasePrice, 350);
       assert.equal(result.hasRushFee, true);
     });
 
@@ -169,7 +170,7 @@ describe("Prompt 11 — Full End-to-End QA and Regression Audit", () => {
   });
 
   describe("Part 4: Cheer and Dance Regression Pass", () => {
-    it("4.1 Cheer Pricing Engine: GOLD 1:30 ($700) and Rally Mix Add-on ($350) work unchanged", () => {
+    it("4.1 Cheer Pricing Engine: GOLD 1:30 ($700) and Rally Mix Add-on ($350) keeps $700 Package Price, $950 Payroll Base", () => {
       const cheerResult = calculateCheerOrderPricing({
         cheerFormSubtype: "school-cheer-viroc-yes",
         packageType: "GOLD 1:30",
@@ -177,11 +178,12 @@ describe("Prompt 11 — Full End-to-End QA and Regression Audit", () => {
         musicAffiliate: "Power Music",
         hasRallyMix: true,
       });
-      assert.equal(cheerResult.customerFacingPrice, 700 + 350); // $1,050
+      assert.equal(cheerResult.customerFacingPrice, 700); // $700 base package price
+      assert.equal(cheerResult.payrollBasePrice, 950); // $600 compliant + $350 Rally Mix
       assert.equal(cheerResult.complianceStatus, "compliant");
     });
 
-    it("4.2 Dance Pricing Engine: POM CUSTOM ($850) + Traditional VO ($25) + Themed VO ($75) = $950", () => {
+    it("4.2 Dance Pricing Engine: POM CUSTOM ($850) + Traditional VO ($25) + Themed VO ($75) = $850 Package Price, $830 Payroll Base", () => {
       const danceResult = calculateDanceOrderPricing({
         danceFormSubtype: "pom",
         packageType: "CUSTOM POM",
@@ -189,7 +191,8 @@ describe("Prompt 11 — Full End-to-End QA and Regression Audit", () => {
         hasTraditionalVoiceover: true,
         hasThemedVoiceover: true,
       });
-      assert.equal(danceResult.customerFacingPrice, 850 + 25 + 75); // $950
+      assert.equal(danceResult.customerFacingPrice, 850); // $850 base package price
+      assert.equal(danceResult.payrollBasePrice, 830); // $730 + $100 VO
       assert.equal(danceResult.complianceStatus, "compliant");
     });
 

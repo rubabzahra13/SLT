@@ -115,8 +115,7 @@ function CompleteToPayrollModal({ open, record, allOrders, producers, onClose, o
                         danceFormSubtype: danceSubtype,
                         packageType: pkgName,
                         musicAffiliate: affiliate,
-                        hasTraditionalVoiceover: currentRec.hasTraditionalVoiceover,
-                        hasThemedVoiceover: currentRec.hasThemedVoiceover,
+                        ...currentRec,
                     });
                     let discountAmount = 0;
                     if (matchedDiscountCode && matchedDiscountCode.discountType && typeof matchedDiscountCode.discountValue === "number" && matchedDiscountCode.discountValue > 0) {
@@ -154,26 +153,6 @@ function CompleteToPayrollModal({ open, record, allOrders, producers, onClose, o
                     }
                     else {
                         complianceReason = "No music affiliate specified on order.";
-                    }
-                    if (currentRec.hasTraditionalVoiceover) {
-                        addons.push({
-                            addon_id: "traditional_vo",
-                            label: "Traditional Voice Over",
-                            customer_amount: 25,
-                            payroll_amount: 25,
-                            quantity: 1,
-                            note: "Fixed fee add-on (Dance)",
-                        });
-                    }
-                    if (currentRec.hasThemedVoiceover) {
-                        addons.push({
-                            addon_id: "themed_vo",
-                            label: "Themed Voice Over",
-                            customer_amount: 75,
-                            payroll_amount: 75,
-                            quantity: 1,
-                            note: "Fixed fee add-on (Dance)",
-                        });
                     }
                     baseCust = danceResult.matchedEntry?.customer ?? currentRec.price;
                     basePay = danceResult.matchedEntry
@@ -356,9 +335,7 @@ function CompleteToPayrollModal({ open, record, allOrders, producers, onClose, o
                         packageType: pkgName,
                         timeLengthOfMix: mixLen,
                         musicAffiliate: affiliate,
-                        hasRallyMix: currentRec.hasRallyMix,
-                        hasExtend8ctAddon: currentRec.hasExtend8ctAddon,
-                        hasProcessing8ctSheetsAddon: currentRec.hasProcessing8ctSheetsAddon,
+                        ...currentRec,
                         couponCode: activeCoupon,
                         discountCodeObj: matchedDiscountCode,
                     });
@@ -385,32 +362,23 @@ function CompleteToPayrollModal({ open, record, allOrders, producers, onClose, o
                             note: "Fixed fee add-on (School Cheer)",
                         });
                     }
-                    if (cheerSubtype === "youth-rec-cheer") {
-                        if (currentRec.hasExtend8ctAddon) {
-                            addons.push({
-                                addon_id: "extend_8ct",
-                                label: "Extend 2 8cs Phrase / Raps",
-                                customer_amount: 25,
-                                payroll_amount: 25,
-                                quantity: 1,
-                                note: "Megan-controlled add-on (Youth Rec)",
-                            });
-                        }
-                        if (currentRec.hasProcessing8ctSheetsAddon) {
-                            addons.push({
-                                addon_id: "process_8ct",
-                                label: "Processing 8cs Sheets",
-                                customer_amount: 50,
-                                payroll_amount: 50,
-                                quantity: 1,
-                                note: "Megan-controlled add-on (Youth Rec)",
-                            });
-                        }
-                    }
                     baseCust = enginePricing.matchedEntry?.customer ?? currentRec.price;
                     basePay = enginePricing.matchedEntry
                         ? (enginePricing.complianceStatus === "non-compliant" ? enginePricing.matchedEntry.nonCompliant : enginePricing.matchedEntry.compliant)
                         : currentRec.price;
+                }
+                const miscAddonResult = (0, pricing_engine_1.calculateMiscellaneousPayrollAddons)(currentRec);
+                for (const addOn of miscAddonResult.items) {
+                    if (!addons.some((a) => a.addon_id === addOn.id)) {
+                        addons.push({
+                            addon_id: addOn.id,
+                            label: addOn.label,
+                            customer_amount: 0,
+                            payroll_amount: addOn.payrollAmount,
+                            quantity: addOn.quantity ?? 1,
+                            note: addOn.note ?? "Miscellaneous Payroll Add-On",
+                        });
+                    }
                 }
                 setCalculatedEnginePricing(enginePricing);
                 const isUnpricedSE = meta.formType === "sports-entertainment" && enginePricing.isUnpriced;
@@ -637,9 +605,9 @@ function CompleteToPayrollModal({ open, record, allOrders, producers, onClose, o
                                                                             ? "UNKNOWN (NO AFFILIATE FIELD)"
                                                                             : "NEEDS MANUAL REVIEW" })] }), (0, jsx_runtime_1.jsx)("span", { className: "text-[11px] font-medium text-brand-ink-secondary", children: breakdown?.canonical_affiliate
                                                             ? `Affiliate: ${breakdown.canonical_affiliate}`
-                                                            : "No Affiliate Field Required" })] }), (0, jsx_runtime_1.jsx)("p", { className: "mt-2 text-[12px] leading-relaxed text-brand-ink-secondary", children: breakdown?.compliance_reason || "Verified against pricing rules & compliant affiliates map." })] }), (0, jsx_runtime_1.jsxs)("div", { className: "rounded-xl border border-brand-line/70 bg-brand-elevated overflow-hidden", children: [(0, jsx_runtime_1.jsxs)("div", { className: "bg-brand-bg/60 px-4 py-2.5 border-b border-brand-line/60 flex items-center justify-between", children: [(0, jsx_runtime_1.jsx)("span", { className: "text-[11.5px] font-semibold uppercase tracking-wider text-brand-ink-tertiary", children: "Itemized Pricing Breakdown" }), (0, jsx_runtime_1.jsx)("span", { className: "text-[11.5px] text-brand-ink-tertiary", children: "Amount" })] }), (0, jsx_runtime_1.jsxs)("div", { className: "divide-y divide-brand-line/40 px-4 text-[12.5px]", children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex items-center justify-between py-2.5", children: [(0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex items-center gap-1.5", children: [(0, jsx_runtime_1.jsx)("span", { className: "font-semibold text-brand-ink", children: "Customer Price" }), isCustomerPriceOverridden && ((0, jsx_runtime_1.jsxs)("span", { className: "inline-flex items-center gap-1 rounded bg-brand-orange/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-brand-orange ring-1 ring-inset ring-brand-orange/25", children: [(0, jsx_runtime_1.jsx)(lucide_react_1.Edit3, { className: "h-2.5 w-2.5" }), " edited"] }))] }), (0, jsx_runtime_1.jsx)("p", { className: "text-[11px] text-brand-ink-tertiary", children: calculatedEnginePricing?.isUnpriced
+                                                            : "No Affiliate Field Required" })] }), (0, jsx_runtime_1.jsx)("p", { className: "mt-2 text-[12px] leading-relaxed text-brand-ink-secondary", children: breakdown?.compliance_reason || "Verified against pricing rules & compliant affiliates map." })] }), (0, jsx_runtime_1.jsxs)("div", { className: "rounded-xl border border-brand-line/70 bg-brand-elevated overflow-hidden", children: [(0, jsx_runtime_1.jsxs)("div", { className: "bg-brand-bg/60 px-4 py-2.5 border-b border-brand-line/60 flex items-center justify-between", children: [(0, jsx_runtime_1.jsx)("span", { className: "text-[11.5px] font-semibold uppercase tracking-wider text-brand-ink-tertiary", children: "Itemized Pricing Breakdown" }), (0, jsx_runtime_1.jsx)("span", { className: "text-[11.5px] text-brand-ink-tertiary", children: "Amount" })] }), (0, jsx_runtime_1.jsxs)("div", { className: "divide-y divide-brand-line/40 px-4 text-[12.5px]", children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex items-center justify-between py-2.5", children: [(0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex items-center gap-1.5", children: [(0, jsx_runtime_1.jsx)("span", { className: "font-semibold text-brand-ink", children: "Package Price" }), isCustomerPriceOverridden && ((0, jsx_runtime_1.jsxs)("span", { className: "inline-flex items-center gap-1 rounded bg-brand-orange/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-brand-orange ring-1 ring-inset ring-brand-orange/25", children: [(0, jsx_runtime_1.jsx)(lucide_react_1.Edit3, { className: "h-2.5 w-2.5" }), " edited"] }))] }), (0, jsx_runtime_1.jsx)("p", { className: "text-[11px] text-brand-ink-tertiary", children: calculatedEnginePricing?.isUnpriced
                                                                             ? "OTHER package (mixes > 2:30) — Manual quote required"
-                                                                            : "Exact customer-facing package price stored/displayed in MTD" })] }), (0, jsx_runtime_1.jsxs)("div", { className: "relative w-[130px]", children: [(0, jsx_runtime_1.jsx)("span", { className: "pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 font-semibold text-brand-ink text-[14px]", children: "$" }), (0, jsx_runtime_1.jsx)("input", { type: "number", step: "1", min: "0", placeholder: "Enter quote", value: finalCustomerPriceInput, onChange: (e) => {
+                                                                            : "Exact base package price stored/displayed in MTD" })] }), (0, jsx_runtime_1.jsxs)("div", { className: "relative w-[130px]", children: [(0, jsx_runtime_1.jsx)("span", { className: "pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 font-semibold text-brand-ink text-[14px]", children: "$" }), (0, jsx_runtime_1.jsx)("input", { type: "number", step: "1", min: "0", placeholder: "Enter quote", value: finalCustomerPriceInput, onChange: (e) => {
                                                                             const val = e.target.value;
                                                                             setFinalCustomerPriceInput(val);
                                                                             const num = parseFloat(val) || 0;
@@ -663,7 +631,7 @@ function CompleteToPayrollModal({ open, record, allOrders, producers, onClose, o
                                                                     : breakdown?.compliance_status === "compliant"
                                                                         ? `-${(0, data_1.formatPrice)(Math.abs((breakdown?.base_customer_price ?? record.price) -
                                                                             (breakdown?.base_payroll_price ?? record.price)))}`
-                                                                        : "$0" })] }), breakdown?.addons.map((addon) => ((0, jsx_runtime_1.jsxs)("div", { className: "flex items-center justify-between py-2.5", children: [(0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsx)("span", { className: "font-medium text-brand-ink", children: addon.label }), addon.note && ((0, jsx_runtime_1.jsx)("p", { className: "text-[11px] text-brand-ink-tertiary", children: addon.note }))] }), (0, jsx_runtime_1.jsxs)("span", { className: "font-semibold tabular-nums text-brand-success", children: ["+", (0, data_1.formatPrice)(addon.customer_amount)] })] }, addon.addon_id))), (0, jsx_runtime_1.jsxs)("div", { className: "flex items-center justify-between py-2.5", children: [(0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex items-center gap-1.5", children: [(0, jsx_runtime_1.jsx)(lucide_react_1.Tag, { className: "h-3.5 w-3.5 text-brand-signature" }), (0, jsx_runtime_1.jsx)("span", { className: "font-medium text-brand-ink", children: "Coupon Code" })] }), (0, jsx_runtime_1.jsx)("p", { className: "text-[11px] text-brand-ink-tertiary mt-0.5", children: breakdown?.coupon_evaluation?.status === "valid" && breakdown.coupon_evaluation.match?.description
+                                                                        : "$0" })] }), breakdown?.addons.map((addon) => ((0, jsx_runtime_1.jsxs)("div", { className: "flex items-center justify-between py-2.5", children: [(0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsx)("span", { className: "font-medium text-brand-ink", children: addon.label }), addon.note && ((0, jsx_runtime_1.jsx)("p", { className: "text-[11px] text-brand-ink-tertiary", children: addon.note }))] }), (0, jsx_runtime_1.jsxs)("span", { className: "font-semibold tabular-nums text-brand-success", children: ["+", (0, data_1.formatPrice)(addon.payroll_amount > 0 ? addon.payroll_amount : addon.customer_amount)] })] }, addon.addon_id))), (0, jsx_runtime_1.jsxs)("div", { className: "flex items-center justify-between py-2.5", children: [(0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex items-center gap-1.5", children: [(0, jsx_runtime_1.jsx)(lucide_react_1.Tag, { className: "h-3.5 w-3.5 text-brand-signature" }), (0, jsx_runtime_1.jsx)("span", { className: "font-medium text-brand-ink", children: "Coupon Code" })] }), (0, jsx_runtime_1.jsx)("p", { className: "text-[11px] text-brand-ink-tertiary mt-0.5", children: breakdown?.coupon_evaluation?.status === "valid" && breakdown.coupon_evaluation.match?.description
                                                                             ? breakdown.coupon_evaluation.match.description
                                                                             : breakdown?.coupon_evaluation?.status === "valid"
                                                                                 ? "Valid coupon code applied to order"

@@ -80,8 +80,8 @@ describe("Order Resolution & Link Fix Unit Tests", () => {
       hasRallyMix: record.hasRallyMix,
     });
 
-    assert.equal(pricing.customerFacingPrice, 2350); // $2000 + $350 Rally Mix
-    assert.equal(pricing.payrollBasePrice, 2350);
+    assert.equal(pricing.customerFacingPrice, 2000); // $2000 base package price (Rally Mix is separate add-on)
+    assert.equal(pricing.payrollBasePrice, 2350); // $2000 + $350 Rally Mix
     assert.equal(pricing.complianceStatus, "non-compliant");
     assert.equal(pricing.packageName, "TITANIUM");
     assert.equal(pricing.timeLengthOfMix, "1:45");

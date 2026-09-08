@@ -37,6 +37,12 @@ export type MTDRecord = {
   hasProcessing8ctSheetsAddon?: boolean;
   hasTraditionalVoiceover?: boolean;
   hasThemedVoiceover?: boolean;
+  danceVoiceover?: "25" | "75" | "100" | null;
+  cheerVoiceover20?: boolean;
+  cheerVoiceover40?: boolean;
+  rushFeeOption?: "none" | "single" | "double" | string | null;
+  extraSongsQuantity?: number;
+  extraSongEditingTimeQuantity?: number;
   hasSheetMusicAdd?: boolean;
   hasAddVocals?: boolean;
   isRushOrder?: "yes" | "no" | boolean | string;
@@ -245,6 +251,12 @@ export type BaseOrderAdminFields = {
   hasProcessing8ctSheetsAddon?: boolean;
   hasTraditionalVoiceover?: boolean;
   hasThemedVoiceover?: boolean;
+  danceVoiceover?: "25" | "75" | "100" | null;
+  cheerVoiceover20?: boolean;
+  cheerVoiceover40?: boolean;
+  rushFeeOption?: "none" | "single" | "double" | string | null;
+  extraSongsQuantity?: number;
+  extraSongEditingTimeQuantity?: number;
   hasSheetMusicAdd?: boolean;
   hasAddVocals?: boolean;
   isRushOrder?: "yes" | "no" | boolean | string;
@@ -682,6 +694,12 @@ export type Order = {
   hasProcessing8ctSheetsAddon?: boolean;
   hasTraditionalVoiceover?: boolean;
   hasThemedVoiceover?: boolean;
+  danceVoiceover?: "25" | "75" | "100" | null;
+  cheerVoiceover20?: boolean;
+  cheerVoiceover40?: boolean;
+  rushFeeOption?: "none" | "single" | "double" | string | null;
+  extraSongsQuantity?: number;
+  extraSongEditingTimeQuantity?: number;
   hasSheetMusicAdd?: boolean;
   hasAddVocals?: boolean;
   isRushOrder?: "yes" | "no" | boolean | string;

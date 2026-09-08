@@ -82,7 +82,7 @@ const mockDiscountCodes = [
             musicAffiliate: scOrder.musicAffiliate,
             hasRallyMix: true,
         });
-        strict_1.default.equal(rallySc.customerFacingPrice, baseSc.customerFacingPrice + 350);
+        strict_1.default.equal(rallySc.customerFacingPrice, baseSc.customerFacingPrice);
         strict_1.default.equal(rallySc.payrollBasePrice, baseSc.payrollBasePrice + 350);
         // Youth Rec Cheer Add-Ons ($25 + $50 = $75)
         const yrOrder = cheer_demo_orders_1.CHEER_DEMO_ORDERS.find((o) => o.cheerFormSubtype === "youth-rec-cheer");
@@ -98,7 +98,7 @@ const mockDiscountCodes = [
             hasExtend8ctAddon: true,
             hasProcessing8ctSheetsAddon: true,
         });
-        strict_1.default.equal(addOnYr.customerFacingPrice, baseYr.customerFacingPrice + 75);
+        strict_1.default.equal(addOnYr.customerFacingPrice, baseYr.customerFacingPrice);
         strict_1.default.equal(addOnYr.payrollBasePrice, baseYr.payrollBasePrice + 75);
     });
     (0, node_test_1.it)("Check 5: Completion Modal Breakdown & Coupon Integration (Prompt 11)", () => {

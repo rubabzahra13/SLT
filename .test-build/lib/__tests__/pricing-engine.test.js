@@ -114,7 +114,7 @@ const pricing_engine_1 = require("../pricing-engine");
                 musicAffiliate: "Power Music",
                 hasRallyMix: true,
             });
-            strict_1.default.equal(rallyResult.customerFacingPrice, 1300); // 950 + 350
+            strict_1.default.equal(rallyResult.customerFacingPrice, 950); // 950 base (add-ons are separate)
             strict_1.default.equal(rallyResult.payrollBasePrice, 1200); // 850 + 350
             // Live 2-way toggle off returns to base
             const toggledOff = (0, pricing_engine_1.calculateCheerOrderPricing)({
@@ -147,14 +147,14 @@ const pricing_engine_1 = require("../pricing-engine");
                 packageType: "BRONZE 2:00",
                 hasExtend8ctAddon: true,
             });
-            strict_1.default.equal(extendOnly.customerFacingPrice, 775); // 750 + 25
+            strict_1.default.equal(extendOnly.customerFacingPrice, 750); // 750 base
             strict_1.default.equal(extendOnly.payrollBasePrice, 675); // 650 + 25
             const processOnly = (0, pricing_engine_1.calculateCheerOrderPricing)({
                 cheerFormSubtype: "youth-rec-cheer",
                 packageType: "BRONZE 2:00",
                 hasProcessing8ctSheetsAddon: true,
             });
-            strict_1.default.equal(processOnly.customerFacingPrice, 800); // 750 + 50
+            strict_1.default.equal(processOnly.customerFacingPrice, 750); // 750 base
             strict_1.default.equal(processOnly.payrollBasePrice, 700); // 650 + 50
             const bothAddons = (0, pricing_engine_1.calculateCheerOrderPricing)({
                 cheerFormSubtype: "youth-rec-cheer",
@@ -162,7 +162,7 @@ const pricing_engine_1 = require("../pricing-engine");
                 hasExtend8ctAddon: true,
                 hasProcessing8ctSheetsAddon: true,
             });
-            strict_1.default.equal(bothAddons.customerFacingPrice, 825); // 750 + 25 + 50
+            strict_1.default.equal(bothAddons.customerFacingPrice, 750); // 750 base
             strict_1.default.equal(bothAddons.payrollBasePrice, 725); // 650 + 25 + 50
         });
         (0, node_test_1.it)("Youth Rec Cheer add-ons are ignored on School Cheer and All-Star Cheer", () => {
