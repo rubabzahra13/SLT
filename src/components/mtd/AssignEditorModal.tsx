@@ -24,6 +24,7 @@ import {
 } from "@/lib/editor-assignment";
 import { normalizeProducerKey, producerKeysMatch } from "@/lib/producer-keys";
 import { formatDisplayDate, toIsoDateString } from "@/lib/dates";
+import { suggestMixStartDate } from "@/lib/scheduling";
 import type { MTDRecord, MTDRecordStatus, Order, Producer, ScheduleEntry } from "@/types";
 
 export type EditorAssignmentResult = {
@@ -131,7 +132,8 @@ export function AssignEditorModal({
   const [selectedEditor, setSelectedEditor] = useState<string>("");
 
   const displayAssigned = record ? getDisplayAssignedProducer(record) : null;
-  const isAssignmentLocked = Boolean(displayAssigned?.trim());
+  const formalAssigned = record?.assignedProducer?.trim() || null;
+  const isAssignmentLocked = Boolean(formalAssigned);
 
   const suggestions = useMemo(
     () =>
@@ -209,10 +211,10 @@ export function AssignEditorModal({
 
   const assignedProducer = useMemo(
     () =>
-      isAssignmentLocked && displayAssigned
-        ? findProducerByAssignmentKey(displayAssigned, producers)
+      isAssignmentLocked && formalAssigned
+        ? findProducerByAssignmentKey(formalAssigned, producers)
         : undefined,
-    [isAssignmentLocked, displayAssigned, producers]
+    [isAssignmentLocked, formalAssigned, producers]
   );
 
   const requestedBookedEditors = useMemo(() => {
@@ -235,7 +237,7 @@ export function AssignEditorModal({
         producer,
         mixCount: tone === "booked" ? mixCount : undefined,
         bookedUntil: tone === "booked" ? bookedUntil : undefined,
-        disabled: tone === "booked" && !isCurrent,
+        disabled: false,
       };
     };
 
@@ -255,10 +257,25 @@ export function AssignEditorModal({
       });
     }
 
+    const otherBookedEditors = bookedEditors.filter(
+      (name) =>
+        !requestedBookedEditors.some((booked) =>
+          producerKeysMatch(booked, name)
+        )
+    );
+    if (otherBookedEditors.length > 0) {
+      groups.push({
+        label: "Currently booked",
+        tone: "booked",
+        options: otherBookedEditors.map((name) => toOption(name, "booked")),
+      });
+    }
+
     return groups;
   }, [
     availableEditors,
     requestedBookedEditors,
+    bookedEditors,
     producers,
     editorWorkload,
     editorBookedUntil,
@@ -295,24 +312,33 @@ export function AssignEditorModal({
   useEffect(() => {
     if (!record || !open) return;
 
-    const assignedKey = getDisplayAssignedProducer(record);
+    const assignedKey = record.assignedProducer?.trim();
 
     if (assignedKey) {
       const match = categoryEditors.find((name) =>
         producerKeysMatch(name, assignedKey)
       );
       setSelectedEditor(match ?? assignedKey.toUpperCase());
-    } else {
-      let editor = pickEditorForOpen(record);
-      const isBooked =
-        editor &&
-        !availableEditorKeys.has(normalizeProducerKey(editor)) &&
-        !producerKeysMatch(record.assignedProducer ?? "", editor);
-      if (isBooked) {
-        editor = availableEditors[0] ?? "";
-      }
-      setSelectedEditor(editor);
+      return;
     }
+
+    let editor = pickEditorForOpen(record);
+    if (
+      editor &&
+      !availableEditorKeys.has(normalizeProducerKey(editor)) &&
+      !producerKeysMatch(record.assignedProducer ?? "", editor)
+    ) {
+      editor = availableEditors[0] ?? "";
+    }
+    if (!editor) {
+      editor =
+        categoryEditors.find((name) =>
+          requestedEditor ? producerKeysMatch(name, requestedEditor) : false
+        ) ??
+        categoryEditors[0] ??
+        "";
+    }
+    setSelectedEditor(editor);
   }, [
     open,
     record,
@@ -323,6 +349,7 @@ export function AssignEditorModal({
     linkedOrder,
     availableEditorKeys,
     availableEditors,
+    requestedEditor,
   ]);
 
   const mixStartIso = toIsoDateString(record?.mixStartDate ?? "");
@@ -333,10 +360,12 @@ export function AssignEditorModal({
 
   const activeRecord = record;
   const isViewOnly = readOnly;
-  const showCompactAssigned =
-    isViewOnly || (isAssignmentLocked && Boolean(displayAssigned));
+  const showCompactAssigned = isViewOnly || isAssignmentLocked;
   const canSubmit =
-    Boolean(selectedEditor) && !showCompactAssigned && !isAssignmentLocked;
+    Boolean(selectedEditor) &&
+    categoryEditors.some((name) => producerKeysMatch(name, selectedEditor)) &&
+    !showCompactAssigned &&
+    !isAssignmentLocked;
   const genreLabel = activeRecord.category || "this";
 
   function handleUnassign() {
@@ -351,6 +380,11 @@ export function AssignEditorModal({
     e.preventDefault();
     if (!canSubmit) return;
 
+    const existingStart = toIsoDateString(activeRecord.mixStartDate);
+    const mixStartDate =
+      existingStart ||
+      suggestMixStartDate(selectedEditor, producers, schedule);
+
     onAssign(activeRecord.id, {
       editorRequest: editorRequestForAssignment(
         selectedEditor,
@@ -358,6 +392,7 @@ export function AssignEditorModal({
         availableNames
       ),
       assignedProducer: selectedEditor,
+      ...(!existingStart && mixStartDate ? { mixStartDate } : {}),
     });
     onClose();
   }

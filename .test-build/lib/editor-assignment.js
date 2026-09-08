@@ -10,6 +10,8 @@ exports.pickDefaultEditor = pickDefaultEditor;
 exports.editorRequestForAssignment = editorRequestForAssignment;
 exports.findProducerByAssignmentKey = findProducerByAssignmentKey;
 exports.resolveValidProducerAssignment = resolveValidProducerAssignment;
+exports.resolveAssignedProducerForPatch = resolveAssignedProducerForPatch;
+exports.getDisplayAssignedProducer = getDisplayAssignedProducer;
 exports.resolveSeederAssignment = resolveSeederAssignment;
 exports.seedAssignedProducerForOrder = seedAssignedProducerForOrder;
 exports.orderCategoryToProducerCategory = orderCategoryToProducerCategory;
@@ -197,6 +199,29 @@ function resolveValidProducerAssignment(rawKey, producers, category) {
         return null;
     }
     return (0, producer_keys_1.producerAssignmentKey)(producer);
+}
+/** Persist user-selected producer keys even when strict category validation fails. */
+function resolveAssignedProducerForPatch(rawKey, producers, category) {
+    const validated = resolveValidProducerAssignment(rawKey, producers, category);
+    if (validated)
+        return validated;
+    const producer = findProducerByAssignmentKey(rawKey, producers);
+    if (producer)
+        return (0, producer_keys_1.producerAssignmentKey)(producer);
+    const trimmed = rawKey?.trim();
+    return trimmed ? trimmed.toUpperCase() : null;
+}
+/** Assigned producer shown in MTD / Orders tables. */
+function getDisplayAssignedProducer(rec) {
+    if (!rec)
+        return null;
+    const assigned = rec.assignedProducer?.trim();
+    if (assigned)
+        return assigned;
+    const request = rec.editorRequest?.trim();
+    if (request && request !== "FA" && request !== "NA")
+        return request;
+    return null;
 }
 /**
  * Seeder assignment rule helper.

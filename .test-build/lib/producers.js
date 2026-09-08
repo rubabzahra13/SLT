@@ -8,6 +8,8 @@ exports.formatMaxMixCapacity = formatMaxMixCapacity;
 exports.formatMaxCostCapacity = formatMaxCostCapacity;
 exports.formatWorkDays = formatWorkDays;
 exports.formatTimeOffRange = formatTimeOffRange;
+exports.getProducerCategories = getProducerCategories;
+exports.formatCategoryCompensationRate = formatCategoryCompensationRate;
 exports.initialsFromName = initialsFromName;
 exports.matchesProducerSearch = matchesProducerSearch;
 const types_1 = require("@/types");
@@ -205,6 +207,21 @@ function formatTimeOffRange(entry) {
     if (entry.startDate === entry.endDate)
         return entry.startDate;
     return `${entry.startDate} → ${entry.endDate}`;
+}
+function getProducerCategories(producer) {
+    if (producer.categories?.length)
+        return producer.categories;
+    if (producer.specialty)
+        return [producer.specialty];
+    return [];
+}
+function formatCategoryCompensationRate(producer, category) {
+    if (producer.compensationModel === "not_paid_for_mixing")
+        return "0%";
+    if (producer.compensationModel === "hourly_manual")
+        return "Hourly";
+    const rawRate = producer.ratesByCategory?.[category] ?? producer.defaultRate ?? 0.5;
+    return `${rawRate <= 1 ? Math.round(rawRate * 100) : rawRate}%`;
 }
 function initialsFromName(name) {
     const parts = name.trim().split(/\s+/).filter(Boolean);

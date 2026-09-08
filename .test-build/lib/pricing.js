@@ -2,6 +2,8 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PACKAGE_CATALOG = void 0;
 exports.getDefaultSecretMenuPricing = getDefaultSecretMenuPricing;
+exports.getSecretMenuPerSongRates = getSecretMenuPerSongRates;
+exports.applySecretMenuPerSongRates = applySecretMenuPerSongRates;
 exports.detectCompliance = detectCompliance;
 exports.getPriceForPackage = getPriceForPackage;
 exports.complianceLabel = complianceLabel;
@@ -68,6 +70,35 @@ function getDefaultSecretMenuPricing() {
         extraSongTiers: DEFAULT_SECRET_MENU_PRICING.extraSongTiers.map((tier) => ({
             ...tier,
         })),
+    };
+}
+function getSecretMenuPerSongRates(pricing) {
+    const first = pricing.extraSongTiers.find((tier) => tier.extraSongs === 1) ??
+        pricing.extraSongTiers[0];
+    if (!first || first.extraSongs <= 0) {
+        return { costPerSong: 0, minutesPerSong: 0 };
+    }
+    return {
+        costPerSong: Math.round((first.extraCost / first.extraSongs) * 100) / 100,
+        minutesPerSong: Math.round(first.editingMinutes / first.extraSongs),
+    };
+}
+function applySecretMenuPerSongRates(pricing, patch) {
+    const current = getSecretMenuPerSongRates(pricing);
+    const costPerSong = patch.costPerSong ?? current.costPerSong;
+    const minutesPerSong = patch.minutesPerSong ?? current.minutesPerSong;
+    const basePrice = patch.basePrice ?? pricing.basePrice;
+    const extraSongTiers = pricing.extraSongTiers.length > 0
+        ? pricing.extraSongTiers.map((tier) => ({
+            extraSongs: tier.extraSongs,
+            extraCost: Math.round(costPerSong * tier.extraSongs),
+            editingMinutes: Math.round(minutesPerSong * tier.extraSongs),
+        }))
+        : [{ extraSongs: 1, extraCost: costPerSong, editingMinutes: minutesPerSong }];
+    return {
+        ...pricing,
+        basePrice,
+        extraSongTiers,
     };
 }
 function detectCompliance(musicTheme) {

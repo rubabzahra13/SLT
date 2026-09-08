@@ -32,7 +32,7 @@ import {
   resolveAssignedProducerForPatch,
   resolveValidProducerAssignment,
 } from "@/lib/editor-assignment";
-import { suggestMixEndDate } from "@/lib/scheduling";
+import { suggestMixEndDate, suggestMixStartDate } from "@/lib/scheduling";
 import { normalizeProducer } from "@/lib/producers";
 import { normalizeDiscountCode } from "@/lib/discount-codes";
 import { mergeLocalMtdRecordFields } from "@/lib/mtd-completion";
@@ -441,6 +441,22 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           );
           updated.assignedProducer = resolved;
           apiPatch = { ...apiPatch, assignedProducer: resolved };
+
+          if (
+            resolved &&
+            !toIsoDateString(updated.mixStartDate) &&
+            patch.mixStartDate === undefined
+          ) {
+            const mixStartDate = suggestMixStartDate(
+              resolved,
+              producers,
+              schedule
+            );
+            if (mixStartDate) {
+              updated.mixStartDate = mixStartDate;
+              apiPatch = { ...apiPatch, mixStartDate };
+            }
+          }
         } else if (
           patch.editorRequest &&
           patch.editorRequest !== "FA" &&
@@ -488,7 +504,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     if (payrollNotice) {
       addNotification(payrollNotice);
     }
-  }, [addNotification, packagePrices, producers]);
+  }, [addNotification, packagePrices, producers, schedule]);
 
   const updateOrder = useCallback(
     (id: string, patch: Partial<Order>, seed?: Order) => {

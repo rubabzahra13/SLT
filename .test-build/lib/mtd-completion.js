@@ -9,6 +9,7 @@ exports.patchMoveToPayroll = patchMoveToPayroll;
 exports.patchReturnFromPayroll = patchReturnFromPayroll;
 exports.getPayrollRecords = getPayrollRecords;
 exports.getMTDBoardRecords = getMTDBoardRecords;
+exports.mergeLocalMtdRecordFields = mergeLocalMtdRecordFields;
 exports.preserveLocalPayrollFields = preserveLocalPayrollFields;
 const dates_1 = require("@/lib/dates");
 const mtd_status_1 = require("@/lib/mtd-status");
@@ -87,28 +88,40 @@ function getPayrollRecords(records) {
 function getMTDBoardRecords(records) {
     return records.filter((rec) => !rec.inPayroll);
 }
-/** Keep local payroll completion when backend reload races or has not persisted yet. */
-function preserveLocalPayrollFields(backendRecord, localRecord) {
-    if (!localRecord?.inPayroll || backendRecord.inPayroll) {
-        return backendRecord;
+/** Keep local MTD edits when backend reload races or has not persisted yet. */
+function mergeLocalMtdRecordFields(backendRecord, localRecord) {
+    let merged = backendRecord;
+    if (localRecord?.inPayroll && !backendRecord.inPayroll) {
+        merged = {
+            ...merged,
+            inPayroll: true,
+            recordStatus: localRecord.recordStatus ?? merged.recordStatus,
+            status: localRecord.status ?? merged.status,
+            completedAt: localRecord.completedAt ?? merged.completedAt,
+            payrollFinalized: localRecord.payrollFinalized ?? merged.payrollFinalized,
+            producerPayout: localRecord.producerPayout ?? merged.producerPayout,
+            sltPortion: localRecord.sltPortion ?? merged.sltPortion,
+            rateUsed: localRecord.rateUsed ?? merged.rateUsed,
+            rateSource: localRecord.rateSource ?? merged.rateSource,
+            finalCustomerPrice: localRecord.finalCustomerPrice ?? merged.finalCustomerPrice,
+            systemCalculatedCustomerPrice: localRecord.systemCalculatedCustomerPrice ??
+                merged.systemCalculatedCustomerPrice,
+            finalCustomerPriceOverridden: localRecord.finalCustomerPriceOverridden ??
+                merged.finalCustomerPriceOverridden,
+            price: localRecord.price ?? merged.price,
+            payrollBreakdown: localRecord.payrollBreakdown ?? merged.payrollBreakdown,
+        };
     }
-    return {
-        ...backendRecord,
-        inPayroll: true,
-        recordStatus: localRecord.recordStatus ?? backendRecord.recordStatus,
-        status: localRecord.status ?? backendRecord.status,
-        completedAt: localRecord.completedAt ?? backendRecord.completedAt,
-        payrollFinalized: localRecord.payrollFinalized ?? backendRecord.payrollFinalized,
-        producerPayout: localRecord.producerPayout ?? backendRecord.producerPayout,
-        sltPortion: localRecord.sltPortion ?? backendRecord.sltPortion,
-        rateUsed: localRecord.rateUsed ?? backendRecord.rateUsed,
-        rateSource: localRecord.rateSource ?? backendRecord.rateSource,
-        finalCustomerPrice: localRecord.finalCustomerPrice ?? backendRecord.finalCustomerPrice,
-        systemCalculatedCustomerPrice: localRecord.systemCalculatedCustomerPrice ??
-            backendRecord.systemCalculatedCustomerPrice,
-        finalCustomerPriceOverridden: localRecord.finalCustomerPriceOverridden ??
-            backendRecord.finalCustomerPriceOverridden,
-        price: localRecord.price ?? backendRecord.price,
-        payrollBreakdown: localRecord.payrollBreakdown ?? backendRecord.payrollBreakdown,
-    };
+    if (localRecord?.assignedProducer?.trim() && !merged.assignedProducer?.trim()) {
+        merged = {
+            ...merged,
+            assignedProducer: localRecord.assignedProducer,
+            editorRequest: localRecord.editorRequest ?? merged.editorRequest,
+        };
+    }
+    return merged;
+}
+/** @deprecated Use mergeLocalMtdRecordFields */
+function preserveLocalPayrollFields(backendRecord, localRecord) {
+    return mergeLocalMtdRecordFields(backendRecord, localRecord);
 }

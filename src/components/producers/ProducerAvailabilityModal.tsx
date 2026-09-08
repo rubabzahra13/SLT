@@ -281,7 +281,7 @@ export function ProducerAvailabilityModal({
         : null,
       overtimeDays,
       categories,
-      specialty: categories[0] ?? producer.specialty,
+      specialty: categories[0] ?? producer?.specialty ?? "",
       ratesByCategory,
     });
     onClose();

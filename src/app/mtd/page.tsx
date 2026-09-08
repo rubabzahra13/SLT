@@ -1407,7 +1407,7 @@ function MTDPageContent() {
         allOrders={allOrders}
         producers={producers}
         schedule={schedule}
-        readOnly={Boolean(getDisplayAssignedProducer(assignRecord))}
+        readOnly={Boolean(assignRecord?.assignedProducer?.trim())}
         onClose={() => setAssignRecordId(null)}
         onAssign={handleAssign}
       />

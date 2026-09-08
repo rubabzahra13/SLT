@@ -108,12 +108,12 @@ function AppStateProvider({ children }) {
                 if (mtdData) {
                     setMtdRecords((prev) => {
                         const localById = new Map(prev.map((r) => [r.id, r]));
-                        const normalizedMtd = normalizeMTD(mtdData).map((r) => (0, mtd_completion_1.preserveLocalPayrollFields)(r, localById.get(r.id)));
+                        const normalizedMtd = normalizeMTD(mtdData).map((r) => (0, mtd_completion_1.mergeLocalMtdRecordFields)(r, localById.get(r.id)));
                         const backendMtdIds = new Set(normalizedMtd.map((r) => r.id));
                         const seedMtd = normalizeMTD(seed.mtdRecords);
                         const missingSeedMtd = seedMtd
                             .filter((r) => !backendMtdIds.has(r.id))
-                            .map((r) => (0, mtd_completion_1.preserveLocalPayrollFields)(r, localById.get(r.id)));
+                            .map((r) => (0, mtd_completion_1.mergeLocalMtdRecordFields)(r, localById.get(r.id)));
                         return [...normalizedMtd, ...missingSeedMtd];
                     });
                 }
@@ -227,6 +227,7 @@ function AppStateProvider({ children }) {
     const updateMTD = (0, react_1.useCallback)((id, patch) => {
         let payrollNotice = null;
         let apiId = id;
+        let apiPatch = patch;
         setMtdRecords((prev) => {
             const existing = prev.find((r) => r.id === id);
             if (existing?.uuid)
@@ -248,16 +249,20 @@ function AppStateProvider({ children }) {
                 const updated = { ...r, ...patch };
                 if (patch.editorRequest === "NA" || patch.assignedProducer === null) {
                     updated.assignedProducer = null;
+                    apiPatch = { ...apiPatch, assignedProducer: null };
                 }
                 else if (patch.assignedProducer !== undefined) {
-                    updated.assignedProducer = (0, editor_assignment_1.resolveValidProducerAssignment)(patch.assignedProducer, producers, updated.category);
+                    const resolved = (0, editor_assignment_1.resolveAssignedProducerForPatch)(patch.assignedProducer, producers, updated.category);
+                    updated.assignedProducer = resolved;
+                    apiPatch = { ...apiPatch, assignedProducer: resolved };
                 }
                 else if (patch.editorRequest &&
                     patch.editorRequest !== "FA" &&
                     patch.editorRequest !== "NA") {
-                    const resolved = (0, editor_assignment_1.resolveValidProducerAssignment)(patch.editorRequest, producers, updated.category);
+                    const resolved = (0, editor_assignment_1.resolveAssignedProducerForPatch)(patch.editorRequest, producers, updated.category);
                     if (resolved) {
                         updated.assignedProducer = resolved;
+                        apiPatch = { ...apiPatch, assignedProducer: resolved };
                     }
                 }
                 if (patch.package || patch.priceCompliance || patch.musicTheme) {
@@ -275,11 +280,11 @@ function AppStateProvider({ children }) {
             });
         });
         // Persist MTD patch to backend API
-        (0, api_1.updateMTDRecordApi)(apiId, patch).catch((err) => console.error("Failed to persist MTD Record update to backend:", err));
+        (0, api_1.updateMTDRecordApi)(apiId, apiPatch).catch((err) => console.error("Failed to persist MTD Record update to backend:", err));
         if (payrollNotice) {
             addNotification(payrollNotice);
         }
-    }, [addNotification, packagePrices]);
+    }, [addNotification, packagePrices, producers]);
     const updateOrder = (0, react_1.useCallback)((id, patch, seed) => {
         const merge = (order) => (0, order_form_1.normalizeOrder)({ ...order, ...patch, id });
         setActiveOrders((prev) => {

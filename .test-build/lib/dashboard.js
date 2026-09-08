@@ -126,7 +126,6 @@ function buildDashboardPulse(mtdRecords, producers, schedule = [], todayInput = 
                 openBoard.push(rec);
                 break;
             case "outsourced":
-                outsourced += 1;
                 openBoard.push(rec);
                 break;
             case "completed":
