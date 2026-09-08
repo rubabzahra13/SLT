@@ -17,6 +17,7 @@ import {
 import { SetPricingModal } from "@/components/mtd/SetPricingModal";
 import { SetRecordPricingModal } from "@/components/mtd/SetRecordPricingModal";
 import { CompletionBlockedModal } from "@/components/mtd/CompletionBlockedModal";
+import { MoveToMtdConfirmModal } from "@/components/mtd/MoveToMtdConfirmModal";
 import { ForwardOrderMailModal } from "@/components/orders/ForwardOrderMailModal";
 import {
   DEFAULT_MTD_TABLE_FILTERS,
@@ -32,7 +33,7 @@ import {
   calculateSchoolAnthemOrderPricing,
   calculateSportsEntertainmentOrderPricing,
 } from "@/lib/pricing-engine";
-import { formatDisplayDate, toIsoDateString } from "@/lib/dates";
+import { formatDisplayDate, isIsoDateBefore, toIsoDateString } from "@/lib/dates";
 import { parsePackage } from "@/lib/package";
 import {
   findLinkedOrder,
@@ -215,6 +216,7 @@ function OrdersPageContent() {
   const [searchQuery, setSearchQuery] = useState("");
   const [assignRecordId, setAssignRecordId] = useState<string | null>(null);
   const [validationModalRecord, setValidationModalRecord] = useState<MTDRecord | null>(null);
+  const [moveConfirmRecord, setMoveConfirmRecord] = useState<MTDRecord | null>(null);
   const [pricingOpen, setPricingOpen] = useState(false);
   const [pricingRecord, setPricingRecord] = useState<MTDRecord | null>(null);
   const [mailRecord, setMailRecord] = useState<MTDRecord | null>(null);
@@ -278,13 +280,20 @@ function OrdersPageContent() {
         return;
       }
 
-      updateMTD(rec.id, {
-        inMTD: true,
-        status: rec.status === "needs_attention" ? "active" : rec.status,
-      });
+      setMoveConfirmRecord(rec);
     },
-    [updateMTD]
+    []
   );
+
+  const confirmMoveToMTD = useCallback(() => {
+    const rec = moveConfirmRecord;
+    if (!rec) return;
+    updateMTD(rec.id, {
+      inMTD: true,
+      status: rec.status === "needs_attention" ? "active" : rec.status,
+    });
+    setMoveConfirmRecord(null);
+  }, [moveConfirmRecord, updateMTD]);
 
   const openPricingModal = useCallback((rec: MTDRecord, e: React.MouseEvent) => {
     e.preventDefault();
@@ -698,19 +707,22 @@ function OrdersPageContent() {
         cellClassName: "!px-2 !py-1.5",
         headerClassName: "!px-2",
         render: (rec) => {
-          const endIso = toIsoDateString(rec.mixEndDate ?? "");
           return (
             <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
               <InlineDateInput
                 value={rec.mixStartDate}
-                max={endIso || undefined}
                 className={tableDateClass}
                 onChange={(next) => {
                   let nextEnd = rec.mixEndDate;
-                  if (next && !nextEnd) {
-                    const d = new Date(next);
-                    d.setDate(d.getDate() + 7);
-                    nextEnd = d.toISOString().slice(0, 10);
+                  // Keep the mix window valid: if the new start is on/after the
+                  // existing end (or no end yet), push the end to start + 7 days.
+                  if (next) {
+                    const endIso = toIsoDateString(nextEnd ?? "");
+                    if (!endIso || !isIsoDateBefore(next, endIso)) {
+                      const d = new Date(`${next}T12:00:00`);
+                      d.setDate(d.getDate() + 7);
+                      nextEnd = d.toISOString().slice(0, 10);
+                    }
                   }
                   updateMTD(rec.id, { mixStartDate: next, mixEndDate: nextEnd });
                 }}
@@ -955,6 +967,13 @@ function OrdersPageContent() {
         record={validationModalRecord}
         reason="moveToMtd"
         onClose={() => setValidationModalRecord(null)}
+      />
+
+      <MoveToMtdConfirmModal
+        open={Boolean(moveConfirmRecord)}
+        record={moveConfirmRecord}
+        onClose={() => setMoveConfirmRecord(null)}
+        onConfirm={confirmMoveToMTD}
       />
 
       <ForwardOrderMailModal

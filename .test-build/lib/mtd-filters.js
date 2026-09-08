@@ -442,13 +442,18 @@ function isOrderScheduledAndAssigned(rec) {
         (0, dates_1.toIsoDateString)(rec.mixEndDate));
 }
 function isMTDRecord(rec) {
-    if (rec.inMTD === false)
-        return false;
-    if (rec.inMTD === true)
-        return true;
+    // Outsourced mixes always live on the MTD board.
     if (isOutsourcedRecord(rec))
         return true;
-    return isOrderScheduledAndAssigned(rec);
+    // Everything else stays in the Orders tab until it is explicitly moved
+    // (inMTD === true). Assigning an editor no longer auto-moves the record.
+    if (rec.inMTD !== true)
+        return false;
+    // MTD editor assignment is view-only/locked, so a record can only stay on
+    // the MTD board once it has an assigned editor. Legacy/demo records that were
+    // flagged inMTD without an editor fall back to the Orders tab, where the
+    // editor must be assigned before the record can move back to MTD.
+    return Boolean((0, editor_assignment_1.getDisplayAssignedProducer)(rec));
 }
 function isPreMTDOrderRecord(rec) {
     return !isMTDRecord(rec);

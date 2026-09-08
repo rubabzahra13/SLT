@@ -13,6 +13,7 @@ const scheduling_1 = require("@/lib/scheduling");
 const producers_1 = require("@/lib/producers");
 const discount_codes_1 = require("@/lib/discount-codes");
 const mtd_completion_1 = require("@/lib/mtd-completion");
+const mtd_filters_1 = require("@/lib/mtd-filters");
 const mtd_status_1 = require("@/lib/mtd-status");
 const dates_1 = require("@/lib/dates");
 const api_1 = require("@/lib/api");
@@ -34,7 +35,7 @@ function normalizeMTD(records) {
         if (startIso && endIso && endIso < startIso) {
             mixEnd = (0, scheduling_1.suggestMixEndDate)(startIso, r.package);
         }
-        return {
+        const normalized = {
             ...r,
             editorRequest: r.editorRequest || "FA",
             contactName: r.contactName || r.editorInitials,
@@ -44,6 +45,15 @@ function normalizeMTD(records) {
             inPayroll: Boolean(r.inPayroll),
             ...(mixEnd ? { mixEndDate: mixEnd } : {}),
         };
+        // Backfill the explicit MTD flag for records that already belong on the
+        // board (assigned + scheduled, or outsourced). New assignments made from
+        // the Orders tab at runtime do NOT set this, so they stay in Orders until
+        // the user explicitly clicks "Move to MTD".
+        if (normalized.inMTD === undefined &&
+            ((0, mtd_filters_1.isOrderScheduledAndAssigned)(normalized) || (0, mtd_filters_1.isOutsourcedRecord)(normalized))) {
+            normalized.inMTD = true;
+        }
+        return normalized;
     });
 }
 function AppStateProvider({ children }) {
@@ -189,6 +199,7 @@ function AppStateProvider({ children }) {
             ...draftRecord,
             assignedProducer,
             editorRequest,
+            inMTD: true,
         };
         setMtdRecords((prev) => [newRecord, ...prev]);
         setActiveOrders((prev) => prev.map((o) => o.id === orderId
@@ -255,6 +266,15 @@ function AppStateProvider({ children }) {
                     const resolved = (0, editor_assignment_1.resolveAssignedProducerForPatch)(patch.assignedProducer, producers, updated.category);
                     updated.assignedProducer = resolved;
                     apiPatch = { ...apiPatch, assignedProducer: resolved };
+                    if (resolved &&
+                        !(0, dates_1.toIsoDateString)(updated.mixStartDate) &&
+                        patch.mixStartDate === undefined) {
+                        const mixStartDate = (0, scheduling_1.suggestMixStartDate)(resolved, producers, schedule);
+                        if (mixStartDate) {
+                            updated.mixStartDate = mixStartDate;
+                            apiPatch = { ...apiPatch, mixStartDate };
+                        }
+                    }
                 }
                 else if (patch.editorRequest &&
                     patch.editorRequest !== "FA" &&
@@ -284,7 +304,7 @@ function AppStateProvider({ children }) {
         if (payrollNotice) {
             addNotification(payrollNotice);
         }
-    }, [addNotification, packagePrices, producers]);
+    }, [addNotification, packagePrices, producers, schedule]);
     const updateOrder = (0, react_1.useCallback)((id, patch, seed) => {
         const merge = (order) => (0, order_form_1.normalizeOrder)({ ...order, ...patch, id });
         setActiveOrders((prev) => {

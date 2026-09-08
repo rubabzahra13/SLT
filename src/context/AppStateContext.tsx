@@ -36,6 +36,7 @@ import { suggestMixEndDate, suggestMixStartDate } from "@/lib/scheduling";
 import { normalizeProducer } from "@/lib/producers";
 import { normalizeDiscountCode } from "@/lib/discount-codes";
 import { mergeLocalMtdRecordFields } from "@/lib/mtd-completion";
+import { isOrderScheduledAndAssigned, isOutsourcedRecord } from "@/lib/mtd-filters";
 import { inferMTDRecordStatus } from "@/lib/mtd-status";
 import { toIsoDateString } from "@/lib/dates";
 import {
@@ -110,7 +111,7 @@ function normalizeMTD(records: MTDRecord[]): MTDRecord[] {
       mixEnd = suggestMixEndDate(startIso, r.package);
     }
 
-    return {
+    const normalized: MTDRecord = {
       ...r,
       editorRequest: r.editorRequest || "FA",
       contactName: r.contactName || r.editorInitials,
@@ -120,6 +121,19 @@ function normalizeMTD(records: MTDRecord[]): MTDRecord[] {
       inPayroll: Boolean(r.inPayroll),
       ...(mixEnd ? { mixEndDate: mixEnd } : {}),
     };
+
+    // Backfill the explicit MTD flag for records that already belong on the
+    // board (assigned + scheduled, or outsourced). New assignments made from
+    // the Orders tab at runtime do NOT set this, so they stay in Orders until
+    // the user explicitly clicks "Move to MTD".
+    if (
+      normalized.inMTD === undefined &&
+      (isOrderScheduledAndAssigned(normalized) || isOutsourcedRecord(normalized))
+    ) {
+      normalized.inMTD = true;
+    }
+
+    return normalized;
   });
 }
 
@@ -341,6 +355,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         ...draftRecord,
         assignedProducer,
         editorRequest,
+        inMTD: true,
       };
 
       setMtdRecords((prev) => [newRecord, ...prev]);
