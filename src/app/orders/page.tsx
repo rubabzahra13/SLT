@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowRight, Check, AlertCircle } from "lucide-react";
+import { ArrowRight, Mail } from "lucide-react";
 import clsx from "clsx";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Avatar } from "@/components/ui/Avatar";
@@ -15,6 +15,9 @@ import {
   type EditorAssignmentResult,
 } from "@/components/mtd/AssignEditorModal";
 import { SetPricingModal } from "@/components/mtd/SetPricingModal";
+import { SetRecordPricingModal } from "@/components/mtd/SetRecordPricingModal";
+import { CompletionBlockedModal } from "@/components/mtd/CompletionBlockedModal";
+import { ForwardOrderMailModal } from "@/components/orders/ForwardOrderMailModal";
 import {
   DEFAULT_MTD_TABLE_FILTERS,
   type MTDTableFilterState,
@@ -22,13 +25,20 @@ import {
 import { MTDPageToolbar } from "@/components/mtd/MTDPageToolbar";
 import { useAppState } from "@/context/AppStateContext";
 import { formatPrice, titleCase } from "@/lib/data";
-import { complianceLabel } from "@/lib/pricing";
-import { determineComplianceStatus } from "@/lib/pricing-engine";
-import { formatDisplayDate, toIsoDateString } from "@/lib/dates";
 import {
-  formatRequestedEditorLabel,
+  calculateCheerOrderPricing,
+  calculateDanceOrderPricing,
+  calculateMarchingBandOrderPricing,
+  calculateSchoolAnthemOrderPricing,
+  calculateSportsEntertainmentOrderPricing,
+} from "@/lib/pricing-engine";
+import { formatDisplayDate, toIsoDateString } from "@/lib/dates";
+import { parsePackage } from "@/lib/package";
+import {
   findLinkedOrder,
   findProducerByAssignmentKey,
+  formatRequestedEditorLabel,
+  getDisplayAssignedProducer,
   getEditorBookedUntilIso,
   getRequestedEditorFromRecord,
   isRequestedEditorUnavailableForMixWindow,
@@ -39,18 +49,19 @@ import {
   countMTDByDanceSubtype,
   countMTDByForm,
   filterMTDRecords,
+  getRecordMusicAffiliateInfo,
   isPreMTDOrderRecord,
   isOrderScheduledAndAssigned,
   matchesMTDSearch,
   resolveMTDFormMeta,
 } from "@/lib/mtd-filters";
 import type {
-  CheerFormSubtype,
   CheerFormSubtypeFilter,
   DanceFormSubtypeFilter,
   MTDRecord,
   Order,
   OrderFormType,
+  PriceCompliance,
 } from "@/types";
 
 const DEFAULT_FORM: OrderFormType = "school-all-star-cheer";
@@ -59,6 +70,25 @@ const DEFAULT_DANCE_SUBTYPE: DanceFormSubtypeFilter = "all";
 
 const unavailableTagClass =
   "inline-flex items-center rounded-full bg-brand-warning/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.04em] text-brand-warning ring-1 ring-inset ring-brand-warning/25";
+const actionButtonClass = (filled: boolean) =>
+  clsx(
+    "mt-1 rounded-md border px-2 py-1 text-[11px] font-semibold transition shadow-sm",
+    filled
+      ? "border-brand-line/70 bg-brand-elevated text-brand-ink hover:border-brand-line hover:bg-brand-bg/50"
+      : "border-brand-orange-deep bg-brand-orange text-white hover:bg-brand-orange-hover"
+  );
+const ordersMtdButtonClass = (ready: boolean) =>
+  clsx(
+    "inline-flex h-7 items-center justify-center gap-0.5 rounded-md border px-2 text-[10px] font-semibold leading-none transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue/30",
+    ready
+      ? "border-brand-blue/25 bg-brand-blue text-white shadow-sm hover:bg-brand-blue-hover"
+      : "border-brand-line/60 bg-brand-bg/50 text-brand-ink-tertiary hover:bg-brand-bg hover:text-brand-ink"
+  );
+const ordersMailIconButtonClass =
+  "inline-flex h-7 w-7 items-center justify-center rounded-md border border-brand-line/60 bg-brand-elevated text-brand-ink-secondary shadow-sm transition hover:border-brand-signature/35 hover:bg-brand-signature/8 hover:text-brand-signature focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-signature/20";
+const clickableChipClass =
+  "cursor-pointer border border-brand-line/70 bg-brand-bg/60 shadow-sm transition hover:border-brand-orange/40 hover:bg-brand-orange-soft/35 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange/25";
+const tableDateClass = "!w-auto min-w-[108px] max-w-full";
 const compactCellClass = "!px-1 !py-1 overflow-hidden";
 const compactHeaderClass = "!px-2";
 const compactTextClass = "text-[12px] leading-none text-brand-ink";
@@ -131,6 +161,10 @@ function OrdersPageContent() {
     },
   ];
 
+  const searchParams = useSearchParams();
+  const assignedParam = searchParams.get("assigned");
+  const scheduleParam = searchParams.get("schedule");
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     const savedForm = sessionStorage.getItem("slt_orders_form") as OrderFormType | null;
@@ -166,10 +200,24 @@ function OrdersPageContent() {
   const [tableFilters, setTableFilters] = useState<MTDTableFilterState>(
     DEFAULT_MTD_TABLE_FILTERS
   );
+
+  useEffect(() => {
+    if (assignedParam) {
+      setTableFilters((prev) => ({ ...prev, assignedProducer: assignedParam }));
+    } else if (scheduleParam) {
+      setTableFilters((prev) => ({
+        ...prev,
+        scheduleFilter: scheduleParam as MTDTableFilterState["scheduleFilter"],
+      }));
+    }
+  }, [assignedParam, scheduleParam]);
+
   const [searchQuery, setSearchQuery] = useState("");
   const [assignRecordId, setAssignRecordId] = useState<string | null>(null);
   const [validationModalRecord, setValidationModalRecord] = useState<MTDRecord | null>(null);
   const [pricingOpen, setPricingOpen] = useState(false);
+  const [pricingRecord, setPricingRecord] = useState<MTDRecord | null>(null);
+  const [mailRecord, setMailRecord] = useState<MTDRecord | null>(null);
 
   // Pre-MTD records
   const preMtdRecords = useMemo(
@@ -238,6 +286,19 @@ function OrdersPageContent() {
     [updateMTD]
   );
 
+  const openPricingModal = useCallback((rec: MTDRecord, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setPricingRecord(rec);
+  }, []);
+
+  const handleRecordPricingSave = useCallback(
+    (recordId: string, patch: { price: number; priceCompliance: PriceCompliance }) => {
+      updateMTD(recordId, patch);
+    },
+    [updateMTD]
+  );
+
   // Filtered dataset for table
   const tableFiltered = useMemo(
     () =>
@@ -301,110 +362,166 @@ function OrdersPageContent() {
     searchQuery,
   ].join("-");
 
-  // Table columns (Strict 11 Columns matching MTD UI styling)
-  const columns: Column<MTDRecord>[] = useMemo(
-    () => [
+  // Table columns aligned with MTD layout and styling
+  const columns: Column<MTDRecord>[] = useMemo(() => {
+    const showMusicAffiliate =
+      form === "school-all-star-cheer" || form === "school-all-star-dance";
+
+    const baseCols: Column<MTDRecord>[] = [
       {
-        key: "id",
+        key: "rowId",
         header: "ID",
-        width: "72px",
+        width: "56px",
         align: "center" as const,
-        headerClassName: compactHeaderClass,
-        cellClassName: compactCellClass,
-        render: (rec: MTDRecord) => (
-          <Link
-            href={`/orders/${rec.id}`}
-            className="text-[12px] font-semibold text-brand-blue hover:text-brand-blue-hover hover:underline"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {rec.id}
-          </Link>
+        render: (_rec, index) => (
+          <span className="tabular-nums text-[12px] text-brand-ink">{index + 1}</span>
         ),
       },
       {
         key: "contact",
         header: "Contact",
-        width: "120px",
+        width: "100px",
         align: "center" as const,
+        nowrap: false,
+        cellClassName: clsx(compactCellClass, "max-w-[100px]"),
         headerClassName: compactHeaderClass,
-        cellClassName: compactCellClass,
-        render: (rec: MTDRecord) => multilineTableCell(rec.contactName || rec.editorInitials, "120px"),
+        render: (rec) => (
+          <TruncatedText
+            text={titleCase(rec.contactName || rec.editorInitials)}
+            className={clsx("mx-auto w-full min-w-0 text-center", compactTextClass)}
+            style={{ maxWidth: "100%" }}
+          />
+        ),
       },
       {
         key: "program",
         header: "Program",
-        width: "150px",
+        width: "100px",
         align: "center" as const,
+        nowrap: false,
+        cellClassName: clsx(compactCellClass, "max-w-[100px]"),
         headerClassName: compactHeaderClass,
-        cellClassName: compactCellClass,
-        render: (rec: MTDRecord) => multilineTableCell(rec.programName, "150px"),
+        render: (rec) => multilineTableCell(rec.programName, "100%"),
       },
       {
         key: "package",
         header: "Package",
-        width: "140px",
+        width: "100px",
         align: "center" as const,
+        nowrap: false,
+        cellClassName: clsx(compactCellClass, "max-w-[100px]"),
         headerClassName: compactHeaderClass,
-        cellClassName: compactCellClass,
-        render: (rec: MTDRecord) => multilineTableCell(rec.package, "140px"),
-      },
-      {
-        key: "musicAffiliate",
-        header: "Music Affiliate",
-        width: "140px",
-        align: "center" as const,
-        headerClassName: compactHeaderClass,
-        cellClassName: compactCellClass,
-        render: (rec: MTDRecord) => {
-          const meta = resolveMTDFormMeta(rec, orderById);
-          const linked = rec.orderId ? orderById.get(rec.orderId) : undefined;
-          const affiliate = linked?.musicAffiliate ?? (rec as any).musicAffiliate ?? rec.musicTheme;
-          if (!affiliate) {
-            return (
-              <span className={clsx("mx-auto block text-center text-brand-ink-tertiary", compactTextClass)}>
-                —
-              </span>
-            );
-          }
-
-          const compliance = determineComplianceStatus(
-            meta.formType === "school-all-star-dance"
-              ? meta.danceFormSubtype
-              : meta.cheerFormSubtype,
-            affiliate
-          );
-
+        render: (rec) => {
+          const { tier } = parsePackage(rec.package);
           return (
-            <div className="mx-auto flex w-full min-w-0 flex-col items-center gap-0.5">
-              <TruncatedText
-                text={titleCase(affiliate)}
-                className={clsx("mx-auto w-full min-w-0 text-center font-medium", compactTextClass)}
-                style={{ maxWidth: "140px" }}
-              />
-              {compliance !== "unknown-no-affiliate-field" && (
-                <span
-                  className={clsx(
-                    "text-[10px] font-semibold tracking-tight",
-                    compliance === "compliant"
-                      ? "text-brand-signature"
-                      : "text-brand-orange"
-                  )}
-                >
-                  {complianceLabel(compliance)}
-                </span>
-              )}
-            </div>
+            <TruncatedText
+              text={titleCase(tier)}
+              className={clsx("mx-auto w-full min-w-0 text-center font-medium", compactTextClass)}
+              style={{ maxWidth: "100%" }}
+            />
           );
         },
       },
+      ...(form === "school-all-star-cheer"
+        ? [
+            {
+              key: "limit",
+              header: "Time limit",
+              width: "100px",
+              align: "center" as const,
+              nowrap: false,
+              cellClassName: clsx(compactCellClass, "max-w-[100px]"),
+              headerClassName: compactHeaderClass,
+              render: (rec: MTDRecord) => {
+                const { limit } = parsePackage(rec.package);
+                return (
+                  <span className={clsx("mx-auto block text-center tabular-nums", compactTextClass)}>
+                    {limit}
+                  </span>
+                );
+              },
+            },
+            {
+              key: "split",
+              header: "Split",
+              width: "100px",
+              align: "center" as const,
+              nowrap: false,
+              cellClassName: clsx(compactCellClass, "max-w-[100px]"),
+              headerClassName: compactHeaderClass,
+              render: (rec: MTDRecord) => {
+                const meta = resolveMTDFormMeta(rec, orderById);
+                if (meta.cheerFormSubtype === "all-star-cheer") {
+                  return (
+                    <span className={clsx("mx-auto block text-center text-brand-ink-tertiary", compactTextClass)}>
+                      N/A
+                    </span>
+                  );
+                }
+                const linked = rec.orderId ? orderById.get(rec.orderId) : undefined;
+                const splitVal = linked?.splitOrNoSplit || parsePackage(rec.package).split;
+                return (
+                  <TruncatedText
+                    text={splitVal || "N/A"}
+                    className={clsx("mx-auto w-full min-w-0 text-center", compactTextClass)}
+                    style={{ maxWidth: "100%" }}
+                  />
+                );
+              },
+            },
+          ]
+        : []),
+      ...(showMusicAffiliate
+        ? [
+            {
+              key: "musicAffiliate",
+              header: "Music Affiliate",
+              width: "120px",
+              align: "center" as const,
+              nowrap: false,
+              cellClassName: clsx(compactCellClass, "max-w-[120px]"),
+              headerClassName: compactHeaderClass,
+              render: (rec: MTDRecord) => {
+                const linked = rec.orderId ? orderById.get(rec.orderId) : undefined;
+                const affiliate = linked?.musicAffiliate ?? (rec as MTDRecord & { musicAffiliate?: string }).musicAffiliate;
+                if (!affiliate) {
+                  return (
+                    <span className={clsx("mx-auto block text-center text-brand-ink-tertiary", compactTextClass)}>
+                      N/A
+                    </span>
+                  );
+                }
+
+                return (
+                  <TruncatedText
+                    text={titleCase(affiliate)}
+                    className={clsx("mx-auto w-full min-w-0 text-center font-medium", compactTextClass)}
+                    style={{ maxWidth: "100%" }}
+                  />
+                );
+              },
+            },
+          ]
+        : []),
+      {
+        key: "music",
+        header: "Music",
+        width: "100px",
+        align: "center" as const,
+        nowrap: false,
+        cellClassName: clsx(compactCellClass, "max-w-[100px]"),
+        headerClassName: compactHeaderClass,
+        render: (rec) => multilineTableCell(rec.musicTheme, "100%"),
+      },
       {
         key: "requestedEditor",
-        header: "Requested Editor",
-        width: "110px",
+        header: "Requested editor",
+        width: "100px",
         align: "center" as const,
+        nowrap: false,
+        cellClassName: clsx(compactCellClass, "max-w-[100px]"),
         headerClassName: compactHeaderClass,
-        cellClassName: compactCellClass,
-        render: (rec: MTDRecord) => {
+        render: (rec) => {
           const linked = findLinkedOrder(rec, allOrders);
           const label = formatRequestedEditorLabel(rec, producers, linked);
           const requested = getRequestedEditorFromRecord(rec, producers, linked);
@@ -453,31 +570,141 @@ function OrdersPageContent() {
       {
         key: "packagePrice",
         header: "Package Price",
-        width: "100px",
+        width: "110px",
         align: "center" as const,
-        headerClassName: compactHeaderClass,
-        cellClassName: compactCellClass,
-        render: (rec: MTDRecord) => (
-          <span className="inline-block w-full text-center text-[12px] font-medium tabular-nums text-brand-ink">
-            {formatPrice(rec.price)}
-          </span>
-        ),
+        nowrap: false,
+        cellClassName: "!px-2",
+        headerClassName: "!px-2",
+        render: (rec) => {
+          const order = findLinkedOrder(rec, allOrders);
+          const meta = resolveMTDFormMeta(rec, orderById);
+          let engineCustomerPrice: number | null = 0;
+          let isUnpriced = false;
+
+          if (meta.formType === "school-all-star-dance") {
+            const dancePricing = calculateDanceOrderPricing({
+              danceFormSubtype: meta.danceFormSubtype,
+              packageType: order?.packageType || rec.package,
+              musicAffiliate: order?.musicAffiliate,
+              hasTraditionalVoiceover: rec.hasTraditionalVoiceover,
+              hasThemedVoiceover: rec.hasThemedVoiceover,
+            });
+            engineCustomerPrice = dancePricing.customerFacingPrice;
+          } else if (meta.formType === "marching-band") {
+            const mbPricing = calculateMarchingBandOrderPricing({
+              packageType: order?.packageType || rec.package,
+              musicAffiliate: order?.musicAffiliate,
+              hasSheetMusicAdd: rec.hasSheetMusicAdd,
+              hasAddVocals: rec.hasAddVocals,
+            });
+            engineCustomerPrice = mbPricing.customerFacingPrice;
+          } else if (meta.formType === "sports-entertainment") {
+            const sePricing = calculateSportsEntertainmentOrderPricing({
+              packageType: order?.packageType || rec.package,
+              isRushOrder: rec.isRushOrder ?? (order as Order & { isRushOrder?: boolean })?.isRushOrder,
+            });
+            isUnpriced = sePricing.isUnpriced || sePricing.customerFacingPrice === null;
+            engineCustomerPrice = sePricing.customerFacingPrice;
+          } else if (meta.formType === "school-anthem") {
+            const saPricing = calculateSchoolAnthemOrderPricing({
+              packageType: order?.packageType || rec.package,
+            });
+            engineCustomerPrice = saPricing.customerFacingPrice;
+          } else {
+            const enginePricing = calculateCheerOrderPricing({
+              cheerFormSubtype: meta.cheerFormSubtype,
+              packageType: order?.packageType || rec.package,
+              timeLengthOfMix: order?.timeLengthOfMix,
+              musicAffiliate: order?.musicAffiliate,
+              hasRallyMix: rec.hasRallyMix,
+              hasExtend8ctAddon: rec.hasExtend8ctAddon,
+              hasProcessing8ctSheetsAddon: rec.hasProcessing8ctSheetsAddon,
+            });
+            engineCustomerPrice = enginePricing.customerFacingPrice;
+          }
+
+          if (isUnpriced) {
+            return (
+              <div
+                className="mx-auto flex w-full flex-col items-center"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <button
+                  type="button"
+                  onClick={(e) => openPricingModal(rec, e)}
+                  title="Edit Package Price (Needs Quote)"
+                  aria-label="Edit Package Price: Needs Quote"
+                  className={clsx(
+                    clickableChipClass,
+                    "flex w-full flex-col items-center rounded-lg px-2 py-1 text-center border-brand-warning/35 bg-brand-warning/10"
+                  )}
+                >
+                  <span className="text-[11px] font-semibold text-brand-warning whitespace-nowrap">
+                    Needs Quote
+                  </span>
+                </button>
+              </div>
+            );
+          }
+
+          const isOverridden = Boolean(
+            order?.finalCustomerPriceOverridden ?? rec.finalCustomerPriceOverridden
+          );
+
+          const numericEnginePrice = engineCustomerPrice ?? 0;
+
+          const displayPrice = isOverridden
+            ? (order?.finalCustomerPrice ?? rec.finalCustomerPrice ?? numericEnginePrice)
+            : numericEnginePrice > 0
+              ? numericEnginePrice
+              : (order?.finalCustomerPrice ?? rec.price);
+
+          return (
+            <div
+              className="mx-auto flex w-full flex-col items-center"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                onClick={(e) => openPricingModal(rec, e)}
+                title="Edit Package Price"
+                aria-label={`Edit Package Price ${formatPrice(displayPrice)}`}
+                className={clsx(
+                  clickableChipClass,
+                  "flex w-full flex-col items-center rounded-lg px-2 py-1 text-center"
+                )}
+              >
+                <div className="flex items-center justify-center gap-1">
+                  <p className="font-semibold tabular-nums text-[12px] text-brand-ink hover:text-brand-orange">
+                    {formatPrice(displayPrice)}
+                  </p>
+                  {isOverridden ? (
+                    <span className="rounded bg-brand-orange/10 px-1 py-0.5 text-[9px] font-semibold uppercase text-brand-orange ring-1 ring-inset ring-brand-orange/20">
+                      edited
+                    </span>
+                  ) : null}
+                </div>
+              </button>
+            </div>
+          );
+        },
       },
       {
         key: "mixStartDate",
-        header: "Mix Start Date",
+        header: "Mix start date",
         width: "128px",
         align: "center" as const,
-        headerClassName: compactHeaderClass,
-        cellClassName: "!px-2 !py-1",
-        render: (rec: MTDRecord) => {
+        nowrap: false,
+        cellClassName: "!px-2 !py-1.5",
+        headerClassName: "!px-2",
+        render: (rec) => {
           const endIso = toIsoDateString(rec.mixEndDate ?? "");
           return (
             <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
               <InlineDateInput
                 value={rec.mixStartDate}
                 max={endIso || undefined}
-                className="!w-auto min-w-[108px] max-w-full"
+                className={tableDateClass}
                 onChange={(next) => {
                   let nextEnd = rec.mixEndDate;
                   if (next && !nextEnd) {
@@ -494,19 +721,20 @@ function OrdersPageContent() {
       },
       {
         key: "mixEndDate",
-        header: "Mix End Date",
+        header: "Mix end date",
         width: "128px",
         align: "center" as const,
-        headerClassName: compactHeaderClass,
-        cellClassName: "!px-2 !py-1",
-        render: (rec: MTDRecord) => {
+        nowrap: false,
+        cellClassName: "!px-2 !py-1.5",
+        headerClassName: "!px-2",
+        render: (rec) => {
           const startIso = toIsoDateString(rec.mixStartDate);
           return (
             <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
               <InlineDateInput
                 value={rec.mixEndDate ?? ""}
                 min={startIso || undefined}
-                className="!w-auto min-w-[108px] max-w-full"
+                className={tableDateClass}
                 onChange={(next) => updateMTD(rec.id, { mixEndDate: next })}
               />
             </div>
@@ -516,41 +744,60 @@ function OrdersPageContent() {
       {
         key: "editor",
         header: "Editor",
-        width: "110px",
+        width: "100px",
         align: "center" as const,
+        nowrap: false,
+        cellClassName: clsx(compactCellClass, "max-w-[100px]"),
         headerClassName: compactHeaderClass,
-        cellClassName: compactCellClass,
-        render: (rec: MTDRecord) => {
-          const producer = findProducerByAssignmentKey(rec.assignedProducer, producers);
-          if (!rec.assignedProducer || !producer) {
-            return (
-              <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
+        render: (rec) => {
+          const assigned = getDisplayAssignedProducer(rec);
+          const producer = assigned
+            ? findProducerByAssignmentKey(assigned, producers)
+            : undefined;
+
+          return (
+            <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
+              {assigned ? (
                 <button
                   type="button"
+                  onMouseDown={(e) => e.stopPropagation()}
                   onClick={(e) => {
                     e.stopPropagation();
                     setAssignRecordId(rec.id);
                   }}
-                  className="rounded-md border border-brand-orange-deep bg-brand-orange px-2 py-1 text-[11px] font-semibold text-white shadow-sm transition hover:bg-brand-orange-hover"
+                  title="Edit assignment"
+                  aria-label={`Edit assignment for ${assigned}`}
+                  className={clsx(
+                    clickableChipClass,
+                    "inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full py-0.5 pl-0.5 pr-2.5"
+                  )}
                 >
-                  Assign
+                  {producer?.avatar ? (
+                    <Avatar src={producer.avatar} alt={producer.name} size="xs" />
+                  ) : (
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-signature-soft text-[10px] font-bold text-brand-signature">
+                      {assigned.slice(0, 2)}
+                    </span>
+                  )}
+                  <span className={clsx("truncate font-semibold", compactTextClass)}>
+                    {assigned}
+                  </span>
                 </button>
-              </div>
-            );
-          }
-          return (
-            <div className="flex items-center justify-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-              <Avatar src={producer.avatar} alt={producer.name} size="sm" />
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setAssignRecordId(rec.id);
-                }}
-                className="text-[12px] font-semibold text-brand-ink hover:text-brand-blue hover:underline"
-              >
-                {producer.initials}
-              </button>
+              ) : (
+                <div className="flex flex-col items-center gap-1">
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setAssignRecordId(rec.id);
+                    }}
+                    className={actionButtonClass(false)}
+                  >
+                    Assign
+                  </button>
+                </div>
+              )}
             </div>
           );
         },
@@ -558,35 +805,58 @@ function OrdersPageContent() {
       {
         key: "actions",
         header: "Actions",
-        width: "120px",
+        width: "112px",
         align: "center" as const,
-        headerClassName: compactHeaderClass,
+        nowrap: false,
         cellClassName: compactCellClass,
-        render: (rec: MTDRecord) => {
+        headerClassName: compactHeaderClass,
+        render: (rec) => {
           const ready = isOrderScheduledAndAssigned(rec);
           return (
-            <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
-              <button
-                type="button"
-                onClick={(e) => handleMoveToMTD(rec, e)}
-                className={clsx(
-                  "inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-semibold transition shadow-sm",
-                  ready
-                    ? "bg-brand-blue text-white hover:bg-brand-blue-hover"
-                    : "border border-brand-line/60 bg-brand-bg-subtle text-brand-ink-tertiary hover:bg-brand-bg-subtle/80 hover:text-brand-ink"
-                )}
-                title={ready ? "Move this order to MTD" : "Requires Editor, Start Date & End Date to move to MTD"}
-              >
-                <span>Move to MTD</span>
-                <ArrowRight className="h-3 w-3" strokeWidth={2.25} />
-              </button>
+            <div
+              className="flex items-center justify-center gap-1"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <HoverTip label="Move to MTD" placement="top">
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => handleMoveToMTD(rec, e)}
+                  className={ordersMtdButtonClass(ready)}
+                  aria-label="Move to MTD"
+                >
+                  <span>MTD</span>
+                  <ArrowRight className="h-3 w-3 shrink-0" strokeWidth={2.25} />
+                </button>
+              </HoverTip>
+              <HoverTip label="Send mail" placement="top">
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={() => setMailRecord(rec)}
+                  className={ordersMailIconButtonClass}
+                  aria-label="Send mail"
+                >
+                  <Mail className="h-3.5 w-3.5" strokeWidth={2.25} />
+                </button>
+              </HoverTip>
             </div>
           );
         },
       },
-    ],
-    [producers, allOrders, updateMTD, handleMoveToMTD, mtdRecords, orderById]
-  );
+    ];
+
+    return baseCols;
+  }, [
+    form,
+    producers,
+    allOrders,
+    mtdRecords,
+    orderById,
+    updateMTD,
+    handleMoveToMTD,
+    openPricingModal,
+  ]);
 
   return (
     <>
@@ -667,65 +937,34 @@ function OrdersPageContent() {
         onClose={() => setPricingOpen(false)}
       />
 
-      {/* Missing Information Validation Modal */}
-      {validationModalRecord ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-black/45 backdrop-blur-[2px]"
-            onClick={() => setValidationModalRecord(null)}
-          />
-          <div className="relative w-full max-w-md rounded-2xl bg-brand-elevated p-6 shadow-2xl ring-1 ring-black/10">
-            <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-warning/10 text-brand-warning">
-                <AlertCircle className="h-5 w-5" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <h3 className="text-[16px] font-semibold text-brand-ink">
-                  Assignment & Scheduling Required
-                </h3>
-                <p className="mt-2 text-[13px] leading-relaxed text-brand-ink-secondary">
-                  To move <strong className="text-brand-ink">{validationModalRecord.programName}</strong> to MTD, you must complete all three requirements:
-                </p>
-                <ul className="mt-3 space-y-1.5 text-[12px]">
-                  <li className={clsx("flex items-center gap-2", validationModalRecord.assignedProducer ? "text-brand-ink font-medium" : "text-brand-danger font-semibold")}>
-                    {validationModalRecord.assignedProducer ? <Check className="h-3.5 w-3.5 text-brand-blue" /> : "• "}
-                    Editor assigned: {validationModalRecord.assignedProducer || "Missing"}
-                  </li>
-                  <li className={clsx("flex items-center gap-2", validationModalRecord.mixStartDate ? "text-brand-ink font-medium" : "text-brand-danger font-semibold")}>
-                    {validationModalRecord.mixStartDate ? <Check className="h-3.5 w-3.5 text-brand-blue" /> : "• "}
-                    Mix Start Date set: {validationModalRecord.mixStartDate || "Missing"}
-                  </li>
-                  <li className={clsx("flex items-center gap-2", validationModalRecord.mixEndDate ? "text-brand-ink font-medium" : "text-brand-danger font-semibold")}>
-                    {validationModalRecord.mixEndDate ? <Check className="h-3.5 w-3.5 text-brand-blue" /> : "• "}
-                    Mix End Date set: {validationModalRecord.mixEndDate || "Missing"}
-                  </li>
-                </ul>
-              </div>
-            </div>
+      <SetRecordPricingModal
+        open={Boolean(pricingRecord)}
+        record={pricingRecord}
+        packagePrices={packagePrices}
+        musicAffiliateInfo={
+          pricingRecord
+            ? getRecordMusicAffiliateInfo(pricingRecord, orderById, allOrders)
+            : null
+        }
+        onClose={() => setPricingRecord(null)}
+        onSave={handleRecordPricingSave}
+      />
 
-            <div className="mt-6 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setValidationModalRecord(null)}
-                className="rounded-xl bg-brand-bg px-4 py-2 text-[13px] font-semibold text-brand-ink hover:bg-brand-bg-subtle"
-              >
-                Close
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const targetId = validationModalRecord.id;
-                  setValidationModalRecord(null);
-                  setAssignRecordId(targetId);
-                }}
-                className="rounded-xl bg-brand-blue px-4 py-2 text-[13px] font-semibold text-white hover:bg-brand-blue-hover"
-              >
-                Assign & Schedule Now
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <CompletionBlockedModal
+        open={Boolean(validationModalRecord)}
+        record={validationModalRecord}
+        reason="moveToMtd"
+        onClose={() => setValidationModalRecord(null)}
+      />
+
+      <ForwardOrderMailModal
+        open={Boolean(mailRecord)}
+        record={mailRecord}
+        orderById={orderById}
+        allOrders={allOrders}
+        producers={producers}
+        onClose={() => setMailRecord(null)}
+      />
     </>
   );
 }

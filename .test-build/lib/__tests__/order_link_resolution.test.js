@@ -23,7 +23,7 @@ const pricing_engine_1 = require("../pricing-engine");
             musicTheme: "Beyoncé - ENERGY (Original)",
             price: 2000,
             priceCompliance: "non-compliant",
-            invoice: "INV-2026-119",
+            invoice: "25119",
             hasRallyMix: true,
             hasExtend8ctAddon: false,
             hasProcessing8ctSheetsAddon: false,

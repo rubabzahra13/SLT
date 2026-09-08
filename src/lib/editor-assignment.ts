@@ -276,6 +276,36 @@ export function resolveValidProducerAssignment(
   return producerAssignmentKey(producer);
 }
 
+/** Persist user-selected producer keys even when strict category validation fails. */
+export function resolveAssignedProducerForPatch(
+  rawKey: string | null | undefined,
+  producers: Producer[],
+  category: string
+): string | null {
+  const validated = resolveValidProducerAssignment(rawKey, producers, category);
+  if (validated) return validated;
+
+  const producer = findProducerByAssignmentKey(rawKey, producers);
+  if (producer) return producerAssignmentKey(producer);
+
+  const trimmed = rawKey?.trim();
+  return trimmed ? trimmed.toUpperCase() : null;
+}
+
+/** Assigned producer shown in MTD / Orders tables. */
+export function getDisplayAssignedProducer(
+  rec: MTDRecord | null | undefined
+): string | null {
+  if (!rec) return null;
+  const assigned = rec.assignedProducer?.trim();
+  if (assigned) return assigned;
+
+  const request = rec.editorRequest?.trim();
+  if (request && request !== "FA" && request !== "NA") return request;
+
+  return null;
+}
+
 /**
  * Seeder assignment rule helper.
  * Selects an eligible producer from registered producers for a given category.

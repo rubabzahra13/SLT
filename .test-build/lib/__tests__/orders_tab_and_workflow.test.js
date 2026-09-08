@@ -79,6 +79,17 @@ function makeRecord(overrides = {}) {
         strict_1.default.equal(movedRecord.mixStartDate, "2026-09-15");
         strict_1.default.equal(movedRecord.mixEndDate, "2026-09-22");
     });
+    (0, node_test_1.it)("Outsourced mixes belong on the MTD tab even without full scheduling", () => {
+        const outsourced = makeRecord({
+            section: "OUTSOURCED MIXES",
+            status: "outsourced",
+            assignedProducer: null,
+            mixStartDate: "2026-07-27",
+            mixEndDate: "2026-08-03",
+        });
+        strict_1.default.equal((0, mtd_filters_1.isMTDRecord)(outsourced), true);
+        strict_1.default.equal((0, mtd_filters_1.isPreMTDOrderRecord)(outsourced), false);
+    });
     (0, node_test_1.it)("Orders Detail View contains ONLY customer order form fields, excluding MTD spreadsheet operational fields", () => {
         const orderObj = {
             id: "ord-test-777",

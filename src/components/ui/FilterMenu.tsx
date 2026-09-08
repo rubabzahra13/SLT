@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Check, ChevronDown } from "lucide-react";
 import clsx from "clsx";
 import type { BrandAccent } from "@/lib/brand-colors";
@@ -20,12 +21,32 @@ type FilterMenuProps = {
   className?: string;
   hideLabel?: boolean;
   grouped?: boolean;
+  portal?: boolean;
+  portalZIndex?: number;
+};
+
+type PanelPosition = {
+  top: number;
+  left: number;
+  width: number;
 };
 
 const accentActive: Record<BrandAccent, string> = {
   blue: "border-brand-blue/35 bg-brand-blue-soft/45 text-brand-ink",
   orange: "border-brand-orange/35 bg-brand-orange-soft/70 text-brand-ink",
 };
+
+function computePanelPosition(trigger: HTMLButtonElement): PanelPosition {
+  const rect = trigger.getBoundingClientRect();
+  const width = Math.min(window.innerWidth * 0.92, 248);
+  const maxLeft = Math.max(8, window.innerWidth - width - 8);
+
+  return {
+    top: rect.bottom + 6,
+    left: Math.min(Math.max(8, rect.left), maxLeft),
+    width,
+  };
+}
 
 export function FilterMenu({
   label,
@@ -36,26 +57,132 @@ export function FilterMenu({
   className,
   hideLabel = false,
   grouped = false,
+  portal = false,
+  portalZIndex = 100,
 }: FilterMenuProps) {
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [position, setPosition] = useState<PanelPosition | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const selected = options.find((o) => o.value === value);
   const isActive = value !== options[0]?.value;
 
   useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!open || !portal || !buttonRef.current) return;
+
+    const updatePosition = () => {
+      if (!buttonRef.current) return;
+      setPosition(computePanelPosition(buttonRef.current));
     };
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [open, portal]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const onDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (portal) {
+        if (
+          rootRef.current?.contains(target) ||
+          panelRef.current?.contains(target)
+        ) {
+          return;
+        }
+      } else if (rootRef.current?.contains(target)) {
+        return;
+      }
+      setOpen(false);
+    };
+
     document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
-  }, [open]);
+  }, [open, portal]);
+
+  const menuContent = (
+    <>
+      {options.map((opt) => {
+        const active = opt.value === value;
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => {
+              onChange(opt.value);
+              setOpen(false);
+            }}
+            className={clsx(
+              "flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-[13px] transition hover:bg-brand-bg",
+              active
+                ? "font-semibold text-brand-ink"
+                : "text-brand-ink-secondary"
+            )}
+          >
+            <span className="flex min-w-0 items-center gap-2">
+              {active ? (
+                <Check
+                  className="h-3.5 w-3.5 shrink-0 text-brand-signature"
+                  strokeWidth={2.5}
+                />
+              ) : (
+                <span className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              )}
+              <span className="truncate">{opt.label}</span>
+            </span>
+            {opt.count !== undefined ? (
+              <span className="shrink-0 text-[12px] tabular-nums text-brand-ink-tertiary">
+                {opt.count}
+              </span>
+            ) : null}
+          </button>
+        );
+      })}
+    </>
+  );
+
+  const panel =
+    mounted && open ? (
+      portal && position ? (
+        createPortal(
+          <div
+            ref={panelRef}
+            className="fixed max-h-[300px] overflow-y-auto rounded-xl border border-brand-line bg-brand-surface py-1 shadow-[var(--shadow-premium)]"
+            style={{
+              top: position.top,
+              left: position.left,
+              width: position.width,
+              zIndex: portalZIndex,
+            }}
+          >
+            {menuContent}
+          </div>,
+          document.body
+        )
+      ) : !portal ? (
+        <div className="absolute left-0 top-[calc(100%+6px)] z-30 max-h-[300px] w-[248px] overflow-y-auto rounded-xl border border-brand-line bg-brand-surface py-1 shadow-[var(--shadow-premium)]">
+          {menuContent}
+        </div>
+      ) : null
+    ) : null;
 
   return (
     <div ref={rootRef} className={clsx("relative", className)}>
       <button
+        ref={buttonRef}
         type="button"
         aria-label={hideLabel ? label : undefined}
         onClick={() => setOpen((v) => !v)}
@@ -111,46 +238,7 @@ export function FilterMenu({
         />
       </button>
 
-      {open ? (
-        <div className="absolute left-0 top-[calc(100%+6px)] z-30 max-h-[300px] w-[248px] overflow-y-auto rounded-xl border border-brand-line bg-brand-surface py-1 shadow-[var(--shadow-premium)]">
-          {options.map((opt) => {
-            const active = opt.value === value;
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => {
-                  onChange(opt.value);
-                  setOpen(false);
-                }}
-                className={clsx(
-                  "flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-[13px] transition hover:bg-brand-bg",
-                  active
-                    ? "font-semibold text-brand-ink"
-                    : "text-brand-ink-secondary"
-                )}
-              >
-                <span className="flex min-w-0 items-center gap-2">
-                  {active ? (
-                    <Check
-                      className="h-3.5 w-3.5 shrink-0 text-brand-signature"
-                      strokeWidth={2.5}
-                    />
-                  ) : (
-                    <span className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                  )}
-                  <span className="truncate">{opt.label}</span>
-                </span>
-                {opt.count !== undefined ? (
-                  <span className="shrink-0 text-[12px] tabular-nums text-brand-ink-tertiary">
-                    {opt.count}
-                  </span>
-                ) : null}
-              </button>
-            );
-          })}
-        </div>
-      ) : null}
+      {panel}
     </div>
   );
 }

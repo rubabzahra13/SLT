@@ -5,8 +5,9 @@ import {
   getInProgressRecords,
   getOngoingRecords,
   getOutsourcedRecords,
+  isOutsourcedRecord,
 } from "@/lib/mtd-filters";
-import { canCompleteForPayroll, getPayrollRecords } from "@/lib/mtd-completion";
+import { canCompleteForPayroll, getMTDBoardRecords, getPayrollRecords } from "@/lib/mtd-completion";
 import {
   aggregateColumns,
   buildTeamSchedule,
@@ -48,7 +49,7 @@ export function getDashboardMixStatus(
     return "completed";
   }
 
-  if (rec.status === "outsourced") {
+  if (isOutsourcedRecord(rec)) {
     return "outsourced";
   }
 
@@ -223,7 +224,6 @@ export function buildDashboardPulse(
   let toAssign = 0;
   let inQueue = 0;
   let inProduction = 0;
-  let outsourced = 0;
   let payrollCount = 0;
 
   const inProductionRecords: MTDRecord[] = [];
@@ -250,7 +250,6 @@ export function buildDashboardPulse(
         openBoard.push(rec);
         break;
       case "outsourced":
-        outsourced += 1;
         openBoard.push(rec);
         break;
       case "completed":
@@ -320,7 +319,7 @@ export function buildDashboardPulse(
     inQueue,
     todaysMixes,
     inProduction: todaysMixes,
-    outsourced,
+    outsourced: getOutsourcedRecords(getMTDBoardRecords(mtdRecords)).length,
     payrollCount,
     payrollValue: sumPrices(payroll),
     openValue: sumPrices(openBoard),
@@ -534,7 +533,7 @@ export function buildWorkflowStages(pulse: DashboardPulse): WorkflowStage[] {
       label: "Unassigned",
       count: pulse.toAssign,
       color: "#f07840",
-      href: "/orders",
+      href: "/orders?assigned=Unassigned",
     },
     {
       label: "In Queue",

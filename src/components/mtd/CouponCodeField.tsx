@@ -53,6 +53,9 @@ function suggestionMessage(suggestion: CouponCodeSuggestion): string {
   if (suggestion.reason === "spacing") {
     return "Same code with different spacing.";
   }
+  if (suggestion.reason === "capitalization") {
+    return "Same code with different capitalization.";
+  }
   return "Very close spelling to a saved discount code.";
 }
 

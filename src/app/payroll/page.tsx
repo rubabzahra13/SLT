@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Pencil } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { MTDPageToolbar } from "@/components/mtd/MTDPageToolbar";
@@ -23,7 +23,9 @@ import {
   countMTDByDanceSubtype,
   countMTDByForm,
   filterMTDRecords,
+  matchesFormFilter,
   matchesMTDSearch,
+  resolveMTDFormMeta,
 } from "@/lib/mtd-filters";
 import { parsePackage } from "@/lib/package";
 import { findLinkedOrder, findProducerByAssignmentKey } from "@/lib/editor-assignment";
@@ -80,6 +82,32 @@ export default function PayrollPage() {
       setDanceSubtype(DEFAULT_DANCE_SUBTYPE);
     }
   }, []);
+
+  useEffect(() => {
+    if (payrollRecords.length === 0) return;
+
+    const hasVisibleForForm = payrollRecords.some((rec) =>
+      matchesFormFilter(rec, orderById, form, cheerSubtype, danceSubtype)
+    );
+    if (hasVisibleForForm) return;
+
+    const latest = payrollRecords[0];
+    const meta = resolveMTDFormMeta(latest, orderById);
+    switchForm(meta.formType);
+    if (meta.formType === "school-all-star-cheer" && meta.cheerFormSubtype) {
+      setCheerSubtype(meta.cheerFormSubtype as CheerFormSubtypeFilter);
+    }
+    if (meta.formType === "school-all-star-dance" && meta.danceFormSubtype) {
+      setDanceSubtype(meta.danceFormSubtype as DanceFormSubtypeFilter);
+    }
+  }, [
+    payrollRecords,
+    orderById,
+    form,
+    cheerSubtype,
+    danceSubtype,
+    switchForm,
+  ]);
 
   const tableFiltered = useMemo(
     () =>
@@ -139,6 +167,16 @@ export default function PayrollPage() {
     () => countMTDByDanceSubtype(payrollRecords, orderById),
     [payrollRecords, orderById]
   );
+
+  const emptyMessage = useMemo(() => {
+    if (payrollRecords.length === 0) {
+      return "No completed mixes in payroll yet. On MTD, set status to Completed and click Confirm & Move to Payroll in the final step.";
+    }
+    if (filtered.length === 0) {
+      return "No mixes match the current category or filters. Try another tab or clear filters.";
+    }
+    return "No mixes to show.";
+  }, [payrollRecords.length, filtered.length]);
 
   const tableFilterKey = [
     tableFilters.packageTier,
@@ -505,7 +543,7 @@ export default function PayrollPage() {
             data={filtered}
             rowKey={(rec) => rec.id}
             href={(rec) => `/mtd/${rec.id}`}
-            emptyMessage="No completed mixes in payroll yet. Mark a mix as Completed on MTD when it's ready."
+            emptyMessage={emptyMessage}
             pageSize={15}
             embedded
             showScrollIndicator={false}

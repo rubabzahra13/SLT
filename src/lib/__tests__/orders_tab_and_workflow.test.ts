@@ -86,6 +86,18 @@ describe("Orders Tab & Workflow Separation", () => {
     assert.equal(movedRecord.mixEndDate, "2026-09-22");
   });
 
+  it("Outsourced mixes belong on the MTD tab even without full scheduling", () => {
+    const outsourced = makeRecord({
+      section: "OUTSOURCED MIXES",
+      status: "outsourced",
+      assignedProducer: null,
+      mixStartDate: "2026-07-27",
+      mixEndDate: "2026-08-03",
+    });
+    assert.equal(isMTDRecord(outsourced), true);
+    assert.equal(isPreMTDOrderRecord(outsourced), false);
+  });
+
   it("Orders Detail View contains ONLY customer order form fields, excluding MTD spreadsheet operational fields", () => {
     const orderObj: Order = {
       id: "ord-test-777",

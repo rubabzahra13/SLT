@@ -69,7 +69,7 @@ function isSimilarTypo(input, candidate) {
     if (distance > maxTypoDistance(maxLen))
         return false;
     const similarity = 1 - distance / maxLen;
-    return similarity >= 0.72;
+    return similarity >= 0.65;
 }
 function evaluateCouponCode(input, discountCodes) {
     const trimmed = input.trim();
@@ -93,7 +93,9 @@ function evaluateCouponCode(input, discountCodes) {
         const normalized = normalizeCouponCode(entry.code);
         const upperCode = entry.code.toUpperCase();
         if (normalized === normalizedInput && upperCode !== upperInput) {
-            addSuggestion(entry, "spacing");
+            const inputHasSpace = /\s/.test(trimmed);
+            const codeHasSpace = /\s/.test(entry.code);
+            addSuggestion(entry, inputHasSpace || codeHasSpace ? "spacing" : "capitalization");
             continue;
         }
         if (normalized !== normalizedInput && isSimilarTypo(normalizedInput, normalized)) {
@@ -102,7 +104,7 @@ function evaluateCouponCode(input, discountCodes) {
     }
     if (suggestions.length > 0) {
         suggestions.sort((a, b) => {
-            const reasonOrder = { spacing: 0, typo: 1 };
+            const reasonOrder = { spacing: 0, capitalization: 1, typo: 2 };
             if (reasonOrder[a.reason] !== reasonOrder[b.reason]) {
                 return reasonOrder[a.reason] - reasonOrder[b.reason];
             }

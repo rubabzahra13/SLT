@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useMemo } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 import { Avatar } from "@/components/ui/Avatar";
 import { HoverTip } from "@/components/ui/HoverTip";
@@ -8,9 +8,11 @@ import {
   buildMatrixMonthGroups,
   formatMatrixDateCell,
   statusLabel,
+  type CellBooking,
   type ColumnAggregate,
   type MatrixMonthGroup,
   type ScheduleCell,
+  type ScheduleStatusFilter,
   type ScheduleViewRange,
   type TeamScheduleRow,
 } from "@/lib/schedule-view";
@@ -19,6 +21,7 @@ type TeamScheduleMatrixProps = {
   rows: TeamScheduleRow[];
   columns: ColumnAggregate[];
   range: ScheduleViewRange;
+  statusFilter?: ScheduleStatusFilter;
   activeProducerId?: string | null;
   onSelectProducer: (row: TeamScheduleRow, cell?: ScheduleCell) => void;
   emptyMessage?: string;
@@ -29,6 +32,7 @@ type ProducerRow = {
   row: TeamScheduleRow;
   availableCount: number;
   bookingCount: number;
+  offCount: number;
   entries: { column: ColumnAggregate; cell: ScheduleCell }[];
 };
 
@@ -44,16 +48,16 @@ const LAYOUT = {
   producerCol: {
     today: 58,
     week: 58,
-    month: 52,
-    "90days": 48,
-    "6months": 44,
+    month: 54,
+    "90days": 52,
+    "6months": 48,
   },
   barMax: {
     today: 48,
     week: 48,
-    month: 28,
-    "90days": 24,
-    "6months": 20,
+    month: 34,
+    "90days": 34,
+    "6months": 30,
   },
   headerH: {
     today: 88,
@@ -63,13 +67,83 @@ const LAYOUT = {
     "6months": 84,
   },
   rowH: {
-    today: 34,
-    week: 34,
-    month: 32,
-    "90days": 30,
-    "6months": 30,
+    today: 58,
+    week: 58,
+    month: 58,
+    "90days": 58,
+    "6months": 58,
   },
 } as const;
+
+function scheduleStatusTooltipTone(status: ScheduleCell["status"]) {
+  if (status === "off") return "text-brand-orange";
+  if (status === "capacity") return "text-amber-600";
+  return "text-brand-signature";
+}
+
+function BookingTooltipContent({
+  cell,
+  booking,
+  index,
+  total,
+}: {
+  cell: ScheduleCell;
+  booking: CellBooking;
+  index?: number;
+  total?: number;
+}) {
+  return (
+    <>
+      <p
+        className={clsx(
+          "text-[10px] font-semibold uppercase tracking-[0.06em]",
+          scheduleStatusTooltipTone(cell.status)
+        )}
+      >
+        {statusLabel(cell.status)}
+        {total && total > 1 && index != null ? ` (#${index + 1})` : ""}
+      </p>
+      <p className="mt-1 text-[12px] font-medium leading-snug text-brand-ink">{booking.work}</p>
+      <p className="mt-1.5 text-[11px] text-brand-ink-secondary">Until {booking.until}</p>
+    </>
+  );
+}
+
+function MultiBookingTooltipContent({
+  cell,
+  bookings,
+}: {
+  cell: ScheduleCell;
+  bookings: CellBooking[];
+}) {
+  return (
+    <div className="min-w-[180px]">
+      <p
+        className={clsx(
+          "text-[10px] font-semibold uppercase tracking-[0.06em]",
+          scheduleStatusTooltipTone(cell.status)
+        )}
+      >
+        {statusLabel(cell.status)} · {bookings.length} mixes
+      </p>
+      <div className="mt-2 max-h-48 space-y-2 overflow-y-auto pr-1">
+        {bookings.map((booking, index) => (
+          <div
+            key={booking.mixId ?? `${cell.key}-${index}`}
+            className="rounded-lg border border-brand-line/60 bg-brand-surface/80 px-2.5 py-2"
+          >
+            <BookingTooltipContent
+              cell={cell}
+              booking={booking}
+              index={index}
+              total={bookings.length}
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function DateColumnCell({
   column,
@@ -104,126 +178,129 @@ function DateColumnCell({
   );
 }
 
+function scheduleCellBarHeightClass(
+  range: ScheduleViewRange,
+  stretchRows = false
+) {
+  if (stretchRows && (range === "week" || range === "today")) {
+    return "h-8 max-h-14 min-h-6";
+  }
+  if (range === "week" || range === "today") return "h-6 max-h-8 min-h-5";
+  return "h-5 min-h-[18px]";
+}
+
+function scheduleCellBarClass(
+  cell: ScheduleCell,
+  range: ScheduleViewRange,
+  stretchRows = false
+) {
+  return clsx(
+    "mx-auto flex w-full items-center justify-center rounded-md transition-all duration-150 hover:scale-[1.04] hover:ring-1",
+    scheduleCellBarHeightClass(range, stretchRows),
+    cell.status === "off"
+      ? "bg-brand-orange/80 shadow-[0_1px_2px_rgba(240,120,64,0.16)] hover:ring-brand-orange/30"
+      : cell.status === "capacity"
+        ? "bg-amber-400/85 shadow-[0_1px_2px_rgba(245,158,11,0.20)] hover:ring-amber-400/40"
+        : cell.status === "mix"
+          ? "bg-gradient-to-b from-brand-blue to-brand-signature shadow-[0_1px_2px_rgba(15,30,45,0.18)] hover:ring-brand-blue/40"
+          : "bg-cyan-50/80 ring-1 ring-inset ring-cyan-400/60 shadow-[0_1px_2px_rgba(6,182,212,0.12)] hover:bg-cyan-100 hover:ring-cyan-500/70"
+  );
+}
+
+function scheduleCellCountClass(
+  status: ScheduleCell["status"],
+  range: ScheduleViewRange
+) {
+  const sizeClass =
+    range === "week" || range === "today" ? "text-[11px]" : "text-[10px]";
+
+  return clsx(
+    "pointer-events-none font-semibold tabular-nums leading-none",
+    sizeClass,
+    status === "available"
+      ? "text-brand-signature"
+      : status === "capacity"
+        ? "text-amber-950"
+        : "text-white"
+  );
+}
+
 function ScheduleCellButton({
   cell,
   range,
   selected,
+  stretchRows = false,
   onClick,
 }: {
   cell: ScheduleCell;
   range: ScheduleViewRange;
   selected?: boolean;
+  stretchRows?: boolean;
   onClick: () => void;
 }) {
-  const isWeek = range === "week";
-  const isOff = cell.status === "off";
-  const isCapacity = cell.status === "capacity";
-  const bookings = cell.bookings ?? (cell.booking ? [cell.booking] : []);
-
-  if (bookings.length > 1) {
-    return (
-      <div className="flex w-full flex-col gap-0.5 items-center justify-center">
-        {bookings.map((b, idx) => (
-          <HoverTip
-            key={b.mixId ?? `${cell.key}-${idx}`}
-            className="w-full justify-center"
-            placement="top"
-            content={
-              <div className="min-w-[160px]">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-brand-signature">
-                  {statusLabel(cell.status)} {bookings.length > 1 ? `(#${idx + 1})` : ""}
-                </p>
-                <p className="mt-1 text-[12px] font-medium leading-snug text-brand-ink">
-                  {b.work}
-                </p>
-                <p className="mt-1.5 text-[11px] text-brand-ink-secondary">
-                  Until {b.until}
-                </p>
-              </div>
-            }
-          >
-            <button
-              type="button"
-              onClick={onClick}
-              className={clsx(
-                "mx-auto w-full rounded-md transition-all duration-150 hover:scale-[1.04] hover:ring-1",
-                isWeek ? "h-2.5 max-h-3" : "h-2",
-                "bg-gradient-to-b from-brand-blue to-brand-signature shadow-[0_1px_2px_rgba(15,30,45,0.18)] hover:ring-brand-blue/40",
-                selected && "ring-2 ring-brand-orange ring-offset-1 ring-offset-white"
-              )}
-              style={{ maxWidth: LAYOUT.barMax[range] }}
-              aria-label={`${statusLabel(cell.status)}: ${b.work}, until ${b.until}`}
-            />
-          </HoverTip>
-        ))}
-      </div>
-    );
+  if (cell.filteredOut) {
+    return <span className="block w-full" aria-hidden />;
   }
 
+  const bookings = cell.bookings ?? (cell.booking ? [cell.booking] : []);
   const booking = bookings[0] ?? cell.booking;
+  const showCount = bookings.length > 1;
+
+  const wrapWithTooltip = (node: React.ReactNode, content: React.ReactNode) => (
+    <HoverTip className="w-full justify-center" placement="top" content={content}>
+      {node}
+    </HoverTip>
+  );
+
+  const selectedRing =
+    selected && "ring-2 ring-brand-orange ring-offset-1 ring-offset-white";
 
   const button = (
     <button
       type="button"
       onClick={onClick}
       title={
-        booking
+        booking && !showCount
           ? undefined
           : `${cell.dayLabel} ${cell.dateLabel} · ${statusLabel(cell.status)}`
       }
       className={clsx(
-        "mx-auto w-full rounded-md transition-all duration-150 hover:scale-[1.04] hover:ring-1",
-        isWeek ? "h-6 max-h-8 min-h-5" : "h-3.5",
-        isOff
-          ? "bg-brand-orange/80 shadow-[0_1px_2px_rgba(240,120,64,0.16)] hover:ring-brand-orange/30"
-          : isCapacity
-            ? "bg-amber-400/85 shadow-[0_1px_2px_rgba(245,158,11,0.20)] hover:ring-amber-400/40"
-            : cell.unavailable
-              ? "bg-gradient-to-b from-brand-blue to-brand-signature shadow-[0_1px_2px_rgba(15,30,45,0.18)] hover:ring-brand-blue/40"
-              : "bg-cyan-50/80 ring-1 ring-inset ring-cyan-400/60 shadow-[0_1px_2px_rgba(6,182,212,0.12)] hover:bg-cyan-100 hover:ring-cyan-500/70",
-        selected &&
-          "ring-2 ring-brand-orange ring-offset-1 ring-offset-white"
+        scheduleCellBarClass(cell, range, stretchRows),
+        selectedRing
       )}
-      style={{ maxWidth: LAYOUT.barMax[range] }}
+      style={{
+        maxWidth: stretchRows ? Math.min(LAYOUT.barMax[range] * 1.35, 72) : LAYOUT.barMax[range],
+      }}
       aria-label={
-        booking
-          ? `${statusLabel(cell.status)}: ${booking.work}, until ${booking.until}`
-          : `${cell.dayLabel} ${cell.dateLabel}, ${statusLabel(cell.status)}`
+        showCount
+          ? `${statusLabel(cell.status)}: ${bookings.length} mixes on ${cell.dayLabel}, ${cell.dateLabel}`
+          : booking
+            ? `${statusLabel(cell.status)}: ${booking.work}, until ${booking.until}`
+            : `${cell.dayLabel} ${cell.dateLabel}, ${statusLabel(cell.status)}`
       }
-    />
+    >
+      {showCount ? (
+        <span className={scheduleCellCountClass(cell.status, range)}>
+          {bookings.length}
+        </span>
+      ) : null}
+    </button>
   );
+
+  if (showCount) {
+    return wrapWithTooltip(
+      button,
+      <MultiBookingTooltipContent cell={cell} bookings={bookings} />
+    );
+  }
 
   if (!booking) return button;
 
-  return (
-    <HoverTip
-      className="w-full justify-center"
-      placement="top"
-      content={
-        <div className="min-w-[160px]">
-          <p
-            className={clsx(
-              "text-[10px] font-semibold uppercase tracking-[0.06em]",
-              isOff
-                ? "text-brand-orange"
-                : isCapacity
-                  ? "text-amber-600"
-                  : "text-brand-signature"
-            )}
-          >
-            {statusLabel(cell.status)}
-          </p>
-          <p className="mt-1 text-[12px] font-medium leading-snug text-brand-ink">
-            {booking.work}
-          </p>
-          <p className="mt-1.5 text-[11px] text-brand-ink-secondary">
-            Until {booking.until}
-          </p>
-        </div>
-      }
-    >
-      {button}
-    </HoverTip>
+  return wrapWithTooltip(
+    button,
+    <div className="min-w-[160px]">
+      <BookingTooltipContent cell={cell} booking={booking} />
+    </div>
   );
 }
 
@@ -231,6 +308,7 @@ export function TeamScheduleMatrix({
   rows,
   columns,
   range,
+  statusFilter = "all",
   activeProducerId,
   onSelectProducer,
   emptyMessage = "No producers in this view.",
@@ -238,6 +316,7 @@ export function TeamScheduleMatrix({
 }: TeamScheduleMatrixProps) {
   const isWeek = range === "week";
   const showMonthBars = !isWeek;
+  const showStatColumns = statusFilter === "all";
   const hasProducers = rows.length > 0;
 
   const monthGroups = useMemo(
@@ -248,72 +327,112 @@ export function TeamScheduleMatrix({
   const producerRows = useMemo<ProducerRow[]>(() => {
     return rows.map((row) => ({
       row,
-      availableCount: row.cells.filter((cell) => !cell.unavailable).length,
-      bookingCount: row.cells.reduce(
-        (acc, cell) => acc + (cell.bookings?.length ?? (cell.unavailable ? 1 : 0)),
-        0
-      ),
-      entries: columns.map((column, dayIndex) => ({
+      availableCount: row.cells.filter(
+        (cell) => !cell.filteredOut && cell.status === "available"
+      ).length,
+      bookingCount: row.cells.filter(
+        (cell) =>
+          !cell.filteredOut &&
+          (cell.status === "mix" || cell.status === "capacity")
+      ).length,
+      offCount: row.cells.filter(
+        (cell) => !cell.filteredOut && cell.status === "off"
+      ).length,
+      entries: columns.map((column) => ({
         column,
-        cell: row.cells[dayIndex],
+        cell:
+          row.cells.find((cell) => cell.key === column.key) ??
+          row.cells[columns.indexOf(column)],
       })),
     }));
   }, [columns, rows]);
 
-  const producerCount = hasProducers ? rows.length : 1;
+  const producerCount = rows.length;
+  const shouldStretchRows = producerCount > 2;
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [containerHeight, setContainerHeight] = useState<number | null>(null);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !shouldStretchRows) {
+      setContainerHeight(null);
+      return;
+    }
+
+    const updateHeight = () => setContainerHeight(el.clientHeight);
+    updateHeight();
+
+    const resizeObserver = new ResizeObserver(updateHeight);
+    resizeObserver.observe(el);
+    window.addEventListener("resize", updateHeight);
+
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", updateHeight);
+    };
+  }, [shouldStretchRows, producerCount, columns.length, showStatColumns]);
+
   const dayCount = Math.max(columns.length, 1);
   const producerLabelCol = LAYOUT.dateCol;
   const statCol = LAYOUT.statCol;
   const dayCol = LAYOUT.producerCol[range];
   const monthBarH = isWeek ? 0 : LAYOUT.monthBarH[range];
-  const stickyStatCount = 2;
+  const stickyStatCount = showStatColumns ? 3 : 0;
+  const dateColOffset = showStatColumns ? 4 : 1;
 
   const matrixWidth =
-    producerLabelCol + statCol * stickyStatCount + dayCount * dayCol;
+    producerLabelCol +
+    statCol * stickyStatCount +
+    dayCount * dayCol;
 
   const gridTemplateColumns = useMemo(() => {
-    return `${producerLabelCol}px ${statCol}px ${statCol}px repeat(${dayCount}, minmax(${dayCol}px, 1fr))`;
-  }, [dayCol, dayCount, producerLabelCol, statCol]);
+    const statCols = showStatColumns ? `${statCol}px ${statCol}px ${statCol}px ` : "";
+    return `${producerLabelCol}px ${statCols}repeat(${dayCount}, minmax(${dayCol}px, 1fr))`;
+  }, [dayCol, dayCount, producerLabelCol, showStatColumns, statCol]);
 
   const gridTemplateRows = useMemo(() => {
     const parts = [`${LAYOUT.headerH[range]}px`];
     if (showMonthBars) {
       parts.push(`${monthBarH}px`);
     }
-    parts.push(`repeat(${producerCount}, minmax(0, 1fr))`);
+    if (producerCount > 0) {
+      const minRowHeight = LAYOUT.rowH[range] as number;
+      let rowHeight: number = minRowHeight;
+
+      if (shouldStretchRows && containerHeight != null) {
+        const chromeHeight = LAYOUT.headerH[range] + (showMonthBars ? monthBarH : 0);
+        const available = containerHeight - chromeHeight;
+        rowHeight = Math.max(minRowHeight, Math.floor(available / producerCount));
+      }
+
+      parts.push(`repeat(${producerCount}, ${rowHeight}px)`);
+    }
     return parts.join(" ");
-  }, [monthBarH, producerCount, range, showMonthBars]);
+  }, [
+    containerHeight,
+    monthBarH,
+    producerCount,
+    range,
+    showMonthBars,
+    shouldStretchRows,
+  ]);
 
   const producerStickyLeft = 0;
   const freeStickyLeft = producerLabelCol;
-  const bookingsStickyLeft = producerLabelCol + statCol;
-  const dateColOffset = 3;
+  const bookedStickyLeft = producerLabelCol + statCol;
+  const offStickyLeft = producerLabelCol + statCol * 2;
   const bodyGridRow = showMonthBars ? 3 : 2;
-  const emptyBodyTop = LAYOUT.headerH[range] + (showMonthBars ? monthBarH : 0);
-
-  const emptyStateOverlay = !hasProducers ? (
-    <div
-      className="pointer-events-none absolute inset-x-0 bottom-0 z-30 flex items-center justify-center px-6"
-      style={{ top: emptyBodyTop }}
-    >
-      <div className="max-w-md text-center">
-        <p className="text-[13px] font-semibold text-brand-ink">{emptyMessage}</p>
-        <p className="mt-1 text-[12px] leading-relaxed text-brand-ink-tertiary">
-          Try another team filter or add a producer with this specialty.
-        </p>
-      </div>
-    </div>
-  ) : null;
 
   const grid = (
     <div
-      className="schedule-matrix-grid grid min-h-0 w-full min-w-0 flex-1 text-[11px]"
+      className="schedule-matrix-grid grid w-full min-w-0 text-[11px]"
       style={{
         minWidth: matrixWidth,
-        minHeight: "100%",
-        height: "100%",
         gridTemplateColumns,
         gridTemplateRows,
+        ...(shouldStretchRows && containerHeight != null
+          ? { minHeight: containerHeight }
+          : {}),
       }}
     >
       <div className="schedule-chrome-header sticky left-0 top-0 z-40 flex items-center justify-center border-r border-brand-line/60 px-2 py-2">
@@ -321,22 +440,34 @@ export function TeamScheduleMatrix({
           Producer
         </p>
       </div>
-      <div
-        className="schedule-chrome-header sticky top-0 z-40 flex items-center justify-center border-r border-brand-line/60 px-1 py-2 text-center"
-        style={{ left: freeStickyLeft }}
-      >
-        <p className="text-[9px] font-bold uppercase leading-tight tracking-[0.06em] text-brand-ink-tertiary">
-          Free
-        </p>
-      </div>
-      <div
-        className="schedule-chrome-header sticky top-0 z-40 flex items-center justify-center border-r border-brand-line/60 px-1 py-2 text-center"
-        style={{ left: bookingsStickyLeft }}
-      >
-        <p className="text-[9px] font-bold uppercase leading-tight tracking-[0.06em] text-brand-ink-tertiary">
-          Booked
-        </p>
-      </div>
+      {showStatColumns ? (
+        <>
+          <div
+            className="schedule-chrome-header sticky top-0 z-40 flex items-center justify-center border-r border-brand-line/60 px-1 py-2 text-center"
+            style={{ left: freeStickyLeft }}
+          >
+            <p className="text-[9px] font-bold uppercase leading-tight tracking-[0.06em] text-brand-ink-tertiary">
+              Free
+            </p>
+          </div>
+          <div
+            className="schedule-chrome-header sticky top-0 z-40 flex items-center justify-center border-r border-brand-line/60 px-1 py-2 text-center"
+            style={{ left: bookedStickyLeft }}
+          >
+            <p className="text-[9px] font-bold uppercase leading-tight tracking-[0.06em] text-brand-ink-tertiary">
+              Booked
+            </p>
+          </div>
+          <div
+            className="schedule-chrome-header sticky top-0 z-40 flex items-center justify-center border-r border-brand-line/60 px-1 py-2 text-center"
+            style={{ left: offStickyLeft }}
+          >
+            <p className="text-[9px] font-bold uppercase leading-tight tracking-[0.06em] text-brand-ink-tertiary">
+              Off
+            </p>
+          </div>
+        </>
+      ) : null}
 
       {columns.map((column, index) => {
         const isLast = index === columns.length - 1;
@@ -356,14 +487,22 @@ export function TeamScheduleMatrix({
       {showMonthBars ? (
         <>
           <div className="sticky left-0 z-20 border-b border-r border-brand-line/60 bg-brand-bg-subtle/95" />
-          <div
-            className="sticky z-20 border-b border-r border-brand-line/60 bg-brand-bg-subtle/95"
-            style={{ left: freeStickyLeft }}
-          />
-          <div
-            className="sticky z-20 border-b border-r border-brand-line/60 bg-brand-bg-subtle/95"
-            style={{ left: bookingsStickyLeft }}
-          />
+          {showStatColumns ? (
+            <>
+              <div
+                className="sticky z-20 border-b border-r border-brand-line/60 bg-brand-bg-subtle/95"
+                style={{ left: freeStickyLeft }}
+              />
+              <div
+                className="sticky z-20 border-b border-r border-brand-line/60 bg-brand-bg-subtle/95"
+                style={{ left: bookedStickyLeft }}
+              />
+              <div
+                className="sticky z-20 border-b border-r border-brand-line/60 bg-brand-bg-subtle/95"
+                style={{ left: offStickyLeft }}
+              />
+            </>
+          ) : null}
           {monthGroups.map((group) => (
             <div
               key={group.key}
@@ -383,38 +522,7 @@ export function TeamScheduleMatrix({
         </>
       ) : null}
 
-      {!hasProducers ? (
-        <>
-          <div
-            className="sticky left-0 z-20 h-full min-h-0 self-stretch border-b border-r border-brand-line/60 bg-white"
-            style={{ gridRow: bodyGridRow }}
-          />
-          <div
-            className="sticky z-20 h-full min-h-0 self-stretch border-b border-r border-brand-line/60 bg-white"
-            style={{ left: freeStickyLeft, gridRow: bodyGridRow }}
-          />
-          <div
-            className="sticky z-20 h-full min-h-0 self-stretch border-b border-r border-brand-line/60 bg-white"
-            style={{ left: bookingsStickyLeft, gridRow: bodyGridRow }}
-          />
-          {columns.map((column, index) => {
-            const isLast = index === columns.length - 1;
-            return (
-              <div
-                key={column.key}
-                className={clsx(
-                  "h-full min-h-0 self-stretch border-b border-r border-brand-line/20 bg-white",
-                  isLast && "border-r-0"
-                )}
-                style={{ gridRow: bodyGridRow }}
-              />
-            );
-          })}
-        </>
-      ) : null}
-
-      {hasProducers
-        ? producerRows.map(({ row, availableCount, bookingCount, entries }, rowIndex) => {
+      {producerRows.map(({ row, availableCount, bookingCount, offCount, entries }, rowIndex) => {
         const isActive = row.producer.id === activeProducerId;
         const isLastRow = rowIndex === producerRows.length - 1;
 
@@ -425,14 +533,14 @@ export function TeamScheduleMatrix({
               onClick={() => onSelectProducer(row)}
               title={row.producer.name}
               className={clsx(
-                "sticky left-0 z-20 flex h-full min-h-0 min-w-0 w-full flex-col items-center justify-center gap-1 self-stretch overflow-visible border-b border-r border-brand-line/60 bg-white px-0.5 py-1.5 transition hover:bg-brand-blue-soft/30",
+                "sticky left-0 z-20 flex h-full min-h-0 min-w-0 w-full flex-col items-center justify-center gap-1 self-stretch overflow-hidden border-b border-r border-brand-line/60 bg-white px-0.5 py-1.5 transition hover:bg-brand-blue-soft/30",
                 isLastRow && "border-b-0",
                 isActive && "bg-brand-orange-soft/40 hover:bg-brand-orange-soft/40"
               )}
             >
               <div
                 className={clsx(
-                  "shrink-0 rounded-full ring-1 ring-offset-1 ring-offset-white",
+                  "shrink-0 rounded-full ring-1 ring-inset ring-offset-0",
                   isActive ? "ring-brand-orange/60" : "ring-brand-blue/30"
                 )}
               >
@@ -452,47 +560,71 @@ export function TeamScheduleMatrix({
               </span>
             </button>
 
-            <div
-              className={clsx(
-                "sticky z-20 flex h-full min-h-0 items-center self-stretch border-b border-r border-brand-line/70 bg-white px-1 py-1.5",
-                isLastRow && "border-b-0"
-              )}
-              style={{ left: freeStickyLeft }}
-            >
-              <p
-                className={clsx(
-                  "w-full text-center text-[11px] font-medium tabular-nums leading-none",
-                  availableCount === columns.length
-                    ? "text-brand-signature"
-                    : availableCount === 0
-                      ? "text-brand-orange"
-                      : "text-brand-ink-secondary"
-                )}
-                title={`${availableCount} free days in view`}
-              >
-                {availableCount}
-              </p>
-            </div>
+            {showStatColumns ? (
+              <>
+                <div
+                  className={clsx(
+                    "sticky z-20 flex h-full min-h-0 items-center self-stretch border-b border-r border-brand-line/70 bg-white px-1 py-1.5",
+                    isLastRow && "border-b-0"
+                  )}
+                  style={{ left: freeStickyLeft }}
+                >
+                  <p
+                    className={clsx(
+                      "w-full text-center text-[11px] font-medium tabular-nums leading-none",
+                      availableCount === columns.length
+                        ? "text-brand-signature"
+                        : availableCount === 0
+                          ? "text-brand-orange"
+                          : "text-brand-ink-secondary"
+                    )}
+                    title={`${availableCount} free days in view`}
+                  >
+                    {availableCount}
+                  </p>
+                </div>
 
-            <div
-              className={clsx(
-                "sticky z-20 flex h-full min-h-0 items-center self-stretch border-b border-r border-brand-line/70 bg-white px-1 py-1.5",
-                isLastRow && "border-b-0"
-              )}
-              style={{ left: bookingsStickyLeft }}
-            >
-              <p
-                className={clsx(
-                  "w-full text-center text-[11px] tabular-nums leading-none",
-                  bookingCount === 0
-                    ? "text-brand-ink-tertiary"
-                    : "text-brand-orange"
-                )}
-                title={`${bookingCount} bookings in view`}
-              >
-                {bookingCount}
-              </p>
-            </div>
+                <div
+                  className={clsx(
+                    "sticky z-20 flex h-full min-h-0 items-center self-stretch border-b border-r border-brand-line/70 bg-white px-1 py-1.5",
+                    isLastRow && "border-b-0"
+                  )}
+                  style={{ left: bookedStickyLeft }}
+                >
+                  <p
+                    className={clsx(
+                      "w-full text-center text-[11px] tabular-nums leading-none",
+                      bookingCount === 0
+                        ? "text-brand-ink-tertiary"
+                        : "text-brand-signature"
+                    )}
+                    title={`${bookingCount} booked days in view`}
+                  >
+                    {bookingCount}
+                  </p>
+                </div>
+
+                <div
+                  className={clsx(
+                    "sticky z-20 flex h-full min-h-0 items-center self-stretch border-b border-r border-brand-line/70 bg-white px-1 py-1.5",
+                    isLastRow && "border-b-0"
+                  )}
+                  style={{ left: offStickyLeft }}
+                >
+                  <p
+                    className={clsx(
+                      "w-full text-center text-[11px] tabular-nums leading-none",
+                      offCount === 0
+                        ? "text-brand-ink-tertiary"
+                        : "text-brand-orange-deep"
+                    )}
+                    title={`${offCount} off days in view`}
+                  >
+                    {offCount}
+                  </p>
+                </div>
+              </>
+            ) : null}
 
             {entries.map(({ column, cell }, entryIndex) => {
               const isLastCol = entryIndex === entries.length - 1;
@@ -500,7 +632,7 @@ export function TeamScheduleMatrix({
                 <div
                   key={`${row.producer.id}-${column.key}`}
                   className={clsx(
-                    "group/cell flex h-full min-h-0 min-w-0 items-center justify-center self-stretch border-b border-r border-brand-line/20 bg-white px-0.5 py-1 transition-colors",
+                    "group/cell flex h-full min-h-0 min-w-0 items-center justify-center self-stretch border-b border-r border-brand-line/35 bg-white px-0.5 py-1 transition-colors",
                     isLastRow && "border-b-0",
                     isLastCol && "border-r-0",
                     isActive
@@ -511,6 +643,7 @@ export function TeamScheduleMatrix({
                   <ScheduleCellButton
                     cell={cell}
                     range={range}
+                    stretchRows={shouldStretchRows}
                     selected={isActive && cell.key === column.key}
                     onClick={() => onSelectProducer(row, cell)}
                   />
@@ -519,8 +652,7 @@ export function TeamScheduleMatrix({
             })}
           </Fragment>
         );
-      })
-        : null}
+      })}
     </div>
   );
 
@@ -537,9 +669,25 @@ export function TeamScheduleMatrix({
         minHeight: 0,
       }}
     >
-      <div className="relative flex min-h-0 flex-1 flex-col overflow-x-auto overflow-y-hidden">
-        {grid}
-        {emptyStateOverlay}
+      <div
+        ref={scrollRef}
+        className={clsx(
+          "relative flex min-h-0 flex-1 flex-col overflow-auto",
+          shouldStretchRows && hasProducers && "overflow-x-auto"
+        )}
+      >
+        {hasProducers ? (
+          grid
+        ) : (
+          <div className="flex flex-1 items-center justify-center px-6 py-12">
+            <div className="max-w-md text-center">
+              <p className="text-[13px] font-semibold text-brand-ink">{emptyMessage}</p>
+              <p className="mt-1 text-[12px] leading-relaxed text-brand-ink-tertiary">
+                Try another team filter or add a producer with this specialty.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

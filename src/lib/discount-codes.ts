@@ -1,6 +1,6 @@
 import type { DiscountCode } from "../types";
 
-export type CouponCodeMatchReason = "exact" | "spacing" | "typo";
+export type CouponCodeMatchReason = "exact" | "spacing" | "capitalization" | "typo";
 
 export type CouponCodeSuggestion = {
   code: DiscountCode;
@@ -87,7 +87,7 @@ function isSimilarTypo(input: string, candidate: string): boolean {
   if (distance > maxTypoDistance(maxLen)) return false;
 
   const similarity = 1 - distance / maxLen;
-  return similarity >= 0.72;
+  return similarity >= 0.65;
 }
 
 export function evaluateCouponCode(
@@ -124,7 +124,12 @@ export function evaluateCouponCode(
     const upperCode = entry.code.toUpperCase();
 
     if (normalized === normalizedInput && upperCode !== upperInput) {
-      addSuggestion(entry, "spacing");
+      const inputHasSpace = /\s/.test(trimmed);
+      const codeHasSpace = /\s/.test(entry.code);
+      addSuggestion(
+        entry,
+        inputHasSpace || codeHasSpace ? "spacing" : "capitalization"
+      );
       continue;
     }
 
@@ -135,7 +140,7 @@ export function evaluateCouponCode(
 
   if (suggestions.length > 0) {
     suggestions.sort((a, b) => {
-      const reasonOrder = { spacing: 0, typo: 1 };
+      const reasonOrder = { spacing: 0, capitalization: 1, typo: 2 };
       if (reasonOrder[a.reason] !== reasonOrder[b.reason]) {
         return reasonOrder[a.reason] - reasonOrder[b.reason];
       }

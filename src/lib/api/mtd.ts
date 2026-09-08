@@ -150,6 +150,25 @@ export async function updateMTDRecordApi(
   if (patch.hasRallyMix !== undefined) payload.has_rally_mix = patch.hasRallyMix;
   if (patch.hasExtend8ctAddon !== undefined) payload.has_extend_8ct_addon = patch.hasExtend8ctAddon;
   if (patch.hasProcessing8ctSheetsAddon !== undefined) payload.has_processing_8ct_sheets_addon = patch.hasProcessing8ctSheetsAddon;
+  if (patch.systemCalculatedCustomerPrice !== undefined) {
+    payload.system_calculated_customer_price = patch.systemCalculatedCustomerPrice;
+  }
+  if (patch.finalCustomerPrice !== undefined) {
+    payload.final_customer_price = patch.finalCustomerPrice;
+  }
+  if (patch.finalCustomerPriceOverridden !== undefined) {
+    payload.final_customer_price_overridden = patch.finalCustomerPriceOverridden;
+  }
+  if (patch.rateUsed !== undefined) payload.rate_used = patch.rateUsed;
+  if (patch.rateSource !== undefined) payload.rate_source = patch.rateSource;
+  if (patch.producerPayout !== undefined) payload.producer_payout = patch.producerPayout;
+  if (patch.sltPortion !== undefined) payload.slt_portion = patch.sltPortion;
+  if (patch.payrollFinalized !== undefined) {
+    payload.payroll_finalized = patch.payrollFinalized;
+  }
+  if (patch.payrollBreakdown !== undefined) {
+    payload.payroll_breakdown = patch.payrollBreakdown;
+  }
 
   try {
     const res = await apiClient.patch<BackendMTDRecord>(`/api/mtd/${id}`, payload);

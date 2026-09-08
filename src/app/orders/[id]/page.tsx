@@ -2,7 +2,7 @@
 
 import { use, useCallback, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, Check, AlertCircle } from "lucide-react";
+import { ArrowLeft, ArrowRight } from "lucide-react";
 import clsx from "clsx";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Avatar } from "@/components/ui/Avatar";
@@ -12,6 +12,8 @@ import {
   type EditorAssignmentResult,
 } from "@/components/mtd/AssignEditorModal";
 import { MTDOrderDetails } from "@/components/mtd/MTDOrderDetails";
+import { CompletionBlockedModal } from "@/components/mtd/CompletionBlockedModal";
+import { SetPricingModal } from "@/components/mtd/SetPricingModal";
 import { useAppState } from "@/context/AppStateContext";
 import { formatPrice } from "@/lib/data";
 import { orderFromMTDRecord } from "@/lib/order-detail-fields";
@@ -35,6 +37,7 @@ export default function OrderDetailPage({
 
   const [assignOpen, setAssignOpen] = useState(false);
   const [validationModalOpen, setValidationModalOpen] = useState(false);
+  const [pricingOpen, setPricingOpen] = useState(false);
 
   const record = useMemo(
     () => mtdRecords.find((r) => r.id === id || r.orderId === id),
@@ -101,11 +104,17 @@ export default function OrderDetailPage({
       <PageHeader
         title={record.programName || "Order Details"}
         subtitle={`ID: ${record.id} · ${record.contactName || "Customer"}`}
+        secondaryAction={{
+          label: "Pricing",
+          onClick: () => setPricingOpen(true),
+          showPlus: false,
+        }}
         action={{
           label: "← Back to Orders",
           onClick: () => {
             window.location.href = "/orders";
           },
+          showPlus: false,
         }}
       />
 
@@ -228,64 +237,19 @@ export default function OrderDetailPage({
         onAssign={handleAssign}
       />
 
-      {/* Validation Modal */}
-      {validationModalOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-black/45 backdrop-blur-[2px]"
-            onClick={() => setValidationModalOpen(false)}
-          />
-          <div className="relative w-full max-w-md rounded-2xl bg-brand-elevated p-6 shadow-2xl ring-1 ring-black/10">
-            <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-warning/10 text-brand-warning">
-                <AlertCircle className="h-5 w-5" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <h3 className="text-[16px] font-semibold text-brand-ink">
-                  Assignment & Scheduling Required
-                </h3>
-                <p className="mt-2 text-[13px] leading-relaxed text-brand-ink-secondary">
-                  To move this order to MTD, please complete all three requirements:
-                </p>
-                <ul className="mt-3 space-y-1.5 text-[12px]">
-                  <li className={clsx("flex items-center gap-2", record.assignedProducer ? "text-brand-ink font-medium" : "text-brand-danger font-semibold")}>
-                    {record.assignedProducer ? <Check className="h-3.5 w-3.5 text-brand-blue" /> : "• "}
-                    Editor assigned: {record.assignedProducer || "Missing"}
-                  </li>
-                  <li className={clsx("flex items-center gap-2", record.mixStartDate ? "text-brand-ink font-medium" : "text-brand-danger font-semibold")}>
-                    {record.mixStartDate ? <Check className="h-3.5 w-3.5 text-brand-blue" /> : "• "}
-                    Mix Start Date set: {record.mixStartDate || "Missing"}
-                  </li>
-                  <li className={clsx("flex items-center gap-2", record.mixEndDate ? "text-brand-ink font-medium" : "text-brand-danger font-semibold")}>
-                    {record.mixEndDate ? <Check className="h-3.5 w-3.5 text-brand-blue" /> : "• "}
-                    Mix End Date set: {record.mixEndDate || "Missing"}
-                  </li>
-                </ul>
-              </div>
-            </div>
+      <CompletionBlockedModal
+        open={validationModalOpen}
+        record={record}
+        reason="moveToMtd"
+        onClose={() => setValidationModalOpen(false)}
+      />
 
-            <div className="mt-6 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setValidationModalOpen(false)}
-                className="rounded-xl bg-brand-bg px-4 py-2 text-[13px] font-semibold text-brand-ink hover:bg-brand-bg-subtle"
-              >
-                Close
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setValidationModalOpen(false);
-                  setAssignOpen(true);
-                }}
-                className="rounded-xl bg-brand-blue px-4 py-2 text-[13px] font-semibold text-white hover:bg-brand-blue-hover"
-              >
-                Assign & Schedule Now
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <SetPricingModal
+        open={pricingOpen}
+        order={displayOrder}
+        record={record}
+        onClose={() => setPricingOpen(false)}
+      />
     </>
   );
 }

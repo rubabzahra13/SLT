@@ -84,6 +84,52 @@ export function getDefaultSecretMenuPricing(): SecretMenuPricing {
   };
 }
 
+export function getSecretMenuPerSongRates(pricing: SecretMenuPricing): {
+  costPerSong: number;
+  minutesPerSong: number;
+} {
+  const first =
+    pricing.extraSongTiers.find((tier) => tier.extraSongs === 1) ??
+    pricing.extraSongTiers[0];
+  if (!first || first.extraSongs <= 0) {
+    return { costPerSong: 0, minutesPerSong: 0 };
+  }
+
+  return {
+    costPerSong: Math.round((first.extraCost / first.extraSongs) * 100) / 100,
+    minutesPerSong: Math.round(first.editingMinutes / first.extraSongs),
+  };
+}
+
+export function applySecretMenuPerSongRates(
+  pricing: SecretMenuPricing,
+  patch: {
+    basePrice?: number;
+    costPerSong?: number;
+    minutesPerSong?: number;
+  }
+): SecretMenuPricing {
+  const current = getSecretMenuPerSongRates(pricing);
+  const costPerSong = patch.costPerSong ?? current.costPerSong;
+  const minutesPerSong = patch.minutesPerSong ?? current.minutesPerSong;
+  const basePrice = patch.basePrice ?? pricing.basePrice;
+
+  const extraSongTiers =
+    pricing.extraSongTiers.length > 0
+      ? pricing.extraSongTiers.map((tier) => ({
+          extraSongs: tier.extraSongs,
+          extraCost: Math.round(costPerSong * tier.extraSongs),
+          editingMinutes: Math.round(minutesPerSong * tier.extraSongs),
+        }))
+      : [{ extraSongs: 1, extraCost: costPerSong, editingMinutes: minutesPerSong }];
+
+  return {
+    ...pricing,
+    basePrice,
+    extraSongTiers,
+  };
+}
+
 export function detectCompliance(musicTheme: string): "compliant" | "non-compliant" {
   const upper = musicTheme.toUpperCase();
   if (upper.includes("NON COMPLIANT") || upper.includes("NON-COMPLIANT")) {

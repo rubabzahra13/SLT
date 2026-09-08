@@ -9,6 +9,7 @@ type PageHeaderProps = {
   badge?: string;
   compact?: boolean;
   action?: { label: string; onClick?: () => void; showPlus?: boolean };
+  secondaryAction?: { label: string; onClick?: () => void; showPlus?: boolean };
   tabs?: React.ReactNode;
   toolbar?: React.ReactNode;
   meta?: React.ReactNode;
@@ -25,6 +26,7 @@ export function PageHeader({
   badge,
   compact = false,
   action,
+  secondaryAction,
   tabs,
   toolbar,
   meta,
@@ -90,7 +92,22 @@ export function PageHeader({
 
             <NotificationBell />
 
-            {action ? <span className="hidden h-6 w-px bg-brand-line/50 sm:block" aria-hidden /> : null}
+            {action || secondaryAction ? (
+              <span className="hidden h-6 w-px bg-brand-line/50 sm:block" aria-hidden />
+            ) : null}
+
+            {secondaryAction ? (
+              <button
+                type="button"
+                onClick={secondaryAction.onClick}
+                className="flex h-9 items-center gap-1.5 rounded-xl bg-brand-orange px-4 text-[13px] font-semibold text-white shadow-sm transition hover:bg-brand-orange-hover hover:shadow-md"
+              >
+                {secondaryAction.showPlus !== false ? (
+                  <Plus className="h-4 w-4" strokeWidth={2.5} />
+                ) : null}
+                <span className="hidden sm:inline">{secondaryAction.label}</span>
+              </button>
+            ) : null}
 
             {action ? (
               <button

@@ -9,6 +9,7 @@ exports.patchMoveToPayroll = patchMoveToPayroll;
 exports.patchReturnFromPayroll = patchReturnFromPayroll;
 exports.getPayrollRecords = getPayrollRecords;
 exports.getMTDBoardRecords = getMTDBoardRecords;
+exports.preserveLocalPayrollFields = preserveLocalPayrollFields;
 const dates_1 = require("@/lib/dates");
 const mtd_status_1 = require("@/lib/mtd-status");
 function getCompletionRequirements(rec) {
@@ -85,4 +86,29 @@ function getPayrollRecords(records) {
 }
 function getMTDBoardRecords(records) {
     return records.filter((rec) => !rec.inPayroll);
+}
+/** Keep local payroll completion when backend reload races or has not persisted yet. */
+function preserveLocalPayrollFields(backendRecord, localRecord) {
+    if (!localRecord?.inPayroll || backendRecord.inPayroll) {
+        return backendRecord;
+    }
+    return {
+        ...backendRecord,
+        inPayroll: true,
+        recordStatus: localRecord.recordStatus ?? backendRecord.recordStatus,
+        status: localRecord.status ?? backendRecord.status,
+        completedAt: localRecord.completedAt ?? backendRecord.completedAt,
+        payrollFinalized: localRecord.payrollFinalized ?? backendRecord.payrollFinalized,
+        producerPayout: localRecord.producerPayout ?? backendRecord.producerPayout,
+        sltPortion: localRecord.sltPortion ?? backendRecord.sltPortion,
+        rateUsed: localRecord.rateUsed ?? backendRecord.rateUsed,
+        rateSource: localRecord.rateSource ?? backendRecord.rateSource,
+        finalCustomerPrice: localRecord.finalCustomerPrice ?? backendRecord.finalCustomerPrice,
+        systemCalculatedCustomerPrice: localRecord.systemCalculatedCustomerPrice ??
+            backendRecord.systemCalculatedCustomerPrice,
+        finalCustomerPriceOverridden: localRecord.finalCustomerPriceOverridden ??
+            backendRecord.finalCustomerPriceOverridden,
+        price: localRecord.price ?? backendRecord.price,
+        payrollBreakdown: localRecord.payrollBreakdown ?? backendRecord.payrollBreakdown,
+    };
 }

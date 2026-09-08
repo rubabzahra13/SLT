@@ -2,7 +2,7 @@
 
 import clsx from "clsx";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { DottedScroll } from "@/components/ui/DottedScroll";
 
@@ -30,7 +30,14 @@ type DataTableProps<T> = {
   embedded?: boolean;
   compact?: boolean;
   showScrollIndicator?: boolean;
+  /** When true and row count meets the threshold, rows share the table body height equally. */
+  stretchRows?: boolean;
+  /** Minimum rows required before stretching (default 3 = more than 2 entries). */
+  stretchRowsMinCount?: number;
+  className?: string;
 };
+
+const MIN_STRETCH_ROW_HEIGHT = 44;
 
 export function DataTable<T>({
   columns,
@@ -44,9 +51,16 @@ export function DataTable<T>({
   embedded = false,
   compact = false,
   showScrollIndicator = true,
+  stretchRows = false,
+  stretchRowsMinCount = 3,
+  className,
 }: DataTableProps<T>) {
   const router = useRouter();
   const [page, setPage] = useState(0);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const theadRef = useRef<HTMLTableSectionElement>(null);
+  const [layoutHeight, setLayoutHeight] = useState<number | null>(null);
+  const [headerHeight, setHeaderHeight] = useState(0);
 
   useEffect(() => {
     setPage(0);
@@ -100,6 +114,59 @@ export function DataTable<T>({
 
   const isInteractive = Boolean(href || onRowClick);
 
+  const shouldStretchRows =
+    stretchRows && visibleData.length >= stretchRowsMinCount;
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || !shouldStretchRows) {
+      setLayoutHeight(null);
+      setHeaderHeight(0);
+      return;
+    }
+
+    const updateLayout = () => {
+      setLayoutHeight(container.clientHeight);
+      setHeaderHeight(theadRef.current?.offsetHeight ?? 0);
+    };
+
+    updateLayout();
+
+    const resizeObserver = new ResizeObserver(updateLayout);
+    resizeObserver.observe(container);
+    window.addEventListener("resize", updateLayout);
+
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", updateLayout);
+    };
+  }, [shouldStretchRows, visibleData.length, columns.length]);
+
+  const stretchRowHeight = useMemo(() => {
+    if (!shouldStretchRows || layoutHeight == null || visibleData.length === 0) {
+      return undefined;
+    }
+    const available = layoutHeight - headerHeight;
+    return Math.max(
+      MIN_STRETCH_ROW_HEIGHT,
+      Math.floor(available / visibleData.length)
+    );
+  }, [shouldStretchRows, layoutHeight, headerHeight, visibleData.length]);
+
+  const tableHeight = useMemo(() => {
+    if (!shouldStretchRows || stretchRowHeight == null || layoutHeight == null) {
+      return undefined;
+    }
+    const contentHeight = headerHeight + stretchRowHeight * visibleData.length;
+    return Math.max(layoutHeight, contentHeight);
+  }, [
+    shouldStretchRows,
+    stretchRowHeight,
+    layoutHeight,
+    headerHeight,
+    visibleData.length,
+  ]);
+
   const stickyClass = (sticky?: Column<T>["sticky"], header = false) =>
     sticky === "right"
       ? clsx(
@@ -117,25 +184,42 @@ export function DataTable<T>({
 
   return (
     <div
+      ref={containerRef}
       className={clsx(
         "w-full min-w-0",
-        embedded ? "" : "surface-premium overflow-hidden rounded-2xl"
+        embedded ? "" : "surface-premium overflow-hidden rounded-2xl",
+        shouldStretchRows && "flex h-full min-h-0 flex-col",
+        className
       )}
     >
       <DottedScroll
         orientation="horizontal"
-        scrollClassName="w-full overflow-x-auto"
+        scrollClassName={
+          shouldStretchRows
+            ? "min-h-0 w-full flex-1 overflow-x-auto overflow-y-auto"
+            : "w-full overflow-x-auto"
+        }
         indicatorPlacement="below"
-        contentClassName="block w-max min-w-full"
+        contentClassName={
+          shouldStretchRows ? "block min-h-full min-w-full" : "block w-max min-w-full"
+        }
+        className={shouldStretchRows ? "min-h-0 flex-1" : undefined}
         showIndicator={showScrollIndicator}
       >
-        <table className="w-full min-w-max border-collapse">
+        <table
+          className="w-full min-w-max border-collapse"
+          style={
+            tableHeight != null
+              ? { minHeight: tableHeight, height: tableHeight }
+              : undefined
+          }
+        >
           <colgroup>
             {columns.map((col) => (
               <col key={col.key} style={{ width: col.width ?? "auto" }} />
             ))}
           </colgroup>
-          <thead>
+          <thead ref={theadRef}>
             <tr className="table-header-row">
               {columns.map((col) => (
                 <th
@@ -168,40 +252,44 @@ export function DataTable<T>({
               visibleData.map((row, rowOffset) => {
                 const rowIndex = rangeStart - 1 + rowOffset;
                 return (
-                <tr
-                  key={rowKey(row)}
-                  className={clsx(
-                    "border-b border-brand-line-strong transition-colors last:border-b-0",
-                    embedded
-                      ? "dashboard-table-row"
-                      : clsx(
-                          "bg-brand-elevated",
-                          variant === "muted" && "bg-brand-surface"
-                        ),
-                    isInteractive && "cursor-pointer hover:bg-brand-blue-soft/25"
-                  )}
-                  onClick={
-                    isInteractive ? (event) => handleRowClick(row, event) : undefined
-                  }
-                >
-                  {columns.map((col) => (
-                    <td
-                      key={col.key}
-                      className={clsx(
-                        cellClass,
-                        textSize,
-                        alignClass(col.align),
-                        "border-r border-brand-line-strong align-middle last:border-r-0",
-                        col.nowrap !== false &&
-                          "max-w-0 truncate whitespace-nowrap",
-                        stickyClass(col.sticky),
-                        col.cellClassName
-                      )}
-                    >
-                      {col.render(row, rowIndex)}
-                    </td>
-                  ))}
-                </tr>
+                  <tr
+                    key={rowKey(row)}
+                    style={
+                      stretchRowHeight != null
+                        ? { height: stretchRowHeight }
+                        : undefined
+                    }
+                    className={clsx(
+                      "border-b border-brand-line-strong transition-colors last:border-b-0",
+                      embedded
+                        ? "dashboard-table-row"
+                        : clsx(
+                            "bg-brand-elevated",
+                            variant === "muted" && "bg-brand-surface"
+                          ),
+                      isInteractive && "cursor-pointer hover:bg-brand-blue-soft/25"
+                    )}
+                    onClick={
+                      isInteractive ? (event) => handleRowClick(row, event) : undefined
+                    }
+                  >
+                    {columns.map((col) => (
+                      <td
+                        key={col.key}
+                        className={clsx(
+                          cellClass,
+                          textSize,
+                          alignClass(col.align),
+                          "border-r border-brand-line-strong align-middle last:border-r-0",
+                          col.nowrap !== false && "max-w-0 truncate whitespace-nowrap",
+                          stickyClass(col.sticky),
+                          col.cellClassName
+                        )}
+                      >
+                        {col.render(row, rowIndex)}
+                      </td>
+                    ))}
+                  </tr>
                 );
               })
             )}
@@ -236,8 +324,8 @@ export function DataTable<T>({
               type="button"
               disabled={safePage >= totalPages - 1}
               onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-brand-ink-secondary transition hover:bg-brand-bg hover:text-brand-ink disabled:opacity-30"
               aria-label="Next page"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-brand-ink-secondary transition hover:bg-brand-bg hover:text-brand-ink disabled:opacity-30"
             >
               <ChevronRight className="h-4 w-4" strokeWidth={2} />
             </button>

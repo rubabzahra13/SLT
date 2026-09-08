@@ -3,22 +3,21 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import {
-  CheckCircle2,
-  Wallet,
   AlertTriangle,
-  ArrowRight,
   ArrowLeft,
   DollarSign,
-  ShieldCheck,
-  ShieldAlert,
-  HelpCircle,
+  Info,
   Tag,
   Edit3,
 } from "lucide-react";
 import { formatPrice, titleCase } from "@/lib/data";
 import { formatDisplayDate, toIsoDateString } from "@/lib/dates";
 import { findLinkedOrder, findProducerByAssignmentKey } from "@/lib/editor-assignment";
-import { getFullClassificationLabel, computeClientPayroll } from "@/lib/pricing-display";
+import {
+  getFormTypeLabel,
+  getSubtypeLabel,
+  computeClientPayroll,
+} from "@/lib/pricing-display";
 import { useAppState } from "@/context/AppStateContext";
 import { resolveMTDFormMeta } from "@/lib/mtd-filters";
 import {
@@ -30,7 +29,7 @@ import {
   calculateMiscellaneousPayrollAddons,
 } from "@/lib/pricing-engine";
 import { parsePackage } from "@/lib/package";
-import { evaluateCouponCode } from "@/lib/discount-codes";
+import { evaluateCouponCode, type CouponCodeSuggestion } from "@/lib/discount-codes";
 import {
   calculatePricingApi,
   completePricingApi,
@@ -38,7 +37,7 @@ import {
   type AddOnLineItem,
   type PricingBreakdown,
 } from "@/lib/api/pricing";
-import type { MTDRecord, Order, Producer } from "@/types";
+import type { DiscountCode, MTDRecord, Order, Producer } from "@/types";
 import { SetPricingModal } from "@/components/mtd/SetPricingModal";
 import clsx from "clsx";
 
@@ -50,6 +49,52 @@ type CompleteToPayrollModalProps = {
   onClose: () => void;
   onConfirm: (patch?: Partial<MTDRecord>, orderPatch?: Partial<Order>) => void;
 };
+
+function couponSuggestionHint(suggestion: CouponCodeSuggestion): string {
+  if (suggestion.reason === "spacing") {
+    return "Same code with different spacing.";
+  }
+  if (suggestion.reason === "capitalization") {
+    return "Same code with different capitalization.";
+  }
+  return "Very close spelling.";
+}
+
+function resolvePayrollCoupon(
+  customerCode: string,
+  resolvedCode: string | null,
+  discountCodes: DiscountCode[]
+) {
+  const customerEval = evaluateCouponCode(customerCode, discountCodes);
+  if (customerEval.status === "valid") {
+    return {
+      customerEval,
+      appliedCode: customerCode.trim(),
+      appliedEval: customerEval,
+      matchedDiscountCode: customerEval.match ?? null,
+    };
+  }
+
+  const trimmedResolved = resolvedCode?.trim() ?? "";
+  if (trimmedResolved) {
+    const resolvedEval = evaluateCouponCode(trimmedResolved, discountCodes);
+    if (resolvedEval.status === "valid") {
+      return {
+        customerEval,
+        appliedCode: trimmedResolved,
+        appliedEval: resolvedEval,
+        matchedDiscountCode: resolvedEval.match ?? null,
+      };
+    }
+  }
+
+  return {
+    customerEval,
+    appliedCode: null,
+    appliedEval: null,
+    matchedDiscountCode: null,
+  };
+}
 
 export function CompleteToPayrollModal({
   open,
@@ -69,7 +114,8 @@ export function CompleteToPayrollModal({
   const [finalCustomerPriceInput, setFinalCustomerPriceInput] = useState<string>("");
   const [finalPayrollPriceInput, setFinalPayrollPriceInput] = useState<string>("");
   const [calculatedEnginePricing, setCalculatedEnginePricing] = useState<any>(null);
-  const [modalCouponCode, setModalCouponCode] = useState<string>("");
+  const [customerCouponCode, setCustomerCouponCode] = useState<string>("");
+  const [resolvedCouponCode, setResolvedCouponCode] = useState<string | null>(null);
   const [pricingRefOpen, setPricingRefOpen] = useState<boolean>(false);
 
   // Step 2 Payroll state
@@ -116,7 +162,8 @@ export function CompleteToPayrollModal({
 
     const order = linkedOrder;
     const initialCoupon = order?.couponCode || (order as any)?.formData?.couponCode || (record as any)?.couponCode || "";
-    setModalCouponCode(initialCoupon);
+    setCustomerCouponCode(initialCoupon);
+    setResolvedCouponCode(null);
   }, [open, record, linkedOrder]);
 
   // Reset & load pricing breakdown when modal opens or coupon code changes
@@ -142,12 +189,19 @@ export function CompleteToPayrollModal({
         const mixLen = order?.timeLengthOfMix || parsePackage(currentRec.package).limit;
         const affiliate = order?.musicAffiliate || currentRec.musicTheme || (currentRec as any).musicAffiliate;
 
-        const activeCoupon = modalCouponCode !== undefined
-          ? modalCouponCode
-          : (order?.couponCode || (order as any)?.formData?.couponCode || (currentRec as any)?.couponCode || "");
+        const activeCoupon =
+          customerCouponCode ||
+          order?.couponCode ||
+          (order as any)?.formData?.couponCode ||
+          (currentRec as any)?.couponCode ||
+          "";
 
-        const couponEval = evaluateCouponCode(activeCoupon, discountCodes);
-        const matchedDiscountCode = couponEval.status === "valid" ? couponEval.match ?? null : null;
+        const {
+          customerEval: couponEval,
+          appliedCode,
+          appliedEval,
+          matchedDiscountCode,
+        } = resolvePayrollCoupon(activeCoupon, resolvedCouponCode, discountCodes);
 
         let enginePricing: any;
         let canonicalSubtypeId: string = "";
@@ -484,6 +538,8 @@ export function CompleteToPayrollModal({
           summary_line: `Category: ${meta.formType} | Subtype: ${canonicalSubtypeId} | Package: ${enginePricing.packageName} | Customer: $${enginePricing.customerFacingPrice ?? 'TBD'} | Payroll Base: $${enginePricing.payrollBasePrice ?? 'TBD'}`,
           coupon_code: activeCoupon,
           coupon_evaluation: couponEval,
+          applied_coupon_code: appliedCode ?? undefined,
+          applied_coupon_evaluation: appliedEval ?? undefined,
         };
 
         setBreakdown(calculatedBreakdown);
@@ -538,7 +594,7 @@ export function CompleteToPayrollModal({
     }
 
     loadBreakdown();
-  }, [open, record, linkedOrder, allOrders, discountCodes, modalCouponCode]);
+  }, [open, record, linkedOrder, allOrders, discountCodes, customerCouponCode, resolvedCouponCode]);
 
   // Parsed numerical price
   const finalCustomerPriceNum = parseFloat(finalCustomerPriceInput) || 0;
@@ -693,70 +749,33 @@ export function CompleteToPayrollModal({
         aria-labelledby="complete-payroll-title"
         className="relative w-full max-w-[540px] max-h-[90vh] flex flex-col overflow-hidden rounded-[24px] bg-brand-elevated shadow-[0_24px_80px_rgba(0,0,0,0.32)]"
       >
-        {/* Header with Step Indicator */}
-        <div className="border-b border-brand-line/60 bg-gradient-to-br from-brand-signature/10 via-brand-elevated to-brand-success/8 px-6 pb-4 pt-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span
-                className={clsx(
-                  "flex h-7 w-7 items-center justify-center rounded-full text-[12px] font-bold transition",
-                  step === 1
-                    ? "bg-brand-signature text-white"
-                    : "bg-brand-success/20 text-brand-success ring-1 ring-inset ring-brand-success/30"
-                )}
-              >
-                {step === 1 ? "1" : <CheckCircle2 className="h-4 w-4" />}
-              </span>
-              <span className="text-[13px] font-medium text-brand-ink-secondary">
-                1. Pricing Review
-              </span>
-              <span className="text-brand-ink-tertiary">→</span>
-              <span
-                className={clsx(
-                  "flex h-7 w-7 items-center justify-center rounded-full text-[12px] font-bold transition",
-                  step === 2
-                    ? "bg-brand-signature text-white"
-                    : "bg-brand-bg text-brand-ink-tertiary"
-                )}
-              >
-                2
-              </span>
-              <span className="text-[13px] font-medium text-brand-ink-secondary">
-                2. Payroll Setup
-              </span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setPricingRefOpen(true)}
-                className="inline-flex h-7 items-center gap-1.5 rounded-lg bg-brand-orange px-3 text-[11.5px] font-semibold text-white shadow-sm transition hover:bg-brand-orange-hover focus:outline-none focus:ring-2 focus:ring-brand-orange/40 shrink-0"
-                title="Open reference pricing table for this order type"
-              >
-                <DollarSign className="h-3.5 w-3.5" />
-                Pricing Reference
-              </button>
-              <span className="rounded-full bg-brand-bg px-2.5 py-1 text-[11px] font-medium text-brand-ink-tertiary border border-brand-line/60">
-                {record.invoice ? `Inv #${record.invoice}` : "MTD Move"}
-              </span>
-            </div>
+        {/* Header */}
+        <div className="shrink-0 border-b border-brand-line/60 px-6 py-4">
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-brand-ink-tertiary">
+              {step === 1 ? "Complete to payroll" : "Payroll setup"}
+            </p>
+            <h2
+              id="complete-payroll-title"
+              className="mt-0.5 truncate text-[17px] font-semibold tracking-[-0.02em] text-brand-ink"
+            >
+              {titleCase(record.programName)}
+            </h2>
+            <p className="mt-0.5 truncate text-[12px] text-brand-ink-secondary">
+              {step === 1
+                ? [
+                    titleCase(record.contactName),
+                    record.invoice ? `Inv #${record.invoice}` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")
+                : `Producer: ${record.assignedProducer ? titleCase(record.assignedProducer) : "Unassigned"}`}
+            </p>
           </div>
-
-          <h2
-            id="complete-payroll-title"
-            className="mt-3 text-[18px] font-semibold tracking-[-0.02em] text-brand-ink"
-          >
-            {step === 1 ? "Order Pricing & Compliance" : "Producer Payroll Finalization"}
-          </h2>
-          <p className="mt-1 text-[12px] leading-relaxed text-brand-ink-secondary">
-            {step === 1
-              ? `${titleCase(record.programName)} · ${titleCase(record.contactName)}`
-              : `Assigned Producer: ${record.assignedProducer ? titleCase(record.assignedProducer) : "Unassigned"}`}
-          </p>
         </div>
 
         {/* Content Body */}
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+        <div className="flex-1 space-y-4 overflow-y-auto px-6 py-5">
           {error && (
             <div className="flex items-start gap-2.5 rounded-xl border border-brand-warning/30 bg-brand-warning/10 p-3.5 text-[12.5px] text-brand-ink">
               <AlertTriangle className="h-4 w-4 shrink-0 text-brand-warning mt-0.5" />
@@ -780,97 +799,98 @@ export function CompleteToPayrollModal({
                 </div>
               )}
 
-              {/* Form Subtype & Package Header */}
-              <div className="rounded-xl border border-brand-line/70 bg-brand-bg/40 p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-brand-ink-tertiary">
-                      Form Subtype & Package
-                    </p>
-                    <p className="mt-1 text-[14px] font-bold text-brand-ink">
-                      {getFullClassificationLabel(
-                        breakdown?.form_type,
-                        breakdown?.canonical_subtype_id,
-                        breakdown?.package_name || record.package
-                      )}
-                    </p>
-                  </div>
-                  <span className="rounded-lg bg-brand-signature/10 px-2.5 py-1 text-[12px] font-bold text-brand-signature ring-1 ring-inset ring-brand-signature/20">
-                    {breakdown?.package_name || record.package}
-                  </span>
-                </div>
-              </div>
-
-              {/* Compliance status banner */}
-              <div
-                className={clsx(
-                  "rounded-xl border p-4 transition",
-                  breakdown?.compliance_status === "compliant"
-                    ? "border-brand-success/30 bg-brand-success/8"
-                    : breakdown?.compliance_status === "non-compliant"
-                    ? "border-brand-warning/30 bg-brand-warning/8"
-                    : "border-brand-orange/30 bg-brand-orange/8"
-                )}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    {breakdown?.compliance_status === "compliant" ? (
-                      <ShieldCheck className="h-5 w-5 text-brand-success" />
-                    ) : breakdown?.compliance_status === "non-compliant" ? (
-                      <ShieldAlert className="h-5 w-5 text-brand-warning" />
-                    ) : (
-                      <HelpCircle className="h-5 w-5 text-brand-orange" />
-                    )}
-                    <span className="text-[13px] font-bold uppercase tracking-wider">
-                      {breakdown?.compliance_status === "compliant"
-                        ? "COMPLIANT"
-                        : breakdown?.compliance_status === "non-compliant"
-                        ? "NON-COMPLIANT"
-                        : breakdown?.compliance_reason?.includes("Unknown")
-                        ? "UNKNOWN (NO AFFILIATE FIELD)"
-                        : "NEEDS MANUAL REVIEW"}
-                    </span>
-                  </div>
-
-                  <span className="text-[11px] font-medium text-brand-ink-secondary">
-                    {breakdown?.canonical_affiliate
-                      ? `Affiliate: ${breakdown.canonical_affiliate}`
-                      : "No Affiliate Field Required"}
-                  </span>
-                </div>
-                <p className="mt-2 text-[12px] leading-relaxed text-brand-ink-secondary">
-                  {breakdown?.compliance_reason || "Verified against pricing rules & compliant affiliates map."}
+              <div className="rounded-xl border border-brand-line/70 bg-brand-bg/30 px-4 py-3.5">
+                <p className="text-[15px] font-bold leading-snug text-brand-ink">
+                  {breakdown?.package_name || record.package}
                 </p>
+                <p className="mt-0.5 text-[11px] font-medium text-brand-ink-tertiary">
+                  {(() => {
+                    const formLabel = getFormTypeLabel(breakdown?.form_type).replace(
+                      /^School \/ /,
+                      ""
+                    );
+                    const subLabel = getSubtypeLabel(breakdown?.canonical_subtype_id);
+                    return subLabel && subLabel !== formLabel
+                      ? `${formLabel} · ${subLabel}`
+                      : formLabel;
+                  })()}
+                </p>
+
+                <div className="mt-3 flex min-w-0 items-center gap-2 border-t border-brand-line/50 pt-3">
+                  <span
+                    className={clsx(
+                      "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.04em]",
+                      breakdown?.compliance_status === "compliant"
+                        ? "bg-brand-success/20 text-emerald-800 ring-1 ring-inset ring-brand-success/35"
+                        : breakdown?.compliance_status === "non-compliant"
+                        ? "bg-brand-warning/15 text-amber-900 ring-1 ring-inset ring-brand-warning/30"
+                        : "bg-brand-orange/15 text-brand-orange ring-1 ring-inset ring-brand-orange/30"
+                    )}
+                  >
+                    {breakdown?.compliance_status === "compliant"
+                      ? "Compliant"
+                      : breakdown?.compliance_status === "non-compliant"
+                      ? "Non-compliant"
+                      : breakdown?.compliance_reason?.includes("Unknown")
+                      ? "Unknown"
+                      : "Review"}
+                  </span>
+                  {breakdown?.canonical_affiliate ? (
+                    <span className="min-w-0 truncate text-[11px] text-brand-ink-secondary">
+                      {breakdown.canonical_affiliate}
+                    </span>
+                  ) : (
+                    <span className="text-[11px] text-brand-ink-tertiary">
+                      No affiliate on order
+                    </span>
+                  )}
+                </div>
               </div>
 
-              {/* Itemized Line-Items Pricing Breakdown */}
-              <div className="rounded-xl border border-brand-line/70 bg-brand-elevated overflow-hidden">
-                <div className="bg-brand-bg/60 px-4 py-2.5 border-b border-brand-line/60 flex items-center justify-between">
-                  <span className="text-[11.5px] font-semibold uppercase tracking-wider text-brand-ink-tertiary">
-                    Itemized Pricing Breakdown
+              <div className="overflow-hidden rounded-xl border border-brand-line/70 bg-brand-elevated">
+                <div className="flex items-center justify-between gap-3 border-b border-brand-line/60 bg-brand-bg/50 px-4 py-2.5">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-brand-ink-tertiary">
+                    Pricing breakdown
                   </span>
-                  <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setPricingRefOpen(true)}
-                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-brand-orange hover:text-brand-orange-hover hover:underline transition"
-                    >
-                      <HelpCircle className="h-3.5 w-3.5" />
-                      Pricing Reference
-                    </button>
-                    <span className="text-[11.5px] text-brand-ink-tertiary">
-                      Amount
-                    </span>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPricingRefOpen(true)}
+                    className="inline-flex shrink-0 items-center gap-1 text-[11px] font-medium text-brand-orange transition hover:text-brand-orange-hover hover:underline"
+                    title="Open reference pricing table for this order type"
+                  >
+                    <Info className="h-3.5 w-3.5" />
+                    Pricing reference
+                  </button>
                 </div>
 
                 <div className="divide-y divide-brand-line/40 px-4 text-[12.5px]">
+                  {(() => {
+                    const breakdownRowClass =
+                      "grid grid-cols-[minmax(0,1fr)_130px] items-center gap-x-4 py-2.5";
+                    const breakdownFieldWrap = "relative w-full shrink-0";
+                    const breakdownAmountInputClass =
+                      "w-full rounded-lg border border-brand-line/80 bg-brand-elevated py-1.5 pl-7 pr-2.5 text-right font-bold text-[14px] tabular-nums outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none focus:border-brand-signature focus:ring-2 focus:ring-brand-signature/20";
+                    const breakdownPrefixClass =
+                      "pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 font-semibold text-[14px] text-brand-ink";
+
+                    const musicComplianceAmount =
+                      breakdown?.package_name?.toUpperCase().includes("TITANIUM") ||
+                      breakdown?.compliance_reason?.includes("Unknown") ||
+                      breakdown?.compliance_status !== "compliant"
+                        ? 0
+                        : -Math.abs(
+                            (breakdown?.base_customer_price ?? record.price) -
+                              (breakdown?.base_payroll_price ?? record.price)
+                          );
+
+                    return (
+                      <>
                   {/* Package Price */}
-                  <div className="flex items-center justify-between py-2.5">
+                  <div className={breakdownRowClass}>
                     <div>
                       <div className="flex items-center gap-1.5">
                         <span className="font-semibold text-brand-ink">
-                          Package Price
+                          Package price
                         </span>
                         {isCustomerPriceOverridden && (
                           <span className="inline-flex items-center gap-1 rounded bg-brand-orange/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-brand-orange ring-1 ring-inset ring-brand-orange/25">
@@ -878,16 +898,9 @@ export function CompleteToPayrollModal({
                           </span>
                         )}
                       </div>
-                      <p className="text-[11px] text-brand-ink-tertiary">
-                        {calculatedEnginePricing?.isUnpriced
-                          ? "OTHER package (mixes > 2:30) — Manual quote required"
-                          : "Exact base package price stored/displayed in MTD"}
-                      </p>
                     </div>
-                    <div className="relative w-[130px]">
-                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 font-semibold text-brand-ink text-[14px]">
-                        $
-                      </span>
+                    <div className={breakdownFieldWrap}>
+                      <span className={breakdownPrefixClass}>$</span>
                       <input
                         type="number"
                         step="1"
@@ -904,156 +917,197 @@ export function CompleteToPayrollModal({
                           }
                         }}
                         className={clsx(
-                          "w-full rounded-lg border py-1.5 pl-7 pr-2.5 text-right font-bold text-[14px] tabular-nums outline-none focus:ring-2",
+                          breakdownAmountInputClass,
+                          "text-brand-ink",
                           calculatedEnginePricing?.isUnpriced && (!finalCustomerPriceInput || finalCustomerPriceNum <= 0)
                             ? "border-brand-warning bg-brand-warning/10 text-brand-warning ring-2 ring-brand-warning/30"
-                            : "border-brand-line/80 bg-brand-elevated text-brand-ink focus:border-brand-signature focus:ring-brand-signature/20"
+                            : "focus:ring-brand-signature/20"
                         )}
                       />
                     </div>
                   </div>
 
                   {/* Music Compliance Adjustment */}
-                  <div className="flex items-center justify-between py-2.5">
-                    <div>
-                      <span className="font-medium text-brand-ink">
-                        Music Compliance Adjustment
-                      </span>
-                      <p className="text-[11px] text-brand-ink-tertiary">
-                        {breakdown?.package_name?.toUpperCase().includes("TITANIUM")
-                          ? "Titanium (Fully Licensed) — No adjustment"
-                          : breakdown?.compliance_status === "compliant"
-                          ? "Compliant Music Affiliate — Licensing fee removed"
-                          : breakdown?.compliance_reason?.includes("Unknown")
-                          ? "No affiliate required for this category"
-                          : "Non-Compliant Music Affiliate — No adjustment"}
-                      </p>
-                    </div>
-                    <span
-                      className={clsx(
-                        "font-semibold tabular-nums",
-                        breakdown?.compliance_status === "compliant" &&
-                          !breakdown?.package_name?.toUpperCase().includes("TITANIUM")
-                          ? "text-brand-danger font-bold"
-                          : "text-brand-ink-secondary"
-                      )}
-                    >
-                      {breakdown?.package_name?.toUpperCase().includes("TITANIUM") || breakdown?.compliance_reason?.includes("Unknown")
-                        ? "$0"
-                        : breakdown?.compliance_status === "compliant"
-                        ? `-${formatPrice(
-                            Math.abs(
-                              (breakdown?.base_customer_price ?? record.price) -
-                                (breakdown?.base_payroll_price ?? record.price)
-                            )
-                          )}`
-                        : "$0"}
+                  <div className={breakdownRowClass}>
+                    <span className="font-medium text-brand-ink">
+                      Music compliance
                     </span>
+                    <div className={breakdownFieldWrap}>
+                      <span className={breakdownPrefixClass}>$</span>
+                      <input
+                        type="text"
+                        readOnly
+                        tabIndex={-1}
+                        value={String(musicComplianceAmount)}
+                        className={clsx(
+                          breakdownAmountInputClass,
+                          "cursor-default focus:ring-0",
+                          musicComplianceAmount < 0
+                            ? "text-brand-danger"
+                            : "text-brand-ink-secondary"
+                        )}
+                      />
+                    </div>
                   </div>
 
                   {/* Add-on items */}
                   {breakdown?.addons.map((addon) => {
                     const rawAmt = addon.payroll_amount !== 0 ? addon.payroll_amount : addon.customer_amount;
                     const isDeduction = rawAmt < 0;
+                    const addonLabel = isDeduction
+                      ? `-${formatPrice(Math.abs(rawAmt))}`
+                      : `+${formatPrice(rawAmt)}`;
+                    const normalizeAddonText = (value: string) =>
+                      value
+                        .replace(/\s*[—–]\s*/g, " ")
+                        .replace(/\s+/g, " ")
+                        .trim()
+                        .toLowerCase();
+                    const showAddonNote =
+                      addon.note &&
+                      normalizeAddonText(addon.note) !== normalizeAddonText(addon.label);
+
                     return (
-                      <div key={addon.addon_id} className="flex items-center justify-between py-2.5">
+                      <div key={addon.addon_id} className={breakdownRowClass}>
                         <div>
-                          <span className="font-medium text-brand-ink">{addon.label}</span>
-                          {addon.note && (
-                            <p className="text-[11px] text-brand-ink-tertiary">{addon.note}</p>
-                          )}
+                          <span className="font-medium text-brand-ink">
+                            {addon.label.replace(/\s*[—–]\s*/g, " ")}
+                          </span>
+                          {showAddonNote && addon.note ? (
+                            <p className="text-[11px] text-brand-ink-tertiary">
+                              {addon.note.replace(/\s*[—–]\s*/g, " ")}
+                            </p>
+                          ) : null}
                         </div>
-                        <span
-                          className={clsx(
-                            "font-semibold tabular-nums",
-                            isDeduction ? "text-brand-danger font-bold" : "text-brand-success"
-                          )}
-                        >
-                          {isDeduction
-                            ? `-${formatPrice(Math.abs(rawAmt))}`
-                            : `+${formatPrice(rawAmt)}`}
-                        </span>
+                        <div className={breakdownFieldWrap}>
+                          <input
+                            type="text"
+                            readOnly
+                            tabIndex={-1}
+                            value={addonLabel}
+                            className={clsx(
+                              breakdownAmountInputClass,
+                              "cursor-default pl-2.5 focus:ring-0",
+                              isDeduction ? "text-brand-danger" : "text-brand-success"
+                            )}
+                          />
+                        </div>
                       </div>
                     );
                   })}
 
                   {/* Coupon Code Line Item */}
-                  <div className="flex items-center justify-between py-2.5">
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <Tag className="h-3.5 w-3.5 text-brand-signature" />
-                        <span className="font-medium text-brand-ink">
-                          Coupon Code
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-brand-ink-tertiary mt-0.5">
-                        {breakdown?.coupon_evaluation?.status === "valid" && breakdown.coupon_evaluation.match?.description
-                          ? breakdown.coupon_evaluation.match.description
-                          : breakdown?.coupon_evaluation?.status === "valid"
-                          ? "Valid coupon code applied to order"
-                          : breakdown?.coupon_evaluation?.status === "potential"
-                          ? "Possible match to saved coupon"
-                          : modalCouponCode
-                          ? "Coupon code unrecognized"
-                          : "Apply or edit promo code for this order"}
-                      </p>
+                  {customerCouponCode.trim() ? (
+                    <div className="py-2.5">
+                      {(() => {
+                        const customerEval = breakdown?.coupon_evaluation;
+                        const appliedEval = breakdown?.applied_coupon_evaluation;
+                        const appliedMatch =
+                          appliedEval?.status === "valid" ? appliedEval.match : null;
+                        const suggestions =
+                          customerEval?.status !== "valid"
+                            ? customerEval?.suggestions ?? []
+                            : [];
+                        const hasSuggestions = suggestions.length > 0;
+                        const isUnrecognized = customerEval?.status !== "valid";
+
+                        return (
+                          <>
+                            {isUnrecognized ? (
+                              <span className="inline-flex rounded-full bg-brand-warning/12 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-warning ring-1 ring-inset ring-brand-warning/20">
+                                Unrecognized
+                              </span>
+                            ) : null}
+
+                            <div
+                              className={clsx(
+                                "grid grid-cols-[minmax(0,1fr)_130px] items-center gap-x-4",
+                                isUnrecognized && "mt-1"
+                              )}
+                            >
+                              <div className="flex min-w-0 items-center justify-between gap-x-3">
+                                <div className="flex items-center gap-1.5">
+                                  <Tag className="h-3.5 w-3.5 shrink-0 text-brand-signature" />
+                                  <span className="font-medium text-brand-ink">Coupon</span>
+                                </div>
+                                {appliedMatch ? (
+                                  <span className="inline-flex shrink-0 rounded-full bg-brand-danger/12 px-2 py-0.5 text-[10px] font-bold uppercase text-brand-danger ring-1 ring-inset ring-brand-danger/20">
+                                    {appliedMatch.discountType === "percentage"
+                                      ? `${appliedMatch.discountValue}% off`
+                                      : `-${formatPrice(appliedMatch.discountValue)}`}
+                                  </span>
+                                ) : null}
+                              </div>
+
+                              <div className="w-full shrink-0">
+                                <div className="rounded-lg border border-brand-line/70 bg-brand-surface/50 px-2.5 py-1.5 text-right">
+                                  <p className="text-[12px] font-bold uppercase tracking-wider text-brand-ink">
+                                    {customerCouponCode}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+
+                            {hasSuggestions ? (
+                              <div className="mt-2 w-full rounded-lg border border-brand-line/60 bg-brand-surface/40 px-2.5 py-2">
+                                <p className="text-[11px] leading-snug text-brand-ink-secondary">
+                                  Apply a saved close match
+                                </p>
+                                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                                  {suggestions.map((suggestion: CouponCodeSuggestion) => {
+                                    const code = suggestion.code.code;
+                                    const selected =
+                                      resolvedCouponCode?.trim().toUpperCase() ===
+                                      code.trim().toUpperCase();
+
+                                    return (
+                                      <button
+                                        key={suggestion.code.id}
+                                        type="button"
+                                        title={couponSuggestionHint(suggestion)}
+                                        aria-pressed={selected}
+                                        onClick={() =>
+                                          setResolvedCouponCode(selected ? null : code)
+                                        }
+                                        className={clsx(
+                                          "inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide transition ring-1 ring-inset",
+                                          selected
+                                            ? "bg-brand-signature text-white ring-brand-signature/50 shadow-sm hover:bg-brand-signature-hover"
+                                            : "bg-brand-elevated text-brand-ink ring-brand-line/70 hover:bg-brand-signature/10 hover:ring-brand-signature/30"
+                                        )}
+                                      >
+                                        {code}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            ) : null}
+                          </>
+                        );
+                      })()}
                     </div>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="text"
-                        placeholder="PROMO CODE"
-                        value={modalCouponCode}
-                        onChange={(e) => {
-                          const val = e.target.value.toUpperCase();
-                          setModalCouponCode(val);
-                        }}
-                        className="w-[110px] rounded border border-brand-line bg-brand-elevated px-2 py-1 text-right text-[11px] font-bold uppercase tracking-wider text-brand-ink outline-none focus:border-brand-signature focus:ring-1 focus:ring-brand-signature/30"
-                      />
-                      {breakdown?.coupon_evaluation?.status === "valid" && breakdown.coupon_evaluation.match ? (
-                        <div className="flex flex-col items-end gap-0.5">
-                          <span className="rounded bg-brand-danger/15 px-2 py-0.5 text-[10px] font-bold uppercase text-brand-danger ring-1 ring-inset ring-brand-danger/25">
-                            {breakdown.coupon_evaluation.match.discountType === "percentage"
-                              ? `${breakdown.coupon_evaluation.match.discountValue}% OFF`
-                              : `-$${breakdown.coupon_evaluation.match.discountValue}`}
-                          </span>
-                          {(calculatedEnginePricing?.discountAmount ?? 0) > 0 && (
-                            <span className="font-semibold tabular-nums text-brand-danger text-[12.5px]">
-                              -{formatPrice(calculatedEnginePricing.discountAmount)}
-                            </span>
-                          )}
-                        </div>
-                      ) : breakdown?.coupon_evaluation?.status === "potential" ? (
-                        <span className="rounded bg-brand-info/15 px-2 py-0.5 text-[10px] font-bold uppercase text-brand-signature ring-1 ring-inset ring-brand-info/25">
-                          Suggested
-                        </span>
-                      ) : modalCouponCode ? (
-                        <span className="rounded bg-brand-warning/15 px-2 py-0.5 text-[10px] font-bold uppercase text-brand-warning ring-1 ring-inset ring-brand-warning/25">
-                          Unrecognized
-                        </span>
-                      ) : null}
-                    </div>
-                  </div>
+                  ) : null}
 
                   {/* Final Payroll Price (Editable Input) */}
-                  <div className="flex items-center justify-between py-3 bg-brand-signature/10 -mx-4 px-4 border-t border-brand-signature/20">
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-bold text-brand-signature text-[14px]">
-                          Payroll Price
+                  <div
+                    className={clsx(
+                      breakdownRowClass,
+                      "border-t border-brand-signature/20 bg-brand-signature/10 py-3 -mx-4 px-4"
+                    )}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[14px] font-bold text-brand-signature">
+                        Payroll price
+                      </span>
+                      {isPayrollPriceOverridden && (
+                        <span className="inline-flex items-center gap-1 rounded bg-brand-orange/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-brand-orange ring-1 ring-inset ring-brand-orange/25">
+                          <Edit3 className="h-2.5 w-2.5" /> edited
                         </span>
-                        {isPayrollPriceOverridden && (
-                          <span className="inline-flex items-center gap-1 rounded bg-brand-orange/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-brand-orange ring-1 ring-inset ring-brand-orange/25">
-                            <Edit3 className="h-2.5 w-2.5" /> edited
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-[11px] text-brand-ink-secondary">
-                        Amount passed to payroll engine to calculate producer payout
-                      </p>
+                      )}
                     </div>
-
-                    <div className="relative w-[130px]">
-                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 font-bold text-brand-signature text-[14px]">
+                    <div className={breakdownFieldWrap}>
+                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[14px] font-bold text-brand-signature">
                         $
                       </span>
                       <input
@@ -1067,10 +1121,16 @@ export function CompleteToPayrollModal({
                           const num = parseFloat(val) || 0;
                           setBreakdown((prev) => (prev ? { ...prev, payroll_base_price: num } : null));
                         }}
-                        className="w-full rounded-lg border border-brand-signature/40 bg-brand-elevated py-1.5 pl-7 pr-2.5 text-right font-bold text-[15px] tabular-nums text-brand-signature outline-none focus:border-brand-signature focus:ring-2 focus:ring-brand-signature/20"
+                        className={clsx(
+                          breakdownAmountInputClass,
+                          "border-brand-signature/40 text-brand-signature"
+                        )}
                       />
                     </div>
                   </div>
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
             </div>
@@ -1310,7 +1370,7 @@ export function CompleteToPayrollModal({
                     <p className="mt-1 text-[16px] font-bold tabular-nums text-brand-success">
                       {clientPayroll.producerPayout !== null
                         ? formatPrice(clientPayroll.producerPayout)
-                        : "—"}
+                        : "N/A"}
                     </p>
                   </div>
 
@@ -1319,7 +1379,7 @@ export function CompleteToPayrollModal({
                     <p className="mt-1 text-[16px] font-bold tabular-nums text-brand-ink">
                       {clientPayroll.sltPortion !== null
                         ? formatPrice(clientPayroll.sltPortion)
-                        : "—"}
+                        : "N/A"}
                     </p>
                   </div>
                 </div>
@@ -1340,7 +1400,7 @@ export function CompleteToPayrollModal({
               disabled={loading}
               className="inline-flex items-center gap-1.5 rounded-xl border border-brand-line/70 bg-brand-elevated px-4 py-2.5 text-[13px] font-semibold text-brand-ink transition hover:bg-brand-bg"
             >
-              <ArrowLeft className="h-4 w-4" /> Back to Pricing
+              <ArrowLeft className="h-4 w-4" /> Back
             </button>
           ) : (
             <button
@@ -1359,7 +1419,7 @@ export function CompleteToPayrollModal({
               disabled={loading}
               className="inline-flex items-center gap-1.5 rounded-xl bg-brand-signature px-5 py-2.5 text-[13.5px] font-semibold text-white transition hover:bg-brand-signature/90 shadow-sm disabled:opacity-50"
             >
-              {loading ? "Calculating..." : "Continue to Payroll Setup"} <ArrowRight className="h-4 w-4" />
+              {loading ? "Applying..." : "Apply pricing & set up payroll"}
             </button>
           ) : (
             <button

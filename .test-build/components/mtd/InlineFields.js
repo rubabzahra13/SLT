@@ -159,9 +159,13 @@ function InlineCheckOptionGroup({ value, options, onChange, getLabel = (option) 
                             : "border-brand-line/80 bg-brand-surface"), children: selected ? (0, jsx_runtime_1.jsx)(lucide_react_1.Check, { className: "h-2.5 w-2.5", strokeWidth: 3 }) : null }), (0, jsx_runtime_1.jsx)("span", { className: "min-w-0 whitespace-normal text-[10px] font-medium leading-snug text-brand-ink", children: getLabel(option) })] }, option));
         }) }));
 }
+const inlinePillGroupClass = "inline-flex max-w-full items-center gap-1 rounded-xl bg-brand-bg-subtle/90 p-1 ring-1 ring-inset ring-brand-line/40";
+const inlinePillBaseClass = "relative whitespace-nowrap rounded-lg px-2 py-1 text-[12px] font-medium leading-none transition-all duration-150";
+const inlinePillInactiveClass = "bg-brand-elevated/90 text-brand-ink-tertiary ring-1 ring-inset ring-brand-line/45 hover:bg-brand-elevated hover:text-brand-ink hover:ring-brand-line-strong";
+const inlinePillActiveClass = "bg-brand-success/22 text-emerald-800 ring-1 ring-inset ring-brand-success/35";
 const triStateClassName = {
-    none: "bg-brand-elevated/90 text-brand-ink-tertiary ring-1 ring-inset ring-brand-line/45 hover:bg-brand-elevated hover:text-brand-ink hover:ring-brand-line-strong",
-    have: "bg-brand-success/22 text-emerald-800 ring-1 ring-inset ring-brand-success/35",
+    none: inlinePillInactiveClass,
+    have: inlinePillActiveClass,
     need: "bg-brand-danger/18 text-red-700 ring-1 ring-inset ring-brand-danger/32",
 };
 const triStateTitle = {
@@ -171,10 +175,10 @@ const triStateTitle = {
 };
 /** Horizontal tri-state toggles: none (white) → have (green) → need (red). */
 function InlineTriStateCheckGroup({ items, onCycle, className, }) {
-    return ((0, jsx_runtime_1.jsx)("div", { "data-stop-row-nav": true, className: (0, clsx_1.default)("inline-flex max-w-full items-center gap-1 rounded-xl bg-brand-bg-subtle/90 p-1 ring-1 ring-inset ring-brand-line/40", className), onClick: (e) => e.stopPropagation(), children: items.map((item) => ((0, jsx_runtime_1.jsx)(HoverTip_1.HoverTip, { label: `${item.label} · ${triStateTitle[item.state]}`, placement: "top", children: (0, jsx_runtime_1.jsx)("button", { type: "button", "aria-label": `${item.label}: ${triStateTitle[item.state]}`, onClick: (e) => {
+    return ((0, jsx_runtime_1.jsx)("div", { "data-stop-row-nav": true, className: (0, clsx_1.default)(inlinePillGroupClass, className), onClick: (e) => e.stopPropagation(), children: items.map((item) => ((0, jsx_runtime_1.jsx)(HoverTip_1.HoverTip, { label: `${item.label} · ${triStateTitle[item.state]}`, placement: "top", children: (0, jsx_runtime_1.jsx)("button", { type: "button", "aria-label": `${item.label}: ${triStateTitle[item.state]}`, onClick: (e) => {
                     e.stopPropagation();
                     onCycle(item.id);
-                }, className: (0, clsx_1.default)("relative whitespace-nowrap rounded-lg px-2 py-1 text-[12px] font-medium leading-none transition-all duration-150", triStateClassName[item.state]), children: item.label }) }, item.id))) }));
+                }, className: (0, clsx_1.default)(inlinePillBaseClass, triStateClassName[item.state]), children: item.label }) }, item.id))) }));
 }
 /** 2-state toggle chip: No (red) <-> Yes (green). No 3rd state. */
 function InlineTwoStateToggle({ value, onToggle, className, }) {
@@ -352,43 +356,42 @@ function InlineDateInput({ value, onChange, template, min, max, className, }) {
 }
 function InlineDanceVoiceoverPills({ record, onUpdate, value, hasTraditionalVoiceover, hasThemedVoiceover, onChange, className, }) {
     const currentVal = value ?? record?.danceVoiceover ?? null;
-    const currentTrad = hasTraditionalVoiceover ?? record?.hasTraditionalVoiceover ?? false;
-    const currentThemed = hasThemedVoiceover ?? record?.hasThemedVoiceover ?? false;
-    let effectiveVal = currentVal;
-    if (effectiveVal === null) {
-        if (currentTrad && currentThemed)
-            effectiveVal = "100";
-        else if (currentThemed)
-            effectiveVal = "75";
-        else if (currentTrad)
-            effectiveVal = "25";
-    }
-    const handleSelect = (nextVal) => {
+    const currentTrad = hasTraditionalVoiceover ??
+        record?.hasTraditionalVoiceover ??
+        (currentVal === "25" || currentVal === "100");
+    const currentThemed = hasThemedVoiceover ??
+        record?.hasThemedVoiceover ??
+        (currentVal === "75" || currentVal === "100");
+    const syncDanceVoiceover = (trad, themed) => {
+        if (trad && themed)
+            return "100";
+        if (themed)
+            return "75";
+        if (trad)
+            return "25";
+        return null;
+    };
+    const handleToggle = (patch) => {
+        const nextTrad = patch.hasTraditionalVoiceover ?? currentTrad;
+        const nextThemed = patch.hasThemedVoiceover ?? currentThemed;
+        const nextVal = syncDanceVoiceover(nextTrad, nextThemed);
         if (onChange)
             onChange(nextVal);
         if (record && onUpdate) {
-            const patch = {
+            onUpdate(record.id, {
                 danceVoiceover: nextVal,
-                hasTraditionalVoiceover: nextVal === "25" || nextVal === "100",
-                hasThemedVoiceover: nextVal === "75" || nextVal === "100",
-            };
-            onUpdate(record.id, patch);
+                hasTraditionalVoiceover: nextTrad,
+                hasThemedVoiceover: nextThemed,
+            });
         }
     };
-    const options = [
-        { id: "25", label: "+$25", tooltip: "Traditional" },
-        { id: "75", label: "+$75", tooltip: "Themed" },
-        { id: "100", label: "+$100", tooltip: "Both" },
-    ];
-    return ((0, jsx_runtime_1.jsx)("div", { "data-stop-row-nav": true, className: (0, clsx_1.default)("inline-flex max-w-full items-center gap-1 rounded-xl bg-brand-bg-subtle/90 p-1 ring-1 ring-inset ring-brand-line/40", className), onClick: (e) => e.stopPropagation(), children: options.map((opt) => {
-            const isSelected = effectiveVal === opt.id;
-            return ((0, jsx_runtime_1.jsx)(HoverTip_1.HoverTip, { label: opt.tooltip, placement: "top", children: (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: (e) => {
+    return ((0, jsx_runtime_1.jsxs)("div", { "data-stop-row-nav": true, className: (0, clsx_1.default)(inlinePillGroupClass, className), onClick: (e) => e.stopPropagation(), children: [(0, jsx_runtime_1.jsx)(HoverTip_1.HoverTip, { label: "Traditional Voiceover (+$25)", placement: "top", children: (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: (e) => {
                         e.stopPropagation();
-                        handleSelect(isSelected ? null : opt.id);
-                    }, className: (0, clsx_1.default)("relative whitespace-nowrap rounded-lg px-2 py-1 text-[11px] font-semibold leading-none transition-all duration-150", isSelected
-                        ? "bg-brand-success/22 text-emerald-800 ring-1 ring-inset ring-brand-success/35 hover:bg-brand-success/30"
-                        : "bg-white text-brand-ink-tertiary ring-1 ring-inset ring-brand-line/45 hover:bg-brand-elevated hover:text-brand-ink hover:ring-brand-line-strong"), children: opt.label }) }, opt.id));
-        }) }));
+                        handleToggle({ hasTraditionalVoiceover: !currentTrad });
+                    }, className: (0, clsx_1.default)(inlinePillBaseClass, currentTrad ? inlinePillActiveClass : inlinePillInactiveClass), children: "+$25" }) }), (0, jsx_runtime_1.jsx)(HoverTip_1.HoverTip, { label: "Themed Voiceover (+$75)", placement: "top", children: (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: (e) => {
+                        e.stopPropagation();
+                        handleToggle({ hasThemedVoiceover: !currentThemed });
+                    }, className: (0, clsx_1.default)(inlinePillBaseClass, currentThemed ? inlinePillActiveClass : inlinePillInactiveClass), children: "+$75" }) })] }));
 }
 function InlineCheerVoiceoverPills({ record, onUpdate, has20, has40, onChange, className, }) {
     const current20 = has20 ?? record?.cheerVoiceover20 ?? false;
@@ -400,17 +403,13 @@ function InlineCheerVoiceoverPills({ record, onUpdate, has20, has40, onChange, c
             onUpdate(record.id, patch);
         }
     };
-    return ((0, jsx_runtime_1.jsxs)("div", { "data-stop-row-nav": true, className: (0, clsx_1.default)("inline-flex max-w-full items-center gap-1 rounded-xl bg-brand-bg-subtle/90 p-1 ring-1 ring-inset ring-brand-line/40", className), onClick: (e) => e.stopPropagation(), children: [(0, jsx_runtime_1.jsx)(HoverTip_1.HoverTip, { label: "Cheer Voiceover Option 1 (+$20)", placement: "top", children: (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: (e) => {
+    return ((0, jsx_runtime_1.jsxs)("div", { "data-stop-row-nav": true, className: (0, clsx_1.default)(inlinePillGroupClass, className), onClick: (e) => e.stopPropagation(), children: [(0, jsx_runtime_1.jsx)(HoverTip_1.HoverTip, { label: "Cheer Voiceover Option 1 (+$20)", placement: "top", children: (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: (e) => {
                         e.stopPropagation();
                         handleToggle({ cheerVoiceover20: !current20 });
-                    }, className: (0, clsx_1.default)("relative whitespace-nowrap rounded-lg px-2 py-1 text-[11px] font-semibold leading-none transition-all duration-150", current20
-                        ? "bg-brand-success/22 text-emerald-800 ring-1 ring-inset ring-brand-success/35 hover:bg-brand-success/30"
-                        : "bg-white text-brand-ink-tertiary ring-1 ring-inset ring-brand-line/45 hover:bg-brand-elevated hover:text-brand-ink hover:ring-brand-line-strong"), children: "+$20" }) }), (0, jsx_runtime_1.jsx)(HoverTip_1.HoverTip, { label: "Cheer Voiceover Option 2 (+$40)", placement: "top", children: (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: (e) => {
+                    }, className: (0, clsx_1.default)(inlinePillBaseClass, current20 ? inlinePillActiveClass : inlinePillInactiveClass), children: "+$20" }) }), (0, jsx_runtime_1.jsx)(HoverTip_1.HoverTip, { label: "Cheer Voiceover Option 2 (+$40)", placement: "top", children: (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: (e) => {
                         e.stopPropagation();
                         handleToggle({ cheerVoiceover40: !current40 });
-                    }, className: (0, clsx_1.default)("relative whitespace-nowrap rounded-lg px-2 py-1 text-[11px] font-semibold leading-none transition-all duration-150", current40
-                        ? "bg-brand-success/22 text-emerald-800 ring-1 ring-inset ring-brand-success/35 hover:bg-brand-success/30"
-                        : "bg-white text-brand-ink-tertiary ring-1 ring-inset ring-brand-line/45 hover:bg-brand-elevated hover:text-brand-ink hover:ring-brand-line-strong"), children: "+$40" }) })] }));
+                    }, className: (0, clsx_1.default)(inlinePillBaseClass, current40 ? inlinePillActiveClass : inlinePillInactiveClass), children: "+$40" }) })] }));
 }
 function InlineRushFeePills({ record, onUpdate, onUpdateOrder, value, onChange, className, }) {
     const rawVal = value ??
@@ -438,28 +437,30 @@ function InlineRushFeePills({ record, onUpdate, onUpdateOrder, value, onChange, 
             }
         }
     };
-    return ((0, jsx_runtime_1.jsxs)("div", { "data-stop-row-nav": true, className: (0, clsx_1.default)("inline-flex max-w-full items-center gap-1 rounded-xl bg-brand-bg-subtle/90 p-1 ring-1 ring-inset ring-brand-line/40", className), onClick: (e) => e.stopPropagation(), children: [(0, jsx_runtime_1.jsx)(HoverTip_1.HoverTip, { label: "Single Rush (+$150)", placement: "top", children: (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: (e) => {
+    return ((0, jsx_runtime_1.jsxs)("div", { "data-stop-row-nav": true, className: (0, clsx_1.default)(inlinePillGroupClass, className), onClick: (e) => e.stopPropagation(), children: [(0, jsx_runtime_1.jsx)(HoverTip_1.HoverTip, { label: "Single Rush (+$150)", placement: "top", children: (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: (e) => {
                         e.stopPropagation();
                         handleSelect(normVal === "single" ? "none" : "single");
-                    }, className: (0, clsx_1.default)("relative whitespace-nowrap rounded-lg px-2 py-1 text-[11px] font-semibold leading-none transition-all duration-150", normVal === "single"
-                        ? "bg-brand-success/22 text-emerald-800 ring-1 ring-inset ring-brand-success/35 hover:bg-brand-success/30"
-                        : "bg-white text-brand-ink-tertiary ring-1 ring-inset ring-brand-line/45 hover:bg-brand-elevated hover:text-brand-ink hover:ring-brand-line-strong"), children: "$150" }) }), (0, jsx_runtime_1.jsx)(HoverTip_1.HoverTip, { label: "Double Rush (+$300)", placement: "top", children: (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: (e) => {
+                    }, className: (0, clsx_1.default)(inlinePillBaseClass, normVal === "single" ? inlinePillActiveClass : inlinePillInactiveClass), children: "$150" }) }), (0, jsx_runtime_1.jsx)(HoverTip_1.HoverTip, { label: "Double Rush (+$300)", placement: "top", children: (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: (e) => {
                         e.stopPropagation();
                         handleSelect(normVal === "double" ? "none" : "double");
-                    }, className: (0, clsx_1.default)("relative whitespace-nowrap rounded-lg px-2 py-1 text-[11px] font-semibold leading-none transition-all duration-150", normVal === "double"
-                        ? "bg-brand-success/22 text-emerald-800 ring-1 ring-inset ring-brand-success/35 hover:bg-brand-success/30"
-                        : "bg-white text-brand-ink-tertiary ring-1 ring-inset ring-brand-line/45 hover:bg-brand-elevated hover:text-brand-ink hover:ring-brand-line-strong"), children: "$300" }) })] }));
+                    }, className: (0, clsx_1.default)(inlinePillBaseClass, normVal === "double" ? inlinePillActiveClass : inlinePillInactiveClass), children: "$300" }) })] }));
 }
 function InlineQuantityStepper({ quantity, value, unitCost, label, onChange, className, }) {
     const qty = Math.max(0, quantity ?? value ?? 0);
     const cost = qty * unitCost;
-    return ((0, jsx_runtime_1.jsxs)("div", { "data-stop-row-nav": true, className: (0, clsx_1.default)("inline-flex max-w-full items-center gap-1 rounded-xl bg-brand-bg-subtle/90 p-1 ring-1 ring-inset ring-brand-line/40", className), onClick: (e) => e.stopPropagation(), children: [(0, jsx_runtime_1.jsx)("button", { type: "button", disabled: qty <= 0, onClick: (e) => {
-                    e.stopPropagation();
-                    onChange(Math.max(0, qty - 1));
-                }, className: "flex h-5 w-5 items-center justify-center rounded-md bg-white text-[12px] font-bold text-brand-ink shadow-xs transition hover:bg-brand-elevated disabled:opacity-40", title: "Decrease quantity", children: "\u2212" }), (0, jsx_runtime_1.jsx)(HoverTip_1.HoverTip, { label: `${qty} ${label} = $${cost}`, placement: "top", children: (0, jsx_runtime_1.jsx)("span", { className: (0, clsx_1.default)("inline-flex items-center px-1.5 py-0.5 text-[11px] font-semibold leading-none rounded-md transition tabular-nums", qty > 0
-                        ? "bg-brand-success/22 text-emerald-800 ring-1 ring-inset ring-brand-success/35"
-                        : "text-brand-ink-tertiary"), children: qty > 0 ? `${qty} ($${cost})` : "0" }) }), (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: (e) => {
-                    e.stopPropagation();
-                    onChange(qty + 1);
-                }, className: "flex h-5 w-5 items-center justify-center rounded-md bg-white text-[12px] font-bold text-brand-ink shadow-xs transition hover:bg-brand-elevated", title: "Increase quantity", children: "+" })] }));
+    const stepperButtonClass = "flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-[12px] font-bold text-brand-ink-secondary transition hover:bg-white/90 hover:text-brand-ink disabled:cursor-not-allowed disabled:opacity-35";
+    const chipShellClass = (0, clsx_1.default)("inline-flex h-6 min-w-[4.25rem] items-center justify-center rounded-lg ring-1 ring-inset", qty > 0
+        ? "bg-brand-success/12 ring-brand-success/30"
+        : "bg-brand-elevated/90 ring-brand-line/45");
+    return ((0, jsx_runtime_1.jsxs)("div", { "data-stop-row-nav": true, className: (0, clsx_1.default)(inlinePillGroupClass, className), onClick: (e) => e.stopPropagation(), children: [(0, jsx_runtime_1.jsx)(HoverTip_1.HoverTip, { label: qty > 0
+                    ? `${qty} ${label} · $${unitCost} each`
+                    : `${label} · $${unitCost} each`, placement: "top", children: (0, jsx_runtime_1.jsxs)("div", { className: (0, clsx_1.default)(chipShellClass, "gap-0.5 px-0.5"), children: [(0, jsx_runtime_1.jsx)("button", { type: "button", disabled: qty <= 0, onClick: (e) => {
+                                e.stopPropagation();
+                                onChange(Math.max(0, qty - 1));
+                            }, className: stepperButtonClass, "aria-label": `Decrease ${label}`, children: "\u2212" }), (0, jsx_runtime_1.jsx)("span", { className: (0, clsx_1.default)("min-w-[1.25rem] px-1 text-center text-[12px] font-medium tabular-nums leading-none", qty > 0 ? "font-semibold text-emerald-900" : "text-brand-ink-tertiary"), children: qty }), (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: (e) => {
+                                e.stopPropagation();
+                                onChange(qty + 1);
+                            }, className: stepperButtonClass, "aria-label": `Increase ${label}`, children: "+" })] }) }), (0, jsx_runtime_1.jsx)(HoverTip_1.HoverTip, { label: qty > 0
+                    ? `${qty} × $${unitCost} = $${cost}`
+                    : `${label} · $${unitCost} each`, placement: "top", children: (0, jsx_runtime_1.jsx)("span", { className: (0, clsx_1.default)(chipShellClass, "px-1 text-[12px] font-medium tabular-nums leading-none", qty > 0 ? "font-semibold text-emerald-900" : "text-brand-ink-tertiary"), children: qty > 0 ? `$${cost}` : "$0" }) })] }));
 }

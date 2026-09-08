@@ -1,11 +1,14 @@
 "use client";
 
 import type { ColumnAggregate } from "@/lib/schedule-view";
+import { ScheduleLegend } from "@/components/schedule/schedule-legend";
 
 type ScheduleHeaderMetaProps = {
   columns: ColumnAggregate[];
   availableToday: number;
+  offToday: number;
   totalProducers: number;
+  isToday?: boolean;
 };
 
 function MetaStat({
@@ -30,7 +33,9 @@ function MetaStat({
 export function ScheduleHeaderMeta({
   columns,
   availableToday,
+  offToday,
   totalProducers,
+  isToday = false,
 }: ScheduleHeaderMetaProps) {
   const busiest = columns.reduce<ColumnAggregate | null>((best, col) => {
     if (!best || col.unavailableCount > best.unavailableCount) return col;
@@ -47,7 +52,19 @@ export function ScheduleHeaderMeta({
           </span>
         </MetaStat>
 
-        {busiest ? (
+        {isToday ? (
+          <>
+            <span className="hidden h-3.5 w-px shrink-0 bg-brand-line/45 sm:block" aria-hidden />
+            <MetaStat label="Off today">
+              <span className="tabular-nums text-brand-orange-deep">{offToday}</span>
+              <span className="text-[12px] font-medium text-brand-ink-tertiary">
+                / {totalProducers}
+              </span>
+            </MetaStat>
+          </>
+        ) : null}
+
+        {!isToday && busiest ? (
           <>
             <span className="hidden h-3.5 w-px shrink-0 bg-brand-line/45 sm:block" aria-hidden />
             <MetaStat label="Busiest">
@@ -62,41 +79,7 @@ export function ScheduleHeaderMeta({
         ) : null}
       </div>
 
-      <div className="inline-flex flex-wrap items-center gap-x-3 gap-y-1.5">
-        <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-brand-ink-tertiary">
-          Legend
-        </span>
-        <div className="inline-flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-brand-ink-secondary">
-          <span className="inline-flex items-center gap-1.5">
-            <span
-              className="h-2.5 w-4 shrink-0 rounded-[3px] bg-brand-signature"
-              aria-hidden
-            />
-            Booked
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <span
-              className="h-2.5 w-4 shrink-0 rounded-[3px] bg-brand-orange/80"
-              aria-hidden
-            />
-            Off
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <span
-              className="h-2.5 w-4 shrink-0 rounded-[3px] bg-cyan-400 ring-1 ring-inset ring-cyan-500/50 shadow-sm"
-              aria-hidden
-            />
-            Available
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <span
-              className="h-2.5 w-4 shrink-0 rounded-[3px] bg-amber-400/85"
-              aria-hidden
-            />
-            Capacity Reached
-          </span>
-        </div>
-      </div>
+      <ScheduleLegend />
     </div>
   );
 }

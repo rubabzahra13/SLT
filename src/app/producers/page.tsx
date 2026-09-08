@@ -9,8 +9,15 @@ import { ProducerAvailabilityModal } from "@/components/producers/ProducerAvaila
 import { ProducerFormModal } from "@/components/producers/ProducerFormModal";
 import { Avatar } from "@/components/ui/Avatar";
 import { useAppState } from "@/context/AppStateContext";
-import { formatTimeOffRange } from "@/lib/producers";
+import { formatTimeOffRange, getProducerCategories } from "@/lib/producers";
 import type { Producer, ProducerTimeOff, Weekday } from "@/types";
+
+function getProducerHeaderLabel(categories: string[]): string {
+  if (categories.length === 0) return "Producer";
+  if (categories.length === 1) return categories[0];
+  if (categories.length === 2) return `${categories[0]} · ${categories[1]}`;
+  return `${categories.length} categories`;
+}
 
 export default function ProducersPage() {
   const { producers, addProducer, updateProducer, removeProducer } =
@@ -45,6 +52,9 @@ export default function ProducersPage() {
     maxMixesPerDay: number | null;
     maxProducerCostPerDay: number | null;
     overtimeDays: string[];
+    categories: string[];
+    specialty: string;
+    ratesByCategory: Record<string, number>;
   }) {
     if (!availabilityProducer) return;
     updateProducer(availabilityProducer.id, patch);
@@ -74,26 +84,19 @@ export default function ProducersPage() {
       />
 
       <div className="grid auto-rows-fr items-stretch gap-4 px-6 pb-6 pt-5 sm:grid-cols-2 lg:grid-cols-3 lg:px-8 xl:grid-cols-4">
-        {producers.map((producer) => (
+        {producers.map((producer) => {
+          const categories = getProducerCategories(producer);
+
+          return (
           <article
             key={producer.id}
-            className="dashboard-panel relative flex h-full min-h-[300px] flex-col"
+            className="dashboard-panel relative flex w-full flex-col self-start"
           >
-            <div className="dashboard-panel-head dashboard-panel-head-accent flex shrink-0 items-start justify-between gap-2 px-4 py-3">
-              <div className="flex min-w-0 flex-1 flex-wrap gap-1">
-                {(producer.categories?.length ? producer.categories : producer.specialty ? [producer.specialty] : []).slice(0, 3).map((cat) => (
-                  <span
-                    key={cat}
-                    className="inline-block max-w-full truncate rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.05em] text-white/90"
-                  >
-                    {cat}
-                  </span>
-                ))}
-                {(producer.categories?.length ? producer.categories : []).length > 3 && (
-                  <span className="inline-block rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.05em] text-white/70">
-                    +{producer.categories.length - 3}
-                  </span>
-                )}
+            <div className="dashboard-panel-head dashboard-panel-head-accent flex shrink-0 items-center justify-between gap-2 px-4 py-3">
+              <div className="flex min-w-0 flex-1 items-center gap-2">
+                <span className="dashboard-panel-title truncate">
+                  {getProducerHeaderLabel(categories)}
+                </span>
               </div>
               <div className="flex shrink-0 items-center">
                 <button
@@ -115,7 +118,7 @@ export default function ProducersPage() {
               </div>
             </div>
 
-            <div className="dashboard-panel-body flex flex-1 flex-col p-6 pt-4">
+            <div className="dashboard-panel-body flex flex-col p-4 pt-3">
             <div className="flex flex-col items-center text-center">
               <div
                 className={clsx(
@@ -126,13 +129,13 @@ export default function ProducersPage() {
               >
                 <Avatar src={producer.avatar} alt={producer.name} size="lg" />
               </div>
-              <h3 className="text-display mt-4 text-[15px]">{producer.name}</h3>
+              <h3 className="text-display mt-3 text-[15px]">{producer.name}</h3>
               <p className="mt-0.5 text-[12px] font-medium text-brand-ink-tertiary">
                 {producer.initials}
               </p>
             </div>
 
-            <div className="mt-5 space-y-2.5 border-t border-brand-line pt-5">
+            <div className="mt-4 space-y-3 border-t border-brand-line pt-4">
               <div className="flex items-center gap-2.5 text-[12px] text-brand-ink-secondary">
                 <Mail
                   className="h-3.5 w-3.5 shrink-0 text-brand-ink-tertiary"
@@ -146,27 +149,6 @@ export default function ProducersPage() {
                   strokeWidth={1.75}
                 />
                 <span>{producer.mixesThisWeek} mixes this week</span>
-              </div>
-              <div className="rounded-xl border border-brand-line bg-brand-bg/40 px-3 py-2 text-left">
-                <p className="text-[10px] font-bold uppercase tracking-[0.06em] text-brand-ink-tertiary">
-                  Compensation Rates
-                </p>
-                <div className="mt-1.5 flex flex-wrap gap-1">
-                  {(producer.categories?.length ? producer.categories : [producer.specialty]).map((cat) => {
-                    const rawRate = producer.ratesByCategory?.[cat] ?? producer.defaultRate ?? 0.5;
-                    const pctStr = producer.compensationModel === "not_paid_for_mixing"
-                      ? "0%"
-                      : producer.compensationModel === "hourly_manual"
-                      ? "Hourly"
-                      : `${rawRate <= 1 ? Math.round(rawRate * 100) : rawRate}%`;
-                    return (
-                      <span key={cat} className="inline-flex items-center gap-1 rounded-md bg-white px-2 py-0.5 text-[11px] font-medium text-brand-ink ring-1 ring-inset ring-black/[0.08]">
-                        <span>{cat}</span>
-                        <span className="font-bold text-brand-blue">{pctStr}</span>
-                      </span>
-                    );
-                  })}
-                </div>
               </div>
 
               {producer.timeOff.length > 0 ? (
@@ -196,18 +178,19 @@ export default function ProducersPage() {
                   </ul>
                 </div>
               ) : null}
-            </div>
 
-            <button
-              type="button"
-              onClick={() => setAvailabilityProducer(producer)}
-              className="mt-5 w-full rounded-xl border border-brand-line/50 bg-white/80 py-2.5 text-[13px] font-semibold text-brand-ink-secondary transition hover:border-brand-blue/30 hover:bg-brand-blue-soft/20 hover:text-brand-ink"
-            >
-              Days & schedule
-            </button>
+              <button
+                type="button"
+                onClick={() => setAvailabilityProducer(producer)}
+                className="mt-1 w-full rounded-xl border border-brand-line/50 bg-white/80 py-2.5 text-[13px] font-semibold text-brand-ink-secondary transition hover:border-brand-blue/30 hover:bg-brand-blue-soft/20 hover:text-brand-ink"
+              >
+                Days & schedule
+              </button>
+            </div>
             </div>
           </article>
-        ))}
+          );
+        })}
 
         <button
           type="button"

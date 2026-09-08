@@ -21,6 +21,7 @@ type OrderFormFiltersProps = {
   cheerCounts: Record<CheerFormSubtypeFilter, number>;
   danceCounts: Record<DanceFormSubtypeFilter, number>;
   grouped?: boolean;
+  portalMenus?: boolean;
 };
 
 export function OrderFormFilters({
@@ -34,6 +35,7 @@ export function OrderFormFilters({
   cheerCounts,
   danceCounts,
   grouped = false,
+  portalMenus = false,
 }: OrderFormFiltersProps) {
   return (
     <>
@@ -41,6 +43,7 @@ export function OrderFormFilters({
         label="Form"
         hideLabel
         grouped={grouped}
+        portal={portalMenus}
         value={form}
         onChange={(v) => onFormChange(v as OrderFormType)}
         accent="blue"
@@ -56,6 +59,7 @@ export function OrderFormFilters({
           label="Cheer"
           hideLabel
           grouped={grouped}
+          portal={portalMenus}
           value={cheerSubtype}
           onChange={(v) => onCheerSubtypeChange(v as CheerFormSubtypeFilter)}
           accent="orange"
@@ -72,6 +76,7 @@ export function OrderFormFilters({
           label="Dance"
           hideLabel
           grouped={grouped}
+          portal={portalMenus}
           value={danceSubtype}
           onChange={(v) => onDanceSubtypeChange(v as DanceFormSubtypeFilter)}
           accent="orange"

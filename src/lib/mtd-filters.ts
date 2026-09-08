@@ -4,7 +4,9 @@ import {
   type DateFilterValue,
 } from "./date-filters";
 import { toIsoDateString } from "./dates";
-import { getRequestedEditorFromRecord } from "./editor-assignment";
+import { findLinkedOrder, getRequestedEditorFromRecord } from "./editor-assignment";
+import { titleCase } from "./data";
+import { determineComplianceStatus } from "./pricing-engine";
 import {
   inferCheerFormSubtype,
   inferDanceFormSubtype,
@@ -570,9 +572,38 @@ export function isOrderScheduledAndAssigned(rec: MTDRecord): boolean {
 export function isMTDRecord(rec: MTDRecord): boolean {
   if (rec.inMTD === false) return false;
   if (rec.inMTD === true) return true;
+  if (isOutsourcedRecord(rec)) return true;
   return isOrderScheduledAndAssigned(rec);
 }
 
 export function isPreMTDOrderRecord(rec: MTDRecord): boolean {
   return !isMTDRecord(rec);
+}
+
+export type RecordMusicAffiliateInfo = {
+  affiliate: string;
+  compliance: "compliant" | "non-compliant";
+};
+
+export function getRecordMusicAffiliateInfo(
+  rec: MTDRecord,
+  orderById: Map<string, Order>,
+  allOrders: Order[]
+): RecordMusicAffiliateInfo | null {
+  const linked = findLinkedOrder(rec, allOrders);
+  const affiliate =
+    linked?.musicAffiliate ??
+    (rec as MTDRecord & { musicAffiliate?: string }).musicAffiliate;
+  if (!affiliate?.trim()) return null;
+
+  const meta = resolveMTDFormMeta(rec, orderById);
+  const compliance = determineComplianceStatus(
+    meta.formType === "school-all-star-dance"
+      ? meta.danceFormSubtype
+      : meta.cheerFormSubtype,
+    affiliate
+  );
+  if (compliance === "unknown-no-affiliate-field") return null;
+
+  return { affiliate: titleCase(affiliate), compliance };
 }

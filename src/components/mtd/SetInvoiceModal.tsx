@@ -66,7 +66,7 @@ export function SetInvoiceModal({
               type="text"
               value={invoice}
               onChange={(e) => setInvoice(e.target.value)}
-              placeholder="e.g. INV-1042"
+              placeholder="e.g. 25044"
               className="mt-1.5 w-full rounded-lg border border-brand-line/80 bg-brand-surface px-3 py-2 text-[13px] text-brand-ink outline-none transition focus:border-brand-orange/50 focus:ring-2 focus:ring-brand-orange-muted"
               autoFocus
             />

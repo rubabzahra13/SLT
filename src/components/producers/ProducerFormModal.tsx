@@ -1,15 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { ChevronDown, Plus, Trash2, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Trash2, X } from "lucide-react";
 import clsx from "clsx";
+import { ProducerCategoryAddMenu } from "@/components/producers/ProducerCategoryAddMenu";
+import { findProducerCategoryGroup } from "@/lib/producer-category-groups";
 import { PRODUCER_AVATARS } from "@/lib/producer-avatars";
 import { initialsFromName, normalizeProducer } from "@/lib/producers";
-import {
-  DEFAULT_WORK_DAYS,
-  PRODUCER_CATEGORIES,
-  type Producer,
-} from "@/types";
+import { DEFAULT_WORK_DAYS, type Producer } from "@/types";
 
 type ProducerFormModalProps = {
   open: boolean;
@@ -74,9 +72,7 @@ export function ProducerFormModal({
   const [form, setForm] = useState<FormState>(emptyForm);
   const [initialsTouched, setInitialsTouched] = useState(false);
   const [pickingAvatar, setPickingAvatar] = useState(false);
-  const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
   const isEdit = Boolean(producer);
 
   useEffect(() => {
@@ -90,26 +86,9 @@ export function ProducerFormModal({
       setInitialsTouched(false);
     }
     setPickingAvatar(false);
-    setCategoryDropdownOpen(false);
   }, [open, producer]);
 
-  // Close category dropdown on outside click
-  useEffect(() => {
-    if (!categoryDropdownOpen) return;
-    function handleClick(e: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setCategoryDropdownOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [categoryDropdownOpen]);
-
   if (!open) return null;
-
-  const availableCategories = PRODUCER_CATEGORIES.filter(
-    (c) => !form.categories.includes(c)
-  );
 
   function addCategory(cat: string) {
     setForm((prev) => {
@@ -123,7 +102,6 @@ export function ProducerFormModal({
         },
       };
     });
-    setCategoryDropdownOpen(false);
   }
 
   function removeCategory(cat: string) {
@@ -352,112 +330,80 @@ export function ProducerFormModal({
             </ProfileRow>
           </section>
 
-          {/* Categories & Per-Category Compensation Section */}
-          <section className="border-b border-black/[0.08] px-5 py-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[13px] font-semibold text-brand-ink">
-                  Category Compensation
-                </p>
-                <p className="text-[11px] text-brand-ink-tertiary">
-                  Configure compensation percentage per category
-                </p>
+          <section className="px-5 py-4">
+            <div className="rounded-2xl bg-brand-bg px-4 py-3 ring-1 ring-inset ring-black/[0.06]">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[13px] font-semibold text-brand-ink">
+                    Category compensation
+                  </p>
+                  <p className="mt-0.5 text-[12px] text-brand-ink-tertiary">
+                    Payroll percentage by category.
+                  </p>
+                </div>
+
+                <ProducerCategoryAddMenu
+                  assignedCategories={form.categories}
+                  onAdd={addCategory}
+                />
               </div>
 
-              {availableCategories.length > 0 && (
-                <div className="relative" ref={dropdownRef}>
-                  <button
-                    type="button"
-                    onClick={() => setCategoryDropdownOpen((v) => !v)}
-                    className="inline-flex h-7 items-center gap-1 rounded-full bg-brand-bg px-2.5 text-[12px] font-semibold text-brand-blue ring-1 ring-inset ring-black/[0.06] transition hover:bg-brand-bg-subtle"
-                    aria-expanded={categoryDropdownOpen}
-                    aria-haspopup="listbox"
-                  >
-                    <Plus className="h-3 w-3" strokeWidth={2.5} />
-                    Add Category
-                  </button>
-                  {categoryDropdownOpen && (
-                    <div
-                      className="absolute right-0 top-full z-50 mt-1.5 w-56 overflow-hidden rounded-2xl bg-brand-elevated shadow-[0_8px_32px_rgba(0,0,0,0.18)] ring-1 ring-black/[0.08]"
-                      role="listbox"
-                      aria-label="Select category"
+              {form.categories.length === 0 ? (
+                <p className="mt-3 text-[12px] leading-relaxed text-brand-ink-tertiary">
+                  No categories assigned yet. Tap Add to pick a category and
+                  subcategory.
+                </p>
+              ) : (
+                <ul className="mt-3 divide-y divide-black/[0.06]">
+                  {form.categories.map((cat) => {
+                    const group = findProducerCategoryGroup(cat);
+                    return (
+                    <li
+                      key={cat}
+                      className="flex items-center gap-2 py-2.5 text-[13px] first:pt-0 last:pb-0"
                     >
-                      <div className="max-h-56 overflow-y-auto py-1.5">
-                        {availableCategories.map((cat) => (
-                          <button
-                            key={cat}
-                            type="button"
-                            role="option"
-                            aria-selected={false}
-                            onClick={() => addCategory(cat)}
-                            className="w-full px-4 py-2.5 text-left text-[13px] text-brand-ink transition hover:bg-brand-bg-subtle"
-                          >
-                            {cat}
-                          </button>
-                        ))}
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-medium text-brand-ink-secondary">
+                          {cat}
+                        </p>
+                        {group ? (
+                          <p className="truncate text-[11px] text-brand-ink-tertiary">
+                            {group.label}
+                          </p>
+                        ) : null}
                       </div>
-                    </div>
-                  )}
-                </div>
+                      <div className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-brand-elevated px-2 py-1 ring-1 ring-inset ring-black/[0.06] focus-within:ring-brand-blue/30">
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          step={1}
+                          value={form.categoryRates[cat] ?? ""}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value);
+                            updateCategoryRate(cat, isNaN(val) ? 0 : val);
+                          }}
+                          className="w-10 bg-transparent text-right text-[13px] font-semibold tabular-nums text-brand-ink outline-none"
+                          aria-label={`Compensation percentage for ${cat}`}
+                        />
+                        <span className="text-[12px] font-semibold text-brand-ink-tertiary">
+                          %
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeCategory(cat)}
+                        className="shrink-0 rounded-full p-1.5 text-brand-ink-tertiary transition hover:bg-brand-elevated hover:text-brand-danger"
+                        aria-label={`Remove ${cat}`}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" strokeWidth={1.75} />
+                      </button>
+                    </li>
+                    );
+                  })}
+                </ul>
               )}
             </div>
-
-            {form.categories.length === 0 ? (
-              <p className="mt-3 text-[12px] text-brand-ink-tertiary">
-                No categories assigned. Click "+ Add Category" to assign categories and set compensation rates.
-              </p>
-            ) : (
-              <div className="mt-3 overflow-hidden rounded-xl border border-black/[0.08] bg-brand-bg/50">
-                <table className="w-full text-left text-[13px]">
-                  <thead>
-                    <tr className="border-b border-black/[0.06] bg-brand-bg-subtle/80 text-[10px] font-bold uppercase tracking-[0.06em] text-brand-ink-tertiary">
-                      <th className="px-3.5 py-2">Category</th>
-                      <th className="px-3.5 py-2 text-right">Compensation %</th>
-                      <th className="w-12 px-3 py-2 text-center">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-black/[0.06] bg-white/70">
-                    {form.categories.map((cat) => (
-                      <tr key={cat} className="group">
-                        <td className="px-3.5 py-2.5 font-medium text-brand-ink">
-                          {cat}
-                        </td>
-                        <td className="px-3.5 py-2 text-right">
-                          <div className="inline-flex items-center justify-end gap-1 rounded-lg border border-black/[0.12] bg-white px-2 py-1 focus-within:border-brand-blue focus-within:ring-2 focus-within:ring-brand-blue/20">
-                            <input
-                              type="number"
-                              min={0}
-                              max={100}
-                              step={1}
-                              value={form.categoryRates[cat] ?? ""}
-                              onChange={(e) => {
-                                const val = parseFloat(e.target.value);
-                                updateCategoryRate(cat, isNaN(val) ? 0 : val);
-                              }}
-                              className="w-12 text-right text-[13px] font-semibold text-brand-ink outline-none"
-                            />
-                            <span className="text-[12px] font-semibold text-brand-ink-tertiary">
-                              %
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-3 py-2 text-center">
-                          <button
-                            type="button"
-                            onClick={() => removeCategory(cat)}
-                            className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-brand-ink-tertiary transition hover:bg-brand-orange-soft hover:text-brand-danger"
-                            aria-label={`Remove ${cat}`}
-                            title={`Remove ${cat}`}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
           </section>
 
           <div className="flex justify-center pb-5 pt-6 sm:hidden">

@@ -2,10 +2,11 @@
 
 import { use, useCallback, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Pencil, X } from "lucide-react";
+import { Pencil, X } from "lucide-react";
 import clsx from "clsx";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { AttentionFlag } from "@/components/ui/AttentionFlag";
+import { Avatar } from "@/components/ui/Avatar";
 import {
   DetailInput,
   DetailTextarea,
@@ -17,7 +18,7 @@ import {
   InlineRushFeePills,
   InlineQuantityStepper,
 } from "@/components/mtd/InlineFields";
-import { resolveMTDFormMeta } from "@/lib/mtd-filters";
+import { resolveMTDFormMeta, getRecordMusicAffiliateInfo } from "@/lib/mtd-filters";
 import {
   AssignEditorModal,
   type EditorAssignmentResult,
@@ -29,7 +30,7 @@ import { useAppState } from "@/context/AppStateContext";
 import { formatPrice } from "@/lib/data";
 import { orderFromMTDRecord, rawFieldValue } from "@/lib/order-detail-fields";
 import { getOrderDetailSections } from "@/lib/order-detail-sections";
-import { findLinkedOrder } from "@/lib/editor-assignment";
+import { findLinkedOrder, findProducerByAssignmentKey } from "@/lib/editor-assignment";
 import {
   cycleEightCsItem,
   cycleSongsItem,
@@ -57,6 +58,7 @@ type SpreadsheetDraft = {
   package: string;
   invoice: string;
   mixStartDate: string;
+  mixEndDate: string;
   musicTheme: string;
   eightCountSheet: string;
   haveSongs: string;
@@ -70,6 +72,7 @@ function spreadsheetDraftFromRec(rec: MTDRecord): SpreadsheetDraft {
     package: rec.package,
     invoice: rec.invoice ?? "",
     mixStartDate: rec.mixStartDate ?? "",
+    mixEndDate: rec.mixEndDate ?? "",
     musicTheme: rec.musicTheme,
     eightCountSheet: rec.eightCountSheet,
     haveSongs: rec.haveSongs,
@@ -121,6 +124,11 @@ export default function MTDDetailPage({
     () => (rec ? orderFromMTDRecord(rec, linkedOrder, orderById) : null),
     [rec, linkedOrder, orderById, allOrders]
   );
+
+  const assignedProducerObj = useMemo(() => {
+    if (!rec?.assignedProducer) return undefined;
+    return findProducerByAssignmentKey(rec.assignedProducer, producers);
+  }, [rec, producers]);
 
   const formLabel = ORDER_FORM_TABS.find((tab) => tab.id === order?.formType)?.label;
 
@@ -201,6 +209,7 @@ export default function MTDDetailPage({
       package: spreadsheetDraft.package,
       invoice: spreadsheetDraft.invoice,
       mixStartDate: spreadsheetDraft.mixStartDate,
+      mixEndDate: spreadsheetDraft.mixEndDate,
       musicTheme: spreadsheetDraft.musicTheme,
       eightCountSheet: spreadsheetDraft.eightCountSheet,
       haveSongs: spreadsheetDraft.haveSongs,
@@ -260,10 +269,10 @@ export default function MTDDetailPage({
 
   if (!rec || !order) {
     return (
-      <div className="p-8">
-        <p>Record not found.</p>
-        <Link href="/mtd" className="text-brand-info">
-          Back to MTD
+      <div className="p-8 text-center text-brand-ink-tertiary">
+        <p className="text-[15px] font-semibold">MTD record not found</p>
+        <Link href="/mtd" className="mt-3 inline-block text-[13px] text-brand-blue hover:underline">
+          ← Return to MTD
         </Link>
       </div>
     );
@@ -278,114 +287,161 @@ export default function MTDDetailPage({
   const orderForm = orderDraft ?? order;
   const meta = resolveMTDFormMeta(rec, orderById);
 
+  const handleMixStartChange = (next: string) => {
+    let nextEnd = sheet.mixEndDate || rec.mixEndDate;
+    if (next && !nextEnd) {
+      const d = new Date(next);
+      d.setDate(d.getDate() + 7);
+      nextEnd = d.toISOString().slice(0, 10);
+    }
+    if (spreadsheetEditing) {
+      updateSpreadsheetDraft({ mixStartDate: next, mixEndDate: nextEnd ?? "" });
+      return;
+    }
+    patchMTD({ mixStartDate: next, mixEndDate: nextEnd });
+  };
+
+  const handleMixEndChange = (next: string) => {
+    if (spreadsheetEditing) {
+      updateSpreadsheetDraft({ mixEndDate: next });
+      return;
+    }
+    patchMTD({ mixEndDate: next });
+  };
+
   return (
     <>
       <PageHeader
-        title="MTD Record"
-        badge={rec.invoice ? `#${rec.invoice}` : undefined}
-        subtitle={formatDetailDisplay(rec.programName) || rec.programName}
-        toolbar={
-          <div className="flex items-center justify-between gap-2">
-            <Link
-              href="/mtd"
-              className="link-premium inline-flex items-center gap-2 text-[13px] font-medium"
-            >
-              <ArrowLeft className="h-4 w-4" strokeWidth={2} /> Back to MTD
-            </Link>
-            <button
-              type="button"
-              onClick={() => setPackagePricingOpen(true)}
-              className="inline-flex h-8 shrink-0 items-center rounded-lg bg-brand-orange px-3.5 text-[12px] font-semibold text-white shadow-sm transition hover:bg-brand-orange-hover"
-            >
-              Pricing
-            </button>
-          </div>
-        }
+        title={formatDetailDisplay(rec.programName) || rec.programName}
+        subtitle={rec.contactName || "Customer"}
+        badge={rec.invoice?.trim() ? `#${rec.invoice.trim()}` : undefined}
+        secondaryAction={{
+          label: "Pricing",
+          onClick: () => setPackagePricingOpen(true),
+          showPlus: false,
+        }}
+        action={{
+          label: "← Back to MTD",
+          onClick: () => {
+            window.location.href = "/mtd";
+          },
+          showPlus: false,
+        }}
       />
-      <div className="mx-auto max-w-5xl space-y-6 px-6 py-6 lg:px-8">
-        <article className="overflow-hidden rounded-2xl border border-brand-line/50 bg-white shadow-[var(--shadow-premium-sm)] ring-1 ring-inset ring-brand-line/20">
-          <div className="border-b border-brand-line/40 bg-gradient-to-r from-brand-blue-soft/50 via-white to-brand-orange-soft/20 px-6 py-5">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div className="min-w-0">
-                <h1 className="text-[22px] font-bold tracking-[-0.03em] text-brand-ink">
-                  {formatDetailDisplay(rec.programName) || rec.programName}
-                </h1>
-                <p className="mt-1.5 text-[13px] font-medium text-brand-ink-secondary">
-                  {rec.section}
-                  {formLabel ? ` · ${formLabel}` : ""}
-                </p>
-              </div>
+      <div className="space-y-6 px-6 pb-8 pt-5 lg:px-8">
+        <section className="dashboard-panel p-5">
+          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-brand-line/40 pb-4">
+            <div>
+              <p className="text-[12px] text-brand-ink-tertiary">
+                {rec.section}
+                {formLabel ? ` · ${formLabel}` : ""}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
               {rec.needsAttention ? (
                 <AttentionFlag reason="Missing materials or order form items" />
               ) : null}
+              <DetailSectionActions
+                editing={spreadsheetEditing}
+                onEdit={startSpreadsheetEdit}
+                onCancel={cancelSpreadsheetEdit}
+                onSave={saveSpreadsheetEdit}
+                editLabel="Edit spreadsheet fields"
+              />
             </div>
           </div>
 
-          <div className="flex items-center justify-between gap-3 border-b border-brand-line/35 px-6 py-3.5">
-            <h2 className="text-[12px] font-bold uppercase tracking-[0.08em] text-brand-ink-tertiary">
-              Spreadsheet fields
-            </h2>
-            <DetailSectionActions
-              editing={spreadsheetEditing}
-              onEdit={startSpreadsheetEdit}
-              onCancel={cancelSpreadsheetEdit}
-              onSave={saveSpreadsheetEdit}
-              editLabel="Edit spreadsheet fields"
-            />
-          </div>
+          <div className="mt-3 overflow-hidden rounded-xl border border-brand-line/40 bg-brand-bg/40">
+            <div className="grid grid-cols-1 divide-y divide-brand-line/35 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+              <div className="flex min-h-[48px] items-center gap-2.5 px-3 py-2">
+                <span className="w-12 shrink-0 text-[10px] font-bold uppercase tracking-[0.07em] text-brand-ink-tertiary">
+                  Editor
+                </span>
+                <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
+                  {assignedProducerObj ? (
+                    <div
+                      className="flex min-w-0 items-center gap-1.5"
+                      title={
+                        rec.editorRequest === "FA"
+                          ? "First available request"
+                          : assignedProducerObj.name
+                      }
+                    >
+                      <Avatar
+                        src={assignedProducerObj.avatar}
+                        alt={assignedProducerObj.name}
+                        size="xs"
+                      />
+                      <p className="truncate text-[12px] font-semibold text-brand-ink">
+                        {assignedProducerObj.name}
+                      </p>
+                    </div>
+                  ) : rec.editorRequest === "NA" ? (
+                    <span className="text-[12px] font-medium text-brand-ink-tertiary">
+                      Not assigned
+                    </span>
+                  ) : (
+                    <span className="text-[12px] font-medium text-brand-ink-tertiary">
+                      Unassigned
+                    </span>
+                  )}
 
-          <div className="grid grid-cols-1 gap-3 p-6">
-            <FieldTile label="Contact">
-              {spreadsheetEditing ? (
-                <DetailInput
-                  value={sheet.contactName}
-                  onChange={(value) =>
-                    updateSpreadsheetDraft({ contactName: value })
-                  }
-                />
-              ) : (
-                <ReadOnlyValue value={rec.contactName} />
-              )}
-            </FieldTile>
-            <FieldTile label="Package">
-              {spreadsheetEditing ? (
-                <DetailInput
-                  value={sheet.package}
-                  onChange={(value) =>
-                    updateSpreadsheetDraft({ package: value })
-                  }
-                />
-              ) : (
-                <ReadOnlyValue value={rec.package} />
-              )}
-            </FieldTile>
-            <FieldTile label="Editor">
-              <div className="space-y-2">
-                {rec.assignedProducer ? (
-                  <p className="text-[13px] font-semibold text-brand-ink">
-                    {rec.assignedProducer}
-                  </p>
-                ) : rec.editorRequest === "NA" ? (
-                  <p className="text-[13px] text-brand-ink-tertiary">Not assigned</p>
-                ) : (
-                  <p className="text-[13px] text-brand-ink-tertiary">Unassigned</p>
-                )}
-                {rec.editorRequest === "FA" && rec.assignedProducer ? (
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-brand-signature">
-                    First available request
-                  </p>
-                ) : null}
-                {spreadsheetEditing ? (
+                  {(assignedProducerObj || rec.assignedProducer) && (
                   <button
                     type="button"
                     onClick={() => setAssignOpen(true)}
-                    className="rounded-lg border border-brand-orange/40 bg-brand-orange-soft/50 px-3 py-1.5 text-[12px] font-semibold text-brand-orange transition hover:bg-brand-orange-soft"
+                    className="shrink-0 rounded-md bg-brand-blue/10 px-2 py-0.5 text-[11px] font-semibold text-brand-blue transition hover:bg-brand-blue/20"
                   >
-                    {rec.assignedProducer ? "Reassign editor" : "Assign editor"}
+                    View
                   </button>
-                ) : null}
+                  )}
+                  {!assignedProducerObj && !rec.assignedProducer && rec.editorRequest !== "NA" && (
+                  <button
+                    type="button"
+                    onClick={() => setAssignOpen(true)}
+                    className="shrink-0 rounded-md bg-brand-orange px-2 py-0.5 text-[11px] font-semibold text-white transition hover:bg-brand-orange-hover"
+                  >
+                    Assign
+                  </button>
+                  )}
+                </div>
               </div>
-            </FieldTile>
+
+              <div
+                className="flex min-h-[48px] items-center gap-2 px-3 py-2"
+                title={slotLabel ? `Next available slot: ${slotLabel}` : undefined}
+              >
+                <span className="w-12 shrink-0 text-[10px] font-bold uppercase tracking-[0.07em] text-brand-ink-tertiary">
+                  Start
+                </span>
+                <div className="flex min-w-0 flex-1 items-center gap-2">
+                  <InlineDateInput
+                    value={sheet.mixStartDate}
+                    onChange={handleMixStartChange}
+                    className="min-h-[30px] min-w-0 flex-1 py-1"
+                  />
+                  {slotLabel ? (
+                    <span className="hidden max-w-[128px] truncate text-[10px] font-medium text-brand-signature xl:inline">
+                      {slotLabel}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="flex min-h-[48px] items-center gap-2 px-3 py-2">
+                <span className="w-12 shrink-0 text-[10px] font-bold uppercase tracking-[0.07em] text-brand-ink-tertiary">
+                  End
+                </span>
+                <InlineDateInput
+                  value={sheet.mixEndDate}
+                  onChange={handleMixEndChange}
+                  className="min-h-[30px] min-w-0 flex-1 py-1"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <FieldTile label="Price">
               {spreadsheetEditing ? (
                 <button
@@ -441,38 +497,6 @@ export default function MTDDetailPage({
                 />
               ) : (
                 <ReadOnlyValue value={rec.invoice} muted={!rec.invoice} />
-              )}
-            </FieldTile>
-            <FieldTile label="Mix start date">
-              {spreadsheetEditing ? (
-                <>
-                  <InlineDateInput
-                    value={sheet.mixStartDate}
-                    onChange={(value) =>
-                      updateSpreadsheetDraft({ mixStartDate: value })
-                    }
-                  />
-                  {slotLabel ? (
-                    <p className="mt-1.5 text-[11px] font-medium text-brand-signature">
-                      Next available slot: {slotLabel}
-                    </p>
-                  ) : null}
-                </>
-              ) : (
-                <ReadOnlyValue value={rec.mixStartDate} muted={!rec.mixStartDate} />
-              )}
-            </FieldTile>
-            <FieldTile label="Music / theme">
-              {spreadsheetEditing ? (
-                <DetailTextarea
-                  value={sheet.musicTheme}
-                  onChange={(value) =>
-                    updateSpreadsheetDraft({ musicTheme: value })
-                  }
-                  rows={3}
-                />
-              ) : (
-                <ReadOnlyValue value={rec.musicTheme} multiline />
               )}
             </FieldTile>
             <FieldTile label="Collections">
@@ -549,18 +573,13 @@ export default function MTDDetailPage({
               />
             </FieldTile>
           </div>
-        </article>
+        </section>
 
-        <article className="overflow-hidden rounded-2xl border border-brand-line/50 bg-white shadow-[var(--shadow-premium-sm)] ring-1 ring-inset ring-brand-line/20">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-brand-line/40 bg-gradient-to-r from-brand-bg-subtle/80 via-white to-white px-6 py-4">
-            <div>
-              <h2 className="text-[18px] font-bold tracking-[-0.02em] text-brand-ink">
-                Order form
-              </h2>
-              <p className="mt-1 text-[13px] text-brand-ink-secondary">
-                Full submission details previously shown on the Orders tab
-              </p>
-            </div>
+        <section className="dashboard-panel p-6">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-brand-line/40 pb-3">
+            <h3 className="text-[14px] font-bold uppercase tracking-[0.06em] text-brand-ink">
+              Customer Order Form Submission
+            </h3>
             <DetailSectionActions
               editing={orderFormEditing}
               onEdit={startOrderFormEdit}
@@ -569,15 +588,52 @@ export default function MTDDetailPage({
               editLabel="Edit order form fields"
             />
           </div>
-          <div className="p-6">
-            <MTDOrderDetails
-              order={orderForm}
-              discountCodes={discountCodes}
-              editable={orderFormEditing}
-              onFieldChange={handleOrderDraftChange}
-            />
+          <div className="mb-6 grid grid-cols-1 gap-3">
+            <FieldTile label="Contact">
+              {spreadsheetEditing ? (
+                <DetailInput
+                  value={sheet.contactName}
+                  onChange={(value) =>
+                    updateSpreadsheetDraft({ contactName: value })
+                  }
+                />
+              ) : (
+                <ReadOnlyValue value={rec.contactName} />
+              )}
+            </FieldTile>
+            <FieldTile label="Package">
+              {spreadsheetEditing ? (
+                <DetailInput
+                  value={sheet.package}
+                  onChange={(value) =>
+                    updateSpreadsheetDraft({ package: value })
+                  }
+                />
+              ) : (
+                <ReadOnlyValue value={rec.package} />
+              )}
+            </FieldTile>
+            <FieldTile label="Music / theme">
+              {spreadsheetEditing ? (
+                <DetailTextarea
+                  value={sheet.musicTheme}
+                  onChange={(value) =>
+                    updateSpreadsheetDraft({ musicTheme: value })
+                  }
+                  rows={3}
+                />
+              ) : (
+                <ReadOnlyValue value={rec.musicTheme} multiline />
+              )}
+            </FieldTile>
           </div>
-        </article>
+          <MTDOrderDetails
+            order={orderForm}
+            discountCodes={discountCodes}
+            editable={orderFormEditing}
+            onFieldChange={handleOrderDraftChange}
+          />
+        </section>
       </div>
 
       <AssignEditorModal
@@ -587,6 +643,7 @@ export default function MTDDetailPage({
         allOrders={allOrders}
         producers={producers}
         schedule={schedule}
+        readOnly={Boolean(rec.assignedProducer?.trim())}
         onClose={() => setAssignOpen(false)}
         onAssign={handleAssign}
       />
@@ -599,6 +656,7 @@ export default function MTDDetailPage({
             : rec
         }
         packagePrices={packagePrices}
+        musicAffiliateInfo={getRecordMusicAffiliateInfo(rec, orderById, allOrders)}
         onClose={() => setRecordPricingOpen(false)}
         onSave={handleRecordPricingSave}
       />

@@ -17,6 +17,10 @@ const copy = {
         title: "Cannot set status yet",
         description: "needs an assigned editor and mix dates before it can be marked Ongoing or Outsourced.",
     },
+    moveToMtd: {
+        title: "Cannot move to MTD yet",
+        description: "still needs a few fields before it can move to MTD.",
+    },
 };
 function CompletionBlockedModal({ open, record, reason = "completed", onClose, }) {
     const [mounted, setMounted] = (0, react_1.useState)(false);
@@ -34,9 +38,9 @@ function CompletionBlockedModal({ open, record, reason = "completed", onClose, }
     }, [open]);
     if (!mounted || !open || !record)
         return null;
-    const requirements = reason === "assignment"
-        ? (0, mtd_completion_1.canSetOngoingOrOutsourced)(record).requirements
-        : (0, mtd_completion_1.canCompleteForPayroll)(record).requirements;
+    const requirements = reason === "completed"
+        ? (0, mtd_completion_1.canCompleteForPayroll)(record).requirements
+        : (0, mtd_completion_1.canSetOngoingOrOutsourced)(record).requirements;
     const { title, description } = copy[reason];
     return (0, react_dom_1.createPortal)((0, jsx_runtime_1.jsxs)("div", { className: "fixed inset-0 z-[100] flex items-center justify-center p-4", children: [(0, jsx_runtime_1.jsx)("button", { type: "button", className: "absolute inset-0 bg-black/45 backdrop-blur-[2px]", onClick: onClose, "aria-label": "Close" }), (0, jsx_runtime_1.jsxs)("div", { role: "dialog", "aria-modal": "true", "aria-labelledby": "completion-blocked-title", className: "relative w-full max-w-[400px] overflow-hidden rounded-[22px] bg-brand-elevated shadow-[0_24px_80px_rgba(0,0,0,0.28)]", children: [(0, jsx_runtime_1.jsxs)("div", { className: "px-6 pb-5 pt-7 text-center", children: [(0, jsx_runtime_1.jsx)("div", { className: "mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-brand-warning/12 text-brand-warning ring-1 ring-inset ring-brand-warning/20", children: (0, jsx_runtime_1.jsx)(lucide_react_1.AlertCircle, { className: "h-7 w-7", strokeWidth: 1.75 }) }), (0, jsx_runtime_1.jsx)("h2", { id: "completion-blocked-title", className: "mt-4 text-[18px] font-semibold tracking-[-0.02em] text-brand-ink", children: title }), (0, jsx_runtime_1.jsxs)("p", { className: "mt-2 text-[13px] leading-relaxed text-brand-ink-secondary", children: [(0, data_1.titleCase)(record.programName), " ", description] })] }), (0, jsx_runtime_1.jsx)("ul", { className: "space-y-2 px-6 pb-6", children: requirements.map((item) => ((0, jsx_runtime_1.jsxs)("li", { className: "flex items-center justify-between rounded-xl border border-brand-line/70 bg-brand-bg/40 px-3 py-2.5", children: [(0, jsx_runtime_1.jsx)("span", { className: "text-[13px] text-brand-ink", children: item.label }), (0, jsx_runtime_1.jsx)("span", { className: item.met
                                         ? "text-[11px] font-semibold uppercase tracking-wide text-brand-success"

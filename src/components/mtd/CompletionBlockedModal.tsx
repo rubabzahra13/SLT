@@ -10,7 +10,7 @@ import {
 import { titleCase } from "@/lib/data";
 import type { MTDRecord } from "@/types";
 
-export type StatusBlockReason = "completed" | "assignment";
+export type StatusBlockReason = "completed" | "assignment" | "moveToMtd";
 
 type CompletionBlockedModalProps = {
   open: boolean;
@@ -31,6 +31,10 @@ const copy: Record<
     title: "Cannot set status yet",
     description:
       "needs an assigned editor and mix dates before it can be marked Ongoing or Outsourced.",
+  },
+  moveToMtd: {
+    title: "Cannot move to MTD yet",
+    description: "still needs a few fields before it can move to MTD.",
   },
 };
 
@@ -58,9 +62,9 @@ export function CompletionBlockedModal({
   if (!mounted || !open || !record) return null;
 
   const requirements =
-    reason === "assignment"
-      ? canSetOngoingOrOutsourced(record).requirements
-      : canCompleteForPayroll(record).requirements;
+    reason === "completed"
+      ? canCompleteForPayroll(record).requirements
+      : canSetOngoingOrOutsourced(record).requirements;
   const { title, description } = copy[reason];
 
   return createPortal(

@@ -1853,7 +1853,7 @@ exports.CHEER_DEMO_MTD_RECORDS = exports.CHEER_DEMO_ORDERS.map((order, idx) => {
         musicTheme: order.musicTheme || "",
         price: order.price,
         priceCompliance: order.priceCompliance || "compliant",
-        invoice: `INV-2026-${String(idx + 101).padStart(3, "0")}`,
+        invoice: `${String(idx + 101 + 25000)}`,
         mixStartDate: validProducer ? sched.start : "2026-09-08",
         mixEndDate: validProducer ? sched.end : "2026-09-15",
         eightCountSheet: order.sendingEightCountSheets || order.usingEightCountSheets || "Have",

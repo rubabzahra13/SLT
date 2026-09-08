@@ -149,6 +149,20 @@ const discount_codes_1 = require("../discount-codes");
         strict_1.default.equal(result.discountAmount, 350); // Capped at pre-discount price $350
         strict_1.default.equal(result.payrollBasePrice, 0); // Minimum $0 floor
     });
+    (0, node_test_1.it)("Test 9 — Near-match typo suggests saved dance promo for customer entry", () => {
+        const danceCodes = [
+            (0, discount_codes_1.normalizeDiscountCode)({
+                id: "disc-dance",
+                code: "DACNE2025",
+                description: "Dance season 2025 promo",
+                discountType: "percentage",
+                discountValue: 10,
+            }),
+        ];
+        const evalRes = (0, discount_codes_1.evaluateCouponCode)("DANCE2026", danceCodes);
+        strict_1.default.equal(evalRes.status, "potential");
+        strict_1.default.equal(evalRes.suggestions?.[0]?.code.code, "DACNE2025");
+    });
 });
 function lookupCode(code, list) {
     const res = (0, discount_codes_1.evaluateCouponCode)(code, list);

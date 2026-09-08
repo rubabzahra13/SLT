@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { PageHeader } from "@/components/layout/PageHeader";
 import {
@@ -8,6 +8,7 @@ import {
   type SchedulePresentation,
 } from "@/components/schedule/SchedulePageToolbar";
 import { TeamScheduleMatrix } from "@/components/schedule/TeamScheduleMatrix";
+import { TeamScheduleTodayView } from "@/components/schedule/TeamScheduleTodayView";
 import {
   ScheduleDayDrawer,
   TeamScheduleCalendar,
@@ -18,12 +19,30 @@ import {
   aggregateColumns,
   buildScheduleColumnAggregates,
   buildTeamSchedule,
+  filterTeamScheduleByStatus,
+  statusLabel,
   type CalendarDay,
   type ScheduleCell,
+  type ScheduleStatusFilter,
   type ScheduleViewRange,
   type TeamScheduleRow,
 } from "@/lib/schedule-view";
-import { producerSupportsCategory } from "@/lib/editor-assignment";
+import {
+  countProducersByCheerSubtype,
+  countProducersByDanceSubtype,
+  countProducersByForm,
+  producerMatchesScheduleFormFilter,
+  scheduleFormFilterLabel,
+} from "@/lib/schedule-filters";
+import { DEFAULT_CHEER_SUBTYPE, DEFAULT_DANCE_SUBTYPE } from "@/lib/mtd-filters";
+import { matchesProducerSearch } from "@/lib/producers";
+import type {
+  CheerFormSubtypeFilter,
+  DanceFormSubtypeFilter,
+  OrderFormType,
+} from "@/types";
+
+const DEFAULT_FORM: OrderFormType = "school-all-star-cheer";
 
 const ANCHOR_DATE = new Date(2026, 7, 19);
 
@@ -44,18 +63,47 @@ function SchedulePageContent() {
   }, [viewParam]);
 
   const [presentation, setPresentation] = useState<SchedulePresentation>("matrix");
-  const [specialty, setSpecialty] = useState("All");
+  const [form, setForm] = useState<OrderFormType>(DEFAULT_FORM);
+  const [cheerSubtype, setCheerSubtype] = useState<CheerFormSubtypeFilter>(
+    DEFAULT_CHEER_SUBTYPE
+  );
+  const [danceSubtype, setDanceSubtype] = useState<DanceFormSubtypeFilter>(
+    DEFAULT_DANCE_SUBTYPE
+  );
+  const [statusFilter, setStatusFilter] = useState<ScheduleStatusFilter>("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const [drawerRow, setDrawerRow] = useState<TeamScheduleRow | null>(null);
   const [focusCell, setFocusCell] = useState<ScheduleCell | null>(null);
   const [selectedDay, setSelectedDay] = useState<CalendarDay | null>(null);
 
-  const filteredProducers = useMemo(
-    () =>
-      specialty === "All"
-        ? producers
-        : producers.filter((p) => producerSupportsCategory(p, specialty)),
-    [producers, specialty]
+  const switchForm = useCallback((next: OrderFormType) => {
+    setForm(next);
+    if (next !== "school-all-star-cheer") {
+      setCheerSubtype(DEFAULT_CHEER_SUBTYPE);
+    }
+    if (next !== "school-all-star-dance") {
+      setDanceSubtype(DEFAULT_DANCE_SUBTYPE);
+    }
+  }, []);
+
+  const formCounts = useMemo(() => countProducersByForm(producers), [producers]);
+  const cheerSubtypeCounts = useMemo(
+    () => countProducersByCheerSubtype(producers),
+    [producers]
   );
+  const danceSubtypeCounts = useMemo(
+    () => countProducersByDanceSubtype(producers),
+    [producers]
+  );
+
+  const filteredProducers = useMemo(() => {
+    const byForm = producers.filter((producer) =>
+      producerMatchesScheduleFormFilter(producer, form, cheerSubtype, danceSubtype)
+    );
+    const q = searchQuery.trim();
+    if (!q) return byForm;
+    return byForm.filter((producer) => matchesProducerSearch(producer, q));
+  }, [producers, form, cheerSubtype, danceSubtype, searchQuery]);
 
   const currentDate = useMemo(() => new Date(), []);
   const anchorDate = useMemo(
@@ -65,15 +113,30 @@ function SchedulePageContent() {
 
   const teamRows = useMemo(
     () =>
-      buildTeamSchedule(
-        filteredProducers,
-        schedule,
-        view,
-        anchorDate,
-        mtdRecords
+      filterTeamScheduleByStatus(
+        buildTeamSchedule(
+          filteredProducers,
+          schedule,
+          view,
+          anchorDate,
+          mtdRecords
+        ),
+        statusFilter,
+        view
       ),
-    [filteredProducers, schedule, view, anchorDate, mtdRecords]
+    [filteredProducers, schedule, view, anchorDate, mtdRecords, statusFilter]
   );
+
+  const emptyMessage = useMemo(() => {
+    if (searchQuery.trim()) {
+      return `No producers match "${searchQuery.trim()}".`;
+    }
+    if (statusFilter !== "all") {
+      return `No producers marked ${statusLabel(statusFilter).toLowerCase()} in this view.`;
+    }
+    const label = scheduleFormFilterLabel(form, cheerSubtype, danceSubtype);
+    return `No producers specialize in ${label}.`;
+  }, [form, cheerSubtype, danceSubtype, statusFilter, searchQuery]);
 
   const columns = useMemo(
     () =>
@@ -120,10 +183,25 @@ function SchedulePageContent() {
     setFocusCell(cell ?? null);
   }
 
+  const todayColumnKey = useMemo(
+    () => columns.find((col) => col.isToday)?.key,
+    [columns]
+  );
+
   const availableToday = useMemo(() => {
     const today = columns.find((col) => col.isToday);
-    return today != null ? today.total - today.unavailableCount : teamRows.length;
+    return today != null ? today.availableCount : teamRows.length;
   }, [columns, teamRows.length]);
+
+  const offToday = useMemo(() => {
+    return teamRows.filter((row) => {
+      const cell =
+        view === "today"
+          ? row.cells[0]
+          : row.cells.find((entry) => entry.key === todayColumnKey);
+      return cell && !cell.filteredOut && cell.status === "off";
+    }).length;
+  }, [teamRows, todayColumnKey, view]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -131,17 +209,32 @@ function SchedulePageContent() {
         compact
         title="Producer Schedule"
         subtitle="Team availability, bookings, and available capacity"
+        search={{
+          value: searchQuery,
+          onChange: setSearchQuery,
+          placeholder: "Search producers…",
+        }}
         toolbar={
           <SchedulePageToolbar
-            specialty={specialty}
+            form={form}
+            cheerSubtype={cheerSubtype}
+            danceSubtype={danceSubtype}
+            formCounts={formCounts}
+            cheerCounts={cheerSubtypeCounts}
+            danceCounts={danceSubtypeCounts}
             presentation={presentation}
             view={view}
+            statusFilter={statusFilter}
             columns={columns}
             availableToday={availableToday}
+            offToday={offToday}
             totalProducers={teamRows.length}
-            onSpecialtyChange={setSpecialty}
+            onFormChange={switchForm}
+            onCheerSubtypeChange={setCheerSubtype}
+            onDanceSubtypeChange={setDanceSubtype}
             onPresentationChange={handlePresentationChange}
             onViewChange={setView}
+            onStatusFilterChange={setStatusFilter}
           />
         }
       />
@@ -149,19 +242,27 @@ function SchedulePageContent() {
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-6 pb-6 pt-5 lg:px-8">
         {presentation === "matrix" ? (
           <div className="flex min-h-0 w-full flex-1 flex-col">
-            <TeamScheduleMatrix
-              rows={teamRows}
-              columns={columns}
-              range={view}
-              activeProducerId={drawerRow?.producer.id}
-              onSelectProducer={handleSelectProducer}
-              emptyMessage={
-                specialty === "All"
-                  ? "No producers in this view."
-                  : `No producers specialize in ${specialty}.`
-              }
-              className="min-h-0 w-full flex-1"
-            />
+            {view === "today" ? (
+              <TeamScheduleTodayView
+                rows={teamRows}
+                date={anchorDate}
+                activeProducerId={drawerRow?.producer.id}
+                onSelectProducer={handleSelectProducer}
+                emptyMessage={emptyMessage}
+                className="min-h-0 w-full flex-1"
+              />
+            ) : (
+              <TeamScheduleMatrix
+                rows={teamRows}
+                columns={columns}
+                range={view}
+                statusFilter={statusFilter}
+                activeProducerId={drawerRow?.producer.id}
+                onSelectProducer={handleSelectProducer}
+                emptyMessage={emptyMessage}
+                className="min-h-0 w-full flex-1"
+              />
+            )}
           </div>
         ) : (
           <div className="min-h-0 w-full flex-1 overflow-auto">

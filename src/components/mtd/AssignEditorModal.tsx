@@ -18,12 +18,12 @@ import {
   getRequestedEditorFromRecord,
   getSuggestedEditors,
   findProducerByAssignmentKey,
+  getDisplayAssignedProducer,
   pickDefaultEditor,
   type SuggestedEditor,
 } from "@/lib/editor-assignment";
 import { normalizeProducerKey, producerKeysMatch } from "@/lib/producer-keys";
 import { formatDisplayDate, toIsoDateString } from "@/lib/dates";
-import { patchFromRecordStatus } from "@/lib/mtd-status";
 import type { MTDRecord, MTDRecordStatus, Order, Producer, ScheduleEntry } from "@/types";
 
 export type EditorAssignmentResult = {
@@ -42,6 +42,8 @@ type AssignEditorModalProps = {
   allOrders: Order[];
   producers: Producer[];
   schedule: ScheduleEntry[];
+  /** When true, show assignment details only (MTD tab after move). */
+  readOnly?: boolean;
   onClose: () => void;
   onAssign: (recordId: string, result: EditorAssignmentResult) => void;
 };
@@ -114,6 +116,7 @@ export function AssignEditorModal({
   allOrders,
   producers,
   schedule,
+  readOnly = false,
   onClose,
   onAssign,
 }: AssignEditorModalProps) {
@@ -127,21 +130,22 @@ export function AssignEditorModal({
 
   const [selectedEditor, setSelectedEditor] = useState<string>("");
 
-  const isAssignmentLocked = Boolean(record?.assignedProducer?.trim());
+  const displayAssigned = record ? getDisplayAssignedProducer(record) : null;
+  const isAssignmentLocked = Boolean(displayAssigned?.trim());
 
   const suggestions = useMemo(
     () =>
-      record
-        ? getSuggestedEditors(
+      readOnly || !record
+        ? []
+        : getSuggestedEditors(
             mtdRecords,
             producers,
             schedule,
             record.category,
             record.id,
             record
-          )
-        : [],
-    [record, mtdRecords, producers, schedule]
+          ),
+    [readOnly, record, mtdRecords, producers, schedule]
   );
 
   const suggestionsByDate = useMemo(
@@ -201,7 +205,15 @@ export function AssignEditorModal({
     return { availableEditors: available, bookedEditors: booked };
   }, [categoryEditors, availableEditorKeys]);
 
-  const currentAssignee = record?.assignedProducer ?? "";
+  const currentAssignee = displayAssigned ?? "";
+
+  const assignedProducer = useMemo(
+    () =>
+      isAssignmentLocked && displayAssigned
+        ? findProducerByAssignmentKey(displayAssigned, producers)
+        : undefined,
+    [isAssignmentLocked, displayAssigned, producers]
+  );
 
   const requestedBookedEditors = useMemo(() => {
     if (!requestedEditor) return [];
@@ -253,14 +265,6 @@ export function AssignEditorModal({
     currentAssignee,
   ]);
 
-  const assignedProducer = useMemo(
-    () =>
-      isAssignmentLocked && record?.assignedProducer
-        ? findProducerByAssignmentKey(record.assignedProducer, producers)
-        : undefined,
-    [isAssignmentLocked, record?.assignedProducer, producers]
-  );
-
   function pickEditorForOpen(active: MTDRecord): string {
     const pick = pickDefaultEditor(
       active,
@@ -291,7 +295,7 @@ export function AssignEditorModal({
   useEffect(() => {
     if (!record || !open) return;
 
-    const assignedKey = record.assignedProducer?.trim() || null;
+    const assignedKey = getDisplayAssignedProducer(record);
 
     if (assignedKey) {
       const match = categoryEditors.find((name) =>
@@ -328,17 +332,19 @@ export function AssignEditorModal({
   if (!open || !record) return null;
 
   const activeRecord = record;
-  const canSubmit = Boolean(selectedEditor) && !isAssignmentLocked;
+  const isViewOnly = readOnly;
+  const showCompactAssigned =
+    isViewOnly || (isAssignmentLocked && Boolean(displayAssigned));
+  const canSubmit =
+    Boolean(selectedEditor) && !showCompactAssigned && !isAssignmentLocked;
   const genreLabel = activeRecord.category || "this";
 
-  function handleUnassign(e: React.MouseEvent) {
-    e.preventDefault();
-    e.stopPropagation();
+  function handleUnassign() {
     onAssign(activeRecord.id, {
-      editorRequest: "NA",
+      editorRequest: "FA",
       assignedProducer: null,
-      ...patchFromRecordStatus("Waiting for Data"),
     });
+    setSelectedEditor(pickEditorForOpen({ ...activeRecord, assignedProducer: null }));
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -364,11 +370,18 @@ export function AssignEditorModal({
         onClick={onClose}
         aria-label="Close"
       />
-      <div className="surface-premium relative flex max-h-[90vh] w-full max-w-3xl flex-col rounded-2xl shadow-[var(--shadow-premium)]">
+      <div
+        className={clsx(
+          "surface-premium relative flex max-h-[90vh] w-full flex-col rounded-2xl shadow-[var(--shadow-premium)]",
+          showCompactAssigned ? "max-w-lg" : "max-w-3xl"
+        )}
+      >
         <div className="flex shrink-0 items-start justify-between gap-4 border-b border-brand-line/60 px-6 py-5">
           <div>
             <p className="text-label">Editor assignment</p>
-            <h2 className="text-display mt-1 text-[18px]">Assign producer</h2>
+            <h2 className="text-display mt-1 text-[18px]">
+              {showCompactAssigned ? "View assignment" : "Assign producer"}
+            </h2>
             <p className="mt-1 text-[13px] text-brand-ink-secondary">
               {activeRecord.programName}
               <span className="text-brand-ink-tertiary">
@@ -390,6 +403,103 @@ export function AssignEditorModal({
           onSubmit={handleSubmit}
           className="flex min-h-0 flex-1 flex-col"
         >
+          {showCompactAssigned ? (
+            <div className="flex min-h-0 flex-col px-6 py-5">
+              <div className="space-y-5">
+                <div>
+                  <p className="text-label">Editor</p>
+                  {requestedEditor ? (
+                    <p className="mt-0.5 text-[11px] text-brand-ink-tertiary">
+                      Requested:{" "}
+                      <span className="font-semibold text-brand-ink">
+                        {requestedEditor}
+                      </span>
+                    </p>
+                  ) : (
+                    <p className="mt-0.5 text-[11px] text-brand-ink-tertiary">
+                      Requested:{" "}
+                      <span className="font-semibold text-brand-ink">
+                        First available
+                      </span>
+                    </p>
+                  )}
+                  {displayAssigned ? (
+                    <div className="mt-1.5 rounded-xl border border-brand-line/70 bg-brand-bg/50 px-3 py-2.5">
+                      <div className="flex items-center gap-2.5">
+                        {assignedProducer?.avatar ? (
+                          <Avatar
+                            src={assignedProducer.avatar}
+                            alt={displayAssigned}
+                            size="sm"
+                          />
+                        ) : (
+                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-signature-soft text-[11px] font-bold text-brand-signature">
+                            {displayAssigned.slice(0, 2)}
+                          </span>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[13px] font-semibold text-brand-ink">
+                            {displayAssigned}
+                          </p>
+                          <p className="text-[11px] text-brand-ink-tertiary">
+                            {isViewOnly ? "Assigned on MTD" : "Currently assigned"}
+                          </p>
+                        </div>
+                        {isViewOnly ? (
+                          <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand-bg text-brand-ink-tertiary">
+                            <Lock className="h-3.5 w-3.5" strokeWidth={2} />
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={handleUnassign}
+                            title="Unassign editor"
+                            aria-label="Unassign editor"
+                            className="inline-flex h-7 shrink-0 items-center justify-center rounded-lg border border-brand-line/70 bg-brand-elevated px-2.5 text-[11px] font-semibold text-brand-ink-secondary transition hover:border-brand-warning/40 hover:bg-brand-warning/10 hover:text-brand-warning"
+                          >
+                            Unassign
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-1.5 rounded-xl border border-brand-line/70 bg-brand-bg/50 px-3 py-2.5">
+                      <p className="text-[13px] font-medium text-brand-ink-tertiary">
+                        No editor assigned
+                      </p>
+                      <p className="mt-1 text-[11px] text-brand-ink-tertiary">
+                        Assign an editor on the Orders tab before moving to MTD.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {showProducerBooking ? (
+                  <div className="rounded-xl border border-brand-line/70 bg-brand-bg/40 px-3 py-2.5">
+                    <p className="text-label">Producer booking</p>
+                    <p className="mt-0.5 text-[11px] leading-snug text-brand-ink-tertiary">
+                      Same as mix start &amp; end in the table. Edit those
+                      columns to change this window.
+                    </p>
+                    <dl className="mt-2.5 space-y-1.5">
+                      <div className="flex items-baseline justify-between gap-3 text-[12px]">
+                        <dt className="text-brand-ink-tertiary">From</dt>
+                        <dd className="font-medium tabular-nums text-brand-ink">
+                          {formatDisplayDate(mixStartIso)}
+                        </dd>
+                      </div>
+                      <div className="flex items-baseline justify-between gap-3 text-[12px]">
+                        <dt className="text-brand-ink-tertiary">Until</dt>
+                        <dd className="font-medium tabular-nums text-brand-ink">
+                          {formatDisplayDate(mixEndIso)}
+                        </dd>
+                      </div>
+                    </dl>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          ) : (
           <div className="grid min-h-0 flex-1 lg:grid-cols-2">
             <div className="flex min-h-0 flex-col border-b border-brand-line/60 bg-brand-bg/30 lg:border-b-0 lg:border-r">
               <div className="flex shrink-0 items-center justify-between gap-3 px-6 pb-3 pt-5">
@@ -397,9 +507,7 @@ export function AssignEditorModal({
                   <p className="text-label">Next availability</p>
                   <p className="mt-0.5 text-[12px] text-brand-ink-tertiary">
                     {genreLabel} editors ·{" "}
-                    {isAssignmentLocked
-                      ? "locked while assigned"
-                      : "tap to select"}
+                    {isAssignmentLocked ? "locked while assigned" : "tap to select"}
                   </p>
                 </div>
                 {suggestionsByDate.length > 0 ? (
@@ -429,7 +537,8 @@ export function AssignEditorModal({
                   <ol
                     className={clsx(
                       "relative isolate space-y-3 before:absolute before:bottom-3 before:left-[22px] before:top-3 before:-z-10 before:w-px before:bg-brand-line",
-                      isAssignmentLocked && "pointer-events-none opacity-45"
+                      (isAssignmentLocked) &&
+                        "pointer-events-none opacity-45"
                     )}
                   >
                     {suggestionsByDate.map((group, index) => (
@@ -533,47 +642,15 @@ export function AssignEditorModal({
                       </span>
                     </p>
                   )}
-                  {isAssignmentLocked && activeRecord.assignedProducer ? (
-                    <div className="mt-1.5 rounded-xl border border-brand-line/70 bg-brand-bg/50 px-3 py-2.5">
-                      <div className="flex items-center gap-2.5">
-                        {assignedProducer?.avatar ? (
-                          <Avatar
-                            src={assignedProducer.avatar}
-                            alt={activeRecord.assignedProducer}
-                            size="sm"
-                          />
-                        ) : (
-                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-signature-soft text-[11px] font-bold text-brand-signature">
-                            {activeRecord.assignedProducer.slice(0, 2)}
-                          </span>
-                        )}
-                        <div className="min-w-0 flex-1">
-                          <p className="text-[13px] font-semibold text-brand-ink">
-                            {activeRecord.assignedProducer}
-                          </p>
-                          <p className="text-[11px] text-brand-ink-tertiary">
-                            Currently assigned
-                          </p>
-                        </div>
-                        <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand-bg text-brand-ink-tertiary">
-                          <Lock className="h-3.5 w-3.5" strokeWidth={2} />
-                        </span>
-                      </div>
-                      <p className="mt-2 text-[11px] leading-snug text-brand-ink-tertiary">
-                        Unassign to choose a different editor.
-                      </p>
-                    </div>
-                  ) : (
-                    <EditorSelectDropdown
-                      id="editor-select"
-                      value={selectedEditor}
-                      onChange={setSelectedEditor}
-                      groups={editorSelectGroups}
-                      requestedEditor={requestedEditor}
-                      disabled={categoryEditors.length === 0}
-                      emptyLabel="No matching editors"
-                    />
-                  )}
+                  <EditorSelectDropdown
+                    id="editor-select"
+                    value={selectedEditor}
+                    onChange={setSelectedEditor}
+                    groups={editorSelectGroups}
+                    requestedEditor={requestedEditor}
+                    disabled={categoryEditors.length === 0}
+                    emptyLabel="No matching editors"
+                  />
                 </div>
 
                 {showProducerBooking ? (
@@ -601,32 +678,18 @@ export function AssignEditorModal({
                 ) : null}
               </div>
 
-              <div
-                className={clsx(
-                  "mt-auto flex flex-wrap items-center gap-2 border-t border-brand-line/60 pt-5",
-                  isAssignmentLocked ? "justify-start" : "justify-end"
-                )}
-              >
-                {isAssignmentLocked ? (
-                  <button
-                    type="button"
-                    onClick={handleUnassign}
-                    className="rounded-lg border border-brand-line px-4 py-2 text-[13px] font-semibold text-brand-danger transition hover:bg-brand-orange-soft"
-                  >
-                    Unassign editor
-                  </button>
-                ) : (
-                  <button
-                    type="submit"
-                    disabled={!canSubmit}
-                    className="rounded-lg bg-brand-cta px-4 py-2 text-[13px] font-medium text-brand-cta-text transition hover:bg-brand-cta-hover disabled:cursor-not-allowed disabled:opacity-45"
-                  >
-                    Assign
-                  </button>
-                )}
+              <div className="mt-auto flex flex-wrap items-center justify-end gap-2 border-t border-brand-line/60 pt-5">
+                <button
+                  type="submit"
+                  disabled={!canSubmit}
+                  className="rounded-lg bg-brand-cta px-4 py-2 text-[13px] font-medium text-brand-cta-text transition hover:bg-brand-cta-hover disabled:cursor-not-allowed disabled:opacity-45"
+                >
+                  Assign
+                </button>
               </div>
             </div>
           </div>
+          )}
         </form>
       </div>
     </div>

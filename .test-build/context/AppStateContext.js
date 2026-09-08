@@ -12,6 +12,7 @@ const editor_assignment_1 = require("@/lib/editor-assignment");
 const scheduling_1 = require("@/lib/scheduling");
 const producers_1 = require("@/lib/producers");
 const discount_codes_1 = require("@/lib/discount-codes");
+const mtd_completion_1 = require("@/lib/mtd-completion");
 const mtd_status_1 = require("@/lib/mtd-status");
 const dates_1 = require("@/lib/dates");
 const api_1 = require("@/lib/api");
@@ -105,11 +106,16 @@ function AppStateProvider({ children }) {
                     setPastOrders([...backendPast, ...missingSeedPast]);
                 }
                 if (mtdData) {
-                    const normalizedMtd = normalizeMTD(mtdData);
-                    const backendMtdIds = new Set(normalizedMtd.map((r) => r.id));
-                    const seedMtd = normalizeMTD(seed.mtdRecords);
-                    const missingSeedMtd = seedMtd.filter((r) => !backendMtdIds.has(r.id));
-                    setMtdRecords([...normalizedMtd, ...missingSeedMtd]);
+                    setMtdRecords((prev) => {
+                        const localById = new Map(prev.map((r) => [r.id, r]));
+                        const normalizedMtd = normalizeMTD(mtdData).map((r) => (0, mtd_completion_1.preserveLocalPayrollFields)(r, localById.get(r.id)));
+                        const backendMtdIds = new Set(normalizedMtd.map((r) => r.id));
+                        const seedMtd = normalizeMTD(seed.mtdRecords);
+                        const missingSeedMtd = seedMtd
+                            .filter((r) => !backendMtdIds.has(r.id))
+                            .map((r) => (0, mtd_completion_1.preserveLocalPayrollFields)(r, localById.get(r.id)));
+                        return [...normalizedMtd, ...missingSeedMtd];
+                    });
                 }
                 if (codesData && codesData.length > 0) {
                     const normalizedCodes = codesData.map((c) => (0, discount_codes_1.normalizeDiscountCode)(c));
@@ -220,50 +226,56 @@ function AppStateProvider({ children }) {
     }, []);
     const updateMTD = (0, react_1.useCallback)((id, patch) => {
         let payrollNotice = null;
-        setMtdRecords((prev) => prev.map((r) => {
-            if (r.id !== id)
-                return r;
-            if (patch.inPayroll === true && !r.inPayroll) {
-                const producer = r.assignedProducer?.trim();
-                payrollNotice = {
-                    type: "payroll",
-                    title: "Moved to payroll",
-                    message: producer
-                        ? `${r.programName} · ${producer}`
-                        : r.programName,
-                    href: "/payroll",
-                };
-            }
-            const updated = { ...r, ...patch };
-            if (patch.editorRequest === "NA" || patch.assignedProducer === null) {
-                updated.assignedProducer = null;
-            }
-            else if (patch.assignedProducer !== undefined) {
-                updated.assignedProducer = (0, editor_assignment_1.resolveValidProducerAssignment)(patch.assignedProducer, producers, updated.category);
-            }
-            else if (patch.editorRequest &&
-                patch.editorRequest !== "FA" &&
-                patch.editorRequest !== "NA") {
-                const resolved = (0, editor_assignment_1.resolveValidProducerAssignment)(patch.editorRequest, producers, updated.category);
-                if (resolved) {
-                    updated.assignedProducer = resolved;
+        let apiId = id;
+        setMtdRecords((prev) => {
+            const existing = prev.find((r) => r.id === id);
+            if (existing?.uuid)
+                apiId = existing.uuid;
+            return prev.map((r) => {
+                if (r.id !== id)
+                    return r;
+                if (patch.inPayroll === true && !r.inPayroll) {
+                    const producer = r.assignedProducer?.trim();
+                    payrollNotice = {
+                        type: "payroll",
+                        title: "Moved to payroll",
+                        message: producer
+                            ? `${r.programName} · ${producer}`
+                            : r.programName,
+                        href: "/payroll",
+                    };
                 }
-            }
-            if (patch.package || patch.priceCompliance || patch.musicTheme) {
-                const compliance = patch.priceCompliance ||
-                    (0, pricing_1.detectCompliance)(patch.musicTheme ?? r.musicTheme);
-                updated.priceCompliance = compliance;
-                if (patch.price === undefined) {
-                    updated.price = (0, pricing_1.getPriceForPackage)(patch.package ?? r.package, compliance, r.price, packagePrices);
+                const updated = { ...r, ...patch };
+                if (patch.editorRequest === "NA" || patch.assignedProducer === null) {
+                    updated.assignedProducer = null;
                 }
-            }
-            const needsCs = updated.eightCountSheet.toUpperCase().includes("NEED");
-            const needsSongs = updated.haveSongs.toUpperCase().includes("NEED");
-            updated.needsAttention = needsCs || needsSongs;
-            return updated;
-        }));
+                else if (patch.assignedProducer !== undefined) {
+                    updated.assignedProducer = (0, editor_assignment_1.resolveValidProducerAssignment)(patch.assignedProducer, producers, updated.category);
+                }
+                else if (patch.editorRequest &&
+                    patch.editorRequest !== "FA" &&
+                    patch.editorRequest !== "NA") {
+                    const resolved = (0, editor_assignment_1.resolveValidProducerAssignment)(patch.editorRequest, producers, updated.category);
+                    if (resolved) {
+                        updated.assignedProducer = resolved;
+                    }
+                }
+                if (patch.package || patch.priceCompliance || patch.musicTheme) {
+                    const compliance = patch.priceCompliance ||
+                        (0, pricing_1.detectCompliance)(patch.musicTheme ?? r.musicTheme);
+                    updated.priceCompliance = compliance;
+                    if (patch.price === undefined) {
+                        updated.price = (0, pricing_1.getPriceForPackage)(patch.package ?? r.package, compliance, r.price, packagePrices);
+                    }
+                }
+                const needsCs = updated.eightCountSheet.toUpperCase().includes("NEED");
+                const needsSongs = updated.haveSongs.toUpperCase().includes("NEED");
+                updated.needsAttention = needsCs || needsSongs;
+                return updated;
+            });
+        });
         // Persist MTD patch to backend API
-        (0, api_1.updateMTDRecordApi)(id, patch).catch((err) => console.error("Failed to persist MTD Record update to backend:", err));
+        (0, api_1.updateMTDRecordApi)(apiId, patch).catch((err) => console.error("Failed to persist MTD Record update to backend:", err));
         if (payrollNotice) {
             addNotification(payrollNotice);
         }

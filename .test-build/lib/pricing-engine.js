@@ -220,7 +220,7 @@ function calculateMiscellaneousPayrollAddons(item) {
     if (danceVo === "100" || (tradVo && themedVo)) {
         items.push({
             id: "dance_vo_100",
-            label: "Dance Voiceover — Both",
+            label: "Dance Voiceover (Both)",
             customerAmount: 0,
             payrollAmount: 100,
             quantity: 1,
@@ -231,7 +231,7 @@ function calculateMiscellaneousPayrollAddons(item) {
     else if (danceVo === "75" || themedVo) {
         items.push({
             id: "dance_vo_75",
-            label: "Dance Voiceover — Themed",
+            label: "Dance Voiceover (Themed)",
             customerAmount: 0,
             payrollAmount: 75,
             quantity: 1,
@@ -242,7 +242,7 @@ function calculateMiscellaneousPayrollAddons(item) {
     else if (danceVo === "25" || tradVo) {
         items.push({
             id: "dance_vo_25",
-            label: "Dance Voiceover — Traditional",
+            label: "Dance Voiceover (Traditional)",
             customerAmount: 0,
             payrollAmount: 25,
             quantity: 1,
@@ -282,7 +282,7 @@ function calculateMiscellaneousPayrollAddons(item) {
     if (isDoubleRush) {
         items.push({
             id: "rush_fee_double",
-            label: "Rush Fee — Double",
+            label: "Rush Fee (Double)",
             customerAmount: 0,
             payrollAmount: 300,
             quantity: 1,
@@ -293,7 +293,7 @@ function calculateMiscellaneousPayrollAddons(item) {
     else if (isSingleRush) {
         items.push({
             id: "rush_fee_single",
-            label: "Rush Fee — Single",
+            label: "Rush Fee (Single)",
             customerAmount: 0,
             payrollAmount: 150,
             quantity: 1,
@@ -307,7 +307,7 @@ function calculateMiscellaneousPayrollAddons(item) {
         const extraSongsCost = extraSongsQty * 15;
         items.push({
             id: "extra_songs",
-            label: `Extra Songs — ${extraSongsQty}`,
+            label: `Extra Songs (${extraSongsQty})`,
             customerAmount: 0,
             payrollAmount: extraSongsCost,
             quantity: extraSongsQty,
@@ -321,7 +321,7 @@ function calculateMiscellaneousPayrollAddons(item) {
         const extraSongTimeCost = extraSongTimeQty * 30;
         items.push({
             id: "extra_song_editing_time",
-            label: `Extra Song Editing Time — ${extraSongTimeQty}`,
+            label: `Extra Song Editing Time (${extraSongTimeQty})`,
             customerAmount: 0,
             payrollAmount: extraSongTimeCost,
             quantity: extraSongTimeQty,

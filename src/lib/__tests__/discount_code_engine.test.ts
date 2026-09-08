@@ -170,6 +170,22 @@ describe("Discount Code Engine Unit Tests (Fixed & Percentage)", () => {
     assert.equal(result.discountAmount, 350); // Capped at pre-discount price $350
     assert.equal(result.payrollBasePrice, 0); // Minimum $0 floor
   });
+
+  it("Test 9 — Near-match typo suggests saved dance promo for customer entry", () => {
+    const danceCodes: DiscountCode[] = [
+      normalizeDiscountCode({
+        id: "disc-dance",
+        code: "DACNE2025",
+        description: "Dance season 2025 promo",
+        discountType: "percentage",
+        discountValue: 10,
+      }),
+    ];
+
+    const evalRes = evaluateCouponCode("DANCE2026", danceCodes);
+    assert.equal(evalRes.status, "potential");
+    assert.equal(evalRes.suggestions?.[0]?.code.code, "DACNE2025");
+  });
 });
 
 function lookupCode(code: string, list: DiscountCode[]): DiscountCode | null {

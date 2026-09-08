@@ -40,7 +40,7 @@ function getDashboardMixStatus(rec, todayInput = new Date()) {
     if (rec.status === "completed" || rec.inPayroll) {
         return "completed";
     }
-    if (rec.status === "outsourced") {
+    if ((0, mtd_filters_1.isOutsourcedRecord)(rec)) {
         return "outsourced";
     }
     const hasProducer = Boolean(rec.assignedProducer?.trim());
@@ -102,7 +102,6 @@ function buildDashboardPulse(mtdRecords, producers, schedule = [], todayInput = 
     let toAssign = 0;
     let inQueue = 0;
     let inProduction = 0;
-    let outsourced = 0;
     let payrollCount = 0;
     const inProductionRecords = [];
     const openBoard = [];
@@ -187,7 +186,7 @@ function buildDashboardPulse(mtdRecords, producers, schedule = [], todayInput = 
         inQueue,
         todaysMixes,
         inProduction: todaysMixes,
-        outsourced,
+        outsourced: (0, mtd_filters_1.getOutsourcedRecords)((0, mtd_completion_1.getMTDBoardRecords)(mtdRecords)).length,
         payrollCount,
         payrollValue: sumPrices(payroll),
         openValue: sumPrices(openBoard),
@@ -374,7 +373,7 @@ function buildWorkflowStages(pulse) {
             label: "Unassigned",
             count: pulse.toAssign,
             color: "#f07840",
-            href: "/orders",
+            href: "/orders?assigned=Unassigned",
         },
         {
             label: "In Queue",

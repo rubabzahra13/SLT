@@ -9,6 +9,7 @@ exports.formatMaxCostCapacity = formatMaxCostCapacity;
 exports.formatWorkDays = formatWorkDays;
 exports.formatTimeOffRange = formatTimeOffRange;
 exports.initialsFromName = initialsFromName;
+exports.matchesProducerSearch = matchesProducerSearch;
 const types_1 = require("@/types");
 const producer_avatars_1 = require("@/lib/producer-avatars");
 /**
@@ -212,4 +213,17 @@ function initialsFromName(name) {
     if (parts.length === 1)
         return parts[0].slice(0, 2).toUpperCase();
     return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+function matchesProducerSearch(producer, query) {
+    const q = query.trim().toLowerCase();
+    if (!q)
+        return true;
+    const fields = [
+        producer.name,
+        producer.initials,
+        producer.email,
+        producer.specialty,
+        ...producer.categories,
+    ];
+    return fields.some((field) => field.toLowerCase().includes(q));
 }

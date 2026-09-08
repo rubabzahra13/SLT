@@ -1,5 +1,5 @@
 import { PageHeader } from "@/components/layout/PageHeader";
-import { DashboardKpiStrip } from "@/components/dashboard/DashboardKpiStrip";
+import { DashboardKpiStripLive } from "@/components/dashboard/DashboardKpiStripLive";
 import { DashboardPanel } from "@/components/dashboard/DashboardPanel";
 import { PipelineChart } from "@/components/dashboard/PipelineChart";
 import { OrdersIncomingChart } from "@/components/dashboard/OrdersIncomingChart";
@@ -40,13 +40,6 @@ export default function DashboardPage() {
   const weekCapacity = buildWeeklyCapacity(producers, schedule, mtdRecords);
   const mixOps = buildMixOpsSlices(pulse);
 
-  const kpis = [
-    { href: "/orders", label: "Unassigned", value: pulse.toAssign },
-    { href: "/mtd?schedule=scheduled", label: "In Queue", value: pulse.inQueue },
-    { href: "/schedule?view=today", label: "Today's Mixes", value: pulse.todaysMixes ?? pulse.inProduction },
-    { href: "/mtd?assigned=Outsourced", label: "Outsourced", value: pulse.outsourced },
-  ];
-
   const pipelineTotal = pipeline.reduce((sum, slice) => sum + slice.count, 0);
   const incomingTotal = incomingOrders.reduce((sum, point) => sum + point.count, 0);
   const teamTip = teamPanelInsight(pulse);
@@ -65,7 +58,7 @@ export default function DashboardPage() {
       </div>
 
       <div className="dashboard-fit px-6 pb-3 pt-2 lg:px-8">
-        <DashboardKpiStrip kpis={kpis} pulse={pulse} />
+        <DashboardKpiStripLive />
 
         <div className="dashboard-body-grid min-h-0">
           <div className="dashboard-ops-col min-h-0">

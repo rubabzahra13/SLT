@@ -1,38 +1,44 @@
 "use client";
 
 import clsx from "clsx";
+import { OrderFormFilters } from "@/components/orders/OrderFormFilters";
 import { FilterPill } from "@/components/ui/FilterPill";
 import { ScheduleHeaderMeta } from "@/components/schedule/ScheduleHeaderMeta";
-import type { ColumnAggregate, ScheduleViewRange } from "@/lib/schedule-view";
-
-const categoryFilters = [
-  "All",
-  "All-Star Cheer",
-  "School Cheer",
-  "Youth Rec Cheer",
-  "Pom",
-  "Hip Hop",
-  "Team Performance / Variety",
-  "Gameday",
-  "Jazz / Kick",
-  "Marching Band",
-  "Sports Entertainment",
-  "School Anthem",
-] as const;
+import { ScheduleStatusFilterPanel } from "@/components/schedule/ScheduleStatusFilterPanel";
+import {
+  type ColumnAggregate,
+  type ScheduleStatusFilter,
+  type ScheduleViewRange,
+} from "@/lib/schedule-view";
+import type {
+  CheerFormSubtypeFilter,
+  DanceFormSubtypeFilter,
+  OrderFormType,
+} from "@/types";
 
 const presentationFilters = ["Matrix", "Calendar"] as const;
 export type SchedulePresentation = "matrix" | "calendar";
 
 type SchedulePageToolbarProps = {
-  specialty: string;
+  form: OrderFormType;
+  cheerSubtype: CheerFormSubtypeFilter;
+  danceSubtype: DanceFormSubtypeFilter;
+  formCounts: Record<OrderFormType, number>;
+  cheerCounts: Record<CheerFormSubtypeFilter, number>;
+  danceCounts: Record<DanceFormSubtypeFilter, number>;
   presentation: SchedulePresentation;
   view: ScheduleViewRange;
+  statusFilter: ScheduleStatusFilter;
   columns: ColumnAggregate[];
   availableToday: number;
+  offToday: number;
   totalProducers: number;
-  onSpecialtyChange: (value: string) => void;
+  onFormChange: (form: OrderFormType) => void;
+  onCheerSubtypeChange: (subtype: CheerFormSubtypeFilter) => void;
+  onDanceSubtypeChange: (subtype: DanceFormSubtypeFilter) => void;
   onPresentationChange: (value: SchedulePresentation) => void;
   onViewChange: (value: ScheduleViewRange) => void;
+  onStatusFilterChange: (value: ScheduleStatusFilter) => void;
 };
 
 function FilterGroup({
@@ -61,38 +67,59 @@ function FilterGroup({
 }
 
 export function SchedulePageToolbar({
-  specialty,
+  form,
+  cheerSubtype,
+  danceSubtype,
+  formCounts,
+  cheerCounts,
+  danceCounts,
   presentation,
   view,
+  statusFilter,
   columns,
   availableToday,
+  offToday,
   totalProducers,
-  onSpecialtyChange,
+  onFormChange,
+  onCheerSubtypeChange,
+  onDanceSubtypeChange,
   onPresentationChange,
   onViewChange,
+  onStatusFilterChange,
 }: SchedulePageToolbarProps) {
   return (
     <div className="flex flex-col gap-3.5">
       <div
-        className="flex flex-col gap-3.5 lg:flex-row lg:items-end lg:justify-between"
+        className="flex flex-col gap-3.5 lg:flex-row lg:items-center lg:justify-between"
         role="toolbar"
         aria-label="Schedule filters"
       >
-        <FilterGroup label="Category" className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-0.5">
-            {categoryFilters.map((filter) => (
-              <FilterPill
-                key={filter}
-                label={filter}
-                active={specialty === filter}
-                variant="grouped"
-                onClick={() => onSpecialtyChange(filter)}
-              />
-            ))}
-          </div>
-        </FilterGroup>
+        <div className="relative z-40 inline-flex flex-wrap items-center gap-0.5 rounded-xl bg-brand-elevated/80 p-0.5 ring-1 ring-inset ring-brand-line/40">
+          <OrderFormFilters
+            grouped
+            portalMenus
+            form={form}
+            cheerSubtype={cheerSubtype}
+            danceSubtype={danceSubtype}
+            onFormChange={onFormChange}
+            onCheerSubtypeChange={onCheerSubtypeChange}
+            onDanceSubtypeChange={onDanceSubtypeChange}
+            formCounts={formCounts}
+            cheerCounts={cheerCounts}
+            danceCounts={danceCounts}
+          />
+          <span
+            className="mx-0.5 hidden h-5 w-px shrink-0 bg-brand-line/45 sm:block"
+            aria-hidden
+          />
+          <ScheduleStatusFilterPanel
+            grouped
+            value={statusFilter}
+            onChange={onStatusFilterChange}
+          />
+        </div>
 
-        <div className="flex shrink-0 flex-wrap items-center gap-3">
+        <div className="flex shrink-0 flex-wrap items-center gap-2.5">
           <FilterGroup label="View">
             {presentationFilters.map((label) => {
               const next = label.toLowerCase() as SchedulePresentation;
@@ -152,7 +179,9 @@ export function SchedulePageToolbar({
         <ScheduleHeaderMeta
           columns={columns}
           availableToday={availableToday}
+          offToday={offToday}
           totalProducers={totalProducers}
+          isToday={view === "today"}
         />
       </div>
     </div>

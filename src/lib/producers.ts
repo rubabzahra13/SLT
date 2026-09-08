@@ -224,9 +224,42 @@ export function formatTimeOffRange(entry: ProducerTimeOff): string {
   return `${entry.startDate} → ${entry.endDate}`;
 }
 
+export function getProducerCategories(producer: Producer): string[] {
+  if (producer.categories?.length) return producer.categories;
+  if (producer.specialty) return [producer.specialty];
+  return [];
+}
+
+export function formatCategoryCompensationRate(
+  producer: Producer,
+  category: string
+): string {
+  if (producer.compensationModel === "not_paid_for_mixing") return "0%";
+  if (producer.compensationModel === "hourly_manual") return "Hourly";
+
+  const rawRate =
+    producer.ratesByCategory?.[category] ?? producer.defaultRate ?? 0.5;
+  return `${rawRate <= 1 ? Math.round(rawRate * 100) : rawRate}%`;
+}
+
 export function initialsFromName(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return "";
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+export function matchesProducerSearch(producer: Producer, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+
+  const fields = [
+    producer.name,
+    producer.initials,
+    producer.email,
+    producer.specialty,
+    ...producer.categories,
+  ];
+
+  return fields.some((field) => field.toLowerCase().includes(q));
 }

@@ -41,14 +41,12 @@ import { MTDPageToolbar } from "@/components/mtd/MTDPageToolbar";
 import { useAppState } from "@/context/AppStateContext";
 import { formatPrice, titleCase } from "@/lib/data";
 import { parsePackage } from "@/lib/package";
-import { complianceLabel } from "@/lib/pricing";
 import {
   calculateCheerOrderPricing,
   calculateDanceOrderPricing,
   calculateMarchingBandOrderPricing,
   calculateSportsEntertainmentOrderPricing,
   calculateSchoolAnthemOrderPricing,
-  determineComplianceStatus,
 } from "@/lib/pricing-engine";
 import { formatSlotForDisplay } from "@/lib/scheduling";
 import { inferMTDRecordStatus, patchFromRecordStatus } from "@/lib/mtd-status";
@@ -60,9 +58,10 @@ import {
 } from "@/lib/mtd-completion";
 import { formatDisplayDate, isIsoDateBefore, toIsoDateString } from "@/lib/dates";
 import {
-  formatRequestedEditorLabel,
   findLinkedOrder,
   findProducerByAssignmentKey,
+  formatRequestedEditorLabel,
+  getDisplayAssignedProducer,
   getEditorBookedUntilIso,
   getRequestedEditorFromRecord,
   isRequestedEditorUnavailableForMixWindow,
@@ -73,8 +72,11 @@ import {
   countMTDByDanceSubtype,
   countMTDByForm,
   filterMTDRecords,
+  getRecordMusicAffiliateInfo,
   hasMixStartDate,
   isMTDRecord,
+  matchesAssignedProducerFilter,
+  matchesFormFilter,
   matchesMTDSearch,
   resolveMTDFormMeta,
 } from "@/lib/mtd-filters";
@@ -240,6 +242,7 @@ function MTDPageContent() {
       setTableFilters((prev) => ({ ...prev, scheduleFilter: scheduleParam as any }));
     }
   }, [assignedParam, scheduleParam]);
+
   const [searchQuery, setSearchQuery] = useState("");
   const [assignRecordId, setAssignRecordId] = useState<string | null>(null);
   const assignRecord = useMemo(
@@ -282,6 +285,37 @@ function MTDPageContent() {
       setDanceSubtype(DEFAULT_DANCE_SUBTYPE);
     }
   }, [setForm, setCheerSubtype, setDanceSubtype]);
+
+  useEffect(() => {
+    if (!assignedParam || assignedParam === "All") return;
+
+    const matchingBoard = mtdBoardRecords.filter((rec) =>
+      matchesAssignedProducerFilter(rec, assignedParam)
+    );
+    if (matchingBoard.length === 0) return;
+
+    const hasVisibleForForm = matchingBoard.some((rec) =>
+      matchesFormFilter(rec, orderById, form, cheerSubtype, danceSubtype)
+    );
+    if (hasVisibleForForm) return;
+
+    const meta = resolveMTDFormMeta(matchingBoard[0], orderById);
+    switchForm(meta.formType);
+    if (meta.formType === "school-all-star-cheer" && meta.cheerFormSubtype) {
+      setCheerSubtype(meta.cheerFormSubtype as CheerFormSubtypeFilter);
+    }
+    if (meta.formType === "school-all-star-dance" && meta.danceFormSubtype) {
+      setDanceSubtype(meta.danceFormSubtype as DanceFormSubtypeFilter);
+    }
+  }, [
+    assignedParam,
+    mtdBoardRecords,
+    orderById,
+    form,
+    cheerSubtype,
+    danceSubtype,
+    switchForm,
+  ]);
 
   const handleAssign = useCallback(
     (recordId: string, result: EditorAssignmentResult) => {
@@ -589,7 +623,6 @@ function MTDPageContent() {
               cellClassName: clsx(compactCellClass, "max-w-[120px]"),
               headerClassName: compactHeaderClass,
               render: (rec: MTDRecord) => {
-                const meta = resolveMTDFormMeta(rec, orderById);
                 const linked = rec.orderId ? orderById.get(rec.orderId) : undefined;
                 const affiliate = linked?.musicAffiliate ?? (rec as any).musicAffiliate;
                 if (!affiliate) {
@@ -600,33 +633,12 @@ function MTDPageContent() {
                   );
                 }
 
-                const compliance = determineComplianceStatus(
-                  meta.formType === "school-all-star-dance"
-                    ? meta.danceFormSubtype
-                    : meta.cheerFormSubtype,
-                  affiliate
-                );
-
                 return (
-                  <div className="mx-auto flex w-full min-w-0 flex-col items-center gap-0.5">
-                    <TruncatedText
-                      text={titleCase(affiliate)}
-                      className={clsx("mx-auto w-full min-w-0 text-center font-medium", compactTextClass)}
-                      style={{ maxWidth: "100%" }}
-                    />
-                    {compliance !== "unknown-no-affiliate-field" && (
-                      <span
-                        className={clsx(
-                          "text-[10px] font-semibold tracking-tight",
-                          compliance === "compliant"
-                            ? "text-brand-signature"
-                            : "text-brand-orange"
-                        )}
-                      >
-                        {complianceLabel(compliance)}
-                      </span>
-                    )}
-                  </div>
+                  <TruncatedText
+                    text={titleCase(affiliate)}
+                    className={clsx("mx-auto w-full min-w-0 text-center font-medium", compactTextClass)}
+                    style={{ maxWidth: "100%" }}
+                  />
                 );
               },
             },
@@ -1033,7 +1045,7 @@ function MTDPageContent() {
       baseCols.push({
         key: "voiceoverCol",
         header: "Voice Over",
-        width: "165px",
+        width: "135px",
         align: "center",
         nowrap: false,
         cellClassName: "!px-2 !py-2",
@@ -1114,7 +1126,7 @@ function MTDPageContent() {
     baseCols.push({
       key: "extraSongsCol",
       header: "Extra Songs",
-      width: "140px",
+      width: "132px",
       align: "center",
       nowrap: false,
       cellClassName: "!px-2 !py-2",
@@ -1134,7 +1146,7 @@ function MTDPageContent() {
     baseCols.push({
       key: "extraSongTimeCol",
       header: "Extra Song Time",
-      width: "140px",
+      width: "132px",
       align: "center",
       nowrap: false,
       cellClassName: "!px-2 !py-2",
@@ -1163,7 +1175,7 @@ function MTDPageContent() {
         cellClassName: clsx(compactCellClass, "max-w-[100px]"),
         headerClassName: compactHeaderClass,
         render: (rec) => {
-          const assigned = rec.assignedProducer;
+          const assigned = getDisplayAssignedProducer(rec);
           const producer = assigned
             ? findProducerByAssignmentKey(assigned, producers)
             : undefined;
@@ -1178,8 +1190,8 @@ function MTDPageContent() {
                   type="button"
                   onMouseDown={(e) => e.stopPropagation()}
                   onClick={(e) => openAssignModal(rec, e)}
-                  title="Edit assignment"
-                  aria-label={`Edit assignment for ${assigned}`}
+                  title="View assignment"
+                  aria-label={`View assignment for ${assigned}`}
                   className={clsx(
                     clickableChipClass,
                     "inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full py-0.5 pl-0.5 pr-2.5"
@@ -1205,6 +1217,7 @@ function MTDPageContent() {
                   <button
                     type="button"
                     onMouseDown={(e) => e.stopPropagation()}
+                    onClick={(e) => openAssignModal(rec, e)}
                     className={actionButtonClass(false)}
                   >
                     Assign
@@ -1394,6 +1407,7 @@ function MTDPageContent() {
         allOrders={allOrders}
         producers={producers}
         schedule={schedule}
+        readOnly={Boolean(getDisplayAssignedProducer(assignRecord))}
         onClose={() => setAssignRecordId(null)}
         onAssign={handleAssign}
       />
@@ -1409,6 +1423,11 @@ function MTDPageContent() {
         open={Boolean(pricingRecord)}
         record={pricingRecord}
         packagePrices={packagePrices}
+        musicAffiliateInfo={
+          pricingRecord
+            ? getRecordMusicAffiliateInfo(pricingRecord, orderById, allOrders)
+            : null
+        }
         onClose={() => setPricingRecord(null)}
         onSave={handleRecordPricingSave}
       />

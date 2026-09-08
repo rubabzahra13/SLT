@@ -29,11 +29,13 @@ import {
   editorRequestForAssignment,
   getSuggestedEditors,
   pickDefaultEditor,
+  resolveAssignedProducerForPatch,
   resolveValidProducerAssignment,
 } from "@/lib/editor-assignment";
 import { suggestMixEndDate } from "@/lib/scheduling";
 import { normalizeProducer } from "@/lib/producers";
 import { normalizeDiscountCode } from "@/lib/discount-codes";
+import { mergeLocalMtdRecordFields } from "@/lib/mtd-completion";
 import { inferMTDRecordStatus } from "@/lib/mtd-status";
 import { toIsoDateString } from "@/lib/dates";
 import {
@@ -207,12 +209,19 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         }
 
         if (mtdData) {
-          const normalizedMtd = normalizeMTD(mtdData);
-          const backendMtdIds = new Set(normalizedMtd.map((r) => r.id));
-          const seedMtd = normalizeMTD(seed.mtdRecords);
-          const missingSeedMtd = seedMtd.filter((r) => !backendMtdIds.has(r.id));
+          setMtdRecords((prev) => {
+            const localById = new Map(prev.map((r) => [r.id, r]));
+            const normalizedMtd = normalizeMTD(mtdData).map((r) =>
+              mergeLocalMtdRecordFields(r, localById.get(r.id))
+            );
+            const backendMtdIds = new Set(normalizedMtd.map((r) => r.id));
+            const seedMtd = normalizeMTD(seed.mtdRecords);
+            const missingSeedMtd = seedMtd
+              .filter((r) => !backendMtdIds.has(r.id))
+              .map((r) => mergeLocalMtdRecordFields(r, localById.get(r.id)));
 
-          setMtdRecords([...normalizedMtd, ...missingSeedMtd]);
+            return [...normalizedMtd, ...missingSeedMtd];
+          });
         }
 
         if (codesData && codesData.length > 0) {
@@ -397,9 +406,14 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const updateMTD = useCallback((id: string, patch: Partial<MTDRecord>) => {
     let payrollNotice: Omit<AppNotification, "id" | "read" | "createdAt"> | null =
       null;
+    let apiId = id;
+    let apiPatch = patch;
 
-    setMtdRecords((prev) =>
-      prev.map((r) => {
+    setMtdRecords((prev) => {
+      const existing = prev.find((r) => r.id === id);
+      if (existing?.uuid) apiId = existing.uuid;
+
+      return prev.map((r) => {
         if (r.id !== id) return r;
 
         if (patch.inPayroll === true && !r.inPayroll) {
@@ -418,24 +432,28 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
         if (patch.editorRequest === "NA" || patch.assignedProducer === null) {
           updated.assignedProducer = null;
+          apiPatch = { ...apiPatch, assignedProducer: null };
         } else if (patch.assignedProducer !== undefined) {
-          updated.assignedProducer = resolveValidProducerAssignment(
+          const resolved = resolveAssignedProducerForPatch(
             patch.assignedProducer,
             producers,
             updated.category
           );
+          updated.assignedProducer = resolved;
+          apiPatch = { ...apiPatch, assignedProducer: resolved };
         } else if (
           patch.editorRequest &&
           patch.editorRequest !== "FA" &&
           patch.editorRequest !== "NA"
         ) {
-          const resolved = resolveValidProducerAssignment(
+          const resolved = resolveAssignedProducerForPatch(
             patch.editorRequest,
             producers,
             updated.category
           );
           if (resolved) {
             updated.assignedProducer = resolved;
+            apiPatch = { ...apiPatch, assignedProducer: resolved };
           }
         }
 
@@ -459,18 +477,18 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         updated.needsAttention = needsCs || needsSongs;
 
         return updated;
-      })
-    );
+      });
+    });
 
     // Persist MTD patch to backend API
-    updateMTDRecordApi(id, patch).catch((err) =>
+    updateMTDRecordApi(apiId, apiPatch).catch((err) =>
       console.error("Failed to persist MTD Record update to backend:", err)
     );
 
     if (payrollNotice) {
       addNotification(payrollNotice);
     }
-  }, [addNotification, packagePrices]);
+  }, [addNotification, packagePrices, producers]);
 
   const updateOrder = useCallback(
     (id: string, patch: Partial<Order>, seed?: Order) => {

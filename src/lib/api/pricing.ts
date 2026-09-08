@@ -28,6 +28,8 @@ export interface PricingBreakdown {
   summary_line: string;
   coupon_code?: string | null;
   coupon_evaluation?: any;
+  applied_coupon_code?: string | null;
+  applied_coupon_evaluation?: any;
 }
 
 export interface CompensationResult {

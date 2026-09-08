@@ -113,3 +113,56 @@ export function getPayrollRecords(records: MTDRecord[]): MTDRecord[] {
 export function getMTDBoardRecords(records: MTDRecord[]): MTDRecord[] {
   return records.filter((rec) => !rec.inPayroll);
 }
+
+/** Keep local MTD edits when backend reload races or has not persisted yet. */
+export function mergeLocalMtdRecordFields(
+  backendRecord: MTDRecord,
+  localRecord: MTDRecord | undefined
+): MTDRecord {
+  let merged = backendRecord;
+
+  if (localRecord?.inPayroll && !backendRecord.inPayroll) {
+    merged = {
+      ...merged,
+      inPayroll: true,
+      recordStatus: localRecord.recordStatus ?? merged.recordStatus,
+      status: localRecord.status ?? merged.status,
+      completedAt: localRecord.completedAt ?? merged.completedAt,
+      payrollFinalized:
+        localRecord.payrollFinalized ?? merged.payrollFinalized,
+      producerPayout: localRecord.producerPayout ?? merged.producerPayout,
+      sltPortion: localRecord.sltPortion ?? merged.sltPortion,
+      rateUsed: localRecord.rateUsed ?? merged.rateUsed,
+      rateSource: localRecord.rateSource ?? merged.rateSource,
+      finalCustomerPrice:
+        localRecord.finalCustomerPrice ?? merged.finalCustomerPrice,
+      systemCalculatedCustomerPrice:
+        localRecord.systemCalculatedCustomerPrice ??
+        merged.systemCalculatedCustomerPrice,
+      finalCustomerPriceOverridden:
+        localRecord.finalCustomerPriceOverridden ??
+        merged.finalCustomerPriceOverridden,
+      price: localRecord.price ?? merged.price,
+      payrollBreakdown:
+        localRecord.payrollBreakdown ?? merged.payrollBreakdown,
+    };
+  }
+
+  if (localRecord?.assignedProducer?.trim() && !merged.assignedProducer?.trim()) {
+    merged = {
+      ...merged,
+      assignedProducer: localRecord.assignedProducer,
+      editorRequest: localRecord.editorRequest ?? merged.editorRequest,
+    };
+  }
+
+  return merged;
+}
+
+/** @deprecated Use mergeLocalMtdRecordFields */
+export function preserveLocalPayrollFields(
+  backendRecord: MTDRecord,
+  localRecord: MTDRecord | undefined
+): MTDRecord {
+  return mergeLocalMtdRecordFields(backendRecord, localRecord);
+}

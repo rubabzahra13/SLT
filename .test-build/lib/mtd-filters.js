@@ -35,9 +35,12 @@ exports.matchesMTDSearch = matchesMTDSearch;
 exports.isOrderScheduledAndAssigned = isOrderScheduledAndAssigned;
 exports.isMTDRecord = isMTDRecord;
 exports.isPreMTDOrderRecord = isPreMTDOrderRecord;
+exports.getRecordMusicAffiliateInfo = getRecordMusicAffiliateInfo;
 const date_filters_1 = require("./date-filters");
 const dates_1 = require("./dates");
 const editor_assignment_1 = require("./editor-assignment");
+const data_1 = require("./data");
+const pricing_engine_1 = require("./pricing-engine");
 const order_form_1 = require("./order-form");
 const package_1 = require("./package");
 const types_1 = require("../types");
@@ -443,8 +446,24 @@ function isMTDRecord(rec) {
         return false;
     if (rec.inMTD === true)
         return true;
+    if (isOutsourcedRecord(rec))
+        return true;
     return isOrderScheduledAndAssigned(rec);
 }
 function isPreMTDOrderRecord(rec) {
     return !isMTDRecord(rec);
+}
+function getRecordMusicAffiliateInfo(rec, orderById, allOrders) {
+    const linked = (0, editor_assignment_1.findLinkedOrder)(rec, allOrders);
+    const affiliate = linked?.musicAffiliate ??
+        rec.musicAffiliate;
+    if (!affiliate?.trim())
+        return null;
+    const meta = resolveMTDFormMeta(rec, orderById);
+    const compliance = (0, pricing_engine_1.determineComplianceStatus)(meta.formType === "school-all-star-dance"
+        ? meta.danceFormSubtype
+        : meta.cheerFormSubtype, affiliate);
+    if (compliance === "unknown-no-affiliate-field")
+        return null;
+    return { affiliate: (0, data_1.titleCase)(affiliate), compliance };
 }

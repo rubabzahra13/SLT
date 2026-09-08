@@ -1,5 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.SCHEDULE_STATUS_FILTERS = void 0;
 exports.producerScheduleId = producerScheduleId;
 exports.getScheduleCells = getScheduleCells;
 exports.groupCellsByWeek = groupCellsByWeek;
@@ -13,6 +14,7 @@ exports.groupCalendarDaysByWeek = groupCalendarDaysByWeek;
 exports.buildMonthGrid = buildMonthGrid;
 exports.cellSizeForRange = cellSizeForRange;
 exports.statusLabel = statusLabel;
+exports.filterTeamScheduleByStatus = filterTeamScheduleByStatus;
 exports.formatMatrixDateCell = formatMatrixDateCell;
 exports.buildMatrixMonthGroups = buildMatrixMonthGroups;
 const dates_1 = require("@/lib/dates");
@@ -92,8 +94,8 @@ function producerAssignments(producer, mtdRecords) {
         producerMatchesAssignment(producer, rec.assignedProducer) &&
         rec.status === "active");
 }
-function resolveBookings(producer, date, status, assignments) {
-    const covering = assignments.filter((rec) => {
+function coveringAssignments(date, assignments) {
+    return assignments.filter((rec) => {
         const start = (0, dates_1.parseFlexibleDate)(rec.mixStartDate);
         const end = (0, dates_1.parseFlexibleDate)(rec.mixEndDate);
         if (!start)
@@ -111,18 +113,21 @@ function resolveBookings(producer, date, status, assignments) {
         }
         return day.getTime() - startDay.getTime() <= 7 * 86400000;
     });
-    if (covering.length > 0) {
-        return covering.map((pick) => {
-            const untilDate = (0, dates_1.parseFlexibleDate)(pick.mixEndDate) ??
-                addDays((0, dates_1.parseFlexibleDate)(pick.mixStartDate) ?? date, 3);
-            return {
-                work: pick.programName,
-                until: formatDisplayDate(untilDate),
-                mixId: pick.id,
-                status: pick.status,
-            };
-        });
-    }
+}
+function bookingsFromAssignments(date, records) {
+    return records.map((pick) => {
+        const untilDate = (0, dates_1.parseFlexibleDate)(pick.mixEndDate) ??
+            addDays((0, dates_1.parseFlexibleDate)(pick.mixStartDate) ?? date, 3);
+        return {
+            work: pick.programName,
+            until: formatDisplayDate(untilDate),
+            mixId: pick.id,
+            status: pick.status,
+        };
+    });
+}
+function resolveBookings(producer, date, status, assignments) {
+    const covering = coveringAssignments(date, assignments);
     if (status === "available")
         return [];
     if (status === "off") {
@@ -135,6 +140,9 @@ function resolveBookings(producer, date, status, assignments) {
                 until: formatDisplayDate(until),
             },
         ];
+    }
+    if (covering.length > 0) {
+        return bookingsFromAssignments(date, covering);
     }
     const seed = hashSeed(`${producer.id}-${toLocalIsoDate(date)}`);
     const pick = assignments.length > 0 ? assignments[seed % assignments.length] : null;
@@ -200,15 +208,21 @@ function getScheduleCells(producer, schedule, range, anchorDate = new Date(2026,
     const assignments = producerAssignments(producer, mtdRecords);
     return buildDateRange(range, anchorDate).map((date) => {
         let status = inferStatus(producer, date, scheduleByDay);
-        const bookings = resolveBookings(producer, date, status, assignments);
-        if (bookings.length > 0 && status === "available") {
-            status = "mix";
+        const coveringBookings = bookingsFromAssignments(date, coveringAssignments(date, assignments));
+        if (coveringBookings.length > 0 && status === "available") {
+            status = (0, producer_availability_1.isProducerAtDailyCapacity)(producer, date, mtdRecords)
+                ? "capacity"
+                : "mix";
         }
-        // If the producer is scheduled (not off, not on a booking-forced "mix")
-        // but has reached their daily capacity, mark as capacity.
-        if (status === "available" && (0, producer_availability_1.isProducerAtDailyCapacity)(producer, date, mtdRecords)) {
+        else if (status === "available" &&
+            (0, producer_availability_1.isProducerAtDailyCapacity)(producer, date, mtdRecords)) {
             status = "capacity";
         }
+        const bookings = status === "mix" || status === "capacity"
+            ? coveringBookings.length > 0
+                ? coveringBookings
+                : resolveBookings(producer, date, status, assignments)
+            : resolveBookings(producer, date, status, assignments);
         const unavailable = status === "off" || status === "mix" || status === "capacity" || bookings.length > 0;
         return {
             key: toLocalIsoDate(date),
@@ -293,13 +307,14 @@ function aggregateColumns(rows, anchorDate = new Date(2026, 7, 19)) {
         return [];
     const todayKey = toLocalIsoDate(anchorDate);
     return rows[0].cells.map((cell, index) => {
-        const unavailableCount = rows.filter((row) => row.cells[index]?.unavailable).length;
-        const availableCount = rows.length - unavailableCount;
+        const visibleRows = rows.filter((row) => !row.cells[index]?.filteredOut);
+        const unavailableCount = visibleRows.filter((row) => row.cells[index]?.unavailable).length;
+        const availableCount = visibleRows.length - unavailableCount;
         return {
             key: cell.key,
             availableCount,
             unavailableCount,
-            total: rows.length,
+            total: visibleRows.length,
             label: cell.dateLabel,
             dayLabel: cell.dayLabel,
             isToday: cell.key === todayKey,
@@ -339,7 +354,9 @@ function buildCalendarDays(rows, range, anchorDate = new Date(2026, 7, 19)) {
         const unavailableProducers = rows
             .map((row) => {
             const cell = row.cells.find((entry) => entry.key === key);
-            return cell?.unavailable ? { producer: row.producer, cell } : null;
+            return cell?.unavailable && !cell.filteredOut
+                ? { producer: row.producer, cell }
+                : null;
         })
             .filter((entry) => Boolean(entry));
         return {
@@ -412,13 +429,54 @@ function statusLabel(status) {
         return "Capacity Reached";
     return "Available";
 }
+exports.SCHEDULE_STATUS_FILTERS = [
+    { value: "all", label: "All" },
+    { value: "mix", label: "Booked" },
+    { value: "capacity", label: "Capacity Reached" },
+    { value: "off", label: "Off" },
+    { value: "available", label: "Available" },
+];
+function maskCellForStatusFilter(cell) {
+    return {
+        ...cell,
+        status: "available",
+        unavailable: false,
+        booking: null,
+        bookings: [],
+        filteredOut: true,
+    };
+}
+function filterTeamScheduleByStatus(rows, filter, range) {
+    if (filter === "all")
+        return rows;
+    if (range === "today") {
+        return rows.filter((row) => row.cells[0]?.status === filter);
+    }
+    const matchingRows = rows.filter((row) => row.cells.some((cell) => cell.status === filter));
+    if (matchingRows.length === 0)
+        return [];
+    const columnCount = matchingRows[0].cells.length;
+    const visibleColumnIndices = [];
+    for (let index = 0; index < columnCount; index += 1) {
+        const columnHasMatch = matchingRows.some((row) => row.cells[index]?.status === filter);
+        if (columnHasMatch)
+            visibleColumnIndices.push(index);
+    }
+    return matchingRows.map((row) => ({
+        ...row,
+        cells: visibleColumnIndices.map((index) => {
+            const cell = row.cells[index];
+            return cell.status === filter ? cell : maskCellForStatusFilter(cell);
+        }),
+    }));
+}
 function formatMatrixDateCell(column, _range, _previousKey) {
     const title = `${column.dayLabel}, ${column.label}`;
     const dayStr = column.key.split("-")[2];
     const day = String(Number(dayStr));
     const weekday = column.dayLabel.slice(0, 3).toUpperCase();
     if (column.isToday) {
-        return { top: "Today", day, title, emphasizeTop: true };
+        return { top: "Today", day: column.label, title, emphasizeTop: true };
     }
     return { top: weekday, day, title };
 }
