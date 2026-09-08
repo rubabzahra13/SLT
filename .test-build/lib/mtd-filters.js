@@ -32,6 +32,9 @@ exports.matchesInfoFilter = matchesInfoFilter;
 exports.buildInfoOptions = buildInfoOptions;
 exports.filterMTDRecords = filterMTDRecords;
 exports.matchesMTDSearch = matchesMTDSearch;
+exports.isOrderScheduledAndAssigned = isOrderScheduledAndAssigned;
+exports.isMTDRecord = isMTDRecord;
+exports.isPreMTDOrderRecord = isPreMTDOrderRecord;
 const date_filters_1 = require("./date-filters");
 const dates_1 = require("./dates");
 const editor_assignment_1 = require("./editor-assignment");
@@ -426,5 +429,22 @@ function matchesMTDSearch(rec, query) {
         return true;
     const contact = (rec.contactName || rec.editorInitials || "").toLowerCase();
     const invoice = (rec.invoice || "").toLowerCase();
-    return contact.includes(q) || invoice.includes(q);
+    const program = (rec.programName || "").toLowerCase();
+    const id = (rec.id || "").toLowerCase();
+    return contact.includes(q) || invoice.includes(q) || program.includes(q) || id.includes(q);
+}
+function isOrderScheduledAndAssigned(rec) {
+    return Boolean(rec.assignedProducer &&
+        (0, dates_1.toIsoDateString)(rec.mixStartDate) &&
+        (0, dates_1.toIsoDateString)(rec.mixEndDate));
+}
+function isMTDRecord(rec) {
+    if (rec.inMTD === false)
+        return false;
+    if (rec.inMTD === true)
+        return true;
+    return isOrderScheduledAndAssigned(rec);
+}
+function isPreMTDOrderRecord(rec) {
+    return !isMTDRecord(rec);
 }

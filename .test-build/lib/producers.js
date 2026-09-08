@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.CANONICAL_PRODUCER_NAMES = exports.CANONICAL_PRODUCER_CATEGORIES = void 0;
+exports.SEED_PRODUCER_CATEGORY_RATES = exports.CANONICAL_PRODUCER_NAMES = exports.CANONICAL_PRODUCER_CATEGORIES = void 0;
 exports.getCanonicalCategories = getCanonicalCategories;
 exports.normalizeProducer = normalizeProducer;
 exports.primaryCategory = primaryCategory;
@@ -73,6 +73,27 @@ function getCanonicalCategories(raw) {
     }
     return undefined;
 }
+exports.SEED_PRODUCER_CATEGORY_RATES = {
+    CM: { "Pom": 0.70, "School Cheer": 0.70, "All-Star Cheer": 0.70, "Youth Rec Cheer": 0.70 },
+    MS: { "School Cheer": 0.60, "All-Star Cheer": 0.60, "Youth Rec Cheer": 0.60 },
+    NC: { "School Cheer": 0.60, "Youth Rec Cheer": 0.60 },
+    MM: { "Jazz / Kick": 0.72, "Pom": 0.72, "Team Performance / Variety": 0.72, "School Cheer": 0.60, "All-Star Cheer": 0.60, "Youth Rec Cheer": 0.60 },
+    BV: { "Marching Band": 0.50 },
+    SS: { "Pom": 0, "Team Performance / Variety": 0, "Jazz / Kick": 0, "Gameday": 0, "Sports Entertainment": 0, "Youth Rec Cheer": 0 },
+    AJ: { "Pom": 0.72, "Jazz / Kick": 0.72, "Team Performance / Variety": 0.72, "Gameday": 0.72 },
+    LV: { "Pom": 0.72, "Jazz / Kick": 0.72, "Team Performance / Variety": 0.72, "Gameday": 0.72 },
+    RF: { "Pom": 0.72, "Jazz / Kick": 0.72, "Team Performance / Variety": 0.72, "Gameday": 0.72, "Hip Hop": 0.72 },
+    JM: {},
+    JOP: { "Pom": 0.50, "Gameday": 0.50, "School Cheer": 0.50, "Youth Rec Cheer": 0.50 },
+    GP: {},
+    G: { "Pom": 0.50, "Gameday": 0.50 },
+    JD: { "Pom": 0.50, "Gameday": 0.50, "School Cheer": 0.50, "Youth Rec Cheer": 0.50 },
+    JP: { "Pom": 0.72, "Gameday": 0.72, "Jazz / Kick": 0.72, "Team Performance / Variety": 0.72 },
+    MT: { "Hip Hop": 0.72, "Gameday": 0.72, "Sports Entertainment": 0.72 },
+    CC: { "Hip Hop": 0.72, "Gameday": 0.72, "Sports Entertainment": 0.72 },
+    JB: {},
+    R: { "School Cheer": 0.60, "All-Star Cheer": 0.60, "Youth Rec Cheer": 0.60 },
+};
 function normalizeProducer(raw) {
     const rawAny = raw;
     const initials = (raw.initials || "XX").toUpperCase().slice(0, 4);
@@ -96,6 +117,21 @@ function normalizeProducer(raw) {
         }
     }
     const specialty = categories[0] ?? raw.specialty ?? "";
+    // Resolve ratesByCategory map per producer categories
+    let ratesByCategory = raw.ratesByCategory && Object.keys(raw.ratesByCategory).length > 0
+        ? { ...raw.ratesByCategory }
+        : null;
+    if (!ratesByCategory && exports.SEED_PRODUCER_CATEGORY_RATES[initials]) {
+        ratesByCategory = { ...exports.SEED_PRODUCER_CATEGORY_RATES[initials] };
+    }
+    else if (!ratesByCategory && categories.length > 0) {
+        const fallbackRate = raw.defaultRate ?? 0.50;
+        const rates = {};
+        for (const cat of categories) {
+            rates[cat] = fallbackRate;
+        }
+        ratesByCategory = rates;
+    }
     return {
         id: raw.id,
         name: raw.name || "Producer",
@@ -122,7 +158,7 @@ function normalizeProducer(raw) {
             : [],
         compensationModel: raw.compensationModel ?? null,
         defaultRate: raw.defaultRate ?? null,
-        ratesByCategory: raw.ratesByCategory ?? null,
+        ratesByCategory,
         rateOverrides: raw.rateOverrides ?? null,
         manualInputFields: raw.manualInputFields ?? null,
         notes: raw.notes ?? null,

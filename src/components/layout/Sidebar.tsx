@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   Music2,
   Settings,
+  ShoppingBag,
   Users,
   Wallet,
   PanelLeftClose,
@@ -16,7 +17,7 @@ import {
 import clsx from "clsx";
 import { useSidebar } from "@/context/SidebarContext";
 import { useAppState } from "@/context/AppStateContext";
-import { getInProgressCount } from "@/lib/mtd-filters";
+import { getInProgressCount, isMTDRecord, isPreMTDOrderRecord } from "@/lib/mtd-filters";
 import { getPayrollRecords } from "@/lib/mtd-completion";
 import { BrandMonogram } from "@/components/layout/BrandMonogram";
 import { HoverTip } from "@/components/ui/HoverTip";
@@ -33,6 +34,7 @@ type NavItem = {
 
 const baseNavItems: NavItem[] = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/orders", label: "Orders", icon: ShoppingBag },
   { href: "/mtd", label: "MTD", icon: Music2 },
   { href: "/payroll", label: "Payroll", icon: Wallet },
   { href: "/schedule", label: "Schedule", icon: Calendar },
@@ -46,9 +48,19 @@ export function Sidebar() {
   const { expanded, toggleExpanded, setExpanded, mobileOpen, setMobileOpen } =
     useSidebar();
 
-  const inProgressCount = useMemo(
-    () => getInProgressCount(mtdRecords),
+  const ordersCount = useMemo(
+    () => mtdRecords.filter(isPreMTDOrderRecord).length,
     [mtdRecords]
+  );
+
+  const mtdTabRecords = useMemo(
+    () => mtdRecords.filter(isMTDRecord),
+    [mtdRecords]
+  );
+
+  const inProgressCount = useMemo(
+    () => getInProgressCount(mtdTabRecords),
+    [mtdTabRecords]
   );
 
   const payrollCount = useMemo(
@@ -59,6 +71,12 @@ export function Sidebar() {
   const navItems = useMemo(
     () =>
       baseNavItems.map((item) => {
+        if (item.href === "/orders") {
+          return {
+            ...item,
+            badge: ordersCount > 0 ? ordersCount : undefined,
+          };
+        }
         if (item.href === "/mtd") {
           return {
             ...item,
@@ -73,7 +91,7 @@ export function Sidebar() {
         }
         return item;
       }),
-    [inProgressCount, payrollCount]
+    [ordersCount, inProgressCount, payrollCount]
   );
 
   const showExpanded = expanded || mobileOpen;

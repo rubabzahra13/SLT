@@ -20,6 +20,7 @@ const HoverTip_1 = require("@/components/ui/HoverTip");
 const DottedScroll_1 = require("@/components/ui/DottedScroll");
 const baseNavItems = [
     { href: "/", label: "Dashboard", icon: lucide_react_1.LayoutDashboard },
+    { href: "/orders", label: "Orders", icon: lucide_react_1.ShoppingBag },
     { href: "/mtd", label: "MTD", icon: lucide_react_1.Music2 },
     { href: "/payroll", label: "Payroll", icon: lucide_react_1.Wallet },
     { href: "/schedule", label: "Schedule", icon: lucide_react_1.Calendar },
@@ -30,9 +31,17 @@ function Sidebar() {
     const pathname = (0, navigation_1.usePathname)();
     const { mtdRecords } = (0, AppStateContext_1.useAppState)();
     const { expanded, toggleExpanded, setExpanded, mobileOpen, setMobileOpen } = (0, SidebarContext_1.useSidebar)();
-    const inProgressCount = (0, react_1.useMemo)(() => (0, mtd_filters_1.getInProgressCount)(mtdRecords), [mtdRecords]);
+    const ordersCount = (0, react_1.useMemo)(() => mtdRecords.filter(mtd_filters_1.isPreMTDOrderRecord).length, [mtdRecords]);
+    const mtdTabRecords = (0, react_1.useMemo)(() => mtdRecords.filter(mtd_filters_1.isMTDRecord), [mtdRecords]);
+    const inProgressCount = (0, react_1.useMemo)(() => (0, mtd_filters_1.getInProgressCount)(mtdTabRecords), [mtdTabRecords]);
     const payrollCount = (0, react_1.useMemo)(() => (0, mtd_completion_1.getPayrollRecords)(mtdRecords).length, [mtdRecords]);
     const navItems = (0, react_1.useMemo)(() => baseNavItems.map((item) => {
+        if (item.href === "/orders") {
+            return {
+                ...item,
+                badge: ordersCount > 0 ? ordersCount : undefined,
+            };
+        }
         if (item.href === "/mtd") {
             return {
                 ...item,
@@ -46,7 +55,7 @@ function Sidebar() {
             };
         }
         return item;
-    }), [inProgressCount, payrollCount]);
+    }), [ordersCount, inProgressCount, payrollCount]);
     const showExpanded = expanded || mobileOpen;
     const navItemClass = (active) => (0, clsx_1.default)("group relative flex h-10 items-center rounded-xl transition-all duration-200", showExpanded ? "w-full gap-3 px-3" : "relative w-10 justify-center px-0", active
         ? "bg-brand-sidebar-active font-semibold text-brand-sidebar-ink"

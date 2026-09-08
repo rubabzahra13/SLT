@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, Plus, X } from "lucide-react";
+import { ChevronDown, Plus, Trash2, X } from "lucide-react";
 import clsx from "clsx";
 import { PRODUCER_AVATARS } from "@/lib/producer-avatars";
 import { initialsFromName, normalizeProducer } from "@/lib/producers";
@@ -23,6 +23,7 @@ type FormState = {
   initials: string;
   email: string;
   categories: string[];
+  categoryRates: Record<string, number>;
   avatar: string;
 };
 
@@ -35,21 +36,31 @@ function emptyForm(): FormState {
     initials: "",
     email: "",
     categories: [],
+    categoryRates: {},
     avatar: PRODUCER_AVATARS[0].src,
   };
 }
 
 function fromProducer(producer: Producer): FormState {
   const norm = normalizeProducer(producer);
+  const categories = norm.categories?.length
+    ? [...norm.categories]
+    : norm.specialty
+      ? [norm.specialty]
+      : [];
+
+  const categoryRates: Record<string, number> = {};
+  for (const cat of categories) {
+    const raw = norm.ratesByCategory?.[cat] ?? norm.defaultRate ?? 0.50;
+    categoryRates[cat] = raw <= 1 ? Math.round(raw * 100) : raw;
+  }
+
   return {
     name: norm.name,
     initials: norm.initials,
     email: norm.email,
-    categories: norm.categories?.length
-      ? [...norm.categories]
-      : norm.specialty
-        ? [norm.specialty]
-        : [],
+    categories,
+    categoryRates,
     avatar: norm.avatar,
   };
 }
@@ -64,11 +75,13 @@ export function ProducerFormModal({
   const [initialsTouched, setInitialsTouched] = useState(false);
   const [pickingAvatar, setPickingAvatar] = useState(false);
   const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const isEdit = Boolean(producer);
 
   useEffect(() => {
     if (!open) return;
+    setValidationError(null);
     if (producer) {
       setForm(fromProducer(producer));
       setInitialsTouched(true);
@@ -99,31 +112,71 @@ export function ProducerFormModal({
   );
 
   function addCategory(cat: string) {
-    setForm((prev) => ({
-      ...prev,
-      categories: prev.categories.includes(cat)
-        ? prev.categories
-        : [...prev.categories, cat],
-    }));
+    setForm((prev) => {
+      if (prev.categories.includes(cat)) return prev;
+      return {
+        ...prev,
+        categories: [...prev.categories, cat],
+        categoryRates: {
+          ...prev.categoryRates,
+          [cat]: prev.categoryRates[cat] ?? 50,
+        },
+      };
+    });
     setCategoryDropdownOpen(false);
   }
 
   function removeCategory(cat: string) {
+    setForm((prev) => {
+      const nextRates = { ...prev.categoryRates };
+      delete nextRates[cat];
+      return {
+        ...prev,
+        categories: prev.categories.filter((c) => c !== cat),
+        categoryRates: nextRates,
+      };
+    });
+  }
+
+  function updateCategoryRate(cat: string, val: number) {
     setForm((prev) => ({
       ...prev,
-      categories: prev.categories.filter((c) => c !== cat),
+      categoryRates: {
+        ...prev.categoryRates,
+        [cat]: val,
+      },
     }));
   }
 
   function handleSubmit(e?: React.FormEvent) {
     e?.preventDefault();
+    setValidationError(null);
+
     const initials = (form.initials || initialsFromName(form.name))
       .toUpperCase()
       .slice(0, 4);
-    if (!form.name.trim() || !form.email.trim() || !initials) return;
+
+    if (!form.name.trim() || !form.email.trim() || !initials) {
+      setValidationError("Please fill out name, initials, and email.");
+      return;
+    }
+
+    for (const cat of form.categories) {
+      const rate = form.categoryRates[cat];
+      if (typeof rate !== "number" || isNaN(rate) || rate < 0 || rate > 100) {
+        setValidationError(`Invalid compensation percentage for category "${cat}". Must be between 0% and 100%.`);
+        return;
+      }
+    }
 
     const categories = form.categories;
     const specialty = categories[0] ?? "";
+    const ratesByCategory: Record<string, number> = {};
+
+    for (const cat of categories) {
+      const val = form.categoryRates[cat] ?? 50;
+      ratesByCategory[cat] = val > 1 ? val / 100 : val;
+    }
 
     onSave({
       id: producer?.id || `prod-${Date.now()}`,
@@ -141,6 +194,8 @@ export function ProducerFormModal({
       maxMixesPerDay: producer?.maxMixesPerDay ?? null,
       maxProducerCostPerDay: producer?.maxProducerCostPerDay ?? null,
       overtimeDays: producer?.overtimeDays ?? [],
+      ratesByCategory,
+      compensationModel: producer?.compensationModel ?? "percentage_of_payroll_base",
     });
     onClose();
   }
@@ -154,7 +209,7 @@ export function ProducerFormModal({
         aria-label="Close"
       />
 
-      <div className="relative flex max-h-[min(94dvh,820px)] w-full max-w-[440px] flex-col overflow-hidden rounded-t-[28px] bg-brand-elevated shadow-[0_24px_80px_rgba(0,0,0,0.28)] sm:rounded-[28px]">
+      <div className="relative flex max-h-[min(94dvh,820px)] w-full max-w-md sm:w-[440px] sm:max-w-[440px] flex-col overflow-hidden rounded-t-[28px] bg-brand-elevated shadow-[0_24px_80px_rgba(0,0,0,0.28)] sm:rounded-[28px]">
         <header className="relative flex shrink-0 items-center justify-between border-b border-black/[0.08] px-4 py-3.5">
           <button
             type="button"
@@ -164,7 +219,7 @@ export function ProducerFormModal({
             Cancel
           </button>
           <h2 className="absolute left-1/2 -translate-x-1/2 text-[16px] font-semibold tracking-[-0.01em] text-brand-ink">
-            {isEdit ? "Edit profile" : "New producer"}
+            {isEdit ? "Edit Producer" : "New Producer"}
           </h2>
           <button
             type="button"
@@ -179,6 +234,12 @@ export function ProducerFormModal({
           onSubmit={handleSubmit}
           className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
         >
+          {validationError ? (
+            <div className="bg-brand-danger-soft/80 px-5 py-2.5 text-[12px] font-medium text-brand-danger border-b border-brand-danger-muted">
+              {validationError}
+            </div>
+          ) : null}
+
           <section className="flex flex-col items-center px-6 pb-5 pt-7">
             <button
               type="button"
@@ -291,12 +352,18 @@ export function ProducerFormModal({
             </ProfileRow>
           </section>
 
-          {/* Categories section */}
+          {/* Categories & Per-Category Compensation Section */}
           <section className="border-b border-black/[0.08] px-5 py-4">
             <div className="flex items-center justify-between">
-              <p className="text-[13px] font-semibold text-brand-ink">
-                Categories
-              </p>
+              <div>
+                <p className="text-[13px] font-semibold text-brand-ink">
+                  Category Compensation
+                </p>
+                <p className="text-[11px] text-brand-ink-tertiary">
+                  Configure compensation percentage per category
+                </p>
+              </div>
+
               {availableCategories.length > 0 && (
                 <div className="relative" ref={dropdownRef}>
                   <button
@@ -311,7 +378,7 @@ export function ProducerFormModal({
                   </button>
                   {categoryDropdownOpen && (
                     <div
-                      className="absolute right-0 top-full z-50 mt-1.5 w-52 overflow-hidden rounded-2xl bg-brand-elevated shadow-[0_8px_32px_rgba(0,0,0,0.18)] ring-1 ring-black/[0.08]"
+                      className="absolute right-0 top-full z-50 mt-1.5 w-56 overflow-hidden rounded-2xl bg-brand-elevated shadow-[0_8px_32px_rgba(0,0,0,0.18)] ring-1 ring-black/[0.08]"
                       role="listbox"
                       aria-label="Select category"
                     >
@@ -337,26 +404,58 @@ export function ProducerFormModal({
 
             {form.categories.length === 0 ? (
               <p className="mt-3 text-[12px] text-brand-ink-tertiary">
-                No categories selected. Add at least one.
+                No categories assigned. Click "+ Add Category" to assign categories and set compensation rates.
               </p>
             ) : (
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {form.categories.map((cat) => (
-                  <span
-                    key={cat}
-                    className="inline-flex items-center gap-1 rounded-full bg-brand-blue-soft py-1 pl-2.5 pr-1 text-[12px] font-semibold text-brand-blue-deep ring-1 ring-inset ring-brand-blue-muted"
-                  >
-                    {cat}
-                    <button
-                      type="button"
-                      onClick={() => removeCategory(cat)}
-                      className="rounded-full p-0.5 text-brand-blue-deep/60 transition hover:bg-brand-blue-muted hover:text-brand-blue-deep"
-                      aria-label={`Remove ${cat}`}
-                    >
-                      <X className="h-3 w-3" strokeWidth={2.5} />
-                    </button>
-                  </span>
-                ))}
+              <div className="mt-3 overflow-hidden rounded-xl border border-black/[0.08] bg-brand-bg/50">
+                <table className="w-full text-left text-[13px]">
+                  <thead>
+                    <tr className="border-b border-black/[0.06] bg-brand-bg-subtle/80 text-[10px] font-bold uppercase tracking-[0.06em] text-brand-ink-tertiary">
+                      <th className="px-3.5 py-2">Category</th>
+                      <th className="px-3.5 py-2 text-right">Compensation %</th>
+                      <th className="w-12 px-3 py-2 text-center">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-black/[0.06] bg-white/70">
+                    {form.categories.map((cat) => (
+                      <tr key={cat} className="group">
+                        <td className="px-3.5 py-2.5 font-medium text-brand-ink">
+                          {cat}
+                        </td>
+                        <td className="px-3.5 py-2 text-right">
+                          <div className="inline-flex items-center justify-end gap-1 rounded-lg border border-black/[0.12] bg-white px-2 py-1 focus-within:border-brand-blue focus-within:ring-2 focus-within:ring-brand-blue/20">
+                            <input
+                              type="number"
+                              min={0}
+                              max={100}
+                              step={1}
+                              value={form.categoryRates[cat] ?? ""}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value);
+                                updateCategoryRate(cat, isNaN(val) ? 0 : val);
+                              }}
+                              className="w-12 text-right text-[13px] font-semibold text-brand-ink outline-none"
+                            />
+                            <span className="text-[12px] font-semibold text-brand-ink-tertiary">
+                              %
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          <button
+                            type="button"
+                            onClick={() => removeCategory(cat)}
+                            className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-brand-ink-tertiary transition hover:bg-brand-orange-soft hover:text-brand-danger"
+                            aria-label={`Remove ${cat}`}
+                            title={`Remove ${cat}`}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </section>

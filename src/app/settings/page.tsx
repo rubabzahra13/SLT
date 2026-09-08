@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Bell, ChevronRight, Palette } from "lucide-react";
+import { Bell, ChevronRight, Palette, Users } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 
@@ -17,6 +17,18 @@ type SettingSection = {
 };
 
 const sections: SettingSection[] = [
+  {
+    title: "Producers & Payroll",
+    description: "Producer roster, categories, and compensation rates",
+    icon: Users,
+    items: [
+      {
+        label: "Producers",
+        description: "Edit producer profiles and per-category compensation percentages",
+        href: "/settings/producers",
+      },
+    ],
+  },
   {
     title: "Pricing rules",
     description: "Rates, packages, and discounts",

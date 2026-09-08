@@ -553,6 +553,26 @@ export function matchesMTDSearch(rec: MTDRecord, query: string): boolean {
 
   const contact = (rec.contactName || rec.editorInitials || "").toLowerCase();
   const invoice = (rec.invoice || "").toLowerCase();
+  const program = (rec.programName || "").toLowerCase();
+  const id = (rec.id || "").toLowerCase();
 
-  return contact.includes(q) || invoice.includes(q);
+  return contact.includes(q) || invoice.includes(q) || program.includes(q) || id.includes(q);
+}
+
+export function isOrderScheduledAndAssigned(rec: MTDRecord): boolean {
+  return Boolean(
+    rec.assignedProducer &&
+    toIsoDateString(rec.mixStartDate) &&
+    toIsoDateString(rec.mixEndDate)
+  );
+}
+
+export function isMTDRecord(rec: MTDRecord): boolean {
+  if (rec.inMTD === false) return false;
+  if (rec.inMTD === true) return true;
+  return isOrderScheduledAndAssigned(rec);
+}
+
+export function isPreMTDOrderRecord(rec: MTDRecord): boolean {
+  return !isMTDRecord(rec);
 }

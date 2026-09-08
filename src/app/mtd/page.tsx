@@ -74,6 +74,7 @@ import {
   countMTDByForm,
   filterMTDRecords,
   hasMixStartDate,
+  isMTDRecord,
   matchesMTDSearch,
   resolveMTDFormMeta,
 } from "@/lib/mtd-filters";
@@ -258,7 +259,7 @@ function MTDPageContent() {
     useState<StatusBlockReason>("completed");
 
   const mtdBoardRecords = useMemo(
-    () => getMTDBoardRecords(mtdRecords),
+    () => getMTDBoardRecords(mtdRecords).filter(isMTDRecord),
     [mtdRecords]
   );
 
@@ -1336,6 +1337,11 @@ function MTDPageContent() {
         title="Music To Do"
         badge={`${filtered.length} of ${mtdBoardRecords.length}`}
         subtitle="Assign editors, set pricing, and track mix progress"
+        action={{
+          label: "Pricing",
+          onClick: () => setPricingOpen(true),
+          showPlus: false,
+        }}
         search={{
           value: searchQuery,
           onChange: setSearchQuery,

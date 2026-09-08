@@ -31,6 +31,8 @@ export type MTDRecord = {
   recordStatus?: MTDRecordStatus;
   /** Completed mixes moved off the MTD board into payroll */
   inPayroll?: boolean;
+  /** Explicitly moved from Orders staging to MTD */
+  inMTD?: boolean;
   completedAt?: string;
   hasRallyMix?: boolean;
   hasExtend8ctAddon?: boolean;

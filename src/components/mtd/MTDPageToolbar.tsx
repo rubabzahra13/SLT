@@ -86,15 +86,6 @@ export function MTDPageToolbar({
           />
         </div>
 
-        {onPricingClick ? (
-          <button
-            type="button"
-            onClick={onPricingClick}
-            className="ml-auto inline-flex h-8 shrink-0 items-center rounded-lg bg-brand-orange px-3.5 text-[12px] font-semibold text-white shadow-[0_1px_2px_rgba(0,0,0,0.08)] transition hover:bg-brand-orange-hover hover:shadow-[0_2px_4px_rgba(0,0,0,0.12)]"
-          >
-            Pricing
-          </button>
-        ) : null}
       </div>
 
       <MTDFilterChipsRow

@@ -8,7 +8,7 @@ type PageHeaderProps = {
   subtitle?: string;
   badge?: string;
   compact?: boolean;
-  action?: { label: string; onClick?: () => void };
+  action?: { label: string; onClick?: () => void; showPlus?: boolean };
   tabs?: React.ReactNode;
   toolbar?: React.ReactNode;
   meta?: React.ReactNode;
@@ -98,7 +98,9 @@ export function PageHeader({
                 onClick={action.onClick}
                 className="flex h-9 items-center gap-1.5 rounded-xl bg-brand-orange px-4 text-[13px] font-semibold text-white shadow-sm transition hover:bg-brand-orange-hover hover:shadow-md"
               >
-                <Plus className="h-4 w-4" strokeWidth={2.5} />
+                {action.showPlus !== false ? (
+                  <Plus className="h-4 w-4" strokeWidth={2.5} />
+                ) : null}
                 <span className="hidden sm:inline">{action.label}</span>
               </button>
             ) : null}

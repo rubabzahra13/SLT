@@ -374,7 +374,7 @@ function buildWorkflowStages(pulse) {
             label: "Unassigned",
             count: pulse.toAssign,
             color: "#f07840",
-            href: "/mtd?assigned=Unassigned",
+            href: "/orders",
         },
         {
             label: "In Queue",

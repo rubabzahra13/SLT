@@ -147,6 +147,28 @@ export default function ProducersPage() {
                 />
                 <span>{producer.mixesThisWeek} mixes this week</span>
               </div>
+              <div className="rounded-xl border border-brand-line bg-brand-bg/40 px-3 py-2 text-left">
+                <p className="text-[10px] font-bold uppercase tracking-[0.06em] text-brand-ink-tertiary">
+                  Compensation Rates
+                </p>
+                <div className="mt-1.5 flex flex-wrap gap-1">
+                  {(producer.categories?.length ? producer.categories : [producer.specialty]).map((cat) => {
+                    const rawRate = producer.ratesByCategory?.[cat] ?? producer.defaultRate ?? 0.5;
+                    const pctStr = producer.compensationModel === "not_paid_for_mixing"
+                      ? "0%"
+                      : producer.compensationModel === "hourly_manual"
+                      ? "Hourly"
+                      : `${rawRate <= 1 ? Math.round(rawRate * 100) : rawRate}%`;
+                    return (
+                      <span key={cat} className="inline-flex items-center gap-1 rounded-md bg-white px-2 py-0.5 text-[11px] font-medium text-brand-ink ring-1 ring-inset ring-black/[0.08]">
+                        <span>{cat}</span>
+                        <span className="font-bold text-brand-blue">{pctStr}</span>
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+
               {producer.timeOff.length > 0 ? (
                 <div className="rounded-xl border border-brand-line bg-brand-bg/60 px-3 py-2.5 text-left">
                   <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-brand-ink-tertiary">

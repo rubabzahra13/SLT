@@ -39,6 +39,7 @@ import {
   type PricingBreakdown,
 } from "@/lib/api/pricing";
 import type { MTDRecord, Order, Producer } from "@/types";
+import { SetPricingModal } from "@/components/mtd/SetPricingModal";
 import clsx from "clsx";
 
 type CompleteToPayrollModalProps = {
@@ -69,6 +70,7 @@ export function CompleteToPayrollModal({
   const [finalPayrollPriceInput, setFinalPayrollPriceInput] = useState<string>("");
   const [calculatedEnginePricing, setCalculatedEnginePricing] = useState<any>(null);
   const [modalCouponCode, setModalCouponCode] = useState<string>("");
+  const [pricingRefOpen, setPricingRefOpen] = useState<boolean>(false);
 
   // Step 2 Payroll state
   const [selectedCaseyRate, setSelectedCaseyRate] = useState<number | null>(null); // 0.72 or 0.70
@@ -572,7 +574,8 @@ export function CompleteToPayrollModal({
     effectiveBreakdown,
     activeRateNum,
     activeManualPayoutNum,
-    breakdown?.canonical_subtype_id
+    breakdown?.canonical_subtype_id,
+    finalPayrollPriceNum
   );
 
   const isRateOverridden = customRateInput !== "" || (selectedCaseyRate !== null && assignedProducerObj?.initials !== "CM");
@@ -723,9 +726,20 @@ export function CompleteToPayrollModal({
               </span>
             </div>
 
-            <span className="rounded-full bg-brand-bg px-2.5 py-1 text-[11px] font-medium text-brand-ink-tertiary border border-brand-line/60">
-              {record.invoice ? `Inv #${record.invoice}` : "MTD Move"}
-            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setPricingRefOpen(true)}
+                className="inline-flex h-7 items-center gap-1.5 rounded-lg bg-brand-orange px-3 text-[11.5px] font-semibold text-white shadow-sm transition hover:bg-brand-orange-hover focus:outline-none focus:ring-2 focus:ring-brand-orange/40 shrink-0"
+                title="Open reference pricing table for this order type"
+              >
+                <DollarSign className="h-3.5 w-3.5" />
+                Pricing Reference
+              </button>
+              <span className="rounded-full bg-brand-bg px-2.5 py-1 text-[11px] font-medium text-brand-ink-tertiary border border-brand-line/60">
+                {record.invoice ? `Inv #${record.invoice}` : "MTD Move"}
+              </span>
+            </div>
           </div>
 
           <h2
@@ -835,9 +849,19 @@ export function CompleteToPayrollModal({
                   <span className="text-[11.5px] font-semibold uppercase tracking-wider text-brand-ink-tertiary">
                     Itemized Pricing Breakdown
                   </span>
-                  <span className="text-[11.5px] text-brand-ink-tertiary">
-                    Amount
-                  </span>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setPricingRefOpen(true)}
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-brand-orange hover:text-brand-orange-hover hover:underline transition"
+                    >
+                      <HelpCircle className="h-3.5 w-3.5" />
+                      Pricing Reference
+                    </button>
+                    <span className="text-[11.5px] text-brand-ink-tertiary">
+                      Amount
+                    </span>
+                  </div>
                 </div>
 
                 <div className="divide-y divide-brand-line/40 px-4 text-[12.5px]">
@@ -910,7 +934,7 @@ export function CompleteToPayrollModal({
                         "font-semibold tabular-nums",
                         breakdown?.compliance_status === "compliant" &&
                           !breakdown?.package_name?.toUpperCase().includes("TITANIUM")
-                          ? "text-brand-success"
+                          ? "text-brand-danger font-bold"
                           : "text-brand-ink-secondary"
                       )}
                     >
@@ -928,19 +952,30 @@ export function CompleteToPayrollModal({
                   </div>
 
                   {/* Add-on items */}
-                  {breakdown?.addons.map((addon) => (
-                    <div key={addon.addon_id} className="flex items-center justify-between py-2.5">
-                      <div>
-                        <span className="font-medium text-brand-ink">{addon.label}</span>
-                        {addon.note && (
-                          <p className="text-[11px] text-brand-ink-tertiary">{addon.note}</p>
-                        )}
+                  {breakdown?.addons.map((addon) => {
+                    const rawAmt = addon.payroll_amount !== 0 ? addon.payroll_amount : addon.customer_amount;
+                    const isDeduction = rawAmt < 0;
+                    return (
+                      <div key={addon.addon_id} className="flex items-center justify-between py-2.5">
+                        <div>
+                          <span className="font-medium text-brand-ink">{addon.label}</span>
+                          {addon.note && (
+                            <p className="text-[11px] text-brand-ink-tertiary">{addon.note}</p>
+                          )}
+                        </div>
+                        <span
+                          className={clsx(
+                            "font-semibold tabular-nums",
+                            isDeduction ? "text-brand-danger font-bold" : "text-brand-success"
+                          )}
+                        >
+                          {isDeduction
+                            ? `-${formatPrice(Math.abs(rawAmt))}`
+                            : `+${formatPrice(rawAmt)}`}
+                        </span>
                       </div>
-                      <span className="font-semibold tabular-nums text-brand-success">
-                        +{formatPrice(addon.payroll_amount > 0 ? addon.payroll_amount : addon.customer_amount)}
-                      </span>
-                    </div>
-                  ))}
+                    );
+                  })}
 
                   {/* Coupon Code Line Item */}
                   <div className="flex items-center justify-between py-2.5">
@@ -976,13 +1011,13 @@ export function CompleteToPayrollModal({
                       />
                       {breakdown?.coupon_evaluation?.status === "valid" && breakdown.coupon_evaluation.match ? (
                         <div className="flex flex-col items-end gap-0.5">
-                          <span className="rounded bg-brand-success/15 px-2 py-0.5 text-[10px] font-bold uppercase text-brand-success ring-1 ring-inset ring-brand-success/25">
+                          <span className="rounded bg-brand-danger/15 px-2 py-0.5 text-[10px] font-bold uppercase text-brand-danger ring-1 ring-inset ring-brand-danger/25">
                             {breakdown.coupon_evaluation.match.discountType === "percentage"
                               ? `${breakdown.coupon_evaluation.match.discountValue}% OFF`
                               : `-$${breakdown.coupon_evaluation.match.discountValue}`}
                           </span>
                           {(calculatedEnginePricing?.discountAmount ?? 0) > 0 && (
-                            <span className="font-semibold tabular-nums text-brand-success text-[12.5px]">
+                            <span className="font-semibold tabular-nums text-brand-danger text-[12.5px]">
                               -{formatPrice(calculatedEnginePricing.discountAmount)}
                             </span>
                           )}
@@ -1044,8 +1079,8 @@ export function CompleteToPayrollModal({
           {/* STEP 2: PAYROLL TRANSITION */}
           {step === 2 && (
             <div className="space-y-4">
-              {/* Producer Info & Customer Price Summary */}
-              <div className="grid grid-cols-2 gap-3">
+              {/* Producer Info, Customer Price & Final Payroll Price Summary */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="rounded-xl border border-brand-line/70 bg-brand-bg/40 p-3.5">
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-brand-ink-tertiary">
                     Producer
@@ -1073,6 +1108,22 @@ export function CompleteToPayrollModal({
                     {formatPrice(finalCustomerPriceNum)}
                   </p>
                 </div>
+
+                <div className="rounded-xl border border-brand-signature/30 bg-brand-signature/8 p-3.5">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-brand-signature">
+                      Payroll Price
+                    </p>
+                    {isPayrollPriceOverridden && (
+                      <span className="rounded bg-brand-orange/10 px-1 py-0.2 text-[9px] font-semibold uppercase text-brand-orange">
+                        edited
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-0.5 text-[15px] font-bold tabular-nums text-brand-signature">
+                    {formatPrice(finalPayrollPriceNum)}
+                  </p>
+                </div>
               </div>
 
               {/* Special Compensation Model Warnings */}
@@ -1082,7 +1133,7 @@ export function CompleteToPayrollModal({
                     {clientPayroll.message}
                   </p>
                   <p className="mt-1 text-[12px] text-brand-ink-secondary">
-                    Steve does not receive per-mix compensation. Payout is $0.00 and SLT retains the full customer price.
+                    Steve does not receive per-mix compensation. Payout is $0.00 and SLT retains the full payroll price.
                   </p>
                 </div>
               )}
@@ -1322,6 +1373,13 @@ export function CompleteToPayrollModal({
           )}
         </div>
       </div>
+
+      <SetPricingModal
+        open={pricingRefOpen}
+        order={linkedOrder}
+        record={record}
+        onClose={() => setPricingRefOpen(false)}
+      />
     </div>,
     document.body
   );

@@ -496,6 +496,10 @@ export function SetPricingModal({
     if (initialCategory) {
       setSelectedCategory(initialCategory);
       if (initialSubtype) setSelectedSubtype(initialSubtype);
+    } else if (order || record) {
+      const ctx = getCategoryAndSubtypeFromContext(order, record);
+      setSelectedCategory(ctx.category);
+      if (ctx.subtype) setSelectedSubtype(ctx.subtype);
     } else if (form) {
       const ctx = getCategoryAndSubtypeFromActiveTabFilters(form, cheerSubtype, danceSubtype);
       setSelectedCategory(ctx.category);
@@ -514,7 +518,7 @@ export function SetPricingModal({
   const categoryData = getCategoryData(selectedCategory);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 overflow-hidden">
+    <div className="fixed inset-0 z-[110] flex items-center justify-center p-3 sm:p-6 overflow-hidden">
       <button
         type="button"
         className="absolute inset-0 bg-brand-scrim/90 backdrop-blur-sm"

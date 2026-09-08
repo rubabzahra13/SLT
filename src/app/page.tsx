@@ -41,7 +41,7 @@ export default function DashboardPage() {
   const mixOps = buildMixOpsSlices(pulse);
 
   const kpis = [
-    { href: "/mtd?assigned=Unassigned", label: "Unassigned", value: pulse.toAssign },
+    { href: "/orders", label: "Unassigned", value: pulse.toAssign },
     { href: "/mtd?schedule=scheduled", label: "In Queue", value: pulse.inQueue },
     { href: "/schedule?view=today", label: "Today's Mixes", value: pulse.todaysMixes ?? pulse.inProduction },
     { href: "/mtd?assigned=Outsourced", label: "Outsourced", value: pulse.outsourced },

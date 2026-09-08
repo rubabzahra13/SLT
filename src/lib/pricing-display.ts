@@ -1,5 +1,6 @@
 import type { Producer } from "@/types";
 import type { PricingBreakdown } from "./api/pricing";
+import { orderCategoryToProducerCategory } from "./editor-assignment";
 
 export function getFormTypeLabel(formType?: string): string {
   switch (formType) {
@@ -71,19 +72,84 @@ export interface CalculatedPayroll {
   message: string;
 }
 
+/**
+ * Resolves the category-specific compensation rate for a producer on an order category or subtype.
+ */
+export function getProducerCategoryRate(
+  producer: Producer,
+  categoryOrSubtype?: string | null,
+  formType?: string | null
+): { rate: number | null; source: string; categoryName: string } {
+  const categoryName = orderCategoryToProducerCategory(
+    formType || undefined,
+    categoryOrSubtype || undefined,
+    categoryOrSubtype || undefined
+  );
+
+  if (producer.ratesByCategory && Object.keys(producer.ratesByCategory).length > 0) {
+    // 1. Direct canonical match
+    if (categoryName && producer.ratesByCategory[categoryName] !== undefined) {
+      const raw = producer.ratesByCategory[categoryName];
+      return {
+        rate: raw > 1 ? raw / 100 : raw,
+        source: `rates_by_category[${categoryName}]`,
+        categoryName,
+      };
+    }
+
+    // 2. Case-insensitive / normalized match in ratesByCategory
+    const targetKey = (categoryName || categoryOrSubtype || "").trim().toLowerCase();
+    for (const [key, val] of Object.entries(producer.ratesByCategory)) {
+      if (
+        key.trim().toLowerCase() === targetKey ||
+        orderCategoryToProducerCategory(undefined, undefined, key).trim().toLowerCase() === targetKey
+      ) {
+        return {
+          rate: val > 1 ? val / 100 : val,
+          source: `rates_by_category[${key}]`,
+          categoryName: categoryName || key,
+        };
+      }
+    }
+  }
+
+  // Fallback to producer.defaultRate if present
+  if (producer.defaultRate !== undefined && producer.defaultRate !== null) {
+    const raw = producer.defaultRate;
+    return {
+      rate: raw > 1 ? raw / 100 : raw,
+      source: "default_rate",
+      categoryName: categoryName || categoryOrSubtype || "",
+    };
+  }
+
+  return {
+    rate: null,
+    source: "no_rate_configured",
+    categoryName: categoryName || categoryOrSubtype || "",
+  };
+}
+
 export function computeClientPayroll(
   producer: Producer | undefined | null,
   finalCustomerPrice: number,
   breakdown: PricingBreakdown | null,
   selectedRate: number | null,
   manualPayoutInput: number | null,
-  canonicalSubtypeId?: string | null
+  canonicalSubtypeId?: string | null,
+  finalPayrollPriceOverride?: number | null
 ): CalculatedPayroll {
+  // percentage_of_payroll_base: MUST use final payroll price (payrollBase), never base customer/package price
+  const payrollBase =
+    typeof finalPayrollPriceOverride === "number" && !isNaN(finalPayrollPriceOverride)
+      ? finalPayrollPriceOverride
+      : (breakdown?.payroll_base_price ?? finalCustomerPrice);
+
   if (!producer) {
     return {
       status: "needs_manual_review",
       producerPayout: manualPayoutInput,
-      sltPortion: manualPayoutInput !== null ? Math.max(0, finalCustomerPrice - manualPayoutInput) : null,
+      sltPortion: manualPayoutInput !== null ? Math.max(0, payrollBase - manualPayoutInput) : null,
       rateUsed: null,
       rateSource: "no_producer",
       isCaseyAmbiguous: false,
@@ -97,7 +163,7 @@ export function computeClientPayroll(
     return {
       status: "not_paid_for_mixing",
       producerPayout: 0,
-      sltPortion: finalCustomerPrice,
+      sltPortion: payrollBase,
       rateUsed: 0,
       rateSource: "not_paid_for_mixing",
       isCaseyAmbiguous: false,
@@ -109,28 +175,13 @@ export function computeClientPayroll(
     return {
       status: "hourly_manual",
       producerPayout: manualPayoutInput,
-      sltPortion: manualPayoutInput !== null ? Math.max(0, finalCustomerPrice - manualPayoutInput) : null,
+      sltPortion: manualPayoutInput !== null ? Math.max(0, payrollBase - manualPayoutInput) : null,
       rateUsed: null,
       rateSource: "hourly_manual",
       isCaseyAmbiguous: false,
       message: `${producer.name} is paid manually via pay sheet`,
     };
   }
-
-  if (model === null || model === undefined) {
-    return {
-      status: "needs_manual_review",
-      producerPayout: manualPayoutInput,
-      sltPortion: manualPayoutInput !== null ? Math.max(0, finalCustomerPrice - manualPayoutInput) : null,
-      rateUsed: null,
-      rateSource: "no_rate_on_file",
-      isCaseyAmbiguous: false,
-      message: `No rate on file for ${producer.name}. Enter manual payout.`,
-    };
-  }
-
-  // percentage_of_payroll_base
-  const payrollBase = breakdown?.payroll_base_price ?? finalCustomerPrice;
 
   // Determine initial rate if none selected
   let defaultRate: number | null = selectedRate;
@@ -163,31 +214,29 @@ export function computeClientPayroll(
   }
 
   if (defaultRate === null) {
-    // Lookup rate by subtype or default
-    const sub = canonicalSubtypeId || breakdown?.canonical_subtype_id;
-    if (sub && producer.ratesByCategory && producer.ratesByCategory[sub] !== undefined) {
-      defaultRate = producer.ratesByCategory[sub];
-      source = `rates_by_category[${sub}]`;
-    } else if (producer.defaultRate !== undefined && producer.defaultRate !== null) {
-      defaultRate = producer.defaultRate;
-      source = "default_rate";
-    }
+    const catOrSub = canonicalSubtypeId || breakdown?.canonical_subtype_id;
+    const formType = breakdown?.form_type;
+    const resolved = getProducerCategoryRate(producer, catOrSub, formType);
+    defaultRate = resolved.rate;
+    source = resolved.source;
   }
 
   if (defaultRate === null) {
+    const catOrSub = canonicalSubtypeId || breakdown?.canonical_subtype_id || breakdown?.form_type || "this order";
+    const categoryName = orderCategoryToProducerCategory(breakdown?.form_type, canonicalSubtypeId || undefined, catOrSub || undefined) || catOrSub;
     return {
       status: "needs_manual_review",
       producerPayout: manualPayoutInput,
-      sltPortion: manualPayoutInput !== null ? Math.max(0, finalCustomerPrice - manualPayoutInput) : null,
+      sltPortion: manualPayoutInput !== null ? Math.max(0, payrollBase - manualPayoutInput) : null,
       rateUsed: null,
       rateSource: "no_rate_configured",
       isCaseyAmbiguous: false,
-      message: `No rate configured for ${producer.name} on this order type.`,
+      message: `Compensation percentage is not configured for ${producer.name} on category "${categoryName}". Please configure it in Settings → Producers.`,
     };
   }
 
   const payout = Math.round(payrollBase * defaultRate * 100) / 100;
-  const slt = Math.round((finalCustomerPrice - payout) * 100) / 100;
+  const slt = Math.round((payrollBase - payout) * 100) / 100;
 
   return {
     status: "computed",
