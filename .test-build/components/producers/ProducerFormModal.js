@@ -18,23 +18,30 @@ function emptyForm() {
         name: "",
         initials: "",
         email: "",
-        specialty: "Cheer",
+        categories: [],
         avatar: producer_avatars_1.PRODUCER_AVATARS[0].src,
     };
 }
 function fromProducer(producer) {
+    const norm = (0, producers_1.normalizeProducer)(producer);
     return {
-        name: producer.name,
-        initials: producer.initials,
-        email: producer.email,
-        specialty: producer.specialty,
-        avatar: producer.avatar,
+        name: norm.name,
+        initials: norm.initials,
+        email: norm.email,
+        categories: norm.categories?.length
+            ? [...norm.categories]
+            : norm.specialty
+                ? [norm.specialty]
+                : [],
+        avatar: norm.avatar,
     };
 }
 function ProducerFormModal({ open, onClose, producer, onSave, }) {
     const [form, setForm] = (0, react_1.useState)(emptyForm);
     const [initialsTouched, setInitialsTouched] = (0, react_1.useState)(false);
     const [pickingAvatar, setPickingAvatar] = (0, react_1.useState)(false);
+    const [categoryDropdownOpen, setCategoryDropdownOpen] = (0, react_1.useState)(false);
+    const dropdownRef = (0, react_1.useRef)(null);
     const isEdit = Boolean(producer);
     (0, react_1.useEffect)(() => {
         if (!open)
@@ -48,9 +55,38 @@ function ProducerFormModal({ open, onClose, producer, onSave, }) {
             setInitialsTouched(false);
         }
         setPickingAvatar(false);
+        setCategoryDropdownOpen(false);
     }, [open, producer]);
+    // Close category dropdown on outside click
+    (0, react_1.useEffect)(() => {
+        if (!categoryDropdownOpen)
+            return;
+        function handleClick(e) {
+            if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+                setCategoryDropdownOpen(false);
+            }
+        }
+        document.addEventListener("mousedown", handleClick);
+        return () => document.removeEventListener("mousedown", handleClick);
+    }, [categoryDropdownOpen]);
     if (!open)
         return null;
+    const availableCategories = types_1.PRODUCER_CATEGORIES.filter((c) => !form.categories.includes(c));
+    function addCategory(cat) {
+        setForm((prev) => ({
+            ...prev,
+            categories: prev.categories.includes(cat)
+                ? prev.categories
+                : [...prev.categories, cat],
+        }));
+        setCategoryDropdownOpen(false);
+    }
+    function removeCategory(cat) {
+        setForm((prev) => ({
+            ...prev,
+            categories: prev.categories.filter((c) => c !== cat),
+        }));
+    }
     function handleSubmit(e) {
         e?.preventDefault();
         const initials = (form.initials || (0, producers_1.initialsFromName)(form.name))
@@ -58,12 +94,15 @@ function ProducerFormModal({ open, onClose, producer, onSave, }) {
             .slice(0, 4);
         if (!form.name.trim() || !form.email.trim() || !initials)
             return;
+        const categories = form.categories;
+        const specialty = categories[0] ?? "";
         onSave({
             id: producer?.id || `prod-${Date.now()}`,
             name: form.name.trim(),
             initials,
             email: form.email.trim().toLowerCase(),
-            specialty: form.specialty,
+            categories,
+            specialty,
             avatar: form.avatar,
             mixesThisWeek: producer?.mixesThisWeek ?? 0,
             nextAvailable: producer?.nextAvailable || "TBD",
@@ -71,6 +110,7 @@ function ProducerFormModal({ open, onClose, producer, onSave, }) {
             workDays: producer?.workDays ?? [...types_1.DEFAULT_WORK_DAYS],
             timeOff: producer?.timeOff ?? [],
             maxMixesPerDay: producer?.maxMixesPerDay ?? null,
+            maxProducerCostPerDay: producer?.maxProducerCostPerDay ?? null,
             overtimeDays: producer?.overtimeDays ?? [],
         });
         onClose();
@@ -98,7 +138,7 @@ function ProducerFormModal({ open, onClose, producer, onSave, }) {
                                                     ...form,
                                                     initials: e.target.value.toUpperCase(),
                                                 });
-                                            }, placeholder: "CA", className: (0, clsx_1.default)(rowInput, "tracking-[0.08em]") }) }), (0, jsx_runtime_1.jsx)(ProfileRow, { label: "Email", children: (0, jsx_runtime_1.jsx)("input", { required: true, type: "email", value: form.email, onChange: (e) => setForm({ ...form, email: e.target.value }), placeholder: "Email", className: rowInput }) }), (0, jsx_runtime_1.jsx)(ProfileRow, { label: "Category", last: true, children: (0, jsx_runtime_1.jsxs)("div", { className: "relative flex w-full items-center justify-end", children: [(0, jsx_runtime_1.jsx)("select", { value: form.specialty, onChange: (e) => setForm({ ...form, specialty: e.target.value }), className: (0, clsx_1.default)(rowInput, "appearance-none pr-5 text-right"), children: types_1.PRODUCER_CATEGORIES.map((c) => ((0, jsx_runtime_1.jsx)("option", { value: c, children: c }, c))) }), (0, jsx_runtime_1.jsx)(lucide_react_1.ChevronDown, { className: "pointer-events-none absolute right-0 h-3.5 w-3.5 text-brand-ink-tertiary", strokeWidth: 2 })] }) })] }), (0, jsx_runtime_1.jsx)("div", { className: "flex justify-center pb-5 pt-6 sm:hidden", children: (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: onClose, className: "rounded-full bg-brand-bg p-2 text-brand-ink-tertiary", "aria-label": "Close", children: (0, jsx_runtime_1.jsx)(lucide_react_1.X, { className: "h-4 w-4" }) }) })] })] })] }));
+                                            }, placeholder: "CA", className: (0, clsx_1.default)(rowInput, "tracking-[0.08em]") }) }), (0, jsx_runtime_1.jsx)(ProfileRow, { label: "Email", children: (0, jsx_runtime_1.jsx)("input", { required: true, type: "email", value: form.email, onChange: (e) => setForm({ ...form, email: e.target.value }), placeholder: "Email", className: rowInput }) })] }), (0, jsx_runtime_1.jsxs)("section", { className: "border-b border-black/[0.08] px-5 py-4", children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex items-center justify-between", children: [(0, jsx_runtime_1.jsx)("p", { className: "text-[13px] font-semibold text-brand-ink", children: "Categories" }), availableCategories.length > 0 && ((0, jsx_runtime_1.jsxs)("div", { className: "relative", ref: dropdownRef, children: [(0, jsx_runtime_1.jsxs)("button", { type: "button", onClick: () => setCategoryDropdownOpen((v) => !v), className: "inline-flex h-7 items-center gap-1 rounded-full bg-brand-bg px-2.5 text-[12px] font-semibold text-brand-blue ring-1 ring-inset ring-black/[0.06] transition hover:bg-brand-bg-subtle", "aria-expanded": categoryDropdownOpen, "aria-haspopup": "listbox", children: [(0, jsx_runtime_1.jsx)(lucide_react_1.Plus, { className: "h-3 w-3", strokeWidth: 2.5 }), "Add Category"] }), categoryDropdownOpen && ((0, jsx_runtime_1.jsx)("div", { className: "absolute right-0 top-full z-50 mt-1.5 w-52 overflow-hidden rounded-2xl bg-brand-elevated shadow-[0_8px_32px_rgba(0,0,0,0.18)] ring-1 ring-black/[0.08]", role: "listbox", "aria-label": "Select category", children: (0, jsx_runtime_1.jsx)("div", { className: "max-h-56 overflow-y-auto py-1.5", children: availableCategories.map((cat) => ((0, jsx_runtime_1.jsx)("button", { type: "button", role: "option", "aria-selected": false, onClick: () => addCategory(cat), className: "w-full px-4 py-2.5 text-left text-[13px] text-brand-ink transition hover:bg-brand-bg-subtle", children: cat }, cat))) }) }))] }))] }), form.categories.length === 0 ? ((0, jsx_runtime_1.jsx)("p", { className: "mt-3 text-[12px] text-brand-ink-tertiary", children: "No categories selected. Add at least one." })) : ((0, jsx_runtime_1.jsx)("div", { className: "mt-3 flex flex-wrap gap-1.5", children: form.categories.map((cat) => ((0, jsx_runtime_1.jsxs)("span", { className: "inline-flex items-center gap-1 rounded-full bg-brand-blue-soft py-1 pl-2.5 pr-1 text-[12px] font-semibold text-brand-blue-deep ring-1 ring-inset ring-brand-blue-muted", children: [cat, (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: () => removeCategory(cat), className: "rounded-full p-0.5 text-brand-blue-deep/60 transition hover:bg-brand-blue-muted hover:text-brand-blue-deep", "aria-label": `Remove ${cat}`, children: (0, jsx_runtime_1.jsx)(lucide_react_1.X, { className: "h-3 w-3", strokeWidth: 2.5 }) })] }, cat))) }))] }), (0, jsx_runtime_1.jsx)("div", { className: "flex justify-center pb-5 pt-6 sm:hidden", children: (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: onClose, className: "rounded-full bg-brand-bg p-2 text-brand-ink-tertiary", "aria-label": "Close", children: (0, jsx_runtime_1.jsx)(lucide_react_1.X, { className: "h-4 w-4" }) }) })] })] })] }));
 }
 function ProfileRow({ label, children, last, }) {
     return ((0, jsx_runtime_1.jsxs)("label", { className: (0, clsx_1.default)("flex items-center gap-4 px-5 py-[14px]", !last && "border-b border-black/[0.06]"), children: [(0, jsx_runtime_1.jsx)("span", { className: "w-[88px] shrink-0 text-[15px] text-brand-ink", children: label }), (0, jsx_runtime_1.jsx)("div", { className: "min-w-0 flex-1", children: children })] }));

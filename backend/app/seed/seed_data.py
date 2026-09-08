@@ -75,6 +75,7 @@ def seed_all(db: Session):
                 initials=initials,
                 email=p.get("email", f"{initials.lower()}@soundslikethat.com"),
                 specialty=p.get("specialty", "Cheer"),
+                categories=p.get("categories"),
                 avatar=p.get("avatar"),
                 mixes_this_week=p.get("mixesThisWeek", 0),
                 next_available=p.get("nextAvailable"),
@@ -95,6 +96,7 @@ def seed_all(db: Session):
             producer.name = p.get("name", producer.name)
             producer.email = p.get("email", producer.email)
             producer.specialty = p.get("specialty", producer.specialty)
+            producer.categories = p.get("categories", producer.categories)
             producer.avatar = p.get("avatar", producer.avatar)
             producer.status = p.get("status", producer.status)
             producer.compensation_model = p.get("compensationModel") if "compensationModel" in p else p.get("compensation_model", producer.compensation_model)

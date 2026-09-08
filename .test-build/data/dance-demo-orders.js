@@ -1,6 +1,12 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.DANCE_DEMO_MTD_RECORDS = exports.DANCE_DEMO_ORDERS = void 0;
+const editor_assignment_1 = require("../lib/editor-assignment");
+const mock_data_json_1 = __importDefault(require("./mock-data.json"));
+const producers = mock_data_json_1.default.producers;
 exports.DANCE_DEMO_ORDERS = [
     // =========================================================================
     // 1. POM (pom) - 10 ORDERS
@@ -2276,31 +2282,42 @@ exports.DANCE_DEMO_ORDERS = [
         priceCompliance: "compliant",
     },
 ];
-exports.DANCE_DEMO_MTD_RECORDS = exports.DANCE_DEMO_ORDERS.map((order, idx) => ({
-    id: `mtd-demo-dance-${String(idx + 1).padStart(2, "0")}`,
-    orderId: order.id,
-    section: "DANCE MUSIC",
-    assignedProducer: order.requestedProducer || null,
-    category: "Dance",
-    editorRequest: order.editorRequest || "FA",
-    contactName: order.contactName || order.customerName || "Demo Contact",
-    editorInitials: order.requestedProducer || "FA",
-    programName: order.programName || "Demo Program",
-    package: order.package || "DANCE MIX",
-    musicTheme: order.musicTheme || "",
-    price: order.price,
-    priceCompliance: order.priceCompliance || "compliant",
-    invoice: `INV-2026-D${String(idx + 201).padStart(3, "0")}`,
-    mixStartDate: "2026-09-08",
-    mixEndDate: "2026-09-15",
-    eightCountSheet: "Have",
-    haveSongs: "Have",
-    needsAttention: Boolean(order.needsAttention),
-    status: order.status === "completed" ? "completed" : "active",
-    recordStatus: order.status === "completed" ? "Completed" : "Ongoing",
-    hasRallyMix: false,
-    hasExtend8ctAddon: false,
-    hasProcessing8ctSheetsAddon: false,
-    hasTraditionalVoiceover: order.hasTraditionalVoiceover ?? false,
-    hasThemedVoiceover: order.hasThemedVoiceover ?? false,
-}));
+exports.DANCE_DEMO_MTD_RECORDS = exports.DANCE_DEMO_ORDERS.map((order, idx) => {
+    const category = order.danceFormSubtype || order.category || "Pom";
+    const validProducer = (0, editor_assignment_1.seedAssignedProducerForOrder)(order.id, order.requestedProducer || order.editorRequest, category, producers);
+    const dateSchedules = [
+        { start: "2026-09-08", end: "2026-09-15" },
+        { start: "2026-09-10", end: "2026-09-17" },
+        { start: "2026-09-13", end: "2026-09-20" },
+        { start: "2026-09-16", end: "2026-09-23" },
+        { start: "2026-09-19", end: "2026-09-26" },
+    ];
+    const sched = dateSchedules[idx % dateSchedules.length];
+    return {
+        id: `mtd-demo-dance-${String(idx + 1).padStart(2, "0")}`,
+        orderId: order.id,
+        section: "DANCE MUSIC",
+        assignedProducer: validProducer,
+        category: "Dance",
+        editorRequest: order.editorRequest || "FA",
+        contactName: order.contactName || order.customerName || "Demo Contact",
+        editorInitials: validProducer || "FA",
+        programName: order.programName || "Demo Program",
+        package: order.package || "DANCE MIX",
+        musicTheme: order.musicTheme || "",
+        price: order.price,
+        priceCompliance: order.priceCompliance || "compliant",
+        invoice: `INV-2026-D${String(idx + 201).padStart(3, "0")}`,
+        mixStartDate: validProducer ? sched.start : "2026-09-08",
+        mixEndDate: validProducer ? sched.end : "2026-09-15",
+        eightCountSheet: "Have",
+        haveSongs: "Have",
+        needsAttention: Boolean(order.needsAttention),
+        status: order.status === "completed" ? "completed" : "active",
+        recordStatus: order.status === "completed" ? "Completed" : "Ongoing",
+        hasRallyMix: false,
+        hasExtend8ctAddon: false,
+        hasProcessing8ctSheetsAddon: false,
+        hasThemedVoiceover: order.hasThemedVoiceover ?? false,
+    };
+});

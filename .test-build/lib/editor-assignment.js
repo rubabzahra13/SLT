@@ -9,6 +9,11 @@ exports.formatRequestedEditorLabel = formatRequestedEditorLabel;
 exports.pickDefaultEditor = pickDefaultEditor;
 exports.editorRequestForAssignment = editorRequestForAssignment;
 exports.findProducerByAssignmentKey = findProducerByAssignmentKey;
+exports.resolveValidProducerAssignment = resolveValidProducerAssignment;
+exports.resolveSeederAssignment = resolveSeederAssignment;
+exports.seedAssignedProducerForOrder = seedAssignedProducerForOrder;
+exports.orderCategoryToProducerCategory = orderCategoryToProducerCategory;
+exports.producerSupportsCategory = producerSupportsCategory;
 exports.specialtyMatchesCategory = specialtyMatchesCategory;
 exports.getProducersForCategory = getProducersForCategory;
 exports.getEditorNamesForCategory = getEditorNamesForCategory;
@@ -159,19 +164,191 @@ function editorRequestForAssignment(selectedEditor, requestedEditor, availableNa
     return "FA";
 }
 function findProducerByAssignmentKey(key, producers) {
-    if (!key)
+    if (!key?.trim())
         return undefined;
     const normalized = (0, producer_keys_1.normalizeProducerKey)(key);
-    if (!normalized)
+    if (!normalized || isFirstAvailableRequest(normalized))
         return undefined;
     return producers.find((producer) => {
         const assignmentKey = (0, producer_keys_1.producerAssignmentKey)(producer);
-        return (assignmentKey === normalized ||
+        const firstName = producer.name.trim().split(/\s+/)[0].toUpperCase();
+        return (producer.id.toUpperCase() === normalized ||
+            assignmentKey === normalized ||
             producer.initials.toUpperCase() === normalized ||
-            producer.name.toUpperCase() === normalized);
+            producer.name.toUpperCase() === normalized ||
+            firstName === normalized);
     });
 }
 /**
+ * Resolves an assigned producer key for a given order or MTD record.
+ * 1. Checks if rawKey resolves to an existing registered producer in producers array (via ID, initials, name, or legacy key).
+ * 2. Checks if that producer is eligible for the order's canonical category.
+ * 3. Returns the producer's canonical initials/key (e.g., "CM", "JD", "MS") if valid and eligible.
+ * 4. Returns null (Unassigned) if rawKey is null/FA/empty, or producer does not exist, or producer is not eligible for the category.
+ */
+function resolveValidProducerAssignment(rawKey, producers, category) {
+    if (!rawKey?.trim())
+        return null;
+    const producer = findProducerByAssignmentKey(rawKey, producers);
+    if (!producer)
+        return null;
+    const canonicalCategory = orderCategoryToProducerCategory(undefined, undefined, category);
+    if (!producerSupportsCategory(producer, canonicalCategory)) {
+        return null;
+    }
+    return (0, producer_keys_1.producerAssignmentKey)(producer);
+}
+/**
+ * Seeder assignment rule helper.
+ * Selects an eligible producer from registered producers for a given category.
+ * If rawRequested is provided, validates and returns producer key if valid & category-eligible.
+ * Returns null if no valid eligible producer found. Never invents arbitrary names or initials.
+ */
+function resolveSeederAssignment(rawRequested, producers, category) {
+    return resolveValidProducerAssignment(rawRequested, producers, category);
+}
+/**
+ * Seeder assignment rule helper.
+ * Picks a realistic, category-aware assigned producer for demo seeding.
+ * If rawRequested resolves to a valid, category-eligible registered producer, returns that producer.
+ * Otherwise, deterministically selects from eligible registered producers for that category,
+ * leaving ~20% of orders unassigned for realistic board state.
+ * Never creates fake producers or assigns ineligible producers.
+ */
+function seedAssignedProducerForOrder(orderId, rawRequested, category, producers) {
+    const requestedValid = resolveValidProducerAssignment(rawRequested, producers, category);
+    if (requestedValid) {
+        return requestedValid;
+    }
+    const canonicalCat = orderCategoryToProducerCategory(undefined, undefined, category);
+    const eligible = getProducersForCategory(producers, canonicalCat);
+    if (eligible.length === 0)
+        return null;
+    let hash = 0;
+    for (let i = 0; i < orderId.length; i++) {
+        hash = (hash << 5) - hash + orderId.charCodeAt(i);
+        hash |= 0;
+    }
+    const index = Math.abs(hash);
+    if (index % 5 === 0) {
+        return null;
+    }
+    const selected = eligible[index % eligible.length];
+    return (0, producer_keys_1.producerAssignmentKey)(selected);
+}
+/**
+ * Maps an order's form type and subtype to the canonical producer category.
+ * This is the authoritative mapping used for all producer assignment eligibility.
+ */
+function orderCategoryToProducerCategory(formType, subtype, legacyCategory) {
+    // Use subtype-specific mapping first
+    if (subtype) {
+        const s = subtype.trim().toLowerCase();
+        if (s === "all-star-cheer")
+            return "All-Star Cheer";
+        if (s === "school-cheer-viroc-yes" || s === "school-cheer-viroc-no")
+            return "School Cheer";
+        if (s === "youth-rec-cheer")
+            return "Youth Rec Cheer";
+        if (s === "pom")
+            return "Pom";
+        if (s === "hip-hop" || s === "hiphop")
+            return "Hip Hop";
+        if (s === "team-performance-variety" || s === "team-performance")
+            return "Team Performance / Variety";
+        if (s === "gameday")
+            return "Gameday";
+        if (s === "jazz-kick" || s === "jazz/kick")
+            return "Jazz / Kick";
+    }
+    // Use form type mapping
+    if (formType) {
+        const f = formType.trim().toLowerCase();
+        if (f === "marching-band")
+            return "Marching Band";
+        if (f === "sports-entertainment")
+            return "Sports Entertainment";
+        if (f === "school-anthem")
+            return "School Anthem";
+    }
+    // Legacy category string fallback (used by MTD records which store plain strings)
+    if (legacyCategory) {
+        const c = legacyCategory.trim().toLowerCase();
+        if (c === "cheer")
+            return "All-Star Cheer";
+        if (c === "dance")
+            return "Pom";
+        if (c === "marching band" || c === "marching-band")
+            return "Marching Band";
+        if (c === "hip-hop" || c === "hip hop")
+            return "Hip Hop";
+        if (c === "sports entertainment" || c === "sports-entertainment")
+            return "Sports Entertainment";
+        if (c === "school anthem" || c === "school-anthem")
+            return "School Anthem";
+        if (c === "school cheer" || c === "school-cheer")
+            return "School Cheer";
+        if (c === "all-star cheer" || c === "all star cheer")
+            return "All-Star Cheer";
+        if (c === "youth rec cheer" || c === "youth-rec-cheer")
+            return "Youth Rec Cheer";
+        if (c === "pom")
+            return "Pom";
+        if (c === "gameday")
+            return "Gameday";
+        if (c === "jazz / kick" || c === "jazz/kick" || c === "jazz-kick")
+            return "Jazz / Kick";
+        if (c === "team performance / variety" || c === "team performance")
+            return "Team Performance / Variety";
+        // Return the category as-is if no mapping found
+        return legacyCategory;
+    }
+    return "";
+}
+/**
+ * Checks whether a single producer category string matches the required category.
+ * Handles spelling variations and legacy mappings.
+ */
+function producerCategoryMatchesRequired(producerCategory, requiredCategory) {
+    const p = producerCategory.trim().toLowerCase();
+    const r = requiredCategory.trim().toLowerCase();
+    if (p === r)
+        return true;
+    // Normalize slash/hyphen variants
+    const pn = p.replace(/[/\-\s]+/g, "-");
+    const rn = r.replace(/[/\-\s]+/g, "-");
+    if (pn === rn)
+        return true;
+    if (r === "cheer" && p.includes("cheer"))
+        return true;
+    if (r === "dance" &&
+        (p === "pom" ||
+            p === "hip hop" ||
+            p.includes("jazz") ||
+            p.includes("team performance") ||
+            p === "gameday")) {
+        return true;
+    }
+    if (rn === "school-anthem" && pn.includes("marching-band"))
+        return true;
+    return false;
+}
+/**
+ * Returns true when the producer supports the required category.
+ * Checks producer.categories[] (multi-category) first, falls back to specialty.
+ */
+function producerSupportsCategory(producer, requiredCategory) {
+    if (!requiredCategory || requiredCategory === "all")
+        return true;
+    const cats = producer.categories?.length
+        ? producer.categories
+        : producer.specialty
+            ? [producer.specialty]
+            : [];
+    return cats.some((c) => producerCategoryMatchesRequired(c, requiredCategory));
+}
+/**
+ * @deprecated Use producerSupportsCategory instead.
  * Match order category to a producer's mastered genre (specialty).
  * Hip-Hop producers can take Dance work; School specialty maps to Cheer.
  */
@@ -192,7 +369,11 @@ function specialtyMatchesCategory(specialty, category) {
     return false;
 }
 function getProducersForCategory(producers, category) {
-    return producers.filter((p) => specialtyMatchesCategory(p.specialty, category));
+    if (!category || category === "all")
+        return producers;
+    // Map the requested category string to a canonical producer category
+    const canonicalCategory = orderCategoryToProducerCategory(undefined, undefined, category);
+    return producers.filter((p) => producerSupportsCategory(p, canonicalCategory));
 }
 function getEditorNamesForCategory(producers, category) {
     const keys = getProducersForCategory(producers, category).map(producer_keys_1.producerAssignmentKey);
@@ -289,9 +470,23 @@ function isRequestedEditorUnavailableForMixWindow(rec, requestedEditor, mtdRecor
 function getAssignedEditors(mtdRecords, excludeRecordId) {
     return new Set(getEditorWorkload(mtdRecords, excludeRecordId).keys());
 }
-function getUnassignedEditors(mtdRecords, producers, category, excludeRecordId) {
-    const assigned = getAssignedEditors(mtdRecords, excludeRecordId);
-    return getEditorNamesForCategory(producers, category).filter((name) => !assigned.has((0, producer_keys_1.normalizeProducerKey)(name)));
+function getUnassignedEditors(mtdRecords, producers, category, excludeRecordId, record) {
+    const targetRecord = record ||
+        (excludeRecordId
+            ? mtdRecords.find((r) => r.id === excludeRecordId)
+            : undefined);
+    const categoryEditors = getEditorNamesForCategory(producers, category);
+    if (targetRecord && targetRecord.mixStartDate) {
+        const available = categoryEditors.filter((name) => {
+            const producer = findProducerByAssignmentKey(name, producers);
+            if (!producer)
+                return false;
+            return !(0, producer_availability_1.isProducerUnavailableForRecord)(producer, targetRecord, mtdRecords);
+        });
+        if (available.length > 0)
+            return available;
+    }
+    return categoryEditors;
 }
 function inferAssignmentMode(record) {
     if (record.editorRequest === "NA")
@@ -301,19 +496,17 @@ function inferAssignmentMode(record) {
     return "specific";
 }
 function getSuggestedEditors(mtdRecords, producers, schedule, category, excludeRecordId, record) {
-    return getUnassignedEditors(mtdRecords, producers, category, excludeRecordId)
-        .map((name) => {
-        const producer = producers.find((p) => (0, producer_keys_1.producerAssignmentKey)(p) === name.toUpperCase() ||
-            p.name.toUpperCase() === name.toUpperCase());
+    const targetRecord = record ||
+        (excludeRecordId
+            ? mtdRecords.find((r) => r.id === excludeRecordId)
+            : undefined);
+    const names = getUnassignedEditors(mtdRecords, producers, category, excludeRecordId, targetRecord);
+    return names.map((name) => {
+        const producer = findProducerByAssignmentKey(name, producers);
         return {
             name,
             slotLabel: (0, scheduling_1.formatSlotForDisplay)(name, producers, schedule),
             producer,
         };
-    })
-        .filter((suggestion) => {
-        if (!record?.mixStartDate || !suggestion.producer)
-            return true;
-        return !(0, producer_availability_1.isProducerUnavailableForRecord)(suggestion.producer, record, mtdRecords);
     });
 }

@@ -7,8 +7,10 @@ const LEGACY_PRODUCER_KEYS: Record<string, string> = {
   JUSTIN: "JD",
   JUST: "JD",
   MARK: "MM",
-  GRIFFIN: "G",
-  GRIF: "G",
+  GRIFFIN: "GP",
+  GRIF: "GP",
+  G: "GP",
+  GP: "GP",
   JOSH: "JM",
   JOEL: "JOP",
   BRENT: "BV",
@@ -19,6 +21,13 @@ const LEGACY_PRODUCER_KEYS: Record<string, string> = {
   STEV: "SS",
   CASEY: "CM",
   CM: "CM",
+  ANNE: "AJ",
+  LAUREN: "LV",
+  RORY: "RF",
+  JOHN: "JP",
+  MAX: "MT",
+  CHRIS: "CC",
+  JOE: "JB",
 };
 
 export function normalizeProducerKey(raw: string): string {

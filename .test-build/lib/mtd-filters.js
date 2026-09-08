@@ -166,6 +166,8 @@ function matchesAssignedProducerFilter(rec, producer) {
         return true;
     if (producer === "Unassigned")
         return !rec.assignedProducer;
+    if (producer === "Outsourced")
+        return isOutsourcedRecord(rec);
     return (rec.assignedProducer?.toUpperCase() === producer.toUpperCase());
 }
 /** @deprecated Use matchesAssignedProducerFilter */
@@ -289,7 +291,11 @@ function buildSplitOptions(records) {
 function buildAssignedProducerOptions(records, producerNames) {
     const counts = new Map();
     let unassigned = 0;
+    let outsourced = 0;
     for (const rec of records) {
+        if (isOutsourcedRecord(rec)) {
+            outsourced += 1;
+        }
         if (!rec.assignedProducer) {
             unassigned += 1;
         }
@@ -300,6 +306,7 @@ function buildAssignedProducerOptions(records, producerNames) {
     return [
         { value: "All", label: "All assigned", count: records.length },
         { value: "Unassigned", label: "Unassigned", count: unassigned },
+        { value: "Outsourced", label: "Outsourced", count: outsourced },
         ...producerNames.map((name) => ({
             value: name,
             label: name,

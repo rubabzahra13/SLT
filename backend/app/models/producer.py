@@ -13,6 +13,7 @@ class Producer(Base):
     initials = Column(String, nullable=False, unique=True, index=True)
     email = Column(String, nullable=False)
     specialty = Column(String, nullable=False)
+    categories = Column(JSON, nullable=True)
     avatar = Column(String, nullable=True)
     mixes_this_week = Column(Integer, default=0, nullable=False)
     next_available = Column(String, nullable=True)

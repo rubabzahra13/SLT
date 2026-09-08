@@ -6,13 +6,113 @@ import {
 } from "@/types";
 import { defaultAvatarSrc } from "@/lib/producer-avatars";
 
+/**
+ * Authoritative canonical specializations for all registered producers.
+ * Enforced across database, API, state, and UI.
+ */
+export const CANONICAL_PRODUCER_CATEGORIES: Record<string, string[]> = {
+  CM: ["Pom", "School Cheer", "All-Star Cheer", "Youth Rec Cheer"],
+  MS: ["School Cheer", "All-Star Cheer", "Youth Rec Cheer"],
+  NC: ["School Cheer", "Youth Rec Cheer"],
+  MM: ["Pom", "Team Performance / Variety", "School Cheer", "All-Star Cheer", "Youth Rec Cheer"],
+  BV: ["Marching Band"],
+  SS: ["Pom", "Team Performance / Variety", "Jazz / Kick", "Gameday", "Sports Entertainment", "Youth Rec Cheer"],
+  AJ: ["Pom", "Jazz / Kick", "Team Performance / Variety", "Gameday"],
+  LV: ["Pom", "Jazz / Kick", "Team Performance / Variety", "Gameday"],
+  RF: ["Pom", "Jazz / Kick", "Team Performance / Variety", "Gameday", "Hip Hop"],
+  JM: ["Pom", "Gameday"],
+  JOP: ["Pom", "Gameday", "School Cheer", "Youth Rec Cheer"],
+  GP: ["Pom", "Gameday"],
+  G: ["Pom", "Gameday"],
+  JD: ["Pom", "Gameday", "School Cheer", "Youth Rec Cheer"],
+  JP: ["Pom", "Gameday", "Jazz / Kick", "Team Performance / Variety"],
+  MT: ["Hip Hop", "Gameday", "Sports Entertainment"],
+  CC: ["Hip Hop", "Gameday", "Sports Entertainment"],
+  JB: ["Hip Hop", "Gameday", "Sports Entertainment"],
+  R: ["School Cheer", "All-Star Cheer", "Youth Rec Cheer"],
+};
+
+export const CANONICAL_PRODUCER_NAMES: Record<string, string> = {
+  casey: "CM",
+  matt: "MS",
+  nate: "NC",
+  mark: "MM",
+  brent: "BV",
+  shelley: "SS",
+  autumn: "AJ",
+  logan: "LV",
+  rory: "RF",
+  jackie: "JM",
+  joseph: "JOP",
+  griffin: "GP",
+  justin: "JD",
+  jacob: "JP",
+  max: "MT",
+  cory: "CC",
+  jared: "JB",
+  riley: "R",
+};
+
+export function getCanonicalCategories(raw: {
+  id?: string;
+  initials?: string;
+  name?: string;
+}): string[] | undefined {
+  const initials = raw.initials?.toUpperCase().slice(0, 4);
+  if (initials && CANONICAL_PRODUCER_CATEGORIES[initials]) {
+    return CANONICAL_PRODUCER_CATEGORIES[initials];
+  }
+  if (raw.id && CANONICAL_PRODUCER_CATEGORIES[raw.id.toUpperCase()]) {
+    return CANONICAL_PRODUCER_CATEGORIES[raw.id.toUpperCase()];
+  }
+  if (raw.name) {
+    const firstName = raw.name.trim().split(/\s+/)[0]?.toLowerCase();
+    if (firstName && CANONICAL_PRODUCER_NAMES[firstName]) {
+      const canonicalInitials = CANONICAL_PRODUCER_NAMES[firstName];
+      return CANONICAL_PRODUCER_CATEGORIES[canonicalInitials];
+    }
+  }
+  return undefined;
+}
+
 export function normalizeProducer(raw: Partial<Producer> & { id: string }): Producer {
+  const rawAny = raw as Record<string, unknown>;
+  const initials = (raw.initials || "XX").toUpperCase().slice(0, 4);
+
+  // Support legacy data that has specialty but not categories
+  let categories: string[] =
+    Array.isArray(raw.categories) && (raw.categories as string[]).length > 0
+      ? (raw.categories as string[])
+      : typeof rawAny["specialty"] === "string" && rawAny["specialty"]
+        ? [rawAny["specialty"] as string]
+        : [];
+
+  const canonical = getCanonicalCategories({
+    id: raw.id,
+    initials,
+    name: raw.name,
+  });
+
+  if (canonical) {
+    if (
+      categories.length <= 1 ||
+      categories.includes("Cheer") ||
+      categories.includes("Dance") ||
+      !canonical.every((c) => categories.includes(c))
+    ) {
+      categories = [...canonical];
+    }
+  }
+
+  const specialty = categories[0] ?? raw.specialty ?? "";
+
   return {
     id: raw.id,
     name: raw.name || "Producer",
     initials: (raw.initials || "XX").toUpperCase().slice(0, 4),
     email: raw.email || "",
-    specialty: raw.specialty || "Cheer",
+    categories,
+    specialty,
     avatar: raw.avatar || defaultAvatarSrc(),
     mixesThisWeek: raw.mixesThisWeek ?? 0,
     nextAvailable: raw.nextAvailable || "TBD",
@@ -26,6 +126,10 @@ export function normalizeProducer(raw: Partial<Producer> & { id: string }): Prod
       raw.maxMixesPerDay != null && raw.maxMixesPerDay > 0
         ? raw.maxMixesPerDay
         : null,
+    maxProducerCostPerDay:
+      raw.maxProducerCostPerDay != null && raw.maxProducerCostPerDay > 0
+        ? raw.maxProducerCostPerDay
+        : null,
     overtimeDays: Array.isArray(raw.overtimeDays)
       ? [...new Set(raw.overtimeDays.filter(Boolean))].sort()
       : [],
@@ -38,11 +142,20 @@ export function normalizeProducer(raw: Partial<Producer> & { id: string }): Prod
   };
 }
 
+/** Returns the first category (primary display label) for a producer. */
+export function primaryCategory(producer: Producer): string {
+  return producer.categories[0] ?? producer.specialty ?? "";
+}
 
 export function formatMaxMixCapacity(maxMixesPerDay: number | null): string {
   if (maxMixesPerDay == null) return "No daily limit";
   if (maxMixesPerDay === 1) return "1 mix per day max";
   return `${maxMixesPerDay} mixes per day max`;
+}
+
+export function formatMaxCostCapacity(maxProducerCostPerDay: number | null): string {
+  if (maxProducerCostPerDay == null) return "No daily cost limit";
+  return `$${maxProducerCostPerDay.toLocaleString()} max per day`;
 }
 
 export function formatWorkDays(days: Weekday[]): string {

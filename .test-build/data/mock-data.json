@@ -4,7 +4,7 @@
             "id": "mtd-demo",
             "orderId": "ord-demo",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": null,
+            "assignedProducer": "CM",
             "category": "Cheer",
             "editorInitials": "DEMO",
             "programName": "DEMO GYM SENIOR LARGE",
@@ -24,7 +24,7 @@
         {
             "id": "mtd-1",
             "section": "OUTSOURCED MIXES",
-            "assignedProducer": "CM",
+            "assignedProducer": "JD",
             "category": "Cheer",
             "editorInitials": "WALTER",
             "programName": "SPIRIT XTREME AS MIGHTY MINI",
@@ -46,7 +46,7 @@
         {
             "id": "mtd-2",
             "section": "OUTSOURCED MIXES",
-            "assignedProducer": "CM",
+            "assignedProducer": null,
             "category": "Cheer",
             "editorInitials": "WALTER",
             "programName": "SPIRIT XTREME AS BRAVE YTH 1",
@@ -68,7 +68,7 @@
         {
             "id": "mtd-3",
             "section": "OUTSOURCED MIXES",
-            "assignedProducer": "CM",
+            "assignedProducer": "NC",
             "category": "Cheer",
             "editorInitials": "WALTER",
             "programName": "SPIRIT XTREME AS XCELLENCE U16 LV 2",
@@ -90,7 +90,7 @@
         {
             "id": "mtd-4",
             "section": "OUTSOURCED MIXES",
-            "assignedProducer": "CM",
+            "assignedProducer": "MM",
             "category": "Cheer",
             "editorInitials": "WALTER",
             "programName": "SPIRIT XTREME AS TRUST JR 2",
@@ -112,7 +112,7 @@
         {
             "id": "mtd-5",
             "section": "OUTSOURCED MIXES",
-            "assignedProducer": "CM",
+            "assignedProducer": "JOP",
             "category": "Cheer",
             "editorInitials": "CALVIN",
             "programName": "WILCO COMP CHEER UCA 10U THUNDERCATS",
@@ -134,7 +134,7 @@
         {
             "id": "mtd-6",
             "section": "OUTSOURCED MIXES",
-            "assignedProducer": "CM",
+            "assignedProducer": "R",
             "category": "Cheer",
             "editorInitials": "WALTER",
             "programName": "SPIRIT XTREME AS PROMISE YTH 2",
@@ -156,7 +156,7 @@
         {
             "id": "mtd-7",
             "section": "OUTSOURCED MIXES",
-            "assignedProducer": "CM",
+            "assignedProducer": null,
             "category": "Cheer",
             "editorInitials": "CALVIN",
             "programName": "WILCO COMP CHEER UCA 12U ROYALCATS",
@@ -200,7 +200,7 @@
         {
             "id": "mtd-9",
             "section": "OUTSOURCED MIXES",
-            "assignedProducer": "CM",
+            "assignedProducer": "JD",
             "category": "Cheer",
             "editorInitials": "WALTER",
             "programName": "SPIRIT XTREME AS XCITE YTH 3",
@@ -222,7 +222,7 @@
         {
             "id": "mtd-10",
             "section": "OUTSOURCED MIXES",
-            "assignedProducer": "CM",
+            "assignedProducer": "JD",
             "category": "Cheer",
             "editorInitials": "SHELLY",
             "programName": "PRO SPIRIT AS MINI DIAMONDZ MINI 2.2 PREP",
@@ -266,7 +266,7 @@
         {
             "id": "mtd-12",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "SS",
             "category": "Cheer",
             "editorInitials": "SHELLY",
             "programName": "PRO SPIRIT AS DIAMONDZ JR 2.2 PREP",
@@ -288,7 +288,7 @@
         {
             "id": "mtd-13",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "R",
             "category": "Cheer",
             "editorInitials": "WALTER",
             "programName": "SPIRIT XTREME AS GLOW MINI 1",
@@ -310,7 +310,7 @@
         {
             "id": "mtd-14",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": null,
             "category": "Cheer",
             "editorInitials": "SHELLY/KAYLYN",
             "programName": "PRO SPIRIT AS LADY ONYX JR 3.2 AG PREP",
@@ -332,7 +332,7 @@
         {
             "id": "mtd-15",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "MM",
             "category": "Cheer",
             "editorInitials": "SHELLY/MADDIE",
             "programName": "PRO SPIRIT AS LUCKY STARZ CHEERABILITIES COED",
@@ -354,7 +354,7 @@
         {
             "id": "mtd-16",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "NC",
             "category": "Cheer",
             "editorInitials": "WALTER",
             "programName": "SPIRIT XTREME AS SHINE MINI 1",
@@ -376,7 +376,7 @@
         {
             "id": "mtd-17",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "MS",
             "category": "Cheer",
             "editorInitials": "AMIE/STACI/SANDI",
             "programName": "SEABREEZE HS SMALL ALL GIRL",
@@ -398,7 +398,7 @@
         {
             "id": "mtd-18",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "JD",
             "category": "Cheer",
             "editorInitials": "KENDALL",
             "programName": "MAGIC CITY AS BIRM OUTLAWS SM JR 4 FLEX AG",
@@ -420,7 +420,7 @@
         {
             "id": "mtd-19",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": null,
             "category": "Cheer",
             "editorInitials": "WALTER",
             "programName": "SPIRIT XTREME AS LADY X SR 5",
@@ -442,7 +442,7 @@
         {
             "id": "mtd-20",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "MS",
             "category": "Cheer",
             "editorInitials": "WALTER",
             "programName": "SPIRIT XTREME AS GLITZ JR 1",
@@ -464,7 +464,7 @@
         {
             "id": "mtd-21",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "JD",
             "category": "Cheer",
             "editorInitials": "SARAH",
             "programName": "TAHQUITZ HS LRG COED",
@@ -508,7 +508,7 @@
         {
             "id": "mtd-23",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": null,
             "category": "Cheer",
             "editorInitials": "KENDALL",
             "programName": "MAGIC CITY AS BIRM CITY GIRLS MINI 1",
@@ -530,7 +530,7 @@
         {
             "id": "mtd-24",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "R",
             "category": "Cheer",
             "editorInitials": "KENDALL",
             "programName": "MAGIC CITY AS BIRM LEGACY YTH 3 FLEX",
@@ -552,7 +552,7 @@
         {
             "id": "mtd-25",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "JOP",
             "category": "Cheer",
             "editorInitials": "NIKKI/ROSALIND",
             "programName": "PREMIER ATHLETICS KY GLAMOUR GIRLS MINI 1",
@@ -574,7 +574,7 @@
         {
             "id": "mtd-26",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "MM",
             "category": "Cheer",
             "editorInitials": "KENDALL",
             "programName": "MAGIC CITY AS BIRM LADY LEGION YTH 2 FLEX",
@@ -596,7 +596,7 @@
         {
             "id": "mtd-27",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "NC",
             "category": "Cheer",
             "editorInitials": "KENDALL",
             "programName": "MAGIC CITY AS BIRM IRON ELITE MINI 1",
@@ -618,7 +618,7 @@
         {
             "id": "mtd-28",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": null,
             "category": "Cheer",
             "editorInitials": "EVE/BLAKE",
             "programName": "HARRISBURG HS ALL GIRL",
@@ -640,7 +640,7 @@
         {
             "id": "mtd-29",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "JD",
             "category": "Cheer",
             "editorInitials": "WALTER",
             "programName": "SPIRIT XTREME AS GLORY JR 4",
@@ -662,7 +662,7 @@
         {
             "id": "mtd-30",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "NC",
             "category": "Cheer",
             "editorInitials": "WALTER",
             "programName": "SPIRIT XTREME AS STRENGTH SR COED 4",
@@ -684,7 +684,7 @@
         {
             "id": "mtd-31",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "MS",
             "category": "Cheer",
             "editorInitials": "JASON/CAMERON",
             "programName": "BECKMAN HS SM ADV COED",
@@ -706,7 +706,7 @@
         {
             "id": "mtd-32",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": null,
             "category": "Cheer",
             "editorInitials": "SHELLY/KAYLYN",
             "programName": "PRO SPIRIT AS NEON YTH 2 FLEX ELITE AG",
@@ -750,7 +750,7 @@
         {
             "id": "mtd-34",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "SS",
             "category": "Cheer",
             "editorInitials": "BRANDON/JOMAR",
             "programName": "MOUNTAIN RIDGE HS JV TBD",
@@ -772,7 +772,7 @@
         {
             "id": "mtd-35",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "R",
             "category": "Cheer",
             "editorInitials": "ASHLEY.JASON",
             "programName": "AMERICAN CHEER YOUTH WHITE",
@@ -794,7 +794,7 @@
         {
             "id": "mtd-36",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "JOP",
             "category": "Cheer",
             "editorInitials": "BRANDON/JOMAR",
             "programName": "XAVIER PREP HS TBD",
@@ -816,7 +816,7 @@
         {
             "id": "mtd-37",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": null,
             "category": "Cheer",
             "editorInitials": "ASHLEY.JASON",
             "programName": "AMERICAN CHEER YOUTH BLUE",
@@ -838,7 +838,7 @@
         {
             "id": "mtd-38",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "NC",
             "category": "Cheer",
             "editorInitials": "TIFFANY",
             "programName": "ALMADEN SPIRIT ATHLETICS AQUA JR 1",
@@ -860,7 +860,7 @@
         {
             "id": "mtd-39",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "MS",
             "category": "Cheer",
             "editorInitials": "WALTER",
             "programName": "SPIRIT XTREME AS INTEGRITY U16 LV 3",
@@ -882,7 +882,7 @@
         {
             "id": "mtd-40",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "MM",
             "category": "Cheer",
             "editorInitials": "MICHAEL",
             "programName": "DESERT VISTA HS GOLDEN GIRLS SMALL VARSITY",
@@ -904,7 +904,7 @@
         {
             "id": "mtd-41",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": null,
             "category": "Cheer",
             "editorInitials": "BRANDON/JOMAR",
             "programName": "PARADISE HONORS HS TBD",
@@ -926,7 +926,7 @@
         {
             "id": "mtd-42",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "MS",
             "category": "Cheer",
             "editorInitials": "STEF",
             "programName": "RIO VISTA MS TBD",
@@ -948,7 +948,7 @@
         {
             "id": "mtd-43",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "JD",
             "category": "Cheer",
             "editorInitials": "ASHLEY.JASON",
             "programName": "AMERICAN CHEER JBLACK",
@@ -992,7 +992,7 @@
         {
             "id": "mtd-45",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "SS",
             "category": "Cheer",
             "editorInitials": "ASHLEY.JASON",
             "programName": "AMERICAN CHEER SR BLUE",
@@ -1014,7 +1014,7 @@
         {
             "id": "mtd-46",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": null,
             "category": "Cheer",
             "editorInitials": "ASHLEY.JASON",
             "programName": "AMERICAN CHEER SR RED",
@@ -1036,7 +1036,7 @@
         {
             "id": "mtd-47",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "JOP",
             "category": "Cheer",
             "editorInitials": "JAMIE",
             "programName": "CHEER SKILLZ ACADEMY ASTRO ANGELS YTH PREP 2.2",
@@ -1058,7 +1058,7 @@
         {
             "id": "mtd-48",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "MM",
             "category": "Cheer",
             "editorInitials": "JAMIE",
             "programName": "CHEER SKILLZ ACADEMY DELTA DOLLS YTH PREP 2.1",
@@ -1080,7 +1080,7 @@
         {
             "id": "mtd-49",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "NC",
             "category": "Cheer",
             "editorInitials": "WALTER",
             "programName": "SPIRIT XTREME AS PASSION SR 4.2",
@@ -1102,7 +1102,7 @@
         {
             "id": "mtd-50",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": null,
             "category": "Cheer",
             "editorInitials": "JAMIE",
             "programName": "CHEER SKILLZ ACADEMY MISS MISSION JR FLEX 2",
@@ -1124,7 +1124,7 @@
         {
             "id": "mtd-51",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "MM",
             "category": "Cheer",
             "editorInitials": "CRYSTAL",
             "programName": "TUALATIN HS LRG VAR ADV COED",
@@ -1146,7 +1146,7 @@
         {
             "id": "mtd-52",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "NC",
             "category": "Cheer",
             "editorInitials": "EMILY/BRICE",
             "programName": "WESTLAKE HS SM VAR NT AG D2",
@@ -1168,7 +1168,7 @@
         {
             "id": "mtd-53",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "MS",
             "category": "Cheer",
             "editorInitials": "SAVANNA/BLAKE",
             "programName": "CULLMAN HS LRG JV AG",
@@ -1190,7 +1190,7 @@
         {
             "id": "mtd-54",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "JD",
             "category": "Cheer",
             "editorInitials": "JAMIE",
             "programName": "CHEER SKILLZ ACADEMY COMET CUTIES MINI NOV 1",
@@ -1212,7 +1212,7 @@
         {
             "id": "mtd-55",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": null,
             "category": "Cheer",
             "editorInitials": "JAMIE",
             "programName": "CHEER SKILLZ ACADEMY SATURN SWEETIES MINI PREP 2.1",
@@ -1234,7 +1234,7 @@
         {
             "id": "mtd-56",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "SS",
             "category": "Cheer",
             "editorInitials": "BRANDON/JOMAR",
             "programName": "NORTHRIDGE HS TBD",
@@ -1256,7 +1256,7 @@
         {
             "id": "mtd-57",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "R",
             "category": "Cheer",
             "editorInitials": "TRAVIS",
             "programName": "MIRA COSTA HS MED NT AG",
@@ -1278,7 +1278,7 @@
         {
             "id": "mtd-58",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "JOP",
             "category": "Cheer",
             "editorInitials": "DELAINA/CAMERON",
             "programName": "EL DORADO HS SM VARSITY AG",
@@ -1300,7 +1300,7 @@
         {
             "id": "mtd-59",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "MM",
             "category": "Cheer",
             "editorInitials": "BRANDON/JOMAR",
             "programName": "SEVERANCE HS TBD",
@@ -1322,7 +1322,7 @@
         {
             "id": "mtd-60",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "R",
             "category": "Cheer",
             "editorInitials": "NIKKI/ROSALIND",
             "programName": "PREMIER ATHLETICS KY LADY LAMBO SM YTH 2",
@@ -1344,7 +1344,7 @@
         {
             "id": "mtd-61",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "JOP",
             "category": "Cheer",
             "editorInitials": "NIKKI/ROSALIND",
             "programName": "PREMIER ATHLETICS KY DIAMOND GIRLS SM JR 1",
@@ -1366,7 +1366,7 @@
         {
             "id": "mtd-62",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "MM",
             "category": "Cheer",
             "editorInitials": "NIKKI/ROSALIND",
             "programName": "PREMIER ATHLETICS KY CHEERY BOMBS SM YTH 3 FLEX",
@@ -1388,7 +1388,7 @@
         {
             "id": "mtd-63",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "NC",
             "category": "Cheer",
             "editorInitials": "TIFFANY",
             "programName": "ALMADEN SPIRIT ATHLETICS RUBY JR 1",
@@ -1410,7 +1410,7 @@
         {
             "id": "mtd-64",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": null,
             "category": "Cheer",
             "editorInitials": "NIKKI/ROSALIND",
             "programName": "PREMIER ATHLETICS KY VOGUE U16 LV 3",
@@ -1432,7 +1432,7 @@
         {
             "id": "mtd-65",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "JD",
             "category": "Cheer",
             "editorInitials": "MICHAEL",
             "programName": "DESERT VISTA HS JV",
@@ -1476,7 +1476,7 @@
         {
             "id": "mtd-67",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "SS",
             "category": "Cheer",
             "editorInitials": "LAUREN/ROGER/AUDREY",
             "programName": "TOP GUN AS ORLANDO MINI REIGN MINI 1 MED",
@@ -1498,7 +1498,7 @@
         {
             "id": "mtd-68",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "R",
             "category": "Cheer",
             "editorInitials": "TALEEN/JEWELL",
             "programName": "CLOVIS WEST HS D1 SMALL ALL GIRL",
@@ -1520,7 +1520,7 @@
         {
             "id": "mtd-69",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": null,
             "category": "Cheer",
             "editorInitials": "MELISSA/ALEXIS",
             "programName": "ONE DREAM CHEER 18U MISS FAME",
@@ -1542,7 +1542,7 @@
         {
             "id": "mtd-70",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "SS",
             "category": "Cheer",
             "editorInitials": "MELISSA/ALEXIS",
             "programName": "ONE DREAM CHEER 16U LADY LEGENDS",
@@ -1564,7 +1564,7 @@
         {
             "id": "mtd-71",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "R",
             "category": "Cheer",
             "editorInitials": "MELISSA/ALEXIS",
             "programName": "ONE DREAM CHEER 14U BLUE CREW",
@@ -1586,7 +1586,7 @@
         {
             "id": "mtd-72",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "JOP",
             "category": "Cheer",
             "editorInitials": "MELISSA/ALEXIS",
             "programName": "ONE DREAM CHEER 14U GLAMOUR GIRLS",
@@ -1608,7 +1608,7 @@
         {
             "id": "mtd-73",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": null,
             "category": "Cheer",
             "editorInitials": "NIKKI/ROSALIND",
             "programName": "PREMIER ATHLETICS KY DERBY SM SR 4",
@@ -1630,7 +1630,7 @@
         {
             "id": "mtd-74",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "NC",
             "category": "Cheer",
             "editorInitials": "TIFFANY",
             "programName": "ALMADEN SPIRIT ATHLETICS AMBER YTH 1",
@@ -1652,7 +1652,7 @@
         {
             "id": "mtd-75",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "MS",
             "category": "Cheer",
             "editorInitials": "BRANDON/JOMAR",
             "programName": "GREELEY CENTRAL HS TBD",
@@ -1674,7 +1674,7 @@
         {
             "id": "mtd-76",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "JD",
             "category": "Cheer",
             "editorInitials": "BLAKE",
             "programName": "BROTHER MARTIN HS LRG VARSITY COED D1",
@@ -1718,7 +1718,7 @@
         {
             "id": "mtd-78",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": null,
             "category": "Cheer",
             "editorInitials": "KELLY/JOHN",
             "programName": "KELLENBURG MEMORIAL HS VARSITY D1",
@@ -1740,7 +1740,7 @@
         {
             "id": "mtd-79",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "R",
             "category": "Cheer",
             "editorInitials": "ASHLEY.JASON",
             "programName": "AMERICAN CHEER TINY TWINKLES",
@@ -1784,7 +1784,7 @@
         {
             "id": "mtd-81",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "SS",
             "category": "Cheer",
             "editorInitials": "ASHLEY.JASON",
             "programName": "AMERICAN CHEER TINY STARS",
@@ -1806,7 +1806,7 @@
         {
             "id": "mtd-82",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": null,
             "category": "Cheer",
             "editorInitials": "ASHLEY.JASON",
             "programName": "AMERICAN CHEER MINI STARS",
@@ -1828,7 +1828,7 @@
         {
             "id": "mtd-83",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "JOP",
             "category": "Cheer",
             "editorInitials": "ASHLEY.JASON",
             "programName": "AMERICAN CHEER YOUTH STARS",
@@ -1850,7 +1850,7 @@
         {
             "id": "mtd-84",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "MM",
             "category": "Cheer",
             "editorInitials": "ASHLEY.JASON",
             "programName": "AMERICAN CHEER JR STARS",
@@ -1872,7 +1872,7 @@
         {
             "id": "mtd-85",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "NC",
             "category": "Cheer",
             "editorInitials": "MELISSA/ALEXIS",
             "programName": "ONE DREAM CHEER 10U MISS BLUSH",
@@ -1894,7 +1894,7 @@
         {
             "id": "mtd-86",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "MS",
             "category": "Cheer",
             "editorInitials": "MELISSA/ALEXIS",
             "programName": "ONE DREAM CHEER 8U GOSSIP GIRLS",
@@ -1916,7 +1916,7 @@
         {
             "id": "mtd-87",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": null,
             "category": "Cheer",
             "editorInitials": "TIFFANY",
             "programName": "ALMADEN SPIRIT ATHLETICS QUARTZ JR PREP 1.1",
@@ -1960,7 +1960,7 @@
         {
             "id": "mtd-89",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "SS",
             "category": "Cheer",
             "editorInitials": "MELISSA/ALEXIS",
             "programName": "ONE DREAM CHEER 12 LADY ICONS",
@@ -1982,7 +1982,7 @@
         {
             "id": "mtd-90",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "JD",
             "category": "Cheer",
             "editorInitials": "TIFFANY",
             "programName": "ALMADEN SPIRIT ATHLETICS COBALT YTH PREP 1.1",
@@ -2004,7 +2004,7 @@
         {
             "id": "mtd-91",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": null,
             "category": "Cheer",
             "editorInitials": "MELISSA/ALEXIS",
             "programName": "ONE DREAM CHEER 12 2.1 DIVAS",
@@ -2026,7 +2026,7 @@
         {
             "id": "mtd-92",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "SS",
             "category": "Cheer",
             "editorInitials": "GRETCHEN",
             "programName": "ALASKA GOLDEN HEART APEX ANGELS XSM SR 3",
@@ -2048,7 +2048,7 @@
         {
             "id": "mtd-93",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "R",
             "category": "Cheer",
             "editorInitials": "LAUREN/ROGER/AUDREY",
             "programName": "TOP GUN AS ORLANDO BULLET GOLD YTH MED 1",
@@ -2070,7 +2070,7 @@
         {
             "id": "mtd-94",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "JOP",
             "category": "Cheer",
             "editorInitials": "CINDY",
             "programName": "BELLEVUE HS VARSITY INT",
@@ -2092,7 +2092,7 @@
         {
             "id": "mtd-95",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "MM",
             "category": "Cheer",
             "editorInitials": "LAUREN/ROGER/AUDREY",
             "programName": "TOP GUN AS ORLANDO UNITY YTH FLEX 1",
@@ -2114,7 +2114,7 @@
         {
             "id": "mtd-96",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": null,
             "category": "Cheer",
             "editorInitials": "VICKI",
             "programName": "VICTORY VIPERS TBD",
@@ -2136,7 +2136,7 @@
         {
             "id": "mtd-97",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "MS",
             "category": "Cheer",
             "editorInitials": "LAUREN/ROGER/AUDREY",
             "programName": "TOP GUN AS ORLANDO HALO YTH SM 2",
@@ -2158,7 +2158,7 @@
         {
             "id": "mtd-98",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "JD",
             "category": "Cheer",
             "editorInitials": "VICKI",
             "programName": "VICTORY VIPERS TBD",
@@ -2202,7 +2202,7 @@
         {
             "id": "mtd-100",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "JD",
             "category": "Cheer",
             "editorInitials": "VICKI",
             "programName": "VICTORY VIPERS TBD",
@@ -2224,7 +2224,7 @@
         {
             "id": "mtd-101",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "MS",
             "category": "Cheer",
             "editorInitials": "LAUREN/ROGER/AUDREY",
             "programName": "TOP GUN AS ORLANDO RAPTURE YTH FLEX 2",
@@ -2246,7 +2246,7 @@
         {
             "id": "mtd-102",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "NC",
             "category": "Cheer",
             "editorInitials": "GRETCHEN",
             "programName": "ALASKA GOLDEN HEART SPEED QUEENS XSM SR 2",
@@ -2268,7 +2268,7 @@
         {
             "id": "mtd-103",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": null,
             "category": "Cheer",
             "editorInitials": "LAUREN/ROGER/AUDREY",
             "programName": "TOP GUN AS ORLANDO Y2K YTH MED 2",
@@ -2290,7 +2290,7 @@
         {
             "id": "mtd-104",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "JOP",
             "category": "Cheer",
             "editorInitials": "GRETCHEN",
             "programName": "ALASKA GOLDEN HEART LANE LADIES XSM JR 2",
@@ -2312,7 +2312,7 @@
         {
             "id": "mtd-105",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "R",
             "category": "Cheer",
             "editorInitials": "LAUREN/ROGER/AUDREY",
             "programName": "TOP GUN AS ORLANDO YOUNG GUNZ YTH MED 3",
@@ -2334,7 +2334,7 @@
         {
             "id": "mtd-106",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "SS",
             "category": "Cheer",
             "editorInitials": "GRETCHEN",
             "programName": "ALASKA GOLDEN HEART OVERDIRVE DIVAS YTH SM 1",
@@ -2378,7 +2378,7 @@
         {
             "id": "mtd-108",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": null,
             "category": "Cheer",
             "editorInitials": "GRETCHEN",
             "programName": "ALASKA GOLDEN HEART RALLY RACERS YTH PREP 1.1",
@@ -2400,7 +2400,7 @@
         {
             "id": "mtd-109",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "MS",
             "category": "Cheer",
             "editorInitials": "STEFANIE",
             "programName": "BREA OLINDA HS VARSITY LRG NT",
@@ -2444,7 +2444,7 @@
         {
             "id": "mtd-111",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "JD",
             "category": "Cheer",
             "editorInitials": "ASHLEY/NANCY",
             "programName": "CHARTER OAK HS VARSITY NOVICE",
@@ -2466,7 +2466,7 @@
         {
             "id": "mtd-112",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": null,
             "category": "Cheer",
             "editorInitials": "GRETCHEN",
             "programName": "ALASKA GOLDEN HEART ZOON CREW JR PREP 1.1",
@@ -2488,7 +2488,7 @@
         {
             "id": "mtd-113",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "NC",
             "category": "Cheer",
             "editorInitials": "STEFANIE",
             "programName": "BREA OLINDA HS JV INT",
@@ -2510,7 +2510,7 @@
         {
             "id": "mtd-114",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "MM",
             "category": "Cheer",
             "editorInitials": "LAUREN/ROGER/AUDREY",
             "programName": "TOP GUN AS ORLANDO ROYALTY SM JR 4",
@@ -2532,7 +2532,7 @@
         {
             "id": "mtd-115",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "JOP",
             "category": "Cheer",
             "editorInitials": "LAUREN/ROGER/AUDREY",
             "programName": "TOP GUN AS ORLANDO GLORY JR MED 4",
@@ -2554,7 +2554,7 @@
         {
             "id": "mtd-116",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "R",
             "category": "Cheer",
             "editorInitials": "JOANNA",
             "programName": "DAKOTA SPIRIT AS ATOMIC YTH 1",
@@ -2576,7 +2576,7 @@
         {
             "id": "mtd-117",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": null,
             "category": "Cheer",
             "editorInitials": "GRETCHEN",
             "programName": "ALASKA GOLDEN HEART MINI MOTORS MINI PREP 1.1",
@@ -2620,7 +2620,7 @@
         {
             "id": "mtd-119",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "JD",
             "category": "Cheer",
             "editorInitials": "BRANDON/JOMAR",
             "programName": "VALLEY HS JV TBD",
@@ -2642,7 +2642,7 @@
         {
             "id": "mtd-120",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "SS",
             "category": "Cheer",
             "editorInitials": "JOANNA",
             "programName": "DAKOTA SPIRIT AS SMOKE JR 3",
@@ -2664,7 +2664,7 @@
         {
             "id": "mtd-121",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": null,
             "category": "Cheer",
             "editorInitials": "BAILEIGH/THERESA",
             "programName": "ROSEDALE MS ALL GIRL",
@@ -2686,7 +2686,7 @@
         {
             "id": "mtd-122",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "JD",
             "category": "Cheer",
             "editorInitials": "CONNER",
             "programName": "DOWNEY HS VARSITY",
@@ -2708,7 +2708,7 @@
         {
             "id": "mtd-123",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "MS",
             "category": "Cheer",
             "editorInitials": "TIFFANY",
             "programName": "ALMADEN SPIRIT ATHLETICS STEEL SR 4.2",
@@ -2730,7 +2730,7 @@
         {
             "id": "mtd-124",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "NC",
             "category": "Cheer",
             "editorInitials": "TIFFANY",
             "programName": "ALMADEN SPIRIT ATHLETICS OBSIDIAN SR 3",
@@ -2752,7 +2752,7 @@
         {
             "id": "mtd-125",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "MM",
             "category": "Cheer",
             "editorInitials": "ROBERT",
             "programName": "MT SAN ANTONIO COLLEGE SM COED ADV",
@@ -2774,7 +2774,7 @@
         {
             "id": "mtd-126",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": null,
             "category": "Cheer",
             "editorInitials": "KALE",
             "programName": "LIMITLESS AS BLITZ/ INTL OPEN SM COED 5",
@@ -2796,7 +2796,7 @@
         {
             "id": "mtd-127",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "R",
             "category": "Cheer",
             "editorInitials": "TIFFANY",
             "programName": "ALMADEN SPIRIT ATHLETICS SLATE SR NOV 1",
@@ -2818,7 +2818,7 @@
         {
             "id": "mtd-128",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "SS",
             "category": "Cheer",
             "editorInitials": "BRANDON/JOMAR",
             "programName": "CRISMON MS TBD",
@@ -2862,7 +2862,7 @@
         {
             "id": "mtd-130",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": null,
             "category": "Cheer",
             "editorInitials": "BRANDON/JOMAR",
             "programName": "VISTA GRANDE HS TBD",
@@ -2884,7 +2884,7 @@
         {
             "id": "mtd-131",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "SS",
             "category": "Cheer",
             "editorInitials": "BRANDON/JOMAR",
             "programName": "ORGAN MOUNTAIN HS TBD",
@@ -2928,7 +2928,7 @@
         {
             "id": "mtd-133",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "JD",
             "category": "Cheer",
             "editorInitials": "CHRIS/LAUREN",
             "programName": "MAGIC CITY AS PIKE SHOCKWAVE YTH 2.2 PREP",
@@ -2950,7 +2950,7 @@
         {
             "id": "mtd-134",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "MS",
             "category": "Cheer",
             "editorInitials": "CHRIS/LAUREN",
             "programName": "MAGIC CITY AS PIKE LADY ELECTRIC YTH 1.1 PREP",
@@ -2972,7 +2972,7 @@
         {
             "id": "mtd-135",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": null,
             "category": "Cheer",
             "editorInitials": "TIFFANY",
             "programName": "ALMADEN SPIRIT ATHLETICS CRYSTAL YTH NOV 1",
@@ -2994,7 +2994,7 @@
         {
             "id": "mtd-136",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "MM",
             "category": "Cheer",
             "editorInitials": "TIFFANY",
             "programName": "ALMADEN SPIRIT ATHLETICS HILLITES YTH NOV 1",
@@ -3016,7 +3016,7 @@
         {
             "id": "mtd-137",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "JOP",
             "category": "Cheer",
             "editorInitials": "BRIA",
             "programName": "HORIZON HS (FL) SM VAR NT AG",
@@ -3038,7 +3038,7 @@
         {
             "id": "mtd-138",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "R",
             "category": "Cheer",
             "editorInitials": "CHRIS/LAUREN",
             "programName": "MAGIC CITY AS PIKE FUSE SR 3",
@@ -3060,7 +3060,7 @@
         {
             "id": "mtd-139",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "SS",
             "category": "Cheer",
             "editorInitials": "BRANDON/JOMAR",
             "programName": "LAS CRUCES HS TBD",
@@ -3082,7 +3082,7 @@
         {
             "id": "mtd-140",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "JOP",
             "category": "Cheer",
             "editorInitials": "CHRIS/LAUREN",
             "programName": "MAGIC CITY AS PIKE VOLTAGE JR 3",
@@ -3104,7 +3104,7 @@
         {
             "id": "mtd-141",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "R",
             "category": "Cheer",
             "editorInitials": "BRANDON/JOMAR",
             "programName": "GODDARD HS TBD",
@@ -3126,7 +3126,7 @@
         {
             "id": "mtd-142",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "SS",
             "category": "Cheer",
             "editorInitials": "BRANDON/JOMAR",
             "programName": "BLOOMFIELD HS TBD",
@@ -3170,7 +3170,7 @@
         {
             "id": "mtd-144",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": null,
             "category": "Cheer",
             "editorInitials": "BRANDON/JOMAR",
             "programName": "QUESTA HS TBD",
@@ -3192,7 +3192,7 @@
         {
             "id": "mtd-145",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "MS",
             "category": "Cheer",
             "editorInitials": "BRANDON/JOMAR",
             "programName": "HOBBS HS TBD",
@@ -3214,7 +3214,7 @@
         {
             "id": "mtd-146",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "NC",
             "category": "Cheer",
             "editorInitials": "JOANNA",
             "programName": "DAKOTA SPIRIT AS BLAZE YTH 3",
@@ -3236,7 +3236,7 @@
         {
             "id": "mtd-147",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "MM",
             "category": "Cheer",
             "editorInitials": "STEF",
             "programName": "PYRAMID ATHLETICS YOUTH LUX",
@@ -3258,7 +3258,7 @@
         {
             "id": "mtd-148",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "JOP",
             "category": "Cheer",
             "editorInitials": "STEF",
             "programName": "PYRAMID ATHLETICS VENOM",
@@ -3280,7 +3280,7 @@
         {
             "id": "mtd-149",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": null,
             "category": "Cheer",
             "editorInitials": "STEF",
             "programName": "PYRAMID ATHLETICS YOUTH GODDESS",
@@ -3302,7 +3302,7 @@
         {
             "id": "mtd-150",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "MM",
             "category": "Cheer",
             "editorInitials": "CONNER",
             "programName": "DOWNEY JV",
@@ -3324,7 +3324,7 @@
         {
             "id": "mtd-151",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "JOP",
             "category": "Cheer",
             "editorInitials": "BRIDGET",
             "programName": "CELEBRATION HS SM VAR NT",
@@ -3346,7 +3346,7 @@
         {
             "id": "mtd-152",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "R",
             "category": "Cheer",
             "editorInitials": "DALTON",
             "programName": "LOUISIANA STATE UNIVERSITY D1A LRG COED",
@@ -3368,7 +3368,7 @@
         {
             "id": "mtd-153",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": null,
             "category": "Cheer",
             "editorInitials": "MELIA",
             "programName": "WEST LINN YOUTH CHEER JR AG",
@@ -3412,7 +3412,7 @@
         {
             "id": "mtd-155",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "JD",
             "category": "Cheer",
             "editorInitials": "ALICIA/KEYANNA",
             "programName": "OKLAHOMA CITY UNIVERSITY ADV SM COED NAIA",
@@ -3434,7 +3434,7 @@
         {
             "id": "mtd-156",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CM",
+            "assignedProducer": "MS",
             "category": "Cheer",
             "editorInitials": "BRANDON/JOMAR",
             "programName": "TULAROSA HS TBD",
@@ -3456,7 +3456,7 @@
         {
             "id": "mtd-157",
             "section": "DANCE MUSIC",
-            "assignedProducer": "JOE",
+            "assignedProducer": "MT",
             "category": "Dance",
             "editorInitials": "DONALD",
             "programName": "BULLARD HS ALL GIRL",
@@ -3478,7 +3478,7 @@
         {
             "id": "mtd-158",
             "section": "DANCE MUSIC",
-            "assignedProducer": "JOE",
+            "assignedProducer": null,
             "category": "Dance",
             "editorInitials": "WALTER",
             "programName": "SPIRIT XTREME AS UNITY YTH PREP 1.1",
@@ -3500,7 +3500,7 @@
         {
             "id": "mtd-159",
             "section": "DANCE MUSIC",
-            "assignedProducer": "JOE",
+            "assignedProducer": "JB",
             "category": "Dance",
             "editorInitials": "KRISTEN",
             "programName": "EXPRESS CHEER NTX STARLIGHT YOUTH PREP 1.1 AG",
@@ -3522,7 +3522,7 @@
         {
             "id": "mtd-160",
             "section": "DANCE MUSIC",
-            "assignedProducer": "JOE",
+            "assignedProducer": "AJ",
             "category": "Dance",
             "editorInitials": "KRISTEN",
             "programName": "EXPRESS CHEER NTX STARBURST YOUTH PREP 2.2 AG",
@@ -3544,7 +3544,7 @@
         {
             "id": "mtd-161",
             "section": "DANCE MUSIC",
-            "assignedProducer": "JOE",
+            "assignedProducer": "LV",
             "category": "Dance",
             "editorInitials": "KRISTEN",
             "programName": "EXPRESS CHEER NTX SATELLITES ELITE MINI 1 AG",
@@ -3566,7 +3566,7 @@
         {
             "id": "mtd-162",
             "section": "DANCE MUSIC",
-            "assignedProducer": "JOE",
+            "assignedProducer": null,
             "category": "Dance",
             "editorInitials": "KRISTEN",
             "programName": "EXPRESS CHEER NTX STELLAR ELITE YOUTH 2 AG",
@@ -3588,7 +3588,7 @@
         {
             "id": "mtd-163",
             "section": "DANCE MUSIC",
-            "assignedProducer": "JOE",
+            "assignedProducer": "JP",
             "category": "Dance",
             "editorInitials": "KRISTEN",
             "programName": "EXPRESS CHEER NTX SUPERNOVA ELITE SM JR 3 AG",
@@ -3610,7 +3610,7 @@
         {
             "id": "mtd-164",
             "section": "DANCE MUSIC",
-            "assignedProducer": "JOE",
+            "assignedProducer": "MT",
             "category": "Dance",
             "editorInitials": "NADER/BRIAN",
             "programName": "VILLAGE CHRISTIAN MS NT NOV AG",
@@ -3632,7 +3632,7 @@
         {
             "id": "mtd-165",
             "section": "DANCE MUSIC",
-            "assignedProducer": "JOE",
+            "assignedProducer": "CC",
             "category": "Dance",
             "editorInitials": "NADER/CONNER",
             "programName": "VILLAGE CHRISTIAN SCHOOL NT INT AG",
@@ -3654,7 +3654,7 @@
         {
             "id": "mtd-166",
             "section": "DANCE MUSIC",
-            "assignedProducer": "JOE",
+            "assignedProducer": "JB",
             "category": "Dance",
             "editorInitials": "STEPHANIE",
             "programName": "DAVIS AS SR 2 FAME",
@@ -3676,7 +3676,7 @@
         {
             "id": "mtd-167",
             "section": "DANCE MUSIC",
-            "assignedProducer": "JOE",
+            "assignedProducer": null,
             "category": "Dance",
             "editorInitials": "STEPHANIE",
             "programName": "DAVIS AS JR 3 HEADLINERS",
@@ -3698,7 +3698,7 @@
         {
             "id": "mtd-168",
             "section": "DANCE MUSIC",
-            "assignedProducer": "JOE",
+            "assignedProducer": "JD",
             "category": "Dance",
             "editorInitials": "STEPHANIE",
             "programName": "DAVIS AS YTH 1 CELEBRITIES",
@@ -3720,7 +3720,7 @@
         {
             "id": "mtd-169",
             "section": "DANCE MUSIC",
-            "assignedProducer": "JOE",
+            "assignedProducer": "MM",
             "category": "Dance",
             "editorInitials": "STEPHANIE",
             "programName": "DAVIS AS 4.2 A-LIST",
@@ -3742,7 +3742,7 @@
         {
             "id": "mtd-170",
             "section": "DANCE MUSIC",
-            "assignedProducer": "JOE",
+            "assignedProducer": "JP",
             "category": "Dance",
             "editorInitials": "WALTER",
             "programName": "SPIRIT XTREME AS JUSTICE JR PREP 3.2",
@@ -3764,7 +3764,7 @@
         {
             "id": "mtd-171",
             "section": "DANCE MUSIC",
-            "assignedProducer": "JOE",
+            "assignedProducer": null,
             "category": "Dance",
             "editorInitials": "MELISSA/ALEXIS",
             "programName": "ONE DREAM CHEER 3-5 YEAR OLDS",
@@ -3786,7 +3786,7 @@
         {
             "id": "mtd-172",
             "section": "DANCE MUSIC",
-            "assignedProducer": "JOE",
+            "assignedProducer": "CC",
             "category": "Dance",
             "editorInitials": "KYLIE",
             "programName": "TESORO HS SUPER LRG VARSITY ALL GIRL",
@@ -3808,7 +3808,7 @@
         {
             "id": "mtd-173",
             "section": "DANCE MUSIC",
-            "assignedProducer": "JOE",
+            "assignedProducer": "JB",
             "category": "Dance",
             "editorInitials": "KYLIE",
             "programName": "TESORO HS LRG JV NOVICE ALL GIRL",
@@ -3830,7 +3830,7 @@
         {
             "id": "mtd-174",
             "section": "DANCE MUSIC",
-            "assignedProducer": "JOE",
+            "assignedProducer": "CM",
             "category": "Dance",
             "editorInitials": "NANCY/JASON",
             "programName": "SAN JOAQUIN MEMORIAL HS VAR INT AG",
@@ -3852,7 +3852,7 @@
         {
             "id": "mtd-175",
             "section": "DANCE MUSIC",
-            "assignedProducer": "JOE",
+            "assignedProducer": "JD",
             "category": "Dance",
             "editorInitials": "ALEJANDRO",
             "programName": "WOLF PACK ELITE SHADOW SR 4 COED",
@@ -3874,7 +3874,7 @@
         {
             "id": "mtd-176",
             "section": "DANCE MUSIC",
-            "assignedProducer": "JOE",
+            "assignedProducer": null,
             "category": "Dance",
             "editorInitials": "SABRINA/SHANNON",
             "programName": "FOOTHILL HS SM INT VARSITY AG",
@@ -3896,7 +3896,7 @@
         {
             "id": "mtd-177",
             "section": "DANCE MUSIC",
-            "assignedProducer": "JOE",
+            "assignedProducer": "GP",
             "category": "Dance",
             "editorInitials": "SABRINA/SHANNON",
             "programName": "FOOTHILL HS LRG JV NOVICE AG",
@@ -3918,7 +3918,7 @@
         {
             "id": "mtd-178",
             "section": "DANCE MUSIC",
-            "assignedProducer": "JOE",
+            "assignedProducer": "JM",
             "category": "Dance",
             "editorInitials": "JANA",
             "programName": "WARREN HS MED VAR NT AG",
@@ -3940,7 +3940,7 @@
         {
             "id": "mtd-179",
             "section": "DANCE MUSIC",
-            "assignedProducer": "JOE",
+            "assignedProducer": "JOP",
             "category": "Dance",
             "editorInitials": "JANA",
             "programName": "WARREN HS JV INT NT AG",
@@ -3962,7 +3962,7 @@
         {
             "id": "mtd-180",
             "section": "DANCE MUSIC",
-            "assignedProducer": "JOE",
+            "assignedProducer": null,
             "category": "Dance",
             "editorInitials": "AUTUMN/TAMI",
             "programName": "TEMESCAL CANYON HS ADV ALL GIRL",
@@ -3984,7 +3984,7 @@
         {
             "id": "mtd-181",
             "section": "DANCE MUSIC",
-            "assignedProducer": "JOE",
+            "assignedProducer": "CM",
             "category": "Dance",
             "editorInitials": "KRISTIAN/BLAKE",
             "programName": "BAKER COUNTY HS SM VARSITY AG",
@@ -4006,7 +4006,7 @@
         {
             "id": "mtd-182",
             "section": "DANCE MUSIC",
-            "assignedProducer": "JOE",
+            "assignedProducer": "JD",
             "category": "Dance",
             "editorInitials": "SUMER",
             "programName": "INTENSITY ATHLETICS JOLTS YTH PREP 1.1",
@@ -4028,7 +4028,7 @@
         {
             "id": "mtd-183",
             "section": "DANCE MUSIC",
-            "assignedProducer": "JOE",
+            "assignedProducer": "MM",
             "category": "Dance",
             "editorInitials": "SUMER",
             "programName": "INTENSITY ATHLETCIS SYNERGY JR PREP 2.1",
@@ -4050,7 +4050,7 @@
         {
             "id": "mtd-184",
             "section": "DANCE MUSIC",
-            "assignedProducer": "JOE",
+            "assignedProducer": "GP",
             "category": "Dance",
             "editorInitials": "SUMER",
             "programName": "INTENSITY ATHLETICS",
@@ -4072,7 +4072,7 @@
         {
             "id": "mtd-185",
             "section": "DANCE MUSIC",
-            "assignedProducer": "JOE",
+            "assignedProducer": null,
             "category": "Dance",
             "editorInitials": "SUMER",
             "programName": "INTENSITY ATHLETICS",
@@ -4094,7 +4094,7 @@
         {
             "id": "mtd-186",
             "section": "DANCE MUSIC",
-            "assignedProducer": "JOE",
+            "assignedProducer": "JOP",
             "category": "Dance",
             "editorInitials": "SUMER",
             "programName": "INTENSITY ATHLETICS",
@@ -4116,7 +4116,7 @@
         {
             "id": "mtd-187",
             "section": "DANCE MUSIC",
-            "assignedProducer": "JOE",
+            "assignedProducer": "SS",
             "category": "Dance",
             "editorInitials": "SUMER",
             "programName": "INTENSITY ATHLETICS",
@@ -4138,7 +4138,7 @@
         {
             "id": "mtd-188",
             "section": "DANCE MUSIC",
-            "assignedProducer": "JOE",
+            "assignedProducer": "AJ",
             "category": "Dance",
             "editorInitials": "KATIE",
             "programName": "MATER DEI HS VARSITY",
@@ -4160,7 +4160,7 @@
         {
             "id": "mtd-189",
             "section": "DANCE MUSIC",
-            "assignedProducer": "JOE",
+            "assignedProducer": "LV",
             "category": "Dance",
             "editorInitials": "KATIE",
             "programName": "MATER DEI HS JV",
@@ -4182,7 +4182,7 @@
         {
             "id": "mtd-190",
             "section": "DANCE MUSIC",
-            "assignedProducer": "JOE",
+            "assignedProducer": "MM",
             "category": "Dance",
             "editorInitials": "OI/DAVE",
             "programName": "HAMILTON HS VARSITY SM INT",
@@ -4204,7 +4204,7 @@
         {
             "id": "mtd-191",
             "section": "DANCE MUSIC",
-            "assignedProducer": "JOE",
+            "assignedProducer": "GP",
             "category": "Dance",
             "editorInitials": "OI/DAVE",
             "programName": "HAMILTON HS JV INT NT",
@@ -4226,7 +4226,7 @@
         {
             "id": "mtd-192",
             "section": "DANCE MUSIC",
-            "assignedProducer": "JOE",
+            "assignedProducer": "JM",
             "category": "Dance",
             "editorInitials": "DAVID/JASON",
             "programName": "ST. PAUL HS VARSITY NOVICE ALL GIRL",
@@ -4248,7 +4248,7 @@
         {
             "id": "mtd-193",
             "section": "DANCE MUSIC",
-            "assignedProducer": "JOE",
+            "assignedProducer": "JOP",
             "category": "Dance",
             "editorInitials": "WALTER",
             "programName": "SPIRIT XTREME AS VICTORY JR PREP 1.1",
@@ -4270,7 +4270,7 @@
         {
             "id": "mtd-194",
             "section": "DANCE MUSIC",
-            "assignedProducer": "JOE",
+            "assignedProducer": null,
             "category": "Dance",
             "editorInitials": "WALTER",
             "programName": "SPIRIT XTREME AS HOPE PREP 1.1 MINI",
@@ -4292,7 +4292,7 @@
         {
             "id": "mtd-195",
             "section": "DANCE MUSIC",
-            "assignedProducer": "JOE",
+            "assignedProducer": "AJ",
             "category": "Dance",
             "editorInitials": "JOSH/GRANT",
             "programName": "DADE COUNTY HS ALL GIRL",
@@ -4314,7 +4314,7 @@
         {
             "id": "mtd-196",
             "section": "DANCE MUSIC",
-            "assignedProducer": "JOE",
+            "assignedProducer": "LV",
             "category": "Dance",
             "editorInitials": "WALTER",
             "programName": "SPIRIT XTREME AS RESPECT YTH PREP 2.2",
@@ -4337,7 +4337,7 @@
             "id": "mtd-demo-cheer-01",
             "orderId": "ord-demo-cheer-01",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CASEY",
+            "assignedProducer": "CM",
             "category": "Cheer",
             "editorRequest": "CM",
             "contactName": "Marcus Vance",
@@ -4363,7 +4363,7 @@
             "id": "mtd-demo-cheer-02",
             "orderId": "ord-demo-cheer-02",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "JUSTIN",
+            "assignedProducer": "MM",
             "category": "Cheer",
             "editorRequest": "JM",
             "contactName": "Hannah Brooks",
@@ -4389,7 +4389,7 @@
             "id": "mtd-demo-cheer-03",
             "orderId": "ord-demo-cheer-03",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "MATT",
+            "assignedProducer": "MS",
             "category": "Cheer",
             "editorRequest": "MS",
             "contactName": "Derek Smith",
@@ -4415,7 +4415,7 @@
             "id": "mtd-demo-cheer-04",
             "orderId": "ord-demo-cheer-04",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "NATE",
+            "assignedProducer": "NC",
             "category": "Cheer",
             "editorRequest": "NC",
             "contactName": "Kelly O'Connor",
@@ -4441,7 +4441,7 @@
             "id": "mtd-demo-cheer-05",
             "orderId": "ord-demo-cheer-05",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "GRIFFIN",
+            "assignedProducer": "SS",
             "category": "Cheer",
             "editorRequest": "G",
             "contactName": "Brandon Taylor",
@@ -4467,7 +4467,7 @@
             "id": "mtd-demo-cheer-06",
             "orderId": "ord-demo-cheer-06",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CASEY",
+            "assignedProducer": "CM",
             "category": "Cheer",
             "editorRequest": "CM",
             "contactName": "Chloe Martinez",
@@ -4493,7 +4493,7 @@
             "id": "mtd-demo-cheer-07",
             "orderId": "ord-demo-cheer-07",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "FA",
+            "assignedProducer": "JD",
             "category": "Cheer",
             "editorRequest": "FA",
             "contactName": "Jessica Alba",
@@ -4519,7 +4519,7 @@
             "id": "mtd-demo-cheer-08",
             "orderId": "ord-demo-cheer-08",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "JUSTIN",
+            "assignedProducer": "MS",
             "category": "Cheer",
             "editorRequest": "JM",
             "contactName": "Tyler Harrison",
@@ -4545,7 +4545,7 @@
             "id": "mtd-demo-cheer-09",
             "orderId": "ord-demo-cheer-09",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "MATT",
+            "assignedProducer": "MS",
             "category": "Cheer",
             "editorRequest": "MS",
             "contactName": "Megan Kelly",
@@ -4571,7 +4571,7 @@
             "id": "mtd-demo-cheer-10",
             "orderId": "ord-demo-cheer-10",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "NATE",
+            "assignedProducer": "NC",
             "category": "Cheer",
             "editorRequest": "NC",
             "contactName": "Vanessa Ramos",
@@ -4597,7 +4597,7 @@
             "id": "mtd-demo-cheer-11",
             "orderId": "ord-demo-cheer-11",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "JUSTIN",
+            "assignedProducer": "MS",
             "category": "Cheer",
             "editorRequest": "JM",
             "contactName": "Emily Vance",
@@ -4623,7 +4623,7 @@
             "id": "mtd-demo-cheer-12",
             "orderId": "ord-demo-cheer-12",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CASEY",
+            "assignedProducer": "CM",
             "category": "Cheer",
             "editorRequest": "CM",
             "contactName": "Karen Phillips",
@@ -4649,7 +4649,7 @@
             "id": "mtd-demo-cheer-13",
             "orderId": "ord-demo-cheer-13",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "MATT",
+            "assignedProducer": "MS",
             "category": "Cheer",
             "editorRequest": "MS",
             "contactName": "David Miller",
@@ -4675,7 +4675,7 @@
             "id": "mtd-demo-cheer-14",
             "orderId": "ord-demo-cheer-14",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "NATE",
+            "assignedProducer": "NC",
             "category": "Cheer",
             "editorRequest": "NC",
             "contactName": "Stephanie Wright",
@@ -4701,7 +4701,7 @@
             "id": "mtd-demo-cheer-15",
             "orderId": "ord-demo-cheer-15",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "GRIFFIN",
+            "assignedProducer": "R",
             "category": "Cheer",
             "editorRequest": "G",
             "contactName": "Laura Bennett",
@@ -4727,7 +4727,7 @@
             "id": "mtd-demo-cheer-16",
             "orderId": "ord-demo-cheer-16",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CASEY",
+            "assignedProducer": "CM",
             "category": "Cheer",
             "editorRequest": "CM",
             "contactName": "Brian Cooper",
@@ -4753,7 +4753,7 @@
             "id": "mtd-demo-cheer-17",
             "orderId": "ord-demo-cheer-17",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "JUSTIN",
+            "assignedProducer": "CM",
             "category": "Cheer",
             "editorRequest": "JM",
             "contactName": "Christine Davis",
@@ -4779,7 +4779,7 @@
             "id": "mtd-demo-cheer-18",
             "orderId": "ord-demo-cheer-18",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "MATT",
+            "assignedProducer": "MS",
             "category": "Cheer",
             "editorRequest": "MS",
             "contactName": "Nicole Smith",
@@ -4805,7 +4805,7 @@
             "id": "mtd-demo-cheer-19",
             "orderId": "ord-demo-cheer-19",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "NATE",
+            "assignedProducer": "NC",
             "category": "Cheer",
             "editorRequest": "NC",
             "contactName": "Andrew Jackson",
@@ -4831,7 +4831,7 @@
             "id": "mtd-demo-cheer-20",
             "orderId": "ord-demo-cheer-20",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "GRIFFIN",
+            "assignedProducer": "CM",
             "category": "Cheer",
             "editorRequest": "G",
             "contactName": "Samantha King",
@@ -4857,7 +4857,7 @@
             "id": "mtd-demo-cheer-21",
             "orderId": "ord-demo-cheer-21",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "MATT",
+            "assignedProducer": "MS",
             "category": "Cheer",
             "editorRequest": "MS",
             "contactName": "Rachel Adams",
@@ -4883,7 +4883,7 @@
             "id": "mtd-demo-cheer-22",
             "orderId": "ord-demo-cheer-22",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CASEY",
+            "assignedProducer": "CM",
             "category": "Cheer",
             "editorRequest": "CM",
             "contactName": "Mark Harrison",
@@ -4909,7 +4909,7 @@
             "id": "mtd-demo-cheer-23",
             "orderId": "ord-demo-cheer-23",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "JUSTIN",
+            "assignedProducer": "NC",
             "category": "Cheer",
             "editorRequest": "JM",
             "contactName": "Teresa Young",
@@ -4935,7 +4935,7 @@
             "id": "mtd-demo-cheer-24",
             "orderId": "ord-demo-cheer-24",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "NATE",
+            "assignedProducer": "NC",
             "category": "Cheer",
             "editorRequest": "NC",
             "contactName": "Hannah Scott",
@@ -4961,7 +4961,7 @@
             "id": "mtd-demo-cheer-25",
             "orderId": "ord-demo-cheer-25",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "GRIFFIN",
+            "assignedProducer": "JOP",
             "category": "Cheer",
             "editorRequest": "G",
             "contactName": "Claire Sullivan",
@@ -4987,7 +4987,7 @@
             "id": "mtd-demo-cheer-26",
             "orderId": "ord-demo-cheer-26",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CASEY",
+            "assignedProducer": "CM",
             "category": "Cheer",
             "editorRequest": "CM",
             "contactName": "Joseph Miller",
@@ -5013,7 +5013,7 @@
             "id": "mtd-demo-cheer-27",
             "orderId": "ord-demo-cheer-27",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "JUSTIN",
+            "assignedProducer": null,
             "category": "Cheer",
             "editorRequest": "JM",
             "contactName": "Kendra Walsh",
@@ -5039,7 +5039,7 @@
             "id": "mtd-demo-cheer-28",
             "orderId": "ord-demo-cheer-28",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "MATT",
+            "assignedProducer": "MS",
             "category": "Cheer",
             "editorRequest": "MS",
             "contactName": "Marcus Vance",
@@ -5065,7 +5065,7 @@
             "id": "mtd-demo-cheer-29",
             "orderId": "ord-demo-cheer-29",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "NATE",
+            "assignedProducer": "NC",
             "category": "Cheer",
             "editorRequest": "NC",
             "contactName": "Elizabeth Warren",
@@ -5091,7 +5091,7 @@
             "id": "mtd-demo-cheer-30",
             "orderId": "ord-demo-cheer-30",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "GRIFFIN",
+            "assignedProducer": "SS",
             "category": "Cheer",
             "editorRequest": "G",
             "contactName": "David Miller",
@@ -5117,7 +5117,7 @@
             "id": "mtd-demo-cheer-31",
             "orderId": "ord-demo-cheer-31",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "FA",
+            "assignedProducer": null,
             "category": "Cheer",
             "editorRequest": "FA",
             "contactName": "Amanda Stone",
@@ -5143,7 +5143,7 @@
             "id": "mtd-demo-cheer-32",
             "orderId": "ord-demo-cheer-32",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CASEY",
+            "assignedProducer": "CM",
             "category": "Cheer",
             "editorRequest": "CM",
             "contactName": "Rachel Green",
@@ -5169,7 +5169,7 @@
             "id": "mtd-demo-cheer-33",
             "orderId": "ord-demo-cheer-33",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "JUSTIN",
+            "assignedProducer": "MS",
             "category": "Cheer",
             "editorRequest": "JM",
             "contactName": "Melissa Johnson",
@@ -5195,7 +5195,7 @@
             "id": "mtd-demo-cheer-34",
             "orderId": "ord-demo-cheer-34",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "MATT",
+            "assignedProducer": "MS",
             "category": "Cheer",
             "editorRequest": "MS",
             "contactName": "Christina Hendricks",
@@ -5221,7 +5221,7 @@
             "id": "mtd-demo-cheer-35",
             "orderId": "ord-demo-cheer-35",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "NATE",
+            "assignedProducer": "NC",
             "category": "Cheer",
             "editorRequest": "NC",
             "contactName": "Stephanie Meyer",
@@ -5247,7 +5247,7 @@
             "id": "mtd-demo-cheer-36",
             "orderId": "ord-demo-cheer-36",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "GRIFFIN",
+            "assignedProducer": null,
             "category": "Cheer",
             "editorRequest": "G",
             "contactName": "David Robinson",
@@ -5273,7 +5273,7 @@
             "id": "mtd-demo-cheer-37",
             "orderId": "ord-demo-cheer-37",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "CASEY",
+            "assignedProducer": "CM",
             "category": "Cheer",
             "editorRequest": "CM",
             "contactName": "Brittany Spears",
@@ -5299,7 +5299,7 @@
             "id": "mtd-demo-cheer-38",
             "orderId": "ord-demo-cheer-38",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "JUSTIN",
+            "assignedProducer": "SS",
             "category": "Cheer",
             "editorRequest": "JM",
             "contactName": "Ashley Olsen",
@@ -5325,7 +5325,7 @@
             "id": "mtd-demo-cheer-39",
             "orderId": "ord-demo-cheer-39",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "MATT",
+            "assignedProducer": "MS",
             "category": "Cheer",
             "editorRequest": "MS",
             "contactName": "Karen Gillan",
@@ -5351,7 +5351,7 @@
             "id": "mtd-demo-cheer-40",
             "orderId": "ord-demo-cheer-40",
             "section": "CHEERLEADING MUSIC",
-            "assignedProducer": "NATE",
+            "assignedProducer": "NC",
             "category": "Cheer",
             "editorRequest": "NC",
             "contactName": "Jessica Chastain",
@@ -5380,7 +5380,7 @@
             "name": "Casey",
             "initials": "CM",
             "email": "casey@soundslikethat.com",
-            "specialty": "Cheer",
+            "specialty": "Pom",
             "avatar": "https://api.dicebear.com/9.x/avataaars/svg?seed=CASEY",
             "mixesThisWeek": 145,
             "nextAvailable": "Aug 27, 2026",
@@ -5408,14 +5408,22 @@
                     "rate_or_null": null
                 }
             ],
-            "notes": "No stated trigger for old (72%) vs new (70%) pricing -- see Assumptions."
+            "notes": "No stated trigger for old (72%) vs new (70%) pricing -- see Assumptions.",
+            "categories": [
+                "Pom",
+                "School Cheer",
+                "All-Star Cheer",
+                "Youth Rec Cheer"
+            ],
+            "maxProducerCostPerDay": null,
+            "maxMixesPerDay": 4
         },
         {
             "id": "prod-2",
             "name": "Justin",
             "initials": "JD",
             "email": "justin@soundslikethat.com",
-            "specialty": "Cheer",
+            "specialty": "Pom",
             "avatar": "https://api.dicebear.com/9.x/avataaars/svg?seed=JUSTIN",
             "mixesThisWeek": 12,
             "nextAvailable": "Aug 25, 2026",
@@ -5425,14 +5433,21 @@
             "ratesByCategory": null,
             "rateOverrides": null,
             "manualInputFields": null,
-            "notes": null
+            "notes": null,
+            "categories": [
+                "Pom",
+                "Gameday",
+                "School Cheer",
+                "Youth Rec Cheer"
+            ],
+            "maxProducerCostPerDay": null
         },
         {
             "id": "prod-3",
             "name": "Matt",
             "initials": "MS",
             "email": "matt@soundslikethat.com",
-            "specialty": "Cheer",
+            "specialty": "School Cheer",
             "avatar": "https://api.dicebear.com/9.x/avataaars/svg?seed=MATT",
             "mixesThisWeek": 28,
             "nextAvailable": "Aug 27, 2026",
@@ -5442,14 +5457,20 @@
             "ratesByCategory": null,
             "rateOverrides": null,
             "manualInputFields": null,
-            "notes": null
+            "notes": null,
+            "categories": [
+                "School Cheer",
+                "All-Star Cheer",
+                "Youth Rec Cheer"
+            ],
+            "maxProducerCostPerDay": null
         },
         {
             "id": "prod-4",
             "name": "Nate",
             "initials": "NC",
             "email": "nate@soundslikethat.com",
-            "specialty": "Cheer",
+            "specialty": "School Cheer",
             "avatar": "https://api.dicebear.com/9.x/avataaars/svg?seed=NATE",
             "mixesThisWeek": 22,
             "nextAvailable": "Aug 27, 2026",
@@ -5459,14 +5480,19 @@
             "ratesByCategory": null,
             "rateOverrides": null,
             "manualInputFields": null,
-            "notes": null
+            "notes": null,
+            "categories": [
+                "School Cheer",
+                "Youth Rec Cheer"
+            ],
+            "maxProducerCostPerDay": null
         },
         {
             "id": "prod-5",
             "name": "Mark",
             "initials": "MM",
             "email": "mark@soundslikethat.com",
-            "specialty": "Dance",
+            "specialty": "Pom",
             "avatar": "https://api.dicebear.com/9.x/avataaars/svg?seed=MARK",
             "mixesThisWeek": 18,
             "nextAvailable": "Aug 26, 2026",
@@ -5484,14 +5510,22 @@
             },
             "rateOverrides": null,
             "manualInputFields": null,
-            "notes": "72% for jazz, pom, & team performance; 60% for cheerleading."
+            "notes": "72% for jazz, pom, & team performance; 60% for cheerleading.",
+            "categories": [
+                "Pom",
+                "Team Performance / Variety",
+                "School Cheer",
+                "All-Star Cheer",
+                "Youth Rec Cheer"
+            ],
+            "maxProducerCostPerDay": null
         },
         {
             "id": "prod-6",
             "name": "Griffin",
-            "initials": "G",
+            "initials": "GP",
             "email": "griffin@soundslikethat.com",
-            "specialty": "Cheer",
+            "specialty": "Pom",
             "avatar": "https://api.dicebear.com/9.x/avataaars/svg?seed=GRIFFIN",
             "mixesThisWeek": 8,
             "nextAvailable": "Aug 28, 2026",
@@ -5501,14 +5535,19 @@
             "ratesByCategory": null,
             "rateOverrides": null,
             "manualInputFields": null,
-            "notes": "Hourly employee, paid manually via pay sheet."
+            "notes": "Hourly employee, paid manually via pay sheet.",
+            "categories": [
+                "Pom",
+                "Gameday"
+            ],
+            "maxProducerCostPerDay": null
         },
         {
             "id": "prod-7",
             "name": "Josh",
             "initials": "JM",
             "email": "josh@soundslikethat.com",
-            "specialty": "Dance",
+            "specialty": "Pom",
             "avatar": "https://api.dicebear.com/9.x/avataaars/svg?seed=JOSH",
             "mixesThisWeek": 15,
             "nextAvailable": "Aug 29, 2026",
@@ -5518,14 +5557,19 @@
             "ratesByCategory": null,
             "rateOverrides": null,
             "manualInputFields": null,
-            "notes": "Hourly employee, paid manually via pay sheet."
+            "notes": "Hourly employee, paid manually via pay sheet.",
+            "categories": [
+                "Pom",
+                "Gameday"
+            ],
+            "maxProducerCostPerDay": null
         },
         {
             "id": "prod-8",
             "name": "Joel",
             "initials": "JOP",
             "email": "joel@soundslikethat.com",
-            "specialty": "Cheer",
+            "specialty": "Pom",
             "avatar": "https://api.dicebear.com/9.x/avataaars/svg?seed=JOEL",
             "mixesThisWeek": 10,
             "nextAvailable": "Aug 30, 2026",
@@ -5535,14 +5579,21 @@
             "ratesByCategory": null,
             "rateOverrides": null,
             "manualInputFields": null,
-            "notes": null
+            "notes": null,
+            "categories": [
+                "Pom",
+                "Gameday",
+                "School Cheer",
+                "Youth Rec Cheer"
+            ],
+            "maxProducerCostPerDay": null
         },
         {
             "id": "prod-9",
             "name": "Brent",
             "initials": "BV",
             "email": "brent@soundslikethat.com",
-            "specialty": "Dance",
+            "specialty": "Marching Band",
             "avatar": "https://api.dicebear.com/9.x/avataaars/svg?seed=BRENT",
             "mixesThisWeek": 20,
             "nextAvailable": "Aug 26, 2026",
@@ -5552,14 +5603,18 @@
             "ratesByCategory": null,
             "rateOverrides": null,
             "manualInputFields": null,
-            "notes": null
+            "notes": null,
+            "categories": [
+                "Marching Band"
+            ],
+            "maxProducerCostPerDay": null
         },
         {
             "id": "prod-10",
             "name": "Riley",
             "initials": "R",
             "email": "riley@soundslikethat.com",
-            "specialty": "Cheer",
+            "specialty": "School Cheer",
             "avatar": "https://api.dicebear.com/9.x/avataaars/svg?seed=RILEY",
             "mixesThisWeek": 6,
             "nextAvailable": "Sep 1, 2026",
@@ -5569,14 +5624,20 @@
             "ratesByCategory": null,
             "rateOverrides": null,
             "manualInputFields": null,
-            "notes": "No compensation rule on file - confirm with Megan before enabling payroll for Riley's orders"
+            "notes": "No compensation rule on file - confirm with Megan before enabling payroll for Riley's orders",
+            "categories": [
+                "School Cheer",
+                "All-Star Cheer",
+                "Youth Rec Cheer"
+            ],
+            "maxProducerCostPerDay": null
         },
         {
             "id": "prod-11",
             "name": "Steve",
             "initials": "SS",
             "email": "steve@soundslikethat.com",
-            "specialty": "Hip-Hop",
+            "specialty": "Pom",
             "avatar": "https://api.dicebear.com/9.x/avataaars/svg?seed=STEVE",
             "mixesThisWeek": 14,
             "nextAvailable": "Sep 2, 2026",
@@ -5586,14 +5647,23 @@
             "ratesByCategory": null,
             "rateOverrides": null,
             "manualInputFields": null,
-            "notes": "Doesn't get paid for mixing. Payout is always $0 on mixing orders."
+            "notes": "Doesn't get paid for mixing. Payout is always $0 on mixing orders.",
+            "categories": [
+                "Pom",
+                "Team Performance / Variety",
+                "Jazz / Kick",
+                "Gameday",
+                "Sports Entertainment",
+                "Youth Rec Cheer"
+            ],
+            "maxProducerCostPerDay": null
         },
         {
             "id": "prod-12",
             "name": "Anne Jacobs",
             "initials": "AJ",
             "email": "anne@soundslikethat.com",
-            "specialty": "Dance",
+            "specialty": "Pom",
             "avatar": "https://api.dicebear.com/9.x/avataaars/svg?seed=ANNE",
             "mixesThisWeek": 0,
             "nextAvailable": "Mon",
@@ -5603,14 +5673,21 @@
             "ratesByCategory": null,
             "rateOverrides": null,
             "manualInputFields": null,
-            "notes": "Inferred from client compensation email & order references. Flat 72% rate."
+            "notes": "Inferred from client compensation email & order references. Flat 72% rate.",
+            "categories": [
+                "Pom",
+                "Jazz / Kick",
+                "Team Performance / Variety",
+                "Gameday"
+            ],
+            "maxProducerCostPerDay": null
         },
         {
             "id": "prod-13",
             "name": "Lauren Von'Ohlen",
             "initials": "LV",
             "email": "lauren@soundslikethat.com",
-            "specialty": "Dance",
+            "specialty": "Pom",
             "avatar": "https://api.dicebear.com/9.x/avataaars/svg?seed=LAUREN",
             "mixesThisWeek": 0,
             "nextAvailable": "Mon",
@@ -5620,14 +5697,21 @@
             "ratesByCategory": null,
             "rateOverrides": null,
             "manualInputFields": null,
-            "notes": "Inferred from client compensation email. Flat 72% rate."
+            "notes": "Inferred from client compensation email. Flat 72% rate.",
+            "categories": [
+                "Pom",
+                "Jazz / Kick",
+                "Team Performance / Variety",
+                "Gameday"
+            ],
+            "maxProducerCostPerDay": null
         },
         {
             "id": "prod-14",
             "name": "Rory Fowler",
             "initials": "RF",
             "email": "rory@soundslikethat.com",
-            "specialty": "Cheer",
+            "specialty": "Pom",
             "avatar": "https://api.dicebear.com/9.x/avataaars/svg?seed=RORY",
             "mixesThisWeek": 0,
             "nextAvailable": "Mon",
@@ -5637,14 +5721,22 @@
             "ratesByCategory": null,
             "rateOverrides": null,
             "manualInputFields": null,
-            "notes": "Inferred from client compensation email. Flat 72% rate."
+            "notes": "Inferred from client compensation email. Flat 72% rate.",
+            "categories": [
+                "Pom",
+                "Jazz / Kick",
+                "Team Performance / Variety",
+                "Gameday",
+                "Hip Hop"
+            ],
+            "maxProducerCostPerDay": null
         },
         {
             "id": "prod-15",
             "name": "John Peters",
             "initials": "JP",
             "email": "john@soundslikethat.com",
-            "specialty": "Cheer",
+            "specialty": "Pom",
             "avatar": "https://api.dicebear.com/9.x/avataaars/svg?seed=JOHN",
             "mixesThisWeek": 0,
             "nextAvailable": "Mon",
@@ -5654,14 +5746,21 @@
             "ratesByCategory": null,
             "rateOverrides": null,
             "manualInputFields": null,
-            "notes": "Inferred from client compensation email. Flat 72% rate."
+            "notes": "Inferred from client compensation email. Flat 72% rate.",
+            "categories": [
+                "Pom",
+                "Gameday",
+                "Jazz / Kick",
+                "Team Performance / Variety"
+            ],
+            "maxProducerCostPerDay": null
         },
         {
             "id": "prod-16",
             "name": "Max Thompson",
             "initials": "MT",
             "email": "max@soundslikethat.com",
-            "specialty": "Cheer",
+            "specialty": "Hip Hop",
             "avatar": "https://api.dicebear.com/9.x/avataaars/svg?seed=MAX",
             "mixesThisWeek": 0,
             "nextAvailable": "Mon",
@@ -5671,14 +5770,20 @@
             "ratesByCategory": null,
             "rateOverrides": null,
             "manualInputFields": null,
-            "notes": "Inferred from client compensation email. Flat 72% rate."
+            "notes": "Inferred from client compensation email. Flat 72% rate.",
+            "categories": [
+                "Hip Hop",
+                "Gameday",
+                "Sports Entertainment"
+            ],
+            "maxProducerCostPerDay": null
         },
         {
             "id": "prod-17",
             "name": "Chris Chawi",
             "initials": "CC",
             "email": "chris@soundslikethat.com",
-            "specialty": "Cheer",
+            "specialty": "Hip Hop",
             "avatar": "https://api.dicebear.com/9.x/avataaars/svg?seed=CHRIS",
             "mixesThisWeek": 0,
             "nextAvailable": "Mon",
@@ -5688,14 +5793,20 @@
             "ratesByCategory": null,
             "rateOverrides": null,
             "manualInputFields": null,
-            "notes": "Inferred from client compensation email. Flat 72% rate."
+            "notes": "Inferred from client compensation email. Flat 72% rate.",
+            "categories": [
+                "Hip Hop",
+                "Gameday",
+                "Sports Entertainment"
+            ],
+            "maxProducerCostPerDay": null
         },
         {
             "id": "prod-18",
             "name": "Joe Bell",
             "initials": "JB",
             "email": "joe@soundslikethat.com",
-            "specialty": "Cheer",
+            "specialty": "Hip Hop",
             "avatar": "https://api.dicebear.com/9.x/avataaars/svg?seed=JOE",
             "mixesThisWeek": 0,
             "nextAvailable": "Mon",
@@ -5705,7 +5816,13 @@
             "ratesByCategory": null,
             "rateOverrides": null,
             "manualInputFields": null,
-            "notes": "Inferred from client compensation email. Hourly employee, paid manually via pay sheet."
+            "notes": "Inferred from client compensation email. Hourly employee, paid manually via pay sheet.",
+            "categories": [
+                "Hip Hop",
+                "Gameday",
+                "Sports Entertainment"
+            ],
+            "maxProducerCostPerDay": null
         }
     ],
     "orders": [
@@ -5751,7 +5868,8 @@
             "contactName": "Demo Coach",
             "editorRequest": "CM",
             "formType": "school-all-star-cheer",
-            "cheerFormSubtype": "all-star-cheer"
+            "cheerFormSubtype": "all-star-cheer",
+            "assignedProducer": null
         },
         {
             "id": "ord-pom-fowler",
@@ -5791,7 +5909,8 @@
             "needsAttention": false,
             "attentionReason": null,
             "formType": "school-all-star-dance",
-            "danceFormSubtype": "pom"
+            "danceFormSubtype": "pom",
+            "assignedProducer": null
         },
         {
             "id": "ord-1",
@@ -5810,7 +5929,8 @@
             "contactName": "WALTER",
             "editorRequest": "FA",
             "formType": "school-all-star-cheer",
-            "cheerFormSubtype": "all-star-cheer"
+            "cheerFormSubtype": "all-star-cheer",
+            "assignedProducer": null
         },
         {
             "id": "ord-2",
@@ -5829,7 +5949,8 @@
             "contactName": "WALTER",
             "editorRequest": "FA",
             "formType": "school-all-star-cheer",
-            "cheerFormSubtype": "school-cheer-viroc-yes"
+            "cheerFormSubtype": "school-cheer-viroc-yes",
+            "assignedProducer": null
         },
         {
             "id": "ord-3",
@@ -5848,7 +5969,8 @@
             "contactName": "WALTER",
             "editorRequest": "FA",
             "formType": "school-all-star-cheer",
-            "cheerFormSubtype": "school-cheer-viroc-no"
+            "cheerFormSubtype": "school-cheer-viroc-no",
+            "assignedProducer": null
         },
         {
             "id": "ord-4",
@@ -5867,7 +5989,8 @@
             "contactName": "WALTER",
             "editorRequest": "FA",
             "formType": "school-all-star-cheer",
-            "cheerFormSubtype": "youth-rec-cheer"
+            "cheerFormSubtype": "youth-rec-cheer",
+            "assignedProducer": null
         },
         {
             "id": "ord-5",
@@ -5886,7 +6009,8 @@
             "contactName": "CALVIN",
             "editorRequest": "FA",
             "formType": "school-all-star-cheer",
-            "cheerFormSubtype": "all-star-cheer"
+            "cheerFormSubtype": "all-star-cheer",
+            "assignedProducer": null
         },
         {
             "id": "ord-6",
@@ -5905,7 +6029,8 @@
             "contactName": "WALTER",
             "editorRequest": "FA",
             "formType": "school-all-star-cheer",
-            "cheerFormSubtype": "school-cheer-viroc-yes"
+            "cheerFormSubtype": "school-cheer-viroc-yes",
+            "assignedProducer": null
         },
         {
             "id": "ord-7",
@@ -5924,7 +6049,8 @@
             "contactName": "CALVIN",
             "editorRequest": "FA",
             "formType": "school-all-star-cheer",
-            "cheerFormSubtype": "school-cheer-viroc-no"
+            "cheerFormSubtype": "school-cheer-viroc-no",
+            "assignedProducer": null
         },
         {
             "id": "ord-8",
@@ -5943,7 +6069,8 @@
             "contactName": "SHELLY",
             "editorRequest": "FA",
             "formType": "school-all-star-cheer",
-            "cheerFormSubtype": "youth-rec-cheer"
+            "cheerFormSubtype": "youth-rec-cheer",
+            "assignedProducer": null
         },
         {
             "id": "ord-9",
@@ -5962,7 +6089,8 @@
             "contactName": "WALTER",
             "editorRequest": "FA",
             "formType": "school-all-star-cheer",
-            "cheerFormSubtype": "all-star-cheer"
+            "cheerFormSubtype": "all-star-cheer",
+            "assignedProducer": null
         },
         {
             "id": "ord-10",
@@ -5981,7 +6109,8 @@
             "contactName": "SHELLY",
             "editorRequest": "FA",
             "formType": "school-all-star-cheer",
-            "cheerFormSubtype": "school-cheer-viroc-yes"
+            "cheerFormSubtype": "school-cheer-viroc-yes",
+            "assignedProducer": null
         },
         {
             "id": "ord-11",
@@ -6000,7 +6129,8 @@
             "contactName": "SHELLY/MACEY",
             "editorRequest": "FA",
             "formType": "school-all-star-cheer",
-            "cheerFormSubtype": "school-cheer-viroc-no"
+            "cheerFormSubtype": "school-cheer-viroc-no",
+            "assignedProducer": null
         },
         {
             "id": "ord-12",
@@ -6019,7 +6149,8 @@
             "contactName": "SHELLY",
             "editorRequest": "CM",
             "formType": "school-all-star-cheer",
-            "cheerFormSubtype": "youth-rec-cheer"
+            "cheerFormSubtype": "youth-rec-cheer",
+            "assignedProducer": null
         },
         {
             "id": "ord-13",
@@ -6038,7 +6169,8 @@
             "contactName": "WALTER",
             "editorRequest": "CM",
             "formType": "school-all-star-cheer",
-            "cheerFormSubtype": "all-star-cheer"
+            "cheerFormSubtype": "all-star-cheer",
+            "assignedProducer": null
         },
         {
             "id": "ord-14",
@@ -6057,7 +6189,8 @@
             "contactName": "SHELLY/KAYLYN",
             "editorRequest": "CM",
             "formType": "school-all-star-cheer",
-            "cheerFormSubtype": "school-cheer-viroc-yes"
+            "cheerFormSubtype": "school-cheer-viroc-yes",
+            "assignedProducer": null
         },
         {
             "id": "ord-15",
@@ -6076,7 +6209,8 @@
             "contactName": "SHELLY/MADDIE",
             "editorRequest": "CM",
             "formType": "school-all-star-cheer",
-            "cheerFormSubtype": "school-cheer-viroc-no"
+            "cheerFormSubtype": "school-cheer-viroc-no",
+            "assignedProducer": null
         },
         {
             "id": "ord-16",
@@ -6095,7 +6229,8 @@
             "contactName": "WALTER",
             "editorRequest": "CM",
             "formType": "school-all-star-cheer",
-            "cheerFormSubtype": "youth-rec-cheer"
+            "cheerFormSubtype": "youth-rec-cheer",
+            "assignedProducer": null
         },
         {
             "id": "ord-17",
@@ -6114,7 +6249,8 @@
             "contactName": "AMIE/STACI/SANDI",
             "editorRequest": "CM",
             "formType": "school-all-star-cheer",
-            "cheerFormSubtype": "all-star-cheer"
+            "cheerFormSubtype": "all-star-cheer",
+            "assignedProducer": null
         },
         {
             "id": "ord-18",
@@ -6133,7 +6269,8 @@
             "contactName": "KENDALL",
             "editorRequest": "CM",
             "formType": "school-all-star-cheer",
-            "cheerFormSubtype": "school-cheer-viroc-yes"
+            "cheerFormSubtype": "school-cheer-viroc-yes",
+            "assignedProducer": null
         },
         {
             "id": "ord-19",
@@ -6152,7 +6289,8 @@
             "contactName": "WALTER",
             "editorRequest": "CM",
             "formType": "school-all-star-cheer",
-            "cheerFormSubtype": "school-cheer-viroc-no"
+            "cheerFormSubtype": "school-cheer-viroc-no",
+            "assignedProducer": null
         },
         {
             "id": "ord-20",
@@ -6171,7 +6309,8 @@
             "contactName": "WALTER",
             "editorRequest": "CM",
             "formType": "school-all-star-cheer",
-            "cheerFormSubtype": "youth-rec-cheer"
+            "cheerFormSubtype": "youth-rec-cheer",
+            "assignedProducer": null
         },
         {
             "id": "ord-21",
@@ -6190,7 +6329,8 @@
             "contactName": "SARAH",
             "editorRequest": "CM",
             "formType": "school-all-star-cheer",
-            "cheerFormSubtype": "all-star-cheer"
+            "cheerFormSubtype": "all-star-cheer",
+            "assignedProducer": null
         },
         {
             "id": "ord-22",
@@ -6209,7 +6349,8 @@
             "contactName": "BRANDON/JOMAR",
             "editorRequest": "CM",
             "formType": "school-all-star-cheer",
-            "cheerFormSubtype": "school-cheer-viroc-yes"
+            "cheerFormSubtype": "school-cheer-viroc-yes",
+            "assignedProducer": null
         },
         {
             "id": "ord-23",
@@ -6228,7 +6369,8 @@
             "contactName": "KENDALL",
             "editorRequest": "CM",
             "formType": "school-all-star-cheer",
-            "cheerFormSubtype": "school-cheer-viroc-no"
+            "cheerFormSubtype": "school-cheer-viroc-no",
+            "assignedProducer": null
         },
         {
             "id": "ord-24",
@@ -6247,7 +6389,8 @@
             "contactName": "KENDALL",
             "editorRequest": "CM",
             "formType": "school-all-star-cheer",
-            "cheerFormSubtype": "youth-rec-cheer"
+            "cheerFormSubtype": "youth-rec-cheer",
+            "assignedProducer": null
         },
         {
             "id": "ord-25",
@@ -6266,7 +6409,8 @@
             "contactName": "NIKKI/ROSALIND",
             "editorRequest": "CM",
             "formType": "school-all-star-cheer",
-            "cheerFormSubtype": "all-star-cheer"
+            "cheerFormSubtype": "all-star-cheer",
+            "assignedProducer": null
         },
         {
             "id": "ord-26",
@@ -6285,7 +6429,8 @@
             "contactName": "KENDALL",
             "editorRequest": "CM",
             "formType": "school-all-star-cheer",
-            "cheerFormSubtype": "school-cheer-viroc-yes"
+            "cheerFormSubtype": "school-cheer-viroc-yes",
+            "assignedProducer": null
         },
         {
             "id": "ord-27",
@@ -6304,7 +6449,8 @@
             "contactName": "KENDALL",
             "editorRequest": "CM",
             "formType": "school-all-star-cheer",
-            "cheerFormSubtype": "school-cheer-viroc-no"
+            "cheerFormSubtype": "school-cheer-viroc-no",
+            "assignedProducer": null
         },
         {
             "id": "ord-28",
@@ -6323,7 +6469,8 @@
             "contactName": "EVE/BLAKE",
             "editorRequest": "CM",
             "formType": "school-all-star-cheer",
-            "cheerFormSubtype": "youth-rec-cheer"
+            "cheerFormSubtype": "youth-rec-cheer",
+            "assignedProducer": null
         },
         {
             "id": "ord-29",
@@ -6342,7 +6489,8 @@
             "contactName": "WALTER",
             "editorRequest": "CM",
             "formType": "school-all-star-cheer",
-            "cheerFormSubtype": "all-star-cheer"
+            "cheerFormSubtype": "all-star-cheer",
+            "assignedProducer": null
         },
         {
             "id": "ord-30",
@@ -6361,7 +6509,8 @@
             "contactName": "WALTER",
             "editorRequest": "CM",
             "formType": "school-all-star-cheer",
-            "cheerFormSubtype": "school-cheer-viroc-yes"
+            "cheerFormSubtype": "school-cheer-viroc-yes",
+            "assignedProducer": null
         },
         {
             "id": "ord-mb-active",
@@ -6381,7 +6530,8 @@
             "needsAttention": false,
             "attentionReason": null,
             "requestedProducer": "CM",
-            "editorRequest": "FA"
+            "editorRequest": "FA",
+            "assignedProducer": null
         },
         {
             "id": "ord-se-active",
@@ -6401,7 +6551,8 @@
             "needsAttention": false,
             "attentionReason": null,
             "requestedProducer": "MS",
-            "editorRequest": "FA"
+            "editorRequest": "FA",
+            "assignedProducer": null
         },
         {
             "id": "ord-sa-active",
@@ -6421,7 +6572,8 @@
             "needsAttention": false,
             "attentionReason": null,
             "requestedProducer": "ANNE",
-            "editorRequest": "Anne"
+            "editorRequest": "Anne",
+            "assignedProducer": null
         },
         {
             "id": "ord-dance-hiphop",
@@ -6443,7 +6595,8 @@
             "needsAttention": false,
             "attentionReason": null,
             "requestedProducer": "ANNE",
-            "editorRequest": "Anne"
+            "editorRequest": "Anne",
+            "assignedProducer": null
         },
         {
             "id": "ord-dance-teamperf",
@@ -6465,7 +6618,8 @@
             "needsAttention": false,
             "attentionReason": null,
             "requestedProducer": "MS",
-            "editorRequest": "FA"
+            "editorRequest": "FA",
+            "assignedProducer": null
         },
         {
             "id": "ord-dance-gameday",
@@ -6487,7 +6641,8 @@
             "needsAttention": false,
             "attentionReason": null,
             "requestedProducer": "CM",
-            "editorRequest": "FA"
+            "editorRequest": "FA",
+            "assignedProducer": null
         },
         {
             "id": "ord-dance-jazzkick",
@@ -6509,7 +6664,8 @@
             "needsAttention": false,
             "attentionReason": null,
             "requestedProducer": "NC",
-            "editorRequest": "FA"
+            "editorRequest": "FA",
+            "assignedProducer": null
         },
         {
             "id": "ord-demo-cheer-01",
@@ -6553,7 +6709,8 @@
             "musicTheme": "Upbeat Pop & Dance Mixes (Power Music Covers)",
             "editorRequest": "CM",
             "requestedProducer": "CASEY",
-            "priceCompliance": "compliant"
+            "priceCompliance": "compliant",
+            "assignedProducer": null
         },
         {
             "id": "ord-demo-cheer-02",
@@ -6597,7 +6754,8 @@
             "musicTheme": "Electronic Dance & Top 40 (Power Music)",
             "editorRequest": "JM",
             "requestedProducer": "JUSTIN",
-            "priceCompliance": "compliant"
+            "priceCompliance": "compliant",
+            "assignedProducer": null
         },
         {
             "id": "ord-demo-cheer-03",
@@ -6641,7 +6799,8 @@
             "musicTheme": "Heavy Hip Hop Beats & Remixes (Power Music + Unleash the Beats)",
             "editorRequest": "MS",
             "requestedProducer": "MATT",
-            "priceCompliance": "compliant"
+            "priceCompliance": "compliant",
+            "assignedProducer": null
         },
         {
             "id": "ord-demo-cheer-04",
@@ -6685,7 +6844,8 @@
             "musicTheme": "High Energy Female Vocal Remixes (Unleash the Beats)",
             "editorRequest": "NC",
             "requestedProducer": "NATE",
-            "priceCompliance": "compliant"
+            "priceCompliance": "compliant",
+            "assignedProducer": null
         },
         {
             "id": "ord-demo-cheer-05",
@@ -6729,7 +6889,8 @@
             "musicTheme": "Epic Cinematic & Rock Remixes (Library Music)",
             "editorRequest": "G",
             "requestedProducer": "GRIFFIN",
-            "priceCompliance": "compliant"
+            "priceCompliance": "compliant",
+            "assignedProducer": null
         },
         {
             "id": "ord-demo-cheer-06",
@@ -6773,7 +6934,8 @@
             "musicTheme": "Taylor Swift - Cruel Summer (Custom Remix)",
             "editorRequest": "CM",
             "requestedProducer": "CASEY",
-            "priceCompliance": "non-compliant"
+            "priceCompliance": "non-compliant",
+            "assignedProducer": null
         },
         {
             "id": "ord-demo-cheer-07",
@@ -6817,7 +6979,8 @@
             "musicTheme": "Upbeat Pop Hits (Power Music Covers)",
             "editorRequest": "FA",
             "requestedProducer": "FA",
-            "priceCompliance": "compliant"
+            "priceCompliance": "compliant",
+            "assignedProducer": null
         },
         {
             "id": "ord-demo-cheer-08",
@@ -6861,7 +7024,8 @@
             "musicTheme": "Dua Lipa - Levitating (Custom Edit)",
             "editorRequest": "JM",
             "requestedProducer": "JUSTIN",
-            "priceCompliance": "non-compliant"
+            "priceCompliance": "non-compliant",
+            "assignedProducer": null
         },
         {
             "id": "ord-demo-cheer-09",
@@ -6905,7 +7069,8 @@
             "musicTheme": "Heavy Hip Hop Beats and Voiceovers (Power Music + Unleash the Beats)",
             "editorRequest": "MS",
             "requestedProducer": "MATT",
-            "priceCompliance": "compliant"
+            "priceCompliance": "compliant",
+            "assignedProducer": null
         },
         {
             "id": "ord-demo-cheer-10",
@@ -6949,7 +7114,8 @@
             "musicTheme": "Sabrina Carpenter - Espresso (Custom Mix)",
             "editorRequest": "NC",
             "requestedProducer": "NATE",
-            "priceCompliance": "non-compliant"
+            "priceCompliance": "non-compliant",
+            "assignedProducer": null
         },
         {
             "id": "ord-demo-cheer-11",
@@ -6997,7 +7163,8 @@
             "musicTheme": "Fight Song Remix, Modern Pop Mashup (Power Music Covers)",
             "editorRequest": "JM",
             "requestedProducer": "JUSTIN",
-            "priceCompliance": "compliant"
+            "priceCompliance": "compliant",
+            "assignedProducer": null
         },
         {
             "id": "ord-demo-cheer-12",
@@ -7046,7 +7213,8 @@
             "musicTheme": "Upbeat Stadium Anthems (Power Music Covers)",
             "editorRequest": "CM",
             "requestedProducer": "CASEY",
-            "priceCompliance": "compliant"
+            "priceCompliance": "compliant",
+            "assignedProducer": null
         },
         {
             "id": "ord-demo-cheer-13",
@@ -7094,7 +7262,8 @@
             "musicTheme": "Top 40 Dance Hits (Power Music)",
             "editorRequest": "MS",
             "requestedProducer": "MATT",
-            "priceCompliance": "compliant"
+            "priceCompliance": "compliant",
+            "assignedProducer": null
         },
         {
             "id": "ord-demo-cheer-14",
@@ -7143,7 +7312,8 @@
             "musicTheme": "Upbeat Pop & Rock Mix (Unleash the Beats)",
             "editorRequest": "NC",
             "requestedProducer": "NATE",
-            "priceCompliance": "compliant"
+            "priceCompliance": "compliant",
+            "assignedProducer": null
         },
         {
             "id": "ord-demo-cheer-15",
@@ -7191,7 +7361,8 @@
             "musicTheme": "Classic Rock & Pop Remixes (Power Music Covers)",
             "editorRequest": "G",
             "requestedProducer": "GRIFFIN",
-            "priceCompliance": "compliant"
+            "priceCompliance": "compliant",
+            "assignedProducer": null
         },
         {
             "id": "ord-demo-cheer-16",
@@ -7239,7 +7410,8 @@
             "musicTheme": "Upbeat Modern Pop Hits (Power Music + Unleash the Beats)",
             "editorRequest": "CM",
             "requestedProducer": "CASEY",
-            "priceCompliance": "compliant"
+            "priceCompliance": "compliant",
+            "assignedProducer": null
         },
         {
             "id": "ord-demo-cheer-17",
@@ -7288,7 +7460,8 @@
             "musicTheme": "Championship Hype Mix (Power Music Covers)",
             "editorRequest": "JM",
             "requestedProducer": "JUSTIN",
-            "priceCompliance": "compliant"
+            "priceCompliance": "compliant",
+            "assignedProducer": null
         },
         {
             "id": "ord-demo-cheer-18",
@@ -7336,7 +7509,8 @@
             "musicTheme": "Upbeat Pop & Hip Hop Mix (Library Music)",
             "editorRequest": "MS",
             "requestedProducer": "MATT",
-            "priceCompliance": "compliant"
+            "priceCompliance": "compliant",
+            "assignedProducer": null
         },
         {
             "id": "ord-demo-cheer-19",
@@ -7384,7 +7558,8 @@
             "musicTheme": "Beyoncé - ENERGY (Original)",
             "editorRequest": "NC",
             "requestedProducer": "NATE",
-            "priceCompliance": "non-compliant"
+            "priceCompliance": "non-compliant",
+            "assignedProducer": null
         },
         {
             "id": "ord-demo-cheer-20",
@@ -7432,7 +7607,8 @@
             "musicTheme": "Championship Victory Mix (Power Music Covers)",
             "editorRequest": "G",
             "requestedProducer": "GRIFFIN",
-            "priceCompliance": "compliant"
+            "priceCompliance": "compliant",
+            "assignedProducer": null
         },
         {
             "id": "ord-demo-cheer-21",
@@ -7480,7 +7656,8 @@
             "musicTheme": "Classic Rock Remixes & 90s Hits (Power Music Covers)",
             "editorRequest": "MS",
             "requestedProducer": "MATT",
-            "priceCompliance": "compliant"
+            "priceCompliance": "compliant",
+            "assignedProducer": null
         },
         {
             "id": "ord-demo-cheer-22",
@@ -7529,7 +7706,8 @@
             "musicTheme": "High Energy Pop & Dance Tracks (Power Music)",
             "editorRequest": "CM",
             "requestedProducer": "CASEY",
-            "priceCompliance": "compliant"
+            "priceCompliance": "compliant",
+            "assignedProducer": null
         },
         {
             "id": "ord-demo-cheer-23",
@@ -7577,7 +7755,8 @@
             "musicTheme": "Stadium Cheer Anthems (Unleash the Beats)",
             "editorRequest": "JM",
             "requestedProducer": "JUSTIN",
-            "priceCompliance": "compliant"
+            "priceCompliance": "compliant",
+            "assignedProducer": null
         },
         {
             "id": "ord-demo-cheer-24",
@@ -7625,7 +7804,8 @@
             "musicTheme": "Upbeat Modern Pop Hits (Power Music Covers)",
             "editorRequest": "NC",
             "requestedProducer": "NATE",
-            "priceCompliance": "compliant"
+            "priceCompliance": "compliant",
+            "assignedProducer": null
         },
         {
             "id": "ord-demo-cheer-25",
@@ -7674,7 +7854,8 @@
             "musicTheme": "Energetic Dance Remixes (Power Music + Unleash the Beats)",
             "editorRequest": "G",
             "requestedProducer": "GRIFFIN",
-            "priceCompliance": "compliant"
+            "priceCompliance": "compliant",
+            "assignedProducer": null
         },
         {
             "id": "ord-demo-cheer-26",
@@ -7722,7 +7903,8 @@
             "musicTheme": "Fast Hip Hop Beat (Library Music)",
             "editorRequest": "CM",
             "requestedProducer": "CASEY",
-            "priceCompliance": "compliant"
+            "priceCompliance": "compliant",
+            "assignedProducer": null
         },
         {
             "id": "ord-demo-cheer-27",
@@ -7771,7 +7953,8 @@
             "musicTheme": "Chappell Roan - Pink Pony Club (Custom Edit)",
             "editorRequest": "JM",
             "requestedProducer": "JUSTIN",
-            "priceCompliance": "non-compliant"
+            "priceCompliance": "non-compliant",
+            "assignedProducer": null
         },
         {
             "id": "ord-demo-cheer-28",
@@ -7819,7 +8002,8 @@
             "musicTheme": "Stadium Hype & Fight Song Remix (Power Music Covers)",
             "editorRequest": "MS",
             "requestedProducer": "MATT",
-            "priceCompliance": "compliant"
+            "priceCompliance": "compliant",
+            "assignedProducer": null
         },
         {
             "id": "ord-demo-cheer-29",
@@ -7867,7 +8051,8 @@
             "musicTheme": "Upbeat Pop Medley (Power Music)",
             "editorRequest": "NC",
             "requestedProducer": "NATE",
-            "priceCompliance": "compliant"
+            "priceCompliance": "compliant",
+            "assignedProducer": null
         },
         {
             "id": "ord-demo-cheer-30",
@@ -7915,7 +8100,8 @@
             "musicTheme": "Championship Hype Mix (Power Music + Unleash the Beats)",
             "editorRequest": "G",
             "requestedProducer": "GRIFFIN",
-            "priceCompliance": "compliant"
+            "priceCompliance": "compliant",
+            "assignedProducer": null
         },
         {
             "id": "ord-demo-cheer-31",
@@ -7954,7 +8140,8 @@
             "musicTheme": "Kidz Bop Hits & Upbeat Dance Beats",
             "editorRequest": "FA",
             "requestedProducer": "FA",
-            "priceCompliance": "compliant"
+            "priceCompliance": "compliant",
+            "assignedProducer": null
         },
         {
             "id": "ord-demo-cheer-32",
@@ -7994,7 +8181,8 @@
             "musicTheme": "Upbeat Pop Hits",
             "editorRequest": "CM",
             "requestedProducer": "CASEY",
-            "priceCompliance": "compliant"
+            "priceCompliance": "compliant",
+            "assignedProducer": null
         },
         {
             "id": "ord-demo-cheer-33",
@@ -8033,7 +8221,8 @@
             "musicTheme": "Popular Radio Edits & Cheer Beats",
             "editorRequest": "JM",
             "requestedProducer": "JUSTIN",
-            "priceCompliance": "compliant"
+            "priceCompliance": "compliant",
+            "assignedProducer": null
         },
         {
             "id": "ord-demo-cheer-34",
@@ -8073,7 +8262,8 @@
             "musicTheme": "Top 40 Remixes",
             "editorRequest": "MS",
             "requestedProducer": "MATT",
-            "priceCompliance": "compliant"
+            "priceCompliance": "compliant",
+            "assignedProducer": null
         },
         {
             "id": "ord-demo-cheer-35",
@@ -8112,7 +8302,8 @@
             "musicTheme": "Upbeat Family Friendly Pop",
             "editorRequest": "NC",
             "requestedProducer": "NATE",
-            "priceCompliance": "compliant"
+            "priceCompliance": "compliant",
+            "assignedProducer": null
         },
         {
             "id": "ord-demo-cheer-36",
@@ -8153,7 +8344,8 @@
             "musicTheme": "Upbeat Dance & Hip Hop Remixes",
             "editorRequest": "G",
             "requestedProducer": "GRIFFIN",
-            "priceCompliance": "compliant"
+            "priceCompliance": "compliant",
+            "assignedProducer": null
         },
         {
             "id": "ord-demo-cheer-37",
@@ -8192,7 +8384,8 @@
             "musicTheme": "Disney & Kidz Bop Hits",
             "editorRequest": "CM",
             "requestedProducer": "CASEY",
-            "priceCompliance": "compliant"
+            "priceCompliance": "compliant",
+            "assignedProducer": null
         },
         {
             "id": "ord-demo-cheer-38",
@@ -8232,7 +8425,8 @@
             "musicTheme": "Stadium Pop Hits",
             "editorRequest": "JM",
             "requestedProducer": "JUSTIN",
-            "priceCompliance": "compliant"
+            "priceCompliance": "compliant",
+            "assignedProducer": null
         },
         {
             "id": "ord-demo-cheer-39",
@@ -8271,7 +8465,8 @@
             "musicTheme": "Upbeat Radio Edits",
             "editorRequest": "MS",
             "requestedProducer": "MATT",
-            "priceCompliance": "compliant"
+            "priceCompliance": "compliant",
+            "assignedProducer": null
         },
         {
             "id": "ord-demo-cheer-40",
@@ -8310,7 +8505,8 @@
             "musicTheme": "Upbeat Modern Pop & Dance Hits",
             "editorRequest": "NC",
             "requestedProducer": "NATE",
-            "priceCompliance": "compliant"
+            "priceCompliance": "compliant",
+            "assignedProducer": null
         }
     ],
     "schedule": [

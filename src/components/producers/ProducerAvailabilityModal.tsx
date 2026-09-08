@@ -19,6 +19,7 @@ type AvailabilityPatch = {
   workDays: Weekday[];
   timeOff: ProducerTimeOff[];
   maxMixesPerDay: number | null;
+  maxProducerCostPerDay: number | null;
   overtimeDays: string[];
 };
 
@@ -58,6 +59,8 @@ export function ProducerAvailabilityModal({
   const [timeOff, setTimeOff] = useState<DraftTimeOff[]>([]);
   const [hasMaxCapacity, setHasMaxCapacity] = useState(false);
   const [maxMixesPerDay, setMaxMixesPerDay] = useState(6);
+  const [hasMaxCostCapacity, setHasMaxCostCapacity] = useState(false);
+  const [maxProducerCostPerDay, setMaxProducerCostPerDay] = useState(2000);
   const [overtimeDays, setOvertimeDays] = useState<string[]>([]);
   const [overtimeDraft, setOvertimeDraft] = useState("");
   const overtimeInputRef = useRef<HTMLInputElement>(null);
@@ -76,6 +79,8 @@ export function ProducerAvailabilityModal({
     );
     setHasMaxCapacity(producer.maxMixesPerDay != null);
     setMaxMixesPerDay(producer.maxMixesPerDay ?? 6);
+    setHasMaxCostCapacity(producer.maxProducerCostPerDay != null);
+    setMaxProducerCostPerDay(producer.maxProducerCostPerDay ?? 2000);
     setOvertimeDays([...producer.overtimeDays]);
     setOvertimeDraft("");
   }, [open, producer]);
@@ -138,6 +143,7 @@ export function ProducerAvailabilityModal({
           reason: entry.reason.trim(),
         })),
       maxMixesPerDay: hasMaxCapacity ? Math.max(1, maxMixesPerDay) : null,
+      maxProducerCostPerDay: hasMaxCostCapacity ? Math.max(1, maxProducerCostPerDay) : null,
       overtimeDays,
     });
     onClose();
@@ -185,7 +191,12 @@ export function ProducerAvailabilityModal({
                 {producer.name}
               </p>
               <p className="text-[12px] text-brand-ink-tertiary">
-                {producer.specialty}
+                {producer.categories?.length
+                  ? producer.categories.slice(0, 3).join(", ") +
+                    (producer.categories.length > 3
+                      ? ` +${producer.categories.length - 3}`
+                      : "")
+                  : producer.specialty}
               </p>
             </div>
           </div>
@@ -343,6 +354,71 @@ export function ProducerAvailabilityModal({
                     <Plus className="h-3.5 w-3.5" strokeWidth={2.5} />
                   </button>
                 </div>
+              </div>
+            ) : null}
+          </div>
+
+          {/* Maximum producer cost per day */}
+          <div className="mt-8">
+            <p className="text-[13px] font-semibold text-brand-ink">
+              Maximum producer cost per day
+            </p>
+            <p className="mt-0.5 text-[12px] text-brand-ink-tertiary">
+              Max producer payroll cost assignable on a single day. Uses producer payout, not customer price.
+            </p>
+
+            <div className="mt-4 flex gap-1 rounded-full bg-brand-bg p-1 ring-1 ring-inset ring-black/[0.06]">
+              <button
+                type="button"
+                onClick={() => setHasMaxCostCapacity(false)}
+                className={clsx(
+                  "flex-1 rounded-full py-2 text-[13px] font-semibold transition",
+                  !hasMaxCostCapacity
+                    ? "bg-brand-ink text-white shadow-sm"
+                    : "text-brand-ink-secondary hover:text-brand-ink"
+                )}
+              >
+                No limit
+              </button>
+              <button
+                type="button"
+                onClick={() => setHasMaxCostCapacity(true)}
+                className={clsx(
+                  "flex-1 rounded-full py-2 text-[13px] font-semibold transition",
+                  hasMaxCostCapacity
+                    ? "bg-brand-ink text-white shadow-sm"
+                    : "text-brand-ink-secondary hover:text-brand-ink"
+                )}
+              >
+                Set limit
+              </button>
+            </div>
+
+            {hasMaxCostCapacity ? (
+              <div className="mt-4 rounded-2xl bg-brand-bg px-4 py-3 ring-1 ring-inset ring-black/[0.06]">
+                <label className="flex items-center justify-between gap-3">
+                  <span className="text-[13px] font-medium text-brand-ink">
+                    Max cost per day
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[15px] font-semibold text-brand-ink-secondary">$</span>
+                    <input
+                      type="number"
+                      min={1}
+                      step={100}
+                      value={maxProducerCostPerDay}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value, 10);
+                        if (!isNaN(val) && val > 0) setMaxProducerCostPerDay(val);
+                      }}
+                      className="w-24 bg-transparent text-right text-[16px] font-semibold tabular-nums text-brand-ink outline-none"
+                      aria-label="Maximum producer cost per day in dollars"
+                    />
+                  </div>
+                </label>
+                <p className="mt-1.5 text-[11px] text-brand-ink-tertiary">
+                  Producer will show as Capacity Reached when this amount is exceeded.
+                </p>
               </div>
             ) : null}
           </div>

@@ -10,8 +10,10 @@ const LEGACY_PRODUCER_KEYS = {
     JUSTIN: "JD",
     JUST: "JD",
     MARK: "MM",
-    GRIFFIN: "G",
-    GRIF: "G",
+    GRIFFIN: "GP",
+    GRIF: "GP",
+    G: "GP",
+    GP: "GP",
     JOSH: "JM",
     JOEL: "JOP",
     BRENT: "BV",
@@ -22,6 +24,13 @@ const LEGACY_PRODUCER_KEYS = {
     STEV: "SS",
     CASEY: "CM",
     CM: "CM",
+    ANNE: "AJ",
+    LAUREN: "LV",
+    RORY: "RF",
+    JOHN: "JP",
+    MAX: "MT",
+    CHRIS: "CC",
+    JOE: "JB",
 };
 function normalizeProducerKey(raw) {
     const normalized = raw.trim().toUpperCase();

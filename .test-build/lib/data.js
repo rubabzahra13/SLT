@@ -13,13 +13,26 @@ exports.getHaveStatus = getHaveStatus;
 const order_form_1 = require("@/lib/order-form");
 const discount_codes_1 = require("@/lib/discount-codes");
 const producers_1 = require("@/lib/producers");
+const editor_assignment_1 = require("@/lib/editor-assignment");
 const mock_data_json_1 = __importDefault(require("@/data/mock-data.json"));
 const cheer_demo_orders_1 = require("@/data/cheer-demo-orders");
 const dance_demo_orders_1 = require("@/data/dance-demo-orders");
 const new_categories_demo_orders_1 = require("@/data/new-categories-demo-orders");
 function getData() {
     const raw = mock_data_json_1.default;
-    const existingOrders = raw.orders.map((o) => (0, order_form_1.normalizeOrder)(o));
+    const producers = raw.producers.map((p) => (0, producers_1.normalizeProducer)(p));
+    const sanitizeMtdRecord = (r) => ({
+        ...r,
+        assignedProducer: (0, editor_assignment_1.resolveValidProducerAssignment)(r.assignedProducer, producers, r.category),
+    });
+    const sanitizeOrder = (o) => {
+        const norm = (0, order_form_1.normalizeOrder)(o);
+        return {
+            ...norm,
+            assignedProducer: (0, editor_assignment_1.resolveValidProducerAssignment)(norm.assignedProducer, producers, norm.category || norm.formType || ""),
+        };
+    };
+    const existingOrders = raw.orders.map((o) => sanitizeOrder(o));
     const existingIds = new Set(existingOrders.map((o) => o.id));
     const combinedDemoOrders = [
         ...cheer_demo_orders_1.CHEER_DEMO_ORDERS,
@@ -28,7 +41,7 @@ function getData() {
     ];
     const newDemoOrders = combinedDemoOrders
         .filter((o) => !existingIds.has(o.id))
-        .map((o) => (0, order_form_1.normalizeOrder)(o));
+        .map((o) => sanitizeOrder(o));
     const existingMtdIds = new Set((raw.mtdRecords || []).map((r) => r.id));
     const combinedDemoMtdRecords = [
         ...cheer_demo_orders_1.CHEER_DEMO_MTD_RECORDS,
@@ -36,13 +49,14 @@ function getData() {
         ...new_categories_demo_orders_1.NEW_CATEGORIES_DEMO_MTD_RECORDS,
     ];
     const newDemoMtdRecords = combinedDemoMtdRecords.filter((r) => !existingMtdIds.has(r.id));
+    const allMtdRecords = [...(raw.mtdRecords || []), ...newDemoMtdRecords].map((r) => sanitizeMtdRecord(r));
     return {
         ...raw,
-        producers: raw.producers.map((p) => (0, producers_1.normalizeProducer)(p)),
+        producers,
         discountCodes: (raw.discountCodes ?? []).map((entry) => (0, discount_codes_1.normalizeDiscountCode)(entry)),
         orders: [...existingOrders, ...newDemoOrders],
-        pastOrders: (raw.pastOrders ?? []).map((o) => (0, order_form_1.normalizeOrder)(o)),
-        mtdRecords: [...(raw.mtdRecords || []), ...newDemoMtdRecords],
+        pastOrders: (raw.pastOrders ?? []).map((o) => sanitizeOrder(o)),
+        mtdRecords: allMtdRecords,
     };
 }
 function findOrder(id) {

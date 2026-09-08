@@ -87,6 +87,15 @@ export type Producer = {
   name: string;
   initials: string;
   email: string;
+  /**
+   * The producer's full list of supported categories.
+   * Use this for all assignment and eligibility checks.
+   */
+  categories: string[];
+  /**
+   * Kept for backward-compatibility and display fallback.
+   * Derived from categories[0] where possible.
+   */
   specialty: string;
   avatar: string;
   mixesThisWeek: number;
@@ -98,6 +107,8 @@ export type Producer = {
   timeOff: ProducerTimeOff[];
   /** Max mixes per working day; null = no limit (default) */
   maxMixesPerDay: number | null;
+  /** Max producer payroll cost per day; null = no limit (default) */
+  maxProducerCostPerDay: number | null;
   /** One-off extra work days (YYYY-MM-DD), outside regular workDays */
   overtimeDays: string[];
   compensationModel?: ProducerCompensationModel;
@@ -126,13 +137,25 @@ export const DEFAULT_WORK_DAYS: Weekday[] = [
   "fri",
 ];
 
+/**
+ * The 11 canonical producer categories used for assignment eligibility.
+ * These are the values stored in Producer.categories[].
+ */
 export const PRODUCER_CATEGORIES = [
-  "Cheer",
-  "Dance",
+  "All-Star Cheer",
+  "School Cheer",
+  "Youth Rec Cheer",
+  "Pom",
+  "Hip Hop",
+  "Team Performance / Variety",
+  "Gameday",
+  "Jazz / Kick",
   "Marching Band",
-  "Hip-Hop",
-  "School",
+  "Sports Entertainment",
+  "School Anthem",
 ] as const;
+
+export type ProducerCategory = (typeof PRODUCER_CATEGORIES)[number];
 
 export type OrderFormType =
   | "school-all-star-cheer"
@@ -769,6 +792,12 @@ export type ScheduleEntry = {
   status: "mix" | "available" | "off";
   count: number;
 };
+
+/**
+ * All possible statuses for a producer schedule cell.
+ * "capacity" = producer has reached their daily mix or cost limit.
+ */
+export type ScheduleCellStatus = "available" | "mix" | "off" | "capacity";
 
 export type AppNotification = {
   id: string;

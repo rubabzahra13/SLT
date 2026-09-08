@@ -29,6 +29,7 @@ import {
   editorRequestForAssignment,
   getSuggestedEditors,
   pickDefaultEditor,
+  resolveValidProducerAssignment,
 } from "@/lib/editor-assignment";
 import { suggestMixEndDate } from "@/lib/scheduling";
 import { normalizeProducer } from "@/lib/producers";
@@ -418,13 +419,24 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         if (patch.editorRequest === "NA" || patch.assignedProducer === null) {
           updated.assignedProducer = null;
         } else if (patch.assignedProducer !== undefined) {
-          updated.assignedProducer = patch.assignedProducer;
+          updated.assignedProducer = resolveValidProducerAssignment(
+            patch.assignedProducer,
+            producers,
+            updated.category
+          );
         } else if (
           patch.editorRequest &&
           patch.editorRequest !== "FA" &&
           patch.editorRequest !== "NA"
         ) {
-          updated.assignedProducer = patch.editorRequest;
+          const resolved = resolveValidProducerAssignment(
+            patch.editorRequest,
+            producers,
+            updated.category
+          );
+          if (resolved) {
+            updated.assignedProducer = resolved;
+          }
         }
 
         if (patch.package || patch.priceCompliance || patch.musicTheme) {
@@ -495,11 +507,11 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         ...order,
         status: "completed",
         completedAt: new Date().toISOString().slice(0, 10),
-        assignedProducer:
-          order.assignedProducer ||
-          (order.editorRequest !== "FA" && order.editorRequest !== "NA"
-            ? order.editorRequest
-            : "CASEY"),
+        assignedProducer: resolveValidProducerAssignment(
+          order.assignedProducer || order.requestedProducer || order.editorRequest,
+          producers,
+          order.category || order.formType || ""
+        ),
       };
 
       setActiveOrders((prev) => prev.filter((o) => o.id !== orderId));

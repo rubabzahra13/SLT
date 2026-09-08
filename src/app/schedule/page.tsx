@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { PageHeader } from "@/components/layout/PageHeader";
 import {
   SchedulePageToolbar,
@@ -22,12 +23,26 @@ import {
   type ScheduleViewRange,
   type TeamScheduleRow,
 } from "@/lib/schedule-view";
+import { producerSupportsCategory } from "@/lib/editor-assignment";
 
 const ANCHOR_DATE = new Date(2026, 7, 19);
 
-export default function SchedulePage() {
+function SchedulePageContent() {
+  const searchParams = useSearchParams();
+  const viewParam = searchParams.get("view") || searchParams.get("range");
+
   const { producers, schedule, mtdRecords } = useAppState();
-  const [view, setView] = useState<ScheduleViewRange>("week");
+  const [view, setView] = useState<ScheduleViewRange>(() => {
+    if (viewParam === "today") return "today";
+    return "week";
+  });
+
+  useEffect(() => {
+    if (viewParam === "today") {
+      setView("today");
+    }
+  }, [viewParam]);
+
   const [presentation, setPresentation] = useState<SchedulePresentation>("matrix");
   const [specialty, setSpecialty] = useState("All");
   const [drawerRow, setDrawerRow] = useState<TeamScheduleRow | null>(null);
@@ -38,8 +53,14 @@ export default function SchedulePage() {
     () =>
       specialty === "All"
         ? producers
-        : producers.filter((p) => p.specialty === specialty),
+        : producers.filter((p) => producerSupportsCategory(p, specialty)),
     [producers, specialty]
+  );
+
+  const currentDate = useMemo(() => new Date(), []);
+  const anchorDate = useMemo(
+    () => (view === "today" ? currentDate : ANCHOR_DATE),
+    [view, currentDate]
   );
 
   const teamRows = useMemo(
@@ -48,22 +69,22 @@ export default function SchedulePage() {
         filteredProducers,
         schedule,
         view,
-        ANCHOR_DATE,
+        anchorDate,
         mtdRecords
       ),
-    [filteredProducers, schedule, view, mtdRecords]
+    [filteredProducers, schedule, view, anchorDate, mtdRecords]
   );
 
   const columns = useMemo(
     () =>
       teamRows.length > 0
-        ? aggregateColumns(teamRows, ANCHOR_DATE)
-        : buildScheduleColumnAggregates(view, ANCHOR_DATE),
-    [teamRows, view]
+        ? aggregateColumns(teamRows, anchorDate)
+        : buildScheduleColumnAggregates(view, anchorDate),
+    [teamRows, view, anchorDate]
   );
 
   const calendarRange: "week" | "month" =
-    view === "90days" || view === "6months" ? "month" : view;
+    view === "90days" || view === "6months" ? "month" : view === "today" ? "week" : view;
 
   function handleSelectProducer(row: TeamScheduleRow, cell?: ScheduleCell) {
     setSelectedDay(null);
@@ -171,5 +192,13 @@ export default function SchedulePage() {
         onClose={closeDrawer}
       />
     </div>
+  );
+}
+
+export default function SchedulePage() {
+  return (
+    <Suspense fallback={null}>
+      <SchedulePageContent />
+    </Suspense>
   );
 }

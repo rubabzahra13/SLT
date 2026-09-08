@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { ChevronDown, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ChevronDown, Plus, X } from "lucide-react";
 import clsx from "clsx";
 import { PRODUCER_AVATARS } from "@/lib/producer-avatars";
-import { initialsFromName } from "@/lib/producers";
+import { initialsFromName, normalizeProducer } from "@/lib/producers";
 import {
   DEFAULT_WORK_DAYS,
   PRODUCER_CATEGORIES,
@@ -22,7 +22,7 @@ type FormState = {
   name: string;
   initials: string;
   email: string;
-  specialty: string;
+  categories: string[];
   avatar: string;
 };
 
@@ -34,18 +34,23 @@ function emptyForm(): FormState {
     name: "",
     initials: "",
     email: "",
-    specialty: "Cheer",
+    categories: [],
     avatar: PRODUCER_AVATARS[0].src,
   };
 }
 
 function fromProducer(producer: Producer): FormState {
+  const norm = normalizeProducer(producer);
   return {
-    name: producer.name,
-    initials: producer.initials,
-    email: producer.email,
-    specialty: producer.specialty,
-    avatar: producer.avatar,
+    name: norm.name,
+    initials: norm.initials,
+    email: norm.email,
+    categories: norm.categories?.length
+      ? [...norm.categories]
+      : norm.specialty
+        ? [norm.specialty]
+        : [],
+    avatar: norm.avatar,
   };
 }
 
@@ -58,6 +63,8 @@ export function ProducerFormModal({
   const [form, setForm] = useState<FormState>(emptyForm);
   const [initialsTouched, setInitialsTouched] = useState(false);
   const [pickingAvatar, setPickingAvatar] = useState(false);
+  const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const isEdit = Boolean(producer);
 
   useEffect(() => {
@@ -70,9 +77,43 @@ export function ProducerFormModal({
       setInitialsTouched(false);
     }
     setPickingAvatar(false);
+    setCategoryDropdownOpen(false);
   }, [open, producer]);
 
+  // Close category dropdown on outside click
+  useEffect(() => {
+    if (!categoryDropdownOpen) return;
+    function handleClick(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setCategoryDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [categoryDropdownOpen]);
+
   if (!open) return null;
+
+  const availableCategories = PRODUCER_CATEGORIES.filter(
+    (c) => !form.categories.includes(c)
+  );
+
+  function addCategory(cat: string) {
+    setForm((prev) => ({
+      ...prev,
+      categories: prev.categories.includes(cat)
+        ? prev.categories
+        : [...prev.categories, cat],
+    }));
+    setCategoryDropdownOpen(false);
+  }
+
+  function removeCategory(cat: string) {
+    setForm((prev) => ({
+      ...prev,
+      categories: prev.categories.filter((c) => c !== cat),
+    }));
+  }
 
   function handleSubmit(e?: React.FormEvent) {
     e?.preventDefault();
@@ -81,12 +122,16 @@ export function ProducerFormModal({
       .slice(0, 4);
     if (!form.name.trim() || !form.email.trim() || !initials) return;
 
+    const categories = form.categories;
+    const specialty = categories[0] ?? "";
+
     onSave({
       id: producer?.id || `prod-${Date.now()}`,
       name: form.name.trim(),
       initials,
       email: form.email.trim().toLowerCase(),
-      specialty: form.specialty,
+      categories,
+      specialty,
       avatar: form.avatar,
       mixesThisWeek: producer?.mixesThisWeek ?? 0,
       nextAvailable: producer?.nextAvailable || "TBD",
@@ -94,6 +139,7 @@ export function ProducerFormModal({
       workDays: producer?.workDays ?? [...DEFAULT_WORK_DAYS],
       timeOff: producer?.timeOff ?? [],
       maxMixesPerDay: producer?.maxMixesPerDay ?? null,
+      maxProducerCostPerDay: producer?.maxProducerCostPerDay ?? null,
       overtimeDays: producer?.overtimeDays ?? [],
     });
     onClose();
@@ -243,27 +289,76 @@ export function ProducerFormModal({
                 className={rowInput}
               />
             </ProfileRow>
-            <ProfileRow label="Category" last>
-              <div className="relative flex w-full items-center justify-end">
-                <select
-                  value={form.specialty}
-                  onChange={(e) =>
-                    setForm({ ...form, specialty: e.target.value })
-                  }
-                  className={clsx(rowInput, "appearance-none pr-5 text-right")}
-                >
-                  {PRODUCER_CATEGORIES.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown
-                  className="pointer-events-none absolute right-0 h-3.5 w-3.5 text-brand-ink-tertiary"
-                  strokeWidth={2}
-                />
+          </section>
+
+          {/* Categories section */}
+          <section className="border-b border-black/[0.08] px-5 py-4">
+            <div className="flex items-center justify-between">
+              <p className="text-[13px] font-semibold text-brand-ink">
+                Categories
+              </p>
+              {availableCategories.length > 0 && (
+                <div className="relative" ref={dropdownRef}>
+                  <button
+                    type="button"
+                    onClick={() => setCategoryDropdownOpen((v) => !v)}
+                    className="inline-flex h-7 items-center gap-1 rounded-full bg-brand-bg px-2.5 text-[12px] font-semibold text-brand-blue ring-1 ring-inset ring-black/[0.06] transition hover:bg-brand-bg-subtle"
+                    aria-expanded={categoryDropdownOpen}
+                    aria-haspopup="listbox"
+                  >
+                    <Plus className="h-3 w-3" strokeWidth={2.5} />
+                    Add Category
+                  </button>
+                  {categoryDropdownOpen && (
+                    <div
+                      className="absolute right-0 top-full z-50 mt-1.5 w-52 overflow-hidden rounded-2xl bg-brand-elevated shadow-[0_8px_32px_rgba(0,0,0,0.18)] ring-1 ring-black/[0.08]"
+                      role="listbox"
+                      aria-label="Select category"
+                    >
+                      <div className="max-h-56 overflow-y-auto py-1.5">
+                        {availableCategories.map((cat) => (
+                          <button
+                            key={cat}
+                            type="button"
+                            role="option"
+                            aria-selected={false}
+                            onClick={() => addCategory(cat)}
+                            className="w-full px-4 py-2.5 text-left text-[13px] text-brand-ink transition hover:bg-brand-bg-subtle"
+                          >
+                            {cat}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {form.categories.length === 0 ? (
+              <p className="mt-3 text-[12px] text-brand-ink-tertiary">
+                No categories selected. Add at least one.
+              </p>
+            ) : (
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {form.categories.map((cat) => (
+                  <span
+                    key={cat}
+                    className="inline-flex items-center gap-1 rounded-full bg-brand-blue-soft py-1 pl-2.5 pr-1 text-[12px] font-semibold text-brand-blue-deep ring-1 ring-inset ring-brand-blue-muted"
+                  >
+                    {cat}
+                    <button
+                      type="button"
+                      onClick={() => removeCategory(cat)}
+                      className="rounded-full p-0.5 text-brand-blue-deep/60 transition hover:bg-brand-blue-muted hover:text-brand-blue-deep"
+                      aria-label={`Remove ${cat}`}
+                    >
+                      <X className="h-3 w-3" strokeWidth={2.5} />
+                    </button>
+                  </span>
+                ))}
               </div>
-            </ProfileRow>
+            )}
           </section>
 
           <div className="flex justify-center pb-5 pt-6 sm:hidden">

@@ -53,7 +53,7 @@ export function transformMTDRecord(bm: BackendMTDRecord): MTDRecord {
     uuid: bm.id,
     orderId: bm.order_id || undefined,
     section: bm.section || "CHEERLEADING MUSIC",
-    assignedProducer: bm.assigned_producer || bm.editor_initials || null,
+    assignedProducer: bm.assigned_producer && bm.assigned_producer !== "FA" && bm.assigned_producer !== "NA" ? bm.assigned_producer : null,
     category: bm.category || "Cheer",
     editorRequest: (bm.editor_request as EditorRequest) || "FA",
     contactName: bm.contact_name || "",

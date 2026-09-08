@@ -2,6 +2,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { Avatar } from "@/components/ui/Avatar";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { getData, formatPrice } from "@/lib/data";
+import { orderCategoryToProducerCategory, producerSupportsCategory } from "@/lib/editor-assignment";
 
 export default function AssignmentsPage() {
   const { orders, producers } = getData();
@@ -20,11 +21,14 @@ export default function AssignmentsPage() {
       <div className="space-y-6 p-6">
         {pending.map((order) => {
           const suggestions = producers
-            .filter(
-              (p) =>
-                p.specialty === order.category ||
-                (order.category === "Cheer" && p.specialty === "Cheer")
-            )
+            .filter((p) => {
+              const required = orderCategoryToProducerCategory(
+                undefined,
+                undefined,
+                order.category
+              );
+              return producerSupportsCategory(p, required);
+            })
             .slice(0, 3);
 
           return (

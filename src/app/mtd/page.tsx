@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { Pencil } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Avatar } from "@/components/ui/Avatar";
@@ -142,7 +143,7 @@ function multilineTableCell(value: string, maxWidth = "180px") {
   );
 }
 
-export default function MTDPage() {
+function MTDPageContent() {
   const {
     mtdRecords,
     allOrders,
@@ -219,9 +220,21 @@ export default function MTDPage() {
     if (savedDance && validDanceSubtypes.includes(savedDance)) setDanceSubtypeState(savedDance);
   }, []);
 
+  const searchParams = useSearchParams();
+  const assignedParam = searchParams.get("assigned");
+  const scheduleParam = searchParams.get("schedule");
+
   const [tableFilters, setTableFilters] = useState<MTDTableFilterState>(
     DEFAULT_MTD_TABLE_FILTERS
   );
+
+  useEffect(() => {
+    if (assignedParam) {
+      setTableFilters((prev) => ({ ...prev, assignedProducer: assignedParam }));
+    } else if (scheduleParam) {
+      setTableFilters((prev) => ({ ...prev, scheduleFilter: scheduleParam as any }));
+    }
+  }, [assignedParam, scheduleParam]);
   const [searchQuery, setSearchQuery] = useState("");
   const [assignRecordId, setAssignRecordId] = useState<string | null>(null);
   const assignRecord = useMemo(
@@ -1413,5 +1426,13 @@ export default function MTDPage() {
         onClose={() => setBlockedRecord(null)}
       />
     </>
+  );
+}
+
+export default function MTDPage() {
+  return (
+    <Suspense fallback={null}>
+      <MTDPageContent />
+    </Suspense>
   );
 }

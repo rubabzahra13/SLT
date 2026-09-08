@@ -1,7 +1,8 @@
-import type { AppData, DiscountCode, Order, Producer } from "@/types";
+import type { AppData, DiscountCode, MTDRecord, Order, Producer } from "@/types";
 import { normalizeOrder } from "@/lib/order-form";
 import { normalizeDiscountCode } from "@/lib/discount-codes";
 import { normalizeProducer } from "@/lib/producers";
+import { resolveValidProducerAssignment } from "@/lib/editor-assignment";
 import data from "@/data/mock-data.json";
 import { CHEER_DEMO_ORDERS, CHEER_DEMO_MTD_RECORDS } from "@/data/cheer-demo-orders";
 import { DANCE_DEMO_ORDERS, DANCE_DEMO_MTD_RECORDS } from "@/data/dance-demo-orders";
@@ -11,8 +12,27 @@ import {
 } from "@/data/new-categories-demo-orders";
 
 export function getData(): AppData {
-  const raw = data as AppData;
-  const existingOrders = raw.orders.map((o) => normalizeOrder(o as Order));
+  const raw = data as unknown as AppData;
+  const producers = (raw.producers as Producer[]).map((p) => normalizeProducer(p));
+
+  const sanitizeMtdRecord = (r: MTDRecord): MTDRecord => ({
+    ...r,
+    assignedProducer: resolveValidProducerAssignment(r.assignedProducer, producers, r.category),
+  });
+
+  const sanitizeOrder = (o: Order): Order => {
+    const norm = normalizeOrder(o);
+    return {
+      ...norm,
+      assignedProducer: resolveValidProducerAssignment(
+        norm.assignedProducer,
+        producers,
+        norm.category || norm.formType || ""
+      ),
+    };
+  };
+
+  const existingOrders = raw.orders.map((o) => sanitizeOrder(o as Order));
   const existingIds = new Set(existingOrders.map((o) => o.id));
 
   const combinedDemoOrders = [
@@ -22,7 +42,7 @@ export function getData(): AppData {
   ];
   const newDemoOrders = combinedDemoOrders
     .filter((o) => !existingIds.has(o.id))
-    .map((o) => normalizeOrder(o));
+    .map((o) => sanitizeOrder(o));
 
   const existingMtdIds = new Set((raw.mtdRecords || []).map((r) => r.id));
   const combinedDemoMtdRecords = [
@@ -32,15 +52,19 @@ export function getData(): AppData {
   ];
   const newDemoMtdRecords = combinedDemoMtdRecords.filter((r) => !existingMtdIds.has(r.id));
 
+  const allMtdRecords = [...(raw.mtdRecords || []), ...newDemoMtdRecords].map((r) =>
+    sanitizeMtdRecord(r as MTDRecord)
+  );
+
   return {
     ...raw,
-    producers: (raw.producers as Producer[]).map((p) => normalizeProducer(p)),
+    producers,
     discountCodes: (raw.discountCodes ?? []).map((entry) =>
       normalizeDiscountCode(entry as DiscountCode)
     ),
     orders: [...existingOrders, ...newDemoOrders],
-    pastOrders: (raw.pastOrders ?? []).map((o) => normalizeOrder(o as Order)),
-    mtdRecords: [...(raw.mtdRecords || []), ...newDemoMtdRecords],
+    pastOrders: (raw.pastOrders ?? []).map((o) => sanitizeOrder(o as Order)),
+    mtdRecords: allMtdRecords,
   };
 }
 

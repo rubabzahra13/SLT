@@ -83,10 +83,17 @@ export function ScheduleHeaderMeta({
           </span>
           <span className="inline-flex items-center gap-1.5">
             <span
-              className="h-2.5 w-4 shrink-0 rounded-[3px] bg-white ring-1 ring-inset ring-brand-line/70"
+              className="h-2.5 w-4 shrink-0 rounded-[3px] bg-cyan-400 ring-1 ring-inset ring-cyan-500/50 shadow-sm"
               aria-hidden
             />
             Available
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span
+              className="h-2.5 w-4 shrink-0 rounded-[3px] bg-amber-400/85"
+              aria-hidden
+            />
+            Capacity Reached
           </span>
         </div>
       </div>

@@ -31,6 +31,8 @@ describe("Prompt 11 — Full Dance Pricing QA and Regression Audit", () => {
     workDays: ["mon", "tue", "wed", "thu", "fri"],
     timeOff: [],
     maxMixesPerDay: null,
+    maxProducerCostPerDay: null,
+    categories: ["Pom", "All-Star Cheer"],
     overtimeDays: [],
     compensationModel: "percentage_of_payroll_base",
     defaultRate: 0.70,

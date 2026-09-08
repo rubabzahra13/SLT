@@ -15,29 +15,34 @@ const LAYOUT = {
     dateCol: 88,
     statCol: 56,
     monthBarH: {
+        today: 28,
         month: 28,
         "90days": 26,
         "6months": 26,
     },
     producerCol: {
+        today: 58,
         week: 58,
         month: 52,
         "90days": 48,
         "6months": 44,
     },
     barMax: {
+        today: 48,
         week: 48,
         month: 28,
         "90days": 24,
         "6months": 20,
     },
     headerH: {
+        today: 88,
         week: 88,
         month: 86,
         "90days": 84,
         "6months": 84,
     },
     rowH: {
+        today: 34,
         week: 34,
         month: 32,
         "90days": 30,
@@ -53,6 +58,7 @@ function DateColumnCell({ column, range, }) {
 function ScheduleCellButton({ cell, range, selected, onClick, }) {
     const isWeek = range === "week";
     const isOff = cell.status === "off";
+    const isCapacity = cell.status === "capacity";
     const bookings = cell.bookings ?? (cell.booking ? [cell.booking] : []);
     if (bookings.length > 1) {
         return ((0, jsx_runtime_1.jsx)("div", { className: "flex w-full flex-col gap-0.5 items-center justify-center", children: bookings.map((b, idx) => ((0, jsx_runtime_1.jsx)(HoverTip_1.HoverTip, { className: "w-full justify-center", placement: "top", content: (0, jsx_runtime_1.jsxs)("div", { className: "min-w-[160px]", children: [(0, jsx_runtime_1.jsxs)("p", { className: "text-[10px] font-semibold uppercase tracking-[0.06em] text-brand-signature", children: [(0, schedule_view_1.statusLabel)(cell.status), " ", bookings.length > 1 ? `(#${idx + 1})` : ""] }), (0, jsx_runtime_1.jsx)("p", { className: "mt-1 text-[12px] font-medium leading-snug text-brand-ink", children: b.work }), (0, jsx_runtime_1.jsxs)("p", { className: "mt-1.5 text-[11px] text-brand-ink-secondary", children: ["Until ", b.until] })] }), children: (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: onClick, className: (0, clsx_1.default)("mx-auto w-full rounded-md transition-all duration-150 hover:scale-[1.04] hover:ring-1", isWeek ? "h-2.5 max-h-3" : "h-2", "bg-gradient-to-b from-brand-blue to-brand-signature shadow-[0_1px_2px_rgba(15,30,45,0.18)] hover:ring-brand-blue/40", selected && "ring-2 ring-brand-orange ring-offset-1 ring-offset-white"), style: { maxWidth: LAYOUT.barMax[range] }, "aria-label": `${(0, schedule_view_1.statusLabel)(cell.status)}: ${b.work}, until ${b.until}` }) }, b.mixId ?? `${cell.key}-${idx}`))) }));
@@ -62,15 +68,21 @@ function ScheduleCellButton({ cell, range, selected, onClick, }) {
             ? undefined
             : `${cell.dayLabel} ${cell.dateLabel} · ${(0, schedule_view_1.statusLabel)(cell.status)}`, className: (0, clsx_1.default)("mx-auto w-full rounded-md transition-all duration-150 hover:scale-[1.04] hover:ring-1", isWeek ? "h-6 max-h-8 min-h-5" : "h-3.5", isOff
             ? "bg-brand-orange/80 shadow-[0_1px_2px_rgba(240,120,64,0.16)] hover:ring-brand-orange/30"
-            : cell.unavailable
-                ? "bg-gradient-to-b from-brand-blue to-brand-signature shadow-[0_1px_2px_rgba(15,30,45,0.18)] hover:ring-brand-blue/40"
-                : "bg-emerald-50/80 ring-1 ring-inset ring-emerald-400/60 shadow-[0_1px_2px_rgba(16,185,129,0.12)] hover:bg-emerald-100 hover:ring-emerald-500/70", selected &&
+            : isCapacity
+                ? "bg-amber-400/85 shadow-[0_1px_2px_rgba(245,158,11,0.20)] hover:ring-amber-400/40"
+                : cell.unavailable
+                    ? "bg-gradient-to-b from-brand-blue to-brand-signature shadow-[0_1px_2px_rgba(15,30,45,0.18)] hover:ring-brand-blue/40"
+                    : "bg-cyan-50/80 ring-1 ring-inset ring-cyan-400/60 shadow-[0_1px_2px_rgba(6,182,212,0.12)] hover:bg-cyan-100 hover:ring-cyan-500/70", selected &&
             "ring-2 ring-brand-orange ring-offset-1 ring-offset-white"), style: { maxWidth: LAYOUT.barMax[range] }, "aria-label": booking
             ? `${(0, schedule_view_1.statusLabel)(cell.status)}: ${booking.work}, until ${booking.until}`
             : `${cell.dayLabel} ${cell.dateLabel}, ${(0, schedule_view_1.statusLabel)(cell.status)}` }));
     if (!booking)
         return button;
-    return ((0, jsx_runtime_1.jsx)(HoverTip_1.HoverTip, { className: "w-full justify-center", placement: "top", content: (0, jsx_runtime_1.jsxs)("div", { className: "min-w-[160px]", children: [(0, jsx_runtime_1.jsx)("p", { className: (0, clsx_1.default)("text-[10px] font-semibold uppercase tracking-[0.06em]", isOff ? "text-brand-orange" : "text-brand-signature"), children: (0, schedule_view_1.statusLabel)(cell.status) }), (0, jsx_runtime_1.jsx)("p", { className: "mt-1 text-[12px] font-medium leading-snug text-brand-ink", children: booking.work }), (0, jsx_runtime_1.jsxs)("p", { className: "mt-1.5 text-[11px] text-brand-ink-secondary", children: ["Until ", booking.until] })] }), children: button }));
+    return ((0, jsx_runtime_1.jsx)(HoverTip_1.HoverTip, { className: "w-full justify-center", placement: "top", content: (0, jsx_runtime_1.jsxs)("div", { className: "min-w-[160px]", children: [(0, jsx_runtime_1.jsx)("p", { className: (0, clsx_1.default)("text-[10px] font-semibold uppercase tracking-[0.06em]", isOff
+                        ? "text-brand-orange"
+                        : isCapacity
+                            ? "text-amber-600"
+                            : "text-brand-signature"), children: (0, schedule_view_1.statusLabel)(cell.status) }), (0, jsx_runtime_1.jsx)("p", { className: "mt-1 text-[12px] font-medium leading-snug text-brand-ink", children: booking.work }), (0, jsx_runtime_1.jsxs)("p", { className: "mt-1.5 text-[11px] text-brand-ink-secondary", children: ["Until ", booking.until] })] }), children: button }));
 }
 function TeamScheduleMatrix({ rows, columns, range, activeProducerId, onSelectProducer, emptyMessage = "No producers in this view.", className, }) {
     const isWeek = range === "week";

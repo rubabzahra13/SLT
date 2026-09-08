@@ -1,4 +1,8 @@
-import type { MTDRecord, Order } from "../types";
+import type { MTDRecord, Order, Producer } from "../types";
+import { resolveValidProducerAssignment, seedAssignedProducerForOrder } from "../lib/editor-assignment";
+import data from "./mock-data.json";
+
+const producers = data.producers as unknown as Producer[];
 
 export const CHEER_DEMO_ORDERS: Order[] = [
   // =========================================================================
@@ -1820,30 +1824,52 @@ export const CHEER_DEMO_ORDERS: Order[] = [
   },
 ];
 
-export const CHEER_DEMO_MTD_RECORDS: MTDRecord[] = CHEER_DEMO_ORDERS.map((order, idx) => ({
-  id: `mtd-demo-cheer-${String(idx + 1).padStart(2, "0")}`,
-  orderId: order.id,
-  section: "CHEERLEADING MUSIC",
-  assignedProducer: order.requestedProducer || null,
-  category: "Cheer",
-  editorRequest: order.editorRequest || "FA",
-  contactName: order.contactName || order.customerName || "Demo Contact",
-  editorInitials: order.requestedProducer || "FA",
-  programName: order.programName || "Demo Program",
-  package: order.package || "GOLD 1:30 NO SPLIT",
-  musicTheme: order.musicTheme || "",
-  price: order.price,
-  priceCompliance: (order.priceCompliance as any) || "compliant",
-  invoice: `INV-2026-${String(idx + 101).padStart(3, "0")}`,
-  mixStartDate: "2026-09-08",
-  mixEndDate: "2026-09-15",
-  eightCountSheet: order.sendingEightCountSheets || order.usingEightCountSheets || "Have",
-  haveSongs: order.songListSuggestions ? "Have" : "Need",
-  needsAttention: Boolean(order.needsAttention),
-  status: "active",
-  recordStatus: "Ongoing" as const,
-  hasRallyMix: false,
-  hasExtend8ctAddon: false,
-  hasProcessing8ctSheetsAddon: false,
-}));
+export const CHEER_DEMO_MTD_RECORDS: MTDRecord[] = CHEER_DEMO_ORDERS.map((order, idx) => {
+  const category =
+    order.cheerFormSubtype === "all-star-cheer"
+      ? "All-Star Cheer"
+      : order.cheerFormSubtype?.startsWith("school-cheer")
+        ? "School Cheer"
+        : "Youth Rec Cheer";
+  const validProducer = seedAssignedProducerForOrder(
+    order.id,
+    order.requestedProducer || order.editorRequest,
+    category,
+    producers
+  );
+  const dateSchedules = [
+    { start: "2026-09-08", end: "2026-09-15" },
+    { start: "2026-09-10", end: "2026-09-17" },
+    { start: "2026-09-12", end: "2026-09-19" },
+    { start: "2026-09-15", end: "2026-09-22" },
+    { start: "2026-09-18", end: "2026-09-25" },
+    { start: "2026-09-21", end: "2026-09-28" },
+  ];
+  const sched = dateSchedules[idx % dateSchedules.length];
 
+  return {
+    id: `mtd-demo-cheer-${String(idx + 1).padStart(2, "0")}`,
+    orderId: order.id,
+    section: "CHEERLEADING MUSIC",
+    assignedProducer: validProducer,
+    category: "Cheer",
+    editorRequest: order.editorRequest || "FA",
+    contactName: order.contactName || order.customerName || "Demo Contact",
+    editorInitials: validProducer || "FA",
+    programName: order.programName || "Demo Program",
+    package: order.package || "GOLD 1:30 NO SPLIT",
+    musicTheme: order.musicTheme || "",
+    price: order.price,
+    priceCompliance: (order.priceCompliance as any) || "compliant",
+    invoice: `INV-2026-${String(idx + 101).padStart(3, "0")}`,
+    mixStartDate: validProducer ? sched.start : "2026-09-08",
+    mixEndDate: validProducer ? sched.end : "2026-09-15",
+    eightCountSheet: order.sendingEightCountSheets || order.usingEightCountSheets || "Have",
+    haveSongs: order.songListSuggestions ? "Have" : "Need",
+    needsAttention: Boolean(order.needsAttention),
+    status: "active",
+    recordStatus: "Ongoing" as const,
+    hasRallyMix: false,
+    hasExtend8ctAddon: false,
+  };
+});

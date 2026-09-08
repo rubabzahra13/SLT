@@ -13,12 +13,14 @@ const mockProducer = {
     email: "john@example.com",
     avatar: "/avatars/john.jpg",
     specialty: "Cheer",
+    categories: ["All-Star Cheer"],
     status: "available",
     mixesThisWeek: 2,
     nextAvailable: "Today",
     workDays: ["mon", "tue", "wed", "thu", "fri"],
     timeOff: [],
     maxMixesPerDay: 5,
+    maxProducerCostPerDay: null,
     overtimeDays: [],
 };
 const mockProducerMary = {
@@ -28,12 +30,14 @@ const mockProducerMary = {
     email: "mary@example.com",
     avatar: "/avatars/mary.jpg",
     specialty: "Dance",
+    categories: ["Pom", "Gameday"],
     status: "available",
     mixesThisWeek: 1,
     nextAvailable: "Tomorrow",
     workDays: ["mon", "tue", "wed", "thu", "fri"],
     timeOff: [],
     maxMixesPerDay: 5,
+    maxProducerCostPerDay: null,
     overtimeDays: [],
 };
 const anchorDate = new Date(2026, 8, 10); // Sept 10, 2026

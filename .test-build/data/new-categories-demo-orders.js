@@ -1,6 +1,12 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.NEW_CATEGORIES_DEMO_MTD_RECORDS = exports.SCHOOL_ANTHEMS_DEMO_MTD_RECORDS = exports.SPORTS_ENTERTAINMENT_DEMO_MTD_RECORDS = exports.MARCHING_BAND_DEMO_MTD_RECORDS = exports.NEW_CATEGORIES_DEMO_ORDERS = exports.SCHOOL_ANTHEMS_DEMO_ORDERS = exports.SPORTS_ENTERTAINMENT_DEMO_ORDERS = exports.MARCHING_BAND_DEMO_ORDERS = void 0;
+const editor_assignment_1 = require("../lib/editor-assignment");
+const mock_data_json_1 = __importDefault(require("./mock-data.json"));
+const producers = mock_data_json_1.default.producers;
 exports.MARCHING_BAND_DEMO_ORDERS = [
     {
         id: "ord-demo-mb-01",
@@ -1043,78 +1049,97 @@ exports.NEW_CATEGORIES_DEMO_ORDERS = [
     ...exports.SPORTS_ENTERTAINMENT_DEMO_ORDERS,
     ...exports.SCHOOL_ANTHEMS_DEMO_ORDERS,
 ];
-exports.MARCHING_BAND_DEMO_MTD_RECORDS = exports.MARCHING_BAND_DEMO_ORDERS.map((o) => ({
-    id: `mtd-${o.id}`,
-    orderId: o.id,
-    section: "MUSIC TO DO",
-    assignedProducer: o.requestedProducer === "CASEY" ? "CASEY" : o.requestedProducer === "MATT" ? "MATT" : o.requestedProducer === "SHELLY" ? "SHELLY" : null,
-    category: "Marching Band",
-    editorRequest: o.editorRequest,
-    contactName: o.contactName,
-    editorInitials: o.editorRequest,
-    programName: o.programName,
-    package: o.package,
-    musicTheme: o.musicTheme,
-    price: o.price,
-    priceCompliance: "compliant",
-    invoice: `INV-2026-${o.id.slice(-5)}`,
-    mixStartDate: "2026-09-08",
-    mixEndDate: "2026-09-15",
-    eightCountSheet: "HAVE CS",
-    haveSongs: "HAVE",
-    needsAttention: o.needsAttention,
-    status: "active",
-    inPayroll: false,
-    hasSheetMusicAdd: o.hasSheetMusicAdd,
-    hasAddVocals: o.hasAddVocals,
-}));
-exports.SPORTS_ENTERTAINMENT_DEMO_MTD_RECORDS = exports.SPORTS_ENTERTAINMENT_DEMO_ORDERS.map((o) => ({
-    id: `mtd-${o.id}`,
-    orderId: o.id,
-    section: "MUSIC TO DO",
-    assignedProducer: o.requestedProducer === "CASEY" ? "CASEY" : o.requestedProducer === "MATT" ? "MATT" : o.requestedProducer === "SHELLY" ? "SHELLY" : null,
-    category: "Sports Entertainment",
-    editorRequest: o.editorRequest,
-    contactName: o.contactName,
-    editorInitials: o.editorRequest,
-    programName: o.programName,
-    package: o.package,
-    musicTheme: o.musicTheme,
-    price: o.price,
-    priceCompliance: "compliant",
-    invoice: `INV-2026-${o.id.slice(-5)}`,
-    mixStartDate: "2026-09-08",
-    mixEndDate: "2026-09-15",
-    eightCountSheet: "HAVE CS",
-    haveSongs: "HAVE",
-    needsAttention: o.needsAttention,
-    status: o.needsAttention ? "needs_attention" : "active",
-    inPayroll: false,
-    isRushOrder: o.isRushOrder,
-}));
-exports.SCHOOL_ANTHEMS_DEMO_MTD_RECORDS = exports.SCHOOL_ANTHEMS_DEMO_ORDERS.map((o) => ({
-    id: `mtd-${o.id}`,
-    orderId: o.id,
-    section: "MUSIC TO DO",
-    assignedProducer: o.requestedProducer === "CASEY" ? "CASEY" : o.requestedProducer === "MATT" ? "MATT" : o.requestedProducer === "SHELLY" ? "SHELLY" : null,
-    category: "School Anthem",
-    editorRequest: o.editorRequest,
-    contactName: o.contactName,
-    editorInitials: o.editorRequest,
-    programName: o.programName,
-    package: o.package,
-    musicTheme: o.musicTheme,
-    price: o.price,
-    priceCompliance: "compliant",
-    invoice: `INV-2026-${o.id.slice(-5)}`,
-    mixStartDate: "2026-09-08",
-    mixEndDate: "2026-09-15",
-    eightCountSheet: "HAVE CS",
-    haveSongs: "HAVE",
-    needsAttention: o.needsAttention,
-    status: "active",
-    inPayroll: false,
-}));
+const newCatDates = [
+    { start: "2026-09-08", end: "2026-09-15" },
+    { start: "2026-09-11", end: "2026-09-18" },
+    { start: "2026-09-14", end: "2026-09-21" },
+    { start: "2026-09-17", end: "2026-09-24" },
+    { start: "2026-09-20", end: "2026-09-27" },
+];
+exports.MARCHING_BAND_DEMO_MTD_RECORDS = exports.MARCHING_BAND_DEMO_ORDERS.map((o, idx) => {
+    const producer = (0, editor_assignment_1.seedAssignedProducerForOrder)(o.id, o.requestedProducer || o.editorRequest, "Marching Band", producers);
+    const sched = newCatDates[idx % newCatDates.length];
+    return {
+        id: `mtd-${o.id}`,
+        orderId: o.id,
+        section: "MUSIC TO DO",
+        assignedProducer: producer,
+        category: "Marching Band",
+        editorRequest: o.editorRequest,
+        contactName: o.contactName,
+        editorInitials: o.editorRequest,
+        programName: o.programName,
+        package: o.package,
+        musicTheme: o.musicTheme,
+        price: o.price,
+        priceCompliance: "compliant",
+        invoice: `INV-2026-${o.id.slice(-5)}`,
+        mixStartDate: producer ? sched.start : "2026-09-08",
+        mixEndDate: producer ? sched.end : "2026-09-15",
+        eightCountSheet: "HAVE CS",
+        haveSongs: "HAVE",
+        needsAttention: o.needsAttention,
+        status: "active",
+        inPayroll: false,
+        hasSheetMusicAdd: o.hasSheetMusicAdd,
+        hasAddVocals: o.hasAddVocals,
+    };
+});
+exports.SPORTS_ENTERTAINMENT_DEMO_MTD_RECORDS = exports.SPORTS_ENTERTAINMENT_DEMO_ORDERS.map((o, idx) => {
+    const producer = (0, editor_assignment_1.seedAssignedProducerForOrder)(o.id, o.requestedProducer || o.editorRequest, "Sports Entertainment", producers);
+    const sched = newCatDates[idx % newCatDates.length];
+    return {
+        id: `mtd-${o.id}`,
+        orderId: o.id,
+        section: "MUSIC TO DO",
+        assignedProducer: producer,
+        category: "Sports Entertainment",
+        editorRequest: o.editorRequest,
+        contactName: o.contactName,
+        editorInitials: o.editorRequest,
+        programName: o.programName,
+        package: o.package,
+        musicTheme: o.musicTheme,
+        price: o.price,
+        priceCompliance: "compliant",
+        invoice: `INV-2026-${o.id.slice(-5)}`,
+        mixStartDate: producer ? sched.start : "2026-09-08",
+        mixEndDate: producer ? sched.end : "2026-09-15",
+        eightCountSheet: "HAVE CS",
+        haveSongs: "HAVE",
+        needsAttention: o.needsAttention,
+        status: o.needsAttention ? "needs_attention" : "active",
+        inPayroll: false,
+        isRushOrder: o.isRushOrder,
+    };
+});
+exports.SCHOOL_ANTHEMS_DEMO_MTD_RECORDS = exports.SCHOOL_ANTHEMS_DEMO_ORDERS.map((o, idx) => {
+    const producer = (0, editor_assignment_1.seedAssignedProducerForOrder)(o.id, o.requestedProducer || o.editorRequest, "School Anthem", producers);
+    const sched = newCatDates[idx % newCatDates.length];
+    return {
+        id: `mtd-${o.id}`,
+        orderId: o.id,
+        section: "MUSIC TO DO",
+        assignedProducer: producer,
+        category: "School Anthem",
+        editorRequest: o.editorRequest,
+        contactName: o.contactName,
+        editorInitials: o.editorRequest,
+        programName: o.programName,
+        package: o.package,
+        musicTheme: o.musicTheme,
+        price: o.price,
+        priceCompliance: "compliant",
+        invoice: `INV-2026-${o.id.slice(-5)}`,
+        mixStartDate: producer ? sched.start : "2026-09-08",
+        mixEndDate: producer ? sched.end : "2026-09-15",
+        eightCountSheet: "HAVE CS",
+        haveSongs: "HAVE",
+        needsAttention: o.needsAttention,
+        status: "active",
+        inPayroll: false,
+    };
+});
 exports.NEW_CATEGORIES_DEMO_MTD_RECORDS = [
     ...exports.MARCHING_BAND_DEMO_MTD_RECORDS,
     ...exports.SPORTS_ENTERTAINMENT_DEMO_MTD_RECORDS,

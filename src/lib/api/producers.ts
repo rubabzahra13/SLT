@@ -1,5 +1,6 @@
 import { apiClient } from "./client";
 import type { Producer, ProducerCompensationModel, ProducerManualInputField } from "@/types";
+import { normalizeProducer } from "@/lib/producers";
 
 export interface BackendProducer {
   id: string;
@@ -7,7 +8,8 @@ export interface BackendProducer {
   name: string;
   initials: string;
   email: string;
-  specialty: string;
+  categories?: string[] | null;
+  specialty?: string | null;
   avatar?: string | null;
   mixes_this_week: number;
   next_available?: string | null;
@@ -21,6 +23,7 @@ export interface BackendProducer {
     reason: string;
   }[];
   max_mixes_per_day?: number | null;
+  max_producer_cost_per_day?: number | null;
   overtime_days?: string[];
   compensation_model?: ProducerCompensationModel;
   default_rate?: number | null;
@@ -31,12 +34,20 @@ export interface BackendProducer {
 }
 
 export function transformProducer(bp: BackendProducer): Producer {
-  return {
+  const categories: string[] =
+    Array.isArray(bp.categories) && bp.categories.length > 0
+      ? bp.categories
+      : bp.specialty
+        ? [bp.specialty]
+        : [];
+
+  return normalizeProducer({
     id: bp.legacy_id || bp.id,
     name: bp.name,
     initials: bp.initials,
     email: bp.email,
-    specialty: bp.specialty,
+    categories,
+    specialty: bp.specialty || categories[0] || "",
     avatar: bp.avatar || `https://api.dicebear.com/9.x/avataaars/svg?seed=${bp.initials}`,
     mixesThisWeek: bp.mixes_this_week ?? 0,
     nextAvailable: bp.next_available || "Available",
@@ -50,6 +61,7 @@ export function transformProducer(bp: BackendProducer): Producer {
       reason: to.reason,
     })),
     maxMixesPerDay: bp.max_mixes_per_day ?? null,
+    maxProducerCostPerDay: bp.max_producer_cost_per_day ?? null,
     overtimeDays: bp.overtime_days || [],
     compensationModel: bp.compensation_model ?? null,
     defaultRate: bp.default_rate ?? null,
@@ -57,7 +69,7 @@ export function transformProducer(bp: BackendProducer): Producer {
     rateOverrides: bp.rate_overrides ?? null,
     manualInputFields: bp.manual_input_fields ?? null,
     notes: bp.notes ?? null,
-  };
+  });
 }
 
 export async function fetchProducersApi(): Promise<Producer[]> {
@@ -70,11 +82,13 @@ export async function createProducerApi(producer: Producer): Promise<Producer> {
     name: producer.name,
     initials: producer.initials,
     email: producer.email,
+    categories: producer.categories,
     specialty: producer.specialty,
     avatar: producer.avatar,
     status: producer.status,
     work_days: producer.workDays,
     max_mixes_per_day: producer.maxMixesPerDay,
+    max_producer_cost_per_day: producer.maxProducerCostPerDay,
     overtime_days: producer.overtimeDays,
     compensation_model: producer.compensationModel,
     default_rate: producer.defaultRate,
@@ -95,11 +109,13 @@ export async function updateProducerApi(
   if (patch.name !== undefined) payload.name = patch.name;
   if (patch.initials !== undefined) payload.initials = patch.initials;
   if (patch.email !== undefined) payload.email = patch.email;
+  if (patch.categories !== undefined) payload.categories = patch.categories;
   if (patch.specialty !== undefined) payload.specialty = patch.specialty;
   if (patch.avatar !== undefined) payload.avatar = patch.avatar;
   if (patch.status !== undefined) payload.status = patch.status;
   if (patch.workDays !== undefined) payload.work_days = patch.workDays;
   if (patch.maxMixesPerDay !== undefined) payload.max_mixes_per_day = patch.maxMixesPerDay;
+  if (patch.maxProducerCostPerDay !== undefined) payload.max_producer_cost_per_day = patch.maxProducerCostPerDay;
   if (patch.overtimeDays !== undefined) payload.overtime_days = patch.overtimeDays;
   if (patch.mixesThisWeek !== undefined) payload.mixes_this_week = patch.mixesThisWeek;
   if (patch.nextAvailable !== undefined) payload.next_available = patch.nextAvailable;

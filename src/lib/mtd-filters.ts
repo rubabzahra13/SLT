@@ -204,6 +204,7 @@ export function matchesAssignedProducerFilter(
 ): boolean {
   if (producer === "All") return true;
   if (producer === "Unassigned") return !rec.assignedProducer;
+  if (producer === "Outsourced") return isOutsourcedRecord(rec);
   return (
     rec.assignedProducer?.toUpperCase() === producer.toUpperCase()
   );
@@ -353,8 +354,12 @@ export function buildAssignedProducerOptions(
 ) {
   const counts = new Map<string, number>();
   let unassigned = 0;
+  let outsourced = 0;
 
   for (const rec of records) {
+    if (isOutsourcedRecord(rec)) {
+      outsourced += 1;
+    }
     if (!rec.assignedProducer) {
       unassigned += 1;
     } else {
@@ -368,6 +373,7 @@ export function buildAssignedProducerOptions(
   return [
     { value: "All", label: "All assigned", count: records.length },
     { value: "Unassigned", label: "Unassigned", count: unassigned },
+    { value: "Outsourced", label: "Outsourced", count: outsourced },
     ...producerNames.map((name) => ({
       value: name,
       label: name,

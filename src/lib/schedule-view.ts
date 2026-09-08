@@ -1,7 +1,8 @@
 import type { MTDRecord, Producer, ScheduleEntry } from "@/types";
 import { parseFlexibleDate } from "@/lib/dates";
+import { isProducerAtDailyCapacity } from "@/lib/producer-availability";
 
-export type ScheduleViewRange = "week" | "month" | "90days" | "6months";
+export type ScheduleViewRange = "today" | "week" | "month" | "90days" | "6months";
 
 export type CellBooking = {
   work: string;
@@ -15,7 +16,8 @@ export type ScheduleCell = {
   date: Date;
   dayLabel: string;
   dateLabel: string;
-  status: "available" | "mix" | "off";
+  /** "capacity" = producer has reached their daily mix or cost limit */
+  status: "available" | "mix" | "off" | "capacity";
   unavailable: boolean;
   booking?: CellBooking | null;
   bookings?: CellBooking[];
@@ -221,6 +223,10 @@ function buildDateRange(range: ScheduleViewRange, anchor: Date): Date[] {
   const end = new Date(anchor);
   end.setHours(0, 0, 0, 0);
 
+  if (range === "today") {
+    return [end];
+  }
+
   if (range === "week") {
     const start = startOfCalendarWeek(end);
     const dates: Date[] = [];
@@ -263,13 +269,20 @@ export function getScheduleCells(
     if (bookings.length > 0 && status === "available") {
       status = "mix";
     }
+    // If the producer is scheduled (not off, not on a booking-forced "mix")
+    // but has reached their daily capacity, mark as capacity.
+    if (status === "available" && isProducerAtDailyCapacity(producer, date, mtdRecords)) {
+      status = "capacity";
+    }
+    const unavailable =
+      status === "off" || status === "mix" || status === "capacity" || bookings.length > 0;
     return {
       key: toLocalIsoDate(date),
       date,
       dayLabel: DAY_NAMES[date.getDay()],
       dateLabel: `${MONTH_NAMES[date.getMonth()]} ${date.getDate()}`,
       status,
-      unavailable: status === "off" || status === "mix" || bookings.length > 0,
+      unavailable,
       booking: bookings[0] ?? null,
       bookings,
     };
@@ -327,6 +340,7 @@ export function rangeLabel(
   range: ScheduleViewRange,
   anchorDate = new Date(2026, 7, 19)
 ): string {
+  if (range === "today") return "Today";
   if (range === "week") {
     const dates = buildDateRange("week", anchorDate);
     const start = dates[0];
@@ -524,7 +538,7 @@ function createPaddedCalendarDay(baseDate: Date, offsetDays: number): CalendarDa
 }
 
 export function cellSizeForRange(range: ScheduleViewRange): "sm" | "md" | "lg" {
-  if (range === "week") return "lg";
+  if (range === "today" || range === "week") return "lg";
   if (range === "month") return "md";
   return "sm";
 }
@@ -532,6 +546,7 @@ export function cellSizeForRange(range: ScheduleViewRange): "sm" | "md" | "lg" {
 export function statusLabel(status: ScheduleCell["status"]): string {
   if (status === "mix") return "Booked";
   if (status === "off") return "Off";
+  if (status === "capacity") return "Capacity Reached";
   return "Available";
 }
 

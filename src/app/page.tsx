@@ -41,10 +41,10 @@ export default function DashboardPage() {
   const mixOps = buildMixOpsSlices(pulse);
 
   const kpis = [
-    { href: "/mtd", label: "Unassigned", value: pulse.toAssign },
-    { href: "/mtd", label: "In queue", value: pulse.inQueue },
-    { href: "/mtd", label: "In production", value: pulse.inProduction },
-    { href: "/outsourced", label: "Outsourced", value: pulse.outsourced },
+    { href: "/mtd?assigned=Unassigned", label: "Unassigned", value: pulse.toAssign },
+    { href: "/mtd?schedule=scheduled", label: "In Queue", value: pulse.inQueue },
+    { href: "/schedule?view=today", label: "Today's Mixes", value: pulse.todaysMixes ?? pulse.inProduction },
+    { href: "/mtd?assigned=Outsourced", label: "Outsourced", value: pulse.outsourced },
   ];
 
   const pipelineTotal = pipeline.reduce((sum, slice) => sum + slice.count, 0);

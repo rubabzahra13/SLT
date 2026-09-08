@@ -62,10 +62,11 @@ export function HoverTip({
     setOpen(true);
   };
 
+  const baseDisplay = className.includes("flex") || className.includes("block") ? "" : "inline-flex ";
   return (
     <span
       ref={ref}
-      className={`inline-flex ${className}`.trim()}
+      className={`${baseDisplay}${className}`.trim()}
       onMouseEnter={show}
       onMouseLeave={() => setOpen(false)}
       onFocus={show}

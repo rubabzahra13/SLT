@@ -43,6 +43,7 @@ export default function ProducersPage() {
     workDays: Weekday[];
     timeOff: ProducerTimeOff[];
     maxMixesPerDay: number | null;
+    maxProducerCostPerDay: number | null;
     overtimeDays: string[];
   }) {
     if (!availabilityProducer) return;
@@ -78,10 +79,22 @@ export default function ProducersPage() {
             key={producer.id}
             className="dashboard-panel relative flex h-full min-h-[300px] flex-col"
           >
-            <div className="dashboard-panel-head dashboard-panel-head-accent flex shrink-0 items-center justify-between gap-2 px-4 py-3">
-              <span className="dashboard-panel-title truncate text-[11px] uppercase tracking-[0.06em]">
-                {producer.specialty}
-              </span>
+            <div className="dashboard-panel-head dashboard-panel-head-accent flex shrink-0 items-start justify-between gap-2 px-4 py-3">
+              <div className="flex min-w-0 flex-1 flex-wrap gap-1">
+                {(producer.categories?.length ? producer.categories : producer.specialty ? [producer.specialty] : []).slice(0, 3).map((cat) => (
+                  <span
+                    key={cat}
+                    className="inline-block max-w-full truncate rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.05em] text-white/90"
+                  >
+                    {cat}
+                  </span>
+                ))}
+                {(producer.categories?.length ? producer.categories : []).length > 3 && (
+                  <span className="inline-block rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.05em] text-white/70">
+                    +{producer.categories.length - 3}
+                  </span>
+                )}
+              </div>
               <div className="flex shrink-0 items-center">
                 <button
                   type="button"

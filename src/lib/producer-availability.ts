@@ -140,6 +140,30 @@ export function countProducerMixesOnDay(
   return count;
 }
 
+/**
+ * Sum the producer payout costs for all records assigned to this producer on a given day.
+ * Uses `rec.producerPayout` (the producer's cut, not the customer price).
+ */
+export function countProducerDailyCost(
+  producer: Producer,
+  day: Date,
+  mtdRecords: MTDRecord[],
+  excludeRecordId?: string
+): number {
+  const key = normalizeProducerKey(producerAssignmentKey(producer));
+  let total = 0;
+
+  for (const rec of mtdRecords) {
+    if (rec.id === excludeRecordId) continue;
+    if (!rec.assignedProducer) continue;
+    if (!producerKeysMatch(rec.assignedProducer, key)) continue;
+    if (!recordCoversDay(rec, day)) continue;
+    total += rec.producerPayout ?? 0;
+  }
+
+  return total;
+}
+
 export function isProducerUnderDailyCapacity(
   producer: Producer,
   day: Date,
@@ -153,7 +177,45 @@ export function isProducerUnderDailyCapacity(
   );
 }
 
-/** True on scheduled days that are not time off and still have mix capacity. */
+export function isProducerUnderDailyCostCapacity(
+  producer: Producer,
+  day: Date,
+  mtdRecords: MTDRecord[],
+  excludeRecordId?: string
+): boolean {
+  if (producer.maxProducerCostPerDay == null) return true;
+  return (
+    countProducerDailyCost(producer, day, mtdRecords, excludeRecordId) <
+    producer.maxProducerCostPerDay
+  );
+}
+
+/**
+ * Returns true when a producer has reached their daily capacity on a given date.
+ * Capacity is reached when EITHER the daily mix count limit OR the daily cost limit is hit.
+ */
+export function isProducerAtDailyCapacity(
+  producer: Producer,
+  day: Date,
+  mtdRecords: MTDRecord[],
+  excludeRecordId?: string
+): boolean {
+  const mixCapacityReached = !isProducerUnderDailyCapacity(
+    producer,
+    day,
+    mtdRecords,
+    excludeRecordId
+  );
+  const costCapacityReached = !isProducerUnderDailyCostCapacity(
+    producer,
+    day,
+    mtdRecords,
+    excludeRecordId
+  );
+  return mixCapacityReached || costCapacityReached;
+}
+
+/** True on scheduled days that are not time off and still have mix AND cost capacity. */
 export function isProducerAvailableOnDay(
   producer: Producer,
   day: Date,
@@ -162,9 +224,10 @@ export function isProducerAvailableOnDay(
 ): boolean {
   if (!isProducerScheduledDay(producer, day)) return false;
   if (isProducerOnTimeOff(producer, day)) return false;
-  if (
-    !isProducerUnderDailyCapacity(producer, day, mtdRecords, excludeRecordId)
-  ) {
+  if (!isProducerUnderDailyCapacity(producer, day, mtdRecords, excludeRecordId)) {
+    return false;
+  }
+  if (!isProducerUnderDailyCostCapacity(producer, day, mtdRecords, excludeRecordId)) {
     return false;
   }
   return true;

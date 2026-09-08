@@ -82,6 +82,7 @@ export function getDashboardMixStatus(
 export type DashboardPulse = {
   toAssign: number;
   inQueue: number;
+  todaysMixes: number;
   inProduction: number;
   outsourced: number;
   payrollCount: number;
@@ -298,10 +299,27 @@ export function buildDashboardPulse(
       return best;
     }, null) ?? null;
 
+  const todaysMixesRecords = openBoard.filter((rec) => {
+    if (!rec.assignedProducer?.trim() || rec.status === "outsourced") {
+      return false;
+    }
+    const startIso = toIsoDateString(rec.mixStartDate);
+    if (!startIso || startIso > todayIso) {
+      return false;
+    }
+    const endIso = toIsoDateString(rec.mixEndDate);
+    if (endIso && endIso < todayIso) {
+      return false;
+    }
+    return true;
+  });
+  const todaysMixes = todaysMixesRecords.length;
+
   return {
     toAssign,
     inQueue,
-    inProduction,
+    todaysMixes,
+    inProduction: todaysMixes,
     outsourced,
     payrollCount,
     payrollValue: sumPrices(payroll),
@@ -516,25 +534,25 @@ export function buildWorkflowStages(pulse: DashboardPulse): WorkflowStage[] {
       label: "Unassigned",
       count: pulse.toAssign,
       color: "#f07840",
-      href: "/mtd",
+      href: "/mtd?assigned=Unassigned",
     },
     {
-      label: "In queue",
+      label: "In Queue",
       count: pulse.inQueue,
       color: "#1f8fb3",
-      href: "/mtd",
+      href: "/mtd?schedule=scheduled",
     },
     {
-      label: "In production",
-      count: pulse.inProduction,
+      label: "Today's Mixes",
+      count: pulse.todaysMixes ?? pulse.inProduction,
       color: "#52c8ee",
-      href: "/mtd",
+      href: "/schedule?view=today",
     },
     {
       label: "Outsourced",
       count: pulse.outsourced,
       color: "#6b7280",
-      href: "/outsourced",
+      href: "/mtd?assigned=Outsourced",
     },
   ];
 }

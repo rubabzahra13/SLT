@@ -18,6 +18,7 @@ class ProducerSchema(BaseModel):
     initials: str
     email: str
     specialty: str
+    categories: Optional[List[str]] = None
     avatar: Optional[str] = None
     mixes_this_week: int = 0
     next_available: Optional[str] = None
@@ -41,6 +42,7 @@ class ProducerCreateSchema(BaseModel):
     initials: str
     email: str
     specialty: str
+    categories: Optional[List[str]] = None
     avatar: Optional[str] = None
     status: Optional[str] = "available"
     work_days: Optional[List[str]] = ["mon", "tue", "wed", "thu", "fri"]
@@ -59,6 +61,7 @@ class ProducerUpdateSchema(BaseModel):
     initials: Optional[str] = None
     email: Optional[str] = None
     specialty: Optional[str] = None
+    categories: Optional[List[str]] = None
     avatar: Optional[str] = None
     mixes_this_week: Optional[int] = None
     next_available: Optional[str] = None

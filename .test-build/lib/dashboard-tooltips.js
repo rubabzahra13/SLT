@@ -23,18 +23,19 @@ function kpiInsight(label, pulse, detail) {
         case "In Queue":
             return {
                 title: "In queue",
-                body: "Mixes that are scheduled but not currently being worked on — assigned with a future mix start date.",
+                body: "Mixes that are scheduled but not currently being worked on.",
             };
+        case "Today's Mixes":
         case "In production":
         case "In Production":
             return {
-                title: "Active production",
-                body: "Mixes assigned to a producer whose scheduled start date has arrived and are still in production.",
+                title: "Today's Mixes",
+                body: "Everything producers are scheduled to work on today, including mixes that started earlier and are still being worked on.",
             };
         case "Outsourced":
             return {
-                title: "Longer turnaround",
-                body: "Mixes that have been started but are on a longer turnaround and have not yet been delivered.",
+                title: "Outsourced",
+                body: "Mixes that have been assigned to outsourced producers.",
             };
         default:
             return { title: label, body: detail ?? "View details" };

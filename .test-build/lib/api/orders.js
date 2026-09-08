@@ -64,7 +64,7 @@ function transformOrder(bo) {
         musicTheme: bo.music_theme || "",
         editorRequest: bo.editor_request || "FA",
         requestedProducer: bo.requested_producer || "",
-        assignedProducer: bo.editor_request && bo.editor_request !== "FA" && bo.editor_request !== "NA" ? bo.editor_request : null,
+        assignedProducer: null,
         price: bo.price ?? 0,
         priceCompliance: bo.price_compliance || "compliant",
         status: bo.status || "new",

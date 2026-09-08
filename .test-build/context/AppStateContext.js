@@ -239,12 +239,15 @@ function AppStateProvider({ children }) {
                 updated.assignedProducer = null;
             }
             else if (patch.assignedProducer !== undefined) {
-                updated.assignedProducer = patch.assignedProducer;
+                updated.assignedProducer = (0, editor_assignment_1.resolveValidProducerAssignment)(patch.assignedProducer, producers, updated.category);
             }
             else if (patch.editorRequest &&
                 patch.editorRequest !== "FA" &&
                 patch.editorRequest !== "NA") {
-                updated.assignedProducer = patch.editorRequest;
+                const resolved = (0, editor_assignment_1.resolveValidProducerAssignment)(patch.editorRequest, producers, updated.category);
+                if (resolved) {
+                    updated.assignedProducer = resolved;
+                }
             }
             if (patch.package || patch.priceCompliance || patch.musicTheme) {
                 const compliance = patch.priceCompliance ||
@@ -292,10 +295,7 @@ function AppStateProvider({ children }) {
             ...order,
             status: "completed",
             completedAt: new Date().toISOString().slice(0, 10),
-            assignedProducer: order.assignedProducer ||
-                (order.editorRequest !== "FA" && order.editorRequest !== "NA"
-                    ? order.editorRequest
-                    : "CASEY"),
+            assignedProducer: (0, editor_assignment_1.resolveValidProducerAssignment)(order.assignedProducer || order.requestedProducer || order.editorRequest, producers, order.category || order.formType || ""),
         };
         setActiveOrders((prev) => prev.filter((o) => o.id !== orderId));
         setPastOrders((prev) => [completed, ...prev]);

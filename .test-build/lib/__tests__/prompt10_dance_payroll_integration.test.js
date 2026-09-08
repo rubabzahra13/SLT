@@ -24,6 +24,8 @@ const mtd_completion_1 = require("../mtd-completion");
         workDays: ["mon", "tue", "wed", "thu", "fri"],
         timeOff: [],
         maxMixesPerDay: null,
+        maxProducerCostPerDay: null,
+        categories: ["Pom", "All-Star Cheer"],
         overtimeDays: [],
         compensationModel: "percentage_of_payroll_base",
         defaultRate: 0.70,

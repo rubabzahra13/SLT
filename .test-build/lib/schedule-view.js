@@ -16,6 +16,7 @@ exports.statusLabel = statusLabel;
 exports.formatMatrixDateCell = formatMatrixDateCell;
 exports.buildMatrixMonthGroups = buildMatrixMonthGroups;
 const dates_1 = require("@/lib/dates");
+const producer_availability_1 = require("@/lib/producer-availability");
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTH_NAMES = [
     "Jan",
@@ -169,6 +170,9 @@ function startOfCalendarWeek(date) {
 function buildDateRange(range, anchor) {
     const end = new Date(anchor);
     end.setHours(0, 0, 0, 0);
+    if (range === "today") {
+        return [end];
+    }
     if (range === "week") {
         const start = startOfCalendarWeek(end);
         const dates = [];
@@ -200,13 +204,19 @@ function getScheduleCells(producer, schedule, range, anchorDate = new Date(2026,
         if (bookings.length > 0 && status === "available") {
             status = "mix";
         }
+        // If the producer is scheduled (not off, not on a booking-forced "mix")
+        // but has reached their daily capacity, mark as capacity.
+        if (status === "available" && (0, producer_availability_1.isProducerAtDailyCapacity)(producer, date, mtdRecords)) {
+            status = "capacity";
+        }
+        const unavailable = status === "off" || status === "mix" || status === "capacity" || bookings.length > 0;
         return {
             key: toLocalIsoDate(date),
             date,
             dayLabel: DAY_NAMES[date.getDay()],
             dateLabel: `${MONTH_NAMES[date.getMonth()]} ${date.getDate()}`,
             status,
-            unavailable: status === "off" || status === "mix" || bookings.length > 0,
+            unavailable,
             booking: bookings[0] ?? null,
             bookings,
         };
@@ -254,6 +264,8 @@ function countUnavailable(cells) {
     return cells.filter((cell) => cell.unavailable && cell.key && !cell.key.startsWith("pad")).length;
 }
 function rangeLabel(range, anchorDate = new Date(2026, 7, 19)) {
+    if (range === "today")
+        return "Today";
     if (range === "week") {
         const dates = buildDateRange("week", anchorDate);
         const start = dates[0];
@@ -385,7 +397,7 @@ function createPaddedCalendarDay(baseDate, offsetDays) {
     };
 }
 function cellSizeForRange(range) {
-    if (range === "week")
+    if (range === "today" || range === "week")
         return "lg";
     if (range === "month")
         return "md";
@@ -396,6 +408,8 @@ function statusLabel(status) {
         return "Booked";
     if (status === "off")
         return "Off";
+    if (status === "capacity")
+        return "Capacity Reached";
     return "Available";
 }
 function formatMatrixDateCell(column, _range, _previousKey) {

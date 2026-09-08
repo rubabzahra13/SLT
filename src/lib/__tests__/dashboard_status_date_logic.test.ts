@@ -158,8 +158,39 @@ test("Dashboard Status & Date-Aware Classification", async (t) => {
 
     assert.equal(pulse.toAssign, 1);
     assert.equal(pulse.inQueue, 1);
+    assert.equal(pulse.todaysMixes, 2);
     assert.equal(pulse.inProduction, 2);
     assert.equal(pulse.outsourced, 1);
     assert.equal(pulse.payrollCount, 1);
+  });
+
+  await t.test("Outsourced filter & KPI insights", () => {
+    const { matchesAssignedProducerFilter, buildAssignedProducerOptions } = require("../mtd-filters");
+    const { kpiInsight } = require("../dashboard-tooltips");
+
+    const outsourcedRec = createMockRecord({ status: "outsourced" });
+    const regularRec = createMockRecord({ assignedProducer: "CA", status: "active" });
+
+    assert.equal(matchesAssignedProducerFilter(outsourcedRec, "Outsourced"), true);
+    assert.equal(matchesAssignedProducerFilter(regularRec, "Outsourced"), false);
+
+    const options = buildAssignedProducerOptions([outsourcedRec, regularRec], ["CA"]);
+    const outsourcedOpt = options.find((o: any) => o.value === "Outsourced");
+    assert.ok(outsourcedOpt);
+    assert.equal(outsourcedOpt.count, 1);
+
+    const inQueueTip = kpiInsight("In Queue", {} as any);
+    assert.equal(inQueueTip.body, "Mixes that are scheduled but not currently being worked on.");
+    assert.equal(inQueueTip.body.includes("—"), false);
+
+    const todaysTip = kpiInsight("Today's Mixes", {} as any);
+    assert.equal(todaysTip.title, "Today's Mixes");
+    assert.equal(
+      todaysTip.body,
+      "Everything producers are scheduled to work on today, including mixes that started earlier and are still being worked on."
+    );
+
+    const outsourcedTip = kpiInsight("Outsourced", {} as any);
+    assert.equal(outsourcedTip.body, "Mixes that have been assigned to outsourced producers.");
   });
 });

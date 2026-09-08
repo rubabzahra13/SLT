@@ -17,12 +17,22 @@ exports.DEFAULT_WORK_DAYS = [
     "thu",
     "fri",
 ];
+/**
+ * The 11 canonical producer categories used for assignment eligibility.
+ * These are the values stored in Producer.categories[].
+ */
 exports.PRODUCER_CATEGORIES = [
-    "Cheer",
-    "Dance",
+    "All-Star Cheer",
+    "School Cheer",
+    "Youth Rec Cheer",
+    "Pom",
+    "Hip Hop",
+    "Team Performance / Variety",
+    "Gameday",
+    "Jazz / Kick",
     "Marching Band",
-    "Hip-Hop",
-    "School",
+    "Sports Entertainment",
+    "School Anthem",
 ];
 exports.ORDER_FORM_TABS = [
     { id: "school-all-star-cheer", label: "All Star Cheer" },
