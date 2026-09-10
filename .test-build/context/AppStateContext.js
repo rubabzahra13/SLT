@@ -255,6 +255,15 @@ function AppStateProvider({ children }) {
                     const resolved = (0, editor_assignment_1.resolveAssignedProducerForPatch)(patch.assignedProducer, producers, updated.category);
                     updated.assignedProducer = resolved;
                     apiPatch = { ...apiPatch, assignedProducer: resolved };
+                    if (resolved &&
+                        !(0, dates_1.toIsoDateString)(updated.mixStartDate) &&
+                        patch.mixStartDate === undefined) {
+                        const mixStartDate = (0, scheduling_1.suggestMixStartDate)(resolved, producers, schedule);
+                        if (mixStartDate) {
+                            updated.mixStartDate = mixStartDate;
+                            apiPatch = { ...apiPatch, mixStartDate };
+                        }
+                    }
                 }
                 else if (patch.editorRequest &&
                     patch.editorRequest !== "FA" &&
@@ -284,7 +293,7 @@ function AppStateProvider({ children }) {
         if (payrollNotice) {
             addNotification(payrollNotice);
         }
-    }, [addNotification, packagePrices, producers]);
+    }, [addNotification, packagePrices, producers, schedule]);
     const updateOrder = (0, react_1.useCallback)((id, patch, seed) => {
         const merge = (order) => (0, order_form_1.normalizeOrder)({ ...order, ...patch, id });
         setActiveOrders((prev) => {

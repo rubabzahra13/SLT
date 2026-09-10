@@ -1,3 +1,5 @@
+import type { OrderFormType } from "@/types";
+
 export type EightCsItemState = "none" | "have" | "need";
 
 export type EightCsState = {
@@ -24,6 +26,42 @@ const EMPTY_EIGHT_CS_STATE: EightCsState = {
   form: "none",
   mix: "none",
 };
+
+export function getCollectionControlIds(
+  formType?: OrderFormType | string
+): EightCsItemKey[] {
+  if (formType === "school-all-star-cheer") {
+    return ["cs", "video", "form", "mix"];
+  }
+  return ["form", "mix"];
+}
+
+export function getCollectionItemsForCategory(
+  formType: OrderFormType | string | undefined,
+  state: EightCsState
+): { id: EightCsItemKey; label: string; state: EightCsItemState }[] {
+  const ids = getCollectionControlIds(formType);
+  const labels: Record<EightCsItemKey, string> = {
+    cs: "CS",
+    video: "Video",
+    form: "Form",
+    mix: "Mix",
+  };
+  return ids.map((id) => ({
+    id,
+    label: labels[id],
+    state: state[id],
+  }));
+}
+
+export function getSongsItems(
+  state: SongsState
+): { id: SongsItemKey; label: string; state: EightCsItemState }[] {
+  return [
+    { id: "songs", label: "Songs", state: state.songs },
+    { id: "notes", label: "Notes", state: state.notes },
+  ];
+}
 
 function joinEightCsParts(prefix: "HAVE" | "NEED", parts: string[]): string {
   if (parts.length === 0) return "";

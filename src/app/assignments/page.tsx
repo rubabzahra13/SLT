@@ -71,7 +71,7 @@ export default function AssignmentsPage() {
                         >
                           {i + 1}
                         </span>
-                        <Avatar src={producer.avatar} alt={producer.name} />
+                        <Avatar producer={producer} size="md" />
                         <div>
                           <p className="font-semibold text-brand-ink">
                             {producer.name}{" "}

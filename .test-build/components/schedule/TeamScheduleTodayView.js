@@ -55,7 +55,7 @@ function TeamScheduleTodayView({ rows, date, activeProducerId, onSelectProducer,
             render: (entry) => {
                 const { producer } = entry.row;
                 const active = producer.id === activeProducerId;
-                return ((0, jsx_runtime_1.jsxs)("div", { className: "mx-auto flex w-full flex-col items-center justify-center gap-1", title: producer.name, children: [(0, jsx_runtime_1.jsx)("div", { className: (0, clsx_1.default)("shrink-0 rounded-full ring-1 ring-offset-1 ring-offset-white", active ? "ring-brand-orange/60" : "ring-brand-blue/30"), children: (0, jsx_runtime_1.jsx)(Avatar_1.Avatar, { src: producer.avatar, alt: producer.name, size: "sm" }) }), (0, jsx_runtime_1.jsx)("span", { className: (0, clsx_1.default)("max-w-full truncate text-[10px] font-bold leading-none", active ? "text-brand-orange-deep" : "text-brand-ink-secondary"), children: producer.initials })] }));
+                return ((0, jsx_runtime_1.jsxs)("div", { className: "mx-auto flex w-full flex-col items-center justify-center gap-1", title: producer.name, children: [(0, jsx_runtime_1.jsx)("div", { className: (0, clsx_1.default)("shrink-0 rounded-full ring-1 ring-offset-1 ring-offset-white", active ? "ring-brand-orange/60" : "ring-brand-blue/30"), children: (0, jsx_runtime_1.jsx)(Avatar_1.Avatar, { producer: producer, size: "sm" }) }), (0, jsx_runtime_1.jsx)("span", { className: (0, clsx_1.default)("max-w-full truncate text-[10px] font-bold leading-none", active ? "text-brand-orange-deep" : "text-brand-ink-secondary"), children: producer.initials })] }));
             },
         },
         {

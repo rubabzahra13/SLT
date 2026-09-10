@@ -155,7 +155,7 @@ export default function OrderDetailPage({
               <div className="mt-2 flex items-center justify-between">
                 {assignedProducerObj ? (
                   <div className="flex items-center gap-2">
-                    <Avatar src={assignedProducerObj.avatar} alt={assignedProducerObj.name} size="sm" />
+                    <Avatar producer={assignedProducerObj} size="sm" />
                     <div>
                       <p className="text-[13px] font-semibold text-brand-ink">{assignedProducerObj.name}</p>
                       <p className="text-[11px] text-brand-ink-tertiary">{assignedProducerObj.initials}</p>

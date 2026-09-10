@@ -772,13 +772,7 @@ function OrdersPageContent() {
                     "inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full py-0.5 pl-0.5 pr-2.5"
                   )}
                 >
-                  {producer?.avatar ? (
-                    <Avatar src={producer.avatar} alt={producer.name} size="xs" />
-                  ) : (
-                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-signature-soft text-[10px] font-bold text-brand-signature">
-                      {assigned.slice(0, 2)}
-                    </span>
-                  )}
+                  <Avatar producer={producer} initials={assigned} size="xs" />
                   <span className={clsx("truncate font-semibold", compactTextClass)}>
                     {assigned}
                   </span>

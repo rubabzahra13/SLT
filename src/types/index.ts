@@ -106,6 +106,7 @@ export type Producer = {
    */
   specialty: string;
   avatar: string;
+  color?: string;
   mixesThisWeek: number;
   nextAvailable: string;
   status: "available" | "limited" | "unavailable";

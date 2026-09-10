@@ -149,7 +149,7 @@ export function ScheduleDayDrawer({
                 className="flex items-center justify-between gap-3 rounded-2xl border border-brand-line/70 bg-brand-bg/40 px-4 py-3 text-left transition hover:border-brand-line-strong hover:bg-brand-bg/70"
               >
                 <div className="flex items-center gap-3">
-                  <Avatar src={producer.avatar} alt={producer.name} size="sm" />
+                  <Avatar producer={producer} size="sm" />
                   <div>
                     <p className="text-[14px] font-semibold text-brand-ink">{producer.name}</p>
                     <p className="mt-0.5 text-[12px] text-brand-ink-secondary">
@@ -197,7 +197,7 @@ function UnavailableProducerAvatar({
             isOff ? "ring-brand-orange/55" : "ring-brand-blue/45"
           )}
         >
-          <Avatar src={producer.avatar} alt={producer.name} size="xs" />
+          <Avatar producer={producer} size="xs" />
         </div>
         <div
           className={clsx(

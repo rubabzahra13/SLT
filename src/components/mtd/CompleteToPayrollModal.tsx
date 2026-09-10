@@ -1193,7 +1193,7 @@ export function CompleteToPayrollModal({
                     {clientPayroll.message}
                   </p>
                   <p className="mt-1 text-[12px] text-brand-ink-secondary">
-                    Steve does not receive per-mix compensation. Payout is $0.00 and SLT retains the full payroll price.
+                    Steve does not receive per-mix compensation. Payout is $0.00.
                   </p>
                 </div>
               )}
@@ -1364,7 +1364,7 @@ export function CompleteToPayrollModal({
                   Instant Calculated Payout Breakdown
                 </p>
 
-                <div className="mt-3 grid grid-cols-2 gap-3 text-[13px]">
+                <div className="mt-3 text-[13px]">
                   <div className="rounded-lg bg-brand-elevated p-3 border border-brand-line/50">
                     <p className="text-[11px] font-medium text-brand-ink-tertiary">Producer Payout</p>
                     <p className="mt-1 text-[16px] font-bold tabular-nums text-brand-success">
@@ -1373,19 +1373,12 @@ export function CompleteToPayrollModal({
                         : "N/A"}
                     </p>
                   </div>
-
-                  <div className="rounded-lg bg-brand-elevated p-3 border border-brand-line/50">
-                    <p className="text-[11px] font-medium text-brand-ink-tertiary">SLT Portion</p>
-                    <p className="mt-1 text-[16px] font-bold tabular-nums text-brand-ink">
-                      {clientPayroll.sltPortion !== null
-                        ? formatPrice(clientPayroll.sltPortion)
-                        : "N/A"}
-                    </p>
-                  </div>
                 </div>
-                <p className="mt-2.5 text-[11px] text-brand-ink-secondary">
-                  {clientPayroll.message}
-                </p>
+                {clientPayroll.message && (
+                  <p className="mt-2.5 text-[11px] text-brand-ink-secondary">
+                    {clientPayroll.message}
+                  </p>
+                )}
               </div>
             </div>
           )}

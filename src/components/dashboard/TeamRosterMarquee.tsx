@@ -31,7 +31,7 @@ export function TeamRosterMarquee({ team }: { team: Producer[] }) {
                 className="dashboard-team-card group flex w-[140px] shrink-0 flex-col items-center gap-2.5 rounded-xl px-3 py-4 text-center"
               >
                 <div className="rounded-full ring-2 ring-brand-line/35 ring-offset-2 ring-offset-white">
-                  <Avatar src={producer.avatar} alt={producer.name} size="xl" />
+                  <Avatar producer={producer} size="xl" />
                 </div>
                 <div className="min-w-0 w-full">
                   <p className="truncate text-[15px] font-bold tracking-[-0.03em] text-brand-ink">

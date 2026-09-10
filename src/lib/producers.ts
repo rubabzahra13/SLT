@@ -4,7 +4,7 @@ import {
   type ProducerTimeOff,
   type Weekday,
 } from "@/types";
-import { defaultAvatarSrc } from "@/lib/producer-avatars";
+import { defaultAvatarSrc, PRODUCER_COLORS, getProducerColor } from "@/lib/producer-avatars";
 
 /**
  * Authoritative canonical specializations for all registered producers.
@@ -153,6 +153,7 @@ export function normalizeProducer(raw: Partial<Producer> & { id: string }): Prod
     categories,
     specialty,
     avatar: raw.avatar || defaultAvatarSrc(),
+    color: (raw.color as string) || (PRODUCER_COLORS[initials] ?? getProducerColor(initials)),
     mixesThisWeek: raw.mixesThisWeek ?? 0,
     nextAvailable: raw.nextAvailable || "TBD",
     status: raw.status || "available",

@@ -461,17 +461,11 @@ export function AssignEditorModal({
                   {displayAssigned ? (
                     <div className="mt-1.5 rounded-xl border border-brand-line/70 bg-brand-bg/50 px-3 py-2.5">
                       <div className="flex items-center gap-2.5">
-                        {assignedProducer?.avatar ? (
-                          <Avatar
-                            src={assignedProducer.avatar}
-                            alt={displayAssigned}
-                            size="sm"
-                          />
-                        ) : (
-                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-signature-soft text-[11px] font-bold text-brand-signature">
-                            {displayAssigned.slice(0, 2)}
-                          </span>
-                        )}
+                        <Avatar
+                          producer={assignedProducer}
+                          initials={displayAssigned}
+                          size="sm"
+                        />
                         <div className="min-w-0 flex-1">
                           <p className="text-[13px] font-semibold text-brand-ink">
                             {displayAssigned}
@@ -630,17 +624,11 @@ export function AssignEditorModal({
                                       : "border-brand-line/70 bg-brand-bg/60 hover:border-brand-line hover:bg-brand-bg"
                                   )}
                                 >
-                                  {suggestion.producer?.avatar ? (
-                                    <Avatar
-                                      src={suggestion.producer.avatar}
-                                      alt={suggestion.name}
-                                      size="xs"
-                                    />
-                                  ) : (
-                                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-brand-bg-subtle text-[10px] font-bold text-brand-ink-secondary">
-                                      {suggestion.name.slice(0, 2)}
-                                    </span>
-                                  )}
+                                  <Avatar
+                                    producer={suggestion.producer}
+                                    initials={suggestion.name}
+                                    size="xs"
+                                  />
                                   <span className="text-[12px] font-semibold text-brand-ink">
                                     {suggestion.name}
                                   </span>

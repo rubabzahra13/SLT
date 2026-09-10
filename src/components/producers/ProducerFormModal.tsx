@@ -5,8 +5,8 @@ import { Trash2, X } from "lucide-react";
 import clsx from "clsx";
 import { ProducerCategoryAddMenu } from "@/components/producers/ProducerCategoryAddMenu";
 import { findProducerCategoryGroup } from "@/lib/producer-category-groups";
-import { PRODUCER_AVATARS } from "@/lib/producer-avatars";
 import { initialsFromName, normalizeProducer } from "@/lib/producers";
+import { Avatar } from "@/components/ui/Avatar";
 import { DEFAULT_WORK_DAYS, type Producer } from "@/types";
 
 type ProducerFormModalProps = {
@@ -35,7 +35,7 @@ function emptyForm(): FormState {
     email: "",
     categories: [],
     categoryRates: {},
-    avatar: PRODUCER_AVATARS[0].src,
+    avatar: "",
   };
 }
 
@@ -71,10 +71,8 @@ export function ProducerFormModal({
 }: ProducerFormModalProps) {
   const [form, setForm] = useState<FormState>(emptyForm);
   const [initialsTouched, setInitialsTouched] = useState(false);
-  const [pickingAvatar, setPickingAvatar] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const isEdit = Boolean(producer);
-
   useEffect(() => {
     if (!open) return;
     setValidationError(null);
@@ -85,7 +83,6 @@ export function ProducerFormModal({
       setForm(emptyForm());
       setInitialsTouched(false);
     }
-    setPickingAvatar(false);
   }, [open, producer]);
 
   if (!open) return null;
@@ -219,68 +216,11 @@ export function ProducerFormModal({
           ) : null}
 
           <section className="flex flex-col items-center px-6 pb-5 pt-7">
-            <button
-              type="button"
-              onClick={() => setPickingAvatar((v) => !v)}
-              className="group relative"
-              aria-expanded={pickingAvatar}
-              aria-label="Change photo"
-            >
-              <span
-                className="absolute -inset-[3px] rounded-full bg-[conic-gradient(from_210deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888,#f09433)] opacity-90"
-                aria-hidden
-              />
-              <span
-                className="absolute -inset-px rounded-full bg-brand-elevated"
-                aria-hidden
-              />
-              <img
-                src={form.avatar}
-                alt=""
-                className="relative h-[96px] w-[96px] rounded-full bg-brand-bg object-cover ring-[3px] ring-brand-elevated transition group-active:scale-[0.98]"
-              />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setPickingAvatar((v) => !v)}
-              className="mt-3 text-[14px] font-semibold text-brand-blue transition hover:text-brand-blue-hover"
-            >
-              Change photo
-            </button>
-
-            {pickingAvatar ? (
-              <div className="mt-4 w-full">
-                <div className="-mx-2 flex gap-3 overflow-x-auto px-2 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                  {PRODUCER_AVATARS.map((option) => {
-                    const selected = form.avatar === option.src;
-                    return (
-                      <button
-                        key={option.id}
-                        type="button"
-                        title={option.label}
-                        onClick={() => {
-                          setForm({ ...form, avatar: option.src });
-                          setPickingAvatar(false);
-                        }}
-                        className={clsx(
-                          "shrink-0 rounded-full p-[2px] transition",
-                          selected
-                            ? "bg-[linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)]"
-                            : "bg-transparent hover:bg-brand-bg-subtle"
-                        )}
-                      >
-                        <img
-                          src={option.src}
-                          alt={option.label}
-                          className="h-14 w-14 rounded-full bg-brand-bg object-cover ring-2 ring-brand-elevated"
-                        />
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ) : null}
+            <Avatar
+              initials={form.initials || initialsFromName(form.name) || "??"}
+              name={form.name}
+              size="xl"
+            />
           </section>
 
           <section className="border-y border-black/[0.08]">

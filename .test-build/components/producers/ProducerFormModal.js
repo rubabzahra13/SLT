@@ -11,8 +11,8 @@ const lucide_react_1 = require("lucide-react");
 const clsx_1 = __importDefault(require("clsx"));
 const ProducerCategoryAddMenu_1 = require("@/components/producers/ProducerCategoryAddMenu");
 const producer_category_groups_1 = require("@/lib/producer-category-groups");
-const producer_avatars_1 = require("@/lib/producer-avatars");
 const producers_1 = require("@/lib/producers");
+const Avatar_1 = require("@/components/ui/Avatar");
 const types_1 = require("@/types");
 const rowInput = "w-full bg-transparent text-right text-[15px] text-brand-ink outline-none placeholder:text-brand-ink-tertiary";
 function emptyForm() {
@@ -22,7 +22,7 @@ function emptyForm() {
         email: "",
         categories: [],
         categoryRates: {},
-        avatar: producer_avatars_1.PRODUCER_AVATARS[0].src,
+        avatar: "",
     };
 }
 function fromProducer(producer) {
@@ -49,7 +49,6 @@ function fromProducer(producer) {
 function ProducerFormModal({ open, onClose, producer, onSave, }) {
     const [form, setForm] = (0, react_1.useState)(emptyForm);
     const [initialsTouched, setInitialsTouched] = (0, react_1.useState)(false);
-    const [pickingAvatar, setPickingAvatar] = (0, react_1.useState)(false);
     const [validationError, setValidationError] = (0, react_1.useState)(null);
     const isEdit = Boolean(producer);
     (0, react_1.useEffect)(() => {
@@ -64,7 +63,6 @@ function ProducerFormModal({ open, onClose, producer, onSave, }) {
             setForm(emptyForm());
             setInitialsTouched(false);
         }
-        setPickingAvatar(false);
     }, [open, producer]);
     if (!open)
         return null;
@@ -147,15 +145,7 @@ function ProducerFormModal({ open, onClose, producer, onSave, }) {
         });
         onClose();
     }
-    return ((0, jsx_runtime_1.jsxs)("div", { className: "fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4", children: [(0, jsx_runtime_1.jsx)("button", { type: "button", className: "absolute inset-0 bg-black/45 backdrop-blur-[2px] transition", onClick: onClose, "aria-label": "Close" }), (0, jsx_runtime_1.jsxs)("div", { className: "relative flex max-h-[min(94dvh,820px)] w-full max-w-md sm:w-[440px] sm:max-w-[440px] flex-col overflow-hidden rounded-t-[28px] bg-brand-elevated shadow-[0_24px_80px_rgba(0,0,0,0.28)] sm:rounded-[28px]", children: [(0, jsx_runtime_1.jsxs)("header", { className: "relative flex shrink-0 items-center justify-between border-b border-black/[0.08] px-4 py-3.5", children: [(0, jsx_runtime_1.jsx)("button", { type: "button", onClick: onClose, className: "min-w-[64px] text-left text-[15px] text-brand-ink-secondary transition hover:text-brand-ink", children: "Cancel" }), (0, jsx_runtime_1.jsx)("h2", { className: "absolute left-1/2 -translate-x-1/2 text-[16px] font-semibold tracking-[-0.01em] text-brand-ink", children: isEdit ? "Edit Producer" : "New Producer" }), (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: () => handleSubmit(), className: "min-w-[64px] text-right text-[15px] font-semibold text-brand-blue transition hover:text-brand-blue-hover", children: "Done" })] }), (0, jsx_runtime_1.jsxs)("form", { onSubmit: handleSubmit, className: "min-h-0 flex-1 overflow-y-auto overscroll-contain", children: [validationError ? ((0, jsx_runtime_1.jsx)("div", { className: "bg-brand-danger-soft/80 px-5 py-2.5 text-[12px] font-medium text-brand-danger border-b border-brand-danger-muted", children: validationError })) : null, (0, jsx_runtime_1.jsxs)("section", { className: "flex flex-col items-center px-6 pb-5 pt-7", children: [(0, jsx_runtime_1.jsxs)("button", { type: "button", onClick: () => setPickingAvatar((v) => !v), className: "group relative", "aria-expanded": pickingAvatar, "aria-label": "Change photo", children: [(0, jsx_runtime_1.jsx)("span", { className: "absolute -inset-[3px] rounded-full bg-[conic-gradient(from_210deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888,#f09433)] opacity-90", "aria-hidden": true }), (0, jsx_runtime_1.jsx)("span", { className: "absolute -inset-px rounded-full bg-brand-elevated", "aria-hidden": true }), (0, jsx_runtime_1.jsx)("img", { src: form.avatar, alt: "", className: "relative h-[96px] w-[96px] rounded-full bg-brand-bg object-cover ring-[3px] ring-brand-elevated transition group-active:scale-[0.98]" })] }), (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: () => setPickingAvatar((v) => !v), className: "mt-3 text-[14px] font-semibold text-brand-blue transition hover:text-brand-blue-hover", children: "Change photo" }), pickingAvatar ? ((0, jsx_runtime_1.jsx)("div", { className: "mt-4 w-full", children: (0, jsx_runtime_1.jsx)("div", { className: "-mx-2 flex gap-3 overflow-x-auto px-2 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", children: producer_avatars_1.PRODUCER_AVATARS.map((option) => {
-                                                const selected = form.avatar === option.src;
-                                                return ((0, jsx_runtime_1.jsx)("button", { type: "button", title: option.label, onClick: () => {
-                                                        setForm({ ...form, avatar: option.src });
-                                                        setPickingAvatar(false);
-                                                    }, className: (0, clsx_1.default)("shrink-0 rounded-full p-[2px] transition", selected
-                                                        ? "bg-[linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)]"
-                                                        : "bg-transparent hover:bg-brand-bg-subtle"), children: (0, jsx_runtime_1.jsx)("img", { src: option.src, alt: option.label, className: "h-14 w-14 rounded-full bg-brand-bg object-cover ring-2 ring-brand-elevated" }) }, option.id));
-                                            }) }) })) : null] }), (0, jsx_runtime_1.jsxs)("section", { className: "border-y border-black/[0.08]", children: [(0, jsx_runtime_1.jsx)(ProfileRow, { label: "Name", children: (0, jsx_runtime_1.jsx)("input", { required: true, value: form.name, onChange: (e) => {
+    return ((0, jsx_runtime_1.jsxs)("div", { className: "fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4", children: [(0, jsx_runtime_1.jsx)("button", { type: "button", className: "absolute inset-0 bg-black/45 backdrop-blur-[2px] transition", onClick: onClose, "aria-label": "Close" }), (0, jsx_runtime_1.jsxs)("div", { className: "relative flex max-h-[min(94dvh,820px)] w-full max-w-md sm:w-[440px] sm:max-w-[440px] flex-col overflow-hidden rounded-t-[28px] bg-brand-elevated shadow-[0_24px_80px_rgba(0,0,0,0.28)] sm:rounded-[28px]", children: [(0, jsx_runtime_1.jsxs)("header", { className: "relative flex shrink-0 items-center justify-between border-b border-black/[0.08] px-4 py-3.5", children: [(0, jsx_runtime_1.jsx)("button", { type: "button", onClick: onClose, className: "min-w-[64px] text-left text-[15px] text-brand-ink-secondary transition hover:text-brand-ink", children: "Cancel" }), (0, jsx_runtime_1.jsx)("h2", { className: "absolute left-1/2 -translate-x-1/2 text-[16px] font-semibold tracking-[-0.01em] text-brand-ink", children: isEdit ? "Edit Producer" : "New Producer" }), (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: () => handleSubmit(), className: "min-w-[64px] text-right text-[15px] font-semibold text-brand-blue transition hover:text-brand-blue-hover", children: "Done" })] }), (0, jsx_runtime_1.jsxs)("form", { onSubmit: handleSubmit, className: "min-h-0 flex-1 overflow-y-auto overscroll-contain", children: [validationError ? ((0, jsx_runtime_1.jsx)("div", { className: "bg-brand-danger-soft/80 px-5 py-2.5 text-[12px] font-medium text-brand-danger border-b border-brand-danger-muted", children: validationError })) : null, (0, jsx_runtime_1.jsx)("section", { className: "flex flex-col items-center px-6 pb-5 pt-7", children: (0, jsx_runtime_1.jsx)(Avatar_1.Avatar, { initials: form.initials || (0, producers_1.initialsFromName)(form.name) || "??", name: form.name, size: "xl" }) }), (0, jsx_runtime_1.jsxs)("section", { className: "border-y border-black/[0.08]", children: [(0, jsx_runtime_1.jsx)(ProfileRow, { label: "Name", children: (0, jsx_runtime_1.jsx)("input", { required: true, value: form.name, onChange: (e) => {
                                                 const name = e.target.value;
                                                 setForm((prev) => ({
                                                     ...prev,

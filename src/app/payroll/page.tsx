@@ -11,6 +11,7 @@ import {
   type MTDTableFilterState,
 } from "@/components/mtd/MTDTableFilters";
 import { DataTable, type Column } from "@/components/ui/DataTable";
+import { Avatar } from "@/components/ui/Avatar";
 import { useAppState } from "@/context/AppStateContext";
 import { formatDisplayDate, toIsoDateString } from "@/lib/dates";
 import { formatPrice, titleCase } from "@/lib/data";
@@ -246,11 +247,19 @@ export default function PayrollPage() {
         align: "center",
         cellClassName: "!px-2 !py-1.5",
         headerClassName: "!px-2 !py-2",
-        render: (rec) => (
-          <span className="text-[12px] font-medium uppercase tabular-nums text-brand-ink">
-            {rec.assignedProducer}
-          </span>
-        ),
+        render: (rec) => {
+          const producer = rec.assignedProducer
+            ? findProducerByAssignmentKey(rec.assignedProducer, producers)
+            : undefined;
+          return (
+            <div className="flex items-center justify-center gap-1.5">
+              <Avatar producer={producer} initials={rec.assignedProducer} size="xs" />
+              <span className="text-[12px] font-semibold text-brand-ink">
+                {rec.assignedProducer}
+              </span>
+            </div>
+          );
+        },
       },
       {
         key: "invoice",
@@ -329,7 +338,7 @@ export default function PayrollPage() {
         : []),
       {
         key: "price",
-        header: "Customer Price",
+        header: "Package Price",
         width: "110px",
         align: "center",
         cellClassName: "!px-2 !py-1.5",
@@ -445,9 +454,6 @@ export default function PayrollPage() {
                   </span>
                 )}
               </div>
-              <span className="text-[10px] text-brand-ink-secondary tabular-nums">
-                SLT: {slt !== undefined && slt !== null ? formatPrice(slt) : "—"}
-              </span>
             </div>
           );
         },

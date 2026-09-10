@@ -127,7 +127,7 @@ export default function ProducersPage() {
                   producer.status === "unavailable" && "ring-unavailable"
                 )}
               >
-                <Avatar src={producer.avatar} alt={producer.name} size="lg" />
+                <Avatar producer={producer} size="lg" />
               </div>
               <h3 className="text-display mt-3 text-[15px]">{producer.name}</h3>
               <p className="mt-0.5 text-[12px] font-medium text-brand-ink-tertiary">

@@ -91,7 +91,7 @@ export function TeamScheduleTodayView({
                   active ? "ring-brand-orange/60" : "ring-brand-blue/30"
                 )}
               >
-                <Avatar src={producer.avatar} alt={producer.name} size="sm" />
+                <Avatar producer={producer} size="sm" />
               </div>
               <span
                 className={clsx(

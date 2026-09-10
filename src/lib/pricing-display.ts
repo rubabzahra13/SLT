@@ -247,6 +247,6 @@ export function computeClientPayroll(
     isCaseyAmbiguous: isCasey && selectedRate === null,
     oldPricingPayout: oldPayout,
     newPricingPayout: newPayout,
-    message: `Payout: $${payout.toFixed(2)} (${(defaultRate * 100).toFixed(0)}%) · SLT: $${slt.toFixed(2)}`,
+    message: `Payout: $${payout.toFixed(2)} (${(defaultRate * 100).toFixed(0)}%)`,
   };
 }

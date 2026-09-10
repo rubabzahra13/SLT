@@ -28,14 +28,8 @@ function findGroupTone(groups, value) {
     }
     return undefined;
 }
-function EditorInitials({ name }) {
-    return ((0, jsx_runtime_1.jsx)("span", { className: "flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-bg-subtle text-[11px] font-bold text-brand-ink-secondary", children: name.slice(0, 2) }));
-}
 function EditorAvatar({ name, producer, }) {
-    if (producer?.avatar) {
-        return (0, jsx_runtime_1.jsx)(Avatar_1.Avatar, { src: producer.avatar, alt: name, size: "sm" });
-    }
-    return (0, jsx_runtime_1.jsx)(EditorInitials, { name: name });
+    return (0, jsx_runtime_1.jsx)(Avatar_1.Avatar, { producer: producer, initials: name, size: "sm" });
 }
 function EditorSelectDropdown({ id = "editor-select", value, onChange, groups, disabled = false, emptyLabel = "No matching editors", requestedEditor, }) {
     const triggerRef = (0, react_1.useRef)(null);
@@ -148,5 +142,5 @@ function EditorSelectDropdown({ id = "editor-select", value, onChange, groups, d
     return ((0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsxs)("button", { ref: triggerRef, id: id, type: "button", role: "combobox", "aria-expanded": open, "aria-controls": `${id}-listbox`, disabled: disabled || !hasOptions, onMouseDown: (event) => event.stopPropagation(), onClick: (event) => {
                     event.stopPropagation();
                     setOpen((current) => !current);
-                }, className: (0, clsx_1.default)("mt-1.5 flex w-full items-center gap-3 rounded-xl border border-brand-line/80 bg-brand-surface px-3 py-2.5 text-left outline-none transition", "focus-visible:border-brand-info/60 focus-visible:ring-2 focus-visible:ring-brand-info/15", (disabled || !hasOptions) && "cursor-not-allowed opacity-55", open && "border-brand-info/50 ring-2 ring-brand-info/10"), children: [displayName ? (selected ? ((0, jsx_runtime_1.jsx)(EditorAvatar, { name: selected.name, producer: selected.producer })) : ((0, jsx_runtime_1.jsx)(EditorInitials, { name: displayName }))) : ((0, jsx_runtime_1.jsx)("span", { className: "flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-dashed border-brand-line-strong bg-brand-bg/60" })), (0, jsx_runtime_1.jsxs)("span", { className: "min-w-0 flex-1", children: [(0, jsx_runtime_1.jsx)("span", { className: "block truncate text-[13px] font-semibold text-brand-ink", children: displayName || emptyLabel }), (0, jsx_runtime_1.jsx)("span", { className: "block truncate text-[11px] text-brand-ink-tertiary", children: triggerSubtitle })] }), (0, jsx_runtime_1.jsx)(lucide_react_1.ChevronDown, { className: (0, clsx_1.default)("h-4 w-4 shrink-0 text-brand-ink-tertiary transition-transform duration-150", open && "rotate-180"), strokeWidth: 2.25 })] }), mounted && menu ? (0, react_dom_1.createPortal)(menu, document.body) : null] }));
+                }, className: (0, clsx_1.default)("mt-1.5 flex w-full items-center gap-3 rounded-xl border border-brand-line/80 bg-brand-surface px-3 py-2.5 text-left outline-none transition", "focus-visible:border-brand-info/60 focus-visible:ring-2 focus-visible:ring-brand-info/15", (disabled || !hasOptions) && "cursor-not-allowed opacity-55", open && "border-brand-info/50 ring-2 ring-brand-info/10"), children: [displayName ? (selected ? ((0, jsx_runtime_1.jsx)(EditorAvatar, { name: selected.name, producer: selected.producer })) : ((0, jsx_runtime_1.jsx)(EditorAvatar, { name: displayName }))) : ((0, jsx_runtime_1.jsx)("span", { className: "flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-dashed border-brand-line-strong bg-brand-bg/60" })), (0, jsx_runtime_1.jsxs)("span", { className: "min-w-0 flex-1", children: [(0, jsx_runtime_1.jsx)("span", { className: "block truncate text-[13px] font-semibold text-brand-ink", children: displayName || emptyLabel }), (0, jsx_runtime_1.jsx)("span", { className: "block truncate text-[11px] text-brand-ink-tertiary", children: triggerSubtitle })] }), (0, jsx_runtime_1.jsx)(lucide_react_1.ChevronDown, { className: (0, clsx_1.default)("h-4 w-4 shrink-0 text-brand-ink-tertiary transition-transform duration-150", open && "rotate-180"), strokeWidth: 2.25 })] }), mounted && menu ? (0, react_dom_1.createPortal)(menu, document.body) : null] }));
 }

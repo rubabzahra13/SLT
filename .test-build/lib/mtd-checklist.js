@@ -1,5 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.getCollectionControlIds = getCollectionControlIds;
+exports.getCollectionItemsForCategory = getCollectionItemsForCategory;
+exports.getSongsItems = getSongsItems;
 exports.parseEightCsState = parseEightCsState;
 exports.encodeEightCsState = encodeEightCsState;
 exports.cycleEightCsItem = cycleEightCsItem;
@@ -22,6 +25,32 @@ const EMPTY_EIGHT_CS_STATE = {
     form: "none",
     mix: "none",
 };
+function getCollectionControlIds(formType) {
+    if (formType === "school-all-star-cheer") {
+        return ["cs", "video", "form", "mix"];
+    }
+    return ["form", "mix"];
+}
+function getCollectionItemsForCategory(formType, state) {
+    const ids = getCollectionControlIds(formType);
+    const labels = {
+        cs: "CS",
+        video: "Video",
+        form: "Form",
+        mix: "Mix",
+    };
+    return ids.map((id) => ({
+        id,
+        label: labels[id],
+        state: state[id],
+    }));
+}
+function getSongsItems(state) {
+    return [
+        { id: "songs", label: "Songs", state: state.songs },
+        { id: "notes", label: "Notes", state: state.notes },
+    ];
+}
 function joinEightCsParts(prefix, parts) {
     if (parts.length === 0)
         return "";

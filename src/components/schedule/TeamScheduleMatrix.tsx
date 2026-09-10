@@ -545,8 +545,7 @@ export function TeamScheduleMatrix({
                 )}
               >
                 <Avatar
-                  src={row.producer.avatar}
-                  alt={row.producer.name}
+                  producer={row.producer}
                   size="sm"
                 />
               </div>

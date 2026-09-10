@@ -1,181 +1,80 @@
-/** Curated DiceBear avataaars with varied skin tones and presentation. */
+/**
+ * Authoritative producer colors mapping supplied by the client.
+ * Enforced centrally across the application.
+ */
+export const PRODUCER_COLORS: Record<string, string> = {
+  CM: "#ed7d31",
+  MS: "#009999",
+  NC: "#c00000",
+  BV: "#002060",
+  MT: "#bf8f00",
+  JB: "#548235",
+  MM: "#ffc000",
+  SS: "#0000ff",
+  AJ: "#00b0f0",
+  LV: "#ff00ff",
+  JM: "#00ff00",
+  SV: "#0070c0",
+  RF: "#edbcfc",
+  JOP: "#cc4125",
+  JD: "#cc66ff",
+  CC: "#008080",
+  GP: "#00b050",
+  // Legacy / fallback seed initials
+  JP: "#7c3aed",
+  R: "#e11d48",
+  G: "#059669",
+};
+
+export function getProducerColor(initialsOrName?: string | null): string {
+  if (!initialsOrName) return "#ed7d31";
+  const key = initialsOrName.toUpperCase().trim();
+  if (PRODUCER_COLORS[key]) {
+    return PRODUCER_COLORS[key];
+  }
+
+  // Handle names like "Casey" -> "CM"
+  const firstName = initialsOrName.toLowerCase().trim().split(/\s+/)[0];
+  const nameMap: Record<string, string> = {
+    casey: "CM",
+    matt: "MS",
+    nate: "NC",
+    mark: "MM",
+    brent: "BV",
+    shelley: "SS",
+    autumn: "AJ",
+    logan: "LV",
+    rory: "RF",
+    jackie: "JM",
+    joseph: "JOP",
+    griffin: "GP",
+    justin: "JD",
+    jacob: "JP",
+    max: "MT",
+    cory: "CC",
+    jared: "JB",
+    riley: "R",
+  };
+
+  if (nameMap[firstName] && PRODUCER_COLORS[nameMap[firstName]]) {
+    return PRODUCER_COLORS[nameMap[firstName]];
+  }
+
+  return "#ed7d31";
+}
+
 export type ProducerAvatarOption = {
   id: string;
   label: string;
   src: string;
 };
 
-function avatar(seed: string, params: Record<string, string>): string {
-  const q = new URLSearchParams({ seed, ...params });
-  return `https://api.dicebear.com/9.x/avataaars/svg?${q.toString()}`;
-}
-
 export const PRODUCER_AVATARS: ProducerAvatarOption[] = [
-  {
-    id: "ava-1",
-    label: "Light · long hair",
-    src: avatar("Maya", {
-      skinColor: "ffdbb4",
-      topVariant: "straight01",
-      hairColor: "2c1b18",
-      eyesVariant: "happy",
-    }),
-  },
-  {
-    id: "ava-2",
-    label: "Light · short hair",
-    src: avatar("Chris", {
-      skinColor: "ffdbb4",
-      topVariant: "shortFlat",
-      hairColor: "4a312c",
-      facialHairVariant: "beardLight",
-      facialHairProbability: "100",
-      facialHairColor: "4a312c",
-    }),
-  },
-  {
-    id: "ava-3",
-    label: "Fair · bob",
-    src: avatar("Elena", {
-      skinColor: "edb98a",
-      topVariant: "bob",
-      hairColor: "b58143",
-      eyesVariant: "default",
-    }),
-  },
-  {
-    id: "ava-4",
-    label: "Fair · buzz",
-    src: avatar("Jordan", {
-      skinColor: "edb98a",
-      topVariant: "theCaesar",
-      hairColor: "2c1b18",
-    }),
-  },
-  {
-    id: "ava-5",
-    label: "Medium · waves",
-    src: avatar("Priya", {
-      skinColor: "d08b5b",
-      topVariant: "curly",
-      hairColor: "2c1b18",
-      eyesVariant: "side",
-    }),
-  },
-  {
-    id: "ava-6",
-    label: "Medium · short",
-    src: avatar("Omar", {
-      skinColor: "d08b5b",
-      topVariant: "shortWaved",
-      hairColor: "2c1b18",
-      facialHairVariant: "moustacheMagnum",
-      facialHairProbability: "100",
-      facialHairColor: "2c1b18",
-    }),
-  },
-  {
-    id: "ava-7",
-    label: "Tan · ponytail",
-    src: avatar("Sofia", {
-      skinColor: "ae5d29",
-      topVariant: "straight02",
-      hairColor: "724133",
-      eyesVariant: "happy",
-    }),
-  },
-  {
-    id: "ava-8",
-    label: "Tan · fade",
-    src: avatar("Marcus", {
-      skinColor: "ae5d29",
-      topVariant: "shortCurly",
-      hairColor: "2c1b18",
-    }),
-  },
-  {
-    id: "ava-9",
-    label: "Deep · braids",
-    src: avatar("Aisha", {
-      skinColor: "614335",
-      topVariant: "curvy",
-      hairColor: "2c1b18",
-      eyesVariant: "default",
-    }),
-  },
-  {
-    id: "ava-10",
-    label: "Deep · short",
-    src: avatar("Darius", {
-      skinColor: "614335",
-      topVariant: "dreads01",
-      hairColor: "2c1b18",
-      facialHairVariant: "beardMedium",
-      facialHairProbability: "100",
-      facialHairColor: "2c1b18",
-    }),
-  },
-  {
-    id: "ava-11",
-    label: "Deep · hijab",
-    src: avatar("Layla", {
-      skinColor: "614335",
-      topVariant: "hijab",
-      hatColor: "262e33",
-      eyesVariant: "happy",
-    }),
-  },
-  {
-    id: "ava-12",
-    label: "Medium · hijab",
-    src: avatar("Noor", {
-      skinColor: "d08b5b",
-      topVariant: "hijab",
-      hatColor: "65c9ff",
-    }),
-  },
-  {
-    id: "ava-13",
-    label: "Fair · bun",
-    src: avatar("Hana", {
-      skinColor: "edb98a",
-      topVariant: "bun",
-      hairColor: "2c1b18",
-    }),
-  },
-  {
-    id: "ava-14",
-    label: "Light · sides",
-    src: avatar("Sam", {
-      skinColor: "ffdbb4",
-      topVariant: "sides",
-      hairColor: "e8e1e1",
-      clothesVariant: "shirtCrewNeck",
-      clothesColor: "3c4f5c",
-    }),
-  },
-  {
-    id: "ava-15",
-    label: "Tan · long",
-    src: avatar("Wei", {
-      skinColor: "ae5d29",
-      topVariant: "straightAndStrand",
-      hairColor: "2c1b18",
-    }),
-  },
-  {
-    id: "ava-16",
-    label: "Deep · shaved",
-    src: avatar("Kwame", {
-      skinColor: "614335",
-      topVariant: "shavedSides",
-      facialHairVariant: "beardMajestic",
-      facialHairProbability: "100",
-      facialHairColor: "2c1b18",
-    }),
-  },
+  { id: "ava-1", label: "CM · Orange", src: "#ed7d31" },
+  { id: "ava-2", label: "MS · Teal", src: "#009999" },
+  { id: "ava-3", label: "NC · Red", src: "#c00000" },
 ];
 
 export function defaultAvatarSrc(): string {
-  return PRODUCER_AVATARS[0].src;
+  return "#ed7d31";
 }

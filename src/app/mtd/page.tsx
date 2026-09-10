@@ -85,6 +85,8 @@ import {
   cycleSongsItem,
   encodeEightCsState,
   encodeSongsState,
+  getCollectionItemsForCategory,
+  getSongsItems,
   parseEightCsState,
   parseSongsState,
 } from "@/lib/mtd-checklist";
@@ -902,48 +904,34 @@ function MTDPageContent() {
           );
         },
       },
-      ...(form === "school-all-star-cheer" || form === "school-all-star-dance"
-        ? [
-            {
-              key: "eightJ",
-              header: "COLLECTIONS",
-              width: form === "school-all-star-cheer" ? "168px" : "100px",
-              align: "center" as const,
-              nowrap: false,
-              cellClassName: "!px-2 !py-2",
-              headerClassName: "!px-2",
-              render: (rec: MTDRecord) => {
-                const state = parseEightCsState(rec.eightCountSheet ?? "");
-                const items =
-                  form === "school-all-star-cheer"
-                    ? [
-                        { id: "cs", label: "CS", state: state.cs },
-                        { id: "video", label: "Video", state: state.video },
-                        { id: "form", label: "Form", state: state.form },
-                        { id: "mix", label: "Mix", state: state.mix },
-                      ]
-                    : [
-                        { id: "form", label: "Form", state: state.form },
-                        { id: "mix", label: "Mix", state: state.mix },
-                      ];
+      {
+        key: "eightJ",
+        header: "COLLECTIONS",
+        width: form === "school-all-star-cheer" ? "168px" : "110px",
+        align: "center" as const,
+        nowrap: false,
+        cellClassName: "!px-2 !py-2",
+        headerClassName: "!px-2",
+        render: (rec: MTDRecord) => {
+          const meta = resolveMTDFormMeta(rec, orderById);
+          const state = parseEightCsState(rec.eightCountSheet ?? "");
+          const items = getCollectionItemsForCategory(meta.formType, state);
 
-                return (
-                  <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
-                    <InlineTriStateCheckGroup
-                      items={items}
-                      onCycle={(id) => {
-                        const next = cycleEightCsItem(state, id as keyof typeof state);
-                        updateMTD(rec.id, {
-                          eightCountSheet: encodeEightCsState(next),
-                        });
-                      }}
-                    />
-                  </div>
-                );
-              },
-            },
-          ]
-        : []),
+          return (
+            <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
+              <InlineTriStateCheckGroup
+                items={items}
+                onCycle={(id) => {
+                  const next = cycleEightCsItem(state, id as keyof typeof state);
+                  updateMTD(rec.id, {
+                    eightCountSheet: encodeEightCsState(next),
+                  });
+                }}
+              />
+            </div>
+          );
+        },
+      },
       {
         key: "songsK",
         header: "Songs",
@@ -954,14 +942,12 @@ function MTDPageContent() {
         headerClassName: "!px-2",
         render: (rec) => {
           const state = parseSongsState(rec.haveSongs ?? "");
+          const items = getSongsItems(state);
 
           return (
             <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
               <InlineTriStateCheckGroup
-                items={[
-                  { id: "songs", label: "Songs", state: state.songs },
-                  { id: "notes", label: "Notes", state: state.notes },
-                ]}
+                items={items}
                 onCycle={(id) => {
                   const next = cycleSongsItem(state, id as keyof typeof state);
                   updateMTD(rec.id, {
@@ -1197,17 +1183,7 @@ function MTDPageContent() {
                     "inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full py-0.5 pl-0.5 pr-2.5"
                   )}
                 >
-                  {producer?.avatar ? (
-                    <Avatar
-                      src={producer.avatar}
-                      alt={producer.name}
-                      size="xs"
-                    />
-                  ) : (
-                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-signature-soft text-[10px] font-bold text-brand-signature">
-                      {assigned.slice(0, 2)}
-                    </span>
-                  )}
+                  <Avatar producer={producer} initials={assigned} size="xs" />
                   <span className={clsx("truncate font-semibold", compactTextClass)}>
                     {assigned}
                   </span>

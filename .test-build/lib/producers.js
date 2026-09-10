@@ -143,6 +143,7 @@ function normalizeProducer(raw) {
         categories,
         specialty,
         avatar: raw.avatar || (0, producer_avatars_1.defaultAvatarSrc)(),
+        color: raw.color || (producer_avatars_1.PRODUCER_COLORS[initials] ?? (0, producer_avatars_1.getProducerColor)(initials)),
         mixesThisWeek: raw.mixesThisWeek ?? 0,
         nextAvailable: raw.nextAvailable || "TBD",
         status: raw.status || "available",

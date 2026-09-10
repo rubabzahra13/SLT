@@ -69,6 +69,14 @@ export function inferFormType(raw: Partial<Order>): OrderFormType {
   }
   if (
     cat.includes("dance") ||
+    cat.includes("pom") ||
+    cat.includes("hip hop") ||
+    cat.includes("hip-hop") ||
+    cat.includes("gameday") ||
+    cat.includes("jazz") ||
+    cat.includes("kick") ||
+    cat.includes("variety") ||
+    cat.includes("performance") ||
     div.includes("pom") ||
     div.includes("dance") ||
     pkg.includes("dance")

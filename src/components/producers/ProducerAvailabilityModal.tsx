@@ -14,6 +14,7 @@ import {
   normalizeProducer,
 } from "@/lib/producers";
 import { Tabs } from "@/components/ui/Tabs";
+import { Avatar } from "@/components/ui/Avatar";
 import {
   DEFAULT_WORK_DAYS,
   WEEKDAYS,
@@ -319,11 +320,7 @@ export function ProducerAvailabilityModal({
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-8 pt-6">
           <div className="mb-6 flex items-center gap-3">
-            <img
-              src={producer.avatar}
-              alt=""
-              className="h-11 w-11 rounded-full bg-brand-bg object-cover"
-            />
+            <Avatar producer={producer} size="md" />
             <div className="min-w-0">
               <p className="truncate text-[15px] font-semibold text-brand-ink">
                 {producer.name}

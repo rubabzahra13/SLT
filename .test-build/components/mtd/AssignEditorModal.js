@@ -15,6 +15,7 @@ const EditorSelectDropdown_1 = require("@/components/mtd/EditorSelectDropdown");
 const editor_assignment_1 = require("@/lib/editor-assignment");
 const producer_keys_1 = require("@/lib/producer-keys");
 const dates_1 = require("@/lib/dates");
+const scheduling_1 = require("@/lib/scheduling");
 function parseSlotDate(label) {
     if (!label || label === "TBD" || label === "No slot found")
         return null;
@@ -65,7 +66,8 @@ function AssignEditorModal({ open, record, mtdRecords, allOrders, producers, sch
         : [], [record, producers]);
     const [selectedEditor, setSelectedEditor] = (0, react_1.useState)("");
     const displayAssigned = record ? (0, editor_assignment_1.getDisplayAssignedProducer)(record) : null;
-    const isAssignmentLocked = Boolean(displayAssigned?.trim());
+    const formalAssigned = record?.assignedProducer?.trim() || null;
+    const isAssignmentLocked = Boolean(formalAssigned);
     const suggestions = (0, react_1.useMemo)(() => readOnly || !record
         ? []
         : (0, editor_assignment_1.getSuggestedEditors)(mtdRecords, producers, schedule, record.category, record.id, record), [readOnly, record, mtdRecords, producers, schedule]);
@@ -101,9 +103,9 @@ function AssignEditorModal({ open, record, mtdRecords, allOrders, producers, sch
         return { availableEditors: available, bookedEditors: booked };
     }, [categoryEditors, availableEditorKeys]);
     const currentAssignee = displayAssigned ?? "";
-    const assignedProducer = (0, react_1.useMemo)(() => isAssignmentLocked && displayAssigned
-        ? (0, editor_assignment_1.findProducerByAssignmentKey)(displayAssigned, producers)
-        : undefined, [isAssignmentLocked, displayAssigned, producers]);
+    const assignedProducer = (0, react_1.useMemo)(() => isAssignmentLocked && formalAssigned
+        ? (0, editor_assignment_1.findProducerByAssignmentKey)(formalAssigned, producers)
+        : undefined, [isAssignmentLocked, formalAssigned, producers]);
     const requestedBookedEditors = (0, react_1.useMemo)(() => {
         if (!requestedEditor)
             return [];
@@ -121,7 +123,7 @@ function AssignEditorModal({ open, record, mtdRecords, allOrders, producers, sch
                 producer,
                 mixCount: tone === "booked" ? mixCount : undefined,
                 bookedUntil: tone === "booked" ? bookedUntil : undefined,
-                disabled: tone === "booked" && !isCurrent,
+                disabled: false,
             };
         };
         const groups = [
@@ -138,10 +140,19 @@ function AssignEditorModal({ open, record, mtdRecords, allOrders, producers, sch
                 options: requestedBookedEditors.map((name) => toOption(name, "booked")),
             });
         }
+        const otherBookedEditors = bookedEditors.filter((name) => !requestedBookedEditors.some((booked) => (0, producer_keys_1.producerKeysMatch)(booked, name)));
+        if (otherBookedEditors.length > 0) {
+            groups.push({
+                label: "Currently booked",
+                tone: "booked",
+                options: otherBookedEditors.map((name) => toOption(name, "booked")),
+            });
+        }
         return groups;
     }, [
         availableEditors,
         requestedBookedEditors,
+        bookedEditors,
         producers,
         editorWorkload,
         editorBookedUntil,
@@ -161,21 +172,25 @@ function AssignEditorModal({ open, record, mtdRecords, allOrders, producers, sch
     (0, react_1.useEffect)(() => {
         if (!record || !open)
             return;
-        const assignedKey = (0, editor_assignment_1.getDisplayAssignedProducer)(record);
+        const assignedKey = record.assignedProducer?.trim();
         if (assignedKey) {
             const match = categoryEditors.find((name) => (0, producer_keys_1.producerKeysMatch)(name, assignedKey));
             setSelectedEditor(match ?? assignedKey.toUpperCase());
+            return;
         }
-        else {
-            let editor = pickEditorForOpen(record);
-            const isBooked = editor &&
-                !availableEditorKeys.has((0, producer_keys_1.normalizeProducerKey)(editor)) &&
-                !(0, producer_keys_1.producerKeysMatch)(record.assignedProducer ?? "", editor);
-            if (isBooked) {
-                editor = availableEditors[0] ?? "";
-            }
-            setSelectedEditor(editor);
+        let editor = pickEditorForOpen(record);
+        if (editor &&
+            !availableEditorKeys.has((0, producer_keys_1.normalizeProducerKey)(editor)) &&
+            !(0, producer_keys_1.producerKeysMatch)(record.assignedProducer ?? "", editor)) {
+            editor = availableEditors[0] ?? "";
         }
+        if (!editor) {
+            editor =
+                categoryEditors.find((name) => requestedEditor ? (0, producer_keys_1.producerKeysMatch)(name, requestedEditor) : false) ??
+                    categoryEditors[0] ??
+                    "";
+        }
+        setSelectedEditor(editor);
     }, [
         open,
         record,
@@ -186,6 +201,7 @@ function AssignEditorModal({ open, record, mtdRecords, allOrders, producers, sch
         linkedOrder,
         availableEditorKeys,
         availableEditors,
+        requestedEditor,
     ]);
     const mixStartIso = (0, dates_1.toIsoDateString)(record?.mixStartDate ?? "");
     const mixEndIso = (0, dates_1.toIsoDateString)(record?.mixEndDate ?? "");
@@ -194,8 +210,11 @@ function AssignEditorModal({ open, record, mtdRecords, allOrders, producers, sch
         return null;
     const activeRecord = record;
     const isViewOnly = readOnly;
-    const showCompactAssigned = isViewOnly || (isAssignmentLocked && Boolean(displayAssigned));
-    const canSubmit = Boolean(selectedEditor) && !showCompactAssigned && !isAssignmentLocked;
+    const showCompactAssigned = isViewOnly || isAssignmentLocked;
+    const canSubmit = Boolean(selectedEditor) &&
+        categoryEditors.some((name) => (0, producer_keys_1.producerKeysMatch)(name, selectedEditor)) &&
+        !showCompactAssigned &&
+        !isAssignmentLocked;
     const genreLabel = activeRecord.category || "this";
     function handleUnassign() {
         onAssign(activeRecord.id, {
@@ -208,19 +227,23 @@ function AssignEditorModal({ open, record, mtdRecords, allOrders, producers, sch
         e.preventDefault();
         if (!canSubmit)
             return;
+        const existingStart = (0, dates_1.toIsoDateString)(activeRecord.mixStartDate);
+        const mixStartDate = existingStart ||
+            (0, scheduling_1.suggestMixStartDate)(selectedEditor, producers, schedule);
         onAssign(activeRecord.id, {
             editorRequest: (0, editor_assignment_1.editorRequestForAssignment)(selectedEditor, requestedEditor, availableNames),
             assignedProducer: selectedEditor,
+            ...(!existingStart && mixStartDate ? { mixStartDate } : {}),
         });
         onClose();
     }
-    return ((0, jsx_runtime_1.jsxs)("div", { className: "fixed inset-0 z-50 flex items-center justify-center p-4", children: [(0, jsx_runtime_1.jsx)("button", { type: "button", className: "absolute inset-0 bg-brand-scrim backdrop-blur-sm", onClick: onClose, "aria-label": "Close" }), (0, jsx_runtime_1.jsxs)("div", { className: (0, clsx_1.default)("surface-premium relative flex max-h-[90vh] w-full flex-col rounded-2xl shadow-[var(--shadow-premium)]", showCompactAssigned ? "max-w-lg" : "max-w-3xl"), children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex shrink-0 items-start justify-between gap-4 border-b border-brand-line/60 px-6 py-5", children: [(0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsx)("p", { className: "text-label", children: "Editor assignment" }), (0, jsx_runtime_1.jsx)("h2", { className: "text-display mt-1 text-[18px]", children: showCompactAssigned ? "View assignment" : "Assign producer" }), (0, jsx_runtime_1.jsxs)("p", { className: "mt-1 text-[13px] text-brand-ink-secondary", children: [activeRecord.programName, (0, jsx_runtime_1.jsxs)("span", { className: "text-brand-ink-tertiary", children: [" ", "\u00B7 ", genreLabel, " specialists"] })] })] }), (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: onClose, className: "rounded-lg p-1.5 text-brand-ink-tertiary transition hover:bg-brand-bg hover:text-brand-ink", children: (0, jsx_runtime_1.jsx)(lucide_react_1.X, { className: "h-4 w-4" }) })] }), (0, jsx_runtime_1.jsx)("form", { onSubmit: handleSubmit, className: "flex min-h-0 flex-1 flex-col", children: showCompactAssigned ? ((0, jsx_runtime_1.jsx)("div", { className: "flex min-h-0 flex-col px-6 py-5", children: (0, jsx_runtime_1.jsxs)("div", { className: "space-y-5", children: [(0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsx)("p", { className: "text-label", children: "Editor" }), requestedEditor ? ((0, jsx_runtime_1.jsxs)("p", { className: "mt-0.5 text-[11px] text-brand-ink-tertiary", children: ["Requested:", " ", (0, jsx_runtime_1.jsx)("span", { className: "font-semibold text-brand-ink", children: requestedEditor })] })) : ((0, jsx_runtime_1.jsxs)("p", { className: "mt-0.5 text-[11px] text-brand-ink-tertiary", children: ["Requested:", " ", (0, jsx_runtime_1.jsx)("span", { className: "font-semibold text-brand-ink", children: "First available" })] })), displayAssigned ? ((0, jsx_runtime_1.jsx)("div", { className: "mt-1.5 rounded-xl border border-brand-line/70 bg-brand-bg/50 px-3 py-2.5", children: (0, jsx_runtime_1.jsxs)("div", { className: "flex items-center gap-2.5", children: [assignedProducer?.avatar ? ((0, jsx_runtime_1.jsx)(Avatar_1.Avatar, { src: assignedProducer.avatar, alt: displayAssigned, size: "sm" })) : ((0, jsx_runtime_1.jsx)("span", { className: "flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-signature-soft text-[11px] font-bold text-brand-signature", children: displayAssigned.slice(0, 2) })), (0, jsx_runtime_1.jsxs)("div", { className: "min-w-0 flex-1", children: [(0, jsx_runtime_1.jsx)("p", { className: "text-[13px] font-semibold text-brand-ink", children: displayAssigned }), (0, jsx_runtime_1.jsx)("p", { className: "text-[11px] text-brand-ink-tertiary", children: isViewOnly ? "Assigned on MTD" : "Currently assigned" })] }), isViewOnly ? ((0, jsx_runtime_1.jsx)("span", { className: "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand-bg text-brand-ink-tertiary", children: (0, jsx_runtime_1.jsx)(lucide_react_1.Lock, { className: "h-3.5 w-3.5", strokeWidth: 2 }) })) : ((0, jsx_runtime_1.jsx)("button", { type: "button", onClick: handleUnassign, title: "Unassign editor", "aria-label": "Unassign editor", className: "inline-flex h-7 shrink-0 items-center justify-center rounded-lg border border-brand-line/70 bg-brand-elevated px-2.5 text-[11px] font-semibold text-brand-ink-secondary transition hover:border-brand-warning/40 hover:bg-brand-warning/10 hover:text-brand-warning", children: "Unassign" }))] }) })) : ((0, jsx_runtime_1.jsxs)("div", { className: "mt-1.5 rounded-xl border border-brand-line/70 bg-brand-bg/50 px-3 py-2.5", children: [(0, jsx_runtime_1.jsx)("p", { className: "text-[13px] font-medium text-brand-ink-tertiary", children: "No editor assigned" }), (0, jsx_runtime_1.jsx)("p", { className: "mt-1 text-[11px] text-brand-ink-tertiary", children: "Assign an editor on the Orders tab before moving to MTD." })] }))] }), showProducerBooking ? ((0, jsx_runtime_1.jsxs)("div", { className: "rounded-xl border border-brand-line/70 bg-brand-bg/40 px-3 py-2.5", children: [(0, jsx_runtime_1.jsx)("p", { className: "text-label", children: "Producer booking" }), (0, jsx_runtime_1.jsx)("p", { className: "mt-0.5 text-[11px] leading-snug text-brand-ink-tertiary", children: "Same as mix start & end in the table. Edit those columns to change this window." }), (0, jsx_runtime_1.jsxs)("dl", { className: "mt-2.5 space-y-1.5", children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex items-baseline justify-between gap-3 text-[12px]", children: [(0, jsx_runtime_1.jsx)("dt", { className: "text-brand-ink-tertiary", children: "From" }), (0, jsx_runtime_1.jsx)("dd", { className: "font-medium tabular-nums text-brand-ink", children: (0, dates_1.formatDisplayDate)(mixStartIso) })] }), (0, jsx_runtime_1.jsxs)("div", { className: "flex items-baseline justify-between gap-3 text-[12px]", children: [(0, jsx_runtime_1.jsx)("dt", { className: "text-brand-ink-tertiary", children: "Until" }), (0, jsx_runtime_1.jsx)("dd", { className: "font-medium tabular-nums text-brand-ink", children: (0, dates_1.formatDisplayDate)(mixEndIso) })] })] })] })) : null] }) })) : ((0, jsx_runtime_1.jsxs)("div", { className: "grid min-h-0 flex-1 lg:grid-cols-2", children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex min-h-0 flex-col border-b border-brand-line/60 bg-brand-bg/30 lg:border-b-0 lg:border-r", children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex shrink-0 items-center justify-between gap-3 px-6 pb-3 pt-5", children: [(0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsx)("p", { className: "text-label", children: "Next availability" }), (0, jsx_runtime_1.jsxs)("p", { className: "mt-0.5 text-[12px] text-brand-ink-tertiary", children: [genreLabel, " editors \u00B7", " ", isAssignmentLocked ? "locked while assigned" : "tap to select"] })] }), suggestionsByDate.length > 0 ? ((0, jsx_runtime_1.jsxs)("span", { className: "inline-flex items-center gap-1 rounded-full bg-brand-signature-soft px-2.5 py-1 text-[11px] font-semibold text-brand-signature", children: [(0, jsx_runtime_1.jsx)(lucide_react_1.CalendarDays, { className: "h-3 w-3", strokeWidth: 2 }), suggestionsByDate.length, " date", suggestionsByDate.length === 1 ? "" : "s"] })) : null] }), (0, jsx_runtime_1.jsx)(DottedScroll_1.DottedScroll, { className: "min-h-0 flex-1", scrollClassName: "max-h-[min(52vh,420px)] overflow-y-scroll scrollbar-hide px-6 pb-5", indicatorPlacement: "gutter", children: categoryEditors.length === 0 ? ((0, jsx_runtime_1.jsxs)("p", { className: "rounded-xl border border-brand-warning/30 bg-brand-warning/8 px-3 py-2 text-[13px] text-brand-warning", children: ["No producers specialize in ", genreLabel, ". Update a producer's category on the roster."] })) : suggestionsByDate.length === 0 ? ((0, jsx_runtime_1.jsxs)("p", { className: "rounded-xl border border-brand-warning/30 bg-brand-warning/8 px-3 py-2 text-[13px] text-brand-warning", children: ["All ", genreLabel, " editors are assigned. Pick from the list on the right if you need to reassign."] })) : ((0, jsx_runtime_1.jsx)("ol", { className: (0, clsx_1.default)("relative isolate space-y-3 before:absolute before:bottom-3 before:left-[22px] before:top-3 before:-z-10 before:w-px before:bg-brand-line", (isAssignmentLocked) &&
+    return ((0, jsx_runtime_1.jsxs)("div", { className: "fixed inset-0 z-50 flex items-center justify-center p-4", children: [(0, jsx_runtime_1.jsx)("button", { type: "button", className: "absolute inset-0 bg-brand-scrim backdrop-blur-sm", onClick: onClose, "aria-label": "Close" }), (0, jsx_runtime_1.jsxs)("div", { className: (0, clsx_1.default)("surface-premium relative flex max-h-[90vh] w-full flex-col rounded-2xl shadow-[var(--shadow-premium)]", showCompactAssigned ? "max-w-lg" : "max-w-3xl"), children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex shrink-0 items-start justify-between gap-4 border-b border-brand-line/60 px-6 py-5", children: [(0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsx)("p", { className: "text-label", children: "Editor assignment" }), (0, jsx_runtime_1.jsx)("h2", { className: "text-display mt-1 text-[18px]", children: showCompactAssigned ? "View assignment" : "Assign producer" }), (0, jsx_runtime_1.jsxs)("p", { className: "mt-1 text-[13px] text-brand-ink-secondary", children: [activeRecord.programName, (0, jsx_runtime_1.jsxs)("span", { className: "text-brand-ink-tertiary", children: [" ", "\u00B7 ", genreLabel, " specialists"] })] })] }), (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: onClose, className: "rounded-lg p-1.5 text-brand-ink-tertiary transition hover:bg-brand-bg hover:text-brand-ink", children: (0, jsx_runtime_1.jsx)(lucide_react_1.X, { className: "h-4 w-4" }) })] }), (0, jsx_runtime_1.jsx)("form", { onSubmit: handleSubmit, className: "flex min-h-0 flex-1 flex-col", children: showCompactAssigned ? ((0, jsx_runtime_1.jsx)("div", { className: "flex min-h-0 flex-col px-6 py-5", children: (0, jsx_runtime_1.jsxs)("div", { className: "space-y-5", children: [(0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsx)("p", { className: "text-label", children: "Editor" }), requestedEditor ? ((0, jsx_runtime_1.jsxs)("p", { className: "mt-0.5 text-[11px] text-brand-ink-tertiary", children: ["Requested:", " ", (0, jsx_runtime_1.jsx)("span", { className: "font-semibold text-brand-ink", children: requestedEditor })] })) : ((0, jsx_runtime_1.jsxs)("p", { className: "mt-0.5 text-[11px] text-brand-ink-tertiary", children: ["Requested:", " ", (0, jsx_runtime_1.jsx)("span", { className: "font-semibold text-brand-ink", children: "First available" })] })), displayAssigned ? ((0, jsx_runtime_1.jsx)("div", { className: "mt-1.5 rounded-xl border border-brand-line/70 bg-brand-bg/50 px-3 py-2.5", children: (0, jsx_runtime_1.jsxs)("div", { className: "flex items-center gap-2.5", children: [(0, jsx_runtime_1.jsx)(Avatar_1.Avatar, { producer: assignedProducer, initials: displayAssigned, size: "sm" }), (0, jsx_runtime_1.jsxs)("div", { className: "min-w-0 flex-1", children: [(0, jsx_runtime_1.jsx)("p", { className: "text-[13px] font-semibold text-brand-ink", children: displayAssigned }), (0, jsx_runtime_1.jsx)("p", { className: "text-[11px] text-brand-ink-tertiary", children: isViewOnly ? "Assigned on MTD" : "Currently assigned" })] }), isViewOnly ? ((0, jsx_runtime_1.jsx)("span", { className: "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand-bg text-brand-ink-tertiary", children: (0, jsx_runtime_1.jsx)(lucide_react_1.Lock, { className: "h-3.5 w-3.5", strokeWidth: 2 }) })) : ((0, jsx_runtime_1.jsx)("button", { type: "button", onClick: handleUnassign, title: "Unassign editor", "aria-label": "Unassign editor", className: "inline-flex h-7 shrink-0 items-center justify-center rounded-lg border border-brand-line/70 bg-brand-elevated px-2.5 text-[11px] font-semibold text-brand-ink-secondary transition hover:border-brand-warning/40 hover:bg-brand-warning/10 hover:text-brand-warning", children: "Unassign" }))] }) })) : ((0, jsx_runtime_1.jsxs)("div", { className: "mt-1.5 rounded-xl border border-brand-line/70 bg-brand-bg/50 px-3 py-2.5", children: [(0, jsx_runtime_1.jsx)("p", { className: "text-[13px] font-medium text-brand-ink-tertiary", children: "No editor assigned" }), (0, jsx_runtime_1.jsx)("p", { className: "mt-1 text-[11px] text-brand-ink-tertiary", children: "Assign an editor on the Orders tab before moving to MTD." })] }))] }), showProducerBooking ? ((0, jsx_runtime_1.jsxs)("div", { className: "rounded-xl border border-brand-line/70 bg-brand-bg/40 px-3 py-2.5", children: [(0, jsx_runtime_1.jsx)("p", { className: "text-label", children: "Producer booking" }), (0, jsx_runtime_1.jsx)("p", { className: "mt-0.5 text-[11px] leading-snug text-brand-ink-tertiary", children: "Same as mix start & end in the table. Edit those columns to change this window." }), (0, jsx_runtime_1.jsxs)("dl", { className: "mt-2.5 space-y-1.5", children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex items-baseline justify-between gap-3 text-[12px]", children: [(0, jsx_runtime_1.jsx)("dt", { className: "text-brand-ink-tertiary", children: "From" }), (0, jsx_runtime_1.jsx)("dd", { className: "font-medium tabular-nums text-brand-ink", children: (0, dates_1.formatDisplayDate)(mixStartIso) })] }), (0, jsx_runtime_1.jsxs)("div", { className: "flex items-baseline justify-between gap-3 text-[12px]", children: [(0, jsx_runtime_1.jsx)("dt", { className: "text-brand-ink-tertiary", children: "Until" }), (0, jsx_runtime_1.jsx)("dd", { className: "font-medium tabular-nums text-brand-ink", children: (0, dates_1.formatDisplayDate)(mixEndIso) })] })] })] })) : null] }) })) : ((0, jsx_runtime_1.jsxs)("div", { className: "grid min-h-0 flex-1 lg:grid-cols-2", children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex min-h-0 flex-col border-b border-brand-line/60 bg-brand-bg/30 lg:border-b-0 lg:border-r", children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex shrink-0 items-center justify-between gap-3 px-6 pb-3 pt-5", children: [(0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsx)("p", { className: "text-label", children: "Next availability" }), (0, jsx_runtime_1.jsxs)("p", { className: "mt-0.5 text-[12px] text-brand-ink-tertiary", children: [genreLabel, " editors \u00B7", " ", isAssignmentLocked ? "locked while assigned" : "tap to select"] })] }), suggestionsByDate.length > 0 ? ((0, jsx_runtime_1.jsxs)("span", { className: "inline-flex items-center gap-1 rounded-full bg-brand-signature-soft px-2.5 py-1 text-[11px] font-semibold text-brand-signature", children: [(0, jsx_runtime_1.jsx)(lucide_react_1.CalendarDays, { className: "h-3 w-3", strokeWidth: 2 }), suggestionsByDate.length, " date", suggestionsByDate.length === 1 ? "" : "s"] })) : null] }), (0, jsx_runtime_1.jsx)(DottedScroll_1.DottedScroll, { className: "min-h-0 flex-1", scrollClassName: "max-h-[min(52vh,420px)] overflow-y-scroll scrollbar-hide px-6 pb-5", indicatorPlacement: "gutter", children: categoryEditors.length === 0 ? ((0, jsx_runtime_1.jsxs)("p", { className: "rounded-xl border border-brand-warning/30 bg-brand-warning/8 px-3 py-2 text-[13px] text-brand-warning", children: ["No producers specialize in ", genreLabel, ". Update a producer's category on the roster."] })) : suggestionsByDate.length === 0 ? ((0, jsx_runtime_1.jsxs)("p", { className: "rounded-xl border border-brand-warning/30 bg-brand-warning/8 px-3 py-2 text-[13px] text-brand-warning", children: ["All ", genreLabel, " editors are assigned. Pick from the list on the right if you need to reassign."] })) : ((0, jsx_runtime_1.jsx)("ol", { className: (0, clsx_1.default)("relative isolate space-y-3 before:absolute before:bottom-3 before:left-[22px] before:top-3 before:-z-10 before:w-px before:bg-brand-line", (isAssignmentLocked) &&
                                                     "pointer-events-none opacity-45"), children: suggestionsByDate.map((group, index) => ((0, jsx_runtime_1.jsxs)("li", { className: "relative pl-12", children: [(0, jsx_runtime_1.jsxs)("span", { className: (0, clsx_1.default)("absolute left-0 top-3 z-10 flex h-11 w-11 flex-col items-center justify-center rounded-xl border bg-brand-elevated text-center shadow-sm", index === 0
                                                                 ? "border-brand-signature/40 ring-2 ring-brand-signature-soft"
                                                                 : "border-brand-line/80"), children: [(0, jsx_runtime_1.jsx)("span", { className: "text-[9px] font-semibold uppercase tracking-wide text-brand-ink-tertiary", children: group.weekday }), (0, jsx_runtime_1.jsx)("span", { className: "text-[15px] font-bold leading-none tabular-nums text-brand-ink", children: group.day }), group.month ? ((0, jsx_runtime_1.jsx)("span", { className: "mt-0.5 text-[9px] font-medium text-brand-ink-tertiary", children: group.month })) : null] }), (0, jsx_runtime_1.jsxs)("div", { className: "rounded-2xl border border-brand-line/70 bg-brand-elevated/80 p-3 shadow-[var(--shadow-premium-sm)]", children: [(0, jsx_runtime_1.jsxs)("div", { className: "mb-2.5 flex items-center justify-between gap-2", children: [(0, jsx_runtime_1.jsxs)("p", { className: "text-[12px] font-semibold text-brand-ink", children: [group.editors.length, " editor", group.editors.length === 1 ? "" : "s", " free"] }), index === 0 ? ((0, jsx_runtime_1.jsx)("span", { className: "rounded-full bg-brand-success/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-success", children: "Soonest" })) : null] }), (0, jsx_runtime_1.jsx)("div", { className: "flex flex-wrap gap-2", children: group.editors.map((suggestion) => {
                                                                         const selected = selectedEditor === suggestion.name;
                                                                         return ((0, jsx_runtime_1.jsxs)("button", { type: "button", onClick: () => setSelectedEditor(suggestion.name), className: (0, clsx_1.default)("inline-flex items-center gap-2 rounded-full border py-1 pl-1 pr-3 text-left transition", selected
                                                                                 ? "border-brand-signature bg-brand-signature-soft shadow-sm"
-                                                                                : "border-brand-line/70 bg-brand-bg/60 hover:border-brand-line hover:bg-brand-bg"), children: [suggestion.producer?.avatar ? ((0, jsx_runtime_1.jsx)(Avatar_1.Avatar, { src: suggestion.producer.avatar, alt: suggestion.name, size: "xs" })) : ((0, jsx_runtime_1.jsx)("span", { className: "flex h-6 w-6 items-center justify-center rounded-full bg-brand-bg-subtle text-[10px] font-bold text-brand-ink-secondary", children: suggestion.name.slice(0, 2) })), (0, jsx_runtime_1.jsx)("span", { className: "text-[12px] font-semibold text-brand-ink", children: suggestion.name })] }, suggestion.name));
+                                                                                : "border-brand-line/70 bg-brand-bg/60 hover:border-brand-line hover:bg-brand-bg"), children: [(0, jsx_runtime_1.jsx)(Avatar_1.Avatar, { producer: suggestion.producer, initials: suggestion.name, size: "xs" }), (0, jsx_runtime_1.jsx)("span", { className: "text-[12px] font-semibold text-brand-ink", children: suggestion.name })] }, suggestion.name));
                                                                     }) })] })] }, group.key))) })) })] }), (0, jsx_runtime_1.jsxs)("div", { className: "flex min-h-0 flex-col px-6 py-5", children: [(0, jsx_runtime_1.jsxs)("div", { className: "space-y-5", children: [(0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsx)("label", { className: "text-label", htmlFor: "editor-select", children: "Editor" }), requestedEditor ? ((0, jsx_runtime_1.jsxs)("p", { className: "mt-0.5 text-[11px] text-brand-ink-tertiary", children: ["Requested:", " ", (0, jsx_runtime_1.jsx)("span", { className: "font-semibold text-brand-ink", children: requestedEditor })] })) : ((0, jsx_runtime_1.jsxs)("p", { className: "mt-0.5 text-[11px] text-brand-ink-tertiary", children: ["Requested:", " ", (0, jsx_runtime_1.jsx)("span", { className: "font-semibold text-brand-ink", children: "First available" })] })), (0, jsx_runtime_1.jsx)(EditorSelectDropdown_1.EditorSelectDropdown, { id: "editor-select", value: selectedEditor, onChange: setSelectedEditor, groups: editorSelectGroups, requestedEditor: requestedEditor, disabled: categoryEditors.length === 0, emptyLabel: "No matching editors" })] }), showProducerBooking ? ((0, jsx_runtime_1.jsxs)("div", { className: "rounded-xl border border-brand-line/70 bg-brand-bg/40 px-3 py-2.5", children: [(0, jsx_runtime_1.jsx)("p", { className: "text-label", children: "Producer booking" }), (0, jsx_runtime_1.jsx)("p", { className: "mt-0.5 text-[11px] leading-snug text-brand-ink-tertiary", children: "Same as mix start & end in the table. Edit those columns to change this window." }), (0, jsx_runtime_1.jsxs)("dl", { className: "mt-2.5 space-y-1.5", children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex items-baseline justify-between gap-3 text-[12px]", children: [(0, jsx_runtime_1.jsx)("dt", { className: "text-brand-ink-tertiary", children: "From" }), (0, jsx_runtime_1.jsx)("dd", { className: "font-medium tabular-nums text-brand-ink", children: (0, dates_1.formatDisplayDate)(mixStartIso) })] }), (0, jsx_runtime_1.jsxs)("div", { className: "flex items-baseline justify-between gap-3 text-[12px]", children: [(0, jsx_runtime_1.jsx)("dt", { className: "text-brand-ink-tertiary", children: "Until" }), (0, jsx_runtime_1.jsx)("dd", { className: "font-medium tabular-nums text-brand-ink", children: (0, dates_1.formatDisplayDate)(mixEndIso) })] })] })] })) : null] }), (0, jsx_runtime_1.jsx)("div", { className: "mt-auto flex flex-wrap items-center justify-end gap-2 border-t border-brand-line/60 pt-5", children: (0, jsx_runtime_1.jsx)("button", { type: "submit", disabled: !canSubmit, className: "rounded-lg bg-brand-cta px-4 py-2 text-[13px] font-medium text-brand-cta-text transition hover:bg-brand-cta-hover disabled:cursor-not-allowed disabled:opacity-45", children: "Assign" }) })] })] })) })] })] }));
 }

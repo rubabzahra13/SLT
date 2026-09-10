@@ -1,6 +1,7 @@
 "use client";
 
 import type { Producer } from "@/types";
+import { Avatar } from "@/components/ui/Avatar";
 
 type DeleteProducerModalProps = {
   open: boolean;
@@ -21,7 +22,7 @@ export function DeleteProducerModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <button
         type="button"
-        className="absolute inset-0 bg-black/45 backdrop-blur-[2px]"
+        className="absolute inset-0 bg-brand-scrim backdrop-blur-sm"
         onClick={onClose}
         aria-label="Close"
       />
@@ -33,11 +34,9 @@ export function DeleteProducerModal({
         className="relative w-full max-w-[340px] overflow-hidden rounded-[22px] bg-brand-elevated shadow-[0_24px_80px_rgba(0,0,0,0.28)]"
       >
         <div className="px-6 pb-5 pt-7 text-center">
-          <img
-            src={producer.avatar}
-            alt=""
-            className="mx-auto h-16 w-16 rounded-full bg-brand-bg object-cover"
-          />
+          <div className="flex justify-center">
+            <Avatar producer={producer} size="xl" />
+          </div>
           <h2
             id="delete-producer-title"
             className="mt-4 text-[18px] font-semibold tracking-[-0.02em] text-brand-ink"

@@ -102,7 +102,7 @@ export function ProducerScheduleDrawer({
       <aside className="relative flex h-full w-full max-w-md flex-col border-l border-brand-line bg-brand-surface shadow-[var(--shadow-premium)]">
         <div className="flex items-start justify-between gap-4 border-b border-brand-line/70 p-5">
           <div className="flex items-center gap-3">
-            <Avatar src={producer.avatar} alt={producer.name} size="md" />
+            <Avatar producer={producer} size="md" />
             <div>
               <h2 className="text-display text-[17px]">{producer.name}</h2>
               <p className="mt-0.5 text-[12px] text-brand-ink-secondary">

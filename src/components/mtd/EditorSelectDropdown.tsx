@@ -63,14 +63,6 @@ function findGroupTone(
   return undefined;
 }
 
-function EditorInitials({ name }: { name: string }) {
-  return (
-    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-bg-subtle text-[11px] font-bold text-brand-ink-secondary">
-      {name.slice(0, 2)}
-    </span>
-  );
-}
-
 function EditorAvatar({
   name,
   producer,
@@ -78,10 +70,7 @@ function EditorAvatar({
   name: string;
   producer?: Producer;
 }) {
-  if (producer?.avatar) {
-    return <Avatar src={producer.avatar} alt={name} size="sm" />;
-  }
-  return <EditorInitials name={name} />;
+  return <Avatar producer={producer} initials={name} size="sm" />;
 }
 
 export function EditorSelectDropdown({
@@ -350,7 +339,7 @@ export function EditorSelectDropdown({
           selected ? (
             <EditorAvatar name={selected.name} producer={selected.producer} />
           ) : (
-            <EditorInitials name={displayName} />
+            <EditorAvatar name={displayName} />
           )
         ) : (
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-dashed border-brand-line-strong bg-brand-bg/60" />

@@ -36,6 +36,8 @@ import {
   cycleSongsItem,
   encodeEightCsState,
   encodeSongsState,
+  getCollectionItemsForCategory,
+  getSongsItems,
   parseEightCsState,
   parseSongsState,
 } from "@/lib/mtd-checklist";
@@ -368,8 +370,7 @@ export default function MTDDetailPage({
                       }
                     >
                       <Avatar
-                        src={assignedProducerObj.avatar}
-                        alt={assignedProducerObj.name}
+                        producer={assignedProducerObj}
                         size="xs"
                       />
                       <p className="truncate text-[12px] font-semibold text-brand-ink">
@@ -501,12 +502,7 @@ export default function MTDDetailPage({
             </FieldTile>
             <FieldTile label="Collections">
               <InlineTriStateCheckGroup
-                items={[
-                  { id: "cs", label: "CS", state: eightCsState.cs },
-                  { id: "video", label: "Video", state: eightCsState.video },
-                  { id: "form", label: "Form", state: eightCsState.form },
-                  { id: "mix", label: "Mix", state: eightCsState.mix },
-                ]}
+                items={getCollectionItemsForCategory(meta.formType, eightCsState)}
                 onCycle={(id) => {
                   const next = cycleEightCsItem(eightCsState, id as keyof typeof eightCsState);
                   const encoded = encodeEightCsState(next);
@@ -519,10 +515,7 @@ export default function MTDDetailPage({
             </FieldTile>
             <FieldTile label="Songs">
               <InlineTriStateCheckGroup
-                items={[
-                  { id: "songs", label: "Songs", state: songsState.songs },
-                  { id: "notes", label: "Notes", state: songsState.notes },
-                ]}
+                items={getSongsItems(songsState)}
                 onCycle={(id) => {
                   const next = cycleSongsItem(songsState, id as keyof typeof songsState);
                   const encoded = encodeSongsState(next);
