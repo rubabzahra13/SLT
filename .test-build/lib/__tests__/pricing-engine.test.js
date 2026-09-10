@@ -98,48 +98,34 @@ const pricing_engine_1 = require("../pricing-engine");
         strict_1.default.equal(result.payrollBasePrice, 0);
         strict_1.default.equal(result.matchedEntry, null);
     });
-    (0, node_test_1.describe)("Subtype-Specific MTD Controls Add-On Rules (Prompt 10)", () => {
-        (0, node_test_1.it)("School Cheer GOLD 2:00 with Rally Mix active adds $350 on top of package price for both customer and payroll", () => {
+    (0, node_test_1.describe)("Subtype-Specific MTD Controls Add-On Rules", () => {
+        (0, node_test_1.it)("School Cheer Rally Mix is priced as a standalone package at $350 customer / $350 payroll", () => {
+            const rallyResult = (0, pricing_engine_1.calculateCheerOrderPricing)({
+                cheerFormSubtype: "school-cheer-viroc-yes",
+                packageType: "Rally Mix",
+                musicAffiliate: "Power Music",
+            });
+            strict_1.default.equal(rallyResult.customerFacingPrice, 350);
+            strict_1.default.equal(rallyResult.payrollBasePrice, 350);
+            strict_1.default.equal(rallyResult.packageName, "RALLY MIX");
+        });
+        (0, node_test_1.it)("School Cheer GOLD 2:00 with Rush Fee (Single) adds $150 to payroll base price", () => {
             const baseResult = (0, pricing_engine_1.calculateCheerOrderPricing)({
                 cheerFormSubtype: "school-cheer-viroc-yes",
                 packageType: "GOLD 2:00",
                 musicAffiliate: "Power Music",
-                hasRallyMix: false,
+                rushFeeOption: "none",
             });
             strict_1.default.equal(baseResult.customerFacingPrice, 950);
             strict_1.default.equal(baseResult.payrollBasePrice, 850);
-            const rallyResult = (0, pricing_engine_1.calculateCheerOrderPricing)({
+            const rushResult = (0, pricing_engine_1.calculateCheerOrderPricing)({
                 cheerFormSubtype: "school-cheer-viroc-yes",
                 packageType: "GOLD 2:00",
                 musicAffiliate: "Power Music",
-                hasRallyMix: true,
+                rushFeeOption: "single",
             });
-            strict_1.default.equal(rallyResult.customerFacingPrice, 950); // 950 base (add-ons are separate)
-            strict_1.default.equal(rallyResult.payrollBasePrice, 1200); // 850 + 350
-            // Live 2-way toggle off returns to base
-            const toggledOff = (0, pricing_engine_1.calculateCheerOrderPricing)({
-                cheerFormSubtype: "school-cheer-viroc-yes",
-                packageType: "GOLD 2:00",
-                musicAffiliate: "Power Music",
-                hasRallyMix: false,
-            });
-            strict_1.default.equal(toggledOff.customerFacingPrice, 950);
-            strict_1.default.equal(toggledOff.payrollBasePrice, 850);
-        });
-        (0, node_test_1.it)("Rally Mix is ignored on All-Star Cheer and Youth Rec Cheer", () => {
-            const allStar = (0, pricing_engine_1.calculateCheerOrderPricing)({
-                cheerFormSubtype: "all-star-cheer",
-                packageType: "GOLD 2:00",
-                musicAffiliate: "Power Music",
-                hasRallyMix: true,
-            });
-            strict_1.default.equal(allStar.customerFacingPrice, 950);
-            const youthRec = (0, pricing_engine_1.calculateCheerOrderPricing)({
-                cheerFormSubtype: "youth-rec-cheer",
-                packageType: "BRONZE 2:00",
-                hasRallyMix: true,
-            });
-            strict_1.default.equal(youthRec.customerFacingPrice, 750);
+            strict_1.default.equal(rushResult.customerFacingPrice, 950);
+            strict_1.default.equal(rushResult.payrollBasePrice, 1000); // 850 + 150
         });
         (0, node_test_1.it)("Youth Rec Cheer BRONZE 2:00 with Extend-8ct ($25) and Processing-8ct-Sheets ($50)", () => {
             const extendOnly = (0, pricing_engine_1.calculateCheerOrderPricing)({

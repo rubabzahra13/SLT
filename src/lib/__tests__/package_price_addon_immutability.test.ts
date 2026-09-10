@@ -20,31 +20,29 @@ describe("Add-On Pricing Invariant Tests — Package Price Must Not Change", () 
     assert.equal(res.payrollBasePrice, 600);
   });
 
-  it("Test 2 — Rally Mix: Package Price remains $700 while Payroll Price includes +$350", () => {
+  it("Test 2 — Standalone Package Rally Mix: Package Price is $350 and Payroll Price is $350", () => {
+    const res = calculateCheerOrderPricing({
+      cheerFormSubtype: "school-cheer-viroc-yes",
+      packageType: "Rally Mix",
+      musicAffiliate: "Power Music",
+    });
+    assert.equal(res.customerFacingPrice, 350);
+    assert.equal(res.payrollBasePrice, 350);
+  });
+
+  it("Test 3 — Rush Fee Add-on: Package Price remains $700 while Payroll Price includes +$150 Rush Fee", () => {
     const res = calculateCheerOrderPricing({
       cheerFormSubtype: "school-cheer-viroc-yes",
       packageType: "GOLD 1:30",
       timeLengthOfMix: "1:30",
       musicAffiliate: "Power Music",
-      hasRallyMix: true,
+      rushFeeOption: "single",
     });
     assert.equal(res.customerFacingPrice, 700);
-    assert.equal(res.payrollBasePrice, 950); // $600 + $350
+    assert.equal(res.payrollBasePrice, 750); // $600 + $150
   });
 
-  it("Test 3 — Toggle Off: Package Price remains $700", () => {
-    const res = calculateCheerOrderPricing({
-      cheerFormSubtype: "school-cheer-viroc-yes",
-      packageType: "GOLD 1:30",
-      timeLengthOfMix: "1:30",
-      musicAffiliate: "Power Music",
-      hasRallyMix: false,
-    });
-    assert.equal(res.customerFacingPrice, 700);
-    assert.equal(res.payrollBasePrice, 600);
-  });
-
-  it("Test 4 — Toggle Repeatedly: ON -> OFF -> ON -> OFF -> ON stays $700 every time", () => {
+  it("Test 4 — Toggle Rush Fee: ON -> OFF -> ON stays $700 every time", () => {
     let state = false;
     for (let i = 0; i < 5; i++) {
       state = !state;
@@ -53,11 +51,11 @@ describe("Add-On Pricing Invariant Tests — Package Price Must Not Change", () 
         packageType: "GOLD 1:30",
         timeLengthOfMix: "1:30",
         musicAffiliate: "Power Music",
-        hasRallyMix: state,
+        rushFeeOption: state ? "single" : "none",
       });
       assert.equal(res.customerFacingPrice, 700, `Iteration ${i + 1} state=${state} failed`);
       if (state) {
-        assert.equal(res.payrollBasePrice, 950);
+        assert.equal(res.payrollBasePrice, 750);
       } else {
         assert.equal(res.payrollBasePrice, 600);
       }
@@ -85,7 +83,7 @@ describe("Add-On Pricing Invariant Tests — Package Price Must Not Change", () 
       hasThemedVoiceover: true,
     });
     assert.equal(danceRes.customerFacingPrice, 850);
-    assert.equal(danceRes.payrollBasePrice, 830); // $730 + $100
+    assert.equal(danceRes.payrollBasePrice, 730); // $730 (VO is internal payroll item)
 
     // Marching Band Add-ons
     const mbRes = calculateMarchingBandOrderPricing({
@@ -102,7 +100,7 @@ describe("Add-On Pricing Invariant Tests — Package Price Must Not Change", () 
       isRushOrder: "yes",
     });
     assert.equal(seRes.customerFacingPrice, 250);
-    assert.equal(seRes.payrollBasePrice, 350); // $250 + $100
+    assert.equal(seRes.payrollBasePrice, 400); // $250 + $150
   });
 
   it("Test 7 — Compliance & Non-Compliance: Compliance affects payroll base but Package Price is immutable", () => {
@@ -111,19 +109,19 @@ describe("Add-On Pricing Invariant Tests — Package Price Must Not Change", () 
       packageType: "GOLD 1:30",
       timeLengthOfMix: "1:30",
       musicAffiliate: "Power Music",
-      hasRallyMix: true,
+      rushFeeOption: "single",
     });
     assert.equal(compliantRes.customerFacingPrice, 700);
-    assert.equal(compliantRes.payrollBasePrice, 950); // $600 + $350
+    assert.equal(compliantRes.payrollBasePrice, 750); // $600 + $150
 
     const nonCompliantRes = calculateCheerOrderPricing({
       cheerFormSubtype: "school-cheer-viroc-yes",
       packageType: "GOLD 1:30",
       timeLengthOfMix: "1:30",
       musicAffiliate: "Unapproved Indie Song",
-      hasRallyMix: true,
+      rushFeeOption: "single",
     });
     assert.equal(nonCompliantRes.customerFacingPrice, 700);
-    assert.equal(nonCompliantRes.payrollBasePrice, 1050); // $700 non-compliant + $350
+    assert.equal(nonCompliantRes.payrollBasePrice, 850); // $700 non-compliant + $150
   });
 });

@@ -23,6 +23,9 @@ type FormState = {
   categories: string[];
   categoryRates: Record<string, number>;
   avatar: string;
+  danceVoiceoverRate: number;
+  cheerVoiceoverRate: number;
+  rushFeeRate: number;
 };
 
 const rowInput =
@@ -36,6 +39,9 @@ function emptyForm(): FormState {
     categories: [],
     categoryRates: {},
     avatar: "",
+    danceVoiceoverRate: 80,
+    cheerVoiceoverRate: 100,
+    rushFeeRate: 100,
   };
 }
 
@@ -53,6 +59,10 @@ function fromProducer(producer: Producer): FormState {
     categoryRates[cat] = raw <= 1 ? Math.round(raw * 100) : raw;
   }
 
+  const dVo = norm.danceVoiceoverRate ?? 0.8;
+  const cVo = norm.cheerVoiceoverRate ?? 1.0;
+  const rFee = norm.rushFeeRate ?? 1.0;
+
   return {
     name: norm.name,
     initials: norm.initials,
@@ -60,6 +70,9 @@ function fromProducer(producer: Producer): FormState {
     categories,
     categoryRates,
     avatar: norm.avatar,
+    danceVoiceoverRate: dVo <= 1 ? Math.round(dVo * 100) : dVo,
+    cheerVoiceoverRate: cVo <= 1 ? Math.round(cVo * 100) : cVo,
+    rushFeeRate: rFee <= 1 ? Math.round(rFee * 100) : rFee,
   };
 }
 
@@ -144,6 +157,21 @@ export function ProducerFormModal({
       }
     }
 
+    if (form.danceVoiceoverRate < 0 || form.danceVoiceoverRate > 100) {
+      setValidationError("Dance Voiceover rate must be between 0% and 100%.");
+      return;
+    }
+
+    if (form.cheerVoiceoverRate < 0 || form.cheerVoiceoverRate > 100) {
+      setValidationError("Cheer Voiceover rate must be between 0% and 100%.");
+      return;
+    }
+
+    if (form.rushFeeRate < 0 || form.rushFeeRate > 100) {
+      setValidationError("Rush Fee rate must be between 0% and 100%.");
+      return;
+    }
+
     const categories = form.categories;
     const specialty = categories[0] ?? "";
     const ratesByCategory: Record<string, number> = {};
@@ -153,11 +181,15 @@ export function ProducerFormModal({
       ratesByCategory[cat] = val > 1 ? val / 100 : val;
     }
 
+    const danceVoiceoverRate = form.danceVoiceoverRate > 1 ? form.danceVoiceoverRate / 100 : form.danceVoiceoverRate;
+    const cheerVoiceoverRate = form.cheerVoiceoverRate > 1 ? form.cheerVoiceoverRate / 100 : form.cheerVoiceoverRate;
+    const rushFeeRate = form.rushFeeRate > 1 ? form.rushFeeRate / 100 : form.rushFeeRate;
+
     onSave({
       id: producer?.id || `prod-${Date.now()}`,
       name: form.name.trim(),
       initials,
-      email: form.email.trim().toLowerCase(),
+      email: form.email.trim(),
       categories,
       specialty,
       avatar: form.avatar,
@@ -170,6 +202,9 @@ export function ProducerFormModal({
       maxProducerCostPerDay: producer?.maxProducerCostPerDay ?? null,
       overtimeDays: producer?.overtimeDays ?? [],
       ratesByCategory,
+      danceVoiceoverRate,
+      cheerVoiceoverRate,
+      rushFeeRate,
       compensationModel: producer?.compensationModel ?? "percentage_of_payroll_base",
     });
     onClose();
@@ -343,6 +378,108 @@ export function ProducerFormModal({
                   })}
                 </ul>
               )}
+            </div>
+
+            <div className="mt-4 rounded-2xl bg-brand-bg px-4 py-3 ring-1 ring-inset ring-black/[0.06]">
+              <div>
+                <p className="text-[13px] font-semibold text-brand-ink">
+                  Voiceover compensation
+                </p>
+                <p className="mt-0.5 text-[12px] text-brand-ink-tertiary">
+                  Specific rates for Voiceover payouts.
+                </p>
+              </div>
+              <ul className="mt-3 divide-y divide-black/[0.06]">
+                <li className="flex items-center justify-between py-2 text-[13px] first:pt-0 last:pb-0">
+                  <span className="font-medium text-brand-ink-secondary">
+                    Dance Voiceover
+                  </span>
+                  <div className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-brand-elevated px-2 py-1 ring-1 ring-inset ring-black/[0.06] focus-within:ring-brand-blue/30">
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={1}
+                      value={form.danceVoiceoverRate}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value);
+                        setForm((prev) => ({
+                          ...prev,
+                          danceVoiceoverRate: isNaN(val) ? 0 : val,
+                        }));
+                      }}
+                      className="w-10 bg-transparent text-right text-[13px] font-semibold tabular-nums text-brand-ink outline-none"
+                      aria-label="Dance Voiceover compensation percentage"
+                    />
+                    <span className="text-[12px] font-semibold text-brand-ink-tertiary">
+                      %
+                    </span>
+                  </div>
+                </li>
+                <li className="flex items-center justify-between py-2 text-[13px] first:pt-0 last:pb-0">
+                  <span className="font-medium text-brand-ink-secondary">
+                    Cheer Voiceover
+                  </span>
+                  <div className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-brand-elevated px-2 py-1 ring-1 ring-inset ring-black/[0.06] focus-within:ring-brand-blue/30">
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={1}
+                      value={form.cheerVoiceoverRate}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value);
+                        setForm((prev) => ({
+                          ...prev,
+                          cheerVoiceoverRate: isNaN(val) ? 0 : val,
+                        }));
+                      }}
+                      className="w-10 bg-transparent text-right text-[13px] font-semibold tabular-nums text-brand-ink outline-none"
+                      aria-label="Cheer Voiceover compensation percentage"
+                    />
+                    <span className="text-[12px] font-semibold text-brand-ink-tertiary">
+                      %
+                    </span>
+                  </div>
+                </li>
+              </ul>
+            </div>
+
+            <div className="mt-4 rounded-2xl bg-brand-bg px-4 py-3 ring-1 ring-inset ring-black/[0.06]">
+              <div>
+                <p className="text-[13px] font-semibold text-brand-ink">
+                  Rush fee compensation
+                </p>
+                <p className="mt-0.5 text-[12px] text-brand-ink-tertiary">
+                  Default rate for Rush Fee payouts.
+                </p>
+              </div>
+              <div className="mt-3 flex items-center justify-between py-1 text-[13px]">
+                <span className="font-medium text-brand-ink-secondary">
+                  Rush Fee Compensation
+                </span>
+                <div className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-brand-elevated px-2 py-1 ring-1 ring-inset ring-black/[0.06] focus-within:ring-brand-blue/30">
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step={1}
+                    value={form.rushFeeRate}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value);
+                      setForm((prev) => ({
+                        ...prev,
+                        rushFeeRate: isNaN(val) ? 0 : val,
+                      }));
+                    }}
+                    className="w-10 bg-transparent text-right text-[13px] font-semibold tabular-nums text-brand-ink outline-none"
+                    aria-label="Rush Fee compensation percentage"
+                  />
+                  <span className="text-[12px] font-semibold text-brand-ink-tertiary">
+                    %
+                  </span>
+                </div>
+              </div>
             </div>
           </section>
 

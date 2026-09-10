@@ -31,65 +31,35 @@ describe("MTD Miscellaneous Payroll Items & Add-On Pricing", () => {
     price: 850,
   };
 
-  describe("1. Dance Voiceover Pricing & State", () => {
-    it("Default unselected voiceover has $0 payroll impact", () => {
+  describe("1. Dance Voiceover Removal from MTD Pricing", () => {
+    it("Default unselected voiceover has $0 payroll impact in MTD", () => {
       const res = calculateMiscellaneousPayrollAddons(baseDanceRecord);
       assert.equal(res.totalPayrollAddOns, 0);
       assert.equal(res.items.length, 0);
     });
 
-    it("Traditional (+$25) voiceover adds $25 to payroll", () => {
-      const rec = { ...baseDanceRecord, danceVoiceover: "25" as const };
-      const res = calculateMiscellaneousPayrollAddons(rec);
-      assert.equal(res.totalPayrollAddOns, 25);
-      assert.equal(res.items[0].payrollAmount, 25);
-      assert.equal(res.items[0].id, "dance_vo_25");
-    });
+    it("Voiceover options have $0 impact in MTD (Voiceover is internal to Payroll)", () => {
+      const rec25 = { ...baseDanceRecord, danceVoiceover: "25" as const };
+      assert.equal(calculateMiscellaneousPayrollAddons(rec25).totalPayrollAddOns, 0);
 
-    it("Themed (+$75) voiceover adds $75 to payroll", () => {
-      const rec = { ...baseDanceRecord, danceVoiceover: "75" as const };
-      const res = calculateMiscellaneousPayrollAddons(rec);
-      assert.equal(res.totalPayrollAddOns, 75);
-      assert.equal(res.items[0].payrollAmount, 75);
-      assert.equal(res.items[0].id, "dance_vo_75");
-    });
+      const rec75 = { ...baseDanceRecord, danceVoiceover: "75" as const };
+      assert.equal(calculateMiscellaneousPayrollAddons(rec75).totalPayrollAddOns, 0);
 
-    it("Both (+$100) voiceover adds $100 to payroll", () => {
-      const rec = { ...baseDanceRecord, danceVoiceover: "100" as const };
-      const res = calculateMiscellaneousPayrollAddons(rec);
-      assert.equal(res.totalPayrollAddOns, 100);
-      assert.equal(res.items[0].payrollAmount, 100);
-      assert.equal(res.items[0].id, "dance_vo_100");
+      const rec100 = { ...baseDanceRecord, danceVoiceover: "100" as const };
+      assert.equal(calculateMiscellaneousPayrollAddons(rec100).totalPayrollAddOns, 0);
     });
   });
 
-  describe("2. Cheer Voiceover Pricing & Independent Selection", () => {
-    it("No cheer voiceover selected", () => {
-      const res = calculateMiscellaneousPayrollAddons(baseCheerRecord);
-      assert.equal(res.totalPayrollAddOns, 0);
-    });
+  describe("2. Cheer Voiceover Removal from MTD Pricing", () => {
+    it("Cheer voiceover options have $0 impact in MTD (Voiceover is internal to Payroll)", () => {
+      const rec20 = { ...baseCheerRecord, cheerVoiceover20: true };
+      assert.equal(calculateMiscellaneousPayrollAddons(rec20).totalPayrollAddOns, 0);
 
-    it("$20 Cheer Voiceover option selected", () => {
-      const rec = { ...baseCheerRecord, cheerVoiceover20: true };
-      const res = calculateMiscellaneousPayrollAddons(rec);
-      assert.equal(res.totalPayrollAddOns, 20);
-      assert.equal(res.items[0].payrollAmount, 20);
-      assert.equal(res.items[0].id, "cheer_vo_20");
-    });
+      const rec40 = { ...baseCheerRecord, cheerVoiceover40: true };
+      assert.equal(calculateMiscellaneousPayrollAddons(rec40).totalPayrollAddOns, 0);
 
-    it("$40 Cheer Voiceover option selected", () => {
-      const rec = { ...baseCheerRecord, cheerVoiceover40: true };
-      const res = calculateMiscellaneousPayrollAddons(rec);
-      assert.equal(res.totalPayrollAddOns, 40);
-      assert.equal(res.items[0].payrollAmount, 40);
-      assert.equal(res.items[0].id, "cheer_vo_40");
-    });
-
-    it("Both $20 and $40 Cheer Voiceover options selected for $60 total", () => {
-      const rec = { ...baseCheerRecord, cheerVoiceover20: true, cheerVoiceover40: true };
-      const res = calculateMiscellaneousPayrollAddons(rec);
-      assert.equal(res.totalPayrollAddOns, 60);
-      assert.equal(res.items.length, 2);
+      const recBoth = { ...baseCheerRecord, cheerVoiceover20: true, cheerVoiceover40: true };
+      assert.equal(calculateMiscellaneousPayrollAddons(recBoth).totalPayrollAddOns, 0);
     });
   });
 
@@ -105,7 +75,7 @@ describe("MTD Miscellaneous Payroll Items & Add-On Pricing", () => {
       const res = calculateMiscellaneousPayrollAddons(rec);
       assert.equal(res.totalPayrollAddOns, 150);
       assert.equal(res.items[0].payrollAmount, 150);
-      assert.equal(res.items[0].id, "rush_fee_single");
+      assert.equal(res.items[0].id, "rush_fee");
     });
 
     it("Double Rush fee = $300", () => {
@@ -113,7 +83,7 @@ describe("MTD Miscellaneous Payroll Items & Add-On Pricing", () => {
       const res = calculateMiscellaneousPayrollAddons(rec);
       assert.equal(res.totalPayrollAddOns, 300);
       assert.equal(res.items[0].payrollAmount, 300);
-      assert.equal(res.items[0].id, "rush_fee_double");
+      assert.equal(res.items[0].id, "rush_fee");
     });
 
     it("Switching from Single to Double replaces $150 with $300 (no accumulation)", () => {
@@ -169,8 +139,8 @@ describe("MTD Miscellaneous Payroll Items & Add-On Pricing", () => {
       };
 
       const res = calculateMiscellaneousPayrollAddons(fullRecord);
-      // 75 (VO) + 150 (Rush) + 50 (8-CS) + 25 (Extend) + 45 (3 Songs) + 90 (3 Editing Time) = 435
-      assert.equal(res.totalPayrollAddOns, 435);
+      // 150 (Rush) + 50 (8-CS) + 25 (Extend) + 45 (3 Songs) + 90 (3 Editing Time) = 360
+      assert.equal(res.totalPayrollAddOns, 360);
     });
   });
 
@@ -195,10 +165,10 @@ describe("MTD Miscellaneous Payroll Items & Add-On Pricing", () => {
       // Customer Facing Price MUST be identical!
       assert.equal(addOnPricing.customerFacingPrice, basePricing.customerFacingPrice);
 
-      // Payroll Base Price MUST reflect add-ons!
+      // Payroll Base Price MUST reflect MTD add-ons (300 rush + 60 songs + 120 editing time)!
       assert.equal(
         addOnPricing.payrollBasePrice,
-        basePricing.payrollBasePrice + 75 + 300 + 60 + 120
+        basePricing.payrollBasePrice + 300 + 60 + 120
       );
     });
 
@@ -223,14 +193,14 @@ describe("MTD Miscellaneous Payroll Items & Add-On Pricing", () => {
       // Customer Facing Price MUST be identical!
       assert.equal(addOnPricing.customerFacingPrice, basePricing.customerFacingPrice);
 
-      // Payroll Base Price MUST reflect add-ons! (20 + 40 + 150 + 30 + 60 = 300)
+      // Payroll Base Price MUST reflect MTD add-ons (150 rush fee; extra songs are removed from Cheer)!
       assert.equal(
         addOnPricing.payrollBasePrice,
-        basePricing.payrollBasePrice + 300
+        basePricing.payrollBasePrice + 150
       );
     });
 
-    it("Gameday PERFORMANCE MIX with Themed VO (+75), 6 Extra Songs (+90), 4 Extra Editing Time (+120) yields $370 Payroll Price and $100 Package Price", () => {
+    it("Gameday PERFORMANCE MIX with Themed VO (+75), 6 Extra Songs (+90), 4 Extra Editing Time (+120) yields $295 MTD Payroll Base Price and $100 Package Price", () => {
       const res = calculateDanceOrderPricing({
         danceFormSubtype: "gameday",
         packageType: "PERFORMANCE MIX",
@@ -242,8 +212,8 @@ describe("MTD Miscellaneous Payroll Items & Add-On Pricing", () => {
 
       // Base customer price = 100
       assert.equal(res.customerFacingPrice, 100);
-      // Base compliant payroll price (85) + 75 + 90 + 120 = 370
-      assert.equal(res.payrollBasePrice, 370);
+      // Base compliant payroll price (85) + 90 + 120 = 295
+      assert.equal(res.payrollBasePrice, 295);
     });
   });
 });

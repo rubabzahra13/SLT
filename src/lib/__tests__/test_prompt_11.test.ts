@@ -36,21 +36,15 @@ describe("Prompt 11 — Completion Modal Pricing Breakdown + Coupon Integration"
     assert.equal(couponEval.match?.code, "AUSTIN2026");
   });
 
-  it("Subtype 2 (School Cheer VIROC Yes): GOLD 2:00 ($950) + Rally Mix ($350) = $950 customer / $1,200 payroll", () => {
-    const order = CHEER_DEMO_ORDERS.find((o) => o.id === "ord-demo-cheer-14")!;
-    assert.ok(order);
-    assert.equal(order.cheerFormSubtype, "school-cheer-viroc-yes");
-
+  it("Subtype 2 (School Cheer viroc Yes): Rally Mix package = $350 customer / $350 payroll", () => {
     const pricing = calculateCheerOrderPricing({
-      cheerFormSubtype: order.cheerFormSubtype!,
-      packageType: order.packageType!,
-      timeLengthOfMix: order.timeLengthOfMix,
-      musicAffiliate: order.musicAffiliate,
-      hasRallyMix: true,
+      cheerFormSubtype: "school-cheer-viroc-yes",
+      packageType: "Rally Mix",
+      musicAffiliate: "Power Music",
     });
 
-    assert.equal(pricing.customerFacingPrice, 950); // 950 base (add-ons are separate)
-    assert.equal(pricing.payrollBasePrice, 1200); // 850 + 350
+    assert.equal(pricing.customerFacingPrice, 350);
+    assert.equal(pricing.payrollBasePrice, 350);
     assert.equal(pricing.complianceStatus, "compliant");
   });
 

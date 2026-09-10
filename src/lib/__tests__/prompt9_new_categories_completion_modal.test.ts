@@ -34,8 +34,9 @@ describe("Prompt 9 — New Categories Completion Modal Pricing & Coupon Integrat
       assert.equal(couponEval.match?.discountValue, 50);
 
       const discountAmount = couponEval.match?.discountValue || 0;
-      const finalCustPrice = Math.max(0, result.customerFacingPrice - discountAmount);
-      assert.equal(finalCustPrice, 550);
+      const displayCustomerPrice = Math.max(0, result.customerFacingPrice - discountAmount);
+      assert.equal(displayCustomerPrice, 550);
+      assert.equal(result.customerFacingPrice, 600); // Package Price remains $600
     });
 
     it("surfaces explicit unknown-no-affiliate-field state for Band Chant and Drum Cadence", () => {
@@ -56,7 +57,7 @@ describe("Prompt 9 — New Categories Completion Modal Pricing & Coupon Integrat
 
       assert.equal(result.matchedEntry?.customer, 250);
       assert.equal(result.hasRushFee, true);
-      assert.equal(result.rushFeeAmount, 100);
+      assert.equal(result.rushFeeAmount, 150);
       assert.equal(result.customerFacingPrice, 250); // Base package price $250
       assert.equal(result.isUnpriced, false);
       assert.equal(result.needsManualQuote, false);
@@ -91,8 +92,9 @@ describe("Prompt 9 — New Categories Completion Modal Pricing & Coupon Integrat
       const discountAmount = Math.round(result.payrollBasePrice * (discountPct / 100));
       assert.equal(discountAmount, 125);
 
-      const finalPrice = result.customerFacingPrice - discountAmount;
-      assert.equal(finalPrice, 1125);
+      const displayCustomerPrice = result.customerFacingPrice - discountAmount;
+      assert.equal(displayCustomerPrice, 1125);
+      assert.equal(result.customerFacingPrice, 1250); // Package Price remains $1,250
     });
   });
 });

@@ -23,6 +23,9 @@ function emptyForm() {
         categories: [],
         categoryRates: {},
         avatar: "",
+        danceVoiceoverRate: 80,
+        cheerVoiceoverRate: 100,
+        rushFeeRate: 100,
     };
 }
 function fromProducer(producer) {
@@ -37,6 +40,9 @@ function fromProducer(producer) {
         const raw = norm.ratesByCategory?.[cat] ?? norm.defaultRate ?? 0.50;
         categoryRates[cat] = raw <= 1 ? Math.round(raw * 100) : raw;
     }
+    const dVo = norm.danceVoiceoverRate ?? 0.8;
+    const cVo = norm.cheerVoiceoverRate ?? 1.0;
+    const rFee = norm.rushFeeRate ?? 1.0;
     return {
         name: norm.name,
         initials: norm.initials,
@@ -44,6 +50,9 @@ function fromProducer(producer) {
         categories,
         categoryRates,
         avatar: norm.avatar,
+        danceVoiceoverRate: dVo <= 1 ? Math.round(dVo * 100) : dVo,
+        cheerVoiceoverRate: cVo <= 1 ? Math.round(cVo * 100) : cVo,
+        rushFeeRate: rFee <= 1 ? Math.round(rFee * 100) : rFee,
     };
 }
 function ProducerFormModal({ open, onClose, producer, onSave, }) {
@@ -117,6 +126,18 @@ function ProducerFormModal({ open, onClose, producer, onSave, }) {
                 return;
             }
         }
+        if (form.danceVoiceoverRate < 0 || form.danceVoiceoverRate > 100) {
+            setValidationError("Dance Voiceover rate must be between 0% and 100%.");
+            return;
+        }
+        if (form.cheerVoiceoverRate < 0 || form.cheerVoiceoverRate > 100) {
+            setValidationError("Cheer Voiceover rate must be between 0% and 100%.");
+            return;
+        }
+        if (form.rushFeeRate < 0 || form.rushFeeRate > 100) {
+            setValidationError("Rush Fee rate must be between 0% and 100%.");
+            return;
+        }
         const categories = form.categories;
         const specialty = categories[0] ?? "";
         const ratesByCategory = {};
@@ -124,11 +145,14 @@ function ProducerFormModal({ open, onClose, producer, onSave, }) {
             const val = form.categoryRates[cat] ?? 50;
             ratesByCategory[cat] = val > 1 ? val / 100 : val;
         }
+        const danceVoiceoverRate = form.danceVoiceoverRate > 1 ? form.danceVoiceoverRate / 100 : form.danceVoiceoverRate;
+        const cheerVoiceoverRate = form.cheerVoiceoverRate > 1 ? form.cheerVoiceoverRate / 100 : form.cheerVoiceoverRate;
+        const rushFeeRate = form.rushFeeRate > 1 ? form.rushFeeRate / 100 : form.rushFeeRate;
         onSave({
             id: producer?.id || `prod-${Date.now()}`,
             name: form.name.trim(),
             initials,
-            email: form.email.trim().toLowerCase(),
+            email: form.email.trim(),
             categories,
             specialty,
             avatar: form.avatar,
@@ -141,6 +165,9 @@ function ProducerFormModal({ open, onClose, producer, onSave, }) {
             maxProducerCostPerDay: producer?.maxProducerCostPerDay ?? null,
             overtimeDays: producer?.overtimeDays ?? [],
             ratesByCategory,
+            danceVoiceoverRate,
+            cheerVoiceoverRate,
+            rushFeeRate,
             compensationModel: producer?.compensationModel ?? "percentage_of_payroll_base",
         });
         onClose();
@@ -160,13 +187,31 @@ function ProducerFormModal({ open, onClose, producer, onSave, }) {
                                                     ...form,
                                                     initials: e.target.value.toUpperCase(),
                                                 });
-                                            }, placeholder: "CA", className: (0, clsx_1.default)(rowInput, "tracking-[0.08em]") }) }), (0, jsx_runtime_1.jsx)(ProfileRow, { label: "Email", children: (0, jsx_runtime_1.jsx)("input", { required: true, type: "email", value: form.email, onChange: (e) => setForm({ ...form, email: e.target.value }), placeholder: "Email", className: rowInput }) })] }), (0, jsx_runtime_1.jsx)("section", { className: "px-5 py-4", children: (0, jsx_runtime_1.jsxs)("div", { className: "rounded-2xl bg-brand-bg px-4 py-3 ring-1 ring-inset ring-black/[0.06]", children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex items-start justify-between gap-3", children: [(0, jsx_runtime_1.jsxs)("div", { className: "min-w-0", children: [(0, jsx_runtime_1.jsx)("p", { className: "text-[13px] font-semibold text-brand-ink", children: "Category compensation" }), (0, jsx_runtime_1.jsx)("p", { className: "mt-0.5 text-[12px] text-brand-ink-tertiary", children: "Payroll percentage by category." })] }), (0, jsx_runtime_1.jsx)(ProducerCategoryAddMenu_1.ProducerCategoryAddMenu, { assignedCategories: form.categories, onAdd: addCategory })] }), form.categories.length === 0 ? ((0, jsx_runtime_1.jsx)("p", { className: "mt-3 text-[12px] leading-relaxed text-brand-ink-tertiary", children: "No categories assigned yet. Tap Add to pick a category and subcategory." })) : ((0, jsx_runtime_1.jsx)("ul", { className: "mt-3 divide-y divide-black/[0.06]", children: form.categories.map((cat) => {
-                                                const group = (0, producer_category_groups_1.findProducerCategoryGroup)(cat);
-                                                return ((0, jsx_runtime_1.jsxs)("li", { className: "flex items-center gap-2 py-2.5 text-[13px] first:pt-0 last:pb-0", children: [(0, jsx_runtime_1.jsxs)("div", { className: "min-w-0 flex-1", children: [(0, jsx_runtime_1.jsx)("p", { className: "truncate font-medium text-brand-ink-secondary", children: cat }), group ? ((0, jsx_runtime_1.jsx)("p", { className: "truncate text-[11px] text-brand-ink-tertiary", children: group.label })) : null] }), (0, jsx_runtime_1.jsxs)("div", { className: "inline-flex shrink-0 items-center gap-1 rounded-lg bg-brand-elevated px-2 py-1 ring-1 ring-inset ring-black/[0.06] focus-within:ring-brand-blue/30", children: [(0, jsx_runtime_1.jsx)("input", { type: "number", min: 0, max: 100, step: 1, value: form.categoryRates[cat] ?? "", onChange: (e) => {
-                                                                        const val = parseFloat(e.target.value);
-                                                                        updateCategoryRate(cat, isNaN(val) ? 0 : val);
-                                                                    }, className: "w-10 bg-transparent text-right text-[13px] font-semibold tabular-nums text-brand-ink outline-none", "aria-label": `Compensation percentage for ${cat}` }), (0, jsx_runtime_1.jsx)("span", { className: "text-[12px] font-semibold text-brand-ink-tertiary", children: "%" })] }), (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: () => removeCategory(cat), className: "shrink-0 rounded-full p-1.5 text-brand-ink-tertiary transition hover:bg-brand-elevated hover:text-brand-danger", "aria-label": `Remove ${cat}`, children: (0, jsx_runtime_1.jsx)(lucide_react_1.Trash2, { className: "h-3.5 w-3.5", strokeWidth: 1.75 }) })] }, cat));
-                                            }) }))] }) }), (0, jsx_runtime_1.jsx)("div", { className: "flex justify-center pb-5 pt-6 sm:hidden", children: (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: onClose, className: "rounded-full bg-brand-bg p-2 text-brand-ink-tertiary", "aria-label": "Close", children: (0, jsx_runtime_1.jsx)(lucide_react_1.X, { className: "h-4 w-4" }) }) })] })] })] }));
+                                            }, placeholder: "CA", className: (0, clsx_1.default)(rowInput, "tracking-[0.08em]") }) }), (0, jsx_runtime_1.jsx)(ProfileRow, { label: "Email", children: (0, jsx_runtime_1.jsx)("input", { required: true, type: "email", value: form.email, onChange: (e) => setForm({ ...form, email: e.target.value }), placeholder: "Email", className: rowInput }) })] }), (0, jsx_runtime_1.jsxs)("section", { className: "px-5 py-4", children: [(0, jsx_runtime_1.jsxs)("div", { className: "rounded-2xl bg-brand-bg px-4 py-3 ring-1 ring-inset ring-black/[0.06]", children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex items-start justify-between gap-3", children: [(0, jsx_runtime_1.jsxs)("div", { className: "min-w-0", children: [(0, jsx_runtime_1.jsx)("p", { className: "text-[13px] font-semibold text-brand-ink", children: "Category compensation" }), (0, jsx_runtime_1.jsx)("p", { className: "mt-0.5 text-[12px] text-brand-ink-tertiary", children: "Payroll percentage by category." })] }), (0, jsx_runtime_1.jsx)(ProducerCategoryAddMenu_1.ProducerCategoryAddMenu, { assignedCategories: form.categories, onAdd: addCategory })] }), form.categories.length === 0 ? ((0, jsx_runtime_1.jsx)("p", { className: "mt-3 text-[12px] leading-relaxed text-brand-ink-tertiary", children: "No categories assigned yet. Tap Add to pick a category and subcategory." })) : ((0, jsx_runtime_1.jsx)("ul", { className: "mt-3 divide-y divide-black/[0.06]", children: form.categories.map((cat) => {
+                                                    const group = (0, producer_category_groups_1.findProducerCategoryGroup)(cat);
+                                                    return ((0, jsx_runtime_1.jsxs)("li", { className: "flex items-center gap-2 py-2.5 text-[13px] first:pt-0 last:pb-0", children: [(0, jsx_runtime_1.jsxs)("div", { className: "min-w-0 flex-1", children: [(0, jsx_runtime_1.jsx)("p", { className: "truncate font-medium text-brand-ink-secondary", children: cat }), group ? ((0, jsx_runtime_1.jsx)("p", { className: "truncate text-[11px] text-brand-ink-tertiary", children: group.label })) : null] }), (0, jsx_runtime_1.jsxs)("div", { className: "inline-flex shrink-0 items-center gap-1 rounded-lg bg-brand-elevated px-2 py-1 ring-1 ring-inset ring-black/[0.06] focus-within:ring-brand-blue/30", children: [(0, jsx_runtime_1.jsx)("input", { type: "number", min: 0, max: 100, step: 1, value: form.categoryRates[cat] ?? "", onChange: (e) => {
+                                                                            const val = parseFloat(e.target.value);
+                                                                            updateCategoryRate(cat, isNaN(val) ? 0 : val);
+                                                                        }, className: "w-10 bg-transparent text-right text-[13px] font-semibold tabular-nums text-brand-ink outline-none", "aria-label": `Compensation percentage for ${cat}` }), (0, jsx_runtime_1.jsx)("span", { className: "text-[12px] font-semibold text-brand-ink-tertiary", children: "%" })] }), (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: () => removeCategory(cat), className: "shrink-0 rounded-full p-1.5 text-brand-ink-tertiary transition hover:bg-brand-elevated hover:text-brand-danger", "aria-label": `Remove ${cat}`, children: (0, jsx_runtime_1.jsx)(lucide_react_1.Trash2, { className: "h-3.5 w-3.5", strokeWidth: 1.75 }) })] }, cat));
+                                                }) }))] }), (0, jsx_runtime_1.jsxs)("div", { className: "mt-4 rounded-2xl bg-brand-bg px-4 py-3 ring-1 ring-inset ring-black/[0.06]", children: [(0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsx)("p", { className: "text-[13px] font-semibold text-brand-ink", children: "Voiceover compensation" }), (0, jsx_runtime_1.jsx)("p", { className: "mt-0.5 text-[12px] text-brand-ink-tertiary", children: "Specific rates for Voiceover payouts." })] }), (0, jsx_runtime_1.jsxs)("ul", { className: "mt-3 divide-y divide-black/[0.06]", children: [(0, jsx_runtime_1.jsxs)("li", { className: "flex items-center justify-between py-2 text-[13px] first:pt-0 last:pb-0", children: [(0, jsx_runtime_1.jsx)("span", { className: "font-medium text-brand-ink-secondary", children: "Dance Voiceover" }), (0, jsx_runtime_1.jsxs)("div", { className: "inline-flex shrink-0 items-center gap-1 rounded-lg bg-brand-elevated px-2 py-1 ring-1 ring-inset ring-black/[0.06] focus-within:ring-brand-blue/30", children: [(0, jsx_runtime_1.jsx)("input", { type: "number", min: 0, max: 100, step: 1, value: form.danceVoiceoverRate, onChange: (e) => {
+                                                                            const val = parseFloat(e.target.value);
+                                                                            setForm((prev) => ({
+                                                                                ...prev,
+                                                                                danceVoiceoverRate: isNaN(val) ? 0 : val,
+                                                                            }));
+                                                                        }, className: "w-10 bg-transparent text-right text-[13px] font-semibold tabular-nums text-brand-ink outline-none", "aria-label": "Dance Voiceover compensation percentage" }), (0, jsx_runtime_1.jsx)("span", { className: "text-[12px] font-semibold text-brand-ink-tertiary", children: "%" })] })] }), (0, jsx_runtime_1.jsxs)("li", { className: "flex items-center justify-between py-2 text-[13px] first:pt-0 last:pb-0", children: [(0, jsx_runtime_1.jsx)("span", { className: "font-medium text-brand-ink-secondary", children: "Cheer Voiceover" }), (0, jsx_runtime_1.jsxs)("div", { className: "inline-flex shrink-0 items-center gap-1 rounded-lg bg-brand-elevated px-2 py-1 ring-1 ring-inset ring-black/[0.06] focus-within:ring-brand-blue/30", children: [(0, jsx_runtime_1.jsx)("input", { type: "number", min: 0, max: 100, step: 1, value: form.cheerVoiceoverRate, onChange: (e) => {
+                                                                            const val = parseFloat(e.target.value);
+                                                                            setForm((prev) => ({
+                                                                                ...prev,
+                                                                                cheerVoiceoverRate: isNaN(val) ? 0 : val,
+                                                                            }));
+                                                                        }, className: "w-10 bg-transparent text-right text-[13px] font-semibold tabular-nums text-brand-ink outline-none", "aria-label": "Cheer Voiceover compensation percentage" }), (0, jsx_runtime_1.jsx)("span", { className: "text-[12px] font-semibold text-brand-ink-tertiary", children: "%" })] })] })] })] }), (0, jsx_runtime_1.jsxs)("div", { className: "mt-4 rounded-2xl bg-brand-bg px-4 py-3 ring-1 ring-inset ring-black/[0.06]", children: [(0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsx)("p", { className: "text-[13px] font-semibold text-brand-ink", children: "Rush fee compensation" }), (0, jsx_runtime_1.jsx)("p", { className: "mt-0.5 text-[12px] text-brand-ink-tertiary", children: "Default rate for Rush Fee payouts." })] }), (0, jsx_runtime_1.jsxs)("div", { className: "mt-3 flex items-center justify-between py-1 text-[13px]", children: [(0, jsx_runtime_1.jsx)("span", { className: "font-medium text-brand-ink-secondary", children: "Rush Fee Compensation" }), (0, jsx_runtime_1.jsxs)("div", { className: "inline-flex shrink-0 items-center gap-1 rounded-lg bg-brand-elevated px-2 py-1 ring-1 ring-inset ring-black/[0.06] focus-within:ring-brand-blue/30", children: [(0, jsx_runtime_1.jsx)("input", { type: "number", min: 0, max: 100, step: 1, value: form.rushFeeRate, onChange: (e) => {
+                                                                    const val = parseFloat(e.target.value);
+                                                                    setForm((prev) => ({
+                                                                        ...prev,
+                                                                        rushFeeRate: isNaN(val) ? 0 : val,
+                                                                    }));
+                                                                }, className: "w-10 bg-transparent text-right text-[13px] font-semibold tabular-nums text-brand-ink outline-none", "aria-label": "Rush Fee compensation percentage" }), (0, jsx_runtime_1.jsx)("span", { className: "text-[12px] font-semibold text-brand-ink-tertiary", children: "%" })] })] })] })] }), (0, jsx_runtime_1.jsx)("div", { className: "flex justify-center pb-5 pt-6 sm:hidden", children: (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: onClose, className: "rounded-full bg-brand-bg p-2 text-brand-ink-tertiary", "aria-label": "Close", children: (0, jsx_runtime_1.jsx)(lucide_react_1.X, { className: "h-4 w-4" }) }) })] })] })] }));
 }
 function ProfileRow({ label, children, last, }) {
     return ((0, jsx_runtime_1.jsxs)("label", { className: (0, clsx_1.default)("flex items-center gap-4 px-5 py-[14px]", !last && "border-b border-black/[0.06]"), children: [(0, jsx_runtime_1.jsx)("span", { className: "w-[88px] shrink-0 text-[15px] text-brand-ink", children: label }), (0, jsx_runtime_1.jsx)("div", { className: "min-w-0 flex-1", children: children })] }));

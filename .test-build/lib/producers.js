@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.SEED_PRODUCER_CATEGORY_RATES = exports.CANONICAL_PRODUCER_NAMES = exports.CANONICAL_PRODUCER_CATEGORIES = void 0;
+exports.SEED_PRODUCER_CATEGORY_RATES = exports.CANONICAL_PRODUCER_NAMES = exports.CANONICAL_PRODUCER_EMAILS = exports.CANONICAL_PRODUCER_CATEGORIES = void 0;
 exports.getCanonicalCategories = getCanonicalCategories;
 exports.normalizeProducer = normalizeProducer;
 exports.primaryCategory = primaryCategory;
@@ -37,7 +37,29 @@ exports.CANONICAL_PRODUCER_CATEGORIES = {
     MT: ["Hip Hop", "Gameday", "Sports Entertainment"],
     CC: ["Hip Hop", "Gameday", "Sports Entertainment"],
     JB: ["Hip Hop", "Gameday", "Sports Entertainment"],
+    SV: ["Pom", "Gameday"],
     R: ["School Cheer", "All-Star Cheer", "Youth Rec Cheer"],
+};
+exports.CANONICAL_PRODUCER_EMAILS = {
+    CM: "casey@soundslikethat.com",
+    MS: "matt@soundslikethat.com",
+    NC: "nate@soundslikethat.com",
+    BV: "bvincent@powermusic.com",
+    MM: "mark@soundslikethat.com",
+    SS: "steve@soundslikethat.com",
+    AJ: "anne@soundslikethat.com",
+    LV: "lauren@soundslikethat.com",
+    RF: "rory@soundslikethat.com",
+    JOP: "joel@soundslikethat.com",
+    JD: "justin@soundslikethat.com",
+    JP: "jp@soundslikethat.com",
+    MT: "max@soundslikethat.com",
+    CC: "chris@soundslikethat.com",
+    JB: "Joe@soundslikethat.com",
+    SV: "ds_in_ovations@mac.com",
+    JM: "josh@soundslikethat.com",
+    GP: "griffinp@powermusic.com",
+    R: "riley@soundslikethat.com",
 };
 exports.CANONICAL_PRODUCER_NAMES = {
     casey: "CM",
@@ -135,11 +157,14 @@ function normalizeProducer(raw) {
         }
         ratesByCategory = rates;
     }
+    const resolvedEmail = raw.email && raw.email.trim() && !raw.email.includes("example.com")
+        ? raw.email.trim()
+        : exports.CANONICAL_PRODUCER_EMAILS[initials] ?? raw.email ?? "";
     return {
         id: raw.id,
         name: raw.name || "Producer",
         initials: (raw.initials || "XX").toUpperCase().slice(0, 4),
-        email: raw.email || "",
+        email: resolvedEmail,
         categories,
         specialty,
         avatar: raw.avatar || (0, producer_avatars_1.defaultAvatarSrc)(),
@@ -163,6 +188,23 @@ function normalizeProducer(raw) {
         compensationModel: raw.compensationModel ?? null,
         defaultRate: raw.defaultRate ?? null,
         ratesByCategory,
+        danceVoiceoverRate: raw.danceVoiceoverRate !== undefined
+            ? raw.danceVoiceoverRate
+            : initials === "CM"
+                ? 0.80
+                : null,
+        cheerVoiceoverRate: raw.cheerVoiceoverRate !== undefined
+            ? raw.cheerVoiceoverRate
+            : initials === "CM"
+                ? 1.00
+                : initials === "R"
+                    ? 0.60
+                    : null,
+        rushFeeRate: raw.rushFeeRate !== undefined
+            ? raw.rushFeeRate
+            : initials === "CM"
+                ? 1.00
+                : null,
         rateOverrides: raw.rateOverrides ?? null,
         manualInputFields: raw.manualInputFields ?? null,
         notes: raw.notes ?? null,

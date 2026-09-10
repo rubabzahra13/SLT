@@ -28,6 +28,9 @@ export interface BackendProducer {
   compensation_model?: ProducerCompensationModel;
   default_rate?: number | null;
   rates_by_category?: Record<string, number> | null;
+  dance_voiceover_rate?: number | null;
+  cheer_voiceover_rate?: number | null;
+  rush_fee_rate?: number | null;
   rate_overrides?: Record<string, number> | null;
   manual_input_fields?: ProducerManualInputField[] | null;
   notes?: string | null;
@@ -66,6 +69,9 @@ export function transformProducer(bp: BackendProducer): Producer {
     compensationModel: bp.compensation_model ?? null,
     defaultRate: bp.default_rate ?? null,
     ratesByCategory: bp.rates_by_category ?? null,
+    danceVoiceoverRate: bp.dance_voiceover_rate ?? null,
+    cheerVoiceoverRate: bp.cheer_voiceover_rate ?? null,
+    rushFeeRate: bp.rush_fee_rate ?? null,
     rateOverrides: bp.rate_overrides ?? null,
     manualInputFields: bp.manual_input_fields ?? null,
     notes: bp.notes ?? null,
@@ -93,6 +99,9 @@ export async function createProducerApi(producer: Producer): Promise<Producer> {
     compensation_model: producer.compensationModel,
     default_rate: producer.defaultRate,
     rates_by_category: producer.ratesByCategory,
+    dance_voiceover_rate: producer.danceVoiceoverRate,
+    cheer_voiceover_rate: producer.cheerVoiceoverRate,
+    rush_fee_rate: producer.rushFeeRate,
     rate_overrides: producer.rateOverrides,
     manual_input_fields: producer.manualInputFields,
     notes: producer.notes,
@@ -122,6 +131,9 @@ export async function updateProducerApi(
   if (patch.compensationModel !== undefined) payload.compensation_model = patch.compensationModel;
   if (patch.defaultRate !== undefined) payload.default_rate = patch.defaultRate;
   if (patch.ratesByCategory !== undefined) payload.rates_by_category = patch.ratesByCategory;
+  if (patch.danceVoiceoverRate !== undefined) payload.dance_voiceover_rate = patch.danceVoiceoverRate;
+  if (patch.cheerVoiceoverRate !== undefined) payload.cheer_voiceover_rate = patch.cheerVoiceoverRate;
+  if (patch.rushFeeRate !== undefined) payload.rush_fee_rate = patch.rushFeeRate;
   if (patch.rateOverrides !== undefined) payload.rate_overrides = patch.rateOverrides;
   if (patch.manualInputFields !== undefined) payload.manual_input_fields = patch.manualInputFields;
   if (patch.notes !== undefined) payload.notes = patch.notes;

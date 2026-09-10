@@ -82,13 +82,13 @@ const mockDiscountCodes = [
                 strict_1.default.equal(rec.category, "Sports Entertainment");
             }
         });
-        (0, node_test_1.it)("2.2 MTD Pricing & Rush Toggle: PRE-GAME / HALFTIME REMIXED ($250) + Rush ($100) = $250 Package Price / $350 Payroll Base", () => {
+        (0, node_test_1.it)("2.2 MTD Pricing & Rush Toggle: PRE-GAME / HALFTIME REMIXED ($250) + Rush ($150) = $250 Package Price / $400 Payroll Base", () => {
             const result = (0, pricing_engine_1.calculateSportsEntertainmentOrderPricing)({
                 packageType: "PRE-GAME / HALFTIME REMIXED",
                 isRushOrder: "yes",
             });
             strict_1.default.equal(result.customerFacingPrice, 250);
-            strict_1.default.equal(result.payrollBasePrice, 350);
+            strict_1.default.equal(result.payrollBasePrice, 400);
             strict_1.default.equal(result.hasRushFee, true);
         });
         (0, node_test_1.it)("2.3 OTHER TBD Package: blocks automatic pricing, returns isUnpriced = true and null customer price", () => {
@@ -146,19 +146,17 @@ const mockDiscountCodes = [
         });
     });
     (0, node_test_1.describe)("Part 4: Cheer and Dance Regression Pass", () => {
-        (0, node_test_1.it)("4.1 Cheer Pricing Engine: GOLD 1:30 ($700) and Rally Mix Add-on ($350) keeps $700 Package Price, $950 Payroll Base", () => {
+        (0, node_test_1.it)("4.1 Cheer Pricing Engine: Rally Mix is priced as a standalone package ($350 Package Price, $350 Payroll Base)", () => {
             const cheerResult = (0, pricing_engine_1.calculateCheerOrderPricing)({
                 cheerFormSubtype: "school-cheer-viroc-yes",
-                packageType: "GOLD 1:30",
-                timeLengthOfMix: "1:30",
+                packageType: "Rally Mix",
                 musicAffiliate: "Power Music",
-                hasRallyMix: true,
             });
-            strict_1.default.equal(cheerResult.customerFacingPrice, 700); // $700 base package price
-            strict_1.default.equal(cheerResult.payrollBasePrice, 950); // $600 compliant + $350 Rally Mix
+            strict_1.default.equal(cheerResult.customerFacingPrice, 350); // $350 package price
+            strict_1.default.equal(cheerResult.payrollBasePrice, 350); // $350 payroll base
             strict_1.default.equal(cheerResult.complianceStatus, "compliant");
         });
-        (0, node_test_1.it)("4.2 Dance Pricing Engine: POM CUSTOM ($850) + Traditional VO ($25) + Themed VO ($75) = $850 Package Price, $830 Payroll Base", () => {
+        (0, node_test_1.it)("4.2 Dance Pricing Engine: POM CUSTOM ($850) + Traditional VO ($25) + Themed VO ($75) = $850 Package Price, $730 Payroll Base (VO no longer in MTD)", () => {
             const danceResult = (0, pricing_engine_1.calculateDanceOrderPricing)({
                 danceFormSubtype: "pom",
                 packageType: "CUSTOM POM",
@@ -167,7 +165,7 @@ const mockDiscountCodes = [
                 hasThemedVoiceover: true,
             });
             strict_1.default.equal(danceResult.customerFacingPrice, 850); // $850 base package price
-            strict_1.default.equal(danceResult.payrollBasePrice, 830); // $730 + $100 VO
+            strict_1.default.equal(danceResult.payrollBasePrice, 730); // $730 base (VO is internal payroll item)
             strict_1.default.equal(danceResult.complianceStatus, "compliant");
         });
         (0, node_test_1.it)("4.3 Form Counts: counts records by formType without cross-category interference", () => {

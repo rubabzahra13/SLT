@@ -29,8 +29,9 @@ const mockDiscountCodes = [
             strict_1.default.equal(couponEval.status, "valid");
             strict_1.default.equal(couponEval.match?.discountValue, 50);
             const discountAmount = couponEval.match?.discountValue || 0;
-            const finalCustPrice = Math.max(0, result.customerFacingPrice - discountAmount);
-            strict_1.default.equal(finalCustPrice, 550);
+            const displayCustomerPrice = Math.max(0, result.customerFacingPrice - discountAmount);
+            strict_1.default.equal(displayCustomerPrice, 550);
+            strict_1.default.equal(result.customerFacingPrice, 600); // Package Price remains $600
         });
         (0, node_test_1.it)("surfaces explicit unknown-no-affiliate-field state for Band Chant and Drum Cadence", () => {
             const bc = (0, pricing_engine_1.calculateMarchingBandOrderPricing)({ packageType: "BAND CHANT" });
@@ -47,7 +48,7 @@ const mockDiscountCodes = [
             });
             strict_1.default.equal(result.matchedEntry?.customer, 250);
             strict_1.default.equal(result.hasRushFee, true);
-            strict_1.default.equal(result.rushFeeAmount, 100);
+            strict_1.default.equal(result.rushFeeAmount, 150);
             strict_1.default.equal(result.customerFacingPrice, 250); // Base package price $250
             strict_1.default.equal(result.isUnpriced, false);
             strict_1.default.equal(result.needsManualQuote, false);
@@ -75,8 +76,9 @@ const mockDiscountCodes = [
             const discountPct = couponEval.match?.discountValue || 0;
             const discountAmount = Math.round(result.payrollBasePrice * (discountPct / 100));
             strict_1.default.equal(discountAmount, 125);
-            const finalPrice = result.customerFacingPrice - discountAmount;
-            strict_1.default.equal(finalPrice, 1125);
+            const displayCustomerPrice = result.customerFacingPrice - discountAmount;
+            strict_1.default.equal(displayCustomerPrice, 1125);
+            strict_1.default.equal(result.customerFacingPrice, 1250); // Package Price remains $1,250
         });
     });
 });

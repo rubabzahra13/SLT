@@ -64,19 +64,19 @@ const discount_codes_1 = require("../discount-codes");
             strict_1.default.ok(!allKeys.includes("styleOfGamedayMix"), "styleOfGamedayMix must NOT render on POM");
             strict_1.default.ok(!allKeys.includes("licensingRequired"), "licensingRequired must NOT render on POM");
         });
-        (0, node_test_1.it)("POM: VO Toggles Math → $475 Package Price (base), Payroll Base $375 / $400 / $450 / $475", () => {
+        (0, node_test_1.it)("POM: VO Toggles Math → $475 Package Price (base), Payroll Base $375 (VO no longer affects MTD payroll base)", () => {
             const base = (0, pricing_engine_1.calculateDanceOrderPricing)({ danceFormSubtype: "pom", packageType: "DANCE MIX", musicAffiliate: "Power Music Covers" });
             strict_1.default.equal(base.customerFacingPrice, 475);
             strict_1.default.equal(base.payrollBasePrice, 375);
             const trad = (0, pricing_engine_1.calculateDanceOrderPricing)({ danceFormSubtype: "pom", packageType: "DANCE MIX", musicAffiliate: "Power Music Covers", hasTraditionalVoiceover: true });
             strict_1.default.equal(trad.customerFacingPrice, 475);
-            strict_1.default.equal(trad.payrollBasePrice, 400);
+            strict_1.default.equal(trad.payrollBasePrice, 375);
             const themed = (0, pricing_engine_1.calculateDanceOrderPricing)({ danceFormSubtype: "pom", packageType: "DANCE MIX", musicAffiliate: "Power Music Covers", hasThemedVoiceover: true });
             strict_1.default.equal(themed.customerFacingPrice, 475);
-            strict_1.default.equal(themed.payrollBasePrice, 450);
+            strict_1.default.equal(themed.payrollBasePrice, 375);
             const both = (0, pricing_engine_1.calculateDanceOrderPricing)({ danceFormSubtype: "pom", packageType: "DANCE MIX", musicAffiliate: "Power Music Covers", hasTraditionalVoiceover: true, hasThemedVoiceover: true });
             strict_1.default.equal(both.customerFacingPrice, 475);
-            strict_1.default.equal(both.payrollBasePrice, 475);
+            strict_1.default.equal(both.payrollBasePrice, 375);
         });
         (0, node_test_1.it)("POM: Completion Breakdown & Coupon + Payroll Integration", () => {
             const couponEval = (0, discount_codes_1.evaluateCouponCode)("AUSTIN2026", discountCodes);
@@ -88,8 +88,8 @@ const discount_codes_1 = require("../discount-codes");
                 hasTraditionalVoiceover: true,
                 hasThemedVoiceover: true,
             });
-            const discount = Math.round(pricing.payrollBasePrice * 0.10); // 830 * 10% = 83
-            const finalPayroll = pricing.payrollBasePrice - discount; // 830 - 83 = 747
+            const discount = Math.round(pricing.payrollBasePrice * 0.10); // 730 * 10% = 73
+            const finalPayroll = pricing.payrollBasePrice - discount; // 730 - 73 = 657
             const payrollCalc = (0, pricing_display_1.computeClientPayroll)(caseyProducer, pricing.customerFacingPrice - discount, {
                 form_type: "school-all-star-dance",
                 canonical_subtype_id: "pom",
@@ -102,13 +102,13 @@ const discount_codes_1 = require("../discount-codes");
                 base_customer_price: 850,
                 base_payroll_price: 730,
                 addons: [],
-                system_calculated_customer_price: 950,
+                system_calculated_customer_price: 850,
                 payroll_base_price: finalPayroll,
                 needs_manual_pricing: false,
                 needs_manual_review: false,
                 summary_line: "Summary",
             }, 0.70, null, "pom");
-            strict_1.default.equal(payrollCalc.producerPayout, Math.round(747 * 0.70 * 100) / 100);
+            strict_1.default.equal(payrollCalc.producerPayout, Math.round(657 * 0.70 * 100) / 100);
         });
     });
     (0, node_test_1.describe)("Subtype 2: Hip Hop Full End-to-End Run", () => {

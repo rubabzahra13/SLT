@@ -88,6 +88,6 @@ const pricing_engine_1 = require("../pricing-engine");
             isRushOrder: "yes",
         });
         strict_1.default.equal(rushRes.customerFacingPrice, 150);
-        strict_1.default.equal(rushRes.payrollBasePrice, 250);
+        strict_1.default.equal(rushRes.payrollBasePrice, 300);
     });
 });

@@ -73,22 +73,22 @@ describe("Prompt 11 — Full Dance Pricing QA and Regression Audit", () => {
       assert.ok(!allKeys.includes("licensingRequired"), "licensingRequired must NOT render on POM");
     });
 
-    it("POM: VO Toggles Math → $475 Package Price (base), Payroll Base $375 / $400 / $450 / $475", () => {
+    it("POM: VO Toggles Math → $475 Package Price (base), Payroll Base $375 (VO no longer affects MTD payroll base)", () => {
       const base = calculateDanceOrderPricing({ danceFormSubtype: "pom", packageType: "DANCE MIX", musicAffiliate: "Power Music Covers" });
       assert.equal(base.customerFacingPrice, 475);
       assert.equal(base.payrollBasePrice, 375);
 
       const trad = calculateDanceOrderPricing({ danceFormSubtype: "pom", packageType: "DANCE MIX", musicAffiliate: "Power Music Covers", hasTraditionalVoiceover: true });
       assert.equal(trad.customerFacingPrice, 475);
-      assert.equal(trad.payrollBasePrice, 400);
+      assert.equal(trad.payrollBasePrice, 375);
 
       const themed = calculateDanceOrderPricing({ danceFormSubtype: "pom", packageType: "DANCE MIX", musicAffiliate: "Power Music Covers", hasThemedVoiceover: true });
       assert.equal(themed.customerFacingPrice, 475);
-      assert.equal(themed.payrollBasePrice, 450);
+      assert.equal(themed.payrollBasePrice, 375);
 
       const both = calculateDanceOrderPricing({ danceFormSubtype: "pom", packageType: "DANCE MIX", musicAffiliate: "Power Music Covers", hasTraditionalVoiceover: true, hasThemedVoiceover: true });
       assert.equal(both.customerFacingPrice, 475);
-      assert.equal(both.payrollBasePrice, 475);
+      assert.equal(both.payrollBasePrice, 375);
     });
 
     it("POM: Completion Breakdown & Coupon + Payroll Integration", () => {
@@ -103,8 +103,8 @@ describe("Prompt 11 — Full Dance Pricing QA and Regression Audit", () => {
         hasThemedVoiceover: true,
       });
 
-      const discount = Math.round(pricing.payrollBasePrice * 0.10); // 830 * 10% = 83
-      const finalPayroll = pricing.payrollBasePrice - discount; // 830 - 83 = 747
+      const discount = Math.round(pricing.payrollBasePrice * 0.10); // 730 * 10% = 73
+      const finalPayroll = pricing.payrollBasePrice - discount; // 730 - 73 = 657
 
       const payrollCalc = computeClientPayroll(caseyProducer, pricing.customerFacingPrice - discount, {
         form_type: "school-all-star-dance",
@@ -118,14 +118,14 @@ describe("Prompt 11 — Full Dance Pricing QA and Regression Audit", () => {
         base_customer_price: 850,
         base_payroll_price: 730,
         addons: [],
-        system_calculated_customer_price: 950,
+        system_calculated_customer_price: 850,
         payroll_base_price: finalPayroll,
         needs_manual_pricing: false,
         needs_manual_review: false,
         summary_line: "Summary",
       }, 0.70, null, "pom");
 
-      assert.equal(payrollCalc.producerPayout, Math.round(747 * 0.70 * 100) / 100);
+      assert.equal(payrollCalc.producerPayout, Math.round(657 * 0.70 * 100) / 100);
     });
   });
 

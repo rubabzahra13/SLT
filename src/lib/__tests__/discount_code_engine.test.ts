@@ -56,7 +56,7 @@ describe("Discount Code Engine Unit Tests (Fixed & Percentage)", () => {
 
     assert.equal(result.preDiscountPayrollBasePrice, 1050);
     assert.equal(result.discountAmount, 200);
-    assert.equal(result.payrollBasePrice, 850); // $1050 - $200 = $850
+    assert.equal(result.payrollBasePrice, 1050); // Coupon does not alter internal payroll base price
   });
 
   it("Test 2 — Percentage (10% off $1,000)", () => {
@@ -72,7 +72,7 @@ describe("Discount Code Engine Unit Tests (Fixed & Percentage)", () => {
 
     assert.equal(result.preDiscountPayrollBasePrice, 1000);
     assert.equal(result.discountAmount, 100); // 10% of $1000 = $100
-    assert.equal(result.payrollBasePrice, 900); // $1000 - $100 = $900
+    assert.equal(result.payrollBasePrice, 1000); // Coupon does not alter internal payroll base price
   });
 
   it("Test 3 — Percentage 20% (20% off $1,000)", () => {
@@ -88,7 +88,7 @@ describe("Discount Code Engine Unit Tests (Fixed & Percentage)", () => {
 
     assert.equal(result.preDiscountPayrollBasePrice, 1000);
     assert.equal(result.discountAmount, 200); // 20% of $1000 = $200
-    assert.equal(result.payrollBasePrice, 800); // $1000 - $200 = $800
+    assert.equal(result.payrollBasePrice, 1000); // Coupon does not alter internal payroll base price
   });
 
   it("Test 4 — Optional Description (blank description creates & matches successfully)", () => {
@@ -105,7 +105,7 @@ describe("Discount Code Engine Unit Tests (Fixed & Percentage)", () => {
 
     assert.equal(result.preDiscountPayrollBasePrice, 600);
     assert.equal(result.discountAmount, 60); // 10% of $600 = $60
-    assert.equal(result.payrollBasePrice, 540); // $600 - $60 = $540
+    assert.equal(result.payrollBasePrice, 600); // Coupon does not alter internal payroll base price
   });
 
   it("Test 5 — No Matching Code (unmatched code results in $0 discount)", () => {
@@ -146,16 +146,16 @@ describe("Discount Code Engine Unit Tests (Fixed & Percentage)", () => {
       cheerFormSubtype: "school-cheer-viroc-yes",
       packageType: "GOLD 2:00", // Compliant base: $850
       musicAffiliate: "Power Music",
-      hasRallyMix: true, // Rally Mix add-on: +$350 -> Pre-discount payroll base: $1200
+      rushFeeOption: "double", // Rush Fee add-on: +$300 -> Pre-discount payroll base: $1150
       discountCodeObj: matched, // -$200 fixed
     });
 
-    assert.equal(result.preDiscountPayrollBasePrice, 1200); // $850 + $350
+    assert.equal(result.preDiscountPayrollBasePrice, 1150); // $850 + $300
     assert.equal(result.discountAmount, 200);
-    assert.equal(result.payrollBasePrice, 1000); // $1200 - $200 = $1000
+    assert.equal(result.payrollBasePrice, 1150); // Coupon does not alter internal payroll base price
   });
 
-  it("Test 8 — Price Floor Validation (Discount cannot produce negative price)", () => {
+  it("Test 8 — Price Floor Validation (Discount metadata calculation caps at base price)", () => {
     const matched = lookupCode("BIG500", mockDiscountCodes);
     assert.ok(matched);
 
@@ -168,7 +168,7 @@ describe("Discount Code Engine Unit Tests (Fixed & Percentage)", () => {
 
     assert.equal(result.preDiscountPayrollBasePrice, 350);
     assert.equal(result.discountAmount, 350); // Capped at pre-discount price $350
-    assert.equal(result.payrollBasePrice, 0); // Minimum $0 floor
+    assert.equal(result.payrollBasePrice, 350); // Internal payroll base stays full $350 amount
   });
 
   it("Test 9 — Near-match typo suggests saved dance promo for customer entry", () => {

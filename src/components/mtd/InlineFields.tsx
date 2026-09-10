@@ -1075,71 +1075,127 @@ export function InlineRushFeePills({
   onChange,
   className,
 }: InlineRushFeePillsProps) {
-  const rawVal =
-    value ??
-    record?.rushFeeOption ??
-    (record?.isRushOrder === "yes" || record?.isRushOrder === true ? "single" : "none");
+  const rushQty =
+    typeof record?.rushFeeQuantity === "number"
+      ? record.rushFeeQuantity
+      : record?.rushFeeOption === "double"
+      ? 2
+      : record?.rushFeeOption === "single" || record?.isRushOrder === "yes" || record?.isRushOrder === true
+      ? 1
+      : 0;
 
-  const normVal =
-    rawVal === "double"
-      ? "double"
-      : rawVal === "single" || rawVal === "yes" || String(rawVal).toLowerCase() === "yes"
-      ? "single"
-      : "none";
+  const currentRate = record?.rushFeeCompensationRate ?? 1.0;
+  const currentRatePct = currentRate <= 1 ? Math.round(currentRate * 100) : Math.round(currentRate);
 
-  const handleSelect = (next: "none" | "single" | "double") => {
-    if (onChange) onChange(next);
+  const handleQtyChange = (qty: number) => {
+    const nextOption = qty === 2 ? "double" : qty === 1 ? "single" : "none";
+    const isRush = qty > 0;
+    if (onChange) onChange(nextOption);
     if (record && onUpdate) {
-      const isRush = next !== "none";
       onUpdate(record.id, {
-        rushFeeOption: next,
+        rushFeeQuantity: qty,
+        rushFeeOption: nextOption,
         isRushOrder: isRush ? "yes" : "no",
       });
       if (record.orderId && onUpdateOrder) {
         onUpdateOrder(record.orderId, {
-          rushFeeOption: next,
+          rushFeeQuantity: qty,
+          rushFeeOption: nextOption,
           isRushOrder: isRush ? "yes" : "no",
         });
       }
     }
   };
 
+  const handleRateChange = (rateVal: number) => {
+    const decRate = rateVal > 1 ? rateVal / 100 : rateVal;
+    if (record && onUpdate) {
+      onUpdate(record.id, { rushFeeCompensationRate: decRate });
+      if (record.orderId && onUpdateOrder) {
+        onUpdateOrder(record.orderId, { rushFeeCompensationRate: decRate });
+      }
+    }
+  };
+
+  const rateChoices = [100, 72, 60, 50];
+  if (!rateChoices.includes(currentRatePct)) {
+    rateChoices.push(currentRatePct);
+    rateChoices.sort((a, b) => b - a);
+  }
+
   return (
     <div
       data-stop-row-nav
-      className={clsx(inlinePillGroupClass, className)}
+      className={clsx("inline-flex items-center gap-1.5", className)}
       onClick={(e) => e.stopPropagation()}
     >
-      <HoverTip label="Single Rush (+$150)" placement="top">
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            handleSelect(normVal === "single" ? "none" : "single");
-          }}
-          className={clsx(
-            inlinePillBaseClass,
-            normVal === "single" ? inlinePillActiveClass : inlinePillInactiveClass
-          )}
-        >
-          $150
-        </button>
-      </HoverTip>
-      <HoverTip label="Double Rush (+$300)" placement="top">
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            handleSelect(normVal === "double" ? "none" : "double");
-          }}
-          className={clsx(
-            inlinePillBaseClass,
-            normVal === "double" ? inlinePillActiveClass : inlinePillInactiveClass
-          )}
-        >
-          $300
-        </button>
-      </HoverTip>
+      <div className={clsx(inlinePillGroupClass)}>
+        <HoverTip label="No Rush ($0)" placement="top">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleQtyChange(0);
+            }}
+            className={clsx(
+              inlinePillBaseClass,
+              rushQty === 0 ? inlinePillActiveClass : inlinePillInactiveClass
+            )}
+          >
+            None
+          </button>
+        </HoverTip>
+        <HoverTip label="Single Rush (+$150)" placement="top">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleQtyChange(1);
+            }}
+            className={clsx(
+              inlinePillBaseClass,
+              rushQty === 1 ? inlinePillActiveClass : inlinePillInactiveClass
+            )}
+          >
+            1x ($150)
+          </button>
+        </HoverTip>
+        <HoverTip label="Double Rush (+$300)" placement="top">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleQtyChange(2);
+            }}
+            className={clsx(
+              inlinePillBaseClass,
+              rushQty === 2 ? inlinePillActiveClass : inlinePillInactiveClass
+            )}
+          >
+            2x ($300)
+          </button>
+        </HoverTip>
+      </div>
+
+      {rushQty > 0 && (
+        <HoverTip label="Override Rush Fee Producer Compensation %" placement="top">
+          <select
+            value={currentRatePct}
+            onChange={(e) => {
+              e.stopPropagation();
+              handleRateChange(parseInt(e.target.value, 10));
+            }}
+            onClick={(e) => e.stopPropagation()}
+            className="h-7 rounded-lg border border-brand-line/60 bg-brand-elevated px-1.5 text-[11px] font-semibold text-brand-ink outline-none hover:border-brand-line-strong focus:ring-1 focus:ring-brand-blue"
+          >
+            {rateChoices.map((r) => (
+              <option key={r} value={r}>
+                {r}%
+              </option>
+            ))}
+          </select>
+        </HoverTip>
+      )}
     </div>
   );
 }

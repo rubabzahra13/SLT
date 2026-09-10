@@ -235,8 +235,8 @@ export function CompleteToPayrollModal({
 
           enginePricing = {
             ...danceResult,
-            customerFacingPrice: Math.max(0, preDiscountCust - discountAmount),
-            payrollBasePrice: Math.max(0, preDiscountPay - discountAmount),
+            customerFacingPrice: preDiscountCust,
+            payrollBasePrice: preDiscountPay,
             preDiscountCustomerFacingPrice: preDiscountCust,
             preDiscountPayrollBasePrice: preDiscountPay,
             discountAmount,
@@ -292,8 +292,8 @@ export function CompleteToPayrollModal({
 
           enginePricing = {
             ...mbResult,
-            customerFacingPrice: Math.max(0, preDiscountCust - discountAmount),
-            payrollBasePrice: Math.max(0, preDiscountPay - discountAmount),
+            customerFacingPrice: preDiscountCust,
+            payrollBasePrice: preDiscountPay,
             preDiscountCustomerFacingPrice: preDiscountCust,
             preDiscountPayrollBasePrice: preDiscountPay,
             discountAmount,
@@ -389,8 +389,8 @@ export function CompleteToPayrollModal({
 
             enginePricing = {
               ...seResult,
-              customerFacingPrice: Math.max(0, preDiscountCust - discountAmount),
-              payrollBasePrice: Math.max(0, preDiscountPay - discountAmount),
+              customerFacingPrice: preDiscountCust,
+              payrollBasePrice: preDiscountPay,
               preDiscountCustomerFacingPrice: preDiscountCust,
               preDiscountPayrollBasePrice: preDiscountPay,
               discountAmount,
@@ -427,8 +427,8 @@ export function CompleteToPayrollModal({
 
           enginePricing = {
             ...saResult,
-            customerFacingPrice: Math.max(0, preDiscountCust - discountAmount),
-            payrollBasePrice: Math.max(0, preDiscountPay - discountAmount),
+            customerFacingPrice: preDiscountCust,
+            payrollBasePrice: preDiscountPay,
             preDiscountCustomerFacingPrice: preDiscountCust,
             preDiscountPayrollBasePrice: preDiscountPay,
             discountAmount,
@@ -465,19 +465,7 @@ export function CompleteToPayrollModal({
             complianceReason = "No music affiliate specified on order.";
           }
 
-          if (
-            (cheerSubtype === "school-cheer-viroc-yes" || cheerSubtype === "school-cheer-viroc-no") &&
-            currentRec.hasRallyMix
-          ) {
-            addons.push({
-              addon_id: "rally_mix",
-              label: "Rally Mix Add-On",
-              customer_amount: 350,
-              payroll_amount: 350,
-              quantity: 1,
-              note: "Fixed fee add-on (School Cheer)",
-            });
-          }
+
 
           baseCust = enginePricing.matchedEntry?.customer ?? currentRec.price;
           basePay = enginePricing.matchedEntry
@@ -617,12 +605,22 @@ export function CompleteToPayrollModal({
     };
   }, [breakdown, finalPayrollPriceNum]);
 
+  if (!mounted || !open || !record) return null;
+
   // Client-side real-time payroll calculation for Step 2
   const activeRateNum = customRateInput !== ""
     ? parseFloat(customRateInput) / 100
     : selectedCaseyRate;
 
   const activeManualPayoutNum = manualPayoutInput !== "" ? parseFloat(manualPayoutInput) : null;
+
+  const rushQty = typeof record.rushFeeQuantity === "number"
+    ? record.rushFeeQuantity
+    : record.rushFeeOption === "double"
+    ? 2
+    : record.rushFeeOption === "single" || record.isRushOrder === "yes" || record.isRushOrder === true
+    ? 1
+    : 0;
 
   const clientPayroll = computeClientPayroll(
     assignedProducerObj,
@@ -631,12 +629,15 @@ export function CompleteToPayrollModal({
     activeRateNum,
     activeManualPayoutNum,
     breakdown?.canonical_subtype_id,
-    finalPayrollPriceNum
+    finalPayrollPriceNum,
+    {
+      rushFeeQuantity: rushQty,
+      rushFeeCompensationRate: record.rushFeeCompensationRate ?? assignedProducerObj?.rushFeeRate ?? 1.0,
+      formType: breakdown?.form_type,
+    }
   );
 
   const isRateOverridden = customRateInput !== "" || (selectedCaseyRate !== null && assignedProducerObj?.initials !== "CM");
-
-  if (!mounted || !open || !record) return null;
 
   // Step 1 confirm handler
   const handleProceedToPayroll = async () => {
@@ -1185,6 +1186,32 @@ export function CompleteToPayrollModal({
                   </p>
                 </div>
               </div>
+
+              {/* Rush Fee Details in Step 2 */}
+              {rushQty > 0 && (
+                <div className="rounded-xl border border-brand-line/70 bg-brand-bg/40 p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[13px] font-bold text-brand-ink">Rush Fee</p>
+                    <span className="rounded bg-brand-blue-soft px-2 py-0.5 text-[11px] font-semibold text-brand-blue">
+                      Quantity: {rushQty}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-[12px] pt-1 border-t border-brand-line/40">
+                    <div>
+                      <span className="text-brand-ink-tertiary">Compensation Rate: </span>
+                      <span className="font-semibold text-brand-ink">
+                        {Math.round(((record.rushFeeCompensationRate ?? assignedProducerObj?.rushFeeRate ?? 1.0) <= 1 ? (record.rushFeeCompensationRate ?? assignedProducerObj?.rushFeeRate ?? 1.0) * 100 : (record.rushFeeCompensationRate ?? assignedProducerObj?.rushFeeRate ?? 1.0)))}%
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-brand-ink-tertiary">Editor Payout: </span>
+                      <span className="font-bold text-brand-success">
+                        {formatPrice(clientPayroll.rushFeePayout ?? 0)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Special Compensation Model Warnings */}
               {clientPayroll.status === "not_paid_for_mixing" && (

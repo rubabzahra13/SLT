@@ -36,19 +36,19 @@ describe("Prompt 9 — Completion Modal Pricing Breakdown + Coupon Integration f
       hasThemedVoiceover: true,
     });
 
-    assert.equal(danceResult.customerFacingPrice, 850); // 850 base (VO is separate add-on)
-    assert.equal(danceResult.payrollBasePrice, 830); // 730 + 100 (compliant)
+    assert.equal(danceResult.customerFacingPrice, 850); // 850 base
+    assert.equal(danceResult.payrollBasePrice, 730); // 730 (compliant)
 
-    // Calculate coupon discount against pre-discount payroll base
+    // Calculate display-only customer discount
     const preDiscountPay = danceResult.payrollBasePrice;
-    const discountAmount = Math.round(preDiscountPay * (matchedDiscount.discountValue! / 100)); // 830 * 10% = 83
-    assert.equal(discountAmount, 83);
+    const discountAmount = Math.round(preDiscountPay * (matchedDiscount.discountValue! / 100)); // 730 * 10% = 73
+    assert.equal(discountAmount, 73);
 
-    const finalCustomerPrice = danceResult.customerFacingPrice - discountAmount; // 850 - 83 = 767
-    const finalPayrollPrice = danceResult.payrollBasePrice - discountAmount; // 830 - 83 = 747
-
-    assert.equal(finalCustomerPrice, 767);
-    assert.equal(finalPayrollPrice, 747);
+    // Coupon is display-only customer info. Package Price and Payroll Base remain untouched.
+    const displayOnlyCustomerDiscountedPrice = danceResult.customerFacingPrice - discountAmount; // 850 - 73 = 777
+    assert.equal(displayOnlyCustomerDiscountedPrice, 777);
+    assert.equal(danceResult.customerFacingPrice, 850);
+    assert.equal(danceResult.payrollBasePrice, 730);
   });
 
   it("Subtype 2 (Hip Hop): DANCE PLUS ($575) + Unleash the Beats Covers (compliant) + No VO + No Coupon", () => {
@@ -73,7 +73,7 @@ describe("Prompt 9 — Completion Modal Pricing Breakdown + Coupon Integration f
     });
 
     assert.equal(danceResult.customerFacingPrice, 500); // 500 base
-    assert.equal(danceResult.payrollBasePrice, 525); // 500 (non-compliant) + 25
+    assert.equal(danceResult.payrollBasePrice, 500); // 500 (non-compliant)
     assert.equal(danceResult.complianceStatus, "non-compliant");
   });
 
@@ -92,16 +92,16 @@ describe("Prompt 9 — Completion Modal Pricing Breakdown + Coupon Integration f
     });
 
     assert.equal(danceResult.customerFacingPrice, 200); // 200 base
-    assert.equal(danceResult.payrollBasePrice, 215); // 140 + 75
+    assert.equal(danceResult.payrollBasePrice, 140); // 140 base
 
     const discountAmount = Math.min(danceResult.payrollBasePrice, matchedDiscount.discountValue!); // 50
     assert.equal(discountAmount, 50);
 
-    const finalCustomerPrice = danceResult.customerFacingPrice - discountAmount; // 200 - 50 = 150
-    const finalPayrollPrice = danceResult.payrollBasePrice - discountAmount; // 215 - 50 = 165
-
-    assert.equal(finalCustomerPrice, 150);
-    assert.equal(finalPayrollPrice, 165);
+    // Display-only customer discounted price = 150. Actual Package Price & Payroll Base remain 200 & 140.
+    const displayOnlyCustomerDiscountedPrice = danceResult.customerFacingPrice - discountAmount; // 200 - 50 = 150
+    assert.equal(displayOnlyCustomerDiscountedPrice, 150);
+    assert.equal(danceResult.customerFacingPrice, 200);
+    assert.equal(danceResult.payrollBasePrice, 140);
   });
 
   it("Subtype 5 (Jazz/Kick): JAZZ SIMPLE CUT ($100) + Non-Compliant Affiliate + Both VO (+100)", () => {
@@ -114,7 +114,7 @@ describe("Prompt 9 — Completion Modal Pricing Breakdown + Coupon Integration f
     });
 
     assert.equal(danceResult.customerFacingPrice, 100); // 100 base
-    assert.equal(danceResult.payrollBasePrice, 200); // 100 (always fixed) + 100
+    assert.equal(danceResult.payrollBasePrice, 100); // 100 (always fixed)
     assert.equal(danceResult.alwaysFixedPayroll, true);
   });
 });

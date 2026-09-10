@@ -108,6 +108,6 @@ describe("Prompt 8 — Connect All Three Categories' Pricing to MTD", () => {
       isRushOrder: "yes",
     });
     assert.equal(rushRes.customerFacingPrice, 150);
-    assert.equal(rushRes.payrollBasePrice, 250);
+    assert.equal(rushRes.payrollBasePrice, 300);
   });
 });

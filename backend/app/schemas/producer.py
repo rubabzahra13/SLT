@@ -31,6 +31,9 @@ class ProducerSchema(BaseModel):
     compensation_model: Optional[str] = None
     default_rate: Optional[float] = None
     rates_by_category: Optional[Dict[str, float]] = None
+    dance_voiceover_rate: Optional[float] = None
+    cheer_voiceover_rate: Optional[float] = None
+    rush_fee_rate: Optional[float] = None
     rate_overrides: Optional[Dict[str, float]] = None
     manual_input_fields: Optional[List[Dict[str, Any]]] = None
     notes: Optional[str] = None
@@ -52,6 +55,9 @@ class ProducerCreateSchema(BaseModel):
     compensation_model: Optional[str] = None
     default_rate: Optional[float] = None
     rates_by_category: Optional[Dict[str, float]] = None
+    dance_voiceover_rate: Optional[float] = None
+    cheer_voiceover_rate: Optional[float] = None
+    rush_fee_rate: Optional[float] = None
     rate_overrides: Optional[Dict[str, float]] = None
     manual_input_fields: Optional[List[Dict[str, Any]]] = None
     notes: Optional[str] = None
@@ -73,6 +79,9 @@ class ProducerUpdateSchema(BaseModel):
     compensation_model: Optional[str] = None
     default_rate: Optional[float] = None
     rates_by_category: Optional[Dict[str, float]] = None
+    dance_voiceover_rate: Optional[float] = None
+    cheer_voiceover_rate: Optional[float] = None
+    rush_fee_rate: Optional[float] = None
     rate_overrides: Optional[Dict[str, float]] = None
     manual_input_fields: Optional[List[Dict[str, Any]]] = None
     notes: Optional[str] = None

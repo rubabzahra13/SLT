@@ -32,6 +32,9 @@ type AvailabilityPatch = {
   categories: string[];
   specialty: string;
   ratesByCategory: Record<string, number>;
+  danceVoiceoverRate?: number;
+  cheerVoiceoverRate?: number;
+  rushFeeRate?: number;
 };
 
 type ProducerAvailabilityModalProps = {

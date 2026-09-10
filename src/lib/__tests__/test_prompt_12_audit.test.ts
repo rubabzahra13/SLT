@@ -71,25 +71,25 @@ describe("Prompt 12 — End-to-End Regression Audit Across All 4 Cheer Subtypes"
     assert.ok(yr.programName);
   });
 
-  it("Check 4: Interactive Add-On Toggles Math (Prompt 10)", () => {
-    // Rally Mix ($350)
+  it("Check 4: Interactive Add-On Toggles Math", () => {
+    // Rush Fee ($150)
     const scOrder = CHEER_DEMO_ORDERS.find((o) => o.cheerFormSubtype === "school-cheer-viroc-yes")!;
     const baseSc = calculateCheerOrderPricing({
       cheerFormSubtype: "school-cheer-viroc-yes",
       packageType: scOrder.packageType!,
       timeLengthOfMix: scOrder.timeLengthOfMix,
       musicAffiliate: scOrder.musicAffiliate,
-      hasRallyMix: false,
+      rushFeeOption: "none",
     });
-    const rallySc = calculateCheerOrderPricing({
+    const rushSc = calculateCheerOrderPricing({
       cheerFormSubtype: "school-cheer-viroc-yes",
       packageType: scOrder.packageType!,
       timeLengthOfMix: scOrder.timeLengthOfMix,
       musicAffiliate: scOrder.musicAffiliate,
-      hasRallyMix: true,
+      rushFeeOption: "single",
     });
-    assert.equal(rallySc.customerFacingPrice, baseSc.customerFacingPrice);
-    assert.equal(rallySc.payrollBasePrice, baseSc.payrollBasePrice + 350);
+    assert.equal(rushSc.customerFacingPrice, baseSc.customerFacingPrice);
+    assert.equal(rushSc.payrollBasePrice, baseSc.payrollBasePrice + 150);
 
     // Youth Rec Cheer Add-Ons ($25 + $50 = $75)
     const yrOrder = CHEER_DEMO_ORDERS.find((o) => o.cheerFormSubtype === "youth-rec-cheer")!;
@@ -143,13 +143,6 @@ describe("Prompt 12 — End-to-End Regression Audit Across All 4 Cheer Subtypes"
   });
 
   it("Check 7: Subtype Scope Leakage Audit", () => {
-    // Rally mix ignored on all-star and youth-rec
-    const asRally = calculateCheerOrderPricing({ cheerFormSubtype: "all-star-cheer", packageType: "GOLD 1:30", hasRallyMix: true });
-    assert.equal(asRally.customerFacingPrice, 700);
-
-    const yrRally = calculateCheerOrderPricing({ cheerFormSubtype: "youth-rec-cheer", packageType: "BRONZE 1:00", hasRallyMix: true });
-    assert.equal(yrRally.customerFacingPrice, 450);
-
     // Youth rec add-ons ignored on school cheer and all-star
     const scYouth = calculateCheerOrderPricing({ cheerFormSubtype: "school-cheer-viroc-yes", packageType: "SILVER 1:00", hasExtend8ctAddon: true, hasProcessing8ctSheetsAddon: true });
     assert.equal(scYouth.customerFacingPrice, 450);

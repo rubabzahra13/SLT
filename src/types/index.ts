@@ -43,6 +43,8 @@ export type MTDRecord = {
   cheerVoiceover20?: boolean;
   cheerVoiceover40?: boolean;
   rushFeeOption?: "none" | "single" | "double" | string | null;
+  rushFeeQuantity?: number;
+  rushFeeCompensationRate?: number | null;
   extraSongsQuantity?: number;
   extraSongEditingTimeQuantity?: number;
   hasSheetMusicAdd?: boolean;
@@ -123,6 +125,9 @@ export type Producer = {
   compensationModel?: ProducerCompensationModel;
   defaultRate?: number | null;
   ratesByCategory?: Record<string, number> | null;
+  danceVoiceoverRate?: number | null;
+  cheerVoiceoverRate?: number | null;
+  rushFeeRate?: number | null;
   rateOverrides?: Record<string, number> | null;
   manualInputFields?: ProducerManualInputField[] | null;
   notes?: string | null;
@@ -191,8 +196,8 @@ export type CheerFormSubtypeFilter = "all" | CheerFormSubtype;
 
 export const CHEER_FORM_SUBTABS: { id: CheerFormSubtype; label: string }[] = [
   { id: "all-star-cheer", label: "All Star Cheer" },
-  { id: "school-cheer-viroc-yes", label: "School Cheer · VIROC Yes" },
-  { id: "school-cheer-viroc-no", label: "School Cheer · VIROC No" },
+  { id: "school-cheer-viroc-yes", label: "VIROC" },
+  { id: "school-cheer-viroc-no", label: "School Cheer" },
   { id: "youth-rec-cheer", label: "Youth Rec Cheer" },
 ];
 
@@ -258,6 +263,8 @@ export type BaseOrderAdminFields = {
   cheerVoiceover20?: boolean;
   cheerVoiceover40?: boolean;
   rushFeeOption?: "none" | "single" | "double" | string | null;
+  rushFeeQuantity?: number;
+  rushFeeCompensationRate?: number | null;
   extraSongsQuantity?: number;
   extraSongEditingTimeQuantity?: number;
   hasSheetMusicAdd?: boolean;
@@ -701,6 +708,8 @@ export type Order = {
   cheerVoiceover20?: boolean;
   cheerVoiceover40?: boolean;
   rushFeeOption?: "none" | "single" | "double" | string | null;
+  rushFeeQuantity?: number;
+  rushFeeCompensationRate?: number | null;
   extraSongsQuantity?: number;
   extraSongEditingTimeQuantity?: number;
   hasSheetMusicAdd?: boolean;

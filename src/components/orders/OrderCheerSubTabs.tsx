@@ -107,7 +107,7 @@ export function OrderCheerSubTabs({ subtype, onChange, counts }: OrderCheerSubTa
                 : "text-brand-ink-secondary hover:bg-brand-surface hover:text-brand-ink"
             )}
           >
-            VIROC Yes
+            VIROC
             <span
               className={clsx(
                 "ml-1 tabular-nums",
@@ -127,7 +127,7 @@ export function OrderCheerSubTabs({ subtype, onChange, counts }: OrderCheerSubTa
                 : "text-brand-ink-secondary hover:bg-brand-surface hover:text-brand-ink"
             )}
           >
-            VIROC No
+            School Cheer
             <span
               className={clsx(
                 "ml-1 tabular-nums",

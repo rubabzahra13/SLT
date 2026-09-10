@@ -5377,7 +5377,7 @@
   "producers": [
     {
       "id": "prod-1",
-      "name": "Casey",
+      "name": "Casey Marlow",
       "initials": "CM",
       "email": "casey@soundslikethat.com",
       "specialty": "Pom",
@@ -5420,7 +5420,7 @@
     },
     {
       "id": "prod-2",
-      "name": "Justin",
+      "name": "Justin Delgado",
       "initials": "JD",
       "email": "justin@soundslikethat.com",
       "specialty": "Pom",
@@ -5444,7 +5444,7 @@
     },
     {
       "id": "prod-3",
-      "name": "Matt",
+      "name": "Matt Sturgis",
       "initials": "MS",
       "email": "matt@soundslikethat.com",
       "specialty": "School Cheer",
@@ -5467,7 +5467,7 @@
     },
     {
       "id": "prod-4",
-      "name": "Nate",
+      "name": "Nate Cryns",
       "initials": "NC",
       "email": "nate@soundslikethat.com",
       "specialty": "School Cheer",
@@ -5489,7 +5489,7 @@
     },
     {
       "id": "prod-5",
-      "name": "Mark",
+      "name": "Mark Maynor",
       "initials": "MM",
       "email": "mark@soundslikethat.com",
       "specialty": "Pom",
@@ -5522,9 +5522,9 @@
     },
     {
       "id": "prod-6",
-      "name": "Griffin",
+      "name": "Griffin Poole",
       "initials": "GP",
-      "email": "griffin@soundslikethat.com",
+      "email": "griffinp@powermusic.com",
       "specialty": "Pom",
       "avatar": "https://api.dicebear.com/9.x/avataaars/svg?seed=GRIFFIN",
       "mixesThisWeek": 8,
@@ -5544,7 +5544,7 @@
     },
     {
       "id": "prod-7",
-      "name": "Josh",
+      "name": "Josh Munnell",
       "initials": "JM",
       "email": "josh@soundslikethat.com",
       "specialty": "Pom",
@@ -5566,7 +5566,7 @@
     },
     {
       "id": "prod-8",
-      "name": "Joel",
+      "name": "Joel Piedt",
       "initials": "JOP",
       "email": "joel@soundslikethat.com",
       "specialty": "Pom",
@@ -5590,9 +5590,9 @@
     },
     {
       "id": "prod-9",
-      "name": "Brent",
+      "name": "Brent Vincent",
       "initials": "BV",
-      "email": "brent@soundslikethat.com",
+      "email": "bvincent@powermusic.com",
       "specialty": "Marching Band",
       "avatar": "https://api.dicebear.com/9.x/avataaars/svg?seed=BRENT",
       "mixesThisWeek": 20,
@@ -5634,7 +5634,7 @@
     },
     {
       "id": "prod-11",
-      "name": "Steve",
+      "name": "Steve Stettler",
       "initials": "SS",
       "email": "steve@soundslikethat.com",
       "specialty": "Pom",
@@ -5735,7 +5735,7 @@
       "id": "prod-15",
       "name": "John Peters",
       "initials": "JP",
-      "email": "john@soundslikethat.com",
+      "email": "jp@soundslikethat.com",
       "specialty": "Pom",
       "avatar": "https://api.dicebear.com/9.x/avataaars/svg?seed=JOHN",
       "mixesThisWeek": 0,
@@ -5805,7 +5805,7 @@
       "id": "prod-18",
       "name": "Joe Bell",
       "initials": "JB",
-      "email": "joe@soundslikethat.com",
+      "email": "Joe@soundslikethat.com",
       "specialty": "Hip Hop",
       "avatar": "https://api.dicebear.com/9.x/avataaars/svg?seed=JOE",
       "mixesThisWeek": 0,
@@ -5821,6 +5821,28 @@
         "Hip Hop",
         "Gameday",
         "Sports Entertainment"
+      ],
+      "maxProducerCostPerDay": null
+    },
+    {
+      "id": "prod-19",
+      "name": "Steven Vento",
+      "initials": "SV",
+      "email": "ds_in_ovations@mac.com",
+      "specialty": "Pom",
+      "avatar": "https://api.dicebear.com/9.x/avataaars/svg?seed=STEVEN",
+      "mixesThisWeek": 0,
+      "nextAvailable": "Mon",
+      "status": "available",
+      "compensationModel": "percentage_of_payroll_base",
+      "defaultRate": 0.72,
+      "ratesByCategory": null,
+      "rateOverrides": null,
+      "manualInputFields": null,
+      "notes": "Flat 72% rate.",
+      "categories": [
+        "Pom",
+        "Gameday"
       ],
       "maxProducerCostPerDay": null
     }

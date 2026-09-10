@@ -492,18 +492,14 @@ function MTDPageContent() {
   ].join("-");
 
   const columns: Column<MTDRecord>[] = useMemo(() => {
-    const showRallyMix =
-      form === "school-all-star-cheer" &&
-      (cheerSubtype === "school-cheer-viroc-yes" ||
-        cheerSubtype === "school-cheer-viroc-no" ||
-        cheerSubtype === "all");
+    const showRallyMix = false; // Removed per spec: Rally Mix is a package, not an add-on
 
     const showYouthAddons =
       form === "school-all-star-cheer" &&
       (cheerSubtype === "youth-rec-cheer" || cheerSubtype === "all");
 
-    const showCheerVoiceover = form === "school-all-star-cheer";
-    const showDanceVoiceover = form === "school-all-star-dance";
+    const showCheerVoiceover = false; // Removed from MTD per spec (Voiceover is strictly Payroll internal)
+    const showDanceVoiceover = false; // Removed from MTD per spec (Voiceover is strictly Payroll internal)
     const showMusicAffiliate =
       form === "school-all-star-cheer" || form === "school-all-star-dance";
     const showMarchingAddons = form === "marching-band";
@@ -833,6 +829,31 @@ function MTDPageContent() {
         },
       },
       {
+        key: "couponCodeCol",
+        header: "Coupon Code",
+        width: "110px",
+        align: "center" as const,
+        nowrap: false,
+        cellClassName: clsx(compactCellClass, "max-w-[110px]"),
+        headerClassName: compactHeaderClass,
+        render: (rec: MTDRecord) => {
+          const linked = rec.orderId ? orderById.get(rec.orderId) : undefined;
+          const coupon = (linked?.couponCode || rec.couponCode || "").trim();
+          if (!coupon) {
+            return (
+              <span className={clsx("mx-auto block text-center text-brand-ink-tertiary", compactTextClass)}>
+                None
+              </span>
+            );
+          }
+          return (
+            <span className={clsx("mx-auto block text-center font-semibold uppercase tracking-wider text-brand-ink", compactTextClass)}>
+              {coupon}
+            </span>
+          );
+        },
+      },
+      {
         key: "mixDateI",
         header: "Mix start date",
         width: "128px",
@@ -961,27 +982,7 @@ function MTDPageContent() {
       },
     ];
 
-    if (showRallyMix) {
-      baseCols.push({
-        key: "rallyMixCol",
-        header: "Rally Mix",
-        width: "90px",
-        align: "center",
-        nowrap: false,
-        cellClassName: "!px-2 !py-2",
-        headerClassName: "!px-2",
-        render: (rec) => (
-            <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
-              <InlineTwoStateToggle
-                value={Boolean(rec.hasRallyMix)}
-                onToggle={() =>
-                  updateMTD(rec.id, { hasRallyMix: !rec.hasRallyMix })
-                }
-              />
-            </div>
-          ),
-      });
-    }
+
 
     if (showYouthAddons) {
       baseCols.push({
@@ -1109,47 +1110,49 @@ function MTDPageContent() {
       });
     }
 
-    baseCols.push({
-      key: "extraSongsCol",
-      header: "Extra Songs",
-      width: "132px",
-      align: "center",
-      nowrap: false,
-      cellClassName: "!px-2 !py-2",
-      headerClassName: "!px-2",
-      render: (rec) => (
-        <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
-          <InlineQuantityStepper
-            quantity={rec.extraSongsQuantity ?? 0}
-            unitCost={15}
-            label="Extra Songs"
-            onChange={(qty) => updateMTD(rec.id, { extraSongsQuantity: qty })}
-          />
-        </div>
-      ),
-    });
+    if (form === "school-all-star-dance") {
+      baseCols.push({
+        key: "extraSongsCol",
+        header: "Extra Songs",
+        width: "132px",
+        align: "center",
+        nowrap: false,
+        cellClassName: "!px-2 !py-2",
+        headerClassName: "!px-2",
+        render: (rec) => (
+          <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
+            <InlineQuantityStepper
+              quantity={rec.extraSongsQuantity ?? 0}
+              unitCost={15}
+              label="Extra Songs"
+              onChange={(qty) => updateMTD(rec.id, { extraSongsQuantity: qty })}
+            />
+          </div>
+        ),
+      });
 
-    baseCols.push({
-      key: "extraSongTimeCol",
-      header: "Extra Song Time",
-      width: "132px",
-      align: "center",
-      nowrap: false,
-      cellClassName: "!px-2 !py-2",
-      headerClassName: "!px-2",
-      render: (rec) => (
-        <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
-          <InlineQuantityStepper
-            quantity={rec.extraSongEditingTimeQuantity ?? 0}
-            unitCost={30}
-            label="Extra Song Time"
-            onChange={(qty) =>
-              updateMTD(rec.id, { extraSongEditingTimeQuantity: qty })
-            }
-          />
-        </div>
-      ),
-    });
+      baseCols.push({
+        key: "extraSongTimeCol",
+        header: "Extra Song Time",
+        width: "132px",
+        align: "center",
+        nowrap: false,
+        cellClassName: "!px-2 !py-2",
+        headerClassName: "!px-2",
+        render: (rec) => (
+          <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
+            <InlineQuantityStepper
+              quantity={rec.extraSongEditingTimeQuantity ?? 0}
+              unitCost={30}
+              label="Extra Song Time"
+              onChange={(qty) =>
+                updateMTD(rec.id, { extraSongEditingTimeQuantity: qty })
+              }
+            />
+          </div>
+        ),
+      });
+    }
 
     baseCols.push(
       {

@@ -39,6 +39,12 @@ import type {
   OrderFormType,
 } from "@/types";
 
+import {
+  InlineDanceVoiceoverPills,
+  InlineCheerVoiceoverPills,
+} from "@/components/mtd/InlineFields";
+import { computeClientPayroll } from "@/lib/pricing-display";
+
 const DEFAULT_FORM: OrderFormType = "school-all-star-cheer";
 const DEFAULT_CHEER_SUBTYPE: CheerFormSubtypeFilter = "all";
 const DEFAULT_DANCE_SUBTYPE: DanceFormSubtypeFilter = "all";
@@ -148,10 +154,41 @@ export default function PayrollPage() {
     () =>
       filtered.reduce((sum, rec) => {
         const order = orderById.get(rec.orderId || "");
-        const payout = rec.producerPayout ?? order?.producerPayout ?? 0;
+        const producerObj = findProducerByAssignmentKey(rec.assignedProducer, producers);
+        const meta = resolveMTDFormMeta(rec, orderById);
+        const custPrice = order?.finalCustomerPrice ?? rec.finalCustomerPrice ?? rec.price;
+        const payrollPrice = rec.finalPayrollPrice ?? order?.finalPayrollPrice ?? rec.price;
+        const rushQty = typeof rec.rushFeeQuantity === "number"
+          ? rec.rushFeeQuantity
+          : rec.rushFeeOption === "double"
+          ? 2
+          : rec.rushFeeOption === "single" || rec.isRushOrder === "yes" || rec.isRushOrder === true
+          ? 1
+          : 0;
+
+        const calc = computeClientPayroll(
+          producerObj,
+          custPrice,
+          null,
+          rec.rateUsed ?? order?.rateUsed ?? null,
+          rec.manualPayoutInput ?? null,
+          meta.canonicalSubtypeId,
+          payrollPrice,
+          {
+            rushFeeQuantity: rushQty,
+            rushFeeCompensationRate: rec.rushFeeCompensationRate ?? producerObj?.rushFeeRate ?? 1.0,
+            danceVoiceover: rec.danceVoiceover,
+            hasTraditionalVoiceover: rec.hasTraditionalVoiceover,
+            hasThemedVoiceover: rec.hasThemedVoiceover,
+            cheerVoiceover20: rec.cheerVoiceover20,
+            cheerVoiceover40: rec.cheerVoiceover40,
+            formType: meta.formType,
+          }
+        );
+        const payout = calc.producerPayout ?? rec.producerPayout ?? order?.producerPayout ?? 0;
         return sum + payout;
       }, 0),
-    [filtered, orderById]
+    [filtered, orderById, producers]
   );
 
   const formCounts = useMemo(
@@ -198,8 +235,12 @@ export default function PayrollPage() {
     setReturnRecord(null);
   }, [returnRecord, updateMTD]);
 
+  const showCheerVoiceover = form === "school-all-star-cheer";
+  const showDanceVoiceover = form === "school-all-star-dance";
+
   const columns: Column<MTDRecord>[] = useMemo(
-    () => [
+    () => {
+      const baseCols: Column<MTDRecord>[] = [
       {
         key: "rowId",
         header: "ID",
@@ -374,6 +415,47 @@ export default function PayrollPage() {
           );
         },
       },
+      ];
+
+      if (showDanceVoiceover) {
+        baseCols.push({
+          key: "voiceoverCol",
+          header: "Voice Over",
+          width: "135px",
+          align: "center",
+          cellClassName: "!px-2 !py-2",
+          headerClassName: "!px-2 !py-2",
+          render: (rec) => (
+            <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
+              <InlineDanceVoiceoverPills
+                record={rec}
+                onUpdate={(id, patch) => updateMTD(id, patch)}
+              />
+            </div>
+          ),
+        });
+      }
+
+      if (showCheerVoiceover) {
+        baseCols.push({
+          key: "cheerVoiceoverCol",
+          header: "Voice Over",
+          width: "135px",
+          align: "center",
+          cellClassName: "!px-2 !py-2",
+          headerClassName: "!px-2 !py-2",
+          render: (rec) => (
+            <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
+              <InlineCheerVoiceoverPills
+                record={rec}
+                onUpdate={(id, patch) => updateMTD(id, patch)}
+              />
+            </div>
+          ),
+        });
+      }
+
+      baseCols.push(
       {
         key: "payout",
         header: "Producer Payout",
@@ -388,9 +470,38 @@ export default function PayrollPage() {
             producers
           );
           const model = producerObj?.compensationModel;
+          const meta = resolveMTDFormMeta(rec, orderById);
+          const custPrice = order?.finalCustomerPrice ?? rec.finalCustomerPrice ?? rec.price;
+          const payrollPrice = rec.finalPayrollPrice ?? order?.finalPayrollPrice ?? rec.price;
+          const rushQty = typeof rec.rushFeeQuantity === "number"
+            ? rec.rushFeeQuantity
+            : rec.rushFeeOption === "double"
+            ? 2
+            : rec.rushFeeOption === "single" || rec.isRushOrder === "yes" || rec.isRushOrder === true
+            ? 1
+            : 0;
 
-          const payout = rec.producerPayout ?? order?.producerPayout;
-          const slt = rec.sltPortion ?? order?.sltPortion;
+          const calculated = computeClientPayroll(
+            producerObj,
+            custPrice,
+            null,
+            rec.rateUsed ?? order?.rateUsed ?? null,
+            rec.manualPayoutInput ?? null,
+            meta.canonicalSubtypeId,
+            payrollPrice,
+            {
+              rushFeeQuantity: rushQty,
+              rushFeeCompensationRate: rec.rushFeeCompensationRate ?? producerObj?.rushFeeRate ?? 1.0,
+              danceVoiceover: rec.danceVoiceover,
+              hasTraditionalVoiceover: rec.hasTraditionalVoiceover,
+              hasThemedVoiceover: rec.hasThemedVoiceover,
+              cheerVoiceover20: rec.cheerVoiceover20,
+              cheerVoiceover40: rec.cheerVoiceover40,
+              formType: meta.formType,
+            }
+          );
+
+          const payout = calculated.producerPayout ?? rec.producerPayout ?? order?.producerPayout;
           const isRateOverridden =
             rec.rateSource === "manual_override" ||
             order?.rateSource === "manual_override";
@@ -502,9 +613,12 @@ export default function PayrollPage() {
             </Link>
           </div>
         ),
-      },
-    ],
-    [allOrders, producers]
+      }
+      );
+
+      return baseCols;
+    },
+    [allOrders, producers, form, showCheerVoiceover, showDanceVoiceover, updateMTD, orderById]
   );
 
   return (

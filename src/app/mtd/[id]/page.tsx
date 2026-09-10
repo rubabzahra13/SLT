@@ -526,22 +526,7 @@ export default function MTDDetailPage({
                 }}
               />
             </FieldTile>
-            {meta.formType === "school-all-star-dance" && (
-              <FieldTile label="Voice Over">
-                <InlineDanceVoiceoverPills
-                  record={rec}
-                  onUpdate={(_id, patch) => patchMTD(patch)}
-                />
-              </FieldTile>
-            )}
-            {meta.formType === "school-all-star-cheer" && (
-              <FieldTile label="Voice Over">
-                <InlineCheerVoiceoverPills
-                  record={rec}
-                  onUpdate={(_id, patch) => patchMTD(patch)}
-                />
-              </FieldTile>
-            )}
+
             <FieldTile label="Rush Fee">
               <InlineRushFeePills
                 record={rec}
@@ -549,22 +534,26 @@ export default function MTDDetailPage({
                 onUpdateOrder={(orderId, patch) => updateOrder(orderId, patch)}
               />
             </FieldTile>
-            <FieldTile label="Extra Songs">
-              <InlineQuantityStepper
-                quantity={rec.extraSongsQuantity ?? 0}
-                unitCost={15}
-                label="Extra Songs"
-                onChange={(qty) => patchMTD({ extraSongsQuantity: qty })}
-              />
-            </FieldTile>
-            <FieldTile label="Extra Song Editing Time">
-              <InlineQuantityStepper
-                quantity={rec.extraSongEditingTimeQuantity ?? 0}
-                unitCost={30}
-                label="Extra Song Time"
-                onChange={(qty) => patchMTD({ extraSongEditingTimeQuantity: qty })}
-              />
-            </FieldTile>
+            {((rec?.category || "").toLowerCase().includes("dance") || order?.formType === "school-all-star-dance") && (
+              <>
+                <FieldTile label="Extra Songs">
+                  <InlineQuantityStepper
+                    quantity={rec.extraSongsQuantity ?? 0}
+                    unitCost={15}
+                    label="Extra Songs"
+                    onChange={(qty) => patchMTD({ extraSongsQuantity: qty })}
+                  />
+                </FieldTile>
+                <FieldTile label="Extra Song Editing Time">
+                  <InlineQuantityStepper
+                    quantity={rec.extraSongEditingTimeQuantity ?? 0}
+                    unitCost={30}
+                    label="Extra Song Time"
+                    onChange={(qty) => patchMTD({ extraSongEditingTimeQuantity: qty })}
+                  />
+                </FieldTile>
+              </>
+            )}
           </div>
         </section>
 

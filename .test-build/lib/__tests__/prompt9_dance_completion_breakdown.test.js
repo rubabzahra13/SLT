@@ -36,16 +36,17 @@ const discount_codes_1 = require("../discount-codes");
             hasTraditionalVoiceover: true,
             hasThemedVoiceover: true,
         });
-        strict_1.default.equal(danceResult.customerFacingPrice, 850); // 850 base (VO is separate add-on)
-        strict_1.default.equal(danceResult.payrollBasePrice, 830); // 730 + 100 (compliant)
-        // Calculate coupon discount against pre-discount payroll base
+        strict_1.default.equal(danceResult.customerFacingPrice, 850); // 850 base
+        strict_1.default.equal(danceResult.payrollBasePrice, 730); // 730 (compliant)
+        // Calculate display-only customer discount
         const preDiscountPay = danceResult.payrollBasePrice;
-        const discountAmount = Math.round(preDiscountPay * (matchedDiscount.discountValue / 100)); // 830 * 10% = 83
-        strict_1.default.equal(discountAmount, 83);
-        const finalCustomerPrice = danceResult.customerFacingPrice - discountAmount; // 850 - 83 = 767
-        const finalPayrollPrice = danceResult.payrollBasePrice - discountAmount; // 830 - 83 = 747
-        strict_1.default.equal(finalCustomerPrice, 767);
-        strict_1.default.equal(finalPayrollPrice, 747);
+        const discountAmount = Math.round(preDiscountPay * (matchedDiscount.discountValue / 100)); // 730 * 10% = 73
+        strict_1.default.equal(discountAmount, 73);
+        // Coupon is display-only customer info. Package Price and Payroll Base remain untouched.
+        const displayOnlyCustomerDiscountedPrice = danceResult.customerFacingPrice - discountAmount; // 850 - 73 = 777
+        strict_1.default.equal(displayOnlyCustomerDiscountedPrice, 777);
+        strict_1.default.equal(danceResult.customerFacingPrice, 850);
+        strict_1.default.equal(danceResult.payrollBasePrice, 730);
     });
     (0, node_test_1.it)("Subtype 2 (Hip Hop): DANCE PLUS ($575) + Unleash the Beats Covers (compliant) + No VO + No Coupon", () => {
         const danceResult = (0, pricing_engine_1.calculateDanceOrderPricing)({
@@ -66,7 +67,7 @@ const discount_codes_1 = require("../discount-codes");
             hasThemedVoiceover: false,
         });
         strict_1.default.equal(danceResult.customerFacingPrice, 500); // 500 base
-        strict_1.default.equal(danceResult.payrollBasePrice, 525); // 500 (non-compliant) + 25
+        strict_1.default.equal(danceResult.payrollBasePrice, 500); // 500 (non-compliant)
         strict_1.default.equal(danceResult.complianceStatus, "non-compliant");
     });
     (0, node_test_1.it)("Subtype 4 (Gameday): PERFORMANCE EXTREME ($200) + Power Music (compliant) + Themed VO (+75) + Coupon SAVE50 ($50 off)", () => {
@@ -82,13 +83,14 @@ const discount_codes_1 = require("../discount-codes");
             hasThemedVoiceover: true,
         });
         strict_1.default.equal(danceResult.customerFacingPrice, 200); // 200 base
-        strict_1.default.equal(danceResult.payrollBasePrice, 215); // 140 + 75
+        strict_1.default.equal(danceResult.payrollBasePrice, 140); // 140 base
         const discountAmount = Math.min(danceResult.payrollBasePrice, matchedDiscount.discountValue); // 50
         strict_1.default.equal(discountAmount, 50);
-        const finalCustomerPrice = danceResult.customerFacingPrice - discountAmount; // 200 - 50 = 150
-        const finalPayrollPrice = danceResult.payrollBasePrice - discountAmount; // 215 - 50 = 165
-        strict_1.default.equal(finalCustomerPrice, 150);
-        strict_1.default.equal(finalPayrollPrice, 165);
+        // Display-only customer discounted price = 150. Actual Package Price & Payroll Base remain 200 & 140.
+        const displayOnlyCustomerDiscountedPrice = danceResult.customerFacingPrice - discountAmount; // 200 - 50 = 150
+        strict_1.default.equal(displayOnlyCustomerDiscountedPrice, 150);
+        strict_1.default.equal(danceResult.customerFacingPrice, 200);
+        strict_1.default.equal(danceResult.payrollBasePrice, 140);
     });
     (0, node_test_1.it)("Subtype 5 (Jazz/Kick): JAZZ SIMPLE CUT ($100) + Non-Compliant Affiliate + Both VO (+100)", () => {
         const danceResult = (0, pricing_engine_1.calculateDanceOrderPricing)({
@@ -99,7 +101,7 @@ const discount_codes_1 = require("../discount-codes");
             hasThemedVoiceover: true,
         });
         strict_1.default.equal(danceResult.customerFacingPrice, 100); // 100 base
-        strict_1.default.equal(danceResult.payrollBasePrice, 200); // 100 (always fixed) + 100
+        strict_1.default.equal(danceResult.payrollBasePrice, 100); // 100 (always fixed)
         strict_1.default.equal(danceResult.alwaysFixedPayroll, true);
     });
 });

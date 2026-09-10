@@ -28,8 +28,9 @@ function getSubtypeLabel(subtypeId) {
     switch (subtypeId) {
         case "all-star-cheer":
             return "All-Star Cheer";
-        case "school-cheer":
         case "school-cheer-viroc-yes":
+            return "VIROC";
+        case "school-cheer":
         case "school-cheer-viroc-no":
             return "School Cheer";
         case "youth-rec-cheer":
@@ -100,7 +101,7 @@ function getProducerCategoryRate(producer, categoryOrSubtype, formType) {
         categoryName: categoryName || categoryOrSubtype || "",
     };
 }
-function computeClientPayroll(producer, finalCustomerPrice, breakdown, selectedRate, manualPayoutInput, canonicalSubtypeId, finalPayrollPriceOverride) {
+function computeClientPayroll(producer, finalCustomerPrice, breakdown, selectedRate, manualPayoutInput, canonicalSubtypeId, finalPayrollPriceOverride, options) {
     // percentage_of_payroll_base: MUST use final payroll price (payrollBase), never base customer/package price
     const payrollBase = typeof finalPayrollPriceOverride === "number" && !isNaN(finalPayrollPriceOverride)
         ? finalPayrollPriceOverride
@@ -139,7 +140,51 @@ function computeClientPayroll(producer, finalCustomerPrice, breakdown, selectedR
             message: `${producer.name} is paid manually via pay sheet`,
         };
     }
-    // Determine initial rate if none selected
+    // Calculate Rush Fee payout
+    const rushQty = options?.rushFeeQuantity ?? 0;
+    const rushCustomerCharge = rushQty * 150;
+    const rawRushRate = options?.rushFeeCompensationRate ?? producer.rushFeeRate ?? 1.0;
+    const rushFeeRateUsed = rawRushRate > 1 ? rawRushRate / 100 : rawRushRate;
+    const rushFeePayout = Math.round(150 * rushQty * rushFeeRateUsed * 100) / 100;
+    // Calculate Voiceover payout based on producer's specific VO rates
+    let voiceoverPayout = 0;
+    let voiceoverRateUsed;
+    const isDance = options?.formType === "school-all-star-dance" ||
+        Boolean(options?.danceVoiceover) ||
+        Boolean(options?.hasTraditionalVoiceover) ||
+        Boolean(options?.hasThemedVoiceover);
+    if (isDance) {
+        const rawDanceVo = producer.danceVoiceoverRate ?? 0.8;
+        voiceoverRateUsed = rawDanceVo > 1 ? rawDanceVo / 100 : rawDanceVo;
+        let voBase = 0;
+        const danceVo = options?.danceVoiceover;
+        const trad = Boolean(options?.hasTraditionalVoiceover);
+        const themed = Boolean(options?.hasThemedVoiceover);
+        if (danceVo === "100" || (trad && themed)) {
+            voBase = 100;
+        }
+        else if (danceVo === "75" || themed) {
+            voBase = 75;
+        }
+        else if (danceVo === "25" || trad) {
+            voBase = 25;
+        }
+        voiceoverPayout = Math.round(voBase * voiceoverRateUsed * 100) / 100;
+    }
+    else {
+        // Cheer Voiceover
+        const rawCheerVo = producer.cheerVoiceoverRate ?? 1.0;
+        voiceoverRateUsed = rawCheerVo > 1 ? rawCheerVo / 100 : rawCheerVo;
+        let voBase = 0;
+        if (options?.cheerVoiceover20)
+            voBase += 20;
+        if (options?.cheerVoiceover40)
+            voBase += 40;
+        voiceoverPayout = Math.round(voBase * voiceoverRateUsed * 100) / 100;
+    }
+    // Base Package Payroll Amount (subtracting customer rush fee charge to avoid double counting)
+    const basePackagePayrollPrice = Math.max(0, payrollBase - rushCustomerCharge);
+    // Determine initial category rate if none selected
     let defaultRate = selectedRate;
     let source = "manual_override";
     let isCasey = false;
@@ -149,8 +194,10 @@ function computeClientPayroll(producer, finalCustomerPrice, breakdown, selectedR
         isCasey = true;
         const oldRate = producer.rateOverrides?.old_pricing ?? 0.72;
         const newRate = producer.rateOverrides?.new_pricing ?? 0.70;
-        oldPayout = Math.round(payrollBase * oldRate * 100) / 100;
-        newPayout = Math.round(payrollBase * newRate * 100) / 100;
+        const oldCatPayout = Math.round(basePackagePayrollPrice * oldRate * 100) / 100;
+        const newCatPayout = Math.round(basePackagePayrollPrice * newRate * 100) / 100;
+        oldPayout = Math.round((oldCatPayout + rushFeePayout + voiceoverPayout) * 100) / 100;
+        newPayout = Math.round((newCatPayout + rushFeePayout + voiceoverPayout) * 100) / 100;
         if (selectedRate === null) {
             // Unconfirmed trigger
             return {
@@ -162,20 +209,26 @@ function computeClientPayroll(producer, finalCustomerPrice, breakdown, selectedR
                 isCaseyAmbiguous: true,
                 oldPricingPayout: oldPayout,
                 newPricingPayout: newPayout,
+                rushFeePayout,
+                rushFeeQuantity: rushQty,
+                rushFeeRateUsed,
+                voiceoverPayout,
+                voiceoverRateUsed,
                 message: "Casey has two rates: Old (72%) & New (70%). Select rate to finalize.",
             };
         }
     }
     if (defaultRate === null) {
         const catOrSub = canonicalSubtypeId || breakdown?.canonical_subtype_id;
-        const formType = breakdown?.form_type;
+        const formType = breakdown?.form_type || options?.formType;
         const resolved = getProducerCategoryRate(producer, catOrSub, formType);
         defaultRate = resolved.rate;
         source = resolved.source;
     }
     if (defaultRate === null) {
-        const catOrSub = canonicalSubtypeId || breakdown?.canonical_subtype_id || breakdown?.form_type || "this order";
-        const categoryName = (0, editor_assignment_1.orderCategoryToProducerCategory)(breakdown?.form_type, canonicalSubtypeId || undefined, catOrSub || undefined) || catOrSub;
+        const catOrSub = canonicalSubtypeId || breakdown?.canonical_subtype_id || breakdown?.form_type || options?.formType || "this order";
+        const rawFormType = breakdown?.form_type || options?.formType || undefined;
+        const categoryName = (0, editor_assignment_1.orderCategoryToProducerCategory)(rawFormType, canonicalSubtypeId || undefined, catOrSub || undefined) || catOrSub;
         return {
             status: "needs_manual_review",
             producerPayout: manualPayoutInput,
@@ -186,7 +239,9 @@ function computeClientPayroll(producer, finalCustomerPrice, breakdown, selectedR
             message: `Compensation percentage is not configured for ${producer.name} on category "${categoryName}". Please configure it in Settings → Producers.`,
         };
     }
-    const payout = Math.round(payrollBase * defaultRate * 100) / 100;
+    const normalizedCategoryRate = defaultRate > 1 ? defaultRate / 100 : defaultRate;
+    const categoryPayout = Math.round(basePackagePayrollPrice * normalizedCategoryRate * 100) / 100;
+    const payout = Math.round((categoryPayout + rushFeePayout + voiceoverPayout) * 100) / 100;
     const slt = Math.round((payrollBase - payout) * 100) / 100;
     return {
         status: "computed",
@@ -197,6 +252,14 @@ function computeClientPayroll(producer, finalCustomerPrice, breakdown, selectedR
         isCaseyAmbiguous: isCasey && selectedRate === null,
         oldPricingPayout: oldPayout,
         newPricingPayout: newPayout,
-        message: `Payout: $${payout.toFixed(2)} (${(defaultRate * 100).toFixed(0)}%)`,
+        categoryPayout,
+        rushFeePayout,
+        rushFeeQuantity: rushQty,
+        rushFeeRateUsed,
+        voiceoverPayout,
+        voiceoverRateUsed,
+        message: rushFeePayout || voiceoverPayout
+            ? `Payout: $${payout.toFixed(2)} (${(normalizedCategoryRate * 100).toFixed(0)}% base + addons)`
+            : `Payout: $${payout.toFixed(2)} (${(normalizedCategoryRate * 100).toFixed(0)}%)`,
     };
 }

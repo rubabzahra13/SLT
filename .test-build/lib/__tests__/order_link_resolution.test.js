@@ -80,8 +80,8 @@ const pricing_engine_1 = require("../pricing-engine");
             musicAffiliate: matched.musicAffiliate,
             hasRallyMix: record.hasRallyMix,
         });
-        strict_1.default.equal(pricing.customerFacingPrice, 2000); // $2000 base package price (Rally Mix is separate add-on)
-        strict_1.default.equal(pricing.payrollBasePrice, 2350); // $2000 + $350 Rally Mix
+        strict_1.default.equal(pricing.customerFacingPrice, 2000); // $2000 base package price
+        strict_1.default.equal(pricing.payrollBasePrice, 2000); // Titanium non-compliant payroll base price is $2000
         strict_1.default.equal(pricing.complianceStatus, "non-compliant");
         strict_1.default.equal(pricing.packageName, "TITANIUM");
         strict_1.default.equal(pricing.timeLengthOfMix, "1:45");

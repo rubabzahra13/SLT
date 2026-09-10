@@ -11,7 +11,7 @@ function labelForProducerCategory(id, fallback) {
         return "All Star Cheer";
     if (id === "Team Performance / Variety")
         return "Team Performance & Variety";
-    return fallback.replace(" · VIROC Yes", "").replace(" · VIROC No", "");
+    return fallback.replace(" · VIROC Yes", "").replace(" · VIROC No", "").replace("VIROC Yes", "VIROC").replace("VIROC No", "School Cheer");
 }
 function uniqueSubcategories(formType, subs) {
     const seen = new Set();

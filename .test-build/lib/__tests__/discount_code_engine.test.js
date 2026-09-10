@@ -56,7 +56,7 @@ const discount_codes_1 = require("../discount-codes");
         });
         strict_1.default.equal(result.preDiscountPayrollBasePrice, 1050);
         strict_1.default.equal(result.discountAmount, 200);
-        strict_1.default.equal(result.payrollBasePrice, 850); // $1050 - $200 = $850
+        strict_1.default.equal(result.payrollBasePrice, 1050); // Coupon does not alter internal payroll base price
     });
     (0, node_test_1.it)("Test 2 — Percentage (10% off $1,000)", () => {
         const matched = lookupCode("SAVE10", mockDiscountCodes);
@@ -69,7 +69,7 @@ const discount_codes_1 = require("../discount-codes");
         });
         strict_1.default.equal(result.preDiscountPayrollBasePrice, 1000);
         strict_1.default.equal(result.discountAmount, 100); // 10% of $1000 = $100
-        strict_1.default.equal(result.payrollBasePrice, 900); // $1000 - $100 = $900
+        strict_1.default.equal(result.payrollBasePrice, 1000); // Coupon does not alter internal payroll base price
     });
     (0, node_test_1.it)("Test 3 — Percentage 20% (20% off $1,000)", () => {
         const matched = lookupCode("SAVE20", mockDiscountCodes);
@@ -82,7 +82,7 @@ const discount_codes_1 = require("../discount-codes");
         });
         strict_1.default.equal(result.preDiscountPayrollBasePrice, 1000);
         strict_1.default.equal(result.discountAmount, 200); // 20% of $1000 = $200
-        strict_1.default.equal(result.payrollBasePrice, 800); // $1000 - $200 = $800
+        strict_1.default.equal(result.payrollBasePrice, 1000); // Coupon does not alter internal payroll base price
     });
     (0, node_test_1.it)("Test 4 — Optional Description (blank description creates & matches successfully)", () => {
         const matched = lookupCode("TEST10", mockDiscountCodes);
@@ -96,7 +96,7 @@ const discount_codes_1 = require("../discount-codes");
         });
         strict_1.default.equal(result.preDiscountPayrollBasePrice, 600);
         strict_1.default.equal(result.discountAmount, 60); // 10% of $600 = $60
-        strict_1.default.equal(result.payrollBasePrice, 540); // $600 - $60 = $540
+        strict_1.default.equal(result.payrollBasePrice, 600); // Coupon does not alter internal payroll base price
     });
     (0, node_test_1.it)("Test 5 — No Matching Code (unmatched code results in $0 discount)", () => {
         const evalRes = (0, discount_codes_1.evaluateCouponCode)("DOESNOTEXIST", mockDiscountCodes);
@@ -129,14 +129,14 @@ const discount_codes_1 = require("../discount-codes");
             cheerFormSubtype: "school-cheer-viroc-yes",
             packageType: "GOLD 2:00", // Compliant base: $850
             musicAffiliate: "Power Music",
-            hasRallyMix: true, // Rally Mix add-on: +$350 -> Pre-discount payroll base: $1200
+            rushFeeOption: "double", // Rush Fee add-on: +$300 -> Pre-discount payroll base: $1150
             discountCodeObj: matched, // -$200 fixed
         });
-        strict_1.default.equal(result.preDiscountPayrollBasePrice, 1200); // $850 + $350
+        strict_1.default.equal(result.preDiscountPayrollBasePrice, 1150); // $850 + $300
         strict_1.default.equal(result.discountAmount, 200);
-        strict_1.default.equal(result.payrollBasePrice, 1000); // $1200 - $200 = $1000
+        strict_1.default.equal(result.payrollBasePrice, 1150); // Coupon does not alter internal payroll base price
     });
-    (0, node_test_1.it)("Test 8 — Price Floor Validation (Discount cannot produce negative price)", () => {
+    (0, node_test_1.it)("Test 8 — Price Floor Validation (Discount metadata calculation caps at base price)", () => {
         const matched = lookupCode("BIG500", mockDiscountCodes);
         strict_1.default.ok(matched);
         const result = (0, pricing_engine_1.calculateCheerOrderPricing)({
@@ -147,7 +147,7 @@ const discount_codes_1 = require("../discount-codes");
         });
         strict_1.default.equal(result.preDiscountPayrollBasePrice, 350);
         strict_1.default.equal(result.discountAmount, 350); // Capped at pre-discount price $350
-        strict_1.default.equal(result.payrollBasePrice, 0); // Minimum $0 floor
+        strict_1.default.equal(result.payrollBasePrice, 350); // Internal payroll base stays full $350 amount
     });
     (0, node_test_1.it)("Test 9 — Near-match typo suggests saved dance promo for customer entry", () => {
         const danceCodes = [

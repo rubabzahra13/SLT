@@ -45,6 +45,27 @@ def parse_datetime(val: Optional[str]) -> Optional[datetime]:
         except Exception:
             return None
 
+CANONICAL_PRODUCER_EMAILS = {
+    "CM": "casey@soundslikethat.com",
+    "MS": "matt@soundslikethat.com",
+    "NC": "nate@soundslikethat.com",
+    "BV": "bvincent@powermusic.com",
+    "MM": "mark@soundslikethat.com",
+    "SS": "steve@soundslikethat.com",
+    "AJ": "anne@soundslikethat.com",
+    "LV": "lauren@soundslikethat.com",
+    "RF": "rory@soundslikethat.com",
+    "JOP": "joel@soundslikethat.com",
+    "JD": "justin@soundslikethat.com",
+    "JP": "jp@soundslikethat.com",
+    "MT": "max@soundslikethat.com",
+    "CC": "chris@soundslikethat.com",
+    "JB": "Joe@soundslikethat.com",
+    "SV": "ds_in_ovations@mac.com",
+    "JM": "josh@soundslikethat.com",
+    "GP": "griffinp@powermusic.com",
+}
+
 def seed_all(db: Session):
     # 0. Seed pricing rules from pricing-rules.json (idempotent)
     print("Seeding pricing rules...")
@@ -66,6 +87,7 @@ def seed_all(db: Session):
     for p in raw_producers:
         initials = p.get("initials", "").strip()
         legacy_id = p.get("id", "").strip()
+        canonical_email = CANONICAL_PRODUCER_EMAILS.get(initials, p.get("email", f"{initials.lower()}@soundslikethat.com"))
 
         producer = db.query(Producer).filter(Producer.initials == initials).first()
         if not producer:
@@ -73,7 +95,7 @@ def seed_all(db: Session):
                 legacy_id=legacy_id,
                 name=p.get("name", initials),
                 initials=initials,
-                email=p.get("email", f"{initials.lower()}@soundslikethat.com"),
+                email=p.get("email") or canonical_email,
                 specialty=p.get("specialty", "Cheer"),
                 categories=p.get("categories"),
                 avatar=p.get("avatar"),

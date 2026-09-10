@@ -43,8 +43,8 @@ exports.ORDER_FORM_TABS = [
 ];
 exports.CHEER_FORM_SUBTABS = [
     { id: "all-star-cheer", label: "All Star Cheer" },
-    { id: "school-cheer-viroc-yes", label: "School Cheer · VIROC Yes" },
-    { id: "school-cheer-viroc-no", label: "School Cheer · VIROC No" },
+    { id: "school-cheer-viroc-yes", label: "VIROC" },
+    { id: "school-cheer-viroc-no", label: "School Cheer" },
     { id: "youth-rec-cheer", label: "Youth Rec Cheer" },
 ];
 exports.CHEER_FORM_SUBTABS_WITH_ALL = [

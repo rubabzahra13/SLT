@@ -28,58 +28,29 @@ const pricing_engine_1 = require("../pricing-engine");
         extraSongEditingTimeQuantity: 0,
         price: 850,
     };
-    (0, node_test_1.describe)("1. Dance Voiceover Pricing & State", () => {
-        (0, node_test_1.it)("Default unselected voiceover has $0 payroll impact", () => {
+    (0, node_test_1.describe)("1. Dance Voiceover Removal from MTD Pricing", () => {
+        (0, node_test_1.it)("Default unselected voiceover has $0 payroll impact in MTD", () => {
             const res = (0, pricing_engine_1.calculateMiscellaneousPayrollAddons)(baseDanceRecord);
             strict_1.default.equal(res.totalPayrollAddOns, 0);
             strict_1.default.equal(res.items.length, 0);
         });
-        (0, node_test_1.it)("Traditional (+$25) voiceover adds $25 to payroll", () => {
-            const rec = { ...baseDanceRecord, danceVoiceover: "25" };
-            const res = (0, pricing_engine_1.calculateMiscellaneousPayrollAddons)(rec);
-            strict_1.default.equal(res.totalPayrollAddOns, 25);
-            strict_1.default.equal(res.items[0].payrollAmount, 25);
-            strict_1.default.equal(res.items[0].id, "dance_vo_25");
-        });
-        (0, node_test_1.it)("Themed (+$75) voiceover adds $75 to payroll", () => {
-            const rec = { ...baseDanceRecord, danceVoiceover: "75" };
-            const res = (0, pricing_engine_1.calculateMiscellaneousPayrollAddons)(rec);
-            strict_1.default.equal(res.totalPayrollAddOns, 75);
-            strict_1.default.equal(res.items[0].payrollAmount, 75);
-            strict_1.default.equal(res.items[0].id, "dance_vo_75");
-        });
-        (0, node_test_1.it)("Both (+$100) voiceover adds $100 to payroll", () => {
-            const rec = { ...baseDanceRecord, danceVoiceover: "100" };
-            const res = (0, pricing_engine_1.calculateMiscellaneousPayrollAddons)(rec);
-            strict_1.default.equal(res.totalPayrollAddOns, 100);
-            strict_1.default.equal(res.items[0].payrollAmount, 100);
-            strict_1.default.equal(res.items[0].id, "dance_vo_100");
+        (0, node_test_1.it)("Voiceover options have $0 impact in MTD (Voiceover is internal to Payroll)", () => {
+            const rec25 = { ...baseDanceRecord, danceVoiceover: "25" };
+            strict_1.default.equal((0, pricing_engine_1.calculateMiscellaneousPayrollAddons)(rec25).totalPayrollAddOns, 0);
+            const rec75 = { ...baseDanceRecord, danceVoiceover: "75" };
+            strict_1.default.equal((0, pricing_engine_1.calculateMiscellaneousPayrollAddons)(rec75).totalPayrollAddOns, 0);
+            const rec100 = { ...baseDanceRecord, danceVoiceover: "100" };
+            strict_1.default.equal((0, pricing_engine_1.calculateMiscellaneousPayrollAddons)(rec100).totalPayrollAddOns, 0);
         });
     });
-    (0, node_test_1.describe)("2. Cheer Voiceover Pricing & Independent Selection", () => {
-        (0, node_test_1.it)("No cheer voiceover selected", () => {
-            const res = (0, pricing_engine_1.calculateMiscellaneousPayrollAddons)(baseCheerRecord);
-            strict_1.default.equal(res.totalPayrollAddOns, 0);
-        });
-        (0, node_test_1.it)("$20 Cheer Voiceover option selected", () => {
-            const rec = { ...baseCheerRecord, cheerVoiceover20: true };
-            const res = (0, pricing_engine_1.calculateMiscellaneousPayrollAddons)(rec);
-            strict_1.default.equal(res.totalPayrollAddOns, 20);
-            strict_1.default.equal(res.items[0].payrollAmount, 20);
-            strict_1.default.equal(res.items[0].id, "cheer_vo_20");
-        });
-        (0, node_test_1.it)("$40 Cheer Voiceover option selected", () => {
-            const rec = { ...baseCheerRecord, cheerVoiceover40: true };
-            const res = (0, pricing_engine_1.calculateMiscellaneousPayrollAddons)(rec);
-            strict_1.default.equal(res.totalPayrollAddOns, 40);
-            strict_1.default.equal(res.items[0].payrollAmount, 40);
-            strict_1.default.equal(res.items[0].id, "cheer_vo_40");
-        });
-        (0, node_test_1.it)("Both $20 and $40 Cheer Voiceover options selected for $60 total", () => {
-            const rec = { ...baseCheerRecord, cheerVoiceover20: true, cheerVoiceover40: true };
-            const res = (0, pricing_engine_1.calculateMiscellaneousPayrollAddons)(rec);
-            strict_1.default.equal(res.totalPayrollAddOns, 60);
-            strict_1.default.equal(res.items.length, 2);
+    (0, node_test_1.describe)("2. Cheer Voiceover Removal from MTD Pricing", () => {
+        (0, node_test_1.it)("Cheer voiceover options have $0 impact in MTD (Voiceover is internal to Payroll)", () => {
+            const rec20 = { ...baseCheerRecord, cheerVoiceover20: true };
+            strict_1.default.equal((0, pricing_engine_1.calculateMiscellaneousPayrollAddons)(rec20).totalPayrollAddOns, 0);
+            const rec40 = { ...baseCheerRecord, cheerVoiceover40: true };
+            strict_1.default.equal((0, pricing_engine_1.calculateMiscellaneousPayrollAddons)(rec40).totalPayrollAddOns, 0);
+            const recBoth = { ...baseCheerRecord, cheerVoiceover20: true, cheerVoiceover40: true };
+            strict_1.default.equal((0, pricing_engine_1.calculateMiscellaneousPayrollAddons)(recBoth).totalPayrollAddOns, 0);
         });
     });
     (0, node_test_1.describe)("3. Rush Fee State & Mutually Exclusive Pricing", () => {
@@ -93,14 +64,14 @@ const pricing_engine_1 = require("../pricing-engine");
             const res = (0, pricing_engine_1.calculateMiscellaneousPayrollAddons)(rec);
             strict_1.default.equal(res.totalPayrollAddOns, 150);
             strict_1.default.equal(res.items[0].payrollAmount, 150);
-            strict_1.default.equal(res.items[0].id, "rush_fee_single");
+            strict_1.default.equal(res.items[0].id, "rush_fee");
         });
         (0, node_test_1.it)("Double Rush fee = $300", () => {
             const rec = { ...baseDanceRecord, rushFeeOption: "double" };
             const res = (0, pricing_engine_1.calculateMiscellaneousPayrollAddons)(rec);
             strict_1.default.equal(res.totalPayrollAddOns, 300);
             strict_1.default.equal(res.items[0].payrollAmount, 300);
-            strict_1.default.equal(res.items[0].id, "rush_fee_double");
+            strict_1.default.equal(res.items[0].id, "rush_fee");
         });
         (0, node_test_1.it)("Switching from Single to Double replaces $150 with $300 (no accumulation)", () => {
             const recSingle = { ...baseDanceRecord, rushFeeOption: "single" };
@@ -148,8 +119,8 @@ const pricing_engine_1 = require("../pricing-engine");
                 extraSongEditingTimeQuantity: 3,
             };
             const res = (0, pricing_engine_1.calculateMiscellaneousPayrollAddons)(fullRecord);
-            // 75 (VO) + 150 (Rush) + 50 (8-CS) + 25 (Extend) + 45 (3 Songs) + 90 (3 Editing Time) = 435
-            strict_1.default.equal(res.totalPayrollAddOns, 435);
+            // 150 (Rush) + 50 (8-CS) + 25 (Extend) + 45 (3 Songs) + 90 (3 Editing Time) = 360
+            strict_1.default.equal(res.totalPayrollAddOns, 360);
         });
     });
     (0, node_test_1.describe)("6. NON-NEGOTIABLE INVARIANT: Package Price / Customer Price Must NEVER Change", () => {
@@ -170,8 +141,8 @@ const pricing_engine_1 = require("../pricing-engine");
             });
             // Customer Facing Price MUST be identical!
             strict_1.default.equal(addOnPricing.customerFacingPrice, basePricing.customerFacingPrice);
-            // Payroll Base Price MUST reflect add-ons!
-            strict_1.default.equal(addOnPricing.payrollBasePrice, basePricing.payrollBasePrice + 75 + 300 + 60 + 120);
+            // Payroll Base Price MUST reflect MTD add-ons (300 rush + 60 songs + 120 editing time)!
+            strict_1.default.equal(addOnPricing.payrollBasePrice, basePricing.payrollBasePrice + 300 + 60 + 120);
         });
         (0, node_test_1.it)("Cheer order Package Price remains unchanged when all add-ons are applied", () => {
             const basePricing = (0, pricing_engine_1.calculateCheerOrderPricing)({
@@ -191,10 +162,10 @@ const pricing_engine_1 = require("../pricing-engine");
             });
             // Customer Facing Price MUST be identical!
             strict_1.default.equal(addOnPricing.customerFacingPrice, basePricing.customerFacingPrice);
-            // Payroll Base Price MUST reflect add-ons! (20 + 40 + 150 + 30 + 60 = 300)
-            strict_1.default.equal(addOnPricing.payrollBasePrice, basePricing.payrollBasePrice + 300);
+            // Payroll Base Price MUST reflect MTD add-ons (150 rush fee; extra songs are removed from Cheer)!
+            strict_1.default.equal(addOnPricing.payrollBasePrice, basePricing.payrollBasePrice + 150);
         });
-        (0, node_test_1.it)("Gameday PERFORMANCE MIX with Themed VO (+75), 6 Extra Songs (+90), 4 Extra Editing Time (+120) yields $370 Payroll Price and $100 Package Price", () => {
+        (0, node_test_1.it)("Gameday PERFORMANCE MIX with Themed VO (+75), 6 Extra Songs (+90), 4 Extra Editing Time (+120) yields $295 MTD Payroll Base Price and $100 Package Price", () => {
             const res = (0, pricing_engine_1.calculateDanceOrderPricing)({
                 danceFormSubtype: "gameday",
                 packageType: "PERFORMANCE MIX",
@@ -205,8 +176,8 @@ const pricing_engine_1 = require("../pricing-engine");
             });
             // Base customer price = 100
             strict_1.default.equal(res.customerFacingPrice, 100);
-            // Base compliant payroll price (85) + 75 + 90 + 120 = 370
-            strict_1.default.equal(res.payrollBasePrice, 370);
+            // Base compliant payroll price (85) + 90 + 120 = 295
+            strict_1.default.equal(res.payrollBasePrice, 295);
         });
     });
 });

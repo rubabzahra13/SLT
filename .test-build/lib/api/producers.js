@@ -38,6 +38,9 @@ function transformProducer(bp) {
         compensationModel: bp.compensation_model ?? null,
         defaultRate: bp.default_rate ?? null,
         ratesByCategory: bp.rates_by_category ?? null,
+        danceVoiceoverRate: bp.dance_voiceover_rate ?? null,
+        cheerVoiceoverRate: bp.cheer_voiceover_rate ?? null,
+        rushFeeRate: bp.rush_fee_rate ?? null,
         rateOverrides: bp.rate_overrides ?? null,
         manualInputFields: bp.manual_input_fields ?? null,
         notes: bp.notes ?? null,
@@ -63,6 +66,9 @@ async function createProducerApi(producer) {
         compensation_model: producer.compensationModel,
         default_rate: producer.defaultRate,
         rates_by_category: producer.ratesByCategory,
+        dance_voiceover_rate: producer.danceVoiceoverRate,
+        cheer_voiceover_rate: producer.cheerVoiceoverRate,
+        rush_fee_rate: producer.rushFeeRate,
         rate_overrides: producer.rateOverrides,
         manual_input_fields: producer.manualInputFields,
         notes: producer.notes,
@@ -104,6 +110,12 @@ async function updateProducerApi(id, patch) {
         payload.default_rate = patch.defaultRate;
     if (patch.ratesByCategory !== undefined)
         payload.rates_by_category = patch.ratesByCategory;
+    if (patch.danceVoiceoverRate !== undefined)
+        payload.dance_voiceover_rate = patch.danceVoiceoverRate;
+    if (patch.cheerVoiceoverRate !== undefined)
+        payload.cheer_voiceover_rate = patch.cheerVoiceoverRate;
+    if (patch.rushFeeRate !== undefined)
+        payload.rush_fee_rate = patch.rushFeeRate;
     if (patch.rateOverrides !== undefined)
         payload.rate_overrides = patch.rateOverrides;
     if (patch.manualInputFields !== undefined)

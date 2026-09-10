@@ -18,29 +18,27 @@ const pricing_engine_1 = require("../pricing-engine");
         strict_1.default.equal(res.customerFacingPrice, 700);
         strict_1.default.equal(res.payrollBasePrice, 600);
     });
-    (0, node_test_1.it)("Test 2 — Rally Mix: Package Price remains $700 while Payroll Price includes +$350", () => {
+    (0, node_test_1.it)("Test 2 — Standalone Package Rally Mix: Package Price is $350 and Payroll Price is $350", () => {
+        const res = (0, pricing_engine_1.calculateCheerOrderPricing)({
+            cheerFormSubtype: "school-cheer-viroc-yes",
+            packageType: "Rally Mix",
+            musicAffiliate: "Power Music",
+        });
+        strict_1.default.equal(res.customerFacingPrice, 350);
+        strict_1.default.equal(res.payrollBasePrice, 350);
+    });
+    (0, node_test_1.it)("Test 3 — Rush Fee Add-on: Package Price remains $700 while Payroll Price includes +$150 Rush Fee", () => {
         const res = (0, pricing_engine_1.calculateCheerOrderPricing)({
             cheerFormSubtype: "school-cheer-viroc-yes",
             packageType: "GOLD 1:30",
             timeLengthOfMix: "1:30",
             musicAffiliate: "Power Music",
-            hasRallyMix: true,
+            rushFeeOption: "single",
         });
         strict_1.default.equal(res.customerFacingPrice, 700);
-        strict_1.default.equal(res.payrollBasePrice, 950); // $600 + $350
+        strict_1.default.equal(res.payrollBasePrice, 750); // $600 + $150
     });
-    (0, node_test_1.it)("Test 3 — Toggle Off: Package Price remains $700", () => {
-        const res = (0, pricing_engine_1.calculateCheerOrderPricing)({
-            cheerFormSubtype: "school-cheer-viroc-yes",
-            packageType: "GOLD 1:30",
-            timeLengthOfMix: "1:30",
-            musicAffiliate: "Power Music",
-            hasRallyMix: false,
-        });
-        strict_1.default.equal(res.customerFacingPrice, 700);
-        strict_1.default.equal(res.payrollBasePrice, 600);
-    });
-    (0, node_test_1.it)("Test 4 — Toggle Repeatedly: ON -> OFF -> ON -> OFF -> ON stays $700 every time", () => {
+    (0, node_test_1.it)("Test 4 — Toggle Rush Fee: ON -> OFF -> ON stays $700 every time", () => {
         let state = false;
         for (let i = 0; i < 5; i++) {
             state = !state;
@@ -49,11 +47,11 @@ const pricing_engine_1 = require("../pricing-engine");
                 packageType: "GOLD 1:30",
                 timeLengthOfMix: "1:30",
                 musicAffiliate: "Power Music",
-                hasRallyMix: state,
+                rushFeeOption: state ? "single" : "none",
             });
             strict_1.default.equal(res.customerFacingPrice, 700, `Iteration ${i + 1} state=${state} failed`);
             if (state) {
-                strict_1.default.equal(res.payrollBasePrice, 950);
+                strict_1.default.equal(res.payrollBasePrice, 750);
             }
             else {
                 strict_1.default.equal(res.payrollBasePrice, 600);
@@ -80,7 +78,7 @@ const pricing_engine_1 = require("../pricing-engine");
             hasThemedVoiceover: true,
         });
         strict_1.default.equal(danceRes.customerFacingPrice, 850);
-        strict_1.default.equal(danceRes.payrollBasePrice, 830); // $730 + $100
+        strict_1.default.equal(danceRes.payrollBasePrice, 730); // $730 (VO is internal payroll item)
         // Marching Band Add-ons
         const mbRes = (0, pricing_engine_1.calculateMarchingBandOrderPricing)({
             packageType: "BAND CHANT",
@@ -95,7 +93,7 @@ const pricing_engine_1 = require("../pricing-engine");
             isRushOrder: "yes",
         });
         strict_1.default.equal(seRes.customerFacingPrice, 250);
-        strict_1.default.equal(seRes.payrollBasePrice, 350); // $250 + $100
+        strict_1.default.equal(seRes.payrollBasePrice, 400); // $250 + $150
     });
     (0, node_test_1.it)("Test 7 — Compliance & Non-Compliance: Compliance affects payroll base but Package Price is immutable", () => {
         const compliantRes = (0, pricing_engine_1.calculateCheerOrderPricing)({
@@ -103,18 +101,18 @@ const pricing_engine_1 = require("../pricing-engine");
             packageType: "GOLD 1:30",
             timeLengthOfMix: "1:30",
             musicAffiliate: "Power Music",
-            hasRallyMix: true,
+            rushFeeOption: "single",
         });
         strict_1.default.equal(compliantRes.customerFacingPrice, 700);
-        strict_1.default.equal(compliantRes.payrollBasePrice, 950); // $600 + $350
+        strict_1.default.equal(compliantRes.payrollBasePrice, 750); // $600 + $150
         const nonCompliantRes = (0, pricing_engine_1.calculateCheerOrderPricing)({
             cheerFormSubtype: "school-cheer-viroc-yes",
             packageType: "GOLD 1:30",
             timeLengthOfMix: "1:30",
             musicAffiliate: "Unapproved Indie Song",
-            hasRallyMix: true,
+            rushFeeOption: "single",
         });
         strict_1.default.equal(nonCompliantRes.customerFacingPrice, 700);
-        strict_1.default.equal(nonCompliantRes.payrollBasePrice, 1050); // $700 non-compliant + $350
+        strict_1.default.equal(nonCompliantRes.payrollBasePrice, 850); // $700 non-compliant + $150
     });
 });

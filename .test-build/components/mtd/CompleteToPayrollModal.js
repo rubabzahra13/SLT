@@ -175,8 +175,8 @@ function CompleteToPayrollModal({ open, record, allOrders, producers, onClose, o
                     const preDiscountPay = danceResult.payrollBasePrice;
                     enginePricing = {
                         ...danceResult,
-                        customerFacingPrice: Math.max(0, preDiscountCust - discountAmount),
-                        payrollBasePrice: Math.max(0, preDiscountPay - discountAmount),
+                        customerFacingPrice: preDiscountCust,
+                        payrollBasePrice: preDiscountPay,
                         preDiscountCustomerFacingPrice: preDiscountCust,
                         preDiscountPayrollBasePrice: preDiscountPay,
                         discountAmount,
@@ -230,8 +230,8 @@ function CompleteToPayrollModal({ open, record, allOrders, producers, onClose, o
                     }
                     enginePricing = {
                         ...mbResult,
-                        customerFacingPrice: Math.max(0, preDiscountCust - discountAmount),
-                        payrollBasePrice: Math.max(0, preDiscountPay - discountAmount),
+                        customerFacingPrice: preDiscountCust,
+                        payrollBasePrice: preDiscountPay,
                         preDiscountCustomerFacingPrice: preDiscountCust,
                         preDiscountPayrollBasePrice: preDiscountPay,
                         discountAmount,
@@ -322,8 +322,8 @@ function CompleteToPayrollModal({ open, record, allOrders, producers, onClose, o
                         }
                         enginePricing = {
                             ...seResult,
-                            customerFacingPrice: Math.max(0, preDiscountCust - discountAmount),
-                            payrollBasePrice: Math.max(0, preDiscountPay - discountAmount),
+                            customerFacingPrice: preDiscountCust,
+                            payrollBasePrice: preDiscountPay,
                             preDiscountCustomerFacingPrice: preDiscountCust,
                             preDiscountPayrollBasePrice: preDiscountPay,
                             discountAmount,
@@ -356,8 +356,8 @@ function CompleteToPayrollModal({ open, record, allOrders, producers, onClose, o
                     }
                     enginePricing = {
                         ...saResult,
-                        customerFacingPrice: Math.max(0, preDiscountCust - discountAmount),
-                        payrollBasePrice: Math.max(0, preDiscountPay - discountAmount),
+                        customerFacingPrice: preDiscountCust,
+                        payrollBasePrice: preDiscountPay,
                         preDiscountCustomerFacingPrice: preDiscountCust,
                         preDiscountPayrollBasePrice: preDiscountPay,
                         discountAmount,
@@ -393,17 +393,6 @@ function CompleteToPayrollModal({ open, record, allOrders, producers, onClose, o
                     }
                     else {
                         complianceReason = "No music affiliate specified on order.";
-                    }
-                    if ((cheerSubtype === "school-cheer-viroc-yes" || cheerSubtype === "school-cheer-viroc-no") &&
-                        currentRec.hasRallyMix) {
-                        addons.push({
-                            addon_id: "rally_mix",
-                            label: "Rally Mix Add-On",
-                            customer_amount: 350,
-                            payroll_amount: 350,
-                            quantity: 1,
-                            note: "Fixed fee add-on (School Cheer)",
-                        });
                     }
                     baseCust = enginePricing.matchedEntry?.customer ?? currentRec.price;
                     basePay = enginePricing.matchedEntry
@@ -534,15 +523,26 @@ function CompleteToPayrollModal({ open, record, allOrders, producers, onClose, o
             payroll_base_price: finalPayrollPriceNum,
         };
     }, [breakdown, finalPayrollPriceNum]);
+    if (!mounted || !open || !record)
+        return null;
     // Client-side real-time payroll calculation for Step 2
     const activeRateNum = customRateInput !== ""
         ? parseFloat(customRateInput) / 100
         : selectedCaseyRate;
     const activeManualPayoutNum = manualPayoutInput !== "" ? parseFloat(manualPayoutInput) : null;
-    const clientPayroll = (0, pricing_display_1.computeClientPayroll)(assignedProducerObj, finalCustomerPriceNum, effectiveBreakdown, activeRateNum, activeManualPayoutNum, breakdown?.canonical_subtype_id, finalPayrollPriceNum);
+    const rushQty = typeof record.rushFeeQuantity === "number"
+        ? record.rushFeeQuantity
+        : record.rushFeeOption === "double"
+            ? 2
+            : record.rushFeeOption === "single" || record.isRushOrder === "yes" || record.isRushOrder === true
+                ? 1
+                : 0;
+    const clientPayroll = (0, pricing_display_1.computeClientPayroll)(assignedProducerObj, finalCustomerPriceNum, effectiveBreakdown, activeRateNum, activeManualPayoutNum, breakdown?.canonical_subtype_id, finalPayrollPriceNum, {
+        rushFeeQuantity: rushQty,
+        rushFeeCompensationRate: record.rushFeeCompensationRate ?? assignedProducerObj?.rushFeeRate ?? 1.0,
+        formType: breakdown?.form_type,
+    });
     const isRateOverridden = customRateInput !== "" || (selectedCaseyRate !== null && assignedProducerObj?.initials !== "CM");
-    if (!mounted || !open || !record)
-        return null;
     // Step 1 confirm handler
     const handleProceedToPayroll = async () => {
         if (breakdown?.needs_manual_pricing || calculatedEnginePricing?.isUnpriced) {
@@ -717,7 +717,7 @@ function CompleteToPayrollModal({ open, record, allOrders, producers, onClose, o
                                                                                     const num = parseFloat(val) || 0;
                                                                                     setBreakdown((prev) => (prev ? { ...prev, payroll_base_price: num } : null));
                                                                                 }, className: (0, clsx_1.default)(breakdownAmountInputClass, "border-brand-signature/40 text-brand-signature") })] })] })] }));
-                                                })() })] })] })), step === 2 && ((0, jsx_runtime_1.jsxs)("div", { className: "space-y-4", children: [(0, jsx_runtime_1.jsxs)("div", { className: "grid grid-cols-1 sm:grid-cols-3 gap-3", children: [(0, jsx_runtime_1.jsxs)("div", { className: "rounded-xl border border-brand-line/70 bg-brand-bg/40 p-3.5", children: [(0, jsx_runtime_1.jsx)("p", { className: "text-[11px] font-semibold uppercase tracking-wider text-brand-ink-tertiary", children: "Producer" }), (0, jsx_runtime_1.jsx)("p", { className: "mt-0.5 text-[14px] font-bold text-brand-ink", children: assignedProducerObj?.name || record.assignedProducer || "None" }), (0, jsx_runtime_1.jsx)("p", { className: "text-[11px] text-brand-ink-secondary", children: assignedProducerObj?.specialty || "Music Producer" })] }), (0, jsx_runtime_1.jsxs)("div", { className: "rounded-xl border border-brand-line/70 bg-brand-bg/40 p-3.5", children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex items-center justify-between", children: [(0, jsx_runtime_1.jsx)("p", { className: "text-[11px] font-semibold uppercase tracking-wider text-brand-ink-tertiary", children: "Customer Price" }), isCustomerPriceOverridden && ((0, jsx_runtime_1.jsx)("span", { className: "rounded bg-brand-orange/10 px-1 py-0.2 text-[9px] font-semibold uppercase text-brand-orange", children: "edited" }))] }), (0, jsx_runtime_1.jsx)("p", { className: "mt-0.5 text-[15px] font-bold tabular-nums text-brand-ink", children: (0, data_1.formatPrice)(finalCustomerPriceNum) })] }), (0, jsx_runtime_1.jsxs)("div", { className: "rounded-xl border border-brand-signature/30 bg-brand-signature/8 p-3.5", children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex items-center justify-between", children: [(0, jsx_runtime_1.jsx)("p", { className: "text-[11px] font-semibold uppercase tracking-wider text-brand-signature", children: "Payroll Price" }), isPayrollPriceOverridden && ((0, jsx_runtime_1.jsx)("span", { className: "rounded bg-brand-orange/10 px-1 py-0.2 text-[9px] font-semibold uppercase text-brand-orange", children: "edited" }))] }), (0, jsx_runtime_1.jsx)("p", { className: "mt-0.5 text-[15px] font-bold tabular-nums text-brand-signature", children: (0, data_1.formatPrice)(finalPayrollPriceNum) })] })] }), clientPayroll.status === "not_paid_for_mixing" && ((0, jsx_runtime_1.jsxs)("div", { className: "rounded-xl border border-brand-line/70 bg-brand-bg/60 p-4", children: [(0, jsx_runtime_1.jsx)("p", { className: "text-[13px] font-semibold text-brand-ink", children: clientPayroll.message }), (0, jsx_runtime_1.jsx)("p", { className: "mt-1 text-[12px] text-brand-ink-secondary", children: "Steve does not receive per-mix compensation. Payout is $0.00." })] })), clientPayroll.status === "hourly_manual" && ((0, jsx_runtime_1.jsxs)("div", { className: "rounded-xl border border-brand-line/70 bg-brand-bg/60 p-4", children: [(0, jsx_runtime_1.jsx)("p", { className: "text-[13px] font-semibold text-brand-ink", children: clientPayroll.message }), (0, jsx_runtime_1.jsx)("p", { className: "mt-1 text-[12px] text-brand-ink-secondary", children: "Hourly employee payout is handled via regular pay sheets. You may optionally enter a manual payout amount below." })] })), clientPayroll.status === "needs_manual_review" && ((0, jsx_runtime_1.jsxs)("div", { className: "rounded-xl border border-brand-warning/30 bg-brand-warning/10 p-4", children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex items-center gap-2 text-brand-warning font-semibold text-[13px]", children: [(0, jsx_runtime_1.jsx)(lucide_react_1.AlertTriangle, { className: "h-4 w-4" }), (0, jsx_runtime_1.jsx)("span", { children: "No rate on file / Manual review required" })] }), (0, jsx_runtime_1.jsx)("p", { className: "mt-1 text-[12px] text-brand-ink-secondary", children: clientPayroll.message })] })), clientPayroll.isCaseyAmbiguous && ((0, jsx_runtime_1.jsxs)("div", { className: "rounded-xl border border-brand-signature/30 bg-brand-signature/8 p-4 space-y-3", children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex items-center justify-between", children: [(0, jsx_runtime_1.jsx)("span", { className: "text-[13px] font-bold text-brand-ink", children: "Casey Pricing Tier Selection" }), (0, jsx_runtime_1.jsx)("span", { className: "rounded bg-brand-signature/20 px-2 py-0.5 text-[10px] font-bold uppercase text-brand-signature", children: "Requires Choice" })] }), (0, jsx_runtime_1.jsx)("p", { className: "text-[12px] text-brand-ink-secondary", children: "Casey has two rates configured. Select the correct rate tier for this mix:" }), (0, jsx_runtime_1.jsxs)("div", { className: "grid grid-cols-2 gap-3 pt-1", children: [(0, jsx_runtime_1.jsxs)("button", { type: "button", onClick: () => {
+                                                })() })] })] })), step === 2 && ((0, jsx_runtime_1.jsxs)("div", { className: "space-y-4", children: [(0, jsx_runtime_1.jsxs)("div", { className: "grid grid-cols-1 sm:grid-cols-3 gap-3", children: [(0, jsx_runtime_1.jsxs)("div", { className: "rounded-xl border border-brand-line/70 bg-brand-bg/40 p-3.5", children: [(0, jsx_runtime_1.jsx)("p", { className: "text-[11px] font-semibold uppercase tracking-wider text-brand-ink-tertiary", children: "Producer" }), (0, jsx_runtime_1.jsx)("p", { className: "mt-0.5 text-[14px] font-bold text-brand-ink", children: assignedProducerObj?.name || record.assignedProducer || "None" }), (0, jsx_runtime_1.jsx)("p", { className: "text-[11px] text-brand-ink-secondary", children: assignedProducerObj?.specialty || "Music Producer" })] }), (0, jsx_runtime_1.jsxs)("div", { className: "rounded-xl border border-brand-line/70 bg-brand-bg/40 p-3.5", children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex items-center justify-between", children: [(0, jsx_runtime_1.jsx)("p", { className: "text-[11px] font-semibold uppercase tracking-wider text-brand-ink-tertiary", children: "Customer Price" }), isCustomerPriceOverridden && ((0, jsx_runtime_1.jsx)("span", { className: "rounded bg-brand-orange/10 px-1 py-0.2 text-[9px] font-semibold uppercase text-brand-orange", children: "edited" }))] }), (0, jsx_runtime_1.jsx)("p", { className: "mt-0.5 text-[15px] font-bold tabular-nums text-brand-ink", children: (0, data_1.formatPrice)(finalCustomerPriceNum) })] }), (0, jsx_runtime_1.jsxs)("div", { className: "rounded-xl border border-brand-signature/30 bg-brand-signature/8 p-3.5", children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex items-center justify-between", children: [(0, jsx_runtime_1.jsx)("p", { className: "text-[11px] font-semibold uppercase tracking-wider text-brand-signature", children: "Payroll Price" }), isPayrollPriceOverridden && ((0, jsx_runtime_1.jsx)("span", { className: "rounded bg-brand-orange/10 px-1 py-0.2 text-[9px] font-semibold uppercase text-brand-orange", children: "edited" }))] }), (0, jsx_runtime_1.jsx)("p", { className: "mt-0.5 text-[15px] font-bold tabular-nums text-brand-signature", children: (0, data_1.formatPrice)(finalPayrollPriceNum) })] })] }), rushQty > 0 && ((0, jsx_runtime_1.jsxs)("div", { className: "rounded-xl border border-brand-line/70 bg-brand-bg/40 p-4 space-y-2", children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex items-center justify-between", children: [(0, jsx_runtime_1.jsx)("p", { className: "text-[13px] font-bold text-brand-ink", children: "Rush Fee" }), (0, jsx_runtime_1.jsxs)("span", { className: "rounded bg-brand-blue-soft px-2 py-0.5 text-[11px] font-semibold text-brand-blue", children: ["Quantity: ", rushQty] })] }), (0, jsx_runtime_1.jsxs)("div", { className: "grid grid-cols-2 gap-2 text-[12px] pt-1 border-t border-brand-line/40", children: [(0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsx)("span", { className: "text-brand-ink-tertiary", children: "Compensation Rate: " }), (0, jsx_runtime_1.jsxs)("span", { className: "font-semibold text-brand-ink", children: [Math.round(((record.rushFeeCompensationRate ?? assignedProducerObj?.rushFeeRate ?? 1.0) <= 1 ? (record.rushFeeCompensationRate ?? assignedProducerObj?.rushFeeRate ?? 1.0) * 100 : (record.rushFeeCompensationRate ?? assignedProducerObj?.rushFeeRate ?? 1.0))), "%"] })] }), (0, jsx_runtime_1.jsxs)("div", { className: "text-right", children: [(0, jsx_runtime_1.jsx)("span", { className: "text-brand-ink-tertiary", children: "Editor Payout: " }), (0, jsx_runtime_1.jsx)("span", { className: "font-bold text-brand-success", children: (0, data_1.formatPrice)(clientPayroll.rushFeePayout ?? 0) })] })] })] })), clientPayroll.status === "not_paid_for_mixing" && ((0, jsx_runtime_1.jsxs)("div", { className: "rounded-xl border border-brand-line/70 bg-brand-bg/60 p-4", children: [(0, jsx_runtime_1.jsx)("p", { className: "text-[13px] font-semibold text-brand-ink", children: clientPayroll.message }), (0, jsx_runtime_1.jsx)("p", { className: "mt-1 text-[12px] text-brand-ink-secondary", children: "Steve does not receive per-mix compensation. Payout is $0.00." })] })), clientPayroll.status === "hourly_manual" && ((0, jsx_runtime_1.jsxs)("div", { className: "rounded-xl border border-brand-line/70 bg-brand-bg/60 p-4", children: [(0, jsx_runtime_1.jsx)("p", { className: "text-[13px] font-semibold text-brand-ink", children: clientPayroll.message }), (0, jsx_runtime_1.jsx)("p", { className: "mt-1 text-[12px] text-brand-ink-secondary", children: "Hourly employee payout is handled via regular pay sheets. You may optionally enter a manual payout amount below." })] })), clientPayroll.status === "needs_manual_review" && ((0, jsx_runtime_1.jsxs)("div", { className: "rounded-xl border border-brand-warning/30 bg-brand-warning/10 p-4", children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex items-center gap-2 text-brand-warning font-semibold text-[13px]", children: [(0, jsx_runtime_1.jsx)(lucide_react_1.AlertTriangle, { className: "h-4 w-4" }), (0, jsx_runtime_1.jsx)("span", { children: "No rate on file / Manual review required" })] }), (0, jsx_runtime_1.jsx)("p", { className: "mt-1 text-[12px] text-brand-ink-secondary", children: clientPayroll.message })] })), clientPayroll.isCaseyAmbiguous && ((0, jsx_runtime_1.jsxs)("div", { className: "rounded-xl border border-brand-signature/30 bg-brand-signature/8 p-4 space-y-3", children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex items-center justify-between", children: [(0, jsx_runtime_1.jsx)("span", { className: "text-[13px] font-bold text-brand-ink", children: "Casey Pricing Tier Selection" }), (0, jsx_runtime_1.jsx)("span", { className: "rounded bg-brand-signature/20 px-2 py-0.5 text-[10px] font-bold uppercase text-brand-signature", children: "Requires Choice" })] }), (0, jsx_runtime_1.jsx)("p", { className: "text-[12px] text-brand-ink-secondary", children: "Casey has two rates configured. Select the correct rate tier for this mix:" }), (0, jsx_runtime_1.jsxs)("div", { className: "grid grid-cols-2 gap-3 pt-1", children: [(0, jsx_runtime_1.jsxs)("button", { type: "button", onClick: () => {
                                                             setSelectedCaseyRate(0.72);
                                                             setCustomRateInput("");
                                                         }, className: (0, clsx_1.default)("rounded-xl border p-3 text-left transition shadow-sm", selectedCaseyRate === 0.72

@@ -412,38 +412,62 @@ function InlineCheerVoiceoverPills({ record, onUpdate, has20, has40, onChange, c
                     }, className: (0, clsx_1.default)(inlinePillBaseClass, current40 ? inlinePillActiveClass : inlinePillInactiveClass), children: "+$40" }) })] }));
 }
 function InlineRushFeePills({ record, onUpdate, onUpdateOrder, value, onChange, className, }) {
-    const rawVal = value ??
-        record?.rushFeeOption ??
-        (record?.isRushOrder === "yes" || record?.isRushOrder === true ? "single" : "none");
-    const normVal = rawVal === "double"
-        ? "double"
-        : rawVal === "single" || rawVal === "yes" || String(rawVal).toLowerCase() === "yes"
-            ? "single"
-            : "none";
-    const handleSelect = (next) => {
+    const rushQty = typeof record?.rushFeeQuantity === "number"
+        ? record.rushFeeQuantity
+        : record?.rushFeeOption === "double"
+            ? 2
+            : record?.rushFeeOption === "single" || record?.isRushOrder === "yes" || record?.isRushOrder === true
+                ? 1
+                : 0;
+    const currentRate = record?.rushFeeCompensationRate ?? 1.0;
+    const currentRatePct = currentRate <= 1 ? Math.round(currentRate * 100) : Math.round(currentRate);
+    const handleQtyChange = (qty) => {
+        const nextOption = qty === 2 ? "double" : qty === 1 ? "single" : "none";
+        const isRush = qty > 0;
         if (onChange)
-            onChange(next);
+            onChange(nextOption);
         if (record && onUpdate) {
-            const isRush = next !== "none";
             onUpdate(record.id, {
-                rushFeeOption: next,
+                rushFeeQuantity: qty,
+                rushFeeOption: nextOption,
                 isRushOrder: isRush ? "yes" : "no",
             });
             if (record.orderId && onUpdateOrder) {
                 onUpdateOrder(record.orderId, {
-                    rushFeeOption: next,
+                    rushFeeQuantity: qty,
+                    rushFeeOption: nextOption,
                     isRushOrder: isRush ? "yes" : "no",
                 });
             }
         }
     };
-    return ((0, jsx_runtime_1.jsxs)("div", { "data-stop-row-nav": true, className: (0, clsx_1.default)(inlinePillGroupClass, className), onClick: (e) => e.stopPropagation(), children: [(0, jsx_runtime_1.jsx)(HoverTip_1.HoverTip, { label: "Single Rush (+$150)", placement: "top", children: (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: (e) => {
+    const handleRateChange = (rateVal) => {
+        const decRate = rateVal > 1 ? rateVal / 100 : rateVal;
+        if (record && onUpdate) {
+            onUpdate(record.id, { rushFeeCompensationRate: decRate });
+            if (record.orderId && onUpdateOrder) {
+                onUpdateOrder(record.orderId, { rushFeeCompensationRate: decRate });
+            }
+        }
+    };
+    const rateChoices = [100, 72, 60, 50];
+    if (!rateChoices.includes(currentRatePct)) {
+        rateChoices.push(currentRatePct);
+        rateChoices.sort((a, b) => b - a);
+    }
+    return ((0, jsx_runtime_1.jsxs)("div", { "data-stop-row-nav": true, className: (0, clsx_1.default)("inline-flex items-center gap-1.5", className), onClick: (e) => e.stopPropagation(), children: [(0, jsx_runtime_1.jsxs)("div", { className: (0, clsx_1.default)(inlinePillGroupClass), children: [(0, jsx_runtime_1.jsx)(HoverTip_1.HoverTip, { label: "No Rush ($0)", placement: "top", children: (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: (e) => {
+                                e.stopPropagation();
+                                handleQtyChange(0);
+                            }, className: (0, clsx_1.default)(inlinePillBaseClass, rushQty === 0 ? inlinePillActiveClass : inlinePillInactiveClass), children: "None" }) }), (0, jsx_runtime_1.jsx)(HoverTip_1.HoverTip, { label: "Single Rush (+$150)", placement: "top", children: (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: (e) => {
+                                e.stopPropagation();
+                                handleQtyChange(1);
+                            }, className: (0, clsx_1.default)(inlinePillBaseClass, rushQty === 1 ? inlinePillActiveClass : inlinePillInactiveClass), children: "1x ($150)" }) }), (0, jsx_runtime_1.jsx)(HoverTip_1.HoverTip, { label: "Double Rush (+$300)", placement: "top", children: (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: (e) => {
+                                e.stopPropagation();
+                                handleQtyChange(2);
+                            }, className: (0, clsx_1.default)(inlinePillBaseClass, rushQty === 2 ? inlinePillActiveClass : inlinePillInactiveClass), children: "2x ($300)" }) })] }), rushQty > 0 && ((0, jsx_runtime_1.jsx)(HoverTip_1.HoverTip, { label: "Override Rush Fee Producer Compensation %", placement: "top", children: (0, jsx_runtime_1.jsx)("select", { value: currentRatePct, onChange: (e) => {
                         e.stopPropagation();
-                        handleSelect(normVal === "single" ? "none" : "single");
-                    }, className: (0, clsx_1.default)(inlinePillBaseClass, normVal === "single" ? inlinePillActiveClass : inlinePillInactiveClass), children: "$150" }) }), (0, jsx_runtime_1.jsx)(HoverTip_1.HoverTip, { label: "Double Rush (+$300)", placement: "top", children: (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: (e) => {
-                        e.stopPropagation();
-                        handleSelect(normVal === "double" ? "none" : "double");
-                    }, className: (0, clsx_1.default)(inlinePillBaseClass, normVal === "double" ? inlinePillActiveClass : inlinePillInactiveClass), children: "$300" }) })] }));
+                        handleRateChange(parseInt(e.target.value, 10));
+                    }, onClick: (e) => e.stopPropagation(), className: "h-7 rounded-lg border border-brand-line/60 bg-brand-elevated px-1.5 text-[11px] font-semibold text-brand-ink outline-none hover:border-brand-line-strong focus:ring-1 focus:ring-brand-blue", children: rateChoices.map((r) => ((0, jsx_runtime_1.jsxs)("option", { value: r, children: [r, "%"] }, r))) }) }))] }));
 }
 function InlineQuantityStepper({ quantity, value, unitCost, label, onChange, className, }) {
     const qty = Math.max(0, quantity ?? value ?? 0);

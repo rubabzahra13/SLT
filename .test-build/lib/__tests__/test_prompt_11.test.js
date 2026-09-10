@@ -34,19 +34,14 @@ const discount_codes_1 = require("../discount-codes");
         strict_1.default.equal(couponEval.status, "valid");
         strict_1.default.equal(couponEval.match?.code, "AUSTIN2026");
     });
-    (0, node_test_1.it)("Subtype 2 (School Cheer VIROC Yes): GOLD 2:00 ($950) + Rally Mix ($350) = $950 customer / $1,200 payroll", () => {
-        const order = cheer_demo_orders_1.CHEER_DEMO_ORDERS.find((o) => o.id === "ord-demo-cheer-14");
-        strict_1.default.ok(order);
-        strict_1.default.equal(order.cheerFormSubtype, "school-cheer-viroc-yes");
+    (0, node_test_1.it)("Subtype 2 (School Cheer viroc Yes): Rally Mix package = $350 customer / $350 payroll", () => {
         const pricing = (0, pricing_engine_1.calculateCheerOrderPricing)({
-            cheerFormSubtype: order.cheerFormSubtype,
-            packageType: order.packageType,
-            timeLengthOfMix: order.timeLengthOfMix,
-            musicAffiliate: order.musicAffiliate,
-            hasRallyMix: true,
+            cheerFormSubtype: "school-cheer-viroc-yes",
+            packageType: "Rally Mix",
+            musicAffiliate: "Power Music",
         });
-        strict_1.default.equal(pricing.customerFacingPrice, 950); // 950 base (add-ons are separate)
-        strict_1.default.equal(pricing.payrollBasePrice, 1200); // 850 + 350
+        strict_1.default.equal(pricing.customerFacingPrice, 350);
+        strict_1.default.equal(pricing.payrollBasePrice, 350);
         strict_1.default.equal(pricing.complianceStatus, "compliant");
     });
     (0, node_test_1.it)("Subtype 3 (School Cheer VIROC No): SILVER 1:00 ($450)", () => {

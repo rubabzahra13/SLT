@@ -85,9 +85,7 @@ function normalizeCompliantAffiliateIds(ids) {
 }
 const DEFAULT_CATEGORY_ADDONS = {
     "All-Star Cheer": [],
-    "School Cheer": [
-        { name: "Rally Mix", price: "+$350" },
-    ],
+    "School Cheer": [],
     "Youth Rec Cheer": [
         { name: "Extend 2 8ct Phrase/Raps", price: "+$25" },
         { name: "Processing 8ct Sheets", price: "+$50" },
