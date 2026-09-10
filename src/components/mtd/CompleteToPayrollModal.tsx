@@ -104,6 +104,7 @@ export function CompleteToPayrollModal({
   onClose,
   onConfirm,
 }: CompleteToPayrollModalProps) {
+  const { isViewOnly } = useAppState();
   const [mounted, setMounted] = useState(false);
   const [step, setStep] = useState<1 | 2>(1);
   const [loading, setLoading] = useState(false);
@@ -1432,24 +1433,26 @@ export function CompleteToPayrollModal({
             </button>
           )}
 
-          {step === 1 ? (
-            <button
-              type="button"
-              onClick={handleProceedToPayroll}
-              disabled={loading}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-brand-signature px-5 py-2.5 text-[13.5px] font-semibold text-white transition hover:bg-brand-signature/90 shadow-sm disabled:opacity-50"
-            >
-              {loading ? "Applying..." : "Apply pricing & set up payroll"}
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={handleFinalize}
-              disabled={loading}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-brand-success px-5 py-2.5 text-[13.5px] font-semibold text-white transition hover:bg-brand-success/90 shadow-sm disabled:opacity-50"
-            >
-              {loading ? "Finalizing..." : "Confirm & Move to Payroll"}
-            </button>
+          {!isViewOnly && (
+            step === 1 ? (
+              <button
+                type="button"
+                onClick={handleProceedToPayroll}
+                disabled={loading}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-brand-signature px-5 py-2.5 text-[13.5px] font-semibold text-white transition hover:bg-brand-signature/90 shadow-sm disabled:opacity-50"
+              >
+                {loading ? "Applying..." : "Apply pricing & set up payroll"}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleFinalize}
+                disabled={loading}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-brand-success px-5 py-2.5 text-[13.5px] font-semibold text-white transition hover:bg-brand-success/90 shadow-sm disabled:opacity-50"
+              >
+                {loading ? "Finalizing..." : "Confirm & Move to Payroll"}
+              </button>
+            )
           )}
         </div>
       </div>

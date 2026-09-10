@@ -18,6 +18,7 @@ import type {
 } from "@/types";
 import { getData } from "@/lib/data";
 import { normalizeOrder } from "@/lib/order-form";
+import { useAuth } from "@/context/AuthContext";
 import {
   detectCompliance,
   getDefaultPackagePrices,
@@ -68,6 +69,7 @@ type AppStateContextValue = {
   notifications: AppNotification[];
   unreadCount: number;
   isBackendConnected: boolean;
+  isViewOnly: boolean;
   moveOrderToMTD: (orderId: string) => MTDRecord | null;
   updateMTD: (id: string, patch: Partial<MTDRecord>) => void;
   updateOrder: (id: string, patch: Partial<Order>, seed?: Order) => void;
@@ -280,8 +282,17 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     [mtdOrderIds]
   );
 
+  let isViewOnly = false;
+  try {
+    const auth = useAuth();
+    isViewOnly = auth.isViewOnly;
+  } catch {
+    // Fallback if rendered outside AuthProvider
+  }
+
   const moveOrderToMTD = useCallback(
     (orderId: string): MTDRecord | null => {
+      if (isViewOnly) return null;
       const order = activeOrders.find((o) => o.id === orderId);
       if (!order || isInMTD(orderId)) return null;
 
@@ -381,6 +392,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   );
 
   const setPackagePrices = useCallback((prices: Record<string, number>) => {
+    if (isViewOnly) return;
     setPackagePricesState(prices);
     setMtdRecords((prev) =>
       prev.map((record) => {
@@ -397,13 +409,15 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         };
       })
     );
-  }, []);
+  }, [isViewOnly]);
 
   const setSecretMenuPrices = useCallback((pricing: SecretMenuPricing) => {
+    if (isViewOnly) return;
     setSecretMenuPricesState(pricing);
-  }, []);
+  }, [isViewOnly]);
 
   const updateMTD = useCallback((id: string, patch: Partial<MTDRecord>) => {
+    if (isViewOnly) return;
     let payrollNotice: Omit<AppNotification, "id" | "read" | "createdAt"> | null =
       null;
     let apiId = id;
@@ -508,6 +522,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
   const updateOrder = useCallback(
     (id: string, patch: Partial<Order>, seed?: Order) => {
+      if (isViewOnly) return;
       const merge = (order: Order) => normalizeOrder({ ...order, ...patch, id });
 
       setActiveOrders((prev) => {
@@ -529,11 +544,12 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         console.error("Failed to persist Order update to backend:", err)
       );
     },
-    []
+    [isViewOnly]
   );
 
   const markComplete = useCallback(
     (orderId: string) => {
+      if (isViewOnly) return;
       const order = activeOrders.find((o) => o.id === orderId);
       if (!order) return;
 
@@ -559,15 +575,16 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         console.error("Failed to persist Order completion to backend:", err)
       );
     },
-    [activeOrders]
+    [activeOrders, isViewOnly, producers]
   );
 
   const addPastOrder = useCallback((order: Order) => {
+    if (isViewOnly) return;
     setPastOrders((prev) => [order, ...prev]);
     updateOrderApi(order.id, { status: "completed", completedAt: order.completedAt }).catch((err) =>
       console.error("Failed to persist past order to backend:", err)
     );
-  }, []);
+  }, [isViewOnly]);
 
   const receiveOrder = useCallback(
     (order: Order) => {
@@ -598,14 +615,16 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   );
 
   const addProducer = useCallback((producer: Producer) => {
+    if (isViewOnly) return;
     const normalized = normalizeProducer(producer);
     setProducers((prev) => [normalized, ...prev]);
     createProducerApi(normalized).catch((err) =>
       console.error("Failed to persist new producer to backend:", err)
     );
-  }, []);
+  }, [isViewOnly]);
 
   const updateProducer = useCallback((id: string, patch: Partial<Producer>) => {
+    if (isViewOnly) return;
     setProducers((prev) =>
       prev.map((p) =>
         p.id === id ? normalizeProducer({ ...p, ...patch, id }) : p
@@ -614,25 +633,28 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     updateProducerApi(id, patch).catch((err) =>
       console.error("Failed to persist producer update to backend:", err)
     );
-  }, []);
+  }, [isViewOnly]);
 
   const removeProducer = useCallback((id: string) => {
+    if (isViewOnly) return;
     setProducers((prev) => prev.filter((p) => p.id !== id));
     deleteProducerApi(id).catch((err) =>
       console.error("Failed to delete producer from backend:", err)
     );
-  }, []);
+  }, [isViewOnly]);
 
   const addDiscountCode = useCallback((discountCode: DiscountCode) => {
+    if (isViewOnly) return;
     const normalized = normalizeDiscountCode(discountCode);
     setDiscountCodes((prev) => [normalized, ...prev]);
     createDiscountCodeApi(normalized).catch((err) =>
       console.error("Failed to persist new discount code to backend:", err)
     );
-  }, []);
+  }, [isViewOnly]);
 
   const updateDiscountCode = useCallback(
     (id: string, patch: Partial<DiscountCode>) => {
+      if (isViewOnly) return;
       setDiscountCodes((prev) =>
         prev.map((entry) =>
           entry.id === id
@@ -644,15 +666,16 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         console.error("Failed to persist discount code update to backend:", err)
       );
     },
-    []
+    [isViewOnly]
   );
 
   const removeDiscountCode = useCallback((id: string) => {
+    if (isViewOnly) return;
     setDiscountCodes((prev) => prev.filter((entry) => entry.id !== id));
     deleteDiscountCodeApi(id).catch((err) =>
       console.error("Failed to delete discount code from backend:", err)
     );
-  }, []);
+  }, [isViewOnly]);
 
   const markNotificationRead = useCallback((id: string) => {
     setNotifications((prev) =>
@@ -679,6 +702,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     notifications,
     unreadCount,
     isBackendConnected,
+    isViewOnly,
     moveOrderToMTD,
     updateMTD,
     updateOrder,

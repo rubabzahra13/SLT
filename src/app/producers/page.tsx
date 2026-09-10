@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarOff, Mail, Music, Pencil, Plus, Trash2 } from "lucide-react";
+import { CalendarOff, Eye, Mail, Music, Pencil, Plus, Trash2 } from "lucide-react";
 import clsx from "clsx";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DeleteProducerModal } from "@/components/producers/DeleteProducerModal";
@@ -20,7 +20,7 @@ function getProducerHeaderLabel(categories: string[]): string {
 }
 
 export default function ProducersPage() {
-  const { producers, addProducer, updateProducer, removeProducer } =
+  const { producers, addProducer, updateProducer, removeProducer, isViewOnly } =
     useAppState();
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Producer | null>(null);
@@ -29,6 +29,7 @@ export default function ProducersPage() {
   const [deleting, setDeleting] = useState<Producer | null>(null);
 
   function openAdd() {
+    if (isViewOnly) return;
     setEditing(null);
     setModalOpen(true);
   }
@@ -39,6 +40,7 @@ export default function ProducersPage() {
   }
 
   function handleSave(producer: Producer) {
+    if (isViewOnly) return;
     if (editing) {
       updateProducer(producer.id, producer);
     } else {
@@ -56,12 +58,12 @@ export default function ProducersPage() {
     specialty: string;
     ratesByCategory: Record<string, number>;
   }) {
-    if (!availabilityProducer) return;
+    if (isViewOnly || !availabilityProducer) return;
     updateProducer(availabilityProducer.id, patch);
   }
 
   function confirmDelete() {
-    if (!deleting) return;
+    if (isViewOnly || !deleting) return;
     const producer = deleting;
     removeProducer(producer.id);
     setDeleting(null);
@@ -80,7 +82,7 @@ export default function ProducersPage() {
         title="Producer Roster"
         badge={`${producers.length} producers`}
         subtitle="Manage producers, add, edit, or remove without dev help"
-        action={{ label: "Add Producer", onClick: openAdd }}
+        action={isViewOnly ? undefined : { label: "Add Producer", onClick: openAdd }}
       />
 
       <div className="grid auto-rows-fr items-stretch gap-4 px-6 pb-6 pt-5 sm:grid-cols-2 lg:grid-cols-3 lg:px-8 xl:grid-cols-4">
@@ -103,18 +105,25 @@ export default function ProducersPage() {
                   type="button"
                   onClick={() => openEdit(producer)}
                   className="rounded-lg p-1.5 text-brand-ink-tertiary transition hover:bg-brand-blue-soft/25 hover:text-brand-ink"
-                  aria-label={`Edit ${producer.name}`}
+                  aria-label={isViewOnly ? `View ${producer.name}` : `Edit ${producer.name}`}
+                  title={isViewOnly ? "View Profile" : "Edit Profile"}
                 >
-                  <Pencil className="h-3.5 w-3.5" strokeWidth={1.75} />
+                  {isViewOnly ? (
+                    <Eye className="h-3.5 w-3.5" strokeWidth={1.75} />
+                  ) : (
+                    <Pencil className="h-3.5 w-3.5" strokeWidth={1.75} />
+                  )}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setDeleting(producer)}
-                  className="rounded-lg p-1.5 text-brand-ink-tertiary transition hover:bg-brand-orange-soft hover:text-brand-danger"
-                  aria-label={`Delete ${producer.name}`}
-                >
-                  <Trash2 className="h-3.5 w-3.5" strokeWidth={1.75} />
-                </button>
+                {!isViewOnly ? (
+                  <button
+                    type="button"
+                    onClick={() => setDeleting(producer)}
+                    className="rounded-lg p-1.5 text-brand-ink-tertiary transition hover:bg-brand-orange-soft hover:text-brand-danger"
+                    aria-label={`Delete ${producer.name}`}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" strokeWidth={1.75} />
+                  </button>
+                ) : null}
               </div>
             </div>
 
@@ -192,31 +201,33 @@ export default function ProducersPage() {
           );
         })}
 
-        <button
-          type="button"
-          onClick={openAdd}
-          className="dashboard-panel dashboard-panel-dashed flex h-full min-h-[300px] w-full flex-col text-brand-ink-tertiary transition hover:text-brand-ink"
-        >
-          <div className="dashboard-panel-head flex shrink-0 items-center justify-between gap-2 px-4 py-3">
-            <span className="dashboard-panel-title truncate text-[11px] uppercase tracking-[0.06em]">
-              Add producer
-            </span>
-            <div className="flex shrink-0 items-center" aria-hidden>
-              <span className="rounded-lg p-1.5 opacity-0">
-                <span className="block h-3.5 w-3.5" />
+        {!isViewOnly ? (
+          <button
+            type="button"
+            onClick={openAdd}
+            className="dashboard-panel dashboard-panel-dashed flex h-full min-h-[300px] w-full flex-col text-brand-ink-tertiary transition hover:text-brand-ink"
+          >
+            <div className="dashboard-panel-head flex shrink-0 items-center justify-between gap-2 px-4 py-3">
+              <span className="dashboard-panel-title truncate text-[11px] uppercase tracking-[0.06em]">
+                Add producer
               </span>
-              <span className="rounded-lg p-1.5 opacity-0">
-                <span className="block h-3.5 w-3.5" />
-              </span>
+              <div className="flex shrink-0 items-center" aria-hidden>
+                <span className="rounded-lg p-1.5 opacity-0">
+                  <span className="block h-3.5 w-3.5" />
+                </span>
+                <span className="rounded-lg p-1.5 opacity-0">
+                  <span className="block h-3.5 w-3.5" />
+                </span>
+              </div>
             </div>
-          </div>
-          <span className="dashboard-panel-body flex flex-1 flex-col items-center justify-center px-6 py-8">
-            <span className="flex h-12 w-12 items-center justify-center rounded-full border border-dashed border-brand-line-strong/80 bg-brand-bg/40">
-              <Plus className="h-5 w-5" strokeWidth={1.75} />
+            <span className="dashboard-panel-body flex flex-1 flex-col items-center justify-center px-6 py-8">
+              <span className="flex h-12 w-12 items-center justify-center rounded-full border border-dashed border-brand-line-strong/80 bg-brand-bg/40">
+                <Plus className="h-5 w-5" strokeWidth={1.75} />
+              </span>
+              <span className="mt-3 text-[13px] font-medium">Add producer</span>
             </span>
-            <span className="mt-3 text-[13px] font-medium">Add producer</span>
-          </span>
-        </button>
+          </button>
+        ) : null}
       </div>
 
       <ProducerFormModal
@@ -224,6 +235,7 @@ export default function ProducersPage() {
         onClose={() => setModalOpen(false)}
         producer={editing}
         onSave={handleSave}
+        readOnly={isViewOnly}
       />
 
       <ProducerAvailabilityModal
@@ -231,6 +243,7 @@ export default function ProducersPage() {
         onClose={() => setAvailabilityProducer(null)}
         producer={availabilityProducer}
         onSave={handleSaveAvailability}
+        readOnly={isViewOnly}
       />
 
       <DeleteProducerModal

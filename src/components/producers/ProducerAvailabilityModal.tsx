@@ -42,6 +42,7 @@ type ProducerAvailabilityModalProps = {
   onClose: () => void;
   producer: Producer | null;
   onSave: (patch: AvailabilityPatch) => void;
+  readOnly?: boolean;
 };
 
 type DraftTimeOff = {
@@ -117,6 +118,7 @@ export function ProducerAvailabilityModal({
   onClose,
   producer,
   onSave,
+  readOnly = false,
 }: ProducerAvailabilityModalProps) {
   const [workDays, setWorkDays] = useState<Weekday[]>([...DEFAULT_WORK_DAYS]);
   const [timeOff, setTimeOff] = useState<DraftTimeOff[]>([]);
@@ -251,6 +253,7 @@ export function ProducerAvailabilityModal({
   }
 
   function updateCategoryRate(category: string, value: number) {
+    if (readOnly) return;
     setCategoryRates((prev) => ({
       ...prev,
       [category]: value,
@@ -258,6 +261,10 @@ export function ProducerAvailabilityModal({
   }
 
   function handleDone() {
+    if (readOnly) {
+      onClose();
+      return;
+    }
     const parsed = parseInt(maxCostInput, 10);
     const committedMaxCost = hasMaxCapacity
       ? clampMaxCostPerDay(Number.isNaN(parsed) ? maxProducerCostPerDay : parsed)
@@ -307,18 +314,22 @@ export function ProducerAvailabilityModal({
             onClick={onClose}
             className="min-w-[64px] text-left text-[15px] text-brand-ink-secondary transition hover:text-brand-ink"
           >
-            Cancel
+            {readOnly ? "Close" : "Cancel"}
           </button>
           <h2 className="absolute left-1/2 -translate-x-1/2 text-[16px] font-semibold tracking-[-0.01em] text-brand-ink">
-            Producer settings
+            {readOnly ? "Availability" : "Producer settings"}
           </h2>
-          <button
-            type="button"
-            onClick={handleDone}
-            className="min-w-[64px] text-right text-[15px] font-semibold text-brand-blue transition hover:text-brand-blue-hover"
-          >
-            Done
-          </button>
+          {!readOnly ? (
+            <button
+              type="button"
+              onClick={handleDone}
+              className="min-w-[64px] text-right text-[15px] font-semibold text-brand-blue transition hover:text-brand-blue-hover"
+            >
+              Done
+            </button>
+          ) : (
+            <span className="min-w-[64px]" />
+          )}
         </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-8 pt-6">

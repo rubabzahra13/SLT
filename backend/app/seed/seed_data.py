@@ -14,8 +14,10 @@ from app.models import (
     DiscountCode,
     PackagePrice,
     SecretMenuPricing,
+    User,
 )
 
+from app.core.security import hash_password
 from app.seed.seed_pricing import seed_pricing
 
 MOCK_DATA_PATH = os.path.abspath(
@@ -67,7 +69,34 @@ CANONICAL_PRODUCER_EMAILS = {
 }
 
 def seed_all(db: Session):
-    # 0. Seed pricing rules from pricing-rules.json (idempotent)
+    # 0. Seed Users
+    print("Seeding sample user accounts...")
+    sample_users = [
+        {"id": "usr-megan", "name": "Megan", "email": "megan@soundslikethat.com", "password": "admin", "access_level": "Full Access"},
+        {"id": "usr-andrea", "name": "Andrea", "email": "apetty@powermusic.com", "password": "admin", "access_level": "Full Access"},
+        {"id": "usr-lori", "name": "Lori", "email": "lori@powermusic.com", "password": "view", "access_level": "View Only"},
+        {"id": "usr-dan", "name": "Dan", "email": "dan@powermusic.com", "password": "view", "access_level": "View Only"},
+        {"id": "usr-steve", "name": "Steve", "email": "steve@powermusic.com", "password": "view", "access_level": "View Only"},
+    ]
+    for u in sample_users:
+        existing = db.query(User).filter(User.email == u["email"]).first()
+        if not existing:
+            user_obj = User(
+                id=u["id"],
+                name=u["name"],
+                email=u["email"],
+                hashed_password=hash_password(u["password"]),
+                access_level=u["access_level"],
+                is_active=True
+            )
+            db.add(user_obj)
+        else:
+            existing.name = u["name"]
+            existing.access_level = u["access_level"]
+            existing.hashed_password = hash_password(u["password"])
+    db.commit()
+
+    # 0b. Seed pricing rules from pricing-rules.json (idempotent)
     print("Seeding pricing rules...")
     seed_pricing(db)
 

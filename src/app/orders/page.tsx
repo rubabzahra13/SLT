@@ -268,10 +268,14 @@ function OrdersPageContent() {
     [updateMTD]
   );
 
+  const { isViewOnly } = useAppState();
+
   const handleMoveToMTD = useCallback(
     (rec: MTDRecord, e: React.MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
+
+      if (isViewOnly) return;
 
       if (!isOrderScheduledAndAssigned(rec)) {
         setValidationModalRecord(rec);
@@ -283,7 +287,7 @@ function OrdersPageContent() {
         status: rec.status === "needs_attention" ? "active" : rec.status,
       });
     },
-    [updateMTD]
+    [isViewOnly, updateMTD]
   );
 
   const openPricingModal = useCallback((rec: MTDRecord, e: React.MouseEvent) => {
@@ -811,18 +815,20 @@ function OrdersPageContent() {
               className="flex items-center justify-center gap-1"
               onClick={(e) => e.stopPropagation()}
             >
-              <HoverTip label="Move to MTD" placement="top">
-                <button
-                  type="button"
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onClick={(e) => handleMoveToMTD(rec, e)}
-                  className={ordersMtdButtonClass(ready)}
-                  aria-label="Move to MTD"
-                >
-                  <span>MTD</span>
-                  <ArrowRight className="h-3 w-3 shrink-0" strokeWidth={2.25} />
-                </button>
-              </HoverTip>
+              {!isViewOnly ? (
+                <HoverTip label="Move to MTD" placement="top">
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={(e) => handleMoveToMTD(rec, e)}
+                    className={ordersMtdButtonClass(ready)}
+                    aria-label="Move to MTD"
+                  >
+                    <span>MTD</span>
+                    <ArrowRight className="h-3 w-3 shrink-0" strokeWidth={2.25} />
+                  </button>
+                </HoverTip>
+              ) : null}
               <HoverTip label="Send mail" placement="top">
                 <button
                   type="button"

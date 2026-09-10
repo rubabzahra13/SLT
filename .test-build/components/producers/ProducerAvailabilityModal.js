@@ -62,7 +62,7 @@ function formatTimeOffDateLabel(entry) {
     }
     return `${formatOvertimeLabel(entry.startDate)} → ${formatOvertimeLabel(entry.endDate)}`;
 }
-function ProducerAvailabilityModal({ open, onClose, producer, onSave, }) {
+function ProducerAvailabilityModal({ open, onClose, producer, onSave, readOnly = false, }) {
     const [workDays, setWorkDays] = (0, react_1.useState)([...types_1.DEFAULT_WORK_DAYS]);
     const [timeOff, setTimeOff] = (0, react_1.useState)([]);
     const [timeOffDraft, setTimeOffDraft] = (0, react_1.useState)(() => createEmptyTimeOffDraft());
@@ -170,12 +170,18 @@ function ProducerAvailabilityModal({ open, onClose, producer, onSave, }) {
         });
     }
     function updateCategoryRate(category, value) {
+        if (readOnly)
+            return;
         setCategoryRates((prev) => ({
             ...prev,
             [category]: value,
         }));
     }
     function handleDone() {
+        if (readOnly) {
+            onClose();
+            return;
+        }
         const parsed = parseInt(maxCostInput, 10);
         const committedMaxCost = hasMaxCapacity
             ? clampMaxCostPerDay(Number.isNaN(parsed) ? maxProducerCostPerDay : parsed)
@@ -207,7 +213,7 @@ function ProducerAvailabilityModal({ open, onClose, producer, onSave, }) {
         });
         onClose();
     }
-    return ((0, jsx_runtime_1.jsxs)("div", { className: "fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4", children: [(0, jsx_runtime_1.jsx)("button", { type: "button", className: "absolute inset-0 bg-black/45 backdrop-blur-[2px]", onClick: onClose, "aria-label": "Close" }), (0, jsx_runtime_1.jsxs)("div", { className: "relative flex max-h-[min(94dvh,820px)] w-full max-w-[440px] flex-col overflow-hidden rounded-t-[28px] bg-brand-elevated shadow-[0_24px_80px_rgba(0,0,0,0.28)] sm:rounded-[28px]", children: [(0, jsx_runtime_1.jsxs)("header", { className: "relative flex shrink-0 items-center justify-between border-b border-black/[0.08] px-4 py-3.5", children: [(0, jsx_runtime_1.jsx)("button", { type: "button", onClick: onClose, className: "min-w-[64px] text-left text-[15px] text-brand-ink-secondary transition hover:text-brand-ink", children: "Cancel" }), (0, jsx_runtime_1.jsx)("h2", { className: "absolute left-1/2 -translate-x-1/2 text-[16px] font-semibold tracking-[-0.01em] text-brand-ink", children: "Producer settings" }), (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: handleDone, className: "min-w-[64px] text-right text-[15px] font-semibold text-brand-blue transition hover:text-brand-blue-hover", children: "Done" })] }), (0, jsx_runtime_1.jsxs)("div", { className: "min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-8 pt-6", children: [(0, jsx_runtime_1.jsxs)("div", { className: "mb-6 flex items-center gap-3", children: [(0, jsx_runtime_1.jsx)(Avatar_1.Avatar, { producer: producer, size: "md" }), (0, jsx_runtime_1.jsxs)("div", { className: "min-w-0", children: [(0, jsx_runtime_1.jsx)("p", { className: "truncate text-[15px] font-semibold text-brand-ink", children: producer.name }), (0, jsx_runtime_1.jsx)("p", { className: "text-[12px] text-brand-ink-tertiary", children: categories.length
+    return ((0, jsx_runtime_1.jsxs)("div", { className: "fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4", children: [(0, jsx_runtime_1.jsx)("button", { type: "button", className: "absolute inset-0 bg-black/45 backdrop-blur-[2px]", onClick: onClose, "aria-label": "Close" }), (0, jsx_runtime_1.jsxs)("div", { className: "relative flex max-h-[min(94dvh,820px)] w-full max-w-[440px] flex-col overflow-hidden rounded-t-[28px] bg-brand-elevated shadow-[0_24px_80px_rgba(0,0,0,0.28)] sm:rounded-[28px]", children: [(0, jsx_runtime_1.jsxs)("header", { className: "relative flex shrink-0 items-center justify-between border-b border-black/[0.08] px-4 py-3.5", children: [(0, jsx_runtime_1.jsx)("button", { type: "button", onClick: onClose, className: "min-w-[64px] text-left text-[15px] text-brand-ink-secondary transition hover:text-brand-ink", children: readOnly ? "Close" : "Cancel" }), (0, jsx_runtime_1.jsx)("h2", { className: "absolute left-1/2 -translate-x-1/2 text-[16px] font-semibold tracking-[-0.01em] text-brand-ink", children: readOnly ? "Availability" : "Producer settings" }), !readOnly ? ((0, jsx_runtime_1.jsx)("button", { type: "button", onClick: handleDone, className: "min-w-[64px] text-right text-[15px] font-semibold text-brand-blue transition hover:text-brand-blue-hover", children: "Done" })) : ((0, jsx_runtime_1.jsx)("span", { className: "min-w-[64px]" }))] }), (0, jsx_runtime_1.jsxs)("div", { className: "min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-8 pt-6", children: [(0, jsx_runtime_1.jsxs)("div", { className: "mb-6 flex items-center gap-3", children: [(0, jsx_runtime_1.jsx)(Avatar_1.Avatar, { producer: producer, size: "md" }), (0, jsx_runtime_1.jsxs)("div", { className: "min-w-0", children: [(0, jsx_runtime_1.jsx)("p", { className: "truncate text-[15px] font-semibold text-brand-ink", children: producer.name }), (0, jsx_runtime_1.jsx)("p", { className: "text-[12px] text-brand-ink-tertiary", children: categories.length
                                                     ? categories.slice(0, 3).join(", ") +
                                                         (categories.length > 3 ? ` +${categories.length - 3}` : "")
                                                     : producer.specialty })] })] }), (0, jsx_runtime_1.jsx)("div", { className: "mb-6 border-b border-black/[0.08]", children: (0, jsx_runtime_1.jsx)(Tabs_1.Tabs, { options: [

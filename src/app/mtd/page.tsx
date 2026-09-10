@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { Pencil } from "lucide-react";
+import { Eye, Pencil } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Avatar } from "@/components/ui/Avatar";
 import { DataTable, type Column } from "@/components/ui/DataTable";
@@ -164,6 +164,7 @@ function MTDPageContent() {
     secretMenuPrices,
     producers,
     schedule,
+    isViewOnly,
   } = useAppState();
   const [formState, setFormState] = useState<OrderFormType>(DEFAULT_FORM);
   const [cheerSubtypeState, setCheerSubtypeState] = useState<CheerFormSubtypeFilter>(
@@ -886,6 +887,7 @@ function MTDPageContent() {
               <InlineDateInput
                 value={rec.mixStartDate}
                 max={endIso || undefined}
+                readOnly={isViewOnly}
                 className={tableDateClass}
                 onChange={(v) => updateMTD(rec.id, { mixStartDate: v })}
               />
@@ -909,6 +911,7 @@ function MTDPageContent() {
               <InlineDateInput
                 value={rec.mixEndDate ?? ""}
                 min={startIso || undefined}
+                readOnly={isViewOnly}
                 className={tableDateClass}
                 onChange={(v) => {
                   if (!v) {
@@ -942,6 +945,7 @@ function MTDPageContent() {
             <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
               <InlineTriStateCheckGroup
                 items={items}
+                readOnly={isViewOnly}
                 onCycle={(id) => {
                   const next = cycleEightCsItem(state, id as keyof typeof state);
                   updateMTD(rec.id, {
@@ -969,6 +973,7 @@ function MTDPageContent() {
             <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
               <InlineTriStateCheckGroup
                 items={items}
+                readOnly={isViewOnly}
                 onCycle={(id) => {
                   const next = cycleSongsItem(state, id as keyof typeof state);
                   updateMTD(rec.id, {
@@ -997,6 +1002,7 @@ function MTDPageContent() {
             <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
               <InlineTwoStateToggle
                 value={Boolean(rec.hasExtend8ctAddon)}
+                readOnly={isViewOnly}
                 onToggle={() =>
                   updateMTD(rec.id, { hasExtend8ctAddon: !rec.hasExtend8ctAddon })
                 }
@@ -1017,6 +1023,7 @@ function MTDPageContent() {
             <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
               <InlineTwoStateToggle
                 value={Boolean(rec.hasProcessing8ctSheetsAddon)}
+                readOnly={isViewOnly}
                 onToggle={() =>
                   updateMTD(rec.id, {
                     hasProcessing8ctSheetsAddon: !rec.hasProcessing8ctSheetsAddon,
@@ -1041,6 +1048,7 @@ function MTDPageContent() {
           <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
             <InlineDanceVoiceoverPills
               record={rec}
+              readOnly={isViewOnly}
               onUpdate={(id, patch) => updateMTD(id, patch)}
             />
           </div>
@@ -1061,6 +1069,7 @@ function MTDPageContent() {
           <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
             <InlineCheerVoiceoverPills
               record={rec}
+              readOnly={isViewOnly}
               onUpdate={(id, patch) => updateMTD(id, patch)}
             />
           </div>
@@ -1081,6 +1090,7 @@ function MTDPageContent() {
           <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
             <InlineTwoStateToggle
               value={Boolean(rec.hasSheetMusicAdd)}
+              readOnly={isViewOnly}
               onToggle={() =>
                 updateMTD(rec.id, { hasSheetMusicAdd: !rec.hasSheetMusicAdd })
               }
@@ -1101,6 +1111,7 @@ function MTDPageContent() {
           <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
             <InlineTwoStateToggle
               value={Boolean(rec.hasAddVocals)}
+              readOnly={isViewOnly}
               onToggle={() =>
                 updateMTD(rec.id, { hasAddVocals: !rec.hasAddVocals })
               }
@@ -1125,6 +1136,7 @@ function MTDPageContent() {
               quantity={rec.extraSongsQuantity ?? 0}
               unitCost={15}
               label="Extra Songs"
+              readOnly={isViewOnly}
               onChange={(qty) => updateMTD(rec.id, { extraSongsQuantity: qty })}
             />
           </div>
@@ -1145,6 +1157,7 @@ function MTDPageContent() {
               quantity={rec.extraSongEditingTimeQuantity ?? 0}
               unitCost={30}
               label="Extra Song Time"
+              readOnly={isViewOnly}
               onChange={(qty) =>
                 updateMTD(rec.id, { extraSongEditingTimeQuantity: qty })
               }
@@ -1219,6 +1232,7 @@ function MTDPageContent() {
           <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
             <InlineRushFeePills
               record={rec}
+              readOnly={isViewOnly}
               onUpdate={(id, patch) => updateMTD(id, patch)}
               onUpdateOrder={(orderId, patch) => updateOrder(orderId, patch)}
             />
@@ -1278,6 +1292,7 @@ function MTDPageContent() {
               centered
               value={inferMTDRecordStatus(rec)}
               options={[...MTD_RECORD_STATUS_OPTIONS]}
+              readOnly={isViewOnly}
               onChange={(value) => handleRecordStatusChange(rec, value)}
               className={tableStatusSelectClass}
             />
@@ -1296,11 +1311,15 @@ function MTDPageContent() {
           <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
             <Link
               href={`/mtd/${rec.id}`}
-              title="Open record"
+              title={isViewOnly ? "View record" : "Open record"}
               aria-label={`Open ${rec.programName}`}
               className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-brand-line/70 bg-brand-bg/60 text-brand-ink-secondary shadow-sm transition hover:border-brand-orange/40 hover:bg-brand-orange-soft/35 hover:text-brand-orange focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange/25"
             >
-              <Pencil className="h-3.5 w-3.5" strokeWidth={2} />
+              {isViewOnly ? (
+                <Eye className="h-3.5 w-3.5" strokeWidth={2} />
+              ) : (
+                <Pencil className="h-3.5 w-3.5" strokeWidth={2} />
+              )}
             </Link>
           </div>
         ),
@@ -1386,7 +1405,7 @@ function MTDPageContent() {
         allOrders={allOrders}
         producers={producers}
         schedule={schedule}
-        readOnly={Boolean(assignRecord?.assignedProducer?.trim())}
+        readOnly={isViewOnly || Boolean(assignRecord?.assignedProducer?.trim())}
         onClose={() => setAssignRecordId(null)}
         onAssign={handleAssign}
       />
@@ -1394,6 +1413,7 @@ function MTDPageContent() {
       <SetInvoiceModal
         open={Boolean(invoiceRecord)}
         record={invoiceRecord}
+        readOnly={isViewOnly}
         onClose={() => setInvoiceRecord(null)}
         onSave={handleInvoiceSave}
       />
@@ -1402,6 +1422,7 @@ function MTDPageContent() {
         open={Boolean(pricingRecord)}
         record={pricingRecord}
         packagePrices={packagePrices}
+        readOnly={isViewOnly}
         musicAffiliateInfo={
           pricingRecord
             ? getRecordMusicAffiliateInfo(pricingRecord, orderById, allOrders)

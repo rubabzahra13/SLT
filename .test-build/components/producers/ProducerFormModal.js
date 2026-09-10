@@ -55,7 +55,7 @@ function fromProducer(producer) {
         rushFeeRate: rFee <= 1 ? Math.round(rFee * 100) : rFee,
     };
 }
-function ProducerFormModal({ open, onClose, producer, onSave, }) {
+function ProducerFormModal({ open, onClose, producer, onSave, readOnly = false, }) {
     const [form, setForm] = (0, react_1.useState)(emptyForm);
     const [initialsTouched, setInitialsTouched] = (0, react_1.useState)(false);
     const [validationError, setValidationError] = (0, react_1.useState)(null);
@@ -138,23 +138,14 @@ function ProducerFormModal({ open, onClose, producer, onSave, }) {
             setValidationError("Rush Fee rate must be between 0% and 100%.");
             return;
         }
-        const categories = form.categories;
-        const specialty = categories[0] ?? "";
-        const ratesByCategory = {};
-        for (const cat of categories) {
-            const val = form.categoryRates[cat] ?? 50;
-            ratesByCategory[cat] = val > 1 ? val / 100 : val;
-        }
-        const danceVoiceoverRate = form.danceVoiceoverRate > 1 ? form.danceVoiceoverRate / 100 : form.danceVoiceoverRate;
-        const cheerVoiceoverRate = form.cheerVoiceoverRate > 1 ? form.cheerVoiceoverRate / 100 : form.cheerVoiceoverRate;
-        const rushFeeRate = form.rushFeeRate > 1 ? form.rushFeeRate / 100 : form.rushFeeRate;
+        const finalInitials = initials;
         onSave({
             id: producer?.id || `prod-${Date.now()}`,
             name: form.name.trim(),
-            initials,
+            initials: finalInitials,
             email: form.email.trim(),
-            categories,
-            specialty,
+            categories: form.categories,
+            specialty: form.categories[0] ?? "",
             avatar: form.avatar,
             mixesThisWeek: producer?.mixesThisWeek ?? 0,
             nextAvailable: producer?.nextAvailable || "TBD",
@@ -164,15 +155,15 @@ function ProducerFormModal({ open, onClose, producer, onSave, }) {
             maxMixesPerDay: producer?.maxMixesPerDay ?? null,
             maxProducerCostPerDay: producer?.maxProducerCostPerDay ?? null,
             overtimeDays: producer?.overtimeDays ?? [],
-            ratesByCategory,
-            danceVoiceoverRate,
-            cheerVoiceoverRate,
-            rushFeeRate,
+            ratesByCategory: form.categoryRates,
+            danceVoiceoverRate: form.danceVoiceoverRate > 1 ? form.danceVoiceoverRate / 100 : form.danceVoiceoverRate,
+            cheerVoiceoverRate: form.cheerVoiceoverRate > 1 ? form.cheerVoiceoverRate / 100 : form.cheerVoiceoverRate,
+            rushFeeRate: form.rushFeeRate > 1 ? form.rushFeeRate / 100 : form.rushFeeRate,
             compensationModel: producer?.compensationModel ?? "percentage_of_payroll_base",
         });
         onClose();
     }
-    return ((0, jsx_runtime_1.jsxs)("div", { className: "fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4", children: [(0, jsx_runtime_1.jsx)("button", { type: "button", className: "absolute inset-0 bg-black/45 backdrop-blur-[2px] transition", onClick: onClose, "aria-label": "Close" }), (0, jsx_runtime_1.jsxs)("div", { className: "relative flex max-h-[min(94dvh,820px)] w-full max-w-md sm:w-[440px] sm:max-w-[440px] flex-col overflow-hidden rounded-t-[28px] bg-brand-elevated shadow-[0_24px_80px_rgba(0,0,0,0.28)] sm:rounded-[28px]", children: [(0, jsx_runtime_1.jsxs)("header", { className: "relative flex shrink-0 items-center justify-between border-b border-black/[0.08] px-4 py-3.5", children: [(0, jsx_runtime_1.jsx)("button", { type: "button", onClick: onClose, className: "min-w-[64px] text-left text-[15px] text-brand-ink-secondary transition hover:text-brand-ink", children: "Cancel" }), (0, jsx_runtime_1.jsx)("h2", { className: "absolute left-1/2 -translate-x-1/2 text-[16px] font-semibold tracking-[-0.01em] text-brand-ink", children: isEdit ? "Edit Producer" : "New Producer" }), (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: () => handleSubmit(), className: "min-w-[64px] text-right text-[15px] font-semibold text-brand-blue transition hover:text-brand-blue-hover", children: "Done" })] }), (0, jsx_runtime_1.jsxs)("form", { onSubmit: handleSubmit, className: "min-h-0 flex-1 overflow-y-auto overscroll-contain", children: [validationError ? ((0, jsx_runtime_1.jsx)("div", { className: "bg-brand-danger-soft/80 px-5 py-2.5 text-[12px] font-medium text-brand-danger border-b border-brand-danger-muted", children: validationError })) : null, (0, jsx_runtime_1.jsx)("section", { className: "flex flex-col items-center px-6 pb-5 pt-7", children: (0, jsx_runtime_1.jsx)(Avatar_1.Avatar, { initials: form.initials || (0, producers_1.initialsFromName)(form.name) || "??", name: form.name, size: "xl" }) }), (0, jsx_runtime_1.jsxs)("section", { className: "border-y border-black/[0.08]", children: [(0, jsx_runtime_1.jsx)(ProfileRow, { label: "Name", children: (0, jsx_runtime_1.jsx)("input", { required: true, value: form.name, onChange: (e) => {
+    return ((0, jsx_runtime_1.jsxs)("div", { className: "fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4", children: [(0, jsx_runtime_1.jsx)("button", { type: "button", className: "absolute inset-0 bg-black/45 backdrop-blur-[2px] transition", onClick: onClose, "aria-label": "Close" }), (0, jsx_runtime_1.jsxs)("div", { className: "relative flex max-h-[min(94dvh,820px)] w-full max-w-md sm:w-[440px] sm:max-w-[440px] flex-col overflow-hidden rounded-t-[28px] bg-brand-elevated shadow-[0_24px_80px_rgba(0,0,0,0.28)] sm:rounded-[28px]", children: [(0, jsx_runtime_1.jsxs)("header", { className: "relative flex shrink-0 items-center justify-between border-b border-black/[0.08] px-4 py-3.5", children: [(0, jsx_runtime_1.jsx)("button", { type: "button", onClick: onClose, className: "min-w-[64px] text-left text-[15px] text-brand-ink-secondary transition hover:text-brand-ink", children: readOnly ? "Close" : "Cancel" }), (0, jsx_runtime_1.jsx)("h2", { className: "absolute left-1/2 -translate-x-1/2 text-[16px] font-semibold tracking-[-0.01em] text-brand-ink", children: readOnly ? "Producer Profile" : isEdit ? "Edit Producer" : "New Producer" }), !readOnly ? ((0, jsx_runtime_1.jsx)("button", { type: "button", onClick: () => handleSubmit(), className: "min-w-[64px] text-right text-[15px] font-semibold text-brand-blue transition hover:text-brand-blue-hover", children: "Done" })) : ((0, jsx_runtime_1.jsx)("span", { className: "min-w-[64px]" }))] }), (0, jsx_runtime_1.jsxs)("form", { onSubmit: handleSubmit, className: "min-h-0 flex-1 overflow-y-auto overscroll-contain", children: [validationError ? ((0, jsx_runtime_1.jsx)("div", { className: "bg-brand-danger-soft/80 px-5 py-2.5 text-[12px] font-medium text-brand-danger border-b border-brand-danger-muted", children: validationError })) : null, (0, jsx_runtime_1.jsx)("section", { className: "flex flex-col items-center px-6 pb-5 pt-7", children: (0, jsx_runtime_1.jsx)(Avatar_1.Avatar, { initials: form.initials || (0, producers_1.initialsFromName)(form.name) || "??", name: form.name, size: "xl" }) }), (0, jsx_runtime_1.jsxs)("section", { className: "border-y border-black/[0.08]", children: [(0, jsx_runtime_1.jsx)(ProfileRow, { label: "Name", children: (0, jsx_runtime_1.jsx)("input", { required: true, value: form.name, onChange: (e) => {
                                                 const name = e.target.value;
                                                 setForm((prev) => ({
                                                     ...prev,

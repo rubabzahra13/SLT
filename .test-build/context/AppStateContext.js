@@ -7,6 +7,7 @@ const jsx_runtime_1 = require("react/jsx-runtime");
 const react_1 = require("react");
 const data_1 = require("@/lib/data");
 const order_form_1 = require("@/lib/order-form");
+const AuthContext_1 = require("@/context/AuthContext");
 const pricing_1 = require("@/lib/pricing");
 const editor_assignment_1 = require("@/lib/editor-assignment");
 const scheduling_1 = require("@/lib/scheduling");
@@ -150,7 +151,17 @@ function AppStateProvider({ children }) {
     const allOrders = (0, react_1.useMemo)(() => [...activeOrders, ...pastOrders], [activeOrders, pastOrders]);
     const mtdOrderIds = (0, react_1.useMemo)(() => new Set(mtdRecords.map((r) => r.orderId).filter(Boolean)), [mtdRecords]);
     const isInMTD = (0, react_1.useCallback)((orderId) => mtdOrderIds.has(orderId), [mtdOrderIds]);
+    let isViewOnly = false;
+    try {
+        const auth = (0, AuthContext_1.useAuth)();
+        isViewOnly = auth.isViewOnly;
+    }
+    catch {
+        // Fallback if rendered outside AuthProvider
+    }
     const moveOrderToMTD = (0, react_1.useCallback)((orderId) => {
+        if (isViewOnly)
+            return null;
         const order = activeOrders.find((o) => o.id === orderId);
         if (!order || isInMTD(orderId))
             return null;
@@ -212,6 +223,8 @@ function AppStateProvider({ children }) {
         return newRecord;
     }, [activeOrders, isInMTD, mtdRecords, producers, schedule, addNotification, packagePrices]);
     const setPackagePrices = (0, react_1.useCallback)((prices) => {
+        if (isViewOnly)
+            return;
         setPackagePricesState(prices);
         setMtdRecords((prev) => prev.map((record) => {
             const compliance = record.priceCompliance || (0, pricing_1.detectCompliance)(record.musicTheme);
@@ -220,11 +233,15 @@ function AppStateProvider({ children }) {
                 price: (0, pricing_1.getPriceForPackage)(record.package, compliance, record.price, prices),
             };
         }));
-    }, []);
+    }, [isViewOnly]);
     const setSecretMenuPrices = (0, react_1.useCallback)((pricing) => {
+        if (isViewOnly)
+            return;
         setSecretMenuPricesState(pricing);
-    }, []);
+    }, [isViewOnly]);
     const updateMTD = (0, react_1.useCallback)((id, patch) => {
+        if (isViewOnly)
+            return;
         let payrollNotice = null;
         let apiId = id;
         let apiPatch = patch;
@@ -295,6 +312,8 @@ function AppStateProvider({ children }) {
         }
     }, [addNotification, packagePrices, producers, schedule]);
     const updateOrder = (0, react_1.useCallback)((id, patch, seed) => {
+        if (isViewOnly)
+            return;
         const merge = (order) => (0, order_form_1.normalizeOrder)({ ...order, ...patch, id });
         setActiveOrders((prev) => {
             if (prev.some((order) => order.id === id)) {
@@ -312,8 +331,10 @@ function AppStateProvider({ children }) {
         });
         // Persist Order patch to backend API
         (0, api_1.updateOrderApi)(id, patch).catch((err) => console.error("Failed to persist Order update to backend:", err));
-    }, []);
+    }, [isViewOnly]);
     const markComplete = (0, react_1.useCallback)((orderId) => {
+        if (isViewOnly)
+            return;
         const order = activeOrders.find((o) => o.id === orderId);
         if (!order)
             return;
@@ -330,11 +351,13 @@ function AppStateProvider({ children }) {
             status: "completed",
             completedAt: completed.completedAt,
         }).catch((err) => console.error("Failed to persist Order completion to backend:", err));
-    }, [activeOrders]);
+    }, [activeOrders, isViewOnly, producers]);
     const addPastOrder = (0, react_1.useCallback)((order) => {
+        if (isViewOnly)
+            return;
         setPastOrders((prev) => [order, ...prev]);
         (0, api_1.updateOrderApi)(order.id, { status: "completed", completedAt: order.completedAt }).catch((err) => console.error("Failed to persist past order to backend:", err));
-    }, []);
+    }, [isViewOnly]);
     const receiveOrder = (0, react_1.useCallback)((order) => {
         const incoming = (0, order_form_1.normalizeOrder)({
             ...order,
@@ -355,33 +378,45 @@ function AppStateProvider({ children }) {
         });
     }, [addNotification]);
     const addProducer = (0, react_1.useCallback)((producer) => {
+        if (isViewOnly)
+            return;
         const normalized = (0, producers_1.normalizeProducer)(producer);
         setProducers((prev) => [normalized, ...prev]);
         (0, api_1.createProducerApi)(normalized).catch((err) => console.error("Failed to persist new producer to backend:", err));
-    }, []);
+    }, [isViewOnly]);
     const updateProducer = (0, react_1.useCallback)((id, patch) => {
+        if (isViewOnly)
+            return;
         setProducers((prev) => prev.map((p) => p.id === id ? (0, producers_1.normalizeProducer)({ ...p, ...patch, id }) : p));
         (0, api_1.updateProducerApi)(id, patch).catch((err) => console.error("Failed to persist producer update to backend:", err));
-    }, []);
+    }, [isViewOnly]);
     const removeProducer = (0, react_1.useCallback)((id) => {
+        if (isViewOnly)
+            return;
         setProducers((prev) => prev.filter((p) => p.id !== id));
         (0, api_1.deleteProducerApi)(id).catch((err) => console.error("Failed to delete producer from backend:", err));
-    }, []);
+    }, [isViewOnly]);
     const addDiscountCode = (0, react_1.useCallback)((discountCode) => {
+        if (isViewOnly)
+            return;
         const normalized = (0, discount_codes_1.normalizeDiscountCode)(discountCode);
         setDiscountCodes((prev) => [normalized, ...prev]);
         (0, api_1.createDiscountCodeApi)(normalized).catch((err) => console.error("Failed to persist new discount code to backend:", err));
-    }, []);
+    }, [isViewOnly]);
     const updateDiscountCode = (0, react_1.useCallback)((id, patch) => {
+        if (isViewOnly)
+            return;
         setDiscountCodes((prev) => prev.map((entry) => entry.id === id
             ? (0, discount_codes_1.normalizeDiscountCode)({ ...entry, ...patch, id })
             : entry));
         (0, api_1.updateDiscountCodeApi)(id, patch).catch((err) => console.error("Failed to persist discount code update to backend:", err));
-    }, []);
+    }, [isViewOnly]);
     const removeDiscountCode = (0, react_1.useCallback)((id) => {
+        if (isViewOnly)
+            return;
         setDiscountCodes((prev) => prev.filter((entry) => entry.id !== id));
         (0, api_1.deleteDiscountCodeApi)(id).catch((err) => console.error("Failed to delete discount code from backend:", err));
-    }, []);
+    }, [isViewOnly]);
     const markNotificationRead = (0, react_1.useCallback)((id) => {
         setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
     }, []);
@@ -402,6 +437,7 @@ function AppStateProvider({ children }) {
         notifications,
         unreadCount,
         isBackendConnected,
+        isViewOnly,
         moveOrderToMTD,
         updateMTD,
         updateOrder,

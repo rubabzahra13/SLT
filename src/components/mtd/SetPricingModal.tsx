@@ -378,18 +378,24 @@ export type SetPricingModalProps = {
 
 export function SetPricingModal({
   open,
+  form,
+  cheerSubtype,
+  danceSubtype,
   onClose,
   secretMenuPrices: secretMenuPricesProp,
   onSave,
   order,
   record,
-  form,
-  cheerSubtype,
-  danceSubtype,
   initialCategory,
   initialSubtype,
 }: SetPricingModalProps) {
-  const { secretMenuPrices: secretMenuPricesState, setSecretMenuPrices } = useAppState();
+  const {
+    packagePrices,
+    secretMenuPrices: secretMenuPricesState,
+    setPackagePrices,
+    setSecretMenuPrices,
+    isViewOnly,
+  } = useAppState();
   const secretMenuPrices = secretMenuPricesProp ?? secretMenuPricesState;
 
   const [activeViewTab, setActiveViewTab] = useState<PricingViewTab>("reference");
@@ -546,6 +552,7 @@ export function SetPricingModal({
   );
 
   const startEditing = useCallback(() => {
+    if (isViewOnly) return;
     setIsEditingCompliant(false);
     setCompliantDraft([...savedCompliantIds]);
     const snapshot = getCategoryPricingSnapshot(selectedCategory, referenceStore);
@@ -1016,7 +1023,7 @@ export function SetPricingModal({
                     Reference prices for {selectedCategory}
                   </p>
                 </div>
-                {!isEditingPricing ? (
+                {!isEditingPricing && !isViewOnly ? (
                   <button
                     type="button"
                     onClick={startEditing}
@@ -1026,11 +1033,11 @@ export function SetPricingModal({
                     <Pencil className="h-3.5 w-3.5" strokeWidth={2.25} />
                     Edit pricing
                   </button>
-                ) : (
+                ) : isEditingPricing ? (
                   <span className="rounded-full bg-brand-orange/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.05em] text-brand-orange">
                     Editing
                   </span>
-                )}
+                ) : null}
               </div>
 
               <div className="overflow-hidden rounded-lg border-2 border-neutral-400 bg-white shadow-sm">

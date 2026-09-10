@@ -32,7 +32,7 @@ function InlineCell({ children, footer, className, centered = false, }) {
     const hasFooter = footer != null;
     return ((0, jsx_runtime_1.jsxs)("div", { className: (0, clsx_1.default)("mx-auto flex w-full min-w-0 flex-col justify-center", centered ? "items-center" : "items-stretch", className), onClick: (e) => e.stopPropagation(), children: [children, hasFooter ? ((0, jsx_runtime_1.jsx)("div", { className: (0, clsx_1.default)("mt-1 w-full truncate text-[9px] leading-none", centered && "text-center"), children: footer })) : null] }));
 }
-function InlineSelect({ value, options, onChange, className, centered = false, }) {
+function InlineSelect({ value, options, onChange, className, centered = false, readOnly = false, }) {
     const triggerRef = (0, react_1.useRef)(null);
     const menuRef = (0, react_1.useRef)(null);
     const [open, setOpen] = (0, react_1.useState)(false);
@@ -119,12 +119,14 @@ function InlineSelect({ value, options, onChange, className, centered = false, }
             setOpen(false);
         }
     };
-    return ((0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsxs)("button", { ref: triggerRef, type: "button", "aria-haspopup": "listbox", "aria-expanded": open, onClick: (e) => {
+    return ((0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsxs)("button", { ref: triggerRef, type: "button", disabled: readOnly, "aria-haspopup": "listbox", "aria-expanded": open, onClick: (e) => {
                     e.stopPropagation();
+                    if (readOnly)
+                        return;
                     setOpen((v) => !v);
                 }, onKeyDown: handleKeyDown, className: (0, clsx_1.default)(inlineControlClass, centered
                     ? "relative flex cursor-pointer items-center justify-center px-6 text-center"
-                    : "flex cursor-pointer items-center justify-between gap-1.5 pr-2 text-left", className), children: [(0, jsx_runtime_1.jsx)("span", { className: (0, clsx_1.default)("min-w-0 truncate", centered ? "w-full text-center" : "flex-1"), children: value }), (0, jsx_runtime_1.jsx)(lucide_react_1.ChevronDown, { className: (0, clsx_1.default)("h-3.5 w-3.5 shrink-0 text-brand-ink-tertiary transition-transform duration-150", centered && "absolute right-2 top-1/2 -translate-y-1/2", open && "rotate-180"), strokeWidth: 2.25, "aria-hidden": true })] }), mounted && open && position
+                    : "flex cursor-pointer items-center justify-between gap-1.5 pr-2 text-left", readOnly && "!cursor-default !bg-slate-50/50 opacity-80 pointer-events-none", className), children: [(0, jsx_runtime_1.jsx)("span", { className: (0, clsx_1.default)("min-w-0 truncate", centered ? "w-full text-center" : "flex-1"), children: value }), (0, jsx_runtime_1.jsx)(lucide_react_1.ChevronDown, { className: (0, clsx_1.default)("h-3.5 w-3.5 shrink-0 text-brand-ink-tertiary transition-transform duration-150", centered && "absolute right-2 top-1/2 -translate-y-1/2", open && "rotate-180"), strokeWidth: 2.25, "aria-hidden": true })] }), mounted && open && position
                 ? (0, react_dom_1.createPortal)((0, jsx_runtime_1.jsx)("div", { ref: menuRef, role: "listbox", onClick: (e) => e.stopPropagation(), onMouseDown: (e) => e.stopPropagation(), className: "fixed z-[60] overflow-y-auto rounded-xl border border-brand-line/60 bg-white p-1 shadow-[var(--shadow-premium)] ring-1 ring-inset ring-brand-line/10 scrollbar-hide", style: {
                         left: position.left,
                         top: position.top,
@@ -146,15 +148,17 @@ function InlineSelect({ value, options, onChange, className, centered = false, }
                 : null] }));
 }
 /** Single-select options styled as compact checkbox rows. */
-function InlineCheckOptionGroup({ value, options, onChange, getLabel = (option) => option, className, }) {
+function InlineCheckOptionGroup({ value, options, onChange, getLabel = (option) => option, className, readOnly = false, }) {
     return ((0, jsx_runtime_1.jsx)("div", { className: (0, clsx_1.default)("flex flex-col gap-0.5", className), role: "radiogroup", onClick: (e) => e.stopPropagation(), children: options.map((option) => {
             const selected = value === option;
             return ((0, jsx_runtime_1.jsxs)("button", { type: "button", role: "radio", "aria-checked": selected, title: option, onClick: (e) => {
                     e.stopPropagation();
+                    if (readOnly)
+                        return;
                     onChange(option);
                 }, className: (0, clsx_1.default)("inline-flex w-full items-start gap-1.5 rounded-md px-1 py-0.5 text-left transition", selected
                     ? "bg-brand-signature-soft/70 ring-1 ring-inset ring-brand-signature/25"
-                    : "hover:bg-brand-bg/70"), children: [(0, jsx_runtime_1.jsx)("span", { className: (0, clsx_1.default)("mt-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-[4px] border transition", selected
+                    : "hover:bg-brand-bg/70", readOnly && "pointer-events-none opacity-80 cursor-default"), children: [(0, jsx_runtime_1.jsx)("span", { className: (0, clsx_1.default)("mt-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-[4px] border transition", selected
                             ? "border-brand-signature bg-brand-signature text-white"
                             : "border-brand-line/80 bg-brand-surface"), children: selected ? (0, jsx_runtime_1.jsx)(lucide_react_1.Check, { className: "h-2.5 w-2.5", strokeWidth: 3 }) : null }), (0, jsx_runtime_1.jsx)("span", { className: "min-w-0 whitespace-normal text-[10px] font-medium leading-snug text-brand-ink", children: getLabel(option) })] }, option));
         }) }));
@@ -174,44 +178,54 @@ const triStateTitle = {
     need: "Need",
 };
 /** Horizontal tri-state toggles: none (white) → have (green) → need (red). */
-function InlineTriStateCheckGroup({ items, onCycle, className, }) {
+function InlineTriStateCheckGroup({ items, onCycle, className, readOnly = false, }) {
     return ((0, jsx_runtime_1.jsx)("div", { "data-stop-row-nav": true, className: (0, clsx_1.default)(inlinePillGroupClass, className), onClick: (e) => e.stopPropagation(), children: items.map((item) => ((0, jsx_runtime_1.jsx)(HoverTip_1.HoverTip, { label: `${item.label} · ${triStateTitle[item.state]}`, placement: "top", children: (0, jsx_runtime_1.jsx)("button", { type: "button", "aria-label": `${item.label}: ${triStateTitle[item.state]}`, onClick: (e) => {
                     e.stopPropagation();
+                    if (readOnly)
+                        return;
                     onCycle(item.id);
-                }, className: (0, clsx_1.default)(inlinePillBaseClass, triStateClassName[item.state]), children: item.label }) }, item.id))) }));
+                }, className: (0, clsx_1.default)(inlinePillBaseClass, triStateClassName[item.state], readOnly && "pointer-events-none opacity-80 cursor-default"), children: item.label }) }, item.id))) }));
 }
 /** 2-state toggle chip: No (red) <-> Yes (green). No 3rd state. */
-function InlineTwoStateToggle({ value, onToggle, className, }) {
+function InlineTwoStateToggle({ value, onToggle, className, readOnly = false, }) {
     return ((0, jsx_runtime_1.jsx)("button", { type: "button", "data-stop-row-nav": true, "aria-label": `Toggle: ${value ? "Yes" : "No"}`, onClick: (e) => {
             e.stopPropagation();
+            if (readOnly)
+                return;
             onToggle();
         }, className: (0, clsx_1.default)("inline-flex items-center justify-center rounded-lg px-2.5 py-1 text-[11px] font-semibold leading-none shadow-xs transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange/30", value
             ? "bg-brand-success/22 text-emerald-800 ring-1 ring-inset ring-brand-success/35 hover:bg-brand-success/30"
-            : "bg-brand-danger/18 text-red-700 ring-1 ring-inset ring-brand-danger/32 hover:bg-brand-danger/25", className), children: value ? "Yes" : "No" }));
+            : "bg-brand-danger/18 text-red-700 ring-1 ring-inset ring-brand-danger/32 hover:bg-brand-danger/25", readOnly && "pointer-events-none opacity-80 cursor-default", className), children: value ? "Yes" : "No" }));
 }
 /** Horizontal segmented toggles for compact table cells. */
-function InlineMultiCheckGroup({ items, onToggle, className, }) {
+function InlineMultiCheckGroup({ items, onToggle, className, readOnly = false, }) {
     const selectedCount = items.filter((item) => item.checked).length;
     return ((0, jsx_runtime_1.jsx)("div", { className: (0, clsx_1.default)("inline-flex max-w-full items-center gap-1 rounded-xl bg-brand-bg-subtle/90 p-1 ring-1 ring-inset ring-brand-line/40", className), onClick: (e) => e.stopPropagation(), children: items.map((item) => ((0, jsx_runtime_1.jsx)("button", { type: "button", role: "checkbox", "aria-checked": item.checked, title: item.label, onClick: (e) => {
                 e.stopPropagation();
+                if (readOnly)
+                    return;
                 onToggle(item.id, !item.checked);
             }, className: (0, clsx_1.default)("relative whitespace-nowrap rounded-lg px-2 py-1 text-[10px] font-semibold leading-none transition-all duration-150", item.checked
                 ? "bg-brand-blue-deep text-white shadow-[0_1px_3px_rgba(42,143,176,0.35)] ring-1 ring-inset ring-brand-blue-deep/40"
                 : (0, clsx_1.default)("bg-brand-elevated/90 text-brand-ink-tertiary ring-1 ring-inset ring-brand-line/45", selectedCount > 0
                     ? "hover:bg-brand-elevated hover:text-brand-ink-secondary hover:ring-brand-blue-deep/30"
-                    : "hover:bg-brand-elevated hover:text-brand-ink hover:ring-brand-line-strong")), children: item.label }, item.id))) }));
+                    : "hover:bg-brand-elevated hover:text-brand-ink hover:ring-brand-line-strong"), readOnly && "pointer-events-none opacity-80 cursor-default"), children: item.label }, item.id))) }));
 }
-function InlineInput({ value, onChange, placeholder, type = "text", className, }) {
-    return ((0, jsx_runtime_1.jsx)("input", { type: type, value: value, placeholder: placeholder, onClick: (e) => e.stopPropagation(), onChange: (e) => {
+function InlineInput({ value, onChange, placeholder, type = "text", className, readOnly = false, }) {
+    return ((0, jsx_runtime_1.jsx)("input", { type: type, value: value, readOnly: readOnly, disabled: readOnly, placeholder: placeholder, onClick: (e) => e.stopPropagation(), onChange: (e) => {
             e.stopPropagation();
+            if (readOnly)
+                return;
             onChange(e.target.value);
-        }, className: (0, clsx_1.default)(inlineControlClass, "tabular-nums", className) }));
+        }, className: (0, clsx_1.default)(inlineControlClass, "tabular-nums", readOnly && "!cursor-default !bg-slate-50/50 text-brand-ink-secondary", className) }));
 }
-function InlineTextarea({ value, onChange, placeholder, rows = 3, className, }) {
-    return ((0, jsx_runtime_1.jsx)("textarea", { value: value, rows: rows, placeholder: placeholder, onClick: (e) => e.stopPropagation(), onChange: (e) => {
+function InlineTextarea({ value, onChange, placeholder, rows = 3, className, readOnly = false, }) {
+    return ((0, jsx_runtime_1.jsx)("textarea", { value: value, rows: rows, readOnly: readOnly, disabled: readOnly, placeholder: placeholder, onClick: (e) => e.stopPropagation(), onChange: (e) => {
             e.stopPropagation();
+            if (readOnly)
+                return;
             onChange(e.target.value);
-        }, className: (0, clsx_1.default)("w-full resize-y rounded-lg border border-brand-line/60 bg-white px-3 py-2 text-[13px] text-brand-ink shadow-[0_1px_1px_rgba(15,30,45,0.04)] outline-none transition-colors hover:border-brand-line-strong focus:border-brand-blue/50 focus:ring-2 focus:ring-brand-blue/15", className) }));
+        }, className: (0, clsx_1.default)("w-full resize-y rounded-lg border border-brand-line/60 bg-white px-3 py-2 text-[13px] text-brand-ink shadow-[0_1px_1px_rgba(15,30,45,0.04)] outline-none transition-colors hover:border-brand-line-strong focus:border-brand-blue/50 focus:ring-2 focus:ring-brand-blue/15", readOnly && "!cursor-default !bg-slate-50/50 text-brand-ink-secondary", className) }));
 }
 const detailInputClass = "h-auto min-h-[36px] rounded-lg px-3 py-2 text-[13px]";
 function DetailInput({ className, ...props }) {
@@ -249,7 +263,7 @@ function isDateDisabled(iso, minIso, maxIso) {
         return true;
     return false;
 }
-function InlineDateInput({ value, onChange, template, min, max, className, }) {
+function InlineDateInput({ value, onChange, template, min, max, className, readOnly = false, }) {
     const triggerRef = (0, react_1.useRef)(null);
     const menuRef = (0, react_1.useRef)(null);
     const [open, setOpen] = (0, react_1.useState)(false);
@@ -332,12 +346,14 @@ function InlineDateInput({ value, onChange, template, min, max, className, }) {
             ? (0, dates_1.formatDisplayDate)(templateIso)
             : "Select date"
         : (0, dates_1.formatDisplayDate)(normalized);
-    return ((0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsxs)("button", { ref: triggerRef, type: "button", "aria-haspopup": "dialog", "aria-expanded": open, title: isUnset && templateIso
+    return ((0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsxs)("button", { ref: triggerRef, type: "button", disabled: readOnly, "aria-haspopup": "dialog", "aria-expanded": open, title: isUnset && templateIso
                     ? `Suggested mix date: ${templateIso}`
                     : undefined, onClick: (e) => {
                     e.stopPropagation();
+                    if (readOnly)
+                        return;
                     setOpen((v) => !v);
-                }, onMouseDown: (e) => e.stopPropagation(), className: (0, clsx_1.default)(inlineControlClass, "flex min-w-[108px] cursor-pointer items-center justify-between gap-1.5 pr-2 text-left tabular-nums", isUnset && "text-brand-ink-tertiary", className), children: [(0, jsx_runtime_1.jsxs)("span", { className: "flex min-w-0 items-center gap-1.5 truncate", children: [(0, jsx_runtime_1.jsx)(lucide_react_1.Calendar, { className: "h-3.5 w-3.5 shrink-0 text-brand-ink-tertiary", strokeWidth: 2 }), (0, jsx_runtime_1.jsx)("span", { className: (0, clsx_1.default)("truncate", !isUnset && "text-brand-ink"), children: displayLabel })] }), (0, jsx_runtime_1.jsx)(lucide_react_1.ChevronDown, { className: (0, clsx_1.default)("h-3.5 w-3.5 shrink-0 text-brand-ink-tertiary transition-transform duration-150", open && "rotate-180"), strokeWidth: 2.25 })] }), mounted && open && position
+                }, onMouseDown: (e) => e.stopPropagation(), className: (0, clsx_1.default)(inlineControlClass, "flex min-w-[108px] cursor-pointer items-center justify-between gap-1.5 pr-2 text-left tabular-nums", isUnset && "text-brand-ink-tertiary", readOnly && "!cursor-default !bg-slate-50/50 opacity-80 pointer-events-none", className), children: [(0, jsx_runtime_1.jsxs)("span", { className: "flex min-w-0 items-center gap-1.5 truncate", children: [(0, jsx_runtime_1.jsx)(lucide_react_1.Calendar, { className: "h-3.5 w-3.5 shrink-0 text-brand-ink-tertiary", strokeWidth: 2 }), (0, jsx_runtime_1.jsx)("span", { className: (0, clsx_1.default)("truncate", !isUnset && "text-brand-ink"), children: displayLabel })] }), (0, jsx_runtime_1.jsx)(lucide_react_1.ChevronDown, { className: (0, clsx_1.default)("h-3.5 w-3.5 shrink-0 text-brand-ink-tertiary transition-transform duration-150", open && "rotate-180"), strokeWidth: 2.25 })] }), mounted && open && position
                 ? (0, react_dom_1.createPortal)((0, jsx_runtime_1.jsxs)("div", { ref: menuRef, role: "dialog", "aria-label": "Choose date", onClick: (e) => e.stopPropagation(), onMouseDown: (e) => e.stopPropagation(), className: "fixed z-[60] overflow-hidden rounded-xl border border-brand-line/60 bg-white shadow-[var(--shadow-premium)] ring-1 ring-inset ring-brand-line/15", style: {
                         left: position.left,
                         top: position.top,
@@ -354,7 +370,7 @@ function InlineDateInput({ value, onChange, template, min, max, className, }) {
                                     }, className: "rounded-lg px-2 py-1 text-[11px] font-semibold text-brand-ink-secondary transition hover:bg-white hover:text-brand-ink", children: "Clear" })) : null] })] }), document.body)
                 : null] }));
 }
-function InlineDanceVoiceoverPills({ record, onUpdate, value, hasTraditionalVoiceover, hasThemedVoiceover, onChange, className, }) {
+function InlineDanceVoiceoverPills({ record, onUpdate, value, hasTraditionalVoiceover, hasThemedVoiceover, onChange, className, readOnly = false, }) {
     const currentVal = value ?? record?.danceVoiceover ?? null;
     const currentTrad = hasTraditionalVoiceover ??
         record?.hasTraditionalVoiceover ??
@@ -372,6 +388,8 @@ function InlineDanceVoiceoverPills({ record, onUpdate, value, hasTraditionalVoic
         return null;
     };
     const handleToggle = (patch) => {
+        if (readOnly)
+            return;
         const nextTrad = patch.hasTraditionalVoiceover ?? currentTrad;
         const nextThemed = patch.hasThemedVoiceover ?? currentThemed;
         const nextVal = syncDanceVoiceover(nextTrad, nextThemed);
@@ -393,17 +411,19 @@ function InlineDanceVoiceoverPills({ record, onUpdate, value, hasTraditionalVoic
                         handleToggle({ hasThemedVoiceover: !currentThemed });
                     }, className: (0, clsx_1.default)(inlinePillBaseClass, currentThemed ? inlinePillActiveClass : inlinePillInactiveClass), children: "+$75" }) })] }));
 }
-function InlineCheerVoiceoverPills({ record, onUpdate, has20, has40, onChange, className, }) {
+function InlineCheerVoiceoverPills({ record, onUpdate, has20, has40, onChange, className, readOnly = false, }) {
     const current20 = has20 ?? record?.cheerVoiceover20 ?? false;
     const current40 = has40 ?? record?.cheerVoiceover40 ?? false;
     const handleToggle = (patch) => {
+        if (readOnly)
+            return;
         if (onChange)
             onChange(patch);
         if (record && onUpdate) {
             onUpdate(record.id, patch);
         }
     };
-    return ((0, jsx_runtime_1.jsxs)("div", { "data-stop-row-nav": true, className: (0, clsx_1.default)(inlinePillGroupClass, className), onClick: (e) => e.stopPropagation(), children: [(0, jsx_runtime_1.jsx)(HoverTip_1.HoverTip, { label: "Cheer Voiceover Option 1 (+$20)", placement: "top", children: (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: (e) => {
+    return ((0, jsx_runtime_1.jsxs)("div", { "data-stop-row-nav": true, className: (0, clsx_1.default)(inlinePillGroupClass, readOnly && "pointer-events-none opacity-80 cursor-default", className), onClick: (e) => e.stopPropagation(), children: [(0, jsx_runtime_1.jsx)(HoverTip_1.HoverTip, { label: "Cheer Voiceover Option 1 (+$20)", placement: "top", children: (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: (e) => {
                         e.stopPropagation();
                         handleToggle({ cheerVoiceover20: !current20 });
                     }, className: (0, clsx_1.default)(inlinePillBaseClass, current20 ? inlinePillActiveClass : inlinePillInactiveClass), children: "+$20" }) }), (0, jsx_runtime_1.jsx)(HoverTip_1.HoverTip, { label: "Cheer Voiceover Option 2 (+$40)", placement: "top", children: (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: (e) => {
@@ -411,7 +431,7 @@ function InlineCheerVoiceoverPills({ record, onUpdate, has20, has40, onChange, c
                         handleToggle({ cheerVoiceover40: !current40 });
                     }, className: (0, clsx_1.default)(inlinePillBaseClass, current40 ? inlinePillActiveClass : inlinePillInactiveClass), children: "+$40" }) })] }));
 }
-function InlineRushFeePills({ record, onUpdate, onUpdateOrder, value, onChange, className, }) {
+function InlineRushFeePills({ record, onUpdate, onUpdateOrder, value, onChange, className, readOnly = false, }) {
     const rushQty = typeof record?.rushFeeQuantity === "number"
         ? record.rushFeeQuantity
         : record?.rushFeeOption === "double"
@@ -422,6 +442,8 @@ function InlineRushFeePills({ record, onUpdate, onUpdateOrder, value, onChange, 
     const currentRate = record?.rushFeeCompensationRate ?? 1.0;
     const currentRatePct = currentRate <= 1 ? Math.round(currentRate * 100) : Math.round(currentRate);
     const handleQtyChange = (qty) => {
+        if (readOnly)
+            return;
         const nextOption = qty === 2 ? "double" : qty === 1 ? "single" : "none";
         const isRush = qty > 0;
         if (onChange)
@@ -442,6 +464,8 @@ function InlineRushFeePills({ record, onUpdate, onUpdateOrder, value, onChange, 
         }
     };
     const handleRateChange = (rateVal) => {
+        if (readOnly)
+            return;
         const decRate = rateVal > 1 ? rateVal / 100 : rateVal;
         if (record && onUpdate) {
             onUpdate(record.id, { rushFeeCompensationRate: decRate });
@@ -455,7 +479,7 @@ function InlineRushFeePills({ record, onUpdate, onUpdateOrder, value, onChange, 
         rateChoices.push(currentRatePct);
         rateChoices.sort((a, b) => b - a);
     }
-    return ((0, jsx_runtime_1.jsxs)("div", { "data-stop-row-nav": true, className: (0, clsx_1.default)("inline-flex items-center gap-1.5", className), onClick: (e) => e.stopPropagation(), children: [(0, jsx_runtime_1.jsxs)("div", { className: (0, clsx_1.default)(inlinePillGroupClass), children: [(0, jsx_runtime_1.jsx)(HoverTip_1.HoverTip, { label: "No Rush ($0)", placement: "top", children: (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: (e) => {
+    return ((0, jsx_runtime_1.jsxs)("div", { "data-stop-row-nav": true, className: (0, clsx_1.default)("inline-flex items-center gap-1.5", readOnly && "pointer-events-none opacity-80 cursor-default", className), onClick: (e) => e.stopPropagation(), children: [(0, jsx_runtime_1.jsxs)("div", { className: (0, clsx_1.default)(inlinePillGroupClass), children: [(0, jsx_runtime_1.jsx)(HoverTip_1.HoverTip, { label: "No Rush ($0)", placement: "top", children: (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: (e) => {
                                 e.stopPropagation();
                                 handleQtyChange(0);
                             }, className: (0, clsx_1.default)(inlinePillBaseClass, rushQty === 0 ? inlinePillActiveClass : inlinePillInactiveClass), children: "None" }) }), (0, jsx_runtime_1.jsx)(HoverTip_1.HoverTip, { label: "Single Rush (+$150)", placement: "top", children: (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: (e) => {
@@ -464,12 +488,14 @@ function InlineRushFeePills({ record, onUpdate, onUpdateOrder, value, onChange, 
                             }, className: (0, clsx_1.default)(inlinePillBaseClass, rushQty === 1 ? inlinePillActiveClass : inlinePillInactiveClass), children: "1x ($150)" }) }), (0, jsx_runtime_1.jsx)(HoverTip_1.HoverTip, { label: "Double Rush (+$300)", placement: "top", children: (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: (e) => {
                                 e.stopPropagation();
                                 handleQtyChange(2);
-                            }, className: (0, clsx_1.default)(inlinePillBaseClass, rushQty === 2 ? inlinePillActiveClass : inlinePillInactiveClass), children: "2x ($300)" }) })] }), rushQty > 0 && ((0, jsx_runtime_1.jsx)(HoverTip_1.HoverTip, { label: "Override Rush Fee Producer Compensation %", placement: "top", children: (0, jsx_runtime_1.jsx)("select", { value: currentRatePct, onChange: (e) => {
+                            }, className: (0, clsx_1.default)(inlinePillBaseClass, rushQty === 2 ? inlinePillActiveClass : inlinePillInactiveClass), children: "2x ($300)" }) })] }), rushQty > 0 && ((0, jsx_runtime_1.jsx)(HoverTip_1.HoverTip, { label: "Override Rush Fee Producer Compensation %", placement: "top", children: (0, jsx_runtime_1.jsx)("select", { value: currentRatePct, disabled: readOnly, onChange: (e) => {
                         e.stopPropagation();
+                        if (readOnly)
+                            return;
                         handleRateChange(parseInt(e.target.value, 10));
                     }, onClick: (e) => e.stopPropagation(), className: "h-7 rounded-lg border border-brand-line/60 bg-brand-elevated px-1.5 text-[11px] font-semibold text-brand-ink outline-none hover:border-brand-line-strong focus:ring-1 focus:ring-brand-blue", children: rateChoices.map((r) => ((0, jsx_runtime_1.jsxs)("option", { value: r, children: [r, "%"] }, r))) }) }))] }));
 }
-function InlineQuantityStepper({ quantity, value, unitCost, label, onChange, className, }) {
+function InlineQuantityStepper({ quantity, value, unitCost, label, onChange, className, readOnly = false, }) {
     const qty = Math.max(0, quantity ?? value ?? 0);
     const cost = qty * unitCost;
     const stepperButtonClass = "flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-[12px] font-bold text-brand-ink-secondary transition hover:bg-white/90 hover:text-brand-ink disabled:cursor-not-allowed disabled:opacity-35";
@@ -478,11 +504,15 @@ function InlineQuantityStepper({ quantity, value, unitCost, label, onChange, cla
         : "bg-brand-elevated/90 ring-brand-line/45");
     return ((0, jsx_runtime_1.jsxs)("div", { "data-stop-row-nav": true, className: (0, clsx_1.default)(inlinePillGroupClass, className), onClick: (e) => e.stopPropagation(), children: [(0, jsx_runtime_1.jsx)(HoverTip_1.HoverTip, { label: qty > 0
                     ? `${qty} ${label} · $${unitCost} each`
-                    : `${label} · $${unitCost} each`, placement: "top", children: (0, jsx_runtime_1.jsxs)("div", { className: (0, clsx_1.default)(chipShellClass, "gap-0.5 px-0.5"), children: [(0, jsx_runtime_1.jsx)("button", { type: "button", disabled: qty <= 0, onClick: (e) => {
+                    : `${label} · $${unitCost} each`, placement: "top", children: (0, jsx_runtime_1.jsxs)("div", { className: (0, clsx_1.default)(chipShellClass, "gap-0.5 px-0.5"), children: [(0, jsx_runtime_1.jsx)("button", { type: "button", disabled: qty <= 0 || readOnly, onClick: (e) => {
                                 e.stopPropagation();
+                                if (readOnly)
+                                    return;
                                 onChange(Math.max(0, qty - 1));
-                            }, className: stepperButtonClass, "aria-label": `Decrease ${label}`, children: "\u2212" }), (0, jsx_runtime_1.jsx)("span", { className: (0, clsx_1.default)("min-w-[1.25rem] px-1 text-center text-[12px] font-medium tabular-nums leading-none", qty > 0 ? "font-semibold text-emerald-900" : "text-brand-ink-tertiary"), children: qty }), (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: (e) => {
+                            }, className: stepperButtonClass, "aria-label": `Decrease ${label}`, children: "\u2212" }), (0, jsx_runtime_1.jsx)("span", { className: (0, clsx_1.default)("min-w-[1.25rem] px-1 text-center text-[12px] font-medium tabular-nums leading-none", qty > 0 ? "font-semibold text-emerald-900" : "text-brand-ink-tertiary"), children: qty }), (0, jsx_runtime_1.jsx)("button", { type: "button", disabled: readOnly, onClick: (e) => {
                                 e.stopPropagation();
+                                if (readOnly)
+                                    return;
                                 onChange(qty + 1);
                             }, className: stepperButtonClass, "aria-label": `Increase ${label}`, children: "+" })] }) }), (0, jsx_runtime_1.jsx)(HoverTip_1.HoverTip, { label: qty > 0
                     ? `${qty} × $${unitCost} = $${cost}`

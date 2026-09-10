@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Pencil } from "lucide-react";
+import { Eye, Pencil } from "lucide-react";
 import clsx from "clsx";
+import { useAuth } from "@/context/AuthContext";
 
 export type RowActionMenuItem = {
   id: string;
@@ -24,6 +25,7 @@ export function RowActionMenu({
 }: RowActionMenuProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const { isViewOnly } = useAuth();
 
   useEffect(() => {
     if (!open) return;
@@ -51,7 +53,11 @@ export function RowActionMenu({
           open && "border-brand-orange/40 bg-brand-orange-soft/35 text-brand-orange"
         )}
       >
-        <Pencil className="h-3.5 w-3.5" strokeWidth={2} />
+        {isViewOnly ? (
+          <Eye className="h-3.5 w-3.5" strokeWidth={2} />
+        ) : (
+          <Pencil className="h-3.5 w-3.5" strokeWidth={2} />
+        )}
       </button>
 
       {open ? (

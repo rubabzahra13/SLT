@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { DM_Sans } from "next/font/google";
+import { AuthProvider } from "@/context/AuthContext";
 import { AppStateProvider } from "@/context/AppStateContext";
 import { SidebarProvider } from "@/context/SidebarContext";
 import { AppShell } from "@/components/layout/AppShell";
@@ -25,11 +26,13 @@ export default function RootLayout({
   return (
     <html lang="en" className={dmSans.variable} suppressHydrationWarning>
       <body className={`${dmSans.className} min-h-screen antialiased`} suppressHydrationWarning>
-        <AppStateProvider>
-          <SidebarProvider>
-            <AppShell>{children}</AppShell>
-          </SidebarProvider>
-        </AppStateProvider>
+        <AuthProvider>
+          <AppStateProvider>
+            <SidebarProvider>
+              <AppShell>{children}</AppShell>
+            </SidebarProvider>
+          </AppStateProvider>
+        </AuthProvider>
       </body>
     </html>
   );

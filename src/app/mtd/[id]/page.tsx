@@ -104,6 +104,7 @@ export default function MTDDetailPage({
     producers,
     schedule,
     discountCodes,
+    isViewOnly,
   } = useAppState();
   const [assignOpen, setAssignOpen] = useState(false);
   const [recordPricingOpen, setRecordPricingOpen] = useState(false);
@@ -194,10 +195,10 @@ export default function MTDDetailPage({
   );
 
   const startSpreadsheetEdit = useCallback(() => {
-    if (!rec) return;
+    if (isViewOnly || !rec) return;
     setSpreadsheetDraft(spreadsheetDraftFromRec(rec));
     setSpreadsheetEditing(true);
-  }, [rec]);
+  }, [rec, isViewOnly]);
 
   const cancelSpreadsheetEdit = useCallback(() => {
     setSpreadsheetDraft(null);
@@ -223,10 +224,10 @@ export default function MTDDetailPage({
   }, [rec, spreadsheetDraft, patchMTD]);
 
   const startOrderFormEdit = useCallback(() => {
-    if (!order) return;
+    if (isViewOnly || !order) return;
     setOrderDraft({ ...order });
     setOrderFormEditing(true);
-  }, [order]);
+  }, [order, isViewOnly]);
 
   const cancelOrderFormEdit = useCallback(() => {
     setOrderDraft(null);
@@ -418,6 +419,7 @@ export default function MTDDetailPage({
                 <div className="flex min-w-0 flex-1 items-center gap-2">
                   <InlineDateInput
                     value={sheet.mixStartDate}
+                    readOnly={isViewOnly}
                     onChange={handleMixStartChange}
                     className="min-h-[30px] min-w-0 flex-1 py-1"
                   />
@@ -435,6 +437,7 @@ export default function MTDDetailPage({
                 </span>
                 <InlineDateInput
                   value={sheet.mixEndDate}
+                  readOnly={isViewOnly}
                   onChange={handleMixEndChange}
                   className="min-h-[30px] min-w-0 flex-1 py-1"
                 />
@@ -612,7 +615,7 @@ export default function MTDDetailPage({
           <MTDOrderDetails
             order={orderForm}
             discountCodes={discountCodes}
-            editable={orderFormEditing}
+            editable={orderFormEditing && !isViewOnly}
             onFieldChange={handleOrderDraftChange}
           />
         </section>
@@ -625,7 +628,7 @@ export default function MTDDetailPage({
         allOrders={allOrders}
         producers={producers}
         schedule={schedule}
-        readOnly={Boolean(rec.assignedProducer?.trim())}
+        readOnly={isViewOnly || Boolean(rec?.assignedProducer?.trim())}
         onClose={() => setAssignOpen(false)}
         onAssign={handleAssign}
       />
@@ -638,6 +641,7 @@ export default function MTDDetailPage({
             : rec
         }
         packagePrices={packagePrices}
+        readOnly={isViewOnly}
         musicAffiliateInfo={getRecordMusicAffiliateInfo(rec, orderById, allOrders)}
         onClose={() => setRecordPricingOpen(false)}
         onSave={handleRecordPricingSave}
@@ -686,6 +690,10 @@ function DetailSectionActions({
   onSave: () => void;
   editLabel: string;
 }) {
+  const { isViewOnly } = useAppState();
+
+  if (isViewOnly) return null;
+
   return (
     <div className="flex items-center gap-2">
       {editing ? (

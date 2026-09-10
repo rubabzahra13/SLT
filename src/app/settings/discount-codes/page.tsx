@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, Eye, Pencil, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DeleteDiscountCodeModal } from "@/components/discount-codes/DeleteDiscountCodeModal";
 import { DiscountCodeFormModal } from "@/components/discount-codes/DiscountCodeFormModal";
@@ -16,6 +16,7 @@ export default function DiscountCodesPage() {
     addDiscountCode,
     updateDiscountCode,
     removeDiscountCode,
+    isViewOnly,
   } = useAppState();
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<DiscountCode | null>(null);
@@ -72,54 +73,67 @@ export default function DiscountCodesPage() {
           </span>
         ),
       },
-      {
-        key: "actions",
-        header: "",
-        width: "96px",
-        align: "right",
-        sticky: "right",
-        render: (entry) => (
-          <div
-            className="flex items-center justify-end gap-1"
-            onClick={(event) => event.stopPropagation()}
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <button
-              type="button"
-              onClick={() => {
-                setEditing(entry);
-                setModalOpen(true);
-              }}
-              className="rounded-full p-2 text-brand-ink-tertiary transition hover:bg-brand-bg hover:text-brand-ink"
-              aria-label={`Edit ${entry.code}`}
-            >
-              <Pencil className="h-4 w-4" strokeWidth={1.75} />
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setModalOpen(false);
-                setEditing(null);
-                setDeleting(entry);
-              }}
-              className="rounded-full p-2 text-brand-ink-tertiary transition hover:bg-brand-orange-soft hover:text-brand-danger"
-              aria-label={`Delete ${entry.code}`}
-            >
-              <Trash2 className="h-4 w-4" strokeWidth={1.75} />
-            </button>
-          </div>
-        ),
-      },
+      ...(isViewOnly
+        ? []
+        : [
+            {
+              key: "actions",
+              header: "",
+              width: "96px",
+              align: "right" as const,
+              sticky: "right" as const,
+              render: (entry: DiscountCode) => (
+                <div
+                  className="flex items-center justify-end gap-1"
+                  onClick={(event) => event.stopPropagation()}
+                  onMouseDown={(event) => event.stopPropagation()}
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditing(entry);
+                      setModalOpen(true);
+                    }}
+                    className="rounded-full p-2 text-brand-ink-tertiary transition hover:bg-brand-bg hover:text-brand-ink"
+                    aria-label={isViewOnly ? `View ${entry.code}` : `Edit ${entry.code}`}
+                    title={isViewOnly ? "View Code" : "Edit Code"}
+                  >
+                    {isViewOnly ? (
+                      <Eye className="h-4 w-4" strokeWidth={1.75} />
+                    ) : (
+                      <Pencil className="h-4 w-4" strokeWidth={1.75} />
+                    )}
+                  </button>
+                  {!isViewOnly ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setModalOpen(false);
+                        setEditing(null);
+                        setDeleting(entry);
+                      }}
+                      className="rounded-full p-2 text-brand-ink-tertiary transition hover:bg-brand-orange-soft hover:text-brand-danger"
+                      aria-label={`Delete ${entry.code}`}
+                    >
+                      <Trash2 className="h-4 w-4" strokeWidth={1.75} />
+                    </button>
+                  ) : null}
+                </div>
+              ),
+            },
+          ]),
     ],
-    []
+    [isViewOnly]
   );
 
   function openAdd() {
+    if (isViewOnly) return;
     setEditing(null);
     setModalOpen(true);
   }
 
   function handleSave(entry: DiscountCode) {
+    if (isViewOnly) return;
     if (editing) {
       updateDiscountCode(entry.id, entry);
     } else {
@@ -128,7 +142,7 @@ export default function DiscountCodesPage() {
   }
 
   function confirmDelete() {
-    if (!deleting) return;
+    if (isViewOnly || !deleting) return;
     removeDiscountCode(deleting.id);
     setDeleting(null);
     if (editing?.id === deleting.id) {
@@ -143,7 +157,7 @@ export default function DiscountCodesPage() {
         title="Discount codes"
         badge={`${sortedCodes.length} codes`}
         subtitle="Manage promo codes and what each one is for"
-        action={{ label: "Add code", onClick: openAdd }}
+        action={isViewOnly ? undefined : { label: "Add code", onClick: openAdd }}
       />
 
       <div className="p-6 lg:p-8">
@@ -161,16 +175,20 @@ export default function DiscountCodesPage() {
             data={sortedCodes}
             rowKey={(entry) => entry.id}
             emptyMessage="No discount codes yet. Add one to get started."
-            onRowClick={(entry) => {
-              setEditing(entry);
-              setModalOpen(true);
-            }}
+            onRowClick={
+              isViewOnly
+                ? undefined
+                : (entry) => {
+                    setEditing(entry);
+                    setModalOpen(true);
+                  }
+            }
           />
         </div>
       </div>
 
       <DiscountCodeFormModal
-        open={modalOpen}
+        open={modalOpen && !isViewOnly}
         onClose={() => setModalOpen(false)}
         discountCode={editing}
         discountCodes={discountCodes}
@@ -178,7 +196,7 @@ export default function DiscountCodesPage() {
       />
 
       <DeleteDiscountCodeModal
-        open={Boolean(deleting)}
+        open={Boolean(deleting) && !isViewOnly}
         discountCode={deleting}
         onClose={() => setDeleting(null)}
         onConfirm={confirmDelete}

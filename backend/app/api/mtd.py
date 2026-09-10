@@ -48,8 +48,10 @@ def get_mtd_record(mtd_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="MTD Record not found")
     return mtd
 
+from app.api.auth import require_full_access
+
 @router.post("/mtd", response_model=MTDRecordSchema, status_code=status.HTTP_201_CREATED)
-def create_mtd_record(payload: MTDRecordCreateSchema, db: Session = Depends(get_db)):
+def create_mtd_record(payload: MTDRecordCreateSchema, db: Session = Depends(get_db), _: None = Depends(require_full_access)):
     data = payload.model_dump()
     assigned_prod_str = data.pop("assigned_producer", None)
     assigned_producer_id = None
@@ -65,7 +67,7 @@ def create_mtd_record(payload: MTDRecordCreateSchema, db: Session = Depends(get_
     return mtd
 
 @router.patch("/mtd/{mtd_id}", response_model=MTDRecordSchema)
-def update_mtd_record(mtd_id: str, payload: MTDRecordUpdateSchema, db: Session = Depends(get_db)):
+def update_mtd_record(mtd_id: str, payload: MTDRecordUpdateSchema, db: Session = Depends(get_db), _: None = Depends(require_full_access)):
     mtd = _find_mtd(db, mtd_id)
     if not mtd:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="MTD Record not found")

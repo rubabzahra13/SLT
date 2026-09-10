@@ -7,12 +7,14 @@ from app.schemas.discount_code import DiscountCodeSchema, DiscountCodeCreateSche
 
 router = APIRouter()
 
+from app.api.auth import require_full_access
+
 @router.get("/discount-codes", response_model=List[DiscountCodeSchema])
 def get_discount_codes(db: Session = Depends(get_db)):
     return db.query(DiscountCode).all()
 
 @router.post("/discount-codes", response_model=DiscountCodeSchema, status_code=status.HTTP_201_CREATED)
-def create_discount_code(payload: DiscountCodeCreateSchema, db: Session = Depends(get_db)):
+def create_discount_code(payload: DiscountCodeCreateSchema, db: Session = Depends(get_db), _: None = Depends(require_full_access)):
     code_str = payload.code.strip().upper()
     existing = db.query(DiscountCode).filter(DiscountCode.code == code_str).first()
     if existing:
@@ -29,7 +31,7 @@ def create_discount_code(payload: DiscountCodeCreateSchema, db: Session = Depend
     return dc
 
 @router.patch("/discount-codes/{code_id}", response_model=DiscountCodeSchema)
-def update_discount_code(code_id: str, payload: DiscountCodeUpdateSchema, db: Session = Depends(get_db)):
+def update_discount_code(code_id: str, payload: DiscountCodeUpdateSchema, db: Session = Depends(get_db), _: None = Depends(require_full_access)):
     dc = db.query(DiscountCode).filter((DiscountCode.id == code_id) | (DiscountCode.legacy_id == code_id) | (DiscountCode.code == code_id.upper())).first()
     if not dc:
         raise HTTPException(status_code=404, detail="Discount code not found")
@@ -43,7 +45,7 @@ def update_discount_code(code_id: str, payload: DiscountCodeUpdateSchema, db: Se
     return dc
 
 @router.delete("/discount-codes/{code_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_discount_code(code_id: str, db: Session = Depends(get_db)):
+def delete_discount_code(code_id: str, db: Session = Depends(get_db), _: None = Depends(require_full_access)):
     dc = db.query(DiscountCode).filter((DiscountCode.id == code_id) | (DiscountCode.legacy_id == code_id) | (DiscountCode.code == code_id.upper())).first()
     if not dc:
         raise HTTPException(status_code=404, detail="Discount code not found")

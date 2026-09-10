@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Pencil } from "lucide-react";
+import { Eye, Pencil } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { MTDPageToolbar } from "@/components/mtd/MTDPageToolbar";
 import { ReturnToMTDModal } from "@/components/mtd/ReturnToMTDModal";
@@ -53,7 +53,7 @@ const actionLinkClass =
   "inline-flex h-8 w-8 items-center justify-center rounded-lg border border-brand-line/70 bg-brand-bg/60 text-brand-ink-secondary shadow-sm transition hover:border-brand-orange/40 hover:bg-brand-orange-soft/35 hover:text-brand-orange focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange/25";
 
 export default function PayrollPage() {
-  const { mtdRecords, allOrders, producers, updateMTD } = useAppState();
+  const { mtdRecords, allOrders, producers, updateMTD, isViewOnly } = useAppState();
   const [returnRecord, setReturnRecord] = useState<MTDRecord | null>(null);
   const [form, setForm] = useState<OrderFormType>(DEFAULT_FORM);
   const [cheerSubtype, setCheerSubtype] = useState<CheerFormSubtypeFilter>(
@@ -429,6 +429,7 @@ export default function PayrollPage() {
             <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
               <InlineDanceVoiceoverPills
                 record={rec}
+                readOnly={isViewOnly}
                 onUpdate={(id, patch) => updateMTD(id, patch)}
               />
             </div>
@@ -448,6 +449,7 @@ export default function PayrollPage() {
             <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
               <InlineCheerVoiceoverPills
                 record={rec}
+                readOnly={isViewOnly}
                 onUpdate={(id, patch) => updateMTD(id, patch)}
               />
             </div>
@@ -596,20 +598,26 @@ export default function PayrollPage() {
             className="flex items-center justify-center gap-2"
             onClick={(e) => e.stopPropagation()}
           >
-            <button
-              type="button"
-              onClick={() => setReturnRecord(rec)}
-              className="rounded-lg border border-brand-line/60 bg-brand-elevated px-2.5 py-1.5 text-[11px] font-semibold text-brand-signature shadow-sm transition hover:border-brand-signature/40 hover:bg-brand-blue-soft/40"
-            >
-              Return to MTD
-            </button>
+            {!isViewOnly && (
+              <button
+                type="button"
+                onClick={() => setReturnRecord(rec)}
+                className="rounded-lg border border-brand-line/60 bg-brand-elevated px-2.5 py-1.5 text-[11px] font-semibold text-brand-signature shadow-sm transition hover:border-brand-signature/40 hover:bg-brand-blue-soft/40"
+              >
+                Return to MTD
+              </button>
+            )}
             <Link
               href={`/mtd/${rec.id}`}
-              title="Open record"
+              title={isViewOnly ? "View record" : "Open record"}
               aria-label={`Open ${rec.programName}`}
               className={actionLinkClass}
             >
-              <Pencil className="h-3.5 w-3.5" strokeWidth={2} />
+              {isViewOnly ? (
+                <Eye className="h-3.5 w-3.5" strokeWidth={2} />
+              ) : (
+                <Pencil className="h-3.5 w-3.5" strokeWidth={2} />
+              )}
             </Link>
           </div>
         ),

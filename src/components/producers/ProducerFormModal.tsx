@@ -14,6 +14,7 @@ type ProducerFormModalProps = {
   onClose: () => void;
   producer?: Producer | null;
   onSave: (producer: Producer) => void;
+  readOnly?: boolean;
 };
 
 type FormState = {
@@ -81,6 +82,7 @@ export function ProducerFormModal({
   onClose,
   producer,
   onSave,
+  readOnly = false,
 }: ProducerFormModalProps) {
   const [form, setForm] = useState<FormState>(emptyForm);
   const [initialsTouched, setInitialsTouched] = useState(false);
@@ -172,26 +174,15 @@ export function ProducerFormModal({
       return;
     }
 
-    const categories = form.categories;
-    const specialty = categories[0] ?? "";
-    const ratesByCategory: Record<string, number> = {};
-
-    for (const cat of categories) {
-      const val = form.categoryRates[cat] ?? 50;
-      ratesByCategory[cat] = val > 1 ? val / 100 : val;
-    }
-
-    const danceVoiceoverRate = form.danceVoiceoverRate > 1 ? form.danceVoiceoverRate / 100 : form.danceVoiceoverRate;
-    const cheerVoiceoverRate = form.cheerVoiceoverRate > 1 ? form.cheerVoiceoverRate / 100 : form.cheerVoiceoverRate;
-    const rushFeeRate = form.rushFeeRate > 1 ? form.rushFeeRate / 100 : form.rushFeeRate;
+    const finalInitials = initials;
 
     onSave({
       id: producer?.id || `prod-${Date.now()}`,
       name: form.name.trim(),
-      initials,
+      initials: finalInitials,
       email: form.email.trim(),
-      categories,
-      specialty,
+      categories: form.categories,
+      specialty: form.categories[0] ?? "",
       avatar: form.avatar,
       mixesThisWeek: producer?.mixesThisWeek ?? 0,
       nextAvailable: producer?.nextAvailable || "TBD",
@@ -201,10 +192,10 @@ export function ProducerFormModal({
       maxMixesPerDay: producer?.maxMixesPerDay ?? null,
       maxProducerCostPerDay: producer?.maxProducerCostPerDay ?? null,
       overtimeDays: producer?.overtimeDays ?? [],
-      ratesByCategory,
-      danceVoiceoverRate,
-      cheerVoiceoverRate,
-      rushFeeRate,
+      ratesByCategory: form.categoryRates,
+      danceVoiceoverRate: form.danceVoiceoverRate > 1 ? form.danceVoiceoverRate / 100 : form.danceVoiceoverRate,
+      cheerVoiceoverRate: form.cheerVoiceoverRate > 1 ? form.cheerVoiceoverRate / 100 : form.cheerVoiceoverRate,
+      rushFeeRate: form.rushFeeRate > 1 ? form.rushFeeRate / 100 : form.rushFeeRate,
       compensationModel: producer?.compensationModel ?? "percentage_of_payroll_base",
     });
     onClose();
@@ -226,18 +217,22 @@ export function ProducerFormModal({
             onClick={onClose}
             className="min-w-[64px] text-left text-[15px] text-brand-ink-secondary transition hover:text-brand-ink"
           >
-            Cancel
+            {readOnly ? "Close" : "Cancel"}
           </button>
           <h2 className="absolute left-1/2 -translate-x-1/2 text-[16px] font-semibold tracking-[-0.01em] text-brand-ink">
-            {isEdit ? "Edit Producer" : "New Producer"}
+            {readOnly ? "Producer Profile" : isEdit ? "Edit Producer" : "New Producer"}
           </h2>
-          <button
-            type="button"
-            onClick={() => handleSubmit()}
-            className="min-w-[64px] text-right text-[15px] font-semibold text-brand-blue transition hover:text-brand-blue-hover"
-          >
-            Done
-          </button>
+          {!readOnly ? (
+            <button
+              type="button"
+              onClick={() => handleSubmit()}
+              className="min-w-[64px] text-right text-[15px] font-semibold text-brand-blue transition hover:text-brand-blue-hover"
+            >
+              Done
+            </button>
+          ) : (
+            <span className="min-w-[64px]" />
+          )}
         </header>
 
         <form

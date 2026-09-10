@@ -63,6 +63,7 @@ type InlineSelectProps = {
   onChange: (value: string) => void;
   className?: string;
   centered?: boolean;
+  readOnly?: boolean;
 };
 
 type MenuPosition = {
@@ -79,6 +80,7 @@ export function InlineSelect({
   onChange,
   className,
   centered = false,
+  readOnly = false,
 }: InlineSelectProps) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -177,10 +179,12 @@ export function InlineSelect({
       <button
         ref={triggerRef}
         type="button"
+        disabled={readOnly}
         aria-haspopup="listbox"
         aria-expanded={open}
         onClick={(e) => {
           e.stopPropagation();
+          if (readOnly) return;
           setOpen((v) => !v);
         }}
         onKeyDown={handleKeyDown}
@@ -189,6 +193,7 @@ export function InlineSelect({
           centered
             ? "relative flex cursor-pointer items-center justify-center px-6 text-center"
             : "flex cursor-pointer items-center justify-between gap-1.5 pr-2 text-left",
+          readOnly && "!cursor-default !bg-slate-50/50 opacity-80 pointer-events-none",
           className
         )}
       >
@@ -274,6 +279,7 @@ type InlineCheckOptionGroupProps = {
   onChange: (value: string) => void;
   getLabel?: (option: string) => string;
   className?: string;
+  readOnly?: boolean;
 };
 
 /** Single-select options styled as compact checkbox rows. */
@@ -283,6 +289,7 @@ export function InlineCheckOptionGroup({
   onChange,
   getLabel = (option) => option,
   className,
+  readOnly = false,
 }: InlineCheckOptionGroupProps) {
   return (
     <div
@@ -301,13 +308,15 @@ export function InlineCheckOptionGroup({
             title={option}
             onClick={(e) => {
               e.stopPropagation();
+              if (readOnly) return;
               onChange(option);
             }}
             className={clsx(
               "inline-flex w-full items-start gap-1.5 rounded-md px-1 py-0.5 text-left transition",
               selected
                 ? "bg-brand-signature-soft/70 ring-1 ring-inset ring-brand-signature/25"
-                : "hover:bg-brand-bg/70"
+                : "hover:bg-brand-bg/70",
+              readOnly && "pointer-events-none opacity-80 cursor-default"
             )}
           >
             <span
@@ -348,12 +357,14 @@ type InlineMultiCheckGroupProps = {
   items: InlineMultiCheckItem[];
   onToggle: (id: string, checked: boolean) => void;
   className?: string;
+  readOnly?: boolean;
 };
 
 type InlineTriStateCheckGroupProps = {
   items: InlineTriStateItem[];
   onCycle: (id: string) => void;
   className?: string;
+  readOnly?: boolean;
 };
 
 const inlinePillGroupClass =
@@ -385,6 +396,7 @@ export function InlineTriStateCheckGroup({
   items,
   onCycle,
   className,
+  readOnly = false,
 }: InlineTriStateCheckGroupProps) {
   return (
     <div
@@ -403,9 +415,14 @@ export function InlineTriStateCheckGroup({
             aria-label={`${item.label}: ${triStateTitle[item.state]}`}
             onClick={(e) => {
               e.stopPropagation();
+              if (readOnly) return;
               onCycle(item.id);
             }}
-            className={clsx(inlinePillBaseClass, triStateClassName[item.state])}
+            className={clsx(
+              inlinePillBaseClass,
+              triStateClassName[item.state],
+              readOnly && "pointer-events-none opacity-80 cursor-default"
+            )}
           >
             {item.label}
           </button>
@@ -419,6 +436,7 @@ type InlineTwoStateToggleProps = {
   value: boolean;
   onToggle: () => void;
   className?: string;
+  readOnly?: boolean;
 };
 
 /** 2-state toggle chip: No (red) <-> Yes (green). No 3rd state. */
@@ -426,6 +444,7 @@ export function InlineTwoStateToggle({
   value,
   onToggle,
   className,
+  readOnly = false,
 }: InlineTwoStateToggleProps) {
   return (
     <button
@@ -434,6 +453,7 @@ export function InlineTwoStateToggle({
       aria-label={`Toggle: ${value ? "Yes" : "No"}`}
       onClick={(e) => {
         e.stopPropagation();
+        if (readOnly) return;
         onToggle();
       }}
       className={clsx(
@@ -441,6 +461,7 @@ export function InlineTwoStateToggle({
         value
           ? "bg-brand-success/22 text-emerald-800 ring-1 ring-inset ring-brand-success/35 hover:bg-brand-success/30"
           : "bg-brand-danger/18 text-red-700 ring-1 ring-inset ring-brand-danger/32 hover:bg-brand-danger/25",
+        readOnly && "pointer-events-none opacity-80 cursor-default",
         className
       )}
     >
@@ -450,10 +471,12 @@ export function InlineTwoStateToggle({
 }
 
 /** Horizontal segmented toggles for compact table cells. */
+
 export function InlineMultiCheckGroup({
   items,
   onToggle,
   className,
+  readOnly = false,
 }: InlineMultiCheckGroupProps) {
   const selectedCount = items.filter((item) => item.checked).length;
 
@@ -474,6 +497,7 @@ export function InlineMultiCheckGroup({
           title={item.label}
           onClick={(e) => {
             e.stopPropagation();
+            if (readOnly) return;
             onToggle(item.id, !item.checked);
           }}
           className={clsx(
@@ -485,7 +509,8 @@ export function InlineMultiCheckGroup({
                   selectedCount > 0
                     ? "hover:bg-brand-elevated hover:text-brand-ink-secondary hover:ring-brand-blue-deep/30"
                     : "hover:bg-brand-elevated hover:text-brand-ink hover:ring-brand-line-strong"
-                )
+                ),
+            readOnly && "pointer-events-none opacity-80 cursor-default"
           )}
         >
           {item.label}
@@ -501,6 +526,7 @@ type InlineInputProps = {
   placeholder?: string;
   type?: string;
   className?: string;
+  readOnly?: boolean;
 };
 
 export function InlineInput({
@@ -509,18 +535,27 @@ export function InlineInput({
   placeholder,
   type = "text",
   className,
+  readOnly = false,
 }: InlineInputProps) {
   return (
     <input
       type={type}
       value={value}
+      readOnly={readOnly}
+      disabled={readOnly}
       placeholder={placeholder}
       onClick={(e) => e.stopPropagation()}
       onChange={(e) => {
         e.stopPropagation();
+        if (readOnly) return;
         onChange(e.target.value);
       }}
-      className={clsx(inlineControlClass, "tabular-nums", className)}
+      className={clsx(
+        inlineControlClass,
+        "tabular-nums",
+        readOnly && "!cursor-default !bg-slate-50/50 text-brand-ink-secondary",
+        className
+      )}
     />
   );
 }
@@ -531,6 +566,7 @@ type InlineTextareaProps = {
   placeholder?: string;
   rows?: number;
   className?: string;
+  readOnly?: boolean;
 };
 
 export function InlineTextarea({
@@ -539,19 +575,24 @@ export function InlineTextarea({
   placeholder,
   rows = 3,
   className,
+  readOnly = false,
 }: InlineTextareaProps) {
   return (
     <textarea
       value={value}
       rows={rows}
+      readOnly={readOnly}
+      disabled={readOnly}
       placeholder={placeholder}
       onClick={(e) => e.stopPropagation()}
       onChange={(e) => {
         e.stopPropagation();
+        if (readOnly) return;
         onChange(e.target.value);
       }}
       className={clsx(
         "w-full resize-y rounded-lg border border-brand-line/60 bg-white px-3 py-2 text-[13px] text-brand-ink shadow-[0_1px_1px_rgba(15,30,45,0.04)] outline-none transition-colors hover:border-brand-line-strong focus:border-brand-blue/50 focus:ring-2 focus:ring-brand-blue/15",
+        readOnly && "!cursor-default !bg-slate-50/50 text-brand-ink-secondary",
         className
       )}
     />
@@ -582,6 +623,7 @@ type InlineDateInputProps = {
   /** Latest selectable date (YYYY-MM-DD). */
   max?: string;
   className?: string;
+  readOnly?: boolean;
 };
 
 const WEEKDAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
@@ -628,6 +670,7 @@ export function InlineDateInput({
   min,
   max,
   className,
+  readOnly = false,
 }: InlineDateInputProps) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -732,6 +775,7 @@ export function InlineDateInput({
       <button
         ref={triggerRef}
         type="button"
+        disabled={readOnly}
         aria-haspopup="dialog"
         aria-expanded={open}
         title={
@@ -741,6 +785,7 @@ export function InlineDateInput({
         }
         onClick={(e) => {
           e.stopPropagation();
+          if (readOnly) return;
           setOpen((v) => !v);
         }}
         onMouseDown={(e) => e.stopPropagation()}
@@ -748,6 +793,7 @@ export function InlineDateInput({
           inlineControlClass,
           "flex min-w-[108px] cursor-pointer items-center justify-between gap-1.5 pr-2 text-left tabular-nums",
           isUnset && "text-brand-ink-tertiary",
+          readOnly && "!cursor-default !bg-slate-50/50 opacity-80 pointer-events-none",
           className
         )}
       >
@@ -902,6 +948,7 @@ type InlineDanceVoiceoverPillsProps = {
   hasThemedVoiceover?: boolean;
   onChange?: (val: "25" | "75" | "100" | null) => void;
   className?: string;
+  readOnly?: boolean;
 };
 
 export function InlineDanceVoiceoverPills({
@@ -912,6 +959,7 @@ export function InlineDanceVoiceoverPills({
   hasThemedVoiceover,
   onChange,
   className,
+  readOnly = false,
 }: InlineDanceVoiceoverPillsProps) {
   const currentVal = value ?? record?.danceVoiceover ?? null;
   const currentTrad =
@@ -937,6 +985,7 @@ export function InlineDanceVoiceoverPills({
     hasTraditionalVoiceover?: boolean;
     hasThemedVoiceover?: boolean;
   }) => {
+    if (readOnly) return;
     const nextTrad = patch.hasTraditionalVoiceover ?? currentTrad;
     const nextThemed = patch.hasThemedVoiceover ?? currentThemed;
     const nextVal = syncDanceVoiceover(nextTrad, nextThemed);
@@ -998,6 +1047,7 @@ type InlineCheerVoiceoverPillsProps = {
   has40?: boolean;
   onChange?: (patch: { cheerVoiceover20?: boolean; cheerVoiceover40?: boolean }) => void;
   className?: string;
+  readOnly?: boolean;
 };
 
 export function InlineCheerVoiceoverPills({
@@ -1007,11 +1057,13 @@ export function InlineCheerVoiceoverPills({
   has40,
   onChange,
   className,
+  readOnly = false,
 }: InlineCheerVoiceoverPillsProps) {
   const current20 = has20 ?? record?.cheerVoiceover20 ?? false;
   const current40 = has40 ?? record?.cheerVoiceover40 ?? false;
 
   const handleToggle = (patch: { cheerVoiceover20?: boolean; cheerVoiceover40?: boolean }) => {
+    if (readOnly) return;
     if (onChange) onChange(patch);
     if (record && onUpdate) {
       onUpdate(record.id, patch);
@@ -1021,7 +1073,7 @@ export function InlineCheerVoiceoverPills({
   return (
     <div
       data-stop-row-nav
-      className={clsx(inlinePillGroupClass, className)}
+      className={clsx(inlinePillGroupClass, readOnly && "pointer-events-none opacity-80 cursor-default", className)}
       onClick={(e) => e.stopPropagation()}
     >
       <HoverTip label="Cheer Voiceover Option 1 (+$20)" placement="top">
@@ -1065,6 +1117,7 @@ type InlineRushFeePillsProps = {
   value?: "none" | "single" | "double" | string | null;
   onChange?: (val: "none" | "single" | "double") => void;
   className?: string;
+  readOnly?: boolean;
 };
 
 export function InlineRushFeePills({
@@ -1074,6 +1127,7 @@ export function InlineRushFeePills({
   value,
   onChange,
   className,
+  readOnly = false,
 }: InlineRushFeePillsProps) {
   const rushQty =
     typeof record?.rushFeeQuantity === "number"
@@ -1088,6 +1142,7 @@ export function InlineRushFeePills({
   const currentRatePct = currentRate <= 1 ? Math.round(currentRate * 100) : Math.round(currentRate);
 
   const handleQtyChange = (qty: number) => {
+    if (readOnly) return;
     const nextOption = qty === 2 ? "double" : qty === 1 ? "single" : "none";
     const isRush = qty > 0;
     if (onChange) onChange(nextOption);
@@ -1108,6 +1163,7 @@ export function InlineRushFeePills({
   };
 
   const handleRateChange = (rateVal: number) => {
+    if (readOnly) return;
     const decRate = rateVal > 1 ? rateVal / 100 : rateVal;
     if (record && onUpdate) {
       onUpdate(record.id, { rushFeeCompensationRate: decRate });
@@ -1126,7 +1182,7 @@ export function InlineRushFeePills({
   return (
     <div
       data-stop-row-nav
-      className={clsx("inline-flex items-center gap-1.5", className)}
+      className={clsx("inline-flex items-center gap-1.5", readOnly && "pointer-events-none opacity-80 cursor-default", className)}
       onClick={(e) => e.stopPropagation()}
     >
       <div className={clsx(inlinePillGroupClass)}>
@@ -1181,8 +1237,10 @@ export function InlineRushFeePills({
         <HoverTip label="Override Rush Fee Producer Compensation %" placement="top">
           <select
             value={currentRatePct}
+            disabled={readOnly}
             onChange={(e) => {
               e.stopPropagation();
+              if (readOnly) return;
               handleRateChange(parseInt(e.target.value, 10));
             }}
             onClick={(e) => e.stopPropagation()}
@@ -1207,6 +1265,7 @@ type InlineQuantityStepperProps = {
   label: string;
   onChange: (val: number) => void;
   className?: string;
+  readOnly?: boolean;
 };
 
 export function InlineQuantityStepper({
@@ -1216,6 +1275,7 @@ export function InlineQuantityStepper({
   label,
   onChange,
   className,
+  readOnly = false,
 }: InlineQuantityStepperProps) {
   const qty = Math.max(0, quantity ?? value ?? 0);
   const cost = qty * unitCost;
@@ -1245,9 +1305,10 @@ export function InlineQuantityStepper({
         <div className={clsx(chipShellClass, "gap-0.5 px-0.5")}>
           <button
             type="button"
-            disabled={qty <= 0}
+            disabled={qty <= 0 || readOnly}
             onClick={(e) => {
               e.stopPropagation();
+              if (readOnly) return;
               onChange(Math.max(0, qty - 1));
             }}
             className={stepperButtonClass}
@@ -1265,8 +1326,10 @@ export function InlineQuantityStepper({
           </span>
           <button
             type="button"
+            disabled={readOnly}
             onClick={(e) => {
               e.stopPropagation();
+              if (readOnly) return;
               onChange(qty + 1);
             }}
             className={stepperButtonClass}

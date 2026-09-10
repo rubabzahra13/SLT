@@ -9,6 +9,7 @@ type SetInvoiceModalProps = {
   record: MTDRecord | null;
   onClose: () => void;
   onSave: (recordId: string, invoice: string) => void;
+  readOnly?: boolean;
 };
 
 export function SetInvoiceModal({
@@ -16,6 +17,7 @@ export function SetInvoiceModal({
   record,
   onClose,
   onSave,
+  readOnly = false,
 }: SetInvoiceModalProps) {
   const [invoice, setInvoice] = useState("");
 
@@ -27,6 +29,7 @@ export function SetInvoiceModal({
   if (!open || !record) return null;
 
   function handleSave() {
+    if (readOnly) return;
     onSave(record!.id, invoice.trim());
     onClose();
   }
@@ -44,7 +47,7 @@ export function SetInvoiceModal({
           <div>
             <p className="text-label">Invoice (H)</p>
             <h2 className="text-display mt-1 text-[18px]">
-              {record.invoice ? "Edit invoice" : "Set invoice"}
+              {readOnly ? "View invoice" : record.invoice ? "Edit invoice" : "Set invoice"}
             </h2>
             <p className="mt-1 text-[13px] text-brand-ink-secondary">
               {record.programName}
@@ -65,10 +68,12 @@ export function SetInvoiceModal({
             <input
               type="text"
               value={invoice}
+              readOnly={readOnly}
+              disabled={readOnly}
               onChange={(e) => setInvoice(e.target.value)}
               placeholder="e.g. 25044"
-              className="mt-1.5 w-full rounded-lg border border-brand-line/80 bg-brand-surface px-3 py-2 text-[13px] text-brand-ink outline-none transition focus:border-brand-orange/50 focus:ring-2 focus:ring-brand-orange-muted"
-              autoFocus
+              className="mt-1.5 w-full rounded-lg border border-brand-line/80 bg-brand-surface px-3 py-2 text-[13px] text-brand-ink outline-none transition focus:border-brand-orange/50 focus:ring-2 focus:ring-brand-orange-muted disabled:bg-slate-100 disabled:cursor-default"
+              autoFocus={!readOnly}
             />
           </label>
         </div>
@@ -79,15 +84,17 @@ export function SetInvoiceModal({
             onClick={onClose}
             className="rounded-lg px-4 py-2 text-[13px] font-medium text-brand-ink-secondary transition hover:bg-brand-bg"
           >
-            Cancel
+            {readOnly ? "Close" : "Cancel"}
           </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            className="rounded-lg bg-brand-cta px-4 py-2 text-[13px] font-medium text-brand-cta-text transition hover:bg-brand-cta-hover"
-          >
-            Save invoice
-          </button>
+          {!readOnly && (
+            <button
+              type="button"
+              onClick={handleSave}
+              className="rounded-lg bg-brand-orange px-4 py-2 text-[13px] font-semibold text-white shadow-sm transition hover:bg-brand-orange-hover"
+            >
+              Save invoice
+            </button>
+          )}
         </div>
       </div>
     </div>

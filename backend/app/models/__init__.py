@@ -9,6 +9,7 @@ from app.models.secret_menu_pricing import SecretMenuPricing
 from app.models.pricing_rule import PricingRule
 from app.models.addon_rule import AddonRule
 from app.models.compliant_affiliate import CompliantAffiliate
+from app.models.user import User
 
 __all__ = [
     "Base",
@@ -23,4 +24,5 @@ __all__ = [
     "PricingRule",
     "AddonRule",
     "CompliantAffiliate",
+    "User",
 ]

@@ -20,12 +20,14 @@ def _find_producer(db: Session, producer_id: str) -> Producer | None:
         return db.query(Producer).filter((Producer.id == uuid.UUID(producer_id)) | (Producer.legacy_id == producer_id)).first()
     return db.query(Producer).filter(Producer.legacy_id == producer_id).first()
 
+from app.api.auth import require_full_access
+
 @router.get("/producers", response_model=List[ProducerSchema])
 def get_producers(db: Session = Depends(get_db)):
     return db.query(Producer).all()
 
 @router.post("/producers", response_model=ProducerSchema, status_code=status.HTTP_201_CREATED)
-def create_producer(payload: ProducerCreateSchema, db: Session = Depends(get_db)):
+def create_producer(payload: ProducerCreateSchema, db: Session = Depends(get_db), _: None = Depends(require_full_access)):
     producer = Producer(**payload.model_dump())
     db.add(producer)
     db.commit()
@@ -33,7 +35,7 @@ def create_producer(payload: ProducerCreateSchema, db: Session = Depends(get_db)
     return producer
 
 @router.patch("/producers/{producer_id}", response_model=ProducerSchema)
-def update_producer(producer_id: str, payload: ProducerUpdateSchema, db: Session = Depends(get_db)):
+def update_producer(producer_id: str, payload: ProducerUpdateSchema, db: Session = Depends(get_db), _: None = Depends(require_full_access)):
     producer = _find_producer(db, producer_id)
     if not producer:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Producer not found")
@@ -47,7 +49,7 @@ def update_producer(producer_id: str, payload: ProducerUpdateSchema, db: Session
     return producer
 
 @router.delete("/producers/{producer_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_producer(producer_id: str, db: Session = Depends(get_db)):
+def delete_producer(producer_id: str, db: Session = Depends(get_db), _: None = Depends(require_full_access)):
     producer = _find_producer(db, producer_id)
     if not producer:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Producer not found")

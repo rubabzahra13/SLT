@@ -15,8 +15,10 @@ import {
   X,
 } from "lucide-react";
 import clsx from "clsx";
+import { LogOut } from "lucide-react";
 import { useSidebar } from "@/context/SidebarContext";
 import { useAppState } from "@/context/AppStateContext";
+import { useAuth } from "@/context/AuthContext";
 import { getInProgressCount, isMTDRecord, isPreMTDOrderRecord } from "@/lib/mtd-filters";
 import { getPayrollRecords } from "@/lib/mtd-completion";
 import { BrandMonogram } from "@/components/layout/BrandMonogram";
@@ -45,8 +47,15 @@ const baseNavItems: NavItem[] = [
 export function Sidebar() {
   const pathname = usePathname();
   const { mtdRecords } = useAppState();
+  const { user, logout } = useAuth();
   const { expanded, toggleExpanded, setExpanded, mobileOpen, setMobileOpen } =
     useSidebar();
+
+  const currentUser = user || {
+    name: "Megan",
+    email: "megan@soundslikethat.com",
+    access_level: "Full Access",
+  };
 
   const ordersCount = useMemo(
     () => mtdRecords.filter(isPreMTDOrderRecord).length,
@@ -99,7 +108,7 @@ export function Sidebar() {
   const navItemClass = (active: boolean) =>
     clsx(
       "group relative flex h-10 items-center rounded-xl transition-all duration-200",
-      showExpanded ? "w-full gap-3 px-3" : "relative w-10 justify-center px-0",
+      showExpanded ? "w-full gap-3 px-3" : "w-10 justify-center mx-auto",
       active
         ? "bg-brand-sidebar-active font-semibold text-brand-sidebar-ink"
         : "text-brand-sidebar-text hover:bg-brand-sidebar-hover hover:text-brand-sidebar-ink"
@@ -120,182 +129,180 @@ export function Sidebar() {
       {/* Header */}
       <div
         className={clsx(
-          "relative flex h-[72px] shrink-0 items-center",
-          showExpanded ? "px-3" : "justify-center px-2"
+          "relative flex h-[72px] shrink-0 items-center justify-between",
+          showExpanded ? "px-4" : "justify-center px-2"
         )}
       >
         {showExpanded ? (
           <>
             <Link
               href="/"
-              className="flex min-w-0 flex-1 items-center gap-2.5 pr-8"
+              className="flex min-w-0 flex-1 items-center gap-2.5 pr-2"
             >
               <BrandMonogram />
-              <div className="min-w-0">
-                <p className="whitespace-nowrap text-[12px] font-semibold uppercase leading-tight tracking-[0.06em] text-brand-sidebar-accent">
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[12px] font-semibold uppercase leading-tight tracking-[0.06em] text-brand-sidebar-accent">
                   Sounds Like That
                 </p>
-                <p className="mt-0.5 whitespace-nowrap text-[10px] font-semibold uppercase leading-none tracking-[0.06em] text-brand-sidebar-text-muted">
+                <p className="mt-0.5 truncate text-[10px] font-semibold uppercase leading-none tracking-[0.06em] text-brand-sidebar-text-muted">
                   Admin Studio
                 </p>
               </div>
             </Link>
-
-            <HoverTip label="Close menu" placement="bottom">
-              <button
-                type="button"
-                onClick={() => setMobileOpen(false)}
-                className="absolute right-2 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-brand-sidebar-text-muted transition hover:bg-brand-sidebar-hover hover:text-brand-sidebar-ink md:hidden"
-                aria-label="Close menu"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </HoverTip>
-
-            <HoverTip label="Collapse sidebar" placement="bottom">
-              <button
-                type="button"
-                onClick={toggleExpanded}
-                className="absolute right-2 top-1/2 hidden h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-brand-sidebar-text-muted transition hover:bg-brand-sidebar-hover hover:text-brand-sidebar-ink md:inline-flex"
-                aria-label="Collapse sidebar"
-                aria-expanded="true"
-              >
-                <PanelLeftClose className="h-[16px] w-[16px]" strokeWidth={1.75} />
-              </button>
-            </HoverTip>
-          </>
-        ) : (
-          <HoverTip label="Expand sidebar" placement="right">
             <button
               type="button"
               onClick={toggleExpanded}
-              className="transition hover:scale-[1.03]"
-              aria-label="Expand sidebar"
-              aria-expanded="false"
+              className="hidden h-7 w-7 shrink-0 items-center justify-center rounded-lg text-brand-sidebar-text transition hover:bg-brand-sidebar-hover hover:text-brand-sidebar-ink md:flex"
+              aria-label="Collapse sidebar"
             >
-              <BrandMonogram />
+              <PanelLeftClose className="h-4 w-4" strokeWidth={1.75} />
             </button>
-          </HoverTip>
+            <button
+              type="button"
+              onClick={() => setMobileOpen(false)}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-brand-sidebar-text transition hover:bg-brand-sidebar-hover md:hidden"
+              aria-label="Close sidebar"
+            >
+              <X className="h-5 w-5" strokeWidth={1.75} />
+            </button>
+          </>
+        ) : (
+          <button
+            type="button"
+            onClick={toggleExpanded}
+            className="flex items-center justify-center rounded-xl p-1 transition hover:bg-brand-sidebar-hover"
+            aria-label="Expand sidebar"
+          >
+            <BrandMonogram />
+          </button>
         )}
       </div>
 
       <div
         className={clsx(
           "h-px shrink-0 bg-brand-sidebar-border",
-          showExpanded ? "mx-3" : "mx-2"
+          showExpanded ? "mx-4" : "mx-2"
         )}
       />
 
       {/* Navigation */}
-      <DottedScroll
-        className="min-h-0 flex-1"
-        scrollClassName="h-full overflow-y-scroll scrollbar-hide"
-        indicatorPlacement="overlay"
-        tone="dark"
-        contentClassName={clsx(
-          "flex flex-col gap-0.5 py-4",
-          showExpanded ? "px-3" : "items-center px-2"
-        )}
-      >
-        <nav className="flex flex-col gap-0.5">
-        {navItems.map(({ href, label, icon: Icon, badge }) => {
-          const active =
-            href === "/" ? pathname === "/" : pathname.startsWith(href);
+      <DottedScroll className="min-h-0 flex-1 px-3 py-3">
+        <nav className="space-y-1" aria-label="Main menu">
+          {navItems.map(({ href, label, icon: Icon, badge }) => {
+            const active =
+              href === "/"
+                ? pathname === "/"
+                : pathname.startsWith(href);
 
-          return (
-            <HoverTip
-              key={href}
-              label={showExpanded ? "" : label}
-              placement="right"
-              className={showExpanded ? "block w-full" : ""}
-            >
-              <Link
-                href={href}
-                onClick={() => setMobileOpen(false)}
-                className={navItemClass(active)}
-                aria-label={label}
+            return (
+              <HoverTip
+                key={href}
+                label={showExpanded ? "" : label}
+                placement="right"
+                className={showExpanded ? "w-full block" : "block"}
               >
-                {active && showExpanded ? (
-                  <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-brand-blue" />
-                ) : null}
-                <Icon
-                  className={clsx(
-                    "h-[19px] w-[19px] shrink-0",
-                    active
-                      ? "text-brand-blue"
-                      : "text-brand-sidebar-text group-hover:text-brand-sidebar-ink"
-                  )}
-                  strokeWidth={active ? 2.25 : 1.75}
-                />
-                {showExpanded ? (
-                  <>
-                    <span
-                      className={clsx(
-                        "flex-1 text-[14px]",
-                        active
-                          ? "font-semibold text-brand-sidebar-ink"
-                          : "font-medium"
-                      )}
-                    >
-                      {label}
-                    </span>
-                    {badge ? (
-                      <span className="min-w-[22px] rounded-md bg-brand-sidebar-active px-1.5 py-0.5 text-center text-[11px] font-semibold tabular-nums text-brand-blue">
-                        {badge}
-                      </span>
-                    ) : null}
-                  </>
-                ) : badge ? (
-                  <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-brand-orange" />
-                ) : null}
-              </Link>
-            </HoverTip>
-          );
-        })}
+                <Link
+                  href={href}
+                  onClick={() => setMobileOpen(false)}
+                  className={navItemClass(active)}
+                >
+                  <Icon
+                    className={clsx(
+                      "h-[18px] w-[18px] shrink-0 transition-colors",
+                      active
+                        ? "text-brand-blue"
+                        : "text-brand-sidebar-text group-hover:text-brand-sidebar-ink"
+                    )}
+                    strokeWidth={1.75}
+                  />
+                  {showExpanded ? (
+                    <>
+                      <span className="truncate text-[13px] flex-1 text-left">{label}</span>
+                      {badge ? (
+                        <span className="min-w-[22px] rounded-md bg-brand-sidebar-active px-1.5 py-0.5 text-center text-[11px] font-semibold tabular-nums text-brand-blue">
+                          {badge}
+                        </span>
+                      ) : null}
+                    </>
+                  ) : badge ? (
+                    <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-brand-orange" />
+                  ) : null}
+                </Link>
+              </HoverTip>
+            );
+          })}
         </nav>
       </DottedScroll>
 
-      {/* User */}
+      {/* User & Sign Out */}
       <div
         className={clsx(
           "shrink-0 border-t border-brand-sidebar-border",
-          showExpanded ? "px-3 py-4" : "flex justify-center p-2"
+          showExpanded ? "px-4 py-3" : "flex flex-col items-center p-2 gap-2"
         )}
       >
-        <HoverTip
-          label={showExpanded ? "" : "Megan · Expand for account"}
-          placement="right"
+        <div
+          className={clsx(
+            "flex items-center rounded-xl text-left",
+            showExpanded ? "w-full justify-between gap-2 py-0.5" : "justify-center"
+          )}
         >
-          <button
-            type="button"
-            onClick={() => {
-              if (!showExpanded) setExpanded(true);
-            }}
-            className={clsx(
-              "flex items-center rounded-xl text-left transition hover:bg-brand-sidebar-hover",
-              showExpanded ? "w-full gap-2.5 px-0 py-2" : "h-9 w-9 justify-center"
-            )}
-            aria-label={showExpanded ? "Account" : "Expand sidebar for account"}
+          <HoverTip
+            label={showExpanded ? "" : `${currentUser.name} (${currentUser.access_level})`}
+            placement="right"
+            className={showExpanded ? "min-w-0 flex-1" : ""}
           >
-            <div className="h-9 w-9 shrink-0 overflow-hidden rounded-full bg-brand-sidebar-elevated ring-1 ring-brand-sidebar-border">
-              <img
-                src="https://api.dicebear.com/7.x/notionists/svg?seed=Megan&backgroundColor=f5f5f3"
-                alt="Megan"
-                className="h-full w-full object-cover"
-              />
-            </div>
-            {showExpanded ? (
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-[13px] font-semibold text-brand-sidebar-ink">
-                  Megan
-                </p>
-                <p className="truncate text-[11px] text-brand-sidebar-text-muted">
-                  Administrator
-                </p>
+            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+              <div className="h-9 w-9 shrink-0 overflow-hidden rounded-full bg-brand-sidebar-elevated ring-1 ring-brand-sidebar-border">
+                <img
+                  src={`https://api.dicebear.com/7.x/notionists/svg?seed=${encodeURIComponent(currentUser.name)}&backgroundColor=f5f5f3`}
+                  alt={currentUser.name}
+                  className="h-full w-full object-cover"
+                />
               </div>
-            ) : null}
-          </button>
-        </HoverTip>
+              {showExpanded ? (
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[13px] font-semibold text-brand-sidebar-ink leading-tight">
+                    {currentUser.name}
+                  </p>
+                  <span className={clsx(
+                    "mt-0.5 inline-block truncate text-[10px] font-semibold px-1.5 py-0.5 rounded-md leading-none",
+                    currentUser.access_level === "View Only"
+                      ? "bg-brand-amber/15 text-brand-amber"
+                      : "bg-brand-blue-soft/30 text-brand-blue"
+                  )}>
+                    {currentUser.access_level}
+                  </span>
+                </div>
+              ) : null}
+            </div>
+          </HoverTip>
+
+          {showExpanded ? (
+            <button
+              type="button"
+              onClick={logout}
+              className="shrink-0 rounded-lg p-1.5 text-brand-sidebar-text transition hover:bg-brand-sidebar-hover hover:text-brand-danger"
+              title="Sign out"
+              aria-label="Sign out"
+            >
+              <LogOut className="h-4 w-4" strokeWidth={1.75} />
+            </button>
+          ) : null}
+        </div>
+
+        {!showExpanded ? (
+          <HoverTip label="Sign out" placement="right">
+            <button
+              type="button"
+              onClick={logout}
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-brand-sidebar-text transition hover:bg-brand-sidebar-hover hover:text-brand-danger"
+              aria-label="Sign out"
+            >
+              <LogOut className="h-4 w-4" strokeWidth={1.75} />
+            </button>
+          </HoverTip>
+        ) : null}
       </div>
     </aside>
   );

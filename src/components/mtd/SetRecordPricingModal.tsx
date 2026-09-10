@@ -19,6 +19,7 @@ type SetRecordPricingModalProps = {
     recordId: string,
     patch: { price: number; priceCompliance: PriceCompliance }
   ) => void;
+  readOnly?: boolean;
 };
 
 export function SetRecordPricingModal({
@@ -27,6 +28,7 @@ export function SetRecordPricingModal({
   musicAffiliateInfo = null,
   onClose,
   onSave,
+  readOnly = false,
 }: SetRecordPricingModalProps) {
   const [mounted, setMounted] = useState(false);
   const [priceDraft, setPriceDraft] = useState("");
@@ -58,7 +60,7 @@ export function SetRecordPricingModal({
   const isCompliant = compliance === "compliant";
 
   function handleSave() {
-    if (!hasValidPrice) return;
+    if (readOnly || !hasValidPrice) return;
     onSave(record!.id, {
       price: parsedDraft!,
       priceCompliance: record!.priceCompliance,
@@ -95,7 +97,7 @@ export function SetRecordPricingModal({
                   id="record-pricing-title"
                   className="mt-0.5 text-[18px] font-semibold tracking-[-0.02em] text-brand-ink"
                 >
-                  Edit package price
+                  {readOnly ? "View package price" : "Edit package price"}
                 </h2>
                 <p className="mt-1 truncate text-[13px] text-brand-ink-secondary">
                   {titleCase(record.programName)}
@@ -164,6 +166,8 @@ export function SetRecordPricingModal({
                 type="text"
                 inputMode="decimal"
                 value={priceDraft}
+                readOnly={readOnly}
+                disabled={readOnly}
                 onChange={(event) => setPriceDraft(event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key === "Enter") {
@@ -171,8 +175,8 @@ export function SetRecordPricingModal({
                     handleSave();
                   }
                 }}
-                autoFocus
-                className="ml-1.5 min-w-0 flex-1 border-0 bg-transparent text-[15px] font-semibold tabular-nums text-brand-ink outline-none placeholder:text-brand-ink-tertiary/50"
+                autoFocus={!readOnly}
+                className="ml-1.5 min-w-0 flex-1 border-0 bg-transparent text-[15px] font-semibold tabular-nums text-brand-ink outline-none placeholder:text-brand-ink-tertiary/50 disabled:cursor-default"
                 placeholder="0.00"
               />
             </div>
@@ -185,20 +189,22 @@ export function SetRecordPricingModal({
         </div>
 
         <div className="flex flex-col border-t border-black/[0.08]">
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={!hasValidPrice}
-            className="border-b border-black/[0.08] py-3.5 text-[15px] font-semibold text-brand-orange transition hover:bg-brand-orange/8 disabled:cursor-not-allowed disabled:text-brand-ink-tertiary disabled:hover:bg-transparent"
-          >
-            Save pricing
-          </button>
+          {!readOnly && (
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={!hasValidPrice}
+              className="border-b border-black/[0.08] py-3.5 text-[15px] font-semibold text-brand-orange transition hover:bg-brand-orange/8 disabled:cursor-not-allowed disabled:text-brand-ink-tertiary disabled:hover:bg-transparent"
+            >
+              Save pricing
+            </button>
+          )}
           <button
             type="button"
             onClick={onClose}
             className="py-3.5 text-[15px] font-medium text-brand-ink transition hover:bg-brand-bg"
           >
-            Cancel
+            {readOnly ? "Close" : "Cancel"}
           </button>
         </div>
       </div>
