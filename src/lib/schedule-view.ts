@@ -45,8 +45,22 @@ export function producerScheduleId(producer: Producer): string {
   return producer.name.toUpperCase();
 }
 
-function formatLegacyDay(date: Date): string {
-  return `${DAY_NAMES[date.getDay()]} ${MONTH_NAMES[date.getMonth()]} ${date.getDate()}`;
+export function parseToDate(date: any): Date {
+  if (!date) return new Date();
+  if (date instanceof Date) {
+    return Number.isNaN(date.getTime()) ? new Date() : date;
+  }
+  if (typeof date === "string") {
+    const flex = parseFlexibleDate(date);
+    if (flex && !Number.isNaN(flex.getTime())) return flex;
+  }
+  const d = new Date(date);
+  return Number.isNaN(d.getTime()) ? new Date() : d;
+}
+
+function formatLegacyDay(date: any): string {
+  const d = parseToDate(date);
+  return `${DAY_NAMES[d.getDay()]} ${MONTH_NAMES[d.getMonth()]} ${d.getDate()}`;
 }
 
 function hashSeed(input: string): number {
@@ -86,22 +100,24 @@ function inferStatus(
   return seed % 6 === 0 ? "mix" : "available";
 }
 
-function addDays(date: Date, days: number): Date {
-  const next = new Date(date);
+function addDays(date: any, days: number): Date {
+  const next = new Date(parseToDate(date));
   next.setHours(0, 0, 0, 0);
   next.setDate(next.getDate() + days);
   return next;
 }
 
-function toLocalIsoDate(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
+function toLocalIsoDate(date: any): string {
+  const d = parseToDate(date);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
-function formatDisplayDate(date: Date): string {
-  return `${MONTH_NAMES[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
+function formatDisplayDate(date: any): string {
+  const d = parseToDate(date);
+  return `${MONTH_NAMES[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
 }
 
 function producerMatchesAssignment(producer: Producer, assigned: string): boolean {
@@ -222,15 +238,15 @@ function resolveBooking(
   return bookings[0] ?? null;
 }
 
-function startOfCalendarWeek(date: Date): Date {
-  const start = new Date(date);
+function startOfCalendarWeek(date: any): Date {
+  const start = new Date(parseToDate(date));
   start.setHours(0, 0, 0, 0);
   start.setDate(start.getDate() - start.getDay());
   return start;
 }
 
-function buildDateRange(range: ScheduleViewRange, anchor: Date): Date[] {
-  const end = new Date(anchor);
+function buildDateRange(range: ScheduleViewRange, anchor: any): Date[] {
+  const end = new Date(parseToDate(anchor));
   end.setHours(0, 0, 0, 0);
 
   if (range === "today") {
@@ -262,7 +278,7 @@ export function getScheduleCells(
   producer: Producer,
   schedule: ScheduleEntry[],
   range: ScheduleViewRange,
-  anchorDate = new Date(2026, 7, 19),
+  anchorDate = new Date(),
   mtdRecords: MTDRecord[] = []
 ): ScheduleCell[] {
   const scheduleId = producerScheduleId(producer);
@@ -362,7 +378,7 @@ export function countUnavailable(cells: ScheduleCell[]): number {
 
 export function rangeLabel(
   range: ScheduleViewRange,
-  anchorDate = new Date(2026, 7, 19)
+  anchorDate = new Date()
 ): string {
   if (range === "today") return "Today";
   if (range === "week") {
@@ -415,7 +431,7 @@ export function buildTeamSchedule(
   producers: Producer[],
   schedule: ScheduleEntry[],
   range: ScheduleViewRange,
-  anchorDate = new Date(2026, 7, 19),
+  anchorDate = new Date(),
   mtdRecords: MTDRecord[] = []
 ): TeamScheduleRow[] {
   return producers.map((producer) => ({
@@ -426,7 +442,7 @@ export function buildTeamSchedule(
 
 export function aggregateColumns(
   rows: TeamScheduleRow[],
-  anchorDate = new Date(2026, 7, 19)
+  anchorDate = new Date()
 ): ColumnAggregate[] {
   if (rows.length === 0) return [];
 
@@ -452,7 +468,7 @@ export function aggregateColumns(
 
 export function buildScheduleColumnAggregates(
   range: ScheduleViewRange,
-  anchorDate = new Date(2026, 7, 19)
+  anchorDate = new Date()
 ): ColumnAggregate[] {
   const todayKey = toLocalIsoDate(anchorDate);
 
@@ -473,15 +489,16 @@ export function buildScheduleColumnAggregates(
 export function buildCalendarDays(
   rows: TeamScheduleRow[],
   range: Extract<ScheduleViewRange, "week" | "month">,
-  anchorDate = new Date(2026, 7, 19)
+  anchorDate: any = new Date()
 ): CalendarDay[] {
-  const todayKey = toLocalIsoDate(anchorDate);
+  const parsedAnchor = parseToDate(anchorDate);
+  const todayKey = toLocalIsoDate(parsedAnchor);
   const dates =
     range === "week"
-      ? buildDateRange("week", anchorDate)
+      ? buildDateRange("week", parsedAnchor)
       : (() => {
-          const start = new Date(anchorDate.getFullYear(), anchorDate.getMonth(), 1);
-          const end = new Date(anchorDate.getFullYear(), anchorDate.getMonth() + 1, 0);
+          const start = new Date(parsedAnchor.getFullYear(), parsedAnchor.getMonth(), 1);
+          const end = new Date(parsedAnchor.getFullYear(), parsedAnchor.getMonth() + 1, 0);
           const days: Date[] = [];
           for (let day = 1; day <= end.getDate(); day += 1) {
             days.push(new Date(start.getFullYear(), start.getMonth(), day));
@@ -545,7 +562,7 @@ export function groupCalendarDaysByWeek(days: CalendarDay[]): CalendarDay[][] {
 
 export function buildMonthGrid(
   rows: TeamScheduleRow[],
-  anchorDate = new Date(2026, 7, 19)
+  anchorDate = new Date()
 ): CalendarDay[][] {
   return groupCalendarDaysByWeek(buildCalendarDays(rows, "month", anchorDate));
 }

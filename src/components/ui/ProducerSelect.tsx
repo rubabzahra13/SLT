@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import clsx from "clsx";
 import type { Producer } from "@/types";
@@ -36,7 +36,17 @@ export function ProducerSelect({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [open]);
 
-  const selectedProducer = producers.find(
+  const uniqueProducers = useMemo(() => {
+    const seen = new Set<string>();
+    return producers.filter((p) => {
+      const key = (p.id || p.name).toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [producers]);
+
+  const selectedProducer = uniqueProducers.find(
     (p) =>
       p.name.toUpperCase() === value.toUpperCase() ||
       p.id.toUpperCase() === value.toUpperCase()
@@ -51,7 +61,14 @@ export function ProducerSelect({
       : "#94a3b8";
 
   return (
-    <div ref={rootRef} className={clsx("relative inline-flex items-center gap-1.5", className)}>
+    <div
+      ref={rootRef}
+      className={clsx(
+        "relative inline-flex items-center gap-1.5",
+        open && "z-[100]",
+        className
+      )}
+    >
       {label && (
         <span className="text-[12px] font-semibold text-brand-ink-secondary">
           {label}
@@ -81,7 +98,7 @@ export function ProducerSelect({
       </button>
 
       {open && (
-        <div className="absolute left-0 top-[calc(100%+4px)] z-50 min-w-[170px] max-h-60 overflow-y-auto rounded-xl border border-brand-line bg-brand-surface p-1 shadow-[var(--shadow-premium)]">
+        <div className="absolute left-0 top-[calc(100%+4px)] z-[100] min-w-[170px] max-h-60 overflow-y-auto rounded-xl border border-brand-line bg-brand-surface p-1 shadow-[var(--shadow-premium)]">
           <button
             type="button"
             onClick={() => {
@@ -96,7 +113,7 @@ export function ProducerSelect({
             <span className="h-2.5 w-2.5 rounded-full shrink-0 bg-brand-ink-tertiary/40" />
             <span>{allLabel}</span>
           </button>
-          {producers.map((p) => {
+          {uniqueProducers.map((p, idx) => {
             const isSelected =
               value === p.name ||
               value === p.id ||
@@ -105,7 +122,7 @@ export function ProducerSelect({
 
             return (
               <button
-                key={p.id}
+                key={`${p.id}-${idx}`}
                 type="button"
                 onClick={() => {
                   onChange(p.name);

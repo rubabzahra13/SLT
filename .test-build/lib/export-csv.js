@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.PRODUCER_STATEMENT_COLUMNS = void 0;
+exports.PRODUCER_SCHEDULE_COLUMNS = exports.PRODUCER_STATEMENT_COLUMNS = void 0;
+exports.isEligibleProducerScheduleRecord = isEligibleProducerScheduleRecord;
 exports.escapeCsvCell = escapeCsvCell;
 exports.buildCsvString = buildCsvString;
 exports.triggerCsvDownload = triggerCsvDownload;
@@ -9,6 +10,7 @@ exports.generateMTDCsv = generateMTDCsv;
 exports.generatePayrollCsv = generatePayrollCsv;
 exports.getProducerFacingPayrollRows = getProducerFacingPayrollRows;
 exports.generateProducerFacingPayrollCsv = generateProducerFacingPayrollCsv;
+exports.getProducerFacingScheduleRows = getProducerFacingScheduleRows;
 exports.generateScheduleCsv = generateScheduleCsv;
 const data_1 = require("./data");
 const dates_1 = require("./dates");
@@ -18,6 +20,38 @@ const order_detail_fields_1 = require("./order-detail-fields");
 const order_detail_sections_1 = require("./order-detail-sections");
 const package_1 = require("./package");
 const pricing_display_1 = require("./pricing-display");
+const mtd_status_1 = require("./mtd-status");
+function isEligibleProducerScheduleRecord(rec) {
+    if (!rec)
+        return false;
+    // 1. Must have an assigned producer/editor
+    if (!rec.assignedProducer || !rec.assignedProducer.trim()) {
+        return false;
+    }
+    // 2. Must NOT be completed or in payroll
+    const isCompleted = rec.status === "completed" ||
+        rec.status === "Completed" ||
+        rec.recordStatus === "completed" ||
+        rec.recordStatus === "Completed" ||
+        Boolean(rec.inPayroll) ||
+        Boolean(rec.in_payroll);
+    if (isCompleted)
+        return false;
+    // 3. Must be Ongoing status (not Waiting for Data, Outsourced, Completed, etc.)
+    const mtdStatus = (0, mtd_status_1.inferMTDRecordStatus)(rec);
+    if (mtdStatus !== "Ongoing") {
+        return false;
+    }
+    // 4. Must have a valid Mix Start Date
+    const startDate = (0, dates_1.toIsoDateString)(rec.mixStartDate);
+    if (!startDate)
+        return false;
+    // 5. Must have a valid Mix End Date
+    const endDate = (0, dates_1.toIsoDateString)(rec.mixEndDate);
+    if (!endDate)
+        return false;
+    return true;
+}
 function escapeCsvCell(value) {
     if (value === null || value === undefined)
         return "";
@@ -404,21 +438,22 @@ function generateProducerFacingPayrollCsv(records, allOrders, producers, targetP
     const rows = getProducerFacingPayrollRows(records, allOrders, producers, targetProducerName, filterPeriod);
     return buildCsvString(exports.PRODUCER_STATEMENT_COLUMNS, rows);
 }
-function generateScheduleCsv(records, allOrders, producers, targetProducerName, filterPeriod) {
+exports.PRODUCER_SCHEDULE_COLUMNS = [
+    { key: "mixStartDate", label: "Mix Start Date" },
+    { key: "mixEndDate", label: "Mix End Date" },
+    { key: "assignedProducer", label: "Producer" },
+    { key: "programName", label: "Program Name" },
+    { key: "contactName", label: "Contact Name" },
+    { key: "invoice", label: "Invoice #" },
+    { key: "category", label: "Category" },
+    { key: "subtype", label: "Subtype" },
+    { key: "package", label: "Package" },
+    { key: "status", label: "Status" },
+];
+function getProducerFacingScheduleRows(records, allOrders, producers, targetProducerName, filterPeriod) {
     const orderById = new Map(allOrders.map((o) => [o.id, o]));
-    const headers = [
-        { key: "mixStartDate", label: "Mix Start Date" },
-        { key: "mixEndDate", label: "Mix End Date" },
-        { key: "assignedProducer", label: "Producer" },
-        { key: "programName", label: "Program Name" },
-        { key: "contactName", label: "Contact Name" },
-        { key: "invoice", label: "Invoice #" },
-        { key: "category", label: "Category" },
-        { key: "subtype", label: "Subtype" },
-        { key: "package", label: "Package" },
-        { key: "status", label: "Status" },
-    ];
-    let filtered = records;
+    // Source dataset: Strictly eligible Ongoing MTD records with an assigned producer and valid dates
+    let filtered = records.filter(isEligibleProducerScheduleRecord);
     if (targetProducerName && targetProducerName !== "all" && targetProducerName !== "All Editors") {
         filtered = filtered.filter((rec) => {
             if (!rec.assignedProducer)
@@ -442,17 +477,22 @@ function generateScheduleCsv(records, allOrders, producers, targetProducerName, 
         const prodObj = (0, editor_assignment_1.findProducerByAssignmentKey)(rec.assignedProducer, producers);
         const prodName = prodObj?.name || rec.assignedProducer || "Unassigned";
         preparedRows.push({
-            mixStartDate: (0, dates_1.toIsoDateString)(rec.mixStartDate),
-            mixEndDate: (0, dates_1.toIsoDateString)(rec.mixEndDate ?? rec.mixStartDate),
+            mixStartDate: (0, dates_1.toIsoDateString)(rec.mixStartDate) || "—",
+            mixEndDate: (0, dates_1.toIsoDateString)(rec.mixEndDate ?? rec.mixStartDate) || "—",
             assignedProducer: prodName,
-            programName: rec.programName,
-            contactName: rec.contactName,
-            invoice: rec.invoice,
+            programName: rec.programName || "—",
+            contactName: rec.contactName || "—",
+            invoice: rec.invoice || "—",
             category: (0, order_detail_sections_1.getFormTypeLabel)(meta.formType),
-            subtype: meta.canonicalSubtypeId,
-            package: rec.package,
-            status: rec.status,
+            subtype: meta.canonicalSubtypeId || "—",
+            package: rec.package || "—",
+            status: "Ongoing",
+            recId: rec.id,
         });
     }
-    return buildCsvString(headers, preparedRows);
+    return preparedRows;
+}
+function generateScheduleCsv(records, allOrders, producers, targetProducerName, filterPeriod) {
+    const rows = getProducerFacingScheduleRows(records, allOrders, producers, targetProducerName, filterPeriod);
+    return buildCsvString(exports.PRODUCER_SCHEDULE_COLUMNS, rows);
 }

@@ -17,7 +17,7 @@ import {
 import type { Producer } from "@/types";
 
 const WEEKDAY_HEADERS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const ANCHOR_DATE = new Date(2026, 7, 19);
+const ANCHOR_DATE = new Date();
 
 type TeamScheduleCalendarProps = {
   rows: TeamScheduleRow[];

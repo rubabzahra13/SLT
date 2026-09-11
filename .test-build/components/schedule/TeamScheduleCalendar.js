@@ -13,7 +13,7 @@ const Avatar_1 = require("@/components/ui/Avatar");
 const DottedScroll_1 = require("@/components/ui/DottedScroll");
 const schedule_view_1 = require("@/lib/schedule-view");
 const WEEKDAY_HEADERS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const ANCHOR_DATE = new Date(2026, 7, 19);
+const ANCHOR_DATE = new Date();
 function TeamScheduleCalendar({ rows, range, selectedDayKey, onSelectDay, className, }) {
     const weeks = range === "week"
         ? [(0, schedule_view_1.buildCalendarDays)(rows, "week", ANCHOR_DATE)]

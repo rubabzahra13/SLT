@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { getData } from "../data";
-import { generateScheduleCsv } from "../export-csv";
+import { generateScheduleCsv, isEligibleProducerScheduleRecord } from "../export-csv";
 import { findProducerByAssignmentKey } from "../editor-assignment";
 
 describe("Prompt 10 — Bulk All Schedules Generation Tests", () => {
@@ -12,6 +12,7 @@ describe("Prompt 10 — Bulk All Schedules Generation Tests", () => {
     const distinctProducers = Array.from(
       new Set(
         mtdRecords
+          .filter(isEligibleProducerScheduleRecord)
           .map((r) => {
             if (!r.assignedProducer) return null;
             const p = findProducerByAssignmentKey(r.assignedProducer, producers);

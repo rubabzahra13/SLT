@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SCHEDULE_STATUS_FILTERS = void 0;
 exports.producerScheduleId = producerScheduleId;
+exports.parseToDate = parseToDate;
 exports.getScheduleCells = getScheduleCells;
 exports.groupCellsByWeek = groupCellsByWeek;
 exports.countUnavailable = countUnavailable;
@@ -37,8 +38,23 @@ const MONTH_NAMES = [
 function producerScheduleId(producer) {
     return producer.name.toUpperCase();
 }
+function parseToDate(date) {
+    if (!date)
+        return new Date();
+    if (date instanceof Date) {
+        return Number.isNaN(date.getTime()) ? new Date() : date;
+    }
+    if (typeof date === "string") {
+        const flex = (0, dates_1.parseFlexibleDate)(date);
+        if (flex && !Number.isNaN(flex.getTime()))
+            return flex;
+    }
+    const d = new Date(date);
+    return Number.isNaN(d.getTime()) ? new Date() : d;
+}
 function formatLegacyDay(date) {
-    return `${DAY_NAMES[date.getDay()]} ${MONTH_NAMES[date.getMonth()]} ${date.getDate()}`;
+    const d = parseToDate(date);
+    return `${DAY_NAMES[d.getDay()]} ${MONTH_NAMES[d.getMonth()]} ${d.getDate()}`;
 }
 function hashSeed(input) {
     let hash = 0;
@@ -69,19 +85,21 @@ function inferStatus(producer, date, scheduleByDay) {
     return seed % 6 === 0 ? "mix" : "available";
 }
 function addDays(date, days) {
-    const next = new Date(date);
+    const next = new Date(parseToDate(date));
     next.setHours(0, 0, 0, 0);
     next.setDate(next.getDate() + days);
     return next;
 }
 function toLocalIsoDate(date) {
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, "0");
-    const d = String(date.getDate()).padStart(2, "0");
-    return `${y}-${m}-${d}`;
+    const d = parseToDate(date);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
 }
 function formatDisplayDate(date) {
-    return `${MONTH_NAMES[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
+    const d = parseToDate(date);
+    return `${MONTH_NAMES[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
 }
 function producerMatchesAssignment(producer, assigned) {
     const key = assigned.trim().toUpperCase();
@@ -170,13 +188,13 @@ function resolveBooking(producer, date, status, assignments) {
     return bookings[0] ?? null;
 }
 function startOfCalendarWeek(date) {
-    const start = new Date(date);
+    const start = new Date(parseToDate(date));
     start.setHours(0, 0, 0, 0);
     start.setDate(start.getDate() - start.getDay());
     return start;
 }
 function buildDateRange(range, anchor) {
-    const end = new Date(anchor);
+    const end = new Date(parseToDate(anchor));
     end.setHours(0, 0, 0, 0);
     if (range === "today") {
         return [end];
@@ -200,7 +218,7 @@ function buildDateRange(range, anchor) {
     }
     return dates;
 }
-function getScheduleCells(producer, schedule, range, anchorDate = new Date(2026, 7, 19), mtdRecords = []) {
+function getScheduleCells(producer, schedule, range, anchorDate = new Date(), mtdRecords = []) {
     const scheduleId = producerScheduleId(producer);
     const scheduleByDay = new Map(schedule
         .filter((entry) => entry.producer === scheduleId)
@@ -277,7 +295,7 @@ function groupCellsByWeek(cells) {
 function countUnavailable(cells) {
     return cells.filter((cell) => cell.unavailable && cell.key && !cell.key.startsWith("pad")).length;
 }
-function rangeLabel(range, anchorDate = new Date(2026, 7, 19)) {
+function rangeLabel(range, anchorDate = new Date()) {
     if (range === "today")
         return "Today";
     if (range === "week") {
@@ -296,13 +314,13 @@ function rangeLabel(range, anchorDate = new Date(2026, 7, 19)) {
         return "Last 90 days";
     return "Last 6 months";
 }
-function buildTeamSchedule(producers, schedule, range, anchorDate = new Date(2026, 7, 19), mtdRecords = []) {
+function buildTeamSchedule(producers, schedule, range, anchorDate = new Date(), mtdRecords = []) {
     return producers.map((producer) => ({
         producer,
         cells: getScheduleCells(producer, schedule, range, anchorDate, mtdRecords),
     }));
 }
-function aggregateColumns(rows, anchorDate = new Date(2026, 7, 19)) {
+function aggregateColumns(rows, anchorDate = new Date()) {
     if (rows.length === 0)
         return [];
     const todayKey = toLocalIsoDate(anchorDate);
@@ -321,7 +339,7 @@ function aggregateColumns(rows, anchorDate = new Date(2026, 7, 19)) {
         };
     });
 }
-function buildScheduleColumnAggregates(range, anchorDate = new Date(2026, 7, 19)) {
+function buildScheduleColumnAggregates(range, anchorDate = new Date()) {
     const todayKey = toLocalIsoDate(anchorDate);
     return buildDateRange(range, anchorDate).map((date) => {
         const key = toLocalIsoDate(date);
@@ -336,13 +354,14 @@ function buildScheduleColumnAggregates(range, anchorDate = new Date(2026, 7, 19)
         };
     });
 }
-function buildCalendarDays(rows, range, anchorDate = new Date(2026, 7, 19)) {
-    const todayKey = toLocalIsoDate(anchorDate);
+function buildCalendarDays(rows, range, anchorDate = new Date()) {
+    const parsedAnchor = parseToDate(anchorDate);
+    const todayKey = toLocalIsoDate(parsedAnchor);
     const dates = range === "week"
-        ? buildDateRange("week", anchorDate)
+        ? buildDateRange("week", parsedAnchor)
         : (() => {
-            const start = new Date(anchorDate.getFullYear(), anchorDate.getMonth(), 1);
-            const end = new Date(anchorDate.getFullYear(), anchorDate.getMonth() + 1, 0);
+            const start = new Date(parsedAnchor.getFullYear(), parsedAnchor.getMonth(), 1);
+            const end = new Date(parsedAnchor.getFullYear(), parsedAnchor.getMonth() + 1, 0);
             const days = [];
             for (let day = 1; day <= end.getDate(); day += 1) {
                 days.push(new Date(start.getFullYear(), start.getMonth(), day));
@@ -396,7 +415,7 @@ function groupCalendarDaysByWeek(days) {
     }
     return weeks;
 }
-function buildMonthGrid(rows, anchorDate = new Date(2026, 7, 19)) {
+function buildMonthGrid(rows, anchorDate = new Date()) {
     return groupCalendarDaysByWeek(buildCalendarDays(rows, "month", anchorDate));
 }
 function createPaddedCalendarDay(baseDate, offsetDays) {

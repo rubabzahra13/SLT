@@ -12,6 +12,7 @@ const editor_assignment_1 = require("../editor-assignment");
     const { mtdRecords, orders: allOrders, producers } = (0, data_1.getData)();
     (0, node_test_1.it)("1. Bulk generation produces one distinct schedule file per producer with scheduled mixes", () => {
         const distinctProducers = Array.from(new Set(mtdRecords
+            .filter(export_csv_1.isEligibleProducerScheduleRecord)
             .map((r) => {
             if (!r.assignedProducer)
                 return null;

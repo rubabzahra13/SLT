@@ -12,6 +12,43 @@ import { getOrderDetailSections, getFormTypeLabel } from "./order-detail-section
 import { parsePackage } from "./package";
 import { computeClientPayroll } from "./pricing-display";
 
+import { inferMTDRecordStatus } from "./mtd-status";
+
+export function isEligibleProducerScheduleRecord(rec: MTDRecord): boolean {
+  if (!rec) return false;
+
+  // 1. Must have an assigned producer/editor
+  if (!rec.assignedProducer || !rec.assignedProducer.trim()) {
+    return false;
+  }
+
+  // 2. Must NOT be completed or in payroll
+  const isCompleted =
+    rec.status === "completed" ||
+    (rec.status as string) === "Completed" ||
+    (rec as any).recordStatus === "completed" ||
+    (rec as any).recordStatus === "Completed" ||
+    Boolean(rec.inPayroll) ||
+    Boolean((rec as any).in_payroll);
+  if (isCompleted) return false;
+
+  // 3. Must be Ongoing status (not Waiting for Data, Outsourced, Completed, etc.)
+  const mtdStatus = inferMTDRecordStatus(rec);
+  if (mtdStatus !== "Ongoing") {
+    return false;
+  }
+
+  // 4. Must have a valid Mix Start Date
+  const startDate = toIsoDateString(rec.mixStartDate);
+  if (!startDate) return false;
+
+  // 5. Must have a valid Mix End Date
+  const endDate = toIsoDateString(rec.mixEndDate);
+  if (!endDate) return false;
+
+  return true;
+}
+
 export function escapeCsvCell(value: unknown): string {
   if (value === null || value === undefined) return "";
   const str = String(value);
@@ -533,29 +570,45 @@ export function generateProducerFacingPayrollCsv(
   return buildCsvString(PRODUCER_STATEMENT_COLUMNS, rows);
 }
 
-export function generateScheduleCsv(
+export type ProducerFacingScheduleRow = {
+  mixStartDate: string;
+  mixEndDate: string;
+  assignedProducer: string;
+  programName: string;
+  contactName: string;
+  invoice: string;
+  category: string;
+  subtype: string;
+  package: string;
+  status: string;
+  recId: string;
+  [key: string]: unknown;
+};
+
+export const PRODUCER_SCHEDULE_COLUMNS = [
+  { key: "mixStartDate", label: "Mix Start Date" },
+  { key: "mixEndDate", label: "Mix End Date" },
+  { key: "assignedProducer", label: "Producer" },
+  { key: "programName", label: "Program Name" },
+  { key: "contactName", label: "Contact Name" },
+  { key: "invoice", label: "Invoice #" },
+  { key: "category", label: "Category" },
+  { key: "subtype", label: "Subtype" },
+  { key: "package", label: "Package" },
+  { key: "status", label: "Status" },
+];
+
+export function getProducerFacingScheduleRows(
   records: MTDRecord[],
   allOrders: Order[],
   producers: Producer[],
   targetProducerName?: string,
   filterPeriod?: { start?: string; end?: string }
-): string {
+): ProducerFacingScheduleRow[] {
   const orderById = new Map(allOrders.map((o) => [o.id, o]));
 
-  const headers = [
-    { key: "mixStartDate", label: "Mix Start Date" },
-    { key: "mixEndDate", label: "Mix End Date" },
-    { key: "assignedProducer", label: "Producer" },
-    { key: "programName", label: "Program Name" },
-    { key: "contactName", label: "Contact Name" },
-    { key: "invoice", label: "Invoice #" },
-    { key: "category", label: "Category" },
-    { key: "subtype", label: "Subtype" },
-    { key: "package", label: "Package" },
-    { key: "status", label: "Status" },
-  ];
-
-  let filtered = records;
+  // Source dataset: Strictly eligible Ongoing MTD records with an assigned producer and valid dates
+  let filtered = records.filter(isEligibleProducerScheduleRecord);
 
   if (targetProducerName && targetProducerName !== "all" && targetProducerName !== "All Editors") {
     filtered = filtered.filter((rec) => {
@@ -577,7 +630,7 @@ export function generateScheduleCsv(
     });
   }
 
-  const preparedRows: Record<string, unknown>[] = [];
+  const preparedRows: ProducerFacingScheduleRow[] = [];
 
   for (const rec of filtered) {
     const meta = resolveMTDFormMeta(rec, orderById);
@@ -585,18 +638,37 @@ export function generateScheduleCsv(
     const prodName = prodObj?.name || rec.assignedProducer || "Unassigned";
 
     preparedRows.push({
-      mixStartDate: toIsoDateString(rec.mixStartDate),
-      mixEndDate: toIsoDateString(rec.mixEndDate ?? rec.mixStartDate),
+      mixStartDate: toIsoDateString(rec.mixStartDate) || "—",
+      mixEndDate: toIsoDateString(rec.mixEndDate ?? rec.mixStartDate) || "—",
       assignedProducer: prodName,
-      programName: rec.programName,
-      contactName: rec.contactName,
-      invoice: rec.invoice,
+      programName: rec.programName || "—",
+      contactName: rec.contactName || "—",
+      invoice: rec.invoice || "—",
       category: getFormTypeLabel(meta.formType),
-      subtype: meta.canonicalSubtypeId,
-      package: rec.package,
-      status: rec.status,
+      subtype: meta.canonicalSubtypeId || "—",
+      package: rec.package || "—",
+      status: "Ongoing",
+      recId: rec.id,
     });
   }
 
-  return buildCsvString(headers, preparedRows);
+  return preparedRows;
 }
+
+export function generateScheduleCsv(
+  records: MTDRecord[],
+  allOrders: Order[],
+  producers: Producer[],
+  targetProducerName?: string,
+  filterPeriod?: { start?: string; end?: string }
+): string {
+  const rows = getProducerFacingScheduleRows(
+    records,
+    allOrders,
+    producers,
+    targetProducerName,
+    filterPeriod
+  );
+  return buildCsvString(PRODUCER_SCHEDULE_COLUMNS, rows);
+}
+
