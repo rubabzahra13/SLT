@@ -4,7 +4,11 @@ import {
   type DateFilterValue,
 } from "./date-filters";
 import { toIsoDateString } from "./dates";
-import { findLinkedOrder, getRequestedEditorFromRecord } from "./editor-assignment";
+import {
+  findLinkedOrder,
+  getDisplayAssignedProducer,
+  getRequestedEditorFromRecord,
+} from "./editor-assignment";
 import { titleCase } from "./data";
 import { determineComplianceStatus } from "./pricing-engine";
 import {
@@ -570,10 +574,16 @@ export function isOrderScheduledAndAssigned(rec: MTDRecord): boolean {
 }
 
 export function isMTDRecord(rec: MTDRecord): boolean {
-  if (rec.inMTD === false) return false;
-  if (rec.inMTD === true) return true;
+  // Outsourced mixes always live on the MTD board.
   if (isOutsourcedRecord(rec)) return true;
-  return isOrderScheduledAndAssigned(rec);
+  // Everything else stays in the Orders tab until it is explicitly moved
+  // (inMTD === true). Assigning an editor no longer auto-moves the record.
+  if (rec.inMTD !== true) return false;
+  // MTD editor assignment is view-only/locked, so a record can only stay on
+  // the MTD board once it has an assigned editor. Legacy/demo records that were
+  // flagged inMTD without an editor fall back to the Orders tab, where the
+  // editor must be assigned before the record can move back to MTD.
+  return Boolean(getDisplayAssignedProducer(rec));
 }
 
 export function isPreMTDOrderRecord(rec: MTDRecord): boolean {

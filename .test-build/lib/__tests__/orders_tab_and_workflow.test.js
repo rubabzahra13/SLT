@@ -40,14 +40,21 @@ function makeRecord(overrides = {}) {
         strict_1.default.equal((0, mtd_filters_1.isPreMTDOrderRecord)(unscheduledOrder), true);
         strict_1.default.equal((0, mtd_filters_1.isMTDRecord)(unscheduledOrder), false);
     });
-    (0, node_test_1.it)("Assigned and fully scheduled orders belong in the MTD tab (isMTDRecord)", () => {
-        const mtdOrder = makeRecord({
+    (0, node_test_1.it)("Assigned and fully scheduled orders stay in Orders until explicitly moved to MTD", () => {
+        // Assigning an editor + dates makes the order ready, but it stays in the
+        // Orders tab (shows the assigned producer) until the user clicks Move to MTD.
+        const readyOrder = makeRecord({
             assignedProducer: "CM",
             mixStartDate: "2026-09-10",
             mixEndDate: "2026-09-17",
         });
-        strict_1.default.equal((0, mtd_filters_1.isMTDRecord)(mtdOrder), true);
-        strict_1.default.equal((0, mtd_filters_1.isPreMTDOrderRecord)(mtdOrder), false);
+        strict_1.default.equal((0, mtd_filters_1.isOrderScheduledAndAssigned)(readyOrder), true);
+        strict_1.default.equal((0, mtd_filters_1.isMTDRecord)(readyOrder), false);
+        strict_1.default.equal((0, mtd_filters_1.isPreMTDOrderRecord)(readyOrder), true);
+        // Once explicitly moved, it belongs on the MTD tab.
+        const movedOrder = { ...readyOrder, inMTD: true };
+        strict_1.default.equal((0, mtd_filters_1.isMTDRecord)(movedOrder), true);
+        strict_1.default.equal((0, mtd_filters_1.isPreMTDOrderRecord)(movedOrder), false);
     });
     (0, node_test_1.it)("Move to MTD transition: validates assigned editor & dates, updating state without changing order ID", () => {
         const record = makeRecord({

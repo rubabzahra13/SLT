@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { Eye, Pencil } from "lucide-react";
+import { Eye, Lock, Pencil } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Avatar } from "@/components/ui/Avatar";
 import { DataTable, type Column } from "@/components/ui/DataTable";
@@ -1205,16 +1205,13 @@ function MTDPageContent() {
                   </span>
                 </button>
               ) : (
-                <div className="flex flex-col items-center gap-1">
-                  <button
-                    type="button"
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onClick={(e) => openAssignModal(rec, e)}
-                    className={actionButtonClass(false)}
-                  >
-                    Assign
-                  </button>
-                </div>
+                <span
+                  title="Editors are assigned on the Orders tab"
+                  className="inline-flex items-center gap-1 rounded-md border border-brand-line/70 bg-brand-bg/50 px-2 py-1 text-[10px] font-medium text-brand-ink-tertiary"
+                >
+                  <Lock className="h-3 w-3" strokeWidth={2} />
+                  No editor
+                </span>
               )}
             </div>
           );

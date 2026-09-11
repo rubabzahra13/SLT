@@ -14,6 +14,7 @@ const scheduling_1 = require("@/lib/scheduling");
 const producers_1 = require("@/lib/producers");
 const discount_codes_1 = require("@/lib/discount-codes");
 const mtd_completion_1 = require("@/lib/mtd-completion");
+const mtd_filters_1 = require("@/lib/mtd-filters");
 const mtd_status_1 = require("@/lib/mtd-status");
 const dates_1 = require("@/lib/dates");
 const api_1 = require("@/lib/api");
@@ -35,7 +36,7 @@ function normalizeMTD(records) {
         if (startIso && endIso && endIso < startIso) {
             mixEnd = (0, scheduling_1.suggestMixEndDate)(startIso, r.package);
         }
-        return {
+        const normalized = {
             ...r,
             editorRequest: r.editorRequest || "FA",
             contactName: r.contactName || r.editorInitials,
@@ -45,6 +46,15 @@ function normalizeMTD(records) {
             inPayroll: Boolean(r.inPayroll),
             ...(mixEnd ? { mixEndDate: mixEnd } : {}),
         };
+        // Backfill the explicit MTD flag for records that already belong on the
+        // board (assigned + scheduled, or outsourced). New assignments made from
+        // the Orders tab at runtime do NOT set this, so they stay in Orders until
+        // the user explicitly clicks "Move to MTD".
+        if (normalized.inMTD === undefined &&
+            ((0, mtd_filters_1.isOrderScheduledAndAssigned)(normalized) || (0, mtd_filters_1.isOutsourcedRecord)(normalized))) {
+            normalized.inMTD = true;
+        }
+        return normalized;
     });
 }
 function AppStateProvider({ children }) {
@@ -200,6 +210,7 @@ function AppStateProvider({ children }) {
             ...draftRecord,
             assignedProducer,
             editorRequest,
+            inMTD: true,
         };
         setMtdRecords((prev) => [newRecord, ...prev]);
         setActiveOrders((prev) => prev.map((o) => o.id === orderId

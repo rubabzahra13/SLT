@@ -40,14 +40,22 @@ describe("Orders Tab & Workflow Separation", () => {
     assert.equal(isMTDRecord(unscheduledOrder), false);
   });
 
-  it("Assigned and fully scheduled orders belong in the MTD tab (isMTDRecord)", () => {
-    const mtdOrder = makeRecord({
+  it("Assigned and fully scheduled orders stay in Orders until explicitly moved to MTD", () => {
+    // Assigning an editor + dates makes the order ready, but it stays in the
+    // Orders tab (shows the assigned producer) until the user clicks Move to MTD.
+    const readyOrder = makeRecord({
       assignedProducer: "CM",
       mixStartDate: "2026-09-10",
       mixEndDate: "2026-09-17",
     });
-    assert.equal(isMTDRecord(mtdOrder), true);
-    assert.equal(isPreMTDOrderRecord(mtdOrder), false);
+    assert.equal(isOrderScheduledAndAssigned(readyOrder), true);
+    assert.equal(isMTDRecord(readyOrder), false);
+    assert.equal(isPreMTDOrderRecord(readyOrder), true);
+
+    // Once explicitly moved, it belongs on the MTD tab.
+    const movedOrder: MTDRecord = { ...readyOrder, inMTD: true };
+    assert.equal(isMTDRecord(movedOrder), true);
+    assert.equal(isPreMTDOrderRecord(movedOrder), false);
   });
 
   it("Move to MTD transition: validates assigned editor & dates, updating state without changing order ID", () => {
