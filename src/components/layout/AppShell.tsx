@@ -19,18 +19,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { expanded, mobileOpen, setMobileOpen } = useSidebar();
 
   const isLoginPage = pathname === "/login";
+  const isWelcomePage = pathname === "/welcome";
+  const isAuthCanvasPage = isLoginPage || isWelcomePage;
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated && !isLoginPage) {
+    if (!isLoading && !isAuthenticated && !isAuthCanvasPage) {
       router.replace("/login");
     }
-  }, [isLoading, isAuthenticated, isLoginPage, router]);
+  }, [isLoading, isAuthenticated, isAuthCanvasPage, router]);
 
-  if (isLoginPage) {
+  if (isAuthCanvasPage) {
     return <>{children}</>;
   }
 
-  if (isLoading || (!isAuthenticated && !isLoginPage)) {
+  if (isLoading || (!isAuthenticated && !isAuthCanvasPage)) {
     return (
       <div className="flex min-h-screen w-full items-center justify-center bg-brand-bg">
         <div className="flex flex-col items-center gap-3 text-brand-ink-tertiary">

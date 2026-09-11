@@ -4,7 +4,7 @@
  */
 export const PRODUCER_COLORS: Record<string, string> = {
   CM: "#ed7d31",
-  MS: "#009999",
+  MS: "#0a0c10",
   NC: "#c00000",
   BV: "#002060",
   MT: "#bf8f00",
@@ -82,7 +82,7 @@ export type ProducerAvatarOption = {
 
 export const PRODUCER_AVATARS: ProducerAvatarOption[] = [
   { id: "ava-1", label: "CM · Orange", src: "#ed7d31" },
-  { id: "ava-2", label: "MS · Teal", src: "#009999" },
+  { id: "ava-2", label: "MS · Charcoal", src: "#0a0c10" },
   { id: "ava-3", label: "NC · Red", src: "#c00000" },
 ];
 

@@ -266,10 +266,10 @@ export function Sidebar() {
                     {currentUser.name}
                   </p>
                   <span className={clsx(
-                    "mt-0.5 inline-block truncate text-[10px] font-semibold px-1.5 py-0.5 rounded-md leading-none",
+                    "mt-0.5 inline-block truncate text-[10px] font-semibold leading-none",
                     currentUser.access_level === "View Only"
-                      ? "bg-brand-amber/15 text-brand-amber"
-                      : "bg-brand-blue-soft/30 text-brand-blue"
+                      ? "text-brand-amber"
+                      : "text-brand-blue"
                   )}>
                     {currentUser.access_level}
                   </span>

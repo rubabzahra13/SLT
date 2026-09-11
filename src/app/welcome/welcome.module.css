@@ -1,0 +1,189 @@
+.page {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #0a0c10;
+}
+
+.stage {
+  position: relative;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 2rem 1.5rem;
+  max-width: 40rem;
+}
+
+.mark {
+  opacity: 0;
+  animation: welcomeRise 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.1s forwards;
+}
+
+.eyebrow {
+  margin-top: 1.5rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  background-image: linear-gradient(135deg, #52c8ee 0%, #f07840 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  opacity: 0;
+  animation: welcomeRise 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.28s forwards;
+}
+
+.headline {
+  margin-top: 0.85rem;
+  font-size: clamp(2.1rem, 5vw, 3.15rem);
+  font-weight: 700;
+  line-height: 1.12;
+  letter-spacing: -0.035em;
+  color: #fff;
+  opacity: 0;
+  animation: welcomeRise 1s cubic-bezier(0.22, 1, 0.36, 1) 0.42s forwards;
+}
+
+.accent {
+  color: #52c8ee;
+}
+
+.sub {
+  margin-top: 1rem;
+  max-width: 28rem;
+  font-size: 0.98rem;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.52);
+  opacity: 0;
+  animation: welcomeRise 1s cubic-bezier(0.22, 1, 0.36, 1) 0.58s forwards;
+}
+
+.meta {
+  margin-top: 1.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.4);
+  opacity: 0;
+  animation: welcomeRise 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.72s forwards;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #f07840;
+  box-shadow: 0 0 12px rgba(240, 120, 64, 0.65);
+  animation: welcomePulse 1.6s ease-in-out infinite;
+}
+
+.barTrack {
+  margin-top: 2.25rem;
+  width: min(240px, 55vw);
+  height: 2px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+  opacity: 0;
+  animation: welcomeRise 0.8s ease 0.85s forwards;
+}
+
+.barFill {
+  height: 100%;
+  width: 0%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #52c8ee 0%, #f07840 100%);
+  animation: welcomeBar 2.6s cubic-bezier(0.4, 0, 0.2, 1) 0.95s forwards;
+}
+
+.skip {
+  margin-top: 1.75rem;
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  opacity: 0;
+  animation: welcomeRise 0.8s ease 1.1s forwards;
+  transition: color 0.2s ease;
+}
+
+.skip:hover {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.exit {
+  animation: welcomeExit 0.55s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes welcomeRise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 18px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes welcomeBar {
+  from {
+    width: 0%;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+@keyframes welcomePulse {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.25);
+  }
+}
+
+@keyframes welcomeExit {
+  to {
+    opacity: 0;
+    transform: scale(1.03) translate3d(0, -8px, 0);
+    filter: blur(4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mark,
+  .eyebrow,
+  .headline,
+  .sub,
+  .meta,
+  .barTrack,
+  .skip,
+  .barFill,
+  .dot,
+  .exit {
+    animation: none;
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+
+  .barFill {
+    width: 100%;
+  }
+}

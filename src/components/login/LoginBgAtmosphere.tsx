@@ -1,11 +1,17 @@
+"use client";
+
+import { GradientBackground } from "@/components/ui/paper-design-shader-background";
 import styles from "./LoginBgAtmosphere.module.css";
 
-const CHARCOAL_SRC = "/login/bg-charcoal.png";
-const SMOKE_SRC = "/login/bg-smoke-ref.jpg";
+/** Brand teal + amber corner wash (replaces image smoke plates). */
+const LOGIN_SHADER_COLORS = [
+  "hsl(193, 82%, 55%)", // brand teal
+  "hsl(18, 85%, 58%)", // brand orange
+  "hsl(340, 70%, 48%)", // deep warm accent
+];
 
 /**
- * Full-field cinematic smoke over charcoal — teal / amber throughout,
- * drifting slowly via layered screen-blend plates + soft orbs.
+ * Charcoal plate + Paper Design GrainGradient corners (replaces smoke).
  */
 export function LoginBgAtmosphere({ className }: { className?: string }) {
   return (
@@ -13,35 +19,12 @@ export function LoginBgAtmosphere({ className }: { className?: string }) {
       className={[styles.atmosphere, className].filter(Boolean).join(" ")}
       aria-hidden="true"
     >
-      <div
-        className={styles.plate}
-        style={{ backgroundImage: `url("${CHARCOAL_SRC}")` }}
+      <div className={styles.plate} />
+      <GradientBackground
+        className={styles.shader}
+        colors={LOGIN_SHADER_COLORS}
+        soft
       />
-
-      <div className={styles.smokeField}>
-        <div
-          className={`${styles.smoke} ${styles.smokePrimary}`}
-          style={{ backgroundImage: `url("${SMOKE_SRC}")` }}
-        />
-        <div
-          className={`${styles.smoke} ${styles.smokeSecondary}`}
-          style={{ backgroundImage: `url("${SMOKE_SRC}")` }}
-        />
-        <div
-          className={`${styles.smoke} ${styles.smokeTertiary}`}
-          style={{ backgroundImage: `url("${SMOKE_SRC}")` }}
-        />
-        <div
-          className={`${styles.smoke} ${styles.smokeQuaternary}`}
-          style={{ backgroundImage: `url("${SMOKE_SRC}")` }}
-        />
-      </div>
-
-      <div className={`${styles.orb} ${styles.orbTealA}`} />
-      <div className={`${styles.orb} ${styles.orbAmberA}`} />
-      <div className={`${styles.orb} ${styles.orbTealB}`} />
-      <div className={`${styles.orb} ${styles.orbAmberB}`} />
-
       <div className={styles.veil} />
     </div>
   );

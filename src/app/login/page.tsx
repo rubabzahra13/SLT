@@ -50,7 +50,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (isAuthenticated) {
-      router.replace("/");
+      router.replace("/welcome");
     }
   }, [isAuthenticated, router]);
 
@@ -66,7 +66,7 @@ export default function LoginPage() {
     setIsSubmitting(true);
     try {
       await login(email, password);
-      router.replace("/");
+      router.replace("/welcome");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Invalid credentials.");
     } finally {
@@ -96,9 +96,7 @@ export default function LoginPage() {
             <div className="login-scrap-card login-figma-card">
               <div className="mb-4 flex items-center gap-3">
                 <BrandMonogram size="md" imageTranslateXPx={4} />
-                <span className="text-[15px] font-semibold tracking-tight text-white">
-                  Sounds Like That
-                </span>
+                <span className={styles.brandName}>Sounds Like That</span>
               </div>
 
               <h1 className={styles.headline}>
