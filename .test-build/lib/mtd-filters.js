@@ -53,35 +53,46 @@ function resolveMTDFormMeta(rec, orderById) {
             (rec.legacyId ? orderById.get(rec.legacyId) : undefined) ||
             (rec.uuid ? orderById.get(rec.uuid) : undefined)
         : undefined;
+    let formType = "school-all-star-cheer";
+    let cheerFormSubtype = "all-star-cheer";
+    let danceFormSubtype = "pom";
     if (linked) {
-        return {
-            formType: linked.formType || rec.formType || "school-all-star-cheer",
-            cheerFormSubtype: linked.cheerFormSubtype || rec.cheerFormSubtype || "all-star-cheer",
-            danceFormSubtype: linked.danceFormSubtype || rec.danceFormSubtype || exports.DEFAULT_DANCE_SUBTYPE,
-        };
+        formType = linked.formType || rec.formType || "school-all-star-cheer";
+        cheerFormSubtype = linked.cheerFormSubtype || rec.cheerFormSubtype || "all-star-cheer";
+        danceFormSubtype = linked.danceFormSubtype || rec.danceFormSubtype || "pom";
     }
-    if (rec.cheerFormSubtype || rec.formType) {
-        return {
-            formType: rec.formType || "school-all-star-cheer",
-            cheerFormSubtype: rec.cheerFormSubtype || "all-star-cheer",
-            danceFormSubtype: rec.danceFormSubtype || exports.DEFAULT_DANCE_SUBTYPE,
-        };
+    else if (rec.cheerFormSubtype || rec.formType) {
+        formType = rec.formType || "school-all-star-cheer";
+        cheerFormSubtype = rec.cheerFormSubtype || "all-star-cheer";
+        danceFormSubtype = rec.danceFormSubtype || "pom";
     }
-    const partial = {
-        category: rec.category,
-        package: rec.package,
-        musicTheme: rec.musicTheme,
-        division: rec.section,
-    };
-    const formType = (0, order_form_1.inferFormType)(partial);
+    else {
+        const partial = {
+            category: rec.category,
+            package: rec.package,
+            musicTheme: rec.musicTheme,
+            division: rec.section,
+        };
+        formType = (0, order_form_1.inferFormType)(partial);
+        cheerFormSubtype =
+            rec.cheerFormSubtype ||
+                (0, order_form_1.inferCheerFormSubtype)({ ...partial, formType }) ||
+                "all-star-cheer";
+        danceFormSubtype =
+            rec.danceFormSubtype ||
+                (0, order_form_1.inferDanceFormSubtype)({ ...partial, formType }) ||
+                "pom";
+    }
+    const canonicalSubtypeId = formType === "school-all-star-cheer"
+        ? cheerFormSubtype
+        : formType === "school-all-star-dance"
+            ? danceFormSubtype
+            : formType;
     return {
         formType,
-        cheerFormSubtype: rec.cheerFormSubtype ||
-            (0, order_form_1.inferCheerFormSubtype)({ ...partial, formType }) ||
-            "all-star-cheer",
-        danceFormSubtype: rec.danceFormSubtype ||
-            (0, order_form_1.inferDanceFormSubtype)({ ...partial, formType }) ||
-            exports.DEFAULT_DANCE_SUBTYPE,
+        cheerFormSubtype,
+        danceFormSubtype,
+        canonicalSubtypeId,
     };
 }
 function matchesFormFilter(rec, orderById, form, cheerSubtype, danceSubtype) {

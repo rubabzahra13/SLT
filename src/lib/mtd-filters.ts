@@ -42,6 +42,7 @@ export type MTDFormMeta = {
   formType: OrderFormType;
   cheerFormSubtype: CheerFormSubtype;
   danceFormSubtype: DanceFormSubtype;
+  canonicalSubtypeId: string;
 };
 
 export function resolveMTDFormMeta(
@@ -55,40 +56,48 @@ export function resolveMTDFormMeta(
       (rec.uuid ? orderById.get(rec.uuid) : undefined)
     : undefined;
 
+  let formType: OrderFormType = "school-all-star-cheer";
+  let cheerFormSubtype: CheerFormSubtype = "all-star-cheer";
+  let danceFormSubtype: DanceFormSubtype = "pom";
+
   if (linked) {
-    return {
-      formType: linked.formType || (rec as any).formType || "school-all-star-cheer",
-      cheerFormSubtype: linked.cheerFormSubtype || (rec as any).cheerFormSubtype || "all-star-cheer",
-      danceFormSubtype: linked.danceFormSubtype || (rec as any).danceFormSubtype || DEFAULT_DANCE_SUBTYPE,
+    formType = linked.formType || (rec as any).formType || "school-all-star-cheer";
+    cheerFormSubtype = linked.cheerFormSubtype || (rec as any).cheerFormSubtype || "all-star-cheer";
+    danceFormSubtype = linked.danceFormSubtype || (rec as any).danceFormSubtype || "pom";
+  } else if ((rec as any).cheerFormSubtype || (rec as any).formType) {
+    formType = (rec as any).formType || "school-all-star-cheer";
+    cheerFormSubtype = (rec as any).cheerFormSubtype || "all-star-cheer";
+    danceFormSubtype = (rec as any).danceFormSubtype || "pom";
+  } else {
+    const partial: Partial<Order> = {
+      category: rec.category,
+      package: rec.package,
+      musicTheme: rec.musicTheme,
+      division: rec.section,
     };
+    formType = inferFormType(partial);
+    cheerFormSubtype =
+      (rec as any).cheerFormSubtype ||
+      inferCheerFormSubtype({ ...partial, formType }) ||
+      "all-star-cheer";
+    danceFormSubtype =
+      (rec as any).danceFormSubtype ||
+      inferDanceFormSubtype({ ...partial, formType }) ||
+      "pom";
   }
 
-  if ((rec as any).cheerFormSubtype || (rec as any).formType) {
-    return {
-      formType: (rec as any).formType || "school-all-star-cheer",
-      cheerFormSubtype: (rec as any).cheerFormSubtype || "all-star-cheer",
-      danceFormSubtype: (rec as any).danceFormSubtype || DEFAULT_DANCE_SUBTYPE,
-    };
-  }
-
-  const partial: Partial<Order> = {
-    category: rec.category,
-    package: rec.package,
-    musicTheme: rec.musicTheme,
-    division: rec.section,
-  };
-  const formType = inferFormType(partial);
+  const canonicalSubtypeId =
+    formType === "school-all-star-cheer"
+      ? cheerFormSubtype
+      : formType === "school-all-star-dance"
+      ? danceFormSubtype
+      : formType;
 
   return {
     formType,
-    cheerFormSubtype:
-      (rec as any).cheerFormSubtype ||
-      inferCheerFormSubtype({ ...partial, formType }) ||
-      "all-star-cheer",
-    danceFormSubtype:
-      (rec as any).danceFormSubtype ||
-      inferDanceFormSubtype({ ...partial, formType }) ||
-      DEFAULT_DANCE_SUBTYPE,
+    cheerFormSubtype,
+    danceFormSubtype,
+    canonicalSubtypeId,
   };
 }
 
