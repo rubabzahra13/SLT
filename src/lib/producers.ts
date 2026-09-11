@@ -302,13 +302,35 @@ export function matchesProducerSearch(producer: Producer, query: string): boolea
   const q = query.trim().toLowerCase();
   if (!q) return true;
 
-  const fields = [
-    producer.name,
-    producer.initials,
-    producer.email,
-    producer.specialty,
-    ...producer.categories,
-  ];
+  const nameParts = producer.name
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean);
 
-  return fields.some((field) => field.toLowerCase().includes(q));
+  if (nameParts.length === 0) return false;
+
+  const fullName = nameParts.join(" ");
+
+  return (
+    fullName.includes(q) ||
+    nameParts.some((part) => part.startsWith(q))
+  );
+}
+
+export function producerSearchScore(producer: Producer, query: string): number {
+  const q = query.trim().toLowerCase();
+  if (!q) return 0;
+
+  const nameParts = producer.name.toLowerCase().split(/\s+/).filter(Boolean);
+  const fullName = nameParts.join(" ");
+  const firstName = nameParts[0] ?? "";
+  const lastName = nameParts[nameParts.length - 1] ?? "";
+
+  if (fullName === q) return 100;
+  if (firstName === q || lastName === q) return 90;
+  if (firstName.startsWith(q) || lastName.startsWith(q)) return 80;
+  if (fullName.startsWith(q)) return 70;
+  if (fullName.includes(q)) return 40;
+
+  return 0;
 }

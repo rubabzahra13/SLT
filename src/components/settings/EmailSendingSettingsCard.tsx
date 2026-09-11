@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { CheckCircle2, AlertCircle, LogOut, Mail, Send, Loader2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { formatApiClientError } from "@/lib/api/client";
 import {
   getGmailStatus,
   getGmailConnectUrl,
@@ -33,8 +34,15 @@ export function EmailSendingSettingsCard() {
       setLoadingStatus(true);
       const res = await getGmailStatus(token);
       setStatus(res);
-    } catch {
+    } catch (err) {
       setStatus({ connected: false, email: null, provider: "google" });
+      setFeedback({
+        type: "error",
+        message: formatApiClientError(
+          err,
+          "Unable to check Gmail connection status. Please try again."
+        ),
+      });
     } finally {
       setLoadingStatus(false);
     }
@@ -78,7 +86,10 @@ export function EmailSendingSettingsCard() {
     } catch (err) {
       setFeedback({
         type: "error",
-        message: err instanceof Error ? err.message : "Unable to initiate Google connection. Please try again.",
+        message: formatApiClientError(
+          err,
+          "Unable to initiate Google connection. Please try again."
+        ),
       });
       setIsConnecting(false);
     }
@@ -97,7 +108,10 @@ export function EmailSendingSettingsCard() {
     } catch (err) {
       setFeedback({
         type: "error",
-        message: err instanceof Error ? err.message : "Test email could not be sent. Please check connection.",
+        message: formatApiClientError(
+          err,
+          "Test email could not be sent. Please check connection."
+        ),
       });
     } finally {
       setIsSendingTest(false);
@@ -118,7 +132,7 @@ export function EmailSendingSettingsCard() {
     } catch (err) {
       setFeedback({
         type: "error",
-        message: err instanceof Error ? err.message : "Failed to disconnect Google account.",
+        message: formatApiClientError(err, "Failed to disconnect Google account."),
       });
     } finally {
       setIsDisconnecting(false);

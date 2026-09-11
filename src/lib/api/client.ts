@@ -13,6 +13,35 @@ export class ApiClientError extends Error {
   }
 }
 
+const BACKEND_UNAVAILABLE_MESSAGE = `Backend unavailable at ${API_BASE_URL}. Is the server running on port 8001?`;
+
+function isNetworkFetchFailure(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  const message = err.message.toLowerCase();
+  return (
+    err.name === "TypeError" &&
+    (message === "failed to fetch" ||
+      message.includes("networkerror") ||
+      message.includes("network request failed"))
+  );
+}
+
+export function formatApiClientError(
+  err: unknown,
+  fallback = "Something went wrong. Please try again."
+): string {
+  if (err instanceof ApiClientError) {
+    if (err.status === 0 && isNetworkFetchFailure(err)) {
+      return BACKEND_UNAVAILABLE_MESSAGE;
+    }
+    return err.message;
+  }
+  if (isNetworkFetchFailure(err)) {
+    return BACKEND_UNAVAILABLE_MESSAGE;
+  }
+  return err instanceof Error ? err.message : fallback;
+}
+
 async function request<T>(
   endpoint: string,
   options: RequestInit = {}
@@ -82,7 +111,11 @@ async function request<T>(
       throw err;
     }
     throw new ApiClientError(
-      err instanceof Error ? err.message : "Network error connecting to backend",
+      isNetworkFetchFailure(err)
+        ? BACKEND_UNAVAILABLE_MESSAGE
+        : err instanceof Error
+          ? err.message
+          : "Network error connecting to backend",
       0
     );
   }

@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import RedirectResponse
+from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm import Session
-from typing import Optional
+from typing import List, Optional
 
 from app.core.config import settings
 from app.core.database import get_db
@@ -10,6 +11,20 @@ from app.models.user import User
 from app.services.gmail_service import GmailService
 
 router = APIRouter()
+
+
+class EmailAttachmentRequest(BaseModel):
+    filename: str = Field(min_length=1, max_length=255)
+    content_base64: str = Field(min_length=1)
+    mime_type: str = Field(default="text/csv", min_length=3, max_length=128)
+
+
+class SendEmailRequest(BaseModel):
+    to_email: EmailStr
+    subject: str = Field(min_length=1, max_length=998)
+    body: str = Field(min_length=1)
+    html_body: Optional[str] = None
+    attachments: Optional[List[EmailAttachmentRequest]] = None
 
 
 @router.get("/gmail/connect")
@@ -151,4 +166,50 @@ def send_test_email(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Test email could not be sent. Please check the Google connection and try again. ({e})"
+        )
+
+
+@router.post("/gmail/send")
+def send_email_via_gmail(
+    payload: SendEmailRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_full_access),
+):
+    """Send an email from the connected Gmail account."""
+    conn = GmailService.get_active_connection(db)
+    if not conn or not conn.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Google account is not connected. Connect Gmail in Settings first.",
+        )
+
+    try:
+        attachments = None
+        if payload.attachments:
+            attachments = [
+                {
+                    "filename": attachment.filename,
+                    "content_base64": attachment.content_base64,
+                    "mime_type": attachment.mime_type,
+                }
+                for attachment in payload.attachments
+            ]
+
+        GmailService.send_email(
+            db=db,
+            connection=conn,
+            to_email=str(payload.to_email),
+            subject=payload.subject.strip(),
+            body=payload.body,
+            html_body=payload.html_body,
+            attachments=attachments,
+        )
+        return {
+            "success": True,
+            "message": f"Email sent successfully to {payload.to_email}",
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Email could not be sent. Please check the Google connection and try again. ({e})",
         )

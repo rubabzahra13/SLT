@@ -64,6 +64,10 @@ type InlineSelectProps = {
   className?: string;
   centered?: boolean;
   readOnly?: boolean;
+  /** Match inline pill toggles (rush fee row, etc.). */
+  variant?: "default" | "pill";
+  /** Pill variant: green active styling (e.g. when a rate is selected). */
+  pillActive?: boolean;
 };
 
 type MenuPosition = {
@@ -81,6 +85,8 @@ export function InlineSelect({
   className,
   centered = false,
   readOnly = false,
+  variant = "default",
+  pillActive = false,
 }: InlineSelectProps) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -189,26 +195,29 @@ export function InlineSelect({
         }}
         onKeyDown={handleKeyDown}
         className={clsx(
-          inlineControlClass,
-          centered
-            ? "relative flex cursor-pointer items-center justify-center px-6 text-center"
-            : "flex cursor-pointer items-center justify-between gap-1.5 pr-2 text-left",
+          variant === "pill"
+            ? clsx(
+                inlinePillBaseClass,
+                pillActive ? inlinePillActiveClass : inlinePillInactiveClass,
+                "inline-flex cursor-pointer items-center gap-0.5 px-2 py-1"
+              )
+            : clsx(
+                inlineControlClass,
+                centered
+                  ? "relative flex cursor-pointer items-center justify-center px-6 text-center"
+                  : "flex cursor-pointer items-center justify-between gap-1.5 pr-2 text-left"
+              ),
           readOnly && "!cursor-default !bg-slate-50/50 opacity-80 pointer-events-none",
           className
         )}
       >
-        <span
-          className={clsx(
-            "min-w-0 truncate",
-            centered ? "w-full text-center" : "flex-1"
-          )}
-        >
-          {value}
-        </span>
+        <span className="min-w-0 truncate tabular-nums">{value}</span>
         <ChevronDown
           className={clsx(
-            "h-3.5 w-3.5 shrink-0 text-brand-ink-tertiary transition-transform duration-150",
-            centered && "absolute right-2 top-1/2 -translate-y-1/2",
+            "h-3 w-3 shrink-0 transition-transform duration-150",
+            variant === "pill" && pillActive
+              ? "text-emerald-700"
+              : "text-brand-ink-tertiary",
             open && "rotate-180"
           )}
           strokeWidth={2.25}
@@ -1191,27 +1200,12 @@ export function InlineRushFeePills({
       onClick={(e) => e.stopPropagation()}
     >
       <div className={clsx(inlinePillGroupClass)}>
-        <HoverTip label="No Rush ($0)" placement="top">
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleQtyChange(0);
-            }}
-            className={clsx(
-              inlinePillBaseClass,
-              rushQty === 0 ? inlinePillActiveClass : inlinePillInactiveClass
-            )}
-          >
-            None
-          </button>
-        </HoverTip>
         <HoverTip label="Single Rush (+$150)" placement="top">
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              handleQtyChange(1);
+              handleQtyChange(rushQty === 1 ? 0 : 1);
             }}
             className={clsx(
               inlinePillBaseClass,
@@ -1226,7 +1220,7 @@ export function InlineRushFeePills({
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              handleQtyChange(2);
+              handleQtyChange(rushQty === 2 ? 0 : 2);
             }}
             className={clsx(
               inlinePillBaseClass,
@@ -1236,29 +1230,22 @@ export function InlineRushFeePills({
             2x ($300)
           </button>
         </HoverTip>
+        {rushQty > 0 ? (
+          <HoverTip label="Override Rush Fee Producer Compensation %" placement="top">
+            <InlineSelect
+              variant="pill"
+              pillActive
+              value={`${currentRatePct}%`}
+              options={rateChoices.map((r) => `${r}%`)}
+              readOnly={readOnly}
+              onChange={(next) => {
+                if (readOnly) return;
+                handleRateChange(parseInt(next.replace("%", ""), 10));
+              }}
+            />
+          </HoverTip>
+        ) : null}
       </div>
-
-      {rushQty > 0 && (
-        <HoverTip label="Override Rush Fee Producer Compensation %" placement="top">
-          <select
-            value={currentRatePct}
-            disabled={readOnly}
-            onChange={(e) => {
-              e.stopPropagation();
-              if (readOnly) return;
-              handleRateChange(parseInt(e.target.value, 10));
-            }}
-            onClick={(e) => e.stopPropagation()}
-            className="h-7 rounded-lg border border-brand-line/60 bg-brand-elevated px-1.5 text-[11px] font-semibold text-brand-ink outline-none hover:border-brand-line-strong focus:ring-1 focus:ring-brand-blue"
-          >
-            {rateChoices.map((r) => (
-              <option key={r} value={r}>
-                {r}%
-              </option>
-            ))}
-          </select>
-        </HoverTip>
-      )}
     </div>
   );
 }

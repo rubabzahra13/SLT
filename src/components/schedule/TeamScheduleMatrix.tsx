@@ -531,32 +531,31 @@ export function TeamScheduleMatrix({
             <button
               type="button"
               onClick={() => onSelectProducer(row)}
-              title={row.producer.name}
+              aria-label={row.producer.name}
               className={clsx(
-                "sticky left-0 z-20 flex h-full min-h-0 min-w-0 w-full flex-col items-center justify-center gap-1 self-stretch overflow-hidden border-b border-r border-brand-line/60 bg-white px-0.5 py-1.5 transition hover:bg-brand-blue-soft/30",
+                "sticky left-0 z-20 flex h-full min-h-0 min-w-0 w-full items-center justify-center self-stretch overflow-hidden border-b border-r border-brand-line/60 bg-white px-0.5 py-1.5 transition hover:bg-brand-blue-soft/30",
                 isLastRow && "border-b-0",
                 isActive && "bg-brand-orange-soft/40 hover:bg-brand-orange-soft/40"
               )}
             >
-              <div
-                className={clsx(
-                  "shrink-0 rounded-full ring-1 ring-inset ring-offset-0",
-                  isActive ? "ring-brand-orange/60" : "ring-brand-blue/30"
-                )}
+              <HoverTip
+                className="flex justify-center"
+                placement="right"
+                label={row.producer.name}
               >
-                <Avatar
-                  producer={row.producer}
-                  size="sm"
-                />
-              </div>
-              <span
-                className={clsx(
-                  "max-w-full shrink-0 truncate text-[10px] font-bold leading-none",
-                  isActive ? "text-brand-orange-deep" : "text-brand-ink-secondary"
-                )}
-              >
-                {row.producer.initials}
-              </span>
+                <div
+                  className={clsx(
+                    "shrink-0 rounded-full ring-1 ring-inset ring-offset-0",
+                    isActive ? "ring-brand-orange/60" : "ring-brand-blue/30"
+                  )}
+                >
+                  <Avatar
+                    producer={row.producer}
+                    name={row.producer.name}
+                    size="sm"
+                  />
+                </div>
+              </HoverTip>
             </button>
 
             {showStatColumns ? (

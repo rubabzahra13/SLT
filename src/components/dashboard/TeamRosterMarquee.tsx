@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import clsx from "clsx";
 import { Avatar } from "@/components/ui/Avatar";
 import { DashboardTip } from "@/components/dashboard/DashboardTip";
 import { producerInsight } from "@/lib/dashboard-tooltips";
@@ -8,8 +9,22 @@ import type { Producer } from "@/types";
 
 const statusLabel = {
   available: "Available",
-  limited: "Limited",
+  limited: "Unavailable",
   unavailable: "Booked",
+} as const;
+
+const statusRingClass = {
+  available: "ring-available",
+  limited: "ring-limited",
+  unavailable: "ring-unavailable",
+} as const;
+
+const statusBadgeClass = {
+  available:
+    "border-emerald-200/70 bg-emerald-50/90 text-emerald-800",
+  limited: "border-amber-200/70 bg-amber-50/90 text-amber-800",
+  unavailable:
+    "border-brand-line/45 bg-brand-bg-subtle/90 text-brand-ink-secondary",
 } as const;
 
 export function TeamRosterMarquee({ team }: { team: Producer[] }) {
@@ -30,17 +45,26 @@ export function TeamRosterMarquee({ team }: { team: Producer[] }) {
                 href={`/schedule?producer=${producer.initials}`}
                 className="dashboard-team-card group flex w-[140px] shrink-0 flex-col items-center gap-2.5 rounded-xl px-3 py-4 text-center"
               >
-                <div className="rounded-full ring-2 ring-brand-line/35 ring-offset-2 ring-offset-white">
-                  <Avatar producer={producer} size="xl" />
+                <div
+                  className={clsx(
+                    "rounded-full",
+                    statusRingClass[producer.status]
+                  )}
+                >
+                  <div className="rounded-full bg-white p-0.5">
+                    <Avatar producer={producer} size="xl" />
+                  </div>
                 </div>
                 <div className="min-w-0 w-full">
                   <p className="truncate text-[15px] font-bold tracking-[-0.03em] text-brand-ink">
-                    {producer.initials}
-                  </p>
-                  <p className="mt-0.5 truncate text-[11px] font-medium text-brand-ink-secondary">
                     {producer.name}
                   </p>
-                  <span className="mt-2.5 inline-flex rounded-full border border-brand-line/45 bg-white px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.06em] text-brand-ink-secondary">
+                  <span
+                    className={clsx(
+                      "mt-2.5 inline-flex rounded-full border px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.06em]",
+                      statusBadgeClass[producer.status]
+                    )}
+                  >
                     {statusLabel[producer.status]}
                   </span>
                   <p className="mt-2 truncate text-[10px] font-semibold text-brand-ink-tertiary">

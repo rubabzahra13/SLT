@@ -3,8 +3,11 @@ import json
 import logging
 import urllib.parse
 import urllib.request
+from email import encoders
+from email.mime.base import MIMEBase
+from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -138,11 +141,39 @@ class GmailService:
         connection: EmailConnection,
         to_email: str,
         subject: str,
-        body: str
+        body: str,
+        html_body: Optional[str] = None,
+        attachments: Optional[List[Dict[str, str]]] = None,
     ) -> Dict[str, Any]:
         access_token = GmailService.get_valid_access_token(db, connection)
 
-        msg = MIMEText(body, "plain", "utf-8")
+        if attachments:
+            msg = MIMEMultipart("mixed")
+            body_part = MIMEMultipart("alternative")
+            body_part.attach(MIMEText(body, "plain", "utf-8"))
+            if html_body:
+                body_part.attach(MIMEText(html_body, "html", "utf-8"))
+            msg.attach(body_part)
+
+            for attachment in attachments:
+                mime_type = attachment.get("mime_type", "text/csv")
+                maintype, _, subtype = mime_type.partition("/")
+                part = MIMEBase(maintype, subtype or "csv")
+                part.set_payload(base64.b64decode(attachment["content_base64"]))
+                encoders.encode_base64(part)
+                part.add_header(
+                    "Content-Disposition",
+                    "attachment",
+                    filename=attachment["filename"],
+                )
+                msg.attach(part)
+        elif html_body:
+            msg = MIMEMultipart("alternative")
+            msg.attach(MIMEText(body, "plain", "utf-8"))
+            msg.attach(MIMEText(html_body, "html", "utf-8"))
+        else:
+            msg = MIMEText(body, "plain", "utf-8")
+
         msg["To"] = to_email
         msg["From"] = connection.email
         msg["Subject"] = subject

@@ -5,11 +5,29 @@ import {
   BRAND_LOGO_RING,
 } from "@/lib/brand-logo";
 
-export function BrandMonogram({ className }: { className?: string }) {
+const SIZE_CLASS = {
+  sm: "h-8 w-8 p-[1px]",
+  md: "h-9 w-9 p-[1.5px]",
+  lg: "h-[72px] w-[72px] p-[3px]",
+  xl: "h-20 w-20 p-[3.5px]",
+} as const;
+
+export function BrandMonogram({
+  className,
+  size = "md",
+  imageTranslateXPx,
+}: {
+  className?: string;
+  size?: keyof typeof SIZE_CLASS;
+  /** Override horizontal logo nudge (e.g. login page only). */
+  imageTranslateXPx?: number;
+}) {
+  const translateX = imageTranslateXPx ?? BRAND_LOGO_IMAGE.translateXPx;
   return (
     <span
       className={clsx(
-        "flex h-9 w-9 shrink-0 items-center justify-center rounded-full p-[1.5px]",
+        "flex shrink-0 items-center justify-center rounded-full",
+        SIZE_CLASS[size],
         className
       )}
       style={{
@@ -22,7 +40,7 @@ export function BrandMonogram({ className }: { className?: string }) {
           alt=""
           className="h-full w-full object-contain object-center"
           style={{
-            transform: `translateX(${BRAND_LOGO_IMAGE.translateXPx}px) scale(${BRAND_LOGO_IMAGE.scale})`,
+            transform: `translateX(${translateX}px) scale(${BRAND_LOGO_IMAGE.scale})`,
           }}
         />
       </span>

@@ -31,9 +31,12 @@ export function getCollectionControlIds(
   formType?: OrderFormType | string
 ): EightCsItemKey[] {
   if (formType === "school-all-star-cheer") {
-    return ["cs", "video", "form", "mix"];
+    return ["cs", "video", "form"];
   }
-  return ["form", "mix"];
+  if (formType === "school-all-star-dance") {
+    return ["form", "mix"];
+  }
+  return ["form"];
 }
 
 export function getCollectionItemsForCategory(

@@ -5,6 +5,7 @@ import {
   getGmailConnectUrl,
   disconnectGmail,
   sendGmailTestEmail,
+  sendGmailEmail,
   type GmailStatusResponse,
 } from "../api/gmail";
 
@@ -32,5 +33,6 @@ describe("Gmail Integration Phase 1 Client & Security Unit Tests", () => {
     assert.equal(typeof getGmailConnectUrl, "function");
     assert.equal(typeof disconnectGmail, "function");
     assert.equal(typeof sendGmailTestEmail, "function");
+    assert.equal(typeof sendGmailEmail, "function");
   });
 });

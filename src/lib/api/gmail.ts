@@ -40,3 +40,26 @@ export async function sendGmailTestEmail(token?: string | null): Promise<Generic
     headers: authHeaders(token),
   });
 }
+
+export type SendGmailEmailAttachment = {
+  filename: string;
+  content_base64: string;
+  mime_type?: string;
+};
+
+export type SendGmailEmailPayload = {
+  to_email: string;
+  subject: string;
+  body: string;
+  html_body?: string;
+  attachments?: SendGmailEmailAttachment[];
+};
+
+export async function sendGmailEmail(
+  payload: SendGmailEmailPayload,
+  token?: string | null
+): Promise<GenericResponse> {
+  return apiClient.post<GenericResponse>("/api/gmail/send", payload, {
+    headers: authHeaders(token),
+  });
+}

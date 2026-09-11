@@ -1,12 +1,18 @@
+export type PayPeriodRange = "2weeks" | "4weeks" | "6weeks";
+
 export type DateFilterValue = {
   type:
     | "all"
+    | "today"
     | "last2Weeks"
+    | "last4Weeks"
+    | "last6Weeks"
     | "last1Month"
     | "last6Months"
     | "last1Year"
     | "thisWeek"
     | "last30Days"
+    | "last90Days"
     | "thisMonth"
     | "month"
     | "year"
@@ -82,6 +88,8 @@ export function calculateDateBounds(
   switch (type) {
     case "all":
       return { start: null, end: null };
+    case "today":
+      return { start: startOfDay(now), end: endOfDay(now) };
     case "thisWeek":
       return { start: startOfWeek(now), end: endOfWeek(now) };
     case "last2Weeks": {
@@ -89,10 +97,25 @@ export function calculateDateBounds(
       past.setDate(now.getDate() - 13);
       return { start: startOfDay(past), end: endOfDay(now) };
     }
+    case "last4Weeks": {
+      const past = new Date(now);
+      past.setDate(now.getDate() - 27);
+      return { start: startOfDay(past), end: endOfDay(now) };
+    }
+    case "last6Weeks": {
+      const past = new Date(now);
+      past.setDate(now.getDate() - 41);
+      return { start: startOfDay(past), end: endOfDay(now) };
+    }
     case "last1Month":
     case "last30Days": {
       const past = new Date(now);
       past.setDate(now.getDate() - 29);
+      return { start: startOfDay(past), end: endOfDay(now) };
+    }
+    case "last90Days": {
+      const past = new Date(now);
+      past.setDate(now.getDate() - 89);
       return { start: startOfDay(past), end: endOfDay(now) };
     }
     case "last6Months": {
@@ -141,14 +164,40 @@ export function calculateDateBounds(
   }
 }
 
+export function payPeriodRangeToDateFilter(range: PayPeriodRange): DateFilterValue {
+  switch (range) {
+    case "2weeks":
+      return { type: "last2Weeks", value: null };
+    case "4weeks":
+      return { type: "last4Weeks", value: null };
+    case "6weeks":
+      return { type: "last6Weeks", value: null };
+  }
+}
+
+export function payPeriodRangeLabel(range: PayPeriodRange): string {
+  switch (range) {
+    case "2weeks":
+      return "Last 2 weeks";
+    case "4weeks":
+      return "Last 4 weeks";
+    case "6weeks":
+      return "Last 6 weeks";
+  }
+}
+
 export function getDateFilterLabel(filter: DateFilterValue): string {
   if (!filter || filter.type === "all") return "All time";
+  if (filter.type === "today") return "Today";
   if (filter.type === "last2Weeks") return "Last 2 weeks";
+  if (filter.type === "last4Weeks") return "Last 4 weeks";
+  if (filter.type === "last6Weeks") return "Last 6 weeks";
   if (filter.type === "last1Month") return "Last 1 month";
   if (filter.type === "last6Months") return "Last 6 months";
   if (filter.type === "last1Year") return "Last 1 year";
   if (filter.type === "thisWeek") return "This week";
   if (filter.type === "last30Days") return "Last 30 days";
+  if (filter.type === "last90Days") return "Last 90 days";
   if (filter.type === "thisMonth") return "This month";
   if (filter.type === "month" && typeof filter.value === "string") {
     const [y, m] = filter.value.split("-").map(Number);

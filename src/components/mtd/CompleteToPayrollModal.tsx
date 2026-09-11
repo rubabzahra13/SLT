@@ -7,7 +7,6 @@ import {
   ArrowLeft,
   DollarSign,
   Info,
-  Tag,
   Edit3,
 } from "lucide-react";
 import { formatPrice, titleCase } from "@/lib/data";
@@ -29,7 +28,6 @@ import {
   calculateMiscellaneousPayrollAddons,
 } from "@/lib/pricing-engine";
 import { parsePackage } from "@/lib/package";
-import { evaluateCouponCode, type CouponCodeSuggestion } from "@/lib/discount-codes";
 import {
   calculatePricingApi,
   completePricingApi,
@@ -37,7 +35,7 @@ import {
   type AddOnLineItem,
   type PricingBreakdown,
 } from "@/lib/api/pricing";
-import type { DiscountCode, MTDRecord, Order, Producer } from "@/types";
+import type { MTDRecord, Order, Producer } from "@/types";
 import { SetPricingModal } from "@/components/mtd/SetPricingModal";
 import clsx from "clsx";
 
@@ -49,52 +47,6 @@ type CompleteToPayrollModalProps = {
   onClose: () => void;
   onConfirm: (patch?: Partial<MTDRecord>, orderPatch?: Partial<Order>) => void;
 };
-
-function couponSuggestionHint(suggestion: CouponCodeSuggestion): string {
-  if (suggestion.reason === "spacing") {
-    return "Same code with different spacing.";
-  }
-  if (suggestion.reason === "capitalization") {
-    return "Same code with different capitalization.";
-  }
-  return "Very close spelling.";
-}
-
-function resolvePayrollCoupon(
-  customerCode: string,
-  resolvedCode: string | null,
-  discountCodes: DiscountCode[]
-) {
-  const customerEval = evaluateCouponCode(customerCode, discountCodes);
-  if (customerEval.status === "valid") {
-    return {
-      customerEval,
-      appliedCode: customerCode.trim(),
-      appliedEval: customerEval,
-      matchedDiscountCode: customerEval.match ?? null,
-    };
-  }
-
-  const trimmedResolved = resolvedCode?.trim() ?? "";
-  if (trimmedResolved) {
-    const resolvedEval = evaluateCouponCode(trimmedResolved, discountCodes);
-    if (resolvedEval.status === "valid") {
-      return {
-        customerEval,
-        appliedCode: trimmedResolved,
-        appliedEval: resolvedEval,
-        matchedDiscountCode: resolvedEval.match ?? null,
-      };
-    }
-  }
-
-  return {
-    customerEval,
-    appliedCode: null,
-    appliedEval: null,
-    matchedDiscountCode: null,
-  };
-}
 
 export function CompleteToPayrollModal({
   open,
@@ -115,8 +67,6 @@ export function CompleteToPayrollModal({
   const [finalCustomerPriceInput, setFinalCustomerPriceInput] = useState<string>("");
   const [finalPayrollPriceInput, setFinalPayrollPriceInput] = useState<string>("");
   const [calculatedEnginePricing, setCalculatedEnginePricing] = useState<any>(null);
-  const [customerCouponCode, setCustomerCouponCode] = useState<string>("");
-  const [resolvedCouponCode, setResolvedCouponCode] = useState<string | null>(null);
   const [pricingRefOpen, setPricingRefOpen] = useState<boolean>(false);
 
   // Step 2 Payroll state
@@ -138,8 +88,6 @@ export function CompleteToPayrollModal({
     };
   }, [open]);
 
-  const { discountCodes } = useAppState();
-
   // Find linked order and assigned producer
   const linkedOrder = useMemo(() => {
     if (!record) return undefined;
@@ -160,14 +108,9 @@ export function CompleteToPayrollModal({
     setSelectedCaseyRate(null);
     setCustomRateInput("");
     setManualPayoutInput("");
-
-    const order = linkedOrder;
-    const initialCoupon = order?.couponCode || (order as any)?.formData?.couponCode || (record as any)?.couponCode || "";
-    setCustomerCouponCode(initialCoupon);
-    setResolvedCouponCode(null);
   }, [open, record, linkedOrder]);
 
-  // Reset & load pricing breakdown when modal opens or coupon code changes
+  // Reset & load pricing breakdown when modal opens
   useEffect(() => {
     if (!open || !record) return;
 
@@ -190,20 +133,6 @@ export function CompleteToPayrollModal({
         const mixLen = order?.timeLengthOfMix || parsePackage(currentRec.package).limit;
         const affiliate = order?.musicAffiliate || currentRec.musicTheme || (currentRec as any).musicAffiliate;
 
-        const activeCoupon =
-          customerCouponCode ||
-          order?.couponCode ||
-          (order as any)?.formData?.couponCode ||
-          (currentRec as any)?.couponCode ||
-          "";
-
-        const {
-          customerEval: couponEval,
-          appliedCode,
-          appliedEval,
-          matchedDiscountCode,
-        } = resolvePayrollCoupon(activeCoupon, resolvedCouponCode, discountCodes);
-
         let enginePricing: any;
         let canonicalSubtypeId: string = "";
         let complianceReason = "";
@@ -220,29 +149,8 @@ export function CompleteToPayrollModal({
             ...currentRec,
           });
 
-          let discountAmount = 0;
-          if (matchedDiscountCode && matchedDiscountCode.discountType && typeof matchedDiscountCode.discountValue === "number" && matchedDiscountCode.discountValue > 0) {
-            const preDiscountBase = danceResult.payrollBasePrice;
-            if (matchedDiscountCode.discountType === "fixed") {
-              discountAmount = Math.min(preDiscountBase, Math.max(0, matchedDiscountCode.discountValue));
-            } else if (matchedDiscountCode.discountType === "percentage") {
-              const pct = Math.max(0, Math.min(100, matchedDiscountCode.discountValue));
-              discountAmount = Math.min(preDiscountBase, Math.round(preDiscountBase * (pct / 100)));
-            }
-          }
-
-          const preDiscountCust = danceResult.customerFacingPrice;
-          const preDiscountPay = danceResult.payrollBasePrice;
-
           enginePricing = {
             ...danceResult,
-            customerFacingPrice: preDiscountCust,
-            payrollBasePrice: preDiscountPay,
-            preDiscountCustomerFacingPrice: preDiscountCust,
-            preDiscountPayrollBasePrice: preDiscountPay,
-            discountAmount,
-            discountType: matchedDiscountCode?.discountType,
-            discountValue: matchedDiscountCode?.discountValue,
             packageName: danceResult.matchedEntry?.package || pkgName,
             timeLengthOfMix: "",
           };
@@ -278,28 +186,8 @@ export function CompleteToPayrollModal({
             hasAddVocals: addVocals,
           });
 
-          const preDiscountCust = mbResult.customerFacingPrice;
-          const preDiscountPay = mbResult.payrollBasePrice;
-
-          let discountAmount = 0;
-          if (matchedDiscountCode && matchedDiscountCode.discountType && typeof matchedDiscountCode.discountValue === "number" && matchedDiscountCode.discountValue > 0) {
-            if (matchedDiscountCode.discountType === "fixed") {
-              discountAmount = Math.min(preDiscountPay, Math.max(0, matchedDiscountCode.discountValue));
-            } else if (matchedDiscountCode.discountType === "percentage") {
-              const pct = Math.max(0, Math.min(100, matchedDiscountCode.discountValue));
-              discountAmount = Math.min(preDiscountPay, Math.round(preDiscountPay * (pct / 100)));
-            }
-          }
-
           enginePricing = {
             ...mbResult,
-            customerFacingPrice: preDiscountCust,
-            payrollBasePrice: preDiscountPay,
-            preDiscountCustomerFacingPrice: preDiscountCust,
-            preDiscountPayrollBasePrice: preDiscountPay,
-            discountAmount,
-            discountType: matchedDiscountCode?.discountType,
-            discountValue: matchedDiscountCode?.discountValue,
             packageName: mbResult.matchedEntry?.package || pkgName,
             timeLengthOfMix: "",
           };
@@ -375,28 +263,8 @@ export function CompleteToPayrollModal({
             baseCust = null;
             basePay = null;
           } else {
-            const preDiscountCust = seResult.customerFacingPrice ?? 0;
-            const preDiscountPay = seResult.payrollBasePrice ?? 0;
-
-            let discountAmount = 0;
-            if (matchedDiscountCode && matchedDiscountCode.discountType && typeof matchedDiscountCode.discountValue === "number" && matchedDiscountCode.discountValue > 0) {
-              if (matchedDiscountCode.discountType === "fixed") {
-                discountAmount = Math.min(preDiscountPay, Math.max(0, matchedDiscountCode.discountValue));
-              } else if (matchedDiscountCode.discountType === "percentage") {
-                const pct = Math.max(0, Math.min(100, matchedDiscountCode.discountValue));
-                discountAmount = Math.min(preDiscountPay, Math.round(preDiscountPay * (pct / 100)));
-              }
-            }
-
             enginePricing = {
               ...seResult,
-              customerFacingPrice: preDiscountCust,
-              payrollBasePrice: preDiscountPay,
-              preDiscountCustomerFacingPrice: preDiscountCust,
-              preDiscountPayrollBasePrice: preDiscountPay,
-              discountAmount,
-              discountType: matchedDiscountCode?.discountType,
-              discountValue: matchedDiscountCode?.discountValue,
               packageName: seResult.matchedEntry?.package || pkgName,
               timeLengthOfMix: "",
             };
@@ -413,28 +281,8 @@ export function CompleteToPayrollModal({
             packageType: pkgName,
           });
 
-          const preDiscountCust = saResult.customerFacingPrice;
-          const preDiscountPay = saResult.payrollBasePrice;
-
-          let discountAmount = 0;
-          if (matchedDiscountCode && matchedDiscountCode.discountType && typeof matchedDiscountCode.discountValue === "number" && matchedDiscountCode.discountValue > 0) {
-            if (matchedDiscountCode.discountType === "fixed") {
-              discountAmount = Math.min(preDiscountPay, Math.max(0, matchedDiscountCode.discountValue));
-            } else if (matchedDiscountCode.discountType === "percentage") {
-              const pct = Math.max(0, Math.min(100, matchedDiscountCode.discountValue));
-              discountAmount = Math.min(preDiscountPay, Math.round(preDiscountPay * (pct / 100)));
-            }
-          }
-
           enginePricing = {
             ...saResult,
-            customerFacingPrice: preDiscountCust,
-            payrollBasePrice: preDiscountPay,
-            preDiscountCustomerFacingPrice: preDiscountCust,
-            preDiscountPayrollBasePrice: preDiscountPay,
-            discountAmount,
-            discountType: matchedDiscountCode?.discountType,
-            discountValue: matchedDiscountCode?.discountValue,
             packageName: saResult.matchedEntry?.package || pkgName,
             timeLengthOfMix: "",
           };
@@ -452,8 +300,6 @@ export function CompleteToPayrollModal({
             timeLengthOfMix: mixLen,
             musicAffiliate: affiliate,
             ...currentRec,
-            couponCode: activeCoupon,
-            discountCodeObj: matchedDiscountCode,
           });
 
           if (cheerSubtype === "youth-rec-cheer") {
@@ -525,10 +371,6 @@ export function CompleteToPayrollModal({
           needs_manual_pricing: isUnpricedSE,
           needs_manual_review: isUnpricedSE,
           summary_line: `Category: ${meta.formType} | Subtype: ${canonicalSubtypeId} | Package: ${enginePricing.packageName} | Customer: $${enginePricing.customerFacingPrice ?? 'TBD'} | Payroll Base: $${enginePricing.payrollBasePrice ?? 'TBD'}`,
-          coupon_code: activeCoupon,
-          coupon_evaluation: couponEval,
-          applied_coupon_code: appliedCode ?? undefined,
-          applied_coupon_evaluation: appliedEval ?? undefined,
         };
 
         setBreakdown(calculatedBreakdown);
@@ -583,7 +425,7 @@ export function CompleteToPayrollModal({
     }
 
     loadBreakdown();
-  }, [open, record, linkedOrder, allOrders, discountCodes, customerCouponCode, resolvedCouponCode]);
+  }, [open, record, linkedOrder, allOrders]);
 
   // Parsed numerical price
   const finalCustomerPriceNum = parseFloat(finalCustomerPriceInput) || 0;
@@ -818,27 +660,9 @@ export function CompleteToPayrollModal({
                   })()}
                 </p>
 
-                <div className="mt-3 flex min-w-0 items-center gap-2 border-t border-brand-line/50 pt-3">
-                  <span
-                    className={clsx(
-                      "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.04em]",
-                      breakdown?.compliance_status === "compliant"
-                        ? "bg-brand-success/20 text-emerald-800 ring-1 ring-inset ring-brand-success/35"
-                        : breakdown?.compliance_status === "non-compliant"
-                        ? "bg-brand-warning/15 text-amber-900 ring-1 ring-inset ring-brand-warning/30"
-                        : "bg-brand-orange/15 text-brand-orange ring-1 ring-inset ring-brand-orange/30"
-                    )}
-                  >
-                    {breakdown?.compliance_status === "compliant"
-                      ? "Compliant"
-                      : breakdown?.compliance_status === "non-compliant"
-                      ? "Non-compliant"
-                      : breakdown?.compliance_reason?.includes("Unknown")
-                      ? "Unknown"
-                      : "Review"}
-                  </span>
+                <div className="mt-3 border-t border-brand-line/50 pt-3">
                   {breakdown?.canonical_affiliate ? (
-                    <span className="min-w-0 truncate text-[11px] text-brand-ink-secondary">
+                    <span className="block min-w-0 truncate text-[11px] text-brand-ink-secondary">
                       {breakdown.canonical_affiliate}
                     </span>
                   ) : (
@@ -998,99 +822,6 @@ export function CompleteToPayrollModal({
                     );
                   })}
 
-                  {/* Coupon Code Line Item */}
-                  {customerCouponCode.trim() ? (
-                    <div className="py-2.5">
-                      {(() => {
-                        const customerEval = breakdown?.coupon_evaluation;
-                        const appliedEval = breakdown?.applied_coupon_evaluation;
-                        const appliedMatch =
-                          appliedEval?.status === "valid" ? appliedEval.match : null;
-                        const suggestions =
-                          customerEval?.status !== "valid"
-                            ? customerEval?.suggestions ?? []
-                            : [];
-                        const hasSuggestions = suggestions.length > 0;
-                        const isUnrecognized = customerEval?.status !== "valid";
-
-                        return (
-                          <>
-                            {isUnrecognized ? (
-                              <span className="inline-flex rounded-full bg-brand-warning/12 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-warning ring-1 ring-inset ring-brand-warning/20">
-                                Unrecognized
-                              </span>
-                            ) : null}
-
-                            <div
-                              className={clsx(
-                                "grid grid-cols-[minmax(0,1fr)_130px] items-center gap-x-4",
-                                isUnrecognized && "mt-1"
-                              )}
-                            >
-                              <div className="flex min-w-0 items-center justify-between gap-x-3">
-                                <div className="flex items-center gap-1.5">
-                                  <Tag className="h-3.5 w-3.5 shrink-0 text-brand-signature" />
-                                  <span className="font-medium text-brand-ink">Coupon</span>
-                                </div>
-                                {appliedMatch ? (
-                                  <span className="inline-flex shrink-0 rounded-full bg-brand-danger/12 px-2 py-0.5 text-[10px] font-bold uppercase text-brand-danger ring-1 ring-inset ring-brand-danger/20">
-                                    {appliedMatch.discountType === "percentage"
-                                      ? `${appliedMatch.discountValue}% off`
-                                      : `-${formatPrice(appliedMatch.discountValue)}`}
-                                  </span>
-                                ) : null}
-                              </div>
-
-                              <div className="w-full shrink-0">
-                                <div className="rounded-lg border border-brand-line/70 bg-brand-surface/50 px-2.5 py-1.5 text-right">
-                                  <p className="text-[12px] font-bold uppercase tracking-wider text-brand-ink">
-                                    {customerCouponCode}
-                                  </p>
-                                </div>
-                              </div>
-                            </div>
-
-                            {hasSuggestions ? (
-                              <div className="mt-2 w-full rounded-lg border border-brand-line/60 bg-brand-surface/40 px-2.5 py-2">
-                                <p className="text-[11px] leading-snug text-brand-ink-secondary">
-                                  Apply a saved close match
-                                </p>
-                                <div className="mt-1.5 flex flex-wrap gap-1.5">
-                                  {suggestions.map((suggestion: CouponCodeSuggestion) => {
-                                    const code = suggestion.code.code;
-                                    const selected =
-                                      resolvedCouponCode?.trim().toUpperCase() ===
-                                      code.trim().toUpperCase();
-
-                                    return (
-                                      <button
-                                        key={suggestion.code.id}
-                                        type="button"
-                                        title={couponSuggestionHint(suggestion)}
-                                        aria-pressed={selected}
-                                        onClick={() =>
-                                          setResolvedCouponCode(selected ? null : code)
-                                        }
-                                        className={clsx(
-                                          "inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide transition ring-1 ring-inset",
-                                          selected
-                                            ? "bg-brand-signature text-white ring-brand-signature/50 shadow-sm hover:bg-brand-signature-hover"
-                                            : "bg-brand-elevated text-brand-ink ring-brand-line/70 hover:bg-brand-signature/10 hover:ring-brand-signature/30"
-                                        )}
-                                      >
-                                        {code}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            ) : null}
-                          </>
-                        );
-                      })()}
-                    </div>
-                  ) : null}
-
                   {/* Final Payroll Price (Editable Input) */}
                   <div
                     className={clsx(
@@ -1158,7 +889,7 @@ export function CompleteToPayrollModal({
                 <div className="rounded-xl border border-brand-line/70 bg-brand-bg/40 p-3.5">
                   <div className="flex items-center justify-between">
                     <p className="text-[11px] font-semibold uppercase tracking-wider text-brand-ink-tertiary">
-                      Customer Price
+                      Package Price
                     </p>
                     {isCustomerPriceOverridden && (
                       <span className="rounded bg-brand-orange/10 px-1 py-0.2 text-[9px] font-semibold uppercase text-brand-orange">

@@ -11,6 +11,7 @@
     "test": "rm -rf .test-build && tsc -p tsconfig.test.json && node -r ./scripts/test-preload.js --test .test-build/lib/__tests__/*.test.js"
   },
   "dependencies": {
+    "@paper-design/shaders-react": "^0.0.72",
     "clsx": "^2.1.1",
     "lucide-react": "^0.468.0",
     "next": "^15.1.0",

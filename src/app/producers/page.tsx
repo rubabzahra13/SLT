@@ -139,9 +139,6 @@ export default function ProducersPage() {
                 <Avatar producer={producer} size="lg" />
               </div>
               <h3 className="text-display mt-3 text-[15px]">{producer.name}</h3>
-              <p className="mt-0.5 text-[12px] font-medium text-brand-ink-tertiary">
-                {producer.initials}
-              </p>
             </div>
 
             <div className="mt-4 space-y-3 border-t border-brand-line pt-4">

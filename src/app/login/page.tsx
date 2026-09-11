@@ -1,21 +1,53 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Lock, Mail, ShieldAlert, ArrowRight, CheckCircle2, UserCheck } from "lucide-react";
-import { useAuth, SAMPLE_USERS } from "@/context/AuthContext";
+import clsx from "clsx";
+import { ArrowRight, Loader2, Lock, Mail, ShieldAlert } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 import { BrandMonogram } from "@/components/layout/BrandMonogram";
+import { AUTH_PAGE_CANVAS, useAuthPageCanvas } from "@/components/login/useAuthPageCanvas";
+
+const CollageBackground = dynamic(
+  () =>
+    import("@/components/login/CollageBackground").then(
+      (mod) => mod.CollageBackground
+    ),
+  { ssr: false }
+);
+
+type DemoRole = "admin" | "user";
+
+const DEMO_ACCOUNTS: {
+  name: string;
+  email: string;
+  pass: string;
+  role: DemoRole;
+}[] = [
+  { name: "Megan", email: "megan@soundslikethat.com", pass: "admin", role: "admin" },
+  { name: "Andrea", email: "apetty@powermusic.com", pass: "admin", role: "admin" },
+  { name: "Lori", email: "lori@powermusic.com", pass: "view", role: "user" },
+  { name: "Dan", email: "dan@powermusic.com", pass: "view", role: "user" },
+  { name: "Steve", email: "steve@powermusic.com", pass: "view", role: "user" },
+];
+
+const inputClass =
+  "w-full rounded-xl border border-white/10 bg-white/[0.07] py-3 pl-10 pr-4 text-[15px] text-white placeholder:text-white/35 outline-none transition focus:border-white/25 focus:bg-white/10 focus:ring-2 focus:ring-white/10";
 
 export default function LoginPage() {
   const router = useRouter();
   const { login, isAuthenticated } = useAuth();
+  useAuthPageCanvas();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [demoRole, setDemoRole] = useState<DemoRole>("admin");
 
-  // Redirect if already logged in
+  const demoAccountsForRole = DEMO_ACCOUNTS.filter((a) => a.role === demoRole);
+
   useEffect(() => {
     if (isAuthenticated) {
       router.replace("/");
@@ -49,131 +81,164 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen w-full items-center justify-center bg-brand-bg px-4 py-12 sm:px-6 lg:px-8">
-      {/* Background Decor */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 h-96 w-96 rounded-full bg-brand-blue/5 blur-3xl" />
-        <div className="absolute -bottom-40 -left-40 h-96 w-96 rounded-full bg-brand-sidebar-elevated/20 blur-3xl" />
-      </div>
+    <div
+      className="fixed inset-0 z-0 overflow-y-auto overscroll-y-none"
+      style={{ backgroundColor: AUTH_PAGE_CANVAS }}
+    >
+      <CollageBackground className="pointer-events-none fixed inset-0 z-0" />
 
-      <div className="relative w-full max-w-md space-y-8">
-        {/* Brand Header */}
-        <div className="flex flex-col items-center text-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-sidebar shadow-lg ring-1 ring-brand-sidebar-border">
-            <BrandMonogram />
-          </div>
-          <h2 className="text-display mt-6 text-2xl font-bold tracking-tight text-brand-ink">
-            Sounds Like That
-          </h2>
-          <p className="mt-1 text-xs font-semibold uppercase tracking-[0.08em] text-brand-ink-tertiary">
-            Admin Studio · Sign In
-          </p>
-        </div>
-
-        {/* Card Form */}
-        <div className="dashboard-panel shadow-xl p-8 sm:p-10">
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {error ? (
-              <div className="flex items-center gap-2.5 rounded-xl border border-brand-danger/20 bg-brand-orange-soft/40 px-4 py-3 text-[13px] font-medium text-brand-danger">
-                <ShieldAlert className="h-4 w-4 shrink-0 text-brand-danger" />
-                <span>{error}</span>
-              </div>
-            ) : null}
-
-            <div>
-              <label className="block text-[12px] font-semibold text-brand-ink-secondary mb-1.5">
-                Email or Username
-              </label>
-              <input
-                type="email"
-                required
-                placeholder="name@powermusic.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full rounded-xl border border-brand-line bg-white px-3.5 py-2.5 text-[13px] font-medium text-brand-ink outline-none transition focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[12px] font-semibold text-brand-ink-secondary mb-1.5">
-                Password
-              </label>
-              <input
-                type="password"
-                required
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded-xl border border-brand-line bg-white px-3.5 py-2.5 text-[13px] font-medium text-brand-ink outline-none transition focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-brand-blue py-3 px-4 text-[14px] font-semibold text-white transition hover:bg-brand-blue-hover disabled:opacity-50 shadow-sm"
-            >
-              {isSubmitting ? (
-                "Signing in..."
-              ) : (
-                <>
-                  Sign in
-                  <ArrowRight className="h-4 w-4" />
-                </>
-              )}
-            </button>
-          </form>
-
-          {/* Quick Demo Credentials */}
-          <div className="mt-8 border-t border-brand-line pt-6">
-            <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-brand-ink-tertiary">
-              <UserCheck className="h-3.5 w-3.5 text-brand-blue" />
-              Demo Test Accounts
+      <div className="relative z-10 flex min-h-[100dvh] flex-col items-center justify-center px-4 py-10 sm:px-6">
+        <main className="w-full max-w-[400px] min-w-0">
+          {/* Brand above card */}
+          <div className="mb-6 flex flex-col items-center text-center">
+            <BrandMonogram size="lg" imageTranslateXPx={10} />
+            <h1 className="mt-4 text-[12px] font-semibold uppercase leading-tight tracking-[0.06em] text-brand-sidebar-accent drop-shadow-md">
+              Sounds Like That
+            </h1>
+            <p className="mt-0.5 text-[10px] font-semibold uppercase leading-none tracking-[0.06em] text-brand-sidebar-text-muted">
+              Admin Studio
             </p>
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => fillSample("megan@soundslikethat.com", "admin")}
-                className="flex flex-col text-left rounded-lg border border-brand-line bg-white/60 p-2 text-xs transition hover:border-brand-blue/40 hover:bg-brand-blue-soft/20"
-              >
-                <span className="font-semibold text-brand-ink">Megan</span>
-                <span className="text-[10px] text-brand-blue font-medium">Full Access (admin)</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => fillSample("apetty@powermusic.com", "admin")}
-                className="flex flex-col text-left rounded-lg border border-brand-line bg-white/60 p-2 text-xs transition hover:border-brand-blue/40 hover:bg-brand-blue-soft/20"
-              >
-                <span className="font-semibold text-brand-ink">Andrea</span>
-                <span className="text-[10px] text-brand-blue font-medium">Full Access (admin)</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => fillSample("lori@powermusic.com", "view")}
-                className="flex flex-col text-left rounded-lg border border-brand-line bg-white/60 p-2 text-xs transition hover:border-brand-orange-soft hover:bg-brand-orange-soft/20"
-              >
-                <span className="font-semibold text-brand-ink">Lori</span>
-                <span className="text-[10px] text-brand-amber font-medium">View Only (view)</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => fillSample("dan@powermusic.com", "view")}
-                className="flex flex-col text-left rounded-lg border border-brand-line bg-white/60 p-2 text-xs transition hover:border-brand-orange-soft hover:bg-brand-orange-soft/20"
-              >
-                <span className="font-semibold text-brand-ink">Dan</span>
-                <span className="text-[10px] text-brand-amber font-medium">View Only (view)</span>
-              </button>
-            </div>
-            <button
-              type="button"
-              onClick={() => fillSample("steve@powermusic.com", "view")}
-              className="mt-2 w-full flex items-center justify-between rounded-lg border border-brand-line bg-white/60 px-2.5 py-1.5 text-xs transition hover:border-brand-orange-soft hover:bg-brand-orange-soft/20"
-            >
-              <span className="font-semibold text-brand-ink">Steve</span>
-              <span className="text-[10px] text-brand-amber font-medium">View Only (view)</span>
-            </button>
           </div>
-        </div>
+
+          {/* Dark glass card — neutral tones that sit over the collage */}
+          <div className="login-scrap-card p-7 sm:p-8">
+            <h2 className="text-lg font-semibold text-white">Sign in</h2>
+            <p className="mt-1 text-sm text-white/50">
+              Studio email and password
+            </p>
+
+            <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+              {error ? (
+                <div className="flex items-start gap-2 rounded-xl border border-red-400/25 bg-red-500/10 px-3.5 py-3 text-sm text-red-200">
+                  <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-red-300" strokeWidth={2} />
+                  <span>{error}</span>
+                </div>
+              ) : null}
+
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-white/45">
+                  Email
+                </label>
+                <div className="relative">
+                  <Mail
+                    className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35"
+                    strokeWidth={2}
+                  />
+                  <input
+                    type="email"
+                    required
+                    autoComplete="email"
+                    placeholder="name@powermusic.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className={inputClass}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-white/45">
+                  Password
+                </label>
+                <div className="relative">
+                  <Lock
+                    className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35"
+                    strokeWidth={2}
+                  />
+                  <input
+                    type="password"
+                    required
+                    autoComplete="current-password"
+                    placeholder="Enter password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className={inputClass}
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="flex w-full items-center justify-center gap-2 rounded-full bg-white py-3 text-sm font-bold text-neutral-900 transition hover:scale-[1.01] hover:bg-white/95 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2} />
+                    Signing in…
+                  </>
+                ) : (
+                  <>
+                    Sign in
+                    <ArrowRight className="h-4 w-4" strokeWidth={2} />
+                  </>
+                )}
+              </button>
+            </form>
+
+            <div className="mt-6 pt-1">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-white/40">
+                Demo accounts
+              </p>
+              <p className="mt-2 text-xs text-white/50">Are you an admin?</p>
+              <div
+                className="mt-2 grid grid-cols-2 gap-1 rounded-xl bg-white/[0.06] p-1"
+                role="tablist"
+                aria-label="Demo account role"
+              >
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={demoRole === "admin"}
+                  onClick={() => setDemoRole("admin")}
+                  className={clsx(
+                    "rounded-lg py-2 text-xs font-semibold transition",
+                    demoRole === "admin"
+                      ? "bg-white/15 text-white shadow-sm"
+                      : "text-white/45 hover:text-white/70"
+                  )}
+                >
+                  Admin
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={demoRole === "user"}
+                  onClick={() => setDemoRole("user")}
+                  className={clsx(
+                    "rounded-lg py-2 text-xs font-semibold transition",
+                    demoRole === "user"
+                      ? "bg-white/15 text-white shadow-sm"
+                      : "text-white/45 hover:text-white/70"
+                  )}
+                >
+                  User
+                </button>
+              </div>
+              <p className="mt-2 text-[11px] text-white/40">
+                {demoRole === "admin"
+                  ? "Full access: edit, send, and complete orders."
+                  : "User access: view dashboards and records only."}
+              </p>
+              <div className="mt-2.5 flex flex-wrap gap-1.5">
+                {demoAccountsForRole.map((account) => (
+                  <button
+                    key={account.email}
+                    type="button"
+                    onClick={() => fillSample(account.email, account.pass)}
+                    className="rounded-lg border border-white/10 bg-white/[0.08] px-3 py-1.5 text-xs font-medium text-white/85 transition hover:bg-white/14 active:scale-[0.98]"
+                  >
+                    {account.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <p className="mt-4 text-center text-[11px] text-white/50">
+            Authorized personnel only
+          </p>
+        </main>
       </div>
     </div>
   );

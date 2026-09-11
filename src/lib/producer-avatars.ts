@@ -26,6 +26,17 @@ export const PRODUCER_COLORS: Record<string, string> = {
   G: "#059669",
 };
 
+/** Blend a hex color with alpha for card surfaces and borders. */
+export function hexAlpha(hex: string, alpha: number): string {
+  const normalized = hex.replace("#", "").trim();
+  if (normalized.length !== 6) return hex;
+  const r = parseInt(normalized.slice(0, 2), 16);
+  const g = parseInt(normalized.slice(2, 4), 16);
+  const b = parseInt(normalized.slice(4, 6), 16);
+  if ([r, g, b].some((n) => Number.isNaN(n))) return hex;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 export function getProducerColor(initialsOrName?: string | null): string {
   if (!initialsOrName) return "#ed7d31";
   const key = initialsOrName.toUpperCase().trim();

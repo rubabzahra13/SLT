@@ -16,17 +16,18 @@ import type { MTDRecord, Order, OrderFormType } from "../../types";
 
 describe("Category-Specific Collections & Songs Columns Requirements", () => {
   describe("Control IDs & Item Visibility by Category / Form Type", () => {
-    test("Cheer (school-all-star-cheer) includes CS, Video, Form, and Mix under Collections", () => {
+    test("Cheer (school-all-star-cheer) includes CS, Video, and Form under Collections (no Mix)", () => {
       const ids = getCollectionControlIds("school-all-star-cheer");
-      assert.deepStrictEqual(ids, ["cs", "video", "form", "mix"]);
+      assert.deepStrictEqual(ids, ["cs", "video", "form"]);
 
       const state = parseEightCsState("");
       const items = getCollectionItemsForCategory("school-all-star-cheer", state);
       const itemIds = items.map((i) => i.id);
-      assert.deepStrictEqual(itemIds, ["cs", "video", "form", "mix"]);
+      assert.deepStrictEqual(itemIds, ["cs", "video", "form"]);
+      assert.ok(!itemIds.includes("mix"), "Cheer Collections must NOT include Mix");
 
       const labels = items.map((i) => i.label);
-      assert.deepStrictEqual(labels, ["CS", "Video", "Form", "Mix"]);
+      assert.deepStrictEqual(labels, ["CS", "Video", "Form"]);
     });
 
     test("Dance (school-all-star-dance) includes ONLY Form and Mix under Collections", () => {
@@ -41,45 +42,48 @@ describe("Category-Specific Collections & Songs Columns Requirements", () => {
       assert.ok(!itemIds.includes("video"), "Dance Collections must NOT include Video");
     });
 
-    test("Marching Band (marching-band) includes ONLY Form and Mix under Collections", () => {
+    test("Marching Band (marching-band) includes ONLY Form under Collections", () => {
       const ids = getCollectionControlIds("marching-band");
-      assert.deepStrictEqual(ids, ["form", "mix"]);
+      assert.deepStrictEqual(ids, ["form"]);
 
       const state = parseEightCsState("");
       const items = getCollectionItemsForCategory("marching-band", state);
       const itemIds = items.map((i) => i.id);
-      assert.deepStrictEqual(itemIds, ["form", "mix"]);
+      assert.deepStrictEqual(itemIds, ["form"]);
       assert.ok(!itemIds.includes("cs"));
       assert.ok(!itemIds.includes("video"));
+      assert.ok(!itemIds.includes("mix"));
     });
 
-    test("Sports Entertainment (sports-entertainment) includes ONLY Form and Mix under Collections", () => {
+    test("Sports Entertainment (sports-entertainment) includes ONLY Form under Collections", () => {
       const ids = getCollectionControlIds("sports-entertainment");
-      assert.deepStrictEqual(ids, ["form", "mix"]);
+      assert.deepStrictEqual(ids, ["form"]);
 
       const state = parseEightCsState("");
       const items = getCollectionItemsForCategory("sports-entertainment", state);
       const itemIds = items.map((i) => i.id);
-      assert.deepStrictEqual(itemIds, ["form", "mix"]);
+      assert.deepStrictEqual(itemIds, ["form"]);
       assert.ok(!itemIds.includes("cs"));
       assert.ok(!itemIds.includes("video"));
+      assert.ok(!itemIds.includes("mix"));
     });
 
-    test("School Anthem (school-anthem) includes ONLY Form and Mix under Collections", () => {
+    test("School Anthem (school-anthem) includes ONLY Form under Collections", () => {
       const ids = getCollectionControlIds("school-anthem");
-      assert.deepStrictEqual(ids, ["form", "mix"]);
+      assert.deepStrictEqual(ids, ["form"]);
 
       const state = parseEightCsState("");
       const items = getCollectionItemsForCategory("school-anthem", state);
       const itemIds = items.map((i) => i.id);
-      assert.deepStrictEqual(itemIds, ["form", "mix"]);
+      assert.deepStrictEqual(itemIds, ["form"]);
       assert.ok(!itemIds.includes("cs"));
       assert.ok(!itemIds.includes("video"));
+      assert.ok(!itemIds.includes("mix"));
     });
 
-    test("Unknown or arbitrary non-Cheer category defaults to Form and Mix under Collections", () => {
+    test("Unknown or arbitrary non-Cheer category defaults to Form only under Collections", () => {
       const ids = getCollectionControlIds("custom-category");
-      assert.deepStrictEqual(ids, ["form", "mix"]);
+      assert.deepStrictEqual(ids, ["form"]);
     });
 
     test("Songs column consistently includes Songs and Notes for all categories", () => {
@@ -112,7 +116,7 @@ describe("Category-Specific Collections & Songs Columns Requirements", () => {
         const meta = resolveMTDFormMeta(rec as MTDRecord, new Map());
         assert.strictEqual(meta.formType, sub.expected);
         const controlIds = getCollectionControlIds(meta.formType);
-        assert.deepStrictEqual(controlIds, ["cs", "video", "form", "mix"]);
+        assert.deepStrictEqual(controlIds, ["cs", "video", "form"]);
       }
     });
 

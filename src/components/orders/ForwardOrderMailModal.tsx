@@ -1,8 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { ArrowLeft, Check, Copy, Mail, X } from "lucide-react";
+import { AlertCircle, ArrowLeft, Check, Copy, Loader2, Mail, Send, X } from "lucide-react";
 import clsx from "clsx";
 import { titleCase } from "@/lib/data";
 import {
@@ -11,11 +12,16 @@ import {
   buildForwardOrderMailFieldGroups,
   defaultSelectedForwardMailKeys,
   flattenForwardMailFields,
+  renderForwardMailHtml,
+  renderForwardMailPlainText,
   resolveDefaultEditorKey,
   type ForwardMailDraft,
   type ForwardMailField,
 } from "@/lib/forward-order-mail";
 import { findLinkedOrder } from "@/lib/editor-assignment";
+import { getGmailStatus, sendGmailEmail } from "@/lib/api/gmail";
+import { ApiClientError } from "@/lib/api/client";
+import { useAuth } from "@/context/AuthContext";
 import type { MTDRecord, Order, Producer } from "@/types";
 
 type ForwardOrderMailModalProps = {
@@ -31,44 +37,60 @@ type ModalStep = "compose" | "confirm";
 
 function MailPreview({ draft }: { draft: ForwardMailDraft }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-brand-line/70 bg-white shadow-sm ring-1 ring-inset ring-brand-line/20">
-      <div className="border-b border-brand-line/50 bg-brand-bg/50 px-4 py-3">
-        <div className="grid gap-2 text-[12px]">
-          <div className="flex gap-2">
-            <span className="w-14 shrink-0 font-semibold uppercase tracking-wide text-brand-ink-tertiary">
-              To
-            </span>
-            <span className="min-w-0 text-brand-ink">
-              {draft.toName}{" "}
-              <span className="text-brand-ink-secondary">&lt;{draft.to}&gt;</span>
-            </span>
-          </div>
-          <div className="flex gap-2">
-            <span className="w-14 shrink-0 font-semibold uppercase tracking-wide text-brand-ink-tertiary">
-              Subject
-            </span>
-            <span className="min-w-0 font-medium text-brand-ink">{draft.subject}</span>
-          </div>
-        </div>
+    <div className="overflow-hidden rounded-2xl border border-brand-line/70 bg-white shadow-[var(--shadow-premium-sm)] ring-1 ring-inset ring-brand-line/15">
+      <div className="bg-gradient-to-br from-brand-signature to-brand-blue px-5 py-5">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-white/85">
+          Sounds Like That
+        </p>
+        <h3 className="mt-1 text-[18px] font-bold tracking-[-0.02em] text-white">
+          Order Details
+        </h3>
+        <p className="mt-1 text-[13px] text-white/90">{draft.programName}</p>
       </div>
 
-      <div className="space-y-4 px-4 py-4">
-        <p className="text-[13px] leading-relaxed text-brand-ink">{draft.greeting}</p>
+      <div className="space-y-4 px-5 py-5">
+        <div className="rounded-xl border border-brand-line/50 bg-brand-bg/40 px-3 py-2.5">
+          <div className="grid gap-1.5 text-[12px]">
+            <div className="flex gap-2">
+              <span className="w-14 shrink-0 font-semibold uppercase tracking-wide text-brand-ink-tertiary">
+                To
+              </span>
+              <span className="min-w-0 text-brand-ink">
+                {draft.toName}{" "}
+                <span className="text-brand-ink-secondary">&lt;{draft.to}&gt;</span>
+              </span>
+            </div>
+            <div className="flex gap-2">
+              <span className="w-14 shrink-0 font-semibold uppercase tracking-wide text-brand-ink-tertiary">
+                Subject
+              </span>
+              <span className="min-w-0 font-medium text-brand-ink">{draft.subject}</span>
+            </div>
+          </div>
+        </div>
+
+        <p className="text-[14px] font-semibold text-brand-ink">{draft.greeting}</p>
         <p className="text-[13px] leading-relaxed text-brand-ink-secondary">{draft.intro}</p>
 
         {draft.sections.map((section) => (
-          <div key={section.title}>
-            <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-brand-signature">
+          <div
+            key={section.title}
+            className="overflow-hidden rounded-xl border border-brand-line/60 bg-brand-bg/30"
+          >
+            <p className="border-b border-brand-line/50 bg-brand-signature/8 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.1em] text-brand-signature">
               {section.title}
             </p>
-            <div className="mt-2 space-y-1.5 rounded-lg bg-brand-bg/40 px-3 py-2.5">
+            <dl className="divide-y divide-brand-line/40">
               {section.fields.map((field) => (
-                <div key={`${section.title}-${field.label}`} className="grid grid-cols-[minmax(0,38%)_1fr] gap-x-3 gap-y-0.5 text-[12px]">
-                  <span className="font-medium text-brand-ink-secondary">{field.label}</span>
-                  <span className="whitespace-pre-wrap text-brand-ink">{field.value}</span>
+                <div
+                  key={`${section.title}-${field.label}`}
+                  className="grid grid-cols-[minmax(0,38%)_1fr] gap-x-3 px-3 py-2.5 text-[12px]"
+                >
+                  <dt className="font-semibold text-brand-ink-secondary">{field.label}</dt>
+                  <dd className="whitespace-pre-wrap text-brand-ink">{field.value}</dd>
                 </div>
               ))}
-            </div>
+            </dl>
           </div>
         ))}
 
@@ -91,11 +113,18 @@ export function ForwardOrderMailModal({
   producers,
   onClose,
 }: ForwardOrderMailModalProps) {
+  const { token, isViewOnly } = useAuth();
   const [mounted, setMounted] = useState(false);
   const [step, setStep] = useState<ModalStep>("compose");
   const [editorId, setEditorId] = useState("");
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   const [copied, setCopied] = useState(false);
+  const [gmailConnected, setGmailConnected] = useState(false);
+  const [gmailFrom, setGmailFrom] = useState<string | null>(null);
+  const [loadingGmail, setLoadingGmail] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+  const [sent, setSent] = useState(false);
 
   const linkedOrder = useMemo(
     () => (record ? findLinkedOrder(record, allOrders) : null),
@@ -138,7 +167,32 @@ export function ForwardOrderMailModal({
     setEditorId(resolveDefaultEditorKey(record, producers, linkedOrder));
     setSelectedKeys(defaultSelectedForwardMailKeys(fieldGroups));
     setCopied(false);
+    setSendError(null);
+    setSent(false);
   }, [open, record, producers, fieldGroups, linkedOrder]);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    setLoadingGmail(true);
+    getGmailStatus(token)
+      .then((res) => {
+        if (cancelled) return;
+        setGmailConnected(res.connected);
+        setGmailFrom(res.email);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setGmailConnected(false);
+        setGmailFrom(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingGmail(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, token]);
 
   useEffect(() => {
     if (!open) return;
@@ -158,6 +212,7 @@ export function ForwardOrderMailModal({
 
   const draft = buildForwardMailDraft(record, editor, selectedFields);
   const canContinue = Boolean(editor?.email) && selectedFields.length > 0;
+  const canSend = canContinue && gmailConnected && !isViewOnly && !sent;
 
   function toggleField(key: string) {
     setSelectedKeys((current) =>
@@ -182,6 +237,32 @@ export function ForwardOrderMailModal({
     await navigator.clipboard.writeText(buildForwardMailClipboardText(draft));
     setCopied(true);
     window.setTimeout(() => setCopied(false), 2000);
+  }
+
+  async function handleSend() {
+    if (!canSend || !editor?.email) return;
+    setIsSending(true);
+    setSendError(null);
+    try {
+      await sendGmailEmail(
+        {
+          to_email: draft.to,
+          subject: draft.subject,
+          body: renderForwardMailPlainText(draft),
+          html_body: renderForwardMailHtml(draft),
+        },
+        token
+      );
+      setSent(true);
+    } catch (err) {
+      setSendError(
+        err instanceof ApiClientError
+          ? err.message
+          : "Email could not be sent. Please try again."
+      );
+    } finally {
+      setIsSending(false);
+    }
   }
 
   const isCompose = step === "compose";
@@ -209,13 +290,13 @@ export function ForwardOrderMailModal({
               </div>
               <div className="min-w-0">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-brand-ink-tertiary">
-                  {isCompose ? "Forward order" : "Review email"}
+                  {isCompose ? "Forward order" : sent ? "Email sent" : "Review email"}
                 </p>
                 <h2
                   id="forward-order-mail-title"
                   className="mt-0.5 text-[18px] font-semibold tracking-[-0.02em] text-brand-ink"
                 >
-                  {isCompose ? "Send mail to editor" : "Email preview"}
+                  {isCompose ? "Send mail to editor" : sent ? "Sent successfully" : "Email preview"}
                 </h2>
                 <p className="mt-1 truncate text-[13px] text-brand-ink-secondary">
                   {titleCase(record.programName)}
@@ -236,6 +317,26 @@ export function ForwardOrderMailModal({
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
           {isCompose ? (
             <div className="space-y-4">
+              {!loadingGmail && !gmailConnected ? (
+                <div className="flex items-start gap-2.5 rounded-xl border border-brand-warning/30 bg-brand-warning/8 px-3.5 py-3">
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-brand-warning" />
+                  <div className="min-w-0 text-[12px] leading-relaxed text-brand-ink-secondary">
+                    Connect Gmail in{" "}
+                    <Link href="/settings" className="font-semibold text-brand-signature hover:underline">
+                      Settings
+                    </Link>{" "}
+                    to send directly. You can still copy the email as a fallback.
+                  </div>
+                </div>
+              ) : null}
+
+              {gmailConnected && gmailFrom ? (
+                <p className="text-[11px] text-brand-ink-tertiary">
+                  Sending from{" "}
+                  <span className="font-semibold text-brand-ink-secondary">{gmailFrom}</span>
+                </p>
+              ) : null}
+
               <label className="block">
                 <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-brand-ink-tertiary">
                   Send to editor
@@ -354,30 +455,67 @@ export function ForwardOrderMailModal({
                 </div>
               </div>
             </div>
+          ) : sent ? (
+            <div className="flex flex-col items-center py-8 text-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-brand-success/12 text-brand-success ring-1 ring-inset ring-brand-success/25">
+                <Check className="h-7 w-7" strokeWidth={2} />
+              </div>
+              <p className="mt-4 text-[15px] font-semibold text-brand-ink">
+                Email sent to {draft.toName}
+              </p>
+              <p className="mt-1 text-[13px] text-brand-ink-secondary">{draft.to}</p>
+            </div>
           ) : (
-            <MailPreview draft={draft} />
+            <>
+              {sendError ? (
+                <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-brand-danger/25 bg-brand-danger/8 px-3.5 py-3">
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-brand-danger" />
+                  <p className="text-[12px] leading-relaxed text-brand-ink-secondary">{sendError}</p>
+                </div>
+              ) : null}
+              <MailPreview draft={draft} />
+            </>
           )}
         </div>
 
         <div className="flex flex-col border-t border-black/[0.08]">
           {isCompose ? (
-            <>
-              <button
-                type="button"
-                onClick={() => setStep("confirm")}
-                disabled={!canContinue}
-                className="border-b border-black/[0.08] py-3.5 text-[15px] font-semibold text-brand-signature transition hover:bg-brand-signature/8 disabled:cursor-not-allowed disabled:text-brand-ink-tertiary disabled:hover:bg-transparent"
-              >
-                Review email
-              </button>
-            </>
+            <button
+              type="button"
+              onClick={() => setStep("confirm")}
+              disabled={!canContinue}
+              className="py-3.5 text-[15px] font-semibold text-brand-signature transition hover:bg-brand-signature/8 disabled:cursor-not-allowed disabled:text-brand-ink-tertiary disabled:hover:bg-transparent"
+            >
+              Review email
+            </button>
+          ) : sent ? (
+            <button
+              type="button"
+              onClick={onClose}
+              className="py-3.5 text-[15px] font-semibold text-brand-signature transition hover:bg-brand-signature/8"
+            >
+              Done
+            </button>
           ) : (
             <>
               <button
                 type="button"
+                onClick={handleSend}
+                disabled={!canSend || isSending}
+                className="inline-flex items-center justify-center gap-2 border-b border-black/[0.08] py-3.5 text-[15px] font-semibold text-brand-signature transition hover:bg-brand-signature/8 disabled:cursor-not-allowed disabled:text-brand-ink-tertiary disabled:hover:bg-transparent"
+              >
+                {isSending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
+                {isSending ? "Sending…" : "Send via Gmail"}
+              </button>
+              <button
+                type="button"
                 onClick={handleCopy}
                 disabled={selectedFields.length === 0}
-                className="inline-flex items-center justify-center gap-2 border-b border-black/[0.08] py-3.5 text-[15px] font-semibold text-brand-signature transition hover:bg-brand-signature/8 disabled:cursor-not-allowed disabled:text-brand-ink-tertiary disabled:hover:bg-transparent"
+                className="inline-flex items-center justify-center gap-2 border-b border-black/[0.08] py-3.5 text-[15px] font-medium text-brand-ink transition hover:bg-brand-bg disabled:cursor-not-allowed disabled:text-brand-ink-tertiary"
               >
                 {copied ? (
                   <Check className="h-4 w-4 text-brand-success" />
@@ -388,8 +526,11 @@ export function ForwardOrderMailModal({
               </button>
               <button
                 type="button"
-                onClick={() => setStep("compose")}
-                className="inline-flex items-center justify-center gap-2 border-b border-black/[0.08] py-3.5 text-[15px] font-medium text-brand-ink transition hover:bg-brand-bg"
+                onClick={() => {
+                  setSendError(null);
+                  setStep("compose");
+                }}
+                className="inline-flex items-center justify-center gap-2 py-3.5 text-[15px] font-medium text-brand-ink transition hover:bg-brand-bg"
               >
                 <ArrowLeft className="h-4 w-4" />
                 Back to fields

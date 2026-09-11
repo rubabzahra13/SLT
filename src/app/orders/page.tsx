@@ -787,13 +787,10 @@ function OrdersPageContent() {
                   aria-label={`Edit assignment for ${assigned}`}
                   className={clsx(
                     clickableChipClass,
-                    "inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full py-0.5 pl-0.5 pr-2.5"
+                    "inline-flex items-center rounded-full p-0.5"
                   )}
                 >
                   <Avatar producer={producer} initials={assigned} size="xs" />
-                  <span className={clsx("truncate font-semibold", compactTextClass)}>
-                    {assigned}
-                  </span>
                 </button>
               ) : (
                 <div className="flex flex-col items-center gap-1">

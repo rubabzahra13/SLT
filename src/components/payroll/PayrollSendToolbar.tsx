@@ -4,13 +4,7 @@ import clsx from "clsx";
 import { OrderFormFilters } from "@/components/orders/OrderFormFilters";
 import { FilterPill } from "@/components/ui/FilterPill";
 import { ProducerSelect } from "@/components/ui/ProducerSelect";
-import { ScheduleHeaderMeta } from "@/components/schedule/ScheduleHeaderMeta";
-import { ScheduleStatusFilterPanel } from "@/components/schedule/ScheduleStatusFilterPanel";
-import {
-  type ColumnAggregate,
-  type ScheduleStatusFilter,
-  type ScheduleViewRange,
-} from "@/lib/schedule-view";
+import type { PayPeriodRange } from "@/lib/date-filters";
 import type {
   CheerFormSubtypeFilter,
   DanceFormSubtypeFilter,
@@ -18,27 +12,21 @@ import type {
   Producer,
 } from "@/types";
 
-type SchedulePageToolbarProps = {
+type PayrollSendToolbarProps = {
   form: OrderFormType;
   cheerSubtype: CheerFormSubtypeFilter;
   danceSubtype: DanceFormSubtypeFilter;
   formCounts: Record<OrderFormType, number>;
   cheerCounts: Record<CheerFormSubtypeFilter, number>;
   danceCounts: Record<DanceFormSubtypeFilter, number>;
-  view: ScheduleViewRange;
-  statusFilter: ScheduleStatusFilter;
-  columns: ColumnAggregate[];
-  availableToday: number;
-  offToday: number;
-  totalProducers: number;
-  producers?: Producer[];
-  selectedEditor?: string;
-  onEditorChange?: (editor: string) => void;
+  sendEditorProducers: Producer[];
+  selectedSendEditor: string;
+  onSelectedSendEditorChange: (editor: string) => void;
+  payPeriod: PayPeriodRange;
+  onPayPeriodChange: (period: PayPeriodRange) => void;
   onFormChange: (form: OrderFormType) => void;
   onCheerSubtypeChange: (subtype: CheerFormSubtypeFilter) => void;
   onDanceSubtypeChange: (subtype: DanceFormSubtypeFilter) => void;
-  onViewChange: (value: ScheduleViewRange) => void;
-  onStatusFilterChange: (value: ScheduleStatusFilter) => void;
 };
 
 function FilterGroup({
@@ -66,34 +54,28 @@ function FilterGroup({
   );
 }
 
-export function SchedulePageToolbar({
+export function PayrollSendToolbar({
   form,
   cheerSubtype,
   danceSubtype,
   formCounts,
   cheerCounts,
   danceCounts,
-  view,
-  statusFilter,
-  columns,
-  availableToday,
-  offToday,
-  totalProducers,
-  producers,
-  selectedEditor = "all",
-  onEditorChange,
+  sendEditorProducers,
+  selectedSendEditor,
+  onSelectedSendEditorChange,
+  payPeriod,
+  onPayPeriodChange,
   onFormChange,
   onCheerSubtypeChange,
   onDanceSubtypeChange,
-  onViewChange,
-  onStatusFilterChange,
-}: SchedulePageToolbarProps) {
+}: PayrollSendToolbarProps) {
   return (
     <div className="flex flex-col gap-3.5">
       <div
         className="flex flex-col gap-3.5 lg:flex-row lg:items-center lg:justify-between"
         role="toolbar"
-        aria-label="Schedule filters"
+        aria-label="Payroll send filters"
       >
         <div className="relative z-40 inline-flex flex-wrap items-center gap-0.5 rounded-xl bg-brand-elevated/80 p-0.5 ring-1 ring-inset ring-brand-line/40">
           <OrderFormFilters
@@ -109,16 +91,7 @@ export function SchedulePageToolbar({
             cheerCounts={cheerCounts}
             danceCounts={danceCounts}
           />
-          <span
-            className="mx-0.5 hidden h-5 w-px shrink-0 bg-brand-line/45 sm:block"
-            aria-hidden
-          />
-          <ScheduleStatusFilterPanel
-            grouped
-            value={statusFilter}
-            onChange={onStatusFilterChange}
-          />
-          {producers && producers.length > 0 && onEditorChange ? (
+          {sendEditorProducers.length > 0 ? (
             <>
               <span
                 className="mx-0.5 hidden h-5 w-px shrink-0 bg-brand-line/45 sm:block"
@@ -126,9 +99,9 @@ export function SchedulePageToolbar({
               />
               <div className="px-1.5 py-0.5">
                 <ProducerSelect
-                  producers={producers}
-                  value={selectedEditor}
-                  onChange={onEditorChange}
+                  producers={sendEditorProducers}
+                  value={selectedSendEditor}
+                  onChange={onSelectedSendEditorChange}
                   label="Editor:"
                   allLabel="All Editors"
                 />
@@ -138,49 +111,27 @@ export function SchedulePageToolbar({
         </div>
 
         <div className="flex shrink-0 flex-wrap items-center gap-2.5">
-          <FilterGroup label="Range">
+          <FilterGroup label="Period">
             <FilterPill
-              label="Today"
-              active={view === "today"}
+              label="2 Weeks"
+              active={payPeriod === "2weeks"}
               variant="grouped"
-              onClick={() => onViewChange("today")}
+              onClick={() => onPayPeriodChange("2weeks")}
             />
             <FilterPill
-              label="This Week"
-              active={view === "week"}
+              label="4 Weeks"
+              active={payPeriod === "4weeks"}
               variant="grouped"
-              onClick={() => onViewChange("week")}
+              onClick={() => onPayPeriodChange("4weeks")}
             />
             <FilterPill
-              label="This Month"
-              active={view === "month"}
+              label="6 Weeks"
+              active={payPeriod === "6weeks"}
               variant="grouped"
-              onClick={() => onViewChange("month")}
-            />
-            <FilterPill
-              label="90 Day"
-              active={view === "90days"}
-              variant="grouped"
-              onClick={() => onViewChange("90days")}
-            />
-            <FilterPill
-              label="6 Month"
-              active={view === "6months"}
-              variant="grouped"
-              onClick={() => onViewChange("6months")}
+              onClick={() => onPayPeriodChange("6weeks")}
             />
           </FilterGroup>
         </div>
-      </div>
-
-      <div className="border-t border-brand-line/30 px-1 pt-3.5">
-        <ScheduleHeaderMeta
-          columns={columns}
-          availableToday={availableToday}
-          offToday={offToday}
-          totalProducers={totalProducers}
-          isToday={view === "today"}
-        />
       </div>
     </div>
   );

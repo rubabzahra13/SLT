@@ -82,7 +82,7 @@ export function Avatar({
   return (
     <div
       className={clsx(
-        "shrink-0 select-none overflow-hidden rounded-full font-bold text-black flex items-center justify-center shadow-xs transition-transform",
+        "shrink-0 select-none overflow-hidden rounded-full font-bold flex items-center justify-center shadow-xs transition-transform",
         box,
         ring && "ring-2 ring-brand-line ring-offset-2 ring-offset-brand-surface",
         className
@@ -90,7 +90,13 @@ export function Avatar({
       style={{ backgroundColor: bgColor }}
       title={name || alt || producer?.name || displayInitials}
     >
-      <span className={clsx("leading-none text-black font-extrabold tracking-tight", font)}>
+      <span
+        className={clsx("leading-none font-extrabold tracking-tight text-white", font)}
+        style={{
+          textShadow:
+            "0 1px 2px rgba(0,0,0,0.55), 0 0 1px rgba(0,0,0,0.85)",
+        }}
+      >
         {displayInitials}
       </span>
     </div>
