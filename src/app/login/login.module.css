@@ -8,6 +8,17 @@
   align-self: center;
 }
 
+/* Fixed space between collage and sign-in card */
+.shell {
+  gap: 0;
+}
+
+@media (min-width: 768px) {
+  .shell {
+    gap: 3.25rem;
+  }
+}
+
 .brandName {
   font-size: 15px;
   font-weight: 600;
@@ -70,7 +81,7 @@
   .formPanel {
     width: 400px;
     max-width: 400px;
-    transform: translateX(-140px);
+    transform: translateX(16px);
   }
 }
 
@@ -78,6 +89,6 @@
   .formPanel {
     width: 420px;
     max-width: 420px;
-    transform: translateX(-160px);
+    transform: translateX(28px);
   }
 }

@@ -89,7 +89,7 @@ export default function LoginPage() {
       />
 
       <div className="relative z-20 flex h-full min-h-[100dvh] items-center justify-center overflow-y-auto px-4 py-8 sm:px-6 lg:px-10">
-        <div className="flex w-full max-w-[1180px] items-center gap-0">
+        <div className={`flex w-full max-w-[1180px] items-center ${styles.shell}`}>
           <LoginCollagePanel />
 
           <main className={styles.formPanel}>
