@@ -57,6 +57,8 @@ import {
   patchMoveToPayroll,
 } from "@/lib/mtd-completion";
 import { formatDisplayDate, isIsoDateBefore, toIsoDateString } from "@/lib/dates";
+import { todayIso } from "@/lib/date-filters";
+import { generateMTDCsv, triggerCsvDownload } from "@/lib/export-csv";
 import {
   findLinkedOrder,
   findProducerByAssignmentKey,
@@ -1349,6 +1351,13 @@ function MTDPageContent() {
           label: "Pricing",
           onClick: () => setPricingOpen(true),
           showPlus: false,
+        }}
+        exportAction={{
+          label: "Export to CSV",
+          onClick: () => {
+            const csv = generateMTDCsv(filtered, allOrders, producers);
+            triggerCsvDownload(`MTD_Export_${todayIso()}.csv`, csv);
+          },
         }}
         search={{
           value: searchQuery,

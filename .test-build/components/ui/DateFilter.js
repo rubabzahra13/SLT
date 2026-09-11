@@ -47,6 +47,10 @@ function DateFilter({ value, onChange, className }) {
     function renderMainMenu() {
         const presets = [
             { label: "All time", type: "all" },
+            { label: "Last 2 weeks", type: "last2Weeks" },
+            { label: "Last 1 month", type: "last1Month" },
+            { label: "Last 6 months", type: "last6Months" },
+            { label: "Last 1 year", type: "last1Year" },
             { label: "This week", type: "thisWeek" },
             { label: "Last 30 days", type: "last30Days" },
             { label: "This month", type: "thisMonth" },

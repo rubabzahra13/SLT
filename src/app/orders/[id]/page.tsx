@@ -162,7 +162,7 @@ export default function OrderDetailPage({
                     </div>
                   </div>
                 ) : (
-                  <span className="text-[13px] font-medium text-brand-ink-tertiary">Unassigned</span>
+                  <span className="text-[13px] font-medium text-brand-ink-tertiary">No assigned producer yet</span>
                 )}
 
                 <button
@@ -188,6 +188,7 @@ export default function OrderDetailPage({
               <div className="mt-2">
                 <InlineDateInput
                   value={record.mixStartDate}
+                  placeholder="No scheduled start"
                   onChange={(next) => {
                     let nextEnd = record.mixEndDate;
                     if (next && !nextEnd) {
@@ -209,6 +210,7 @@ export default function OrderDetailPage({
               <div className="mt-2">
                 <InlineDateInput
                   value={record.mixEndDate ?? ""}
+                  placeholder="No scheduled end"
                   onChange={(next) => updateMTD(record.id, { mixEndDate: next })}
                 />
               </div>

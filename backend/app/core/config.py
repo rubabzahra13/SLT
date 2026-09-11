@@ -2,6 +2,9 @@ import os
 from typing import List
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+root_dir = os.path.dirname(backend_dir)
+
 class Settings(BaseSettings):
     PROJECT_NAME: str = "SLT CRM Backend"
     VERSION: str = "0.1.0"
@@ -14,8 +17,17 @@ class Settings(BaseSettings):
     # CORS
     CORS_ORIGINS: List[str] = ["http://localhost:3000"]
 
+    # Google OAuth Configuration
+    GOOGLE_CLIENT_ID: str = ""
+    GOOGLE_CLIENT_SECRET: str = ""
+    GOOGLE_REDIRECT_URI: str = "http://localhost:8001/api/pilot2/inboxes/oauth/callback"
+    FRONTEND_URL: str = "http://localhost:3000"
+
     model_config = SettingsConfigDict(
-        env_file=os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "..", ".env"),
+        env_file=[
+            os.path.join(root_dir, ".env"),
+            os.path.join(backend_dir, ".env"),
+        ],
         env_file_encoding="utf-8",
         extra="ignore",
     )

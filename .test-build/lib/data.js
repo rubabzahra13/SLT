@@ -32,29 +32,45 @@ function getData() {
             assignedProducer: (0, editor_assignment_1.resolveValidProducerAssignment)(norm.assignedProducer, producers, norm.category || norm.formType || ""),
         };
     };
-    const existingOrders = raw.orders.map((o) => sanitizeOrder(o));
-    const existingIds = new Set(existingOrders.map((o) => o.id));
     const combinedDemoOrders = [
         ...cheer_demo_orders_1.CHEER_DEMO_ORDERS,
         ...dance_demo_orders_1.DANCE_DEMO_ORDERS,
         ...new_categories_demo_orders_1.NEW_CATEGORIES_DEMO_ORDERS,
     ];
-    const newDemoOrders = combinedDemoOrders
-        .filter((o) => !existingIds.has(o.id))
+    const demoOrdersById = new Map(combinedDemoOrders.map((o) => [o.id, sanitizeOrder(o)]));
+    const existingRawOrders = raw.orders.map((o) => sanitizeOrder(o));
+    const existingOrderIds = new Set(existingRawOrders.map((o) => o.id));
+    const mergedOrders = existingRawOrders.map((o) => demoOrdersById.get(o.id) ?? o);
+    const extraDemoOrders = combinedDemoOrders
+        .filter((o) => !existingOrderIds.has(o.id))
         .map((o) => sanitizeOrder(o));
-    const existingMtdIds = new Set((raw.mtdRecords || []).map((r) => r.id));
     const combinedDemoMtdRecords = [
         ...cheer_demo_orders_1.CHEER_DEMO_MTD_RECORDS,
         ...dance_demo_orders_1.DANCE_DEMO_MTD_RECORDS,
         ...new_categories_demo_orders_1.NEW_CATEGORIES_DEMO_MTD_RECORDS,
     ];
-    const newDemoMtdRecords = combinedDemoMtdRecords.filter((r) => !existingMtdIds.has(r.id));
-    const allMtdRecords = [...(raw.mtdRecords || []), ...newDemoMtdRecords].map((r) => sanitizeMtdRecord(r));
+    const demoMtdById = new Map(combinedDemoMtdRecords.map((r) => [r.id, sanitizeMtdRecord(r)]));
+    const existingRawMtd = (raw.mtdRecords || []).map((r) => sanitizeMtdRecord(r));
+    const existingMtdIds = new Set(existingRawMtd.map((r) => r.id));
+    const mergedMtdRecords = existingRawMtd.map((r) => demoMtdById.get(r.id) ?? r);
+    const extraDemoMtdRecords = combinedDemoMtdRecords
+        .filter((r) => !existingMtdIds.has(r.id))
+        .map((r) => sanitizeMtdRecord(r));
+    const allMtdRecords = [...mergedMtdRecords, ...extraDemoMtdRecords].map((r) => {
+        const norm = sanitizeMtdRecord(r);
+        if (norm.inMTD === undefined &&
+            ((Boolean(norm.assignedProducer) && Boolean(norm.mixStartDate) && Boolean(norm.mixEndDate)) ||
+                norm.status === "outsourced" ||
+                norm.section === "OUTSOURCED MIXES")) {
+            norm.inMTD = true;
+        }
+        return norm;
+    });
     return {
         ...raw,
         producers,
         discountCodes: (raw.discountCodes ?? []).map((entry) => (0, discount_codes_1.normalizeDiscountCode)(entry)),
-        orders: [...existingOrders, ...newDemoOrders],
+        orders: [...mergedOrders, ...extraDemoOrders],
         pastOrders: (raw.pastOrders ?? []).map((o) => sanitizeOrder(o)),
         mtdRecords: allMtdRecords,
     };

@@ -31,6 +31,7 @@ class MTDRecord(Base):
     needs_attention = Column(Boolean, default=False, nullable=False)
     status = Column(String, default="active", nullable=False)
     record_status = Column(String, nullable=True)
+    in_mtd = Column(Boolean, default=False, nullable=False)
     in_payroll = Column(Boolean, default=False, nullable=False)
     completed_at = Column(DateTime(timezone=True), nullable=True)
     has_rally_mix = Column(Boolean, default=False, nullable=False)

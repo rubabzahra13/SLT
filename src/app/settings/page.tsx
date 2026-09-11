@@ -3,6 +3,8 @@ import { Bell, ChevronRight, Palette, Users } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 
+import { EmailSendingSettingsCard } from "@/components/settings/EmailSendingSettingsCard";
+
 type SettingItem = {
   label: string;
   description?: string;
@@ -67,12 +69,14 @@ export default function SettingsPage() {
     <>
       <PageHeader
         title="Settings"
-        badge={`${sections.length} sections`}
+        badge={`${sections.length + 1} sections`}
         subtitle="Admin configuration and studio defaults"
       />
 
       <div className="px-6 pb-6 pt-5 lg:px-8">
         <div className="mx-auto flex max-w-2xl flex-col gap-4">
+          <EmailSendingSettingsCard />
+
           {sections.map((section) => (
             <section key={section.title} className="dashboard-panel flex flex-col">
               <div className="flex shrink-0 items-center gap-3 border-b border-brand-line/30 px-4 py-3">

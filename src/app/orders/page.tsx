@@ -34,6 +34,8 @@ import {
   calculateSportsEntertainmentOrderPricing,
 } from "@/lib/pricing-engine";
 import { formatDisplayDate, isIsoDateBefore, toIsoDateString } from "@/lib/dates";
+import { todayIso } from "@/lib/date-filters";
+import { generateOrdersCsv, triggerCsvDownload } from "@/lib/export-csv";
 import { parsePackage } from "@/lib/package";
 import {
   findLinkedOrder,
@@ -880,6 +882,13 @@ function OrdersPageContent() {
           label: "Pricing",
           onClick: () => setPricingOpen(true),
           showPlus: false,
+        }}
+        exportAction={{
+          label: "Export to CSV",
+          onClick: () => {
+            const csv = generateOrdersCsv(filtered, allOrders);
+            triggerCsvDownload(`Orders_Export_${todayIso()}.csv`, csv);
+          },
         }}
         search={{
           value: searchQuery,

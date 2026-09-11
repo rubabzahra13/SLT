@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, Plus } from "lucide-react";
+import { Search, Plus, Download } from "lucide-react";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 
 type PageHeaderProps = {
@@ -10,6 +10,7 @@ type PageHeaderProps = {
   compact?: boolean;
   action?: { label: string; onClick?: () => void; showPlus?: boolean };
   secondaryAction?: { label: string; onClick?: () => void; showPlus?: boolean };
+  exportAction?: { label?: string; onClick: () => void };
   tabs?: React.ReactNode;
   toolbar?: React.ReactNode;
   meta?: React.ReactNode;
@@ -27,6 +28,7 @@ export function PageHeader({
   compact = false,
   action,
   secondaryAction,
+  exportAction,
   tabs,
   toolbar,
   meta,
@@ -91,6 +93,18 @@ export function PageHeader({
             ) : null}
 
             <NotificationBell />
+
+            {exportAction ? (
+              <button
+                type="button"
+                onClick={exportAction.onClick}
+                className="flex h-9 items-center gap-1.5 rounded-xl border border-brand-line/70 bg-white px-3 text-[13px] font-semibold text-brand-ink shadow-sm transition hover:border-brand-line hover:bg-brand-bg/60 hover:text-brand-orange focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange/20"
+                title="Export current filtered view to CSV"
+              >
+                <Download className="h-4 w-4 text-brand-ink-secondary" strokeWidth={2} />
+                <span className="hidden sm:inline">{exportAction.label ?? "Export to CSV"}</span>
+              </button>
+            ) : null}
 
             {action || secondaryAction ? (
               <span className="hidden h-6 w-px bg-brand-line/50 sm:block" aria-hidden />

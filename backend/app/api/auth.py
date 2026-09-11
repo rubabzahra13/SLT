@@ -43,6 +43,17 @@ def get_current_user(
         )
     return user
 
+def get_optional_current_user(
+    authorization: Optional[str] = Header(None),
+    db: Session = Depends(get_db)
+) -> Optional[User]:
+    if not authorization:
+        return None
+    try:
+        return get_current_user(authorization=authorization, db=db)
+    except HTTPException:
+        return None
+
 def require_full_access(user: User = Depends(get_current_user)) -> User:
     if user.access_level != "Full Access":
         raise HTTPException(

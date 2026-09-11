@@ -2293,38 +2293,68 @@ export const DANCE_DEMO_MTD_RECORDS: MTDRecord[] = DANCE_DEMO_ORDERS.map((order,
     producers
   );
   const dateSchedules = [
-    { start: "2026-09-08", end: "2026-09-15" },
-    { start: "2026-09-10", end: "2026-09-17" },
-    { start: "2026-09-13", end: "2026-09-20" },
-    { start: "2026-09-16", end: "2026-09-23" },
-    { start: "2026-09-19", end: "2026-09-26" },
+    { start: "2026-08-02", end: "2026-08-09" },
+    { start: "2026-08-12", end: "2026-08-19" },
+    { start: "2026-08-20", end: "2026-08-27" },
+    { start: "2026-08-28", end: "2026-09-04" },
+    { start: "2026-09-02", end: "2026-09-09" },
   ];
   const sched = dateSchedules[idx % dateSchedules.length];
+
+  // Specific indexes completed into Payroll
+  const isCompletedPayroll = [0, 1, 10, 11, 20, 30].includes(idx);
+  const completedDates = [
+    "2026-09-09T10:00:00Z",
+    "2026-09-03T14:10:00Z",
+    "2026-08-20T15:30:00Z",
+    "2026-05-20T09:45:00Z",
+    "2026-03-15T11:00:00Z",
+    "2025-10-10T16:00:00Z",
+  ];
+  const completedAt = isCompletedPayroll ? completedDates[idx % completedDates.length] : undefined;
+
+  // Unassigned orders (indexes 8 and 18)
+  const isUnassigned = idx === 8 || idx === 18;
+  const assignedProducer = isUnassigned ? null : validProducer;
+  const mixStartDate = isUnassigned ? "" : (validProducer ? sched.start : "2026-09-08");
+  const mixEndDate = isUnassigned ? "" : (validProducer ? sched.end : "2026-09-15");
+
+  const danceVoVal = idx % 3 === 0 ? "100" : idx % 2 === 0 ? "75" : "25";
+
   return {
     id: `mtd-demo-dance-${String(idx + 1).padStart(2, "0")}`,
     orderId: order.id,
     section: "DANCE MUSIC",
-    assignedProducer: validProducer,
+    assignedProducer,
     category: "Dance",
-    editorRequest: order.editorRequest || "FA",
+    editorRequest: isUnassigned ? "FA" : (order.editorRequest || "FA"),
     contactName: order.contactName || order.customerName || "Demo Contact",
-    editorInitials: validProducer || "FA",
+    editorInitials: assignedProducer || "FA",
     programName: order.programName || "Demo Program",
     package: order.package || "DANCE MIX",
     musicTheme: order.musicTheme || "",
     price: order.price,
     priceCompliance: (order.priceCompliance as any) || "compliant",
-    invoice: `${String(idx + 201 + 25000)}`,
-    mixStartDate: validProducer ? sched.start : "2026-09-08",
-    mixEndDate: validProducer ? sched.end : "2026-09-15",
-    eightCountSheet: "Have",
-    haveSongs: "Have",
-    needsAttention: Boolean(order.needsAttention),
-    status: order.status === "completed" ? "completed" : "active",
-    recordStatus: order.status === "completed" ? "Completed" : "Ongoing",
+    invoice: isUnassigned ? "" : `${String(idx + 201 + 25000)}`,
+    mixStartDate,
+    mixEndDate,
+    eightCountSheet: isCompletedPayroll ? "CS CONFIRMED" : "Have",
+    haveSongs: isCompletedPayroll ? "SONGS READY" : "Have",
+    needsAttention: isUnassigned ? false : Boolean(order.needsAttention),
+    status: isCompletedPayroll ? "completed" : "active",
+    recordStatus: isCompletedPayroll ? "Completed" as const : "Ongoing" as const,
+    inMTD: !isUnassigned,
+    inPayroll: isCompletedPayroll,
+    completedAt,
+    danceVoiceover: danceVoVal as any,
+    hasTraditionalVoiceover: order.hasTraditionalVoiceover ?? (idx % 2 === 0),
+    hasThemedVoiceover: order.hasThemedVoiceover ?? (idx % 3 === 0),
+    extraSongsQuantity: isCompletedPayroll && idx % 2 === 0 ? 2 : 0,
+    extraSongEditingTimeQuantity: isCompletedPayroll && idx % 3 === 0 ? 1 : 0,
+    rushFeeOption: idx === 1 ? "single" : null,
+    rushFeeQuantity: idx === 1 ? 1 : 0,
     hasRallyMix: false,
     hasExtend8ctAddon: false,
     hasProcessing8ctSheetsAddon: false,
-    hasThemedVoiceover: order.hasThemedVoiceover ?? false,
   };
 });

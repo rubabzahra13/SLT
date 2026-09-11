@@ -121,6 +121,13 @@ export function mergeLocalMtdRecordFields(
 ): MTDRecord {
   let merged = backendRecord;
 
+  if (localRecord?.inMTD !== undefined && backendRecord.inMTD === undefined) {
+    merged = {
+      ...merged,
+      inMTD: localRecord.inMTD,
+    };
+  }
+
   if (localRecord?.inPayroll && !backendRecord.inPayroll) {
     merged = {
       ...merged,
@@ -148,11 +155,16 @@ export function mergeLocalMtdRecordFields(
     };
   }
 
-  if (localRecord?.assignedProducer?.trim() && !merged.assignedProducer?.trim()) {
+  if (localRecord) {
     merged = {
       ...merged,
-      assignedProducer: localRecord.assignedProducer,
+      assignedProducer: localRecord.assignedProducer?.trim() ? localRecord.assignedProducer : merged.assignedProducer,
       editorRequest: localRecord.editorRequest ?? merged.editorRequest,
+      mixStartDate: localRecord.mixStartDate || merged.mixStartDate,
+      mixEndDate: localRecord.mixEndDate || merged.mixEndDate,
+      invoice: localRecord.invoice || merged.invoice,
+      status: localRecord.status ?? merged.status,
+      recordStatus: localRecord.recordStatus ?? merged.recordStatus,
     };
   }
 

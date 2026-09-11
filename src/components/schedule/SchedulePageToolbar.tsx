@@ -3,6 +3,7 @@
 import clsx from "clsx";
 import { OrderFormFilters } from "@/components/orders/OrderFormFilters";
 import { FilterPill } from "@/components/ui/FilterPill";
+import { ProducerSelect } from "@/components/ui/ProducerSelect";
 import { ScheduleHeaderMeta } from "@/components/schedule/ScheduleHeaderMeta";
 import { ScheduleStatusFilterPanel } from "@/components/schedule/ScheduleStatusFilterPanel";
 import {
@@ -14,6 +15,7 @@ import type {
   CheerFormSubtypeFilter,
   DanceFormSubtypeFilter,
   OrderFormType,
+  Producer,
 } from "@/types";
 
 const presentationFilters = ["Matrix", "Calendar"] as const;
@@ -33,6 +35,9 @@ type SchedulePageToolbarProps = {
   availableToday: number;
   offToday: number;
   totalProducers: number;
+  producers?: Producer[];
+  selectedProducer?: string;
+  onProducerChange?: (producerName: string) => void;
   onFormChange: (form: OrderFormType) => void;
   onCheerSubtypeChange: (subtype: CheerFormSubtypeFilter) => void;
   onDanceSubtypeChange: (subtype: DanceFormSubtypeFilter) => void;
@@ -80,6 +85,9 @@ export function SchedulePageToolbar({
   availableToday,
   offToday,
   totalProducers,
+  producers,
+  selectedProducer = "all",
+  onProducerChange,
   onFormChange,
   onCheerSubtypeChange,
   onDanceSubtypeChange,
@@ -117,6 +125,23 @@ export function SchedulePageToolbar({
             value={statusFilter}
             onChange={onStatusFilterChange}
           />
+          {producers && producers.length > 0 && onProducerChange && (
+            <>
+              <span
+                className="mx-0.5 hidden h-5 w-px shrink-0 bg-brand-line/45 sm:block"
+                aria-hidden
+              />
+              <div className="px-1.5 py-0.5">
+                <ProducerSelect
+                  producers={producers}
+                  value={selectedProducer}
+                  onChange={onProducerChange}
+                  label="Editor:"
+                  allLabel="All Editors"
+                />
+              </div>
+            </>
+          )}
         </div>
 
         <div className="flex shrink-0 flex-wrap items-center gap-2.5">

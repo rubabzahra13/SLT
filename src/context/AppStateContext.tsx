@@ -139,18 +139,43 @@ function normalizeMTD(records: MTDRecord[]): MTDRecord[] {
   });
 }
 
+function getLocalItem<T>(key: string, fallback: T): T {
+  if (typeof window === "undefined") return fallback;
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    return JSON.parse(raw);
+  } catch {
+    return fallback;
+  }
+}
+
+function setLocalItem<T>(key: string, value: T): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Ignore quota or storage errors
+  }
+}
+
 export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const seed = getData();
 
-  const [activeOrders, setActiveOrders] = useState<Order[]>(() =>
-    normalizeOrders(seed.orders.filter((o) => o.status !== "completed"))
-  );
-  const [pastOrders, setPastOrders] = useState<Order[]>(() =>
-    normalizeOrders(seed.pastOrders ?? [])
-  );
-  const [mtdRecords, setMtdRecords] = useState<MTDRecord[]>(() =>
-    normalizeMTD(seed.mtdRecords)
-  );
+  const [activeOrders, setActiveOrders] = useState<Order[]>(() => {
+    const stored = getLocalItem<Order[] | null>("slt_persisted_active_orders", null);
+    return stored
+      ? normalizeOrders(stored)
+      : normalizeOrders(seed.orders.filter((o) => o.status !== "completed"));
+  });
+  const [pastOrders, setPastOrders] = useState<Order[]>(() => {
+    const stored = getLocalItem<Order[] | null>("slt_persisted_past_orders", null);
+    return stored ? normalizeOrders(stored) : normalizeOrders(seed.pastOrders ?? []);
+  });
+  const [mtdRecords, setMtdRecords] = useState<MTDRecord[]>(() => {
+    const stored = getLocalItem<MTDRecord[] | null>("slt_persisted_mtd_records", null);
+    return stored ? normalizeMTD(stored) : normalizeMTD(seed.mtdRecords);
+  });
   const [packagePrices, setPackagePricesState] = useState<Record<string, number>>(
     () => getDefaultPackagePrices()
   );
@@ -267,6 +292,18 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    setLocalItem("slt_persisted_active_orders", activeOrders);
+  }, [activeOrders]);
+
+  useEffect(() => {
+    setLocalItem("slt_persisted_past_orders", pastOrders);
+  }, [pastOrders]);
+
+  useEffect(() => {
+    setLocalItem("slt_persisted_mtd_records", mtdRecords);
+  }, [mtdRecords]);
 
   const addNotification = useCallback(
     (n: Omit<AppNotification, "id" | "read" | "createdAt">) => {

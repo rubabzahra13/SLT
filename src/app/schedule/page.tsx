@@ -15,6 +15,9 @@ import {
 } from "@/components/schedule/TeamScheduleCalendar";
 import { ProducerScheduleDrawer } from "@/components/schedule/ProducerScheduleDrawer";
 import { useAppState } from "@/context/AppStateContext";
+import { todayIso } from "@/lib/date-filters";
+import { generateScheduleCsv, triggerCsvDownload } from "@/lib/export-csv";
+import { findProducerByAssignmentKey } from "@/lib/editor-assignment";
 import {
   aggregateColumns,
   buildScheduleColumnAggregates,
@@ -50,7 +53,8 @@ function SchedulePageContent() {
   const searchParams = useSearchParams();
   const viewParam = searchParams.get("view") || searchParams.get("range");
 
-  const { producers, schedule, mtdRecords } = useAppState();
+  const { producers, schedule, mtdRecords, allOrders } = useAppState();
+  const [selectedProducer, setSelectedProducer] = useState<string>("all");
   const [view, setView] = useState<ScheduleViewRange>(() => {
     if (viewParam === "today") return "today";
     return "week";
@@ -97,13 +101,20 @@ function SchedulePageContent() {
   );
 
   const filteredProducers = useMemo(() => {
-    const byForm = producers.filter((producer) =>
+    let list = producers.filter((producer) =>
       producerMatchesScheduleFormFilter(producer, form, cheerSubtype, danceSubtype)
     );
+    if (selectedProducer && selectedProducer !== "all") {
+      list = list.filter(
+        (p) =>
+          p.name.toUpperCase() === selectedProducer.toUpperCase() ||
+          p.id.toUpperCase() === selectedProducer.toUpperCase()
+      );
+    }
     const q = searchQuery.trim();
-    if (!q) return byForm;
-    return byForm.filter((producer) => matchesProducerSearch(producer, q));
-  }, [producers, form, cheerSubtype, danceSubtype, searchQuery]);
+    if (!q) return list;
+    return list.filter((producer) => matchesProducerSearch(producer, q));
+  }, [producers, form, cheerSubtype, danceSubtype, selectedProducer, searchQuery]);
 
   const currentDate = useMemo(() => new Date(), []);
   const anchorDate = useMemo(
@@ -203,12 +214,69 @@ function SchedulePageContent() {
     }).length;
   }, [teamRows, todayColumnKey, view]);
 
+  const handleDownloadSchedule = useCallback(() => {
+    if (selectedProducer === "all") {
+      const distinctProducers = Array.from(
+        new Set(
+          mtdRecords
+            .map((r) => {
+              if (!r.assignedProducer) return null;
+              const p = findProducerByAssignmentKey(r.assignedProducer, producers);
+              return p?.name || r.assignedProducer;
+            })
+            .filter(Boolean) as string[]
+        )
+      );
+
+      const listToProcess =
+        distinctProducers.length > 0
+          ? distinctProducers
+          : producers.map((p) => p.name);
+
+      listToProcess.forEach((targetName) => {
+        const csv = generateScheduleCsv(
+          mtdRecords,
+          allOrders,
+          producers,
+          targetName
+        );
+        triggerCsvDownload(
+          `Schedule_${targetName.replace(/\s+/g, "_")}_${todayIso()}.csv`,
+          csv
+        );
+      });
+    } else {
+      const targetProdObj = producers.find(
+        (p) => p.name === selectedProducer || p.id === selectedProducer
+      );
+      const targetName = targetProdObj?.name || selectedProducer;
+
+      const csv = generateScheduleCsv(
+        mtdRecords,
+        allOrders,
+        producers,
+        targetName
+      );
+      triggerCsvDownload(
+        `Schedule_${targetName.replace(/\s+/g, "_")}_${todayIso()}.csv`,
+        csv
+      );
+    }
+  }, [selectedProducer, mtdRecords, allOrders, producers]);
+
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <PageHeader
         compact
         title="Producer Schedule"
         subtitle="Team availability, bookings, and available capacity"
+        exportAction={{
+          label:
+            selectedProducer === "all"
+              ? "Download All Schedules"
+              : `Download ${selectedProducer}'s Schedule`,
+          onClick: handleDownloadSchedule,
+        }}
         search={{
           value: searchQuery,
           onChange: setSearchQuery,
@@ -229,6 +297,9 @@ function SchedulePageContent() {
             availableToday={availableToday}
             offToday={offToday}
             totalProducers={teamRows.length}
+            producers={producers}
+            selectedProducer={selectedProducer}
+            onProducerChange={setSelectedProducer}
             onFormChange={switchForm}
             onCheerSubtypeChange={setCheerSubtype}
             onDanceSubtypeChange={setDanceSubtype}

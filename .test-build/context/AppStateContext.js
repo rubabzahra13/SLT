@@ -57,11 +57,45 @@ function normalizeMTD(records) {
         return normalized;
     });
 }
+function getLocalItem(key, fallback) {
+    if (typeof window === "undefined")
+        return fallback;
+    try {
+        const raw = localStorage.getItem(key);
+        if (!raw)
+            return fallback;
+        return JSON.parse(raw);
+    }
+    catch {
+        return fallback;
+    }
+}
+function setLocalItem(key, value) {
+    if (typeof window === "undefined")
+        return;
+    try {
+        localStorage.setItem(key, JSON.stringify(value));
+    }
+    catch {
+        // Ignore quota or storage errors
+    }
+}
 function AppStateProvider({ children }) {
     const seed = (0, data_1.getData)();
-    const [activeOrders, setActiveOrders] = (0, react_1.useState)(() => normalizeOrders(seed.orders.filter((o) => o.status !== "completed")));
-    const [pastOrders, setPastOrders] = (0, react_1.useState)(() => normalizeOrders(seed.pastOrders ?? []));
-    const [mtdRecords, setMtdRecords] = (0, react_1.useState)(() => normalizeMTD(seed.mtdRecords));
+    const [activeOrders, setActiveOrders] = (0, react_1.useState)(() => {
+        const stored = getLocalItem("slt_persisted_active_orders", null);
+        return stored
+            ? normalizeOrders(stored)
+            : normalizeOrders(seed.orders.filter((o) => o.status !== "completed"));
+    });
+    const [pastOrders, setPastOrders] = (0, react_1.useState)(() => {
+        const stored = getLocalItem("slt_persisted_past_orders", null);
+        return stored ? normalizeOrders(stored) : normalizeOrders(seed.pastOrders ?? []);
+    });
+    const [mtdRecords, setMtdRecords] = (0, react_1.useState)(() => {
+        const stored = getLocalItem("slt_persisted_mtd_records", null);
+        return stored ? normalizeMTD(stored) : normalizeMTD(seed.mtdRecords);
+    });
     const [packagePrices, setPackagePricesState] = (0, react_1.useState)(() => (0, pricing_1.getDefaultPackagePrices)());
     const [secretMenuPrices, setSecretMenuPricesState] = (0, react_1.useState)(() => (0, pricing_1.getDefaultSecretMenuPricing)());
     const [notifications, setNotifications] = (0, react_1.useState)(() => {
@@ -149,6 +183,15 @@ function AppStateProvider({ children }) {
             isMounted = false;
         };
     }, []);
+    (0, react_1.useEffect)(() => {
+        setLocalItem("slt_persisted_active_orders", activeOrders);
+    }, [activeOrders]);
+    (0, react_1.useEffect)(() => {
+        setLocalItem("slt_persisted_past_orders", pastOrders);
+    }, [pastOrders]);
+    (0, react_1.useEffect)(() => {
+        setLocalItem("slt_persisted_mtd_records", mtdRecords);
+    }, [mtdRecords]);
     const addNotification = (0, react_1.useCallback)((n) => {
         const notification = {
             ...n,

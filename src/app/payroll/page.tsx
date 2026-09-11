@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Eye, Pencil } from "lucide-react";
+import { Download, Eye, Pencil, Send } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { MTDPageToolbar } from "@/components/mtd/MTDPageToolbar";
 import { ReturnToMTDModal } from "@/components/mtd/ReturnToMTDModal";
@@ -12,8 +12,12 @@ import {
 } from "@/components/mtd/MTDTableFilters";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import { Avatar } from "@/components/ui/Avatar";
+import { DateFilter, type DateFilterValue } from "@/components/ui/DateFilter";
+import { ProducerSelect } from "@/components/ui/ProducerSelect";
 import { useAppState } from "@/context/AppStateContext";
-import { formatDisplayDate, toIsoDateString } from "@/lib/dates";
+import { doDateRangesOverlap, formatDisplayDate, toCanonicalIsoDate, toIsoDateString } from "@/lib/dates";
+import { calculateDateBounds, todayIso } from "@/lib/date-filters";
+import { generatePayrollCsv, generateProducerFacingPayrollCsv, triggerCsvDownload } from "@/lib/export-csv";
 import { formatPrice, titleCase } from "@/lib/data";
 import {
   getPayrollRecords,
@@ -45,6 +49,8 @@ import {
 } from "@/components/mtd/InlineFields";
 import { computeClientPayroll } from "@/lib/pricing-display";
 
+import { ProducerStatementPreview } from "@/components/payroll/ProducerStatementPreview";
+
 const DEFAULT_FORM: OrderFormType = "school-all-star-cheer";
 const DEFAULT_CHEER_SUBTYPE: CheerFormSubtypeFilter = "all";
 const DEFAULT_DANCE_SUBTYPE: DanceFormSubtypeFilter = "all";
@@ -55,17 +61,114 @@ const actionLinkClass =
 export default function PayrollPage() {
   const { mtdRecords, allOrders, producers, updateMTD, isViewOnly } = useAppState();
   const [returnRecord, setReturnRecord] = useState<MTDRecord | null>(null);
-  const [form, setForm] = useState<OrderFormType>(DEFAULT_FORM);
-  const [cheerSubtype, setCheerSubtype] = useState<CheerFormSubtypeFilter>(
+
+  const [isPreviewMode, setIsPreviewMode] = useState(false);
+
+  const [formState, setFormState] = useState<OrderFormType>(DEFAULT_FORM);
+  const [cheerSubtypeState, setCheerSubtypeState] = useState<CheerFormSubtypeFilter>(
     DEFAULT_CHEER_SUBTYPE
   );
-  const [danceSubtype, setDanceSubtype] = useState<DanceFormSubtypeFilter>(
+  const [danceSubtypeState, setDanceSubtypeState] = useState<DanceFormSubtypeFilter>(
     DEFAULT_DANCE_SUBTYPE
   );
-  const [tableFilters, setTableFilters] = useState<MTDTableFilterState>(
+  const [tableFiltersState, setTableFiltersState] = useState<MTDTableFilterState>(
     DEFAULT_MTD_TABLE_FILTERS
   );
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQueryState, setSearchQueryState] = useState("");
+
+  const [sendPrepProducer, setSendPrepProducer] = useState<string>("all");
+  const [sendPrepPeriod, setSendPrepPeriod] = useState<DateFilterValue>({
+    type: "last2Weeks",
+    value: null,
+  });
+
+  const [form, setForm] = [
+    formState,
+    (next: OrderFormType) => {
+      setFormState(next);
+      if (typeof window !== "undefined") sessionStorage.setItem("slt_payroll_form", next);
+    },
+  ];
+
+  const [cheerSubtype, setCheerSubtype] = [
+    cheerSubtypeState,
+    (next: CheerFormSubtypeFilter) => {
+      setCheerSubtypeState(next);
+      if (typeof window !== "undefined") sessionStorage.setItem("slt_payroll_cheer_subtype", next);
+    },
+  ];
+
+  const [danceSubtype, setDanceSubtype] = [
+    danceSubtypeState,
+    (next: DanceFormSubtypeFilter) => {
+      setDanceSubtypeState(next);
+      if (typeof window !== "undefined") sessionStorage.setItem("slt_payroll_dance_subtype", next);
+    },
+  ];
+
+  const [tableFilters, setTableFilters] = [
+    tableFiltersState,
+    (next: MTDTableFilterState | ((prev: MTDTableFilterState) => MTDTableFilterState)) => {
+      setTableFiltersState((prev) => {
+        const value = typeof next === "function" ? next(prev) : next;
+        if (typeof window !== "undefined") {
+          sessionStorage.setItem("slt_payroll_table_filters", JSON.stringify(value));
+        }
+        return value;
+      });
+    },
+  ];
+
+  const [searchQuery, setSearchQuery] = [
+    searchQueryState,
+    (next: string) => {
+      setSearchQueryState(next);
+      if (typeof window !== "undefined") sessionStorage.setItem("slt_payroll_search", next);
+    },
+  ];
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const savedForm = sessionStorage.getItem("slt_payroll_form") as OrderFormType | null;
+    const savedCheer = sessionStorage.getItem("slt_payroll_cheer_subtype") as CheerFormSubtypeFilter | null;
+    const savedDance = sessionStorage.getItem("slt_payroll_dance_subtype") as DanceFormSubtypeFilter | null;
+    const savedTableFilters = sessionStorage.getItem("slt_payroll_table_filters");
+    const savedSearch = sessionStorage.getItem("slt_payroll_search");
+
+    const validForms: OrderFormType[] = [
+      "school-all-star-cheer",
+      "school-all-star-dance",
+      "marching-band",
+      "sports-entertainment",
+      "school-anthem",
+    ];
+    const validCheerSubtypes: CheerFormSubtypeFilter[] = [
+      "all",
+      "all-star-cheer",
+      "school-cheer-viroc-yes",
+      "school-cheer-viroc-no",
+      "youth-rec-cheer",
+    ];
+    const validDanceSubtypes: DanceFormSubtypeFilter[] = [
+      "all",
+      "pom",
+      "hip-hop",
+      "team-performance-variety",
+      "gameday",
+      "jazz-kick",
+    ];
+
+    if (savedForm && validForms.includes(savedForm)) setFormState(savedForm);
+    if (savedCheer && validCheerSubtypes.includes(savedCheer)) setCheerSubtypeState(savedCheer);
+    if (savedDance && validDanceSubtypes.includes(savedDance)) setDanceSubtypeState(savedDance);
+    if (savedSearch !== null) setSearchQueryState(savedSearch);
+    if (savedTableFilters) {
+      try {
+        const parsed = JSON.parse(savedTableFilters);
+        if (parsed && typeof parsed === "object") setTableFiltersState(parsed);
+      } catch {}
+    }
+  }, []);
 
   const payrollRecords = useMemo(
     () =>
@@ -80,17 +183,24 @@ export default function PayrollPage() {
     [allOrders]
   );
 
-  const switchForm = useCallback((next: OrderFormType) => {
-    setForm(next);
-    if (next !== "school-all-star-cheer") {
-      setCheerSubtype(DEFAULT_CHEER_SUBTYPE);
-    }
-    if (next !== "school-all-star-dance") {
-      setDanceSubtype(DEFAULT_DANCE_SUBTYPE);
-    }
-  }, []);
+  const switchForm = useCallback(
+    (next: OrderFormType) => {
+      setForm(next);
+      if (next !== "school-all-star-cheer") {
+        setCheerSubtype("all");
+      }
+      if (next !== "school-all-star-dance") {
+        setDanceSubtype("all");
+      }
+    },
+    [setForm, setCheerSubtype, setDanceSubtype]
+  );
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    const savedForm = sessionStorage.getItem("slt_payroll_form");
+    if (savedForm) return;
+
     if (payrollRecords.length === 0) return;
 
     const hasVisibleForForm = payrollRecords.some((rec) =>
@@ -100,21 +210,14 @@ export default function PayrollPage() {
 
     const latest = payrollRecords[0];
     const meta = resolveMTDFormMeta(latest, orderById);
-    switchForm(meta.formType);
+    setFormState(meta.formType);
     if (meta.formType === "school-all-star-cheer" && meta.cheerFormSubtype) {
-      setCheerSubtype(meta.cheerFormSubtype as CheerFormSubtypeFilter);
+      setCheerSubtypeState(meta.cheerFormSubtype as CheerFormSubtypeFilter);
     }
     if (meta.formType === "school-all-star-dance" && meta.danceFormSubtype) {
-      setDanceSubtype(meta.danceFormSubtype as DanceFormSubtypeFilter);
+      setDanceSubtypeState(meta.danceFormSubtype as DanceFormSubtypeFilter);
     }
-  }, [
-    payrollRecords,
-    orderById,
-    form,
-    cheerSubtype,
-    danceSubtype,
-    switchForm,
-  ]);
+  }, [payrollRecords, orderById, form, cheerSubtype, danceSubtype]);
 
   const tableFiltered = useMemo(
     () =>
@@ -234,6 +337,93 @@ export default function PayrollPage() {
     updateMTD(returnRecord.id, patchReturnFromPayroll());
     setReturnRecord(null);
   }, [returnRecord, updateMTD]);
+
+  const sendPrepButtonLabel = useMemo(() => {
+    if (sendPrepProducer === "all") {
+      return "Send to All (Prepare & Download)";
+    }
+    const found = producers.find((p) => p.id === sendPrepProducer || p.name === sendPrepProducer);
+    const name = found ? found.name : sendPrepProducer;
+    return `Send to ${name} (Prepare & Download)`;
+  }, [sendPrepProducer, producers]);
+
+  const handleSendPrepDownload = useCallback(() => {
+    const bounds = calculateDateBounds(sendPrepPeriod.type, sendPrepPeriod.value);
+    const filterPeriod = {
+      start: bounds.start ? toCanonicalIsoDate(bounds.start) : "",
+      end: bounds.end ? toCanonicalIsoDate(bounds.end) : "",
+    };
+
+    const dateMatchingRecords = payrollRecords.filter((rec) => {
+      const recStart = rec.completedAt || rec.mixStartDate || "";
+      const recEnd = rec.completedAt || rec.mixEndDate || rec.mixStartDate || "";
+      return doDateRangesOverlap({ start: recStart, end: recEnd }, filterPeriod);
+    });
+
+    if (sendPrepProducer === "all") {
+      const distinctProducers = Array.from(
+        new Set(
+          dateMatchingRecords
+            .map((r) => {
+              if (!r.assignedProducer) return null;
+              const p = findProducerByAssignmentKey(r.assignedProducer, producers);
+              return p?.name || r.assignedProducer;
+            })
+            .filter(Boolean) as string[]
+        )
+      );
+
+      if (distinctProducers.length === 0) {
+        if (typeof window !== "undefined") {
+          alert("No completed records found for the selected pay period.");
+        }
+        return;
+      }
+
+      distinctProducers.forEach((targetName) => {
+        const prodRecords = dateMatchingRecords.filter((r) => {
+          const p = findProducerByAssignmentKey(r.assignedProducer, producers);
+          return p?.name === targetName || r.assignedProducer === targetName;
+        });
+
+        const csv = generateProducerFacingPayrollCsv(
+          prodRecords,
+          allOrders,
+          producers,
+          targetName
+        );
+        triggerCsvDownload(
+          `Payroll_Producer_Statement_${targetName.replace(/\s+/g, "_")}_${todayIso()}.csv`,
+          csv
+        );
+      });
+    } else {
+      const targetProdObj = producers.find(
+        (p) => p.name === sendPrepProducer || p.id === sendPrepProducer
+      );
+      const targetName = targetProdObj?.name || sendPrepProducer;
+
+      const prodRecords = dateMatchingRecords.filter((r) => {
+        const p = findProducerByAssignmentKey(r.assignedProducer, producers);
+        return (
+          r.assignedProducer === sendPrepProducer ||
+          r.assignedProducer === targetProdObj?.id ||
+          p?.name === targetName
+        );
+      });
+
+      const csv = generateProducerFacingPayrollCsv(
+        prodRecords,
+        allOrders,
+        producers,
+        targetName
+      );
+      triggerCsvDownload(
+        `Payroll_Producer_Statement_${targetName.replace(/\s+/g, "_")}_${todayIso()}.csv`,
+        csv
+      );
+    }
+  }, [sendPrepPeriod, sendPrepProducer, payrollRecords, allOrders, producers]);
 
   const showCheerVoiceover = form === "school-all-star-cheer";
   const showDanceVoiceover = form === "school-all-star-dance";
@@ -608,7 +798,7 @@ export default function PayrollPage() {
               </button>
             )}
             <Link
-              href={`/mtd/${rec.id}`}
+              href={`/payroll/${rec.id}`}
               title={isViewOnly ? "View record" : "Open record"}
               aria-label={`Open ${rec.programName}`}
               className={actionLinkClass}
@@ -629,12 +819,34 @@ export default function PayrollPage() {
     [allOrders, producers, form, showCheerVoiceover, showDanceVoiceover, updateMTD, orderById]
   );
 
+  if (isPreviewMode) {
+    return (
+      <ProducerStatementPreview
+        selectedProducer={sendPrepProducer}
+        onProducerChange={setSendPrepProducer}
+        selectedPeriod={sendPrepPeriod}
+        onPeriodChange={setSendPrepPeriod}
+        payrollRecords={payrollRecords}
+        allOrders={allOrders}
+        producers={producers}
+        onBack={() => setIsPreviewMode(false)}
+      />
+    );
+  }
+
   return (
     <>
       <PageHeader
         title="Payroll"
         badge={`${filtered.length} of ${payrollRecords.length} · ${formatPrice(totalPayroll)}`}
         subtitle="Completed mixes ready for payout"
+        exportAction={{
+          label: "Export to CSV",
+          onClick: () => {
+            const csv = generatePayrollCsv(filtered, allOrders, producers);
+            triggerCsvDownload(`Payroll_Export_${todayIso()}.csv`, csv);
+          },
+        }}
         search={{
           value: searchQuery,
           onChange: setSearchQuery,
@@ -663,14 +875,69 @@ export default function PayrollPage() {
         }
       />
 
-      <div className="px-6 pb-6 pt-5 lg:px-8">
+      <div className="px-6 pb-6 pt-5 lg:px-8 space-y-4">
+        {/* Producer Statement Send-Preparation Workflow Panel */}
+        <div className="dashboard-panel relative z-20 !overflow-visible p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 border border-brand-line/70 bg-brand-surface/90 shadow-sm rounded-2xl">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-orange/10 text-brand-orange ring-1 ring-inset ring-brand-orange/20">
+              <Send className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="text-[14px] font-semibold text-brand-ink">
+                Producer Statement Preparation
+              </h3>
+              <p className="text-[12px] text-brand-ink-secondary">
+                Select editor and pay period to generate & download producer-safe payout statements.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <ProducerSelect
+              producers={producers}
+              value={sendPrepProducer}
+              onChange={setSendPrepProducer}
+              label="Editor:"
+              allLabel="All Editors"
+            />
+
+            <div className="flex items-center gap-2">
+              <label className="text-[12px] font-semibold text-brand-ink-secondary">
+                Payroll Period:
+              </label>
+              <DateFilter
+                value={sendPrepPeriod}
+                onChange={setSendPrepPeriod}
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsPreviewMode(true)}
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-brand-line/80 bg-brand-elevated px-3 text-[12px] font-semibold text-brand-ink shadow-sm transition hover:border-brand-orange/40 hover:bg-brand-orange-soft/35 hover:text-brand-orange active:scale-[0.98]"
+            >
+              <Eye className="h-3.5 w-3.5 text-brand-orange" />
+              <span>View Payroll</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleSendPrepDownload}
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-brand-cta px-3.5 text-[12px] font-semibold text-brand-cta-text shadow-sm transition hover:bg-brand-cta-hover active:scale-[0.98]"
+            >
+              <Download className="h-3.5 w-3.5" />
+              <span>{sendPrepButtonLabel}</span>
+            </button>
+          </div>
+        </div>
+
         <div className="dashboard-panel dashboard-panel-framed overflow-hidden">
           <DataTable
             key={`${form}-${cheerSubtype}-${danceSubtype}-${tableFilterKey}`}
             columns={columns}
             data={filtered}
             rowKey={(rec) => rec.id}
-            href={(rec) => `/mtd/${rec.id}`}
+            href={(rec) => `/payroll/${rec.id}`}
             emptyMessage={emptyMessage}
             pageSize={15}
             embedded

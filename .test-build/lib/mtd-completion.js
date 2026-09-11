@@ -91,6 +91,12 @@ function getMTDBoardRecords(records) {
 /** Keep local MTD edits when backend reload races or has not persisted yet. */
 function mergeLocalMtdRecordFields(backendRecord, localRecord) {
     let merged = backendRecord;
+    if (localRecord?.inMTD !== undefined && backendRecord.inMTD === undefined) {
+        merged = {
+            ...merged,
+            inMTD: localRecord.inMTD,
+        };
+    }
     if (localRecord?.inPayroll && !backendRecord.inPayroll) {
         merged = {
             ...merged,
@@ -112,11 +118,16 @@ function mergeLocalMtdRecordFields(backendRecord, localRecord) {
             payrollBreakdown: localRecord.payrollBreakdown ?? merged.payrollBreakdown,
         };
     }
-    if (localRecord?.assignedProducer?.trim() && !merged.assignedProducer?.trim()) {
+    if (localRecord) {
         merged = {
             ...merged,
-            assignedProducer: localRecord.assignedProducer,
+            assignedProducer: localRecord.assignedProducer?.trim() ? localRecord.assignedProducer : merged.assignedProducer,
             editorRequest: localRecord.editorRequest ?? merged.editorRequest,
+            mixStartDate: localRecord.mixStartDate || merged.mixStartDate,
+            mixEndDate: localRecord.mixEndDate || merged.mixEndDate,
+            invoice: localRecord.invoice || merged.invoice,
+            status: localRecord.status ?? merged.status,
+            recordStatus: localRecord.recordStatus ?? merged.recordStatus,
         };
     }
     return merged;

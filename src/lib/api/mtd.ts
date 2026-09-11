@@ -26,6 +26,8 @@ export interface BackendMTDRecord {
   needs_attention: boolean;
   status: "active" | "outsourced" | "needs_attention" | "completed";
   record_status?: string | null;
+  in_mtd?: boolean;
+  inMTD?: boolean;
   in_payroll: boolean;
   completed_at?: string | null;
   has_rally_mix?: boolean;
@@ -72,6 +74,7 @@ export function transformMTDRecord(bm: BackendMTDRecord): MTDRecord {
     needsAttention: Boolean(bm.needs_attention),
     status: bm.status || "active",
     recordStatus: (bm.record_status as MTDRecordStatus) || undefined,
+    inMTD: Boolean(bm.in_mtd ?? bm.inMTD),
     inPayroll: Boolean(bm.in_payroll),
     completedAt: bm.completed_at || undefined,
     hasRallyMix: Boolean(bm.has_rally_mix ?? bm.hasRallyMix),
@@ -112,6 +115,7 @@ export async function createMTDRecordApi(record: Partial<MTDRecord>): Promise<MT
     have_songs: record.haveSongs || "NEED SONGS",
     needs_attention: record.needsAttention ?? true,
     status: record.status || "needs_attention",
+    in_mtd: Boolean(record.inMTD),
     has_rally_mix: Boolean(record.hasRallyMix),
     has_extend_8ct_addon: Boolean(record.hasExtend8ctAddon),
     has_processing_8ct_sheets_addon: Boolean(record.hasProcessing8ctSheetsAddon),
@@ -145,6 +149,7 @@ export async function updateMTDRecordApi(
   if (patch.needsAttention !== undefined) payload.needs_attention = patch.needsAttention;
   if (patch.status !== undefined) payload.status = patch.status;
   if (patch.recordStatus !== undefined) payload.record_status = patch.recordStatus;
+  if (patch.inMTD !== undefined) payload.in_mtd = patch.inMTD;
   if (patch.inPayroll !== undefined) payload.in_payroll = patch.inPayroll;
   if (patch.completedAt !== undefined) payload.completed_at = patch.completedAt;
   if (patch.hasRallyMix !== undefined) payload.has_rally_mix = patch.hasRallyMix;

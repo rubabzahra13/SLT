@@ -1,6 +1,10 @@
 export type DateFilterValue = {
   type:
     | "all"
+    | "last2Weeks"
+    | "last1Month"
+    | "last6Months"
+    | "last1Year"
     | "thisWeek"
     | "last30Days"
     | "thisMonth"
@@ -80,9 +84,25 @@ export function calculateDateBounds(
       return { start: null, end: null };
     case "thisWeek":
       return { start: startOfWeek(now), end: endOfWeek(now) };
+    case "last2Weeks": {
+      const past = new Date(now);
+      past.setDate(now.getDate() - 13);
+      return { start: startOfDay(past), end: endOfDay(now) };
+    }
+    case "last1Month":
     case "last30Days": {
       const past = new Date(now);
       past.setDate(now.getDate() - 29);
+      return { start: startOfDay(past), end: endOfDay(now) };
+    }
+    case "last6Months": {
+      const past = new Date(now);
+      past.setMonth(now.getMonth() - 6);
+      return { start: startOfDay(past), end: endOfDay(now) };
+    }
+    case "last1Year": {
+      const past = new Date(now);
+      past.setFullYear(now.getFullYear() - 1);
       return { start: startOfDay(past), end: endOfDay(now) };
     }
     case "thisMonth": {
@@ -123,6 +143,10 @@ export function calculateDateBounds(
 
 export function getDateFilterLabel(filter: DateFilterValue): string {
   if (!filter || filter.type === "all") return "All time";
+  if (filter.type === "last2Weeks") return "Last 2 weeks";
+  if (filter.type === "last1Month") return "Last 1 month";
+  if (filter.type === "last6Months") return "Last 6 months";
+  if (filter.type === "last1Year") return "Last 1 year";
   if (filter.type === "thisWeek") return "This week";
   if (filter.type === "last30Days") return "Last 30 days";
   if (filter.type === "thisMonth") return "This month";

@@ -3,7 +3,7 @@ import {
   isDateInBounds,
   type DateFilterValue,
 } from "./date-filters";
-import { toIsoDateString } from "./dates";
+import { doDateRangesOverlap, toIsoDateString } from "./dates";
 import {
   findLinkedOrder,
   getDisplayAssignedProducer,
@@ -443,13 +443,10 @@ export function matchesDateFilter(
   if (dateFilter.type === "all") return true;
 
   const bounds = calculateDateBounds(dateFilter.type, dateFilter.value);
-  const mixDate = toIsoDateString(rec.mixStartDate);
-  const mixEnd = toIsoDateString(rec.mixEndDate);
-
-  if (mixDate && isDateInBounds(mixDate, bounds)) return true;
-  if (mixEnd && isDateInBounds(mixEnd, bounds)) return true;
-
-  return false;
+  return doDateRangesOverlap(
+    { start: rec.mixStartDate, end: rec.mixEndDate },
+    bounds
+  );
 }
 
 export type MixScheduleFilter = "all" | "scheduled" | "not_scheduled";
@@ -585,14 +582,8 @@ export function isOrderScheduledAndAssigned(rec: MTDRecord): boolean {
 export function isMTDRecord(rec: MTDRecord): boolean {
   // Outsourced mixes always live on the MTD board.
   if (isOutsourcedRecord(rec)) return true;
-  // Everything else stays in the Orders tab until it is explicitly moved
-  // (inMTD === true). Assigning an editor no longer auto-moves the record.
-  if (rec.inMTD !== true) return false;
-  // MTD editor assignment is view-only/locked, so a record can only stay on
-  // the MTD board once it has an assigned editor. Legacy/demo records that were
-  // flagged inMTD without an editor fall back to the Orders tab, where the
-  // editor must be assigned before the record can move back to MTD.
-  return Boolean(getDisplayAssignedProducer(rec));
+  // Explicitly moved to MTD
+  return rec.inMTD === true;
 }
 
 export function isPreMTDOrderRecord(rec: MTDRecord): boolean {

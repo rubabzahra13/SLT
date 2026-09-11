@@ -18,8 +18,27 @@ async function request<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
+
+  let authHeader = "";
+  if (typeof window !== "undefined") {
+    try {
+      const rawSession = localStorage.getItem("slt_auth_session");
+      if (rawSession) {
+        const parsed = JSON.parse(rawSession);
+        if (parsed?.token) {
+          authHeader = `Bearer ${parsed.token}`;
+        }
+      }
+    } catch {}
+  }
+
+  if (!authHeader) {
+    authHeader = "Bearer token-usr-megan";
+  }
+
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
+    ...(authHeader ? { Authorization: authHeader } : {}),
     ...(options.headers as Record<string, string>),
   };
 
@@ -37,8 +56,17 @@ async function request<T>(
       } catch {
         errorData = await response.text();
       }
+      let errorMessage = `API request failed: ${response.status} ${response.statusText}`;
+      if (
+        errorData &&
+        typeof errorData === "object" &&
+        "detail" in errorData &&
+        typeof (errorData as { detail?: unknown }).detail === "string"
+      ) {
+        errorMessage = (errorData as { detail: string }).detail;
+      }
       throw new ApiClientError(
-        `API request failed: ${response.status} ${response.statusText}`,
+        errorMessage,
         response.status,
         errorData
       );

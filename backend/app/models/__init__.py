@@ -10,6 +10,7 @@ from app.models.pricing_rule import PricingRule
 from app.models.addon_rule import AddonRule
 from app.models.compliant_affiliate import CompliantAffiliate
 from app.models.user import User
+from app.models.email_connection import EmailConnection
 
 __all__ = [
     "Base",
@@ -25,4 +26,5 @@ __all__ = [
     "AddonRule",
     "CompliantAffiliate",
     "User",
+    "EmailConnection",
 ]

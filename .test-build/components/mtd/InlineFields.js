@@ -263,7 +263,7 @@ function isDateDisabled(iso, minIso, maxIso) {
         return true;
     return false;
 }
-function InlineDateInput({ value, onChange, template, min, max, className, readOnly = false, }) {
+function InlineDateInput({ value, onChange, template, placeholder, min, max, className, readOnly = false, }) {
     const triggerRef = (0, react_1.useRef)(null);
     const menuRef = (0, react_1.useRef)(null);
     const [open, setOpen] = (0, react_1.useState)(false);
@@ -342,9 +342,11 @@ function InlineDateInput({ value, onChange, template, min, max, className, readO
         triggerRef.current?.focus();
     }
     const displayLabel = isUnset
-        ? templateIso
-            ? (0, dates_1.formatDisplayDate)(templateIso)
-            : "Select date"
+        ? placeholder
+            ? placeholder
+            : templateIso
+                ? (0, dates_1.formatDisplayDate)(templateIso)
+                : "Select date"
         : (0, dates_1.formatDisplayDate)(normalized);
     return ((0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsxs)("button", { ref: triggerRef, type: "button", disabled: readOnly, "aria-haspopup": "dialog", "aria-expanded": open, title: isUnset && templateIso
                     ? `Suggested mix date: ${templateIso}`

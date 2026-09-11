@@ -618,6 +618,8 @@ type InlineDateInputProps = {
   onChange: (value: string) => void;
   /** Pre-filled date shown when empty (YYYY-MM-DD). */
   template?: string;
+  /** Custom text to display when value is empty. */
+  placeholder?: string;
   /** Earliest selectable date (YYYY-MM-DD). */
   min?: string;
   /** Latest selectable date (YYYY-MM-DD). */
@@ -667,6 +669,7 @@ export function InlineDateInput({
   value,
   onChange,
   template,
+  placeholder,
   min,
   max,
   className,
@@ -765,7 +768,9 @@ export function InlineDateInput({
   }
 
   const displayLabel = isUnset
-    ? templateIso
+    ? placeholder
+      ? placeholder
+      : templateIso
       ? formatDisplayDate(templateIso)
       : "Select date"
     : formatDisplayDate(normalized);

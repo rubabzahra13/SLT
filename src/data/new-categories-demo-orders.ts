@@ -1051,16 +1051,19 @@ export const NEW_CATEGORIES_DEMO_ORDERS: Order[] = [
 ];
 
 const newCatDates = [
-  { start: "2026-09-08", end: "2026-09-15" },
-  { start: "2026-09-11", end: "2026-09-18" },
-  { start: "2026-09-14", end: "2026-09-21" },
-  { start: "2026-09-17", end: "2026-09-24" },
-  { start: "2026-09-20", end: "2026-09-27" },
+  { start: "2026-08-05", end: "2026-08-12" },
+  { start: "2026-08-15", end: "2026-08-22" },
+  { start: "2026-08-25", end: "2026-09-01" },
+  { start: "2026-09-01", end: "2026-09-08" },
+  { start: "2026-09-05", end: "2026-09-12" },
 ];
 
 export const MARCHING_BAND_DEMO_MTD_RECORDS: MTDRecord[] = MARCHING_BAND_DEMO_ORDERS.map((o, idx) => {
   const producer = seedAssignedProducerForOrder(o.id, o.requestedProducer || o.editorRequest, "Marching Band", producers);
   const sched = newCatDates[idx % newCatDates.length];
+  const isCompletedPayroll = idx === 0 || idx === 1;
+  const completedAt = isCompletedPayroll ? (idx === 0 ? "2026-08-15T16:00:00Z" : "2026-08-22T13:45:00Z") : undefined;
+
   return {
     id: `mtd-${o.id}`,
     orderId: o.id,
@@ -1078,11 +1081,14 @@ export const MARCHING_BAND_DEMO_MTD_RECORDS: MTDRecord[] = MARCHING_BAND_DEMO_OR
     invoice: `${String(301 + idx + 25000)}`,
     mixStartDate: producer ? sched.start : "2026-09-08",
     mixEndDate: producer ? sched.end : "2026-09-15",
-    eightCountSheet: "HAVE CS",
-    haveSongs: "HAVE",
+    eightCountSheet: isCompletedPayroll ? "CS CONFIRMED" : "HAVE CS",
+    haveSongs: isCompletedPayroll ? "SONGS READY" : "HAVE",
     needsAttention: o.needsAttention,
-    status: "active",
-    inPayroll: false,
+    status: isCompletedPayroll ? "completed" : (o.needsAttention ? "needs_attention" : "active"),
+    recordStatus: isCompletedPayroll ? "Completed" as const : "Ongoing" as const,
+    inMTD: true,
+    inPayroll: isCompletedPayroll,
+    completedAt,
     hasSheetMusicAdd: o.hasSheetMusicAdd,
     hasAddVocals: o.hasAddVocals,
   };
@@ -1091,6 +1097,9 @@ export const MARCHING_BAND_DEMO_MTD_RECORDS: MTDRecord[] = MARCHING_BAND_DEMO_OR
 export const SPORTS_ENTERTAINMENT_DEMO_MTD_RECORDS: MTDRecord[] = SPORTS_ENTERTAINMENT_DEMO_ORDERS.map((o, idx) => {
   const producer = seedAssignedProducerForOrder(o.id, o.requestedProducer || o.editorRequest, "Sports Entertainment", producers);
   const sched = newCatDates[idx % newCatDates.length];
+  const isCompletedPayroll = idx === 0 || idx === 1;
+  const completedAt = isCompletedPayroll ? (idx === 0 ? "2026-09-01T10:30:00Z" : "2026-09-05T14:00:00Z") : undefined;
+
   return {
     id: `mtd-${o.id}`,
     orderId: o.id,
@@ -1108,11 +1117,14 @@ export const SPORTS_ENTERTAINMENT_DEMO_MTD_RECORDS: MTDRecord[] = SPORTS_ENTERTA
     invoice: `${String(401 + idx + 25000)}`,
     mixStartDate: producer ? sched.start : "2026-09-08",
     mixEndDate: producer ? sched.end : "2026-09-15",
-    eightCountSheet: "HAVE CS",
-    haveSongs: "HAVE",
+    eightCountSheet: isCompletedPayroll ? "CS CONFIRMED" : "HAVE CS",
+    haveSongs: isCompletedPayroll ? "SONGS READY" : "HAVE",
     needsAttention: o.needsAttention,
-    status: o.needsAttention ? "needs_attention" : "active",
-    inPayroll: false,
+    status: isCompletedPayroll ? "completed" : (o.needsAttention ? "needs_attention" : "active"),
+    recordStatus: isCompletedPayroll ? "Completed" as const : "Ongoing" as const,
+    inMTD: true,
+    inPayroll: isCompletedPayroll,
+    completedAt,
     isRushOrder: o.isRushOrder,
   };
 });
@@ -1120,6 +1132,9 @@ export const SPORTS_ENTERTAINMENT_DEMO_MTD_RECORDS: MTDRecord[] = SPORTS_ENTERTA
 export const SCHOOL_ANTHEMS_DEMO_MTD_RECORDS: MTDRecord[] = SCHOOL_ANTHEMS_DEMO_ORDERS.map((o, idx) => {
   const producer = seedAssignedProducerForOrder(o.id, o.requestedProducer || o.editorRequest, "School Anthem", producers);
   const sched = newCatDates[idx % newCatDates.length];
+  const isCompletedPayroll = idx === 0;
+  const completedAt = isCompletedPayroll ? "2026-09-09T11:00:00Z" : undefined;
+
   return {
     id: `mtd-${o.id}`,
     orderId: o.id,
@@ -1137,11 +1152,14 @@ export const SCHOOL_ANTHEMS_DEMO_MTD_RECORDS: MTDRecord[] = SCHOOL_ANTHEMS_DEMO_
     invoice: `${String(501 + idx + 25000)}`,
     mixStartDate: producer ? sched.start : "2026-09-08",
     mixEndDate: producer ? sched.end : "2026-09-15",
-    eightCountSheet: "HAVE CS",
-    haveSongs: "HAVE",
+    eightCountSheet: isCompletedPayroll ? "CS CONFIRMED" : "HAVE CS",
+    haveSongs: isCompletedPayroll ? "SONGS READY" : "HAVE",
     needsAttention: o.needsAttention,
-    status: "active",
-    inPayroll: false,
+    status: isCompletedPayroll ? "completed" : "active",
+    recordStatus: isCompletedPayroll ? "Completed" as const : "Ongoing" as const,
+    inMTD: true,
+    inPayroll: isCompletedPayroll,
+    completedAt,
   };
 });
 

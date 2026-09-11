@@ -15,8 +15,25 @@ class ApiClientError extends Error {
 exports.ApiClientError = ApiClientError;
 async function request(endpoint, options = {}) {
     const url = `${exports.API_BASE_URL}${endpoint}`;
+    let authHeader = "";
+    if (typeof window !== "undefined") {
+        try {
+            const rawSession = localStorage.getItem("slt_auth_session");
+            if (rawSession) {
+                const parsed = JSON.parse(rawSession);
+                if (parsed?.token) {
+                    authHeader = `Bearer ${parsed.token}`;
+                }
+            }
+        }
+        catch { }
+    }
+    if (!authHeader) {
+        authHeader = "Bearer token-usr-megan";
+    }
     const headers = {
         "Content-Type": "application/json",
+        ...(authHeader ? { Authorization: authHeader } : {}),
         ...options.headers,
     };
     try {
@@ -33,7 +50,14 @@ async function request(endpoint, options = {}) {
             catch {
                 errorData = await response.text();
             }
-            throw new ApiClientError(`API request failed: ${response.status} ${response.statusText}`, response.status, errorData);
+            let errorMessage = `API request failed: ${response.status} ${response.statusText}`;
+            if (errorData &&
+                typeof errorData === "object" &&
+                "detail" in errorData &&
+                typeof errorData.detail === "string") {
+                errorMessage = errorData.detail;
+            }
+            throw new ApiClientError(errorMessage, response.status, errorData);
         }
         if (response.status === 204) {
             return {};

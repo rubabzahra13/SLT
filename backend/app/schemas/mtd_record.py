@@ -28,6 +28,7 @@ class MTDRecordSchema(BaseModel):
     needs_attention: bool = False
     status: str = "active"
     record_status: Optional[str] = None
+    in_mtd: bool = False
     in_payroll: bool = False
     completed_at: Optional[datetime] = None
     has_rally_mix: bool = False
@@ -61,6 +62,7 @@ class MTDRecordCreateSchema(BaseModel):
     have_songs: Optional[str] = "NEED SONGS"
     needs_attention: Optional[bool] = True
     status: Optional[str] = "needs_attention"
+    in_mtd: Optional[bool] = False
     has_rally_mix: Optional[bool] = False
     has_extend_8ct_addon: Optional[bool] = False
     has_processing_8ct_sheets_addon: Optional[bool] = False
@@ -86,6 +88,7 @@ class MTDRecordUpdateSchema(BaseModel):
     needs_attention: Optional[bool] = None
     status: Optional[str] = None
     record_status: Optional[str] = None
+    in_mtd: Optional[bool] = None
     in_payroll: Optional[bool] = None
     completed_at: Optional[datetime] = None
     has_rally_mix: Optional[bool] = None
