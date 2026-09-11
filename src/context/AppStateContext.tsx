@@ -37,12 +37,13 @@ import { suggestMixEndDate, suggestMixStartDate } from "@/lib/scheduling";
 import { normalizeProducer } from "@/lib/producers";
 import { normalizeDiscountCode } from "@/lib/discount-codes";
 import { mergeLocalMtdRecordFields } from "@/lib/mtd-completion";
-import { isOrderScheduledAndAssigned, isOutsourcedRecord } from "@/lib/mtd-filters";
+import { isOutsourcedRecord } from "@/lib/mtd-filters";
 import { inferMTDRecordStatus } from "@/lib/mtd-status";
 import { toIsoDateString } from "@/lib/dates";
 import {
   fetchProducersApi,
   createProducerApi,
+  resolveProducerApiId,
   updateProducerApi,
   deleteProducerApi,
   fetchOrdersApi,
@@ -80,9 +81,9 @@ type AppStateContextValue = {
   addPastOrder: (order: Order) => void;
   /** Incoming customer order — adds to active list and notifies the bell. */
   receiveOrder: (order: Order) => void;
-  addProducer: (producer: Producer) => void;
-  updateProducer: (id: string, patch: Partial<Producer>) => void;
-  removeProducer: (id: string) => void;
+  addProducer: (producer: Producer) => Promise<Producer>;
+  updateProducer: (id: string, patch: Partial<Producer>) => Promise<Producer>;
+  removeProducer: (id: string) => Promise<void>;
   addDiscountCode: (discountCode: DiscountCode) => void;
   updateDiscountCode: (id: string, patch: Partial<DiscountCode>) => void;
   removeDiscountCode: (id: string) => void;
@@ -124,14 +125,9 @@ function normalizeMTD(records: MTDRecord[]): MTDRecord[] {
       ...(mixEnd ? { mixEndDate: mixEnd } : {}),
     };
 
-    // Backfill the explicit MTD flag for records that already belong on the
-    // board (assigned + scheduled, or outsourced). New assignments made from
-    // the Orders tab at runtime do NOT set this, so they stay in Orders until
-    // the user explicitly clicks "Move to MTD".
-    if (
-      normalized.inMTD === undefined &&
-      (isOrderScheduledAndAssigned(normalized) || isOutsourcedRecord(normalized))
-    ) {
+    // Backfill only for outsourced rows missing the explicit MTD flag.
+    // Assigned + scheduled orders stay on the Orders tab until "Move to MTD".
+    if (normalized.inMTD === undefined && isOutsourcedRecord(normalized)) {
       normalized.inMTD = true;
     }
 
@@ -508,6 +504,11 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           updated.assignedProducer = resolved;
           apiPatch = { ...apiPatch, assignedProducer: resolved };
 
+          if (resolved && !r.inMTD && patch.inMTD === undefined) {
+            updated.inMTD = false;
+            apiPatch = { ...apiPatch, inMTD: false };
+          }
+
           if (
             resolved &&
             !toIsoDateString(updated.mixStartDate) &&
@@ -666,33 +667,73 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     [addNotification]
   );
 
-  const addProducer = useCallback((producer: Producer) => {
-    if (isViewOnly) return;
+  const addProducer = useCallback(async (producer: Producer) => {
+    if (isViewOnly) {
+      throw new Error("View-only accounts cannot add producers.");
+    }
     const normalized = normalizeProducer(producer);
+    const tempId = normalized.id;
     setProducers((prev) => [normalized, ...prev]);
-    createProducerApi(normalized).catch((err) =>
-      console.error("Failed to persist new producer to backend:", err)
-    );
+    try {
+      const saved = await createProducerApi(normalized);
+      setProducers((prev) =>
+        prev.map((p) => (p.id === tempId ? saved : p))
+      );
+      return saved;
+    } catch (err) {
+      setProducers((prev) => prev.filter((p) => p.id !== tempId));
+      throw err;
+    }
   }, [isViewOnly]);
 
-  const updateProducer = useCallback((id: string, patch: Partial<Producer>) => {
-    if (isViewOnly) return;
-    setProducers((prev) =>
-      prev.map((p) =>
+  const updateProducer = useCallback(async (id: string, patch: Partial<Producer>) => {
+    if (isViewOnly) {
+      throw new Error("View-only accounts cannot edit producers.");
+    }
+    let previous: Producer | undefined;
+    setProducers((prev) => {
+      previous = prev.find((p) => p.id === id);
+      return prev.map((p) =>
         p.id === id ? normalizeProducer({ ...p, ...patch, id }) : p
-      )
-    );
-    updateProducerApi(id, patch).catch((err) =>
-      console.error("Failed to persist producer update to backend:", err)
-    );
+      );
+    });
+    if (!previous) {
+      throw new Error("Producer not found.");
+    }
+    try {
+      const saved = await updateProducerApi(
+        id,
+        patch,
+        resolveProducerApiId(previous)
+      );
+      setProducers((prev) => prev.map((p) => (p.id === id ? saved : p)));
+      return saved;
+    } catch (err) {
+      setProducers((prev) =>
+        prev.map((p) => (p.id === id ? previous! : p))
+      );
+      throw err;
+    }
   }, [isViewOnly]);
 
-  const removeProducer = useCallback((id: string) => {
-    if (isViewOnly) return;
-    setProducers((prev) => prev.filter((p) => p.id !== id));
-    deleteProducerApi(id).catch((err) =>
-      console.error("Failed to delete producer from backend:", err)
-    );
+  const removeProducer = useCallback(async (id: string) => {
+    if (isViewOnly) {
+      throw new Error("View-only accounts cannot remove producers.");
+    }
+    let removed: Producer | undefined;
+    setProducers((prev) => {
+      removed = prev.find((p) => p.id === id);
+      return prev.filter((p) => p.id !== id);
+    });
+    if (!removed) {
+      throw new Error("Producer not found.");
+    }
+    try {
+      await deleteProducerApi(id, resolveProducerApiId(removed));
+    } catch (err) {
+      setProducers((prev) => [removed!, ...prev]);
+      throw err;
+    }
   }, [isViewOnly]);
 
   const addDiscountCode = useCallback((discountCode: DiscountCode) => {

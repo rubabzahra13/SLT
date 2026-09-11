@@ -46,12 +46,9 @@ function normalizeMTD(records) {
             inPayroll: Boolean(r.inPayroll),
             ...(mixEnd ? { mixEndDate: mixEnd } : {}),
         };
-        // Backfill the explicit MTD flag for records that already belong on the
-        // board (assigned + scheduled, or outsourced). New assignments made from
-        // the Orders tab at runtime do NOT set this, so they stay in Orders until
-        // the user explicitly clicks "Move to MTD".
-        if (normalized.inMTD === undefined &&
-            ((0, mtd_filters_1.isOrderScheduledAndAssigned)(normalized) || (0, mtd_filters_1.isOutsourcedRecord)(normalized))) {
+        // Backfill only for outsourced rows missing the explicit MTD flag.
+        // Assigned + scheduled orders stay on the Orders tab until "Move to MTD".
+        if (normalized.inMTD === undefined && (0, mtd_filters_1.isOutsourcedRecord)(normalized)) {
             normalized.inMTD = true;
         }
         return normalized;
@@ -326,6 +323,10 @@ function AppStateProvider({ children }) {
                     const resolved = (0, editor_assignment_1.resolveAssignedProducerForPatch)(patch.assignedProducer, producers, updated.category);
                     updated.assignedProducer = resolved;
                     apiPatch = { ...apiPatch, assignedProducer: resolved };
+                    if (resolved && !r.inMTD && patch.inMTD === undefined) {
+                        updated.inMTD = false;
+                        apiPatch = { ...apiPatch, inMTD: false };
+                    }
                     if (resolved &&
                         !(0, dates_1.toIsoDateString)(updated.mixStartDate) &&
                         patch.mixStartDate === undefined) {

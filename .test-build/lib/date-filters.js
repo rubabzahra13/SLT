@@ -2,6 +2,8 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.MONTHS = void 0;
 exports.calculateDateBounds = calculateDateBounds;
+exports.payPeriodRangeToDateFilter = payPeriodRangeToDateFilter;
+exports.payPeriodRangeLabel = payPeriodRangeLabel;
 exports.getDateFilterLabel = getDateFilterLabel;
 exports.isDateInBounds = isDateInBounds;
 exports.todayIso = todayIso;
@@ -62,6 +64,8 @@ function calculateDateBounds(type, value) {
     switch (type) {
         case "all":
             return { start: null, end: null };
+        case "today":
+            return { start: startOfDay(now), end: endOfDay(now) };
         case "thisWeek":
             return { start: startOfWeek(now), end: endOfWeek(now) };
         case "last2Weeks": {
@@ -69,10 +73,25 @@ function calculateDateBounds(type, value) {
             past.setDate(now.getDate() - 13);
             return { start: startOfDay(past), end: endOfDay(now) };
         }
+        case "last4Weeks": {
+            const past = new Date(now);
+            past.setDate(now.getDate() - 27);
+            return { start: startOfDay(past), end: endOfDay(now) };
+        }
+        case "last6Weeks": {
+            const past = new Date(now);
+            past.setDate(now.getDate() - 41);
+            return { start: startOfDay(past), end: endOfDay(now) };
+        }
         case "last1Month":
         case "last30Days": {
             const past = new Date(now);
             past.setDate(now.getDate() - 29);
+            return { start: startOfDay(past), end: endOfDay(now) };
+        }
+        case "last90Days": {
+            const past = new Date(now);
+            past.setDate(now.getDate() - 89);
             return { start: startOfDay(past), end: endOfDay(now) };
         }
         case "last6Months": {
@@ -123,11 +142,37 @@ function calculateDateBounds(type, value) {
             return { start: null, end: null };
     }
 }
+function payPeriodRangeToDateFilter(range) {
+    switch (range) {
+        case "2weeks":
+            return { type: "last2Weeks", value: null };
+        case "4weeks":
+            return { type: "last4Weeks", value: null };
+        case "6weeks":
+            return { type: "last6Weeks", value: null };
+    }
+}
+function payPeriodRangeLabel(range) {
+    switch (range) {
+        case "2weeks":
+            return "Last 2 weeks";
+        case "4weeks":
+            return "Last 4 weeks";
+        case "6weeks":
+            return "Last 6 weeks";
+    }
+}
 function getDateFilterLabel(filter) {
     if (!filter || filter.type === "all")
         return "All time";
+    if (filter.type === "today")
+        return "Today";
     if (filter.type === "last2Weeks")
         return "Last 2 weeks";
+    if (filter.type === "last4Weeks")
+        return "Last 4 weeks";
+    if (filter.type === "last6Weeks")
+        return "Last 6 weeks";
     if (filter.type === "last1Month")
         return "Last 1 month";
     if (filter.type === "last6Months")
@@ -138,6 +183,8 @@ function getDateFilterLabel(filter) {
         return "This week";
     if (filter.type === "last30Days")
         return "Last 30 days";
+    if (filter.type === "last90Days")
+        return "Last 90 days";
     if (filter.type === "thisMonth")
         return "This month";
     if (filter.type === "month" && typeof filter.value === "string") {

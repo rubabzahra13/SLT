@@ -1,0 +1,73 @@
+.formPanel {
+  width: 100%;
+  max-width: 420px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-self: center;
+}
+
+.headline {
+  font-size: 2.05rem;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+  color: #fff;
+}
+
+@media (min-width: 640px) {
+  .headline {
+    font-size: 2.25rem;
+  }
+}
+
+.formPanel :global(.login-scrap-card) {
+  display: flex;
+  flex-direction: column;
+  min-height: min(64dvh, 560px);
+  height: min(68dvh, 580px);
+  box-sizing: border-box;
+  padding: 1.75rem 2rem;
+  background: #0a0c10;
+  background-image: none;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: none;
+  box-shadow:
+    0 0 48px rgba(0, 0, 0, 0.35),
+    0 28px 72px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+@media (min-width: 640px) {
+  .formPanel :global(.login-scrap-card) {
+    padding: 1.85rem 2.35rem;
+  }
+}
+
+.formPanel :global(.login-scrap-card) form {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.formPanel :global(.login-scrap-card) :global(.login-card-demo) {
+  margin-top: auto;
+}
+
+@media (min-width: 768px) {
+  .formPanel {
+    width: 400px;
+    max-width: 400px;
+    transform: translateX(-140px);
+  }
+}
+
+@media (min-width: 1024px) {
+  .formPanel {
+    width: 420px;
+    max-width: 420px;
+    transform: translateX(-160px);
+  }
+}

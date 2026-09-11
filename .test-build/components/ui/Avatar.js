@@ -49,5 +49,7 @@ function Avatar({ producer, initials, name, color, src, alt, size = "md", ring, 
     const displayInitials = resolveInitials(producer, initials, name, alt, src);
     const bgColor = color || producer?.color || (0, producer_avatars_1.getProducerColor)(displayInitials);
     const { box, font } = sizeMap[size] || sizeMap.md;
-    return ((0, jsx_runtime_1.jsx)("div", { className: (0, clsx_1.default)("shrink-0 select-none overflow-hidden rounded-full font-bold text-black flex items-center justify-center shadow-xs transition-transform", box, ring && "ring-2 ring-brand-line ring-offset-2 ring-offset-brand-surface", className), style: { backgroundColor: bgColor }, title: name || alt || producer?.name || displayInitials, children: (0, jsx_runtime_1.jsx)("span", { className: (0, clsx_1.default)("leading-none text-black font-extrabold tracking-tight", font), children: displayInitials }) }));
+    return ((0, jsx_runtime_1.jsx)("div", { className: (0, clsx_1.default)("shrink-0 select-none overflow-hidden rounded-full font-bold flex items-center justify-center shadow-xs transition-transform", box, ring && "ring-2 ring-brand-line ring-offset-2 ring-offset-brand-surface", className), style: { backgroundColor: bgColor }, title: name || alt || producer?.name || displayInitials, children: (0, jsx_runtime_1.jsx)("span", { className: (0, clsx_1.default)("leading-none font-extrabold tracking-tight text-white", font), style: {
+                textShadow: "0 1px 2px rgba(0,0,0,0.55), 0 0 1px rgba(0,0,0,0.85)",
+            }, children: displayInitials }) }));
 }

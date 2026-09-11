@@ -1,0 +1,270 @@
+.atmosphere {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background: #0a0c10;
+}
+
+.plate {
+  position: absolute;
+  inset: 0;
+  background-color: #0a0c10;
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  transform: scale(1.04);
+}
+
+.smokeField {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.smoke {
+  position: absolute;
+  inset: -18%;
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  mix-blend-mode: screen;
+  will-change: transform, opacity;
+  filter: contrast(1.22) saturate(1.55) brightness(1.12);
+}
+
+.smokePrimary {
+  opacity: 1;
+  animation: smokeDriftPrimary 26s ease-in-out infinite;
+}
+
+.smokeSecondary {
+  opacity: 0.85;
+  transform: scale(1.12) rotate(180deg);
+  animation: smokeDriftSecondary 32s ease-in-out infinite;
+}
+
+.smokeTertiary {
+  opacity: 0.7;
+  transform: scaleX(-1) scale(1.08);
+  animation: smokeDriftTertiary 22s ease-in-out infinite;
+}
+
+.smokeQuaternary {
+  opacity: 0.55;
+  transform: scale(1.2) rotate(90deg);
+  animation: smokeDriftQuaternary 36s ease-in-out infinite;
+  filter: contrast(1.15) saturate(1.7) brightness(1.18);
+}
+
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(90px);
+  mix-blend-mode: screen;
+  will-change: transform, opacity;
+}
+
+.orbTealA {
+  width: min(72vw, 780px);
+  height: min(72vw, 780px);
+  left: -20%;
+  top: -12%;
+  background: radial-gradient(
+    circle,
+    rgba(50, 170, 190, 0.55) 0%,
+    rgba(30, 110, 130, 0.22) 45%,
+    transparent 70%
+  );
+  animation: orbDriftA 24s ease-in-out infinite;
+}
+
+.orbAmberA {
+  width: min(68vw, 740px);
+  height: min(68vw, 740px);
+  right: -18%;
+  bottom: -16%;
+  background: radial-gradient(
+    circle,
+    rgba(210, 120, 55, 0.5) 0%,
+    rgba(160, 80, 35, 0.2) 45%,
+    transparent 70%
+  );
+  animation: orbDriftB 28s ease-in-out infinite;
+}
+
+.orbTealB {
+  width: min(55vw, 620px);
+  height: min(55vw, 620px);
+  right: -8%;
+  top: 8%;
+  background: radial-gradient(
+    circle,
+    rgba(40, 150, 175, 0.4) 0%,
+    transparent 68%
+  );
+  animation: orbDriftC 30s ease-in-out infinite;
+}
+
+.orbAmberB {
+  width: min(58vw, 640px);
+  height: min(58vw, 640px);
+  left: 5%;
+  bottom: -10%;
+  background: radial-gradient(
+    circle,
+    rgba(195, 105, 48, 0.38) 0%,
+    transparent 68%
+  );
+  animation: orbDriftD 26s ease-in-out infinite;
+}
+
+/* Light read veil only over the form zone — smoke stays full-field */
+.veil {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse 36% 48% at 78% 48%,
+    rgba(8, 10, 14, 0.42) 0%,
+    rgba(8, 10, 14, 0.14) 50%,
+    transparent 75%
+  );
+}
+
+@keyframes smokeDriftPrimary {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1.04);
+    opacity: 0.95;
+  }
+  33% {
+    transform: translate3d(2.8%, -2.2%, 0) scale(1.1);
+    opacity: 1;
+  }
+  66% {
+    transform: translate3d(-2.4%, 2.4%, 0) scale(1.06);
+    opacity: 0.9;
+  }
+}
+
+@keyframes smokeDriftSecondary {
+  0%,
+  100% {
+    transform: scale(1.12) rotate(180deg) translate3d(0, 0, 0);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(1.2) rotate(180deg) translate3d(-2.5%, 2%, 0);
+    opacity: 0.95;
+  }
+}
+
+@keyframes smokeDriftTertiary {
+  0%,
+  100% {
+    transform: scaleX(-1) scale(1.08) translate3d(0, 0, 0);
+    opacity: 0.55;
+  }
+  40% {
+    transform: scaleX(-1) scale(1.16) translate3d(2%, -2.5%, 0);
+    opacity: 0.85;
+  }
+  70% {
+    transform: scaleX(-1) scale(1.05) translate3d(-1.5%, 1.8%, 0);
+    opacity: 0.65;
+  }
+}
+
+@keyframes smokeDriftQuaternary {
+  0%,
+  100% {
+    transform: scale(1.2) rotate(90deg) translate3d(0, 0, 0);
+    opacity: 0.4;
+  }
+  50% {
+    transform: scale(1.28) rotate(90deg) translate3d(2%, 2%, 0);
+    opacity: 0.7;
+  }
+}
+
+@keyframes orbDriftA {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.85;
+  }
+  50% {
+    transform: translate3d(6%, 4%, 0) scale(1.12);
+    opacity: 1;
+  }
+}
+
+@keyframes orbDriftB {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.8;
+  }
+  50% {
+    transform: translate3d(-5%, -4%, 0) scale(1.1);
+    opacity: 1;
+  }
+}
+
+@keyframes orbDriftC {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.7;
+  }
+  50% {
+    transform: translate3d(-4%, 5%, 0) scale(1.14);
+    opacity: 0.95;
+  }
+}
+
+@keyframes orbDriftD {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1.02);
+    opacity: 0.75;
+  }
+  50% {
+    transform: translate3d(5%, -3%, 0) scale(0.96);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .smokePrimary,
+  .smokeSecondary,
+  .smokeTertiary,
+  .smokeQuaternary,
+  .orbTealA,
+  .orbAmberA,
+  .orbTealB,
+  .orbAmberB {
+    animation: none;
+  }
+
+  .smokePrimary {
+    opacity: 1;
+    transform: none;
+  }
+
+  .smokeSecondary {
+    opacity: 0.8;
+    transform: scale(1.12) rotate(180deg);
+  }
+
+  .smokeTertiary {
+    opacity: 0.65;
+    transform: scaleX(-1) scale(1.08);
+  }
+
+  .smokeQuaternary {
+    opacity: 0.5;
+    transform: scale(1.2) rotate(90deg);
+  }
+}

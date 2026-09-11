@@ -18,6 +18,7 @@ from app.models import (
 )
 
 from app.core.security import hash_password
+from app.lib.producer_assignment import resolve_producer_by_assignment_key
 from app.seed.seed_pricing import seed_pricing
 
 MOCK_DATA_PATH = os.path.abspath(
@@ -304,7 +305,9 @@ def seed_all(db: Session):
         assigned_prod_str = m.get("assignedProducer")
         assigned_producer_id = None
         if assigned_prod_str:
-            prod = producer_initials_map.get(assigned_prod_str.strip())
+            prod = resolve_producer_by_assignment_key(db, assigned_prod_str)
+            if not prod:
+                prod = producer_initials_map.get(assigned_prod_str.strip())
             if prod:
                 assigned_producer_id = prod.id
 
@@ -344,6 +347,7 @@ def seed_all(db: Session):
                 needs_attention=bool(m.get("needsAttention", False)),
                 status=m.get("status", "active"),
                 record_status=m.get("recordStatus"),
+                in_mtd=bool(m.get("inMTD", False)),
                 in_payroll=bool(m.get("inPayroll", False)),
                 completed_at=completed_dt,
             )

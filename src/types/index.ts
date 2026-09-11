@@ -97,6 +97,8 @@ export type ProducerManualInputField = {
 
 export type Producer = {
   id: string;
+  legacyId?: string;
+  uuid?: string;
   name: string;
   initials: string;
   email: string;

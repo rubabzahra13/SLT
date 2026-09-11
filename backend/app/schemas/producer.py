@@ -41,6 +41,7 @@ class ProducerSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 class ProducerCreateSchema(BaseModel):
+    legacy_id: Optional[str] = None
     name: str
     initials: str
     email: str

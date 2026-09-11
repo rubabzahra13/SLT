@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const node_test_1 = require("node:test");
 const strict_1 = __importDefault(require("node:assert/strict"));
 const mtd_filters_1 = require("../mtd-filters");
+const mtd_completion_1 = require("../mtd-completion");
 const order_detail_sections_1 = require("../order-detail-sections");
 function makeRecord(overrides = {}) {
     return {
@@ -85,6 +86,24 @@ function makeRecord(overrides = {}) {
         strict_1.default.equal(movedRecord.assignedProducer, "JD");
         strict_1.default.equal(movedRecord.mixStartDate, "2026-09-15");
         strict_1.default.equal(movedRecord.mixEndDate, "2026-09-22");
+    });
+    (0, node_test_1.it)("Backend assignment wins over stale local state on reload", () => {
+        const backendRecord = makeRecord({
+            assignedProducer: "CM",
+            mixStartDate: "2026-09-10",
+            mixEndDate: "2026-09-17",
+            inMTD: false,
+        });
+        const staleLocal = makeRecord({
+            assignedProducer: null,
+            editorRequest: "FA",
+            mixStartDate: "",
+            mixEndDate: "",
+        });
+        const merged = (0, mtd_completion_1.mergeLocalMtdRecordFields)(backendRecord, staleLocal);
+        strict_1.default.equal(merged.assignedProducer, "CM");
+        strict_1.default.equal(merged.inMTD, false);
+        strict_1.default.equal((0, mtd_filters_1.isPreMTDOrderRecord)(merged), true);
     });
     (0, node_test_1.it)("Outsourced mixes belong on the MTD tab even without full scheduling", () => {
         const outsourced = makeRecord({

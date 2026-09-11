@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: slt-crm-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: FRONTEND_URL
+        value: https://slt-teal.vercel.app
+      - key: PYTHONPATH
+        value: /app/backend

@@ -32,7 +32,7 @@ function InlineCell({ children, footer, className, centered = false, }) {
     const hasFooter = footer != null;
     return ((0, jsx_runtime_1.jsxs)("div", { className: (0, clsx_1.default)("mx-auto flex w-full min-w-0 flex-col justify-center", centered ? "items-center" : "items-stretch", className), onClick: (e) => e.stopPropagation(), children: [children, hasFooter ? ((0, jsx_runtime_1.jsx)("div", { className: (0, clsx_1.default)("mt-1 w-full truncate text-[9px] leading-none", centered && "text-center"), children: footer })) : null] }));
 }
-function InlineSelect({ value, options, onChange, className, centered = false, readOnly = false, }) {
+function InlineSelect({ value, options, onChange, className, centered = false, readOnly = false, variant = "default", pillActive = false, }) {
     const triggerRef = (0, react_1.useRef)(null);
     const menuRef = (0, react_1.useRef)(null);
     const [open, setOpen] = (0, react_1.useState)(false);
@@ -124,9 +124,13 @@ function InlineSelect({ value, options, onChange, className, centered = false, r
                     if (readOnly)
                         return;
                     setOpen((v) => !v);
-                }, onKeyDown: handleKeyDown, className: (0, clsx_1.default)(inlineControlClass, centered
-                    ? "relative flex cursor-pointer items-center justify-center px-6 text-center"
-                    : "flex cursor-pointer items-center justify-between gap-1.5 pr-2 text-left", readOnly && "!cursor-default !bg-slate-50/50 opacity-80 pointer-events-none", className), children: [(0, jsx_runtime_1.jsx)("span", { className: (0, clsx_1.default)("min-w-0 truncate", centered ? "w-full text-center" : "flex-1"), children: value }), (0, jsx_runtime_1.jsx)(lucide_react_1.ChevronDown, { className: (0, clsx_1.default)("h-3.5 w-3.5 shrink-0 text-brand-ink-tertiary transition-transform duration-150", centered && "absolute right-2 top-1/2 -translate-y-1/2", open && "rotate-180"), strokeWidth: 2.25, "aria-hidden": true })] }), mounted && open && position
+                }, onKeyDown: handleKeyDown, className: (0, clsx_1.default)(variant === "pill"
+                    ? (0, clsx_1.default)(inlinePillBaseClass, pillActive ? inlinePillActiveClass : inlinePillInactiveClass, "inline-flex cursor-pointer items-center gap-0.5 px-2 py-1")
+                    : (0, clsx_1.default)(inlineControlClass, centered
+                        ? "relative flex cursor-pointer items-center justify-center px-6 text-center"
+                        : "flex cursor-pointer items-center justify-between gap-1.5 pr-2 text-left"), readOnly && "!cursor-default !bg-slate-50/50 opacity-80 pointer-events-none", className), children: [(0, jsx_runtime_1.jsx)("span", { className: "min-w-0 truncate tabular-nums", children: value }), (0, jsx_runtime_1.jsx)(lucide_react_1.ChevronDown, { className: (0, clsx_1.default)("h-3 w-3 shrink-0 transition-transform duration-150", variant === "pill" && pillActive
+                            ? "text-emerald-700"
+                            : "text-brand-ink-tertiary", open && "rotate-180"), strokeWidth: 2.25, "aria-hidden": true })] }), mounted && open && position
                 ? (0, react_dom_1.createPortal)((0, jsx_runtime_1.jsx)("div", { ref: menuRef, role: "listbox", onClick: (e) => e.stopPropagation(), onMouseDown: (e) => e.stopPropagation(), className: "fixed z-[60] overflow-y-auto rounded-xl border border-brand-line/60 bg-white p-1 shadow-[var(--shadow-premium)] ring-1 ring-inset ring-brand-line/10 scrollbar-hide", style: {
                         left: position.left,
                         top: position.top,
@@ -481,21 +485,17 @@ function InlineRushFeePills({ record, onUpdate, onUpdateOrder, value, onChange, 
         rateChoices.push(currentRatePct);
         rateChoices.sort((a, b) => b - a);
     }
-    return ((0, jsx_runtime_1.jsxs)("div", { "data-stop-row-nav": true, className: (0, clsx_1.default)("inline-flex items-center gap-1.5", readOnly && "pointer-events-none opacity-80 cursor-default", className), onClick: (e) => e.stopPropagation(), children: [(0, jsx_runtime_1.jsxs)("div", { className: (0, clsx_1.default)(inlinePillGroupClass), children: [(0, jsx_runtime_1.jsx)(HoverTip_1.HoverTip, { label: "No Rush ($0)", placement: "top", children: (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: (e) => {
-                                e.stopPropagation();
-                                handleQtyChange(0);
-                            }, className: (0, clsx_1.default)(inlinePillBaseClass, rushQty === 0 ? inlinePillActiveClass : inlinePillInactiveClass), children: "None" }) }), (0, jsx_runtime_1.jsx)(HoverTip_1.HoverTip, { label: "Single Rush (+$150)", placement: "top", children: (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: (e) => {
-                                e.stopPropagation();
-                                handleQtyChange(1);
-                            }, className: (0, clsx_1.default)(inlinePillBaseClass, rushQty === 1 ? inlinePillActiveClass : inlinePillInactiveClass), children: "1x ($150)" }) }), (0, jsx_runtime_1.jsx)(HoverTip_1.HoverTip, { label: "Double Rush (+$300)", placement: "top", children: (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: (e) => {
-                                e.stopPropagation();
-                                handleQtyChange(2);
-                            }, className: (0, clsx_1.default)(inlinePillBaseClass, rushQty === 2 ? inlinePillActiveClass : inlinePillInactiveClass), children: "2x ($300)" }) })] }), rushQty > 0 && ((0, jsx_runtime_1.jsx)(HoverTip_1.HoverTip, { label: "Override Rush Fee Producer Compensation %", placement: "top", children: (0, jsx_runtime_1.jsx)("select", { value: currentRatePct, disabled: readOnly, onChange: (e) => {
-                        e.stopPropagation();
-                        if (readOnly)
-                            return;
-                        handleRateChange(parseInt(e.target.value, 10));
-                    }, onClick: (e) => e.stopPropagation(), className: "h-7 rounded-lg border border-brand-line/60 bg-brand-elevated px-1.5 text-[11px] font-semibold text-brand-ink outline-none hover:border-brand-line-strong focus:ring-1 focus:ring-brand-blue", children: rateChoices.map((r) => ((0, jsx_runtime_1.jsxs)("option", { value: r, children: [r, "%"] }, r))) }) }))] }));
+    return ((0, jsx_runtime_1.jsx)("div", { "data-stop-row-nav": true, className: (0, clsx_1.default)("inline-flex items-center gap-1.5", readOnly && "pointer-events-none opacity-80 cursor-default", className), onClick: (e) => e.stopPropagation(), children: (0, jsx_runtime_1.jsxs)("div", { className: (0, clsx_1.default)(inlinePillGroupClass), children: [(0, jsx_runtime_1.jsx)(HoverTip_1.HoverTip, { label: "Single Rush (+$150)", placement: "top", children: (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: (e) => {
+                            e.stopPropagation();
+                            handleQtyChange(rushQty === 1 ? 0 : 1);
+                        }, className: (0, clsx_1.default)(inlinePillBaseClass, rushQty === 1 ? inlinePillActiveClass : inlinePillInactiveClass), children: "1x ($150)" }) }), (0, jsx_runtime_1.jsx)(HoverTip_1.HoverTip, { label: "Double Rush (+$300)", placement: "top", children: (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: (e) => {
+                            e.stopPropagation();
+                            handleQtyChange(rushQty === 2 ? 0 : 2);
+                        }, className: (0, clsx_1.default)(inlinePillBaseClass, rushQty === 2 ? inlinePillActiveClass : inlinePillInactiveClass), children: "2x ($300)" }) }), rushQty > 0 ? ((0, jsx_runtime_1.jsx)(HoverTip_1.HoverTip, { label: "Override Rush Fee Producer Compensation %", placement: "top", children: (0, jsx_runtime_1.jsx)(InlineSelect, { variant: "pill", pillActive: true, value: `${currentRatePct}%`, options: rateChoices.map((r) => `${r}%`), readOnly: readOnly, onChange: (next) => {
+                            if (readOnly)
+                                return;
+                            handleRateChange(parseInt(next.replace("%", ""), 10));
+                        } }) })) : null] }) }));
 }
 function InlineQuantityStepper({ quantity, value, unitCost, label, onChange, className, readOnly = false, }) {
     const qty = Math.max(0, quantity ?? value ?? 0);

@@ -1,0 +1,63 @@
+"use strict";
+"use client";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.ScheduleSendMailModal = ScheduleSendMailModal;
+const jsx_runtime_1 = require("react/jsx-runtime");
+const react_1 = require("react");
+const react_dom_1 = require("react-dom");
+const clsx_1 = __importDefault(require("clsx"));
+const lucide_react_1 = require("lucide-react");
+const export_csv_1 = require("@/lib/export-csv");
+function ScheduleMailTablePreview({ rows }) {
+    return ((0, jsx_runtime_1.jsx)("div", { className: "overflow-x-auto rounded-xl border border-brand-line/60 bg-white", children: (0, jsx_runtime_1.jsxs)("table", { className: "w-full min-w-[720px] border-collapse text-left", children: [(0, jsx_runtime_1.jsx)("thead", { children: (0, jsx_runtime_1.jsx)("tr", { className: "border-b border-brand-line/60 bg-brand-signature/8", children: export_csv_1.PRODUCER_SCHEDULE_COLUMNS.map((column) => ((0, jsx_runtime_1.jsx)("th", { className: "whitespace-nowrap px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-brand-ink-secondary", children: column.label }, column.key))) }) }), (0, jsx_runtime_1.jsx)("tbody", { className: "divide-y divide-brand-line/40", children: rows.length === 0 ? ((0, jsx_runtime_1.jsx)("tr", { children: (0, jsx_runtime_1.jsx)("td", { colSpan: export_csv_1.PRODUCER_SCHEDULE_COLUMNS.length, className: "px-3 py-6 text-center text-[12px] text-brand-ink-tertiary", children: "No ongoing scheduled mixes." }) })) : (rows.map((row, index) => ((0, jsx_runtime_1.jsx)("tr", { className: "bg-white even:bg-brand-bg/30", children: export_csv_1.PRODUCER_SCHEDULE_COLUMNS.map((column) => {
+                            const value = String(row[column.key] ?? "—");
+                            const isProgram = column.key === "programName";
+                            const isStatus = column.key === "status";
+                            return ((0, jsx_runtime_1.jsx)("td", { className: (0, clsx_1.default)("whitespace-nowrap px-3 py-2 text-[11px]", isProgram && "font-semibold text-brand-ink", isStatus && "font-semibold text-brand-orange", !isProgram && !isStatus && "text-brand-ink-secondary"), children: value }, column.key));
+                        }) }, row.recId || index)))) })] }) }));
+}
+function ScheduleMailPreview({ draft, rows, }) {
+    return ((0, jsx_runtime_1.jsxs)("div", { className: "overflow-hidden rounded-2xl border border-brand-line/70 bg-white shadow-[var(--shadow-premium-sm)] ring-1 ring-inset ring-brand-line/15", children: [(0, jsx_runtime_1.jsxs)("div", { className: "bg-gradient-to-br from-brand-signature to-brand-blue px-5 py-5", children: [(0, jsx_runtime_1.jsx)("p", { className: "text-[10px] font-semibold uppercase tracking-[0.08em] text-white/85", children: "Sounds Like That" }), (0, jsx_runtime_1.jsx)("h3", { className: "mt-1 text-[18px] font-bold tracking-[-0.02em] text-white", children: "Producer Schedule" }), (0, jsx_runtime_1.jsx)("p", { className: "mt-1 text-[13px] text-white/90", children: draft.toName })] }), (0, jsx_runtime_1.jsxs)("div", { className: "space-y-4 px-5 py-5", children: [(0, jsx_runtime_1.jsx)("div", { className: "rounded-xl border border-brand-line/50 bg-brand-bg/40 px-3 py-2.5", children: (0, jsx_runtime_1.jsxs)("div", { className: "grid gap-1.5 text-[12px]", children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex gap-2", children: [(0, jsx_runtime_1.jsx)("span", { className: "w-14 shrink-0 font-semibold uppercase tracking-wide text-brand-ink-tertiary", children: "To" }), (0, jsx_runtime_1.jsxs)("span", { className: "min-w-0 text-brand-ink", children: [draft.toName, " ", (0, jsx_runtime_1.jsxs)("span", { className: "text-brand-ink-secondary", children: ["<", draft.to, ">"] })] })] }), (0, jsx_runtime_1.jsxs)("div", { className: "flex gap-2", children: [(0, jsx_runtime_1.jsx)("span", { className: "w-14 shrink-0 font-semibold uppercase tracking-wide text-brand-ink-tertiary", children: "Subject" }), (0, jsx_runtime_1.jsx)("span", { className: "min-w-0 font-medium text-brand-ink", children: draft.subject })] })] }) }), (0, jsx_runtime_1.jsxs)("div", { className: "flex items-center gap-2 rounded-xl border border-brand-line/50 bg-brand-orange-soft/20 px-3 py-2.5", children: [(0, jsx_runtime_1.jsx)(lucide_react_1.Paperclip, { className: "h-4 w-4 shrink-0 text-brand-orange", strokeWidth: 2 }), (0, jsx_runtime_1.jsx)("span", { className: "min-w-0 truncate text-[12px] font-medium text-brand-ink", children: draft.attachmentFilename })] }), (0, jsx_runtime_1.jsx)("p", { className: "text-[14px] font-semibold text-brand-ink", children: draft.greeting }), (0, jsx_runtime_1.jsx)("p", { className: "text-[13px] leading-relaxed text-brand-ink-secondary", children: draft.intro }), (0, jsx_runtime_1.jsx)(ScheduleMailTablePreview, { rows: rows }), (0, jsx_runtime_1.jsx)("p", { className: "text-[13px] leading-relaxed text-brand-ink-secondary", children: draft.footer }), (0, jsx_runtime_1.jsx)("p", { className: "whitespace-pre-line text-[13px] leading-relaxed text-brand-ink", children: draft.signature })] })] }));
+}
+function ScheduleSendMailModal({ open, onClose, items, gmailFrom, canSend, isSending, onSend, sendError, sent = false, sentSummary, }) {
+    const [mounted, setMounted] = (0, react_1.useState)(false);
+    const [activeIndex, setActiveIndex] = (0, react_1.useState)(0);
+    (0, react_1.useEffect)(() => {
+        setMounted(true);
+    }, []);
+    (0, react_1.useEffect)(() => {
+        if (open) {
+            setActiveIndex(0);
+        }
+    }, [open, items]);
+    (0, react_1.useEffect)(() => {
+        if (!open)
+            return;
+        const previousOverflow = document.body.style.overflow;
+        document.body.style.overflow = "hidden";
+        return () => {
+            document.body.style.overflow = previousOverflow;
+        };
+    }, [open]);
+    const activeItem = items[activeIndex] ?? items[0];
+    const multiple = items.length > 1;
+    const sendLabel = (0, react_1.useMemo)(() => {
+        if (isSending)
+            return "Sending…";
+        if (multiple)
+            return `Send ${items.length} separate emails`;
+        return `Send to ${activeItem?.producerName ?? "editor"}`;
+    }, [isSending, multiple, items.length, activeItem?.producerName]);
+    if (!mounted || !open || items.length === 0)
+        return null;
+    return (0, react_dom_1.createPortal)((0, jsx_runtime_1.jsxs)("div", { className: "fixed inset-0 z-[100] flex items-center justify-center p-4", children: [(0, jsx_runtime_1.jsx)("button", { type: "button", className: "absolute inset-0 bg-black/45 backdrop-blur-[2px]", onClick: onClose, "aria-label": "Close" }), (0, jsx_runtime_1.jsxs)("div", { role: "dialog", "aria-modal": "true", "aria-labelledby": "schedule-send-mail-title", className: "relative flex max-h-[90vh] w-full max-w-[920px] flex-col overflow-hidden rounded-[22px] bg-brand-elevated shadow-[0_24px_80px_rgba(0,0,0,0.28)]", children: [(0, jsx_runtime_1.jsx)("div", { className: "border-b border-brand-line/60 bg-gradient-to-br from-brand-signature/10 via-brand-elevated to-brand-blue/8 px-6 pb-5 pt-6", children: (0, jsx_runtime_1.jsxs)("div", { className: "flex items-start justify-between gap-3", children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex min-w-0 items-start gap-3", children: [(0, jsx_runtime_1.jsx)("div", { className: "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-signature/12 text-brand-signature ring-1 ring-inset ring-brand-signature/20", children: (0, jsx_runtime_1.jsx)(lucide_react_1.Mail, { className: "h-5 w-5", strokeWidth: 2 }) }), (0, jsx_runtime_1.jsxs)("div", { className: "min-w-0", children: [(0, jsx_runtime_1.jsx)("p", { className: "text-[11px] font-semibold uppercase tracking-[0.08em] text-brand-ink-tertiary", children: sent ? "Emails sent" : "Review before sending" }), (0, jsx_runtime_1.jsx)("h2", { id: "schedule-send-mail-title", className: "mt-0.5 text-[18px] font-semibold tracking-[-0.02em] text-brand-ink", children: sent ? "Schedules delivered" : "Schedule email preview" }), (0, jsx_runtime_1.jsx)("p", { className: "mt-1 text-[13px] text-brand-ink-secondary", children: sent
+                                                        ? sentSummary
+                                                        : multiple
+                                                            ? "Each editor receives their own email with the schedule table and an Excel attachment."
+                                                            : "Confirm the schedule table and Excel attachment before sending." })] })] }), (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: onClose, className: "rounded-lg p-1.5 text-brand-ink-tertiary transition hover:bg-brand-bg hover:text-brand-ink", "aria-label": "Close dialog", children: (0, jsx_runtime_1.jsx)(lucide_react_1.X, { className: "h-4 w-4" }) })] }) }), (0, jsx_runtime_1.jsx)("div", { className: "min-h-0 flex-1 overflow-y-auto px-6 py-5", children: sent ? ((0, jsx_runtime_1.jsxs)("div", { className: "flex flex-col items-center py-8 text-center", children: [(0, jsx_runtime_1.jsx)("div", { className: "flex h-14 w-14 items-center justify-center rounded-full bg-brand-success/12 text-brand-success ring-1 ring-inset ring-brand-success/25", children: (0, jsx_runtime_1.jsx)(lucide_react_1.Check, { className: "h-7 w-7", strokeWidth: 2 }) }), (0, jsx_runtime_1.jsx)("p", { className: "mt-4 text-[15px] font-semibold text-brand-ink", children: sentSummary })] })) : ((0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [gmailFrom ? ((0, jsx_runtime_1.jsxs)("p", { className: "mb-4 text-[11px] text-brand-ink-tertiary", children: ["Sending from", " ", (0, jsx_runtime_1.jsx)("span", { className: "font-semibold text-brand-ink-secondary", children: gmailFrom })] })) : null, sendError ? ((0, jsx_runtime_1.jsxs)("div", { className: "mb-4 flex items-start gap-2.5 rounded-xl border border-brand-danger/25 bg-brand-danger/8 px-3.5 py-3", children: [(0, jsx_runtime_1.jsx)(lucide_react_1.AlertCircle, { className: "mt-0.5 h-4 w-4 shrink-0 text-brand-danger" }), (0, jsx_runtime_1.jsx)("p", { className: "text-[12px] leading-relaxed text-brand-ink-secondary", children: sendError })] })) : null, multiple ? ((0, jsx_runtime_1.jsx)("div", { className: "mb-4 flex flex-wrap gap-1.5", children: items.map((item, index) => ((0, jsx_runtime_1.jsxs)("button", { type: "button", onClick: () => setActiveIndex(index), className: (0, clsx_1.default)("inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition", index === activeIndex
+                                            ? "bg-brand-signature/12 text-brand-signature ring-1 ring-inset ring-brand-signature/25"
+                                            : "bg-brand-bg/80 text-brand-ink-secondary hover:bg-brand-bg"), children: [(0, jsx_runtime_1.jsx)(lucide_react_1.FileSpreadsheet, { className: "h-3 w-3", strokeWidth: 2 }), item.producerName, (0, jsx_runtime_1.jsx)("span", { className: "rounded bg-brand-orange/10 px-1 py-0.5 text-[9px] font-bold tabular-nums text-brand-orange", children: item.mixCount })] }, item.producerName))) })) : null, activeItem ? ((0, jsx_runtime_1.jsx)(ScheduleMailPreview, { draft: activeItem.draft, rows: activeItem.rows })) : null] })) }), (0, jsx_runtime_1.jsx)("div", { className: "flex flex-col border-t border-black/[0.08]", children: sent ? ((0, jsx_runtime_1.jsx)("button", { type: "button", onClick: onClose, className: "py-3.5 text-[15px] font-semibold text-brand-signature transition hover:bg-brand-signature/8", children: "Done" })) : ((0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsxs)("button", { type: "button", onClick: onSend, disabled: !canSend || isSending, className: "inline-flex items-center justify-center gap-2 border-b border-black/[0.08] py-3.5 text-[15px] font-semibold text-brand-signature transition hover:bg-brand-signature/8 disabled:cursor-not-allowed disabled:text-brand-ink-tertiary disabled:hover:bg-transparent", children: [isSending ? ((0, jsx_runtime_1.jsx)(lucide_react_1.Loader2, { className: "h-4 w-4 animate-spin" })) : ((0, jsx_runtime_1.jsx)(lucide_react_1.Send, { className: "h-4 w-4" })), sendLabel] }), (0, jsx_runtime_1.jsx)("button", { type: "button", onClick: onClose, disabled: isSending, className: "py-3.5 text-[15px] font-medium text-brand-ink transition hover:bg-brand-bg disabled:cursor-not-allowed disabled:opacity-50", children: "Cancel" })] })) })] })] }), document.body);
+}

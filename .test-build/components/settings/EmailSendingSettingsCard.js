@@ -7,6 +7,7 @@ const react_1 = require("react");
 const navigation_1 = require("next/navigation");
 const lucide_react_1 = require("lucide-react");
 const AuthContext_1 = require("@/context/AuthContext");
+const client_1 = require("@/lib/api/client");
 const gmail_1 = require("@/lib/api/gmail");
 function EmailSendingSettingsCard() {
     const { isViewOnly, token } = (0, AuthContext_1.useAuth)();
@@ -27,8 +28,12 @@ function EmailSendingSettingsCard() {
             const res = await (0, gmail_1.getGmailStatus)(token);
             setStatus(res);
         }
-        catch {
+        catch (err) {
             setStatus({ connected: false, email: null, provider: "google" });
+            setFeedback({
+                type: "error",
+                message: (0, client_1.formatApiClientError)(err, "Unable to check Gmail connection status. Please try again."),
+            });
         }
         finally {
             setLoadingStatus(false);
@@ -73,7 +78,7 @@ function EmailSendingSettingsCard() {
         catch (err) {
             setFeedback({
                 type: "error",
-                message: err instanceof Error ? err.message : "Unable to initiate Google connection. Please try again.",
+                message: (0, client_1.formatApiClientError)(err, "Unable to initiate Google connection. Please try again."),
             });
             setIsConnecting(false);
         }
@@ -93,7 +98,7 @@ function EmailSendingSettingsCard() {
         catch (err) {
             setFeedback({
                 type: "error",
-                message: err instanceof Error ? err.message : "Test email could not be sent. Please check connection.",
+                message: (0, client_1.formatApiClientError)(err, "Test email could not be sent. Please check connection."),
             });
         }
         finally {
@@ -116,7 +121,7 @@ function EmailSendingSettingsCard() {
         catch (err) {
             setFeedback({
                 type: "error",
-                message: err instanceof Error ? err.message : "Failed to disconnect Google account.",
+                message: (0, client_1.formatApiClientError)(err, "Failed to disconnect Google account."),
             });
         }
         finally {

@@ -1,7 +1,9 @@
 import logging
+import os
 from typing import Generator
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.pool import NullPool
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -9,12 +11,19 @@ logger = logging.getLogger(__name__)
 db_url = settings.get_database_url()
 
 if db_url:
-    engine = create_engine(
-        db_url,
-        pool_pre_ping=True,
-        pool_size=5,
-        max_overflow=10,
-    )
+    if os.getenv("VERCEL"):
+        engine = create_engine(
+            db_url,
+            poolclass=NullPool,
+            pool_pre_ping=True,
+        )
+    else:
+        engine = create_engine(
+            db_url,
+            pool_pre_ping=True,
+            pool_size=5,
+            max_overflow=10,
+        )
     USING_SQLITE_FALLBACK = False
 else:
     # Local development fallback: file-based SQLite so the backend can run

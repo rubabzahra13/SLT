@@ -1,4 +1,5 @@
 import logging
+import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,8 +12,12 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Ensure all tables defined in models exist in the database
-    Base.metadata.create_all(bind=engine)
+    # Skip DDL on Vercel/serverless — schema is managed via Alembic on Supabase.
+    if not os.getenv("VERCEL") and not USING_SQLITE_FALLBACK:
+        try:
+            Base.metadata.create_all(bind=engine)
+        except Exception as exc:
+            logger.warning("Skipping create_all during startup: %s", exc)
 
     # When running against the local SQLite fallback, seed the sample users so
     # the frontend's offline session tokens authenticate (required for the

@@ -5,6 +5,7 @@ import { Trash2, X } from "lucide-react";
 import clsx from "clsx";
 import { ProducerCategoryAddMenu } from "@/components/producers/ProducerCategoryAddMenu";
 import { findProducerCategoryGroup } from "@/lib/producer-category-groups";
+import { formatApiClientError } from "@/lib/api/client";
 import { initialsFromName, normalizeProducer } from "@/lib/producers";
 import { Avatar } from "@/components/ui/Avatar";
 import { DEFAULT_WORK_DAYS, type Producer } from "@/types";
@@ -13,7 +14,7 @@ type ProducerFormModalProps = {
   open: boolean;
   onClose: () => void;
   producer?: Producer | null;
-  onSave: (producer: Producer) => void;
+  onSave: (producer: Producer) => void | Promise<void>;
   readOnly?: boolean;
 };
 
@@ -87,6 +88,7 @@ export function ProducerFormModal({
   const [form, setForm] = useState<FormState>(emptyForm);
   const [initialsTouched, setInitialsTouched] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   const isEdit = Boolean(producer);
   useEffect(() => {
     if (!open) return;
@@ -138,8 +140,9 @@ export function ProducerFormModal({
     }));
   }
 
-  function handleSubmit(e?: React.FormEvent) {
+  async function handleSubmit(e?: React.FormEvent) {
     e?.preventDefault();
+    if (isSaving) return;
     setValidationError(null);
 
     const initials = (form.initials || initialsFromName(form.name))
@@ -176,29 +179,46 @@ export function ProducerFormModal({
 
     const finalInitials = initials;
 
-    onSave({
-      id: producer?.id || `prod-${Date.now()}`,
-      name: form.name.trim(),
-      initials: finalInitials,
-      email: form.email.trim(),
-      categories: form.categories,
-      specialty: form.categories[0] ?? "",
-      avatar: form.avatar,
-      mixesThisWeek: producer?.mixesThisWeek ?? 0,
-      nextAvailable: producer?.nextAvailable || "TBD",
-      status: producer?.status || "available",
-      workDays: producer?.workDays ?? [...DEFAULT_WORK_DAYS],
-      timeOff: producer?.timeOff ?? [],
-      maxMixesPerDay: producer?.maxMixesPerDay ?? null,
-      maxProducerCostPerDay: producer?.maxProducerCostPerDay ?? null,
-      overtimeDays: producer?.overtimeDays ?? [],
-      ratesByCategory: form.categoryRates,
-      danceVoiceoverRate: form.danceVoiceoverRate > 1 ? form.danceVoiceoverRate / 100 : form.danceVoiceoverRate,
-      cheerVoiceoverRate: form.cheerVoiceoverRate > 1 ? form.cheerVoiceoverRate / 100 : form.cheerVoiceoverRate,
-      rushFeeRate: form.rushFeeRate > 1 ? form.rushFeeRate / 100 : form.rushFeeRate,
-      compensationModel: producer?.compensationModel ?? "percentage_of_payroll_base",
-    });
-    onClose();
+    setIsSaving(true);
+    try {
+      await onSave({
+        id: producer?.id || `prod-${Date.now()}`,
+        legacyId: producer?.legacyId,
+        uuid: producer?.uuid,
+        name: form.name.trim(),
+        initials: finalInitials,
+        email: form.email.trim(),
+        categories: form.categories,
+        specialty: form.categories[0] ?? "General",
+        avatar: form.avatar,
+        mixesThisWeek: producer?.mixesThisWeek ?? 0,
+        nextAvailable: producer?.nextAvailable || "TBD",
+        status: producer?.status || "available",
+        workDays: producer?.workDays ?? [...DEFAULT_WORK_DAYS],
+        timeOff: producer?.timeOff ?? [],
+        maxMixesPerDay: producer?.maxMixesPerDay ?? null,
+        maxProducerCostPerDay: producer?.maxProducerCostPerDay ?? null,
+        overtimeDays: producer?.overtimeDays ?? [],
+        ratesByCategory: form.categoryRates,
+        danceVoiceoverRate:
+          form.danceVoiceoverRate > 1
+            ? form.danceVoiceoverRate / 100
+            : form.danceVoiceoverRate,
+        cheerVoiceoverRate:
+          form.cheerVoiceoverRate > 1
+            ? form.cheerVoiceoverRate / 100
+            : form.cheerVoiceoverRate,
+        rushFeeRate:
+          form.rushFeeRate > 1 ? form.rushFeeRate / 100 : form.rushFeeRate,
+        compensationModel:
+          producer?.compensationModel ?? "percentage_of_payroll_base",
+      });
+      onClose();
+    } catch (err) {
+      setValidationError(formatApiClientError(err, "Could not save producer."));
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   return (
@@ -226,9 +246,10 @@ export function ProducerFormModal({
             <button
               type="button"
               onClick={() => handleSubmit()}
-              className="min-w-[64px] text-right text-[15px] font-semibold text-brand-blue transition hover:text-brand-blue-hover"
+              disabled={isSaving}
+              className="min-w-[64px] text-right text-[15px] font-semibold text-brand-blue transition hover:text-brand-blue-hover disabled:opacity-50"
             >
-              Done
+              {isSaving ? "Saving…" : "Done"}
             </button>
           ) : (
             <span className="min-w-[64px]" />

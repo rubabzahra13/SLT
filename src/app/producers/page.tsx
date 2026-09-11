@@ -39,12 +39,12 @@ export default function ProducersPage() {
     setModalOpen(true);
   }
 
-  function handleSave(producer: Producer) {
+  async function handleSave(producer: Producer) {
     if (isViewOnly) return;
     if (editing) {
-      updateProducer(producer.id, producer);
+      await updateProducer(producer.id, producer);
     } else {
-      addProducer(producer);
+      await addProducer(producer);
     }
   }
 

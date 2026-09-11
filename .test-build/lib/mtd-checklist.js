@@ -27,9 +27,12 @@ const EMPTY_EIGHT_CS_STATE = {
 };
 function getCollectionControlIds(formType) {
     if (formType === "school-all-star-cheer") {
-        return ["cs", "video", "form", "mix"];
+        return ["cs", "video", "form"];
     }
-    return ["form", "mix"];
+    if (formType === "school-all-star-dance") {
+        return ["form", "mix"];
+    }
+    return ["form"];
 }
 function getCollectionItemsForCategory(formType, state) {
     const ids = getCollectionControlIds(formType);

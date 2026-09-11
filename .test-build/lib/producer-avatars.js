@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PRODUCER_AVATARS = exports.PRODUCER_COLORS = void 0;
+exports.hexAlpha = hexAlpha;
 exports.getProducerColor = getProducerColor;
 exports.defaultAvatarSrc = defaultAvatarSrc;
 /**
@@ -30,6 +31,18 @@ exports.PRODUCER_COLORS = {
     R: "#e11d48",
     G: "#059669",
 };
+/** Blend a hex color with alpha for card surfaces and borders. */
+function hexAlpha(hex, alpha) {
+    const normalized = hex.replace("#", "").trim();
+    if (normalized.length !== 6)
+        return hex;
+    const r = parseInt(normalized.slice(0, 2), 16);
+    const g = parseInt(normalized.slice(2, 4), 16);
+    const b = parseInt(normalized.slice(4, 6), 16);
+    if ([r, g, b].some((n) => Number.isNaN(n)))
+        return hex;
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
 function getProducerColor(initialsOrName) {
     if (!initialsOrName)
         return "#ed7d31";

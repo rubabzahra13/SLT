@@ -1,6 +1,10 @@
-import { apiClient } from "./client";
+import { apiClient, ApiClientError } from "./client";
 import type { Producer, ProducerCompensationModel, ProducerManualInputField } from "@/types";
 import { normalizeProducer } from "@/lib/producers";
+
+export function resolveProducerApiId(producer: Pick<Producer, "id" | "uuid">): string {
+  return producer.uuid || producer.id;
+}
 
 export interface BackendProducer {
   id: string;
@@ -46,6 +50,8 @@ export function transformProducer(bp: BackendProducer): Producer {
 
   return normalizeProducer({
     id: bp.legacy_id || bp.id,
+    legacyId: bp.legacy_id || undefined,
+    uuid: bp.id,
     name: bp.name,
     initials: bp.initials,
     email: bp.email,
@@ -85,6 +91,7 @@ export async function fetchProducersApi(): Promise<Producer[]> {
 
 export async function createProducerApi(producer: Producer): Promise<Producer> {
   const payload = {
+    legacy_id: producer.legacyId || producer.id,
     name: producer.name,
     initials: producer.initials,
     email: producer.email,
@@ -112,7 +119,8 @@ export async function createProducerApi(producer: Producer): Promise<Producer> {
 
 export async function updateProducerApi(
   id: string,
-  patch: Partial<Producer>
+  patch: Partial<Producer>,
+  apiId?: string
 ): Promise<Producer> {
   const payload: Record<string, unknown> = {};
   if (patch.name !== undefined) payload.name = patch.name;
@@ -139,18 +147,19 @@ export async function updateProducerApi(
   if (patch.notes !== undefined) payload.notes = patch.notes;
 
   try {
-    const res = await apiClient.patch<BackendProducer>(`/api/producers/${id}`, payload);
+    const res = await apiClient.patch<BackendProducer>(
+      `/api/producers/${apiId || id}`,
+      payload
+    );
     return transformProducer(res);
   } catch (err) {
-    console.warn(`Failed to persist producer update for ${id} to backend:`, err);
-    return { id, ...patch } as Producer;
+    if (err instanceof ApiClientError) {
+      throw err;
+    }
+    throw err;
   }
 }
 
-export async function deleteProducerApi(id: string): Promise<void> {
-  try {
-    await apiClient.delete(`/api/producers/${id}`);
-  } catch (err) {
-    console.warn(`Failed to delete producer ${id} from backend:`, err);
-  }
+export async function deleteProducerApi(id: string, apiId?: string): Promise<void> {
+  await apiClient.delete(`/api/producers/${apiId || id}`);
 }

@@ -5,7 +5,11 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.models.mtd_record import MTDRecord
 from app.models.order import Order
-from app.models.producer import Producer
+from app.lib.producer_assignment import (
+    canonical_producer_assignment_key,
+    normalize_producer_key,
+    resolve_producer_by_assignment_key,
+)
 from app.schemas.mtd_record import MTDRecordSchema, MTDRecordCreateSchema, MTDRecordUpdateSchema
 
 router = APIRouter()
@@ -55,12 +59,20 @@ def create_mtd_record(payload: MTDRecordCreateSchema, db: Session = Depends(get_
     data = payload.model_dump()
     assigned_prod_str = data.pop("assigned_producer", None)
     assigned_producer_id = None
+    editor_initials = None
     if assigned_prod_str:
-        p = db.query(Producer).filter(Producer.initials == assigned_prod_str.strip()).first()
-        if p:
-            assigned_producer_id = p.id
+        producer = resolve_producer_by_assignment_key(db, assigned_prod_str)
+        if producer:
+            assigned_producer_id = producer.id
+            editor_initials = canonical_producer_assignment_key(producer)
+        else:
+            editor_initials = assigned_prod_str.strip().upper()
 
-    mtd = MTDRecord(**data, assigned_producer_id=assigned_producer_id, editor_initials=assigned_prod_str)
+    mtd = MTDRecord(
+        **data,
+        assigned_producer_id=assigned_producer_id,
+        editor_initials=editor_initials,
+    )
     db.add(mtd)
     db.commit()
     db.refresh(mtd)
@@ -76,12 +88,28 @@ def update_mtd_record(mtd_id: str, payload: MTDRecordUpdateSchema, db: Session =
 
     if "assigned_producer" in update_data:
         assigned_prod_str = update_data.pop("assigned_producer")
+        previous_key = None
+        if mtd.assigned_producer:
+            previous_key = canonical_producer_assignment_key(mtd.assigned_producer)
+        elif mtd.editor_initials:
+            previous_key = mtd.editor_initials.strip().upper()
+
         if assigned_prod_str:
-            p = db.query(Producer).filter(Producer.initials == assigned_prod_str.strip()).first()
-            mtd.assigned_producer_id = p.id if p else None
-            mtd.editor_initials = assigned_prod_str
+            producer = resolve_producer_by_assignment_key(db, assigned_prod_str)
+            mtd.assigned_producer_id = producer.id if producer else None
+            mtd.editor_initials = (
+                canonical_producer_assignment_key(producer)
+                if producer
+                else assigned_prod_str.strip().upper()
+            )
         else:
             mtd.assigned_producer_id = None
+            if (
+                previous_key
+                and mtd.editor_initials
+                and normalize_producer_key(mtd.editor_initials) == normalize_producer_key(previous_key)
+            ):
+                mtd.editor_initials = None
 
     for key, value in update_data.items():
         setattr(mtd, key, value)

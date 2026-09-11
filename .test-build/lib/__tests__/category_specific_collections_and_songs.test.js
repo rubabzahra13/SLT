@@ -9,15 +9,16 @@ const mtd_checklist_1 = require("../mtd-checklist");
 const mtd_filters_1 = require("../mtd-filters");
 (0, node_test_1.describe)("Category-Specific Collections & Songs Columns Requirements", () => {
     (0, node_test_1.describe)("Control IDs & Item Visibility by Category / Form Type", () => {
-        (0, node_test_1.test)("Cheer (school-all-star-cheer) includes CS, Video, Form, and Mix under Collections", () => {
+        (0, node_test_1.test)("Cheer (school-all-star-cheer) includes CS, Video, and Form under Collections (no Mix)", () => {
             const ids = (0, mtd_checklist_1.getCollectionControlIds)("school-all-star-cheer");
-            node_assert_1.default.deepStrictEqual(ids, ["cs", "video", "form", "mix"]);
+            node_assert_1.default.deepStrictEqual(ids, ["cs", "video", "form"]);
             const state = (0, mtd_checklist_1.parseEightCsState)("");
             const items = (0, mtd_checklist_1.getCollectionItemsForCategory)("school-all-star-cheer", state);
             const itemIds = items.map((i) => i.id);
-            node_assert_1.default.deepStrictEqual(itemIds, ["cs", "video", "form", "mix"]);
+            node_assert_1.default.deepStrictEqual(itemIds, ["cs", "video", "form"]);
+            node_assert_1.default.ok(!itemIds.includes("mix"), "Cheer Collections must NOT include Mix");
             const labels = items.map((i) => i.label);
-            node_assert_1.default.deepStrictEqual(labels, ["CS", "Video", "Form", "Mix"]);
+            node_assert_1.default.deepStrictEqual(labels, ["CS", "Video", "Form"]);
         });
         (0, node_test_1.test)("Dance (school-all-star-dance) includes ONLY Form and Mix under Collections", () => {
             const ids = (0, mtd_checklist_1.getCollectionControlIds)("school-all-star-dance");
@@ -29,39 +30,42 @@ const mtd_filters_1 = require("../mtd-filters");
             node_assert_1.default.ok(!itemIds.includes("cs"), "Dance Collections must NOT include 8-Count Sheet / CS");
             node_assert_1.default.ok(!itemIds.includes("video"), "Dance Collections must NOT include Video");
         });
-        (0, node_test_1.test)("Marching Band (marching-band) includes ONLY Form and Mix under Collections", () => {
+        (0, node_test_1.test)("Marching Band (marching-band) includes ONLY Form under Collections", () => {
             const ids = (0, mtd_checklist_1.getCollectionControlIds)("marching-band");
-            node_assert_1.default.deepStrictEqual(ids, ["form", "mix"]);
+            node_assert_1.default.deepStrictEqual(ids, ["form"]);
             const state = (0, mtd_checklist_1.parseEightCsState)("");
             const items = (0, mtd_checklist_1.getCollectionItemsForCategory)("marching-band", state);
             const itemIds = items.map((i) => i.id);
-            node_assert_1.default.deepStrictEqual(itemIds, ["form", "mix"]);
+            node_assert_1.default.deepStrictEqual(itemIds, ["form"]);
             node_assert_1.default.ok(!itemIds.includes("cs"));
             node_assert_1.default.ok(!itemIds.includes("video"));
+            node_assert_1.default.ok(!itemIds.includes("mix"));
         });
-        (0, node_test_1.test)("Sports Entertainment (sports-entertainment) includes ONLY Form and Mix under Collections", () => {
+        (0, node_test_1.test)("Sports Entertainment (sports-entertainment) includes ONLY Form under Collections", () => {
             const ids = (0, mtd_checklist_1.getCollectionControlIds)("sports-entertainment");
-            node_assert_1.default.deepStrictEqual(ids, ["form", "mix"]);
+            node_assert_1.default.deepStrictEqual(ids, ["form"]);
             const state = (0, mtd_checklist_1.parseEightCsState)("");
             const items = (0, mtd_checklist_1.getCollectionItemsForCategory)("sports-entertainment", state);
             const itemIds = items.map((i) => i.id);
-            node_assert_1.default.deepStrictEqual(itemIds, ["form", "mix"]);
+            node_assert_1.default.deepStrictEqual(itemIds, ["form"]);
             node_assert_1.default.ok(!itemIds.includes("cs"));
             node_assert_1.default.ok(!itemIds.includes("video"));
+            node_assert_1.default.ok(!itemIds.includes("mix"));
         });
-        (0, node_test_1.test)("School Anthem (school-anthem) includes ONLY Form and Mix under Collections", () => {
+        (0, node_test_1.test)("School Anthem (school-anthem) includes ONLY Form under Collections", () => {
             const ids = (0, mtd_checklist_1.getCollectionControlIds)("school-anthem");
-            node_assert_1.default.deepStrictEqual(ids, ["form", "mix"]);
+            node_assert_1.default.deepStrictEqual(ids, ["form"]);
             const state = (0, mtd_checklist_1.parseEightCsState)("");
             const items = (0, mtd_checklist_1.getCollectionItemsForCategory)("school-anthem", state);
             const itemIds = items.map((i) => i.id);
-            node_assert_1.default.deepStrictEqual(itemIds, ["form", "mix"]);
+            node_assert_1.default.deepStrictEqual(itemIds, ["form"]);
             node_assert_1.default.ok(!itemIds.includes("cs"));
             node_assert_1.default.ok(!itemIds.includes("video"));
+            node_assert_1.default.ok(!itemIds.includes("mix"));
         });
-        (0, node_test_1.test)("Unknown or arbitrary non-Cheer category defaults to Form and Mix under Collections", () => {
+        (0, node_test_1.test)("Unknown or arbitrary non-Cheer category defaults to Form only under Collections", () => {
             const ids = (0, mtd_checklist_1.getCollectionControlIds)("custom-category");
-            node_assert_1.default.deepStrictEqual(ids, ["form", "mix"]);
+            node_assert_1.default.deepStrictEqual(ids, ["form"]);
         });
         (0, node_test_1.test)("Songs column consistently includes Songs and Notes for all categories", () => {
             const state = (0, mtd_checklist_1.parseSongsState)("");
@@ -90,7 +94,7 @@ const mtd_filters_1 = require("../mtd-filters");
                 const meta = (0, mtd_filters_1.resolveMTDFormMeta)(rec, new Map());
                 node_assert_1.default.strictEqual(meta.formType, sub.expected);
                 const controlIds = (0, mtd_checklist_1.getCollectionControlIds)(meta.formType);
-                node_assert_1.default.deepStrictEqual(controlIds, ["cs", "video", "form", "mix"]);
+                node_assert_1.default.deepStrictEqual(controlIds, ["cs", "video", "form"]);
             }
         });
         (0, node_test_1.test)("All 5 Dance Subtypes resolve to school-all-star-dance and yield Form + Mix Collections", () => {

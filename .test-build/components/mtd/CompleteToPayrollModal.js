@@ -16,48 +16,9 @@ const AppStateContext_1 = require("@/context/AppStateContext");
 const mtd_filters_1 = require("@/lib/mtd-filters");
 const pricing_engine_1 = require("@/lib/pricing-engine");
 const package_1 = require("@/lib/package");
-const discount_codes_1 = require("@/lib/discount-codes");
 const pricing_1 = require("@/lib/api/pricing");
 const SetPricingModal_1 = require("@/components/mtd/SetPricingModal");
 const clsx_1 = __importDefault(require("clsx"));
-function couponSuggestionHint(suggestion) {
-    if (suggestion.reason === "spacing") {
-        return "Same code with different spacing.";
-    }
-    if (suggestion.reason === "capitalization") {
-        return "Same code with different capitalization.";
-    }
-    return "Very close spelling.";
-}
-function resolvePayrollCoupon(customerCode, resolvedCode, discountCodes) {
-    const customerEval = (0, discount_codes_1.evaluateCouponCode)(customerCode, discountCodes);
-    if (customerEval.status === "valid") {
-        return {
-            customerEval,
-            appliedCode: customerCode.trim(),
-            appliedEval: customerEval,
-            matchedDiscountCode: customerEval.match ?? null,
-        };
-    }
-    const trimmedResolved = resolvedCode?.trim() ?? "";
-    if (trimmedResolved) {
-        const resolvedEval = (0, discount_codes_1.evaluateCouponCode)(trimmedResolved, discountCodes);
-        if (resolvedEval.status === "valid") {
-            return {
-                customerEval,
-                appliedCode: trimmedResolved,
-                appliedEval: resolvedEval,
-                matchedDiscountCode: resolvedEval.match ?? null,
-            };
-        }
-    }
-    return {
-        customerEval,
-        appliedCode: null,
-        appliedEval: null,
-        matchedDiscountCode: null,
-    };
-}
 function CompleteToPayrollModal({ open, record, allOrders, producers, onClose, onConfirm, }) {
     const { isViewOnly } = (0, AppStateContext_1.useAppState)();
     const [mounted, setMounted] = (0, react_1.useState)(false);
@@ -69,8 +30,6 @@ function CompleteToPayrollModal({ open, record, allOrders, producers, onClose, o
     const [finalCustomerPriceInput, setFinalCustomerPriceInput] = (0, react_1.useState)("");
     const [finalPayrollPriceInput, setFinalPayrollPriceInput] = (0, react_1.useState)("");
     const [calculatedEnginePricing, setCalculatedEnginePricing] = (0, react_1.useState)(null);
-    const [customerCouponCode, setCustomerCouponCode] = (0, react_1.useState)("");
-    const [resolvedCouponCode, setResolvedCouponCode] = (0, react_1.useState)(null);
     const [pricingRefOpen, setPricingRefOpen] = (0, react_1.useState)(false);
     // Step 2 Payroll state
     const [selectedCaseyRate, setSelectedCaseyRate] = (0, react_1.useState)(null); // 0.72 or 0.70
@@ -89,7 +48,6 @@ function CompleteToPayrollModal({ open, record, allOrders, producers, onClose, o
             document.body.style.overflow = previousOverflow;
         };
     }, [open]);
-    const { discountCodes } = (0, AppStateContext_1.useAppState)();
     // Find linked order and assigned producer
     const linkedOrder = (0, react_1.useMemo)(() => {
         if (!record)
@@ -110,12 +68,8 @@ function CompleteToPayrollModal({ open, record, allOrders, producers, onClose, o
         setSelectedCaseyRate(null);
         setCustomRateInput("");
         setManualPayoutInput("");
-        const order = linkedOrder;
-        const initialCoupon = order?.couponCode || order?.formData?.couponCode || record?.couponCode || "";
-        setCustomerCouponCode(initialCoupon);
-        setResolvedCouponCode(null);
     }, [open, record, linkedOrder]);
-    // Reset & load pricing breakdown when modal opens or coupon code changes
+    // Reset & load pricing breakdown when modal opens
     (0, react_1.useEffect)(() => {
         if (!open || !record)
             return;
@@ -141,12 +95,6 @@ function CompleteToPayrollModal({ open, record, allOrders, producers, onClose, o
                 const pkgName = order?.packageType || currentRec.package;
                 const mixLen = order?.timeLengthOfMix || (0, package_1.parsePackage)(currentRec.package).limit;
                 const affiliate = order?.musicAffiliate || currentRec.musicTheme || currentRec.musicAffiliate;
-                const activeCoupon = customerCouponCode ||
-                    order?.couponCode ||
-                    order?.formData?.couponCode ||
-                    currentRec?.couponCode ||
-                    "";
-                const { customerEval: couponEval, appliedCode, appliedEval, matchedDiscountCode, } = resolvePayrollCoupon(activeCoupon, resolvedCouponCode, discountCodes);
                 let enginePricing;
                 let canonicalSubtypeId = "";
                 let complianceReason = "";
@@ -161,28 +109,8 @@ function CompleteToPayrollModal({ open, record, allOrders, producers, onClose, o
                         musicAffiliate: affiliate,
                         ...currentRec,
                     });
-                    let discountAmount = 0;
-                    if (matchedDiscountCode && matchedDiscountCode.discountType && typeof matchedDiscountCode.discountValue === "number" && matchedDiscountCode.discountValue > 0) {
-                        const preDiscountBase = danceResult.payrollBasePrice;
-                        if (matchedDiscountCode.discountType === "fixed") {
-                            discountAmount = Math.min(preDiscountBase, Math.max(0, matchedDiscountCode.discountValue));
-                        }
-                        else if (matchedDiscountCode.discountType === "percentage") {
-                            const pct = Math.max(0, Math.min(100, matchedDiscountCode.discountValue));
-                            discountAmount = Math.min(preDiscountBase, Math.round(preDiscountBase * (pct / 100)));
-                        }
-                    }
-                    const preDiscountCust = danceResult.customerFacingPrice;
-                    const preDiscountPay = danceResult.payrollBasePrice;
                     enginePricing = {
                         ...danceResult,
-                        customerFacingPrice: preDiscountCust,
-                        payrollBasePrice: preDiscountPay,
-                        preDiscountCustomerFacingPrice: preDiscountCust,
-                        preDiscountPayrollBasePrice: preDiscountPay,
-                        discountAmount,
-                        discountType: matchedDiscountCode?.discountType,
-                        discountValue: matchedDiscountCode?.discountValue,
                         packageName: danceResult.matchedEntry?.package || pkgName,
                         timeLengthOfMix: "",
                     };
@@ -217,27 +145,8 @@ function CompleteToPayrollModal({ open, record, allOrders, producers, onClose, o
                         hasSheetMusicAdd: sheetMusic,
                         hasAddVocals: addVocals,
                     });
-                    const preDiscountCust = mbResult.customerFacingPrice;
-                    const preDiscountPay = mbResult.payrollBasePrice;
-                    let discountAmount = 0;
-                    if (matchedDiscountCode && matchedDiscountCode.discountType && typeof matchedDiscountCode.discountValue === "number" && matchedDiscountCode.discountValue > 0) {
-                        if (matchedDiscountCode.discountType === "fixed") {
-                            discountAmount = Math.min(preDiscountPay, Math.max(0, matchedDiscountCode.discountValue));
-                        }
-                        else if (matchedDiscountCode.discountType === "percentage") {
-                            const pct = Math.max(0, Math.min(100, matchedDiscountCode.discountValue));
-                            discountAmount = Math.min(preDiscountPay, Math.round(preDiscountPay * (pct / 100)));
-                        }
-                    }
                     enginePricing = {
                         ...mbResult,
-                        customerFacingPrice: preDiscountCust,
-                        payrollBasePrice: preDiscountPay,
-                        preDiscountCustomerFacingPrice: preDiscountCust,
-                        preDiscountPayrollBasePrice: preDiscountPay,
-                        discountAmount,
-                        discountType: matchedDiscountCode?.discountType,
-                        discountValue: matchedDiscountCode?.discountValue,
                         packageName: mbResult.matchedEntry?.package || pkgName,
                         timeLengthOfMix: "",
                     };
@@ -309,27 +218,8 @@ function CompleteToPayrollModal({ open, record, allOrders, producers, onClose, o
                         basePay = null;
                     }
                     else {
-                        const preDiscountCust = seResult.customerFacingPrice ?? 0;
-                        const preDiscountPay = seResult.payrollBasePrice ?? 0;
-                        let discountAmount = 0;
-                        if (matchedDiscountCode && matchedDiscountCode.discountType && typeof matchedDiscountCode.discountValue === "number" && matchedDiscountCode.discountValue > 0) {
-                            if (matchedDiscountCode.discountType === "fixed") {
-                                discountAmount = Math.min(preDiscountPay, Math.max(0, matchedDiscountCode.discountValue));
-                            }
-                            else if (matchedDiscountCode.discountType === "percentage") {
-                                const pct = Math.max(0, Math.min(100, matchedDiscountCode.discountValue));
-                                discountAmount = Math.min(preDiscountPay, Math.round(preDiscountPay * (pct / 100)));
-                            }
-                        }
                         enginePricing = {
                             ...seResult,
-                            customerFacingPrice: preDiscountCust,
-                            payrollBasePrice: preDiscountPay,
-                            preDiscountCustomerFacingPrice: preDiscountCust,
-                            preDiscountPayrollBasePrice: preDiscountPay,
-                            discountAmount,
-                            discountType: matchedDiscountCode?.discountType,
-                            discountValue: matchedDiscountCode?.discountValue,
                             packageName: seResult.matchedEntry?.package || pkgName,
                             timeLengthOfMix: "",
                         };
@@ -343,27 +233,8 @@ function CompleteToPayrollModal({ open, record, allOrders, producers, onClose, o
                     const saResult = (0, pricing_engine_1.calculateSchoolAnthemOrderPricing)({
                         packageType: pkgName,
                     });
-                    const preDiscountCust = saResult.customerFacingPrice;
-                    const preDiscountPay = saResult.payrollBasePrice;
-                    let discountAmount = 0;
-                    if (matchedDiscountCode && matchedDiscountCode.discountType && typeof matchedDiscountCode.discountValue === "number" && matchedDiscountCode.discountValue > 0) {
-                        if (matchedDiscountCode.discountType === "fixed") {
-                            discountAmount = Math.min(preDiscountPay, Math.max(0, matchedDiscountCode.discountValue));
-                        }
-                        else if (matchedDiscountCode.discountType === "percentage") {
-                            const pct = Math.max(0, Math.min(100, matchedDiscountCode.discountValue));
-                            discountAmount = Math.min(preDiscountPay, Math.round(preDiscountPay * (pct / 100)));
-                        }
-                    }
                     enginePricing = {
                         ...saResult,
-                        customerFacingPrice: preDiscountCust,
-                        payrollBasePrice: preDiscountPay,
-                        preDiscountCustomerFacingPrice: preDiscountCust,
-                        preDiscountPayrollBasePrice: preDiscountPay,
-                        discountAmount,
-                        discountType: matchedDiscountCode?.discountType,
-                        discountValue: matchedDiscountCode?.discountValue,
                         packageName: saResult.matchedEntry?.package || pkgName,
                         timeLengthOfMix: "",
                     };
@@ -380,8 +251,6 @@ function CompleteToPayrollModal({ open, record, allOrders, producers, onClose, o
                         timeLengthOfMix: mixLen,
                         musicAffiliate: affiliate,
                         ...currentRec,
-                        couponCode: activeCoupon,
-                        discountCodeObj: matchedDiscountCode,
                     });
                     if (cheerSubtype === "youth-rec-cheer") {
                         complianceReason = "Youth Rec Cheer does not require music affiliate compliance; compliant rate card applies.";
@@ -448,10 +317,6 @@ function CompleteToPayrollModal({ open, record, allOrders, producers, onClose, o
                     needs_manual_pricing: isUnpricedSE,
                     needs_manual_review: isUnpricedSE,
                     summary_line: `Category: ${meta.formType} | Subtype: ${canonicalSubtypeId} | Package: ${enginePricing.packageName} | Customer: $${enginePricing.customerFacingPrice ?? 'TBD'} | Payroll Base: $${enginePricing.payrollBasePrice ?? 'TBD'}`,
-                    coupon_code: activeCoupon,
-                    coupon_evaluation: couponEval,
-                    applied_coupon_code: appliedCode ?? undefined,
-                    applied_coupon_evaluation: appliedEval ?? undefined,
                 };
                 setBreakdown(calculatedBreakdown);
                 let initialCustStr = "";
@@ -506,7 +371,7 @@ function CompleteToPayrollModal({ open, record, allOrders, producers, onClose, o
             }
         }
         loadBreakdown();
-    }, [open, record, linkedOrder, allOrders, discountCodes, customerCouponCode, resolvedCouponCode]);
+    }, [open, record, linkedOrder, allOrders]);
     // Parsed numerical price
     const finalCustomerPriceNum = parseFloat(finalCustomerPriceInput) || 0;
     const systemPriceNum = breakdown?.system_calculated_customer_price ?? record?.price ?? 0;
@@ -646,17 +511,7 @@ function CompleteToPayrollModal({ open, record, allOrders, producers, onClose, o
                                                     return subLabel && subLabel !== formLabel
                                                         ? `${formLabel} · ${subLabel}`
                                                         : formLabel;
-                                                })() }), (0, jsx_runtime_1.jsxs)("div", { className: "mt-3 flex min-w-0 items-center gap-2 border-t border-brand-line/50 pt-3", children: [(0, jsx_runtime_1.jsx)("span", { className: (0, clsx_1.default)("shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.04em]", breakdown?.compliance_status === "compliant"
-                                                            ? "bg-brand-success/20 text-emerald-800 ring-1 ring-inset ring-brand-success/35"
-                                                            : breakdown?.compliance_status === "non-compliant"
-                                                                ? "bg-brand-warning/15 text-amber-900 ring-1 ring-inset ring-brand-warning/30"
-                                                                : "bg-brand-orange/15 text-brand-orange ring-1 ring-inset ring-brand-orange/30"), children: breakdown?.compliance_status === "compliant"
-                                                            ? "Compliant"
-                                                            : breakdown?.compliance_status === "non-compliant"
-                                                                ? "Non-compliant"
-                                                                : breakdown?.compliance_reason?.includes("Unknown")
-                                                                    ? "Unknown"
-                                                                    : "Review" }), breakdown?.canonical_affiliate ? ((0, jsx_runtime_1.jsx)("span", { className: "min-w-0 truncate text-[11px] text-brand-ink-secondary", children: breakdown.canonical_affiliate })) : ((0, jsx_runtime_1.jsx)("span", { className: "text-[11px] text-brand-ink-tertiary", children: "No affiliate on order" }))] })] }), (0, jsx_runtime_1.jsxs)("div", { className: "overflow-hidden rounded-xl border border-brand-line/70 bg-brand-elevated", children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex items-center justify-between gap-3 border-b border-brand-line/60 bg-brand-bg/50 px-4 py-2.5", children: [(0, jsx_runtime_1.jsx)("span", { className: "text-[11px] font-semibold uppercase tracking-[0.06em] text-brand-ink-tertiary", children: "Pricing breakdown" }), (0, jsx_runtime_1.jsxs)("button", { type: "button", onClick: () => setPricingRefOpen(true), className: "inline-flex shrink-0 items-center gap-1 text-[11px] font-medium text-brand-orange transition hover:text-brand-orange-hover hover:underline", title: "Open reference pricing table for this order type", children: [(0, jsx_runtime_1.jsx)(lucide_react_1.Info, { className: "h-3.5 w-3.5" }), "Pricing reference"] })] }), (0, jsx_runtime_1.jsx)("div", { className: "divide-y divide-brand-line/40 px-4 text-[12.5px]", children: (() => {
+                                                })() }), (0, jsx_runtime_1.jsx)("div", { className: "mt-3 border-t border-brand-line/50 pt-3", children: breakdown?.canonical_affiliate ? ((0, jsx_runtime_1.jsx)("span", { className: "block min-w-0 truncate text-[11px] text-brand-ink-secondary", children: breakdown.canonical_affiliate })) : ((0, jsx_runtime_1.jsx)("span", { className: "text-[11px] text-brand-ink-tertiary", children: "No affiliate on order" })) })] }), (0, jsx_runtime_1.jsxs)("div", { className: "overflow-hidden rounded-xl border border-brand-line/70 bg-brand-elevated", children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex items-center justify-between gap-3 border-b border-brand-line/60 bg-brand-bg/50 px-4 py-2.5", children: [(0, jsx_runtime_1.jsx)("span", { className: "text-[11px] font-semibold uppercase tracking-[0.06em] text-brand-ink-tertiary", children: "Pricing breakdown" }), (0, jsx_runtime_1.jsxs)("button", { type: "button", onClick: () => setPricingRefOpen(true), className: "inline-flex shrink-0 items-center gap-1 text-[11px] font-medium text-brand-orange transition hover:text-brand-orange-hover hover:underline", title: "Open reference pricing table for this order type", children: [(0, jsx_runtime_1.jsx)(lucide_react_1.Info, { className: "h-3.5 w-3.5" }), "Pricing reference"] })] }), (0, jsx_runtime_1.jsx)("div", { className: "divide-y divide-brand-line/40 px-4 text-[12.5px]", children: (() => {
                                                     const breakdownRowClass = "grid grid-cols-[minmax(0,1fr)_130px] items-center gap-x-4 py-2.5";
                                                     const breakdownFieldWrap = "relative w-full shrink-0";
                                                     const breakdownAmountInputClass = "w-full rounded-lg border border-brand-line/80 bg-brand-elevated py-1.5 pl-7 pr-2.5 text-right font-bold text-[14px] tabular-nums outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none focus:border-brand-signature focus:ring-2 focus:ring-brand-signature/20";
@@ -693,32 +548,13 @@ function CompleteToPayrollModal({ open, record, allOrders, producers, onClose, o
                                                                 const showAddonNote = addon.note &&
                                                                     normalizeAddonText(addon.note) !== normalizeAddonText(addon.label);
                                                                 return ((0, jsx_runtime_1.jsxs)("div", { className: breakdownRowClass, children: [(0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsx)("span", { className: "font-medium text-brand-ink", children: addon.label.replace(/\s*[—–]\s*/g, " ") }), showAddonNote && addon.note ? ((0, jsx_runtime_1.jsx)("p", { className: "text-[11px] text-brand-ink-tertiary", children: addon.note.replace(/\s*[—–]\s*/g, " ") })) : null] }), (0, jsx_runtime_1.jsx)("div", { className: breakdownFieldWrap, children: (0, jsx_runtime_1.jsx)("input", { type: "text", readOnly: true, tabIndex: -1, value: addonLabel, className: (0, clsx_1.default)(breakdownAmountInputClass, "cursor-default pl-2.5 focus:ring-0", isDeduction ? "text-brand-danger" : "text-brand-success") }) })] }, addon.addon_id));
-                                                            }), customerCouponCode.trim() ? ((0, jsx_runtime_1.jsx)("div", { className: "py-2.5", children: (() => {
-                                                                    const customerEval = breakdown?.coupon_evaluation;
-                                                                    const appliedEval = breakdown?.applied_coupon_evaluation;
-                                                                    const appliedMatch = appliedEval?.status === "valid" ? appliedEval.match : null;
-                                                                    const suggestions = customerEval?.status !== "valid"
-                                                                        ? customerEval?.suggestions ?? []
-                                                                        : [];
-                                                                    const hasSuggestions = suggestions.length > 0;
-                                                                    const isUnrecognized = customerEval?.status !== "valid";
-                                                                    return ((0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [isUnrecognized ? ((0, jsx_runtime_1.jsx)("span", { className: "inline-flex rounded-full bg-brand-warning/12 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-warning ring-1 ring-inset ring-brand-warning/20", children: "Unrecognized" })) : null, (0, jsx_runtime_1.jsxs)("div", { className: (0, clsx_1.default)("grid grid-cols-[minmax(0,1fr)_130px] items-center gap-x-4", isUnrecognized && "mt-1"), children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex min-w-0 items-center justify-between gap-x-3", children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex items-center gap-1.5", children: [(0, jsx_runtime_1.jsx)(lucide_react_1.Tag, { className: "h-3.5 w-3.5 shrink-0 text-brand-signature" }), (0, jsx_runtime_1.jsx)("span", { className: "font-medium text-brand-ink", children: "Coupon" })] }), appliedMatch ? ((0, jsx_runtime_1.jsx)("span", { className: "inline-flex shrink-0 rounded-full bg-brand-danger/12 px-2 py-0.5 text-[10px] font-bold uppercase text-brand-danger ring-1 ring-inset ring-brand-danger/20", children: appliedMatch.discountType === "percentage"
-                                                                                                    ? `${appliedMatch.discountValue}% off`
-                                                                                                    : `-${(0, data_1.formatPrice)(appliedMatch.discountValue)}` })) : null] }), (0, jsx_runtime_1.jsx)("div", { className: "w-full shrink-0", children: (0, jsx_runtime_1.jsx)("div", { className: "rounded-lg border border-brand-line/70 bg-brand-surface/50 px-2.5 py-1.5 text-right", children: (0, jsx_runtime_1.jsx)("p", { className: "text-[12px] font-bold uppercase tracking-wider text-brand-ink", children: customerCouponCode }) }) })] }), hasSuggestions ? ((0, jsx_runtime_1.jsxs)("div", { className: "mt-2 w-full rounded-lg border border-brand-line/60 bg-brand-surface/40 px-2.5 py-2", children: [(0, jsx_runtime_1.jsx)("p", { className: "text-[11px] leading-snug text-brand-ink-secondary", children: "Apply a saved close match" }), (0, jsx_runtime_1.jsx)("div", { className: "mt-1.5 flex flex-wrap gap-1.5", children: suggestions.map((suggestion) => {
-                                                                                            const code = suggestion.code.code;
-                                                                                            const selected = resolvedCouponCode?.trim().toUpperCase() ===
-                                                                                                code.trim().toUpperCase();
-                                                                                            return ((0, jsx_runtime_1.jsx)("button", { type: "button", title: couponSuggestionHint(suggestion), "aria-pressed": selected, onClick: () => setResolvedCouponCode(selected ? null : code), className: (0, clsx_1.default)("inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide transition ring-1 ring-inset", selected
-                                                                                                    ? "bg-brand-signature text-white ring-brand-signature/50 shadow-sm hover:bg-brand-signature-hover"
-                                                                                                    : "bg-brand-elevated text-brand-ink ring-brand-line/70 hover:bg-brand-signature/10 hover:ring-brand-signature/30"), children: code }, suggestion.code.id));
-                                                                                        }) })] })) : null] }));
-                                                                })() })) : null, (0, jsx_runtime_1.jsxs)("div", { className: (0, clsx_1.default)(breakdownRowClass, "border-t border-brand-signature/20 bg-brand-signature/10 py-3 -mx-4 px-4"), children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex items-center gap-1.5", children: [(0, jsx_runtime_1.jsx)("span", { className: "text-[14px] font-bold text-brand-signature", children: "Payroll price" }), isPayrollPriceOverridden && ((0, jsx_runtime_1.jsxs)("span", { className: "inline-flex items-center gap-1 rounded bg-brand-orange/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-brand-orange ring-1 ring-inset ring-brand-orange/25", children: [(0, jsx_runtime_1.jsx)(lucide_react_1.Edit3, { className: "h-2.5 w-2.5" }), " edited"] }))] }), (0, jsx_runtime_1.jsxs)("div", { className: breakdownFieldWrap, children: [(0, jsx_runtime_1.jsx)("span", { className: "pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[14px] font-bold text-brand-signature", children: "$" }), (0, jsx_runtime_1.jsx)("input", { type: "number", step: "1", min: "0", value: finalPayrollPriceInput, onChange: (e) => {
+                                                            }), (0, jsx_runtime_1.jsxs)("div", { className: (0, clsx_1.default)(breakdownRowClass, "border-t border-brand-signature/20 bg-brand-signature/10 py-3 -mx-4 px-4"), children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex items-center gap-1.5", children: [(0, jsx_runtime_1.jsx)("span", { className: "text-[14px] font-bold text-brand-signature", children: "Payroll price" }), isPayrollPriceOverridden && ((0, jsx_runtime_1.jsxs)("span", { className: "inline-flex items-center gap-1 rounded bg-brand-orange/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-brand-orange ring-1 ring-inset ring-brand-orange/25", children: [(0, jsx_runtime_1.jsx)(lucide_react_1.Edit3, { className: "h-2.5 w-2.5" }), " edited"] }))] }), (0, jsx_runtime_1.jsxs)("div", { className: breakdownFieldWrap, children: [(0, jsx_runtime_1.jsx)("span", { className: "pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[14px] font-bold text-brand-signature", children: "$" }), (0, jsx_runtime_1.jsx)("input", { type: "number", step: "1", min: "0", value: finalPayrollPriceInput, onChange: (e) => {
                                                                                     const val = e.target.value;
                                                                                     setFinalPayrollPriceInput(val);
                                                                                     const num = parseFloat(val) || 0;
                                                                                     setBreakdown((prev) => (prev ? { ...prev, payroll_base_price: num } : null));
                                                                                 }, className: (0, clsx_1.default)(breakdownAmountInputClass, "border-brand-signature/40 text-brand-signature") })] })] })] }));
-                                                })() })] })] })), step === 2 && ((0, jsx_runtime_1.jsxs)("div", { className: "space-y-4", children: [(0, jsx_runtime_1.jsxs)("div", { className: "grid grid-cols-1 sm:grid-cols-3 gap-3", children: [(0, jsx_runtime_1.jsxs)("div", { className: "rounded-xl border border-brand-line/70 bg-brand-bg/40 p-3.5", children: [(0, jsx_runtime_1.jsx)("p", { className: "text-[11px] font-semibold uppercase tracking-wider text-brand-ink-tertiary", children: "Producer" }), (0, jsx_runtime_1.jsx)("p", { className: "mt-0.5 text-[14px] font-bold text-brand-ink", children: assignedProducerObj?.name || record.assignedProducer || "None" }), (0, jsx_runtime_1.jsx)("p", { className: "text-[11px] text-brand-ink-secondary", children: assignedProducerObj?.specialty || "Music Producer" })] }), (0, jsx_runtime_1.jsxs)("div", { className: "rounded-xl border border-brand-line/70 bg-brand-bg/40 p-3.5", children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex items-center justify-between", children: [(0, jsx_runtime_1.jsx)("p", { className: "text-[11px] font-semibold uppercase tracking-wider text-brand-ink-tertiary", children: "Customer Price" }), isCustomerPriceOverridden && ((0, jsx_runtime_1.jsx)("span", { className: "rounded bg-brand-orange/10 px-1 py-0.2 text-[9px] font-semibold uppercase text-brand-orange", children: "edited" }))] }), (0, jsx_runtime_1.jsx)("p", { className: "mt-0.5 text-[15px] font-bold tabular-nums text-brand-ink", children: (0, data_1.formatPrice)(finalCustomerPriceNum) })] }), (0, jsx_runtime_1.jsxs)("div", { className: "rounded-xl border border-brand-signature/30 bg-brand-signature/8 p-3.5", children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex items-center justify-between", children: [(0, jsx_runtime_1.jsx)("p", { className: "text-[11px] font-semibold uppercase tracking-wider text-brand-signature", children: "Payroll Price" }), isPayrollPriceOverridden && ((0, jsx_runtime_1.jsx)("span", { className: "rounded bg-brand-orange/10 px-1 py-0.2 text-[9px] font-semibold uppercase text-brand-orange", children: "edited" }))] }), (0, jsx_runtime_1.jsx)("p", { className: "mt-0.5 text-[15px] font-bold tabular-nums text-brand-signature", children: (0, data_1.formatPrice)(finalPayrollPriceNum) })] })] }), rushQty > 0 && ((0, jsx_runtime_1.jsxs)("div", { className: "rounded-xl border border-brand-line/70 bg-brand-bg/40 p-4 space-y-2", children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex items-center justify-between", children: [(0, jsx_runtime_1.jsx)("p", { className: "text-[13px] font-bold text-brand-ink", children: "Rush Fee" }), (0, jsx_runtime_1.jsxs)("span", { className: "rounded bg-brand-blue-soft px-2 py-0.5 text-[11px] font-semibold text-brand-blue", children: ["Quantity: ", rushQty] })] }), (0, jsx_runtime_1.jsxs)("div", { className: "grid grid-cols-2 gap-2 text-[12px] pt-1 border-t border-brand-line/40", children: [(0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsx)("span", { className: "text-brand-ink-tertiary", children: "Compensation Rate: " }), (0, jsx_runtime_1.jsxs)("span", { className: "font-semibold text-brand-ink", children: [Math.round(((record.rushFeeCompensationRate ?? assignedProducerObj?.rushFeeRate ?? 1.0) <= 1 ? (record.rushFeeCompensationRate ?? assignedProducerObj?.rushFeeRate ?? 1.0) * 100 : (record.rushFeeCompensationRate ?? assignedProducerObj?.rushFeeRate ?? 1.0))), "%"] })] }), (0, jsx_runtime_1.jsxs)("div", { className: "text-right", children: [(0, jsx_runtime_1.jsx)("span", { className: "text-brand-ink-tertiary", children: "Editor Payout: " }), (0, jsx_runtime_1.jsx)("span", { className: "font-bold text-brand-success", children: (0, data_1.formatPrice)(clientPayroll.rushFeePayout ?? 0) })] })] })] })), clientPayroll.status === "not_paid_for_mixing" && ((0, jsx_runtime_1.jsxs)("div", { className: "rounded-xl border border-brand-line/70 bg-brand-bg/60 p-4", children: [(0, jsx_runtime_1.jsx)("p", { className: "text-[13px] font-semibold text-brand-ink", children: clientPayroll.message }), (0, jsx_runtime_1.jsx)("p", { className: "mt-1 text-[12px] text-brand-ink-secondary", children: "Steve does not receive per-mix compensation. Payout is $0.00." })] })), clientPayroll.status === "hourly_manual" && ((0, jsx_runtime_1.jsxs)("div", { className: "rounded-xl border border-brand-line/70 bg-brand-bg/60 p-4", children: [(0, jsx_runtime_1.jsx)("p", { className: "text-[13px] font-semibold text-brand-ink", children: clientPayroll.message }), (0, jsx_runtime_1.jsx)("p", { className: "mt-1 text-[12px] text-brand-ink-secondary", children: "Hourly employee payout is handled via regular pay sheets. You may optionally enter a manual payout amount below." })] })), clientPayroll.status === "needs_manual_review" && ((0, jsx_runtime_1.jsxs)("div", { className: "rounded-xl border border-brand-warning/30 bg-brand-warning/10 p-4", children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex items-center gap-2 text-brand-warning font-semibold text-[13px]", children: [(0, jsx_runtime_1.jsx)(lucide_react_1.AlertTriangle, { className: "h-4 w-4" }), (0, jsx_runtime_1.jsx)("span", { children: "No rate on file / Manual review required" })] }), (0, jsx_runtime_1.jsx)("p", { className: "mt-1 text-[12px] text-brand-ink-secondary", children: clientPayroll.message })] })), clientPayroll.isCaseyAmbiguous && ((0, jsx_runtime_1.jsxs)("div", { className: "rounded-xl border border-brand-signature/30 bg-brand-signature/8 p-4 space-y-3", children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex items-center justify-between", children: [(0, jsx_runtime_1.jsx)("span", { className: "text-[13px] font-bold text-brand-ink", children: "Casey Pricing Tier Selection" }), (0, jsx_runtime_1.jsx)("span", { className: "rounded bg-brand-signature/20 px-2 py-0.5 text-[10px] font-bold uppercase text-brand-signature", children: "Requires Choice" })] }), (0, jsx_runtime_1.jsx)("p", { className: "text-[12px] text-brand-ink-secondary", children: "Casey has two rates configured. Select the correct rate tier for this mix:" }), (0, jsx_runtime_1.jsxs)("div", { className: "grid grid-cols-2 gap-3 pt-1", children: [(0, jsx_runtime_1.jsxs)("button", { type: "button", onClick: () => {
+                                                })() })] })] })), step === 2 && ((0, jsx_runtime_1.jsxs)("div", { className: "space-y-4", children: [(0, jsx_runtime_1.jsxs)("div", { className: "grid grid-cols-1 sm:grid-cols-3 gap-3", children: [(0, jsx_runtime_1.jsxs)("div", { className: "rounded-xl border border-brand-line/70 bg-brand-bg/40 p-3.5", children: [(0, jsx_runtime_1.jsx)("p", { className: "text-[11px] font-semibold uppercase tracking-wider text-brand-ink-tertiary", children: "Producer" }), (0, jsx_runtime_1.jsx)("p", { className: "mt-0.5 text-[14px] font-bold text-brand-ink", children: assignedProducerObj?.name || record.assignedProducer || "None" }), (0, jsx_runtime_1.jsx)("p", { className: "text-[11px] text-brand-ink-secondary", children: assignedProducerObj?.specialty || "Music Producer" })] }), (0, jsx_runtime_1.jsxs)("div", { className: "rounded-xl border border-brand-line/70 bg-brand-bg/40 p-3.5", children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex items-center justify-between", children: [(0, jsx_runtime_1.jsx)("p", { className: "text-[11px] font-semibold uppercase tracking-wider text-brand-ink-tertiary", children: "Package Price" }), isCustomerPriceOverridden && ((0, jsx_runtime_1.jsx)("span", { className: "rounded bg-brand-orange/10 px-1 py-0.2 text-[9px] font-semibold uppercase text-brand-orange", children: "edited" }))] }), (0, jsx_runtime_1.jsx)("p", { className: "mt-0.5 text-[15px] font-bold tabular-nums text-brand-ink", children: (0, data_1.formatPrice)(finalCustomerPriceNum) })] }), (0, jsx_runtime_1.jsxs)("div", { className: "rounded-xl border border-brand-signature/30 bg-brand-signature/8 p-3.5", children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex items-center justify-between", children: [(0, jsx_runtime_1.jsx)("p", { className: "text-[11px] font-semibold uppercase tracking-wider text-brand-signature", children: "Payroll Price" }), isPayrollPriceOverridden && ((0, jsx_runtime_1.jsx)("span", { className: "rounded bg-brand-orange/10 px-1 py-0.2 text-[9px] font-semibold uppercase text-brand-orange", children: "edited" }))] }), (0, jsx_runtime_1.jsx)("p", { className: "mt-0.5 text-[15px] font-bold tabular-nums text-brand-signature", children: (0, data_1.formatPrice)(finalPayrollPriceNum) })] })] }), rushQty > 0 && ((0, jsx_runtime_1.jsxs)("div", { className: "rounded-xl border border-brand-line/70 bg-brand-bg/40 p-4 space-y-2", children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex items-center justify-between", children: [(0, jsx_runtime_1.jsx)("p", { className: "text-[13px] font-bold text-brand-ink", children: "Rush Fee" }), (0, jsx_runtime_1.jsxs)("span", { className: "rounded bg-brand-blue-soft px-2 py-0.5 text-[11px] font-semibold text-brand-blue", children: ["Quantity: ", rushQty] })] }), (0, jsx_runtime_1.jsxs)("div", { className: "grid grid-cols-2 gap-2 text-[12px] pt-1 border-t border-brand-line/40", children: [(0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsx)("span", { className: "text-brand-ink-tertiary", children: "Compensation Rate: " }), (0, jsx_runtime_1.jsxs)("span", { className: "font-semibold text-brand-ink", children: [Math.round(((record.rushFeeCompensationRate ?? assignedProducerObj?.rushFeeRate ?? 1.0) <= 1 ? (record.rushFeeCompensationRate ?? assignedProducerObj?.rushFeeRate ?? 1.0) * 100 : (record.rushFeeCompensationRate ?? assignedProducerObj?.rushFeeRate ?? 1.0))), "%"] })] }), (0, jsx_runtime_1.jsxs)("div", { className: "text-right", children: [(0, jsx_runtime_1.jsx)("span", { className: "text-brand-ink-tertiary", children: "Editor Payout: " }), (0, jsx_runtime_1.jsx)("span", { className: "font-bold text-brand-success", children: (0, data_1.formatPrice)(clientPayroll.rushFeePayout ?? 0) })] })] })] })), clientPayroll.status === "not_paid_for_mixing" && ((0, jsx_runtime_1.jsxs)("div", { className: "rounded-xl border border-brand-line/70 bg-brand-bg/60 p-4", children: [(0, jsx_runtime_1.jsx)("p", { className: "text-[13px] font-semibold text-brand-ink", children: clientPayroll.message }), (0, jsx_runtime_1.jsx)("p", { className: "mt-1 text-[12px] text-brand-ink-secondary", children: "Steve does not receive per-mix compensation. Payout is $0.00." })] })), clientPayroll.status === "hourly_manual" && ((0, jsx_runtime_1.jsxs)("div", { className: "rounded-xl border border-brand-line/70 bg-brand-bg/60 p-4", children: [(0, jsx_runtime_1.jsx)("p", { className: "text-[13px] font-semibold text-brand-ink", children: clientPayroll.message }), (0, jsx_runtime_1.jsx)("p", { className: "mt-1 text-[12px] text-brand-ink-secondary", children: "Hourly employee payout is handled via regular pay sheets. You may optionally enter a manual payout amount below." })] })), clientPayroll.status === "needs_manual_review" && ((0, jsx_runtime_1.jsxs)("div", { className: "rounded-xl border border-brand-warning/30 bg-brand-warning/10 p-4", children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex items-center gap-2 text-brand-warning font-semibold text-[13px]", children: [(0, jsx_runtime_1.jsx)(lucide_react_1.AlertTriangle, { className: "h-4 w-4" }), (0, jsx_runtime_1.jsx)("span", { children: "No rate on file / Manual review required" })] }), (0, jsx_runtime_1.jsx)("p", { className: "mt-1 text-[12px] text-brand-ink-secondary", children: clientPayroll.message })] })), clientPayroll.isCaseyAmbiguous && ((0, jsx_runtime_1.jsxs)("div", { className: "rounded-xl border border-brand-signature/30 bg-brand-signature/8 p-4 space-y-3", children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex items-center justify-between", children: [(0, jsx_runtime_1.jsx)("span", { className: "text-[13px] font-bold text-brand-ink", children: "Casey Pricing Tier Selection" }), (0, jsx_runtime_1.jsx)("span", { className: "rounded bg-brand-signature/20 px-2 py-0.5 text-[10px] font-bold uppercase text-brand-signature", children: "Requires Choice" })] }), (0, jsx_runtime_1.jsx)("p", { className: "text-[12px] text-brand-ink-secondary", children: "Casey has two rates configured. Select the correct rate tier for this mix:" }), (0, jsx_runtime_1.jsxs)("div", { className: "grid grid-cols-2 gap-3 pt-1", children: [(0, jsx_runtime_1.jsxs)("button", { type: "button", onClick: () => {
                                                             setSelectedCaseyRate(0.72);
                                                             setCustomRateInput("");
                                                         }, className: (0, clsx_1.default)("rounded-xl border p-3 text-left transition shadow-sm", selectedCaseyRate === 0.72

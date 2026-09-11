@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { isMTDRecord, isPreMTDOrderRecord, isOrderScheduledAndAssigned } from "../mtd-filters";
+import { mergeLocalMtdRecordFields } from "../mtd-completion";
 import { getOrderDetailSections } from "../order-detail-sections";
 import type { MTDRecord, Order } from "../../types";
 
@@ -92,6 +93,26 @@ describe("Orders Tab & Workflow Separation", () => {
     assert.equal(movedRecord.assignedProducer, "JD");
     assert.equal(movedRecord.mixStartDate, "2026-09-15");
     assert.equal(movedRecord.mixEndDate, "2026-09-22");
+  });
+
+  it("Backend assignment wins over stale local state on reload", () => {
+    const backendRecord = makeRecord({
+      assignedProducer: "CM",
+      mixStartDate: "2026-09-10",
+      mixEndDate: "2026-09-17",
+      inMTD: false,
+    });
+    const staleLocal = makeRecord({
+      assignedProducer: null,
+      editorRequest: "FA",
+      mixStartDate: "",
+      mixEndDate: "",
+    });
+
+    const merged = mergeLocalMtdRecordFields(backendRecord, staleLocal);
+    assert.equal(merged.assignedProducer, "CM");
+    assert.equal(merged.inMTD, false);
+    assert.equal(isPreMTDOrderRecord(merged), true);
   });
 
   it("Outsourced mixes belong on the MTD tab even without full scheduling", () => {

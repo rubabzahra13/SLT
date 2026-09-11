@@ -5,8 +5,8 @@ import { BRAND_CHARCOAL } from "@/lib/brand-colors";
 
 export const AUTH_PAGE_CANVAS = BRAND_CHARCOAL;
 
-/** Pin html/body to the auth background so overscroll never reveals white. */
-export function useAuthPageCanvas() {
+/** Pin html/body overscroll; optional canvas color (transparent = gradient-only login). */
+export function useAuthPageCanvas(canvas: string = AUTH_PAGE_CANVAS) {
   useEffect(() => {
     const html = document.documentElement;
     const body = document.body;
@@ -18,8 +18,8 @@ export function useAuthPageCanvas() {
       bodyOverscroll: body.style.overscrollBehavior,
     };
 
-    html.style.backgroundColor = AUTH_PAGE_CANVAS;
-    body.style.backgroundColor = AUTH_PAGE_CANVAS;
+    html.style.backgroundColor = canvas;
+    body.style.backgroundColor = canvas;
     html.style.overscrollBehavior = "none";
     body.style.overscrollBehavior = "none";
 
@@ -32,7 +32,9 @@ export function useAuthPageCanvas() {
       themeMeta.setAttribute("name", "theme-color");
       document.head.appendChild(themeMeta);
     }
-    themeMeta.setAttribute("content", AUTH_PAGE_CANVAS);
+    if (canvas !== "transparent") {
+      themeMeta.setAttribute("content", canvas);
+    }
 
     return () => {
       html.style.backgroundColor = prev.htmlBg;
@@ -46,5 +48,5 @@ export function useAuthPageCanvas() {
         themeMeta.setAttribute("content", prevTheme);
       }
     };
-  }, []);
+  }, [canvas]);
 }

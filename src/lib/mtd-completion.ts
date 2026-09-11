@@ -158,7 +158,10 @@ export function mergeLocalMtdRecordFields(
   if (localRecord) {
     merged = {
       ...merged,
-      assignedProducer: localRecord.assignedProducer?.trim() ? localRecord.assignedProducer : merged.assignedProducer,
+      assignedProducer:
+        merged.assignedProducer?.trim() ||
+        localRecord.assignedProducer?.trim() ||
+        null,
       editorRequest: localRecord.editorRequest ?? merged.editorRequest,
       mixStartDate: localRecord.mixStartDate || merged.mixStartDate,
       mixEndDate: localRecord.mixEndDate || merged.mixEndDate,

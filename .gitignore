@@ -46,3 +46,4 @@ __pycache__/
 *$py.class
 .pytest_cache/
 
+.vercel

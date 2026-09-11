@@ -1,6 +1,7 @@
 import uuid
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.models.producer import Producer
@@ -28,9 +29,37 @@ def get_producers(db: Session = Depends(get_db)):
 
 @router.post("/producers", response_model=ProducerSchema, status_code=status.HTTP_201_CREATED)
 def create_producer(payload: ProducerCreateSchema, db: Session = Depends(get_db), _: None = Depends(require_full_access)):
-    producer = Producer(**payload.model_dump())
+    data = payload.model_dump()
+    initials = (data.get("initials") or "").strip().upper()
+    if not initials:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Producer initials are required.",
+        )
+
+    existing = db.query(Producer).filter(Producer.initials == initials).first()
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"A producer with initials “{initials}” already exists.",
+        )
+
+    if not (data.get("specialty") or "").strip():
+        categories = data.get("categories") or []
+        data["specialty"] = categories[0] if categories else "General"
+
+    data["initials"] = initials
+
+    producer = Producer(**data)
     db.add(producer)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"A producer with initials “{initials}” already exists.",
+        ) from None
     db.refresh(producer)
     return producer
 

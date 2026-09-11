@@ -27,5 +27,6 @@ const gmail_1 = require("../api/gmail");
         strict_1.default.equal(typeof gmail_1.getGmailConnectUrl, "function");
         strict_1.default.equal(typeof gmail_1.disconnectGmail, "function");
         strict_1.default.equal(typeof gmail_1.sendGmailTestEmail, "function");
+        strict_1.default.equal(typeof gmail_1.sendGmailEmail, "function");
     });
 });
