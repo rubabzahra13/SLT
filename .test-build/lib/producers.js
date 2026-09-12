@@ -13,6 +13,7 @@ exports.formatCategoryCompensationRate = formatCategoryCompensationRate;
 exports.initialsFromName = initialsFromName;
 exports.matchesProducerSearch = matchesProducerSearch;
 exports.producerSearchScore = producerSearchScore;
+exports.deduplicateProducers = deduplicateProducers;
 const types_1 = require("@/types");
 const producer_avatars_1 = require("@/lib/producer-avatars");
 /**
@@ -308,4 +309,14 @@ function producerSearchScore(producer, query) {
     if (fullName.includes(q))
         return 40;
     return 0;
+}
+function deduplicateProducers(producers) {
+    const seen = new Set();
+    return producers.filter((p) => {
+        const key = (p.id || p.name).toLowerCase().trim();
+        if (seen.has(key))
+            return false;
+        seen.add(key);
+        return true;
+    });
 }

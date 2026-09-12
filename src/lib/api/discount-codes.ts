@@ -38,7 +38,7 @@ export async function fetchDiscountCodesApi(): Promise<DiscountCode[]> {
 export async function createDiscountCodeApi(dc: DiscountCode): Promise<DiscountCode> {
   const payload = {
     code: dc.code,
-    description: dc.description,
+    description: dc.description || "",
     discount_type: dc.discountType,
     discount_value: dc.discountValue,
   };
@@ -46,8 +46,8 @@ export async function createDiscountCodeApi(dc: DiscountCode): Promise<DiscountC
     const res = await apiClient.post<BackendDiscountCode>("/api/discount-codes", payload);
     return transformDiscountCode(res);
   } catch (err) {
-    console.warn("Failed to persist new discount code to backend API:", err);
-    return dc;
+    console.error("Failed to persist new discount code to backend API:", err);
+    throw err;
   }
 }
 
@@ -65,14 +65,8 @@ export async function updateDiscountCodeApi(
     const res = await apiClient.patch<BackendDiscountCode>(`/api/discount-codes/${id}`, payload);
     return transformDiscountCode(res);
   } catch (err) {
-    console.warn("Failed to persist discount code update to backend API:", err);
-    return {
-      id,
-      code: patch.code || "",
-      description: patch.description,
-      discountType: patch.discountType,
-      discountValue: patch.discountValue,
-    };
+    console.error("Failed to persist discount code update to backend API:", err);
+    throw err;
   }
 }
 
@@ -80,6 +74,7 @@ export async function deleteDiscountCodeApi(id: string): Promise<void> {
   try {
     await apiClient.delete(`/api/discount-codes/${id}`);
   } catch (err) {
-    console.warn("Failed to delete discount code from backend API:", err);
+    console.error("Failed to delete discount code from backend API:", err);
+    throw err;
   }
 }

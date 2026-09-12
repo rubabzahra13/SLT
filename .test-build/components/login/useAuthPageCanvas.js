@@ -6,8 +6,8 @@ exports.useAuthPageCanvas = useAuthPageCanvas;
 const react_1 = require("react");
 const brand_colors_1 = require("@/lib/brand-colors");
 exports.AUTH_PAGE_CANVAS = brand_colors_1.BRAND_CHARCOAL;
-/** Pin html/body to the auth background so overscroll never reveals white. */
-function useAuthPageCanvas() {
+/** Pin html/body overscroll; optional canvas color (transparent = gradient-only login). */
+function useAuthPageCanvas(canvas = exports.AUTH_PAGE_CANVAS) {
     (0, react_1.useEffect)(() => {
         const html = document.documentElement;
         const body = document.body;
@@ -17,8 +17,8 @@ function useAuthPageCanvas() {
             htmlOverscroll: html.style.overscrollBehavior,
             bodyOverscroll: body.style.overscrollBehavior,
         };
-        html.style.backgroundColor = exports.AUTH_PAGE_CANVAS;
-        body.style.backgroundColor = exports.AUTH_PAGE_CANVAS;
+        html.style.backgroundColor = canvas;
+        body.style.backgroundColor = canvas;
         html.style.overscrollBehavior = "none";
         body.style.overscrollBehavior = "none";
         let themeMeta = document.querySelector('meta[name="theme-color"]');
@@ -29,7 +29,9 @@ function useAuthPageCanvas() {
             themeMeta.setAttribute("name", "theme-color");
             document.head.appendChild(themeMeta);
         }
-        themeMeta.setAttribute("content", exports.AUTH_PAGE_CANVAS);
+        if (canvas !== "transparent") {
+            themeMeta.setAttribute("content", canvas);
+        }
         return () => {
             html.style.backgroundColor = prev.htmlBg;
             body.style.backgroundColor = prev.bodyBg;
@@ -42,5 +44,5 @@ function useAuthPageCanvas() {
                 themeMeta.setAttribute("content", prevTheme);
             }
         };
-    }, []);
+    }, [canvas]);
 }

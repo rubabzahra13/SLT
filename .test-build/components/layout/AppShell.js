@@ -16,15 +16,17 @@ function AppShell({ children }) {
     const { isAuthenticated, isLoading, isViewOnly } = (0, AuthContext_1.useAuth)();
     const { expanded, mobileOpen, setMobileOpen } = (0, SidebarContext_1.useSidebar)();
     const isLoginPage = pathname === "/login";
+    const isWelcomePage = pathname === "/welcome";
+    const isAuthCanvasPage = isLoginPage || isWelcomePage;
     (0, react_1.useEffect)(() => {
-        if (!isLoading && !isAuthenticated && !isLoginPage) {
+        if (!isLoading && !isAuthenticated && !isAuthCanvasPage) {
             router.replace("/login");
         }
-    }, [isLoading, isAuthenticated, isLoginPage, router]);
-    if (isLoginPage) {
+    }, [isLoading, isAuthenticated, isAuthCanvasPage, router]);
+    if (isAuthCanvasPage) {
         return (0, jsx_runtime_1.jsx)(jsx_runtime_1.Fragment, { children: children });
     }
-    if (isLoading || (!isAuthenticated && !isLoginPage)) {
+    if (isLoading || (!isAuthenticated && !isAuthCanvasPage)) {
         return ((0, jsx_runtime_1.jsx)("div", { className: "flex min-h-screen w-full items-center justify-center bg-brand-bg", children: (0, jsx_runtime_1.jsxs)("div", { className: "flex flex-col items-center gap-3 text-brand-ink-tertiary", children: [(0, jsx_runtime_1.jsx)("div", { className: "h-8 w-8 animate-spin rounded-full border-2 border-brand-blue border-t-transparent" }), (0, jsx_runtime_1.jsx)("p", { className: "text-xs font-medium", children: "Loading Sounds Like That CRM..." })] }) }));
     }
     const desktopMargin = expanded

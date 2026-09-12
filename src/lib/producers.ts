@@ -334,3 +334,13 @@ export function producerSearchScore(producer: Producer, query: string): number {
 
   return 0;
 }
+
+export function deduplicateProducers(producers: Producer[]): Producer[] {
+  const seen = new Set<string>();
+  return producers.filter((p) => {
+    const key = (p.id || p.name).toLowerCase().trim();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}

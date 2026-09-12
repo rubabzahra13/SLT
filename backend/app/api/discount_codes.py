@@ -1,13 +1,28 @@
-from typing import List
+import uuid
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.models.discount_code import DiscountCode
 from app.schemas.discount_code import DiscountCodeSchema, DiscountCodeCreateSchema, DiscountCodeUpdateSchema
+from app.api.auth import require_full_access
 
 router = APIRouter()
 
-from app.api.auth import require_full_access
+def get_discount_code_by_id_or_code(db: Session, code_id: str) -> Optional[DiscountCode]:
+    # 1. Try UUID lookup if code_id is a valid UUID format
+    try:
+        val = uuid.UUID(code_id)
+        dc = db.query(DiscountCode).filter(DiscountCode.id == val).first()
+        if dc:
+            return dc
+    except ValueError:
+        pass
+
+    # 2. Fallback to legacy_id or code lookup
+    return db.query(DiscountCode).filter(
+        (DiscountCode.legacy_id == code_id) | (DiscountCode.code == code_id.upper())
+    ).first()
 
 @router.get("/discount-codes", response_model=List[DiscountCodeSchema])
 def get_discount_codes(db: Session = Depends(get_db)):
@@ -32,7 +47,7 @@ def create_discount_code(payload: DiscountCodeCreateSchema, db: Session = Depend
 
 @router.patch("/discount-codes/{code_id}", response_model=DiscountCodeSchema)
 def update_discount_code(code_id: str, payload: DiscountCodeUpdateSchema, db: Session = Depends(get_db), _: None = Depends(require_full_access)):
-    dc = db.query(DiscountCode).filter((DiscountCode.id == code_id) | (DiscountCode.legacy_id == code_id) | (DiscountCode.code == code_id.upper())).first()
+    dc = get_discount_code_by_id_or_code(db, code_id)
     if not dc:
         raise HTTPException(status_code=404, detail="Discount code not found")
     update_data = payload.model_dump(exclude_unset=True)
@@ -46,9 +61,10 @@ def update_discount_code(code_id: str, payload: DiscountCodeUpdateSchema, db: Se
 
 @router.delete("/discount-codes/{code_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_discount_code(code_id: str, db: Session = Depends(get_db), _: None = Depends(require_full_access)):
-    dc = db.query(DiscountCode).filter((DiscountCode.id == code_id) | (DiscountCode.legacy_id == code_id) | (DiscountCode.code == code_id.upper())).first()
+    dc = get_discount_code_by_id_or_code(db, code_id)
     if not dc:
         raise HTTPException(status_code=404, detail="Discount code not found")
     db.delete(dc)
     db.commit()
     return None
+

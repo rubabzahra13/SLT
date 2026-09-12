@@ -1,5 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.resolveProducerApiId = resolveProducerApiId;
 exports.transformProducer = transformProducer;
 exports.fetchProducersApi = fetchProducersApi;
 exports.createProducerApi = createProducerApi;
@@ -7,6 +8,9 @@ exports.updateProducerApi = updateProducerApi;
 exports.deleteProducerApi = deleteProducerApi;
 const client_1 = require("./client");
 const producers_1 = require("@/lib/producers");
+function resolveProducerApiId(producer) {
+    return producer.uuid || producer.id;
+}
 function transformProducer(bp) {
     const categories = Array.isArray(bp.categories) && bp.categories.length > 0
         ? bp.categories
@@ -15,6 +19,8 @@ function transformProducer(bp) {
             : [];
     return (0, producers_1.normalizeProducer)({
         id: bp.legacy_id || bp.id,
+        legacyId: bp.legacy_id || undefined,
+        uuid: bp.id,
         name: bp.name,
         initials: bp.initials,
         email: bp.email,
@@ -52,6 +58,7 @@ async function fetchProducersApi() {
 }
 async function createProducerApi(producer) {
     const payload = {
+        legacy_id: producer.legacyId || producer.id,
         name: producer.name,
         initials: producer.initials,
         email: producer.email,
@@ -76,7 +83,7 @@ async function createProducerApi(producer) {
     const res = await client_1.apiClient.post("/api/producers", payload);
     return transformProducer(res);
 }
-async function updateProducerApi(id, patch) {
+async function updateProducerApi(id, patch, apiId) {
     const payload = {};
     if (patch.name !== undefined)
         payload.name = patch.name;
@@ -123,19 +130,16 @@ async function updateProducerApi(id, patch) {
     if (patch.notes !== undefined)
         payload.notes = patch.notes;
     try {
-        const res = await client_1.apiClient.patch(`/api/producers/${id}`, payload);
+        const res = await client_1.apiClient.patch(`/api/producers/${apiId || id}`, payload);
         return transformProducer(res);
     }
     catch (err) {
-        console.warn(`Failed to persist producer update for ${id} to backend:`, err);
-        return { id, ...patch };
+        if (err instanceof client_1.ApiClientError) {
+            throw err;
+        }
+        throw err;
     }
 }
-async function deleteProducerApi(id) {
-    try {
-        await client_1.apiClient.delete(`/api/producers/${id}`);
-    }
-    catch (err) {
-        console.warn(`Failed to delete producer ${id} from backend:`, err);
-    }
+async function deleteProducerApi(id, apiId) {
+    await client_1.apiClient.delete(`/api/producers/${apiId || id}`);
 }

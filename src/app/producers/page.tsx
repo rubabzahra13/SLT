@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { CalendarOff, Eye, Mail, Music, Pencil, Plus, Trash2 } from "lucide-react";
 import clsx from "clsx";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -76,22 +76,32 @@ export default function ProducersPage() {
     }
   }
 
+  const uniqueProducers = useMemo(() => {
+    const seen = new Set<string>();
+    return producers.filter((p) => {
+      const key = (p.id || p.name).toLowerCase().trim();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [producers]);
+
   return (
     <>
       <PageHeader
         title="Producer Roster"
-        badge={`${producers.length} producers`}
+        badge={`${uniqueProducers.length} producers`}
         subtitle="Manage producers, add, edit, or remove without dev help"
         action={isViewOnly ? undefined : { label: "Add Producer", onClick: openAdd }}
       />
 
       <div className="grid auto-rows-fr items-stretch gap-4 px-6 pb-6 pt-5 sm:grid-cols-2 lg:grid-cols-3 lg:px-8 xl:grid-cols-4">
-        {producers.map((producer) => {
+        {uniqueProducers.map((producer, idx) => {
           const categories = getProducerCategories(producer);
 
           return (
           <article
-            key={producer.id}
+            key={`${producer.id}-${idx}`}
             className="dashboard-panel relative flex w-full flex-col self-start"
           >
             <div className="dashboard-panel-head dashboard-panel-head-accent flex shrink-0 items-center justify-between gap-2 px-4 py-3">

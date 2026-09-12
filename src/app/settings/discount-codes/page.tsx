@@ -132,22 +132,31 @@ export default function DiscountCodesPage() {
     setModalOpen(true);
   }
 
-  function handleSave(entry: DiscountCode) {
+  async function handleSave(entry: DiscountCode) {
     if (isViewOnly) return;
-    if (editing) {
-      updateDiscountCode(entry.id, entry);
-    } else {
-      addDiscountCode(entry);
+    try {
+      if (editing) {
+        await updateDiscountCode(entry.id, entry);
+      } else {
+        await addDiscountCode(entry);
+      }
+    } catch (err) {
+      console.error("Failed to save discount code:", err);
     }
   }
 
-  function confirmDelete() {
+  async function confirmDelete() {
     if (isViewOnly || !deleting) return;
-    removeDiscountCode(deleting.id);
+    const target = deleting;
     setDeleting(null);
-    if (editing?.id === deleting.id) {
+    if (editing?.id === target.id) {
       setModalOpen(false);
       setEditing(null);
+    }
+    try {
+      await removeDiscountCode(target.id);
+    } catch (err) {
+      console.error("Failed to delete discount code:", err);
     }
   }
 

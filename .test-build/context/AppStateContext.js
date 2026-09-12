@@ -109,7 +109,7 @@ function AppStateProvider({ children }) {
             createdAt: order.createdAt || new Date().toISOString(),
         }));
     });
-    const [producers, setProducers] = (0, react_1.useState)(() => seed.producers.map((p) => (0, producers_1.normalizeProducer)(p)));
+    const [producers, setProducers] = (0, react_1.useState)(() => (0, producers_1.deduplicateProducers)(seed.producers.map((p) => (0, producers_1.normalizeProducer)(p))));
     const [discountCodes, setDiscountCodes] = (0, react_1.useState)(() => (seed.discountCodes ?? []).map((entry) => (0, discount_codes_1.normalizeDiscountCode)(entry)));
     const [isBackendConnected, setIsBackendConnected] = (0, react_1.useState)(false);
     const schedule = seed.schedule;
@@ -131,7 +131,7 @@ function AppStateProvider({ children }) {
                     const backendIds = new Set(normalizedProducers.map((p) => p.id));
                     const seedProducers = seed.producers.map((p) => (0, producers_1.normalizeProducer)(p));
                     const missingSeed = seedProducers.filter((p) => !backendIds.has(p.id));
-                    setProducers([...normalizedProducers, ...missingSeed]);
+                    setProducers((0, producers_1.deduplicateProducers)([...normalizedProducers, ...missingSeed]));
                 }
                 if (ordersData) {
                     const backendActive = normalizeOrders(ordersData.activeOrders);
@@ -432,24 +432,64 @@ function AppStateProvider({ children }) {
             href: "/mtd",
         });
     }, [addNotification]);
-    const addProducer = (0, react_1.useCallback)((producer) => {
-        if (isViewOnly)
-            return;
+    const addProducer = (0, react_1.useCallback)(async (producer) => {
+        if (isViewOnly) {
+            throw new Error("View-only accounts cannot add producers.");
+        }
         const normalized = (0, producers_1.normalizeProducer)(producer);
+        const tempId = normalized.id;
         setProducers((prev) => [normalized, ...prev]);
-        (0, api_1.createProducerApi)(normalized).catch((err) => console.error("Failed to persist new producer to backend:", err));
+        try {
+            const saved = await (0, api_1.createProducerApi)(normalized);
+            setProducers((prev) => prev.map((p) => (p.id === tempId ? saved : p)));
+            return saved;
+        }
+        catch (err) {
+            setProducers((prev) => prev.filter((p) => p.id !== tempId));
+            throw err;
+        }
     }, [isViewOnly]);
-    const updateProducer = (0, react_1.useCallback)((id, patch) => {
-        if (isViewOnly)
-            return;
-        setProducers((prev) => prev.map((p) => p.id === id ? (0, producers_1.normalizeProducer)({ ...p, ...patch, id }) : p));
-        (0, api_1.updateProducerApi)(id, patch).catch((err) => console.error("Failed to persist producer update to backend:", err));
+    const updateProducer = (0, react_1.useCallback)(async (id, patch) => {
+        if (isViewOnly) {
+            throw new Error("View-only accounts cannot edit producers.");
+        }
+        let previous;
+        setProducers((prev) => {
+            previous = prev.find((p) => p.id === id);
+            return prev.map((p) => p.id === id ? (0, producers_1.normalizeProducer)({ ...p, ...patch, id }) : p);
+        });
+        if (!previous) {
+            throw new Error("Producer not found.");
+        }
+        try {
+            const saved = await (0, api_1.updateProducerApi)(id, patch, (0, api_1.resolveProducerApiId)(previous));
+            setProducers((prev) => prev.map((p) => (p.id === id ? saved : p)));
+            return saved;
+        }
+        catch (err) {
+            setProducers((prev) => prev.map((p) => (p.id === id ? previous : p)));
+            throw err;
+        }
     }, [isViewOnly]);
-    const removeProducer = (0, react_1.useCallback)((id) => {
-        if (isViewOnly)
-            return;
-        setProducers((prev) => prev.filter((p) => p.id !== id));
-        (0, api_1.deleteProducerApi)(id).catch((err) => console.error("Failed to delete producer from backend:", err));
+    const removeProducer = (0, react_1.useCallback)(async (id) => {
+        if (isViewOnly) {
+            throw new Error("View-only accounts cannot remove producers.");
+        }
+        let removed;
+        setProducers((prev) => {
+            removed = prev.find((p) => p.id === id);
+            return prev.filter((p) => p.id !== id);
+        });
+        if (!removed) {
+            throw new Error("Producer not found.");
+        }
+        try {
+            await (0, api_1.deleteProducerApi)(id, (0, api_1.resolveProducerApiId)(removed));
+        }
+        catch (err) {
+            setProducers((prev) => [removed, ...prev]);
+            throw err;
+        }
     }, [isViewOnly]);
     const addDiscountCode = (0, react_1.useCallback)((discountCode) => {
         if (isViewOnly)

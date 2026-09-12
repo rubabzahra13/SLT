@@ -34,9 +34,8 @@ import {
   resolveValidProducerAssignment,
 } from "@/lib/editor-assignment";
 import { suggestMixEndDate, suggestMixStartDate } from "@/lib/scheduling";
-import { normalizeProducer } from "@/lib/producers";
+import { normalizeProducer, deduplicateProducers } from "@/lib/producers";
 import { normalizeDiscountCode } from "@/lib/discount-codes";
-import { mergeLocalMtdRecordFields } from "@/lib/mtd-completion";
 import { isOutsourcedRecord } from "@/lib/mtd-filters";
 import { inferMTDRecordStatus } from "@/lib/mtd-status";
 import { toIsoDateString } from "@/lib/dates";
@@ -84,9 +83,9 @@ type AppStateContextValue = {
   addProducer: (producer: Producer) => Promise<Producer>;
   updateProducer: (id: string, patch: Partial<Producer>) => Promise<Producer>;
   removeProducer: (id: string) => Promise<void>;
-  addDiscountCode: (discountCode: DiscountCode) => void;
-  updateDiscountCode: (id: string, patch: Partial<DiscountCode>) => void;
-  removeDiscountCode: (id: string) => void;
+  addDiscountCode: (discountCode: DiscountCode) => Promise<DiscountCode>;
+  updateDiscountCode: (id: string, patch: Partial<DiscountCode>) => Promise<DiscountCode>;
+  removeDiscountCode: (id: string) => Promise<void>;
   markNotificationRead: (id: string) => void;
   markAllNotificationsRead: () => void;
   isInMTD: (orderId: string) => boolean;
@@ -135,71 +134,39 @@ function normalizeMTD(records: MTDRecord[]): MTDRecord[] {
   });
 }
 
-function getLocalItem<T>(key: string, fallback: T): T {
-  if (typeof window === "undefined") return fallback;
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return fallback;
-    return JSON.parse(raw);
-  } catch {
-    return fallback;
-  }
-}
 
-function setLocalItem<T>(key: string, value: T): void {
-  if (typeof window === "undefined") return;
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    // Ignore quota or storage errors
-  }
-}
 
 export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const seed = getData();
 
-  const [activeOrders, setActiveOrders] = useState<Order[]>(() => {
-    const stored = getLocalItem<Order[] | null>("slt_persisted_active_orders", null);
-    return stored
-      ? normalizeOrders(stored)
-      : normalizeOrders(seed.orders.filter((o) => o.status !== "completed"));
-  });
-  const [pastOrders, setPastOrders] = useState<Order[]>(() => {
-    const stored = getLocalItem<Order[] | null>("slt_persisted_past_orders", null);
-    return stored ? normalizeOrders(stored) : normalizeOrders(seed.pastOrders ?? []);
-  });
-  const [mtdRecords, setMtdRecords] = useState<MTDRecord[]>(() => {
-    const stored = getLocalItem<MTDRecord[] | null>("slt_persisted_mtd_records", null);
-    return stored ? normalizeMTD(stored) : normalizeMTD(seed.mtdRecords);
-  });
+  // One-time migration: clear any stale localStorage keys that may contain
+  // old mock/demo data, ensuring the backend API is always the data source.
+  if (typeof window !== "undefined") {
+    localStorage.removeItem("slt_persisted_active_orders");
+    localStorage.removeItem("slt_persisted_past_orders");
+    localStorage.removeItem("slt_persisted_mtd_records");
+  }
+
+  // Transactional data always starts empty — populated exclusively from the
+  // backend API (Supabase). No fallback to local seed/mock data.
+  const [activeOrders, setActiveOrders] = useState<Order[]>([]);
+  const [pastOrders, setPastOrders] = useState<Order[]>([]);
+  const [mtdRecords, setMtdRecords] = useState<MTDRecord[]>([]);
+
   const [packagePrices, setPackagePricesState] = useState<Record<string, number>>(
     () => getDefaultPackagePrices()
   );
   const [secretMenuPrices, setSecretMenuPricesState] = useState<SecretMenuPricing>(
     () => getDefaultSecretMenuPricing()
   );
-  const [notifications, setNotifications] = useState<AppNotification[]>(() => {
-    const newOrders = seed.orders
-      .filter((o) => o.status === "new")
-      .slice(0, 8);
-    return [...newOrders].reverse().map((order, index) => ({
-      id: `notif-seed-${order.id}-${index}`,
-      type: "new_order" as const,
-      title: "New order received",
-      message: `${order.programName} · ${
-        order.contactName || order.customerName || "Customer"
-      }`,
-      href: "/mtd",
-      read: false,
-      createdAt: order.createdAt || new Date().toISOString(),
-    }));
-  });
+
+  // Notifications start empty — populated when backend data loads or user actions occur.
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+
   const [producers, setProducers] = useState<Producer[]>(() =>
-    seed.producers.map((p) => normalizeProducer(p))
+    deduplicateProducers(seed.producers.map((p) => normalizeProducer(p)))
   );
-  const [discountCodes, setDiscountCodes] = useState<DiscountCode[]>(() =>
-    (seed.discountCodes ?? []).map((entry) => normalizeDiscountCode(entry))
-  );
+  const [discountCodes, setDiscountCodes] = useState<DiscountCode[]>([]);
   const [isBackendConnected, setIsBackendConnected] = useState<boolean>(false);
 
   const schedule = seed.schedule;
@@ -222,53 +189,32 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         if (producersData && producersData.length > 0) {
           const normalizedProducers = producersData.map((p) => normalizeProducer(p));
           const backendIds = new Set(normalizedProducers.map((p) => p.id));
+          // Merge backend producers with seed producers (team config), keeping any
+          // local seed producers that the backend doesn't know about yet.
           const seedProducers = seed.producers.map((p) => normalizeProducer(p));
           const missingSeed = seedProducers.filter((p) => !backendIds.has(p.id));
-          setProducers([...normalizedProducers, ...missingSeed]);
+          setProducers(deduplicateProducers([...normalizedProducers, ...missingSeed]));
         }
 
         if (ordersData) {
-          const backendActive = normalizeOrders(ordersData.activeOrders);
-          const backendPast = normalizeOrders(ordersData.pastOrders);
-          const backendOrderIds = new Set([
-            ...backendActive.map((o) => o.id),
-            ...backendPast.map((o) => o.id),
-          ]);
-          const seedActive = normalizeOrders(
-            seed.orders.filter((o) => o.status !== "completed")
-          );
-          const seedPast = normalizeOrders(seed.pastOrders ?? []);
-          const missingSeedActive = seedActive.filter((o) => !backendOrderIds.has(o.id));
-          const missingSeedPast = seedPast.filter((o) => !backendOrderIds.has(o.id));
-
-          setActiveOrders([...backendActive, ...missingSeedActive]);
-          setPastOrders([...backendPast, ...missingSeedPast]);
+          // Database is the single source of truth for orders.
+          // Replace state entirely — no seed fallback.
+          setActiveOrders(normalizeOrders(ordersData.activeOrders));
+          setPastOrders(normalizeOrders(ordersData.pastOrders));
         }
 
         if (mtdData) {
-          setMtdRecords((prev) => {
-            const localById = new Map(prev.map((r) => [r.id, r]));
-            const normalizedMtd = normalizeMTD(mtdData).map((r) =>
-              mergeLocalMtdRecordFields(r, localById.get(r.id))
-            );
-            const backendMtdIds = new Set(normalizedMtd.map((r) => r.id));
-            const seedMtd = normalizeMTD(seed.mtdRecords);
-            const missingSeedMtd = seedMtd
-              .filter((r) => !backendMtdIds.has(r.id))
-              .map((r) => mergeLocalMtdRecordFields(r, localById.get(r.id)));
-
-            return [...normalizedMtd, ...missingSeedMtd];
-          });
+          // Database is the single source of truth for MTD records.
+          // Replace state entirely — no seed fallback.
+          const normalizedMtd = normalizeMTD(mtdData);
+          setMtdRecords(normalizedMtd);
         }
 
-        if (codesData && codesData.length > 0) {
+        if (codesData) {
+          // Database is the single source of truth for discount codes.
+          // Replace state entirely — no seed fallback.
           const normalizedCodes = codesData.map((c) => normalizeDiscountCode(c));
-          const backendCodeIds = new Set(normalizedCodes.map((c) => c.id));
-          const seedCodes = (seed.discountCodes ?? []).map((entry) =>
-            normalizeDiscountCode(entry)
-          );
-          const missingSeedCodes = seedCodes.filter((c) => !backendCodeIds.has(c.id));
-          setDiscountCodes([...normalizedCodes, ...missingSeedCodes]);
+          setDiscountCodes(normalizedCodes);
         }
 
         setIsBackendConnected(true);
@@ -289,17 +235,9 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  useEffect(() => {
-    setLocalItem("slt_persisted_active_orders", activeOrders);
-  }, [activeOrders]);
-
-  useEffect(() => {
-    setLocalItem("slt_persisted_past_orders", pastOrders);
-  }, [pastOrders]);
-
-  useEffect(() => {
-    setLocalItem("slt_persisted_mtd_records", mtdRecords);
-  }, [mtdRecords]);
+  // NOTE: Orders and MTD records are intentionally NOT persisted to localStorage.
+  // The backend API (Supabase) is the sole persistent store. On each page load
+  // the app fetches fresh data from the database.
 
   const addNotification = useCallback(
     (n: Omit<AppNotification, "id" | "read" | "createdAt">) => {
@@ -736,39 +674,86 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     }
   }, [isViewOnly]);
 
-  const addDiscountCode = useCallback((discountCode: DiscountCode) => {
-    if (isViewOnly) return;
-    const normalized = normalizeDiscountCode(discountCode);
-    setDiscountCodes((prev) => [normalized, ...prev]);
-    createDiscountCodeApi(normalized).catch((err) =>
-      console.error("Failed to persist new discount code to backend:", err)
-    );
-  }, [isViewOnly]);
-
-  const updateDiscountCode = useCallback(
-    (id: string, patch: Partial<DiscountCode>) => {
-      if (isViewOnly) return;
-      setDiscountCodes((prev) =>
-        prev.map((entry) =>
-          entry.id === id
-            ? normalizeDiscountCode({ ...entry, ...patch, id })
-            : entry
-        )
-      );
-      updateDiscountCodeApi(id, patch).catch((err) =>
-        console.error("Failed to persist discount code update to backend:", err)
-      );
+  const addDiscountCode = useCallback(
+    async (discountCode: DiscountCode): Promise<DiscountCode> => {
+      if (isViewOnly) {
+        throw new Error("View-only accounts cannot add discount codes.");
+      }
+      const normalized = normalizeDiscountCode(discountCode);
+      const tempId = normalized.id;
+      setDiscountCodes((prev) => [normalized, ...prev]);
+      try {
+        const saved = await createDiscountCodeApi(normalized);
+        setDiscountCodes((prev) =>
+          prev.map((c) => (c.id === tempId ? saved : c))
+        );
+        return saved;
+      } catch (err) {
+        setDiscountCodes((prev) => prev.filter((c) => c.id !== tempId));
+        throw err;
+      }
     },
     [isViewOnly]
   );
 
-  const removeDiscountCode = useCallback((id: string) => {
-    if (isViewOnly) return;
-    setDiscountCodes((prev) => prev.filter((entry) => entry.id !== id));
-    deleteDiscountCodeApi(id).catch((err) =>
-      console.error("Failed to delete discount code from backend:", err)
-    );
-  }, [isViewOnly]);
+  const updateDiscountCode = useCallback(
+    async (
+      id: string,
+      patch: Partial<DiscountCode>
+    ): Promise<DiscountCode> => {
+      if (isViewOnly) {
+        throw new Error("View-only accounts cannot edit discount codes.");
+      }
+      let previous: DiscountCode | undefined;
+      setDiscountCodes((prev) => {
+        previous = prev.find((entry) => entry.id === id);
+        return prev.map((entry) =>
+          entry.id === id
+            ? normalizeDiscountCode({ ...entry, ...patch, id })
+            : entry
+        );
+      });
+      if (!previous) {
+        throw new Error("Discount code not found.");
+      }
+      try {
+        const saved = await updateDiscountCodeApi(id, patch);
+        setDiscountCodes((prev) =>
+          prev.map((entry) => (entry.id === id ? saved : entry))
+        );
+        return saved;
+      } catch (err) {
+        setDiscountCodes((prev) =>
+          prev.map((entry) => (entry.id === id ? previous! : entry))
+        );
+        throw err;
+      }
+    },
+    [isViewOnly]
+  );
+
+  const removeDiscountCode = useCallback(
+    async (id: string): Promise<void> => {
+      if (isViewOnly) {
+        throw new Error("View-only accounts cannot delete discount codes.");
+      }
+      let removed: DiscountCode | undefined;
+      setDiscountCodes((prev) => {
+        removed = prev.find((entry) => entry.id === id);
+        return prev.filter((entry) => entry.id !== id);
+      });
+      if (!removed) {
+        throw new Error("Discount code not found.");
+      }
+      try {
+        await deleteDiscountCodeApi(id);
+      } catch (err) {
+        setDiscountCodes((prev) => [removed!, ...prev]);
+        throw err;
+      }
+    },
+    [isViewOnly]
+  );
 
   const markNotificationRead = useCallback((id: string) => {
     setNotifications((prev) =>
