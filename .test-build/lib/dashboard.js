@@ -19,6 +19,7 @@ const editor_assignment_1 = require("@/lib/editor-assignment");
 const mtd_filters_1 = require("@/lib/mtd-filters");
 const mtd_completion_1 = require("@/lib/mtd-completion");
 const schedule_view_1 = require("@/lib/schedule-view");
+const producer_schedule_calc_1 = require("@/lib/producer-schedule-calc");
 /** Dashboard "today" — defaults to current system date. */
 exports.DASHBOARD_ANCHOR_DATE = new Date();
 function isWaitingForData(rec) {
@@ -180,6 +181,7 @@ function buildDashboardPulse(mtdRecords, producers, schedule = [], todayInput = 
         return true;
     });
     const todaysMixes = todaysMixesRecords.length;
+    const enrichedProducers = (0, producer_schedule_calc_1.enrichProducersWithSchedule)(producers, mtdRecords, schedule, anchorDate);
     return {
         toAssign,
         inQueue,
@@ -195,7 +197,7 @@ function buildDashboardPulse(mtdRecords, producers, schedule = [], todayInput = 
         dueThisWeek,
         overdue,
         startingToday,
-        availableProducers: producers.filter((p) => p.status === "available").length,
+        availableProducers: enrichedProducers.filter((p) => p.status === "available").length,
         totalProducers: producers.length,
         bookedToday: todayCol?.unavailableCount ?? 0,
         busiestDay: busiest
@@ -215,7 +217,7 @@ function buildEditorLoad(mtdRecords, limit = 4) {
     const workload = (0, editor_assignment_1.getEditorWorkload)(mtdRecords);
     return [...workload.entries()]
         .map(([editor, count]) => ({ editor, count }))
-        .sort((a, b) => b.count - a.count || a.editor.localeCompare(b.editor))
+        .sort((a, b) => b.count - a.count)
         .slice(0, limit);
 }
 function buildWaitingOnBreakdown(mtdRecords, limit = 4) {
@@ -317,9 +319,10 @@ function buildCategoryPipeline(mtdRecords) {
     }))
         .sort((a, b) => b.count - a.count);
 }
-function sortProducersForCapacity(producers) {
+function sortProducersForCapacity(producers, mtdRecords = [], schedule = [], anchorDate = new Date()) {
+    const enriched = (0, producer_schedule_calc_1.enrichProducersWithSchedule)(producers, mtdRecords, schedule, anchorDate);
     const rank = { unavailable: 0, limited: 1, available: 2 };
-    return [...producers].sort((a, b) => {
+    return enriched.sort((a, b) => {
         const byStatus = rank[a.status] - rank[b.status];
         if (byStatus !== 0)
             return byStatus;

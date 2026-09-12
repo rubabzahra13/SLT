@@ -110,14 +110,40 @@ export function matchesFormFilter(
 ): boolean {
   const meta = resolveMTDFormMeta(rec, orderById);
   if (meta.formType !== form) return false;
+
   if (form === "school-all-star-cheer") {
     if (cheerSubtype === "all") return true;
+    const targetId = rec.orderId || rec.id;
+    const linked = targetId ? orderById.get(targetId) : undefined;
+    const viroc = linked?.varsityVirocCustomer || (rec as any).varsityVirocCustomer;
+
+    if (cheerSubtype === "school-cheer-viroc-yes") {
+      return (
+        (meta.cheerFormSubtype as string).startsWith("school-cheer") &&
+        (viroc === "yes" || viroc === "Yes" || viroc === true)
+      );
+    }
+    if (cheerSubtype === "school-cheer-viroc-no") {
+      return (
+        (meta.cheerFormSubtype as string).startsWith("school-cheer") &&
+        viroc !== "yes" &&
+        viroc !== "Yes" &&
+        viroc !== true
+      );
+    }
     return meta.cheerFormSubtype === cheerSubtype;
   }
+
   if (form === "school-all-star-dance") {
     if (danceSubtype === "all") return true;
+    if (danceSubtype === "team-performance-variety") {
+      return (
+        (meta.danceFormSubtype as string).startsWith("team-performance")
+      );
+    }
     return meta.danceFormSubtype === danceSubtype;
   }
+
   return true;
 }
 
@@ -150,8 +176,18 @@ export function countMTDByCheerSubtype(
     const meta = resolveMTDFormMeta(rec, orderById);
     if (meta.formType !== "school-all-star-cheer") continue;
     counts.all += 1;
-    if (counts[meta.cheerFormSubtype] !== undefined) {
-      counts[meta.cheerFormSubtype] += 1;
+
+    if ((meta.cheerFormSubtype as string).startsWith("school-cheer")) {
+      const targetId = rec.orderId || rec.id;
+      const linked = targetId ? orderById.get(targetId) : undefined;
+      const viroc = linked?.varsityVirocCustomer || (rec as any).varsityVirocCustomer;
+      if (viroc === "yes" || viroc === "Yes" || viroc === true) {
+        counts["school-cheer-viroc-yes"] += 1;
+      } else {
+        counts["school-cheer-viroc-no"] += 1;
+      }
+    } else if (counts[meta.cheerFormSubtype as CheerFormSubtypeFilter] !== undefined) {
+      counts[meta.cheerFormSubtype as CheerFormSubtypeFilter] += 1;
     }
   }
 
@@ -171,8 +207,14 @@ export function countMTDByDanceSubtype(
     const meta = resolveMTDFormMeta(rec, orderById);
     if (meta.formType !== "school-all-star-dance") continue;
     counts.all += 1;
-    if (counts[meta.danceFormSubtype] !== undefined) {
-      counts[meta.danceFormSubtype] += 1;
+
+    const subKey =
+      (meta.danceFormSubtype as string).startsWith("team-performance")
+        ? "team-performance-variety"
+        : meta.danceFormSubtype;
+
+    if (counts[subKey as DanceFormSubtypeFilter] !== undefined) {
+      counts[subKey as DanceFormSubtypeFilter] += 1;
     }
   }
 

@@ -6,15 +6,19 @@ exports.suggestMixStartDate = suggestMixStartDate;
 exports.suggestMixEndDate = suggestMixEndDate;
 const dates_1 = require("@/lib/dates");
 const package_1 = require("@/lib/package");
-function getNextAvailableSlot(producerInitials, producers, schedule) {
-    const producer = producers.find((p) => p.initials === producerInitials || p.name.toUpperCase() === producerInitials);
+const producer_schedule_calc_1 = require("@/lib/producer-schedule-calc");
+function getNextAvailableSlot(producerInitials, producers, schedule, mtdRecords = []) {
+    const producer = producers.find((p) => p.initials === producerInitials ||
+        p.name.toUpperCase() === producerInitials.toUpperCase() ||
+        p.id === producerInitials);
+    if (producer) {
+        const calc = (0, producer_schedule_calc_1.calculateProducerNextOpening)(producer, mtdRecords, schedule);
+        return { date: calc.nextAvailable, label: calc.nextAvailable };
+    }
     const entries = schedule.filter((s) => s.producer === producerInitials);
     const availableEntry = entries.find((e) => e.status === "available");
     if (availableEntry) {
         return { date: availableEntry.day, label: availableEntry.day };
-    }
-    if (producer?.nextAvailable) {
-        return { date: producer.nextAvailable, label: producer.nextAvailable };
     }
     return null;
 }

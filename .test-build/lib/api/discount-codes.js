@@ -32,7 +32,7 @@ async function fetchDiscountCodesApi() {
 async function createDiscountCodeApi(dc) {
     const payload = {
         code: dc.code,
-        description: dc.description,
+        description: dc.description || "",
         discount_type: dc.discountType,
         discount_value: dc.discountValue,
     };
@@ -41,8 +41,8 @@ async function createDiscountCodeApi(dc) {
         return transformDiscountCode(res);
     }
     catch (err) {
-        console.warn("Failed to persist new discount code to backend API:", err);
-        return dc;
+        console.error("Failed to persist new discount code to backend API:", err);
+        throw err;
     }
 }
 async function updateDiscountCodeApi(id, patch) {
@@ -60,14 +60,8 @@ async function updateDiscountCodeApi(id, patch) {
         return transformDiscountCode(res);
     }
     catch (err) {
-        console.warn("Failed to persist discount code update to backend API:", err);
-        return {
-            id,
-            code: patch.code || "",
-            description: patch.description,
-            discountType: patch.discountType,
-            discountValue: patch.discountValue,
-        };
+        console.error("Failed to persist discount code update to backend API:", err);
+        throw err;
     }
 }
 async function deleteDiscountCodeApi(id) {
@@ -75,6 +69,7 @@ async function deleteDiscountCodeApi(id) {
         await client_1.apiClient.delete(`/api/discount-codes/${id}`);
     }
     catch (err) {
-        console.warn("Failed to delete discount code from backend API:", err);
+        console.error("Failed to delete discount code from backend API:", err);
+        throw err;
     }
 }

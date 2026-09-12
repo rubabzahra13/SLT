@@ -17,7 +17,7 @@ import type {
   ScheduleEntry,
 } from "@/types";
 import { getData } from "@/lib/data";
-import { normalizeOrder } from "@/lib/order-form";
+import { normalizeOrder, orderToMTDRecord } from "@/lib/order-form";
 import { useAuth } from "@/context/AuthContext";
 import {
   detectCompliance,
@@ -196,19 +196,36 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           setProducers(deduplicateProducers([...normalizedProducers, ...missingSeed]));
         }
 
+        let loadedActiveOrders: Order[] = [];
+        let loadedMtdRecords: MTDRecord[] = [];
+
         if (ordersData) {
           // Database is the single source of truth for orders.
           // Replace state entirely — no seed fallback.
-          setActiveOrders(normalizeOrders(ordersData.activeOrders));
+          loadedActiveOrders = normalizeOrders(ordersData.activeOrders);
+          setActiveOrders(loadedActiveOrders);
           setPastOrders(normalizeOrders(ordersData.pastOrders));
         }
 
         if (mtdData) {
           // Database is the single source of truth for MTD records.
           // Replace state entirely — no seed fallback.
-          const normalizedMtd = normalizeMTD(mtdData);
-          setMtdRecords(normalizedMtd);
+          loadedMtdRecords = normalizeMTD(mtdData);
         }
+
+        const existingMtdOrderIds = new Set(
+          loadedMtdRecords.map((r) => r.orderId || r.id || r.legacyId || r.uuid).filter(Boolean)
+        );
+
+        const convertedOrders: MTDRecord[] = [];
+        for (const order of loadedActiveOrders) {
+          const oid = order.id || order.uuid || order.legacyId;
+          if (oid && !existingMtdOrderIds.has(oid)) {
+            convertedOrders.push(orderToMTDRecord(order));
+          }
+        }
+
+        setMtdRecords([...loadedMtdRecords, ...convertedOrders]);
 
         if (codesData) {
           // Database is the single source of truth for discount codes.

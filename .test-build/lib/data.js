@@ -4,80 +4,36 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getData = getData;
-exports.findOrder = findOrder;
 exports.formatPrice = formatPrice;
 exports.titleCase = titleCase;
 exports.getStatusColor = getStatusColor;
 exports.getStatusLabel = getStatusLabel;
 exports.getHaveStatus = getHaveStatus;
-const order_form_1 = require("@/lib/order-form");
-const discount_codes_1 = require("@/lib/discount-codes");
 const producers_1 = require("@/lib/producers");
-const editor_assignment_1 = require("@/lib/editor-assignment");
 const mock_data_json_1 = __importDefault(require("@/data/mock-data.json"));
-const cheer_demo_orders_1 = require("@/data/cheer-demo-orders");
-const dance_demo_orders_1 = require("@/data/dance-demo-orders");
-const new_categories_demo_orders_1 = require("@/data/new-categories-demo-orders");
+/**
+ * Returns app configuration data (producers, discount codes, schedule entries).
+ * Transactional data (orders, MTD records) is intentionally empty here —
+ * the AppStateContext loads those exclusively from the backend API (Supabase).
+ */
 function getData() {
     const raw = mock_data_json_1.default;
     const producers = raw.producers.map((p) => (0, producers_1.normalizeProducer)(p));
-    const sanitizeMtdRecord = (r) => ({
-        ...r,
-        assignedProducer: (0, editor_assignment_1.resolveValidProducerAssignment)(r.assignedProducer, producers, r.category),
-    });
-    const sanitizeOrder = (o) => {
-        const norm = (0, order_form_1.normalizeOrder)(o);
-        return {
-            ...norm,
-            assignedProducer: (0, editor_assignment_1.resolveValidProducerAssignment)(norm.assignedProducer, producers, norm.category || norm.formType || ""),
-        };
-    };
-    const combinedDemoOrders = [
-        ...cheer_demo_orders_1.CHEER_DEMO_ORDERS,
-        ...dance_demo_orders_1.DANCE_DEMO_ORDERS,
-        ...new_categories_demo_orders_1.NEW_CATEGORIES_DEMO_ORDERS,
-    ];
-    const demoOrdersById = new Map(combinedDemoOrders.map((o) => [o.id, sanitizeOrder(o)]));
-    const existingRawOrders = raw.orders.map((o) => sanitizeOrder(o));
-    const existingOrderIds = new Set(existingRawOrders.map((o) => o.id));
-    const mergedOrders = existingRawOrders.map((o) => demoOrdersById.get(o.id) ?? o);
-    const extraDemoOrders = combinedDemoOrders
-        .filter((o) => !existingOrderIds.has(o.id))
-        .map((o) => sanitizeOrder(o));
-    const combinedDemoMtdRecords = [
-        ...cheer_demo_orders_1.CHEER_DEMO_MTD_RECORDS,
-        ...dance_demo_orders_1.DANCE_DEMO_MTD_RECORDS,
-        ...new_categories_demo_orders_1.NEW_CATEGORIES_DEMO_MTD_RECORDS,
-    ];
-    const demoMtdById = new Map(combinedDemoMtdRecords.map((r) => [r.id, sanitizeMtdRecord(r)]));
-    const existingRawMtd = (raw.mtdRecords || []).map((r) => sanitizeMtdRecord(r));
-    const existingMtdIds = new Set(existingRawMtd.map((r) => r.id));
-    const mergedMtdRecords = existingRawMtd.map((r) => demoMtdById.get(r.id) ?? r);
-    const extraDemoMtdRecords = combinedDemoMtdRecords
-        .filter((r) => !existingMtdIds.has(r.id))
-        .map((r) => sanitizeMtdRecord(r));
-    const allMtdRecords = [...mergedMtdRecords, ...extraDemoMtdRecords].map((r) => {
-        const norm = sanitizeMtdRecord(r);
-        if (norm.inMTD === undefined &&
-            ((Boolean(norm.assignedProducer) && Boolean(norm.mixStartDate) && Boolean(norm.mixEndDate)) ||
-                norm.status === "outsourced" ||
-                norm.section === "OUTSOURCED MIXES")) {
-            norm.inMTD = true;
-        }
-        return norm;
-    });
     return {
         ...raw,
         producers,
-        discountCodes: (raw.discountCodes ?? []).map((entry) => (0, discount_codes_1.normalizeDiscountCode)(entry)),
-        orders: [...mergedOrders, ...extraDemoOrders],
-        pastOrders: (raw.pastOrders ?? []).map((o) => sanitizeOrder(o)),
-        mtdRecords: allMtdRecords,
+        // Discount codes: always empty — loaded exclusively from backend API (Supabase).
+        discountCodes: [],
+        // Transactional data: always empty — loaded from backend API only.
+        orders: [],
+        pastOrders: [],
+        mtdRecords: [],
+        // Schedule entries: always empty. Schedule is derived from live MTD records
+        // (Ongoing status + assigned producer + valid mix start/end dates).
+        // The static mock-data.json "schedule" array contained hardcoded day-level
+        // producer status entries (Aug 2026 dates) that caused phantom bookings.
+        schedule: [],
     };
-}
-function findOrder(id) {
-    const { orders, pastOrders } = getData();
-    return orders.find((o) => o.id === id) ?? pastOrders.find((o) => o.id === id);
 }
 function formatPrice(price) {
     return new Intl.NumberFormat("en-US", {

@@ -1,4 +1,4 @@
-import type { CheerFormSubtype, DanceFormSubtype, Order, OrderFormType } from "@/types";
+import type { CheerFormSubtype, DanceFormSubtype, MTDRecord, Order, OrderFormType } from "@/types";
 import { parsePackage } from "@/lib/package";
 import { titleCase } from "@/lib/data";
 
@@ -285,4 +285,59 @@ export function displayMultiline(value?: string, max = 120): string {
   const cleaned = value.replace(/\s+/g, " ").trim();
   if (cleaned.length <= max) return titleCase(cleaned);
   return `${titleCase(cleaned.slice(0, max))}…`;
+}
+
+export function orderToMTDRecord(order: Order): MTDRecord {
+  const section =
+    order.category === "Dance"
+      ? "DANCE MUSIC"
+      : order.category === "Marching Band"
+      ? "MARCHING BAND"
+      : order.category === "Sports Entertainment"
+      ? "SPORTS ENTERTAINMENT"
+      : order.category === "School Anthem"
+      ? "SCHOOL ANTHEMS"
+      : "CHEERLEADING MUSIC";
+
+  return {
+    id: order.id || order.legacyId || order.uuid || `ord-${Date.now()}`,
+    legacyId: order.legacyId,
+    uuid: order.uuid,
+    orderId: order.id || order.uuid,
+    section,
+    assignedProducer: order.assignedProducer || null,
+    category: order.category || "Cheer",
+    editorRequest: (order.editorRequest as any) || "FA",
+    contactName: order.contactName || order.customerName || "Contact",
+    editorInitials: order.contactName || order.customerName || "Contact",
+    programName: order.programName || "Program",
+    package: order.package || "TBD",
+    musicTheme: order.musicTheme || "",
+    price: order.price ?? 0,
+    priceCompliance: (order.priceCompliance as any) || "compliant",
+    invoice: "",
+    mixStartDate: "",
+    mixEndDate: undefined,
+    eightCountSheet: "NEED CS",
+    haveSongs: "NEED SONGS",
+    needsAttention: Boolean(order.needsAttention),
+    status: order.needsAttention
+      ? "needs_attention"
+      : order.status === "in_mtd"
+      ? "active"
+      : (order.status as any || "active"),
+    inMTD: order.status === "in_mtd",
+    inPayroll: false,
+    hasRallyMix: false,
+    hasExtend8ctAddon: false,
+    hasProcessing8ctSheetsAddon: false,
+    systemCalculatedCustomerPrice: order.systemCalculatedCustomerPrice,
+    finalCustomerPrice: order.finalCustomerPrice,
+    finalCustomerPriceOverridden: order.finalCustomerPriceOverridden,
+    pricingBreakdown: order.pricingBreakdown,
+    formType: order.formType,
+    cheerFormSubtype: order.cheerFormSubtype,
+    danceFormSubtype: order.danceFormSubtype,
+    varsityVirocCustomer: order.varsityVirocCustomer,
+  } as MTDRecord;
 }

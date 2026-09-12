@@ -83,14 +83,62 @@ class OrderCreateSchema(BaseModel):
     program_name: str
     category: str
     package: str
-    price: float
+    price: float = 0.0
     music_theme: Optional[str] = None
     editor_request: Optional[str] = "FA"
     requested_producer: Optional[str] = None
+    requested_editor: Optional[str] = "FA"
     form_type: Optional[str] = "school-all-star-cheer"
     cheer_form_subtype: Optional[str] = None
+    dance_form_subtype: Optional[str] = None
     varsity_viroc_customer: Optional[str] = None
     status: Optional[str] = "new"
+
+    school_program_name: Optional[str] = None
+    school_address: Optional[str] = None
+    city: Optional[str] = None
+    state_province: Optional[str] = None
+    zip_postal_code: Optional[str] = None
+    country: Optional[str] = "United States"
+    division: Optional[str] = None
+
+    coach_name: Optional[str] = None
+    coach_phone: Optional[str] = None
+    coach_email: Optional[str] = None
+    billing_person_name: Optional[str] = None
+    billing_person_email: Optional[str] = None
+    choreographer_name: Optional[str] = None
+    choreographer_email: Optional[str] = None
+
+    number_of_copies: Optional[str] = None
+    package_type: Optional[str] = None
+    time_length_of_mix: Optional[str] = None
+    music_affiliate: Optional[str] = None
+    power_music_covers: Optional[str] = None
+    routine_notes: Optional[str] = None
+    custom_voiceovers: Optional[str] = None
+
+    gym_name: Optional[str] = None
+    gym_billing_address: Optional[str] = None
+    team_name: Optional[str] = None
+    team_coed_all_girl: Optional[str] = None
+    team_colors: Optional[str] = None
+    school_name: Optional[str] = None
+    school_billing_address: Optional[str] = None
+    mascot: Optional[str] = None
+    split_or_no_split: Optional[str] = None
+    viroc_choreographer_name: Optional[str] = None
+    viroc_choreographer_email: Optional[str] = None
+    colors: Optional[str] = None
+    billing_address: Optional[str] = None
+    coach_contact_full_name: Optional[str] = None
+    coach_email_address: Optional[str] = None
+    email_address: Optional[str] = None
+    sending_eight_count_sheets: Optional[str] = None
+    using_eight_count_sheets: Optional[str] = None
+    song_list_suggestions: Optional[str] = None
+    coupon_code: Optional[str] = None
+    how_did_you_find_out: Optional[str] = None
 
 class OrderUpdateSchema(BaseModel):
     customer_name: Optional[str] = None

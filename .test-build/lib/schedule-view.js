@@ -20,6 +20,7 @@ exports.formatMatrixDateCell = formatMatrixDateCell;
 exports.buildMatrixMonthGroups = buildMatrixMonthGroups;
 const dates_1 = require("@/lib/dates");
 const producer_availability_1 = require("@/lib/producer-availability");
+const export_csv_1 = require("@/lib/export-csv");
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTH_NAMES = [
     "Jan",
@@ -56,33 +57,37 @@ function formatLegacyDay(date) {
     const d = parseToDate(date);
     return `${DAY_NAMES[d.getDay()]} ${MONTH_NAMES[d.getMonth()]} ${d.getDate()}`;
 }
-function hashSeed(input) {
-    let hash = 0;
-    for (let i = 0; i < input.length; i += 1) {
-        hash = (hash << 5) - hash + input.charCodeAt(i);
-        hash |= 0;
-    }
-    return Math.abs(hash);
-}
+/**
+ * Determines a producer's cell status for a given date.
+ *
+ * Priority:
+ * 1. Legacy `schedule` entry (explicit day-level override, e.g. from a future
+ *    db-backed producer availability table).
+ * 2. Producer record status: "unavailable" → "off".
+ * 3. Weekends: "off" (producers generally don't work weekends by default).
+ * 4. All other cases: "available".
+ *
+ * NOTE: We deliberately do NOT randomly generate "mix" statuses here.
+ * A cell is marked "mix" only when `coveringAssignments()` finds a real
+ * eligible MTD record (Ongoing + assigned + valid dates) covering that date.
+ * Random/hash-based "mix" generation was removed because it produced phantom
+ * bookings that had no backing database record.
+ */
 function inferStatus(producer, date, scheduleByDay) {
     const legacy = formatLegacyDay(date);
     const entry = scheduleByDay.get(legacy);
-    if (entry)
+    // Only honour explicit "off" or "available" overrides from the legacy table.
+    // Ignore legacy "mix" entries — those referred to old demo mixes that no
+    // longer exist in the database.
+    if (entry && (entry.status === "off" || entry.status === "available")) {
         return entry.status;
-    const day = date.getDay();
-    const seed = hashSeed(`${producer.id}-${toLocalIsoDate(date)}`);
-    if (day === 0 || day === 6) {
-        return seed % 4 === 0 ? "mix" : "off";
     }
     if (producer.status === "unavailable")
         return "off";
-    if (producer.status === "limited") {
-        return seed % 3 === 0 ? "available" : "mix";
-    }
-    if (producer.mixesThisWeek > 100) {
-        return seed % 5 === 0 ? "available" : "mix";
-    }
-    return seed % 6 === 0 ? "mix" : "available";
+    const day = date.getDay();
+    if (day === 0 || day === 6)
+        return "off";
+    return "available";
 }
 function addDays(date, days) {
     const next = new Date(parseToDate(date));
@@ -107,10 +112,21 @@ function producerMatchesAssignment(producer, assigned) {
         key === producer.initials.toUpperCase() ||
         key === producerScheduleId(producer));
 }
+/**
+ * Returns all MTD records assigned to this producer that are eligible to
+ * appear in the Schedule view.
+ *
+ * Eligibility (mirrors isEligibleProducerScheduleRecord):
+ *   - Has an assigned producer matching this producer
+ *   - Status is Ongoing (not Waiting for Data, Outsourced, Completed)
+ *   - Has a valid Mix Start Date
+ *   - Has a valid Mix End Date
+ *   - Not in payroll / completed
+ */
 function producerAssignments(producer, mtdRecords) {
     return mtdRecords.filter((rec) => rec.assignedProducer &&
         producerMatchesAssignment(producer, rec.assignedProducer) &&
-        rec.status === "active");
+        (0, export_csv_1.isEligibleProducerScheduleRecord)(rec));
 }
 function coveringAssignments(date, assignments) {
     return assignments.filter((rec) => {
@@ -162,26 +178,8 @@ function resolveBookings(producer, date, status, assignments) {
     if (covering.length > 0) {
         return bookingsFromAssignments(date, covering);
     }
-    const seed = hashSeed(`${producer.id}-${toLocalIsoDate(date)}`);
-    const pick = assignments.length > 0 ? assignments[seed % assignments.length] : null;
-    if (!pick) {
-        return [
-            {
-                work: `${producer.specialty} mix`,
-                until: formatDisplayDate(addDays(date, 2 + (seed % 5))),
-            },
-        ];
-    }
-    const untilDate = (0, dates_1.parseFlexibleDate)(pick.mixEndDate) ??
-        addDays((0, dates_1.parseFlexibleDate)(pick.mixStartDate) ?? date, 3 + (seed % 4));
-    return [
-        {
-            work: pick.programName,
-            until: formatDisplayDate(untilDate),
-            mixId: pick.id,
-            status: pick.status,
-        },
-    ];
+    // No real assignments cover this date — return empty (no phantom bookings).
+    return [];
 }
 function resolveBooking(producer, date, status, assignments) {
     const bookings = resolveBookings(producer, date, status, assignments);

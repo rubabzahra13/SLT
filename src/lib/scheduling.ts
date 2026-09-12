@@ -1,25 +1,31 @@
-import type { Producer, ScheduleEntry } from "@/types";
+import type { MTDRecord, Producer, ScheduleEntry } from "@/types";
 import { parseFlexibleDate } from "@/lib/dates";
 import { parsePackage } from "@/lib/package";
+import { calculateProducerNextOpening } from "@/lib/producer-schedule-calc";
 
 export function getNextAvailableSlot(
   producerInitials: string,
   producers: Producer[],
-  schedule: ScheduleEntry[]
+  schedule: ScheduleEntry[],
+  mtdRecords: MTDRecord[] = []
 ): { date: string; label: string } | null {
   const producer = producers.find(
-    (p) => p.initials === producerInitials || p.name.toUpperCase() === producerInitials
+    (p) =>
+      p.initials === producerInitials ||
+      p.name.toUpperCase() === producerInitials.toUpperCase() ||
+      p.id === producerInitials
   );
+
+  if (producer) {
+    const calc = calculateProducerNextOpening(producer, mtdRecords, schedule);
+    return { date: calc.nextAvailable, label: calc.nextAvailable };
+  }
 
   const entries = schedule.filter((s) => s.producer === producerInitials);
   const availableEntry = entries.find((e) => e.status === "available");
 
   if (availableEntry) {
     return { date: availableEntry.day, label: availableEntry.day };
-  }
-
-  if (producer?.nextAvailable) {
-    return { date: producer.nextAvailable, label: producer.nextAvailable };
   }
 
   return null;

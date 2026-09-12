@@ -13,6 +13,7 @@ import {
   buildTeamSchedule,
   type ColumnAggregate,
 } from "@/lib/schedule-view";
+import { enrichProducersWithSchedule } from "@/lib/producer-schedule-calc";
 
 /** Dashboard "today" — defaults to current system date. */
 export const DASHBOARD_ANCHOR_DATE = new Date();
@@ -314,6 +315,13 @@ export function buildDashboardPulse(
   });
   const todaysMixes = todaysMixesRecords.length;
 
+  const enrichedProducers = enrichProducersWithSchedule(
+    producers,
+    mtdRecords,
+    schedule,
+    anchorDate
+  );
+
   return {
     toAssign,
     inQueue,
@@ -329,7 +337,7 @@ export function buildDashboardPulse(
     dueThisWeek,
     overdue,
     startingToday,
-    availableProducers: producers.filter((p) => p.status === "available").length,
+    availableProducers: enrichedProducers.filter((p) => p.status === "available").length,
     totalProducers: producers.length,
     bookedToday: todayCol?.unavailableCount ?? 0,
     busiestDay: busiest
@@ -353,7 +361,7 @@ export function buildEditorLoad(
   const workload = getEditorWorkload(mtdRecords);
   return [...workload.entries()]
     .map(([editor, count]) => ({ editor, count }))
-    .sort((a, b) => b.count - a.count || a.editor.localeCompare(b.editor))
+    .sort((a, b) => b.count - a.count)
     .slice(0, limit);
 }
 
@@ -469,9 +477,20 @@ export function buildCategoryPipeline(mtdRecords: MTDRecord[]): CategorySlice[] 
     .sort((a, b) => b.count - a.count);
 }
 
-export function sortProducersForCapacity(producers: Producer[]): Producer[] {
+export function sortProducersForCapacity(
+  producers: Producer[],
+  mtdRecords: MTDRecord[] = [],
+  schedule: ScheduleEntry[] = [],
+  anchorDate: Date = new Date()
+): Producer[] {
+  const enriched = enrichProducersWithSchedule(
+    producers,
+    mtdRecords,
+    schedule,
+    anchorDate
+  );
   const rank = { unavailable: 0, limited: 1, available: 2 } as const;
-  return [...producers].sort((a, b) => {
+  return enriched.sort((a, b) => {
     const byStatus = rank[a.status] - rank[b.status];
     if (byStatus !== 0) return byStatus;
     return a.nextAvailable.localeCompare(b.nextAvailable);

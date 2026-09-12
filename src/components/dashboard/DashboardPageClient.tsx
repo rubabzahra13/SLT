@@ -34,7 +34,10 @@ export function DashboardPageClient() {
 
   const pipeline = useMemo(() => buildCategoryPipeline(mtdRecords), [mtdRecords]);
 
-  const team = useMemo(() => sortProducersForCapacity(producers), [producers]);
+  const team = useMemo(
+    () => sortProducersForCapacity(producers, mtdRecords, schedule, currentDate),
+    [producers, mtdRecords, schedule]
+  );
 
   const incomingOrders = useMemo(
     () => buildIncomingOrdersSeries(activeOrders, pastOrders, currentDate),

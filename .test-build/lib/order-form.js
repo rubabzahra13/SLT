@@ -10,6 +10,7 @@ exports.inferDanceFormSubtype = inferDanceFormSubtype;
 exports.normalizeOrder = normalizeOrder;
 exports.displayText = displayText;
 exports.displayMultiline = displayMultiline;
+exports.orderToMTDRecord = orderToMTDRecord;
 const package_1 = require("@/lib/package");
 const data_1 = require("@/lib/data");
 exports.POM_FORM_COLUMN_LABELS = [
@@ -260,4 +261,56 @@ function displayMultiline(value, max = 120) {
     if (cleaned.length <= max)
         return (0, data_1.titleCase)(cleaned);
     return `${(0, data_1.titleCase)(cleaned.slice(0, max))}…`;
+}
+function orderToMTDRecord(order) {
+    const section = order.category === "Dance"
+        ? "DANCE MUSIC"
+        : order.category === "Marching Band"
+            ? "MARCHING BAND"
+            : order.category === "Sports Entertainment"
+                ? "SPORTS ENTERTAINMENT"
+                : order.category === "School Anthem"
+                    ? "SCHOOL ANTHEMS"
+                    : "CHEERLEADING MUSIC";
+    return {
+        id: order.id || order.legacyId || order.uuid || `ord-${Date.now()}`,
+        legacyId: order.legacyId,
+        uuid: order.uuid,
+        orderId: order.id || order.uuid,
+        section,
+        assignedProducer: order.assignedProducer || null,
+        category: order.category || "Cheer",
+        editorRequest: order.editorRequest || "FA",
+        contactName: order.contactName || order.customerName || "Contact",
+        editorInitials: order.contactName || order.customerName || "Contact",
+        programName: order.programName || "Program",
+        package: order.package || "TBD",
+        musicTheme: order.musicTheme || "",
+        price: order.price ?? 0,
+        priceCompliance: order.priceCompliance || "compliant",
+        invoice: "",
+        mixStartDate: "",
+        mixEndDate: undefined,
+        eightCountSheet: "NEED CS",
+        haveSongs: "NEED SONGS",
+        needsAttention: Boolean(order.needsAttention),
+        status: order.needsAttention
+            ? "needs_attention"
+            : order.status === "in_mtd"
+                ? "active"
+                : (order.status || "active"),
+        inMTD: order.status === "in_mtd",
+        inPayroll: false,
+        hasRallyMix: false,
+        hasExtend8ctAddon: false,
+        hasProcessing8ctSheetsAddon: false,
+        systemCalculatedCustomerPrice: order.systemCalculatedCustomerPrice,
+        finalCustomerPrice: order.finalCustomerPrice,
+        finalCustomerPriceOverridden: order.finalCustomerPriceOverridden,
+        pricingBreakdown: order.pricingBreakdown,
+        formType: order.formType,
+        cheerFormSubtype: order.cheerFormSubtype,
+        danceFormSubtype: order.danceFormSubtype,
+        varsityVirocCustomer: order.varsityVirocCustomer,
+    };
 }
