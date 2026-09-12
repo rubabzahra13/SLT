@@ -296,7 +296,11 @@ function OrdersPageContent() {
     if (!rec) return;
     updateMTD(rec.id, {
       inMTD: true,
-      status: rec.status === "needs_attention" ? "active" : rec.status,
+      status: "active",
+      recordStatus: "Ongoing",
+      mixStartDate: rec.mixStartDate,
+      mixEndDate: rec.mixEndDate,
+      assignedProducer: rec.assignedProducer,
     });
     setMoveConfirmRecord(null);
   }, [moveConfirmRecord, updateMTD]);

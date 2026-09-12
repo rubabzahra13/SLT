@@ -111,7 +111,10 @@ function AppStateProvider({ children }) {
                     // Replace state entirely — no seed fallback.
                     loadedMtdRecords = normalizeMTD(mtdData);
                 }
-                const existingMtdOrderIds = new Set(loadedMtdRecords.map((r) => r.orderId || r.id || r.legacyId || r.uuid).filter(Boolean));
+                // Map active orders to MTDRecords for staging in Orders tab.
+                // Orders with status !== "in_mtd" have inMTD: false (pre-MTD staging).
+                // Orders with status === "in_mtd" have inMTD: true.
+                const existingMtdOrderIds = new Set(loadedMtdRecords.map((r) => r.orderId).filter(Boolean));
                 const convertedOrders = [];
                 for (const order of loadedActiveOrders) {
                     const oid = order.id || order.uuid || order.legacyId;
@@ -173,10 +176,21 @@ function AppStateProvider({ children }) {
         const price = order.price ||
             (0, pricing_1.getPriceForPackage)(order.package, compliance, order.price, packagePrices);
         const draftId = `mtd-${Date.now()}`;
+        const sectionForCategory = (cat) => {
+            if (cat === "Dance")
+                return "DANCE MUSIC";
+            if (cat === "Marching Band")
+                return "MARCHING BAND";
+            if (cat === "Sports Entertainment")
+                return "SPORTS ENTERTAINMENT";
+            if (cat === "School Anthem")
+                return "SCHOOL ANTHEMS";
+            return "CHEERLEADING MUSIC";
+        };
         const draftRecord = {
             id: draftId,
             orderId: order.id,
-            section: order.category === "Dance" ? "DANCE MUSIC" : "CHEERLEADING MUSIC",
+            section: sectionForCategory(order.category),
             assignedProducer: null,
             category: order.category,
             editorRequest: order.editorRequest,
@@ -188,11 +202,16 @@ function AppStateProvider({ children }) {
             price,
             priceCompliance: compliance,
             invoice: "",
-            mixStartDate: "",
+            mixStartDate: order.mixStartDate || "",
+            mixEndDate: order.mixEndDate || undefined,
             eightCountSheet: "NEED CS",
             haveSongs: "NEED SONGS",
-            needsAttention: true,
-            status: "needs_attention",
+            needsAttention: false,
+            status: "active",
+            recordStatus: "Ongoing",
+            formType: order.formType,
+            cheerFormSubtype: order.cheerFormSubtype,
+            danceFormSubtype: order.danceFormSubtype,
         };
         const pick = (0, editor_assignment_1.pickDefaultEditor)(draftRecord, producers, mtdRecords, schedule, order);
         const availableNames = (0, editor_assignment_1.getSuggestedEditors)(mtdRecords, producers, schedule, order.category, draftId, draftRecord).map((suggestion) => suggestion.name);
@@ -210,8 +229,17 @@ function AppStateProvider({ children }) {
         setActiveOrders((prev) => prev.map((o) => o.id === orderId
             ? { ...o, status: "in_mtd", mtdId: newRecord.id }
             : o));
-        // Persist to Backend API
-        (0, api_1.createMTDRecordApi)(newRecord).catch((err) => console.error("Failed to persist MTD Record to backend:", err));
+        // Persist to Backend API and write real DB UUID back into state
+        // so that subsequent PATCH calls use the correct ID (avoids 404s).
+        (0, api_1.createMTDRecordApi)(newRecord)
+            .then((saved) => {
+            if (saved.uuid && saved.uuid !== draftId) {
+                setMtdRecords((prev) => prev.map((r) => r.id === draftId
+                    ? { ...r, id: saved.id, uuid: saved.uuid, legacyId: saved.legacyId }
+                    : r));
+            }
+        })
+            .catch((err) => console.error("Failed to persist MTD Record to backend:", err));
         (0, api_1.updateOrderApi)(orderId, { status: "in_mtd" }).catch((err) => console.error("Failed to persist Order status to backend:", err));
         const slotMsg = assignedProducer
             ? ` Next slot: ${formatSlot(assignedProducer, producers, schedule)}.`
@@ -251,11 +279,11 @@ function AppStateProvider({ children }) {
         let apiId = id;
         let apiPatch = patch;
         setMtdRecords((prev) => {
-            const existing = prev.find((r) => r.id === id);
+            const existing = prev.find((r) => r.id === id || r.orderId === id || r.uuid === id || r.legacyId === id);
             if (existing?.uuid)
                 apiId = existing.uuid;
             return prev.map((r) => {
-                if (r.id !== id)
+                if (r.id !== id && r.orderId !== id && r.uuid !== id && r.legacyId !== id)
                     return r;
                 if (patch.inPayroll === true && !r.inPayroll) {
                     const producer = r.assignedProducer?.trim();
@@ -314,12 +342,48 @@ function AppStateProvider({ children }) {
                 return updated;
             });
         });
+        // Also sync pre-MTD edits to activeOrders if this ID belongs to an active order
+        const linkedOrder = activeOrders.find((o) => o.id === id || o.legacyId === id || o.uuid === id);
+        if (linkedOrder) {
+            const orderPatch = {};
+            if (patch.assignedProducer !== undefined)
+                orderPatch.assignedProducer = patch.assignedProducer;
+            if (patch.mixStartDate !== undefined)
+                orderPatch.mixStartDate = patch.mixStartDate;
+            if (patch.mixEndDate !== undefined)
+                orderPatch.mixEndDate = patch.mixEndDate;
+            if (patch.price !== undefined)
+                orderPatch.price = patch.price;
+            if (patch.editorRequest !== undefined)
+                orderPatch.editorRequest = patch.editorRequest;
+            if (patch.inMTD === true)
+                orderPatch.status = "in_mtd";
+            if (Object.keys(orderPatch).length > 0) {
+                setActiveOrders((prev) => prev.map((o) => o.id === linkedOrder.id ? { ...o, ...orderPatch } : o));
+                (0, api_1.updateOrderApi)(linkedOrder.id, orderPatch).catch((err) => console.error("Failed to sync order update to backend:", err));
+            }
+        }
         // Persist MTD patch to backend API
-        (0, api_1.updateMTDRecordApi)(apiId, apiPatch).catch((err) => console.error("Failed to persist MTD Record update to backend:", err));
+        if (patch.inMTD === true) {
+            const targetRecord = mtdRecords.find((r) => r.id === id || r.orderId === id || r.uuid === id || r.legacyId === id);
+            const updatedRecord = targetRecord ? { ...targetRecord, ...patch, inMTD: true } : { ...patch, inMTD: true };
+            (0, api_1.createMTDRecordApi)(updatedRecord)
+                .then((saved) => {
+                setMtdRecords((prev) => prev.map((r) => r.id === id || r.orderId === id || r.uuid === id || r.legacyId === id
+                    ? { ...r, id: saved.id, uuid: saved.uuid, legacyId: saved.legacyId, inMTD: true }
+                    : r));
+            })
+                .catch(() => {
+                (0, api_1.updateMTDRecordApi)(apiId, apiPatch).catch((err) => console.error("Failed to persist MTD Record update to backend:", err));
+            });
+        }
+        else {
+            (0, api_1.updateMTDRecordApi)(apiId, apiPatch).catch((err) => console.error("Failed to persist MTD Record update to backend:", err));
+        }
         if (payrollNotice) {
             addNotification(payrollNotice);
         }
-    }, [addNotification, packagePrices, producers, schedule]);
+    }, [activeOrders, addNotification, mtdRecords, packagePrices, producers, schedule]);
     const updateOrder = (0, react_1.useCallback)((id, patch, seed) => {
         if (isViewOnly)
             return;

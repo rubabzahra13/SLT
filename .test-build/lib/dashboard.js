@@ -353,19 +353,22 @@ function buildRevenueStages(pulse) {
 }
 function buildIncomingOrdersSeries(orders, pastOrders = [], anchor = exports.DASHBOARD_ANCHOR_DATE, days = 14) {
     const all = [...orders, ...pastOrders];
-    const anchorKey = anchor.toISOString().slice(0, 10);
-    const start = new Date(`${anchorKey}T12:00:00`);
+    const anchorIso = (0, dates_1.toCanonicalIsoDate)(anchor);
     return Array.from({ length: days }, (_, index) => {
-        const day = new Date(start);
+        const day = new Date(anchor);
+        day.setHours(12, 0, 0, 0);
         day.setDate(day.getDate() - (days - 1 - index));
-        const iso = day.toISOString().slice(0, 10);
-        const count = all.filter((order) => (0, dates_1.toIsoDateString)(order.createdAt) === iso).length;
+        const iso = (0, dates_1.toCanonicalIsoDate)(day);
+        const count = all.filter((order) => {
+            const orderIso = (0, dates_1.toCanonicalIsoDate)(order.createdAt);
+            return orderIso === iso;
+        }).length;
         return {
             iso,
             label: day.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
             shortLabel: day.toLocaleDateString("en-US", { weekday: "narrow" }),
             count,
-            isToday: iso === anchorKey,
+            isToday: iso === anchorIso,
         };
     });
 }

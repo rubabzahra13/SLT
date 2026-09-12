@@ -21,6 +21,7 @@ exports.isProducerAtDailyCapacity = isProducerAtDailyCapacity;
 exports.isProducerAvailableOnDay = isProducerAvailableOnDay;
 exports.isProducerAvailableForMixWindow = isProducerAvailableForMixWindow;
 exports.isProducerUnavailableForRecord = isProducerUnavailableForRecord;
+exports.getProducerUnavailabilityReason = getProducerUnavailabilityReason;
 const types_1 = require("@/types");
 const dates_1 = require("@/lib/dates");
 const producer_keys_1 = require("@/lib/producer-keys");
@@ -187,23 +188,47 @@ function isProducerAvailableForMixWindow(producer, startIso, endIso, mtdRecords,
     const end = (0, dates_1.parseFlexibleDate)(endIso);
     if (!start || !end)
         return true;
-    const cursor = toDayStart(start);
+    const startDay = toDayStart(start);
     const endDay = toDayStart(end);
-    let hasScheduledDay = false;
+    if (!isProducerScheduledDay(producer, startDay)) {
+        return false;
+    }
+    const cursor = new Date(startDay);
     while (cursor <= endDay) {
         if (isProducerScheduledDay(producer, cursor)) {
-            hasScheduledDay = true;
             if (!isProducerAvailableOnDay(producer, cursor, mtdRecords, excludeRecordId)) {
                 return false;
             }
         }
         cursor.setDate(cursor.getDate() + 1);
     }
-    return hasScheduledDay;
+    return true;
 }
 function isProducerUnavailableForRecord(producer, rec, mtdRecords) {
     const window = mixWindowForRecord(rec);
     if (!window)
         return false;
     return !isProducerAvailableForMixWindow(producer, dateToIsoLocal(window.start), dateToIsoLocal(window.end), mtdRecords, rec.id);
+}
+function getProducerUnavailabilityReason(producer, rec, mtdRecords, schedule = []) {
+    const window = mixWindowForRecord(rec);
+    const start = window ? window.start : (0, dates_1.parseFlexibleDate)(rec.mixStartDate ?? "");
+    if (!start)
+        return null;
+    if (!isProducerScheduledDay(producer, start)) {
+        const weekdayName = start.toLocaleDateString("en-US", { weekday: "short" });
+        return `Not scheduled to work on ${weekdayName}s`;
+    }
+    if (isProducerOnTimeOff(producer, start)) {
+        return "On approved time off";
+    }
+    if (isProducerAtDailyCapacity(producer, start, mtdRecords, rec.id)) {
+        return "Reached maximum daily mix capacity";
+    }
+    if (window) {
+        if (!isProducerAvailableForMixWindow(producer, dateToIsoLocal(window.start), dateToIsoLocal(window.end), mtdRecords, rec.id)) {
+            return "Conflicting mix or capacity on mix dates";
+        }
+    }
+    return null;
 }

@@ -34,7 +34,12 @@ const LEGACY_PRODUCER_KEYS = {
 };
 function normalizeProducerKey(raw) {
     const normalized = raw.trim().toUpperCase();
-    return LEGACY_PRODUCER_KEYS[normalized] ?? normalized;
+    if (LEGACY_PRODUCER_KEYS[normalized])
+        return LEGACY_PRODUCER_KEYS[normalized];
+    const firstWord = normalized.split(/\s+/)[0];
+    if (LEGACY_PRODUCER_KEYS[firstWord])
+        return LEGACY_PRODUCER_KEYS[firstWord];
+    return normalized;
 }
 function producerKeysMatch(assigned, key) {
     return normalizeProducerKey(assigned) === normalizeProducerKey(key);

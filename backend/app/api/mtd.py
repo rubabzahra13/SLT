@@ -1,4 +1,5 @@
 import uuid
+import json
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -23,7 +24,18 @@ def is_valid_uuid(val: str) -> bool:
 
 def _find_mtd(db: Session, mtd_id: str) -> MTDRecord | None:
     if is_valid_uuid(mtd_id):
-        return db.query(MTDRecord).filter((MTDRecord.id == uuid.UUID(mtd_id)) | (MTDRecord.legacy_id == mtd_id)).first()
+        parsed_uuid = uuid.UUID(mtd_id)
+        mtd = (
+            db.query(MTDRecord)
+            .filter(
+                (MTDRecord.id == parsed_uuid)
+                | (MTDRecord.order_id == parsed_uuid)
+                | (MTDRecord.legacy_id == mtd_id)
+            )
+            .first()
+        )
+        if mtd:
+            return mtd
     return db.query(MTDRecord).filter(MTDRecord.legacy_id == mtd_id).first()
 
 @router.get("/mtd", response_model=List[MTDRecordSchema])
@@ -57,6 +69,30 @@ from app.api.auth import require_full_access
 @router.post("/mtd", response_model=MTDRecordSchema, status_code=status.HTTP_201_CREATED)
 def create_mtd_record(payload: MTDRecordCreateSchema, db: Session = Depends(get_db), _: None = Depends(require_full_access)):
     data = payload.model_dump()
+    order_id = data.get("order_id")
+
+    # If an MTD record already exists for this order_id, update it instead of duplicating
+    existing_mtd = None
+    if order_id:
+        existing_mtd = _find_mtd(db, str(order_id))
+
+    if existing_mtd:
+        assigned_prod_str = data.pop("assigned_producer", None)
+        if assigned_prod_str:
+            producer = resolve_producer_by_assignment_key(db, assigned_prod_str)
+            existing_mtd.assigned_producer_id = producer.id if producer else None
+            existing_mtd.editor_initials = (
+                canonical_producer_assignment_key(producer)
+                if producer
+                else assigned_prod_str.strip().upper()
+            )
+        for field, value in data.items():
+            if value is not None:
+                setattr(existing_mtd, field, value)
+        db.commit()
+        db.refresh(existing_mtd)
+        return existing_mtd
+
     assigned_prod_str = data.pop("assigned_producer", None)
     assigned_producer_id = None
     editor_initials = None
@@ -112,6 +148,9 @@ def update_mtd_record(mtd_id: str, payload: MTDRecordUpdateSchema, db: Session =
                 mtd.editor_initials = None
 
     for key, value in update_data.items():
+        # Text columns that store JSON dicts must be serialised to string
+        if isinstance(value, (dict, list)):
+            value = json.dumps(value)
         setattr(mtd, key, value)
 
     # Sync fields to linked Order if present

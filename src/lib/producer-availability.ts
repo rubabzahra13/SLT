@@ -1,4 +1,4 @@
-import type { MTDRecord, Producer, Weekday } from "@/types";
+import type { MTDRecord, Producer, ScheduleEntry, Weekday } from "@/types";
 import { DEFAULT_WORK_DAYS } from "@/types";
 import { parseFlexibleDate, toIsoDateString } from "@/lib/dates";
 import {
@@ -244,13 +244,16 @@ export function isProducerAvailableForMixWindow(
   const end = parseFlexibleDate(endIso);
   if (!start || !end) return true;
 
-  const cursor = toDayStart(start);
+  const startDay = toDayStart(start);
   const endDay = toDayStart(end);
-  let hasScheduledDay = false;
 
+  if (!isProducerScheduledDay(producer, startDay)) {
+    return false;
+  }
+
+  const cursor = new Date(startDay);
   while (cursor <= endDay) {
     if (isProducerScheduledDay(producer, cursor)) {
-      hasScheduledDay = true;
       if (
         !isProducerAvailableOnDay(
           producer,
@@ -265,7 +268,7 @@ export function isProducerAvailableForMixWindow(
     cursor.setDate(cursor.getDate() + 1);
   }
 
-  return hasScheduledDay;
+  return true;
 }
 
 export function isProducerUnavailableForRecord(
@@ -283,4 +286,44 @@ export function isProducerUnavailableForRecord(
     mtdRecords,
     rec.id
   );
+}
+
+export function getProducerUnavailabilityReason(
+  producer: Producer,
+  rec: MTDRecord,
+  mtdRecords: MTDRecord[],
+  schedule: ScheduleEntry[] = []
+): string | null {
+  const window = mixWindowForRecord(rec);
+  const start = window ? window.start : parseFlexibleDate(rec.mixStartDate ?? "");
+  if (!start) return null;
+
+  if (!isProducerScheduledDay(producer, start)) {
+    const weekdayName = start.toLocaleDateString("en-US", { weekday: "short" });
+    return `Not scheduled to work on ${weekdayName}s`;
+  }
+
+  if (isProducerOnTimeOff(producer, start)) {
+    return "On approved time off";
+  }
+
+  if (isProducerAtDailyCapacity(producer, start, mtdRecords, rec.id)) {
+    return "Reached maximum daily mix capacity";
+  }
+
+  if (window) {
+    if (
+      !isProducerAvailableForMixWindow(
+        producer,
+        dateToIsoLocal(window.start),
+        dateToIsoLocal(window.end),
+        mtdRecords,
+        rec.id
+      )
+    ) {
+      return "Conflicting mix or capacity on mix dates";
+    }
+  }
+
+  return null;
 }

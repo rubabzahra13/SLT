@@ -13,6 +13,9 @@ export type EditorSelectOption = {
   producer?: Producer;
   mixCount?: number;
   bookedUntil?: string;
+  isAvailableToday?: boolean;
+  isEligibleForMix?: boolean;
+  unavailabilityReason?: string;
   disabled?: boolean;
 };
 
@@ -171,13 +174,19 @@ export function EditorSelectDropdown({
   }
 
   const triggerSubtitle = selected
-    ? selectedTone === "booked"
+    ? selected.disabled || selected.isEligibleForMix === false
+      ? selected.unavailabilityReason || "Unavailable for mix dates"
+      : selectedTone === "booked"
       ? selected.bookedUntil
         ? `Booked till ${formatDisplayDate(selected.bookedUntil)}`
         : `${selected.mixCount ?? 0} active mix${
             selected.mixCount === 1 ? "" : "es"
           }`
-      : "Available now"
+      : selected.isAvailableToday
+      ? "Available today"
+      : selected.bookedUntil
+      ? `Available from ${formatDisplayDate(selected.bookedUntil)}`
+      : "Eligible for mix"
     : hasOptions
       ? "Choose an editor"
       : emptyLabel;
@@ -267,14 +276,26 @@ export function EditorSelectDropdown({
                                   Requested
                                 </span>
                               ) : null}
-                              {group.tone === "available" ? (
+                              {option.isAvailableToday ? (
                                 <span className="rounded-full bg-brand-success/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-brand-success">
-                                  Open
+                                  Available Today
+                                </span>
+                              ) : option.isEligibleForMix ? (
+                                <span className="rounded-full bg-brand-info/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-brand-info">
+                                  Eligible for Mix
+                                </span>
+                              ) : option.unavailabilityReason ? (
+                                <span className="rounded-full bg-brand-warning/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-brand-warning">
+                                  {option.unavailabilityReason}
                                 </span>
                               ) : null}
                             </span>
                             <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-brand-ink-tertiary">
-                              {group.tone === "booked" ? (
+                              {option.disabled || option.isEligibleForMix === false ? (
+                                <span className="text-brand-warning font-medium">
+                                  {option.unavailabilityReason || "Unavailable for mix dates"}
+                                </span>
+                              ) : group.tone === "booked" ? (
                                 <>
                                   <span>
                                     {option.mixCount ?? 0} mix
@@ -290,8 +311,10 @@ export function EditorSelectDropdown({
                                     </span>
                                   ) : null}
                                 </>
+                              ) : option.isAvailableToday ? (
+                                <span>Ready to assign today</span>
                               ) : (
-                                <span>Ready to assign</span>
+                                <span>Eligible for selected mix dates</span>
                               )}
                             </span>
                           </span>

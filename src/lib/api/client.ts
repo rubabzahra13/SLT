@@ -1,5 +1,9 @@
 export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
+  process.env.NEXT_PUBLIC_API_URL !== undefined
+    ? process.env.NEXT_PUBLIC_API_URL
+    : process.env.NODE_ENV === "production"
+      ? ""
+      : "http://localhost:8001";
 
 export class ApiClientError extends Error {
   public status: number;

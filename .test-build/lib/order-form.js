@@ -289,16 +289,13 @@ function orderToMTDRecord(order) {
         price: order.price ?? 0,
         priceCompliance: order.priceCompliance || "compliant",
         invoice: "",
-        mixStartDate: "",
-        mixEndDate: undefined,
+        mixStartDate: order.mixStartDate || "",
+        mixEndDate: order.mixEndDate || undefined,
         eightCountSheet: "NEED CS",
         haveSongs: "NEED SONGS",
         needsAttention: Boolean(order.needsAttention),
-        status: order.needsAttention
-            ? "needs_attention"
-            : order.status === "in_mtd"
-                ? "active"
-                : (order.status || "active"),
+        status: order.status === "in_mtd" ? "active" : (order.assignedProducer ? "active" : (order.needsAttention ? "needs_attention" : "active")),
+        recordStatus: order.assignedProducer || order.status === "in_mtd" ? "Ongoing" : "Waiting for Data",
         inMTD: order.status === "in_mtd",
         inPayroll: false,
         hasRallyMix: false,

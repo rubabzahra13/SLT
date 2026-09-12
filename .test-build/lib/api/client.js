@@ -2,7 +2,11 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.apiClient = exports.ApiClientError = exports.API_BASE_URL = void 0;
 exports.formatApiClientError = formatApiClientError;
-exports.API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
+exports.API_BASE_URL = process.env.NEXT_PUBLIC_API_URL !== undefined
+    ? process.env.NEXT_PUBLIC_API_URL
+    : process.env.NODE_ENV === "production"
+        ? ""
+        : "http://localhost:8001";
 class ApiClientError extends Error {
     status;
     data;

@@ -14,7 +14,7 @@ const dashboard_tooltips_1 = require("@/lib/dashboard-tooltips");
 const statusLabel = {
     available: "Available",
     limited: "Unavailable",
-    unavailable: "Booked",
+    unavailable: "Unavailable",
 };
 const statusRingClass = {
     available: "ring-available",

@@ -10,7 +10,7 @@ import type { Producer } from "@/types";
 const statusLabel = {
   available: "Available",
   limited: "Unavailable",
-  unavailable: "Booked",
+  unavailable: "Unavailable",
 } as const;
 
 const statusRingClass = {

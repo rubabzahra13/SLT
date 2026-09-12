@@ -127,18 +127,16 @@ function calculateProducerNextOpening(producer, mtdRecords = [], schedule = [], 
     const availableWorkDaysInWeek = workDaysInWeek.filter((d) => isProducerAvailableOnDate(producer, d, mtdRecords, schedule));
     // Check if producer has active eligible mixes covering any day in the week
     const hasBookedMixesInWeek = weekDates.some((d) => eligibleRecords.some((rec) => isRecordCoveringDate(rec, d, producer)));
+    const isAvailableToday = isProducerAvailableOnDate(producer, anchorDate, mtdRecords, schedule);
     let status;
-    if (foundDate && isSameCalendarDay(foundDate, anchorDate)) {
-        status = "available";
-    }
-    else if (availableWorkDaysInWeek.length === 0 || !foundDate) {
+    if (availableWorkDaysInWeek.length === 0) {
         status = "unavailable";
     }
-    else if (hasBookedMixesInWeek) {
+    else if (availableWorkDaysInWeek.length < workDaysInWeek.length ||
+        hasBookedMixesInWeek) {
         status = "limited";
     }
     else {
-        // If today is a weekend / off day, but next work day (Monday) is open and no mixes in week
         status = "available";
     }
     return {

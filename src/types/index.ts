@@ -63,6 +63,10 @@ export type MTDRecord = {
   sltPortion?: number | null;
   payrollFinalized?: boolean;
   payrollBreakdown?: any;
+  formType?: OrderFormType;
+  cheerFormSubtype?: CheerFormSubtype;
+  danceFormSubtype?: DanceFormSubtype;
+  varsityVirocCustomer?: "Yes" | "No";
 };
 
 export type Weekday =

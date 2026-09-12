@@ -32,7 +32,10 @@ const LEGACY_PRODUCER_KEYS: Record<string, string> = {
 
 export function normalizeProducerKey(raw: string): string {
   const normalized = raw.trim().toUpperCase();
-  return LEGACY_PRODUCER_KEYS[normalized] ?? normalized;
+  if (LEGACY_PRODUCER_KEYS[normalized]) return LEGACY_PRODUCER_KEYS[normalized];
+  const firstWord = normalized.split(/\s+/)[0];
+  if (LEGACY_PRODUCER_KEYS[firstWord]) return LEGACY_PRODUCER_KEYS[firstWord];
+  return normalized;
 }
 
 export function producerKeysMatch(assigned: string, key: string): boolean {

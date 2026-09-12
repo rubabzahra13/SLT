@@ -213,8 +213,11 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           loadedMtdRecords = normalizeMTD(mtdData);
         }
 
+        // Map active orders to MTDRecords for staging in Orders tab.
+        // Orders with status !== "in_mtd" have inMTD: false (pre-MTD staging).
+        // Orders with status === "in_mtd" have inMTD: true.
         const existingMtdOrderIds = new Set(
-          loadedMtdRecords.map((r) => r.orderId || r.id || r.legacyId || r.uuid).filter(Boolean)
+          loadedMtdRecords.map((r) => r.orderId).filter(Boolean)
         );
 
         const convertedOrders: MTDRecord[] = [];
@@ -304,11 +307,19 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         getPriceForPackage(order.package, compliance, order.price, packagePrices);
 
       const draftId = `mtd-${Date.now()}`;
+
+      const sectionForCategory = (cat: string) => {
+        if (cat === "Dance") return "DANCE MUSIC";
+        if (cat === "Marching Band") return "MARCHING BAND";
+        if (cat === "Sports Entertainment") return "SPORTS ENTERTAINMENT";
+        if (cat === "School Anthem") return "SCHOOL ANTHEMS";
+        return "CHEERLEADING MUSIC";
+      };
+
       const draftRecord: MTDRecord = {
         id: draftId,
         orderId: order.id,
-        section:
-          order.category === "Dance" ? "DANCE MUSIC" : "CHEERLEADING MUSIC",
+        section: sectionForCategory(order.category),
         assignedProducer: null,
         category: order.category,
         editorRequest: order.editorRequest,
@@ -320,11 +331,16 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         price,
         priceCompliance: compliance,
         invoice: "",
-        mixStartDate: "",
+        mixStartDate: (order as any).mixStartDate || "",
+        mixEndDate: (order as any).mixEndDate || undefined,
         eightCountSheet: "NEED CS",
         haveSongs: "NEED SONGS",
-        needsAttention: true,
-        status: "needs_attention",
+        needsAttention: false,
+        status: "active",
+        recordStatus: "Ongoing",
+        formType: order.formType,
+        cheerFormSubtype: order.cheerFormSubtype,
+        danceFormSubtype: order.danceFormSubtype,
       };
 
       const pick = pickDefaultEditor(
@@ -366,10 +382,23 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         )
       );
 
-      // Persist to Backend API
-      createMTDRecordApi(newRecord).catch((err) =>
-        console.error("Failed to persist MTD Record to backend:", err)
-      );
+      // Persist to Backend API and write real DB UUID back into state
+      // so that subsequent PATCH calls use the correct ID (avoids 404s).
+      createMTDRecordApi(newRecord)
+        .then((saved) => {
+          if (saved.uuid && saved.uuid !== draftId) {
+            setMtdRecords((prev) =>
+              prev.map((r) =>
+                r.id === draftId
+                  ? { ...r, id: saved.id, uuid: saved.uuid, legacyId: saved.legacyId }
+                  : r
+              )
+            );
+          }
+        })
+        .catch((err) =>
+          console.error("Failed to persist MTD Record to backend:", err)
+        );
       updateOrderApi(orderId, { status: "in_mtd" }).catch((err) =>
         console.error("Failed to persist Order status to backend:", err)
       );
@@ -427,11 +456,13 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     let apiPatch = patch;
 
     setMtdRecords((prev) => {
-      const existing = prev.find((r) => r.id === id);
+      const existing = prev.find(
+        (r) => r.id === id || r.orderId === id || r.uuid === id || r.legacyId === id
+      );
       if (existing?.uuid) apiId = existing.uuid;
 
       return prev.map((r) => {
-        if (r.id !== id) return r;
+        if (r.id !== id && r.orderId !== id && r.uuid !== id && r.legacyId !== id) return r;
 
         if (patch.inPayroll === true && !r.inPayroll) {
           const producer = r.assignedProducer?.trim();
@@ -518,15 +549,62 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       });
     });
 
-    // Persist MTD patch to backend API
-    updateMTDRecordApi(apiId, apiPatch).catch((err) =>
-      console.error("Failed to persist MTD Record update to backend:", err)
+    // Also sync pre-MTD edits to activeOrders if this ID belongs to an active order
+    const linkedOrder = activeOrders.find(
+      (o) => o.id === id || o.legacyId === id || o.uuid === id
     );
+    if (linkedOrder) {
+      const orderPatch: Record<string, any> = {};
+      if (patch.assignedProducer !== undefined) orderPatch.assignedProducer = patch.assignedProducer;
+      if (patch.mixStartDate !== undefined) orderPatch.mixStartDate = patch.mixStartDate;
+      if (patch.mixEndDate !== undefined) orderPatch.mixEndDate = patch.mixEndDate;
+      if (patch.price !== undefined) orderPatch.price = patch.price;
+      if (patch.editorRequest !== undefined) orderPatch.editorRequest = patch.editorRequest;
+      if (patch.inMTD === true) orderPatch.status = "in_mtd";
+
+      if (Object.keys(orderPatch).length > 0) {
+        setActiveOrders((prev) =>
+          prev.map((o) =>
+            o.id === linkedOrder.id ? { ...o, ...orderPatch } : o
+          )
+        );
+        updateOrderApi(linkedOrder.id, orderPatch).catch((err) =>
+          console.error("Failed to sync order update to backend:", err)
+        );
+      }
+    }
+
+    // Persist MTD patch to backend API
+    if (patch.inMTD === true) {
+      const targetRecord = mtdRecords.find(
+        (r) => r.id === id || r.orderId === id || r.uuid === id || r.legacyId === id
+      );
+      const updatedRecord = targetRecord ? { ...targetRecord, ...patch, inMTD: true } : { ...patch, inMTD: true };
+      createMTDRecordApi(updatedRecord)
+        .then((saved) => {
+          setMtdRecords((prev) =>
+            prev.map((r) =>
+              r.id === id || r.orderId === id || r.uuid === id || r.legacyId === id
+                ? { ...r, id: saved.id, uuid: saved.uuid, legacyId: saved.legacyId, inMTD: true }
+                : r
+            )
+          );
+        })
+        .catch(() => {
+          updateMTDRecordApi(apiId, apiPatch).catch((err) =>
+            console.error("Failed to persist MTD Record update to backend:", err)
+          );
+        });
+    } else {
+      updateMTDRecordApi(apiId, apiPatch).catch((err) =>
+        console.error("Failed to persist MTD Record update to backend:", err)
+      );
+    }
 
     if (payrollNotice) {
       addNotification(payrollNotice);
     }
-  }, [addNotification, packagePrices, producers, schedule]);
+  }, [activeOrders, addNotification, mtdRecords, packagePrices, producers, schedule]);
 
   const updateOrder = useCallback(
     (id: string, patch: Partial<Order>, seed?: Order) => {

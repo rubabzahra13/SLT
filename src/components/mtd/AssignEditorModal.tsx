@@ -25,6 +25,11 @@ import {
 import { normalizeProducerKey, producerKeysMatch } from "@/lib/producer-keys";
 import { formatDisplayDate, toIsoDateString } from "@/lib/dates";
 import { suggestMixStartDate } from "@/lib/scheduling";
+import {
+  isProducerUnavailableForRecord,
+  getProducerUnavailabilityReason,
+} from "@/lib/producer-availability";
+import { isProducerAvailableOnDate } from "@/lib/producer-schedule-calc";
 import type { MTDRecord, MTDRecordStatus, Order, Producer, ScheduleEntry } from "@/types";
 
 export type EditorAssignmentResult = {
@@ -194,19 +199,6 @@ export function AssignEditorModal({
     [availableNames]
   );
 
-  const { availableEditors, bookedEditors } = useMemo(() => {
-    const available: string[] = [];
-    const booked: string[] = [];
-    for (const name of categoryEditors) {
-      if (availableEditorKeys.has(normalizeProducerKey(name))) {
-        available.push(name);
-      } else {
-        booked.push(name);
-      }
-    }
-    return { availableEditors: available, bookedEditors: booked };
-  }, [categoryEditors, availableEditorKeys]);
-
   const currentAssignee = displayAssigned ?? "";
 
   const assignedProducer = useMemo(
@@ -217,69 +209,92 @@ export function AssignEditorModal({
     [isAssignmentLocked, formalAssigned, producers]
   );
 
-  const requestedBookedEditors = useMemo(() => {
-    if (!requestedEditor) return [];
-    return bookedEditors.filter((name) =>
-      producerKeysMatch(name, requestedEditor)
-    );
-  }, [requestedEditor, bookedEditors]);
+  const today = useMemo(() => new Date(), []);
+
+  const todayAvailableCount = useMemo(() => {
+    return categoryEditors.filter((name) => {
+      const producer = findProducerByAssignmentKey(name, producers);
+      return producer ? isProducerAvailableOnDate(producer, today, mtdRecords, schedule) : false;
+    }).length;
+  }, [categoryEditors, producers, today, mtdRecords, schedule]);
 
   const editorSelectGroups = useMemo((): EditorSelectGroup[] => {
-    const toOption = (name: string, tone: EditorSelectGroup["tone"]) => {
+    if (!record) return [];
+
+    const eligibleOptions: EditorSelectGroup["options"] = [];
+    const unavailableOptions: EditorSelectGroup["options"] = [];
+
+    for (const name of categoryEditors) {
       const key = normalizeProducerKey(name);
       const producer = findProducerByAssignmentKey(name, producers);
       const mixCount = editorWorkload.get(key) ?? 0;
       const bookedUntil = editorBookedUntil.get(key);
-      const isCurrent = producerKeysMatch(currentAssignee, name);
 
-      return {
+      const isAvailableToday = producer
+        ? isProducerAvailableOnDate(producer, today, mtdRecords, schedule)
+        : false;
+
+      let isEligibleForMix = true;
+      let unavailabilityReason: string | undefined = undefined;
+
+      if (producer) {
+        const isUnavailable = isProducerUnavailableForRecord(
+          producer,
+          record,
+          mtdRecords
+        );
+        if (isUnavailable) {
+          isEligibleForMix = false;
+          unavailabilityReason =
+            getProducerUnavailabilityReason(producer, record, mtdRecords, schedule) ||
+            "Unavailable on mix dates";
+        }
+      }
+
+      const option: EditorSelectGroup["options"][number] = {
         name,
         producer,
-        mixCount: tone === "booked" ? mixCount : undefined,
-        bookedUntil: tone === "booked" ? bookedUntil : undefined,
-        disabled: false,
+        mixCount,
+        bookedUntil,
+        isAvailableToday,
+        isEligibleForMix,
+        unavailabilityReason,
+        disabled: !isEligibleForMix,
       };
-    };
+
+      if (isEligibleForMix) {
+        eligibleOptions.push(option);
+      } else {
+        unavailableOptions.push(option);
+      }
+    }
 
     const groups: EditorSelectGroup[] = [
       {
-        label: "Available",
+        label: "Eligible for Mix",
         tone: "available",
-        options: availableEditors.map((name) => toOption(name, "available")),
+        options: eligibleOptions,
       },
     ];
 
-    if (requestedBookedEditors.length > 0) {
+    if (unavailableOptions.length > 0) {
       groups.push({
-        label: "Booked on other mixes",
+        label: "Unavailable on Mix Dates",
         tone: "booked",
-        options: requestedBookedEditors.map((name) => toOption(name, "booked")),
-      });
-    }
-
-    const otherBookedEditors = bookedEditors.filter(
-      (name) =>
-        !requestedBookedEditors.some((booked) =>
-          producerKeysMatch(booked, name)
-        )
-    );
-    if (otherBookedEditors.length > 0) {
-      groups.push({
-        label: "Currently booked",
-        tone: "booked",
-        options: otherBookedEditors.map((name) => toOption(name, "booked")),
+        options: unavailableOptions,
       });
     }
 
     return groups;
   }, [
-    availableEditors,
-    requestedBookedEditors,
-    bookedEditors,
+    record,
+    categoryEditors,
     producers,
+    mtdRecords,
+    schedule,
+    today,
     editorWorkload,
     editorBookedUntil,
-    currentAssignee,
   ]);
 
   function pickEditorForOpen(active: MTDRecord): string {
@@ -323,18 +338,20 @@ export function AssignEditorModal({
     }
 
     let editor = pickEditorForOpen(record);
+    const firstEligible = editorSelectGroups.find((g) => g.tone === "available")?.options[0]?.name;
     if (
       editor &&
       !availableEditorKeys.has(normalizeProducerKey(editor)) &&
       !producerKeysMatch(record.assignedProducer ?? "", editor)
     ) {
-      editor = availableEditors[0] ?? "";
+      editor = firstEligible ?? "";
     }
     if (!editor) {
       editor =
         categoryEditors.find((name) =>
           requestedEditor ? producerKeysMatch(name, requestedEditor) : false
         ) ??
+        firstEligible ??
         categoryEditors[0] ??
         "";
     }
@@ -348,9 +365,23 @@ export function AssignEditorModal({
     schedule,
     linkedOrder,
     availableEditorKeys,
-    availableEditors,
+    editorSelectGroups,
     requestedEditor,
   ]);
+
+  const selectedProducer = useMemo(
+    () =>
+      selectedEditor
+        ? findProducerByAssignmentKey(selectedEditor, producers)
+        : undefined,
+    [selectedEditor, producers]
+  );
+
+  const isSelectedEligible = useMemo(() => {
+    if (!selectedEditor || !record) return false;
+    if (!selectedProducer) return true;
+    return !isProducerUnavailableForRecord(selectedProducer, record, mtdRecords);
+  }, [selectedEditor, selectedProducer, record, mtdRecords]);
 
   const mixStartIso = toIsoDateString(record?.mixStartDate ?? "");
   const mixEndIso = toIsoDateString(record?.mixEndDate ?? "");
@@ -361,11 +392,14 @@ export function AssignEditorModal({
   const activeRecord = record;
   const isViewOnly = readOnly;
   const showCompactAssigned = isViewOnly || isAssignmentLocked;
+
   const canSubmit =
     Boolean(selectedEditor) &&
     categoryEditors.some((name) => producerKeysMatch(name, selectedEditor)) &&
+    isSelectedEligible &&
     !showCompactAssigned &&
     !isAssignmentLocked;
+
   const genreLabel = activeRecord.category || "this";
 
   function handleUnassign() {
@@ -378,12 +412,17 @@ export function AssignEditorModal({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!canSubmit) return;
+    if (!canSubmit) {
+      if (selectedProducer && isProducerUnavailableForRecord(selectedProducer, activeRecord, mtdRecords)) {
+        alert("This editor is not available for the selected mix dates.");
+      }
+      return;
+    }
 
     const existingStart = toIsoDateString(activeRecord.mixStartDate);
     const mixStartDate =
       existingStart ||
-      suggestMixStartDate(selectedEditor, producers, schedule);
+      suggestMixStartDate(selectedEditor, producers, schedule, mtdRecords);
 
     onAssign(activeRecord.id, {
       editorRequest: editorRequestForAssignment(
@@ -539,13 +578,24 @@ export function AssignEditorModal({
                     {isAssignmentLocked ? "locked while assigned" : "tap to select"}
                   </p>
                 </div>
-                {suggestionsByDate.length > 0 ? (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-brand-signature-soft px-2.5 py-1 text-[11px] font-semibold text-brand-signature">
-                    <CalendarDays className="h-3 w-3" strokeWidth={2} />
-                    {suggestionsByDate.length} date
-                    {suggestionsByDate.length === 1 ? "" : "s"}
-                  </span>
-                ) : null}
+                <div className="flex items-center gap-2">
+                  {todayAvailableCount === 0 ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-brand-warning/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-warning">
+                      0 available today
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-brand-success/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-success">
+                      {todayAvailableCount} available today
+                    </span>
+                  )}
+                  {suggestionsByDate.length > 0 ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-brand-signature-soft px-2.5 py-1 text-[11px] font-semibold text-brand-signature">
+                      <CalendarDays className="h-3 w-3" strokeWidth={2} />
+                      {suggestionsByDate.length} date
+                      {suggestionsByDate.length === 1 ? "" : "s"}
+                    </span>
+                  ) : null}
+                </div>
               </div>
               <DottedScroll
                 className="min-h-0 flex-1"

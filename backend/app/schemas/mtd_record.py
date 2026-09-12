@@ -1,7 +1,8 @@
 from pydantic import BaseModel, ConfigDict, field_validator
-from typing import Optional
+from typing import Optional, Any
 from uuid import UUID
 from datetime import date, datetime
+import json
 
 class MTDRecordSchema(BaseModel):
     id: UUID
@@ -35,7 +36,29 @@ class MTDRecordSchema(BaseModel):
     has_extend_8ct_addon: bool = False
     has_processing_8ct_sheets_addon: bool = False
 
+    # Pricing / payroll fields
+    system_calculated_customer_price: Optional[float] = None
+    final_customer_price: Optional[float] = None
+    final_customer_price_overridden: bool = False
+    pricing_breakdown: Optional[Any] = None
+    rate_used: Optional[float] = None
+    rate_source: Optional[str] = None
+    producer_payout: Optional[float] = None
+    slt_portion: Optional[float] = None
+    payroll_finalized: bool = False
+    payroll_breakdown: Optional[Any] = None
+
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("pricing_breakdown", "payroll_breakdown", mode="before")
+    @classmethod
+    def parse_json_field(cls, v):
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except Exception:
+                return v
+        return v
 
     @field_validator("assigned_producer", mode="before")
     @classmethod
@@ -62,6 +85,9 @@ class MTDRecordCreateSchema(BaseModel):
     have_songs: Optional[str] = "NEED SONGS"
     needs_attention: Optional[bool] = True
     status: Optional[str] = "needs_attention"
+    record_status: Optional[str] = None
+    mix_start_date: Optional[date] = None
+    mix_end_date: Optional[date] = None
     in_mtd: Optional[bool] = False
     has_rally_mix: Optional[bool] = False
     has_extend_8ct_addon: Optional[bool] = False
@@ -94,3 +120,13 @@ class MTDRecordUpdateSchema(BaseModel):
     has_rally_mix: Optional[bool] = None
     has_extend_8ct_addon: Optional[bool] = None
     has_processing_8ct_sheets_addon: Optional[bool] = None
+    system_calculated_customer_price: Optional[float] = None
+    final_customer_price: Optional[float] = None
+    final_customer_price_overridden: Optional[bool] = None
+    pricing_breakdown: Optional[Any] = None
+    rate_used: Optional[float] = None
+    rate_source: Optional[str] = None
+    producer_payout: Optional[float] = None
+    slt_portion: Optional[float] = None
+    payroll_finalized: Optional[bool] = None
+    payroll_breakdown: Optional[Any] = None

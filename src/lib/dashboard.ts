@@ -1,5 +1,5 @@
 import type { MTDRecord, Order, Producer, ScheduleEntry } from "@/types";
-import { parseFlexibleDate, toIsoDateString } from "@/lib/dates";
+import { parseFlexibleDate, toCanonicalIsoDate, toIsoDateString } from "@/lib/dates";
 import { getEditorWorkload } from "@/lib/editor-assignment";
 import {
   getInProgressRecords,
@@ -527,21 +527,24 @@ export function buildIncomingOrdersSeries(
   days = 14
 ): IncomingOrdersPoint[] {
   const all = [...orders, ...pastOrders];
-  const anchorKey = anchor.toISOString().slice(0, 10);
-  const start = new Date(`${anchorKey}T12:00:00`);
+  const anchorIso = toCanonicalIsoDate(anchor);
 
   return Array.from({ length: days }, (_, index) => {
-    const day = new Date(start);
+    const day = new Date(anchor);
+    day.setHours(12, 0, 0, 0);
     day.setDate(day.getDate() - (days - 1 - index));
-    const iso = day.toISOString().slice(0, 10);
-    const count = all.filter((order) => toIsoDateString(order.createdAt) === iso).length;
+    const iso = toCanonicalIsoDate(day);
+    const count = all.filter((order) => {
+      const orderIso = toCanonicalIsoDate(order.createdAt);
+      return orderIso === iso;
+    }).length;
 
     return {
       iso,
       label: day.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
       shortLabel: day.toLocaleDateString("en-US", { weekday: "narrow" }),
       count,
-      isToday: iso === anchorKey,
+      isToday: iso === anchorIso,
     };
   });
 }

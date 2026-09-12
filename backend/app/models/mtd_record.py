@@ -38,6 +38,18 @@ class MTDRecord(Base):
     has_extend_8ct_addon = Column(Boolean, default=False, nullable=False)
     has_processing_8ct_sheets_addon = Column(Boolean, default=False, nullable=False)
 
+    # Pricing / payroll fields
+    system_calculated_customer_price = Column(Numeric(10, 2), nullable=True)
+    final_customer_price = Column(Numeric(10, 2), nullable=True)
+    final_customer_price_overridden = Column(Boolean, default=False, nullable=False)
+    pricing_breakdown = Column(Text, nullable=True)  # stored as JSON string
+    rate_used = Column(Numeric(10, 4), nullable=True)
+    rate_source = Column(String, nullable=True)
+    producer_payout = Column(Numeric(10, 2), nullable=True)
+    slt_portion = Column(Numeric(10, 2), nullable=True)
+    payroll_finalized = Column(Boolean, default=False, nullable=False)
+    payroll_breakdown = Column(Text, nullable=True)  # stored as JSON string
+
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
