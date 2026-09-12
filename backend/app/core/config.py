@@ -45,15 +45,6 @@ class Settings(BaseSettings):
         # Remove surrounding brackets if present in password string
         if "postgresql://" in url and ":[" in url and "]@" in url:
             url = url.replace(":[", ":").replace("]@ ", "@").replace("]@", "@")
-        # Vercel/serverless cannot use Supabase direct :5432 — prefer pooler :6543.
-        if os.getenv("VERCEL") and url and "pooler.supabase.com" not in url:
-            url = url.replace(
-                "postgresql://postgres:",
-                "postgresql://postgres.fqjwjiltizsjzrinoiwv:",
-            ).replace(
-                "@db.fqjwjiltizsjzrinoiwv.supabase.co:5432/",
-                "@aws-0-us-east-1.pooler.supabase.com:5432/",
-            )
         if url and "sslmode=" not in url:
             separator = "&" if "?" in url else "?"
             url = f"{url}{separator}sslmode=require"

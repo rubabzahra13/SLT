@@ -84,10 +84,11 @@ async function request<T>(
 
     if (!response.ok) {
       let errorData: unknown = null;
+      const rawText = await response.text();
       try {
-        errorData = await response.json();
+        errorData = JSON.parse(rawText);
       } catch {
-        errorData = await response.text();
+        errorData = rawText;
       }
       let errorMessage = `API request failed: ${response.status} ${response.statusText}`;
       if (
