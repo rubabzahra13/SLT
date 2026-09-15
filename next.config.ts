@@ -14,12 +14,24 @@ const nextConfig: NextConfig = {
     return config;
   },
   async rewrites() {
-    return [
-      {
-        source: "/api/:path*",
-        destination: "/api/index.py",
-      },
-    ];
+    if (process.env.NODE_ENV === "development" && !process.env.VERCEL) {
+      return {
+        beforeFiles: [
+          {
+            source: "/api/:path*",
+            destination: "http://127.0.0.1:8001/api/:path*",
+          },
+        ],
+      };
+    }
+    return {
+      beforeFiles: [
+        {
+          source: "/api/:path*",
+          destination: "/api/index.py",
+        },
+      ],
+    };
   },
 };
 
