@@ -49,6 +49,13 @@ class Settings(BaseSettings):
         # Remove surrounding brackets if present in password string
         if "postgresql://" in url and ":[" in url and "]@" in url:
             url = url.replace(":[", ":").replace("]@ ", "@").replace("]@", "@")
+
+        # Convert direct Supabase IPv6-only host to IPv4 pooler host for Vercel compatibility
+        if "db.fqjwjiltizsjzrinoiwv.supabase.co" in url:
+            url = url.replace("db.fqjwjiltizsjzrinoiwv.supabase.co", "aws-0-ap-southeast-2.pooler.supabase.com")
+            if "postgresql://postgres:" in url:
+                url = url.replace("postgresql://postgres:", "postgresql://postgres.fqjwjiltizsjzrinoiwv:", 1)
+
         if "sslmode=" not in url:
             separator = "&" if "?" in url else "?"
             url = f"{url}{separator}sslmode=require"
