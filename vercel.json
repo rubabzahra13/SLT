@@ -5,7 +5,7 @@
   "buildCommand": "npm run build",
   "devCommand": "npm run dev",
   "functions": {
-    "api/index.py": {
+    "api/py_backend.py": {
       "runtime": "python3.11"
     }
   },
