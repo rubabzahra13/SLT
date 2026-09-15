@@ -4,11 +4,6 @@
   "installCommand": "npm install",
   "buildCommand": "npm run build",
   "devCommand": "npm run dev",
-  "functions": {
-    "api/py_backend.py": {
-      "runtime": "python3.11"
-    }
-  },
   "rewrites": [
     {
       "source": "/api/:path*",
