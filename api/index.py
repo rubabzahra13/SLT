@@ -9,8 +9,26 @@ backend_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__fil
 if backend_dir not in sys.path:
     sys.path.insert(0, backend_dir)
 
+from urllib.parse import parse_qs
+
+class RewritePathMiddleware:
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") == "http":
+            query_string = scope.get("query_string", b"").decode("utf-8")
+            qs = parse_qs(query_string)
+            if "path" in qs and qs["path"]:
+                target_path = "/" + qs["path"][0].lstrip("/")
+                if not target_path.startswith("/api"):
+                    target_path = "/api" + target_path
+                scope["path"] = target_path
+        await self.app(scope, receive, send)
+
 try:
     from app.main import app
+    app.add_middleware(RewritePathMiddleware)
 except Exception as init_exc:
     tb_str = traceback.format_exc()
     exc_str = str(init_exc)
