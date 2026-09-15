@@ -6,7 +6,7 @@
   "devCommand": "npm run dev",
   "rewrites": [
     {
-      "source": "/api/:path*",
+      "source": "/api/(.*)",
       "destination": "/api/index.py"
     }
   ]
