@@ -42,10 +42,14 @@ class Settings(BaseSettings):
         if not url:
             # Fallback check directly from os.environ
             url = os.getenv("DATABASE_URL") or os.getenv("SUPABASE_DIRECT_CONNECTION_STRING", "")
+        if not url:
+            return ""
+        if url.startswith("postgres://"):
+            url = url.replace("postgres://", "postgresql://", 1)
         # Remove surrounding brackets if present in password string
         if "postgresql://" in url and ":[" in url and "]@" in url:
             url = url.replace(":[", ":").replace("]@ ", "@").replace("]@", "@")
-        if url and "sslmode=" not in url:
+        if "sslmode=" not in url:
             separator = "&" if "?" in url else "?"
             url = f"{url}{separator}sslmode=require"
         return url

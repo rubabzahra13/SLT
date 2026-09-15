@@ -10,6 +10,7 @@ from app.api.gmail import router as gmail_router
 
 api_router = APIRouter()
 api_router.include_router(health_router, tags=["health"])
+api_router.include_router(health_router, prefix="/api", tags=["health"])
 api_router.include_router(auth_router, prefix="/api", tags=["auth"])
 api_router.include_router(producers_router, prefix="/api", tags=["producers"])
 api_router.include_router(orders_router, prefix="/api", tags=["orders"])
