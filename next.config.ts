@@ -14,13 +14,18 @@ const nextConfig: NextConfig = {
     return config;
   },
   async rewrites() {
-    if (process.env.VERCEL) {
-      return [];
+    if (process.env.NODE_ENV === "development" && !process.env.VERCEL) {
+      return [
+        {
+          source: "/api/:path*",
+          destination: "http://127.0.0.1:8001/api/:path*",
+        },
+      ];
     }
     return [
       {
         source: "/api/:path*",
-        destination: "http://127.0.0.1:8001/api/:path*",
+        destination: "/api/index.py",
       },
     ];
   },
