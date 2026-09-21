@@ -13,6 +13,7 @@ import {
   producerKeysMatch,
 } from "./producer-keys";
 import { formatSlotForDisplay } from "./scheduling";
+import { calculateProducerNextOpening } from "./producer-schedule-calc";
 
 export {
   normalizeProducerKey,
@@ -188,18 +189,17 @@ export function pickDefaultEditor(
   }
 
   if (requestedEditor) {
-    if (available.includes(requestedEditor)) {
+    const matchedKey = eligible.find((name) =>
+      producerKeysMatch(name, requestedEditor)
+    );
+    if (matchedKey) {
+      const isAvailable = available.some((name) =>
+        producerKeysMatch(name, requestedEditor)
+      );
       return {
-        editor: requestedEditor,
+        editor: matchedKey,
         requestedEditor,
-        reason: "requested_available",
-      };
-    }
-    if (eligible.includes(requestedEditor)) {
-      return {
-        editor: available[0] || "",
-        requestedEditor,
-        reason: "requested_busy",
+        reason: isAvailable ? "requested_available" : "requested_busy",
       };
     }
   }
@@ -664,6 +664,7 @@ export function inferAssignmentMode(record: MTDRecord): EditorAssignmentMode {
 export type SuggestedEditor = {
   name: string;
   slotLabel: string;
+  nextAvailableDate: Date;
   producer?: Producer;
 };
 
@@ -673,7 +674,8 @@ export function getSuggestedEditors(
   schedule: ScheduleEntry[],
   category: string,
   excludeRecordId?: string,
-  record?: MTDRecord
+  record?: MTDRecord,
+  anchorDateInput?: Date | string
 ): SuggestedEditor[] {
   const targetRecord =
     record ||
@@ -689,11 +691,27 @@ export function getSuggestedEditors(
     targetRecord
   );
 
+  const anchorDate = anchorDateInput
+    ? typeof anchorDateInput === "string"
+      ? parseFlexibleDate(anchorDateInput) ?? new Date()
+      : anchorDateInput
+    : targetRecord?.mixStartDate
+      ? parseFlexibleDate(targetRecord.mixStartDate) ?? new Date()
+      : new Date();
+
   return names.map((name) => {
     const producer = findProducerByAssignmentKey(name, producers);
+    const calc = producer
+      ? calculateProducerNextOpening(producer, mtdRecords, schedule, anchorDate)
+      : null;
+
+    const nextAvailableDate = calc?.nextAvailableDate ?? anchorDate;
+    const slotLabel = calc?.nextAvailable ?? formatSlotForDisplay(name, producers, schedule, mtdRecords);
+
     return {
       name,
-      slotLabel: formatSlotForDisplay(name, producers, schedule),
+      slotLabel,
+      nextAvailableDate,
       producer,
     };
   });

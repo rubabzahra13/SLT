@@ -106,6 +106,7 @@ export default function PayrollDetailPage({
     schedule,
     discountCodes,
     isViewOnly,
+    isLoading,
   } = useAppState();
 
   const [assignOpen, setAssignOpen] = useState(false);
@@ -117,7 +118,13 @@ export default function PayrollDetailPage({
   const [orderFormEditing, setOrderFormEditing] = useState(false);
   const [orderDraft, setOrderDraft] = useState<Order | null>(null);
 
-  const rec = mtdRecords.find((r) => r.id === id);
+  const rec = useMemo(
+    () =>
+      mtdRecords.find(
+        (r) => r.id === id || r.orderId === id || r.uuid === id || r.legacyId === id
+      ),
+    [mtdRecords, id]
+  );
 
   const orderById = useMemo(
     () => new Map(allOrders.map((order) => [order.id, order])),
@@ -276,6 +283,16 @@ export default function PayrollDetailPage({
     setReturnModalOpen(false);
     window.location.href = "/payroll";
   }, [rec, updateMTD]);
+
+  if (isLoading && (!rec || !order)) {
+    return (
+      <div className="space-y-6 px-6 pb-8 pt-6 lg:px-8">
+        <div className="h-10 w-64 animate-pulse rounded-xl bg-brand-line/40" />
+        <div className="dashboard-panel h-48 animate-pulse p-6" />
+        <div className="dashboard-panel h-96 animate-pulse p-6" />
+      </div>
+    );
+  }
 
   if (!rec || !order) {
     return (

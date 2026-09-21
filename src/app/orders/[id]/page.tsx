@@ -17,6 +17,7 @@ import { SetPricingModal } from "@/components/mtd/SetPricingModal";
 import { useAppState } from "@/context/AppStateContext";
 import { formatPrice } from "@/lib/data";
 import { orderFromMTDRecord } from "@/lib/order-detail-fields";
+import { orderToMTDRecord } from "@/lib/order-form";
 import { findLinkedOrder, findProducerByAssignmentKey } from "@/lib/editor-assignment";
 import { isOrderScheduledAndAssigned, isPreMTDOrderRecord } from "@/lib/mtd-filters";
 import type { MTDRecord, Order } from "@/types";
@@ -33,16 +34,24 @@ export default function OrderDetailPage({
     updateMTD,
     producers,
     schedule,
+    isLoading,
   } = useAppState();
 
   const [assignOpen, setAssignOpen] = useState(false);
   const [validationModalOpen, setValidationModalOpen] = useState(false);
   const [pricingOpen, setPricingOpen] = useState(false);
 
-  const record = useMemo(
-    () => mtdRecords.find((r) => r.id === id || r.orderId === id),
-    [mtdRecords, id]
-  );
+  const record = useMemo(() => {
+    const directMatch = mtdRecords.find(
+      (r) => r.id === id || r.orderId === id || r.uuid === id || r.legacyId === id
+    );
+    if (directMatch) return directMatch;
+    const orderMatch = allOrders.find(
+      (o) => o.id === id || o.uuid === id || o.legacyId === id
+    );
+    if (orderMatch) return orderToMTDRecord(orderMatch);
+    return undefined;
+  }, [mtdRecords, allOrders, id]);
 
   const linkedOrder = useMemo(() => {
     if (!record) return undefined;
@@ -86,6 +95,16 @@ export default function OrderDetailPage({
     window.location.href = "/mtd";
   }, [record, updateMTD]);
 
+  if (isLoading && (!record || !displayOrder)) {
+    return (
+      <div className="space-y-6 px-6 pb-8 pt-6 lg:px-8">
+        <div className="h-10 w-64 animate-pulse rounded-xl bg-brand-line/40" />
+        <div className="dashboard-panel h-48 animate-pulse p-6" />
+        <div className="dashboard-panel h-96 animate-pulse p-6" />
+      </div>
+    );
+  }
+
   if (!record || !displayOrder) {
     return (
       <div className="p-8 text-center text-brand-ink-tertiary">
@@ -103,7 +122,7 @@ export default function OrderDetailPage({
     <>
       <PageHeader
         title={record.programName || "Order Details"}
-        subtitle={`ID: ${record.id} · ${record.contactName || "Customer"}`}
+        subtitle={record.contactName || "Customer"}
         secondaryAction={{
           label: "Pricing",
           onClick: () => setPricingOpen(true),

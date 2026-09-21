@@ -70,6 +70,7 @@ type AppStateContextValue = {
   notifications: AppNotification[];
   unreadCount: number;
   isBackendConnected: boolean;
+  isLoading: boolean;
   isViewOnly: boolean;
   moveOrderToMTD: (orderId: string) => MTDRecord | null;
   updateMTD: (id: string, patch: Partial<MTDRecord>) => void;
@@ -168,6 +169,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   );
   const [discountCodes, setDiscountCodes] = useState<DiscountCode[]>([]);
   const [isBackendConnected, setIsBackendConnected] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
 
   const schedule = seed.schedule;
 
@@ -245,6 +247,10 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           "FastAPI backend unavailable or unreachable. Falling back to local state.",
           err
         );
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     }
 
@@ -875,6 +881,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     notifications,
     unreadCount,
     isBackendConnected,
+    isLoading,
     isViewOnly,
     moveOrderToMTD,
     updateMTD,

@@ -13,6 +13,7 @@ export type EditorSelectOption = {
   producer?: Producer;
   mixCount?: number;
   bookedUntil?: string;
+  nextAvailableDateStr?: string;
   isAvailableToday?: boolean;
   isEligibleForMix?: boolean;
   unavailabilityReason?: string;
@@ -184,6 +185,8 @@ export function EditorSelectDropdown({
           }`
       : selected.isAvailableToday
       ? "Available today"
+      : selected.nextAvailableDateStr
+      ? `Available from ${selected.nextAvailableDateStr}`
       : selected.bookedUntil
       ? `Available from ${formatDisplayDate(selected.bookedUntil)}`
       : "Eligible for mix"
@@ -282,7 +285,9 @@ export function EditorSelectDropdown({
                                 </span>
                               ) : option.isEligibleForMix ? (
                                 <span className="rounded-full bg-brand-info/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-brand-info">
-                                  Eligible for Mix
+                                  {option.nextAvailableDateStr
+                                    ? `Available from ${option.nextAvailableDateStr}`
+                                    : "Eligible for Mix"}
                                 </span>
                               ) : option.unavailabilityReason ? (
                                 <span className="rounded-full bg-brand-warning/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-brand-warning">
@@ -313,6 +318,8 @@ export function EditorSelectDropdown({
                                 </>
                               ) : option.isAvailableToday ? (
                                 <span>Ready to assign today</span>
+                              ) : option.nextAvailableDateStr ? (
+                                <span>Available from {option.nextAvailableDateStr}</span>
                               ) : (
                                 <span>Eligible for selected mix dates</span>
                               )}

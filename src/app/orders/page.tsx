@@ -927,9 +927,7 @@ function OrdersPageContent() {
             data={filtered}
             columns={columns}
             rowKey={(rec) => rec.id}
-            onRowClick={(rec) => {
-              window.location.href = `/orders/${rec.id}`;
-            }}
+            href={(rec) => `/orders/${rec.id}`}
             emptyMessage="No pending pre-MTD orders found."
             pageSize={15}
             embedded

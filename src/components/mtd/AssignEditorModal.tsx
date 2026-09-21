@@ -23,13 +23,16 @@ import {
   type SuggestedEditor,
 } from "@/lib/editor-assignment";
 import { normalizeProducerKey, producerKeysMatch } from "@/lib/producer-keys";
-import { formatDisplayDate, toIsoDateString } from "@/lib/dates";
+import { formatDisplayDate, parseFlexibleDate, toCanonicalIsoDate, toIsoDateString } from "@/lib/dates";
 import { suggestMixStartDate } from "@/lib/scheduling";
 import {
   isProducerUnavailableForRecord,
   getProducerUnavailabilityReason,
 } from "@/lib/producer-availability";
-import { isProducerAvailableOnDate } from "@/lib/producer-schedule-calc";
+import {
+  isProducerAvailableOnDate,
+  calculateProducerNextOpening,
+} from "@/lib/producer-schedule-calc";
 import type { MTDRecord, MTDRecordStatus, Order, Producer, ScheduleEntry } from "@/types";
 
 export type EditorAssignmentResult = {
@@ -63,32 +66,24 @@ type DateGroup = {
   editors: SuggestedEditor[];
 };
 
-function parseSlotDate(label: string): Date | null {
-  if (!label || label === "TBD" || label === "No slot found") return null;
-
-  const short = label.match(
-    /(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+(\w+)\s+(\d{1,2})/i
+function isSameCalendarDay(d1: Date, d2: Date): boolean {
+  return (
+    d1.getFullYear() === d2.getFullYear() &&
+    d1.getMonth() === d2.getMonth() &&
+    d1.getDate() === d2.getDate()
   );
-  if (short) {
-    const parsed = new Date(`${short[1]} ${short[2]}, 2026`);
-    if (!Number.isNaN(parsed.getTime())) return parsed;
-  }
-
-  const long = new Date(label);
-  if (!Number.isNaN(long.getTime())) return long;
-
-  return null;
 }
 
-function groupSuggestionsByDate(suggestions: SuggestedEditor[]): DateGroup[] {
+function groupSuggestionsByDate(
+  suggestions: SuggestedEditor[],
+  today: Date = new Date()
+): DateGroup[] {
   const groups = new Map<string, DateGroup>();
 
   for (const suggestion of suggestions) {
-    const label = suggestion.slotLabel || "TBD";
-    const parsed = parseSlotDate(label);
-    const key = parsed
-      ? parsed.toISOString().slice(0, 10)
-      : label.toLowerCase();
+    const d = suggestion.nextAvailableDate || today;
+    const isToday = isSameCalendarDay(d, today);
+    const key = isToday ? "today" : d.toISOString().slice(0, 10);
 
     const existing = groups.get(key);
     if (existing) {
@@ -98,16 +93,10 @@ function groupSuggestionsByDate(suggestions: SuggestedEditor[]): DateGroup[] {
 
     groups.set(key, {
       key,
-      sortTime: parsed?.getTime() ?? Number.MAX_SAFE_INTEGER,
-      weekday: parsed
-        ? parsed.toLocaleDateString("en-US", { weekday: "short" })
-        : "—",
-      day: parsed
-        ? parsed.toLocaleDateString("en-US", { day: "numeric" })
-        : label,
-      month: parsed
-        ? parsed.toLocaleDateString("en-US", { month: "short" })
-        : "",
+      sortTime: isToday ? 0 : d.getTime(),
+      weekday: isToday ? "Today" : d.toLocaleDateString("en-US", { weekday: "short" }),
+      day: isToday ? "Today" : d.toLocaleDateString("en-US", { day: "numeric" }),
+      month: isToday ? "" : d.toLocaleDateString("en-US", { month: "short" }),
       editors: [suggestion],
     });
   }
@@ -140,6 +129,13 @@ export function AssignEditorModal({
   const formalAssigned = record?.assignedProducer?.trim() || null;
   const isAssignmentLocked = Boolean(formalAssigned);
 
+  const today = useMemo(() => new Date(), []);
+
+  const suggestionsAnchorDate = useMemo(() => {
+    if (!record?.mixStartDate) return today;
+    return parseFlexibleDate(record.mixStartDate) ?? today;
+  }, [record?.mixStartDate, today]);
+
   const suggestions = useMemo(
     () =>
       readOnly || !record
@@ -150,14 +146,15 @@ export function AssignEditorModal({
             schedule,
             record.category,
             record.id,
-            record
+            record,
+            suggestionsAnchorDate
           ),
-    [readOnly, record, mtdRecords, producers, schedule]
+    [readOnly, record, mtdRecords, producers, schedule, suggestionsAnchorDate]
   );
 
   const suggestionsByDate = useMemo(
-    () => groupSuggestionsByDate(suggestions),
-    [suggestions]
+    () => groupSuggestionsByDate(suggestions, today),
+    [suggestions, today]
   );
 
   const linkedOrder = useMemo(
@@ -209,8 +206,6 @@ export function AssignEditorModal({
     [isAssignmentLocked, formalAssigned, producers]
   );
 
-  const today = useMemo(() => new Date(), []);
-
   const todayAvailableCount = useMemo(() => {
     return categoryEditors.filter((name) => {
       const producer = findProducerByAssignmentKey(name, producers);
@@ -224,6 +219,10 @@ export function AssignEditorModal({
     const eligibleOptions: EditorSelectGroup["options"] = [];
     const unavailableOptions: EditorSelectGroup["options"] = [];
 
+    const anchorDate = record.mixStartDate
+      ? parseFlexibleDate(record.mixStartDate) ?? today
+      : today;
+
     for (const name of categoryEditors) {
       const key = normalizeProducerKey(name);
       const producer = findProducerByAssignmentKey(name, producers);
@@ -233,6 +232,15 @@ export function AssignEditorModal({
       const isAvailableToday = producer
         ? isProducerAvailableOnDate(producer, today, mtdRecords, schedule)
         : false;
+
+      const nextOpening = producer
+        ? calculateProducerNextOpening(producer, mtdRecords, schedule, anchorDate)
+        : null;
+
+      const nextAvailableDateStr =
+        nextOpening && !isAvailableToday
+          ? formatDisplayDate(toCanonicalIsoDate(nextOpening.nextAvailableDate))
+          : undefined;
 
       let isEligibleForMix = true;
       let unavailabilityReason: string | undefined = undefined;
@@ -256,6 +264,7 @@ export function AssignEditorModal({
         producer,
         mixCount,
         bookedUntil,
+        nextAvailableDateStr,
         isAvailableToday,
         isEligibleForMix,
         unavailabilityReason,
@@ -306,22 +315,7 @@ export function AssignEditorModal({
       linkedOrder
     );
 
-    let editor = pick.editor;
-    const booked = getEditorWorkload(mtdRecords, active.id);
-    const isCurrent = producerKeysMatch(active.assignedProducer ?? "", editor);
-    if (editor && booked.has(normalizeProducerKey(editor)) && !isCurrent) {
-      editor =
-        getSuggestedEditors(
-          mtdRecords,
-          producers,
-          schedule,
-          active.category,
-          active.id,
-          active
-        )[0]?.name || "";
-    }
-
-    return editor;
+    return pick.editor;
   }
 
   useEffect(() => {
@@ -339,13 +333,6 @@ export function AssignEditorModal({
 
     let editor = pickEditorForOpen(record);
     const firstEligible = editorSelectGroups.find((g) => g.tone === "available")?.options[0]?.name;
-    if (
-      editor &&
-      !availableEditorKeys.has(normalizeProducerKey(editor)) &&
-      !producerKeysMatch(record.assignedProducer ?? "", editor)
-    ) {
-      editor = firstEligible ?? "";
-    }
     if (!editor) {
       editor =
         categoryEditors.find((name) =>
@@ -646,8 +633,7 @@ export function AssignEditorModal({
                         <div className="rounded-2xl border border-brand-line/70 bg-brand-elevated/80 p-3 shadow-[var(--shadow-premium-sm)]">
                           <div className="mb-2.5 flex items-center justify-between gap-2">
                             <p className="text-[12px] font-semibold text-brand-ink">
-                              {group.editors.length} editor
-                              {group.editors.length === 1 ? "" : "s"} free
+                              {group.key === "today" ? "Available Today" : `Available ${group.weekday} ${group.month} ${group.day}`}
                             </p>
                             {index === 0 ? (
                               <span className="rounded-full bg-brand-success/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-success">
@@ -657,7 +643,7 @@ export function AssignEditorModal({
                           </div>
 
                           <div className="flex flex-wrap gap-2">
-                            {group.editors.map((suggestion) => {
+                            {group.editors.map((suggestion: SuggestedEditor) => {
                               const selected =
                                 selectedEditor === suggestion.name;
                               return (
