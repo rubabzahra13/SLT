@@ -29,6 +29,7 @@ import { SetInvoicesModal } from "@/components/mtd/SetInvoicesModal";
 import { SetInvoiceModal } from "@/components/mtd/SetInvoiceModal";
 import { SetRecordPricingModal } from "@/components/mtd/SetRecordPricingModal";
 import { CompleteToPayrollModal } from "@/components/mtd/CompleteToPayrollModal";
+import { MoveToOrdersConfirmModal } from "@/components/mtd/MoveToOrdersConfirmModal";
 import {
   CompletionBlockedModal,
   type StatusBlockReason,
@@ -271,6 +272,9 @@ function MTDPageContent() {
   const [pricingOpen, setPricingOpen] = useState(false);
   const [completeRecord, setCompleteRecord] = useState<MTDRecord | null>(null);
   const [blockedRecord, setBlockedRecord] = useState<MTDRecord | null>(null);
+  const [moveToOrdersRecord, setMoveToOrdersRecord] = useState<MTDRecord | null>(
+    null
+  );
   const [blockedReason, setBlockedReason] =
     useState<StatusBlockReason>("completed");
 
@@ -364,14 +368,24 @@ function MTDPageContent() {
 
       if (isViewOnly) return;
 
-      updateMTD(rec.id, {
-        inMTD: false,
-        isReassigned: true,
-        status: "active",
-      });
+      setMoveToOrdersRecord(rec);
     },
-    [isViewOnly, updateMTD]
+    [isViewOnly]
   );
+
+  const confirmMoveToOrders = useCallback(() => {
+    const rec = moveToOrdersRecord;
+    if (!rec || isViewOnly) return;
+
+    updateMTD(rec.id, {
+      inMTD: false,
+      isReassigned: true,
+      status: "active",
+      orderStatus: "Reassign",
+      order_status: "Reassign",
+    } as Partial<MTDRecord>);
+    setMoveToOrdersRecord(null);
+  }, [isViewOnly, moveToOrdersRecord, updateMTD]);
 
   const openInvoiceModal = useCallback(
     (rec: MTDRecord, e: React.MouseEvent) => {
@@ -1447,6 +1461,13 @@ function MTDPageContent() {
         record={blockedRecord}
         reason={blockedReason}
         onClose={() => setBlockedRecord(null)}
+      />
+
+      <MoveToOrdersConfirmModal
+        open={Boolean(moveToOrdersRecord)}
+        record={moveToOrdersRecord}
+        onClose={() => setMoveToOrdersRecord(null)}
+        onConfirm={confirmMoveToOrders}
       />
     </>
   );

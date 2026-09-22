@@ -29,11 +29,11 @@ export function OrderRangeToggle({
     { id: "all", label: "All", count: counts?.all },
     {
       id: "need_to_be_scheduled",
-      label: "Need to be Scheduled",
+      label: "Complete",
       count: counts?.needToBeScheduled ?? counts?.newOrders,
     },
-    { id: "reassigned", label: "Reassigned", count: counts?.reassigned, isRed: true },
-    { id: "waiting_for_data", label: "Waiting for Data", count: counts?.waitingForData },
+    { id: "reassigned", label: "Reassign", count: counts?.reassigned, isRed: true },
+    { id: "waiting_for_data", label: "Missing Data", count: counts?.waitingForData },
   ];
 
   return (

@@ -25,6 +25,14 @@ import {
   normalizeStudioHoliday,
   normalizeStudioPersonalReason,
 } from "@/lib/producer-time-off";
+import {
+  DEFAULT_EMAIL_TEMPLATES,
+  EMAIL_TEMPLATES_STORAGE_KEY,
+  normalizeEmailTemplates,
+  type EmailTemplateCopy,
+  type EmailTemplateId,
+  type EmailTemplatesState,
+} from "@/lib/email-templates";
 import { getData } from "@/lib/data";
 import { normalizeOrder, orderToMTDRecord } from "@/lib/order-form";
 import { useAuth } from "@/context/AuthContext";
@@ -83,6 +91,7 @@ type AppStateContextValue = {
   payrollAddons: PayrollAddon[];
   holidays: StudioHoliday[];
   personalReasons: StudioPersonalReason[];
+  emailTemplates: EmailTemplatesState;
   schedule: ScheduleEntry[];
   notifications: AppNotification[];
   unreadCount: number;
@@ -116,6 +125,11 @@ type AppStateContextValue = {
     patch: Partial<StudioPersonalReason>
   ) => void;
   removePersonalReason: (id: string) => void;
+  updateEmailTemplate: (
+    id: EmailTemplateId,
+    patch: Partial<EmailTemplateCopy>
+  ) => void;
+  resetEmailTemplate: (id: EmailTemplateId) => void;
   markNotificationRead: (id: string) => void;
   markAllNotificationsRead: () => void;
   isInMTD: (orderId: string) => boolean;
@@ -238,6 +252,11 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       }
       return createDefaultPersonalReasons();
     }
+  );
+  const [emailTemplates, setEmailTemplates] = useState<EmailTemplatesState>(() =>
+    normalizeEmailTemplates(
+      getLocalItem(EMAIL_TEMPLATES_STORAGE_KEY, DEFAULT_EMAIL_TEMPLATES)
+    )
   );
   const [isBackendConnected, setIsBackendConnected] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -641,6 +660,9 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       if (patch.inMTD === true) orderPatch.status = "in_mtd";
       if (patch.inMTD === false) orderPatch.status = "active";
       if (patch.isReassigned !== undefined) orderPatch.isReassigned = patch.isReassigned;
+      if (patch.missingDataEmailSentAt !== undefined) {
+        orderPatch.missingDataEmailSentAt = patch.missingDataEmailSentAt;
+      }
       if (patch.collectionStates !== undefined) orderPatch.collectionStates = patch.collectionStates;
       if ((patch as any).collection_states !== undefined) orderPatch.collection_states = (patch as any).collection_states;
       if (patch.haveSongs !== undefined) orderPatch.haveSongs = patch.haveSongs;
@@ -989,6 +1011,10 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   }, [holidays]);
 
   useEffect(() => {
+    setLocalItem(EMAIL_TEMPLATES_STORAGE_KEY, emailTemplates);
+  }, [emailTemplates]);
+
+  useEffect(() => {
     setLocalItem("slt_studio_personal_reasons", personalReasons);
   }, [personalReasons]);
 
@@ -1092,6 +1118,35 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     [isViewOnly]
   );
 
+  const updateEmailTemplate = useCallback(
+    (id: EmailTemplateId, patch: Partial<EmailTemplateCopy>) => {
+      if (isViewOnly) return;
+      setEmailTemplates((prev) =>
+        normalizeEmailTemplates({
+          ...prev,
+          [id]: {
+            ...prev[id],
+            ...patch,
+          },
+        })
+      );
+    },
+    [isViewOnly]
+  );
+
+  const resetEmailTemplate = useCallback(
+    (id: EmailTemplateId) => {
+      if (isViewOnly) return;
+      setEmailTemplates((prev) =>
+        normalizeEmailTemplates({
+          ...prev,
+          [id]: DEFAULT_EMAIL_TEMPLATES[id],
+        })
+      );
+    },
+    [isViewOnly]
+  );
+
   const markNotificationRead = useCallback((id: string) => {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, read: true } : n))
@@ -1116,6 +1171,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     payrollAddons,
     holidays,
     personalReasons,
+    emailTemplates,
     schedule,
     notifications,
     unreadCount,
@@ -1145,6 +1201,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     addPersonalReason,
     updatePersonalReason,
     removePersonalReason,
+    updateEmailTemplate,
+    resetEmailTemplate,
     markNotificationRead,
     markAllNotificationsRead,
     isInMTD,

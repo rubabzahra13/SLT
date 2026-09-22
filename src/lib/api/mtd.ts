@@ -26,6 +26,10 @@ export interface BackendMTDRecord {
   needs_attention: boolean;
   status: "active" | "outsourced" | "needs_attention" | "completed";
   record_status?: string | null;
+  is_reassigned?: boolean;
+  order_status?: string | null;
+  collection_states?: Record<string, boolean> | null;
+  missing_data_email_sent_at?: string | null;
   in_mtd?: boolean;
   inMTD?: boolean;
   in_payroll: boolean;
@@ -76,6 +80,9 @@ export function transformMTDRecord(bm: BackendMTDRecord): MTDRecord {
     recordStatus: (bm.record_status as MTDRecordStatus) || undefined,
     inMTD: Boolean(bm.in_mtd ?? bm.inMTD),
     inPayroll: Boolean(bm.in_payroll),
+    isReassigned: Boolean(bm.is_reassigned),
+    collectionStates: bm.collection_states || undefined,
+    missingDataEmailSentAt: bm.missing_data_email_sent_at || null,
     completedAt: bm.completed_at || undefined,
     hasRallyMix: Boolean(bm.has_rally_mix ?? bm.hasRallyMix),
     hasExtend8ctAddon: Boolean(bm.has_extend_8ct_addon ?? bm.hasExtend8ctAddon),
@@ -154,6 +161,12 @@ export async function updateMTDRecordApi(
   if (patch.recordStatus !== undefined) payload.record_status = patch.recordStatus;
   if (patch.inMTD !== undefined) payload.in_mtd = patch.inMTD;
   if (patch.inPayroll !== undefined) payload.in_payroll = patch.inPayroll;
+  if (patch.isReassigned !== undefined) payload.is_reassigned = patch.isReassigned;
+  if (patch.collectionStates !== undefined) payload.collection_states = patch.collectionStates;
+  if ((patch as any).orderStatus !== undefined) payload.order_status = (patch as any).orderStatus;
+  if (patch.missingDataEmailSentAt !== undefined) {
+    payload.missing_data_email_sent_at = patch.missingDataEmailSentAt;
+  }
   if (patch.completedAt !== undefined) payload.completed_at = patch.completedAt;
   if (patch.hasRallyMix !== undefined) payload.has_rally_mix = patch.hasRallyMix;
   if (patch.hasExtend8ctAddon !== undefined) payload.has_extend_8ct_addon = patch.hasExtend8ctAddon;

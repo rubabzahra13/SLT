@@ -65,6 +65,8 @@ export function MTDPageToolbar({
   onFiltersReset,
   onPricingClick,
 }: MTDPageToolbarProps) {
+  const filterVariant = onRangeFilterChange ? "orders" : "mtd";
+
   return (
     <div className="space-y-2.5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -91,6 +93,7 @@ export function MTDPageToolbar({
           />
           <MTDTableFilterPanel
             grouped
+            variant={filterVariant}
             records={records}
             producers={producers}
             orderById={orderById}
@@ -126,6 +129,7 @@ export function MTDPageToolbar({
         onChange={onFiltersChange}
         onReset={onFiltersReset}
         form={form}
+        variant={filterVariant}
       />
     </div>
   );

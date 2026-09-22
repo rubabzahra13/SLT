@@ -125,7 +125,7 @@ export default function ProducersPage() {
       <PageHeader
         title="Producer Roster"
         badge={`${uniqueProducers.length} producers`}
-        subtitle="Manage producers, add, edit, or remove without dev help"
+        subtitle="Manage producers"
         action={isViewOnly ? undefined : { label: "Add Producer", onClick: openAdd }}
       />
 

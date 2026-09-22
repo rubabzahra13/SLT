@@ -345,8 +345,8 @@ export default function ScheduleTimeOffPage() {
       let n = 0;
       if (mode === "overtime") {
         for (const row of otApplyRows) {
-          const producer = sortedProducers.find((p) => p.id === row.id);
-          if (!producer) continue;
+        const producer = sortedProducers.find((p) => p.id === row.id);
+        if (!producer) continue;
           const next = [...new Set([...producer.overtimeDays, otDate])].sort(
             (a, b) => a.localeCompare(b)
           );
@@ -368,7 +368,7 @@ export default function ScheduleTimeOffPage() {
             n += 1;
           }
         }
-        setCancelOtIds(new Set());
+      setCancelOtIds(new Set());
         setStatus(
           mode === "holidays"
             ? n === 1
@@ -492,12 +492,12 @@ export default function ScheduleTimeOffPage() {
                     <p className="text-[14px] font-semibold text-brand-ink">
                       No holidays in catalog
                     </p>
-                    <Link
-                      href="/settings/holidays"
+                <Link
+                  href="/settings/holidays"
                       className="mt-2 inline-block text-[13px] font-semibold text-brand-blue"
-                    >
+                >
                       Add holidays in Settings
-                    </Link>
+                </Link>
                   </div>
                 ) : (
                   <ul
@@ -688,7 +688,7 @@ export default function ScheduleTimeOffPage() {
                     <CalendarPlus className="h-3.5 w-3.5" strokeWidth={2.5} />
                     Pick day
                   </button>
-                </div>
+                  </div>
                 <button
                   type="button"
                   onClick={() =>
@@ -926,13 +926,13 @@ export default function ScheduleTimeOffPage() {
                   onClose={() => setDateField(null)}
                   excludeRef={leaveStartRef}
                   value={leaveStart}
-                  minIso={leaveMin}
-                  maxIso={leaveMax}
+                    minIso={leaveMin}
+                    maxIso={leaveMax}
                   ariaLabel="Leave start date"
                   onSelect={(iso) => {
-                    setLeaveStart(iso);
-                    if (leaveEnd < iso) setLeaveEnd(iso);
-                  }}
+                      setLeaveStart(iso);
+                      if (leaveEnd < iso) setLeaveEnd(iso);
+                    }}
                 />
                 <DayCalendarPicker
                   open={dateField === "end"}
@@ -943,8 +943,8 @@ export default function ScheduleTimeOffPage() {
                   maxIso={leaveMax}
                   ariaLabel="Leave end date"
                   onSelect={setLeaveEnd}
-                />
-              </div>
+                    />
+                  </div>
               <div className="flex flex-1 items-center justify-center px-5 py-4">
                 {leaveProducerId ? (
                   <div className="flex flex-col items-center text-center">
@@ -963,8 +963,8 @@ export default function ScheduleTimeOffPage() {
                       {leaveReasonLabel || "Name this leave"}
                     </p>
                   </div>
-                ) : null}
-              </div>
+                        ) : null}
+                      </div>
             </>
           )}
 
@@ -985,7 +985,7 @@ export default function ScheduleTimeOffPage() {
                       <span className="tabular-nums">{otSkipRows.length}</span>{" "}
                       skipped
                     </>
-                  ) : null}
+                                ) : null}
                 </p>
                 {otApplyRows.length > 0 ? (
                   <div className="mt-2 flex justify-center gap-1 overflow-x-auto pb-0.5 scrollbar-hide">
@@ -1001,7 +1001,7 @@ export default function ScheduleTimeOffPage() {
                     {otApplyRows.length > 10 ? (
                       <span className="self-center text-[11px] font-medium text-brand-ink-tertiary">
                         +{otApplyRows.length - 10}
-                      </span>
+                              </span>
                     ) : null}
                   </div>
                 ) : null}
@@ -1015,15 +1015,15 @@ export default function ScheduleTimeOffPage() {
                           : row.status === "already"
                             ? "already overtime"
                             : "time off"}
-                      </li>
-                    ))}
+                            </li>
+                          ))}
                     {otSkipRows.length > 4 ? (
                       <li>+{otSkipRows.length - 4} more</li>
                     ) : null}
-                  </ul>
+                        </ul>
                 ) : null}
-              </>
-            ) : (
+                    </>
+                  ) : (
               <>
                 <p
                   className="text-center text-[12px] text-brand-ink-secondary"
@@ -1062,8 +1062,8 @@ export default function ScheduleTimeOffPage() {
                       <span className="self-center text-[11px] font-medium text-brand-ink-tertiary">
                         +{applyRows.length - 10}
                       </span>
-                    ) : null}
-                  </div>
+              ) : null}
+            </div>
                 ) : null}
                 {otRows.length > 0 ? (
                   <ul className="mt-2 max-h-16 space-y-1 overflow-y-auto scrollbar-hide">
@@ -1104,7 +1104,7 @@ export default function ScheduleTimeOffPage() {
               <p className="mt-2 text-center text-[13px] font-semibold text-brand-signature">
                 {status}
               </p>
-            ) : null}
+                  ) : null}
             {!isViewOnly ? (
               <button
                 type="button"
@@ -1174,8 +1174,8 @@ export default function ScheduleTimeOffPage() {
                 upcomingOt.map((row) => {
                   const producer = producersById.get(row.producerId);
                   return (
-                    <li
-                      key={row.key}
+                  <li
+                    key={row.key}
                       className="flex items-center gap-2 px-2.5 py-2"
                     >
                       <Avatar
@@ -1188,25 +1188,25 @@ export default function ScheduleTimeOffPage() {
                           {formatOvertimeDayLabel(row.iso)}
                         </p>
                         <p className="truncate text-[11px] text-brand-ink-secondary">
-                          {row.producerName}
-                        </p>
+                        {row.producerName}
+                      </p>
                         <p className="text-[10px] tabular-nums text-brand-ink-tertiary">
                           {row.iso}
-                        </p>
-                      </div>
-                      {!isViewOnly ? (
-                        <button
-                          type="button"
-                          onClick={() =>
+                      </p>
+                    </div>
+                    {!isViewOnly ? (
+                      <button
+                        type="button"
+                        onClick={() =>
                             void removeOvertimeDay(row.producerId, row.iso)
-                          }
+                        }
                           className="shrink-0 rounded-full p-1.5 text-brand-ink-tertiary hover:bg-brand-bg hover:text-brand-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue/30"
                           aria-label={`Remove overtime ${row.iso} for ${row.producerName}`}
-                        >
+                      >
                           <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      ) : null}
-                    </li>
+                      </button>
+                    ) : null}
+                  </li>
                   );
                 })
               )
@@ -1241,17 +1241,17 @@ export default function ScheduleTimeOffPage() {
                       <p className="text-[10px] tabular-nums text-brand-ink-tertiary">
                         {formatTimeOffRangeLabel(row.entry)}
                       </p>
-                    </div>
+        </div>
                     {!isViewOnly ? (
-                      <button
-                        type="button"
+            <button
+              type="button"
                         onClick={() => void removeEntry(row.producerId, row.entry.id)}
                         className="shrink-0 rounded-full p-1.5 text-brand-ink-tertiary hover:bg-brand-bg hover:text-brand-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue/30"
                         aria-label={`Remove ${row.entry.reason} for ${row.producerName}`}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    ) : null}
+            </button>
+        ) : null}
                   </li>
                 );
               })

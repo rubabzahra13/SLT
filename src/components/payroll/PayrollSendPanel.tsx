@@ -10,6 +10,7 @@ import {
   type PayrollSendPreviewItem,
 } from "@/components/payroll/PayrollSendMailModal";
 import { useAuth } from "@/context/AuthContext";
+import { useAppState } from "@/context/AppStateContext";
 import {
   calculateDateBounds,
   payPeriodRangeLabel,
@@ -93,6 +94,7 @@ export function PayrollSendPanel({
   payrollAddons = [],
 }: PayrollSendPanelProps) {
   const { token, isViewOnly } = useAuth();
+  const { emailTemplates } = useAppState();
   const [gmailConnected, setGmailConnected] = useState(false);
   const [gmailFrom, setGmailFrom] = useState<string | null>(null);
   const [loadingGmail, setLoadingGmail] = useState(true);
@@ -206,7 +208,8 @@ export function PayrollSendPanel({
         producer,
         mixCount,
         periodLabel,
-        categoryLabel
+        categoryLabel,
+        emailTemplates.producer_payroll
       );
 
       return [
@@ -226,6 +229,7 @@ export function PayrollSendPanel({
     periodLabel,
     categoryLabel,
     payrollRecords,
+    emailTemplates.producer_payroll,
     allOrders,
     filterPeriod,
   ]);
@@ -285,7 +289,8 @@ export function PayrollSendPanel({
         producer,
         mixCount,
         periodLabel,
-        categoryLabel
+        categoryLabel,
+        emailTemplates.producer_payroll
       );
       const excelAttachment = generatePayrollExcelAttachment(rows);
 
@@ -315,6 +320,7 @@ export function PayrollSendPanel({
       periodLabel,
       categoryLabel,
       token,
+      emailTemplates.producer_payroll,
     ]
   );
 

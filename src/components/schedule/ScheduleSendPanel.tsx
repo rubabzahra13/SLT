@@ -10,6 +10,7 @@ import {
   type ScheduleSendPreviewItem,
 } from "@/components/schedule/ScheduleSendMailModal";
 import { useAuth } from "@/context/AuthContext";
+import { useAppState } from "@/context/AppStateContext";
 import { todayIso } from "@/lib/date-filters";
 import { ApiClientError } from "@/lib/api/client";
 import { getGmailStatus, sendGmailEmail } from "@/lib/api/gmail";
@@ -90,6 +91,7 @@ export function ScheduleSendPanel({
   sendView,
 }: ScheduleSendPanelProps) {
   const { token, isViewOnly } = useAuth();
+  const { emailTemplates } = useAppState();
   const [gmailConnected, setGmailConnected] = useState(false);
   const [gmailFrom, setGmailFrom] = useState<string | null>(null);
   const [loadingGmail, setLoadingGmail] = useState(true);
@@ -184,7 +186,12 @@ export function ScheduleSendPanel({
         producerName,
         filterPeriod
       );
-      const draft = buildScheduleMailDraft(producer, mixCount, categoryLabel);
+      const draft = buildScheduleMailDraft(
+        producer,
+        mixCount,
+        categoryLabel,
+        emailTemplates.producer_schedule
+      );
 
       return [
         {
@@ -204,6 +211,7 @@ export function ScheduleSendPanel({
     mtdRecords,
     allOrders,
     filterPeriod,
+    emailTemplates.producer_schedule,
   ]);
 
   const missingEmailNames = useMemo(
@@ -256,7 +264,12 @@ export function ScheduleSendPanel({
         producerName,
         filterPeriod
       );
-      const draft = buildScheduleMailDraft(producer, mixCount, categoryLabel);
+      const draft = buildScheduleMailDraft(
+        producer,
+        mixCount,
+        categoryLabel,
+        emailTemplates.producer_schedule
+      );
       const excelAttachment = generateScheduleExcelAttachment(rows);
 
       await sendGmailEmail(
@@ -284,6 +297,7 @@ export function ScheduleSendPanel({
       categoryLabel,
       token,
       filterPeriod,
+      emailTemplates.producer_schedule,
     ]
   );
 

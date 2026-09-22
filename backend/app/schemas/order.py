@@ -77,6 +77,7 @@ class OrderSchema(BaseModel):
     attention_reason: Optional[str] = None
     is_past_order: bool = False
     is_reassigned: bool = False
+    missing_data_email_sent_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -161,5 +162,6 @@ class OrderUpdateSchema(BaseModel):
     completed_at: Optional[datetime] = None
     is_past_order: Optional[bool] = None
     is_reassigned: Optional[bool] = None
+    missing_data_email_sent_at: Optional[datetime] = None
     collection_states: Optional[Any] = None
     order_status: Optional[str] = None
