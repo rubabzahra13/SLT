@@ -105,8 +105,7 @@ describe("Producer work days on schedule and booking", () => {
       "CM",
       [monSatProducer],
       [],
-      [],
-      fromSunday
+      []
     );
 
     assert.ok(slot);
@@ -120,8 +119,7 @@ describe("Producer work days on schedule and booking", () => {
       "Casey Marlow",
       [monSatProducer],
       [],
-      [],
-      fromFriday
+      []
     );
     assert.equal(slot?.date, "2026-08-21");
     assert.match(slot?.date ?? "", /^\d{4}-\d{2}-\d{2}$/);

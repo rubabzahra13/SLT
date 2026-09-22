@@ -133,6 +133,7 @@ describe("Orders Tab & Workflow Separation", () => {
       status: "new",
       createdAt: "2026-01-01",
       needsAttention: false,
+      attentionReason: null,
       formType: "school-all-star-cheer",
       cheerFormSubtype: "all-star-cheer",
     };
