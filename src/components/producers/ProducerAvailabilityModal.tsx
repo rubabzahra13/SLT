@@ -540,6 +540,9 @@ export function ProducerAvailabilityModal({
 
   if (!open || !producer) return null;
 
+  // Nested helpers don't keep the null narrowing from the guard above.
+  const producerId = producer.id;
+
   const usesPercentageCompensation =
     producer.compensationModel !== "not_paid_for_mixing" &&
     producer.compensationModel !== "hourly_manual";
@@ -652,7 +655,7 @@ export function ProducerAvailabilityModal({
 
   function isBlockedTimeOffCalendarDay(iso: string): boolean {
     if (getBlockedTimeOffDays().includes(iso)) return true;
-    if (isStudioHolidayIso(iso, holidays, producer.id)) return true;
+    if (isStudioHolidayIso(iso, holidays, producerId)) return true;
     if (isNonWorkTimeOffDay(iso)) return true;
     return false;
   }
@@ -817,7 +820,7 @@ export function ProducerAvailabilityModal({
     const date = new Date(y, m - 1, d);
     if (!isEligibleOvertimeDate(date, workDays)) return;
     // Holidays only block OT on off days; work-day holidays already fail above.
-    if (isStudioHolidayIso(value, holidays, producer.id)) return;
+    if (isStudioHolidayIso(value, holidays, producerId)) return;
     setOvertimeDays((prev) =>
       [...new Set([...prev, value])].sort((a, b) => a.localeCompare(b))
     );
@@ -1003,7 +1006,7 @@ export function ProducerAvailabilityModal({
       return "Past day";
     }
     const outsideRange = disabled && isOutsideTimeOffFieldRange(iso);
-    const holidayNames = studioHolidayNamesForIso(iso, holidays, producer.id);
+    const holidayNames = studioHolidayNamesForIso(iso, holidays, producerId);
     if (holidayNames.length > 0) {
       const name =
         holidayNames.length === 1
@@ -1078,7 +1081,7 @@ export function ProducerAvailabilityModal({
     _disabled: boolean
   ): "overtime" | "holiday" | "leave" | undefined {
     if (iso < todayIso) return undefined;
-    if (isStudioHolidayIso(iso, holidays, producer.id)) return "holiday";
+    if (isStudioHolidayIso(iso, holidays, producerId)) return "holiday";
     // OT blue only when the day is otherwise a work day (leave could apply).
     if (overtimeDays.includes(iso) && !isNonWorkTimeOffDay(iso)) {
       return "overtime";
