@@ -13,6 +13,7 @@ import type {
   DiscountCode,
   MTDRecord,
   Order,
+  PayrollAddon,
   Producer,
   ScheduleEntry,
 } from "@/types";
@@ -64,6 +65,10 @@ import {
   createDiscountCodeApi,
   updateDiscountCodeApi,
   deleteDiscountCodeApi,
+  fetchPayrollAddonsApi,
+  createPayrollAddonApi,
+  deletePayrollAddonApi,
+  type CreatePayrollAddonPayload,
 } from "@/lib/api";
 
 type AppStateContextValue = {
@@ -75,6 +80,7 @@ type AppStateContextValue = {
   secretMenuPrices: SecretMenuPricing;
   producers: Producer[];
   discountCodes: DiscountCode[];
+  payrollAddons: PayrollAddon[];
   holidays: StudioHoliday[];
   personalReasons: StudioPersonalReason[];
   schedule: ScheduleEntry[];
@@ -98,6 +104,8 @@ type AppStateContextValue = {
   addDiscountCode: (discountCode: DiscountCode) => Promise<DiscountCode>;
   updateDiscountCode: (id: string, patch: Partial<DiscountCode>) => Promise<DiscountCode>;
   removeDiscountCode: (id: string) => Promise<void>;
+  addPayrollAddon: (payload: CreatePayrollAddonPayload) => Promise<PayrollAddon>;
+  removePayrollAddon: (id: string) => Promise<void>;
   addNotification: (notification: Omit<AppNotification, "id" | "read" | "createdAt">) => void;
   addHoliday: (holiday: StudioHoliday) => void;
   updateHoliday: (id: string, patch: Partial<StudioHoliday>) => void;
@@ -209,6 +217,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     deduplicateProducers(seed.producers.map((p) => normalizeProducer(p)))
   );
   const [discountCodes, setDiscountCodes] = useState<DiscountCode[]>([]);
+  const [payrollAddons, setPayrollAddons] = useState<PayrollAddon[]>([]);
   const [holidays, setHolidays] = useState<StudioHoliday[]>(() => {
     const stored = getLocalItem<StudioHoliday[] | null>("slt_studio_holidays", null);
     if (stored && Array.isArray(stored) && stored.length > 0) {
@@ -241,11 +250,12 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
     async function loadBackendData() {
       try {
-        const [producersData, ordersData, mtdData, codesData] = await Promise.all([
+        const [producersData, ordersData, mtdData, codesData, addonsData] = await Promise.all([
           fetchProducersApi(),
           fetchOrdersApi(),
           fetchMTDRecordsApi(),
           fetchDiscountCodesApi(),
+          fetchPayrollAddonsApi(),
         ]);
 
         if (!isMounted) return;
@@ -294,6 +304,10 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           // Replace state entirely — no seed fallback.
           const normalizedCodes = codesData.map((c) => normalizeDiscountCode(c));
           setDiscountCodes(normalizedCodes);
+        }
+
+        if (addonsData) {
+          setPayrollAddons(addonsData);
         }
 
         setIsBackendConnected(true);
@@ -1054,6 +1068,25 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     [isViewOnly]
   );
 
+  const addPayrollAddon = useCallback(
+    async (payload: CreatePayrollAddonPayload): Promise<PayrollAddon> => {
+      if (isViewOnly) throw new Error("View-only accounts cannot add payroll items.");
+      const addon = await createPayrollAddonApi(payload);
+      setPayrollAddons((prev) => [addon, ...prev]);
+      return addon;
+    },
+    [isViewOnly]
+  );
+
+  const removePayrollAddon = useCallback(
+    async (id: string): Promise<void> => {
+      if (isViewOnly) throw new Error("View-only accounts cannot delete payroll items.");
+      await deletePayrollAddonApi(id);
+      setPayrollAddons((prev) => prev.filter((a) => a.id !== id));
+    },
+    [isViewOnly]
+  );
+
   const markNotificationRead = useCallback((id: string) => {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, read: true } : n))
@@ -1075,6 +1108,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     secretMenuPrices,
     producers,
     discountCodes,
+    payrollAddons,
     holidays,
     personalReasons,
     schedule,
@@ -1097,6 +1131,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     addDiscountCode,
     updateDiscountCode,
     removeDiscountCode,
+    addPayrollAddon,
+    removePayrollAddon,
     addNotification,
     addHoliday,
     updateHoliday,

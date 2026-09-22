@@ -931,3 +931,22 @@ export const EDITOR_NAMES = [
   "JOP",
   "R",
 ] as const;
+
+export type PayrollAddon = {
+  id: string;
+  programName: string;
+  contactName?: string | null;
+  /** "Cheer" | "Dance" */
+  category: string;
+  /** "voiceover" | "rush_fee" */
+  addonType: "voiceover" | "rush_fee";
+  amount: number;
+  /** "predefined" | "manual" */
+  rateSource: "predefined" | "manual";
+  /** Required — which producer this payout goes to */
+  producerId?: string | null;
+  producerInitials?: string | null;
+  notes?: string | null;
+  createdAt: string;
+};
+

@@ -32,7 +32,7 @@ import {
   renderPayrollMailPlainText,
   stringToBase64,
 } from "@/lib/producer-payroll-mail";
-import type { MTDRecord, Order, Producer } from "@/types";
+import type { MTDRecord, Order, Producer, PayrollAddon } from "@/types";
 
 type PayrollSendPanelProps = {
   categoryLabel: string;
@@ -43,6 +43,7 @@ type PayrollSendPanelProps = {
   payrollRecords: MTDRecord[];
   allOrders: Order[];
   producers: Producer[];
+  payrollAddons?: PayrollAddon[];
 };
 
 type SendFeedback = {
@@ -89,6 +90,7 @@ export function PayrollSendPanel({
   payrollRecords,
   allOrders,
   producers,
+  payrollAddons = [],
 }: PayrollSendPanelProps) {
   const { token, isViewOnly } = useAuth();
   const [gmailConnected, setGmailConnected] = useState(false);
@@ -178,12 +180,13 @@ export function PayrollSendPanel({
         allOrders,
         producers,
         name,
-        filterPeriod
+        filterPeriod,
+        payrollAddons
       );
       counts.set(name, rows.length);
     }
     return counts;
-  }, [producerNames, payrollRecords, allOrders, producers, filterPeriod]);
+  }, [producerNames, payrollRecords, allOrders, producers, filterPeriod, payrollAddons]);
 
   const previewItems = useMemo<PayrollSendPreviewItem[]>(() => {
     return targetProducerNames.flatMap((producerName) => {
@@ -196,7 +199,8 @@ export function PayrollSendPanel({
         allOrders,
         producers,
         producerName,
-        filterPeriod
+        filterPeriod,
+        payrollAddons
       );
       const draft = buildPayrollMailDraft(
         producer,
@@ -246,7 +250,8 @@ export function PayrollSendPanel({
           allOrders,
           producers,
           targetName,
-          filterPeriod
+          filterPeriod,
+          payrollAddons
         );
         triggerCsvDownload(
           `Payroll_Producer_Statement_${targetName.replace(/\s+/g, "_")}_${todayIso()}.csv`,

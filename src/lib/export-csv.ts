@@ -1,4 +1,4 @@
-import type { MTDRecord, Order, Producer } from "@/types";
+import type { MTDRecord, Order, Producer, PayrollAddon } from "@/types";
 import { formatPrice } from "./data";
 import { doDateRangesOverlap, toIsoDateString } from "./dates";
 import {
@@ -438,7 +438,8 @@ export function getProducerFacingPayrollRows(
   allOrders: Order[],
   producers: Producer[],
   targetProducerName: string,
-  filterPeriod?: { start?: string; end?: string }
+  filterPeriod?: { start?: string; end?: string },
+  payrollAddons?: PayrollAddon[]
 ): ProducerFacingPayrollRow[] {
   const orderById = new Map(allOrders.map((o) => [o.id, o]));
 
@@ -550,6 +551,52 @@ export function getProducerFacingPayrollRows(
     preparedRows.push(row);
   }
 
+  // Append standalone add-on rows attributed to this producer
+  if (payrollAddons && payrollAddons.length > 0) {
+    const targetUpper = targetProducerName.trim().toUpperCase();
+    const addonRows = payrollAddons.filter((addon) => {
+      if (!addon.producerInitials && !addon.producerId) return false;
+      // Match by initials or producer name
+      const producerObj = producers.find(
+        (p) =>
+          p.name.toUpperCase() === targetUpper ||
+          p.initials.toUpperCase() === targetUpper
+      );
+      if (!producerObj) return false;
+      return (
+        addon.producerInitials?.toUpperCase() === producerObj.initials.toUpperCase() ||
+        addon.producerId === producerObj.id
+      );
+    });
+
+    for (const addon of addonRows) {
+      const typeLabel =
+        addon.addonType === "voiceover" ? "Voiceover" : "Rush Fee";
+      const addonRow: ProducerFacingPayrollRow = {
+        completedDate: toIsoDateString(addon.createdAt) || addon.createdAt,
+        programName: addon.programName,
+        category: addon.category,
+        subtype: `${typeLabel} Add-on`,
+        package: "—",
+        timeLimit: "—",
+        voiceoverAddon: addon.addonType === "voiceover" ? formatPrice(addon.amount) : "—",
+        rushFee: addon.addonType === "rush_fee" ? formatPrice(addon.amount) : "—",
+        danceExtraSongs: "",
+        danceExtraSongTime: "",
+        producerRate: "—",
+        voiceoverPayout: addon.addonType === "voiceover" ? formatPrice(addon.amount) : "$0.00",
+        rushPayout: addon.addonType === "rush_fee" ? formatPrice(addon.amount) : "$0.00",
+        danceExtraSongsPayout: "",
+        danceExtraSongTimePayout: "",
+        totalPayout: formatPrice(addon.amount),
+        producerName: addon.producerInitials ?? targetProducerName,
+        recId: addon.id,
+        rawTotalPayout: addon.amount,
+      };
+      preparedRows.push(addonRow);
+    }
+  }
+
   return preparedRows;
 }
 
@@ -558,14 +605,16 @@ export function generateProducerFacingPayrollCsv(
   allOrders: Order[],
   producers: Producer[],
   targetProducerName: string,
-  filterPeriod?: { start?: string; end?: string }
+  filterPeriod?: { start?: string; end?: string },
+  payrollAddons?: PayrollAddon[]
 ): string {
   const rows = getProducerFacingPayrollRows(
     records,
     allOrders,
     producers,
     targetProducerName,
-    filterPeriod
+    filterPeriod,
+    payrollAddons
   );
   return buildCsvString(PRODUCER_STATEMENT_COLUMNS, rows);
 }
