@@ -568,6 +568,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       if ((patch as any).collection_states !== undefined) orderPatch.collection_states = (patch as any).collection_states;
       if (patch.haveSongs !== undefined) orderPatch.haveSongs = patch.haveSongs;
       if (patch.eightCountSheet !== undefined) orderPatch.eightCountSheet = patch.eightCountSheet;
+      if ((patch as any).orderStatus !== undefined) orderPatch.orderStatus = (patch as any).orderStatus;
+      if ((patch as any).order_status !== undefined) orderPatch.order_status = (patch as any).order_status;
 
       if (Object.keys(orderPatch).length > 0) {
         setActiveOrders((prev) =>

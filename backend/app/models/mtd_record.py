@@ -29,6 +29,7 @@ class MTDRecord(Base):
     eight_count_sheet = Column(String, default="", nullable=False)
     have_songs = Column(String, default="", nullable=False)
     collection_states = Column(JSON, nullable=True)
+    order_status = Column(String, nullable=True)
     needs_attention = Column(Boolean, default=False, nullable=False)
     status = Column(String, default="active", nullable=False)
     record_status = Column(String, nullable=True)

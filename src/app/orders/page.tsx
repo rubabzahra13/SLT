@@ -19,6 +19,7 @@ import { SetRecordPricingModal } from "@/components/mtd/SetRecordPricingModal";
 import { CompletionBlockedModal } from "@/components/mtd/CompletionBlockedModal";
 import { ForwardOrderMailModal } from "@/components/orders/ForwardOrderMailModal";
 import { OrderRequirementsCell } from "@/components/orders/OrderRequirementsCell";
+import { OrderStatusDropdown } from "@/components/orders/OrderStatusDropdown";
 import {
   DEFAULT_MTD_TABLE_FILTERS,
   type MTDTableFilterState,
@@ -871,26 +872,12 @@ function OrdersPageContent() {
       {
         key: "status",
         header: "Status",
-        width: "140px",
+        width: "155px",
         align: "center" as const,
         nowrap: false,
         cellClassName: compactCellClass,
         headerClassName: compactHeaderClass,
-        render: (rec: MTDRecord) => {
-          const { status, isWaitingForData } = getOrderStatus(rec);
-          return (
-            <span
-              className={clsx(
-                "inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition shadow-2xs whitespace-nowrap",
-                isWaitingForData
-                  ? "bg-[#f9d7d7] text-[#901313] border border-[#ebafaf]"
-                  : "bg-[#c2e7d9] text-[#0f5236] border border-[#9edbb8]"
-              )}
-            >
-              {status}
-            </span>
-          );
-        },
+        render: (rec: MTDRecord) => <OrderStatusDropdown record={rec} />,
       },
       {
         key: "actions",

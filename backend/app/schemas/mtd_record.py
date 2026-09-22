@@ -27,6 +27,7 @@ class MTDRecordSchema(BaseModel):
     eight_count_sheet: str = ""
     have_songs: str = ""
     collection_states: Optional[Any] = None
+    order_status: Optional[str] = None
     needs_attention: bool = False
     status: str = "active"
     record_status: Optional[str] = None
@@ -115,6 +116,7 @@ class MTDRecordUpdateSchema(BaseModel):
     eight_count_sheet: Optional[str] = None
     have_songs: Optional[str] = None
     collection_states: Optional[Any] = None
+    order_status: Optional[str] = None
     needs_attention: Optional[bool] = None
     status: Optional[str] = None
     record_status: Optional[str] = None

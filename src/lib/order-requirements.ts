@@ -121,14 +121,19 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
       needEightCount = true;
       needVideo = true;
       needSongs = false;
+      needTimeOfMix = false;
     } else if (pkgStr.includes("PLATINUM")) {
       needSongs = true;
       songsLabel = "Songs";
       needEightCount = true;
       needVideo = true;
+      needTimeOfMix = false;
     } else if (pkgStr.includes("GOLD") || pkgStr.includes("SILVER") || pkgStr.includes("BRONZE")) {
       needSongs = true;
       songsLabel = "Songs";
+      needEightCount = false;
+      needVideo = false;
+      needTimeOfMix = false;
     } else {
       needSongs = true;
       songsLabel = "Songs";
@@ -139,7 +144,9 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
       needSongs = true;
       songsLabel = "Song";
       needTimeOfMix = true;
-    } else if (pkgStr.includes("DRUM CADENCE") || pkgStr.includes("BOTH FIGHT SONG")) {
+      needNotes = false;
+    } else if (pkgStr.includes("DRUM CADENCE") || pkgStr.includes("BOTH FIGHT SONG") || pkgStr.includes("ALMA MATER")) {
+      needSongs = false;
       needTimeOfMix = true;
       needNotes = true;
     } else {
@@ -160,35 +167,12 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
   } else {
     needSongs = true;
     needTimeOfMix = true;
-    needCompliancy = true;
   }
 
   // --- COLLECTIONS GROUP ---
+  // Form field removed from collections table per user request
 
-  // 1. FORM / COMPLIANCY
-  {
-    const override = getOverrideState(order, "form") ?? getOverrideState(order, "compliancy");
-    const affiliate = (order as Order).musicAffiliate || (order as any).music_affiliate || (order as any).powerMusicCovers;
-    const defaultProvided = isPresent(affiliate);
-    const isApplicable = needCompliancy;
-    let state: RequirementState = "white";
-    if (isApplicable) {
-      const isCollected = override !== undefined ? override : defaultProvided;
-      state = isCollected ? "green" : "red";
-    }
-    requirements.push({
-      id: "form",
-      label: "Form",
-      category: "collections",
-      state,
-      isApplicable,
-      provided: state === "green",
-      value: defaultProvided ? affiliate!.trim() : undefined,
-      status: state === "green" ? "green" : state === "red" ? "red" : "white",
-    });
-  }
-
-  // 2. MIX / TIME OF MIX
+  // 1. MIX / TIME OF MIX
   {
     const override = getOverrideState(order, "mix") ?? getOverrideState(order, "time_of_mix");
     const hasOrderTimeProp =
@@ -216,7 +200,7 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
     });
   }
 
-  // 3. CS / 8-COUNT SHEETS
+  // 2. CS / 8-COUNT SHEETS
   {
     const override = getOverrideState(order, "cs") ?? getOverrideState(order, "eight_count");
     const sheetVal =
@@ -249,7 +233,7 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
     });
   }
 
-  // 4. VIDEO
+  // 3. VIDEO
   {
     const override = getOverrideState(order, "video");
     const notesVal =
@@ -286,7 +270,7 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
 
   // --- SONGS GROUP ---
 
-  // 5. SONGS
+  // 4. SONGS
   {
     const override = getOverrideState(order, "songs");
     const songsVal =
@@ -320,7 +304,7 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
     });
   }
 
-  // 6. NOTES
+  // 5. NOTES
   {
     const override = getOverrideState(order, "notes");
     const notesVal =
@@ -348,16 +332,32 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
     });
   }
 
+  // Background Compliancy check for status calculation if required
+  let compliancyMet = true;
+  if (needCompliancy) {
+    const override = getOverrideState(order, "compliancy") ?? getOverrideState(order, "form");
+    const affiliate = (order as Order).musicAffiliate || (order as any).music_affiliate || (order as any).powerMusicCovers;
+    const defaultProvided = isPresent(affiliate);
+    compliancyMet = override !== undefined ? override : defaultProvided;
+  }
+
   const collections = requirements.filter((r) => r.category === "collections");
   const songsArea = requirements.filter((r) => r.category === "songs");
 
   // Filter applicable items only (state is red or green)
   const applicableItems = requirements.filter((r) => r.isApplicable);
-  const hasRed = applicableItems.some((r) => r.state === "red");
-  const missingCount = applicableItems.filter((r) => r.state === "red").length;
+  const hasRed = applicableItems.some((r) => r.state === "red") || !compliancyMet;
+  const missingCount = applicableItems.filter((r) => r.state === "red").length + (!compliancyMet ? 1 : 0);
   const allMet = !hasRed;
 
-  const status = hasRed ? "Waiting for Data" : "Need to be Scheduled";
+  const calculatedStatus = hasRed ? "Waiting for Data" : "Need to be Scheduled";
+  const manualStatus = (order as any).orderStatus || (order as any).order_status;
+  const status: "Waiting for Data" | "Need to be Scheduled" =
+    manualStatus === "Waiting for Data" || manualStatus === "Need to be Scheduled"
+      ? manualStatus
+      : calculatedStatus;
+
+  const isWaitingForData = status === "Waiting for Data";
 
   return {
     collections,
@@ -366,7 +366,7 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
     allMet,
     missingCount,
     status,
-    isWaitingForData: hasRed,
+    isWaitingForData,
   };
 }
 

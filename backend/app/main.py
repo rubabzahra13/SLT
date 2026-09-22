@@ -34,11 +34,17 @@ async def lifespan(app: FastAPI):
                         conn.execute(text(f"ALTER TABLE {table} ADD COLUMN collection_states TEXT"))
                     except Exception:
                         pass
+                    try:
+                        conn.execute(text(f"ALTER TABLE {table} ADD COLUMN order_status VARCHAR"))
+                    except Exception:
+                        pass
             else:
                 conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS is_reassigned BOOLEAN DEFAULT FALSE;"))
                 conn.execute(text("ALTER TABLE mtd_records ADD COLUMN IF NOT EXISTS is_reassigned BOOLEAN DEFAULT FALSE;"))
                 conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS collection_states JSON;"))
                 conn.execute(text("ALTER TABLE mtd_records ADD COLUMN IF NOT EXISTS collection_states JSON;"))
+                conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS order_status VARCHAR;"))
+                conn.execute(text("ALTER TABLE mtd_records ADD COLUMN IF NOT EXISTS order_status VARCHAR;"))
     except Exception as exc:
         logger.warning("Auto-migration check skipped/failed: %s", exc)
 

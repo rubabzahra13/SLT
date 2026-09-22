@@ -58,6 +58,7 @@ class OrderSchema(BaseModel):
     coupon_code: Optional[str] = None
     how_did_you_find_out: Optional[str] = None
     collection_states: Optional[Any] = None
+    order_status: Optional[str] = None
 
     customer_name: str
     contact_name: str
@@ -161,3 +162,4 @@ class OrderUpdateSchema(BaseModel):
     is_past_order: Optional[bool] = None
     is_reassigned: Optional[bool] = None
     collection_states: Optional[Any] = None
+    order_status: Optional[str] = None
