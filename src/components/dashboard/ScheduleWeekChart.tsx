@@ -85,7 +85,7 @@ export function ScheduleWeekChart({
         <div className="mt-2.5 flex shrink-0 items-center justify-center gap-4 text-[9px] font-semibold uppercase tracking-wide text-brand-ink-tertiary">
           <DashboardTip
             title="Booked"
-            body="Producers marked unavailable — mixes or time off scheduled."
+            body="Producers marked unavailable. Mixes or time off scheduled."
             placement="top"
           >
             <span className="flex cursor-default items-center gap-1.5">

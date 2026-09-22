@@ -184,17 +184,28 @@ function UnavailableProducerAvatar({
   compact?: boolean;
 }) {
   const isOff = cell.status === "off";
+  const isNonwork = cell.status === "nonwork";
 
   return (
     <div
       className="flex shrink-0 flex-col items-center gap-0.5"
-      title={`${producer.name}${isOff ? " · Off" : " · Booked"}`}
+      title={`${producer.name}${
+        isOff
+          ? ` · Off${cell.offDetail ? ` · ${cell.offDetail}` : ""}`
+          : isNonwork
+            ? " · Non-working"
+            : " · Booked"
+      }`}
     >
       <div className="relative">
         <div
           className={clsx(
             "rounded-full ring-1 ring-offset-1 ring-offset-brand-elevated",
-            isOff ? "ring-brand-orange/55" : "ring-brand-blue/45"
+            isOff
+              ? "ring-brand-orange/55"
+              : isNonwork
+                ? "ring-brand-orange/40"
+                : "ring-brand-blue/45"
           )}
         >
           <Avatar producer={producer} size="xs" />
@@ -204,7 +215,9 @@ function UnavailableProducerAvatar({
             "pointer-events-none absolute inset-0 flex items-center justify-center rounded-full",
             isOff
               ? "bg-brand-orange/40"
-              : "bg-gradient-to-b from-brand-blue/55 to-brand-signature/55"
+              : isNonwork
+                ? "bg-brand-orange/40"
+                : "bg-gradient-to-b from-brand-blue/55 to-brand-signature/55"
           )}
         >
           <svg

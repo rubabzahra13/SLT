@@ -48,17 +48,28 @@ const anchorDate = new Date(2026, 8, 10); // Sept 10, 2026
             const cells = (0, schedule_view_1.getScheduleCells)(mockProducer, [], range, anchorDate, []);
             if (range === "week")
                 strict_1.default.equal(cells.length, 7);
-            if (range === "month")
+            if (range === "month") {
+                // Full September 2026 calendar month
                 strict_1.default.equal(cells.length, 30);
-            if (range === "90days")
+                strict_1.default.equal(cells[0]?.key, "2026-09-01");
+                strict_1.default.equal(cells[cells.length - 1]?.key, "2026-09-30");
+            }
+            if (range === "90days") {
                 strict_1.default.equal(cells.length, 90);
-            if (range === "6months")
-                strict_1.default.equal(cells.length, 180);
+                strict_1.default.equal(cells[0]?.key, "2026-09-10");
+                strict_1.default.equal(cells[cells.length - 1]?.key, "2026-12-08");
+            }
+            if (range === "6months") {
+                strict_1.default.equal(cells[0]?.key, "2026-09-10");
+                strict_1.default.equal(cells[cells.length - 1]?.key, "2027-03-10");
+                strict_1.default.ok(cells.length > 180);
+            }
         });
     });
     (0, node_test_1.it)("calculates range labels and cell sizes correctly for 6months while preserving 90days", () => {
-        strict_1.default.equal((0, schedule_view_1.rangeLabel)("90days", anchorDate), "Last 90 days");
-        strict_1.default.equal((0, schedule_view_1.rangeLabel)("6months", anchorDate), "Last 6 months");
+        strict_1.default.equal((0, schedule_view_1.rangeLabel)("month", anchorDate), "This month");
+        strict_1.default.equal((0, schedule_view_1.rangeLabel)("90days", anchorDate), "Next 90 days");
+        strict_1.default.equal((0, schedule_view_1.rangeLabel)("6months", anchorDate), "Next 6 months");
         strict_1.default.equal((0, schedule_view_1.cellSizeForRange)("90days"), "sm");
         strict_1.default.equal((0, schedule_view_1.cellSizeForRange)("6months"), "sm");
     });
@@ -66,6 +77,7 @@ const anchorDate = new Date(2026, 8, 10); // Sept 10, 2026
         strict_1.default.equal((0, schedule_view_1.statusLabel)("available"), "Available");
         strict_1.default.equal((0, schedule_view_1.statusLabel)("mix"), "Booked");
         strict_1.default.equal((0, schedule_view_1.statusLabel)("off"), "Off");
+        strict_1.default.equal((0, schedule_view_1.statusLabel)("nonwork"), "Non-working");
     });
     (0, node_test_1.it)("renders multiple mixes on the same date for the same producer as separate schedule bookings", () => {
         const mtdRecords = [

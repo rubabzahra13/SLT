@@ -7,6 +7,10 @@ import {
   producerKeysMatch,
 } from "@/lib/producer-keys";
 import { suggestMixEndDate } from "@/lib/scheduling";
+import {
+  isStudioHolidayIso,
+  type StudioHoliday,
+} from "@/lib/producer-time-off";
 
 const JS_DAY_TO_WEEKDAY: Weekday[] = [
   "sun",
@@ -75,6 +79,241 @@ export function isProducerWorkDay(producer: Producer, date: Date): boolean {
   return effectiveWorkDays(producer).includes(dateToWeekday(date));
 }
 
+/** True when this calendar date is outside the regular weekly workDays. */
+export function isEligibleOvertimeDate(
+  date: Date,
+  workDays: Weekday[]
+): boolean {
+  return !workDays.includes(dateToWeekday(date));
+}
+
+/** Time off only applies to regular workDays (not overtime / non-work weekdays). */
+export function isEligibleTimeOffDate(
+  date: Date,
+  workDays: Weekday[]
+): boolean {
+  return workDays.includes(dateToWeekday(date));
+}
+
+/** True when [startIso, endIso] includes at least one regular work day. */
+export function timeOffRangeCoversWorkDay(
+  startIso: string,
+  endIso: string,
+  workDays: Weekday[]
+): boolean {
+  const start = parseFlexibleDate(startIso);
+  const end = parseFlexibleDate(endIso || startIso);
+  if (!start || !end) return false;
+
+  const cursor = toDayStart(start);
+  const last = toDayStart(end);
+  while (cursor <= last) {
+    if (isEligibleTimeOffDate(cursor, workDays)) return true;
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return false;
+}
+
+const WEEKDAY_LONG: Record<Weekday, string> = {
+  sun: "Sunday",
+  mon: "Monday",
+  tue: "Tuesday",
+  wed: "Wednesday",
+  thu: "Thursday",
+  fri: "Friday",
+  sat: "Saturday",
+};
+
+export function formatWeekdayLong(day: Weekday): string {
+  return WEEKDAY_LONG[day];
+}
+
+/** e.g. "14 Feb 2027" */
+export function formatIsoDayMonthYear(iso: string): string {
+  const parsed = parseFlexibleDate(iso);
+  if (!parsed) return iso;
+  return parsed.toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function firstName(fullName: string): string {
+  const part = fullName.trim().split(/\s+/)[0];
+  return part || "This producer";
+}
+
+/**
+ * Clear copy when a time-off range falls entirely outside usual work days.
+ * Returns separate lines (no em dashes) for the notice modal.
+ */
+export function describeTimeOffOutsideWorkDaysParts(
+  producerName: string,
+  startIso: string,
+  endIso: string,
+  workDays: Weekday[]
+): { dateLine: string; producerLine: string } {
+  const start = parseFlexibleDate(startIso);
+  const end = parseFlexibleDate(endIso || startIso);
+  const name = firstName(producerName);
+  if (!start) {
+    return {
+      dateLine: "That date isn’t on their usual schedule.",
+      producerLine: `${name} usually doesn’t work that day.`,
+    };
+  }
+
+  const weekday = dateToWeekday(start);
+  const dayLabel = formatWeekdayLong(weekday);
+  const startLabel = formatIsoDayMonthYear(startIso);
+  const sameDay = !end || startIso === (endIso || startIso);
+
+  if (sameDay) {
+    return {
+      dateLine: `${startLabel} is a ${dayLabel}.`,
+      producerLine: `${name} usually doesn’t work on ${dayLabel}s.`,
+    };
+  }
+
+  const endLabel = formatIsoDayMonthYear(endIso || startIso);
+  const offDays = new Set<Weekday>();
+  const cursor = toDayStart(start);
+  const last = toDayStart(end ?? start);
+  while (cursor <= last) {
+    const day = dateToWeekday(cursor);
+    if (!workDays.includes(day)) offDays.add(day);
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  const offList = [...offDays].map(formatWeekdayLong);
+  if (offList.length === 1) {
+    return {
+      dateLine: `${startLabel} to ${endLabel} falls on ${offList[0]}.`,
+      producerLine: `${name} usually doesn’t work on ${offList[0]}s.`,
+    };
+  }
+  return {
+    dateLine: `${startLabel} to ${endLabel}.`,
+    producerLine: `These dates don’t include ${name}’s usual work days.`,
+  };
+}
+
+/** @deprecated Prefer describeTimeOffOutsideWorkDaysParts for UI. */
+export function describeTimeOffOutsideWorkDays(
+  producerName: string,
+  startIso: string,
+  endIso: string,
+  workDays: Weekday[]
+): string {
+  const parts = describeTimeOffOutsideWorkDaysParts(
+    producerName,
+    startIso,
+    endIso,
+    workDays
+  );
+  return `${parts.dateLine} ${parts.producerLine}`;
+}
+
+export function formatSkippedProducerSummary(
+  names: string[],
+  options?: { total?: number; previewLimit?: number }
+): {
+  countLabel: string;
+  ratioLabel: string | null;
+  shown: string[];
+  extra: number;
+  totalShown: number;
+} {
+  const previewLimit = options?.previewLimit ?? 3;
+  const shown = names.slice(0, previewLimit);
+  const extra = Math.max(0, names.length - shown.length);
+  const countLabel =
+    names.length === 1 ? "1 producer" : `${names.length} producers`;
+  const ratioLabel =
+    typeof options?.total === "number" && options.total > 0
+      ? `${names.length}/${options.total}`
+      : null;
+  return { countLabel, ratioLabel, shown, extra, totalShown: names.length };
+}
+
+/** Expand time-off entries into every YYYY-MM-DD they cover (inclusive). */
+export function expandTimeOffDates(
+  entries: { startDate: string; endDate?: string | null }[]
+): string[] {
+  const dates: string[] = [];
+  for (const entry of entries) {
+    const start = parseFlexibleDate(entry.startDate);
+    const end = parseFlexibleDate(entry.endDate || entry.startDate) ?? start;
+    if (!start) continue;
+    const cursor = toDayStart(start);
+    const last = toDayStart(end ?? start);
+    let guard = 0;
+    while (cursor <= last && guard < 400) {
+      dates.push(dateToIsoLocal(cursor));
+      cursor.setDate(cursor.getDate() + 1);
+      guard += 1;
+    }
+  }
+  return dates;
+}
+
+/** Overtime ISO dates that fall inside [startIso, endIso] inclusive. */
+export function overtimeDatesInRange(
+  overtimeDays: string[],
+  startIso: string,
+  endIso: string
+): string[] {
+  const end = endIso || startIso;
+  return overtimeDays
+    .filter((iso) => iso >= startIso && iso <= end)
+    .sort((a, b) => a.localeCompare(b));
+}
+
+/** Earliest overtime day on or after `iso`, if any. */
+export function nextOvertimeOnOrAfter(
+  overtimeDays: string[],
+  iso: string
+): string | null {
+  const next = overtimeDays
+    .filter((day) => day >= iso)
+    .sort((a, b) => a.localeCompare(b))[0];
+  return next ?? null;
+}
+
+/** Latest overtime day on or before `iso`, if any. */
+export function prevOvertimeOnOrBefore(
+  overtimeDays: string[],
+  iso: string
+): string | null {
+  const prev = overtimeDays
+    .filter((day) => day <= iso)
+    .sort((a, b) => a.localeCompare(b))
+    .at(-1);
+  return prev ?? null;
+}
+
+/**
+ * Time-off ranges cannot include overtime days.
+ * - Overtime days themselves are never selectable.
+ * - With an end date set, start must be after any overtime on/before that end.
+ * - With a start date set, end must be before any overtime on/after that start.
+ */
+export function isTimeOffDateBlockedByOvertime(
+  iso: string,
+  field: "start" | "end",
+  otherIso: string | null | undefined,
+  overtimeDays: string[]
+): boolean {
+  if (overtimeDays.includes(iso)) return true;
+  if (!otherIso) return false;
+  if (field === "start") {
+    const end = otherIso < iso ? iso : otherIso;
+    return overtimeDatesInRange(overtimeDays, iso, end).length > 0;
+  }
+  if (iso < otherIso) return true;
+  return overtimeDatesInRange(overtimeDays, otherIso, iso).length > 0;
+}
+
 export function isProducerOvertimeDay(producer: Producer, date: Date): boolean {
   const iso = dateToIsoLocal(date);
   return producer.overtimeDays.includes(iso);
@@ -85,8 +324,15 @@ export function isProducerScheduledDay(producer: Producer, date: Date): boolean 
   return isProducerWorkDay(producer, date) || isProducerOvertimeDay(producer, date);
 }
 
-export function isProducerOnTimeOff(producer: Producer, date: Date): boolean {
+export function isProducerOnTimeOff(
+  producer: Producer,
+  date: Date,
+  studioHolidays?: StudioHoliday[]
+): boolean {
   const dayIso = dateToIsoLocal(date);
+  if (studioHolidays?.length && isStudioHolidayIso(dayIso, studioHolidays, producer.id)) {
+    return true;
+  }
   return producer.timeOff.some(
     (entry) => dayIso >= entry.startDate && dayIso <= entry.endDate
   );
@@ -220,10 +466,17 @@ export function isProducerAvailableOnDay(
   producer: Producer,
   day: Date,
   mtdRecords: MTDRecord[],
-  excludeRecordId?: string
+  excludeRecordId?: string,
+  studioHolidays?: StudioHoliday[]
 ): boolean {
   if (!isProducerScheduledDay(producer, day)) return false;
-  if (isProducerOnTimeOff(producer, day)) return false;
+  // Time off / studio holidays only block regular work days. Overtime is undone by removing the OT date.
+  if (
+    isProducerWorkDay(producer, day) &&
+    isProducerOnTimeOff(producer, day, studioHolidays)
+  ) {
+    return false;
+  }
   if (!isProducerUnderDailyCapacity(producer, day, mtdRecords, excludeRecordId)) {
     return false;
   }
@@ -238,7 +491,8 @@ export function isProducerAvailableForMixWindow(
   startIso: string,
   endIso: string,
   mtdRecords: MTDRecord[],
-  excludeRecordId?: string
+  excludeRecordId?: string,
+  studioHolidays?: StudioHoliday[]
 ): boolean {
   const start = parseFlexibleDate(startIso);
   const end = parseFlexibleDate(endIso);
@@ -259,7 +513,8 @@ export function isProducerAvailableForMixWindow(
           producer,
           cursor,
           mtdRecords,
-          excludeRecordId
+          excludeRecordId,
+          studioHolidays
         )
       ) {
         return false;

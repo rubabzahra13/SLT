@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CalendarOff, Eye, Mail, Music, Pencil, Plus, Trash2 } from "lucide-react";
+import { Eye, Mail, Music, Pencil, Plus, Trash2 } from "lucide-react";
 import clsx from "clsx";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DeleteProducerModal } from "@/components/producers/DeleteProducerModal";
@@ -9,8 +9,8 @@ import { ProducerAvailabilityModal } from "@/components/producers/ProducerAvaila
 import { ProducerFormModal } from "@/components/producers/ProducerFormModal";
 import { Avatar } from "@/components/ui/Avatar";
 import { useAppState } from "@/context/AppStateContext";
-import { formatTimeOffRange, getProducerCategories } from "@/lib/producers";
-import type { Producer, ProducerTimeOff, Weekday } from "@/types";
+import { getProducerCategories } from "@/lib/producers";
+import type { Producer, Weekday } from "@/types";
 
 function getProducerHeaderLabel(categories: string[]): string {
   if (categories.length === 0) return "Producer";
@@ -82,7 +82,7 @@ export default function ProducersPage() {
 
   function handleSaveAvailability(patch: {
     workDays: Weekday[];
-    timeOff: ProducerTimeOff[];
+    timeOff: Producer["timeOff"];
     maxMixesPerDay: number | null;
     maxProducerCostPerDay: number | null;
     overtimeDays: string[];
@@ -91,7 +91,9 @@ export default function ProducersPage() {
     ratesByCategory: Record<string, number>;
   }) {
     if (isViewOnly || !availabilityProducer) return;
-    updateProducer(availabilityProducer.id, patch);
+    void updateProducer(availabilityProducer.id, patch).catch((err) => {
+      console.warn("Failed to save producer availability:", err);
+    });
   }
 
   function confirmDelete() {
@@ -198,34 +200,6 @@ export default function ProducersPage() {
                 />
                 <span>{producer.mixesThisWeek} mixes this week</span>
               </div>
-
-              {producer.timeOff.length > 0 ? (
-                <div className="rounded-xl border border-brand-line bg-brand-bg/60 px-3 py-2.5 text-left">
-                  <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-brand-ink-tertiary">
-                    <CalendarOff className="h-3 w-3" strokeWidth={2} />
-                    Time off
-                  </p>
-                  <ul className="mt-1.5 space-y-1.5">
-                    {producer.timeOff.slice(0, 2).map((entry) => (
-                      <li key={entry.id} className="text-[11px] leading-snug">
-                        <span className="font-medium text-brand-ink">
-                          {formatTimeOffRange(entry)}
-                        </span>
-                        <span className="text-brand-ink-tertiary">
-                          {" "}
-                          · {entry.type === "holiday" ? "Holiday" : "Personal"}
-                        </span>
-                        <p className="text-brand-ink-secondary">{entry.reason}</p>
-                      </li>
-                    ))}
-                    {producer.timeOff.length > 2 ? (
-                      <li className="text-[11px] text-brand-ink-tertiary">
-                        +{producer.timeOff.length - 2} more
-                      </li>
-                    ) : null}
-                  </ul>
-                </div>
-              ) : null}
 
               <button
                 type="button"

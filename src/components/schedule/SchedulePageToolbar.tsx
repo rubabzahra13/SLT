@@ -28,7 +28,7 @@ type SchedulePageToolbarProps = {
   view: ScheduleViewRange;
   statusFilter: ScheduleStatusFilter;
   columns: ColumnAggregate[];
-  availableToday: number;
+  availableCount: number;
   offToday: number;
   totalProducers: number;
   producers?: Producer[];
@@ -76,7 +76,7 @@ export function SchedulePageToolbar({
   view,
   statusFilter,
   columns,
-  availableToday,
+  availableCount,
   offToday,
   totalProducers,
   producers,
@@ -176,10 +176,10 @@ export function SchedulePageToolbar({
       <div className="border-t border-brand-line/30 px-1 pt-3.5">
         <ScheduleHeaderMeta
           columns={columns}
-          availableToday={availableToday}
+          availableCount={availableCount}
           offToday={offToday}
           totalProducers={totalProducers}
-          isToday={view === "today"}
+          view={view}
         />
       </div>
     </div>

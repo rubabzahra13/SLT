@@ -16,6 +16,14 @@ import type {
   Producer,
   ScheduleEntry,
 } from "@/types";
+import type { StudioHoliday, StudioPersonalReason } from "@/lib/producer-time-off";
+import {
+  createDefaultPersonalReasons,
+  createDefaultStudioHolidays,
+  ensurePersonalReasonsList,
+  normalizeStudioHoliday,
+  normalizeStudioPersonalReason,
+} from "@/lib/producer-time-off";
 import { getData } from "@/lib/data";
 import { normalizeOrder, orderToMTDRecord } from "@/lib/order-form";
 import { useAuth } from "@/context/AuthContext";
@@ -39,6 +47,7 @@ import { normalizeDiscountCode } from "@/lib/discount-codes";
 import { isOutsourcedRecord } from "@/lib/mtd-filters";
 import { inferMTDRecordStatus } from "@/lib/mtd-status";
 import { toIsoDateString } from "@/lib/dates";
+import { ApiClientError } from "@/lib/api/client";
 import {
   fetchProducersApi,
   createProducerApi,
@@ -66,6 +75,8 @@ type AppStateContextValue = {
   secretMenuPrices: SecretMenuPricing;
   producers: Producer[];
   discountCodes: DiscountCode[];
+  holidays: StudioHoliday[];
+  personalReasons: StudioPersonalReason[];
   schedule: ScheduleEntry[];
   notifications: AppNotification[];
   unreadCount: number;
@@ -88,6 +99,15 @@ type AppStateContextValue = {
   updateDiscountCode: (id: string, patch: Partial<DiscountCode>) => Promise<DiscountCode>;
   removeDiscountCode: (id: string) => Promise<void>;
   addNotification: (notification: Omit<AppNotification, "id" | "read" | "createdAt">) => void;
+  addHoliday: (holiday: StudioHoliday) => void;
+  updateHoliday: (id: string, patch: Partial<StudioHoliday>) => void;
+  removeHoliday: (id: string) => void;
+  addPersonalReason: (reason: StudioPersonalReason) => void;
+  updatePersonalReason: (
+    id: string,
+    patch: Partial<StudioPersonalReason>
+  ) => void;
+  removePersonalReason: (id: string) => void;
   markNotificationRead: (id: string) => void;
   markAllNotificationsRead: () => void;
   isInMTD: (orderId: string) => boolean;
@@ -138,6 +158,26 @@ function normalizeMTD(records: MTDRecord[]): MTDRecord[] {
 
 
 
+function getLocalItem<T>(key: string, fallback: T): T {
+  if (typeof window === "undefined") return fallback;
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    return JSON.parse(raw);
+  } catch {
+    return fallback;
+  }
+}
+
+function setLocalItem<T>(key: string, value: T): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Ignore quota or storage errors
+  }
+}
+
 export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const seed = getData();
 
@@ -169,6 +209,27 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     deduplicateProducers(seed.producers.map((p) => normalizeProducer(p)))
   );
   const [discountCodes, setDiscountCodes] = useState<DiscountCode[]>([]);
+  const [holidays, setHolidays] = useState<StudioHoliday[]>(() => {
+    const stored = getLocalItem<StudioHoliday[] | null>("slt_studio_holidays", null);
+    if (stored && Array.isArray(stored) && stored.length > 0) {
+      return stored.map((entry) => normalizeStudioHoliday(entry));
+    }
+    return createDefaultStudioHolidays();
+  });
+  const [personalReasons, setPersonalReasons] = useState<StudioPersonalReason[]>(
+    () => {
+      const stored = getLocalItem<StudioPersonalReason[] | null>(
+        "slt_studio_personal_reasons",
+        null
+      );
+      if (stored && Array.isArray(stored) && stored.length > 0) {
+        return ensurePersonalReasonsList(
+          stored.map((entry) => normalizeStudioPersonalReason(entry))
+        );
+      }
+      return createDefaultPersonalReasons();
+    }
+  );
   const [isBackendConnected, setIsBackendConnected] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
@@ -505,7 +566,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
             const mixStartDate = suggestMixStartDate(
               resolved,
               producers,
-              schedule
+              schedule,
+              mtdRecords
             );
             if (mixStartDate) {
               updated.mixStartDate = mixStartDate;
@@ -717,6 +779,9 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     const normalized = normalizeProducer(producer);
     const tempId = normalized.id;
     setProducers((prev) => [normalized, ...prev]);
+    if (!isBackendConnected) {
+      return normalized;
+    }
     try {
       const saved = await createProducerApi(normalized);
       setProducers((prev) =>
@@ -724,24 +789,39 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       );
       return saved;
     } catch (err) {
+      if (
+        err instanceof ApiClientError &&
+        (err.status === 0 || err.status >= 500)
+      ) {
+        setIsBackendConnected(false);
+        console.warn(
+          "Backend unavailable; keeping local producer create.",
+          err
+        );
+        return normalized;
+      }
       setProducers((prev) => prev.filter((p) => p.id !== tempId));
       throw err;
     }
-  }, [isViewOnly]);
+  }, [isViewOnly, isBackendConnected]);
 
   const updateProducer = useCallback(async (id: string, patch: Partial<Producer>) => {
     if (isViewOnly) {
       throw new Error("View-only accounts cannot edit producers.");
     }
     let previous: Producer | undefined;
+    let next: Producer | undefined;
     setProducers((prev) => {
       previous = prev.find((p) => p.id === id);
-      return prev.map((p) =>
-        p.id === id ? normalizeProducer({ ...p, ...patch, id }) : p
-      );
+      if (!previous) return prev;
+      next = normalizeProducer({ ...previous, ...patch, id });
+      return prev.map((p) => (p.id === id ? next! : p));
     });
-    if (!previous) {
+    if (!previous || !next) {
       throw new Error("Producer not found.");
+    }
+    if (!isBackendConnected) {
+      return next;
     }
     try {
       const saved = await updateProducerApi(
@@ -752,12 +832,23 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       setProducers((prev) => prev.map((p) => (p.id === id ? saved : p)));
       return saved;
     } catch (err) {
+      if (
+        err instanceof ApiClientError &&
+        (err.status === 0 || err.status >= 500)
+      ) {
+        setIsBackendConnected(false);
+        console.warn(
+          "Backend unavailable; keeping local producer update.",
+          err
+        );
+        return next;
+      }
       setProducers((prev) =>
         prev.map((p) => (p.id === id ? previous! : p))
       );
       throw err;
     }
-  }, [isViewOnly]);
+  }, [isViewOnly, isBackendConnected]);
 
   const removeProducer = useCallback(async (id: string) => {
     if (isViewOnly) {
@@ -771,13 +862,27 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     if (!removed) {
       throw new Error("Producer not found.");
     }
+    if (!isBackendConnected) {
+      return;
+    }
     try {
       await deleteProducerApi(id, resolveProducerApiId(removed));
     } catch (err) {
+      if (
+        err instanceof ApiClientError &&
+        (err.status === 0 || err.status >= 500)
+      ) {
+        setIsBackendConnected(false);
+        console.warn(
+          "Backend unavailable; keeping local producer delete.",
+          err
+        );
+        return;
+      }
       setProducers((prev) => [removed!, ...prev]);
       throw err;
     }
-  }, [isViewOnly]);
+  }, [isViewOnly, isBackendConnected]);
 
   const addDiscountCode = useCallback(
     async (discountCode: DiscountCode): Promise<DiscountCode> => {
@@ -860,6 +965,95 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     [isViewOnly]
   );
 
+  useEffect(() => {
+    setLocalItem("slt_studio_holidays", holidays);
+  }, [holidays]);
+
+  useEffect(() => {
+    setLocalItem("slt_studio_personal_reasons", personalReasons);
+  }, [personalReasons]);
+
+  const addHoliday = useCallback(
+    (holiday: StudioHoliday) => {
+      if (isViewOnly) return;
+      const normalized = normalizeStudioHoliday(holiday);
+      setHolidays((prev) => [normalized, ...prev]);
+    },
+    [isViewOnly]
+  );
+
+  const updateHoliday = useCallback(
+    (id: string, patch: Partial<StudioHoliday>) => {
+      if (isViewOnly) return;
+      setHolidays((prev) =>
+        prev.map((entry) =>
+          entry.id === id
+            ? normalizeStudioHoliday({ ...entry, ...patch, id })
+            : entry
+        )
+      );
+    },
+    [isViewOnly]
+  );
+
+  const removeHoliday = useCallback(
+    (id: string) => {
+      if (isViewOnly) return;
+      setHolidays((prev) => prev.filter((entry) => entry.id !== id));
+    },
+    [isViewOnly]
+  );
+
+  const addPersonalReason = useCallback(
+    (reason: StudioPersonalReason) => {
+      if (isViewOnly) return;
+      const normalized = normalizeStudioPersonalReason({
+        ...reason,
+        isOther: false,
+      });
+      setPersonalReasons((prev) =>
+        ensurePersonalReasonsList([normalized, ...prev])
+      );
+    },
+    [isViewOnly]
+  );
+
+  const updatePersonalReason = useCallback(
+    (id: string, patch: Partial<StudioPersonalReason>) => {
+      if (isViewOnly) return;
+      setPersonalReasons((prev) =>
+        ensurePersonalReasonsList(
+          prev.map((entry) => {
+            if (entry.id !== id) return entry;
+            if (entry.isOther) {
+              return normalizeStudioPersonalReason({
+                ...entry,
+                name: patch.name ?? entry.name,
+                enabled: true,
+                isOther: true,
+                id,
+              });
+            }
+            return normalizeStudioPersonalReason({ ...entry, ...patch, id });
+          })
+        )
+      );
+    },
+    [isViewOnly]
+  );
+
+  const removePersonalReason = useCallback(
+    (id: string) => {
+      if (isViewOnly) return;
+      setPersonalReasons((prev) =>
+        ensurePersonalReasonsList(
+          prev.filter((entry) => entry.id !== id || entry.isOther)
+        )
+      );
+    },
+    [isViewOnly]
+  );
+
   const markNotificationRead = useCallback((id: string) => {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, read: true } : n))
@@ -881,6 +1075,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     secretMenuPrices,
     producers,
     discountCodes,
+    holidays,
+    personalReasons,
     schedule,
     notifications,
     unreadCount,
@@ -902,6 +1098,12 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     updateDiscountCode,
     removeDiscountCode,
     addNotification,
+    addHoliday,
+    updateHoliday,
+    removeHoliday,
+    addPersonalReason,
+    updatePersonalReason,
+    removePersonalReason,
     markNotificationRead,
     markAllNotificationsRead,
     isInMTD,

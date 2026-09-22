@@ -1,14 +1,15 @@
 "use client";
 
-import type { ColumnAggregate } from "@/lib/schedule-view";
+import type { ReactNode } from "react";
+import type { ColumnAggregate, ScheduleViewRange } from "@/lib/schedule-view";
 import { ScheduleLegend } from "@/components/schedule/schedule-legend";
 
 type ScheduleHeaderMetaProps = {
   columns: ColumnAggregate[];
-  availableToday: number;
+  availableCount: number;
   offToday: number;
   totalProducers: number;
-  isToday?: boolean;
+  view: ScheduleViewRange;
 };
 
 function MetaStat({
@@ -16,7 +17,7 @@ function MetaStat({
   children,
 }: {
   label: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <div className="flex min-w-0 items-baseline gap-2">
@@ -32,11 +33,12 @@ function MetaStat({
 
 export function ScheduleHeaderMeta({
   columns,
-  availableToday,
+  availableCount,
   offToday,
   totalProducers,
-  isToday = false,
+  view,
 }: ScheduleHeaderMetaProps) {
+  const isToday = view === "today";
   const busiest = columns.reduce<ColumnAggregate | null>((best, col) => {
     if (!best || col.unavailableCount > best.unavailableCount) return col;
     return best;
@@ -46,7 +48,7 @@ export function ScheduleHeaderMeta({
     <div className="flex w-full flex-wrap items-center justify-between gap-x-6 gap-y-3">
       <div className="flex min-w-0 flex-wrap items-center gap-x-5 gap-y-2">
         <MetaStat label="Available today">
-          <span className="tabular-nums text-brand-signature">{availableToday}</span>
+          <span className="tabular-nums text-brand-signature">{availableCount}</span>
           <span className="text-[12px] font-medium text-brand-ink-tertiary">
             / {totalProducers}
           </span>

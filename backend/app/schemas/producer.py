@@ -1,5 +1,5 @@
-from pydantic import BaseModel, ConfigDict
-from typing import Optional, List, Dict, Any
+from pydantic import BaseModel, ConfigDict, field_validator
+from typing import Optional, List, Dict, Any, Union
 from uuid import UUID
 
 class ProducerTimeOffSchema(BaseModel):
@@ -10,6 +10,22 @@ class ProducerTimeOffSchema(BaseModel):
     reason: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("start_date", "end_date", mode="before")
+    @classmethod
+    def stringify_dates(cls, value: Any) -> str:
+        if hasattr(value, "isoformat"):
+            return value.isoformat()
+        return str(value)
+
+
+class ProducerTimeOffWriteSchema(BaseModel):
+    id: Optional[str] = None
+    start_date: str
+    end_date: str
+    type: str = "holiday"
+    reason: Optional[str] = None
+
 
 class ProducerSchema(BaseModel):
     id: UUID
@@ -26,6 +42,7 @@ class ProducerSchema(BaseModel):
     work_days: List[str] = ["mon", "tue", "wed", "thu", "fri"]
     time_offs: List[ProducerTimeOffSchema] = []
     max_mixes_per_day: Optional[int] = None
+    max_producer_cost_per_day: Optional[int] = None
     overtime_days: List[str] = []
 
     compensation_model: Optional[str] = None
@@ -51,7 +68,9 @@ class ProducerCreateSchema(BaseModel):
     status: Optional[str] = "available"
     work_days: Optional[List[str]] = ["mon", "tue", "wed", "thu", "fri"]
     max_mixes_per_day: Optional[int] = None
+    max_producer_cost_per_day: Optional[int] = None
     overtime_days: Optional[List[str]] = []
+    time_offs: Optional[List[ProducerTimeOffWriteSchema]] = None
 
     compensation_model: Optional[str] = None
     default_rate: Optional[float] = None
@@ -75,7 +94,9 @@ class ProducerUpdateSchema(BaseModel):
     status: Optional[str] = None
     work_days: Optional[List[str]] = None
     max_mixes_per_day: Optional[int] = None
+    max_producer_cost_per_day: Optional[int] = None
     overtime_days: Optional[List[str]] = None
+    time_offs: Optional[List[ProducerTimeOffWriteSchema]] = None
 
     compensation_model: Optional[str] = None
     default_rate: Optional[float] = None

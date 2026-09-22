@@ -45,7 +45,7 @@ function producerInsight(producer) {
     const statusCopy = producer.status === "available"
         ? "Open for new work in the current week view."
         : producer.status === "limited"
-            ? "Partially booked — confirm schedule before assigning new mixes."
+            ? "Partially booked. Confirm schedule before assigning new mixes."
             : "Fully booked in the current schedule window.";
     return {
         title: producer.name,
@@ -69,10 +69,10 @@ function pipelineCategoryInsight(slice) {
 function mixOpsInsight(slice) {
     const tips = {
         "Missing data": "Invoice, pricing, or materials still needed before payroll.",
-        Assigned: "Producer assigned — track start and end dates on the schedule.",
+        Assigned: "Producer assigned. Track start and end dates on the schedule.",
         "Due this week": "Mix end date is within the next 7 days.",
         "Start today": "Scheduled to begin mixing today.",
-        Overdue: "Past mix end date — prioritize in MTD.",
+        Overdue: "Past mix end date. Prioritize in MTD.",
     };
     return {
         title: slice.label,
@@ -107,7 +107,7 @@ function weekCapacityPanelInsight(pulse) {
 function pipelinePanelInsight(total) {
     return {
         title: "Active pipeline",
-        body: `${total} mix${total === 1 ? "" : "es"} on the MTD board by category — completed and payroll rows excluded.`,
+        body: `${total} mix${total === 1 ? "" : "es"} on the MTD board by category. Completed and payroll rows excluded.`,
     };
 }
 function mixTimelineInsight(pulse, total) {

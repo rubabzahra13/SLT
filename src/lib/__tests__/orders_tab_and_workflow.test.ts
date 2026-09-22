@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { isMTDRecord, isPreMTDOrderRecord, isOrderScheduledAndAssigned } from "../mtd-filters";
+import { listPreMtdOrderRecords } from "../order-staging";
 import { mergeLocalMtdRecordFields } from "../mtd-completion";
 import { getOrderDetailSections } from "../order-detail-sections";
 import type { MTDRecord, Order } from "../../types";
@@ -113,6 +114,32 @@ describe("Orders Tab & Workflow Separation", () => {
     assert.equal(merged.assignedProducer, "CM");
     assert.equal(merged.inMTD, false);
     assert.equal(isPreMTDOrderRecord(merged), true);
+  });
+
+  it("Open orders without mtd_records appear on the Orders tab", () => {
+    const order: Order = {
+      id: "ord-open-1",
+      customerName: "Coach",
+      contactName: "Coach",
+      programName: "Demo Team",
+      category: "Cheer",
+      package: "Gold",
+      musicTheme: "",
+      editorRequest: "FA",
+      requestedProducer: "",
+      assignedProducer: null,
+      price: 299,
+      priceCompliance: "compliant",
+      status: "new",
+      createdAt: "2026-01-01",
+      needsAttention: false,
+      formType: "school-all-star-cheer",
+      cheerFormSubtype: "all-star-cheer",
+    };
+    const rows = listPreMtdOrderRecords([order], []);
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].orderId, order.id);
+    assert.equal(isPreMTDOrderRecord(rows[0]), true);
   });
 
   it("Outsourced mixes belong on the MTD tab even without full scheduling", () => {

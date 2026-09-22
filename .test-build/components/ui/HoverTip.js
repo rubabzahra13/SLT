@@ -54,7 +54,7 @@ function HoverTip({ label, content, children, className = "", placement = "botto
     return ((0, jsx_runtime_1.jsxs)("span", { ref: ref, className: `${baseDisplay}${className}`.trim(), onMouseEnter: show, onMouseLeave: () => setOpen(false), onFocus: show, onBlur: () => setOpen(false), children: [children, open && tip
                 ? (0, react_dom_1.createPortal)((0, jsx_runtime_1.jsx)("span", { role: "tooltip", className: content
                         ? "pointer-events-none fixed z-[200] max-w-[240px] rounded-xl border border-brand-line/80 bg-brand-elevated px-3 py-2.5 text-left shadow-[var(--shadow-premium)]"
-                        : "pointer-events-none fixed z-[200] whitespace-nowrap rounded-md bg-brand-accent px-2 py-1 text-[11px] font-semibold leading-none text-white shadow-md", style: {
+                        : "pointer-events-none fixed z-[200] w-max max-w-[min(92vw,28rem)] whitespace-pre-line rounded-md bg-brand-accent px-2.5 py-1.5 text-center text-[11px] font-semibold leading-snug text-white shadow-md", style: {
                         top: coords.top,
                         left: coords.left,
                         transform: coords.transform,

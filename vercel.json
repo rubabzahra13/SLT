@@ -4,10 +4,14 @@
   "installCommand": "npm install",
   "buildCommand": "npm run build",
   "devCommand": "npm run dev",
-  "rewrites": [
-    {
-      "source": "/api/:path*",
-      "destination": "/api/index.py"
+  "functions": {
+    "api/index.py": {
+      "maxDuration": 60,
+      "excludeFiles": "{backend/tests/**,backend/venv/**,backend/.venv/**,backend/local_dev.db,.next/**,node_modules/**,.test-build/**,public/**,**/*.xlsx}"
     }
+  },
+  "rewrites": [
+    { "source": "/health", "destination": "/api" },
+    { "source": "/api/:path*", "destination": "/api/index.py" }
   ]
 }

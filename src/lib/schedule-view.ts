@@ -1,9 +1,21 @@
 import type { MTDRecord, Producer, ScheduleEntry } from "@/types";
 import { parseFlexibleDate } from "@/lib/dates";
-import { isProducerAtDailyCapacity } from "@/lib/producer-availability";
+import {
+  isProducerAtDailyCapacity,
+  isProducerOnTimeOff,
+  isProducerOvertimeDay,
+  isProducerWorkDay,
+} from "@/lib/producer-availability";
 import { isEligibleProducerScheduleRecord } from "@/lib/export-csv";
+import type { StudioHoliday } from "@/lib/producer-time-off";
+import { studioHolidayNamesForIso } from "@/lib/producer-time-off";
 
 export type ScheduleViewRange = "today" | "week" | "month" | "90days" | "6months";
+
+/** Send Schedule period: complete = all ongoing mixes (no date window). */
+export type ScheduleSendPeriod =
+  | "complete"
+  | Exclude<ScheduleViewRange, "today">;
 
 export type CellBooking = {
   work: string;
@@ -17,11 +29,17 @@ export type ScheduleCell = {
   date: Date;
   dayLabel: string;
   dateLabel: string;
-  /** "capacity" = producer has reached their daily mix or cost limit */
-  status: "available" | "mix" | "off" | "capacity";
+  /** "capacity" = producer has reached their daily mix or cost limit.
+   *  "nonwork" = outside regular workDays and not an overtime date.
+   *  "off" = time off on a regular work day. */
+  status: "available" | "mix" | "off" | "capacity" | "nonwork";
   unavailable: boolean;
   booking?: CellBooking | null;
   bookings?: CellBooking[];
+  /** Leave reason and/or holiday name when status is "off". */
+  offDetail?: string;
+  /** True when this day is an overtime date (not a regular work weekday). */
+  isOvertime?: boolean;
   /** Hidden when a status filter is active and this day does not match. */
   filteredOut?: boolean;
 };
@@ -64,6 +82,33 @@ function formatLegacyDay(date: any): string {
   return `${DAY_NAMES[d.getDay()]} ${MONTH_NAMES[d.getMonth()]} ${d.getDate()}`;
 }
 
+/** Leave reason and/or public holiday name for an Off day. */
+export function describeScheduleOffDetail(
+  producer: Producer,
+  date: Date,
+  studioHolidays?: StudioHoliday[]
+): string | undefined {
+  const dayIso = toLocalIsoDate(date);
+  const parts: string[] = [];
+
+  for (const name of studioHolidayNamesForIso(
+    dayIso,
+    studioHolidays ?? [],
+    producer.id
+  )) {
+    if (!parts.includes(name)) parts.push(name);
+  }
+
+  for (const entry of producer.timeOff ?? []) {
+    if (dayIso < entry.startDate || dayIso > entry.endDate) continue;
+    const reason = (entry.reason || "").trim() || "Personal leave";
+    if (!parts.includes(reason)) parts.push(reason);
+  }
+
+  if (parts.length > 0) return parts.join(", ");
+  if (producer.status === "unavailable") return "Unavailable";
+  return undefined;
+}
 
 /**
  * Determines a producer's cell status for a given date.
@@ -84,7 +129,8 @@ function formatLegacyDay(date: any): string {
 function inferStatus(
   producer: Producer,
   date: Date,
-  scheduleByDay: Map<string, ScheduleEntry>
+  scheduleByDay: Map<string, ScheduleEntry>,
+  studioHolidays?: StudioHoliday[]
 ): ScheduleCell["status"] {
   const legacy = formatLegacyDay(date);
   const entry = scheduleByDay.get(legacy);
@@ -95,12 +141,21 @@ function inferStatus(
     return entry.status;
   }
 
-  if (producer.status === "unavailable") return "off";
+  // Time off / studio holidays only apply on regular work days. Overtime days are cancelled
+  // via removing the overtime date — not by adding time off.
+  if (
+    isProducerWorkDay(producer, date) &&
+    isProducerOnTimeOff(producer, date, studioHolidays)
+  ) {
+    return "off";
+  }
 
-  const day = date.getDay();
-  if (day === 0 || day === 6) return "off";
+  if (isProducerWorkDay(producer, date) || isProducerOvertimeDay(producer, date)) {
+    if (producer.status === "unavailable") return "off";
+    return "available";
+  }
 
-  return "available";
+  return "nonwork";
 }
 
 function addDays(date: any, days: number): Date {
@@ -199,14 +254,19 @@ function resolveBookings(
   if (status === "available") return [];
 
   if (status === "off") {
-    const until =
-      date.getDay() === 0 || date.getDay() === 6
-        ? addDays(date, date.getDay() === 6 ? 1 : 0)
-        : date;
     return [
       {
-        work: "Unavailable",
-        until: formatDisplayDate(until),
+        work: "Time off",
+        until: formatDisplayDate(date),
+      },
+    ];
+  }
+
+  if (status === "nonwork") {
+    return [
+      {
+        work: "Not working",
+        until: formatDisplayDate(date),
       },
     ];
   }
@@ -237,15 +297,15 @@ function startOfCalendarWeek(date: any): Date {
 }
 
 function buildDateRange(range: ScheduleViewRange, anchor: any): Date[] {
-  const end = new Date(parseToDate(anchor));
-  end.setHours(0, 0, 0, 0);
+  const today = new Date(parseToDate(anchor));
+  today.setHours(0, 0, 0, 0);
 
   if (range === "today") {
-    return [end];
+    return [today];
   }
 
   if (range === "week") {
-    const start = startOfCalendarWeek(end);
+    const start = startOfCalendarWeek(today);
     const dates: Date[] = [];
     for (let i = 0; i < 7; i += 1) {
       const d = new Date(start);
@@ -255,12 +315,37 @@ function buildDateRange(range: ScheduleViewRange, anchor: any): Date[] {
     return dates;
   }
 
-  const days = range === "month" ? 30 : range === "90days" ? 90 : 180;
+  if (range === "month") {
+    return enumerateCalendarMonth(today.getFullYear(), today.getMonth());
+  }
+
+  if (range === "90days") {
+    const end = new Date(today);
+    end.setDate(today.getDate() + 89);
+    return enumerateDays(today, end);
+  }
+
+  // Six full calendar months starting with the current month (28–31 days each).
+  const start = new Date(today.getFullYear(), today.getMonth(), 1);
+  const endMonth = new Date(today.getFullYear(), today.getMonth() + 6, 0);
+  return enumerateDays(start, endMonth);
+}
+
+function enumerateCalendarMonth(year: number, monthIndex: number): Date[] {
+  const start = new Date(year, monthIndex, 1);
+  const end = new Date(year, monthIndex + 1, 0);
+  return enumerateDays(start, end);
+}
+
+function enumerateDays(start: Date, end: Date): Date[] {
   const dates: Date[] = [];
-  for (let i = days - 1; i >= 0; i -= 1) {
-    const d = new Date(end);
-    d.setDate(end.getDate() - i);
-    dates.push(d);
+  const cursor = new Date(start);
+  cursor.setHours(0, 0, 0, 0);
+  const last = new Date(end);
+  last.setHours(0, 0, 0, 0);
+  while (cursor.getTime() <= last.getTime()) {
+    dates.push(new Date(cursor));
+    cursor.setDate(cursor.getDate() + 1);
   }
   return dates;
 }
@@ -270,7 +355,8 @@ export function getScheduleCells(
   schedule: ScheduleEntry[],
   range: ScheduleViewRange,
   anchorDate = new Date(),
-  mtdRecords: MTDRecord[] = []
+  mtdRecords: MTDRecord[] = [],
+  studioHolidays?: StudioHoliday[]
 ): ScheduleCell[] {
   const scheduleId = producerScheduleId(producer);
   const scheduleByDay = new Map(
@@ -281,7 +367,7 @@ export function getScheduleCells(
   const assignments = producerAssignments(producer, mtdRecords);
 
   return buildDateRange(range, anchorDate).map((date) => {
-    let status = inferStatus(producer, date, scheduleByDay);
+    let status = inferStatus(producer, date, scheduleByDay, studioHolidays);
     const coveringBookings = bookingsFromAssignments(
       date,
       coveringAssignments(date, assignments)
@@ -306,7 +392,13 @@ export function getScheduleCells(
         : resolveBookings(producer, date, status, assignments);
 
     const unavailable =
-      status === "off" || status === "mix" || status === "capacity" || bookings.length > 0;
+      status === "off" ||
+      status === "nonwork" ||
+      status === "mix" ||
+      status === "capacity" ||
+      bookings.length > 0;
+    const isOvertime =
+      isProducerOvertimeDay(producer, date) && !isProducerWorkDay(producer, date);
     return {
       key: toLocalIsoDate(date),
       date,
@@ -316,6 +408,11 @@ export function getScheduleCells(
       unavailable,
       booking: bookings[0] ?? null,
       bookings,
+      offDetail:
+        status === "off"
+          ? describeScheduleOffDetail(producer, date, studioHolidays)
+          : undefined,
+      isOvertime: isOvertime || undefined,
     };
   });
 }
@@ -382,9 +479,39 @@ export function rangeLabel(
     }
     return `Week of ${MONTH_NAMES[start.getMonth()]} ${start.getDate()}–${MONTH_NAMES[end.getMonth()]} ${end.getDate()}`;
   }
-  if (range === "month") return "Last 30 days";
-  if (range === "90days") return "Last 90 days";
-  return "Last 6 months";
+  if (range === "month") return "This month";
+  if (range === "90days") return "Next 90 days";
+  return "Next 6 months";
+}
+
+/** Inclusive ISO start/end for filtering mixes that overlap a schedule view range. */
+export function scheduleViewFilterPeriod(
+  range: ScheduleViewRange,
+  anchorDate = new Date()
+): { start: string; end: string } {
+  const dates = buildDateRange(range, anchorDate);
+  if (dates.length === 0) {
+    const today = toLocalIsoDate(anchorDate);
+    return { start: today, end: today };
+  }
+  return {
+    start: toLocalIsoDate(dates[0]),
+    end: toLocalIsoDate(dates[dates.length - 1]),
+  };
+}
+
+export function sendPeriodLabel(period: ScheduleSendPeriod): string {
+  if (period === "complete") return "Complete schedule";
+  return rangeLabel(period);
+}
+
+/** Date window for Send Schedule, or undefined for the full ongoing schedule. */
+export function scheduleSendFilterPeriod(
+  period: ScheduleSendPeriod,
+  anchorDate = new Date()
+): { start: string; end: string } | undefined {
+  if (period === "complete") return undefined;
+  return scheduleViewFilterPeriod(period, anchorDate);
 }
 
 export type TeamScheduleRow = {
@@ -423,11 +550,19 @@ export function buildTeamSchedule(
   schedule: ScheduleEntry[],
   range: ScheduleViewRange,
   anchorDate = new Date(),
-  mtdRecords: MTDRecord[] = []
+  mtdRecords: MTDRecord[] = [],
+  studioHolidays?: StudioHoliday[]
 ): TeamScheduleRow[] {
   return producers.map((producer) => ({
     producer,
-    cells: getScheduleCells(producer, schedule, range, anchorDate, mtdRecords),
+    cells: getScheduleCells(
+      producer,
+      schedule,
+      range,
+      anchorDate,
+      mtdRecords,
+      studioHolidays
+    ),
   }));
 }
 
@@ -487,15 +622,10 @@ export function buildCalendarDays(
   const dates =
     range === "week"
       ? buildDateRange("week", parsedAnchor)
-      : (() => {
-          const start = new Date(parsedAnchor.getFullYear(), parsedAnchor.getMonth(), 1);
-          const end = new Date(parsedAnchor.getFullYear(), parsedAnchor.getMonth() + 1, 0);
-          const days: Date[] = [];
-          for (let day = 1; day <= end.getDate(); day += 1) {
-            days.push(new Date(start.getFullYear(), start.getMonth(), day));
-          }
-          return days;
-        })();
+      : enumerateCalendarMonth(
+          parsedAnchor.getFullYear(),
+          parsedAnchor.getMonth()
+        );
 
   return dates.map((date) => {
     const key = toLocalIsoDate(date);
@@ -583,6 +713,7 @@ export function cellSizeForRange(range: ScheduleViewRange): "sm" | "md" | "lg" {
 export function statusLabel(status: ScheduleCell["status"]): string {
   if (status === "mix") return "Booked";
   if (status === "off") return "Off";
+  if (status === "nonwork") return "Non-working";
   if (status === "capacity") return "Capacity Reached";
   return "Available";
 }
@@ -597,6 +728,7 @@ export const SCHEDULE_STATUS_FILTERS: {
   { value: "mix", label: "Booked" },
   { value: "capacity", label: "Capacity Reached" },
   { value: "off", label: "Off" },
+  { value: "nonwork", label: "Non-working" },
   { value: "available", label: "Available" },
 ];
 
@@ -651,6 +783,7 @@ export type MatrixDateDisplay = {
   day: string;
   title: string;
   emphasizeTop?: boolean;
+  weekday?: string;
 };
 
 export type MatrixMonthGroup = {
@@ -671,7 +804,13 @@ export function formatMatrixDateCell(
   const weekday = column.dayLabel.slice(0, 3).toUpperCase();
 
   if (column.isToday) {
-    return { top: "Today", day: column.label, title, emphasizeTop: true };
+    return {
+      top: "Today",
+      day: column.label,
+      title,
+      emphasizeTop: true,
+      weekday,
+    };
   }
 
   return { top: weekday, day, title };

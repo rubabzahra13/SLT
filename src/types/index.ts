@@ -853,7 +853,7 @@ export type ScheduleEntry = {
  * All possible statuses for a producer schedule cell.
  * "capacity" = producer has reached their daily mix or cost limit.
  */
-export type ScheduleCellStatus = "available" | "mix" | "off" | "capacity";
+export type ScheduleCellStatus = "available" | "mix" | "off" | "capacity" | "nonwork";
 
 export type AppNotification = {
   id: string;

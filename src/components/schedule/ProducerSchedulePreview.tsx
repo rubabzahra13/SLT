@@ -15,6 +15,7 @@ import { ProducerSelect } from "@/components/ui/ProducerSelect";
 import { Avatar } from "@/components/ui/Avatar";
 import { matchesProducerSearch } from "@/lib/producers";
 import { todayIso } from "@/lib/date-filters";
+import { doDateRangesOverlap } from "@/lib/dates";
 import {
   PRODUCER_SCHEDULE_COLUMNS,
   getProducerFacingScheduleRows,
@@ -36,6 +37,7 @@ type ProducerSchedulePreviewProps = {
   allowedProducerNames?: string[];
   sendLayout?: "together" | "separate";
   onViewingProducerChange?: (name: string) => void;
+  filterPeriod?: { start: string; end: string };
 };
 
 function SchedulePreviewTable({ rows }: { rows: ProducerFacingScheduleRow[] }) {
@@ -130,6 +132,7 @@ export function ProducerSchedulePreview({
   allowedProducerNames,
   sendLayout = "separate",
   onViewingProducerChange,
+  filterPeriod,
 }: ProducerSchedulePreviewProps) {
   const [activeTabProducer, setActiveTabProducer] = useState<string>("");
   const [sidebarSearch, setSidebarSearch] = useState("");
@@ -138,7 +141,16 @@ export function ProducerSchedulePreview({
   );
 
   const activeProducerSummaries = useMemo(() => {
-    const eligibleRecords = mtdRecords.filter(isEligibleProducerScheduleRecord);
+    const eligibleRecords = mtdRecords.filter((r) => {
+      if (!isEligibleProducerScheduleRecord(r)) return false;
+      if (!filterPeriod) return true;
+      const recStart = r.mixStartDate || r.completedAt || "";
+      const recEnd = r.mixEndDate || r.mixStartDate || r.completedAt || "";
+      return doDateRangesOverlap(
+        { start: recStart, end: recEnd },
+        filterPeriod
+      );
+    });
     const mixCounts = new Map<string, number>();
 
     for (const r of eligibleRecords) {
@@ -164,7 +176,7 @@ export function ProducerSchedulePreview({
       })
       .filter((entry) => !allowed || allowed.has(entry.name.toUpperCase()))
       .sort((a, b) => b.mixCount - a.mixCount || a.name.localeCompare(b.name));
-  }, [mtdRecords, producers, allowedProducerNames]);
+  }, [mtdRecords, producers, allowedProducerNames, filterPeriod]);
 
   const activeProducersInSchedule = useMemo(
     () => activeProducerSummaries.map((entry) => entry.name),
@@ -232,9 +244,10 @@ export function ProducerSchedulePreview({
       mtdRecords,
       allOrders,
       producers,
-      currentProducerToView
+      currentProducerToView,
+      filterPeriod
     );
-  }, [mtdRecords, allOrders, producers, currentProducerToView]);
+  }, [mtdRecords, allOrders, producers, currentProducerToView, filterPeriod]);
 
   const rowsByProducer = useMemo(() => {
     const map = new Map<string, ProducerFacingScheduleRow[]>();
@@ -245,12 +258,13 @@ export function ProducerSchedulePreview({
           mtdRecords,
           allOrders,
           producers,
-          summary.name
+          summary.name,
+          filterPeriod
         )
       );
     }
     return map;
-  }, [activeProducerSummaries, mtdRecords, allOrders, producers]);
+  }, [activeProducerSummaries, mtdRecords, allOrders, producers, filterPeriod]);
 
   useEffect(() => {
     onViewingProducerChange?.(currentProducerToView);
@@ -267,7 +281,8 @@ export function ProducerSchedulePreview({
       mtdRecords,
       allOrders,
       producers,
-      currentProducerToView
+      currentProducerToView,
+      filterPeriod
     );
     triggerCsvDownload(
       `Schedule_Producer_Statement_${currentProducerToView.replace(/\s+/g, "_")}_${todayIso()}.csv`,
@@ -289,7 +304,8 @@ export function ProducerSchedulePreview({
         mtdRecords,
         allOrders,
         producers,
-        targetName
+        targetName,
+        filterPeriod
       );
       triggerCsvDownload(
         `Schedule_${targetName.replace(/\s+/g, "_")}_${todayIso()}.csv`,

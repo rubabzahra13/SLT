@@ -52,6 +52,8 @@ const LAYOUT = {
 function scheduleStatusTooltipTone(status) {
     if (status === "off")
         return "text-brand-orange";
+    if (status === "nonwork")
+        return "text-brand-orange";
     if (status === "capacity")
         return "text-amber-600";
     return "text-brand-signature";
@@ -63,10 +65,10 @@ function MultiBookingTooltipContent({ cell, bookings, }) {
     return ((0, jsx_runtime_1.jsxs)("div", { className: "min-w-[180px]", children: [(0, jsx_runtime_1.jsxs)("p", { className: (0, clsx_1.default)("text-[10px] font-semibold uppercase tracking-[0.06em]", scheduleStatusTooltipTone(cell.status)), children: [(0, schedule_view_1.statusLabel)(cell.status), " \u00B7 ", bookings.length, " mixes"] }), (0, jsx_runtime_1.jsx)("div", { className: "mt-2 max-h-48 space-y-2 overflow-y-auto pr-1", children: bookings.map((booking, index) => ((0, jsx_runtime_1.jsx)("div", { className: "rounded-lg border border-brand-line/60 bg-brand-surface/80 px-2.5 py-2", children: (0, jsx_runtime_1.jsx)(BookingTooltipContent, { cell: cell, booking: booking, index: index, total: bookings.length }) }, booking.mixId ?? `${cell.key}-${index}`))) })] }));
 }
 function DateColumnCell({ column, range, }) {
-    const { top, day, title, emphasizeTop } = (0, schedule_view_1.formatMatrixDateCell)(column, range);
+    const { top, day, title, emphasizeTop, weekday } = (0, schedule_view_1.formatMatrixDateCell)(column, range);
     return ((0, jsx_runtime_1.jsxs)("div", { className: "w-full text-center leading-none", title: title, children: [(0, jsx_runtime_1.jsx)("p", { className: (0, clsx_1.default)("truncate text-[9px] font-medium uppercase tracking-wide", emphasizeTop || column.isToday
-                    ? "text-brand-signature"
-                    : "text-brand-ink-tertiary"), children: top }), (0, jsx_runtime_1.jsx)("p", { className: (0, clsx_1.default)("mt-0.5 truncate text-[13px] font-semibold tabular-nums", column.isToday ? "text-brand-signature" : "text-brand-ink"), children: day })] }));
+                    ? "!text-brand-signature"
+                    : "text-brand-ink-tertiary"), children: top }), column.isToday && weekday ? ((0, jsx_runtime_1.jsx)("p", { className: "mt-0.5 truncate text-[9px] font-semibold uppercase tracking-wide !text-brand-ink-secondary", children: weekday })) : null, column.isToday ? ((0, jsx_runtime_1.jsx)("p", { className: "mt-1 inline-flex max-w-full items-center justify-center rounded-md bg-brand-signature px-1.5 py-0.5 text-[11px] font-semibold tabular-nums", style: { color: "#fff", textShadow: "none" }, children: (0, jsx_runtime_1.jsx)("span", { className: "truncate", style: { color: "#fff" }, children: day }) })) : ((0, jsx_runtime_1.jsx)("p", { className: "mt-0.5 truncate text-[13px] font-semibold tabular-nums text-brand-ink", children: day }))] }));
 }
 function scheduleCellBarHeightClass(range, stretchRows = false) {
     if (stretchRows && (range === "week" || range === "today")) {
@@ -79,11 +81,13 @@ function scheduleCellBarHeightClass(range, stretchRows = false) {
 function scheduleCellBarClass(cell, range, stretchRows = false) {
     return (0, clsx_1.default)("mx-auto flex w-full items-center justify-center rounded-md transition-all duration-150 hover:scale-[1.04] hover:ring-1", scheduleCellBarHeightClass(range, stretchRows), cell.status === "off"
         ? "bg-brand-orange/80 shadow-[0_1px_2px_rgba(240,120,64,0.16)] hover:ring-brand-orange/30"
-        : cell.status === "capacity"
-            ? "bg-amber-400/85 shadow-[0_1px_2px_rgba(245,158,11,0.20)] hover:ring-amber-400/40"
-            : cell.status === "mix"
-                ? "bg-gradient-to-b from-brand-blue to-brand-signature shadow-[0_1px_2px_rgba(15,30,45,0.18)] hover:ring-brand-blue/40"
-                : "bg-cyan-50/80 ring-1 ring-inset ring-cyan-400/60 shadow-[0_1px_2px_rgba(6,182,212,0.12)] hover:bg-cyan-100 hover:ring-cyan-500/70");
+        : cell.status === "nonwork"
+            ? "ring-1 ring-inset ring-brand-orange shadow-[0_1px_2px_rgba(240,120,64,0.12)] hover:ring-brand-orange"
+            : cell.status === "capacity"
+                ? "bg-amber-400/85 shadow-[0_1px_2px_rgba(245,158,11,0.20)] hover:ring-amber-400/40"
+                : cell.status === "mix"
+                    ? "bg-gradient-to-b from-brand-blue to-brand-signature shadow-[0_1px_2px_rgba(15,30,45,0.18)] hover:ring-brand-blue/40"
+                    : "bg-cyan-50/80 ring-1 ring-inset ring-cyan-400/60 shadow-[0_1px_2px_rgba(6,182,212,0.12)] hover:bg-cyan-100 hover:ring-cyan-500/70");
 }
 function scheduleCellCountClass(status, range) {
     const sizeClass = range === "week" || range === "today" ? "text-[11px]" : "text-[10px]";
@@ -104,18 +108,30 @@ function ScheduleCellButton({ cell, range, selected, stretchRows = false, onClic
     const selectedRing = selected && "ring-2 ring-brand-orange ring-offset-1 ring-offset-white";
     const button = ((0, jsx_runtime_1.jsx)("button", { type: "button", onClick: onClick, title: booking && !showCount
             ? undefined
-            : `${cell.dayLabel} ${cell.dateLabel} · ${(0, schedule_view_1.statusLabel)(cell.status)}`, className: (0, clsx_1.default)(scheduleCellBarClass(cell, range, stretchRows), selectedRing), style: {
+            : cell.status === "off" || (cell.status === "available" && cell.isOvertime)
+                ? undefined
+                : `${cell.dayLabel} ${cell.dateLabel} · ${(0, schedule_view_1.statusLabel)(cell.status)}`, className: (0, clsx_1.default)(scheduleCellBarClass(cell, range, stretchRows), selectedRing), style: {
             maxWidth: stretchRows ? Math.min(LAYOUT.barMax[range] * 1.35, 72) : LAYOUT.barMax[range],
+            ...(cell.status === "nonwork" ? { backgroundColor: "#fff1e8" } : null),
         }, "aria-label": showCount
             ? `${(0, schedule_view_1.statusLabel)(cell.status)}: ${bookings.length} mixes on ${cell.dayLabel}, ${cell.dateLabel}`
             : booking
                 ? `${(0, schedule_view_1.statusLabel)(cell.status)}: ${booking.work}, until ${booking.until}`
-                : `${cell.dayLabel} ${cell.dateLabel}, ${(0, schedule_view_1.statusLabel)(cell.status)}`, children: showCount ? ((0, jsx_runtime_1.jsx)("span", { className: scheduleCellCountClass(cell.status, range), children: bookings.length })) : null }));
+                : cell.status === "off" && cell.offDetail
+                    ? `${cell.dayLabel} ${cell.dateLabel}, Off, ${cell.offDetail}`
+                    : `${cell.dayLabel} ${cell.dateLabel}, ${(0, schedule_view_1.statusLabel)(cell.status)}`, children: showCount ? ((0, jsx_runtime_1.jsx)("span", { className: scheduleCellCountClass(cell.status, range), children: bookings.length })) : null }));
     if (showCount) {
         return wrapWithTooltip(button, (0, jsx_runtime_1.jsx)(MultiBookingTooltipContent, { cell: cell, bookings: bookings }));
     }
-    if (!booking)
+    if (!booking) {
+        if (cell.status === "off") {
+            return wrapWithTooltip(button, (0, jsx_runtime_1.jsxs)("div", { className: "min-w-[140px]", children: [(0, jsx_runtime_1.jsx)("p", { className: "text-[10px] font-semibold uppercase tracking-[0.06em] text-brand-orange", children: "Off" }), (0, jsx_runtime_1.jsx)("p", { className: "mt-1 text-[12px] font-medium leading-snug text-brand-ink", children: cell.offDetail ?? "Unavailable" }), (0, jsx_runtime_1.jsxs)("p", { className: "mt-1 text-[11px] text-brand-ink-secondary", children: [cell.dayLabel, ", ", cell.dateLabel] })] }));
+        }
+        if (cell.status === "available" && cell.isOvertime) {
+            return wrapWithTooltip(button, (0, jsx_runtime_1.jsxs)("div", { className: "min-w-[140px]", children: [(0, jsx_runtime_1.jsx)("p", { className: "text-[10px] font-semibold uppercase tracking-[0.06em] text-brand-signature", children: "Available" }), (0, jsx_runtime_1.jsx)("p", { className: "mt-1 text-[12px] font-medium leading-snug text-brand-ink", children: "Overtime day" }), (0, jsx_runtime_1.jsxs)("p", { className: "mt-1 text-[11px] text-brand-ink-secondary", children: [cell.dayLabel, ", ", cell.dateLabel] })] }));
+        }
         return button;
+    }
     return wrapWithTooltip(button, (0, jsx_runtime_1.jsx)("div", { className: "min-w-[160px]", children: (0, jsx_runtime_1.jsx)(BookingTooltipContent, { cell: cell, booking: booking }) }));
 }
 function TeamScheduleMatrix({ rows, columns, range, statusFilter = "all", activeProducerId, onSelectProducer, emptyMessage = "No producers in this view.", className, }) {
@@ -131,6 +147,7 @@ function TeamScheduleMatrix({ rows, columns, range, statusFilter = "all", active
             bookingCount: row.cells.filter((cell) => !cell.filteredOut &&
                 (cell.status === "mix" || cell.status === "capacity")).length,
             offCount: row.cells.filter((cell) => !cell.filteredOut && cell.status === "off").length,
+            nonworkCount: row.cells.filter((cell) => !cell.filteredOut && cell.status === "nonwork").length,
             entries: columns.map((column) => ({
                 column,
                 cell: row.cells.find((cell) => cell.key === column.key) ??
@@ -163,13 +180,15 @@ function TeamScheduleMatrix({ rows, columns, range, statusFilter = "all", active
     const statCol = LAYOUT.statCol;
     const dayCol = LAYOUT.producerCol[range];
     const monthBarH = isWeek ? 0 : LAYOUT.monthBarH[range];
-    const stickyStatCount = showStatColumns ? 3 : 0;
-    const dateColOffset = showStatColumns ? 4 : 1;
+    const stickyStatCount = showStatColumns ? 4 : 0;
+    const dateColOffset = showStatColumns ? 5 : 1;
     const matrixWidth = producerLabelCol +
         statCol * stickyStatCount +
         dayCount * dayCol;
     const gridTemplateColumns = (0, react_1.useMemo)(() => {
-        const statCols = showStatColumns ? `${statCol}px ${statCol}px ${statCol}px ` : "";
+        const statCols = showStatColumns
+            ? `${statCol}px ${statCol}px ${statCol}px ${statCol}px `
+            : "";
         return `${producerLabelCol}px ${statCols}repeat(${dayCount}, minmax(${dayCol}px, 1fr))`;
     }, [dayCol, dayCount, producerLabelCol, showStatColumns, statCol]);
     const gridTemplateRows = (0, react_1.useMemo)(() => {
@@ -200,6 +219,7 @@ function TeamScheduleMatrix({ rows, columns, range, statusFilter = "all", active
     const freeStickyLeft = producerLabelCol;
     const bookedStickyLeft = producerLabelCol + statCol;
     const offStickyLeft = producerLabelCol + statCol * 2;
+    const nonworkStickyLeft = producerLabelCol + statCol * 3;
     const bodyGridRow = showMonthBars ? 3 : 2;
     const grid = ((0, jsx_runtime_1.jsxs)("div", { className: "schedule-matrix-grid grid w-full min-w-0 text-[11px]", style: {
             minWidth: matrixWidth,
@@ -208,30 +228,28 @@ function TeamScheduleMatrix({ rows, columns, range, statusFilter = "all", active
             ...(shouldStretchRows && containerHeight != null
                 ? { minHeight: containerHeight }
                 : {}),
-        }, children: [(0, jsx_runtime_1.jsx)("div", { className: "schedule-chrome-header sticky left-0 top-0 z-40 flex items-center justify-center border-r border-brand-line/60 px-2 py-2", children: (0, jsx_runtime_1.jsx)("p", { className: "text-center text-[9px] font-bold uppercase tracking-[0.06em] text-brand-ink-tertiary", children: "Producer" }) }), showStatColumns ? ((0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsx)("div", { className: "schedule-chrome-header sticky top-0 z-40 flex items-center justify-center border-r border-brand-line/60 px-1 py-2 text-center", style: { left: freeStickyLeft }, children: (0, jsx_runtime_1.jsx)("p", { className: "text-[9px] font-bold uppercase leading-tight tracking-[0.06em] text-brand-ink-tertiary", children: "Free" }) }), (0, jsx_runtime_1.jsx)("div", { className: "schedule-chrome-header sticky top-0 z-40 flex items-center justify-center border-r border-brand-line/60 px-1 py-2 text-center", style: { left: bookedStickyLeft }, children: (0, jsx_runtime_1.jsx)("p", { className: "text-[9px] font-bold uppercase leading-tight tracking-[0.06em] text-brand-ink-tertiary", children: "Booked" }) }), (0, jsx_runtime_1.jsx)("div", { className: "schedule-chrome-header sticky top-0 z-40 flex items-center justify-center border-r border-brand-line/60 px-1 py-2 text-center", style: { left: offStickyLeft }, children: (0, jsx_runtime_1.jsx)("p", { className: "text-[9px] font-bold uppercase leading-tight tracking-[0.06em] text-brand-ink-tertiary", children: "Off" }) })] })) : null, columns.map((column, index) => {
+        }, children: [(0, jsx_runtime_1.jsx)("div", { className: "schedule-chrome-header sticky left-0 top-0 z-40 flex items-center justify-center border-r border-brand-line/60 px-2 py-2", children: (0, jsx_runtime_1.jsx)("p", { className: "text-center text-[9px] font-bold uppercase tracking-[0.06em] text-brand-ink-tertiary", children: "Producer" }) }), showStatColumns ? ((0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsx)("div", { className: "schedule-chrome-header sticky top-0 z-40 flex items-center justify-center border-r border-brand-line/60 px-1 py-2 text-center", style: { left: freeStickyLeft }, children: (0, jsx_runtime_1.jsxs)("p", { className: "text-[9px] font-bold uppercase leading-tight tracking-[0.06em] text-brand-ink-tertiary", children: ["Days", (0, jsx_runtime_1.jsx)("br", {}), "Free"] }) }), (0, jsx_runtime_1.jsx)("div", { className: "schedule-chrome-header sticky top-0 z-40 flex items-center justify-center border-r border-brand-line/60 px-1 py-2 text-center", style: { left: bookedStickyLeft }, children: (0, jsx_runtime_1.jsxs)("p", { className: "text-[9px] font-bold uppercase leading-tight tracking-[0.06em] text-brand-ink-tertiary", children: ["Days", (0, jsx_runtime_1.jsx)("br", {}), "Booked"] }) }), (0, jsx_runtime_1.jsx)("div", { className: "schedule-chrome-header sticky top-0 z-40 flex items-center justify-center border-r border-brand-line/60 px-1 py-2 text-center", style: { left: offStickyLeft }, children: (0, jsx_runtime_1.jsxs)("p", { className: "text-[9px] font-bold uppercase leading-tight tracking-[0.06em] text-brand-ink-tertiary", children: ["Days", (0, jsx_runtime_1.jsx)("br", {}), "Off"] }) }), (0, jsx_runtime_1.jsx)("div", { className: "schedule-chrome-header sticky top-0 z-40 flex items-center justify-center border-r border-brand-line/60 px-1 py-2 text-center", style: { left: nonworkStickyLeft }, children: (0, jsx_runtime_1.jsxs)("p", { className: "text-[9px] font-bold uppercase leading-tight tracking-[0.06em] text-brand-ink-tertiary", children: ["Non-work", (0, jsx_runtime_1.jsx)("br", {}), "Days"] }) })] })) : null, columns.map((column, index) => {
                 const isLast = index === columns.length - 1;
-                return ((0, jsx_runtime_1.jsx)("div", { className: (0, clsx_1.default)("schedule-chrome-header sticky top-0 z-30 flex items-center justify-center border-r border-brand-line/60 px-1 py-2", isLast && "border-r-0"), children: (0, jsx_runtime_1.jsx)(DateColumnCell, { column: column, range: range }) }, column.key));
-            }), showMonthBars ? ((0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsx)("div", { className: "sticky left-0 z-20 border-b border-r border-brand-line/60 bg-brand-bg-subtle/95" }), showStatColumns ? ((0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsx)("div", { className: "sticky z-20 border-b border-r border-brand-line/60 bg-brand-bg-subtle/95", style: { left: freeStickyLeft } }), (0, jsx_runtime_1.jsx)("div", { className: "sticky z-20 border-b border-r border-brand-line/60 bg-brand-bg-subtle/95", style: { left: bookedStickyLeft } }), (0, jsx_runtime_1.jsx)("div", { className: "sticky z-20 border-b border-r border-brand-line/60 bg-brand-bg-subtle/95", style: { left: offStickyLeft } })] })) : null, monthGroups.map((group) => ((0, jsx_runtime_1.jsx)("div", { className: "sticky z-[25] flex items-center border-b border-r border-brand-line/60 bg-brand-bg-subtle/95 px-3", style: {
+                return ((0, jsx_runtime_1.jsx)("div", { className: (0, clsx_1.default)("schedule-chrome-header sticky top-0 z-30 flex items-center justify-center border-r border-brand-line/60 px-1 py-2", column.isToday && "!bg-brand-blue-soft", isLast && "border-r-0"), children: (0, jsx_runtime_1.jsx)(DateColumnCell, { column: column, range: range }) }, column.key));
+            }), showMonthBars ? ((0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsx)("div", { className: "sticky left-0 z-20 border-b border-r border-brand-line/60 bg-brand-bg-subtle/95" }), showStatColumns ? ((0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsx)("div", { className: "sticky z-20 border-b border-r border-brand-line/60 bg-brand-bg-subtle/95", style: { left: freeStickyLeft } }), (0, jsx_runtime_1.jsx)("div", { className: "sticky z-20 border-b border-r border-brand-line/60 bg-brand-bg-subtle/95", style: { left: bookedStickyLeft } }), (0, jsx_runtime_1.jsx)("div", { className: "sticky z-20 border-b border-r border-brand-line/60 bg-brand-bg-subtle/95", style: { left: offStickyLeft } }), (0, jsx_runtime_1.jsx)("div", { className: "sticky z-20 border-b border-r border-brand-line/60 bg-brand-bg-subtle/95", style: { left: nonworkStickyLeft } })] })) : null, monthGroups.map((group) => ((0, jsx_runtime_1.jsx)("div", { className: "sticky z-[25] flex items-center border-b border-r border-brand-line/60 bg-brand-bg-subtle/95 px-3", style: {
                             gridColumn: `${group.startIndex + dateColOffset + 1} / span ${group.rowCount}`,
                             top: LAYOUT.headerH[range],
                             height: monthBarH,
                             minHeight: monthBarH,
-                        }, children: (0, jsx_runtime_1.jsx)("p", { className: "text-[10px] font-semibold uppercase tracking-[0.08em] text-brand-ink-secondary", children: group.label }) }, group.key)))] })) : null, producerRows.map(({ row, availableCount, bookingCount, offCount, entries }, rowIndex) => {
+                        }, children: (0, jsx_runtime_1.jsx)("p", { className: "text-[10px] font-semibold uppercase tracking-[0.08em] text-brand-ink-secondary", children: group.label }) }, group.key)))] })) : null, producerRows.map(({ row, availableCount, bookingCount, offCount, nonworkCount, entries }, rowIndex) => {
                 const isActive = row.producer.id === activeProducerId;
                 const isLastRow = rowIndex === producerRows.length - 1;
                 return ((0, jsx_runtime_1.jsxs)(react_1.Fragment, { children: [(0, jsx_runtime_1.jsx)("button", { type: "button", onClick: () => onSelectProducer(row), "aria-label": row.producer.name, className: (0, clsx_1.default)("sticky left-0 z-20 flex h-full min-h-0 min-w-0 w-full items-center justify-center self-stretch overflow-hidden border-b border-r border-brand-line/60 bg-white px-0.5 py-1.5 transition hover:bg-brand-blue-soft/30", isLastRow && "border-b-0", isActive && "bg-brand-orange-soft/40 hover:bg-brand-orange-soft/40"), children: (0, jsx_runtime_1.jsx)(HoverTip_1.HoverTip, { className: "flex justify-center", placement: "right", label: row.producer.name, children: (0, jsx_runtime_1.jsx)("div", { className: (0, clsx_1.default)("shrink-0 rounded-full ring-1 ring-inset ring-offset-0", isActive ? "ring-brand-orange/60" : "ring-brand-blue/30"), children: (0, jsx_runtime_1.jsx)(Avatar_1.Avatar, { producer: row.producer, name: row.producer.name, size: "sm" }) }) }) }), showStatColumns ? ((0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsx)("div", { className: (0, clsx_1.default)("sticky z-20 flex h-full min-h-0 items-center self-stretch border-b border-r border-brand-line/70 bg-white px-1 py-1.5", isLastRow && "border-b-0"), style: { left: freeStickyLeft }, children: (0, jsx_runtime_1.jsx)("p", { className: (0, clsx_1.default)("w-full text-center text-[11px] font-medium tabular-nums leading-none", availableCount === columns.length
                                             ? "text-brand-signature"
                                             : availableCount === 0
                                                 ? "text-brand-orange"
-                                                : "text-brand-ink-secondary"), title: `${availableCount} free days in view`, children: availableCount }) }), (0, jsx_runtime_1.jsx)("div", { className: (0, clsx_1.default)("sticky z-20 flex h-full min-h-0 items-center self-stretch border-b border-r border-brand-line/70 bg-white px-1 py-1.5", isLastRow && "border-b-0"), style: { left: bookedStickyLeft }, children: (0, jsx_runtime_1.jsx)("p", { className: (0, clsx_1.default)("w-full text-center text-[11px] tabular-nums leading-none", bookingCount === 0
-                                            ? "text-brand-ink-tertiary"
-                                            : "text-brand-signature"), title: `${bookingCount} booked days in view`, children: bookingCount }) }), (0, jsx_runtime_1.jsx)("div", { className: (0, clsx_1.default)("sticky z-20 flex h-full min-h-0 items-center self-stretch border-b border-r border-brand-line/70 bg-white px-1 py-1.5", isLastRow && "border-b-0"), style: { left: offStickyLeft }, children: (0, jsx_runtime_1.jsx)("p", { className: (0, clsx_1.default)("w-full text-center text-[11px] tabular-nums leading-none", offCount === 0
-                                            ? "text-brand-ink-tertiary"
-                                            : "text-brand-orange-deep"), title: `${offCount} off days in view`, children: offCount }) })] })) : null, entries.map(({ column, cell }, entryIndex) => {
+                                                : "text-brand-ink-secondary"), title: `${availableCount} free days in view`, children: availableCount }) }), (0, jsx_runtime_1.jsx)("div", { className: (0, clsx_1.default)("sticky z-20 flex h-full min-h-0 items-center self-stretch border-b border-r border-brand-line/70 bg-white px-1 py-1.5", isLastRow && "border-b-0"), style: { left: bookedStickyLeft }, children: (0, jsx_runtime_1.jsx)("p", { className: "w-full text-center text-[11px] tabular-nums leading-none text-brand-signature", title: `${bookingCount} booked days in view`, children: bookingCount }) }), (0, jsx_runtime_1.jsx)("div", { className: (0, clsx_1.default)("sticky z-20 flex h-full min-h-0 items-center self-stretch border-b border-r border-brand-line/70 bg-white px-1 py-1.5", isLastRow && "border-b-0"), style: { left: offStickyLeft }, children: (0, jsx_runtime_1.jsx)("p", { className: "w-full text-center text-[11px] tabular-nums leading-none text-brand-orange-deep", title: `${offCount} off days in view`, children: offCount }) }), (0, jsx_runtime_1.jsx)("div", { className: (0, clsx_1.default)("sticky z-20 flex h-full min-h-0 items-center self-stretch border-b border-r border-brand-line/70 bg-white px-1 py-1.5", isLastRow && "border-b-0"), style: { left: nonworkStickyLeft }, children: (0, jsx_runtime_1.jsx)("p", { className: "w-full text-center text-[11px] tabular-nums leading-none text-brand-orange", title: `${nonworkCount} non-work days in view`, children: nonworkCount }) })] })) : null, entries.map(({ column, cell }, entryIndex) => {
                             const isLastCol = entryIndex === entries.length - 1;
-                            return ((0, jsx_runtime_1.jsx)("div", { className: (0, clsx_1.default)("group/cell flex h-full min-h-0 min-w-0 items-center justify-center self-stretch border-b border-r border-brand-line/35 bg-white px-0.5 py-1 transition-colors", isLastRow && "border-b-0", isLastCol && "border-r-0", isActive
+                            return ((0, jsx_runtime_1.jsx)("div", { className: (0, clsx_1.default)("group/cell flex h-full min-h-0 min-w-0 items-center justify-center self-stretch border-b border-r border-brand-line/35 px-0.5 py-1 transition-colors", isLastRow && "border-b-0", isLastCol && "border-r-0", isActive
                                     ? "bg-brand-orange-soft/40"
-                                    : "hover:bg-brand-blue-soft/25"), children: (0, jsx_runtime_1.jsx)(ScheduleCellButton, { cell: cell, range: range, stretchRows: shouldStretchRows, selected: isActive && cell.key === column.key, onClick: () => onSelectProducer(row, cell) }) }, `${row.producer.id}-${column.key}`));
+                                    : column.isToday
+                                        ? "bg-brand-blue-soft hover:bg-brand-blue-soft/80"
+                                        : "bg-white hover:bg-brand-blue-soft/25"), children: (0, jsx_runtime_1.jsx)(ScheduleCellButton, { cell: cell, range: range, stretchRows: shouldStretchRows, selected: isActive && cell.key === column.key, onClick: () => onSelectProducer(row, cell) }) }, `${row.producer.id}-${column.key}`));
                         })] }, row.producer.id));
             })] }));
     return ((0, jsx_runtime_1.jsx)("div", { className: (0, clsx_1.default)("dashboard-panel dashboard-panel-framed flex h-full min-h-0 w-full flex-col overflow-hidden", className), style: {

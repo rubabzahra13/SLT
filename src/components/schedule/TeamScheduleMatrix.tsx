@@ -33,6 +33,7 @@ type ProducerRow = {
   availableCount: number;
   bookingCount: number;
   offCount: number;
+  nonworkCount: number;
   entries: { column: ColumnAggregate; cell: ScheduleCell }[];
 };
 
@@ -77,6 +78,7 @@ const LAYOUT = {
 
 function scheduleStatusTooltipTone(status: ScheduleCell["status"]) {
   if (status === "off") return "text-brand-orange";
+  if (status === "nonwork") return "text-brand-orange";
   if (status === "capacity") return "text-amber-600";
   return "text-brand-signature";
 }
@@ -152,7 +154,10 @@ function DateColumnCell({
   column: ColumnAggregate;
   range: ScheduleViewRange;
 }) {
-  const { top, day, title, emphasizeTop } = formatMatrixDateCell(column, range);
+  const { top, day, title, emphasizeTop, weekday } = formatMatrixDateCell(
+    column,
+    range
+  );
 
   return (
     <div className="w-full text-center leading-none" title={title}>
@@ -160,20 +165,31 @@ function DateColumnCell({
         className={clsx(
           "truncate text-[9px] font-medium uppercase tracking-wide",
           emphasizeTop || column.isToday
-            ? "text-brand-signature"
+            ? "!text-brand-signature"
             : "text-brand-ink-tertiary"
         )}
       >
         {top}
       </p>
-      <p
-        className={clsx(
-          "mt-0.5 truncate text-[13px] font-semibold tabular-nums",
-          column.isToday ? "text-brand-signature" : "text-brand-ink"
-        )}
-      >
-        {day}
-      </p>
+      {column.isToday && weekday ? (
+        <p className="mt-0.5 truncate text-[9px] font-semibold uppercase tracking-wide !text-brand-ink-secondary">
+          {weekday}
+        </p>
+      ) : null}
+      {column.isToday ? (
+        <p
+          className="mt-1 inline-flex max-w-full items-center justify-center rounded-md bg-brand-signature px-1.5 py-0.5 text-[11px] font-semibold tabular-nums"
+          style={{ color: "#fff", textShadow: "none" }}
+        >
+          <span className="truncate" style={{ color: "#fff" }}>
+            {day}
+          </span>
+        </p>
+      ) : (
+        <p className="mt-0.5 truncate text-[13px] font-semibold tabular-nums text-brand-ink">
+          {day}
+        </p>
+      )}
     </div>
   );
 }
@@ -199,11 +215,13 @@ function scheduleCellBarClass(
     scheduleCellBarHeightClass(range, stretchRows),
     cell.status === "off"
       ? "bg-brand-orange/80 shadow-[0_1px_2px_rgba(240,120,64,0.16)] hover:ring-brand-orange/30"
-      : cell.status === "capacity"
-        ? "bg-amber-400/85 shadow-[0_1px_2px_rgba(245,158,11,0.20)] hover:ring-amber-400/40"
-        : cell.status === "mix"
-          ? "bg-gradient-to-b from-brand-blue to-brand-signature shadow-[0_1px_2px_rgba(15,30,45,0.18)] hover:ring-brand-blue/40"
-          : "bg-cyan-50/80 ring-1 ring-inset ring-cyan-400/60 shadow-[0_1px_2px_rgba(6,182,212,0.12)] hover:bg-cyan-100 hover:ring-cyan-500/70"
+      : cell.status === "nonwork"
+        ? "ring-1 ring-inset ring-brand-orange shadow-[0_1px_2px_rgba(240,120,64,0.12)] hover:ring-brand-orange"
+        : cell.status === "capacity"
+          ? "bg-amber-400/85 shadow-[0_1px_2px_rgba(245,158,11,0.20)] hover:ring-amber-400/40"
+          : cell.status === "mix"
+            ? "bg-gradient-to-b from-brand-blue to-brand-signature shadow-[0_1px_2px_rgba(15,30,45,0.18)] hover:ring-brand-blue/40"
+            : "bg-cyan-50/80 ring-1 ring-inset ring-cyan-400/60 shadow-[0_1px_2px_rgba(6,182,212,0.12)] hover:bg-cyan-100 hover:ring-cyan-500/70"
   );
 }
 
@@ -262,7 +280,9 @@ function ScheduleCellButton({
       title={
         booking && !showCount
           ? undefined
-          : `${cell.dayLabel} ${cell.dateLabel} · ${statusLabel(cell.status)}`
+          : cell.status === "off" || (cell.status === "available" && cell.isOvertime)
+            ? undefined
+            : `${cell.dayLabel} ${cell.dateLabel} · ${statusLabel(cell.status)}`
       }
       className={clsx(
         scheduleCellBarClass(cell, range, stretchRows),
@@ -270,13 +290,16 @@ function ScheduleCellButton({
       )}
       style={{
         maxWidth: stretchRows ? Math.min(LAYOUT.barMax[range] * 1.35, 72) : LAYOUT.barMax[range],
+        ...(cell.status === "nonwork" ? { backgroundColor: "#fff1e8" } : null),
       }}
       aria-label={
         showCount
           ? `${statusLabel(cell.status)}: ${bookings.length} mixes on ${cell.dayLabel}, ${cell.dateLabel}`
           : booking
             ? `${statusLabel(cell.status)}: ${booking.work}, until ${booking.until}`
-            : `${cell.dayLabel} ${cell.dateLabel}, ${statusLabel(cell.status)}`
+            : cell.status === "off" && cell.offDetail
+              ? `${cell.dayLabel} ${cell.dateLabel}, Off, ${cell.offDetail}`
+              : `${cell.dayLabel} ${cell.dateLabel}, ${statusLabel(cell.status)}`
       }
     >
       {showCount ? (
@@ -294,7 +317,41 @@ function ScheduleCellButton({
     );
   }
 
-  if (!booking) return button;
+  if (!booking) {
+    if (cell.status === "off") {
+      return wrapWithTooltip(
+        button,
+        <div className="min-w-[140px]">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-brand-orange">
+            Off
+          </p>
+          <p className="mt-1 text-[12px] font-medium leading-snug text-brand-ink">
+            {cell.offDetail ?? "Unavailable"}
+          </p>
+          <p className="mt-1 text-[11px] text-brand-ink-secondary">
+            {cell.dayLabel}, {cell.dateLabel}
+          </p>
+        </div>
+      );
+    }
+    if (cell.status === "available" && cell.isOvertime) {
+      return wrapWithTooltip(
+        button,
+        <div className="min-w-[140px]">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-brand-signature">
+            Available
+          </p>
+          <p className="mt-1 text-[12px] font-medium leading-snug text-brand-ink">
+            Overtime day
+          </p>
+          <p className="mt-1 text-[11px] text-brand-ink-secondary">
+            {cell.dayLabel}, {cell.dateLabel}
+          </p>
+        </div>
+      );
+    }
+    return button;
+  }
 
   return wrapWithTooltip(
     button,
@@ -338,6 +395,9 @@ export function TeamScheduleMatrix({
       offCount: row.cells.filter(
         (cell) => !cell.filteredOut && cell.status === "off"
       ).length,
+      nonworkCount: row.cells.filter(
+        (cell) => !cell.filteredOut && cell.status === "nonwork"
+      ).length,
       entries: columns.map((column) => ({
         column,
         cell:
@@ -377,8 +437,8 @@ export function TeamScheduleMatrix({
   const statCol = LAYOUT.statCol;
   const dayCol = LAYOUT.producerCol[range];
   const monthBarH = isWeek ? 0 : LAYOUT.monthBarH[range];
-  const stickyStatCount = showStatColumns ? 3 : 0;
-  const dateColOffset = showStatColumns ? 4 : 1;
+  const stickyStatCount = showStatColumns ? 4 : 0;
+  const dateColOffset = showStatColumns ? 5 : 1;
 
   const matrixWidth =
     producerLabelCol +
@@ -386,7 +446,9 @@ export function TeamScheduleMatrix({
     dayCount * dayCol;
 
   const gridTemplateColumns = useMemo(() => {
-    const statCols = showStatColumns ? `${statCol}px ${statCol}px ${statCol}px ` : "";
+    const statCols = showStatColumns
+      ? `${statCol}px ${statCol}px ${statCol}px ${statCol}px `
+      : "";
     return `${producerLabelCol}px ${statCols}repeat(${dayCount}, minmax(${dayCol}px, 1fr))`;
   }, [dayCol, dayCount, producerLabelCol, showStatColumns, statCol]);
 
@@ -421,6 +483,7 @@ export function TeamScheduleMatrix({
   const freeStickyLeft = producerLabelCol;
   const bookedStickyLeft = producerLabelCol + statCol;
   const offStickyLeft = producerLabelCol + statCol * 2;
+  const nonworkStickyLeft = producerLabelCol + statCol * 3;
   const bodyGridRow = showMonthBars ? 3 : 2;
 
   const grid = (
@@ -447,6 +510,8 @@ export function TeamScheduleMatrix({
             style={{ left: freeStickyLeft }}
           >
             <p className="text-[9px] font-bold uppercase leading-tight tracking-[0.06em] text-brand-ink-tertiary">
+              Days
+              <br />
               Free
             </p>
           </div>
@@ -455,6 +520,8 @@ export function TeamScheduleMatrix({
             style={{ left: bookedStickyLeft }}
           >
             <p className="text-[9px] font-bold uppercase leading-tight tracking-[0.06em] text-brand-ink-tertiary">
+              Days
+              <br />
               Booked
             </p>
           </div>
@@ -463,7 +530,19 @@ export function TeamScheduleMatrix({
             style={{ left: offStickyLeft }}
           >
             <p className="text-[9px] font-bold uppercase leading-tight tracking-[0.06em] text-brand-ink-tertiary">
+              Days
+              <br />
               Off
+            </p>
+          </div>
+          <div
+            className="schedule-chrome-header sticky top-0 z-40 flex items-center justify-center border-r border-brand-line/60 px-1 py-2 text-center"
+            style={{ left: nonworkStickyLeft }}
+          >
+            <p className="text-[9px] font-bold uppercase leading-tight tracking-[0.06em] text-brand-ink-tertiary">
+              Non-work
+              <br />
+              Days
             </p>
           </div>
         </>
@@ -476,6 +555,7 @@ export function TeamScheduleMatrix({
             key={column.key}
             className={clsx(
               "schedule-chrome-header sticky top-0 z-30 flex items-center justify-center border-r border-brand-line/60 px-1 py-2",
+              column.isToday && "!bg-brand-blue-soft",
               isLast && "border-r-0"
             )}
           >
@@ -501,6 +581,10 @@ export function TeamScheduleMatrix({
                 className="sticky z-20 border-b border-r border-brand-line/60 bg-brand-bg-subtle/95"
                 style={{ left: offStickyLeft }}
               />
+              <div
+                className="sticky z-20 border-b border-r border-brand-line/60 bg-brand-bg-subtle/95"
+                style={{ left: nonworkStickyLeft }}
+              />
             </>
           ) : null}
           {monthGroups.map((group) => (
@@ -522,7 +606,7 @@ export function TeamScheduleMatrix({
         </>
       ) : null}
 
-      {producerRows.map(({ row, availableCount, bookingCount, offCount, entries }, rowIndex) => {
+      {producerRows.map(({ row, availableCount, bookingCount, offCount, nonworkCount, entries }, rowIndex) => {
         const isActive = row.producer.id === activeProducerId;
         const isLastRow = rowIndex === producerRows.length - 1;
 
@@ -590,12 +674,7 @@ export function TeamScheduleMatrix({
                   style={{ left: bookedStickyLeft }}
                 >
                   <p
-                    className={clsx(
-                      "w-full text-center text-[11px] tabular-nums leading-none",
-                      bookingCount === 0
-                        ? "text-brand-ink-tertiary"
-                        : "text-brand-signature"
-                    )}
+                    className="w-full text-center text-[11px] tabular-nums leading-none text-brand-signature"
                     title={`${bookingCount} booked days in view`}
                   >
                     {bookingCount}
@@ -610,15 +689,25 @@ export function TeamScheduleMatrix({
                   style={{ left: offStickyLeft }}
                 >
                   <p
-                    className={clsx(
-                      "w-full text-center text-[11px] tabular-nums leading-none",
-                      offCount === 0
-                        ? "text-brand-ink-tertiary"
-                        : "text-brand-orange-deep"
-                    )}
+                    className="w-full text-center text-[11px] tabular-nums leading-none text-brand-orange-deep"
                     title={`${offCount} off days in view`}
                   >
                     {offCount}
+                  </p>
+                </div>
+
+                <div
+                  className={clsx(
+                    "sticky z-20 flex h-full min-h-0 items-center self-stretch border-b border-r border-brand-line/70 bg-white px-1 py-1.5",
+                    isLastRow && "border-b-0"
+                  )}
+                  style={{ left: nonworkStickyLeft }}
+                >
+                  <p
+                    className="w-full text-center text-[11px] tabular-nums leading-none text-brand-orange"
+                    title={`${nonworkCount} non-work days in view`}
+                  >
+                    {nonworkCount}
                   </p>
                 </div>
               </>
@@ -630,12 +719,14 @@ export function TeamScheduleMatrix({
                 <div
                   key={`${row.producer.id}-${column.key}`}
                   className={clsx(
-                    "group/cell flex h-full min-h-0 min-w-0 items-center justify-center self-stretch border-b border-r border-brand-line/35 bg-white px-0.5 py-1 transition-colors",
+                    "group/cell flex h-full min-h-0 min-w-0 items-center justify-center self-stretch border-b border-r border-brand-line/35 px-0.5 py-1 transition-colors",
                     isLastRow && "border-b-0",
                     isLastCol && "border-r-0",
                     isActive
                       ? "bg-brand-orange-soft/40"
-                      : "hover:bg-brand-blue-soft/25"
+                      : column.isToday
+                        ? "bg-brand-blue-soft hover:bg-brand-blue-soft/80"
+                        : "bg-white hover:bg-brand-blue-soft/25"
                   )}
                 >
                   <ScheduleCellButton

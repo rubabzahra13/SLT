@@ -1,12 +1,15 @@
+"use client";
+
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Avatar } from "@/components/ui/Avatar";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { getData, formatPrice } from "@/lib/data";
+import { useAppState } from "@/context/AppStateContext";
+import { formatPrice } from "@/lib/data";
 import { orderCategoryToProducerCategory, producerSupportsCategory } from "@/lib/editor-assignment";
 
 export default function AssignmentsPage() {
-  const { orders, producers } = getData();
-  const pending = orders.filter(
+  const { activeOrders, producers } = useAppState();
+  const pending = activeOrders.filter(
     (o) => o.status === "new" || o.requestedProducer === "First Available"
   );
 
