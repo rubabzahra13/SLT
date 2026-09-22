@@ -1594,6 +1594,18 @@ body {
   background: rgba(82, 200, 238, 0.1);
 }
 
+/* Entrance flash for a row just moved between tabs (Orders <-> MTD). The resting
+   tint + accent bar are applied inline in DataTable so they work regardless of
+   CSS hot-reload; this only layers a brief attention pulse on top. */
+@keyframes row-highlight-flash {
+  0% { background-color: rgba(82, 200, 238, 0.55); }
+  100% { background-color: rgba(82, 200, 238, 0.2); }
+}
+
+.data-row-highlight {
+  animation: row-highlight-flash 1s ease-out 1;
+}
+
 .dashboard-panel td,
 .dashboard-panel th.table-header-cell {
   border-color: var(--dashboard-surface-border);

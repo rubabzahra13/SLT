@@ -2,7 +2,7 @@ import uuid
 import json
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from app.core.database import get_db
 from app.models.mtd_record import MTDRecord
 from app.models.order import Order
@@ -46,7 +46,10 @@ def get_mtd_records(
     status: str | None = None,
     db: Session = Depends(get_db)
 ):
-    query = db.query(MTDRecord)
+    # Eager-load the producer relationship so serializing assigned_producer for
+    # every row does NOT fire one query per record (N+1). This collapses ~248
+    # extra round-trips to Supabase into a single batched query.
+    query = db.query(MTDRecord).options(selectinload(MTDRecord.assigned_producer))
     if cheer_form_subtype and cheer_form_subtype != "all":
         query = query.join(Order, MTDRecord.order_id == Order.id).filter(Order.cheer_form_subtype == cheer_form_subtype)
     elif form_type:

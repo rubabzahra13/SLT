@@ -200,6 +200,16 @@ function setLocalItem<T>(key: string, value: T): void {
   }
 }
 
+// --- Stale-while-revalidate cache -------------------------------------------
+// The backend lives in a distant region, so every cold fetch pays a multi-second
+// round-trip. We cache the last-known orders / MTD / producers in localStorage
+// and hydrate from it synchronously on mount so tabs paint instantly, then
+// refresh from the API in the background. Bump the version suffix if the cached
+// (normalized) shape ever changes incompatibly.
+const CACHE_ORDERS_KEY = "slt_cache_orders_v1";
+const CACHE_MTD_KEY = "slt_cache_mtd_v1";
+const CACHE_PRODUCERS_KEY = "slt_cache_producers_v1";
+
 export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const seed = getData();
 
@@ -211,11 +221,23 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem("slt_persisted_mtd_records");
   }
 
-  // Transactional data always starts empty — populated exclusively from the
-  // backend API (Supabase). No fallback to local seed/mock data.
-  const [activeOrders, setActiveOrders] = useState<Order[]>([]);
-  const [pastOrders, setPastOrders] = useState<Order[]>([]);
-  const [mtdRecords, setMtdRecords] = useState<MTDRecord[]>([]);
+  // Transactional data is populated from the backend API (Supabase), but we
+  // seed initial state from the stale-while-revalidate cache so the first paint
+  // is instant instead of waiting on a cross-region fetch.
+  const cachedOrders = getLocalItem<{ active: Order[]; past: Order[] } | null>(
+    CACHE_ORDERS_KEY,
+    null
+  );
+  const cachedMtd = getLocalItem<MTDRecord[] | null>(CACHE_MTD_KEY, null);
+  const hasCachedData = Boolean(cachedOrders && cachedMtd);
+
+  const [activeOrders, setActiveOrders] = useState<Order[]>(
+    () => cachedOrders?.active ?? []
+  );
+  const [pastOrders, setPastOrders] = useState<Order[]>(
+    () => cachedOrders?.past ?? []
+  );
+  const [mtdRecords, setMtdRecords] = useState<MTDRecord[]>(() => cachedMtd ?? []);
 
   const [packagePrices, setPackagePricesState] = useState<Record<string, number>>(
     () => getDefaultPackagePrices()
@@ -227,9 +249,16 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   // Notifications start empty — populated when backend data loads or user actions occur.
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
 
-  const [producers, setProducers] = useState<Producer[]>(() =>
-    deduplicateProducers(seed.producers.map((p) => normalizeProducer(p)))
-  );
+  const [producers, setProducers] = useState<Producer[]>(() => {
+    const cachedProducers = getLocalItem<Producer[] | null>(
+      CACHE_PRODUCERS_KEY,
+      null
+    );
+    if (cachedProducers && cachedProducers.length > 0) {
+      return deduplicateProducers(cachedProducers.map((p) => normalizeProducer(p)));
+    }
+    return deduplicateProducers(seed.producers.map((p) => normalizeProducer(p)));
+  });
   const [discountCodes, setDiscountCodes] = useState<DiscountCode[]>([]);
   const [payrollAddons, setPayrollAddons] = useState<PayrollAddon[]>([]);
   const [holidays, setHolidays] = useState<StudioHoliday[]>(() => {
@@ -259,7 +288,9 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     )
   );
   const [isBackendConnected, setIsBackendConnected] = useState<boolean>(false);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  // If we hydrated from cache, we already have data to show, so don't block the
+  // UI with a loading state — the background refresh updates silently.
+  const [isLoading, setIsLoading] = useState<boolean>(!hasCachedData);
 
   const schedule = seed.schedule;
 
@@ -280,19 +311,28 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         if (!isMounted) return;
 
         if (producersData && producersData.length > 0) {
-          const normalizedProducers = producersData.map((p) => normalizeProducer(p));
-          setProducers(deduplicateProducers(normalizedProducers));
+          const normalizedProducers = deduplicateProducers(
+            producersData.map((p) => normalizeProducer(p))
+          );
+          setProducers(normalizedProducers);
+          setLocalItem(CACHE_PRODUCERS_KEY, normalizedProducers);
         }
 
         let loadedActiveOrders: Order[] = [];
+        let loadedPastOrders: Order[] = [];
         let loadedMtdRecords: MTDRecord[] = [];
 
         if (ordersData) {
           // Database is the single source of truth for orders.
           // Replace state entirely — no seed fallback.
           loadedActiveOrders = normalizeOrders(ordersData.activeOrders);
+          loadedPastOrders = normalizeOrders(ordersData.pastOrders);
           setActiveOrders(loadedActiveOrders);
-          setPastOrders(normalizeOrders(ordersData.pastOrders));
+          setPastOrders(loadedPastOrders);
+          setLocalItem(CACHE_ORDERS_KEY, {
+            active: loadedActiveOrders,
+            past: loadedPastOrders,
+          });
         }
 
         if (mtdData) {
@@ -316,7 +356,9 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           }
         }
 
-        setMtdRecords([...loadedMtdRecords, ...convertedOrders]);
+        const combinedMtd = [...loadedMtdRecords, ...convertedOrders];
+        setMtdRecords(combinedMtd);
+        setLocalItem(CACHE_MTD_KEY, combinedMtd);
 
         if (codesData) {
           // Database is the single source of truth for discount codes.
@@ -1020,6 +1062,19 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setLocalItem("slt_studio_holidays", holidays);
   }, [holidays]);
+
+  // Keep the stale-while-revalidate cache in sync after edits (Move to Orders/MTD,
+  // inline changes, etc.). Only write once the backend has loaded so we never
+  // clobber a good cache with the empty initial state on a cold start.
+  useEffect(() => {
+    if (!isBackendConnected) return;
+    setLocalItem(CACHE_ORDERS_KEY, { active: activeOrders, past: pastOrders });
+  }, [activeOrders, pastOrders, isBackendConnected]);
+
+  useEffect(() => {
+    if (!isBackendConnected) return;
+    setLocalItem(CACHE_MTD_KEY, mtdRecords);
+  }, [mtdRecords, isBackendConnected]);
 
   useEffect(() => {
     setLocalItem(EMAIL_TEMPLATES_STORAGE_KEY, emailTemplates);

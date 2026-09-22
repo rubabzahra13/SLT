@@ -8,21 +8,55 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-db_url = settings.get_database_url()
+# The live API engine uses the transaction pooler (port 6543) when available;
+# Alembic keeps using get_database_url() (session/direct) for safe DDL.
+db_url = settings.get_runtime_database_url()
+
+
+def _int_env(name: str, default: int) -> int:
+    try:
+        return int(os.getenv(name, str(default)))
+    except (TypeError, ValueError):
+        return default
+
+
+# Server-side guards so a stuck query/transaction can never hold a pooled
+# backend indefinitely (which is what leaks connections toward the pool cap).
+_PG_CONNECT_ARGS = {
+    "connect_timeout": 10,
+    "application_name": "slt-backend",
+    # Reap half-open TCP connections instead of letting them occupy a slot.
+    "keepalives": 1,
+    "keepalives_idle": 30,
+    "keepalives_interval": 10,
+    "keepalives_count": 5,
+    "options": (
+        "-c statement_timeout=30000 "
+        "-c idle_in_transaction_session_timeout=30000"
+    ),
+}
 
 if db_url:
     if os.getenv("VERCEL"):
+        # Serverless: one short-lived connection per invocation, no client pool.
         engine = create_engine(
             db_url,
             poolclass=NullPool,
             pool_pre_ping=True,
+            connect_args=_PG_CONNECT_ARGS,
         )
     else:
+        # Long-running server: a small, hard-bounded, self-healing pool.
+        # Total connections per process are capped at pool_size + max_overflow,
+        # kept well under Supabase's client limit even across a few processes.
         engine = create_engine(
             db_url,
-            pool_pre_ping=True,
-            pool_size=5,
-            max_overflow=10,
+            pool_pre_ping=True,       # drop dead connections before handing them out
+            pool_size=_int_env("DB_POOL_SIZE", 5),
+            max_overflow=_int_env("DB_MAX_OVERFLOW", 5),
+            pool_timeout=_int_env("DB_POOL_TIMEOUT", 10),
+            pool_recycle=_int_env("DB_POOL_RECYCLE", 300),  # recycle every 5 min
+            connect_args=_PG_CONNECT_ARGS,
         )
     USING_SQLITE_FALLBACK = False
 else:

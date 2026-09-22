@@ -1,6 +1,6 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowRight, Mail } from "lucide-react";
 import clsx from "clsx";
@@ -138,6 +138,7 @@ function OrdersPageContent() {
     secretMenuPrices,
     setPackagePrices,
     setSecretMenuPrices,
+    isLoading,
   } = useAppState();
 
   const [formState, setFormState] = useState<OrderFormType>(DEFAULT_FORM);
@@ -173,9 +174,28 @@ function OrdersPageContent() {
     },
   ];
 
+  const router = useRouter();
   const searchParams = useSearchParams();
   const assignedParam = searchParams.get("assigned");
   const scheduleParam = searchParams.get("schedule");
+  const focusParam = searchParams.get("focus");
+
+  // Highlight a row that was just moved here from the MTD tab. Seeded from the
+  // ?focus= param on navigation, cleared when the user clicks a column.
+  const [highlightId, setHighlightId] = useState<string | null>(focusParam);
+  useEffect(() => {
+    setHighlightId(focusParam);
+  }, [focusParam]);
+
+  const clearHighlight = useCallback(() => {
+    setHighlightId(null);
+    if (typeof window !== "undefined" && focusParam) {
+      const params = new URLSearchParams(Array.from(searchParams.entries()));
+      params.delete("focus");
+      const qs = params.toString();
+      router.replace(`/orders${qs ? `?${qs}` : ""}`, { scroll: false });
+    }
+  }, [focusParam, router, searchParams]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -344,8 +364,10 @@ function OrdersPageContent() {
         mixEndDate: rec.mixEndDate,
         assignedProducer: rec.assignedProducer,
       });
+      // Jump to the MTD tab and highlight the row we just moved.
+      router.push(`/mtd?focus=${encodeURIComponent(rec.id)}`);
     },
-    [isViewOnly, updateMTD]
+    [isViewOnly, router, updateMTD]
   );
 
   const openPricingModal = useCallback((rec: MTDRecord, e: React.MouseEvent) => {
@@ -1093,10 +1115,14 @@ function OrdersPageContent() {
             columns={columns}
             rowKey={(rec) => rec.id}
             href={(rec) => `/orders/${rec.id}`}
-            emptyMessage="No pending pre-MTD orders found."
+            emptyMessage={
+              isLoading ? "Loading orders…" : "No pending pre-MTD orders found."
+            }
             pageSize={15}
             embedded
             showScrollIndicator={true}
+            highlightRowKey={highlightId}
+            onClearHighlight={clearHighlight}
           />
         </div>
       </div>

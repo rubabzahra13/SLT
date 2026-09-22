@@ -61,4 +61,32 @@ class Settings(BaseSettings):
             url = f"{url}{separator}sslmode=require"
         return url
 
+    def get_runtime_database_url(self) -> str:
+        """URL used by the live API engine.
+
+        Prefer Supabase's TRANSACTION pooler (port 6543) over SESSION mode
+        (port 5432). Session mode pins one Postgres backend per client for the
+        whole connection lifetime and is capped at ~15 clients, which we exhaust
+        under uvicorn --reload + a bounded SQLAlchemy pool. Transaction mode
+        multiplexes many short, request-scoped connections onto a few backends,
+        which is the correct mode for a stateless HTTP API.
+
+        Migrations still use get_database_url() (session/direct) because DDL and
+        advisory locks are not safe over the transaction pooler.
+        """
+        # Explicit override wins (e.g. RUNTIME_DATABASE_URL in the environment).
+        override = os.getenv("RUNTIME_DATABASE_URL")
+        if override:
+            return override
+
+        url = self.get_database_url()
+        if not url:
+            return url
+
+        # Only rewrite when we're actually going through the Supabase pooler.
+        if "pooler.supabase.com:5432" in url:
+            url = url.replace("pooler.supabase.com:5432", "pooler.supabase.com:6543", 1)
+
+        return url
+
 settings = Settings()
