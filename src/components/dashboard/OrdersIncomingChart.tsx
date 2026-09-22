@@ -110,7 +110,7 @@ export function OrdersIncomingChart({
           title="Today"
           body={
             todayCount > 0
-              ? `${todayCount} new order${todayCount === 1 ? "" : "s"} logged today — check Orders for details.`
+              ? `${todayCount} new order${todayCount === 1 ? "" : "s"} logged today. Check Orders for details.`
               : "No new orders logged yet today."
           }
           placement="left"

@@ -27,9 +27,20 @@ function ScheduleDayDrawer({ open, day, onClose, onSelectProducer, }) {
 }
 function UnavailableProducerAvatar({ producer, cell, compact, }) {
     const isOff = cell.status === "off";
-    return ((0, jsx_runtime_1.jsxs)("div", { className: "flex shrink-0 flex-col items-center gap-0.5", title: `${producer.name}${isOff ? " · Off" : " · Booked"}`, children: [(0, jsx_runtime_1.jsxs)("div", { className: "relative", children: [(0, jsx_runtime_1.jsx)("div", { className: (0, clsx_1.default)("rounded-full ring-1 ring-offset-1 ring-offset-brand-elevated", isOff ? "ring-brand-orange/55" : "ring-brand-blue/45"), children: (0, jsx_runtime_1.jsx)(Avatar_1.Avatar, { producer: producer, size: "xs" }) }), (0, jsx_runtime_1.jsx)("div", { className: (0, clsx_1.default)("pointer-events-none absolute inset-0 flex items-center justify-center rounded-full", isOff
+    const isNonwork = cell.status === "nonwork";
+    return ((0, jsx_runtime_1.jsxs)("div", { className: "flex shrink-0 flex-col items-center gap-0.5", title: `${producer.name}${isOff
+            ? ` · Off${cell.offDetail ? ` · ${cell.offDetail}` : ""}`
+            : isNonwork
+                ? " · Non-working"
+                : " · Booked"}`, children: [(0, jsx_runtime_1.jsxs)("div", { className: "relative", children: [(0, jsx_runtime_1.jsx)("div", { className: (0, clsx_1.default)("rounded-full ring-1 ring-offset-1 ring-offset-brand-elevated", isOff
+                            ? "ring-brand-orange/55"
+                            : isNonwork
+                                ? "ring-brand-orange/40"
+                                : "ring-brand-blue/45"), children: (0, jsx_runtime_1.jsx)(Avatar_1.Avatar, { producer: producer, size: "xs" }) }), (0, jsx_runtime_1.jsx)("div", { className: (0, clsx_1.default)("pointer-events-none absolute inset-0 flex items-center justify-center rounded-full", isOff
                             ? "bg-brand-orange/40"
-                            : "bg-gradient-to-b from-brand-blue/55 to-brand-signature/55"), children: (0, jsx_runtime_1.jsxs)("svg", { viewBox: "0 0 10 10", className: "h-3 w-3 text-white/90", fill: "none", stroke: "currentColor", strokeWidth: "1.75", strokeLinecap: "round", "aria-hidden": true, children: [(0, jsx_runtime_1.jsx)("line", { x1: "2", y1: "2", x2: "8", y2: "8" }), (0, jsx_runtime_1.jsx)("line", { x1: "8", y1: "2", x2: "2", y2: "8" })] }) })] }), (0, jsx_runtime_1.jsx)("span", { className: (0, clsx_1.default)("max-w-[2rem] truncate font-semibold leading-none", compact ? "text-[7.5px] tracking-[0.02em]" : "text-[8.5px] tracking-[0.03em]", isOff ? "text-brand-orange-deep" : "text-brand-signature"), children: producer.initials })] }));
+                            : isNonwork
+                                ? "bg-brand-orange/40"
+                                : "bg-gradient-to-b from-brand-blue/55 to-brand-signature/55"), children: (0, jsx_runtime_1.jsxs)("svg", { viewBox: "0 0 10 10", className: "h-3 w-3 text-white/90", fill: "none", stroke: "currentColor", strokeWidth: "1.75", strokeLinecap: "round", "aria-hidden": true, children: [(0, jsx_runtime_1.jsx)("line", { x1: "2", y1: "2", x2: "8", y2: "8" }), (0, jsx_runtime_1.jsx)("line", { x1: "8", y1: "2", x2: "2", y2: "8" })] }) })] }), (0, jsx_runtime_1.jsx)("span", { className: (0, clsx_1.default)("max-w-[2rem] truncate font-semibold leading-none", compact ? "text-[7.5px] tracking-[0.02em]" : "text-[8.5px] tracking-[0.03em]", isOff ? "text-brand-orange-deep" : "text-brand-signature"), children: producer.initials })] }));
 }
 function CalendarDayCard({ day, compact, selected, onClick, }) {
     const isOtherMonth = !day.isCurrentMonth;

@@ -24,8 +24,9 @@ function buildTodayEntries(rows) {
     const statusOrder = {
         available: 0,
         mix: 1,
-        off: 2,
-        capacity: 3,
+        capacity: 2,
+        off: 3,
+        nonwork: 4,
     };
     for (const row of rows) {
         const cell = row.cells[0];

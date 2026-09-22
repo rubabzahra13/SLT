@@ -12,6 +12,7 @@ import { TeamScheduleTodayView } from "@/components/schedule/TeamScheduleTodayVi
 import { ProducerScheduleDrawer } from "@/components/schedule/ProducerScheduleDrawer";
 import { useAppState } from "@/context/AppStateContext";
 import { todayIso } from "@/lib/date-filters";
+import { doDateRangesOverlap } from "@/lib/dates";
 import { isEligibleProducerScheduleRecord } from "@/lib/export-csv";
 import { findProducerByAssignmentKey } from "@/lib/editor-assignment";
 import {
@@ -19,8 +20,11 @@ import {
   buildScheduleColumnAggregates,
   buildTeamSchedule,
   filterTeamScheduleByStatus,
+  scheduleSendFilterPeriod,
+  sendPeriodLabel,
   statusLabel,
   type ScheduleCell,
+  type ScheduleSendPeriod,
   type ScheduleStatusFilter,
   type ScheduleViewRange,
   type TeamScheduleRow,
@@ -47,7 +51,7 @@ function SchedulePageContent() {
   const searchParams = useSearchParams();
   const viewParam = searchParams.get("view") || searchParams.get("range");
 
-  const { producers, schedule, mtdRecords, allOrders } = useAppState();
+  const { producers, schedule, mtdRecords, allOrders, holidays } = useAppState();
   const [pageTab, setPageTab] = useState<SchedulePageTab>("view");
   const [selectedEditor, setSelectedEditor] = useState("all");
   const [selectedSendEditor, setSelectedSendEditor] = useState("all");
@@ -56,6 +60,7 @@ function SchedulePageContent() {
     if (viewParam === "today") return "today";
     return "week";
   });
+  const [sendView, setSendView] = useState<ScheduleSendPeriod>("complete");
 
   useEffect(() => {
     if (viewParam === "today") {
@@ -134,12 +139,13 @@ function SchedulePageContent() {
           schedule,
           view,
           anchorDate,
-          mtdRecords
+          mtdRecords,
+          holidays
         ),
         statusFilter,
         view
       ),
-    [viewFilteredProducers, schedule, view, anchorDate, mtdRecords, statusFilter]
+    [viewFilteredProducers, schedule, view, anchorDate, mtdRecords, holidays, statusFilter]
   );
 
   const emptyMessage = useMemo(() => {
@@ -202,6 +208,11 @@ function SchedulePageContent() {
     return count;
   }, [teamRows]);
 
+  const sendFilterPeriod = useMemo(
+    () => scheduleSendFilterPeriod(sendView, anchorDate),
+    [sendView, anchorDate]
+  );
+
   const sendProducerNames = useMemo(() => {
     const allowed = new Set(
       categoryFilteredProducers.map((p) => p.name.toUpperCase())
@@ -209,16 +220,27 @@ function SchedulePageContent() {
     const eligibleRecords = mtdRecords.filter(isEligibleProducerScheduleRecord);
     const set = new Set<string>();
     for (const r of eligibleRecords) {
-      if (r.assignedProducer) {
-        const prodObj = findProducerByAssignmentKey(r.assignedProducer, producers);
-        const name = prodObj?.name || r.assignedProducer;
-        if (name && allowed.has(name.toUpperCase())) {
-          set.add(name);
+      if (!r.assignedProducer) continue;
+      if (sendFilterPeriod) {
+        const recStart = r.mixStartDate || r.completedAt || "";
+        const recEnd = r.mixEndDate || r.mixStartDate || r.completedAt || "";
+        if (
+          !doDateRangesOverlap(
+            { start: recStart, end: recEnd },
+            sendFilterPeriod
+          )
+        ) {
+          continue;
         }
+      }
+      const prodObj = findProducerByAssignmentKey(r.assignedProducer, producers);
+      const name = prodObj?.name || r.assignedProducer;
+      if (name && allowed.has(name.toUpperCase())) {
+        set.add(name);
       }
     }
     return Array.from(set).sort();
-  }, [mtdRecords, producers, categoryFilteredProducers]);
+  }, [mtdRecords, producers, categoryFilteredProducers, sendFilterPeriod]);
 
   const exportCategoryLabel = useMemo(
     () => scheduleFormFilterLabel(form, cheerSubtype, danceSubtype),
@@ -280,7 +302,7 @@ function SchedulePageContent() {
               view={view}
               statusFilter={statusFilter}
               columns={columns}
-              availableToday={availableToday}
+              availableCount={availableToday}
               offToday={offToday}
               totalProducers={teamRows.length}
               producers={categoryFilteredProducers}
@@ -303,6 +325,8 @@ function SchedulePageContent() {
               sendEditorProducers={sendEditorProducers}
               selectedSendEditor={selectedSendEditor}
               onSelectedSendEditorChange={setSelectedSendEditor}
+              sendView={sendView}
+              onSendViewChange={setSendView}
               onFormChange={switchForm}
               onCheerSubtypeChange={setCheerSubtype}
               onDanceSubtypeChange={setDanceSubtype}
@@ -345,6 +369,8 @@ function SchedulePageContent() {
             mtdRecords={mtdRecords}
             allOrders={allOrders}
             producers={producers}
+            filterPeriod={sendFilterPeriod}
+            sendView={sendView}
           />
         )}
       </div>

@@ -56,11 +56,11 @@ import {
   countMTDByForm,
   filterMTDRecords,
   getRecordMusicAffiliateInfo,
-  isPreMTDOrderRecord,
   isOrderScheduledAndAssigned,
   matchesMTDSearch,
   resolveMTDFormMeta,
 } from "@/lib/mtd-filters";
+import { listPreMtdOrderRecords } from "@/lib/order-staging";
 import type {
   CheerFormSubtypeFilter,
   DanceFormSubtypeFilter,
@@ -126,6 +126,7 @@ function multilineTableCell(value: string, maxWidth = "180px") {
 function OrdersPageContent() {
   const {
     mtdRecords,
+    activeOrders,
     allOrders,
     updateMTD,
     producers,
@@ -228,10 +229,9 @@ function OrdersPageContent() {
   const [mailRecord, setMailRecord] = useState<MTDRecord | null>(null);
   const [collectionMailRecord, setCollectionMailRecord] = useState<MTDRecord | null>(null);
 
-  // Pre-MTD records
   const preMtdRecords = useMemo(
-    () => mtdRecords.filter(isPreMTDOrderRecord),
-    [mtdRecords]
+    () => listPreMtdOrderRecords(activeOrders, mtdRecords, packagePrices),
+    [activeOrders, mtdRecords, packagePrices]
   );
 
   const allOrdersCount = useMemo(

@@ -69,7 +69,7 @@ export function MixOpsChart({
         {urgent > 0 ? (
           <DashboardTip
             title="Overdue"
-            body={`${urgent} mix${urgent === 1 ? "" : "es"} past end date — review MTD priorities.`}
+            body={`${urgent} mix${urgent === 1 ? "" : "es"} past end date. Review MTD priorities.`}
             placement="left"
           >
             <p className="cursor-default text-right text-[9px] font-semibold uppercase tracking-[0.05em] text-brand-orange">

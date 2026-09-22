@@ -24,9 +24,9 @@ type ProducerScheduleDrawerProps = {
 function rangeListLabel(range: ScheduleViewRange): string {
   if (range === "today") return "Today";
   if (range === "week") return "This week";
-  if (range === "month") return "Last 30 days";
-  if (range === "90days") return "Last 90 days";
-  return "Last 6 months";
+  if (range === "month") return "This month";
+  if (range === "90days") return "Next 90 days";
+  return "Next 6 months";
 }
 
 function TodayBookingsPanel({ cell }: { cell: ScheduleCell }) {
@@ -162,6 +162,9 @@ export function ProducerScheduleDrawer({
                     </p>
                     <p className="text-[11px] text-brand-ink-tertiary">
                       {statusLabel(cell.status)}
+                      {cell.status === "off" && cell.offDetail
+                        ? ` · ${cell.offDetail}`
+                        : ""}
                       {bookings.length > 0 && bookings[0].work
                         ? ` · ${bookings.map((b) => b.work).join(", ")}`
                         : ""}
@@ -172,9 +175,11 @@ export function ProducerScheduleDrawer({
                       "h-3 w-3 rounded-[3px]",
                       cell.status === "off"
                         ? "bg-brand-orange"
-                        : cell.unavailable
-                          ? "bg-brand-signature"
-                          : "bg-emerald-500 ring-1 ring-emerald-600/30"
+                        : cell.status === "nonwork"
+                          ? "ring-1 ring-inset ring-brand-orange"
+                          : cell.unavailable
+                            ? "bg-brand-signature"
+                            : "bg-emerald-500 ring-1 ring-emerald-600/30"
                     )}
                   />
                 </div>

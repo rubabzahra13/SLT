@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const node_test_1 = require("node:test");
 const strict_1 = __importDefault(require("node:assert/strict"));
 const mtd_filters_1 = require("../mtd-filters");
+const order_staging_1 = require("../order-staging");
 const mtd_completion_1 = require("../mtd-completion");
 const order_detail_sections_1 = require("../order-detail-sections");
 function makeRecord(overrides = {}) {
@@ -104,6 +105,31 @@ function makeRecord(overrides = {}) {
         strict_1.default.equal(merged.assignedProducer, "CM");
         strict_1.default.equal(merged.inMTD, false);
         strict_1.default.equal((0, mtd_filters_1.isPreMTDOrderRecord)(merged), true);
+    });
+    (0, node_test_1.it)("Open orders without mtd_records appear on the Orders tab", () => {
+        const order = {
+            id: "ord-open-1",
+            customerName: "Coach",
+            contactName: "Coach",
+            programName: "Demo Team",
+            category: "Cheer",
+            package: "Gold",
+            musicTheme: "",
+            editorRequest: "FA",
+            requestedProducer: "",
+            assignedProducer: null,
+            price: 299,
+            priceCompliance: "compliant",
+            status: "new",
+            createdAt: "2026-01-01",
+            needsAttention: false,
+            formType: "school-all-star-cheer",
+            cheerFormSubtype: "all-star-cheer",
+        };
+        const rows = (0, order_staging_1.listPreMtdOrderRecords)([order], []);
+        strict_1.default.equal(rows.length, 1);
+        strict_1.default.equal(rows[0].orderId, order.id);
+        strict_1.default.equal((0, mtd_filters_1.isPreMTDOrderRecord)(rows[0]), true);
     });
     (0, node_test_1.it)("Outsourced mixes belong on the MTD tab even without full scheduling", () => {
         const outsourced = makeRecord({

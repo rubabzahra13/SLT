@@ -26,6 +26,10 @@ import {
   stringToBase64,
 } from "@/lib/producer-schedule-mail";
 import type { MTDRecord, Order, Producer } from "@/types";
+import {
+  sendPeriodLabel,
+  type ScheduleSendPeriod,
+} from "@/lib/schedule-view";
 
 type ScheduleSendPanelProps = {
   categoryLabel: string;
@@ -35,6 +39,8 @@ type ScheduleSendPanelProps = {
   mtdRecords: MTDRecord[];
   allOrders: Order[];
   producers: Producer[];
+  filterPeriod?: { start: string; end: string };
+  sendView: ScheduleSendPeriod;
 };
 
 type SendFeedback = {
@@ -80,6 +86,8 @@ export function ScheduleSendPanel({
   mtdRecords,
   allOrders,
   producers,
+  filterPeriod,
+  sendView,
 }: ScheduleSendPanelProps) {
   const { token, isViewOnly } = useAuth();
   const [gmailConnected, setGmailConnected] = useState(false);
@@ -153,12 +161,15 @@ export function ScheduleSendPanel({
         mtdRecords,
         allOrders,
         producers,
-        name
+        name,
+        filterPeriod
       );
       counts.set(name, rows.length);
     }
     return counts;
-  }, [producerNames, mtdRecords, allOrders, producers]);
+  }, [producerNames, mtdRecords, allOrders, producers, filterPeriod]);
+
+  const periodLabel = sendPeriodLabel(sendView);
 
   const previewItems = useMemo<ScheduleSendPreviewItem[]>(() => {
     return targetProducerNames.flatMap((producerName) => {
@@ -170,7 +181,8 @@ export function ScheduleSendPanel({
         mtdRecords,
         allOrders,
         producers,
-        producerName
+        producerName,
+        filterPeriod
       );
       const draft = buildScheduleMailDraft(producer, mixCount, categoryLabel);
 
@@ -191,6 +203,7 @@ export function ScheduleSendPanel({
     categoryLabel,
     mtdRecords,
     allOrders,
+    filterPeriod,
   ]);
 
   const missingEmailNames = useMemo(
@@ -212,7 +225,8 @@ export function ScheduleSendPanel({
           mtdRecords,
           allOrders,
           producers,
-          targetName
+          targetName,
+          filterPeriod
         );
         triggerCsvDownload(
           `Schedule_${targetName.replace(/\s+/g, "_")}_${todayIso()}.csv`,
@@ -220,7 +234,7 @@ export function ScheduleSendPanel({
         );
       });
     },
-    [mtdRecords, allOrders, producers]
+    [mtdRecords, allOrders, producers, filterPeriod]
   );
 
   const handleDownload = useCallback(() => {
@@ -239,7 +253,8 @@ export function ScheduleSendPanel({
         mtdRecords,
         allOrders,
         producers,
-        producerName
+        producerName,
+        filterPeriod
       );
       const draft = buildScheduleMailDraft(producer, mixCount, categoryLabel);
       const excelAttachment = generateScheduleExcelAttachment(rows);
@@ -268,6 +283,7 @@ export function ScheduleSendPanel({
       allOrders,
       categoryLabel,
       token,
+      filterPeriod,
     ]
   );
 
@@ -373,7 +389,11 @@ export function ScheduleSendPanel({
                 <span className="font-semibold tabular-nums text-brand-ink">
                   {categoryEditorCount}
                 </span>{" "}
-                {categoryLabel} producers are assigned to ongoing mixes.
+                {categoryLabel} producers are assigned to ongoing mixes
+                {filterPeriod
+                  ? ` overlapping ${periodLabel.toLowerCase()} (${filterPeriod.start} – ${filterPeriod.end})`
+                  : ` (${periodLabel.toLowerCase()})`}
+                .
                 {!viewingAll && activeProducerName ? (
                   <>
                     {" "}
@@ -468,6 +488,7 @@ export function ScheduleSendPanel({
               mtdRecords={mtdRecords}
               allOrders={allOrders}
               producers={producers}
+              filterPeriod={filterPeriod}
             />
           ) : (
             <div className="flex items-start gap-2.5 rounded-xl border border-brand-warning/25 bg-brand-warning/8 px-3.5 py-3">
@@ -479,8 +500,9 @@ export function ScheduleSendPanel({
                   No schedules to send
                 </p>
                 <p className="mt-1 text-[12px] leading-relaxed text-brand-ink-secondary">
-                  No ongoing mixes match {categoryLabel}. Adjust the category
-                  filters above.
+                  No ongoing mixes match {categoryLabel} in{" "}
+                  {periodLabel.toLowerCase()}. Adjust the category or send
+                  period above.
                 </p>
               </div>
             </div>

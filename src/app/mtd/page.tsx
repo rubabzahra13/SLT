@@ -904,7 +904,8 @@ function MTDPageContent() {
                     {formatSlotForDisplay(
                       rec.assignedProducer,
                       producers,
-                      schedule
+                      schedule,
+                      mtdRecords
                     )}
                   </span>
                 ) : null

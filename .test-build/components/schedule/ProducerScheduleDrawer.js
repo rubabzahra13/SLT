@@ -18,10 +18,10 @@ function rangeListLabel(range) {
     if (range === "week")
         return "This week";
     if (range === "month")
-        return "Last 30 days";
+        return "This month";
     if (range === "90days")
-        return "Last 90 days";
-    return "Last 6 months";
+        return "Next 90 days";
+    return "Next 6 months";
 }
 function TodayBookingsPanel({ cell }) {
     const bookings = (0, schedule_legend_1.getCellBookings)(cell);
@@ -40,12 +40,16 @@ function ProducerScheduleDrawer({ open, producer, cells, range, focusCell, onClo
                                 const bookings = (0, schedule_legend_1.getCellBookings)(cell);
                                 return ((0, jsx_runtime_1.jsxs)("div", { className: (0, clsx_1.default)("flex items-center justify-between rounded-xl px-3 py-2.5", focusCell?.key === cell.key
                                         ? "bg-brand-blue-soft ring-1 ring-brand-blue/25"
-                                        : "bg-brand-surface"), children: [(0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsxs)("p", { className: "text-[13px] font-medium", children: [cell.dayLabel, ", ", cell.dateLabel] }), (0, jsx_runtime_1.jsxs)("p", { className: "text-[11px] text-brand-ink-tertiary", children: [(0, schedule_view_1.statusLabel)(cell.status), bookings.length > 0 && bookings[0].work
+                                        : "bg-brand-surface"), children: [(0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsxs)("p", { className: "text-[13px] font-medium", children: [cell.dayLabel, ", ", cell.dateLabel] }), (0, jsx_runtime_1.jsxs)("p", { className: "text-[11px] text-brand-ink-tertiary", children: [(0, schedule_view_1.statusLabel)(cell.status), cell.status === "off" && cell.offDetail
+                                                            ? ` · ${cell.offDetail}`
+                                                            : "", bookings.length > 0 && bookings[0].work
                                                             ? ` · ${bookings.map((b) => b.work).join(", ")}`
                                                             : ""] })] }), (0, jsx_runtime_1.jsx)("span", { className: (0, clsx_1.default)("h-3 w-3 rounded-[3px]", cell.status === "off"
                                                 ? "bg-brand-orange"
-                                                : cell.unavailable
-                                                    ? "bg-brand-signature"
-                                                    : "bg-emerald-500 ring-1 ring-emerald-600/30") })] }, cell.key));
+                                                : cell.status === "nonwork"
+                                                    ? "ring-1 ring-inset ring-brand-orange"
+                                                    : cell.unavailable
+                                                        ? "bg-brand-signature"
+                                                        : "bg-emerald-500 ring-1 ring-emerald-600/30") })] }, cell.key));
                             })] })) : null] })] }));
 }

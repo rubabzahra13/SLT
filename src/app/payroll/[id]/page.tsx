@@ -341,7 +341,7 @@ export default function PayrollDetailPage({
   const eightCsState = parseEightCsState(rec.eightCountSheet ?? "");
   const songsState = parseSongsState(rec.haveSongs ?? "");
   const slotLabel = rec.assignedProducer
-    ? formatSlotForDisplay(rec.assignedProducer, producers, schedule)
+    ? formatSlotForDisplay(rec.assignedProducer, producers, schedule, mtdRecords)
     : null;
   const orderForm = orderDraft ?? order;
   const isCheer = meta.formType === "school-all-star-cheer";

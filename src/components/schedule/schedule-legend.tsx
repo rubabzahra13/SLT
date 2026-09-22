@@ -9,21 +9,32 @@ export const SCHEDULE_LEGEND_ITEMS = [
   {
     key: "booked",
     label: "Booked",
+    tip: "Has one or more mixes assigned",
     swatchClass: "bg-brand-signature",
   },
   {
     key: "capacity",
     label: "Capacity Reached",
+    tip: "Daily mix or cost limit reached",
     swatchClass: "bg-amber-400/85",
   },
   {
     key: "off",
     label: "Off",
+    tip: "Personal leave or public holiday",
     swatchClass: "bg-brand-orange/80",
+  },
+  {
+    key: "nonwork",
+    label: "Non-working",
+    tip: "Outside regular work days, with no overtime",
+    swatchClass:
+      "ring-1 ring-inset ring-brand-orange shadow-[0_1px_2px_rgba(240,120,64,0.12)]",
   },
   {
     key: "available",
     label: "Available",
+    tip: "Open for booking, including overtime days",
     swatchClass:
       "bg-cyan-50/80 ring-1 ring-inset ring-cyan-400/60 shadow-[0_1px_2px_rgba(6,182,212,0.12)]",
   },
@@ -32,6 +43,8 @@ export const SCHEDULE_LEGEND_ITEMS = [
 export function scheduleStatusSwatchClass(status: ScheduleCell["status"]): string {
   if (status === "mix") return "bg-brand-signature";
   if (status === "off") return "bg-brand-orange/80";
+  if (status === "nonwork")
+    return "ring-1 ring-inset ring-brand-orange shadow-[0_1px_2px_rgba(240,120,64,0.12)]";
   if (status === "capacity") return "bg-amber-400/85";
   return "bg-cyan-50/80 ring-1 ring-inset ring-cyan-400/60 shadow-[0_1px_2px_rgba(6,182,212,0.12)]";
 }
@@ -40,6 +53,7 @@ export function scheduleStatusTextClass(status: ScheduleCell["status"]): string 
   if (status === "available") return "text-brand-signature";
   if (status === "mix") return "text-brand-signature";
   if (status === "off") return "text-brand-orange-deep";
+  if (status === "nonwork") return "text-brand-orange-deep";
   return "text-amber-700";
 }
 
@@ -59,13 +73,21 @@ export function ScheduleLegend({ className }: ScheduleLegendProps) {
       </span>
       <div className="inline-flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-brand-ink-secondary">
         {SCHEDULE_LEGEND_ITEMS.map((item) => (
-          <span key={item.key} className="inline-flex items-center gap-1.5">
+          <HoverTip
+            key={item.key}
+            label={item.tip}
+            placement="top"
+            className="inline-flex items-center gap-1.5"
+          >
             <span
               className={clsx("h-2.5 w-4 shrink-0 rounded-[3px]", item.swatchClass)}
+              style={
+                item.key === "nonwork" ? { backgroundColor: "#fff1e8" } : undefined
+              }
               aria-hidden
             />
             {item.label}
-          </span>
+          </HoverTip>
         ))}
       </div>
     </div>
@@ -109,6 +131,7 @@ type ScheduleStatusTileProps = {
 
 function scheduleStatusTooltipTone(status: ScheduleCell["status"]) {
   if (status === "off") return "text-brand-orange";
+  if (status === "nonwork") return "text-brand-orange";
   if (status === "capacity") return "text-amber-600";
   return "text-brand-signature";
 }
@@ -148,9 +171,21 @@ function ScheduleStatusTooltip({
           ) : null}
         </>
       ) : cell ? (
-        <p className="mt-1 text-[11px] text-brand-ink-secondary">
-          {cell.dayLabel}, {cell.dateLabel}
-        </p>
+        <>
+          {cell.status === "off" && cell.offDetail ? (
+            <p className="mt-1 text-[12px] font-medium leading-snug text-brand-ink">
+              {cell.offDetail}
+            </p>
+          ) : null}
+          {cell.status === "available" && cell.isOvertime ? (
+            <p className="mt-1 text-[12px] font-medium leading-snug text-brand-ink">
+              Overtime day
+            </p>
+          ) : null}
+          <p className="mt-1 text-[11px] text-brand-ink-secondary">
+            {cell.dayLabel}, {cell.dateLabel}
+          </p>
+        </>
       ) : null}
     </div>
   );
@@ -158,6 +193,7 @@ function ScheduleStatusTooltip({
 
 export function ScheduleStatusTile({ status, cell, className }: ScheduleStatusTileProps) {
   const isOff = status === "off";
+  const isNonwork = status === "nonwork";
   const isCapacity = status === "capacity";
   const isBooked = status === "mix";
 
@@ -168,6 +204,8 @@ export function ScheduleStatusTile({ status, cell, className }: ScheduleStatusTi
       className={clsx(
         "mx-auto block h-6 w-12 max-w-[48px] rounded-md",
         isOff && "bg-brand-orange/80 shadow-[0_1px_2px_rgba(240,120,64,0.16)]",
+        isNonwork &&
+          "ring-1 ring-inset ring-brand-orange shadow-[0_1px_2px_rgba(240,120,64,0.12)]",
         isCapacity && "bg-amber-400/85 shadow-[0_1px_2px_rgba(245,158,11,0.20)]",
         isBooked &&
           "bg-gradient-to-b from-brand-blue to-brand-signature shadow-[0_1px_2px_rgba(15,30,45,0.18)]",
@@ -175,6 +213,7 @@ export function ScheduleStatusTile({ status, cell, className }: ScheduleStatusTi
           "bg-cyan-50/80 ring-1 ring-inset ring-cyan-400/60 shadow-[0_1px_2px_rgba(6,182,212,0.12)]",
         className
       )}
+      style={isNonwork ? { backgroundColor: "#fff1e8" } : undefined}
     />
   );
 
