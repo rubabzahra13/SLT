@@ -131,8 +131,16 @@ export function buildCollectionEmailDraft(
     }
   }
 
-  // Compliancy is a background check in getOrderRequirements — use the exposed flag
-  if (!reqs.compliancyMet) {
+  // Compliancy check: IF Music Affiliate has a non-empty value (trimmed), Compliancy is NOT missing.
+  // IF Music Affiliate is empty (null, undefined, "", whitespace-only), Compliancy is missing.
+  const affiliateRaw =
+    (record as any)?.musicAffiliate ||
+    (linkedOrder as any)?.musicAffiliate ||
+    (record as any)?.music_affiliate ||
+    (linkedOrder as any)?.music_affiliate;
+  const isAffiliatePopulated = typeof affiliateRaw === "string" && affiliateRaw.trim().length > 0;
+
+  if (!reqs.compliancyMet && !isAffiliatePopulated) {
     if (!missingIds.includes("compliancy") && !missingIds.includes("form")) {
       missingIds.push("compliancy");
     }

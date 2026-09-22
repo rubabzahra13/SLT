@@ -36,6 +36,8 @@ export function stagingRecordFromOrder(
   return {
     id: order.id,
     orderId: order.id,
+    legacyId: order.legacyId || order.id,
+    uuid: order.uuid,
     section:
       order.category === "Dance" ? "DANCE MUSIC" : "CHEERLEADING MUSIC",
     assignedProducer: order.assignedProducer ?? null,
@@ -49,13 +51,21 @@ export function stagingRecordFromOrder(
     price,
     priceCompliance: compliance,
     invoice: "",
-    mixStartDate: "",
-    mixEndDate: "",
-    eightCountSheet: "NEED CS",
-    haveSongs: "NEED SONGS",
+    mixStartDate: order.mixStartDate || "",
+    mixEndDate: order.mixEndDate || "",
+    eightCountSheet: order.eightCountSheet || "NEED CS",
+    haveSongs: order.haveSongs || "NEED SONGS",
     needsAttention: order.needsAttention ?? true,
     status: order.needsAttention ? "needs_attention" : "active",
     inMTD: false,
+    isReassigned: order.isReassigned,
+    collectionStates: order.collectionStates || (order as any).collection_states,
+    orderStatus: (order as any).orderStatus || (order as any).order_status,
+    musicAffiliate: order.musicAffiliate || (order as any).music_affiliate,
+    routineNotes: order.routineNotes,
+    timeLengthOfMix: order.timeLengthOfMix,
+    songListSuggestions: order.songListSuggestions,
+    customVoiceovers: order.customVoiceovers,
   };
 }
 

@@ -43,6 +43,12 @@ export type MTDRecord = {
   /** Explicitly moved from MTD back to Orders staging for reassignment */
   isReassigned?: boolean;
   collectionStates?: Record<string, boolean>;
+  orderStatus?: string;
+  routineNotes?: string;
+  timeLengthOfMix?: string;
+  songListSuggestions?: string;
+  customVoiceovers?: string;
+  musicAffiliate?: string;
   completedAt?: string;
   hasRallyMix?: boolean;
   hasExtend8ctAddon?: boolean;
@@ -840,6 +846,12 @@ export type Order = {
   payrollFinalized?: boolean;
   payrollBreakdown?: any;
   isReassigned?: boolean;
+  collectionStates?: Record<string, boolean>;
+  orderStatus?: string;
+  eightCountSheet?: string;
+  haveSongs?: string;
+  mixStartDate?: string;
+  mixEndDate?: string;
 };
 
 export type ScheduleEntry = {

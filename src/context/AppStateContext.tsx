@@ -682,9 +682,14 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           );
         });
     } else {
-      updateMTDRecordApi(apiId, apiPatch).catch((err) =>
-        console.error("Failed to persist MTD Record update to backend:", err)
+      const hasMtdRecord = mtdRecords.some(
+        (r) => r.id === id || r.orderId === id || r.uuid === id || r.legacyId === id
       );
+      if (hasMtdRecord) {
+        updateMTDRecordApi(apiId, apiPatch).catch((err) =>
+          console.error("Failed to persist MTD Record update to backend:", err)
+        );
+      }
     }
 
     if (payrollNotice) {

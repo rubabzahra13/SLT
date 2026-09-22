@@ -339,7 +339,7 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
   if (needCompliancy) {
     const override = getOverrideState(order, "compliancy") ?? getOverrideState(order, "form");
     const affiliate = (order as Order).musicAffiliate || (order as any).music_affiliate || (order as any).powerMusicCovers;
-    const defaultProvided = isPresent(affiliate);
+    const defaultProvided = typeof affiliate === "string" && affiliate.trim().length > 0;
     compliancyMet = override !== undefined ? override : defaultProvided;
   }
 

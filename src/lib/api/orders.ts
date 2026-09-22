@@ -50,6 +50,9 @@ export interface BackendOrder {
   song_list_suggestions?: string | null;
   coupon_code?: string | null;
   how_did_you_find_out?: string | null;
+  collection_states?: any;
+  order_status?: string | null;
+  is_reassigned?: boolean;
 
   customer_name: string;
   contact_name: string;
@@ -130,6 +133,9 @@ export function transformOrder(bo: BackendOrder): Order {
     songListSuggestions: bo.song_list_suggestions || undefined,
     couponCode: bo.coupon_code || undefined,
     howDidYouFindOut: bo.how_did_you_find_out || undefined,
+    collectionStates: bo.collection_states || undefined,
+    isReassigned: Boolean(bo.is_reassigned),
+    orderStatus: bo.order_status || undefined,
 
     customerName: bo.customer_name || bo.program_name,
     contactName: bo.contact_name || bo.customer_name,
@@ -213,6 +219,13 @@ export async function updateOrderApi(
   if (patch.needsAttention !== undefined) payload.needs_attention = patch.needsAttention;
   if (patch.attentionReason !== undefined) payload.attention_reason = patch.attentionReason;
   if (patch.completedAt !== undefined) payload.completed_at = patch.completedAt;
+  if (patch.collectionStates !== undefined) payload.collection_states = patch.collectionStates;
+  if ((patch as any).collection_states !== undefined) payload.collection_states = (patch as any).collection_states;
+  if (patch.isReassigned !== undefined) payload.is_reassigned = patch.isReassigned;
+  if ((patch as any).orderStatus !== undefined) payload.order_status = (patch as any).orderStatus;
+  if ((patch as any).order_status !== undefined) payload.order_status = (patch as any).order_status;
+  if (patch.haveSongs !== undefined) payload.have_songs = patch.haveSongs;
+  if (patch.eightCountSheet !== undefined) payload.eight_count_sheet = patch.eightCountSheet;
 
   try {
     const res = await apiClient.patch<BackendOrder>(`/api/orders/${id}`, payload);
