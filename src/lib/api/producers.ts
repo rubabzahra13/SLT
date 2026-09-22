@@ -161,5 +161,13 @@ export async function updateProducerApi(
 }
 
 export async function deleteProducerApi(id: string, apiId?: string): Promise<void> {
-  await apiClient.delete(`/api/producers/${apiId || id}`);
+  try {
+    await apiClient.delete(`/api/producers/${apiId || id}`);
+  } catch (err) {
+    if (err instanceof ApiClientError && err.status === 404) {
+      // Producer is already deleted/missing on backend DB; complete deletion gracefully
+      return;
+    }
+    throw err;
+  }
 }

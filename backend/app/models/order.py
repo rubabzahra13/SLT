@@ -84,6 +84,7 @@ class Order(Base):
     needs_attention = Column(Boolean, default=False, nullable=False)
     attention_reason = Column(Text, nullable=True)
     is_past_order = Column(Boolean, default=False, nullable=False)
+    is_reassigned = Column(Boolean, default=False, nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
     # --- Pricing Engine Fields (populated at complete-pricing time) ---

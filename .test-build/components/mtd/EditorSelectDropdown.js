@@ -11,6 +11,7 @@ const react_dom_1 = require("react-dom");
 const clsx_1 = __importDefault(require("clsx"));
 const lucide_react_1 = require("lucide-react");
 const Avatar_1 = require("@/components/ui/Avatar");
+const dates_1 = require("@/lib/dates");
 function findOption(groups, value) {
     for (const group of groups) {
         const match = group.options.find((option) => option.name === value);
@@ -112,11 +113,17 @@ function EditorSelectDropdown({ id = "editor-select", value, onChange, groups, d
     const triggerSubtitle = selected
         ? selected.disabled || selected.isEligibleForMix === false
             ? selected.unavailabilityReason || "Unavailable for mix dates"
-            : selected.isAvailableToday
-                ? "Available today"
-                : selected.nextAvailableDateStr
-                    ? `Available from ${selected.nextAvailableDateStr}`
-                    : "Eligible for mix"
+            : selectedTone === "booked"
+                ? selected.bookedUntil
+                    ? `Booked till ${(0, dates_1.formatDisplayDate)(selected.bookedUntil)}`
+                    : `${selected.mixCount ?? 0} active mix${selected.mixCount === 1 ? "" : "es"}`
+                : selected.isAvailableToday
+                    ? "Available today"
+                    : selected.nextAvailableDateStr
+                        ? `Available from ${selected.nextAvailableDateStr}`
+                        : selected.bookedUntil
+                            ? `Available from ${(0, dates_1.formatDisplayDate)(selected.bookedUntil)}`
+                            : "Eligible for mix"
         : hasOptions
             ? "Choose an editor"
             : emptyLabel;
@@ -140,7 +147,7 @@ function EditorSelectDropdown({ id = "editor-select", value, onChange, groups, d
                                         : "hover:bg-brand-bg/80", isSelected &&
                                         "bg-brand-signature-soft ring-1 ring-brand-signature/25"), children: [(0, jsx_runtime_1.jsx)(EditorAvatar, { name: option.name, producer: option.producer }), (0, jsx_runtime_1.jsxs)("span", { className: "min-w-0 flex-1", children: [(0, jsx_runtime_1.jsxs)("span", { className: "flex flex-wrap items-center gap-1.5", children: [(0, jsx_runtime_1.jsx)("span", { className: "text-[13px] font-semibold text-brand-ink", children: option.name }), isRequested ? ((0, jsx_runtime_1.jsx)("span", { className: "rounded-full bg-brand-orange-soft px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-brand-orange", children: "Requested" })) : null, option.isAvailableToday ? ((0, jsx_runtime_1.jsx)("span", { className: "rounded-full bg-brand-success/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-brand-success", children: "Available Today" })) : option.isEligibleForMix ? ((0, jsx_runtime_1.jsx)("span", { className: "rounded-full bg-brand-info/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-brand-info", children: option.nextAvailableDateStr
                                                                 ? `Available from ${option.nextAvailableDateStr}`
-                                                                : "Eligible for Mix" })) : option.unavailabilityReason ? ((0, jsx_runtime_1.jsx)("span", { className: "rounded-full bg-brand-warning/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-brand-warning", children: option.unavailabilityReason })) : null] }), (0, jsx_runtime_1.jsx)("span", { className: "mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-brand-ink-tertiary", children: option.disabled || option.isEligibleForMix === false ? ((0, jsx_runtime_1.jsx)("span", { className: "text-brand-warning font-medium", children: option.unavailabilityReason || "Unavailable for mix dates" })) : option.isAvailableToday ? ((0, jsx_runtime_1.jsx)("span", { children: "Available today" })) : option.nextAvailableDateStr ? ((0, jsx_runtime_1.jsxs)("span", { children: ["Available from ", option.nextAvailableDateStr] })) : ((0, jsx_runtime_1.jsx)("span", { children: "Eligible for mix" })) })] }), isSelected ? ((0, jsx_runtime_1.jsx)(lucide_react_1.Check, { className: "h-4 w-4 shrink-0 text-brand-signature", strokeWidth: 2.5 })) : null] }) }, option.name));
+                                                                : "Eligible for Mix" })) : option.unavailabilityReason ? ((0, jsx_runtime_1.jsx)("span", { className: "rounded-full bg-brand-warning/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-brand-warning", children: option.unavailabilityReason })) : null] }), (0, jsx_runtime_1.jsx)("span", { className: "mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-brand-ink-tertiary", children: option.disabled || option.isEligibleForMix === false ? ((0, jsx_runtime_1.jsx)("span", { className: "text-brand-warning font-medium", children: option.unavailabilityReason || "Unavailable for mix dates" })) : group.tone === "booked" ? ((0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsxs)("span", { children: [option.mixCount ?? 0, " mix", (option.mixCount ?? 0) === 1 ? "" : "es"] }), option.bookedUntil ? ((0, jsx_runtime_1.jsxs)("span", { className: "inline-flex items-center gap-1", children: [(0, jsx_runtime_1.jsx)(lucide_react_1.Calendar, { className: "h-3 w-3 shrink-0", strokeWidth: 2 }), "Till ", (0, dates_1.formatDisplayDate)(option.bookedUntil)] })) : null] })) : option.isAvailableToday ? ((0, jsx_runtime_1.jsx)("span", { children: "Ready to assign today" })) : option.nextAvailableDateStr ? ((0, jsx_runtime_1.jsxs)("span", { children: ["Available from ", option.nextAvailableDateStr] })) : ((0, jsx_runtime_1.jsx)("span", { children: "Eligible for selected mix dates" })) })] }), isSelected ? ((0, jsx_runtime_1.jsx)(lucide_react_1.Check, { className: "h-4 w-4 shrink-0 text-brand-signature", strokeWidth: 2.5 })) : null] }) }, option.name));
                         }) })] }, group.label))) }) })) : null;
     return ((0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsxs)("button", { ref: triggerRef, id: id, type: "button", role: "combobox", "aria-expanded": open, "aria-controls": `${id}-listbox`, disabled: disabled || !hasOptions, onMouseDown: (event) => event.stopPropagation(), onClick: (event) => {
                     event.stopPropagation();

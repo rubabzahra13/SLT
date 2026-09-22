@@ -14,7 +14,6 @@ exports.isProducerOnTimeOff = isProducerOnTimeOff;
 exports.mixWindowForRecord = mixWindowForRecord;
 exports.mixEndIsoForRecord = mixEndIsoForRecord;
 exports.countProducerMixesOnDay = countProducerMixesOnDay;
-exports.getRecordPayout = getRecordPayout;
 exports.countProducerDailyCost = countProducerDailyCost;
 exports.isProducerUnderDailyCapacity = isProducerUnderDailyCapacity;
 exports.isProducerUnderDailyCostCapacity = isProducerUnderDailyCostCapacity;
@@ -26,8 +25,6 @@ exports.getProducerUnavailabilityReason = getProducerUnavailabilityReason;
 const types_1 = require("@/types");
 const dates_1 = require("@/lib/dates");
 const producer_keys_1 = require("@/lib/producer-keys");
-const pricing_display_1 = require("@/lib/pricing-display");
-const producers_1 = require("@/lib/producers");
 const scheduling_1 = require("@/lib/scheduling");
 const JS_DAY_TO_WEEKDAY = [
     "sun",
@@ -131,14 +128,6 @@ function countProducerMixesOnDay(producer, day, mtdRecords, excludeRecordId) {
     }
     return count;
 }
-function getRecordPayout(rec, producer) {
-    if (typeof rec.producerPayout === "number" && !isNaN(rec.producerPayout)) {
-        return rec.producerPayout;
-    }
-    const price = rec.finalCustomerPrice ?? rec.price ?? 0;
-    const computed = (0, pricing_display_1.computeClientPayroll)(producer ?? null, price, rec.pricingBreakdown ?? null, rec.rateUsed ?? null, null, rec.category);
-    return computed.producerPayout ?? 0;
-}
 /**
  * Sum the producer payout costs for all records assigned to this producer on a given day.
  * Uses `rec.producerPayout` (the producer's cut, not the customer price).
@@ -155,54 +144,61 @@ function countProducerDailyCost(producer, day, mtdRecords, excludeRecordId) {
             continue;
         if (!recordCoversDay(rec, day))
             continue;
-        total += getRecordPayout(rec, producer);
+        total += rec.producerPayout ?? 0;
     }
     return total;
 }
-function isProducerUnderDailyCapacity(producer, day, mtdRecords, excludeRecordId, additionalMixes = 0) {
-    const max = producer.maxMixesPerDay ?? producers_1.DEFAULT_MAX_MIXES_PER_DAY;
-    const currentCount = countProducerMixesOnDay(producer, day, mtdRecords, excludeRecordId);
-    return currentCount + additionalMixes <= max;
+function isProducerUnderDailyCapacity(producer, day, mtdRecords, excludeRecordId) {
+    if (producer.maxMixesPerDay == null)
+        return true;
+    return (countProducerMixesOnDay(producer, day, mtdRecords, excludeRecordId) <
+        producer.maxMixesPerDay);
 }
-function isProducerUnderDailyCostCapacity(producer, day, mtdRecords, excludeRecordId, additionalPayout = 0) {
-    const maxCost = producer.maxProducerCostPerDay ?? producers_1.DEFAULT_MAX_PRODUCER_COST_PER_DAY;
-    const currentCost = countProducerDailyCost(producer, day, mtdRecords, excludeRecordId);
-    return currentCost + additionalPayout <= maxCost;
+function isProducerUnderDailyCostCapacity(producer, day, mtdRecords, excludeRecordId) {
+    if (producer.maxProducerCostPerDay == null)
+        return true;
+    return (countProducerDailyCost(producer, day, mtdRecords, excludeRecordId) <
+        producer.maxProducerCostPerDay);
 }
 /**
  * Returns true when a producer has reached their daily capacity on a given date.
  * Capacity is reached when EITHER the daily mix count limit OR the daily cost limit is hit.
  */
-function isProducerAtDailyCapacity(producer, day, mtdRecords, excludeRecordId, additionalPayout = 0) {
-    const mixCapacityReached = !isProducerUnderDailyCapacity(producer, day, mtdRecords, excludeRecordId, 1);
-    const costCapacityReached = !isProducerUnderDailyCostCapacity(producer, day, mtdRecords, excludeRecordId, additionalPayout);
+function isProducerAtDailyCapacity(producer, day, mtdRecords, excludeRecordId) {
+    const mixCapacityReached = !isProducerUnderDailyCapacity(producer, day, mtdRecords, excludeRecordId);
+    const costCapacityReached = !isProducerUnderDailyCostCapacity(producer, day, mtdRecords, excludeRecordId);
     return mixCapacityReached || costCapacityReached;
 }
 /** True on scheduled days that are not time off and still have mix AND cost capacity. */
-function isProducerAvailableOnDay(producer, day, mtdRecords, excludeRecordId, additionalPayout = 0) {
+function isProducerAvailableOnDay(producer, day, mtdRecords, excludeRecordId) {
     if (!isProducerScheduledDay(producer, day))
         return false;
     if (isProducerOnTimeOff(producer, day))
         return false;
-    if (!isProducerUnderDailyCapacity(producer, day, mtdRecords, excludeRecordId, 1)) {
+    if (!isProducerUnderDailyCapacity(producer, day, mtdRecords, excludeRecordId)) {
         return false;
     }
-    if (!isProducerUnderDailyCostCapacity(producer, day, mtdRecords, excludeRecordId, additionalPayout)) {
+    if (!isProducerUnderDailyCostCapacity(producer, day, mtdRecords, excludeRecordId)) {
         return false;
     }
     return true;
 }
-function isProducerAvailableForMixWindow(producer, startIso, endIso, mtdRecords, excludeRecordId, additionalPayout = 0) {
+function isProducerAvailableForMixWindow(producer, startIso, endIso, mtdRecords, excludeRecordId) {
     const start = (0, dates_1.parseFlexibleDate)(startIso);
     const end = (0, dates_1.parseFlexibleDate)(endIso);
     if (!start || !end)
         return true;
     const startDay = toDayStart(start);
     const endDay = toDayStart(end);
+    if (!isProducerScheduledDay(producer, startDay)) {
+        return false;
+    }
     const cursor = new Date(startDay);
     while (cursor <= endDay) {
-        if (!isProducerAvailableOnDay(producer, cursor, mtdRecords, excludeRecordId, additionalPayout)) {
-            return false;
+        if (isProducerScheduledDay(producer, cursor)) {
+            if (!isProducerAvailableOnDay(producer, cursor, mtdRecords, excludeRecordId)) {
+                return false;
+            }
         }
         cursor.setDate(cursor.getDate() + 1);
     }
@@ -226,22 +222,12 @@ function getProducerUnavailabilityReason(producer, rec, mtdRecords, schedule = [
     if (isProducerOnTimeOff(producer, start)) {
         return "On approved time off";
     }
-    const payout = getRecordPayout(rec, producer);
-    const eligibleRecords = mtdRecords.filter((r) => r.status !== "outsourced" && r.status !== "needs_attention");
-    const mixLimitHit = !isProducerUnderDailyCapacity(producer, start, eligibleRecords, rec.id, 1);
-    const costLimitHit = !isProducerUnderDailyCostCapacity(producer, start, eligibleRecords, rec.id, payout);
-    if (mixLimitHit && costLimitHit) {
-        return "At daily capacity";
-    }
-    if (mixLimitHit) {
-        return "At daily mix limit";
-    }
-    if (costLimitHit) {
-        return "At daily payout limit";
+    if (isProducerAtDailyCapacity(producer, start, mtdRecords, rec.id)) {
+        return "Reached maximum daily mix capacity";
     }
     if (window) {
-        if (!isProducerAvailableForMixWindow(producer, dateToIsoLocal(window.start), dateToIsoLocal(window.end), mtdRecords, rec.id, payout)) {
-            return "At daily capacity on mix dates";
+        if (!isProducerAvailableForMixWindow(producer, dateToIsoLocal(window.start), dateToIsoLocal(window.end), mtdRecords, rec.id)) {
+            return "Conflicting mix or capacity on mix dates";
         }
     }
     return null;

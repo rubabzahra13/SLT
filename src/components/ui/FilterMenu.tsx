@@ -10,14 +10,17 @@ export type FilterMenuOption = {
   value: string;
   label: string;
   count?: number;
+  isRed?: boolean;
 };
+
+export type FilterMenuAccent = BrandAccent | "red";
 
 type FilterMenuProps = {
   label: string;
   value: string;
   options: FilterMenuOption[];
   onChange: (value: string) => void;
-  accent?: BrandAccent;
+  accent?: FilterMenuAccent;
   className?: string;
   hideLabel?: boolean;
   grouped?: boolean;
@@ -31,9 +34,10 @@ type PanelPosition = {
   width: number;
 };
 
-const accentActive: Record<BrandAccent, string> = {
+const accentActive: Record<FilterMenuAccent, string> = {
   blue: "border-brand-blue/35 bg-brand-blue-soft/45 text-brand-ink",
   orange: "border-brand-orange/35 bg-brand-orange-soft/70 text-brand-ink",
+  red: "border-red-500/35 bg-red-500/10 text-red-600 dark:text-red-400 font-semibold",
 };
 
 function computePanelPosition(trigger: HTMLButtonElement): PanelPosition {
@@ -141,7 +145,9 @@ export function FilterMenu({
               ) : (
                 <span className="h-3.5 w-3.5 shrink-0" aria-hidden />
               )}
-              <span className="truncate">{opt.label}</span>
+              <span className={clsx("truncate", opt.isRed && "text-red-600 font-medium dark:text-red-400")}>
+                {opt.label}
+              </span>
             </span>
             {opt.count !== undefined ? (
               <span className="shrink-0 text-[12px] tabular-nums text-brand-ink-tertiary">
@@ -196,7 +202,9 @@ export function FilterMenu({
                   isActive
                     ? accent === "orange"
                       ? "bg-brand-orange-soft/80 font-semibold text-brand-ink"
-                      : "bg-brand-blue-soft/70 font-semibold text-brand-ink"
+                      : accent === "red"
+                        ? "bg-red-500/15 font-semibold text-red-700 dark:text-red-300 border border-red-500/30"
+                        : "bg-brand-blue-soft/70 font-semibold text-brand-ink"
                     : "text-brand-ink-secondary hover:bg-brand-elevated/90 hover:text-brand-ink",
                   open && !isActive && "bg-brand-elevated text-brand-ink"
                 )

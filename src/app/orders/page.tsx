@@ -17,13 +17,12 @@ import {
 import { SetPricingModal } from "@/components/mtd/SetPricingModal";
 import { SetRecordPricingModal } from "@/components/mtd/SetRecordPricingModal";
 import { CompletionBlockedModal } from "@/components/mtd/CompletionBlockedModal";
-import { MoveToMtdConfirmModal } from "@/components/mtd/MoveToMtdConfirmModal";
 import { ForwardOrderMailModal } from "@/components/orders/ForwardOrderMailModal";
 import {
   DEFAULT_MTD_TABLE_FILTERS,
   type MTDTableFilterState,
 } from "@/components/mtd/MTDTableFilters";
-import { MTDPageToolbar } from "@/components/mtd/MTDPageToolbar";
+import { MTDPageToolbar, type OrderTypeFilter } from "@/components/mtd/MTDPageToolbar";
 import { useAppState } from "@/context/AppStateContext";
 import { formatPrice, titleCase } from "@/lib/data";
 import {
@@ -139,6 +138,7 @@ function OrdersPageContent() {
   const [danceSubtypeState, setDanceSubtypeState] = useState<DanceFormSubtypeFilter>(
     DEFAULT_DANCE_SUBTYPE
   );
+  const [orderTypeFilter, setOrderTypeFilter] = useState<OrderTypeFilter>("new_orders");
 
   const [form, setForm] = [
     formState,
@@ -218,7 +218,6 @@ function OrdersPageContent() {
   const [searchQuery, setSearchQuery] = useState("");
   const [assignRecordId, setAssignRecordId] = useState<string | null>(null);
   const [validationModalRecord, setValidationModalRecord] = useState<MTDRecord | null>(null);
-  const [moveConfirmRecord, setMoveConfirmRecord] = useState<MTDRecord | null>(null);
   const [pricingOpen, setPricingOpen] = useState(false);
   const [pricingRecord, setPricingRecord] = useState<MTDRecord | null>(null);
   const [mailRecord, setMailRecord] = useState<MTDRecord | null>(null);
@@ -227,6 +226,25 @@ function OrdersPageContent() {
   const preMtdRecords = useMemo(
     () => mtdRecords.filter(isPreMTDOrderRecord),
     [mtdRecords]
+  );
+
+  const newOrdersCount = useMemo(
+    () => preMtdRecords.filter((r) => !r.isReassigned).length,
+    [preMtdRecords]
+  );
+
+  const reassignedOrdersCount = useMemo(
+    () => preMtdRecords.filter((r) => Boolean(r.isReassigned)).length,
+    [preMtdRecords]
+  );
+
+  const typeFilteredPreMtdRecords = useMemo(
+    () =>
+      preMtdRecords.filter((rec) => {
+        if (orderTypeFilter === "reassigned") return Boolean(rec.isReassigned);
+        return !rec.isReassigned;
+      }),
+    [preMtdRecords, orderTypeFilter]
   );
 
   const assignRecord = useMemo(
@@ -286,24 +304,17 @@ function OrdersPageContent() {
         return;
       }
 
-      setMoveConfirmRecord(rec);
+      updateMTD(rec.id, {
+        inMTD: true,
+        status: "active",
+        recordStatus: "Ongoing",
+        mixStartDate: rec.mixStartDate,
+        mixEndDate: rec.mixEndDate,
+        assignedProducer: rec.assignedProducer,
+      });
     },
     [isViewOnly, updateMTD]
   );
-
-  const confirmMoveToMTD = useCallback(() => {
-    const rec = moveConfirmRecord;
-    if (!rec) return;
-    updateMTD(rec.id, {
-      inMTD: true,
-      status: "active",
-      recordStatus: "Ongoing",
-      mixStartDate: rec.mixStartDate,
-      mixEndDate: rec.mixEndDate,
-      assignedProducer: rec.assignedProducer,
-    });
-    setMoveConfirmRecord(null);
-  }, [moveConfirmRecord, updateMTD]);
 
   const openPricingModal = useCallback((rec: MTDRecord, e: React.MouseEvent) => {
     e.preventDefault();
@@ -321,7 +332,7 @@ function OrdersPageContent() {
   // Filtered dataset for table
   const tableFiltered = useMemo(
     () =>
-      filterMTDRecords(preMtdRecords, {
+      filterMTDRecords(typeFilteredPreMtdRecords, {
         packageTier: tableFilters.packageTier,
         timeLimit: tableFilters.timeLimit,
         split: tableFilters.split,
@@ -337,7 +348,7 @@ function OrdersPageContent() {
         producers,
       }),
     [
-      preMtdRecords,
+      typeFilteredPreMtdRecords,
       tableFilters,
       form,
       cheerSubtype,
@@ -354,21 +365,22 @@ function OrdersPageContent() {
   }, [tableFiltered, searchQuery]);
 
   const formCounts = useMemo(
-    () => countMTDByForm(preMtdRecords, orderById),
-    [preMtdRecords, orderById]
+    () => countMTDByForm(typeFilteredPreMtdRecords, orderById),
+    [typeFilteredPreMtdRecords, orderById]
   );
 
   const cheerSubtypeCounts = useMemo(
-    () => countMTDByCheerSubtype(preMtdRecords, orderById),
-    [preMtdRecords, orderById]
+    () => countMTDByCheerSubtype(typeFilteredPreMtdRecords, orderById),
+    [typeFilteredPreMtdRecords, orderById]
   );
 
   const danceSubtypeCounts = useMemo(
-    () => countMTDByDanceSubtype(preMtdRecords, orderById),
-    [preMtdRecords, orderById]
+    () => countMTDByDanceSubtype(typeFilteredPreMtdRecords, orderById),
+    [typeFilteredPreMtdRecords, orderById]
   );
 
   const tableFilterKey = [
+    orderTypeFilter,
     tableFilters.packageTier,
     tableFilters.timeLimit,
     tableFilters.split,
@@ -807,7 +819,7 @@ function OrdersPageContent() {
                     }}
                     className={actionButtonClass(false)}
                   >
-                    Assign
+                    {rec.isReassigned || orderTypeFilter === "reassigned" ? "Reassign" : "Assign"}
                   </button>
                 </div>
               )}
@@ -864,6 +876,7 @@ function OrdersPageContent() {
     return baseCols;
   }, [
     form,
+    orderTypeFilter,
     producers,
     allOrders,
     mtdRecords,
@@ -877,7 +890,7 @@ function OrdersPageContent() {
     <>
       <PageHeader
         title="Orders"
-        badge={`${filtered.length} of ${preMtdRecords.length}`}
+        badge={`${filtered.length} of ${typeFilteredPreMtdRecords.length}`}
         subtitle="Pre-MTD order staging: assign editor, set dates, and move to MTD"
         action={{
           label: "Pricing",
@@ -901,13 +914,17 @@ function OrdersPageContent() {
             form={form}
             cheerSubtype={cheerSubtype}
             danceSubtype={danceSubtype}
+            orderType={orderTypeFilter}
+            onOrderTypeChange={setOrderTypeFilter}
+            newOrdersCount={newOrdersCount}
+            reassignedOrdersCount={reassignedOrdersCount}
             onFormChange={switchForm}
             onCheerSubtypeChange={setCheerSubtype}
             onDanceSubtypeChange={setDanceSubtype}
             formCounts={formCounts}
             cheerCounts={cheerSubtypeCounts}
             danceCounts={danceSubtypeCounts}
-            records={preMtdRecords}
+            records={typeFilteredPreMtdRecords}
             producers={producers}
             orderById={orderById}
             filters={tableFilters}
@@ -975,13 +992,6 @@ function OrdersPageContent() {
         record={validationModalRecord}
         reason="moveToMtd"
         onClose={() => setValidationModalRecord(null)}
-      />
-
-      <MoveToMtdConfirmModal
-        open={Boolean(moveConfirmRecord)}
-        record={moveConfirmRecord}
-        onClose={() => setMoveConfirmRecord(null)}
-        onConfirm={confirmMoveToMTD}
       />
 
       <ForwardOrderMailModal

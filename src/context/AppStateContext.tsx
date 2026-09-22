@@ -190,12 +190,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
         if (producersData && producersData.length > 0) {
           const normalizedProducers = producersData.map((p) => normalizeProducer(p));
-          const backendIds = new Set(normalizedProducers.map((p) => p.id));
-          // Merge backend producers with seed producers (team config), keeping any
-          // local seed producers that the backend doesn't know about yet.
-          const seedProducers = seed.producers.map((p) => normalizeProducer(p));
-          const missingSeed = seedProducers.filter((p) => !backendIds.has(p.id));
-          setProducers(deduplicateProducers([...normalizedProducers, ...missingSeed]));
+          setProducers(deduplicateProducers(normalizedProducers));
         }
 
         let loadedActiveOrders: Order[] = [];
@@ -567,6 +562,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       if (patch.price !== undefined) orderPatch.price = patch.price;
       if (patch.editorRequest !== undefined) orderPatch.editorRequest = patch.editorRequest;
       if (patch.inMTD === true) orderPatch.status = "in_mtd";
+      if (patch.inMTD === false) orderPatch.status = "active";
+      if (patch.isReassigned !== undefined) orderPatch.isReassigned = patch.isReassigned;
 
       if (Object.keys(orderPatch).length > 0) {
         setActiveOrders((prev) =>

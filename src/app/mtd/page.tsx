@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { Eye, Lock, Pencil } from "lucide-react";
+import { ArrowLeft, Eye, Lock, Pencil } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Avatar } from "@/components/ui/Avatar";
 import { DataTable, type Column } from "@/components/ui/DataTable";
@@ -116,6 +116,14 @@ const actionButtonClass = (filled: boolean) =>
     filled
       ? "border-brand-line/70 bg-brand-elevated text-brand-ink hover:border-brand-line hover:bg-brand-bg/50"
       : "border-brand-orange-deep bg-brand-orange text-white hover:bg-brand-orange-hover"
+  );
+
+const ordersMtdButtonClass = (ready: boolean) =>
+  clsx(
+    "inline-flex h-7 items-center justify-center gap-0.5 rounded-md border px-2 text-[10px] font-semibold leading-none transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue/30",
+    ready
+      ? "border-brand-blue/25 bg-brand-blue text-white shadow-sm hover:bg-brand-blue-hover"
+      : "border-brand-line/60 bg-brand-bg/50 text-brand-ink-tertiary hover:bg-brand-bg hover:text-brand-ink"
   );
 
 const clickableChipClass =
@@ -347,6 +355,22 @@ function MTDPageContent() {
       setAssignRecordId(rec.id);
     },
     []
+  );
+
+  const handleMoveToOrders = useCallback(
+    (rec: MTDRecord, e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (isViewOnly) return;
+
+      updateMTD(rec.id, {
+        inMTD: false,
+        isReassigned: true,
+        status: "active",
+      });
+    },
+    [isViewOnly, updateMTD]
   );
 
   const openInvoiceModal = useCallback(
@@ -1298,18 +1322,32 @@ function MTDPageContent() {
       {
         key: "actions",
         header: "Actions",
-        width: "100px",
+        width: "130px",
         align: "center",
         nowrap: false,
-        cellClassName: clsx(compactCellClass, "max-w-[100px]"),
+        cellClassName: clsx(compactCellClass, "max-w-[130px]"),
         headerClassName: compactHeaderClass,
         render: (rec) => (
-          <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
+            {!isViewOnly ? (
+              <HoverTip label="Move to Orders" placement="top">
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => handleMoveToOrders(rec, e)}
+                  className={ordersMtdButtonClass(true)}
+                  aria-label="Move to Orders"
+                >
+                  <span>Orders</span>
+                  <ArrowLeft className="h-3 w-3 shrink-0" strokeWidth={2.25} />
+                </button>
+              </HoverTip>
+            ) : null}
             <Link
               href={`/mtd/${rec.id}`}
               title={isViewOnly ? "View record" : "Open record"}
               aria-label={`Open ${rec.programName}`}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-brand-line/70 bg-brand-bg/60 text-brand-ink-secondary shadow-sm transition hover:border-brand-orange/40 hover:bg-brand-orange-soft/35 hover:text-brand-orange focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange/25"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-brand-line/70 bg-brand-bg/60 text-brand-ink-secondary shadow-sm transition hover:border-brand-orange/40 hover:bg-brand-orange-soft/35 hover:text-brand-orange focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange/25"
             >
               {isViewOnly ? (
                 <Eye className="h-3.5 w-3.5" strokeWidth={2} />
@@ -1327,16 +1365,17 @@ function MTDPageContent() {
   [
     form,
     cheerSubtype,
-      updateMTD,
-      allOrders,
-      mtdRecords,
-      producers,
-      schedule,
-      openAssignModal,
-      openInvoiceModal,
-      openPricingModal,
-    ]
-  );
+    updateMTD,
+    handleMoveToOrders,
+    allOrders,
+    mtdRecords,
+    producers,
+    schedule,
+    openAssignModal,
+    openInvoiceModal,
+    openPricingModal,
+  ]
+);
 
   return (
     <>

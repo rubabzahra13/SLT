@@ -85,18 +85,11 @@ function AssignEditorModal({ open, record, mtdRecords, allOrders, producers, sch
         ? (0, editor_assignment_1.findProducerByAssignmentKey)(formalAssigned, producers)
         : undefined, [isAssignmentLocked, formalAssigned, producers]);
     const todayAvailableCount = (0, react_1.useMemo)(() => {
-        if (!record)
-            return 0;
-        const mixStartIso = record.mixStartDate || today.toISOString().slice(0, 10);
-        const mixEndIso = record.mixEndDate || mixStartIso;
-        const payout = (0, producer_availability_1.getRecordPayout)(record);
         return categoryEditors.filter((name) => {
             const producer = (0, editor_assignment_1.findProducerByAssignmentKey)(name, producers);
-            if (!producer)
-                return false;
-            return (0, producer_availability_1.isProducerAvailableForMixWindow)(producer, mixStartIso, mixEndIso, mtdRecords, record.id, payout);
+            return producer ? (0, producer_schedule_calc_1.isProducerAvailableOnDate)(producer, today, mtdRecords, schedule) : false;
         }).length;
-    }, [categoryEditors, producers, today, mtdRecords, record]);
+    }, [categoryEditors, producers, today, mtdRecords, schedule]);
     const editorSelectGroups = (0, react_1.useMemo)(() => {
         if (!record)
             return [];
@@ -105,18 +98,16 @@ function AssignEditorModal({ open, record, mtdRecords, allOrders, producers, sch
         const anchorDate = record.mixStartDate
             ? (0, dates_1.parseFlexibleDate)(record.mixStartDate) ?? today
             : today;
-        const mixStartIso = record.mixStartDate || today.toISOString().slice(0, 10);
-        const mixEndIso = record.mixEndDate || mixStartIso;
         for (const name of categoryEditors) {
             const key = (0, producer_keys_1.normalizeProducerKey)(name);
             const producer = (0, editor_assignment_1.findProducerByAssignmentKey)(name, producers);
             const mixCount = editorWorkload.get(key) ?? 0;
-            const payout = producer ? (0, producer_availability_1.getRecordPayout)(record, producer) : 0;
+            const bookedUntil = editorBookedUntil.get(key);
             const isAvailableToday = producer
-                ? (0, producer_availability_1.isProducerAvailableForMixWindow)(producer, mixStartIso, mixEndIso, mtdRecords, record.id, payout)
+                ? (0, producer_schedule_calc_1.isProducerAvailableOnDate)(producer, today, mtdRecords, schedule)
                 : false;
             const nextOpening = producer
-                ? (0, producer_schedule_calc_1.calculateProducerNextOpening)(producer, mtdRecords, schedule, anchorDate, record)
+                ? (0, producer_schedule_calc_1.calculateProducerNextOpening)(producer, mtdRecords, schedule, anchorDate)
                 : null;
             const nextAvailableDateStr = nextOpening && !isAvailableToday
                 ? (0, dates_1.formatDisplayDate)((0, dates_1.toCanonicalIsoDate)(nextOpening.nextAvailableDate))
@@ -136,6 +127,7 @@ function AssignEditorModal({ open, record, mtdRecords, allOrders, producers, sch
                 name,
                 producer,
                 mixCount,
+                bookedUntil,
                 nextAvailableDateStr,
                 isAvailableToday,
                 isEligibleForMix,

@@ -33,6 +33,8 @@ export type MTDRecord = {
   inPayroll?: boolean;
   /** Explicitly moved from Orders staging to MTD */
   inMTD?: boolean;
+  /** Explicitly moved from MTD back to Orders staging for reassignment */
+  isReassigned?: boolean;
   completedAt?: string;
   hasRallyMix?: boolean;
   hasExtend8ctAddon?: boolean;
@@ -827,6 +829,7 @@ export type Order = {
   sltPortion?: number | null;
   payrollFinalized?: boolean;
   payrollBreakdown?: any;
+  isReassigned?: boolean;
 };
 
 export type ScheduleEntry = {

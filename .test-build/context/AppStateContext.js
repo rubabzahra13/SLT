@@ -364,6 +364,10 @@ function AppStateProvider({ children }) {
                 orderPatch.editorRequest = patch.editorRequest;
             if (patch.inMTD === true)
                 orderPatch.status = "in_mtd";
+            if (patch.inMTD === false)
+                orderPatch.status = "active";
+            if (patch.isReassigned !== undefined)
+                orderPatch.isReassigned = patch.isReassigned;
             if (Object.keys(orderPatch).length > 0) {
                 setActiveOrders((prev) => prev.map((o) => o.id === linkedOrder.id ? { ...o, ...orderPatch } : o));
                 (0, api_1.updateOrderApi)(linkedOrder.id, orderPatch).catch((err) => console.error("Failed to sync order update to backend:", err));

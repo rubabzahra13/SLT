@@ -13,10 +13,18 @@ import type {
   OrderFormType,
 } from "@/types";
 
+import { FilterMenu } from "@/components/ui/FilterMenu";
+
+export type OrderTypeFilter = "new_orders" | "reassigned";
+
 type MTDPageToolbarProps = {
   form: OrderFormType;
   cheerSubtype: CheerFormSubtypeFilter;
   danceSubtype: DanceFormSubtypeFilter;
+  orderType?: OrderTypeFilter;
+  onOrderTypeChange?: (orderType: OrderTypeFilter) => void;
+  newOrdersCount?: number;
+  reassignedOrdersCount?: number;
   onFormChange: (form: OrderFormType) => void;
   onCheerSubtypeChange: (subtype: CheerFormSubtypeFilter) => void;
   onDanceSubtypeChange: (subtype: DanceFormSubtypeFilter) => void;
@@ -36,6 +44,10 @@ export function MTDPageToolbar({
   form,
   cheerSubtype,
   danceSubtype,
+  orderType,
+  onOrderTypeChange,
+  newOrdersCount,
+  reassignedOrdersCount,
   onFormChange,
   onCheerSubtypeChange,
   onDanceSubtypeChange,
@@ -84,6 +96,26 @@ export function MTDPageToolbar({
             onReset={onFiltersReset}
             form={form}
           />
+          {onOrderTypeChange && orderType ? (
+            <>
+              <span
+                className="mx-0.5 hidden h-5 w-px shrink-0 bg-brand-line/45 sm:block"
+                aria-hidden
+              />
+              <FilterMenu
+                label="Order Type"
+                hideLabel
+                grouped
+                value={orderType}
+                onChange={(v) => onOrderTypeChange(v as OrderTypeFilter)}
+                accent={orderType === "reassigned" ? "red" : "blue"}
+                options={[
+                  { value: "new_orders", label: "New Orders", count: newOrdersCount },
+                  { value: "reassigned", label: "Reassigned", count: reassignedOrdersCount, isRed: true },
+                ]}
+              />
+            </>
+          ) : null}
         </div>
 
       </div>

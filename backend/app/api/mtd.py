@@ -170,6 +170,8 @@ def update_mtd_record(mtd_id: str, payload: MTDRecordUpdateSchema, db: Session =
                 linked_order.price = mtd.price
             if "price_compliance" in update_data:
                 linked_order.price_compliance = mtd.price_compliance
+            if "is_reassigned" in update_data:
+                linked_order.is_reassigned = mtd.is_reassigned
             if "status" in update_data and mtd.status == "completed":
                 linked_order.status = "completed"
 

@@ -20,13 +20,45 @@ function getProducerHeaderLabel(categories: string[]): string {
 }
 
 export default function ProducersPage() {
-  const { producers, addProducer, updateProducer, removeProducer, isViewOnly } =
+  const { producers, activeOrders, mtdRecords, addProducer, updateProducer, removeProducer, isViewOnly } =
     useAppState();
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Producer | null>(null);
   const [availabilityProducer, setAvailabilityProducer] =
     useState<Producer | null>(null);
   const [deleting, setDeleting] = useState<Producer | null>(null);
+
+  const assignedMixesCount = useMemo(() => {
+    if (!deleting) return 0;
+    let count = 0;
+    const pName = (deleting.name || "").toLowerCase().trim();
+    const pInit = (deleting.initials || "").toLowerCase().trim();
+    const pId = (deleting.id || "").toLowerCase().trim();
+
+    for (const order of activeOrders) {
+      const editor = (order.requestedEditor || order.requestedProducer || "").toLowerCase().trim();
+      const assigned = (order.assignedProducer || "").toLowerCase().trim();
+      if (
+        (editor && (editor === pName || editor === pInit || editor === pId)) ||
+        (assigned && (assigned === pName || assigned === pInit || assigned === pId))
+      ) {
+        count++;
+      }
+    }
+
+    for (const rec of mtdRecords) {
+      const assigned = (rec.assignedProducer || "").toLowerCase().trim();
+      const initials = (rec.editorInitials || "").toLowerCase().trim();
+      if (
+        (assigned && (assigned === pName || assigned === pInit || assigned === pId)) ||
+        (initials && (initials === pName || initials === pInit || initials === pId))
+      ) {
+        count++;
+      }
+    }
+
+    return count;
+  }, [deleting, activeOrders, mtdRecords]);
 
   function openAdd() {
     if (isViewOnly) return;
@@ -256,6 +288,7 @@ export default function ProducersPage() {
       <DeleteProducerModal
         open={Boolean(deleting)}
         producer={deleting}
+        assignedMixesCount={assignedMixesCount}
         onClose={() => setDeleting(null)}
         onConfirm={confirmDelete}
       />

@@ -74,6 +74,7 @@ class OrderSchema(BaseModel):
     needs_attention: bool = False
     attention_reason: Optional[str] = None
     is_past_order: bool = False
+    is_reassigned: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -93,6 +94,7 @@ class OrderCreateSchema(BaseModel):
     dance_form_subtype: Optional[str] = None
     varsity_viroc_customer: Optional[str] = None
     status: Optional[str] = "new"
+    is_reassigned: Optional[bool] = False
 
     school_program_name: Optional[str] = None
     school_address: Optional[str] = None
@@ -156,3 +158,4 @@ class OrderUpdateSchema(BaseModel):
     attention_reason: Optional[str] = None
     completed_at: Optional[datetime] = None
     is_past_order: Optional[bool] = None
+    is_reassigned: Optional[bool] = None

@@ -30,6 +30,7 @@ class MTDRecordSchema(BaseModel):
     status: str = "active"
     record_status: Optional[str] = None
     in_mtd: bool = False
+    is_reassigned: bool = False
     in_payroll: bool = False
     completed_at: Optional[datetime] = None
     has_rally_mix: bool = False
@@ -89,6 +90,7 @@ class MTDRecordCreateSchema(BaseModel):
     mix_start_date: Optional[date] = None
     mix_end_date: Optional[date] = None
     in_mtd: Optional[bool] = False
+    is_reassigned: Optional[bool] = False
     has_rally_mix: Optional[bool] = False
     has_extend_8ct_addon: Optional[bool] = False
     has_processing_8ct_sheets_addon: Optional[bool] = False
@@ -115,6 +117,7 @@ class MTDRecordUpdateSchema(BaseModel):
     status: Optional[str] = None
     record_status: Optional[str] = None
     in_mtd: Optional[bool] = None
+    is_reassigned: Optional[bool] = None
     in_payroll: Optional[bool] = None
     completed_at: Optional[datetime] = None
     has_rally_mix: Optional[bool] = None

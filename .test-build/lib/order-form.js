@@ -297,6 +297,7 @@ function orderToMTDRecord(order) {
         status: order.status === "in_mtd" ? "active" : (order.assignedProducer ? "active" : (order.needsAttention ? "needs_attention" : "active")),
         recordStatus: order.assignedProducer || order.status === "in_mtd" ? "Ongoing" : "Waiting for Data",
         inMTD: order.status === "in_mtd",
+        isReassigned: Boolean(order.isReassigned),
         inPayroll: false,
         hasRallyMix: false,
         hasExtend8ctAddon: false,

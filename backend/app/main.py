@@ -20,6 +20,22 @@ async def lifespan(app: FastAPI):
         except Exception as exc:
             logger.warning("Skipping create_all during startup: %s", exc)
 
+    # Ensure is_reassigned column exists on existing orders and mtd_records tables
+    try:
+        from sqlalchemy import text
+        with engine.begin() as conn:
+            if engine.dialect.name == "sqlite":
+                for table in ["orders", "mtd_records"]:
+                    try:
+                        conn.execute(text(f"ALTER TABLE {table} ADD COLUMN is_reassigned BOOLEAN DEFAULT 0"))
+                    except Exception:
+                        pass
+            else:
+                conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS is_reassigned BOOLEAN DEFAULT FALSE;"))
+                conn.execute(text("ALTER TABLE mtd_records ADD COLUMN IF NOT EXISTS is_reassigned BOOLEAN DEFAULT FALSE;"))
+    except Exception as exc:
+        logger.warning("Auto-migration check for is_reassigned skipped/failed: %s", exc)
+
     # When running against the local SQLite fallback, seed the sample users so
     # the frontend's offline session tokens authenticate.
     if USING_SQLITE_FALLBACK:

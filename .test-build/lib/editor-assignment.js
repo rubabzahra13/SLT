@@ -532,7 +532,7 @@ function getSuggestedEditors(mtdRecords, producers, schedule, category, excludeR
     return names.map((name) => {
         const producer = findProducerByAssignmentKey(name, producers);
         const calc = producer
-            ? (0, producer_schedule_calc_1.calculateProducerNextOpening)(producer, mtdRecords, schedule, anchorDate, targetRecord)
+            ? (0, producer_schedule_calc_1.calculateProducerNextOpening)(producer, mtdRecords, schedule, anchorDate)
             : null;
         const nextAvailableDate = calc?.nextAvailableDate ?? anchorDate;
         const slotLabel = calc?.nextAvailable ?? (0, scheduling_1.formatSlotForDisplay)(name, producers, schedule, mtdRecords);

@@ -16,10 +16,49 @@ def is_valid_uuid(val: str) -> bool:
     except (ValueError, TypeError, AttributeError):
         return False
 
+from sqlalchemy import func
+from app.lib.producer_assignment import resolve_producer_by_assignment_key
+
 def _find_producer(db: Session, producer_id: str) -> Producer | None:
-    if is_valid_uuid(producer_id):
-        return db.query(Producer).filter((Producer.id == uuid.UUID(producer_id)) | (Producer.legacy_id == producer_id)).first()
-    return db.query(Producer).filter(Producer.legacy_id == producer_id).first()
+    if not producer_id or not str(producer_id).strip():
+        return None
+    pid_str = str(producer_id).strip()
+
+    # 1. UUID lookup
+    if is_valid_uuid(pid_str):
+        prod = db.query(Producer).filter(
+            (Producer.id == uuid.UUID(pid_str)) | (Producer.legacy_id == pid_str)
+        ).first()
+        if prod:
+            return prod
+
+    # 2. Exact legacy_id match
+    prod = db.query(Producer).filter(Producer.legacy_id == pid_str).first()
+    if prod:
+        return prod
+
+    # 3. Handle prod- prefix variations (prod-10 vs 10)
+    if pid_str.startswith("prod-"):
+        short_id = pid_str.replace("prod-", "")
+        prod = db.query(Producer).filter(Producer.legacy_id == short_id).first()
+        if prod:
+            return prod
+    else:
+        full_id = f"prod-{pid_str}"
+        prod = db.query(Producer).filter(Producer.legacy_id == full_id).first()
+        if prod:
+            return prod
+
+    # 4. Lookup using assignment key resolver (checks initials, name, first name, legacy_id)
+    prod = resolve_producer_by_assignment_key(db, pid_str)
+    if prod:
+        return prod
+
+    # 5. Case-insensitive fallback on name or initials
+    return db.query(Producer).filter(
+        (func.lower(Producer.name) == pid_str.lower()) |
+        (func.lower(Producer.initials) == pid_str.lower())
+    ).first()
 
 from app.api.auth import require_full_access
 
@@ -80,9 +119,7 @@ def update_producer(producer_id: str, payload: ProducerUpdateSchema, db: Session
 @router.delete("/producers/{producer_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_producer(producer_id: str, db: Session = Depends(get_db), _: None = Depends(require_full_access)):
     producer = _find_producer(db, producer_id)
-    if not producer:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Producer not found")
-
-    db.delete(producer)
-    db.commit()
+    if producer:
+        db.delete(producer)
+        db.commit()
     return None
