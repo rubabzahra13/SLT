@@ -87,6 +87,7 @@ type AppStateContextValue = {
   addDiscountCode: (discountCode: DiscountCode) => Promise<DiscountCode>;
   updateDiscountCode: (id: string, patch: Partial<DiscountCode>) => Promise<DiscountCode>;
   removeDiscountCode: (id: string) => Promise<void>;
+  addNotification: (notification: Omit<AppNotification, "id" | "read" | "createdAt">) => void;
   markNotificationRead: (id: string) => void;
   markAllNotificationsRead: () => void;
   isInMTD: (orderId: string) => boolean;
@@ -900,6 +901,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     addDiscountCode,
     updateDiscountCode,
     removeDiscountCode,
+    addNotification,
     markNotificationRead,
     markAllNotificationsRead,
     isInMTD,

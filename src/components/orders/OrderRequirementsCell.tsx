@@ -65,7 +65,7 @@ export function OrderRequirementsCell({
   record: Order | MTDRecord;
   category: RequirementCategory;
 }) {
-  const { updateMTD, isViewOnly } = useAppState();
+  const { updateMTD, addNotification, isViewOnly } = useAppState();
   const reqs = getOrderRequirements(record);
   const items = category === "collections" ? reqs.collections : reqs.songsArea;
 
@@ -85,10 +85,26 @@ export function OrderRequirementsCell({
       [item.id]: nextCollected,
     };
 
+    const oldStatus = getOrderRequirements(record).status;
+    const simulatedRecord = {
+      ...record,
+      collectionStates: updatedCollectionStates,
+      collection_states: updatedCollectionStates,
+      orderStatus: undefined,
+      order_status: undefined,
+    };
+    const newStatus = getOrderRequirements(simulatedRecord).status;
+    const statusChanged = oldStatus !== newStatus;
+
     const patch: Record<string, any> = {
       collectionStates: updatedCollectionStates,
       collection_states: updatedCollectionStates,
     };
+
+    if (statusChanged) {
+      patch.orderStatus = newStatus;
+      patch.order_status = newStatus;
+    }
 
     // Synchronize legacy text flags if applicable
     if (item.id === "songs") {
@@ -99,6 +115,14 @@ export function OrderRequirementsCell({
     }
 
     updateMTD(record.id, patch as Partial<MTDRecord>);
+
+    if (statusChanged) {
+      addNotification({
+        type: "mtd_move",
+        title: "Order status updated",
+        message: `Order moved to ${newStatus}.`,
+      });
+    }
   };
 
   return (
