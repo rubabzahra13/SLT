@@ -1098,7 +1098,7 @@ export function ProducerAvailabilityModal({
         aria-label="Close"
       />
 
-      <div className="relative flex h-[min(92dvh,720px)] w-full max-w-[440px] flex-col overflow-hidden rounded-t-[28px] bg-brand-elevated shadow-[0_24px_80px_rgba(0,0,0,0.28)] sm:rounded-[28px]">
+      <div className="relative flex max-h-[min(92dvh,720px)] w-full max-w-[440px] flex-col overflow-hidden rounded-t-[28px] bg-brand-elevated shadow-[0_24px_80px_rgba(0,0,0,0.28)] sm:rounded-[28px]">
         <header className="relative flex shrink-0 items-center justify-between border-b border-black/[0.08] px-4 py-3.5">
           <button
             type="button"
