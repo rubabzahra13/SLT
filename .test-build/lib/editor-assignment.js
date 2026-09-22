@@ -32,6 +32,7 @@ const producer_availability_1 = require("./producer-availability");
 const dates_1 = require("./dates");
 const producer_keys_1 = require("./producer-keys");
 const scheduling_1 = require("./scheduling");
+const producer_schedule_calc_1 = require("./producer-schedule-calc");
 var producer_keys_2 = require("./producer-keys");
 Object.defineProperty(exports, "normalizeProducerKey", { enumerable: true, get: function () { return producer_keys_2.normalizeProducerKey; } });
 Object.defineProperty(exports, "producerAssignmentKey", { enumerable: true, get: function () { return producer_keys_2.producerAssignmentKey; } });
@@ -132,18 +133,13 @@ function pickDefaultEditor(record, producers, mtdRecords, schedule, linkedOrder)
         };
     }
     if (requestedEditor) {
-        if (available.includes(requestedEditor)) {
+        const matchedKey = eligible.find((name) => (0, producer_keys_1.producerKeysMatch)(name, requestedEditor));
+        if (matchedKey) {
+            const isAvailable = available.some((name) => (0, producer_keys_1.producerKeysMatch)(name, requestedEditor));
             return {
-                editor: requestedEditor,
+                editor: matchedKey,
                 requestedEditor,
-                reason: "requested_available",
-            };
-        }
-        if (eligible.includes(requestedEditor)) {
-            return {
-                editor: available[0] || "",
-                requestedEditor,
-                reason: "requested_busy",
+                reason: isAvailable ? "requested_available" : "requested_busy",
             };
         }
     }
@@ -520,17 +516,30 @@ function inferAssignmentMode(record) {
         return "fa";
     return "specific";
 }
-function getSuggestedEditors(mtdRecords, producers, schedule, category, excludeRecordId, record) {
+function getSuggestedEditors(mtdRecords, producers, schedule, category, excludeRecordId, record, anchorDateInput) {
     const targetRecord = record ||
         (excludeRecordId
             ? mtdRecords.find((r) => r.id === excludeRecordId)
             : undefined);
     const names = getUnassignedEditors(mtdRecords, producers, category, excludeRecordId, targetRecord);
+    const anchorDate = anchorDateInput
+        ? typeof anchorDateInput === "string"
+            ? (0, dates_1.parseFlexibleDate)(anchorDateInput) ?? new Date()
+            : anchorDateInput
+        : targetRecord?.mixStartDate
+            ? (0, dates_1.parseFlexibleDate)(targetRecord.mixStartDate) ?? new Date()
+            : new Date();
     return names.map((name) => {
         const producer = findProducerByAssignmentKey(name, producers);
+        const calc = producer
+            ? (0, producer_schedule_calc_1.calculateProducerNextOpening)(producer, mtdRecords, schedule, anchorDate, targetRecord)
+            : null;
+        const nextAvailableDate = calc?.nextAvailableDate ?? anchorDate;
+        const slotLabel = calc?.nextAvailable ?? (0, scheduling_1.formatSlotForDisplay)(name, producers, schedule, mtdRecords);
         return {
             name,
-            slotLabel: (0, scheduling_1.formatSlotForDisplay)(name, producers, schedule),
+            slotLabel,
+            nextAvailableDate,
             producer,
         };
     });

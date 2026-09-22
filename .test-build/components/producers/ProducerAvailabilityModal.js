@@ -68,9 +68,9 @@ function ProducerAvailabilityModal({ open, onClose, producer, onSave, readOnly =
     const [timeOffDraft, setTimeOffDraft] = (0, react_1.useState)(() => createEmptyTimeOffDraft());
     const [showTimeOffForm, setShowTimeOffForm] = (0, react_1.useState)(false);
     const [hasMaxCapacity, setHasMaxCapacity] = (0, react_1.useState)(false);
-    const [maxMixesPerDay, setMaxMixesPerDay] = (0, react_1.useState)(6);
-    const [maxProducerCostPerDay, setMaxProducerCostPerDay] = (0, react_1.useState)(2000);
-    const [maxCostInput, setMaxCostInput] = (0, react_1.useState)("2000");
+    const [maxMixesPerDay, setMaxMixesPerDay] = (0, react_1.useState)(producers_1.DEFAULT_MAX_MIXES_PER_DAY);
+    const [maxProducerCostPerDay, setMaxProducerCostPerDay] = (0, react_1.useState)(producers_1.DEFAULT_MAX_PRODUCER_COST_PER_DAY);
+    const [maxCostInput, setMaxCostInput] = (0, react_1.useState)(String(producers_1.DEFAULT_MAX_PRODUCER_COST_PER_DAY));
     const [overtimeDays, setOvertimeDays] = (0, react_1.useState)([]);
     const [overtimeDraft, setOvertimeDraft] = (0, react_1.useState)("");
     const [activeTab, setActiveTab] = (0, react_1.useState)("schedule");
@@ -90,9 +90,9 @@ function ProducerAvailabilityModal({ open, onClose, producer, onSave, readOnly =
             reason: entry.reason,
         })));
         setHasMaxCapacity(producer.maxMixesPerDay != null || producer.maxProducerCostPerDay != null);
-        setMaxMixesPerDay(producer.maxMixesPerDay ?? 6);
-        setMaxProducerCostPerDay(producer.maxProducerCostPerDay ?? 2000);
-        setMaxCostInput(String(producer.maxProducerCostPerDay ?? 2000));
+        setMaxMixesPerDay(producer.maxMixesPerDay ?? producers_1.DEFAULT_MAX_MIXES_PER_DAY);
+        setMaxProducerCostPerDay(producer.maxProducerCostPerDay ?? producers_1.DEFAULT_MAX_PRODUCER_COST_PER_DAY);
+        setMaxCostInput(String(producer.maxProducerCostPerDay ?? producers_1.DEFAULT_MAX_PRODUCER_COST_PER_DAY));
         setOvertimeDays([...producer.overtimeDays]);
         setOvertimeDraft("");
         setTimeOffDraft(createEmptyTimeOffDraft());
@@ -202,10 +202,12 @@ function ProducerAvailabilityModal({ open, onClose, producer, onSave, readOnly =
                 type: entry.type,
                 reason: entry.reason.trim(),
             })),
-            maxMixesPerDay: hasMaxCapacity ? Math.max(1, maxMixesPerDay) : null,
+            maxMixesPerDay: hasMaxCapacity
+                ? Math.max(1, maxMixesPerDay)
+                : producers_1.DEFAULT_MAX_MIXES_PER_DAY,
             maxProducerCostPerDay: hasMaxCapacity
                 ? Math.max(1, committedMaxCost ?? maxProducerCostPerDay)
-                : null,
+                : producers_1.DEFAULT_MAX_PRODUCER_COST_PER_DAY,
             overtimeDays,
             categories,
             specialty: categories[0] ?? producer?.specialty ?? "",

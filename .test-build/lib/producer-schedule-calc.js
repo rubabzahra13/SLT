@@ -57,7 +57,7 @@ function isRecordCoveringDate(rec, date, producer) {
 /**
  * Returns whether a producer is open/available to take a mix on a specific date.
  */
-function isProducerAvailableOnDate(producer, date, mtdRecords, schedule = []) {
+function isProducerAvailableOnDate(producer, date, mtdRecords, schedule = [], excludeRecordId, additionalPayout = 0) {
     // 1. Must be a scheduled work day (or overtime day) for the producer
     if (!(0, producer_availability_1.isProducerScheduledDay)(producer, date)) {
         return false;
@@ -75,14 +75,9 @@ function isProducerAvailableOnDate(producer, date, mtdRecords, schedule = []) {
             return false;
         }
     }
-    // 4. Must not have an active eligible mix covering this date
+    // 4. Must not have reached daily mix count capacity or daily cost capacity
     const eligibleRecords = mtdRecords.filter(export_csv_1.isEligibleProducerScheduleRecord);
-    const isCoveredByMix = eligibleRecords.some((rec) => isRecordCoveringDate(rec, date, producer));
-    if (isCoveredByMix) {
-        return false;
-    }
-    // 5. Must not have reached daily mix count capacity or daily cost capacity
-    if ((0, producer_availability_1.isProducerAtDailyCapacity)(producer, date, eligibleRecords)) {
+    if ((0, producer_availability_1.isProducerAtDailyCapacity)(producer, date, eligibleRecords, excludeRecordId, additionalPayout)) {
         return false;
     }
     return true;
@@ -90,16 +85,54 @@ function isProducerAvailableOnDate(producer, date, mtdRecords, schedule = []) {
 /**
  * Calculates a producer's next opening date and availability status starting from anchorDate.
  */
-function calculateProducerNextOpening(producer, mtdRecords = [], schedule = [], anchorDateInput = new Date()) {
+function calculateProducerNextOpening(producer, mtdRecords = [], schedule = [], anchorDateInput = new Date(), options) {
+    let durationDays = 1;
+    let newMixPayout = 0;
+    let excludeRecordId = undefined;
+    if (options) {
+        if ("mixStartDate" in options || "id" in options) {
+            const rec = options;
+            excludeRecordId = rec.id;
+            if (rec.mixStartDate && rec.mixEndDate) {
+                const start = (0, dates_1.parseFlexibleDate)(rec.mixStartDate);
+                const end = (0, dates_1.parseFlexibleDate)(rec.mixEndDate);
+                if (start && end) {
+                    const diffMs = end.getTime() - start.getTime();
+                    durationDays = Math.max(1, Math.round(diffMs / (1000 * 60 * 60 * 24)) + 1);
+                }
+            }
+            if (rec.id || rec.mixStartDate) {
+                newMixPayout = (0, producer_availability_1.getRecordPayout)(rec, producer);
+            }
+        }
+        if ("durationDays" in options && typeof options.durationDays === "number") {
+            durationDays = Math.max(1, options.durationDays);
+        }
+        if ("newMixPayout" in options && typeof options.newMixPayout === "number") {
+            newMixPayout = options.newMixPayout;
+        }
+        if ("excludeRecordId" in options && options.excludeRecordId) {
+            excludeRecordId = options.excludeRecordId;
+        }
+    }
     const anchorDate = typeof anchorDateInput === "string"
         ? (0, dates_1.parseFlexibleDate)(anchorDateInput) ?? new Date()
         : (0, schedule_view_1.parseToDate)(anchorDateInput);
     anchorDate.setHours(0, 0, 0, 0);
-    // Search ahead up to 180 days for the first available work day
+    // Search ahead up to 180 days for the first available date range of durationDays
     let foundDate = null;
     const cursor = new Date(anchorDate);
     for (let i = 0; i < 180; i += 1) {
-        if (isProducerAvailableOnDate(producer, cursor, mtdRecords, schedule)) {
+        let windowValid = true;
+        for (let d = 0; d < durationDays; d += 1) {
+            const checkDate = new Date(cursor);
+            checkDate.setDate(checkDate.getDate() + d);
+            if (!isProducerAvailableOnDate(producer, checkDate, mtdRecords, schedule, excludeRecordId, newMixPayout)) {
+                windowValid = false;
+                break;
+            }
+        }
+        if (windowValid) {
             foundDate = new Date(cursor);
             break;
         }
@@ -124,16 +157,14 @@ function calculateProducerNextOpening(producer, mtdRecords = [], schedule = [], 
         weekDates.push(d);
     }
     const workDaysInWeek = weekDates.filter((d) => (0, producer_availability_1.isProducerScheduledDay)(producer, d));
-    const availableWorkDaysInWeek = workDaysInWeek.filter((d) => isProducerAvailableOnDate(producer, d, mtdRecords, schedule));
-    // Check if producer has active eligible mixes covering any day in the week
-    const hasBookedMixesInWeek = weekDates.some((d) => eligibleRecords.some((rec) => isRecordCoveringDate(rec, d, producer)));
-    const isAvailableToday = isProducerAvailableOnDate(producer, anchorDate, mtdRecords, schedule);
+    const availableWorkDaysInWeek = workDaysInWeek.filter((d) => isProducerAvailableOnDate(producer, d, mtdRecords, schedule, excludeRecordId, newMixPayout));
+    const hasMixesInWeek = weekDates.some((d) => (0, producer_availability_1.countProducerMixesOnDay)(producer, d, eligibleRecords, excludeRecordId) > 0);
     let status;
     if (availableWorkDaysInWeek.length === 0) {
         status = "unavailable";
     }
     else if (availableWorkDaysInWeek.length < workDaysInWeek.length ||
-        hasBookedMixesInWeek) {
+        hasMixesInWeek) {
         status = "limited";
     }
     else {

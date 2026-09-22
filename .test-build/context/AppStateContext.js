@@ -74,6 +74,7 @@ function AppStateProvider({ children }) {
     const [producers, setProducers] = (0, react_1.useState)(() => (0, producers_1.deduplicateProducers)(seed.producers.map((p) => (0, producers_1.normalizeProducer)(p))));
     const [discountCodes, setDiscountCodes] = (0, react_1.useState)([]);
     const [isBackendConnected, setIsBackendConnected] = (0, react_1.useState)(false);
+    const [isLoading, setIsLoading] = (0, react_1.useState)(true);
     const schedule = seed.schedule;
     // Load data from FastAPI Backend on Mount
     (0, react_1.useEffect)(() => {
@@ -136,6 +137,11 @@ function AppStateProvider({ children }) {
                     return;
                 setIsBackendConnected(false);
                 console.warn("FastAPI backend unavailable or unreachable. Falling back to local state.", err);
+            }
+            finally {
+                if (isMounted) {
+                    setIsLoading(false);
+                }
             }
         }
         loadBackendData();
@@ -590,6 +596,7 @@ function AppStateProvider({ children }) {
         notifications,
         unreadCount,
         isBackendConnected,
+        isLoading,
         isViewOnly,
         moveOrderToMTD,
         updateMTD,

@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.SEED_PRODUCER_CATEGORY_RATES = exports.CANONICAL_PRODUCER_NAMES = exports.CANONICAL_PRODUCER_EMAILS = exports.CANONICAL_PRODUCER_CATEGORIES = void 0;
+exports.DEFAULT_MAX_PRODUCER_COST_PER_DAY = exports.DEFAULT_MAX_MIXES_PER_DAY = exports.SEED_PRODUCER_CATEGORY_RATES = exports.CANONICAL_PRODUCER_NAMES = exports.CANONICAL_PRODUCER_EMAILS = exports.CANONICAL_PRODUCER_CATEGORIES = void 0;
 exports.getCanonicalCategories = getCanonicalCategories;
 exports.normalizeProducer = normalizeProducer;
 exports.primaryCategory = primaryCategory;
@@ -121,6 +121,8 @@ exports.SEED_PRODUCER_CATEGORY_RATES = {
     JB: {},
     R: { "School Cheer": 0.60, "All-Star Cheer": 0.60, "Youth Rec Cheer": 0.60 },
 };
+exports.DEFAULT_MAX_MIXES_PER_DAY = 1;
+exports.DEFAULT_MAX_PRODUCER_COST_PER_DAY = 2000;
 function normalizeProducer(raw) {
     const rawAny = raw;
     const initials = (raw.initials || "XX").toUpperCase().slice(0, 4);
@@ -180,10 +182,10 @@ function normalizeProducer(raw) {
         timeOff: Array.isArray(raw.timeOff) ? raw.timeOff : [],
         maxMixesPerDay: raw.maxMixesPerDay != null && raw.maxMixesPerDay > 0
             ? raw.maxMixesPerDay
-            : null,
+            : exports.DEFAULT_MAX_MIXES_PER_DAY,
         maxProducerCostPerDay: raw.maxProducerCostPerDay != null && raw.maxProducerCostPerDay > 0
             ? raw.maxProducerCostPerDay
-            : null,
+            : exports.DEFAULT_MAX_PRODUCER_COST_PER_DAY,
         overtimeDays: Array.isArray(raw.overtimeDays)
             ? [...new Set(raw.overtimeDays.filter(Boolean))].sort()
             : [],
@@ -217,16 +219,14 @@ function primaryCategory(producer) {
     return producer.categories[0] ?? producer.specialty ?? "";
 }
 function formatMaxMixCapacity(maxMixesPerDay) {
-    if (maxMixesPerDay == null)
-        return "No daily limit";
-    if (maxMixesPerDay === 1)
+    const val = maxMixesPerDay ?? exports.DEFAULT_MAX_MIXES_PER_DAY;
+    if (val === 1)
         return "1 mix per day max";
-    return `${maxMixesPerDay} mixes per day max`;
+    return `${val} mixes per day max`;
 }
 function formatMaxCostCapacity(maxProducerCostPerDay) {
-    if (maxProducerCostPerDay == null)
-        return "No daily cost limit";
-    return `$${maxProducerCostPerDay.toLocaleString()} max per day`;
+    const val = maxProducerCostPerDay ?? exports.DEFAULT_MAX_PRODUCER_COST_PER_DAY;
+    return `$${val.toLocaleString()} max per day`;
 }
 function formatWorkDays(days) {
     const order = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
