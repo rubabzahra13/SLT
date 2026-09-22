@@ -238,21 +238,21 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
   // 3. VIDEO
   {
     const override = getOverrideState(order, "video");
-    const notesVal =
-      (order as Order).routineNotes ||
-      (order as MTDRecord).musicTheme ||
-      (order as any).routine_notes ||
-      (order as any).video_url;
-    const notesStr = String(notesVal || "").toUpperCase();
+    // There is no free-text "video" field on an order, so collection is driven
+    // by the explicit toggle (collectionStates.video) or a genuine video link.
+    // Do NOT infer from routineNotes/musicTheme — those almost always have
+    // content and would wrongly mark the video as received (hiding it from the
+    // missing-data email).
+    const videoVal = (order as any).video_url || (order as any).videoUrl;
+    const videoStr = String(videoVal || "").toUpperCase();
     const defaultProvided =
-      isPresent(notesVal) &&
-      (notesStr.includes("VIDEO") ||
-        notesStr.includes("HTTP") ||
-        notesStr.includes("YOUTUBE") ||
-        notesStr.includes("VIMEO") ||
-        notesStr.includes("ATTACHED") ||
-        notesStr.includes("YES") ||
-        notesStr.length > 3);
+      isPresent(videoStr) &&
+      (videoStr.includes("HTTP") ||
+        videoStr.includes("YOUTUBE") ||
+        videoStr.includes("VIMEO") ||
+        videoStr.includes("VIDEO") ||
+        videoStr.includes("ATTACHED") ||
+        videoStr.includes("YES"));
     const isApplicable = needVideo;
     let state: RequirementState = "white";
     if (isApplicable) {

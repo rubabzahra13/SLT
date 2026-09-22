@@ -381,8 +381,8 @@ function MTDPageContent() {
       inMTD: false,
       isReassigned: true,
       status: "active",
-      orderStatus: "Reassign",
-      order_status: "Reassign",
+      orderStatus: "Reassigned",
+      order_status: "Reassigned",
     } as Partial<MTDRecord>);
     setMoveToOrdersRecord(null);
   }, [isViewOnly, moveToOrdersRecord, updateMTD]);

@@ -172,8 +172,17 @@ def update_mtd_record(mtd_id: str, payload: MTDRecordUpdateSchema, db: Session =
                 linked_order.price_compliance = mtd.price_compliance
             if "is_reassigned" in update_data:
                 linked_order.is_reassigned = mtd.is_reassigned
+            if "order_status" in update_data:
+                linked_order.order_status = mtd.order_status
             if "missing_data_email_sent_at" in update_data:
                 linked_order.missing_data_email_sent_at = mtd.missing_data_email_sent_at
+            if "in_mtd" in update_data:
+                # Keep Order.status aligned with MTD board membership so Move to
+                # Orders / Move to MTD survive reloads.
+                if mtd.in_mtd:
+                    linked_order.status = "in_mtd"
+                elif linked_order.status == "in_mtd":
+                    linked_order.status = "active"
             if "status" in update_data and mtd.status == "completed":
                 linked_order.status = "completed"
 

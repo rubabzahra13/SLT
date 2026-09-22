@@ -548,15 +548,14 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     if (isViewOnly) return;
     let payrollNotice: Omit<AppNotification, "id" | "read" | "createdAt"> | null =
       null;
-    let apiId = id;
     let apiPatch = patch;
 
-    setMtdRecords((prev) => {
-      const existing = prev.find(
-        (r) => r.id === id || r.orderId === id || r.uuid === id || r.legacyId === id
-      );
-      if (existing?.uuid) apiId = existing.uuid;
+    const existing = mtdRecords.find(
+      (r) => r.id === id || r.orderId === id || r.uuid === id || r.legacyId === id
+    );
+    const apiId = existing?.uuid || existing?.id || id;
 
+    setMtdRecords((prev) => {
       return prev.map((r) => {
         if (r.id !== id && r.orderId !== id && r.uuid !== id && r.legacyId !== id) return r;
 
@@ -638,17 +637,29 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           }
         }
 
-        const needsCs = updated.eightCountSheet.toUpperCase().includes("NEED");
-        const needsSongs = updated.haveSongs.toUpperCase().includes("NEED");
+        const sheet = String(updated.eightCountSheet ?? "");
+        const songs = String(updated.haveSongs ?? "");
+        const needsCs = sheet.toUpperCase().includes("NEED");
+        const needsSongs = songs.toUpperCase().includes("NEED");
         updated.needsAttention = needsCs || needsSongs;
 
         return updated;
       });
     });
 
-    // Also sync pre-MTD edits to activeOrders if this ID belongs to an active order
+    // Sync linked Order. MTD rows use their own UUID as `id`, so also match via
+    // orderId / mtdId — otherwise Move to Orders never flips Order.status off in_mtd.
+    const orderLookupIds = new Set(
+      [id, existing?.orderId, existing?.id, existing?.uuid, existing?.legacyId].filter(
+        (value): value is string => Boolean(value)
+      )
+    );
     const linkedOrder = activeOrders.find(
-      (o) => o.id === id || o.legacyId === id || o.uuid === id
+      (o) =>
+        orderLookupIds.has(o.id) ||
+        (o.legacyId && orderLookupIds.has(o.legacyId)) ||
+        (o.uuid && orderLookupIds.has(o.uuid)) ||
+        (o.mtdId && orderLookupIds.has(o.mtdId))
     );
     if (linkedOrder) {
       const orderPatch: Record<string, any> = {};

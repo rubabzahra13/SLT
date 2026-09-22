@@ -70,7 +70,6 @@ export interface BackendOrder {
   needs_attention: boolean;
   attention_reason?: string | null;
   is_past_order: boolean;
-  is_reassigned?: boolean;
   missing_data_email_sent_at?: string | null;
   system_calculated_customer_price?: number | null;
   final_customer_price?: number | null;
@@ -155,7 +154,6 @@ export function transformOrder(bo: BackendOrder): Order {
     completedAt: bo.completed_at || null,
     needsAttention: Boolean(bo.needs_attention),
     attentionReason: bo.attention_reason || null,
-    isReassigned: Boolean(bo.is_reassigned),
     missingDataEmailSentAt: bo.missing_data_email_sent_at || null,
     systemCalculatedCustomerPrice: bo.system_calculated_customer_price ?? null,
     finalCustomerPrice: bo.final_customer_price ?? null,
