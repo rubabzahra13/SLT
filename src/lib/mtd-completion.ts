@@ -107,7 +107,13 @@ export function patchReturnFromPayroll(): Partial<MTDRecord> {
 }
 
 export function getPayrollRecords(records: MTDRecord[]): MTDRecord[] {
-  return records.filter((rec) => rec.inPayroll);
+  return records.filter(
+    (rec) =>
+      Boolean(rec.inPayroll) ||
+      Boolean((rec as any).in_payroll) ||
+      rec.status === "completed" ||
+      (rec as any).recordStatus === "Completed"
+  );
 }
 
 export function getMTDBoardRecords(records: MTDRecord[]): MTDRecord[] {

@@ -480,8 +480,13 @@ function isMTDRecord(rec) {
     // Outsourced mixes always live on the MTD board.
     if (isOutsourcedRecord(rec))
         return true;
-    // Explicitly moved to MTD
-    return rec.inMTD === true;
+    if (rec.inMTD === true)
+        return true;
+    if (rec.inMTD === false)
+        return false;
+    return Boolean(rec.assignedProducer &&
+        (0, dates_1.toIsoDateString)(rec.mixStartDate) &&
+        (0, dates_1.toIsoDateString)(rec.mixEndDate));
 }
 function isPreMTDOrderRecord(rec) {
     return !isMTDRecord(rec);

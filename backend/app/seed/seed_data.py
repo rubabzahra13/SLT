@@ -284,6 +284,13 @@ def seed_all(db: Session):
                 db.flush()
                 order_legacy_map[legacy_id] = order_obj
             else:
+                existing_order.time_length_of_mix = o.get("timeLengthOfMix", existing_order.time_length_of_mix)
+                existing_order.music_affiliate = o.get("musicAffiliate", existing_order.music_affiliate)
+                existing_order.sending_eight_count_sheets = o.get("sendingEightCountSheets", existing_order.sending_eight_count_sheets)
+                existing_order.song_list_suggestions = o.get("songListSuggestions", existing_order.song_list_suggestions)
+                existing_order.routine_notes = o.get("routineNotes", existing_order.routine_notes)
+                existing_order.package = o.get("package", existing_order.package)
+                existing_order.category = o.get("category", existing_order.category)
                 order_legacy_map[legacy_id] = existing_order
 
     print(f"Seeding {len(raw_orders)} active orders...")

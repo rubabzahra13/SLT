@@ -1,30 +1,30 @@
 "use client";
 
 import { OrderFormFilters } from "@/components/orders/OrderFormFilters";
+import { OrderRangeToggle } from "@/components/orders/OrderRangeToggle";
 import {
   MTDFilterChipsRow,
   MTDTableFilterPanel,
   type MTDTableFilterState,
 } from "@/components/mtd/MTDTableFilters";
-import type { MTDRecord, Order, Producer } from "@/types";
+import type { MTDRecord, Order, OrderViewRangeFilter, Producer } from "@/types";
 import type {
   CheerFormSubtypeFilter,
   DanceFormSubtypeFilter,
   OrderFormType,
 } from "@/types";
 
-import { FilterMenu } from "@/components/ui/FilterMenu";
-
-export type OrderTypeFilter = "new_orders" | "reassigned";
-
 type MTDPageToolbarProps = {
   form: OrderFormType;
   cheerSubtype: CheerFormSubtypeFilter;
   danceSubtype: DanceFormSubtypeFilter;
-  orderType?: OrderTypeFilter;
-  onOrderTypeChange?: (orderType: OrderTypeFilter) => void;
+  rangeFilter?: OrderViewRangeFilter;
+  onRangeFilterChange?: (filter: OrderViewRangeFilter) => void;
+  allOrdersCount?: number;
+  needToBeScheduledCount?: number;
   newOrdersCount?: number;
   reassignedOrdersCount?: number;
+  waitingForDataCount?: number;
   onFormChange: (form: OrderFormType) => void;
   onCheerSubtypeChange: (subtype: CheerFormSubtypeFilter) => void;
   onDanceSubtypeChange: (subtype: DanceFormSubtypeFilter) => void;
@@ -44,10 +44,13 @@ export function MTDPageToolbar({
   form,
   cheerSubtype,
   danceSubtype,
-  orderType,
-  onOrderTypeChange,
+  rangeFilter,
+  onRangeFilterChange,
+  allOrdersCount,
+  needToBeScheduledCount,
   newOrdersCount,
   reassignedOrdersCount,
+  waitingForDataCount,
   onFormChange,
   onCheerSubtypeChange,
   onDanceSubtypeChange,
@@ -64,7 +67,7 @@ export function MTDPageToolbar({
 }: MTDPageToolbarProps) {
   return (
     <div className="space-y-2.5">
-      <div className="flex flex-wrap items-center gap-2.5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div
           className="inline-flex flex-wrap items-center gap-0.5 rounded-xl bg-brand-elevated/80 p-0.5 ring-1 ring-inset ring-brand-line/40"
           role="toolbar"
@@ -96,28 +99,23 @@ export function MTDPageToolbar({
             onReset={onFiltersReset}
             form={form}
           />
-          {onOrderTypeChange && orderType ? (
-            <>
-              <span
-                className="mx-0.5 hidden h-5 w-px shrink-0 bg-brand-line/45 sm:block"
-                aria-hidden
-              />
-              <FilterMenu
-                label="Order Type"
-                hideLabel
-                grouped
-                value={orderType}
-                onChange={(v) => onOrderTypeChange(v as OrderTypeFilter)}
-                accent={orderType === "reassigned" ? "red" : "blue"}
-                options={[
-                  { value: "new_orders", label: "New Orders", count: newOrdersCount },
-                  { value: "reassigned", label: "Reassigned", count: reassignedOrdersCount, isRed: true },
-                ]}
-              />
-            </>
-          ) : null}
         </div>
 
+        {onRangeFilterChange && rangeFilter ? (
+          <div className="flex shrink-0 items-center">
+            <OrderRangeToggle
+              value={rangeFilter}
+              onChange={onRangeFilterChange}
+              counts={{
+                all: allOrdersCount,
+                needToBeScheduled: needToBeScheduledCount ?? newOrdersCount,
+                newOrders: newOrdersCount,
+                reassigned: reassignedOrdersCount,
+                waitingForData: waitingForDataCount,
+              }}
+            />
+          </div>
+        ) : null}
       </div>
 
       <MTDFilterChipsRow

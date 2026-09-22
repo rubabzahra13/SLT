@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, Boolean, Text, Numeric, Date, DateTime, ForeignKey, func
+from sqlalchemy import Column, String, Boolean, Text, Numeric, Date, DateTime, ForeignKey, func, JSON
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from app.core.database import Base
@@ -28,6 +28,7 @@ class MTDRecord(Base):
     waiting_on = Column(String, nullable=True)
     eight_count_sheet = Column(String, default="", nullable=False)
     have_songs = Column(String, default="", nullable=False)
+    collection_states = Column(JSON, nullable=True)
     needs_attention = Column(Boolean, default=False, nullable=False)
     status = Column(String, default="active", nullable=False)
     record_status = Column(String, nullable=True)

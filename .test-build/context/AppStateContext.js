@@ -91,12 +91,7 @@ function AppStateProvider({ children }) {
                     return;
                 if (producersData && producersData.length > 0) {
                     const normalizedProducers = producersData.map((p) => (0, producers_1.normalizeProducer)(p));
-                    const backendIds = new Set(normalizedProducers.map((p) => p.id));
-                    // Merge backend producers with seed producers (team config), keeping any
-                    // local seed producers that the backend doesn't know about yet.
-                    const seedProducers = seed.producers.map((p) => (0, producers_1.normalizeProducer)(p));
-                    const missingSeed = seedProducers.filter((p) => !backendIds.has(p.id));
-                    setProducers((0, producers_1.deduplicateProducers)([...normalizedProducers, ...missingSeed]));
+                    setProducers((0, producers_1.deduplicateProducers)(normalizedProducers));
                 }
                 let loadedActiveOrders = [];
                 let loadedMtdRecords = [];

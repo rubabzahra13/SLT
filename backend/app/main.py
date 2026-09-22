@@ -20,7 +20,7 @@ async def lifespan(app: FastAPI):
         except Exception as exc:
             logger.warning("Skipping create_all during startup: %s", exc)
 
-    # Ensure is_reassigned column exists on existing orders and mtd_records tables
+    # Ensure is_reassigned and collection_states columns exist on existing orders and mtd_records tables
     try:
         from sqlalchemy import text
         with engine.begin() as conn:
@@ -30,11 +30,17 @@ async def lifespan(app: FastAPI):
                         conn.execute(text(f"ALTER TABLE {table} ADD COLUMN is_reassigned BOOLEAN DEFAULT 0"))
                     except Exception:
                         pass
+                    try:
+                        conn.execute(text(f"ALTER TABLE {table} ADD COLUMN collection_states TEXT"))
+                    except Exception:
+                        pass
             else:
                 conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS is_reassigned BOOLEAN DEFAULT FALSE;"))
                 conn.execute(text("ALTER TABLE mtd_records ADD COLUMN IF NOT EXISTS is_reassigned BOOLEAN DEFAULT FALSE;"))
+                conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS collection_states JSON;"))
+                conn.execute(text("ALTER TABLE mtd_records ADD COLUMN IF NOT EXISTS collection_states JSON;"))
     except Exception as exc:
-        logger.warning("Auto-migration check for is_reassigned skipped/failed: %s", exc)
+        logger.warning("Auto-migration check skipped/failed: %s", exc)
 
     # When running against the local SQLite fallback, seed the sample users so
     # the frontend's offline session tokens authenticate.
@@ -65,6 +71,7 @@ import traceback
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     logger.error(f"Unhandled exception on {request.url}: {exc}", exc_info=True)
+    origin = request.headers.get("origin", "*")
     return JSONResponse(
         status_code=500,
         content={
@@ -73,6 +80,10 @@ async def global_exception_handler(request: Request, exc: Exception):
             "type": exc.__class__.__name__,
             "path": str(request.url),
             "traceback": traceback.format_exc().splitlines()[-6:]
+        },
+        headers={
+            "Access-Control-Allow-Origin": origin if origin in settings.CORS_ORIGINS or "vercel.app" in origin else "*",
+            "Access-Control-Allow-Credentials": "true",
         }
     )
 

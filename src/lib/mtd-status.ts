@@ -17,11 +17,7 @@ export function inferMTDRecordStatus(rec: MTDRecord): MTDRecordStatus {
   if (rec.status === "outsourced" || rec.section === "OUTSOURCED MIXES") {
     return "Outsourced";
   }
-  if (rec.assignedProducer && rec.status === "active") return "Ongoing";
-  if (rec.needsAttention || rec.status === "needs_attention") {
-    return "Waiting for Data";
-  }
-  return "Waiting for Data";
+  return "Ongoing";
 }
 
 export function legacyStatusFromRecordStatus(
@@ -33,10 +29,8 @@ export function legacyStatusFromRecordStatus(
     case "Outsourced":
       return "outsourced";
     case "Ongoing":
-      return "active";
-    case "Waiting for Data":
     default:
-      return "needs_attention";
+      return "active";
   }
 }
 

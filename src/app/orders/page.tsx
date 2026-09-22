@@ -18,13 +18,15 @@ import { SetPricingModal } from "@/components/mtd/SetPricingModal";
 import { SetRecordPricingModal } from "@/components/mtd/SetRecordPricingModal";
 import { CompletionBlockedModal } from "@/components/mtd/CompletionBlockedModal";
 import { ForwardOrderMailModal } from "@/components/orders/ForwardOrderMailModal";
+import { OrderRequirementsCell } from "@/components/orders/OrderRequirementsCell";
 import {
   DEFAULT_MTD_TABLE_FILTERS,
   type MTDTableFilterState,
 } from "@/components/mtd/MTDTableFilters";
-import { MTDPageToolbar, type OrderTypeFilter } from "@/components/mtd/MTDPageToolbar";
+import { MTDPageToolbar } from "@/components/mtd/MTDPageToolbar";
 import { useAppState } from "@/context/AppStateContext";
 import { formatPrice, titleCase } from "@/lib/data";
+import { getOrderRequirements, getOrderStatus } from "@/lib/order-requirements";
 import {
   calculateCheerOrderPricing,
   calculateDanceOrderPricing,
@@ -63,6 +65,7 @@ import type {
   MTDRecord,
   Order,
   OrderFormType,
+  OrderViewRangeFilter,
   PriceCompliance,
 } from "@/types";
 
@@ -138,7 +141,7 @@ function OrdersPageContent() {
   const [danceSubtypeState, setDanceSubtypeState] = useState<DanceFormSubtypeFilter>(
     DEFAULT_DANCE_SUBTYPE
   );
-  const [orderTypeFilter, setOrderTypeFilter] = useState<OrderTypeFilter>("new_orders");
+  const [rangeFilter, setRangeFilter] = useState<OrderViewRangeFilter>("need_to_be_scheduled");
 
   const [form, setForm] = [
     formState,
@@ -228,23 +231,41 @@ function OrdersPageContent() {
     [mtdRecords]
   );
 
-  const newOrdersCount = useMemo(
-    () => preMtdRecords.filter((r) => !r.isReassigned).length,
+  const allOrdersCount = useMemo(
+    () => preMtdRecords.length,
     [preMtdRecords]
   );
+
+  const needToBeScheduledCount = useMemo(
+    () =>
+      preMtdRecords.filter(
+        (r) => !r.isReassigned && getOrderRequirements(r).missingCount === 0
+      ).length,
+    [preMtdRecords]
+  );
+
+  const newOrdersCount = needToBeScheduledCount;
 
   const reassignedOrdersCount = useMemo(
     () => preMtdRecords.filter((r) => Boolean(r.isReassigned)).length,
     [preMtdRecords]
   );
 
+  const waitingForDataCount = useMemo(
+    () => preMtdRecords.filter((r) => getOrderRequirements(r).missingCount > 0).length,
+    [preMtdRecords]
+  );
+
   const typeFilteredPreMtdRecords = useMemo(
     () =>
       preMtdRecords.filter((rec) => {
-        if (orderTypeFilter === "reassigned") return Boolean(rec.isReassigned);
-        return !rec.isReassigned;
+        if (rangeFilter === "all") return true;
+        if (rangeFilter === "reassigned") return Boolean(rec.isReassigned);
+        if (rangeFilter === "waiting_for_data") return getOrderRequirements(rec).missingCount > 0;
+        // Default "need_to_be_scheduled" (and legacy "new_orders")
+        return !rec.isReassigned && getOrderRequirements(rec).missingCount === 0;
       }),
-    [preMtdRecords, orderTypeFilter]
+    [preMtdRecords, rangeFilter]
   );
 
   const assignRecord = useMemo(
@@ -380,7 +401,7 @@ function OrdersPageContent() {
   );
 
   const tableFilterKey = [
-    orderTypeFilter,
+    rangeFilter,
     tableFilters.packageTier,
     tableFilters.timeLimit,
     tableFilters.split,
@@ -534,6 +555,26 @@ function OrdersPageContent() {
             },
           ]
         : []),
+      {
+        key: "collections",
+        header: "Collections",
+        width: "140px",
+        align: "center" as const,
+        nowrap: false,
+        cellClassName: clsx(compactCellClass, "min-w-[140px]"),
+        headerClassName: compactHeaderClass,
+        render: (rec) => <OrderRequirementsCell record={rec} category="collections" />,
+      },
+      {
+        key: "songsArea",
+        header: "Songs",
+        width: "130px",
+        align: "center" as const,
+        nowrap: false,
+        cellClassName: clsx(compactCellClass, "min-w-[130px]"),
+        headerClassName: compactHeaderClass,
+        render: (rec) => <OrderRequirementsCell record={rec} category="songs" />,
+      },
       {
         key: "music",
         header: "Music",
@@ -819,11 +860,35 @@ function OrdersPageContent() {
                     }}
                     className={actionButtonClass(false)}
                   >
-                    {rec.isReassigned || orderTypeFilter === "reassigned" ? "Reassign" : "Assign"}
+                    {rec.isReassigned || rangeFilter === "reassigned" ? "Reassign" : "Assign"}
                   </button>
                 </div>
               )}
             </div>
+          );
+        },
+      },
+      {
+        key: "status",
+        header: "Status",
+        width: "140px",
+        align: "center" as const,
+        nowrap: false,
+        cellClassName: compactCellClass,
+        headerClassName: compactHeaderClass,
+        render: (rec: MTDRecord) => {
+          const { status, isWaitingForData } = getOrderStatus(rec);
+          return (
+            <span
+              className={clsx(
+                "inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition shadow-2xs whitespace-nowrap",
+                isWaitingForData
+                  ? "bg-[#f9d7d7] text-[#901313] border border-[#ebafaf]"
+                  : "bg-[#c2e7d9] text-[#0f5236] border border-[#9edbb8]"
+              )}
+            >
+              {status}
+            </span>
           );
         },
       },
@@ -876,7 +941,7 @@ function OrdersPageContent() {
     return baseCols;
   }, [
     form,
-    orderTypeFilter,
+    rangeFilter,
     producers,
     allOrders,
     mtdRecords,
@@ -914,10 +979,13 @@ function OrdersPageContent() {
             form={form}
             cheerSubtype={cheerSubtype}
             danceSubtype={danceSubtype}
-            orderType={orderTypeFilter}
-            onOrderTypeChange={setOrderTypeFilter}
+            rangeFilter={rangeFilter}
+            onRangeFilterChange={setRangeFilter}
+            allOrdersCount={allOrdersCount}
+            needToBeScheduledCount={needToBeScheduledCount}
             newOrdersCount={newOrdersCount}
             reassignedOrdersCount={reassignedOrdersCount}
+            waitingForDataCount={waitingForDataCount}
             onFormChange={switchForm}
             onCheerSubtypeChange={setCheerSubtype}
             onDanceSubtypeChange={setDanceSubtype}

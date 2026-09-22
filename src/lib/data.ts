@@ -16,15 +16,12 @@ export function getData(): AppData {
     ...raw,
     producers,
     // Discount codes: always empty — loaded exclusively from backend API (Supabase).
-    discountCodes: [],
-    // Transactional data: always empty — loaded from backend API only.
-    orders: [],
-    pastOrders: [],
-    mtdRecords: [],
-    // Schedule entries: always empty. Schedule is derived from live MTD records
-    // (Ongoing status + assigned producer + valid mix start/end dates).
-    // The static mock-data.json "schedule" array contained hardcoded day-level
-    // producer status entries (Aug 2026 dates) that caused phantom bookings.
+    discountCodes: (raw.discountCodes ?? []).map((entry) =>
+      normalizeDiscountCode(entry as DiscountCode)
+    ),
+    orders: (raw.orders as any) || [],
+    pastOrders: (raw.pastOrders as any) || [],
+    mtdRecords: (raw.mtdRecords as any) || [],
     schedule: [],
   };
 }

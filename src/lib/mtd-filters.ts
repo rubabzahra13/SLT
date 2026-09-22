@@ -624,8 +624,13 @@ export function isOrderScheduledAndAssigned(rec: MTDRecord): boolean {
 export function isMTDRecord(rec: MTDRecord): boolean {
   // Outsourced mixes always live on the MTD board.
   if (isOutsourcedRecord(rec)) return true;
-  // Explicitly moved to MTD
-  return rec.inMTD === true;
+  if (rec.inMTD === true) return true;
+  if (rec.inMTD === false) return false;
+  return Boolean(
+    rec.assignedProducer &&
+      toIsoDateString(rec.mixStartDate) &&
+      toIsoDateString(rec.mixEndDate)
+  );
 }
 
 export function isPreMTDOrderRecord(rec: MTDRecord): boolean {

@@ -113,7 +113,7 @@ function createMockRecord(overrides) {
         const waitingRec = createMockRecord({
             id: "rec-waiting",
             assignedProducer: "Casey Marlow",
-            recordStatus: "Waiting for Data",
+            recordStatus: "Completed",
             needsAttention: true,
             status: "needs_attention",
             mixStartDate: "2026-09-14",

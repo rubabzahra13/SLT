@@ -141,5 +141,14 @@ async function updateProducerApi(id, patch, apiId) {
     }
 }
 async function deleteProducerApi(id, apiId) {
-    await client_1.apiClient.delete(`/api/producers/${apiId || id}`);
+    try {
+        await client_1.apiClient.delete(`/api/producers/${apiId || id}`);
+    }
+    catch (err) {
+        if (err instanceof client_1.ApiClientError && err.status === 404) {
+            // Producer is already deleted/missing on backend DB; complete deletion gracefully
+            return;
+        }
+        throw err;
+    }
 }

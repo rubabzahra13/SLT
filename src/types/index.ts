@@ -1,5 +1,12 @@
 export type PriceCompliance = "compliant" | "non-compliant";
 
+export type OrderViewRangeFilter =
+  | "all"
+  | "need_to_be_scheduled"
+  | "new_orders"
+  | "reassigned"
+  | "waiting_for_data";
+
 export type EditorRequest = "FA" | "NA" | string;
 
 export type MTDRecord = {
@@ -35,6 +42,7 @@ export type MTDRecord = {
   inMTD?: boolean;
   /** Explicitly moved from MTD back to Orders staging for reassignment */
   isReassigned?: boolean;
+  collectionStates?: Record<string, boolean>;
   completedAt?: string;
   hasRallyMix?: boolean;
   hasExtend8ctAddon?: boolean;
@@ -260,6 +268,8 @@ export type BaseOrderAdminFields = {
   completedAt?: string | null;
   needsAttention: boolean;
   attentionReason: string | null;
+  isReassigned?: boolean;
+  collectionStates?: Record<string, boolean>;
   eightCountSheet?: string;
   haveSongs?: string;
   invoice?: string;
@@ -896,10 +906,9 @@ export const EIGHT_CS_OPTIONS = [
 export const SONGS_OPTIONS = ["HAVE", "NEED SONGS", "NEED NOTES", "NO"] as const;
 
 export const MTD_RECORD_STATUS_OPTIONS = [
-  "Waiting for Data",
+  "Ongoing",
   "Completed",
   "Outsourced",
-  "Ongoing",
 ] as const;
 
 export type MTDRecordStatus = (typeof MTD_RECORD_STATUS_OPTIONS)[number];

@@ -1,5 +1,5 @@
 from pydantic import BaseModel, ConfigDict
-from typing import Optional
+from typing import Optional, Any
 from uuid import UUID
 from datetime import datetime
 
@@ -57,6 +57,7 @@ class OrderSchema(BaseModel):
     song_list_suggestions: Optional[str] = None
     coupon_code: Optional[str] = None
     how_did_you_find_out: Optional[str] = None
+    collection_states: Optional[Any] = None
 
     customer_name: str
     contact_name: str
@@ -159,3 +160,4 @@ class OrderUpdateSchema(BaseModel):
     completed_at: Optional[datetime] = None
     is_past_order: Optional[bool] = None
     is_reassigned: Optional[bool] = None
+    collection_states: Optional[Any] = None

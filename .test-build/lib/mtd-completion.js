@@ -83,7 +83,10 @@ function patchReturnFromPayroll() {
     };
 }
 function getPayrollRecords(records) {
-    return records.filter((rec) => rec.inPayroll);
+    return records.filter((rec) => Boolean(rec.inPayroll) ||
+        Boolean(rec.in_payroll) ||
+        rec.status === "completed" ||
+        rec.recordStatus === "Completed");
 }
 function getMTDBoardRecords(records) {
     return records.filter((rec) => !rec.inPayroll);

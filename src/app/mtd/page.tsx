@@ -954,63 +954,6 @@ function MTDPageContent() {
           );
         },
       },
-      {
-        key: "eightJ",
-        header: "COLLECTIONS",
-        width: form === "school-all-star-cheer" ? "168px" : "110px",
-        align: "center" as const,
-        nowrap: false,
-        cellClassName: "!px-2 !py-2",
-        headerClassName: "!px-2",
-        render: (rec: MTDRecord) => {
-          const meta = resolveMTDFormMeta(rec, orderById);
-          const state = parseEightCsState(rec.eightCountSheet ?? "");
-          const items = getCollectionItemsForCategory(meta.formType, state);
-
-          return (
-            <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
-              <InlineTriStateCheckGroup
-                items={items}
-                readOnly={isViewOnly}
-                onCycle={(id) => {
-                  const next = cycleEightCsItem(state, id as keyof typeof state);
-                  updateMTD(rec.id, {
-                    eightCountSheet: encodeEightCsState(next),
-                  });
-                }}
-              />
-            </div>
-          );
-        },
-      },
-      {
-        key: "songsK",
-        header: "Songs",
-        width: "132px",
-        align: "center" as const,
-        nowrap: false,
-        cellClassName: "!px-2 !py-2",
-        headerClassName: "!px-2",
-        render: (rec) => {
-          const state = parseSongsState(rec.haveSongs ?? "");
-          const items = getSongsItems(state);
-
-          return (
-            <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
-              <InlineTriStateCheckGroup
-                items={items}
-                readOnly={isViewOnly}
-                onCycle={(id) => {
-                  const next = cycleSongsItem(state, id as keyof typeof state);
-                  updateMTD(rec.id, {
-                    haveSongs: encodeSongsState(next),
-                  });
-                }}
-              />
-            </div>
-          );
-        },
-      },
     ];
 
 

@@ -9,6 +9,7 @@ exports.titleCase = titleCase;
 exports.getStatusColor = getStatusColor;
 exports.getStatusLabel = getStatusLabel;
 exports.getHaveStatus = getHaveStatus;
+const discount_codes_1 = require("@/lib/discount-codes");
 const producers_1 = require("@/lib/producers");
 const mock_data_json_1 = __importDefault(require("@/data/mock-data.json"));
 /**
@@ -23,15 +24,10 @@ function getData() {
         ...raw,
         producers,
         // Discount codes: always empty — loaded exclusively from backend API (Supabase).
-        discountCodes: [],
-        // Transactional data: always empty — loaded from backend API only.
-        orders: [],
-        pastOrders: [],
-        mtdRecords: [],
-        // Schedule entries: always empty. Schedule is derived from live MTD records
-        // (Ongoing status + assigned producer + valid mix start/end dates).
-        // The static mock-data.json "schedule" array contained hardcoded day-level
-        // producer status entries (Aug 2026 dates) that caused phantom bookings.
+        discountCodes: (raw.discountCodes ?? []).map((entry) => (0, discount_codes_1.normalizeDiscountCode)(entry)),
+        orders: raw.orders || [],
+        pastOrders: raw.pastOrders || [],
+        mtdRecords: raw.mtdRecords || [],
         schedule: [],
     };
 }

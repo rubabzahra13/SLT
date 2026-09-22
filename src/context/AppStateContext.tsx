@@ -564,6 +564,10 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       if (patch.inMTD === true) orderPatch.status = "in_mtd";
       if (patch.inMTD === false) orderPatch.status = "active";
       if (patch.isReassigned !== undefined) orderPatch.isReassigned = patch.isReassigned;
+      if (patch.collectionStates !== undefined) orderPatch.collectionStates = patch.collectionStates;
+      if ((patch as any).collection_states !== undefined) orderPatch.collection_states = (patch as any).collection_states;
+      if (patch.haveSongs !== undefined) orderPatch.haveSongs = patch.haveSongs;
+      if (patch.eightCountSheet !== undefined) orderPatch.eightCountSheet = patch.eightCountSheet;
 
       if (Object.keys(orderPatch).length > 0) {
         setActiveOrders((prev) =>

@@ -119,7 +119,7 @@ test("Dashboard Status & Date-Aware Classification", async (t) => {
         assignedProducer: "CA",
         mixStartDate: "2026-09-18",
       }),
-      createMockRecord({ id: "r3", recordStatus: "Waiting for Data", needsAttention: true, status: "needs_attention" }),
+      createMockRecord({ id: "r3", recordStatus: "Ongoing", needsAttention: true, status: "needs_attention" }),
       createMockRecord({ id: "r4", recordStatus: "Completed", status: "completed" }),
       createMockRecord({ id: "r5", inPayroll: true, recordStatus: "Completed" }),
     ];

@@ -64,6 +64,7 @@ class Order(Base):
     song_list_suggestions = Column(Text, nullable=True)
     coupon_code = Column(String, nullable=True)
     how_did_you_find_out = Column(String, nullable=True)
+    collection_states = Column(JSON, nullable=True)
 
     # Normalized fields
     customer_name = Column(String, nullable=False)

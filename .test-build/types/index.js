@@ -72,10 +72,9 @@ exports.EIGHT_CS_OPTIONS = [
 ];
 exports.SONGS_OPTIONS = ["HAVE", "NEED SONGS", "NEED NOTES", "NO"];
 exports.MTD_RECORD_STATUS_OPTIONS = [
-    "Waiting for Data",
+    "Ongoing",
     "Completed",
     "Outsourced",
-    "Ongoing",
 ];
 exports.EDITOR_NAMES = [
     "CM",
