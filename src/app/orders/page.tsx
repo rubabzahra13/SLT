@@ -18,6 +18,7 @@ import { SetPricingModal } from "@/components/mtd/SetPricingModal";
 import { SetRecordPricingModal } from "@/components/mtd/SetRecordPricingModal";
 import { CompletionBlockedModal } from "@/components/mtd/CompletionBlockedModal";
 import { ForwardOrderMailModal } from "@/components/orders/ForwardOrderMailModal";
+import { CollectionEmailModal } from "@/components/orders/CollectionEmailModal";
 import { OrderRequirementsCell } from "@/components/orders/OrderRequirementsCell";
 import { OrderStatusDropdown } from "@/components/orders/OrderStatusDropdown";
 import {
@@ -225,6 +226,7 @@ function OrdersPageContent() {
   const [pricingOpen, setPricingOpen] = useState(false);
   const [pricingRecord, setPricingRecord] = useState<MTDRecord | null>(null);
   const [mailRecord, setMailRecord] = useState<MTDRecord | null>(null);
+  const [collectionMailRecord, setCollectionMailRecord] = useState<MTDRecord | null>(null);
 
   // Pre-MTD records
   const preMtdRecords = useMemo(
@@ -908,17 +910,29 @@ function OrdersPageContent() {
                   </button>
                 </HoverTip>
               ) : null}
-              <HoverTip label="Send mail" placement="top">
-                <button
-                  type="button"
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onClick={() => setMailRecord(rec)}
-                  className={ordersMailIconButtonClass}
-                  aria-label="Send mail"
-                >
-                  <Mail className="h-3.5 w-3.5" strokeWidth={2.25} />
-                </button>
-              </HoverTip>
+              {(() => {
+                const { isWaitingForData } = getOrderRequirements(rec);
+                const mailLabel = isWaitingForData
+                  ? "Send Collection Email to Customer"
+                  : "Send Mail to Producer";
+                return (
+                  <HoverTip label={mailLabel} placement="top">
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={() =>
+                        isWaitingForData
+                          ? setCollectionMailRecord(rec)
+                          : setMailRecord(rec)
+                      }
+                      className={ordersMailIconButtonClass}
+                      aria-label={mailLabel}
+                    >
+                      <Mail className="h-3.5 w-3.5" strokeWidth={2.25} />
+                    </button>
+                  </HoverTip>
+                );
+              })()}
             </div>
           );
         },
@@ -1056,6 +1070,14 @@ function OrdersPageContent() {
         allOrders={allOrders}
         producers={producers}
         onClose={() => setMailRecord(null)}
+      />
+
+      <CollectionEmailModal
+        open={Boolean(collectionMailRecord)}
+        record={collectionMailRecord}
+        allOrders={allOrders}
+        orderById={orderById}
+        onClose={() => setCollectionMailRecord(null)}
       />
     </>
   );

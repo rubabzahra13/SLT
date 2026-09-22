@@ -23,6 +23,8 @@ export type OrderRequirementsResult = {
   missingCount: number;
   status: "Waiting for Data" | "Need to be Scheduled";
   isWaitingForData: boolean;
+  /** True when compliancy is applicable AND the affiliate/compliancy field is empty */
+  compliancyMet: boolean;
 };
 
 /**
@@ -367,6 +369,7 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
     missingCount,
     status,
     isWaitingForData,
+    compliancyMet,
   };
 }
 
