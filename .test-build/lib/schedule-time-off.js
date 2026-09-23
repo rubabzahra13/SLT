@@ -185,9 +185,12 @@ function formatOvertimeDayLabel(iso) {
 function overtimeCalendarBlockReason(iso, options) {
     if (iso < options.todayIso)
         return "past";
-    if ((0, producer_time_off_2.isStudioHolidayIso)(iso, options.studioHolidays))
-        return "studio_holiday";
     const selected = options.producers.filter((p) => options.selectedIds.has(p.id));
+    const holidayHitsSelected = selected.length === 0
+        ? (0, producer_time_off_2.isStudioHolidayIso)(iso, options.studioHolidays)
+        : selected.some((p) => (0, producer_time_off_2.isStudioHolidayIso)(iso, options.studioHolidays, p.id));
+    if (holidayHitsSelected)
+        return "studio_holiday";
     if (selected.length === 0)
         return "none";
     const someoneOnTimeOff = selected.some((p) => (0, producer_availability_1.expandTimeOffDates)(p.timeOff).includes(iso));

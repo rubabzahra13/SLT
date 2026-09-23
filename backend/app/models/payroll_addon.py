@@ -11,6 +11,15 @@ class PayrollAddon(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     program_name = Column(String, nullable=False)
     contact_name = Column(String, nullable=True)
+    team_name = Column(String, nullable=True)
+
+    # Optional order / mtd row binding
+    order_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("orders.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    mtd_id = Column(UUID(as_uuid=True), nullable=True)
 
     # "Cheer" or "Dance"
     category = Column(String, nullable=False)
@@ -39,3 +48,5 @@ class PayrollAddon(Base):
     )
 
     producer = relationship("Producer", foreign_keys=[producer_id])
+    order = relationship("Order", foreign_keys=[order_id])
+

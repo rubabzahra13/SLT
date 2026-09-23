@@ -10,7 +10,7 @@ import {
   Send,
   User,
 } from "lucide-react";
-import type { MTDRecord, Order, Producer } from "@/types";
+import type { MTDRecord, Order, Producer, PayrollAddon } from "@/types";
 import { DateFilter, type DateFilterValue } from "@/components/ui/DateFilter";
 import { ProducerSelect } from "@/components/ui/ProducerSelect";
 import { Avatar } from "@/components/ui/Avatar";
@@ -34,11 +34,13 @@ type ProducerStatementPreviewProps = {
   payrollRecords: MTDRecord[];
   allOrders: Order[];
   producers: Producer[];
+  payrollAddons?: PayrollAddon[];
   onBack?: () => void;
   embedded?: boolean;
   allowedProducerNames?: string[];
   sendLayout?: "together" | "separate";
 };
+
 
 function StatementPreviewTable({ rows }: { rows: ProducerFacingPayrollRow[] }) {
   return (
@@ -134,6 +136,7 @@ export function ProducerStatementPreview({
   payrollRecords,
   allOrders,
   producers,
+  payrollAddons = [],
   onBack,
   embedded = false,
   allowedProducerNames,
@@ -181,7 +184,8 @@ export function ProducerStatementPreview({
           allOrders,
           producers,
           name,
-          filterPeriod
+          filterPeriod,
+          payrollAddons
         );
         const total = rows.reduce((sum, row) => sum + row.rawTotalPayout, 0);
         const producerObj =
@@ -198,6 +202,7 @@ export function ProducerStatementPreview({
     producers,
     filterPeriod,
     allowedProducerNames,
+    payrollAddons,
   ]);
 
   const activeProducersInPeriod = useMemo(
@@ -245,9 +250,10 @@ export function ProducerStatementPreview({
       allOrders,
       producers,
       currentProducerToView,
-      filterPeriod
+      filterPeriod,
+      payrollAddons
     );
-  }, [payrollRecords, allOrders, producers, currentProducerToView, filterPeriod]);
+  }, [payrollRecords, allOrders, producers, currentProducerToView, filterPeriod, payrollAddons]);
 
   const currentProducerTotal = useMemo(
     () => currentRows.reduce((sum, row) => sum + row.rawTotalPayout, 0),
@@ -270,7 +276,8 @@ export function ProducerStatementPreview({
       allOrders,
       producers,
       currentProducerToView,
-      filterPeriod
+      filterPeriod,
+      payrollAddons
     );
     triggerCsvDownload(
       `Payroll_Producer_Statement_${currentProducerToView.replace(/\s+/g, "_")}_${todayIso()}.csv`,
@@ -294,7 +301,8 @@ export function ProducerStatementPreview({
         allOrders,
         producers,
         targetName,
-        filterPeriod
+        filterPeriod,
+        payrollAddons
       );
       triggerCsvDownload(
         `Payroll_Producer_Statement_${targetName.replace(/\s+/g, "_")}_${todayIso()}.csv`,

@@ -29,7 +29,7 @@ function StatementPreviewTable({ rows }) {
                                                     : "text-brand-ink-secondary"}`, children: val || "—" }, col.key));
                                     })] }, row.recId || idx)))) })] }) })] }));
 }
-function ProducerStatementPreview({ selectedProducer, onProducerChange, selectedPeriod, onPeriodChange, payrollRecords, allOrders, producers, onBack, embedded = false, allowedProducerNames, sendLayout = "separate", }) {
+function ProducerStatementPreview({ selectedProducer, onProducerChange, selectedPeriod, onPeriodChange, payrollRecords, allOrders, producers, payrollAddons = [], onBack, embedded = false, allowedProducerNames, sendLayout = "separate", }) {
     const [activeTabProducer, setActiveTabProducer] = (0, react_1.useState)("");
     const [collapsedProducers, setCollapsedProducers] = (0, react_1.useState)(() => new Set());
     const filterPeriod = (0, react_1.useMemo)(() => {
@@ -60,7 +60,7 @@ function ProducerStatementPreview({ selectedProducer, onProducerChange, selected
             : null;
         return Array.from(payoutByProducer.entries())
             .map(([name, mixCount]) => {
-            const rows = (0, export_csv_1.getProducerFacingPayrollRows)(payrollRecords, allOrders, producers, name, filterPeriod);
+            const rows = (0, export_csv_1.getProducerFacingPayrollRows)(payrollRecords, allOrders, producers, name, filterPeriod, payrollAddons);
             const total = rows.reduce((sum, row) => sum + row.rawTotalPayout, 0);
             const producerObj = producers.find((p) => p.name.toUpperCase() === name.toUpperCase() || p.id === name) || (0, editor_assignment_1.findProducerByAssignmentKey)(name, producers);
             return { name, mixCount, total, producerObj, rows };
@@ -73,6 +73,7 @@ function ProducerStatementPreview({ selectedProducer, onProducerChange, selected
         producers,
         filterPeriod,
         allowedProducerNames,
+        payrollAddons,
     ]);
     const activeProducersInPeriod = (0, react_1.useMemo)(() => activeProducerSummaries.map((entry) => entry.name), [activeProducerSummaries]);
     const producerNamesKey = activeProducersInPeriod.join("|");
@@ -105,15 +106,15 @@ function ProducerStatementPreview({ selectedProducer, onProducerChange, selected
         return activeProducersInPeriod[0] || producers[0]?.name || "";
     }, [selectedProducer, activeTabProducer, activeProducersInPeriod, producers]);
     const currentRows = (0, react_1.useMemo)(() => {
-        return (0, export_csv_1.getProducerFacingPayrollRows)(payrollRecords, allOrders, producers, currentProducerToView, filterPeriod);
-    }, [payrollRecords, allOrders, producers, currentProducerToView, filterPeriod]);
+        return (0, export_csv_1.getProducerFacingPayrollRows)(payrollRecords, allOrders, producers, currentProducerToView, filterPeriod, payrollAddons);
+    }, [payrollRecords, allOrders, producers, currentProducerToView, filterPeriod, payrollAddons]);
     const currentProducerTotal = (0, react_1.useMemo)(() => currentRows.reduce((sum, row) => sum + row.rawTotalPayout, 0), [currentRows]);
     const currentProducerObj = (0, react_1.useMemo)(() => {
         return (producers.find((p) => p.name.toUpperCase() === currentProducerToView.toUpperCase() ||
             p.id.toUpperCase() === currentProducerToView.toUpperCase()) || (0, editor_assignment_1.findProducerByAssignmentKey)(currentProducerToView, producers));
     }, [producers, currentProducerToView]);
     const handleDownloadCurrentProducer = () => {
-        const csv = (0, export_csv_1.generateProducerFacingPayrollCsv)(payrollRecords, allOrders, producers, currentProducerToView, filterPeriod);
+        const csv = (0, export_csv_1.generateProducerFacingPayrollCsv)(payrollRecords, allOrders, producers, currentProducerToView, filterPeriod, payrollAddons);
         (0, export_csv_1.triggerCsvDownload)(`Payroll_Producer_Statement_${currentProducerToView.replace(/\s+/g, "_")}_${(0, date_filters_1.todayIso)()}.csv`, csv);
     };
     const handleDownloadAllProducers = () => {
@@ -125,7 +126,7 @@ function ProducerStatementPreview({ selectedProducer, onProducerChange, selected
             return;
         }
         targets.forEach((targetName) => {
-            const csv = (0, export_csv_1.generateProducerFacingPayrollCsv)(payrollRecords, allOrders, producers, targetName, filterPeriod);
+            const csv = (0, export_csv_1.generateProducerFacingPayrollCsv)(payrollRecords, allOrders, producers, targetName, filterPeriod, payrollAddons);
             (0, export_csv_1.triggerCsvDownload)(`Payroll_Producer_Statement_${targetName.replace(/\s+/g, "_")}_${(0, date_filters_1.todayIso)()}.csv`, csv);
         });
     };

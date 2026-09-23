@@ -1,10 +1,13 @@
 "use client";
 
 import { createPortal } from "react-dom";
-import { useCallback, useMemo, useState } from "react";
-import { X, Loader2 } from "lucide-react";
-import type { Producer } from "@/types";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { X, Loader2, Search } from "lucide-react";
+import type { MTDRecord, Order, Producer } from "@/types";
 import type { CreatePayrollAddonPayload } from "@/lib/api/payroll-addons";
+import { findProducerByAssignmentKey } from "@/lib/editor-assignment";
+import { Avatar } from "@/components/ui/Avatar";
+import { resolveMTDFormMeta } from "@/lib/mtd-filters";
 
 const RUSH_OPTIONS = [
   { label: "Rush Fee", description: "Single ($150)", value: 150 },
@@ -14,8 +17,8 @@ const RUSH_OPTIONS = [
 type AddRushFeeModalProps = {
   open: boolean;
   onClose: () => void;
-  /** Unique program options derived from allOrders */
-  programOptions: { programName: string; contactName: string; category: string }[];
+  record: MTDRecord | null;
+  allOrders: Order[];
   producers: Producer[];
   onAdd: (payload: CreatePayrollAddonPayload) => Promise<unknown>;
 };
@@ -23,106 +26,174 @@ type AddRushFeeModalProps = {
 export function AddRushFeeModal({
   open,
   onClose,
-  programOptions,
+  record,
+  allOrders,
   producers,
   onAdd,
 }: AddRushFeeModalProps) {
-  const [programSearch, setProgramSearch] = useState("");
-  const [selectedProgram, setSelectedProgram] = useState<{
-    programName: string;
-    contactName: string;
-    category: string;
-  } | null>(null);
-  const [manualCategory, setManualCategory] = useState<"Cheer" | "Dance">("Cheer");
+  const [selectedSchoolProgram, setSelectedSchoolProgram] = useState("");
+  const [schoolSearch, setSchoolSearch] = useState("");
+  const [showSchoolDropdown, setShowSchoolDropdown] = useState(false);
+
+  const [selectedTeamDivision, setSelectedTeamDivision] = useState("");
+  const [teamSearch, setTeamSearch] = useState("");
+  const [showTeamDropdown, setShowTeamDropdown] = useState(false);
+
   const [rushOptionIndex, setRushOptionIndex] = useState(0);
-  const [selectedProducerId, setSelectedProducerId] = useState("");
-  const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  // Derive target producer automatically from the payroll row
+  const assignedProducerObj = useMemo(() => {
+    if (!record?.assignedProducer) return null;
+    return findProducerByAssignmentKey(record.assignedProducer, producers) || null;
+  }, [record, producers]);
+
+  // Derive Category (Cheer / Dance)
   const effectiveCategory: "Cheer" | "Dance" = useMemo(() => {
-    if (!selectedProgram) return manualCategory;
-    const cat = selectedProgram.category?.toLowerCase();
-    if (cat?.includes("dance")) return "Dance";
+    if (!record) return "Cheer";
+    const meta = resolveMTDFormMeta(record, new Map(allOrders.map((o) => [o.id, o])));
+    if (meta.formType === "school-all-star-dance") return "Dance";
     return "Cheer";
-  }, [selectedProgram, manualCategory]);
+  }, [record, allOrders]);
 
   const selectedRushOption = RUSH_OPTIONS[rushOptionIndex] ?? RUSH_OPTIONS[0];
 
-  const filteredPrograms = useMemo(() => {
-    const q = programSearch.trim().toLowerCase();
-    if (!q) return programOptions.slice(0, 50);
-    return programOptions
-      .filter(
-        (p) =>
-          p.programName.toLowerCase().includes(q) ||
-          p.contactName.toLowerCase().includes(q)
-      )
-      .slice(0, 50);
-  }, [programOptions, programSearch]);
+  // Build unique School / Program options dynamically from database orders
+  const schoolProgramOptions = useMemo(() => {
+    const seen = new Set<string>();
+    const list: string[] = [];
+    for (const order of allOrders) {
+      const name = (order.programName || order.schoolProgramName || order.schoolName || order.gymName || "").trim();
+      if (name && !seen.has(name.toUpperCase())) {
+        seen.add(name.toUpperCase());
+        list.push(name);
+      }
+    }
+    return list.sort((a, b) => a.localeCompare(b));
+  }, [allOrders]);
 
-  const reset = useCallback(() => {
-    setProgramSearch("");
-    setSelectedProgram(null);
-    setManualCategory("Cheer");
+  // Build Team / Division options contextually filtered by selected School/Program if possible
+  const teamDivisionOptions = useMemo(() => {
+    const seen = new Set<string>();
+    const list: string[] = [];
+    const targetSchool = selectedSchoolProgram.trim().toUpperCase();
+
+    for (const order of allOrders) {
+      const orderSchool = (order.programName || order.schoolProgramName || order.schoolName || order.gymName || "").trim().toUpperCase();
+      if (targetSchool && orderSchool !== targetSchool) continue;
+
+      const teamName = (order.teamName || order.division || order.contactName || "").trim();
+      if (teamName && !seen.has(teamName.toUpperCase())) {
+        seen.add(teamName.toUpperCase());
+        list.push(teamName);
+      }
+    }
+
+    // Fallback to all team names if none match
+    if (list.length === 0 && targetSchool) {
+      for (const order of allOrders) {
+        const teamName = (order.teamName || order.division || order.contactName || "").trim();
+        if (teamName && !seen.has(teamName.toUpperCase())) {
+          seen.add(teamName.toUpperCase());
+          list.push(teamName);
+        }
+      }
+    }
+
+    return list.sort((a, b) => a.localeCompare(b));
+  }, [allOrders, selectedSchoolProgram]);
+
+  // Pre-fill fields when modal opens for a record
+  useEffect(() => {
+    if (!open || !record) return;
+    const initialSchool = record.programName || (record as any).schoolProgramName || "";
+    setSelectedSchoolProgram(initialSchool);
+    setSchoolSearch(initialSchool);
+
+    const initialTeam = (record as any).teamName || record.contactName || "";
+    setSelectedTeamDivision(initialTeam);
+    setTeamSearch(initialTeam);
+
     setRushOptionIndex(0);
-    setSelectedProducerId("");
-    setNotes("");
     setError(null);
     setSaving(false);
-  }, []);
+  }, [open, record]);
+
+  const filteredSchoolOptions = useMemo(() => {
+    const q = schoolSearch.trim().toLowerCase();
+    if (!q) return schoolProgramOptions.slice(0, 30);
+    return schoolProgramOptions.filter((s) => s.toLowerCase().includes(q)).slice(0, 30);
+  }, [schoolProgramOptions, schoolSearch]);
+
+  const filteredTeamOptions = useMemo(() => {
+    const q = teamSearch.trim().toLowerCase();
+    if (!q) return teamDivisionOptions.slice(0, 30);
+    return teamDivisionOptions.filter((t) => t.toLowerCase().includes(q)).slice(0, 30);
+  }, [teamDivisionOptions, teamSearch]);
 
   const handleClose = () => {
-    reset();
+    setShowSchoolDropdown(false);
+    setShowTeamDropdown(false);
     onClose();
   };
 
   const handleAdd = async () => {
     setError(null);
 
-    if (!selectedProgram) {
-      setError("Please select a school / program / team.");
+    if (!record) {
+      setError("No payroll row selected.");
       return;
     }
 
-    const producerObj = producers.find((p) => p.id === selectedProducerId);
-    if (!producerObj) {
-      setError("Please select a producer / payee.");
+    if (!selectedSchoolProgram.trim()) {
+      setError("Please select a School / Program.");
       return;
     }
 
     setSaving(true);
     try {
       await onAdd({
-        programName: selectedProgram.programName,
-        contactName: selectedProgram.contactName || null,
+        orderId: record.orderId || record.id,
+        mtdId: record.id,
+        programName: selectedSchoolProgram.trim(),
+        teamName: selectedTeamDivision.trim() || null,
+        contactName: record.contactName || null,
         category: effectiveCategory,
         addonType: "rush_fee",
         amount: selectedRushOption.value,
         rateSource: "predefined",
-        producerId: producerObj.id,
-        producerInitials: producerObj.initials,
-        notes: notes.trim() || null,
+        producerId: assignedProducerObj?.id || null,
+        producerInitials: assignedProducerObj?.initials || record.assignedProducer || null,
       });
-      reset();
-      onClose();
+      handleClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to add rush fee.");
       setSaving(false);
     }
   };
 
-  if (!open) return null;
+  if (!open || !record) return null;
 
   const modal = (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{ backgroundColor: "rgba(0,0,0,0.55)" }}
+      onClick={() => {
+        setShowSchoolDropdown(false);
+        setShowTeamDropdown(false);
+      }}
     >
-      <div className="relative flex w-full max-w-md flex-col rounded-xl border border-brand-line bg-brand-surface shadow-2xl">
+      <div
+        className="relative flex w-full max-w-md flex-col rounded-xl border border-brand-line bg-brand-surface shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-brand-line px-5 py-4">
-          <h2 className="text-[15px] font-semibold text-brand-ink">Add Rush Fee</h2>
+          <div>
+            <h2 className="text-[15px] font-semibold text-brand-ink">Add Rush Fee</h2>
+            <p className="text-xs text-brand-ink-faint">Row: {record.programName}</p>
+          </div>
           <button
             type="button"
             onClick={handleClose}
@@ -134,103 +205,110 @@ export function AddRushFeeModal({
 
         {/* Body */}
         <div className="flex flex-col gap-4 overflow-y-auto px-5 py-5">
-          {/* Program search */}
-          <div>
-            <label className="mb-1.5 block text-xs font-medium text-brand-ink-secondary">
-              School / Program / Team <span className="text-brand-orange">*</span>
-            </label>
-            {selectedProgram ? (
-              <div className="flex items-center gap-2 rounded-lg border border-brand-orange/40 bg-brand-orange-soft/20 px-3 py-2">
-                <span className="flex-1 text-sm font-medium text-brand-ink">
-                  {selectedProgram.programName}
+          {/* Producer (Automatic / Read-only) */}
+          <div className="rounded-lg border border-brand-line/70 bg-brand-bg/60 p-3">
+            <span className="block text-[11px] font-semibold uppercase tracking-wider text-brand-ink-faint">
+              Assigned Producer
+            </span>
+            <div className="mt-1 flex items-center gap-2">
+              <Avatar producer={assignedProducerObj ?? undefined} initials={record.assignedProducer} size="xs" />
+              <span className="text-sm font-semibold text-brand-ink">
+                {assignedProducerObj?.name || record.assignedProducer || "Unassigned"}
+              </span>
+              {assignedProducerObj?.initials && (
+                <span className="rounded bg-brand-hover px-1.5 py-0.5 text-xs font-semibold text-brand-ink-secondary">
+                  ({assignedProducerObj.initials})
                 </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedProgram(null);
-                    setProgramSearch("");
-                  }}
-                  className="text-brand-ink-faint hover:text-brand-ink"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            ) : (
-              <div className="relative">
-                <input
-                  type="text"
-                  className="w-full rounded-lg border border-brand-line bg-brand-bg px-3 py-2 text-sm text-brand-ink placeholder:text-brand-ink-faint focus:border-brand-orange/60 focus:outline-none focus:ring-1 focus:ring-brand-orange/30"
-                  placeholder="Search program name or contact…"
-                  value={programSearch}
-                  onChange={(e) => setProgramSearch(e.target.value)}
-                  autoFocus
-                />
-                {programSearch && (
-                  <div className="absolute left-0 top-full z-10 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-brand-line bg-brand-surface shadow-lg">
-                    {filteredPrograms.length === 0 ? (
-                      <div className="px-3 py-2 text-xs text-brand-ink-faint">No results</div>
-                    ) : (
-                      filteredPrograms.map((p, i) => (
-                        <button
-                          key={i}
-                          type="button"
-                          className="flex w-full flex-col px-3 py-2 text-left hover:bg-brand-hover"
-                          onClick={() => {
-                            setSelectedProgram(p);
-                            setProgramSearch("");
-                          }}
-                        >
-                          <span className="text-sm font-medium text-brand-ink">{p.programName}</span>
-                          {p.contactName && (
-                            <span className="text-xs text-brand-ink-faint">{p.contactName}</span>
-                          )}
-                        </button>
-                      ))
-                    )}
-                  </div>
-                )}
+              )}
+            </div>
+          </div>
+
+          {/* School / Program Selection */}
+          <div className="relative">
+            <label className="mb-1.5 block text-xs font-medium text-brand-ink-secondary">
+              School / Program <span className="text-brand-orange">*</span>
+            </label>
+            <div className="relative">
+              <input
+                type="text"
+                className="w-full rounded-lg border border-brand-line bg-brand-bg px-3 py-2 text-sm text-brand-ink placeholder:text-brand-ink-faint focus:border-brand-orange/60 focus:outline-none focus:ring-1 focus:ring-brand-orange/30"
+                placeholder="Search or enter school/program…"
+                value={schoolSearch}
+                onChange={(e) => {
+                  setSchoolSearch(e.target.value);
+                  setSelectedSchoolProgram(e.target.value);
+                  setShowSchoolDropdown(true);
+                }}
+                onFocus={() => setShowSchoolDropdown(true)}
+              />
+              <Search className="absolute right-3 top-2.5 h-4 w-4 text-brand-ink-faint" />
+            </div>
+
+            {showSchoolDropdown && filteredSchoolOptions.length > 0 && (
+              <div className="absolute left-0 top-full z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-brand-line bg-brand-surface shadow-lg">
+                {filteredSchoolOptions.map((opt, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    className="flex w-full px-3 py-2 text-left text-sm font-medium text-brand-ink hover:bg-brand-hover"
+                    onClick={() => {
+                      setSelectedSchoolProgram(opt);
+                      setSchoolSearch(opt);
+                      setShowSchoolDropdown(false);
+                    }}
+                  >
+                    {opt}
+                  </button>
+                ))}
               </div>
             )}
           </div>
 
-          {/* Category — only if not auto-derived */}
-          {!selectedProgram && (
-            <div>
-              <label className="mb-1.5 block text-xs font-medium text-brand-ink-secondary">
-                Category
-              </label>
-              <div className="flex gap-2">
-                {(["Cheer", "Dance"] as const).map((cat) => (
+          {/* Team / Division Selection */}
+          <div className="relative">
+            <label className="mb-1.5 block text-xs font-medium text-brand-ink-secondary">
+              Team / Division
+            </label>
+            <div className="relative">
+              <input
+                type="text"
+                className="w-full rounded-lg border border-brand-line bg-brand-bg px-3 py-2 text-sm text-brand-ink placeholder:text-brand-ink-faint focus:border-brand-orange/60 focus:outline-none focus:ring-1 focus:ring-brand-orange/30"
+                placeholder="Search or enter team/division…"
+                value={teamSearch}
+                onChange={(e) => {
+                  setTeamSearch(e.target.value);
+                  setSelectedTeamDivision(e.target.value);
+                  setShowTeamDropdown(true);
+                }}
+                onFocus={() => setShowTeamDropdown(true)}
+              />
+              <Search className="absolute right-3 top-2.5 h-4 w-4 text-brand-ink-faint" />
+            </div>
+
+            {showTeamDropdown && filteredTeamOptions.length > 0 && (
+              <div className="absolute left-0 top-full z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-brand-line bg-brand-surface shadow-lg">
+                {filteredTeamOptions.map((opt, i) => (
                   <button
-                    key={cat}
+                    key={i}
                     type="button"
-                    onClick={() => setManualCategory(cat)}
-                    className={`rounded-lg border px-4 py-1.5 text-sm font-medium transition ${
-                      manualCategory === cat
-                        ? "border-brand-orange bg-brand-orange/10 text-brand-orange"
-                        : "border-brand-line bg-brand-bg text-brand-ink-secondary hover:border-brand-orange/40 hover:text-brand-ink"
-                    }`}
+                    className="flex w-full px-3 py-2 text-left text-sm font-medium text-brand-ink hover:bg-brand-hover"
+                    onClick={() => {
+                      setSelectedTeamDivision(opt);
+                      setTeamSearch(opt);
+                      setShowTeamDropdown(false);
+                    }}
                   >
-                    {cat}
+                    {opt}
                   </button>
                 ))}
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
-          {selectedProgram && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-brand-ink-secondary">Category:</span>
-              <span className="rounded-md bg-brand-hover px-2 py-0.5 text-xs font-semibold text-brand-ink">
-                {effectiveCategory}
-              </span>
-            </div>
-          )}
-
-          {/* Rush Fee option */}
+          {/* Rush Fee Option */}
           <div>
             <label className="mb-1.5 block text-xs font-medium text-brand-ink-secondary">
-              Rush Fee <span className="text-brand-orange">*</span>
+              Rush Fee Option <span className="text-brand-orange">*</span>
             </label>
             <div className="flex gap-2">
               {RUSH_OPTIONS.map((opt, i) => (
@@ -238,50 +316,17 @@ export function AddRushFeeModal({
                   key={i}
                   type="button"
                   onClick={() => setRushOptionIndex(i)}
-                  className={`flex flex-col items-start rounded-lg border px-4 py-2 text-left transition ${
+                  className={`flex flex-1 flex-col items-center rounded-lg border px-3 py-2.5 text-center transition ${
                     rushOptionIndex === i
                       ? "border-brand-orange bg-brand-orange/10 text-brand-orange"
                       : "border-brand-line bg-brand-bg text-brand-ink-secondary hover:border-brand-orange/40 hover:text-brand-ink"
                   }`}
                 >
                   <span className="text-sm font-semibold">{opt.label}</span>
-                  <span className="text-xs opacity-75">{opt.description}</span>
+                  <span className="text-xs opacity-80">{opt.description}</span>
                 </button>
               ))}
             </div>
-          </div>
-
-          {/* Producer */}
-          <div>
-            <label className="mb-1.5 block text-xs font-medium text-brand-ink-secondary">
-              Producer / Payee <span className="text-brand-orange">*</span>
-            </label>
-            <select
-              className="w-full rounded-lg border border-brand-line bg-brand-bg px-3 py-2 text-sm text-brand-ink focus:border-brand-orange/60 focus:outline-none focus:ring-1 focus:ring-brand-orange/30"
-              value={selectedProducerId}
-              onChange={(e) => setSelectedProducerId(e.target.value)}
-            >
-              <option value="">Select producer…</option>
-              {producers.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} ({p.initials})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Notes */}
-          <div>
-            <label className="mb-1.5 block text-xs font-medium text-brand-ink-secondary">
-              Notes <span className="text-brand-ink-faint">(optional)</span>
-            </label>
-            <input
-              type="text"
-              className="w-full rounded-lg border border-brand-line bg-brand-bg px-3 py-2 text-sm text-brand-ink placeholder:text-brand-ink-faint focus:border-brand-orange/60 focus:outline-none focus:ring-1 focus:ring-brand-orange/30"
-              placeholder="e.g. Late submission…"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-            />
           </div>
 
           {error && (

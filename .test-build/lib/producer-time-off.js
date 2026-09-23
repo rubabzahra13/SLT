@@ -15,6 +15,8 @@ exports.ensurePersonalReasonsList = ensurePersonalReasonsList;
 exports.enabledPersonalReasonNames = enabledPersonalReasonNames;
 exports.expandStudioHolidayDatesForYear = expandStudioHolidayDatesForYear;
 exports.studioHolidayIsoSetInRange = studioHolidayIsoSetInRange;
+exports.holidayAppliesToProducer = holidayAppliesToProducer;
+exports.holidaysForProducer = holidaysForProducer;
 exports.isStudioHolidayIso = isStudioHolidayIso;
 exports.studioHolidayNamesForIso = studioHolidayNamesForIso;
 exports.resolveHolidayDatesForToday = resolveHolidayDatesForToday;
@@ -156,6 +158,8 @@ function createDefaultStudioHolidays() {
             name,
             startDate: range.start,
             endDate: range.end,
+            appliesToAll: true,
+            producerIds: [],
         };
     });
 }
@@ -163,12 +167,22 @@ function normalizeStudioHoliday(raw) {
     const todayMd = toMonthDay(isoFromLocalDate(new Date())) || "01-01";
     const start = toMonthDay(raw.startDate) || todayMd;
     const end = toMonthDay(raw.endDate) || start;
+    const appliesToAll = raw.appliesToAll !== false;
+    const producerIds = Array.isArray(raw.producerIds)
+        ? [
+            ...new Set(raw.producerIds
+                .map((id) => String(id || "").trim())
+                .filter(Boolean)),
+        ]
+        : [];
     return {
         id: raw.id ||
             `holiday-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         name: raw.name.trim(),
         startDate: start,
         endDate: end,
+        appliesToAll,
+        producerIds: appliesToAll ? [] : producerIds,
     };
 }
 function createDefaultPersonalReasons() {
@@ -258,12 +272,16 @@ function parseIsoToLocalDate(iso) {
     return date;
 }
 /** Studio holiday dates between minIso and maxIso (inclusive). */
-function studioHolidayIsoSetInRange(holidays, minIso, maxIso) {
+function studioHolidayIsoSetInRange(holidays, minIso, maxIso, producerId) {
     const minYear = Number(minIso.slice(0, 4));
     const maxYear = Number(maxIso.slice(0, 4));
     const set = new Set();
     for (let year = minYear; year <= maxYear + 1; year += 1) {
         for (const holiday of holidays) {
+            if (producerId &&
+                !holidayAppliesToProducer(holiday, producerId)) {
+                continue;
+            }
             for (const iso of expandStudioHolidayDatesForYear(holiday, year)) {
                 if (iso >= minIso && iso <= maxIso)
                     set.add(iso);
@@ -272,14 +290,29 @@ function studioHolidayIsoSetInRange(holidays, minIso, maxIso) {
     }
     return set;
 }
-function isStudioHolidayIso(iso, holidays) {
-    return studioHolidayNamesForIso(iso, holidays).length > 0;
+function holidayAppliesToProducer(holiday, producerId) {
+    if (holiday.appliesToAll !== false)
+        return true;
+    const id = producerId.trim();
+    if (!id)
+        return false;
+    return (holiday.producerIds ?? []).includes(id);
+}
+function holidaysForProducer(holidays, producerId) {
+    return holidays.filter((holiday) => holidayAppliesToProducer(holiday, producerId));
+}
+function isStudioHolidayIso(iso, holidays, producerId) {
+    return studioHolidayNamesForIso(iso, holidays, producerId).length > 0;
 }
 /** Holiday names that cover this calendar date (may be more than one). */
-function studioHolidayNamesForIso(iso, holidays) {
+function studioHolidayNamesForIso(iso, holidays, producerId) {
     const year = Number(iso.slice(0, 4));
     const names = [];
     for (const holiday of holidays) {
+        if (producerId &&
+            !holidayAppliesToProducer(holiday, producerId)) {
+            continue;
+        }
         const covers = expandStudioHolidayDatesForYear(holiday, year).includes(iso) ||
             expandStudioHolidayDatesForYear(holiday, year - 1).includes(iso);
         if (covers)

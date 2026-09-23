@@ -5,6 +5,7 @@ exports.AppStateProvider = AppStateProvider;
 exports.useAppState = useAppState;
 const jsx_runtime_1 = require("react/jsx-runtime");
 const react_1 = require("react");
+const producer_time_off_1 = require("@/lib/producer-time-off");
 const data_1 = require("@/lib/data");
 const order_form_1 = require("@/lib/order-form");
 const AuthContext_1 = require("@/context/AuthContext");
@@ -16,6 +17,7 @@ const discount_codes_1 = require("@/lib/discount-codes");
 const mtd_filters_1 = require("@/lib/mtd-filters");
 const mtd_status_1 = require("@/lib/mtd-status");
 const dates_1 = require("@/lib/dates");
+const client_1 = require("@/lib/api/client");
 const api_1 = require("@/lib/api");
 const AppStateContext = (0, react_1.createContext)(null);
 function normalizeOrders(orders) {
@@ -53,6 +55,29 @@ function normalizeMTD(records) {
         return normalized;
     });
 }
+function getLocalItem(key, fallback) {
+    if (typeof window === "undefined")
+        return fallback;
+    try {
+        const raw = localStorage.getItem(key);
+        if (!raw)
+            return fallback;
+        return JSON.parse(raw);
+    }
+    catch {
+        return fallback;
+    }
+}
+function setLocalItem(key, value) {
+    if (typeof window === "undefined")
+        return;
+    try {
+        localStorage.setItem(key, JSON.stringify(value));
+    }
+    catch {
+        // Ignore quota or storage errors
+    }
+}
 function AppStateProvider({ children }) {
     const seed = (0, data_1.getData)();
     // One-time migration: clear any stale localStorage keys that may contain
@@ -73,6 +98,21 @@ function AppStateProvider({ children }) {
     const [notifications, setNotifications] = (0, react_1.useState)([]);
     const [producers, setProducers] = (0, react_1.useState)(() => (0, producers_1.deduplicateProducers)(seed.producers.map((p) => (0, producers_1.normalizeProducer)(p))));
     const [discountCodes, setDiscountCodes] = (0, react_1.useState)([]);
+    const [payrollAddons, setPayrollAddons] = (0, react_1.useState)([]);
+    const [holidays, setHolidays] = (0, react_1.useState)(() => {
+        const stored = getLocalItem("slt_studio_holidays", null);
+        if (stored && Array.isArray(stored) && stored.length > 0) {
+            return stored.map((entry) => (0, producer_time_off_1.normalizeStudioHoliday)(entry));
+        }
+        return (0, producer_time_off_1.createDefaultStudioHolidays)();
+    });
+    const [personalReasons, setPersonalReasons] = (0, react_1.useState)(() => {
+        const stored = getLocalItem("slt_studio_personal_reasons", null);
+        if (stored && Array.isArray(stored) && stored.length > 0) {
+            return (0, producer_time_off_1.ensurePersonalReasonsList)(stored.map((entry) => (0, producer_time_off_1.normalizeStudioPersonalReason)(entry)));
+        }
+        return (0, producer_time_off_1.createDefaultPersonalReasons)();
+    });
     const [isBackendConnected, setIsBackendConnected] = (0, react_1.useState)(false);
     const [isLoading, setIsLoading] = (0, react_1.useState)(true);
     const schedule = seed.schedule;
@@ -81,11 +121,12 @@ function AppStateProvider({ children }) {
         let isMounted = true;
         async function loadBackendData() {
             try {
-                const [producersData, ordersData, mtdData, codesData] = await Promise.all([
+                const [producersData, ordersData, mtdData, codesData, addonsData] = await Promise.all([
                     (0, api_1.fetchProducersApi)(),
                     (0, api_1.fetchOrdersApi)(),
                     (0, api_1.fetchMTDRecordsApi)(),
                     (0, api_1.fetchDiscountCodesApi)(),
+                    (0, api_1.fetchPayrollAddonsApi)(),
                 ]);
                 if (!isMounted)
                     return;
@@ -124,6 +165,9 @@ function AppStateProvider({ children }) {
                     // Replace state entirely — no seed fallback.
                     const normalizedCodes = codesData.map((c) => (0, discount_codes_1.normalizeDiscountCode)(c));
                     setDiscountCodes(normalizedCodes);
+                }
+                if (addonsData) {
+                    setPayrollAddons(addonsData);
                 }
                 setIsBackendConnected(true);
             }
@@ -313,7 +357,7 @@ function AppStateProvider({ children }) {
                     if (resolved &&
                         !(0, dates_1.toIsoDateString)(updated.mixStartDate) &&
                         patch.mixStartDate === undefined) {
-                        const mixStartDate = (0, scheduling_1.suggestMixStartDate)(resolved, producers, schedule);
+                        const mixStartDate = (0, scheduling_1.suggestMixStartDate)(resolved, producers, schedule, mtdRecords);
                         if (mixStartDate) {
                             updated.mixStartDate = mixStartDate;
                             apiPatch = { ...apiPatch, mixStartDate };
@@ -363,6 +407,18 @@ function AppStateProvider({ children }) {
                 orderPatch.status = "active";
             if (patch.isReassigned !== undefined)
                 orderPatch.isReassigned = patch.isReassigned;
+            if (patch.collectionStates !== undefined)
+                orderPatch.collectionStates = patch.collectionStates;
+            if (patch.collection_states !== undefined)
+                orderPatch.collection_states = patch.collection_states;
+            if (patch.haveSongs !== undefined)
+                orderPatch.haveSongs = patch.haveSongs;
+            if (patch.eightCountSheet !== undefined)
+                orderPatch.eightCountSheet = patch.eightCountSheet;
+            if (patch.orderStatus !== undefined)
+                orderPatch.orderStatus = patch.orderStatus;
+            if (patch.order_status !== undefined)
+                orderPatch.order_status = patch.order_status;
             if (Object.keys(orderPatch).length > 0) {
                 setActiveOrders((prev) => prev.map((o) => o.id === linkedOrder.id ? { ...o, ...orderPatch } : o));
                 (0, api_1.updateOrderApi)(linkedOrder.id, orderPatch).catch((err) => console.error("Failed to sync order update to backend:", err));
@@ -383,7 +439,10 @@ function AppStateProvider({ children }) {
             });
         }
         else {
-            (0, api_1.updateMTDRecordApi)(apiId, apiPatch).catch((err) => console.error("Failed to persist MTD Record update to backend:", err));
+            const hasMtdRecord = mtdRecords.some((r) => r.id === id || r.orderId === id || r.uuid === id || r.legacyId === id);
+            if (hasMtdRecord) {
+                (0, api_1.updateMTDRecordApi)(apiId, apiPatch).catch((err) => console.error("Failed to persist MTD Record update to backend:", err));
+            }
         }
         if (payrollNotice) {
             addNotification(payrollNotice);
@@ -462,27 +521,43 @@ function AppStateProvider({ children }) {
         const normalized = (0, producers_1.normalizeProducer)(producer);
         const tempId = normalized.id;
         setProducers((prev) => [normalized, ...prev]);
+        if (!isBackendConnected) {
+            return normalized;
+        }
         try {
             const saved = await (0, api_1.createProducerApi)(normalized);
             setProducers((prev) => prev.map((p) => (p.id === tempId ? saved : p)));
             return saved;
         }
         catch (err) {
+            if (err instanceof client_1.ApiClientError &&
+                (err.status === 0 || err.status >= 500)) {
+                setIsBackendConnected(false);
+                console.warn("Backend unavailable; keeping local producer create.", err);
+                return normalized;
+            }
             setProducers((prev) => prev.filter((p) => p.id !== tempId));
             throw err;
         }
-    }, [isViewOnly]);
+    }, [isViewOnly, isBackendConnected]);
     const updateProducer = (0, react_1.useCallback)(async (id, patch) => {
         if (isViewOnly) {
             throw new Error("View-only accounts cannot edit producers.");
         }
         let previous;
+        let next;
         setProducers((prev) => {
             previous = prev.find((p) => p.id === id);
-            return prev.map((p) => p.id === id ? (0, producers_1.normalizeProducer)({ ...p, ...patch, id }) : p);
+            if (!previous)
+                return prev;
+            next = (0, producers_1.normalizeProducer)({ ...previous, ...patch, id });
+            return prev.map((p) => (p.id === id ? next : p));
         });
-        if (!previous) {
+        if (!previous || !next) {
             throw new Error("Producer not found.");
+        }
+        if (!isBackendConnected) {
+            return next;
         }
         try {
             const saved = await (0, api_1.updateProducerApi)(id, patch, (0, api_1.resolveProducerApiId)(previous));
@@ -490,10 +565,16 @@ function AppStateProvider({ children }) {
             return saved;
         }
         catch (err) {
+            if (err instanceof client_1.ApiClientError &&
+                (err.status === 0 || err.status >= 500)) {
+                setIsBackendConnected(false);
+                console.warn("Backend unavailable; keeping local producer update.", err);
+                return next;
+            }
             setProducers((prev) => prev.map((p) => (p.id === id ? previous : p)));
             throw err;
         }
-    }, [isViewOnly]);
+    }, [isViewOnly, isBackendConnected]);
     const removeProducer = (0, react_1.useCallback)(async (id) => {
         if (isViewOnly) {
             throw new Error("View-only accounts cannot remove producers.");
@@ -506,14 +587,23 @@ function AppStateProvider({ children }) {
         if (!removed) {
             throw new Error("Producer not found.");
         }
+        if (!isBackendConnected) {
+            return;
+        }
         try {
             await (0, api_1.deleteProducerApi)(id, (0, api_1.resolveProducerApiId)(removed));
         }
         catch (err) {
+            if (err instanceof client_1.ApiClientError &&
+                (err.status === 0 || err.status >= 500)) {
+                setIsBackendConnected(false);
+                console.warn("Backend unavailable; keeping local producer delete.", err);
+                return;
+            }
             setProducers((prev) => [removed, ...prev]);
             throw err;
         }
-    }, [isViewOnly]);
+    }, [isViewOnly, isBackendConnected]);
     const addDiscountCode = (0, react_1.useCallback)(async (discountCode) => {
         if (isViewOnly) {
             throw new Error("View-only accounts cannot add discount codes.");
@@ -575,6 +665,75 @@ function AppStateProvider({ children }) {
             throw err;
         }
     }, [isViewOnly]);
+    (0, react_1.useEffect)(() => {
+        setLocalItem("slt_studio_holidays", holidays);
+    }, [holidays]);
+    (0, react_1.useEffect)(() => {
+        setLocalItem("slt_studio_personal_reasons", personalReasons);
+    }, [personalReasons]);
+    const addHoliday = (0, react_1.useCallback)((holiday) => {
+        if (isViewOnly)
+            return;
+        const normalized = (0, producer_time_off_1.normalizeStudioHoliday)(holiday);
+        setHolidays((prev) => [normalized, ...prev]);
+    }, [isViewOnly]);
+    const updateHoliday = (0, react_1.useCallback)((id, patch) => {
+        if (isViewOnly)
+            return;
+        setHolidays((prev) => prev.map((entry) => entry.id === id
+            ? (0, producer_time_off_1.normalizeStudioHoliday)({ ...entry, ...patch, id })
+            : entry));
+    }, [isViewOnly]);
+    const removeHoliday = (0, react_1.useCallback)((id) => {
+        if (isViewOnly)
+            return;
+        setHolidays((prev) => prev.filter((entry) => entry.id !== id));
+    }, [isViewOnly]);
+    const addPersonalReason = (0, react_1.useCallback)((reason) => {
+        if (isViewOnly)
+            return;
+        const normalized = (0, producer_time_off_1.normalizeStudioPersonalReason)({
+            ...reason,
+            isOther: false,
+        });
+        setPersonalReasons((prev) => (0, producer_time_off_1.ensurePersonalReasonsList)([normalized, ...prev]));
+    }, [isViewOnly]);
+    const updatePersonalReason = (0, react_1.useCallback)((id, patch) => {
+        if (isViewOnly)
+            return;
+        setPersonalReasons((prev) => (0, producer_time_off_1.ensurePersonalReasonsList)(prev.map((entry) => {
+            if (entry.id !== id)
+                return entry;
+            if (entry.isOther) {
+                return (0, producer_time_off_1.normalizeStudioPersonalReason)({
+                    ...entry,
+                    name: patch.name ?? entry.name,
+                    enabled: true,
+                    isOther: true,
+                    id,
+                });
+            }
+            return (0, producer_time_off_1.normalizeStudioPersonalReason)({ ...entry, ...patch, id });
+        })));
+    }, [isViewOnly]);
+    const removePersonalReason = (0, react_1.useCallback)((id) => {
+        if (isViewOnly)
+            return;
+        setPersonalReasons((prev) => (0, producer_time_off_1.ensurePersonalReasonsList)(prev.filter((entry) => entry.id !== id || entry.isOther)));
+    }, [isViewOnly]);
+    const addPayrollAddon = (0, react_1.useCallback)(async (payload) => {
+        if (isViewOnly)
+            throw new Error("View-only accounts cannot add payroll items.");
+        const addon = await (0, api_1.createPayrollAddonApi)(payload);
+        setPayrollAddons((prev) => [addon, ...prev]);
+        return addon;
+    }, [isViewOnly]);
+    const removePayrollAddon = (0, react_1.useCallback)(async (id) => {
+        if (isViewOnly)
+            throw new Error("View-only accounts cannot delete payroll items.");
+        await (0, api_1.deletePayrollAddonApi)(id);
+        setPayrollAddons((prev) => prev.filter((a) => a.id !== id));
+    }, [isViewOnly]);
     const markNotificationRead = (0, react_1.useCallback)((id) => {
         setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
     }, []);
@@ -591,6 +750,9 @@ function AppStateProvider({ children }) {
         secretMenuPrices,
         producers,
         discountCodes,
+        payrollAddons,
+        holidays,
+        personalReasons,
         schedule,
         notifications,
         unreadCount,
@@ -611,6 +773,15 @@ function AppStateProvider({ children }) {
         addDiscountCode,
         updateDiscountCode,
         removeDiscountCode,
+        addPayrollAddon,
+        removePayrollAddon,
+        addNotification,
+        addHoliday,
+        updateHoliday,
+        removeHoliday,
+        addPersonalReason,
+        updatePersonalReason,
+        removePersonalReason,
         markNotificationRead,
         markAllNotificationsRead,
         isInMTD,

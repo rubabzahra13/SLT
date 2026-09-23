@@ -20,3 +20,4 @@ __exportStar(require("./orders"), exports);
 __exportStar(require("./mtd"), exports);
 __exportStar(require("./discount-codes"), exports);
 __exportStar(require("./pricing"), exports);
+__exportStar(require("./payroll-addons"), exports);

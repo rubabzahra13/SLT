@@ -18,6 +18,7 @@ const client_1 = require("@/lib/api/client");
 const gmail_1 = require("@/lib/api/gmail");
 const export_csv_1 = require("@/lib/export-csv");
 const producer_schedule_mail_1 = require("@/lib/producer-schedule-mail");
+const schedule_view_1 = require("@/lib/schedule-view");
 function findProducerByName(name, producers) {
     return producers.find((producer) => producer.name.toUpperCase() === name.toUpperCase());
 }
@@ -33,7 +34,7 @@ function resolveSelectedProducerName(selectedSendEditor, producerNames, producer
         return null;
     return producerNames.find((name) => name.toUpperCase() === producer.name.toUpperCase()) ?? null;
 }
-function ScheduleSendPanel({ categoryLabel, producerNames, categoryProducers, selectedSendEditor, mtdRecords, allOrders, producers, }) {
+function ScheduleSendPanel({ categoryLabel, producerNames, categoryProducers, selectedSendEditor, mtdRecords, allOrders, producers, filterPeriod, sendView, }) {
     const { token, isViewOnly } = (0, AuthContext_1.useAuth)();
     const [gmailConnected, setGmailConnected] = (0, react_1.useState)(false);
     const [gmailFrom, setGmailFrom] = (0, react_1.useState)(null);
@@ -91,18 +92,19 @@ function ScheduleSendPanel({ categoryLabel, producerNames, categoryProducers, se
     const mixCountByProducer = (0, react_1.useMemo)(() => {
         const counts = new Map();
         for (const name of producerNames) {
-            const rows = (0, export_csv_1.getProducerFacingScheduleRows)(mtdRecords, allOrders, producers, name);
+            const rows = (0, export_csv_1.getProducerFacingScheduleRows)(mtdRecords, allOrders, producers, name, filterPeriod);
             counts.set(name, rows.length);
         }
         return counts;
-    }, [producerNames, mtdRecords, allOrders, producers]);
+    }, [producerNames, mtdRecords, allOrders, producers, filterPeriod]);
+    const periodLabel = (0, schedule_view_1.sendPeriodLabel)(sendView);
     const previewItems = (0, react_1.useMemo)(() => {
         return targetProducerNames.flatMap((producerName) => {
             const producer = findProducerByName(producerName, producers);
             if (!producer)
                 return [];
             const mixCount = mixCountByProducer.get(producerName) ?? 0;
-            const rows = (0, export_csv_1.getProducerFacingScheduleRows)(mtdRecords, allOrders, producers, producerName);
+            const rows = (0, export_csv_1.getProducerFacingScheduleRows)(mtdRecords, allOrders, producers, producerName, filterPeriod);
             const draft = (0, producer_schedule_mail_1.buildScheduleMailDraft)(producer, mixCount, categoryLabel);
             return [
                 {
@@ -121,6 +123,7 @@ function ScheduleSendPanel({ categoryLabel, producerNames, categoryProducers, se
         categoryLabel,
         mtdRecords,
         allOrders,
+        filterPeriod,
     ]);
     const missingEmailNames = (0, react_1.useMemo)(() => previewItems.filter((item) => !item.email).map((item) => item.producerName), [previewItems]);
     const downloadTargets = (0, react_1.useCallback)((targets) => {
@@ -131,10 +134,10 @@ function ScheduleSendPanel({ categoryLabel, producerNames, categoryProducers, se
             return;
         }
         targets.forEach((targetName) => {
-            const csv = (0, export_csv_1.generateScheduleCsv)(mtdRecords, allOrders, producers, targetName);
+            const csv = (0, export_csv_1.generateScheduleCsv)(mtdRecords, allOrders, producers, targetName, filterPeriod);
             (0, export_csv_1.triggerCsvDownload)(`Schedule_${targetName.replace(/\s+/g, "_")}_${(0, date_filters_1.todayIso)()}.csv`, csv);
         });
-    }, [mtdRecords, allOrders, producers]);
+    }, [mtdRecords, allOrders, producers, filterPeriod]);
     const handleDownload = (0, react_1.useCallback)(() => {
         downloadTargets(targetProducerNames);
     }, [downloadTargets, targetProducerNames]);
@@ -144,7 +147,7 @@ function ScheduleSendPanel({ categoryLabel, producerNames, categoryProducers, se
             throw new Error(`${producerName} has no email on file.`);
         }
         const mixCount = mixCountByProducer.get(producerName) ?? 0;
-        const rows = (0, export_csv_1.getProducerFacingScheduleRows)(mtdRecords, allOrders, producers, producerName);
+        const rows = (0, export_csv_1.getProducerFacingScheduleRows)(mtdRecords, allOrders, producers, producerName, filterPeriod);
         const draft = (0, producer_schedule_mail_1.buildScheduleMailDraft)(producer, mixCount, categoryLabel);
         const excelAttachment = (0, producer_schedule_mail_1.generateScheduleExcelAttachment)(rows);
         await (0, gmail_1.sendGmailEmail)({
@@ -167,6 +170,7 @@ function ScheduleSendPanel({ categoryLabel, producerNames, categoryProducers, se
         allOrders,
         categoryLabel,
         token,
+        filterPeriod,
     ]);
     const handleSendTargets = (0, react_1.useCallback)(async (targets) => {
         if (!canSend || targets.length === 0)
@@ -241,7 +245,9 @@ function ScheduleSendPanel({ categoryLabel, producerNames, categoryProducers, se
                 : undefined;
     const downloadLabel = viewingAll ? "Download all" : "Download";
     const sendLabel = viewingAll ? "Send all" : "Send";
-    return ((0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex min-h-0 flex-1 flex-col overflow-hidden", children: [canExport ? ((0, jsx_runtime_1.jsxs)("div", { className: "mb-4 shrink-0 space-y-3 border-b border-brand-line/60 pb-4", children: [(0, jsx_runtime_1.jsxs)("h2", { className: "text-[14px] font-semibold tracking-[-0.01em] text-brand-ink", children: ["Schedule of ", onScheduleCount, " editor", onScheduleCount === 1 ? "" : "s"] }), (0, jsx_runtime_1.jsxs)("div", { className: "flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between", children: [(0, jsx_runtime_1.jsxs)("p", { className: "min-w-0 text-[12px] leading-relaxed text-brand-ink-secondary", children: [(0, jsx_runtime_1.jsx)("span", { className: "font-semibold tabular-nums text-brand-orange", children: onScheduleCount }), " ", "of", " ", (0, jsx_runtime_1.jsx)("span", { className: "font-semibold tabular-nums text-brand-ink", children: categoryEditorCount }), " ", categoryLabel, " producers are assigned to ongoing mixes.", !viewingAll && activeProducerName ? ((0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [" ", "Viewing", " ", (0, jsx_runtime_1.jsx)("span", { className: "font-semibold text-brand-ink", children: activeProducerName }), "."] })) : null] }), (0, jsx_runtime_1.jsxs)("div", { className: "flex shrink-0 flex-wrap items-center gap-2", children: [(0, jsx_runtime_1.jsxs)("button", { type: "button", onClick: handleDownload, className: "inline-flex h-9 items-center gap-1.5 rounded-lg border border-brand-line/80 bg-white px-3.5 text-[12px] font-semibold text-brand-ink transition hover:border-brand-orange/35 hover:text-brand-orange active:scale-[0.98]", children: [(0, jsx_runtime_1.jsx)(lucide_react_1.Download, { className: "h-3.5 w-3.5 text-brand-orange", strokeWidth: 2 }), downloadLabel, (0, jsx_runtime_1.jsxs)("span", { className: "tabular-nums text-brand-ink-tertiary", children: ["(", targetCount, ")"] })] }), (0, jsx_runtime_1.jsxs)("button", { type: "button", onClick: openSendModal, disabled: isViewOnly || !gmailConnected || isSending || targetCount === 0, title: sendDisabledReason, className: (0, clsx_1.default)("inline-flex h-9 items-center gap-1.5 rounded-lg px-3.5 text-[12px] font-semibold transition active:scale-[0.98]", canSend
+    return ((0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsxs)("div", { className: "flex min-h-0 flex-1 flex-col overflow-hidden", children: [canExport ? ((0, jsx_runtime_1.jsxs)("div", { className: "mb-4 shrink-0 space-y-3 border-b border-brand-line/60 pb-4", children: [(0, jsx_runtime_1.jsxs)("h2", { className: "text-[14px] font-semibold tracking-[-0.01em] text-brand-ink", children: ["Schedule of ", onScheduleCount, " editor", onScheduleCount === 1 ? "" : "s"] }), (0, jsx_runtime_1.jsxs)("div", { className: "flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between", children: [(0, jsx_runtime_1.jsxs)("p", { className: "min-w-0 text-[12px] leading-relaxed text-brand-ink-secondary", children: [(0, jsx_runtime_1.jsx)("span", { className: "font-semibold tabular-nums text-brand-orange", children: onScheduleCount }), " ", "of", " ", (0, jsx_runtime_1.jsx)("span", { className: "font-semibold tabular-nums text-brand-ink", children: categoryEditorCount }), " ", categoryLabel, " producers are assigned to ongoing mixes", filterPeriod
+                                                ? ` overlapping ${periodLabel.toLowerCase()} (${filterPeriod.start} – ${filterPeriod.end})`
+                                                : ` (${periodLabel.toLowerCase()})`, ".", !viewingAll && activeProducerName ? ((0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [" ", "Viewing", " ", (0, jsx_runtime_1.jsx)("span", { className: "font-semibold text-brand-ink", children: activeProducerName }), "."] })) : null] }), (0, jsx_runtime_1.jsxs)("div", { className: "flex shrink-0 flex-wrap items-center gap-2", children: [(0, jsx_runtime_1.jsxs)("button", { type: "button", onClick: handleDownload, className: "inline-flex h-9 items-center gap-1.5 rounded-lg border border-brand-line/80 bg-white px-3.5 text-[12px] font-semibold text-brand-ink transition hover:border-brand-orange/35 hover:text-brand-orange active:scale-[0.98]", children: [(0, jsx_runtime_1.jsx)(lucide_react_1.Download, { className: "h-3.5 w-3.5 text-brand-orange", strokeWidth: 2 }), downloadLabel, (0, jsx_runtime_1.jsxs)("span", { className: "tabular-nums text-brand-ink-tertiary", children: ["(", targetCount, ")"] })] }), (0, jsx_runtime_1.jsxs)("button", { type: "button", onClick: openSendModal, disabled: isViewOnly || !gmailConnected || isSending || targetCount === 0, title: sendDisabledReason, className: (0, clsx_1.default)("inline-flex h-9 items-center gap-1.5 rounded-lg px-3.5 text-[12px] font-semibold transition active:scale-[0.98]", canSend
                                                     ? "bg-brand-signature text-white hover:bg-brand-signature/90"
-                                                    : "cursor-not-allowed bg-brand-signature/45 text-white/90"), children: [isSending ? ((0, jsx_runtime_1.jsx)(lucide_react_1.Loader2, { className: "h-3.5 w-3.5 animate-spin", strokeWidth: 2 })) : ((0, jsx_runtime_1.jsx)(lucide_react_1.Send, { className: "h-3.5 w-3.5", strokeWidth: 2 })), sendLabel, (0, jsx_runtime_1.jsxs)("span", { className: (0, clsx_1.default)("tabular-nums", canSend ? "text-white/80" : "text-white/60"), children: ["(", targetCount, ")"] })] })] })] }), !loadingGmail && !gmailConnected ? ((0, jsx_runtime_1.jsxs)("div", { className: "flex items-start gap-2 text-[11px] leading-relaxed text-brand-ink-secondary", children: [(0, jsx_runtime_1.jsx)(lucide_react_1.AlertCircle, { className: "mt-0.5 h-3.5 w-3.5 shrink-0 text-brand-warning" }), (0, jsx_runtime_1.jsxs)("p", { children: ["Connect Gmail in", " ", (0, jsx_runtime_1.jsx)(link_1.default, { href: "/settings", className: "font-semibold text-brand-signature hover:underline", children: "Settings" }), " ", "to send schedules directly."] })] })) : null, feedback ? ((0, jsx_runtime_1.jsx)("p", { className: (0, clsx_1.default)("text-[11px] leading-relaxed", feedback.type === "success" && "text-brand-success", feedback.type === "warning" && "text-brand-warning", feedback.type === "error" && "text-brand-danger"), children: feedback.message })) : null] })) : null, (0, jsx_runtime_1.jsx)("div", { className: "min-h-0 flex-1 overflow-y-auto", children: canExport ? ((0, jsx_runtime_1.jsx)(ProducerSchedulePreview_1.ProducerSchedulePreview, { embedded: true, sendLayout: sendLayout, selectedProducer: viewingAll ? "all" : selectedSendEditor, onProducerChange: () => { }, allowedProducerNames: targetProducerNames, mtdRecords: mtdRecords, allOrders: allOrders, producers: producers })) : ((0, jsx_runtime_1.jsxs)("div", { className: "flex items-start gap-2.5 rounded-xl border border-brand-warning/25 bg-brand-warning/8 px-3.5 py-3", children: [(0, jsx_runtime_1.jsx)("span", { className: "mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-brand-warning/15 text-brand-warning", children: (0, jsx_runtime_1.jsx)(lucide_react_1.AlertCircle, { className: "h-3.5 w-3.5", strokeWidth: 2 }) }), (0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsx)("p", { className: "text-[13px] font-semibold text-brand-ink", children: "No schedules to send" }), (0, jsx_runtime_1.jsxs)("p", { className: "mt-1 text-[12px] leading-relaxed text-brand-ink-secondary", children: ["No ongoing mixes match ", categoryLabel, ". Adjust the category filters above."] })] })] })) })] }), (0, jsx_runtime_1.jsx)(ScheduleSendMailModal_1.ScheduleSendMailModal, { open: mailModalOpen, onClose: closeSendModal, items: previewItems, gmailFrom: gmailFrom, canSend: canSend && missingEmailNames.length === 0, isSending: isSending, onSend: handleConfirmSend, sendError: sendError, sent: sent, sentSummary: sentSummary })] }));
+                                                    : "cursor-not-allowed bg-brand-signature/45 text-white/90"), children: [isSending ? ((0, jsx_runtime_1.jsx)(lucide_react_1.Loader2, { className: "h-3.5 w-3.5 animate-spin", strokeWidth: 2 })) : ((0, jsx_runtime_1.jsx)(lucide_react_1.Send, { className: "h-3.5 w-3.5", strokeWidth: 2 })), sendLabel, (0, jsx_runtime_1.jsxs)("span", { className: (0, clsx_1.default)("tabular-nums", canSend ? "text-white/80" : "text-white/60"), children: ["(", targetCount, ")"] })] })] })] }), !loadingGmail && !gmailConnected ? ((0, jsx_runtime_1.jsxs)("div", { className: "flex items-start gap-2 text-[11px] leading-relaxed text-brand-ink-secondary", children: [(0, jsx_runtime_1.jsx)(lucide_react_1.AlertCircle, { className: "mt-0.5 h-3.5 w-3.5 shrink-0 text-brand-warning" }), (0, jsx_runtime_1.jsxs)("p", { children: ["Connect Gmail in", " ", (0, jsx_runtime_1.jsx)(link_1.default, { href: "/settings", className: "font-semibold text-brand-signature hover:underline", children: "Settings" }), " ", "to send schedules directly."] })] })) : null, feedback ? ((0, jsx_runtime_1.jsx)("p", { className: (0, clsx_1.default)("text-[11px] leading-relaxed", feedback.type === "success" && "text-brand-success", feedback.type === "warning" && "text-brand-warning", feedback.type === "error" && "text-brand-danger"), children: feedback.message })) : null] })) : null, (0, jsx_runtime_1.jsx)("div", { className: "min-h-0 flex-1 overflow-y-auto", children: canExport ? ((0, jsx_runtime_1.jsx)(ProducerSchedulePreview_1.ProducerSchedulePreview, { embedded: true, sendLayout: sendLayout, selectedProducer: viewingAll ? "all" : selectedSendEditor, onProducerChange: () => { }, allowedProducerNames: targetProducerNames, mtdRecords: mtdRecords, allOrders: allOrders, producers: producers, filterPeriod: filterPeriod })) : ((0, jsx_runtime_1.jsxs)("div", { className: "flex items-start gap-2.5 rounded-xl border border-brand-warning/25 bg-brand-warning/8 px-3.5 py-3", children: [(0, jsx_runtime_1.jsx)("span", { className: "mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-brand-warning/15 text-brand-warning", children: (0, jsx_runtime_1.jsx)(lucide_react_1.AlertCircle, { className: "h-3.5 w-3.5", strokeWidth: 2 }) }), (0, jsx_runtime_1.jsxs)("div", { children: [(0, jsx_runtime_1.jsx)("p", { className: "text-[13px] font-semibold text-brand-ink", children: "No schedules to send" }), (0, jsx_runtime_1.jsxs)("p", { className: "mt-1 text-[12px] leading-relaxed text-brand-ink-secondary", children: ["No ongoing mixes match ", categoryLabel, " in", " ", periodLabel.toLowerCase(), ". Adjust the category or send period above."] })] })] })) })] }), (0, jsx_runtime_1.jsx)(ScheduleSendMailModal_1.ScheduleSendMailModal, { open: mailModalOpen, onClose: closeSendModal, items: previewItems, gmailFrom: gmailFrom, canSend: canSend && missingEmailNames.length === 0, isSending: isSending, onSend: handleConfirmSend, sendError: sendError, sent: sent, sentSummary: sentSummary })] }));
 }

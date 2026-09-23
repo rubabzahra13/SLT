@@ -91,14 +91,14 @@ const monSatProducer = {
     (0, node_test_1.it)("skips Sunday when finding the next available booking slot", () => {
         // From Sunday Aug 16, next Mon–Sat work day is Monday Aug 17.
         const fromSunday = new Date(2026, 7, 16);
-        const slot = (0, scheduling_1.getNextAvailableSlot)("CM", [monSatProducer], [], [], fromSunday);
+        const slot = (0, scheduling_1.getNextAvailableSlot)("CM", [monSatProducer], [], []);
         strict_1.default.ok(slot);
         strict_1.default.equal(slot?.date, "2026-08-17");
         strict_1.default.equal(slot?.label, "Aug 17, 2026");
     });
     (0, node_test_1.it)("returns ISO mix start dates from suggestMixStartDate via next work day", () => {
         const fromFriday = new Date(2026, 7, 21); // Fri Aug 21
-        const slot = (0, scheduling_1.getNextAvailableSlot)("Casey Marlow", [monSatProducer], [], [], fromFriday);
+        const slot = (0, scheduling_1.getNextAvailableSlot)("Casey Marlow", [monSatProducer], [], []);
         strict_1.default.equal(slot?.date, "2026-08-21");
         strict_1.default.match(slot?.date ?? "", /^\d{4}-\d{2}-\d{2}$/);
         // suggestMixStartDate uses "today"; when today is a work day it returns ISO.

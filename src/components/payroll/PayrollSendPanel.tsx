@@ -279,7 +279,8 @@ export function PayrollSendPanel({
         allOrders,
         producers,
         producerName,
-        filterPeriod
+        filterPeriod,
+        payrollAddons
       );
       const draft = buildPayrollMailDraft(
         producer,
@@ -517,6 +518,7 @@ export function PayrollSendPanel({
               payrollRecords={payrollRecords}
               allOrders={allOrders}
               producers={producers}
+              payrollAddons={payrollAddons}
             />
           ) : (
             <div className="flex items-start gap-2.5 rounded-xl border border-brand-warning/25 bg-brand-warning/8 px-3.5 py-3">

@@ -13,6 +13,7 @@ const ProducerSelect_1 = require("@/components/ui/ProducerSelect");
 const Avatar_1 = require("@/components/ui/Avatar");
 const producers_1 = require("@/lib/producers");
 const date_filters_1 = require("@/lib/date-filters");
+const dates_1 = require("@/lib/dates");
 const export_csv_1 = require("@/lib/export-csv");
 const editor_assignment_1 = require("@/lib/editor-assignment");
 function SchedulePreviewTable({ rows }) {
@@ -27,12 +28,20 @@ function SchedulePreviewTable({ rows }) {
                                                     : "text-brand-ink-secondary"}`, children: String(val ?? "—") }, col.key));
                                     })] }, row.recId || idx)))) })] }) })] }));
 }
-function ProducerSchedulePreview({ selectedProducer, onProducerChange, mtdRecords, allOrders, producers, onBack, embedded = false, allowedProducerNames, sendLayout = "separate", onViewingProducerChange, }) {
+function ProducerSchedulePreview({ selectedProducer, onProducerChange, mtdRecords, allOrders, producers, onBack, embedded = false, allowedProducerNames, sendLayout = "separate", onViewingProducerChange, filterPeriod, }) {
     const [activeTabProducer, setActiveTabProducer] = (0, react_1.useState)("");
     const [sidebarSearch, setSidebarSearch] = (0, react_1.useState)("");
     const [collapsedProducers, setCollapsedProducers] = (0, react_1.useState)(() => new Set());
     const activeProducerSummaries = (0, react_1.useMemo)(() => {
-        const eligibleRecords = mtdRecords.filter(export_csv_1.isEligibleProducerScheduleRecord);
+        const eligibleRecords = mtdRecords.filter((r) => {
+            if (!(0, export_csv_1.isEligibleProducerScheduleRecord)(r))
+                return false;
+            if (!filterPeriod)
+                return true;
+            const recStart = r.mixStartDate || r.completedAt || "";
+            const recEnd = r.mixEndDate || r.mixStartDate || r.completedAt || "";
+            return (0, dates_1.doDateRangesOverlap)({ start: recStart, end: recEnd }, filterPeriod);
+        });
         const mixCounts = new Map();
         for (const r of eligibleRecords) {
             if (!r.assignedProducer)
@@ -53,7 +62,7 @@ function ProducerSchedulePreview({ selectedProducer, onProducerChange, mtdRecord
         })
             .filter((entry) => !allowed || allowed.has(entry.name.toUpperCase()))
             .sort((a, b) => b.mixCount - a.mixCount || a.name.localeCompare(b.name));
-    }, [mtdRecords, producers, allowedProducerNames]);
+    }, [mtdRecords, producers, allowedProducerNames, filterPeriod]);
     const activeProducersInSchedule = (0, react_1.useMemo)(() => activeProducerSummaries.map((entry) => entry.name), [activeProducerSummaries]);
     const producerNamesKey = activeProducersInSchedule.join("|");
     (0, react_1.useEffect)(() => {
@@ -102,15 +111,15 @@ function ProducerSchedulePreview({ selectedProducer, onProducerChange, mtdRecord
     }, [producers, currentProducerToView]);
     // Get ongoing schedule rows for currently viewed producer
     const currentRows = (0, react_1.useMemo)(() => {
-        return (0, export_csv_1.getProducerFacingScheduleRows)(mtdRecords, allOrders, producers, currentProducerToView);
-    }, [mtdRecords, allOrders, producers, currentProducerToView]);
+        return (0, export_csv_1.getProducerFacingScheduleRows)(mtdRecords, allOrders, producers, currentProducerToView, filterPeriod);
+    }, [mtdRecords, allOrders, producers, currentProducerToView, filterPeriod]);
     const rowsByProducer = (0, react_1.useMemo)(() => {
         const map = new Map();
         for (const summary of activeProducerSummaries) {
-            map.set(summary.name, (0, export_csv_1.getProducerFacingScheduleRows)(mtdRecords, allOrders, producers, summary.name));
+            map.set(summary.name, (0, export_csv_1.getProducerFacingScheduleRows)(mtdRecords, allOrders, producers, summary.name, filterPeriod));
         }
         return map;
-    }, [activeProducerSummaries, mtdRecords, allOrders, producers]);
+    }, [activeProducerSummaries, mtdRecords, allOrders, producers, filterPeriod]);
     (0, react_1.useEffect)(() => {
         onViewingProducerChange?.(currentProducerToView);
     }, [currentProducerToView, onViewingProducerChange]);
@@ -119,7 +128,7 @@ function ProducerSchedulePreview({ selectedProducer, onProducerChange, mtdRecord
         selectedProducer === "all" &&
         activeProducersInSchedule.length > 0;
     const handleDownloadCurrentProducer = () => {
-        const csv = (0, export_csv_1.generateScheduleCsv)(mtdRecords, allOrders, producers, currentProducerToView);
+        const csv = (0, export_csv_1.generateScheduleCsv)(mtdRecords, allOrders, producers, currentProducerToView, filterPeriod);
         (0, export_csv_1.triggerCsvDownload)(`Schedule_Producer_Statement_${currentProducerToView.replace(/\s+/g, "_")}_${(0, date_filters_1.todayIso)()}.csv`, csv);
     };
     const handleDownloadAllProducers = () => {
@@ -131,7 +140,7 @@ function ProducerSchedulePreview({ selectedProducer, onProducerChange, mtdRecord
             return;
         }
         targets.forEach((targetName) => {
-            const csv = (0, export_csv_1.generateScheduleCsv)(mtdRecords, allOrders, producers, targetName);
+            const csv = (0, export_csv_1.generateScheduleCsv)(mtdRecords, allOrders, producers, targetName, filterPeriod);
             (0, export_csv_1.triggerCsvDownload)(`Schedule_${targetName.replace(/\s+/g, "_")}_${(0, date_filters_1.todayIso)()}.csv`, csv);
         });
     };

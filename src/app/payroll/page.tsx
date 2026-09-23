@@ -88,9 +88,10 @@ export default function PayrollPage() {
   const [returnRecord, setReturnRecord] = useState<MTDRecord | null>(null);
   const [pageTab, setPageTab] = useState<PayrollPageTab>("view");
   const [selectedSendEditor, setSelectedSendEditor] = useState("all");
-  const [voiceoverModalOpen, setVoiceoverModalOpen] = useState(false);
-  const [rushFeeModalOpen, setRushFeeModalOpen] = useState(false);
+  const [voiceoverRecord, setVoiceoverRecord] = useState<MTDRecord | null>(null);
+  const [rushFeeRecord, setRushFeeRecord] = useState<MTDRecord | null>(null);
   const [addonDeleteId, setAddonDeleteId] = useState<string | null>(null);
+
 
   const [formState, setFormState] = useState<OrderFormType>(DEFAULT_FORM);
   const [cheerSubtypeState, setCheerSubtypeState] = useState<CheerFormSubtypeFilter>(
@@ -639,46 +640,6 @@ export default function PayrollPage() {
       },
       ];
 
-      if (showDanceVoiceover) {
-        baseCols.push({
-          key: "voiceoverCol",
-          header: "Voice Over",
-          width: "135px",
-          align: "center",
-          cellClassName: "!px-2 !py-2",
-          headerClassName: "!px-2 !py-2",
-          render: (rec) => (
-            <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
-              <InlineDanceVoiceoverPills
-                record={rec}
-                readOnly={isViewOnly}
-                onUpdate={(id, patch) => updateMTD(id, patch)}
-              />
-            </div>
-          ),
-        });
-      }
-
-      if (showCheerVoiceover) {
-        baseCols.push({
-          key: "cheerVoiceoverCol",
-          header: "Voice Over",
-          width: "135px",
-          align: "center",
-          cellClassName: "!px-2 !py-2",
-          headerClassName: "!px-2 !py-2",
-          render: (rec) => (
-            <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
-              <InlineCheerVoiceoverPills
-                record={rec}
-                readOnly={isViewOnly}
-                onUpdate={(id, patch) => updateMTD(id, patch)}
-              />
-            </div>
-          ),
-        });
-      }
-
       baseCols.push(
       {
         key: "payout",
@@ -809,6 +770,83 @@ export default function PayrollPage() {
         ),
       },
       {
+        key: "rowAddons",
+        header: "Row Add-ons",
+        width: "320px",
+        align: "center",
+        cellClassName: "!px-2 !py-1.5",
+        headerClassName: "!px-2 !py-2",
+        render: (rec) => {
+          const voAddon = payrollAddons.find(
+            (a) => (a.mtdId === rec.id || a.orderId === rec.orderId) && a.addonType === "voiceover"
+          );
+          const rushAddon = payrollAddons.find(
+            (a) => (a.mtdId === rec.id || a.orderId === rec.orderId) && a.addonType === "rush_fee"
+          );
+
+          const voAmount = voAddon
+            ? voAddon.amount
+            : rec.cheerVoiceover40
+            ? 40
+            : rec.cheerVoiceover20
+            ? 20
+            : rec.danceVoiceover && !isNaN(parseFloat(rec.danceVoiceover))
+            ? parseFloat(rec.danceVoiceover)
+            : 0;
+
+          const rushAmount = rushAddon
+            ? rushAddon.amount
+            : rec.rushFeeQuantity === 2 || rec.rushFeeOption === "double"
+            ? 300
+            : rec.rushFeeQuantity === 1 || rec.rushFeeOption === "single" || rec.isRushOrder === "yes" || rec.isRushOrder === true
+            ? 150
+            : 0;
+
+          return (
+            <div
+              className="flex items-center justify-center gap-3 whitespace-nowrap"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Voiceover Slot */}
+              <div className="flex items-center gap-1.5 min-w-[130px] justify-start">
+                {!isViewOnly && (
+                  <button
+                    type="button"
+                    onClick={() => setVoiceoverRecord(rec)}
+                    title="Add Voiceover"
+                    className="inline-flex items-center gap-1 rounded-md border border-brand-line/70 bg-brand-bg/80 px-2 py-1 text-[11px] font-medium text-brand-ink-secondary shadow-sm transition hover:border-brand-orange/40 hover:bg-brand-orange-soft/20 hover:text-brand-orange"
+                  >
+                    <Mic className="h-3 w-3 text-brand-ink-tertiary" />
+                    <span>+ Voiceover</span>
+                  </button>
+                )}
+                <span className="inline-block min-w-[40px] text-left text-[12px] font-bold tabular-nums text-brand-success">
+                  {voAmount > 0 ? formatPrice(voAmount) : ""}
+                </span>
+              </div>
+
+              {/* Rush Fee Slot */}
+              <div className="flex items-center gap-1.5 min-w-[135px] justify-start">
+                {!isViewOnly && (
+                  <button
+                    type="button"
+                    onClick={() => setRushFeeRecord(rec)}
+                    title="Add Rush Fee"
+                    className="inline-flex items-center gap-1 rounded-md border border-brand-line/70 bg-brand-bg/80 px-2 py-1 text-[11px] font-medium text-brand-ink-secondary shadow-sm transition hover:border-brand-orange/40 hover:bg-brand-orange-soft/20 hover:text-brand-orange"
+                  >
+                    <Zap className="h-3 w-3 text-brand-ink-tertiary" />
+                    <span>+ Rush Fee</span>
+                  </button>
+                )}
+                <span className="inline-block min-w-[45px] text-left text-[12px] font-bold tabular-nums text-brand-success">
+                  {rushAmount > 0 ? formatPrice(rushAmount) : ""}
+                </span>
+              </div>
+            </div>
+          );
+        },
+      },
+      {
         key: "actions",
         header: "Actions",
         width: "148px",
@@ -848,7 +886,7 @@ export default function PayrollPage() {
 
       return baseCols;
     },
-    [allOrders, producers, form, showCheerVoiceover, showDanceVoiceover, updateMTD, orderById]
+    [allOrders, producers, form, isViewOnly, payrollAddons, orderById]
   );
 
   return (
@@ -960,147 +998,6 @@ export default function PayrollPage() {
               />
             </div>
 
-            {/* Payroll Add-ons section */}
-            <div className="mt-4">
-              <div className="mb-2 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-brand-ink">
-                    Payroll Add-ons
-                  </span>
-                  {payrollAddons.length > 0 && (
-                    <span className="rounded-full bg-brand-orange/15 px-2 py-0.5 text-xs font-semibold text-brand-orange">
-                      {payrollAddons.length}
-                    </span>
-                  )}
-                </div>
-                {!isViewOnly && (
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      id="add-voiceover-btn"
-                      onClick={() => setVoiceoverModalOpen(true)}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-brand-line bg-brand-bg px-3 py-1.5 text-xs font-medium text-brand-ink-secondary shadow-sm transition hover:border-brand-orange/40 hover:bg-brand-orange-soft/20 hover:text-brand-orange"
-                    >
-                      <Mic className="h-3.5 w-3.5" />
-                      Add Voiceover
-                    </button>
-                    <button
-                      type="button"
-                      id="add-rush-fee-btn"
-                      onClick={() => setRushFeeModalOpen(true)}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-brand-line bg-brand-bg px-3 py-1.5 text-xs font-medium text-brand-ink-secondary shadow-sm transition hover:border-brand-orange/40 hover:bg-brand-orange-soft/20 hover:text-brand-orange"
-                    >
-                      <Zap className="h-3.5 w-3.5" />
-                      Add Rush Fee
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {payrollAddons.length === 0 ? (
-                <div className="rounded-xl border border-brand-line/60 bg-brand-bg/60 px-4 py-3 text-xs text-brand-ink-faint">
-                  No standalone voiceover or rush fee add-ons yet. Use the buttons above to add them.
-                </div>
-              ) : (
-                <div className="dashboard-panel dashboard-panel-framed overflow-hidden">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-brand-line">
-                        <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-brand-ink-faint">Date</th>
-                        <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-brand-ink-faint">Program</th>
-                        <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-brand-ink-faint">Category</th>
-                        <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-brand-ink-faint">Type</th>
-                        <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-brand-ink-faint">Producer</th>
-                        <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-brand-ink-faint">Amount</th>
-                        {!isViewOnly && (
-                          <th className="w-8 px-2 py-2.5" />
-                        )}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {payrollAddons.map((addon) => (
-                        <tr
-                          key={addon.id}
-                          className="border-b border-brand-line/50 last:border-b-0 hover:bg-brand-hover/40"
-                        >
-                          <td className="px-4 py-2.5 text-xs text-brand-ink-secondary">
-                            {formatDisplayDate(addon.createdAt)}
-                          </td>
-                          <td className="px-4 py-2.5">
-                            <span className="text-sm font-medium text-brand-ink">{addon.programName}</span>
-                          </td>
-                          <td className="px-4 py-2.5 text-sm text-brand-ink-secondary">
-                            {addon.category}
-                          </td>
-                          <td className="px-4 py-2.5">
-                            <span
-                              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${
-                                addon.addonType === "voiceover"
-                                  ? "bg-blue-500/10 text-blue-600"
-                                  : "bg-amber-500/10 text-amber-600"
-                              }`}
-                            >
-                              {addon.addonType === "voiceover" ? (
-                                <><Mic className="h-3 w-3" /> Voiceover</>
-                              ) : (
-                                <><Zap className="h-3 w-3" /> Rush Fee</>
-                              )}
-                            </span>
-                          </td>
-                          <td className="px-4 py-2.5 text-sm text-brand-ink-secondary">
-                            {addon.producerInitials ?? "—"}
-                          </td>
-                          <td className="px-4 py-2.5 text-right text-sm font-semibold text-brand-ink">
-                            {formatPrice(addon.amount)}
-                          </td>
-                          {!isViewOnly && (
-                            <td className="px-2 py-2.5">
-                              {addonDeleteId === addon.id ? (
-                                <div className="flex items-center gap-1">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeleteAddon(addon.id)}
-                                    className="rounded px-1.5 py-0.5 text-xs font-semibold text-red-500 hover:bg-red-50"
-                                  >
-                                    Yes
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => setAddonDeleteId(null)}
-                                    className="rounded px-1.5 py-0.5 text-xs text-brand-ink-faint hover:bg-brand-hover"
-                                  >
-                                    No
-                                  </button>
-                                </div>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => setAddonDeleteId(addon.id)}
-                                  className="flex h-6 w-6 items-center justify-center rounded text-brand-ink-faint transition hover:bg-red-50 hover:text-red-500"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </button>
-                              )}
-                            </td>
-                          )}
-                        </tr>
-                      ))}
-                    </tbody>
-                    <tfoot>
-                      <tr className="border-t border-brand-line bg-brand-bg/40">
-                        <td colSpan={5} className="px-4 py-2.5 text-xs font-semibold text-brand-ink-secondary">
-                          Add-on Total
-                        </td>
-                        <td className="px-4 py-2.5 text-right text-sm font-bold text-brand-ink">
-                          {formatPrice(payrollAddons.reduce((s, a) => s + a.amount, 0))}
-                        </td>
-                        {!isViewOnly && <td />}
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              )}
-            </div>
           </>
         ) : (
           <PayrollSendPanel
@@ -1125,20 +1022,23 @@ export default function PayrollPage() {
       />
 
       <AddVoiceoverModal
-        open={voiceoverModalOpen}
-        onClose={() => setVoiceoverModalOpen(false)}
-        programOptions={programOptions}
+        open={Boolean(voiceoverRecord)}
+        onClose={() => setVoiceoverRecord(null)}
+        record={voiceoverRecord}
+        allOrders={allOrders}
         producers={producers}
         onAdd={addPayrollAddon}
       />
 
       <AddRushFeeModal
-        open={rushFeeModalOpen}
-        onClose={() => setRushFeeModalOpen(false)}
-        programOptions={programOptions}
+        open={Boolean(rushFeeRecord)}
+        onClose={() => setRushFeeRecord(null)}
+        record={rushFeeRecord}
+        allOrders={allOrders}
         producers={producers}
         onAdd={addPayrollAddon}
       />
     </div>
   );
 }
+

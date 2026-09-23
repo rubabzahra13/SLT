@@ -60,9 +60,10 @@ const anchorDate = new Date(2026, 8, 10); // Sept 10, 2026
                 strict_1.default.equal(cells[cells.length - 1]?.key, "2026-12-08");
             }
             if (range === "6months") {
-                strict_1.default.equal(cells[0]?.key, "2026-09-10");
-                strict_1.default.equal(cells[cells.length - 1]?.key, "2027-03-10");
-                strict_1.default.ok(cells.length > 180);
+                // Sep 2026–Feb 2027: 30+31+30+31+31+28 = 181
+                strict_1.default.equal(cells[0]?.key, "2026-09-01");
+                strict_1.default.equal(cells[cells.length - 1]?.key, "2027-02-28");
+                strict_1.default.equal(cells.length, 181);
             }
         });
     });

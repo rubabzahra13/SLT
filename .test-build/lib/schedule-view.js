@@ -3,10 +3,14 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.SCHEDULE_STATUS_FILTERS = void 0;
 exports.producerScheduleId = producerScheduleId;
 exports.parseToDate = parseToDate;
+exports.describeScheduleOffDetail = describeScheduleOffDetail;
 exports.getScheduleCells = getScheduleCells;
 exports.groupCellsByWeek = groupCellsByWeek;
 exports.countUnavailable = countUnavailable;
 exports.rangeLabel = rangeLabel;
+exports.scheduleViewFilterPeriod = scheduleViewFilterPeriod;
+exports.sendPeriodLabel = sendPeriodLabel;
+exports.scheduleSendFilterPeriod = scheduleSendFilterPeriod;
 exports.buildTeamSchedule = buildTeamSchedule;
 exports.aggregateColumns = aggregateColumns;
 exports.buildScheduleColumnAggregates = buildScheduleColumnAggregates;
@@ -21,6 +25,7 @@ exports.buildMatrixMonthGroups = buildMatrixMonthGroups;
 const dates_1 = require("@/lib/dates");
 const producer_availability_1 = require("@/lib/producer-availability");
 const export_csv_1 = require("@/lib/export-csv");
+const producer_time_off_1 = require("@/lib/producer-time-off");
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTH_NAMES = [
     "Jan",
@@ -57,6 +62,27 @@ function formatLegacyDay(date) {
     const d = parseToDate(date);
     return `${DAY_NAMES[d.getDay()]} ${MONTH_NAMES[d.getMonth()]} ${d.getDate()}`;
 }
+/** Leave reason and/or public holiday name for an Off day. */
+function describeScheduleOffDetail(producer, date, studioHolidays) {
+    const dayIso = toLocalIsoDate(date);
+    const parts = [];
+    for (const name of (0, producer_time_off_1.studioHolidayNamesForIso)(dayIso, studioHolidays ?? [], producer.id)) {
+        if (!parts.includes(name))
+            parts.push(name);
+    }
+    for (const entry of producer.timeOff ?? []) {
+        if (dayIso < entry.startDate || dayIso > entry.endDate)
+            continue;
+        const reason = (entry.reason || "").trim() || "Personal leave";
+        if (!parts.includes(reason))
+            parts.push(reason);
+    }
+    if (parts.length > 0)
+        return parts.join(", ");
+    if (producer.status === "unavailable")
+        return "Unavailable";
+    return undefined;
+}
 /**
  * Determines a producer's cell status for a given date.
  *
@@ -73,7 +99,7 @@ function formatLegacyDay(date) {
  * Random/hash-based "mix" generation was removed because it produced phantom
  * bookings that had no backing database record.
  */
-function inferStatus(producer, date, scheduleByDay) {
+function inferStatus(producer, date, scheduleByDay, studioHolidays) {
     const legacy = formatLegacyDay(date);
     const entry = scheduleByDay.get(legacy);
     // Only honour explicit "off" or "available" overrides from the legacy table.
@@ -82,12 +108,18 @@ function inferStatus(producer, date, scheduleByDay) {
     if (entry && (entry.status === "off" || entry.status === "available")) {
         return entry.status;
     }
-    if (producer.status === "unavailable")
+    // Time off / studio holidays only apply on regular work days. Overtime days are cancelled
+    // via removing the overtime date — not by adding time off.
+    if ((0, producer_availability_1.isProducerWorkDay)(producer, date) &&
+        (0, producer_availability_1.isProducerOnTimeOff)(producer, date, studioHolidays)) {
         return "off";
-    const day = date.getDay();
-    if (day === 0 || day === 6)
-        return "off";
-    return "available";
+    }
+    if ((0, producer_availability_1.isProducerWorkDay)(producer, date) || (0, producer_availability_1.isProducerOvertimeDay)(producer, date)) {
+        if (producer.status === "unavailable")
+            return "off";
+        return "available";
+    }
+    return "nonwork";
 }
 function addDays(date, days) {
     const next = new Date(parseToDate(date));
@@ -165,13 +197,18 @@ function resolveBookings(producer, date, status, assignments) {
     if (status === "available")
         return [];
     if (status === "off") {
-        const until = date.getDay() === 0 || date.getDay() === 6
-            ? addDays(date, date.getDay() === 6 ? 1 : 0)
-            : date;
         return [
             {
-                work: "Unavailable",
-                until: formatDisplayDate(until),
+                work: "Time off",
+                until: formatDisplayDate(date),
+            },
+        ];
+    }
+    if (status === "nonwork") {
+        return [
+            {
+                work: "Not working",
+                until: formatDisplayDate(date),
             },
         ];
     }
@@ -192,13 +229,13 @@ function startOfCalendarWeek(date) {
     return start;
 }
 function buildDateRange(range, anchor) {
-    const end = new Date(parseToDate(anchor));
-    end.setHours(0, 0, 0, 0);
+    const today = new Date(parseToDate(anchor));
+    today.setHours(0, 0, 0, 0);
     if (range === "today") {
-        return [end];
+        return [today];
     }
     if (range === "week") {
-        const start = startOfCalendarWeek(end);
+        const start = startOfCalendarWeek(today);
         const dates = [];
         for (let i = 0; i < 7; i += 1) {
             const d = new Date(start);
@@ -207,23 +244,44 @@ function buildDateRange(range, anchor) {
         }
         return dates;
     }
-    const days = range === "month" ? 30 : range === "90days" ? 90 : 180;
+    if (range === "month") {
+        return enumerateCalendarMonth(today.getFullYear(), today.getMonth());
+    }
+    if (range === "90days") {
+        const end = new Date(today);
+        end.setDate(today.getDate() + 89);
+        return enumerateDays(today, end);
+    }
+    // Six full calendar months starting with the current month (28–31 days each).
+    const start = new Date(today.getFullYear(), today.getMonth(), 1);
+    const endMonth = new Date(today.getFullYear(), today.getMonth() + 6, 0);
+    return enumerateDays(start, endMonth);
+}
+function enumerateCalendarMonth(year, monthIndex) {
+    const start = new Date(year, monthIndex, 1);
+    const end = new Date(year, monthIndex + 1, 0);
+    return enumerateDays(start, end);
+}
+function enumerateDays(start, end) {
     const dates = [];
-    for (let i = days - 1; i >= 0; i -= 1) {
-        const d = new Date(end);
-        d.setDate(end.getDate() - i);
-        dates.push(d);
+    const cursor = new Date(start);
+    cursor.setHours(0, 0, 0, 0);
+    const last = new Date(end);
+    last.setHours(0, 0, 0, 0);
+    while (cursor.getTime() <= last.getTime()) {
+        dates.push(new Date(cursor));
+        cursor.setDate(cursor.getDate() + 1);
     }
     return dates;
 }
-function getScheduleCells(producer, schedule, range, anchorDate = new Date(), mtdRecords = []) {
+function getScheduleCells(producer, schedule, range, anchorDate = new Date(), mtdRecords = [], studioHolidays) {
     const scheduleId = producerScheduleId(producer);
     const scheduleByDay = new Map(schedule
         .filter((entry) => entry.producer === scheduleId)
         .map((entry) => [entry.day, entry]));
     const assignments = producerAssignments(producer, mtdRecords);
     return buildDateRange(range, anchorDate).map((date) => {
-        let status = inferStatus(producer, date, scheduleByDay);
+        let status = inferStatus(producer, date, scheduleByDay, studioHolidays);
         const coveringBookings = bookingsFromAssignments(date, coveringAssignments(date, assignments));
         if (coveringBookings.length > 0 && status === "available") {
             status = (0, producer_availability_1.isProducerAtDailyCapacity)(producer, date, mtdRecords)
@@ -239,7 +297,12 @@ function getScheduleCells(producer, schedule, range, anchorDate = new Date(), mt
                 ? coveringBookings
                 : resolveBookings(producer, date, status, assignments)
             : resolveBookings(producer, date, status, assignments);
-        const unavailable = status === "off" || status === "mix" || status === "capacity" || bookings.length > 0;
+        const unavailable = status === "off" ||
+            status === "nonwork" ||
+            status === "mix" ||
+            status === "capacity" ||
+            bookings.length > 0;
+        const isOvertime = (0, producer_availability_1.isProducerOvertimeDay)(producer, date) && !(0, producer_availability_1.isProducerWorkDay)(producer, date);
         return {
             key: toLocalIsoDate(date),
             date,
@@ -249,6 +312,10 @@ function getScheduleCells(producer, schedule, range, anchorDate = new Date(), mt
             unavailable,
             booking: bookings[0] ?? null,
             bookings,
+            offDetail: status === "off"
+                ? describeScheduleOffDetail(producer, date, studioHolidays)
+                : undefined,
+            isOvertime: isOvertime || undefined,
         };
     });
 }
@@ -307,15 +374,38 @@ function rangeLabel(range, anchorDate = new Date()) {
         return `Week of ${MONTH_NAMES[start.getMonth()]} ${start.getDate()}–${MONTH_NAMES[end.getMonth()]} ${end.getDate()}`;
     }
     if (range === "month")
-        return "Last 30 days";
+        return "This month";
     if (range === "90days")
-        return "Last 90 days";
-    return "Last 6 months";
+        return "Next 90 days";
+    return "Next 6 months";
 }
-function buildTeamSchedule(producers, schedule, range, anchorDate = new Date(), mtdRecords = []) {
+/** Inclusive ISO start/end for filtering mixes that overlap a schedule view range. */
+function scheduleViewFilterPeriod(range, anchorDate = new Date()) {
+    const dates = buildDateRange(range, anchorDate);
+    if (dates.length === 0) {
+        const today = toLocalIsoDate(anchorDate);
+        return { start: today, end: today };
+    }
+    return {
+        start: toLocalIsoDate(dates[0]),
+        end: toLocalIsoDate(dates[dates.length - 1]),
+    };
+}
+function sendPeriodLabel(period) {
+    if (period === "complete")
+        return "Complete schedule";
+    return rangeLabel(period);
+}
+/** Date window for Send Schedule, or undefined for the full ongoing schedule. */
+function scheduleSendFilterPeriod(period, anchorDate = new Date()) {
+    if (period === "complete")
+        return undefined;
+    return scheduleViewFilterPeriod(period, anchorDate);
+}
+function buildTeamSchedule(producers, schedule, range, anchorDate = new Date(), mtdRecords = [], studioHolidays) {
     return producers.map((producer) => ({
         producer,
-        cells: getScheduleCells(producer, schedule, range, anchorDate, mtdRecords),
+        cells: getScheduleCells(producer, schedule, range, anchorDate, mtdRecords, studioHolidays),
     }));
 }
 function aggregateColumns(rows, anchorDate = new Date()) {
@@ -357,15 +447,7 @@ function buildCalendarDays(rows, range, anchorDate = new Date()) {
     const todayKey = toLocalIsoDate(parsedAnchor);
     const dates = range === "week"
         ? buildDateRange("week", parsedAnchor)
-        : (() => {
-            const start = new Date(parsedAnchor.getFullYear(), parsedAnchor.getMonth(), 1);
-            const end = new Date(parsedAnchor.getFullYear(), parsedAnchor.getMonth() + 1, 0);
-            const days = [];
-            for (let day = 1; day <= end.getDate(); day += 1) {
-                days.push(new Date(start.getFullYear(), start.getMonth(), day));
-            }
-            return days;
-        })();
+        : enumerateCalendarMonth(parsedAnchor.getFullYear(), parsedAnchor.getMonth());
     return dates.map((date) => {
         const key = toLocalIsoDate(date);
         const unavailableProducers = rows
@@ -442,6 +524,8 @@ function statusLabel(status) {
         return "Booked";
     if (status === "off")
         return "Off";
+    if (status === "nonwork")
+        return "Non-working";
     if (status === "capacity")
         return "Capacity Reached";
     return "Available";
@@ -451,6 +535,7 @@ exports.SCHEDULE_STATUS_FILTERS = [
     { value: "mix", label: "Booked" },
     { value: "capacity", label: "Capacity Reached" },
     { value: "off", label: "Off" },
+    { value: "nonwork", label: "Non-working" },
     { value: "available", label: "Available" },
 ];
 function maskCellForStatusFilter(cell) {
@@ -493,7 +578,13 @@ function formatMatrixDateCell(column, _range, _previousKey) {
     const day = String(Number(dayStr));
     const weekday = column.dayLabel.slice(0, 3).toUpperCase();
     if (column.isToday) {
-        return { top: "Today", day: column.label, title, emphasizeTop: true };
+        return {
+            top: "Today",
+            day: column.label,
+            title,
+            emphasizeTop: true,
+            weekday,
+        };
     }
     return { top: weekday, day, title };
 }

@@ -28,17 +28,18 @@ function leaveReasonsByIso(entries) {
     }
     return map;
 }
-function OvertimeDayPicker({ open, onClose, workDays, selectedDays, onSelect, excludeRef, blockedTimeOffDays = [], leaveEntries = [], studioHolidays = [], }) {
+function OvertimeDayPicker({ open, onClose, workDays, selectedDays, onSelect, excludeRef, blockedTimeOffDays = [], leaveEntries = [], studioHolidays = [], producerId, }) {
     const todayIso = (0, DayCalendarPicker_1.isoFromLocalDate)(new Date());
     // Current year + next year, through December.
     const maxIso = `${Number(todayIso.slice(0, 4)) + 1}-12-31`;
     const selectedSet = (0, react_1.useMemo)(() => new Set(selectedDays), [selectedDays]);
     const timeOffSet = (0, react_1.useMemo)(() => new Set(blockedTimeOffDays), [blockedTimeOffDays]);
     const leaveReasonMap = (0, react_1.useMemo)(() => leaveReasonsByIso(leaveEntries), [leaveEntries]);
-    const studioHolidaySet = (0, react_1.useMemo)(() => (0, producer_time_off_1.studioHolidayIsoSetInRange)(studioHolidays, todayIso, maxIso), [studioHolidays, todayIso, maxIso]);
+    const studioHolidaySet = (0, react_1.useMemo)(() => (0, producer_time_off_1.studioHolidayIsoSetInRange)(studioHolidays, todayIso, maxIso, producerId), [studioHolidays, todayIso, maxIso, producerId]);
     const offDayCount = 7 - workDays.length;
     function isStudioHoliday(iso) {
-        return (studioHolidaySet.has(iso) || (0, producer_time_off_1.isStudioHolidayIso)(iso, studioHolidays));
+        return (studioHolidaySet.has(iso) ||
+            (0, producer_time_off_1.isStudioHolidayIso)(iso, studioHolidays, producerId));
     }
     /** Leave / holiday only use OT-specific tips when the day is an off day. */
     function isOffDay(iso, date) {
@@ -83,7 +84,7 @@ function OvertimeDayPicker({ open, onClose, workDays, selectedDays, onSelect, ex
             return `${name}\nCancel leave to mark overtime`;
         }
         if (date && isHolidayOnOffDay(iso, date)) {
-            const names = (0, producer_time_off_1.studioHolidayNamesForIso)(iso, studioHolidays);
+            const names = (0, producer_time_off_1.studioHolidayNamesForIso)(iso, studioHolidays, producerId);
             if (names.length > 0) {
                 return `${names.join(", ")}\nNot available for overtime`;
             }

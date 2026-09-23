@@ -948,6 +948,9 @@ export type PayrollAddon = {
   id: string;
   programName: string;
   contactName?: string | null;
+  teamName?: string | null;
+  orderId?: string | null;
+  mtdId?: string | null;
   /** "Cheer" | "Dance" */
   category: string;
   /** "voiceover" | "rush_fee" */
@@ -961,4 +964,5 @@ export type PayrollAddon = {
   notes?: string | null;
   createdAt: string;
 };
+
 

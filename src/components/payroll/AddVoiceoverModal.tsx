@@ -1,12 +1,14 @@
 "use client";
 
 import { createPortal } from "react-dom";
-import { useCallback, useMemo, useState } from "react";
-import { X, Loader2 } from "lucide-react";
-import type { Producer } from "@/types";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { X, Loader2, Search } from "lucide-react";
+import type { MTDRecord, Order, Producer } from "@/types";
 import type { CreatePayrollAddonPayload } from "@/lib/api/payroll-addons";
+import { findProducerByAssignmentKey } from "@/lib/editor-assignment";
+import { Avatar } from "@/components/ui/Avatar";
+import { resolveMTDFormMeta } from "@/lib/mtd-filters";
 
-// Voiceover rate options by category
 const CHEER_RATES = [
   { label: "$20", value: 20, source: "predefined" as const },
   { label: "$40", value: 40, source: "predefined" as const },
@@ -22,8 +24,8 @@ const DANCE_RATES = [
 type AddVoiceoverModalProps = {
   open: boolean;
   onClose: () => void;
-  /** Unique program names derived from allOrders */
-  programOptions: { programName: string; contactName: string; category: string }[];
+  record: MTDRecord | null;
+  allOrders: Order[];
   producers: Producer[];
   onAdd: (payload: CreatePayrollAddonPayload) => Promise<unknown>;
 };
@@ -31,81 +33,132 @@ type AddVoiceoverModalProps = {
 export function AddVoiceoverModal({
   open,
   onClose,
-  programOptions,
+  record,
+  allOrders,
   producers,
   onAdd,
 }: AddVoiceoverModalProps) {
-  const [programSearch, setProgramSearch] = useState("");
-  const [selectedProgram, setSelectedProgram] = useState<{
-    programName: string;
-    contactName: string;
-    category: string;
-  } | null>(null);
-  const [manualCategory, setManualCategory] = useState<"Cheer" | "Dance">("Cheer");
-  const [rateIndex, setRateIndex] = useState(0); // 0 = first option (default)
+  const [selectedSchoolProgram, setSelectedSchoolProgram] = useState("");
+  const [schoolSearch, setSchoolSearch] = useState("");
+  const [showSchoolDropdown, setShowSchoolDropdown] = useState(false);
+
+  const [selectedTeamDivision, setSelectedTeamDivision] = useState("");
+  const [teamSearch, setTeamSearch] = useState("");
+  const [showTeamDropdown, setShowTeamDropdown] = useState(false);
+
+  const [rateIndex, setRateIndex] = useState(0); // default to 0 ($20 for Cheer)
   const [manualAmount, setManualAmount] = useState("");
-  const [selectedProducerId, setSelectedProducerId] = useState("");
-  const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  // Derive target producer automatically from the payroll row
+  const assignedProducerObj = useMemo(() => {
+    if (!record?.assignedProducer) return null;
+    return findProducerByAssignmentKey(record.assignedProducer, producers) || null;
+  }, [record, producers]);
+
+  // Derive Category (Cheer / Dance)
   const effectiveCategory: "Cheer" | "Dance" = useMemo(() => {
-    if (!selectedProgram) return manualCategory;
-    const cat = selectedProgram.category?.toLowerCase();
-    if (cat?.includes("dance")) return "Dance";
+    if (!record) return "Cheer";
+    const meta = resolveMTDFormMeta(record, new Map(allOrders.map((o) => [o.id, o])));
+    if (meta.formType === "school-all-star-dance") return "Dance";
     return "Cheer";
-  }, [selectedProgram, manualCategory]);
+  }, [record, allOrders]);
 
   const rates = effectiveCategory === "Dance" ? DANCE_RATES : CHEER_RATES;
   const selectedRate = rates[rateIndex] ?? rates[0];
   const isManual = selectedRate.source === "manual";
 
-  // Reset rate index when category changes
-  const prevCatRef = { current: effectiveCategory };
-  if (prevCatRef.current !== effectiveCategory) {
-    setRateIndex(0);
-  }
+  // Build unique School / Program options dynamically from database orders
+  const schoolProgramOptions = useMemo(() => {
+    const seen = new Set<string>();
+    const list: string[] = [];
+    for (const order of allOrders) {
+      const name = (order.programName || order.schoolProgramName || order.schoolName || order.gymName || "").trim();
+      if (name && !seen.has(name.toUpperCase())) {
+        seen.add(name.toUpperCase());
+        list.push(name);
+      }
+    }
+    return list.sort((a, b) => a.localeCompare(b));
+  }, [allOrders]);
 
-  const filteredPrograms = useMemo(() => {
-    const q = programSearch.trim().toLowerCase();
-    if (!q) return programOptions.slice(0, 50);
-    return programOptions
-      .filter(
-        (p) =>
-          p.programName.toLowerCase().includes(q) ||
-          p.contactName.toLowerCase().includes(q)
-      )
-      .slice(0, 50);
-  }, [programOptions, programSearch]);
+  // Build Team / Division options contextually filtered by selected School/Program if possible
+  const teamDivisionOptions = useMemo(() => {
+    const seen = new Set<string>();
+    const list: string[] = [];
+    const targetSchool = selectedSchoolProgram.trim().toUpperCase();
 
-  const reset = useCallback(() => {
-    setProgramSearch("");
-    setSelectedProgram(null);
-    setManualCategory("Cheer");
-    setRateIndex(0);
+    for (const order of allOrders) {
+      const orderSchool = (order.programName || order.schoolProgramName || order.schoolName || order.gymName || "").trim().toUpperCase();
+      if (targetSchool && orderSchool !== targetSchool) continue;
+
+      const teamName = (order.teamName || order.division || order.contactName || "").trim();
+      if (teamName && !seen.has(teamName.toUpperCase())) {
+        seen.add(teamName.toUpperCase());
+        list.push(teamName);
+      }
+    }
+
+    // Fallback to all team names if none match
+    if (list.length === 0 && targetSchool) {
+      for (const order of allOrders) {
+        const teamName = (order.teamName || order.division || order.contactName || "").trim();
+        if (teamName && !seen.has(teamName.toUpperCase())) {
+          seen.add(teamName.toUpperCase());
+          list.push(teamName);
+        }
+      }
+    }
+
+    return list.sort((a, b) => a.localeCompare(b));
+  }, [allOrders, selectedSchoolProgram]);
+
+  // Pre-fill fields when modal opens for a record
+  useEffect(() => {
+    if (!open || !record) return;
+    const initialSchool = record.programName || (record as any).schoolProgramName || "";
+    setSelectedSchoolProgram(initialSchool);
+    setSchoolSearch(initialSchool);
+
+    const initialTeam = (record as any).teamName || record.contactName || "";
+    setSelectedTeamDivision(initialTeam);
+    setTeamSearch(initialTeam);
+
+    setRateIndex(0); // Default to $20 (Cheer) or $25 (Dance)
     setManualAmount("");
-    setSelectedProducerId("");
-    setNotes("");
     setError(null);
     setSaving(false);
-  }, []);
+  }, [open, record]);
+
+  const filteredSchoolOptions = useMemo(() => {
+    const q = schoolSearch.trim().toLowerCase();
+    if (!q) return schoolProgramOptions.slice(0, 30);
+    return schoolProgramOptions.filter((s) => s.toLowerCase().includes(q)).slice(0, 30);
+  }, [schoolProgramOptions, schoolSearch]);
+
+  const filteredTeamOptions = useMemo(() => {
+    const q = teamSearch.trim().toLowerCase();
+    if (!q) return teamDivisionOptions.slice(0, 30);
+    return teamDivisionOptions.filter((t) => t.toLowerCase().includes(q)).slice(0, 30);
+  }, [teamDivisionOptions, teamSearch]);
 
   const handleClose = () => {
-    reset();
+    setShowSchoolDropdown(false);
+    setShowTeamDropdown(false);
     onClose();
   };
 
   const handleAdd = async () => {
     setError(null);
 
-    if (!selectedProgram) {
-      setError("Please select a school / program / team.");
+    if (!record) {
+      setError("No payroll row selected.");
       return;
     }
 
-    const producerObj = producers.find((p) => p.id === selectedProducerId);
-    if (!producerObj) {
-      setError("Please select a producer / payee.");
+    if (!selectedSchoolProgram.trim()) {
+      setError("Please select a School / Program.");
       return;
     }
 
@@ -124,35 +177,46 @@ export function AddVoiceoverModal({
     setSaving(true);
     try {
       await onAdd({
-        programName: selectedProgram.programName,
-        contactName: selectedProgram.contactName || null,
+        orderId: record.orderId || record.id,
+        mtdId: record.id,
+        programName: selectedSchoolProgram.trim(),
+        teamName: selectedTeamDivision.trim() || null,
+        contactName: record.contactName || null,
         category: effectiveCategory,
         addonType: "voiceover",
         amount,
         rateSource: selectedRate.source,
-        producerId: producerObj.id,
-        producerInitials: producerObj.initials,
-        notes: notes.trim() || null,
+        producerId: assignedProducerObj?.id || null,
+        producerInitials: assignedProducerObj?.initials || record.assignedProducer || null,
       });
-      reset();
-      onClose();
+      handleClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to add voiceover.");
       setSaving(false);
     }
   };
 
-  if (!open) return null;
+  if (!open || !record) return null;
 
   const modal = (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{ backgroundColor: "rgba(0,0,0,0.55)" }}
+      onClick={() => {
+        setShowSchoolDropdown(false);
+        setShowTeamDropdown(false);
+      }}
     >
-      <div className="relative flex w-full max-w-md flex-col rounded-xl border border-brand-line bg-brand-surface shadow-2xl">
+      <div
+        className="relative flex w-full max-w-md flex-col rounded-xl border border-brand-line bg-brand-surface shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-brand-line px-5 py-4">
-          <h2 className="text-[15px] font-semibold text-brand-ink">Add Voiceover</h2>
+          <div>
+            <h2 className="text-[15px] font-semibold text-brand-ink">Add Voiceover</h2>
+            <p className="text-xs text-brand-ink-faint">Row: {record.programName}</p>
+          </div>
           <button
             type="button"
             onClick={handleClose}
@@ -164,109 +228,113 @@ export function AddVoiceoverModal({
 
         {/* Body */}
         <div className="flex flex-col gap-4 overflow-y-auto px-5 py-5">
-          {/* Program search */}
-          <div>
-            <label className="mb-1.5 block text-xs font-medium text-brand-ink-secondary">
-              School / Program / Team <span className="text-brand-orange">*</span>
-            </label>
-            {selectedProgram ? (
-              <div className="flex items-center gap-2 rounded-lg border border-brand-orange/40 bg-brand-orange-soft/20 px-3 py-2">
-                <span className="flex-1 text-sm font-medium text-brand-ink">
-                  {selectedProgram.programName}
+          {/* Producer (Automatic / Read-only) */}
+          <div className="rounded-lg border border-brand-line/70 bg-brand-bg/60 p-3">
+            <span className="block text-[11px] font-semibold uppercase tracking-wider text-brand-ink-faint">
+              Assigned Producer
+            </span>
+            <div className="mt-1 flex items-center gap-2">
+              <Avatar producer={assignedProducerObj ?? undefined} initials={record.assignedProducer} size="xs" />
+              <span className="text-sm font-semibold text-brand-ink">
+                {assignedProducerObj?.name || record.assignedProducer || "Unassigned"}
+              </span>
+              {assignedProducerObj?.initials && (
+                <span className="rounded bg-brand-hover px-1.5 py-0.5 text-xs font-semibold text-brand-ink-secondary">
+                  ({assignedProducerObj.initials})
                 </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedProgram(null);
-                    setProgramSearch("");
-                  }}
-                  className="text-brand-ink-faint hover:text-brand-ink"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            ) : (
-              <div className="relative">
-                <input
-                  type="text"
-                  className="w-full rounded-lg border border-brand-line bg-brand-bg px-3 py-2 text-sm text-brand-ink placeholder:text-brand-ink-faint focus:border-brand-orange/60 focus:outline-none focus:ring-1 focus:ring-brand-orange/30"
-                  placeholder="Search program name or contact…"
-                  value={programSearch}
-                  onChange={(e) => setProgramSearch(e.target.value)}
-                  autoFocus
-                />
-                {programSearch && (
-                  <div className="absolute left-0 top-full z-10 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-brand-line bg-brand-surface shadow-lg">
-                    {filteredPrograms.length === 0 ? (
-                      <div className="px-3 py-2 text-xs text-brand-ink-faint">No results</div>
-                    ) : (
-                      filteredPrograms.map((p, i) => (
-                        <button
-                          key={i}
-                          type="button"
-                          className="flex w-full flex-col px-3 py-2 text-left hover:bg-brand-hover"
-                          onClick={() => {
-                            setSelectedProgram(p);
-                            setProgramSearch("");
-                            setRateIndex(0);
-                          }}
-                        >
-                          <span className="text-sm font-medium text-brand-ink">{p.programName}</span>
-                          {p.contactName && (
-                            <span className="text-xs text-brand-ink-faint">{p.contactName}</span>
-                          )}
-                        </button>
-                      ))
-                    )}
-                  </div>
-                )}
+              )}
+            </div>
+          </div>
+
+          {/* School / Program Selection */}
+          <div className="relative">
+            <label className="mb-1.5 block text-xs font-medium text-brand-ink-secondary">
+              School / Program <span className="text-brand-orange">*</span>
+            </label>
+            <div className="relative">
+              <input
+                type="text"
+                className="w-full rounded-lg border border-brand-line bg-brand-bg px-3 py-2 text-sm text-brand-ink placeholder:text-brand-ink-faint focus:border-brand-orange/60 focus:outline-none focus:ring-1 focus:ring-brand-orange/30"
+                placeholder="Search or enter school/program…"
+                value={schoolSearch}
+                onChange={(e) => {
+                  setSchoolSearch(e.target.value);
+                  setSelectedSchoolProgram(e.target.value);
+                  setShowSchoolDropdown(true);
+                }}
+                onFocus={() => setShowSchoolDropdown(true)}
+              />
+              <Search className="absolute right-3 top-2.5 h-4 w-4 text-brand-ink-faint" />
+            </div>
+
+            {showSchoolDropdown && filteredSchoolOptions.length > 0 && (
+              <div className="absolute left-0 top-full z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-brand-line bg-brand-surface shadow-lg">
+                {filteredSchoolOptions.map((opt, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    className="flex w-full px-3 py-2 text-left text-sm font-medium text-brand-ink hover:bg-brand-hover"
+                    onClick={() => {
+                      setSelectedSchoolProgram(opt);
+                      setSchoolSearch(opt);
+                      setShowSchoolDropdown(false);
+                    }}
+                  >
+                    {opt}
+                  </button>
+                ))}
               </div>
             )}
           </div>
 
-          {/* Category — shown only if not auto-derived */}
-          {!selectedProgram && (
-            <div>
-              <label className="mb-1.5 block text-xs font-medium text-brand-ink-secondary">
-                Category
-              </label>
-              <div className="flex gap-2">
-                {(["Cheer", "Dance"] as const).map((cat) => (
+          {/* Team / Division Selection */}
+          <div className="relative">
+            <label className="mb-1.5 block text-xs font-medium text-brand-ink-secondary">
+              Team / Division
+            </label>
+            <div className="relative">
+              <input
+                type="text"
+                className="w-full rounded-lg border border-brand-line bg-brand-bg px-3 py-2 text-sm text-brand-ink placeholder:text-brand-ink-faint focus:border-brand-orange/60 focus:outline-none focus:ring-1 focus:ring-brand-orange/30"
+                placeholder="Search or enter team/division…"
+                value={teamSearch}
+                onChange={(e) => {
+                  setTeamSearch(e.target.value);
+                  setSelectedTeamDivision(e.target.value);
+                  setShowTeamDropdown(true);
+                }}
+                onFocus={() => setShowTeamDropdown(true)}
+              />
+              <Search className="absolute right-3 top-2.5 h-4 w-4 text-brand-ink-faint" />
+            </div>
+
+            {showTeamDropdown && filteredTeamOptions.length > 0 && (
+              <div className="absolute left-0 top-full z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-brand-line bg-brand-surface shadow-lg">
+                {filteredTeamOptions.map((opt, i) => (
                   <button
-                    key={cat}
+                    key={i}
                     type="button"
+                    className="flex w-full px-3 py-2 text-left text-sm font-medium text-brand-ink hover:bg-brand-hover"
                     onClick={() => {
-                      setManualCategory(cat);
-                      setRateIndex(0);
+                      setSelectedTeamDivision(opt);
+                      setTeamSearch(opt);
+                      setShowTeamDropdown(false);
                     }}
-                    className={`rounded-lg border px-4 py-1.5 text-sm font-medium transition ${
-                      manualCategory === cat
-                        ? "border-brand-orange bg-brand-orange/10 text-brand-orange"
-                        : "border-brand-line bg-brand-bg text-brand-ink-secondary hover:border-brand-orange/40 hover:text-brand-ink"
-                    }`}
                   >
-                    {cat}
+                    {opt}
                   </button>
                 ))}
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
-          {/* Category badge when auto-derived */}
-          {selectedProgram && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-brand-ink-secondary">Category:</span>
-              <span className="rounded-md bg-brand-hover px-2 py-0.5 text-xs font-semibold text-brand-ink">
-                {effectiveCategory}
-              </span>
-            </div>
-          )}
-
-          {/* Rate selection */}
+          {/* Rate Selection */}
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-brand-ink-secondary">
-              Voiceover Rate <span className="text-brand-orange">*</span>
-            </label>
+            <div className="mb-1.5 flex items-center justify-between">
+              <label className="text-xs font-medium text-brand-ink-secondary">
+                Voiceover Rate ({effectiveCategory}) <span className="text-brand-orange">*</span>
+              </label>
+            </div>
             <div className="flex gap-2">
               {rates.map((rate, i) => (
                 <button
@@ -276,7 +344,7 @@ export function AddVoiceoverModal({
                     setRateIndex(i);
                     if (rate.source !== "manual") setManualAmount("");
                   }}
-                  className={`rounded-lg border px-4 py-1.5 text-sm font-medium transition ${
+                  className={`flex-1 rounded-lg border py-2 text-sm font-semibold transition ${
                     rateIndex === i
                       ? "border-brand-orange bg-brand-orange/10 text-brand-orange"
                       : "border-brand-line bg-brand-bg text-brand-ink-secondary hover:border-brand-orange/40 hover:text-brand-ink"
@@ -288,11 +356,11 @@ export function AddVoiceoverModal({
             </div>
           </div>
 
-          {/* Manual amount input */}
+          {/* Manual Amount Input */}
           {isManual && (
             <div>
               <label className="mb-1.5 block text-xs font-medium text-brand-ink-secondary">
-                Amount <span className="text-brand-orange">*</span>
+                Manual Amount <span className="text-brand-orange">*</span>
               </label>
               <div className="relative">
                 <span className="absolute inset-y-0 left-3 flex items-center text-sm text-brand-ink-faint">
@@ -306,43 +374,11 @@ export function AddVoiceoverModal({
                   placeholder="0.00"
                   value={manualAmount}
                   onChange={(e) => setManualAmount(e.target.value)}
+                  autoFocus
                 />
               </div>
             </div>
           )}
-
-          {/* Producer */}
-          <div>
-            <label className="mb-1.5 block text-xs font-medium text-brand-ink-secondary">
-              Producer / Payee <span className="text-brand-orange">*</span>
-            </label>
-            <select
-              className="w-full rounded-lg border border-brand-line bg-brand-bg px-3 py-2 text-sm text-brand-ink focus:border-brand-orange/60 focus:outline-none focus:ring-1 focus:ring-brand-orange/30"
-              value={selectedProducerId}
-              onChange={(e) => setSelectedProducerId(e.target.value)}
-            >
-              <option value="">Select producer…</option>
-              {producers.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} ({p.initials})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Notes */}
-          <div>
-            <label className="mb-1.5 block text-xs font-medium text-brand-ink-secondary">
-              Notes <span className="text-brand-ink-faint">(optional)</span>
-            </label>
-            <input
-              type="text"
-              className="w-full rounded-lg border border-brand-line bg-brand-bg px-3 py-2 text-sm text-brand-ink placeholder:text-brand-ink-faint focus:border-brand-orange/60 focus:outline-none focus:ring-1 focus:ring-brand-orange/30"
-              placeholder="e.g. Spring 2026 camp…"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-            />
-          </div>
 
           {error && (
             <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-500">

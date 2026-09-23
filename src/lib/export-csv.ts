@@ -279,7 +279,8 @@ export function generateMTDCsv(
 export function generatePayrollCsv(
   records: MTDRecord[],
   allOrders: Order[],
-  producers: Producer[]
+  producers: Producer[],
+  payrollAddons: PayrollAddon[] = []
 ): string {
   const orderById = new Map(allOrders.map((o) => [o.id, o]));
 
@@ -351,7 +352,17 @@ export function generatePayrollCsv(
     );
 
     const isDance = meta.formType === "school-all-star-dance";
-    const payoutTotal = calc.producerPayout ?? rec.producerPayout ?? order?.producerPayout ?? 0;
+    const rowVoAddon = payrollAddons?.find(
+      (a) => (a.mtdId === rec.id || a.orderId === rec.orderId) && a.addonType === "voiceover"
+    );
+    const rowRushAddon = payrollAddons?.find(
+      (a) => (a.mtdId === rec.id || a.orderId === rec.orderId) && a.addonType === "rush_fee"
+    );
+
+    const basePayout = calc.producerPayout ?? rec.producerPayout ?? order?.producerPayout ?? 0;
+    const voPayout = rowVoAddon ? rowVoAddon.amount : (calc.voiceoverPayout ?? 0);
+    const rushPayout = rowRushAddon ? rowRushAddon.amount : (calc.rushFeePayout ?? 0);
+    const payoutTotal = basePayout + (rowVoAddon ? rowVoAddon.amount : 0) + (rowRushAddon ? rowRushAddon.amount : 0);
 
     const row: Record<string, unknown> = {
       id: rec.id,
@@ -365,8 +376,8 @@ export function generatePayrollCsv(
       customerPrice: formatPrice(custPrice),
       payrollBasePrice: formatPrice(payrollPrice),
       producerRate: rec.rateUsed ?? order?.rateUsed ?? "Default",
-      voiceoverPayout: formatPrice(calc.voiceoverPayout ?? 0),
-      rushPayout: formatPrice(calc.rushFeePayout ?? 0),
+      voiceoverPayout: formatPrice(voPayout),
+      rushPayout: formatPrice(rushPayout),
       danceExtraSongsPayout: isDance
         ? formatPrice(((rec as any).danceExtraSongs || 0) * 15)
         : "",
@@ -433,6 +444,68 @@ export const PRODUCER_STATEMENT_COLUMNS: { key: keyof ProducerFacingPayrollRow; 
   { key: "totalPayout", label: "My Total Payout" },
 ];
 
+export function isCompletedMix(rec: MTDRecord): boolean {
+  if (!rec) return false;
+  return (
+    rec.status === "completed" ||
+    (rec.status as string) === "Completed" ||
+    (rec as any).recordStatus === "completed" ||
+    (rec as any).recordStatus === "Completed" ||
+    Boolean(rec.inPayroll) ||
+    Boolean((rec as any).in_payroll)
+  );
+}
+
+export function matchAddonToRecord(
+  addon: PayrollAddon,
+  rec: MTDRecord,
+  addonType: "voiceover" | "rush_fee",
+  producerObj?: Producer | null
+): boolean {
+  if (addon.addonType !== addonType) return false;
+
+  const aMtd = addon.mtdId ? String(addon.mtdId).trim() : null;
+  const aOrd = addon.orderId ? String(addon.orderId).trim() : null;
+  const rId = rec.id ? String(rec.id).trim() : null;
+  const rOrd = rec.orderId ? String(rec.orderId).trim() : null;
+
+  // 1. Direct ID matching (handling String conversion & nulls)
+  if (aMtd && (aMtd === rId || aMtd === rOrd)) return true;
+  if (aOrd && (aOrd === rOrd || aOrd === rId)) return true;
+
+  // 2. Program Name & Producer matching fallback (when mtdId/orderId were stripped/null or non-UUID)
+  if (addon.programName && rec.programName) {
+    const normAddonProg = addon.programName.trim().toUpperCase();
+    const normRecProg = rec.programName.trim().toUpperCase();
+    if (normAddonProg === normRecProg) {
+      const recProdName = rec.assignedProducer?.trim().toUpperCase() || "";
+      const prodName = producerObj?.name?.trim().toUpperCase() || "";
+      const prodInitials = producerObj?.initials?.trim().toUpperCase() || "";
+
+      const addonProdId = addon.producerId ? String(addon.producerId).trim().toUpperCase() : "";
+      const addonInitials = addon.producerInitials ? addon.producerInitials.trim().toUpperCase() : "";
+
+      const producerMatches =
+        !addonInitials && !addonProdId
+          ? true
+          : (addonInitials && (addonInitials === prodInitials || addonInitials === recProdName)) ||
+            (addonProdId && (addonProdId === producerObj?.id.toUpperCase() || addonProdId === recProdName));
+
+      if (producerMatches) {
+        if (addon.teamName && (rec as any).teamName) {
+          return (
+            addon.teamName.trim().toUpperCase() ===
+            String((rec as any).teamName).trim().toUpperCase()
+          );
+        }
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
 export function getProducerFacingPayrollRows(
   records: MTDRecord[],
   allOrders: Order[],
@@ -443,16 +516,9 @@ export function getProducerFacingPayrollRows(
 ): ProducerFacingPayrollRow[] {
   const orderById = new Map(allOrders.map((o) => [o.id, o]));
 
-  let periodMatchingRecords = records;
-  if (filterPeriod && (filterPeriod.start || filterPeriod.end)) {
-    periodMatchingRecords = records.filter((rec) => {
-      const recStart = rec.completedAt || rec.mixStartDate || "";
-      const recEnd = rec.completedAt || rec.mixEndDate || rec.mixStartDate || "";
-      return doDateRangesOverlap({ start: recStart, end: recEnd }, filterPeriod);
-    });
-  }
-
-  const producerRecords = periodMatchingRecords.filter((rec) => {
+  // Filter for completed mixes assigned to target producer
+  let filtered = records.filter((rec) => {
+    if (!isCompletedMix(rec)) return false;
     if (!rec.assignedProducer) return false;
     const prodObj = findProducerByAssignmentKey(rec.assignedProducer, producers);
     const resolvedName = prodObj?.name || rec.assignedProducer;
@@ -462,9 +528,18 @@ export function getProducerFacingPayrollRows(
     );
   });
 
-  const preparedRows: ProducerFacingPayrollRow[] = [];
+  if (filterPeriod && (filterPeriod.start || filterPeriod.end)) {
+    filtered = filtered.filter((rec) => {
+      const recStart = rec.completedAt || rec.mixStartDate || "";
+      const recEnd = rec.completedAt || rec.mixEndDate || rec.mixStartDate || "";
+      return doDateRangesOverlap({ start: recStart, end: recEnd }, filterPeriod);
+    });
+  }
 
-  for (const rec of producerRecords) {
+  const preparedRows: ProducerFacingPayrollRow[] = [];
+  const usedAddonIds = new Set<string>();
+
+  for (const rec of filtered) {
     const linked = findLinkedOrder(rec, allOrders);
     const order = orderFromMTDRecord(rec, linked, orderById);
     const meta = resolveMTDFormMeta(rec, orderById);
@@ -504,7 +579,49 @@ export function getProducerFacingPayrollRows(
     );
 
     const isDance = meta.formType === "school-all-star-dance";
-    const payoutTotal = calc.producerPayout ?? rec.producerPayout ?? order?.producerPayout ?? 0;
+    const rowVoAddon = payrollAddons?.find((a) =>
+      matchAddonToRecord(a, rec, "voiceover", producerObj)
+    );
+    const rowRushAddon = payrollAddons?.find((a) =>
+      matchAddonToRecord(a, rec, "rush_fee", producerObj)
+    );
+
+    if (rowVoAddon) usedAddonIds.add(rowVoAddon.id);
+    if (rowRushAddon) usedAddonIds.add(rowRushAddon.id);
+
+    const basePayout = calc.producerPayout ?? rec.producerPayout ?? order?.producerPayout ?? 0;
+    const categoryBasePayout = Math.max(
+      0,
+      basePayout - (calc.voiceoverPayout ?? 0) - (calc.rushFeePayout ?? 0)
+    );
+
+    const voPayout = rowVoAddon ? rowVoAddon.amount : (calc.voiceoverPayout ?? 0);
+    const rushPayout = rowRushAddon ? rowRushAddon.amount : (calc.rushFeePayout ?? 0);
+    const payoutTotal = categoryBasePayout + voPayout + rushPayout;
+
+    const voLabel = rowVoAddon
+      ? formatPrice(rowVoAddon.amount)
+      : rec.danceVoiceover
+      ? `$${rec.danceVoiceover}`
+      : rec.cheerVoiceover40
+      ? "Cheer $40 VO"
+      : rec.cheerVoiceover20
+      ? "Cheer $20 VO"
+      : rec.hasTraditionalVoiceover && rec.hasThemedVoiceover
+      ? "$100"
+      : rec.hasThemedVoiceover
+      ? "$75"
+      : rec.hasTraditionalVoiceover
+      ? "$25"
+      : "None";
+
+    const rushLabel = rowRushAddon
+      ? formatPrice(rowRushAddon.amount)
+      : rushQty === 2
+      ? "Double Rush ($300)"
+      : rushQty === 1
+      ? "Rush Fee ($150)"
+      : "None";
 
     const row: ProducerFacingPayrollRow = {
       completedDate:
@@ -514,15 +631,8 @@ export function getProducerFacingPayrollRows(
       subtype: meta.canonicalSubtypeId,
       package: rec.package,
       timeLimit: parsedPkg.limit,
-      voiceoverAddon:
-        rec.danceVoiceover ||
-        (rec.cheerVoiceover40
-          ? "Cheer $40 VO"
-          : rec.cheerVoiceover20
-          ? "Cheer $20 VO"
-          : "None"),
-      rushFee:
-        rushQty === 2 ? "Double Rush ($300)" : rushQty === 1 ? "Rush Fee ($150)" : "None",
+      voiceoverAddon: voLabel,
+      rushFee: rushLabel,
       danceExtraSongs: isDance
         ? (rec as any).danceExtraSongs
           ? String((rec as any).danceExtraSongs)
@@ -534,8 +644,8 @@ export function getProducerFacingPayrollRows(
           : "0"
         : "",
       producerRate: String(rec.rateUsed ?? order?.rateUsed ?? "Default"),
-      voiceoverPayout: formatPrice(calc.voiceoverPayout ?? 0),
-      rushPayout: formatPrice(calc.rushFeePayout ?? 0),
+      voiceoverPayout: formatPrice(voPayout),
+      rushPayout: formatPrice(rushPayout),
       danceExtraSongsPayout: isDance
         ? formatPrice(((rec as any).danceExtraSongs || 0) * 15)
         : "",
@@ -551,10 +661,13 @@ export function getProducerFacingPayrollRows(
     preparedRows.push(row);
   }
 
-  // Append standalone add-on rows attributed to this producer
+  // Append standalone / unlinked add-on rows attributed to this producer
   if (payrollAddons && payrollAddons.length > 0) {
     const targetUpper = targetProducerName.trim().toUpperCase();
     const addonRows = payrollAddons.filter((addon) => {
+      // Ignore add-ons already linked/matched to a mix row above
+      if (usedAddonIds.has(addon.id)) return false;
+      if (addon.mtdId || addon.orderId) return false;
       if (!addon.producerInitials && !addon.producerId) return false;
       // Match by initials or producer name
       const producerObj = producers.find(
@@ -574,7 +687,7 @@ export function getProducerFacingPayrollRows(
         addon.addonType === "voiceover" ? "Voiceover" : "Rush Fee";
       const addonRow: ProducerFacingPayrollRow = {
         completedDate: toIsoDateString(addon.createdAt) || addon.createdAt,
-        programName: addon.programName,
+        programName: addon.teamName ? `${addon.programName} (${addon.teamName})` : addon.programName,
         category: addon.category,
         subtype: `${typeLabel} Add-on`,
         package: "—",
