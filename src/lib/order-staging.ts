@@ -11,11 +11,14 @@ function orderEligibleForStaging(order: Order): boolean {
   return true;
 }
 
-function mtdRecordCoversOrder(rec: MTDRecord, orderId: string): boolean {
-  if (rec.orderId === orderId) return true;
-  if (rec.id === orderId) return true;
-  if (rec.legacyId === orderId) return true;
-  return false;
+function mtdRecordCoversOrder(rec: MTDRecord, order: Order): boolean {
+  // An order can be referenced by its legacy id, backend UUID, or plain id, and
+  // an MTD record may carry any of those forms in orderId/id/legacyId/uuid.
+  // Compare every combination so a linked record (order_id = order UUID) still
+  // suppresses the synthetic staging row and we don't show the booking twice.
+  const orderIds = [order.id, order.uuid, order.legacyId].filter(Boolean);
+  const recIds = [rec.orderId, rec.id, rec.legacyId, rec.uuid].filter(Boolean);
+  return recIds.some((value) => orderIds.includes(value as string));
 }
 
 export function stagingRecordFromOrder(
@@ -80,7 +83,7 @@ export function listPreMtdOrderRecords(
   const synthetic: MTDRecord[] = [];
   for (const order of activeOrders) {
     if (!orderEligibleForStaging(order)) continue;
-    if (mtdRecords.some((rec) => mtdRecordCoversOrder(rec, order.id))) continue;
+    if (mtdRecords.some((rec) => mtdRecordCoversOrder(rec, order))) continue;
     synthetic.push(stagingRecordFromOrder(order, packagePrices));
   }
 

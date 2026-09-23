@@ -371,7 +371,7 @@ export default function HolidaysSettingsPage() {
         }
         subtitle={
           tab === "studio"
-            ? "Public holidays for the current and next year — all producers or selected ones"
+            ? "Public holidays for the current and next year"
             : "Add leave categories producers usually take off for."
         }
         tabs={

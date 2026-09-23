@@ -26,6 +26,11 @@ type FilterMenuProps = {
   grouped?: boolean;
   portal?: boolean;
   portalZIndex?: number;
+  /** When true, the trigger always uses the active/selected accent style. */
+  alwaysActive?: boolean;
+  triggerClassName?: string;
+  /** Fixed trigger width in px (applied via inline style so it always wins). */
+  triggerWidth?: number;
 };
 
 type PanelPosition = {
@@ -63,6 +68,9 @@ export function FilterMenu({
   grouped = false,
   portal = false,
   portalZIndex = 100,
+  alwaysActive = false,
+  triggerClassName,
+  triggerWidth,
 }: FilterMenuProps) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -71,7 +79,7 @@ export function FilterMenu({
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const selected = options.find((o) => o.value === value);
-  const isActive = value !== options[0]?.value;
+  const isActive = alwaysActive || value !== options[0]?.value;
 
   useEffect(() => {
     setMounted(true);
@@ -192,6 +200,11 @@ export function FilterMenu({
         type="button"
         aria-label={hideLabel ? label : undefined}
         onClick={() => setOpen((v) => !v)}
+        style={
+          typeof triggerWidth === "number"
+            ? { width: triggerWidth, minWidth: triggerWidth, maxWidth: triggerWidth }
+            : undefined
+        }
         className={clsx(
           "inline-flex h-8 items-center gap-1.5 text-[12px] font-medium transition",
           hideLabel
@@ -223,7 +236,8 @@ export function FilterMenu({
                 open
                   ? "border-brand-line-strong bg-brand-bg text-brand-ink"
                   : "border-brand-line bg-brand-elevated text-brand-ink-secondary hover:border-brand-line-strong hover:bg-brand-accent-soft hover:text-brand-ink"
-              )
+              ),
+          triggerClassName
         )}
       >
         {!hideLabel ? (
@@ -231,7 +245,14 @@ export function FilterMenu({
             {label}
           </span>
         ) : null}
-        <span className="max-w-[148px] truncate text-brand-ink">
+        <span
+          className={clsx(
+            "truncate text-brand-ink",
+            hideLabel && (triggerClassName || triggerWidth)
+              ? "min-w-0 flex-1 text-center"
+              : "max-w-[148px]"
+          )}
+        >
           {selected?.label ?? "—"}
         </span>
         {!hideLabel && selected?.count !== undefined ? (

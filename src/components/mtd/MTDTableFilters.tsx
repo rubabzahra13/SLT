@@ -40,32 +40,44 @@ type MTDTableFilterPanelProps = {
   onChange: (patch: Partial<MTDTableFilterState>) => void;
   onReset: () => void;
   form?: OrderFormType;
+  /** Orders tab hides Assigned + Data (covered by range toggles). */
+  variant?: "mtd" | "orders";
 };
 
-export function hasActiveMTDFilters(filters: MTDTableFilterState, form?: OrderFormType): boolean {
+export function hasActiveMTDFilters(
+  filters: MTDTableFilterState,
+  form?: OrderFormType,
+  variant: "mtd" | "orders" = "mtd"
+): boolean {
   const isCheer = !form || form === "school-all-star-cheer";
+  const showAssignedAndData = variant !== "orders";
   return (
     filters.packageTier !== "All" ||
     (isCheer && filters.timeLimit !== "All") ||
     (isCheer && filters.split !== "all") ||
-    filters.assignedProducer !== "All" ||
+    (showAssignedAndData && filters.assignedProducer !== "All") ||
     filters.requestedProducer !== "All" ||
     filters.scheduleFilter !== "all" ||
-    (filters.infoFilter ?? "all") !== "all" ||
+    (showAssignedAndData && (filters.infoFilter ?? "all") !== "all") ||
     filters.dateFilter.type !== "all"
   );
 }
 
-function countTableFilters(filters: MTDTableFilterState, form?: OrderFormType): number {
+function countTableFilters(
+  filters: MTDTableFilterState,
+  form?: OrderFormType,
+  variant: "mtd" | "orders" = "mtd"
+): number {
   const isCheer = !form || form === "school-all-star-cheer";
+  const showAssignedAndData = variant !== "orders";
   let count = 0;
   if (filters.packageTier !== "All") count += 1;
   if (isCheer && filters.timeLimit !== "All") count += 1;
   if (isCheer && filters.split !== "all") count += 1;
-  if (filters.assignedProducer !== "All") count += 1;
+  if (showAssignedAndData && filters.assignedProducer !== "All") count += 1;
   if (filters.requestedProducer !== "All") count += 1;
   if (filters.scheduleFilter !== "all") count += 1;
-  if ((filters.infoFilter ?? "all") !== "all") count += 1;
+  if (showAssignedAndData && (filters.infoFilter ?? "all") !== "all") count += 1;
   if (filters.dateFilter.type !== "all") count += 1;
   return count;
 }
@@ -79,9 +91,11 @@ export function MTDTableFilterPanel({
   onReset,
   form,
   grouped = false,
+  variant = "mtd",
 }: MTDTableFilterPanelProps & { grouped?: boolean }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const showAssignedAndData = variant !== "orders";
 
   const packageOptions = useMemo(
     () => buildPackageTierOptions(records),
@@ -124,7 +138,7 @@ export function MTDTableFilterPanel({
   const infoOptions = useMemo(() => buildInfoOptions(records), [records]);
 
   const isCheer = !form || form === "school-all-star-cheer";
-  const activeCount = countTableFilters(filters, form);
+  const activeCount = countTableFilters(filters, form, variant);
 
   useEffect(() => {
     if (!open) return;
@@ -214,13 +228,15 @@ export function MTDTableFilterPanel({
                   />
                 </>
               ) : null}
-              <FilterMenu
-                label="Assigned"
-                value={filters.assignedProducer}
-                options={assignedOptions}
-                onChange={(value) => onChange({ assignedProducer: value })}
-                accent="orange"
-              />
+              {showAssignedAndData ? (
+                <FilterMenu
+                  label="Assigned"
+                  value={filters.assignedProducer}
+                  options={assignedOptions}
+                  onChange={(value) => onChange({ assignedProducer: value })}
+                  accent="orange"
+                />
+              ) : null}
               <FilterMenu
                 label="Requested"
                 value={filters.requestedProducer}
@@ -236,13 +252,17 @@ export function MTDTableFilterPanel({
                   onChange({ scheduleFilter: value as MixScheduleFilter })
                 }
               />
-              <FilterMenu
-                label="Data"
-                value={filters.infoFilter ?? "all"}
-                options={infoOptions}
-                onChange={(value) => onChange({ infoFilter: value as InfoFilter })}
-                accent="orange"
-              />
+              {showAssignedAndData ? (
+                <FilterMenu
+                  label="Data"
+                  value={filters.infoFilter ?? "all"}
+                  options={infoOptions}
+                  onChange={(value) =>
+                    onChange({ infoFilter: value as InfoFilter })
+                  }
+                  accent="orange"
+                />
+              ) : null}
               <DateFilter
                 value={filters.dateFilter}
                 onChange={(dateFilter) => onChange({ dateFilter })}
@@ -286,8 +306,17 @@ export function MTDFilterChipsRow(props: MTDTableFilterPanelProps) {
 export function useMTDFilterChips(
   props: MTDTableFilterPanelProps
 ): Array<{ key: string; label: string; onClear: () => void }> {
-  const { records, producers, orderById, filters, onChange, form } = props;
+  const {
+    records,
+    producers,
+    orderById,
+    filters,
+    onChange,
+    form,
+    variant = "mtd",
+  } = props;
   const isCheer = !form || form === "school-all-star-cheer";
+  const showAssignedAndData = variant !== "orders";
 
   const packageOptions = useMemo(
     () => buildPackageTierOptions(records),
@@ -361,7 +390,7 @@ export function useMTDFilterChips(
         onClear: () => onChange({ split: "all" }),
       });
     }
-    if (filters.assignedProducer !== "All") {
+    if (showAssignedAndData && filters.assignedProducer !== "All") {
       const label =
         assignedOptions.find((o) => o.value === filters.assignedProducer)
           ?.label ?? filters.assignedProducer;
@@ -391,7 +420,7 @@ export function useMTDFilterChips(
         onClear: () => onChange({ scheduleFilter: "all" }),
       });
     }
-    if ((filters.infoFilter ?? "all") !== "all") {
+    if (showAssignedAndData && (filters.infoFilter ?? "all") !== "all") {
       const label =
         infoOptions.find((o) => o.value === filters.infoFilter)?.label ??
         filters.infoFilter;
@@ -420,6 +449,8 @@ export function useMTDFilterChips(
     scheduleOptions,
     infoOptions,
     onChange,
+    isCheer,
+    showAssignedAndData,
   ]);
 }
 

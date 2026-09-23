@@ -635,6 +635,12 @@ type InlineDateInputProps = {
   max?: string;
   className?: string;
   readOnly?: boolean;
+  /** Portaled calendar stacking (use above modals, e.g. 110 when modal is z-[100]). */
+  menuZIndex?: number;
+  /** Extra label after the date (e.g. ordinal day "9TH"). */
+  suffix?: string;
+  /** Replace the default short date label when set. */
+  displayValue?: string;
 };
 
 const WEEKDAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
@@ -683,6 +689,9 @@ export function InlineDateInput({
   max,
   className,
   readOnly = false,
+  menuZIndex = 60,
+  suffix,
+  displayValue,
 }: InlineDateInputProps) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -782,7 +791,7 @@ export function InlineDateInput({
       : templateIso
       ? formatDisplayDate(templateIso)
       : "Select date"
-    : formatDisplayDate(normalized);
+    : displayValue?.trim() || formatDisplayDate(normalized);
 
   return (
     <>
@@ -818,6 +827,9 @@ export function InlineDateInput({
           />
           <span className={clsx("truncate", !isUnset && "text-brand-ink")}>
             {displayLabel}
+            {suffix && !isUnset ? (
+              <span className="text-brand-ink-tertiary"> · {suffix}</span>
+            ) : null}
           </span>
         </span>
         <ChevronDown
@@ -837,12 +849,13 @@ export function InlineDateInput({
               aria-label="Choose date"
               onClick={(e) => e.stopPropagation()}
               onMouseDown={(e) => e.stopPropagation()}
-              className="fixed z-[60] overflow-hidden rounded-xl border border-brand-line/60 bg-white shadow-[var(--shadow-premium)] ring-1 ring-inset ring-brand-line/15"
+              className="fixed overflow-hidden rounded-xl border border-brand-line/60 bg-white shadow-[var(--shadow-premium)] ring-1 ring-inset ring-brand-line/15"
               style={{
                 left: position.left,
                 top: position.top,
                 bottom: position.bottom,
                 width: position.width,
+                zIndex: menuZIndex,
               }}
             >
               <div className="flex items-center justify-between border-b border-brand-line/40 px-3 py-2.5">

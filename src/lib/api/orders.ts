@@ -70,6 +70,7 @@ export interface BackendOrder {
   needs_attention: boolean;
   attention_reason?: string | null;
   is_past_order: boolean;
+  missing_data_email_sent_at?: string | null;
   system_calculated_customer_price?: number | null;
   final_customer_price?: number | null;
   final_customer_price_overridden?: boolean;
@@ -153,6 +154,7 @@ export function transformOrder(bo: BackendOrder): Order {
     completedAt: bo.completed_at || null,
     needsAttention: Boolean(bo.needs_attention),
     attentionReason: bo.attention_reason || null,
+    missingDataEmailSentAt: bo.missing_data_email_sent_at || null,
     systemCalculatedCustomerPrice: bo.system_calculated_customer_price ?? null,
     finalCustomerPrice: bo.final_customer_price ?? null,
     finalCustomerPriceOverridden: Boolean(bo.final_customer_price_overridden),
@@ -222,6 +224,9 @@ export async function updateOrderApi(
   if (patch.collectionStates !== undefined) payload.collection_states = patch.collectionStates;
   if ((patch as any).collection_states !== undefined) payload.collection_states = (patch as any).collection_states;
   if (patch.isReassigned !== undefined) payload.is_reassigned = patch.isReassigned;
+  if (patch.missingDataEmailSentAt !== undefined) {
+    payload.missing_data_email_sent_at = patch.missingDataEmailSentAt;
+  }
   if ((patch as any).orderStatus !== undefined) payload.order_status = (patch as any).orderStatus;
   if ((patch as any).order_status !== undefined) payload.order_status = (patch as any).order_status;
   if (patch.haveSongs !== undefined) payload.have_songs = patch.haveSongs;

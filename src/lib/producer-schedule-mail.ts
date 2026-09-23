@@ -5,6 +5,11 @@ import {
   type ProducerFacingScheduleRow,
 } from "@/lib/export-csv";
 import type { Producer } from "@/types";
+import {
+  applyEmailTemplate,
+  DEFAULT_EMAIL_TEMPLATES,
+  type EmailTemplateCopy,
+} from "@/lib/email-templates";
 
 export type ScheduleMailDraft = {
   to: string;
@@ -42,21 +47,29 @@ export function scheduleAttachmentFilename(producerName: string): string {
 export function buildScheduleMailDraft(
   producer: Producer,
   mixCount: number,
-  categoryLabel?: string
+  categoryLabel?: string,
+  template: EmailTemplateCopy = DEFAULT_EMAIL_TEMPLATES.producer_schedule
 ): ScheduleMailDraft {
   const firstName = producer.name.split(" ")[0] || producer.name;
   const scope = categoryLabel ? ` for ${categoryLabel}` : "";
   const mixLabel = `${mixCount} ongoing mix${mixCount === 1 ? "" : "es"}`;
+  const todayLabel = formatDisplayDate(todayIso());
+  const vars = {
+    firstName,
+    producerName: producer.name,
+    todayLabel,
+    mixLabel,
+    scope,
+  };
 
   return {
     to: producer.email,
     toName: producer.name,
-    subject: `Your current schedule - ${formatDisplayDate(todayIso())}`,
-    greeting: `Hi ${firstName},`,
-    intro: `Here is your current schedule${scope} (${mixLabel}).`,
-    footer:
-      "Please review the schedule below and reach out if anything looks off or you have questions. An Excel copy is also attached.",
-    signature: "Thanks,\nSounds Like That",
+    subject: applyEmailTemplate(template.subject, vars),
+    greeting: applyEmailTemplate(template.greeting, vars),
+    intro: applyEmailTemplate(template.intro, vars),
+    footer: applyEmailTemplate(template.footer, vars),
+    signature: applyEmailTemplate(template.signature, vars),
     attachmentFilename: scheduleAttachmentFilename(producer.name),
   };
 }

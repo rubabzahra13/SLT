@@ -42,6 +42,8 @@ export type MTDRecord = {
   inMTD?: boolean;
   /** Explicitly moved from MTD back to Orders staging for reassignment */
   isReassigned?: boolean;
+  /** When the customer missing-data email was last sent (ISO timestamp) */
+  missingDataEmailSentAt?: string | null;
   collectionStates?: Record<string, boolean>;
   orderStatus?: string;
   routineNotes?: string;
@@ -275,6 +277,7 @@ export type BaseOrderAdminFields = {
   needsAttention: boolean;
   attentionReason: string | null;
   isReassigned?: boolean;
+  missingDataEmailSentAt?: string | null;
   collectionStates?: Record<string, boolean>;
   eightCountSheet?: string;
   haveSongs?: string;
@@ -852,6 +855,7 @@ export type Order = {
   haveSongs?: string;
   mixStartDate?: string;
   mixEndDate?: string;
+  missingDataEmailSentAt?: string | null;
 };
 
 export type ScheduleEntry = {

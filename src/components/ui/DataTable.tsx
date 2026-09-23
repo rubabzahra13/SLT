@@ -35,6 +35,10 @@ type DataTableProps<T> = {
   /** Minimum rows required before stretching (default 3 = more than 2 entries). */
   stretchRowsMinCount?: number;
   className?: string;
+  /** rowKey of a row to visually highlight (e.g. a record just moved between tabs). */
+  highlightRowKey?: string | null;
+  /** Called when the highlight should be dismissed (any click inside the table). */
+  onClearHighlight?: () => void;
 };
 
 const MIN_STRETCH_ROW_HEIGHT = 44;
@@ -54,10 +58,13 @@ export function DataTable<T>({
   stretchRows = false,
   stretchRowsMinCount = 3,
   className,
+  highlightRowKey,
+  onClearHighlight,
 }: DataTableProps<T>) {
   const router = useRouter();
   const [page, setPage] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
+  const highlightRowRef = useRef<HTMLTableRowElement | null>(null);
   const theadRef = useRef<HTMLTableSectionElement>(null);
   const [layoutHeight, setLayoutHeight] = useState<number | null>(null);
   const [headerHeight, setHeaderHeight] = useState(0);
@@ -65,6 +72,22 @@ export function DataTable<T>({
   useEffect(() => {
     setPage(0);
   }, [data.length, pageSize]);
+
+  // Jump to the page that contains the highlighted row so it is actually shown.
+  useEffect(() => {
+    if (!highlightRowKey || !pageSize || pageSize <= 0) return;
+    const index = data.findIndex((row) => rowKey(row) === highlightRowKey);
+    if (index >= 0) setPage(Math.floor(index / pageSize));
+    // rowKey is a stable accessor; intentionally excluded from deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [highlightRowKey, data, pageSize]);
+
+  // Bring the highlighted row into view once it renders.
+  useEffect(() => {
+    if (highlightRowKey && highlightRowRef.current) {
+      highlightRowRef.current.scrollIntoView({ block: "center", behavior: "smooth" });
+    }
+  }, [highlightRowKey, page]);
 
   const totalPages =
     pageSize && pageSize > 0 ? Math.max(1, Math.ceil(data.length / pageSize)) : 1;
@@ -251,14 +274,26 @@ export function DataTable<T>({
             ) : (
               visibleData.map((row, rowOffset) => {
                 const rowIndex = rangeStart - 1 + rowOffset;
+                const isHighlighted =
+                  highlightRowKey != null && rowKey(row) === highlightRowKey;
                 return (
                   <tr
                     key={rowKey(row)}
-                    style={
-                      stretchRowHeight != null
+                    ref={isHighlighted ? highlightRowRef : undefined}
+                    style={{
+                      ...(stretchRowHeight != null
                         ? { height: stretchRowHeight }
-                        : undefined
-                    }
+                        : {}),
+                      // Inline so the tint/accent survive CSS hot-reload; the
+                      // globals.css keyframe layers a brief flash on top.
+                      ...(isHighlighted
+                        ? {
+                            backgroundColor: "rgba(82, 200, 238, 0.2)",
+                            boxShadow:
+                              "inset 3px 0 0 0 var(--color-brand-blue)",
+                          }
+                        : {}),
+                    }}
                     className={clsx(
                       "border-b border-brand-line-strong transition-colors last:border-b-0",
                       embedded
@@ -267,8 +302,12 @@ export function DataTable<T>({
                             "bg-brand-elevated",
                             variant === "muted" && "bg-brand-surface"
                           ),
-                      isInteractive && "cursor-pointer hover:bg-brand-blue-soft/25"
+                      isInteractive && "cursor-pointer hover:bg-brand-blue-soft/25",
+                      isHighlighted && "data-row-highlight"
                     )}
+                    onClickCapture={
+                      onClearHighlight ? () => onClearHighlight() : undefined
+                    }
                     onClick={
                       isInteractive ? (event) => handleRowClick(row, event) : undefined
                     }

@@ -25,6 +25,14 @@ import {
   normalizeStudioHoliday,
   normalizeStudioPersonalReason,
 } from "@/lib/producer-time-off";
+import {
+  DEFAULT_EMAIL_TEMPLATES,
+  EMAIL_TEMPLATES_STORAGE_KEY,
+  normalizeEmailTemplates,
+  type EmailTemplateCopy,
+  type EmailTemplateId,
+  type EmailTemplatesState,
+} from "@/lib/email-templates";
 import { getData } from "@/lib/data";
 import { normalizeOrder, orderToMTDRecord } from "@/lib/order-form";
 import { useAuth } from "@/context/AuthContext";
@@ -83,6 +91,7 @@ type AppStateContextValue = {
   payrollAddons: PayrollAddon[];
   holidays: StudioHoliday[];
   personalReasons: StudioPersonalReason[];
+  emailTemplates: EmailTemplatesState;
   schedule: ScheduleEntry[];
   notifications: AppNotification[];
   unreadCount: number;
@@ -116,6 +125,11 @@ type AppStateContextValue = {
     patch: Partial<StudioPersonalReason>
   ) => void;
   removePersonalReason: (id: string) => void;
+  updateEmailTemplate: (
+    id: EmailTemplateId,
+    patch: Partial<EmailTemplateCopy>
+  ) => void;
+  resetEmailTemplate: (id: EmailTemplateId) => void;
   markNotificationRead: (id: string) => void;
   markAllNotificationsRead: () => void;
   isInMTD: (orderId: string) => boolean;
@@ -186,6 +200,16 @@ function setLocalItem<T>(key: string, value: T): void {
   }
 }
 
+// --- Stale-while-revalidate cache -------------------------------------------
+// The backend lives in a distant region, so every cold fetch pays a multi-second
+// round-trip. We cache the last-known orders / MTD / producers in localStorage
+// and hydrate from it synchronously on mount so tabs paint instantly, then
+// refresh from the API in the background. Bump the version suffix if the cached
+// (normalized) shape ever changes incompatibly.
+const CACHE_ORDERS_KEY = "slt_cache_orders_v1";
+const CACHE_MTD_KEY = "slt_cache_mtd_v1";
+const CACHE_PRODUCERS_KEY = "slt_cache_producers_v1";
+
 export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const seed = getData();
 
@@ -197,11 +221,23 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem("slt_persisted_mtd_records");
   }
 
-  // Transactional data always starts empty — populated exclusively from the
-  // backend API (Supabase). No fallback to local seed/mock data.
-  const [activeOrders, setActiveOrders] = useState<Order[]>([]);
-  const [pastOrders, setPastOrders] = useState<Order[]>([]);
-  const [mtdRecords, setMtdRecords] = useState<MTDRecord[]>([]);
+  // Transactional data is populated from the backend API (Supabase), but we
+  // seed initial state from the stale-while-revalidate cache so the first paint
+  // is instant instead of waiting on a cross-region fetch.
+  const cachedOrders = getLocalItem<{ active: Order[]; past: Order[] } | null>(
+    CACHE_ORDERS_KEY,
+    null
+  );
+  const cachedMtd = getLocalItem<MTDRecord[] | null>(CACHE_MTD_KEY, null);
+  const hasCachedData = Boolean(cachedOrders && cachedMtd);
+
+  const [activeOrders, setActiveOrders] = useState<Order[]>(
+    () => cachedOrders?.active ?? []
+  );
+  const [pastOrders, setPastOrders] = useState<Order[]>(
+    () => cachedOrders?.past ?? []
+  );
+  const [mtdRecords, setMtdRecords] = useState<MTDRecord[]>(() => cachedMtd ?? []);
 
   const [packagePrices, setPackagePricesState] = useState<Record<string, number>>(
     () => getDefaultPackagePrices()
@@ -213,9 +249,16 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   // Notifications start empty — populated when backend data loads or user actions occur.
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
 
-  const [producers, setProducers] = useState<Producer[]>(() =>
-    deduplicateProducers(seed.producers.map((p) => normalizeProducer(p)))
-  );
+  const [producers, setProducers] = useState<Producer[]>(() => {
+    const cachedProducers = getLocalItem<Producer[] | null>(
+      CACHE_PRODUCERS_KEY,
+      null
+    );
+    if (cachedProducers && cachedProducers.length > 0) {
+      return deduplicateProducers(cachedProducers.map((p) => normalizeProducer(p)));
+    }
+    return deduplicateProducers(seed.producers.map((p) => normalizeProducer(p)));
+  });
   const [discountCodes, setDiscountCodes] = useState<DiscountCode[]>([]);
   const [payrollAddons, setPayrollAddons] = useState<PayrollAddon[]>([]);
   const [holidays, setHolidays] = useState<StudioHoliday[]>(() => {
@@ -239,8 +282,15 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       return createDefaultPersonalReasons();
     }
   );
+  const [emailTemplates, setEmailTemplates] = useState<EmailTemplatesState>(() =>
+    normalizeEmailTemplates(
+      getLocalItem(EMAIL_TEMPLATES_STORAGE_KEY, DEFAULT_EMAIL_TEMPLATES)
+    )
+  );
   const [isBackendConnected, setIsBackendConnected] = useState<boolean>(false);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  // If we hydrated from cache, we already have data to show, so don't block the
+  // UI with a loading state — the background refresh updates silently.
+  const [isLoading, setIsLoading] = useState<boolean>(!hasCachedData);
 
   const schedule = seed.schedule;
 
@@ -261,19 +311,28 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         if (!isMounted) return;
 
         if (producersData && producersData.length > 0) {
-          const normalizedProducers = producersData.map((p) => normalizeProducer(p));
-          setProducers(deduplicateProducers(normalizedProducers));
+          const normalizedProducers = deduplicateProducers(
+            producersData.map((p) => normalizeProducer(p))
+          );
+          setProducers(normalizedProducers);
+          setLocalItem(CACHE_PRODUCERS_KEY, normalizedProducers);
         }
 
         let loadedActiveOrders: Order[] = [];
+        let loadedPastOrders: Order[] = [];
         let loadedMtdRecords: MTDRecord[] = [];
 
         if (ordersData) {
           // Database is the single source of truth for orders.
           // Replace state entirely — no seed fallback.
           loadedActiveOrders = normalizeOrders(ordersData.activeOrders);
+          loadedPastOrders = normalizeOrders(ordersData.pastOrders);
           setActiveOrders(loadedActiveOrders);
-          setPastOrders(normalizeOrders(ordersData.pastOrders));
+          setPastOrders(loadedPastOrders);
+          setLocalItem(CACHE_ORDERS_KEY, {
+            active: loadedActiveOrders,
+            past: loadedPastOrders,
+          });
         }
 
         if (mtdData) {
@@ -297,7 +356,9 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           }
         }
 
-        setMtdRecords([...loadedMtdRecords, ...convertedOrders]);
+        const combinedMtd = [...loadedMtdRecords, ...convertedOrders];
+        setMtdRecords(combinedMtd);
+        setLocalItem(CACHE_MTD_KEY, combinedMtd);
 
         if (codesData) {
           // Database is the single source of truth for discount codes.
@@ -529,15 +590,14 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     if (isViewOnly) return;
     let payrollNotice: Omit<AppNotification, "id" | "read" | "createdAt"> | null =
       null;
-    let apiId = id;
     let apiPatch = patch;
 
-    setMtdRecords((prev) => {
-      const existing = prev.find(
-        (r) => r.id === id || r.orderId === id || r.uuid === id || r.legacyId === id
-      );
-      if (existing?.uuid) apiId = existing.uuid;
+    const existing = mtdRecords.find(
+      (r) => r.id === id || r.orderId === id || r.uuid === id || r.legacyId === id
+    );
+    const apiId = existing?.uuid || existing?.id || id;
 
+    setMtdRecords((prev) => {
       return prev.map((r) => {
         if (r.id !== id && r.orderId !== id && r.uuid !== id && r.legacyId !== id) return r;
 
@@ -619,17 +679,29 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           }
         }
 
-        const needsCs = updated.eightCountSheet.toUpperCase().includes("NEED");
-        const needsSongs = updated.haveSongs.toUpperCase().includes("NEED");
+        const sheet = String(updated.eightCountSheet ?? "");
+        const songs = String(updated.haveSongs ?? "");
+        const needsCs = sheet.toUpperCase().includes("NEED");
+        const needsSongs = songs.toUpperCase().includes("NEED");
         updated.needsAttention = needsCs || needsSongs;
 
         return updated;
       });
     });
 
-    // Also sync pre-MTD edits to activeOrders if this ID belongs to an active order
+    // Sync linked Order. MTD rows use their own UUID as `id`, so also match via
+    // orderId / mtdId — otherwise Move to Orders never flips Order.status off in_mtd.
+    const orderLookupIds = new Set(
+      [id, existing?.orderId, existing?.id, existing?.uuid, existing?.legacyId].filter(
+        (value): value is string => Boolean(value)
+      )
+    );
     const linkedOrder = activeOrders.find(
-      (o) => o.id === id || o.legacyId === id || o.uuid === id
+      (o) =>
+        orderLookupIds.has(o.id) ||
+        (o.legacyId && orderLookupIds.has(o.legacyId)) ||
+        (o.uuid && orderLookupIds.has(o.uuid)) ||
+        (o.mtdId && orderLookupIds.has(o.mtdId))
     );
     if (linkedOrder) {
       const orderPatch: Record<string, any> = {};
@@ -641,6 +713,9 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       if (patch.inMTD === true) orderPatch.status = "in_mtd";
       if (patch.inMTD === false) orderPatch.status = "active";
       if (patch.isReassigned !== undefined) orderPatch.isReassigned = patch.isReassigned;
+      if (patch.missingDataEmailSentAt !== undefined) {
+        orderPatch.missingDataEmailSentAt = patch.missingDataEmailSentAt;
+      }
       if (patch.collectionStates !== undefined) orderPatch.collectionStates = patch.collectionStates;
       if ((patch as any).collection_states !== undefined) orderPatch.collection_states = (patch as any).collection_states;
       if (patch.haveSongs !== undefined) orderPatch.haveSongs = patch.haveSongs;
@@ -988,6 +1063,23 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     setLocalItem("slt_studio_holidays", holidays);
   }, [holidays]);
 
+  // Keep the stale-while-revalidate cache in sync after edits (Move to Orders/MTD,
+  // inline changes, etc.). Only write once the backend has loaded so we never
+  // clobber a good cache with the empty initial state on a cold start.
+  useEffect(() => {
+    if (!isBackendConnected) return;
+    setLocalItem(CACHE_ORDERS_KEY, { active: activeOrders, past: pastOrders });
+  }, [activeOrders, pastOrders, isBackendConnected]);
+
+  useEffect(() => {
+    if (!isBackendConnected) return;
+    setLocalItem(CACHE_MTD_KEY, mtdRecords);
+  }, [mtdRecords, isBackendConnected]);
+
+  useEffect(() => {
+    setLocalItem(EMAIL_TEMPLATES_STORAGE_KEY, emailTemplates);
+  }, [emailTemplates]);
+
   useEffect(() => {
     setLocalItem("slt_studio_personal_reasons", personalReasons);
   }, [personalReasons]);
@@ -1092,6 +1184,35 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     [isViewOnly]
   );
 
+  const updateEmailTemplate = useCallback(
+    (id: EmailTemplateId, patch: Partial<EmailTemplateCopy>) => {
+      if (isViewOnly) return;
+      setEmailTemplates((prev) =>
+        normalizeEmailTemplates({
+          ...prev,
+          [id]: {
+            ...prev[id],
+            ...patch,
+          },
+        })
+      );
+    },
+    [isViewOnly]
+  );
+
+  const resetEmailTemplate = useCallback(
+    (id: EmailTemplateId) => {
+      if (isViewOnly) return;
+      setEmailTemplates((prev) =>
+        normalizeEmailTemplates({
+          ...prev,
+          [id]: DEFAULT_EMAIL_TEMPLATES[id],
+        })
+      );
+    },
+    [isViewOnly]
+  );
+
   const markNotificationRead = useCallback((id: string) => {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, read: true } : n))
@@ -1116,6 +1237,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     payrollAddons,
     holidays,
     personalReasons,
+    emailTemplates,
     schedule,
     notifications,
     unreadCount,
@@ -1145,6 +1267,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     addPersonalReason,
     updatePersonalReason,
     removePersonalReason,
+    updateEmailTemplate,
+    resetEmailTemplate,
     markNotificationRead,
     markAllNotificationsRead,
     isInMTD,

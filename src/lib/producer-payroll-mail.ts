@@ -5,6 +5,11 @@ import {
   type ProducerFacingPayrollRow,
 } from "@/lib/export-csv";
 import type { Producer } from "@/types";
+import {
+  applyEmailTemplate,
+  DEFAULT_EMAIL_TEMPLATES,
+  type EmailTemplateCopy,
+} from "@/lib/email-templates";
 
 export type PayrollMailDraft = {
   to: string;
@@ -44,21 +49,28 @@ export function buildPayrollMailDraft(
   producer: Producer,
   mixCount: number,
   periodLabel: string,
-  categoryLabel?: string
+  categoryLabel?: string,
+  template: EmailTemplateCopy = DEFAULT_EMAIL_TEMPLATES.producer_payroll
 ): PayrollMailDraft {
   const firstName = producer.name.split(" ")[0] || producer.name;
   const scope = categoryLabel ? ` for ${categoryLabel}` : "";
   const mixLabel = `${mixCount} completed mix${mixCount === 1 ? "" : "es"}`;
+  const vars = {
+    firstName,
+    producerName: producer.name,
+    periodLabel,
+    mixLabel,
+    scope,
+  };
 
   return {
     to: producer.email,
     toName: producer.name,
-    subject: `Your payroll statement - ${periodLabel}`,
-    greeting: `Hi ${firstName},`,
-    intro: `Here is your payroll statement${scope} (${mixLabel}) for ${periodLabel}.`,
-    footer:
-      "Please review the statement below and reach out if anything looks off or you have questions. An Excel copy is also attached.",
-    signature: "Thanks,\nSounds Like That",
+    subject: applyEmailTemplate(template.subject, vars),
+    greeting: applyEmailTemplate(template.greeting, vars),
+    intro: applyEmailTemplate(template.intro, vars),
+    footer: applyEmailTemplate(template.footer, vars),
+    signature: applyEmailTemplate(template.signature, vars),
     attachmentFilename: payrollAttachmentFilename(producer.name),
     periodLabel,
   };

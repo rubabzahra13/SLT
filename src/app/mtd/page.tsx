@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Eye, Lock, Pencil } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -29,6 +29,7 @@ import { SetInvoicesModal } from "@/components/mtd/SetInvoicesModal";
 import { SetInvoiceModal } from "@/components/mtd/SetInvoiceModal";
 import { SetRecordPricingModal } from "@/components/mtd/SetRecordPricingModal";
 import { CompleteToPayrollModal } from "@/components/mtd/CompleteToPayrollModal";
+import { MoveToOrdersConfirmModal } from "@/components/mtd/MoveToOrdersConfirmModal";
 import {
   CompletionBlockedModal,
   type StatusBlockReason,
@@ -240,9 +241,28 @@ function MTDPageContent() {
     if (savedDance && validDanceSubtypes.includes(savedDance)) setDanceSubtypeState(savedDance);
   }, []);
 
+  const router = useRouter();
   const searchParams = useSearchParams();
   const assignedParam = searchParams.get("assigned");
   const scheduleParam = searchParams.get("schedule");
+  const focusParam = searchParams.get("focus");
+
+  // Highlight a row that was just moved here from the Orders tab. Seeded from
+  // the ?focus= param on navigation, cleared when the user clicks a column.
+  const [highlightId, setHighlightId] = useState<string | null>(focusParam);
+  useEffect(() => {
+    setHighlightId(focusParam);
+  }, [focusParam]);
+
+  const clearHighlight = useCallback(() => {
+    setHighlightId(null);
+    if (typeof window !== "undefined" && focusParam) {
+      const params = new URLSearchParams(Array.from(searchParams.entries()));
+      params.delete("focus");
+      const qs = params.toString();
+      router.replace(`/mtd${qs ? `?${qs}` : ""}`, { scroll: false });
+    }
+  }, [focusParam, router, searchParams]);
 
   const [tableFilters, setTableFilters] = useState<MTDTableFilterState>(
     DEFAULT_MTD_TABLE_FILTERS
@@ -271,6 +291,9 @@ function MTDPageContent() {
   const [pricingOpen, setPricingOpen] = useState(false);
   const [completeRecord, setCompleteRecord] = useState<MTDRecord | null>(null);
   const [blockedRecord, setBlockedRecord] = useState<MTDRecord | null>(null);
+  const [moveToOrdersRecord, setMoveToOrdersRecord] = useState<MTDRecord | null>(
+    null
+  );
   const [blockedReason, setBlockedReason] =
     useState<StatusBlockReason>("completed");
 
@@ -364,14 +387,26 @@ function MTDPageContent() {
 
       if (isViewOnly) return;
 
-      updateMTD(rec.id, {
-        inMTD: false,
-        isReassigned: true,
-        status: "active",
-      });
+      setMoveToOrdersRecord(rec);
     },
-    [isViewOnly, updateMTD]
+    [isViewOnly]
   );
+
+  const confirmMoveToOrders = useCallback(() => {
+    const rec = moveToOrdersRecord;
+    if (!rec || isViewOnly) return;
+
+    updateMTD(rec.id, {
+      inMTD: false,
+      isReassigned: true,
+      status: "active",
+      orderStatus: "Reassigned",
+      order_status: "Reassigned",
+    } as Partial<MTDRecord>);
+    setMoveToOrdersRecord(null);
+    // Jump to the Orders tab and highlight the row we just moved.
+    router.push(`/orders?focus=${encodeURIComponent(rec.id)}`);
+  }, [isViewOnly, moveToOrdersRecord, router, updateMTD]);
 
   const openInvoiceModal = useCallback(
     (rec: MTDRecord, e: React.MouseEvent) => {
@@ -1380,6 +1415,8 @@ function MTDPageContent() {
             pageSize={15}
             embedded
             showScrollIndicator={true}
+            highlightRowKey={highlightId}
+            onClearHighlight={clearHighlight}
           />
         </div>
       </div>
@@ -1447,6 +1484,13 @@ function MTDPageContent() {
         record={blockedRecord}
         reason={blockedReason}
         onClose={() => setBlockedRecord(null)}
+      />
+
+      <MoveToOrdersConfirmModal
+        open={Boolean(moveToOrdersRecord)}
+        record={moveToOrdersRecord}
+        onClose={() => setMoveToOrdersRecord(null)}
+        onConfirm={confirmMoveToOrders}
       />
     </>
   );

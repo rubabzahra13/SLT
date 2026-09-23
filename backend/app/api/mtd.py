@@ -2,7 +2,7 @@ import uuid
 import json
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from app.core.database import get_db
 from app.models.mtd_record import MTDRecord
 from app.models.order import Order
@@ -46,7 +46,10 @@ def get_mtd_records(
     status: str | None = None,
     db: Session = Depends(get_db)
 ):
-    query = db.query(MTDRecord)
+    # Eager-load the producer relationship so serializing assigned_producer for
+    # every row does NOT fire one query per record (N+1). This collapses ~248
+    # extra round-trips to Supabase into a single batched query.
+    query = db.query(MTDRecord).options(selectinload(MTDRecord.assigned_producer))
     if cheer_form_subtype and cheer_form_subtype != "all":
         query = query.join(Order, MTDRecord.order_id == Order.id).filter(Order.cheer_form_subtype == cheer_form_subtype)
     elif form_type:
@@ -172,6 +175,17 @@ def update_mtd_record(mtd_id: str, payload: MTDRecordUpdateSchema, db: Session =
                 linked_order.price_compliance = mtd.price_compliance
             if "is_reassigned" in update_data:
                 linked_order.is_reassigned = mtd.is_reassigned
+            if "order_status" in update_data:
+                linked_order.order_status = mtd.order_status
+            if "missing_data_email_sent_at" in update_data:
+                linked_order.missing_data_email_sent_at = mtd.missing_data_email_sent_at
+            if "in_mtd" in update_data:
+                # Keep Order.status aligned with MTD board membership so Move to
+                # Orders / Move to MTD survive reloads.
+                if mtd.in_mtd:
+                    linked_order.status = "in_mtd"
+                elif linked_order.status == "in_mtd":
+                    linked_order.status = "active"
             if "status" in update_data and mtd.status == "completed":
                 linked_order.status = "completed"
 

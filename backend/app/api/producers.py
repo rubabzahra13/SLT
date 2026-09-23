@@ -2,7 +2,7 @@ import uuid
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from app.core.database import get_db
 from app.models.producer import Producer
 from app.schemas.producer import ProducerSchema, ProducerCreateSchema, ProducerUpdateSchema
@@ -64,7 +64,9 @@ from app.api.auth import require_full_access
 
 @router.get("/producers", response_model=List[ProducerSchema])
 def get_producers(db: Session = Depends(get_db)):
-    return db.query(Producer).all()
+    # Eager-load time_offs so serializing each producer's time_offs does not
+    # fire one query per producer (N+1) against the remote database.
+    return db.query(Producer).options(selectinload(Producer.time_offs)).all()
 
 @router.post("/producers", response_model=ProducerSchema, status_code=status.HTTP_201_CREATED)
 def create_producer(payload: ProducerCreateSchema, db: Session = Depends(get_db), _: None = Depends(require_full_access)):

@@ -1,6 +1,6 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowRight, Mail } from "lucide-react";
 import clsx from "clsx";
@@ -18,7 +18,6 @@ import { SetPricingModal } from "@/components/mtd/SetPricingModal";
 import { SetRecordPricingModal } from "@/components/mtd/SetRecordPricingModal";
 import { CompletionBlockedModal } from "@/components/mtd/CompletionBlockedModal";
 import { ForwardOrderMailModal } from "@/components/orders/ForwardOrderMailModal";
-import { CollectionEmailModal } from "@/components/orders/CollectionEmailModal";
 import { OrderRequirementsCell } from "@/components/orders/OrderRequirementsCell";
 import { OrderStatusDropdown } from "@/components/orders/OrderStatusDropdown";
 import {
@@ -84,15 +83,19 @@ const actionButtonClass = (filled: boolean) =>
       ? "border-brand-line/70 bg-brand-elevated text-brand-ink hover:border-brand-line hover:bg-brand-bg/50"
       : "border-brand-orange-deep bg-brand-orange text-white hover:bg-brand-orange-hover"
   );
-const ordersMtdButtonClass = (ready: boolean) =>
+const ordersMtdButtonClass = (ready: boolean, disabled = false) =>
   clsx(
     "inline-flex h-7 items-center justify-center gap-0.5 rounded-md border px-2 text-[10px] font-semibold leading-none transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue/30",
-    ready
-      ? "border-brand-blue/25 bg-brand-blue text-white shadow-sm hover:bg-brand-blue-hover"
-      : "border-brand-line/60 bg-brand-bg/50 text-brand-ink-tertiary hover:bg-brand-bg hover:text-brand-ink"
+    disabled
+      ? "cursor-not-allowed border-brand-line/50 bg-brand-bg/40 text-brand-ink-tertiary hover:border-brand-line/50 hover:bg-brand-bg/40 hover:text-brand-ink-tertiary"
+      : ready
+        ? "border-brand-blue/25 bg-brand-blue text-white shadow-sm hover:bg-brand-blue-hover"
+        : "border-brand-line/60 bg-brand-bg/50 text-brand-ink-tertiary hover:border-brand-line/60 hover:bg-brand-bg/50 hover:text-brand-ink-tertiary"
   );
-const ordersMailIconButtonClass =
-  "inline-flex h-7 w-7 items-center justify-center rounded-md border border-brand-line/60 bg-brand-elevated text-brand-ink-secondary shadow-sm transition hover:border-brand-signature/35 hover:bg-brand-signature/8 hover:text-brand-signature focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-signature/20";
+const ordersMailTextButtonClass =
+  "inline-flex h-7 items-center justify-center gap-0.5 rounded-md border border-brand-line/60 bg-brand-elevated px-2 text-[10px] font-semibold leading-none text-brand-ink-secondary shadow-sm transition hover:border-brand-signature/35 hover:bg-brand-signature/8 hover:text-brand-signature focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-signature/20";
+const ordersMailCustomerButtonClass =
+  "inline-flex h-7 items-center justify-center gap-0.5 rounded-md border border-brand-warning/35 bg-brand-warning/8 px-2 text-[10px] font-semibold leading-none text-brand-warning shadow-sm transition hover:border-brand-warning/50 hover:bg-brand-warning/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-warning/20";
 const clickableChipClass =
   "cursor-pointer border border-brand-line/70 bg-brand-bg/60 shadow-sm transition hover:border-brand-orange/40 hover:bg-brand-orange-soft/35 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange/25";
 const tableDateClass = "!w-auto min-w-[108px] max-w-full";
@@ -135,6 +138,7 @@ function OrdersPageContent() {
     secretMenuPrices,
     setPackagePrices,
     setSecretMenuPrices,
+    isLoading,
   } = useAppState();
 
   const [formState, setFormState] = useState<OrderFormType>(DEFAULT_FORM);
@@ -144,7 +148,7 @@ function OrdersPageContent() {
   const [danceSubtypeState, setDanceSubtypeState] = useState<DanceFormSubtypeFilter>(
     DEFAULT_DANCE_SUBTYPE
   );
-  const [rangeFilter, setRangeFilter] = useState<OrderViewRangeFilter>("need_to_be_scheduled");
+  const [rangeFilter, setRangeFilter] = useState<OrderViewRangeFilter>("all");
 
   const [form, setForm] = [
     formState,
@@ -170,9 +174,28 @@ function OrdersPageContent() {
     },
   ];
 
+  const router = useRouter();
   const searchParams = useSearchParams();
   const assignedParam = searchParams.get("assigned");
   const scheduleParam = searchParams.get("schedule");
+  const focusParam = searchParams.get("focus");
+
+  // Highlight a row that was just moved here from the MTD tab. Seeded from the
+  // ?focus= param on navigation, cleared when the user clicks a column.
+  const [highlightId, setHighlightId] = useState<string | null>(focusParam);
+  useEffect(() => {
+    setHighlightId(focusParam);
+  }, [focusParam]);
+
+  const clearHighlight = useCallback(() => {
+    setHighlightId(null);
+    if (typeof window !== "undefined" && focusParam) {
+      const params = new URLSearchParams(Array.from(searchParams.entries()));
+      params.delete("focus");
+      const qs = params.toString();
+      router.replace(`/orders${qs ? `?${qs}` : ""}`, { scroll: false });
+    }
+  }, [focusParam, router, searchParams]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -227,7 +250,9 @@ function OrdersPageContent() {
   const [pricingOpen, setPricingOpen] = useState(false);
   const [pricingRecord, setPricingRecord] = useState<MTDRecord | null>(null);
   const [mailRecord, setMailRecord] = useState<MTDRecord | null>(null);
-  const [collectionMailRecord, setCollectionMailRecord] = useState<MTDRecord | null>(null);
+  const [mailRecipient, setMailRecipient] = useState<"producer" | "customer">(
+    "producer"
+  );
 
   const preMtdRecords = useMemo(
     () => listPreMtdOrderRecords(activeOrders, mtdRecords, packagePrices),
@@ -323,7 +348,10 @@ function OrdersPageContent() {
 
       if (isViewOnly) return;
 
-      if (!isOrderScheduledAndAssigned(rec)) {
+      if (
+        !isOrderScheduledAndAssigned(rec) ||
+        getOrderStatus(rec).status === "Missing Data"
+      ) {
         setValidationModalRecord(rec);
         return;
       }
@@ -336,8 +364,10 @@ function OrdersPageContent() {
         mixEndDate: rec.mixEndDate,
         assignedProducer: rec.assignedProducer,
       });
+      // Jump to the MTD tab and highlight the row we just moved.
+      router.push(`/mtd?focus=${encodeURIComponent(rec.id)}`);
     },
-    [isViewOnly, updateMTD]
+    [isViewOnly, router, updateMTD]
   );
 
   const openPricingModal = useCallback((rec: MTDRecord, e: React.MouseEvent) => {
@@ -384,8 +414,15 @@ function OrdersPageContent() {
 
   const filtered = useMemo(() => {
     const q = searchQuery.trim();
-    if (!q) return tableFiltered;
-    return tableFiltered.filter((rec) => matchesMTDSearch(rec, q));
+    const base = !q
+      ? tableFiltered
+      : tableFiltered.filter((rec) => matchesMTDSearch(rec, q));
+    // Moved-back (reassigned) orders pin to the top of the list.
+    return [...base].sort((a, b) => {
+      const aRe = a.isReassigned ? 1 : 0;
+      const bRe = b.isReassigned ? 1 : 0;
+      return bRe - aRe;
+    });
   }, [tableFiltered, searchQuery]);
 
   const formCounts = useMemo(
@@ -765,6 +802,58 @@ function OrdersPageContent() {
         },
       },
       {
+        key: "editor",
+        header: "Editor",
+        width: "100px",
+        align: "center" as const,
+        nowrap: false,
+        cellClassName: clsx(compactCellClass, "max-w-[100px]"),
+        headerClassName: compactHeaderClass,
+        render: (rec) => {
+          const assigned = getDisplayAssignedProducer(rec);
+          const producer = assigned
+            ? findProducerByAssignmentKey(assigned, producers)
+            : undefined;
+
+          return (
+            <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
+              {assigned ? (
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setAssignRecordId(rec.id);
+                  }}
+                  title="Edit assignment"
+                  aria-label={`Edit assignment for ${assigned}`}
+                  className={clsx(
+                    clickableChipClass,
+                    "inline-flex items-center rounded-full p-0.5"
+                  )}
+                >
+                  <Avatar producer={producer} initials={assigned} size="xs" />
+                </button>
+              ) : (
+                <div className="flex flex-col items-center gap-1">
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setAssignRecordId(rec.id);
+                    }}
+                    className={actionButtonClass(false)}
+                  >
+                    {rec.isReassigned || rangeFilter === "reassigned" ? "Reassign" : "Assign"}
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        },
+      },
+      {
         key: "mixStartDate",
         header: "Mix start date",
         width: "128px",
@@ -820,58 +909,6 @@ function OrdersPageContent() {
         },
       },
       {
-        key: "editor",
-        header: "Editor",
-        width: "100px",
-        align: "center" as const,
-        nowrap: false,
-        cellClassName: clsx(compactCellClass, "max-w-[100px]"),
-        headerClassName: compactHeaderClass,
-        render: (rec) => {
-          const assigned = getDisplayAssignedProducer(rec);
-          const producer = assigned
-            ? findProducerByAssignmentKey(assigned, producers)
-            : undefined;
-
-          return (
-            <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
-              {assigned ? (
-                <button
-                  type="button"
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setAssignRecordId(rec.id);
-                  }}
-                  title="Edit assignment"
-                  aria-label={`Edit assignment for ${assigned}`}
-                  className={clsx(
-                    clickableChipClass,
-                    "inline-flex items-center rounded-full p-0.5"
-                  )}
-                >
-                  <Avatar producer={producer} initials={assigned} size="xs" />
-                </button>
-              ) : (
-                <div className="flex flex-col items-center gap-1">
-                  <button
-                    type="button"
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setAssignRecordId(rec.id);
-                    }}
-                    className={actionButtonClass(false)}
-                  >
-                    {rec.isReassigned || rangeFilter === "reassigned" ? "Reassign" : "Assign"}
-                  </button>
-                </div>
-              )}
-            </div>
-          );
-        },
-      },
-      {
         key: "status",
         header: "Status",
         width: "155px",
@@ -884,55 +921,118 @@ function OrdersPageContent() {
       {
         key: "actions",
         header: "Actions",
-        width: "112px",
+        width: "210px",
         align: "center" as const,
         nowrap: false,
         cellClassName: compactCellClass,
         headerClassName: compactHeaderClass,
         render: (rec) => {
-          const ready = isOrderScheduledAndAssigned(rec);
+          const { status: orderStatus, missingCount } = getOrderStatus(rec);
+          const blockedByMissingData = orderStatus === "Missing Data";
+          const isAssigned = Boolean(rec.assignedProducer);
+          const isScheduled = Boolean(
+            toIsoDateString(rec.mixStartDate) && toIsoDateString(rec.mixEndDate)
+          );
+          const ready =
+            isAssigned && isScheduled && !blockedByMissingData;
+          const mtdBlockedReason = blockedByMissingData
+            ? "Resolve missing data before moving to MTD"
+            : !isAssigned && !isScheduled
+              ? "Assign a producer and set schedule dates before moving to MTD"
+              : !isAssigned
+                ? "Assign a producer before moving to MTD"
+                : !isScheduled
+                  ? "Set start and end dates before moving to MTD"
+                  : null;
+          const mtdDisabled = Boolean(mtdBlockedReason);
+          const showCustomerMail = blockedByMissingData;
+          const customerMailAlreadySent = Boolean(rec.missingDataEmailSentAt);
+          const showProducerMail =
+            orderStatus === "Complete" ||
+            orderStatus === "Reassign" ||
+            Boolean(rec.isReassigned);
           return (
             <div
               className="flex items-center justify-center gap-1"
               onClick={(e) => e.stopPropagation()}
             >
               {!isViewOnly ? (
-                <HoverTip label="Move to MTD" placement="top">
+                <HoverTip
+                  label={mtdBlockedReason ?? "Move to MTD"}
+                  placement="top"
+                >
                   <button
                     type="button"
+                    disabled={mtdDisabled}
+                    aria-disabled={mtdDisabled}
                     onMouseDown={(e) => e.stopPropagation()}
-                    onClick={(e) => handleMoveToMTD(rec, e)}
-                    className={ordersMtdButtonClass(ready)}
-                    aria-label="Move to MTD"
+                    onClick={(e) => {
+                      if (mtdDisabled) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        return;
+                      }
+                      handleMoveToMTD(rec, e);
+                    }}
+                    className={ordersMtdButtonClass(ready, mtdDisabled)}
+                    aria-label={mtdBlockedReason ?? "Move to MTD"}
                   >
                     <span>MTD</span>
                     <ArrowRight className="h-3 w-3 shrink-0" strokeWidth={2.25} />
                   </button>
                 </HoverTip>
               ) : null}
-              {(() => {
-                const { isWaitingForData } = getOrderRequirements(rec);
-                const mailLabel = isWaitingForData
-                  ? "Send Collection Email to Customer"
-                  : "Send Mail to Producer";
-                return (
-                  <HoverTip label={mailLabel} placement="top">
-                    <button
-                      type="button"
-                      onMouseDown={(e) => e.stopPropagation()}
-                      onClick={() =>
-                        isWaitingForData
-                          ? setCollectionMailRecord(rec)
-                          : setMailRecord(rec)
-                      }
-                      className={ordersMailIconButtonClass}
-                      aria-label={mailLabel}
-                    >
-                      <Mail className="h-3.5 w-3.5" strokeWidth={2.25} />
-                    </button>
-                  </HoverTip>
-                );
-              })()}
+              {showProducerMail ? (
+                <HoverTip label="Email producer" placement="top">
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={() => {
+                      setMailRecipient("producer");
+                      setMailRecord(rec);
+                    }}
+                    className={ordersMailTextButtonClass}
+                    aria-label="Email producer"
+                  >
+                    <Mail className="h-3 w-3 shrink-0" strokeWidth={2.25} />
+                    <span>Producer</span>
+                  </button>
+                </HoverTip>
+              ) : null}
+              {showCustomerMail ? (
+                <HoverTip
+                  label={
+                    customerMailAlreadySent
+                      ? "Resend to customer"
+                      : "Email customer about missing data"
+                  }
+                  placement="top"
+                >
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={() => {
+                      setMailRecipient("customer");
+                      setMailRecord(rec);
+                    }}
+                    className={
+                      customerMailAlreadySent
+                        ? ordersMailTextButtonClass
+                        : missingCount > 0
+                          ? ordersMailCustomerButtonClass
+                          : ordersMailTextButtonClass
+                    }
+                    aria-label={
+                      customerMailAlreadySent
+                        ? "Resend to customer"
+                        : "Email customer"
+                    }
+                  >
+                    <Mail className="h-3 w-3 shrink-0" strokeWidth={2.25} />
+                    <span>{customerMailAlreadySent ? "Resend" : "Customer"}</span>
+                  </button>
+                </HoverTip>
+              ) : null}
             </div>
           );
         },
@@ -950,6 +1050,7 @@ function OrdersPageContent() {
     updateMTD,
     handleMoveToMTD,
     openPricingModal,
+    isViewOnly,
   ]);
 
   return (
@@ -1014,10 +1115,14 @@ function OrdersPageContent() {
             columns={columns}
             rowKey={(rec) => rec.id}
             href={(rec) => `/orders/${rec.id}`}
-            emptyMessage="No pending pre-MTD orders found."
+            emptyMessage={
+              isLoading ? "Loading orders…" : "No pending pre-MTD orders found."
+            }
             pageSize={15}
             embedded
             showScrollIndicator={true}
+            highlightRowKey={highlightId}
+            onClearHighlight={clearHighlight}
           />
         </div>
       </div>
@@ -1069,15 +1174,8 @@ function OrdersPageContent() {
         orderById={orderById}
         allOrders={allOrders}
         producers={producers}
+        recipient={mailRecipient}
         onClose={() => setMailRecord(null)}
-      />
-
-      <CollectionEmailModal
-        open={Boolean(collectionMailRecord)}
-        record={collectionMailRecord}
-        allOrders={allOrders}
-        orderById={orderById}
-        onClose={() => setCollectionMailRecord(null)}
       />
     </>
   );

@@ -35,6 +35,7 @@ class MTDRecord(Base):
     record_status = Column(String, nullable=True)
     in_mtd = Column(Boolean, default=False, nullable=False)
     is_reassigned = Column(Boolean, default=False, nullable=False)
+    missing_data_email_sent_at = Column(DateTime(timezone=True), nullable=True)
     in_payroll = Column(Boolean, default=False, nullable=False)
     completed_at = Column(DateTime(timezone=True), nullable=True)
     has_rally_mix = Column(Boolean, default=False, nullable=False)

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Bell, ChevronRight, Palette, Users } from "lucide-react";
+import { Bell, ChevronRight, Mail, Palette, Users } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 
@@ -33,6 +33,19 @@ const sections: SettingSection[] = [
         label: "Holidays",
         description: "Public holidays and personal leave categories",
         href: "/settings/holidays",
+      },
+    ],
+  },
+  {
+    title: "Email",
+    description: "Gmail connection and message templates",
+    icon: Mail,
+    items: [
+      {
+        label: "Email templates",
+        description:
+          "Edit customer and producer copy for orders, payroll, and schedule emails",
+        href: "/settings/email-templates",
       },
     ],
   },

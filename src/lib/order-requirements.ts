@@ -21,7 +21,7 @@ export type OrderRequirementsResult = {
   all: OrderRequirementItem[];
   allMet: boolean;
   missingCount: number;
-  status: "Waiting for Data" | "Need to be Scheduled";
+  status: "Missing Data" | "Complete" | "Reassign";
   isWaitingForData: boolean;
   /** True when compliancy is applicable AND the affiliate/compliancy field is empty */
   compliancyMet: boolean;
@@ -238,21 +238,21 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
   // 3. VIDEO
   {
     const override = getOverrideState(order, "video");
-    const notesVal =
-      (order as Order).routineNotes ||
-      (order as MTDRecord).musicTheme ||
-      (order as any).routine_notes ||
-      (order as any).video_url;
-    const notesStr = String(notesVal || "").toUpperCase();
+    // There is no free-text "video" field on an order, so collection is driven
+    // by the explicit toggle (collectionStates.video) or a genuine video link.
+    // Do NOT infer from routineNotes/musicTheme — those almost always have
+    // content and would wrongly mark the video as received (hiding it from the
+    // missing-data email).
+    const videoVal = (order as any).video_url || (order as any).videoUrl;
+    const videoStr = String(videoVal || "").toUpperCase();
     const defaultProvided =
-      isPresent(notesVal) &&
-      (notesStr.includes("VIDEO") ||
-        notesStr.includes("HTTP") ||
-        notesStr.includes("YOUTUBE") ||
-        notesStr.includes("VIMEO") ||
-        notesStr.includes("ATTACHED") ||
-        notesStr.includes("YES") ||
-        notesStr.length > 3);
+      isPresent(videoStr) &&
+      (videoStr.includes("HTTP") ||
+        videoStr.includes("YOUTUBE") ||
+        videoStr.includes("VIMEO") ||
+        videoStr.includes("VIDEO") ||
+        videoStr.includes("ATTACHED") ||
+        videoStr.includes("YES"));
     const isApplicable = needVideo;
     let state: RequirementState = "white";
     if (isApplicable) {
@@ -352,14 +352,32 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
   const missingCount = applicableItems.filter((r) => r.state === "red").length + (!compliancyMet ? 1 : 0);
   const allMet = !hasRed;
 
-  const calculatedStatus = hasRed ? "Waiting for Data" : "Need to be Scheduled";
-  const manualStatus = (order as any).orderStatus || (order as any).order_status;
-  const status: "Waiting for Data" | "Need to be Scheduled" =
-    manualStatus === "Waiting for Data" || manualStatus === "Need to be Scheduled"
-      ? manualStatus
-      : calculatedStatus;
+  const calculatedStatus = hasRed ? "Missing Data" : "Complete";
+  const rawManual = (order as any).orderStatus || (order as any).order_status;
+  // Normalize legacy labels to match Orders range toggles.
+  const manualStatus =
+    rawManual === "Need to be Scheduled" ||
+    rawManual === "Reschedule" ||
+    rawManual === "Unscheduled" ||
+    rawManual === "Unassigned"
+      ? "Complete"
+      : rawManual === "Reassigned"
+        ? "Reassign"
+        : rawManual === "Waiting for Data" || rawManual === "Incomplete Data"
+          ? "Missing Data"
+          : rawManual;
+  const isReassignedFlag = Boolean(
+    (order as any).isReassigned ?? (order as any).is_reassigned
+  );
+  // Reassign always wins when flagged or manually selected.
+  const status: "Missing Data" | "Complete" | "Reassign" =
+    manualStatus === "Reassign" || isReassignedFlag
+      ? "Reassign"
+      : manualStatus === "Missing Data" || manualStatus === "Complete"
+        ? manualStatus
+        : calculatedStatus;
 
-  const isWaitingForData = status === "Waiting for Data";
+  const isWaitingForData = status === "Missing Data";
 
   return {
     collections,
@@ -374,7 +392,7 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
 }
 
 export function getOrderStatus(order: Order | MTDRecord): {
-  status: "Waiting for Data" | "Need to be Scheduled";
+  status: "Missing Data" | "Complete" | "Reassign";
   isWaitingForData: boolean;
   missingCount: number;
 } {

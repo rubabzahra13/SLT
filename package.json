@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "render:eight-count": "node scripts/render-eight-count.mjs",
     "test": "rm -rf .test-build && tsc -p tsconfig.test.json && node -r ./scripts/test-preload.js --test .test-build/lib/__tests__/*.test.js"
   },
   "dependencies": {
@@ -19,6 +20,8 @@
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@napi-rs/canvas": "^1.0.9",
+    "pdfjs-dist": "^3.11.174",
     "@tailwindcss/postcss": "^4.0.0",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
