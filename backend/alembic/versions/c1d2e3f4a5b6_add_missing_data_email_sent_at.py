@@ -18,14 +18,8 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "orders",
-        sa.Column("missing_data_email_sent_at", sa.DateTime(timezone=True), nullable=True),
-    )
-    op.add_column(
-        "mtd_records",
-        sa.Column("missing_data_email_sent_at", sa.DateTime(timezone=True), nullable=True),
-    )
+    op.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS missing_data_email_sent_at TIMESTAMP WITH TIME ZONE;")
+    op.execute("ALTER TABLE mtd_records ADD COLUMN IF NOT EXISTS missing_data_email_sent_at TIMESTAMP WITH TIME ZONE;")
 
 
 def downgrade() -> None:

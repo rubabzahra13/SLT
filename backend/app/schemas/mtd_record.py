@@ -35,6 +35,7 @@ class MTDRecordSchema(BaseModel):
     is_reassigned: bool = False
     missing_data_email_sent_at: Optional[datetime] = None
     in_payroll: bool = False
+    is_manual_schedule_entry: bool = False
     completed_at: Optional[datetime] = None
     has_rally_mix: bool = False
     has_extend_8ct_addon: bool = False
@@ -139,3 +140,23 @@ class MTDRecordUpdateSchema(BaseModel):
     slt_portion: Optional[float] = None
     payroll_finalized: Optional[bool] = None
     payroll_breakdown: Optional[Any] = None
+    is_manual_schedule_entry: Optional[bool] = None
+
+
+class ManualScheduleCreateSchema(BaseModel):
+    category: str
+    form_type: Optional[str] = "school-all-star-cheer"
+    cheer_form_subtype: Optional[str] = "all-star-cheer"
+    dance_form_subtype: Optional[str] = "pom"
+    mix_start_date: date
+    mix_end_date: date
+    assigned_producer: str
+    program_name: Optional[str] = None
+    contact_name: Optional[str] = None
+    package: Optional[str] = None
+    routine_notes: Optional[str] = None
+    music_affiliate: Optional[str] = None
+    time_length_of_mix: Optional[str] = None
+    song_list_suggestions: Optional[str] = None
+    custom_voiceovers: Optional[str] = None
+    eight_count_sheet: Optional[str] = None

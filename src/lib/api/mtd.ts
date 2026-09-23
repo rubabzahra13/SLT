@@ -34,6 +34,7 @@ export interface BackendMTDRecord {
   inMTD?: boolean;
   in_payroll: boolean;
   completed_at?: string | null;
+  is_manual_schedule_entry?: boolean;
   has_rally_mix?: boolean;
   has_extend_8ct_addon?: boolean;
   has_processing_8ct_sheets_addon?: boolean;
@@ -80,6 +81,7 @@ export function transformMTDRecord(bm: BackendMTDRecord): MTDRecord {
     recordStatus: (bm.record_status as MTDRecordStatus) || undefined,
     inMTD: Boolean(bm.in_mtd ?? bm.inMTD),
     inPayroll: Boolean(bm.in_payroll),
+    isManualScheduleEntry: Boolean(bm.is_manual_schedule_entry),
     isReassigned: Boolean(bm.is_reassigned),
     collectionStates: bm.collection_states || undefined,
     missingDataEmailSentAt: bm.missing_data_email_sent_at || null,
@@ -200,5 +202,131 @@ export async function updateMTDRecordApi(
       return { id, ...patch } as MTDRecord;
     }
     throw err;
+  }
+}
+
+export interface CreateManualSchedulePayload {
+  category: string;
+  subcategory?: string | null;
+  formType?: string | null;
+  form_type?: string | null;
+  cheerFormSubtype?: string | null;
+  cheer_form_subtype?: string | null;
+  danceFormSubtype?: string | null;
+  dance_form_subtype?: string | null;
+  mixStartDate?: string | null;
+  mix_start_date?: string | null;
+  mixEndDate?: string | null;
+  mix_end_date?: string | null;
+  assignedProducer?: string | null;
+  assigned_producer?: string | null;
+  programName?: string | null;
+  program_name?: string | null;
+  contactName?: string | null;
+  contact_name?: string | null;
+  schoolProgramName?: string | null;
+  school_program_name?: string | null;
+  email?: string | null;
+  coachEmail?: string | null;
+  coach_email?: string | null;
+  package?: string | null;
+  routineNotes?: string | null;
+  routine_notes?: string | null;
+  musicAffiliate?: string | null;
+  music_affiliate?: string | null;
+  timeLengthOfMix?: string | null;
+  time_length_of_mix?: string | null;
+  songListSuggestions?: string | null;
+  song_list_suggestions?: string | null;
+  customVoiceovers?: string | null;
+  custom_voiceovers?: string | null;
+  eightCountSheet?: string | null;
+  eight_count_sheet?: string | null;
+  videoUrl?: string | null;
+  video_url?: string | null;
+  danceVoiceover?: string | null;
+  dance_voiceover?: string | null;
+  hasRallyMix?: boolean;
+  has_rally_mix?: boolean;
+  hasExtend8ctAddon?: boolean;
+  has_extend_8ct_addon?: boolean;
+  hasProcessing8ctSheetsAddon?: boolean;
+  has_processing_8ct_sheets_addon?: boolean;
+  hasTraditionalVoiceover?: boolean;
+  has_traditional_voiceover?: boolean;
+  hasThemedVoiceover?: boolean;
+  has_themed_voiceover?: boolean;
+}
+
+export async function createManualScheduleEntryApi(
+  payload: CreateManualSchedulePayload
+): Promise<MTDRecord> {
+  const startDate = payload.mixStartDate || payload.mix_start_date || "";
+  const endDate = payload.mixEndDate || payload.mix_end_date || "";
+  const producer = payload.assignedProducer || payload.assigned_producer || "";
+  const contact = payload.contactName || payload.contact_name || "";
+  const program = payload.programName || payload.program_name || "";
+
+  const body = {
+    category: payload.category,
+    form_type: payload.formType || payload.form_type,
+    cheer_form_subtype: payload.cheerFormSubtype || payload.cheer_form_subtype,
+    dance_form_subtype: payload.danceFormSubtype || payload.dance_form_subtype,
+    mix_start_date: startDate,
+    mix_end_date: endDate,
+    assigned_producer: producer,
+    program_name: program || null,
+    contact_name: contact || null,
+    package: payload.package || null,
+    routine_notes: payload.routineNotes || payload.routine_notes || null,
+    music_affiliate: payload.musicAffiliate || payload.music_affiliate || null,
+    time_length_of_mix: payload.timeLengthOfMix || payload.time_length_of_mix || null,
+    song_list_suggestions: payload.songListSuggestions || payload.song_list_suggestions || null,
+    custom_voiceovers: payload.customVoiceovers || payload.custom_voiceovers || null,
+    eight_count_sheet: payload.eightCountSheet || payload.eight_count_sheet || null,
+  };
+  try {
+    const res = await apiClient.post<BackendMTDRecord>("/api/mtd/manual-schedule", body);
+    return transformMTDRecord(res);
+  } catch (err) {
+    if (err instanceof ApiClientError) {
+      console.warn("Backend unavailable for manual schedule entry; falling back to local object.");
+    }
+    const tempId = `mtd-manual-${Date.now()}`;
+    return {
+      id: tempId,
+      orderId: null,
+      section: payload.category === "Dance" ? "DANCE MUSIC" : "CHEERLEADING MUSIC",
+      assignedProducer: producer,
+      category: payload.category,
+      editorRequest: "FA",
+      contactName: contact || "N/A",
+      editorInitials: producer,
+      programName: program || "Manual Schedule Entry",
+      package: payload.package || "Standard",
+      musicTheme: "",
+      price: 0,
+      priceCompliance: "compliant",
+      invoice: "",
+      mixStartDate: startDate,
+      mixEndDate: endDate,
+      eightCountSheet: payload.eightCountSheet || payload.eight_count_sheet || "NEED CS",
+      haveSongs: "NEED SONGS",
+      needsAttention: false,
+      status: "active",
+      inMTD: false,
+      isManualScheduleEntry: true,
+      routineNotes: payload.routineNotes || payload.routine_notes || undefined,
+      musicAffiliate: payload.musicAffiliate || payload.music_affiliate || undefined,
+      timeLengthOfMix: payload.timeLengthOfMix || payload.time_length_of_mix || undefined,
+      songListSuggestions: payload.songListSuggestions || payload.song_list_suggestions || undefined,
+      customVoiceovers: payload.customVoiceovers || payload.custom_voiceovers || undefined,
+      hasRallyMix: payload.hasRallyMix || payload.has_rally_mix,
+      hasExtend8ctAddon: payload.hasExtend8ctAddon || payload.has_extend_8ct_addon,
+      hasProcessing8ctSheetsAddon: payload.hasProcessing8ctSheetsAddon || payload.has_processing_8ct_sheets_addon,
+      hasTraditionalVoiceover: payload.hasTraditionalVoiceover || payload.has_traditional_voiceover,
+      hasThemedVoiceover: payload.hasThemedVoiceover || payload.has_themed_voiceover,
+      danceVoiceover: (payload.danceVoiceover || payload.dance_voiceover) as any,
+    };
   }
 }

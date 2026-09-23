@@ -37,6 +37,7 @@ class MTDRecord(Base):
     is_reassigned = Column(Boolean, default=False, nullable=False)
     missing_data_email_sent_at = Column(DateTime(timezone=True), nullable=True)
     in_payroll = Column(Boolean, default=False, nullable=False)
+    is_manual_schedule_entry = Column(Boolean, default=False, nullable=False)
     completed_at = Column(DateTime(timezone=True), nullable=True)
     has_rally_mix = Column(Boolean, default=False, nullable=False)
     has_extend_8ct_addon = Column(Boolean, default=False, nullable=False)

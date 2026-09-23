@@ -13,6 +13,7 @@ const lucide_react_1 = require("lucide-react");
 const ProducerStatementPreview_1 = require("@/components/payroll/ProducerStatementPreview");
 const PayrollSendMailModal_1 = require("@/components/payroll/PayrollSendMailModal");
 const AuthContext_1 = require("@/context/AuthContext");
+const AppStateContext_1 = require("@/context/AppStateContext");
 const date_filters_1 = require("@/lib/date-filters");
 const dates_1 = require("@/lib/dates");
 const client_1 = require("@/lib/api/client");
@@ -36,6 +37,7 @@ function resolveSelectedProducerName(selectedSendEditor, producerNames, producer
 }
 function PayrollSendPanel({ categoryLabel, producerNames, categoryProducers, selectedSendEditor, payPeriod, payrollRecords, allOrders, producers, payrollAddons = [], }) {
     const { token, isViewOnly } = (0, AuthContext_1.useAuth)();
+    const { emailTemplates } = (0, AppStateContext_1.useAppState)();
     const [gmailConnected, setGmailConnected] = (0, react_1.useState)(false);
     const [gmailFrom, setGmailFrom] = (0, react_1.useState)(null);
     const [loadingGmail, setLoadingGmail] = (0, react_1.useState)(true);
@@ -112,7 +114,7 @@ function PayrollSendPanel({ categoryLabel, producerNames, categoryProducers, sel
                 return [];
             const mixCount = mixCountByProducer.get(producerName) ?? 0;
             const rows = (0, export_csv_1.getProducerFacingPayrollRows)(payrollRecords, allOrders, producers, producerName, filterPeriod, payrollAddons);
-            const draft = (0, producer_payroll_mail_1.buildPayrollMailDraft)(producer, mixCount, periodLabel, categoryLabel);
+            const draft = (0, producer_payroll_mail_1.buildPayrollMailDraft)(producer, mixCount, periodLabel, categoryLabel, emailTemplates.producer_payroll);
             return [
                 {
                     producerName,
@@ -130,6 +132,7 @@ function PayrollSendPanel({ categoryLabel, producerNames, categoryProducers, sel
         periodLabel,
         categoryLabel,
         payrollRecords,
+        emailTemplates.producer_payroll,
         allOrders,
         filterPeriod,
     ]);
@@ -156,7 +159,7 @@ function PayrollSendPanel({ categoryLabel, producerNames, categoryProducers, sel
         }
         const mixCount = mixCountByProducer.get(producerName) ?? 0;
         const rows = (0, export_csv_1.getProducerFacingPayrollRows)(payrollRecords, allOrders, producers, producerName, filterPeriod, payrollAddons);
-        const draft = (0, producer_payroll_mail_1.buildPayrollMailDraft)(producer, mixCount, periodLabel, categoryLabel);
+        const draft = (0, producer_payroll_mail_1.buildPayrollMailDraft)(producer, mixCount, periodLabel, categoryLabel, emailTemplates.producer_payroll);
         const excelAttachment = (0, producer_payroll_mail_1.generatePayrollExcelAttachment)(rows);
         await (0, gmail_1.sendGmailEmail)({
             to_email: draft.to,
@@ -180,6 +183,7 @@ function PayrollSendPanel({ categoryLabel, producerNames, categoryProducers, sel
         periodLabel,
         categoryLabel,
         token,
+        emailTemplates.producer_payroll,
     ]);
     const handleSendTargets = (0, react_1.useCallback)(async (targets) => {
         if (!canSend || targets.length === 0)

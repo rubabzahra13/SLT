@@ -64,6 +64,30 @@ function getOverrideState(order, itemId) {
  * - WHITE: Not Applicable (Ignored for status progression)
  */
 function getOrderRequirements(order) {
+    const isManualSchedule = Boolean(order.isManualScheduleEntry === true ||
+        order.is_manual_schedule_entry === true ||
+        order.orderId === null ||
+        order.order_id === null);
+    if (isManualSchedule) {
+        const neutralAll = [
+            { id: "time_of_mix", label: "Time of Mix", category: "collections", state: "white", isApplicable: false, provided: false, status: "white" },
+            { id: "cs", label: "CS", category: "collections", state: "white", isApplicable: false, provided: false, status: "white" },
+            { id: "video", label: "Video", category: "collections", state: "white", isApplicable: false, provided: false, status: "white" },
+            { id: "songs", label: "Songs", category: "songs", state: "white", isApplicable: false, provided: false, status: "white" },
+            { id: "notes", label: "Notes", category: "collections", state: "white", isApplicable: false, provided: false, status: "white" },
+            { id: "compliancy", label: "Compliancy", category: "collections", state: "white", isApplicable: false, provided: false, status: "white" },
+        ];
+        return {
+            collections: neutralAll.filter((i) => i.category === "collections"),
+            songsArea: neutralAll.filter((i) => i.category === "songs"),
+            all: neutralAll,
+            allMet: true,
+            missingCount: 0,
+            status: "Complete",
+            isWaitingForData: false,
+            compliancyMet: true,
+        };
+    }
     const requirements = [];
     const category = (order.category || "").trim().toLowerCase();
     const rawFormType = (order.formType || "").trim().toLowerCase();
@@ -219,19 +243,20 @@ function getOrderRequirements(order) {
     // 3. VIDEO
     {
         const override = getOverrideState(order, "video");
-        const notesVal = order.routineNotes ||
-            order.musicTheme ||
-            order.routine_notes ||
-            order.video_url;
-        const notesStr = String(notesVal || "").toUpperCase();
-        const defaultProvided = isPresent(notesVal) &&
-            (notesStr.includes("VIDEO") ||
-                notesStr.includes("HTTP") ||
-                notesStr.includes("YOUTUBE") ||
-                notesStr.includes("VIMEO") ||
-                notesStr.includes("ATTACHED") ||
-                notesStr.includes("YES") ||
-                notesStr.length > 3);
+        // There is no free-text "video" field on an order, so collection is driven
+        // by the explicit toggle (collectionStates.video) or a genuine video link.
+        // Do NOT infer from routineNotes/musicTheme — those almost always have
+        // content and would wrongly mark the video as received (hiding it from the
+        // missing-data email).
+        const videoVal = order.video_url || order.videoUrl;
+        const videoStr = String(videoVal || "").toUpperCase();
+        const defaultProvided = isPresent(videoStr) &&
+            (videoStr.includes("HTTP") ||
+                videoStr.includes("YOUTUBE") ||
+                videoStr.includes("VIMEO") ||
+                videoStr.includes("VIDEO") ||
+                videoStr.includes("ATTACHED") ||
+                videoStr.includes("YES"));
         const isApplicable = needVideo;
         let state = "white";
         if (isApplicable) {
@@ -316,17 +341,31 @@ function getOrderRequirements(order) {
     }
     const collections = requirements.filter((r) => r.category === "collections");
     const songsArea = requirements.filter((r) => r.category === "songs");
-    // Filter applicable items only (state is red or green)
     const applicableItems = requirements.filter((r) => r.isApplicable);
     const hasRed = applicableItems.some((r) => r.state === "red") || !compliancyMet;
     const missingCount = applicableItems.filter((r) => r.state === "red").length + (!compliancyMet ? 1 : 0);
     const allMet = !hasRed;
-    const calculatedStatus = hasRed ? "Waiting for Data" : "Need to be Scheduled";
-    const manualStatus = order.orderStatus || order.order_status;
-    const status = manualStatus === "Waiting for Data" || manualStatus === "Need to be Scheduled"
-        ? manualStatus
-        : calculatedStatus;
-    const isWaitingForData = status === "Waiting for Data";
+    const calculatedStatus = hasRed ? "Missing Data" : "Complete";
+    const rawManual = order.orderStatus || order.order_status;
+    // Normalize legacy labels to match Orders range toggles.
+    const manualStatus = rawManual === "Need to be Scheduled" ||
+        rawManual === "Reschedule" ||
+        rawManual === "Unscheduled" ||
+        rawManual === "Unassigned"
+        ? "Complete"
+        : rawManual === "Reassigned"
+            ? "Reassign"
+            : rawManual === "Waiting for Data" || rawManual === "Incomplete Data"
+                ? "Missing Data"
+                : rawManual;
+    const isReassignedFlag = Boolean(order.isReassigned ?? order.is_reassigned);
+    // Reassign always wins when flagged or manually selected.
+    const status = manualStatus === "Reassign" || isReassignedFlag
+        ? "Reassign"
+        : manualStatus === "Missing Data" || manualStatus === "Complete"
+            ? manualStatus
+            : calculatedStatus;
+    const isWaitingForData = status === "Missing Data";
     return {
         collections,
         songsArea,

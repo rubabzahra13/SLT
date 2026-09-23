@@ -83,6 +83,34 @@ function getOverrideState(order: Order | MTDRecord, itemId: string): boolean | u
  * - WHITE: Not Applicable (Ignored for status progression)
  */
 export function getOrderRequirements(order: Order | MTDRecord): OrderRequirementsResult {
+  const isManualSchedule = Boolean(
+    (order as any).isManualScheduleEntry === true ||
+      (order as any).is_manual_schedule_entry === true ||
+      (order as any).orderId === null ||
+      (order as any).order_id === null
+  );
+
+  if (isManualSchedule) {
+    const neutralAll: OrderRequirementItem[] = [
+      { id: "time_of_mix", label: "Time of Mix", category: "collections", state: "white", isApplicable: false, provided: false, status: "white" },
+      { id: "cs", label: "CS", category: "collections", state: "white", isApplicable: false, provided: false, status: "white" },
+      { id: "video", label: "Video", category: "collections", state: "white", isApplicable: false, provided: false, status: "white" },
+      { id: "songs", label: "Songs", category: "songs", state: "white", isApplicable: false, provided: false, status: "white" },
+      { id: "notes", label: "Notes", category: "collections", state: "white", isApplicable: false, provided: false, status: "white" },
+      { id: "compliancy", label: "Compliancy", category: "collections", state: "white", isApplicable: false, provided: false, status: "white" },
+    ];
+    return {
+      collections: neutralAll.filter((i) => i.category === "collections"),
+      songsArea: neutralAll.filter((i) => i.category === "songs"),
+      all: neutralAll,
+      allMet: true,
+      missingCount: 0,
+      status: "Complete",
+      isWaitingForData: false,
+      compliancyMet: true,
+    };
+  }
+
   const requirements: OrderRequirementItem[] = [];
 
   const category = (order.category || "").trim().toLowerCase();
@@ -346,7 +374,6 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
   const collections = requirements.filter((r) => r.category === "collections");
   const songsArea = requirements.filter((r) => r.category === "songs");
 
-  // Filter applicable items only (state is red or green)
   const applicableItems = requirements.filter((r) => r.isApplicable);
   const hasRed = applicableItems.some((r) => r.state === "red") || !compliancyMet;
   const missingCount = applicableItems.filter((r) => r.state === "red").length + (!compliancyMet ? 1 : 0);

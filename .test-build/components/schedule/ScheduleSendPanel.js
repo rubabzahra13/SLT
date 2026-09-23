@@ -13,6 +13,7 @@ const lucide_react_1 = require("lucide-react");
 const ProducerSchedulePreview_1 = require("@/components/schedule/ProducerSchedulePreview");
 const ScheduleSendMailModal_1 = require("@/components/schedule/ScheduleSendMailModal");
 const AuthContext_1 = require("@/context/AuthContext");
+const AppStateContext_1 = require("@/context/AppStateContext");
 const date_filters_1 = require("@/lib/date-filters");
 const client_1 = require("@/lib/api/client");
 const gmail_1 = require("@/lib/api/gmail");
@@ -36,6 +37,7 @@ function resolveSelectedProducerName(selectedSendEditor, producerNames, producer
 }
 function ScheduleSendPanel({ categoryLabel, producerNames, categoryProducers, selectedSendEditor, mtdRecords, allOrders, producers, filterPeriod, sendView, }) {
     const { token, isViewOnly } = (0, AuthContext_1.useAuth)();
+    const { emailTemplates } = (0, AppStateContext_1.useAppState)();
     const [gmailConnected, setGmailConnected] = (0, react_1.useState)(false);
     const [gmailFrom, setGmailFrom] = (0, react_1.useState)(null);
     const [loadingGmail, setLoadingGmail] = (0, react_1.useState)(true);
@@ -105,7 +107,7 @@ function ScheduleSendPanel({ categoryLabel, producerNames, categoryProducers, se
                 return [];
             const mixCount = mixCountByProducer.get(producerName) ?? 0;
             const rows = (0, export_csv_1.getProducerFacingScheduleRows)(mtdRecords, allOrders, producers, producerName, filterPeriod);
-            const draft = (0, producer_schedule_mail_1.buildScheduleMailDraft)(producer, mixCount, categoryLabel);
+            const draft = (0, producer_schedule_mail_1.buildScheduleMailDraft)(producer, mixCount, categoryLabel, emailTemplates.producer_schedule);
             return [
                 {
                     producerName,
@@ -124,6 +126,7 @@ function ScheduleSendPanel({ categoryLabel, producerNames, categoryProducers, se
         mtdRecords,
         allOrders,
         filterPeriod,
+        emailTemplates.producer_schedule,
     ]);
     const missingEmailNames = (0, react_1.useMemo)(() => previewItems.filter((item) => !item.email).map((item) => item.producerName), [previewItems]);
     const downloadTargets = (0, react_1.useCallback)((targets) => {
@@ -148,7 +151,7 @@ function ScheduleSendPanel({ categoryLabel, producerNames, categoryProducers, se
         }
         const mixCount = mixCountByProducer.get(producerName) ?? 0;
         const rows = (0, export_csv_1.getProducerFacingScheduleRows)(mtdRecords, allOrders, producers, producerName, filterPeriod);
-        const draft = (0, producer_schedule_mail_1.buildScheduleMailDraft)(producer, mixCount, categoryLabel);
+        const draft = (0, producer_schedule_mail_1.buildScheduleMailDraft)(producer, mixCount, categoryLabel, emailTemplates.producer_schedule);
         const excelAttachment = (0, producer_schedule_mail_1.generateScheduleExcelAttachment)(rows);
         await (0, gmail_1.sendGmailEmail)({
             to_email: draft.to,
@@ -171,6 +174,7 @@ function ScheduleSendPanel({ categoryLabel, producerNames, categoryProducers, se
         categoryLabel,
         token,
         filterPeriod,
+        emailTemplates.producer_schedule,
     ]);
     const handleSendTargets = (0, react_1.useCallback)(async (targets) => {
         if (!canSend || targets.length === 0)

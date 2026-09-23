@@ -6,6 +6,7 @@ exports.useAppState = useAppState;
 const jsx_runtime_1 = require("react/jsx-runtime");
 const react_1 = require("react");
 const producer_time_off_1 = require("@/lib/producer-time-off");
+const email_templates_1 = require("@/lib/email-templates");
 const data_1 = require("@/lib/data");
 const order_form_1 = require("@/lib/order-form");
 const AuthContext_1 = require("@/context/AuthContext");
@@ -78,6 +79,15 @@ function setLocalItem(key, value) {
         // Ignore quota or storage errors
     }
 }
+// --- Stale-while-revalidate cache -------------------------------------------
+// The backend lives in a distant region, so every cold fetch pays a multi-second
+// round-trip. We cache the last-known orders / MTD / producers in localStorage
+// and hydrate from it synchronously on mount so tabs paint instantly, then
+// refresh from the API in the background. Bump the version suffix if the cached
+// (normalized) shape ever changes incompatibly.
+const CACHE_ORDERS_KEY = "slt_cache_orders_v1";
+const CACHE_MTD_KEY = "slt_cache_mtd_v1";
+const CACHE_PRODUCERS_KEY = "slt_cache_producers_v1";
 function AppStateProvider({ children }) {
     const seed = (0, data_1.getData)();
     // One-time migration: clear any stale localStorage keys that may contain
@@ -87,16 +97,26 @@ function AppStateProvider({ children }) {
         localStorage.removeItem("slt_persisted_past_orders");
         localStorage.removeItem("slt_persisted_mtd_records");
     }
-    // Transactional data always starts empty — populated exclusively from the
-    // backend API (Supabase). No fallback to local seed/mock data.
-    const [activeOrders, setActiveOrders] = (0, react_1.useState)([]);
-    const [pastOrders, setPastOrders] = (0, react_1.useState)([]);
-    const [mtdRecords, setMtdRecords] = (0, react_1.useState)([]);
+    // Transactional data is populated from the backend API (Supabase), but we
+    // seed initial state from the stale-while-revalidate cache so the first paint
+    // is instant instead of waiting on a cross-region fetch.
+    const cachedOrders = getLocalItem(CACHE_ORDERS_KEY, null);
+    const cachedMtd = getLocalItem(CACHE_MTD_KEY, null);
+    const hasCachedData = Boolean(cachedOrders && cachedMtd);
+    const [activeOrders, setActiveOrders] = (0, react_1.useState)(() => cachedOrders?.active ?? []);
+    const [pastOrders, setPastOrders] = (0, react_1.useState)(() => cachedOrders?.past ?? []);
+    const [mtdRecords, setMtdRecords] = (0, react_1.useState)(() => cachedMtd ?? []);
     const [packagePrices, setPackagePricesState] = (0, react_1.useState)(() => (0, pricing_1.getDefaultPackagePrices)());
     const [secretMenuPrices, setSecretMenuPricesState] = (0, react_1.useState)(() => (0, pricing_1.getDefaultSecretMenuPricing)());
     // Notifications start empty — populated when backend data loads or user actions occur.
     const [notifications, setNotifications] = (0, react_1.useState)([]);
-    const [producers, setProducers] = (0, react_1.useState)(() => (0, producers_1.deduplicateProducers)(seed.producers.map((p) => (0, producers_1.normalizeProducer)(p))));
+    const [producers, setProducers] = (0, react_1.useState)(() => {
+        const cachedProducers = getLocalItem(CACHE_PRODUCERS_KEY, null);
+        if (cachedProducers && cachedProducers.length > 0) {
+            return (0, producers_1.deduplicateProducers)(cachedProducers.map((p) => (0, producers_1.normalizeProducer)(p)));
+        }
+        return (0, producers_1.deduplicateProducers)(seed.producers.map((p) => (0, producers_1.normalizeProducer)(p)));
+    });
     const [discountCodes, setDiscountCodes] = (0, react_1.useState)([]);
     const [payrollAddons, setPayrollAddons] = (0, react_1.useState)([]);
     const [holidays, setHolidays] = (0, react_1.useState)(() => {
@@ -113,8 +133,11 @@ function AppStateProvider({ children }) {
         }
         return (0, producer_time_off_1.createDefaultPersonalReasons)();
     });
+    const [emailTemplates, setEmailTemplates] = (0, react_1.useState)(() => (0, email_templates_1.normalizeEmailTemplates)(getLocalItem(email_templates_1.EMAIL_TEMPLATES_STORAGE_KEY, email_templates_1.DEFAULT_EMAIL_TEMPLATES)));
     const [isBackendConnected, setIsBackendConnected] = (0, react_1.useState)(false);
-    const [isLoading, setIsLoading] = (0, react_1.useState)(true);
+    // If we hydrated from cache, we already have data to show, so don't block the
+    // UI with a loading state — the background refresh updates silently.
+    const [isLoading, setIsLoading] = (0, react_1.useState)(!hasCachedData);
     const schedule = seed.schedule;
     // Load data from FastAPI Backend on Mount
     (0, react_1.useEffect)(() => {
@@ -131,17 +154,24 @@ function AppStateProvider({ children }) {
                 if (!isMounted)
                     return;
                 if (producersData && producersData.length > 0) {
-                    const normalizedProducers = producersData.map((p) => (0, producers_1.normalizeProducer)(p));
-                    setProducers((0, producers_1.deduplicateProducers)(normalizedProducers));
+                    const normalizedProducers = (0, producers_1.deduplicateProducers)(producersData.map((p) => (0, producers_1.normalizeProducer)(p)));
+                    setProducers(normalizedProducers);
+                    setLocalItem(CACHE_PRODUCERS_KEY, normalizedProducers);
                 }
                 let loadedActiveOrders = [];
+                let loadedPastOrders = [];
                 let loadedMtdRecords = [];
                 if (ordersData) {
                     // Database is the single source of truth for orders.
                     // Replace state entirely — no seed fallback.
                     loadedActiveOrders = normalizeOrders(ordersData.activeOrders);
+                    loadedPastOrders = normalizeOrders(ordersData.pastOrders);
                     setActiveOrders(loadedActiveOrders);
-                    setPastOrders(normalizeOrders(ordersData.pastOrders));
+                    setPastOrders(loadedPastOrders);
+                    setLocalItem(CACHE_ORDERS_KEY, {
+                        active: loadedActiveOrders,
+                        past: loadedPastOrders,
+                    });
                 }
                 if (mtdData) {
                     // Database is the single source of truth for MTD records.
@@ -159,7 +189,9 @@ function AppStateProvider({ children }) {
                         convertedOrders.push((0, order_form_1.orderToMTDRecord)(order));
                     }
                 }
-                setMtdRecords([...loadedMtdRecords, ...convertedOrders]);
+                const combinedMtd = [...loadedMtdRecords, ...convertedOrders];
+                setMtdRecords(combinedMtd);
+                setLocalItem(CACHE_MTD_KEY, combinedMtd);
                 if (codesData) {
                     // Database is the single source of truth for discount codes.
                     // Replace state entirely — no seed fallback.
@@ -321,12 +353,10 @@ function AppStateProvider({ children }) {
         if (isViewOnly)
             return;
         let payrollNotice = null;
-        let apiId = id;
         let apiPatch = patch;
+        const existing = mtdRecords.find((r) => r.id === id || r.orderId === id || r.uuid === id || r.legacyId === id);
+        const apiId = existing?.uuid || existing?.id || id;
         setMtdRecords((prev) => {
-            const existing = prev.find((r) => r.id === id || r.orderId === id || r.uuid === id || r.legacyId === id);
-            if (existing?.uuid)
-                apiId = existing.uuid;
             return prev.map((r) => {
                 if (r.id !== id && r.orderId !== id && r.uuid !== id && r.legacyId !== id)
                     return r;
@@ -381,14 +411,21 @@ function AppStateProvider({ children }) {
                         updated.price = (0, pricing_1.getPriceForPackage)(patch.package ?? r.package, compliance, r.price, packagePrices);
                     }
                 }
-                const needsCs = updated.eightCountSheet.toUpperCase().includes("NEED");
-                const needsSongs = updated.haveSongs.toUpperCase().includes("NEED");
+                const sheet = String(updated.eightCountSheet ?? "");
+                const songs = String(updated.haveSongs ?? "");
+                const needsCs = sheet.toUpperCase().includes("NEED");
+                const needsSongs = songs.toUpperCase().includes("NEED");
                 updated.needsAttention = needsCs || needsSongs;
                 return updated;
             });
         });
-        // Also sync pre-MTD edits to activeOrders if this ID belongs to an active order
-        const linkedOrder = activeOrders.find((o) => o.id === id || o.legacyId === id || o.uuid === id);
+        // Sync linked Order. MTD rows use their own UUID as `id`, so also match via
+        // orderId / mtdId — otherwise Move to Orders never flips Order.status off in_mtd.
+        const orderLookupIds = new Set([id, existing?.orderId, existing?.id, existing?.uuid, existing?.legacyId].filter((value) => Boolean(value)));
+        const linkedOrder = activeOrders.find((o) => orderLookupIds.has(o.id) ||
+            (o.legacyId && orderLookupIds.has(o.legacyId)) ||
+            (o.uuid && orderLookupIds.has(o.uuid)) ||
+            (o.mtdId && orderLookupIds.has(o.mtdId)));
         if (linkedOrder) {
             const orderPatch = {};
             if (patch.assignedProducer !== undefined)
@@ -407,6 +444,9 @@ function AppStateProvider({ children }) {
                 orderPatch.status = "active";
             if (patch.isReassigned !== undefined)
                 orderPatch.isReassigned = patch.isReassigned;
+            if (patch.missingDataEmailSentAt !== undefined) {
+                orderPatch.missingDataEmailSentAt = patch.missingDataEmailSentAt;
+            }
             if (patch.collectionStates !== undefined)
                 orderPatch.collectionStates = patch.collectionStates;
             if (patch.collection_states !== undefined)
@@ -668,6 +708,22 @@ function AppStateProvider({ children }) {
     (0, react_1.useEffect)(() => {
         setLocalItem("slt_studio_holidays", holidays);
     }, [holidays]);
+    // Keep the stale-while-revalidate cache in sync after edits (Move to Orders/MTD,
+    // inline changes, etc.). Only write once the backend has loaded so we never
+    // clobber a good cache with the empty initial state on a cold start.
+    (0, react_1.useEffect)(() => {
+        if (!isBackendConnected)
+            return;
+        setLocalItem(CACHE_ORDERS_KEY, { active: activeOrders, past: pastOrders });
+    }, [activeOrders, pastOrders, isBackendConnected]);
+    (0, react_1.useEffect)(() => {
+        if (!isBackendConnected)
+            return;
+        setLocalItem(CACHE_MTD_KEY, mtdRecords);
+    }, [mtdRecords, isBackendConnected]);
+    (0, react_1.useEffect)(() => {
+        setLocalItem(email_templates_1.EMAIL_TEMPLATES_STORAGE_KEY, emailTemplates);
+    }, [emailTemplates]);
     (0, react_1.useEffect)(() => {
         setLocalItem("slt_studio_personal_reasons", personalReasons);
     }, [personalReasons]);
@@ -734,6 +790,32 @@ function AppStateProvider({ children }) {
         await (0, api_1.deletePayrollAddonApi)(id);
         setPayrollAddons((prev) => prev.filter((a) => a.id !== id));
     }, [isViewOnly]);
+    const addManualScheduleEntry = (0, react_1.useCallback)(async (payload) => {
+        if (isViewOnly)
+            throw new Error("View-only accounts cannot create manual schedule entries.");
+        const created = await (0, api_1.createManualScheduleEntryApi)(payload);
+        setMtdRecords((prev) => [created, ...prev]);
+        return created;
+    }, [isViewOnly]);
+    const updateEmailTemplate = (0, react_1.useCallback)((id, patch) => {
+        if (isViewOnly)
+            return;
+        setEmailTemplates((prev) => (0, email_templates_1.normalizeEmailTemplates)({
+            ...prev,
+            [id]: {
+                ...prev[id],
+                ...patch,
+            },
+        }));
+    }, [isViewOnly]);
+    const resetEmailTemplate = (0, react_1.useCallback)((id) => {
+        if (isViewOnly)
+            return;
+        setEmailTemplates((prev) => (0, email_templates_1.normalizeEmailTemplates)({
+            ...prev,
+            [id]: email_templates_1.DEFAULT_EMAIL_TEMPLATES[id],
+        }));
+    }, [isViewOnly]);
     const markNotificationRead = (0, react_1.useCallback)((id) => {
         setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
     }, []);
@@ -753,6 +835,7 @@ function AppStateProvider({ children }) {
         payrollAddons,
         holidays,
         personalReasons,
+        emailTemplates,
         schedule,
         notifications,
         unreadCount,
@@ -775,6 +858,7 @@ function AppStateProvider({ children }) {
         removeDiscountCode,
         addPayrollAddon,
         removePayrollAddon,
+        addManualScheduleEntry,
         addNotification,
         addHoliday,
         updateHoliday,
@@ -782,6 +866,8 @@ function AppStateProvider({ children }) {
         addPersonalReason,
         updatePersonalReason,
         removePersonalReason,
+        updateEmailTemplate,
+        resetEmailTemplate,
         markNotificationRead,
         markAllNotificationsRead,
         isInMTD,

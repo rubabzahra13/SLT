@@ -75,6 +75,7 @@ function transformOrder(bo) {
         completedAt: bo.completed_at || null,
         needsAttention: Boolean(bo.needs_attention),
         attentionReason: bo.attention_reason || null,
+        missingDataEmailSentAt: bo.missing_data_email_sent_at || null,
         systemCalculatedCustomerPrice: bo.system_calculated_customer_price ?? null,
         finalCustomerPrice: bo.final_customer_price ?? null,
         finalCustomerPriceOverridden: Boolean(bo.final_customer_price_overridden),
@@ -153,6 +154,9 @@ async function updateOrderApi(id, patch) {
         payload.collection_states = patch.collection_states;
     if (patch.isReassigned !== undefined)
         payload.is_reassigned = patch.isReassigned;
+    if (patch.missingDataEmailSentAt !== undefined) {
+        payload.missing_data_email_sent_at = patch.missingDataEmailSentAt;
+    }
     if (patch.orderStatus !== undefined)
         payload.order_status = patch.orderStatus;
     if (patch.order_status !== undefined)

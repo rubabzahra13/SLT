@@ -4,6 +4,7 @@ exports.transformMTDRecord = transformMTDRecord;
 exports.fetchMTDRecordsApi = fetchMTDRecordsApi;
 exports.createMTDRecordApi = createMTDRecordApi;
 exports.updateMTDRecordApi = updateMTDRecordApi;
+exports.createManualScheduleEntryApi = createManualScheduleEntryApi;
 const client_1 = require("./client");
 function transformMTDRecord(bm) {
     return {
@@ -33,6 +34,10 @@ function transformMTDRecord(bm) {
         recordStatus: bm.record_status || undefined,
         inMTD: Boolean(bm.in_mtd ?? bm.inMTD),
         inPayroll: Boolean(bm.in_payroll),
+        isManualScheduleEntry: Boolean(bm.is_manual_schedule_entry),
+        isReassigned: Boolean(bm.is_reassigned),
+        collectionStates: bm.collection_states || undefined,
+        missingDataEmailSentAt: bm.missing_data_email_sent_at || null,
         completedAt: bm.completed_at || undefined,
         hasRallyMix: Boolean(bm.has_rally_mix ?? bm.hasRallyMix),
         hasExtend8ctAddon: Boolean(bm.has_extend_8ct_addon ?? bm.hasExtend8ctAddon),
@@ -127,6 +132,15 @@ async function updateMTDRecordApi(id, patch) {
         payload.in_mtd = patch.inMTD;
     if (patch.inPayroll !== undefined)
         payload.in_payroll = patch.inPayroll;
+    if (patch.isReassigned !== undefined)
+        payload.is_reassigned = patch.isReassigned;
+    if (patch.collectionStates !== undefined)
+        payload.collection_states = patch.collectionStates;
+    if (patch.orderStatus !== undefined)
+        payload.order_status = patch.orderStatus;
+    if (patch.missingDataEmailSentAt !== undefined) {
+        payload.missing_data_email_sent_at = patch.missingDataEmailSentAt;
+    }
     if (patch.completedAt !== undefined)
         payload.completed_at = patch.completedAt;
     if (patch.hasRallyMix !== undefined)
@@ -168,5 +182,75 @@ async function updateMTDRecordApi(id, patch) {
             return { id, ...patch };
         }
         throw err;
+    }
+}
+async function createManualScheduleEntryApi(payload) {
+    const startDate = payload.mixStartDate || payload.mix_start_date || "";
+    const endDate = payload.mixEndDate || payload.mix_end_date || "";
+    const producer = payload.assignedProducer || payload.assigned_producer || "";
+    const contact = payload.contactName || payload.contact_name || "";
+    const program = payload.programName || payload.program_name || "";
+    const body = {
+        category: payload.category,
+        form_type: payload.formType || payload.form_type,
+        cheer_form_subtype: payload.cheerFormSubtype || payload.cheer_form_subtype,
+        dance_form_subtype: payload.danceFormSubtype || payload.dance_form_subtype,
+        mix_start_date: startDate,
+        mix_end_date: endDate,
+        assigned_producer: producer,
+        program_name: program || null,
+        contact_name: contact || null,
+        package: payload.package || null,
+        routine_notes: payload.routineNotes || payload.routine_notes || null,
+        music_affiliate: payload.musicAffiliate || payload.music_affiliate || null,
+        time_length_of_mix: payload.timeLengthOfMix || payload.time_length_of_mix || null,
+        song_list_suggestions: payload.songListSuggestions || payload.song_list_suggestions || null,
+        custom_voiceovers: payload.customVoiceovers || payload.custom_voiceovers || null,
+        eight_count_sheet: payload.eightCountSheet || payload.eight_count_sheet || null,
+    };
+    try {
+        const res = await client_1.apiClient.post("/api/mtd/manual-schedule", body);
+        return transformMTDRecord(res);
+    }
+    catch (err) {
+        if (err instanceof client_1.ApiClientError) {
+            console.warn("Backend unavailable for manual schedule entry; falling back to local object.");
+        }
+        const tempId = `mtd-manual-${Date.now()}`;
+        return {
+            id: tempId,
+            orderId: null,
+            section: payload.category === "Dance" ? "DANCE MUSIC" : "CHEERLEADING MUSIC",
+            assignedProducer: producer,
+            category: payload.category,
+            editorRequest: "FA",
+            contactName: contact || "N/A",
+            editorInitials: producer,
+            programName: program || "Manual Schedule Entry",
+            package: payload.package || "Standard",
+            musicTheme: "",
+            price: 0,
+            priceCompliance: "compliant",
+            invoice: "",
+            mixStartDate: startDate,
+            mixEndDate: endDate,
+            eightCountSheet: payload.eightCountSheet || payload.eight_count_sheet || "NEED CS",
+            haveSongs: "NEED SONGS",
+            needsAttention: false,
+            status: "active",
+            inMTD: false,
+            isManualScheduleEntry: true,
+            routineNotes: payload.routineNotes || payload.routine_notes || undefined,
+            musicAffiliate: payload.musicAffiliate || payload.music_affiliate || undefined,
+            timeLengthOfMix: payload.timeLengthOfMix || payload.time_length_of_mix || undefined,
+            songListSuggestions: payload.songListSuggestions || payload.song_list_suggestions || undefined,
+            customVoiceovers: payload.customVoiceovers || payload.custom_voiceovers || undefined,
+            hasRallyMix: payload.hasRallyMix || payload.has_rally_mix,
+            hasExtend8ctAddon: payload.hasExtend8ctAddon || payload.has_extend_8ct_addon,
+            hasProcessing8ctSheetsAddon: payload.hasProcessing8ctSheetsAddon || payload.has_processing_8ct_sheets_addon,
+            hasTraditionalVoiceover: payload.hasTraditionalVoiceover || payload.has_traditional_voiceover,
+            hasThemedVoiceover: payload.hasThemedVoiceover || payload.has_themed_voiceover,
+            danceVoiceover: (payload.danceVoiceover || payload.dance_voiceover),
+        };
     }
 }

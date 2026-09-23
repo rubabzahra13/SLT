@@ -340,17 +340,30 @@ function producerCategoryMatchesRequired(producerCategory, requiredCategory) {
     const rn = r.replace(/[/\-\s]+/g, "-");
     if (pn === rn)
         return true;
-    if (r === "cheer" && p.includes("cheer"))
+    const rIsDance = r.includes("dance");
+    const pIsDance = p.includes("dance") ||
+        p === "pom" ||
+        p === "hip hop" ||
+        p.includes("jazz") ||
+        p.includes("team performance") ||
+        p === "gameday";
+    if (rIsDance && pIsDance)
         return true;
-    if (r === "dance" &&
-        (p === "pom" ||
-            p === "hip hop" ||
-            p.includes("jazz") ||
-            p.includes("team performance") ||
-            p === "gameday")) {
+    const rIsCheer = r.includes("cheer");
+    const pIsCheer = p.includes("cheer") || p === "school";
+    if (rIsCheer && pIsCheer)
         return true;
-    }
-    if (rn === "school-anthem" && pn.includes("marching-band"))
+    const rIsBand = r.includes("band") || r.includes("marching");
+    const pIsBand = p.includes("band") || p.includes("marching");
+    if (rIsBand && pIsBand)
+        return true;
+    const rIsSports = r.includes("sports");
+    const pIsSports = p.includes("sports");
+    if (rIsSports && pIsSports)
+        return true;
+    const rIsAnthem = r.includes("anthem");
+    const pIsAnthem = p.includes("anthem") || p.includes("marching");
+    if (rIsAnthem && pIsAnthem)
         return true;
     return false;
 }

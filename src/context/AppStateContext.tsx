@@ -77,6 +77,8 @@ import {
   createPayrollAddonApi,
   deletePayrollAddonApi,
   type CreatePayrollAddonPayload,
+  createManualScheduleEntryApi,
+  type CreateManualSchedulePayload,
 } from "@/lib/api";
 
 type AppStateContextValue = {
@@ -115,6 +117,7 @@ type AppStateContextValue = {
   removeDiscountCode: (id: string) => Promise<void>;
   addPayrollAddon: (payload: CreatePayrollAddonPayload) => Promise<PayrollAddon>;
   removePayrollAddon: (id: string) => Promise<void>;
+  addManualScheduleEntry: (payload: CreateManualSchedulePayload) => Promise<MTDRecord>;
   addNotification: (notification: Omit<AppNotification, "id" | "read" | "createdAt">) => void;
   addHoliday: (holiday: StudioHoliday) => void;
   updateHoliday: (id: string, patch: Partial<StudioHoliday>) => void;
@@ -1184,6 +1187,16 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     [isViewOnly]
   );
 
+  const addManualScheduleEntry = useCallback(
+    async (payload: CreateManualSchedulePayload): Promise<MTDRecord> => {
+      if (isViewOnly) throw new Error("View-only accounts cannot create manual schedule entries.");
+      const created = await createManualScheduleEntryApi(payload);
+      setMtdRecords((prev) => [created, ...prev]);
+      return created;
+    },
+    [isViewOnly]
+  );
+
   const updateEmailTemplate = useCallback(
     (id: EmailTemplateId, patch: Partial<EmailTemplateCopy>) => {
       if (isViewOnly) return;
@@ -1260,6 +1273,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     removeDiscountCode,
     addPayrollAddon,
     removePayrollAddon,
+    addManualScheduleEntry,
     addNotification,
     addHoliday,
     updateHoliday,

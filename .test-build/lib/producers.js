@@ -161,7 +161,8 @@ function normalizeProducer(raw) {
     }
     const resolvedEmail = raw.email && raw.email.trim() && !raw.email.includes("example.com")
         ? raw.email.trim()
-        : exports.CANONICAL_PRODUCER_EMAILS[initials] ?? raw.email ?? "";
+        : exports.CANONICAL_PRODUCER_EMAILS[initials] ??
+            (raw.email?.trim() || `${initials.toLowerCase()}@soundslikethat.com`);
     return {
         id: raw.id,
         name: raw.name || "Producer",

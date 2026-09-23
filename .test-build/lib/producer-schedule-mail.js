@@ -11,6 +11,7 @@ exports.csvToBase64 = csvToBase64;
 const dates_1 = require("@/lib/dates");
 const date_filters_1 = require("@/lib/date-filters");
 const export_csv_1 = require("@/lib/export-csv");
+const email_templates_1 = require("@/lib/email-templates");
 function escapeHtml(text) {
     return text
         .replace(/&/g, "&amp;")
@@ -29,18 +30,26 @@ function cellValue(row, key) {
 function scheduleAttachmentFilename(producerName) {
     return `Schedule_${producerName.replace(/\s+/g, "_")}_${(0, date_filters_1.todayIso)()}.xls`;
 }
-function buildScheduleMailDraft(producer, mixCount, categoryLabel) {
+function buildScheduleMailDraft(producer, mixCount, categoryLabel, template = email_templates_1.DEFAULT_EMAIL_TEMPLATES.producer_schedule) {
     const firstName = producer.name.split(" ")[0] || producer.name;
     const scope = categoryLabel ? ` for ${categoryLabel}` : "";
     const mixLabel = `${mixCount} ongoing mix${mixCount === 1 ? "" : "es"}`;
+    const todayLabel = (0, dates_1.formatDisplayDate)((0, date_filters_1.todayIso)());
+    const vars = {
+        firstName,
+        producerName: producer.name,
+        todayLabel,
+        mixLabel,
+        scope,
+    };
     return {
         to: producer.email,
         toName: producer.name,
-        subject: `Your current schedule - ${(0, dates_1.formatDisplayDate)((0, date_filters_1.todayIso)())}`,
-        greeting: `Hi ${firstName},`,
-        intro: `Here is your current schedule${scope} (${mixLabel}).`,
-        footer: "Please review the schedule below and reach out if anything looks off or you have questions. An Excel copy is also attached.",
-        signature: "Thanks,\nSounds Like That",
+        subject: (0, email_templates_1.applyEmailTemplate)(template.subject, vars),
+        greeting: (0, email_templates_1.applyEmailTemplate)(template.greeting, vars),
+        intro: (0, email_templates_1.applyEmailTemplate)(template.intro, vars),
+        footer: (0, email_templates_1.applyEmailTemplate)(template.footer, vars),
+        signature: (0, email_templates_1.applyEmailTemplate)(template.signature, vars),
         attachmentFilename: scheduleAttachmentFilename(producer.name),
     };
 }

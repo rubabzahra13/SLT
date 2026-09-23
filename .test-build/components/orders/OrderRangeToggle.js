@@ -12,11 +12,11 @@ function OrderRangeToggle({ value, onChange, counts, }) {
         { id: "all", label: "All", count: counts?.all },
         {
             id: "need_to_be_scheduled",
-            label: "Need to be Scheduled",
+            label: "Complete",
             count: counts?.needToBeScheduled ?? counts?.newOrders,
         },
-        { id: "reassigned", label: "Reassigned", count: counts?.reassigned, isRed: true },
-        { id: "waiting_for_data", label: "Waiting for Data", count: counts?.waitingForData },
+        { id: "reassigned", label: "Reassign", count: counts?.reassigned, isRed: true },
+        { id: "waiting_for_data", label: "Missing Data", count: counts?.waitingForData },
     ];
     return ((0, jsx_runtime_1.jsx)("div", { className: "inline-flex max-w-full flex-wrap items-center gap-0.5 rounded-xl bg-white p-1 shadow-sm ring-1 ring-inset ring-brand-line/45", role: "group", "aria-label": "Orders view range", children: options.map((opt) => {
             const active = value === opt.id ||

@@ -11,7 +11,12 @@ from app.lib.producer_assignment import (
     normalize_producer_key,
     resolve_producer_by_assignment_key,
 )
-from app.schemas.mtd_record import MTDRecordSchema, MTDRecordCreateSchema, MTDRecordUpdateSchema
+from app.schemas.mtd_record import (
+    MTDRecordSchema,
+    MTDRecordCreateSchema,
+    MTDRecordUpdateSchema,
+    ManualScheduleCreateSchema,
+)
 
 router = APIRouter()
 
@@ -189,6 +194,57 @@ def update_mtd_record(mtd_id: str, payload: MTDRecordUpdateSchema, db: Session =
             if "status" in update_data and mtd.status == "completed":
                 linked_order.status = "completed"
 
+    db.commit()
+    db.refresh(mtd)
+    return mtd
+
+
+@router.post("/mtd/manual-schedule", response_model=MTDRecordSchema, status_code=status.HTTP_201_CREATED)
+def create_manual_schedule_entry(
+    payload: ManualScheduleCreateSchema,
+    db: Session = Depends(get_db),
+    _: None = Depends(require_full_access)
+):
+    data = payload.model_dump()
+    assigned_prod_str = data.pop("assigned_producer", None)
+    producer = resolve_producer_by_assignment_key(db, assigned_prod_str) if assigned_prod_str else None
+
+    category = data.get("category") or "Cheer"
+    section = "DANCE MUSIC" if category == "Dance" else "CHEERLEADING MUSIC"
+
+    program_name = (data.get("program_name") or "").strip() or "Manual Schedule Entry"
+    contact_name = (data.get("contact_name") or "").strip() or "N/A"
+    package = (data.get("package") or "").strip() or "Standard"
+
+    mtd = MTDRecord(
+        order_id=None,
+        section=section,
+        category=category,
+        program_name=program_name,
+        contact_name=contact_name,
+        package=package,
+        price=0.0,
+        price_compliance="compliant",
+        invoice="",
+        mix_start_date=data.get("mix_start_date"),
+        mix_end_date=data.get("mix_end_date"),
+        assigned_producer_id=producer.id if producer else None,
+        editor_initials=canonical_producer_assignment_key(producer) if producer else (assigned_prod_str or "UNASSIGNED"),
+        editor_request="FA",
+        status="active",
+        in_mtd=False,
+        is_manual_schedule_entry=True,
+        routine_notes=data.get("routine_notes"),
+        music_affiliate=data.get("music_affiliate"),
+        time_length_of_mix=data.get("time_length_of_mix"),
+        song_list_suggestions=data.get("song_list_suggestions"),
+        custom_voiceovers=data.get("custom_voiceovers"),
+        eight_count_sheet=data.get("eight_count_sheet") or "NEED CS",
+        have_songs="NEED SONGS",
+        needs_attention=False,
+    )
+
+    db.add(mtd)
     db.commit()
     db.refresh(mtd)
     return mtd

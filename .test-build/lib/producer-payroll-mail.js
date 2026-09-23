@@ -9,6 +9,7 @@ exports.generatePayrollExcelAttachment = generatePayrollExcelAttachment;
 exports.stringToBase64 = stringToBase64;
 const date_filters_1 = require("@/lib/date-filters");
 const export_csv_1 = require("@/lib/export-csv");
+const email_templates_1 = require("@/lib/email-templates");
 function escapeHtml(text) {
     return text
         .replace(/&/g, "&amp;")
@@ -27,18 +28,25 @@ function cellValue(row, key) {
 function payrollAttachmentFilename(producerName) {
     return `Payroll_Statement_${producerName.replace(/\s+/g, "_")}_${(0, date_filters_1.todayIso)()}.xls`;
 }
-function buildPayrollMailDraft(producer, mixCount, periodLabel, categoryLabel) {
+function buildPayrollMailDraft(producer, mixCount, periodLabel, categoryLabel, template = email_templates_1.DEFAULT_EMAIL_TEMPLATES.producer_payroll) {
     const firstName = producer.name.split(" ")[0] || producer.name;
     const scope = categoryLabel ? ` for ${categoryLabel}` : "";
     const mixLabel = `${mixCount} completed mix${mixCount === 1 ? "" : "es"}`;
+    const vars = {
+        firstName,
+        producerName: producer.name,
+        periodLabel,
+        mixLabel,
+        scope,
+    };
     return {
         to: producer.email,
         toName: producer.name,
-        subject: `Your payroll statement - ${periodLabel}`,
-        greeting: `Hi ${firstName},`,
-        intro: `Here is your payroll statement${scope} (${mixLabel}) for ${periodLabel}.`,
-        footer: "Please review the statement below and reach out if anything looks off or you have questions. An Excel copy is also attached.",
-        signature: "Thanks,\nSounds Like That",
+        subject: (0, email_templates_1.applyEmailTemplate)(template.subject, vars),
+        greeting: (0, email_templates_1.applyEmailTemplate)(template.greeting, vars),
+        intro: (0, email_templates_1.applyEmailTemplate)(template.intro, vars),
+        footer: (0, email_templates_1.applyEmailTemplate)(template.footer, vars),
+        signature: (0, email_templates_1.applyEmailTemplate)(template.signature, vars),
         attachmentFilename: payrollAttachmentFilename(producer.name),
         periodLabel,
     };

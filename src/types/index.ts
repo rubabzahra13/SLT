@@ -85,6 +85,7 @@ export type MTDRecord = {
   cheerFormSubtype?: CheerFormSubtype;
   danceFormSubtype?: DanceFormSubtype;
   varsityVirocCustomer?: "Yes" | "No";
+  isManualScheduleEntry?: boolean;
 };
 
 export type Weekday =

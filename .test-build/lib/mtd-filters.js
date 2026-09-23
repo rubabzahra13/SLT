@@ -477,7 +477,13 @@ function isOrderScheduledAndAssigned(rec) {
         (0, dates_1.toIsoDateString)(rec.mixEndDate));
 }
 function isMTDRecord(rec) {
-    // Outsourced mixes always live on the MTD board.
+    // An explicit "Move to Orders" flags the row reassigned and clears the board
+    // flag. That intent must win even for OUTSOURCED-section rows — otherwise the
+    // outsourced heuristic below drags the row straight back onto the MTD board
+    // and "Move to Orders" appears to do nothing.
+    if (rec.isReassigned && rec.inMTD === false)
+        return false;
+    // Outsourced mixes otherwise live on the MTD board by default.
     if (isOutsourcedRecord(rec))
         return true;
     if (rec.inMTD === true)

@@ -20,19 +20,21 @@ const DateFilter_1 = require("@/components/ui/DateFilter");
 const date_filters_1 = require("@/lib/date-filters");
 const mtd_filters_1 = require("@/lib/mtd-filters");
 const types_1 = require("@/types");
-function hasActiveMTDFilters(filters, form) {
+function hasActiveMTDFilters(filters, form, variant = "mtd") {
     const isCheer = !form || form === "school-all-star-cheer";
+    const showAssignedAndData = variant !== "orders";
     return (filters.packageTier !== "All" ||
         (isCheer && filters.timeLimit !== "All") ||
         (isCheer && filters.split !== "all") ||
-        filters.assignedProducer !== "All" ||
+        (showAssignedAndData && filters.assignedProducer !== "All") ||
         filters.requestedProducer !== "All" ||
         filters.scheduleFilter !== "all" ||
-        (filters.infoFilter ?? "all") !== "all" ||
+        (showAssignedAndData && (filters.infoFilter ?? "all") !== "all") ||
         filters.dateFilter.type !== "all");
 }
-function countTableFilters(filters, form) {
+function countTableFilters(filters, form, variant = "mtd") {
     const isCheer = !form || form === "school-all-star-cheer";
+    const showAssignedAndData = variant !== "orders";
     let count = 0;
     if (filters.packageTier !== "All")
         count += 1;
@@ -40,21 +42,22 @@ function countTableFilters(filters, form) {
         count += 1;
     if (isCheer && filters.split !== "all")
         count += 1;
-    if (filters.assignedProducer !== "All")
+    if (showAssignedAndData && filters.assignedProducer !== "All")
         count += 1;
     if (filters.requestedProducer !== "All")
         count += 1;
     if (filters.scheduleFilter !== "all")
         count += 1;
-    if ((filters.infoFilter ?? "all") !== "all")
+    if (showAssignedAndData && (filters.infoFilter ?? "all") !== "all")
         count += 1;
     if (filters.dateFilter.type !== "all")
         count += 1;
     return count;
 }
-function MTDTableFilterPanel({ records, producers, orderById, filters, onChange, onReset, form, grouped = false, }) {
+function MTDTableFilterPanel({ records, producers, orderById, filters, onChange, onReset, form, grouped = false, variant = "mtd", }) {
     const [open, setOpen] = (0, react_1.useState)(false);
     const rootRef = (0, react_1.useRef)(null);
+    const showAssignedAndData = variant !== "orders";
     const packageOptions = (0, react_1.useMemo)(() => (0, mtd_filters_1.buildPackageTierOptions)(records), [records]);
     const timeLimitOptions = (0, react_1.useMemo)(() => (0, mtd_filters_1.buildTimeLimitOptions)(records), [records]);
     const splitOptions = (0, react_1.useMemo)(() => (0, mtd_filters_1.buildSplitOptions)(records), [records]);
@@ -77,7 +80,7 @@ function MTDTableFilterPanel({ records, producers, orderById, filters, onChange,
     }, [records]);
     const infoOptions = (0, react_1.useMemo)(() => (0, mtd_filters_1.buildInfoOptions)(records), [records]);
     const isCheer = !form || form === "school-all-star-cheer";
-    const activeCount = countTableFilters(filters, form);
+    const activeCount = countTableFilters(filters, form, variant);
     (0, react_1.useEffect)(() => {
         if (!open)
             return;
@@ -98,7 +101,7 @@ function MTDTableFilterPanel({ records, producers, orderById, filters, onChange,
                         : "border-brand-line/55 bg-brand-elevated/90 text-brand-ink-secondary hover:border-brand-line-strong hover:bg-brand-elevated", open && "ring-2 ring-brand-blue/15")), children: [(0, jsx_runtime_1.jsx)(lucide_react_1.SlidersHorizontal, { className: "h-3.5 w-3.5 shrink-0", strokeWidth: 2 }), "Filters", activeCount > 0 ? ((0, jsx_runtime_1.jsx)("span", { className: "flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-blue-deep px-1 text-[10px] font-bold tabular-nums text-white", children: activeCount })) : null] }), open ? ((0, jsx_runtime_1.jsxs)("div", { className: "absolute left-0 top-[calc(100%+8px)] z-40 w-[min(92vw,560px)] rounded-2xl border border-brand-line bg-brand-surface p-4 shadow-[var(--shadow-premium)]", children: [(0, jsx_runtime_1.jsxs)("div", { className: "mb-3 flex items-center justify-between gap-3", children: [(0, jsx_runtime_1.jsx)("p", { className: "text-[13px] font-semibold text-brand-ink", children: "Table filters" }), activeCount > 0 ? ((0, jsx_runtime_1.jsx)("button", { type: "button", onClick: () => {
                                     onReset();
                                     setOpen(false);
-                                }, className: "text-[12px] font-medium text-brand-signature hover:underline", children: "Clear all" })) : null] }), (0, jsx_runtime_1.jsxs)("div", { className: "grid gap-3 sm:grid-cols-2", children: [(0, jsx_runtime_1.jsx)(FilterMenu_1.FilterMenu, { label: "Package", value: filters.packageTier, options: packageOptions, onChange: (value) => onChange({ packageTier: value }), accent: "blue" }), isCheer ? ((0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsx)(FilterMenu_1.FilterMenu, { label: "Time limit", value: filters.timeLimit, options: timeLimitOptions, onChange: (value) => onChange({ timeLimit: value }) }), (0, jsx_runtime_1.jsx)(FilterMenu_1.FilterMenu, { label: "Split", value: filters.split, options: splitOptions, onChange: (value) => onChange({ split: value }) })] })) : null, (0, jsx_runtime_1.jsx)(FilterMenu_1.FilterMenu, { label: "Assigned", value: filters.assignedProducer, options: assignedOptions, onChange: (value) => onChange({ assignedProducer: value }), accent: "orange" }), (0, jsx_runtime_1.jsx)(FilterMenu_1.FilterMenu, { label: "Requested", value: filters.requestedProducer, options: requestedOptions, onChange: (value) => onChange({ requestedProducer: value }), accent: "orange" }), (0, jsx_runtime_1.jsx)(FilterMenu_1.FilterMenu, { label: "Schedule", value: filters.scheduleFilter, options: scheduleOptions, onChange: (value) => onChange({ scheduleFilter: value }) }), (0, jsx_runtime_1.jsx)(FilterMenu_1.FilterMenu, { label: "Data", value: filters.infoFilter ?? "all", options: infoOptions, onChange: (value) => onChange({ infoFilter: value }), accent: "orange" }), (0, jsx_runtime_1.jsx)(DateFilter_1.DateFilter, { value: filters.dateFilter, onChange: (dateFilter) => onChange({ dateFilter }) })] })] })) : null] }));
+                                }, className: "text-[12px] font-medium text-brand-signature hover:underline", children: "Clear all" })) : null] }), (0, jsx_runtime_1.jsxs)("div", { className: "grid gap-3 sm:grid-cols-2", children: [(0, jsx_runtime_1.jsx)(FilterMenu_1.FilterMenu, { label: "Package", value: filters.packageTier, options: packageOptions, onChange: (value) => onChange({ packageTier: value }), accent: "blue" }), isCheer ? ((0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsx)(FilterMenu_1.FilterMenu, { label: "Time limit", value: filters.timeLimit, options: timeLimitOptions, onChange: (value) => onChange({ timeLimit: value }) }), (0, jsx_runtime_1.jsx)(FilterMenu_1.FilterMenu, { label: "Split", value: filters.split, options: splitOptions, onChange: (value) => onChange({ split: value }) })] })) : null, showAssignedAndData ? ((0, jsx_runtime_1.jsx)(FilterMenu_1.FilterMenu, { label: "Assigned", value: filters.assignedProducer, options: assignedOptions, onChange: (value) => onChange({ assignedProducer: value }), accent: "orange" })) : null, (0, jsx_runtime_1.jsx)(FilterMenu_1.FilterMenu, { label: "Requested", value: filters.requestedProducer, options: requestedOptions, onChange: (value) => onChange({ requestedProducer: value }), accent: "orange" }), (0, jsx_runtime_1.jsx)(FilterMenu_1.FilterMenu, { label: "Schedule", value: filters.scheduleFilter, options: scheduleOptions, onChange: (value) => onChange({ scheduleFilter: value }) }), showAssignedAndData ? ((0, jsx_runtime_1.jsx)(FilterMenu_1.FilterMenu, { label: "Data", value: filters.infoFilter ?? "all", options: infoOptions, onChange: (value) => onChange({ infoFilter: value }), accent: "orange" })) : null, (0, jsx_runtime_1.jsx)(DateFilter_1.DateFilter, { value: filters.dateFilter, onChange: (dateFilter) => onChange({ dateFilter }) })] })] })) : null] }));
 }
 function MTDActiveFilterChips({ chips, }) {
     if (chips.length === 0)
@@ -110,8 +113,9 @@ function MTDFilterChipsRow(props) {
     return (0, jsx_runtime_1.jsx)(MTDActiveFilterChips, { chips: chips });
 }
 function useMTDFilterChips(props) {
-    const { records, producers, orderById, filters, onChange, form } = props;
+    const { records, producers, orderById, filters, onChange, form, variant = "mtd", } = props;
     const isCheer = !form || form === "school-all-star-cheer";
+    const showAssignedAndData = variant !== "orders";
     const packageOptions = (0, react_1.useMemo)(() => (0, mtd_filters_1.buildPackageTierOptions)(records), [records]);
     const timeLimitOptions = (0, react_1.useMemo)(() => (0, mtd_filters_1.buildTimeLimitOptions)(records), [records]);
     const splitOptions = (0, react_1.useMemo)(() => (0, mtd_filters_1.buildSplitOptions)(records), [records]);
@@ -162,7 +166,7 @@ function useMTDFilterChips(props) {
                 onClear: () => onChange({ split: "all" }),
             });
         }
-        if (filters.assignedProducer !== "All") {
+        if (showAssignedAndData && filters.assignedProducer !== "All") {
             const label = assignedOptions.find((o) => o.value === filters.assignedProducer)
                 ?.label ?? filters.assignedProducer;
             items.push({
@@ -189,7 +193,7 @@ function useMTDFilterChips(props) {
                 onClear: () => onChange({ scheduleFilter: "all" }),
             });
         }
-        if ((filters.infoFilter ?? "all") !== "all") {
+        if (showAssignedAndData && (filters.infoFilter ?? "all") !== "all") {
             const label = infoOptions.find((o) => o.value === filters.infoFilter)?.label ??
                 filters.infoFilter;
             items.push({
@@ -216,6 +220,8 @@ function useMTDFilterChips(props) {
         scheduleOptions,
         infoOptions,
         onChange,
+        isCheer,
+        showAssignedAndData,
     ]);
 }
 exports.DEFAULT_MTD_TABLE_FILTERS = {

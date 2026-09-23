@@ -12,16 +12,33 @@ const react_1 = require("react");
 const lucide_react_1 = require("lucide-react");
 const DottedScroll_1 = require("@/components/ui/DottedScroll");
 const MIN_STRETCH_ROW_HEIGHT = 44;
-function DataTable({ columns, data, rowKey, href, onRowClick, emptyMessage = "No results found.", variant = "default", pageSize, embedded = false, compact = false, showScrollIndicator = true, stretchRows = false, stretchRowsMinCount = 3, className, }) {
+function DataTable({ columns, data, rowKey, href, onRowClick, emptyMessage = "No results found.", variant = "default", pageSize, embedded = false, compact = false, showScrollIndicator = true, stretchRows = false, stretchRowsMinCount = 3, className, highlightRowKey, onClearHighlight, }) {
     const router = (0, navigation_1.useRouter)();
     const [page, setPage] = (0, react_1.useState)(0);
     const containerRef = (0, react_1.useRef)(null);
+    const highlightRowRef = (0, react_1.useRef)(null);
     const theadRef = (0, react_1.useRef)(null);
     const [layoutHeight, setLayoutHeight] = (0, react_1.useState)(null);
     const [headerHeight, setHeaderHeight] = (0, react_1.useState)(0);
     (0, react_1.useEffect)(() => {
         setPage(0);
     }, [data.length, pageSize]);
+    // Jump to the page that contains the highlighted row so it is actually shown.
+    (0, react_1.useEffect)(() => {
+        if (!highlightRowKey || !pageSize || pageSize <= 0)
+            return;
+        const index = data.findIndex((row) => rowKey(row) === highlightRowKey);
+        if (index >= 0)
+            setPage(Math.floor(index / pageSize));
+        // rowKey is a stable accessor; intentionally excluded from deps.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [highlightRowKey, data, pageSize]);
+    // Bring the highlighted row into view once it renders.
+    (0, react_1.useEffect)(() => {
+        if (highlightRowKey && highlightRowRef.current) {
+            highlightRowRef.current.scrollIntoView({ block: "center", behavior: "smooth" });
+        }
+    }, [highlightRowKey, page]);
     const totalPages = pageSize && pageSize > 0 ? Math.max(1, Math.ceil(data.length / pageSize)) : 1;
     const safePage = Math.min(page, totalPages - 1);
     const visibleData = (0, react_1.useMemo)(() => {
@@ -103,10 +120,21 @@ function DataTable({ columns, data, rowKey, href, onRowClick, emptyMessage = "No
                         ? { minHeight: tableHeight, height: tableHeight }
                         : undefined, children: [(0, jsx_runtime_1.jsx)("colgroup", { children: columns.map((col) => ((0, jsx_runtime_1.jsx)("col", { style: { width: col.width ?? "auto" } }, col.key))) }), (0, jsx_runtime_1.jsx)("thead", { ref: theadRef, children: (0, jsx_runtime_1.jsx)("tr", { className: "table-header-row", children: columns.map((col) => ((0, jsx_runtime_1.jsx)("th", { scope: "col", className: (0, clsx_1.default)(headerCellClass, "table-header-label table-header-cell border-r last:border-r-0", alignClass(col.align), stickyClass(col.sticky, true), col.headerClassName), children: col.header }, col.key))) }) }), (0, jsx_runtime_1.jsx)("tbody", { children: data.length === 0 ? ((0, jsx_runtime_1.jsx)("tr", { children: (0, jsx_runtime_1.jsx)("td", { colSpan: columns.length, className: "px-4 py-16 text-center text-[13px] font-medium text-brand-ink-tertiary", children: emptyMessage }) })) : (visibleData.map((row, rowOffset) => {
                                 const rowIndex = rangeStart - 1 + rowOffset;
-                                return ((0, jsx_runtime_1.jsx)("tr", { style: stretchRowHeight != null
-                                        ? { height: stretchRowHeight }
-                                        : undefined, className: (0, clsx_1.default)("border-b border-brand-line-strong transition-colors last:border-b-0", embedded
+                                const isHighlighted = highlightRowKey != null && rowKey(row) === highlightRowKey;
+                                return ((0, jsx_runtime_1.jsx)("tr", { ref: isHighlighted ? highlightRowRef : undefined, style: {
+                                        ...(stretchRowHeight != null
+                                            ? { height: stretchRowHeight }
+                                            : {}),
+                                        // Inline so the tint/accent survive CSS hot-reload; the
+                                        // globals.css keyframe layers a brief flash on top.
+                                        ...(isHighlighted
+                                            ? {
+                                                backgroundColor: "rgba(82, 200, 238, 0.2)",
+                                                boxShadow: "inset 3px 0 0 0 var(--color-brand-blue)",
+                                            }
+                                            : {}),
+                                    }, className: (0, clsx_1.default)("border-b border-brand-line-strong transition-colors last:border-b-0", embedded
                                         ? "dashboard-table-row"
-                                        : (0, clsx_1.default)("bg-brand-elevated", variant === "muted" && "bg-brand-surface"), isInteractive && "cursor-pointer hover:bg-brand-blue-soft/25"), onClick: isInteractive ? (event) => handleRowClick(row, event) : undefined, children: columns.map((col) => ((0, jsx_runtime_1.jsx)("td", { className: (0, clsx_1.default)(cellClass, textSize, alignClass(col.align), "border-r border-brand-line-strong align-middle last:border-r-0", col.nowrap !== false && "max-w-0 truncate whitespace-nowrap", stickyClass(col.sticky), col.cellClassName), children: col.render(row, rowIndex) }, col.key))) }, rowKey(row)));
+                                        : (0, clsx_1.default)("bg-brand-elevated", variant === "muted" && "bg-brand-surface"), isInteractive && "cursor-pointer hover:bg-brand-blue-soft/25", isHighlighted && "data-row-highlight"), onClickCapture: onClearHighlight ? () => onClearHighlight() : undefined, onClick: isInteractive ? (event) => handleRowClick(row, event) : undefined, children: columns.map((col) => ((0, jsx_runtime_1.jsx)("td", { className: (0, clsx_1.default)(cellClass, textSize, alignClass(col.align), "border-r border-brand-line-strong align-middle last:border-r-0", col.nowrap !== false && "max-w-0 truncate whitespace-nowrap", stickyClass(col.sticky), col.cellClassName), children: col.render(row, rowIndex) }, col.key))) }, rowKey(row)));
                             })) })] }) }), pageSize && pageSize > 0 && data.length > pageSize ? ((0, jsx_runtime_1.jsxs)("div", { className: (0, clsx_1.default)("flex items-center justify-between gap-3 border-t border-brand-line-strong px-4 py-3", embedded ? "dashboard-table-footer" : "bg-brand-elevated/50"), children: [(0, jsx_runtime_1.jsxs)("p", { className: "text-[12px] font-medium text-brand-ink-tertiary", children: [rangeStart, "\u2013", rangeEnd, " of ", data.length] }), (0, jsx_runtime_1.jsxs)("div", { className: "flex items-center gap-1.5", children: [(0, jsx_runtime_1.jsx)("button", { type: "button", disabled: safePage === 0, onClick: () => setPage((p) => Math.max(0, p - 1)), className: "inline-flex h-8 w-8 items-center justify-center rounded-lg text-brand-ink-secondary transition hover:bg-brand-bg hover:text-brand-ink disabled:opacity-30", "aria-label": "Previous page", children: (0, jsx_runtime_1.jsx)(lucide_react_1.ChevronLeft, { className: "h-4 w-4", strokeWidth: 2 }) }), (0, jsx_runtime_1.jsxs)("span", { className: "min-w-[4.5rem] text-center text-[12px] font-semibold tabular-nums text-brand-ink-secondary", children: [safePage + 1, " / ", totalPages] }), (0, jsx_runtime_1.jsx)("button", { type: "button", disabled: safePage >= totalPages - 1, onClick: () => setPage((p) => Math.min(totalPages - 1, p + 1)), "aria-label": "Next page", className: "inline-flex h-8 w-8 items-center justify-center rounded-lg text-brand-ink-secondary transition hover:bg-brand-bg hover:text-brand-ink disabled:opacity-30", children: (0, jsx_runtime_1.jsx)(lucide_react_1.ChevronRight, { className: "h-4 w-4", strokeWidth: 2 }) })] })] })) : null] }));
 }

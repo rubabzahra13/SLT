@@ -25,7 +25,7 @@ function computePanelPosition(trigger) {
         width,
     };
 }
-function FilterMenu({ label, value, options, onChange, accent = "blue", className, hideLabel = false, grouped = false, portal = false, portalZIndex = 100, }) {
+function FilterMenu({ label, value, options, onChange, accent = "blue", className, hideLabel = false, grouped = false, portal = false, portalZIndex = 100, alwaysActive = false, triggerClassName, triggerWidth, }) {
     const [open, setOpen] = (0, react_1.useState)(false);
     const [mounted, setMounted] = (0, react_1.useState)(false);
     const [position, setPosition] = (0, react_1.useState)(null);
@@ -33,7 +33,7 @@ function FilterMenu({ label, value, options, onChange, accent = "blue", classNam
     const buttonRef = (0, react_1.useRef)(null);
     const panelRef = (0, react_1.useRef)(null);
     const selected = options.find((o) => o.value === value);
-    const isActive = value !== options[0]?.value;
+    const isActive = alwaysActive || value !== options[0]?.value;
     (0, react_1.useEffect)(() => {
         setMounted(true);
     }, []);
@@ -87,7 +87,9 @@ function FilterMenu({ label, value, options, onChange, accent = "blue", classNam
             width: position.width,
             zIndex: portalZIndex,
         }, children: menuContent }), document.body)) : !portal ? ((0, jsx_runtime_1.jsx)("div", { className: "absolute left-0 top-[calc(100%+6px)] z-30 max-h-[300px] w-[248px] overflow-y-auto rounded-xl border border-brand-line bg-brand-surface py-1 shadow-[var(--shadow-premium)]", children: menuContent })) : null) : null;
-    return ((0, jsx_runtime_1.jsxs)("div", { ref: rootRef, className: (0, clsx_1.default)("relative", className), children: [(0, jsx_runtime_1.jsxs)("button", { ref: buttonRef, type: "button", "aria-label": hideLabel ? label : undefined, onClick: () => setOpen((v) => !v), className: (0, clsx_1.default)("inline-flex h-8 items-center gap-1.5 text-[12px] font-medium transition", hideLabel
+    return ((0, jsx_runtime_1.jsxs)("div", { ref: rootRef, className: (0, clsx_1.default)("relative", className), children: [(0, jsx_runtime_1.jsxs)("button", { ref: buttonRef, type: "button", "aria-label": hideLabel ? label : undefined, onClick: () => setOpen((v) => !v), style: typeof triggerWidth === "number"
+                    ? { width: triggerWidth, minWidth: triggerWidth, maxWidth: triggerWidth }
+                    : undefined, className: (0, clsx_1.default)("inline-flex h-8 items-center gap-1.5 text-[12px] font-medium transition", hideLabel
                     ? grouped
                         ? (0, clsx_1.default)("rounded-lg px-2.5", open && "bg-brand-elevated shadow-sm ring-1 ring-brand-line/35", isActive
                             ? accent === "orange"
@@ -103,5 +105,7 @@ function FilterMenu({ label, value, options, onChange, accent = "blue", classNam
                             "border-brand-line-strong bg-brand-elevated text-brand-ink")
                     : (0, clsx_1.default)("rounded-lg border px-3 shadow-sm", open
                         ? "border-brand-line-strong bg-brand-bg text-brand-ink"
-                        : "border-brand-line bg-brand-elevated text-brand-ink-secondary hover:border-brand-line-strong hover:bg-brand-accent-soft hover:text-brand-ink")), children: [!hideLabel ? ((0, jsx_runtime_1.jsx)("span", { className: "text-[10px] font-semibold uppercase tracking-[0.06em] text-brand-ink-tertiary", children: label })) : null, (0, jsx_runtime_1.jsx)("span", { className: "max-w-[148px] truncate text-brand-ink", children: selected?.label ?? "—" }), !hideLabel && selected?.count !== undefined ? ((0, jsx_runtime_1.jsxs)("span", { className: "text-brand-ink-tertiary", children: ["(", selected.count, ")"] })) : null, (0, jsx_runtime_1.jsx)(lucide_react_1.ChevronDown, { className: (0, clsx_1.default)("h-3.5 w-3.5 shrink-0 text-brand-ink-tertiary transition", open && "rotate-180"), strokeWidth: 2 })] }), panel] }));
+                        : "border-brand-line bg-brand-elevated text-brand-ink-secondary hover:border-brand-line-strong hover:bg-brand-accent-soft hover:text-brand-ink"), triggerClassName), children: [!hideLabel ? ((0, jsx_runtime_1.jsx)("span", { className: "text-[10px] font-semibold uppercase tracking-[0.06em] text-brand-ink-tertiary", children: label })) : null, (0, jsx_runtime_1.jsx)("span", { className: (0, clsx_1.default)("truncate text-brand-ink", hideLabel && (triggerClassName || triggerWidth)
+                            ? "min-w-0 flex-1 text-center"
+                            : "max-w-[148px]"), children: selected?.label ?? "—" }), !hideLabel && selected?.count !== undefined ? ((0, jsx_runtime_1.jsxs)("span", { className: "text-brand-ink-tertiary", children: ["(", selected.count, ")"] })) : null, (0, jsx_runtime_1.jsx)(lucide_react_1.ChevronDown, { className: (0, clsx_1.default)("h-3.5 w-3.5 shrink-0 text-brand-ink-tertiary transition", open && "rotate-180"), strokeWidth: 2 })] }), panel] }));
 }

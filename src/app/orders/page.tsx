@@ -18,6 +18,7 @@ import { SetPricingModal } from "@/components/mtd/SetPricingModal";
 import { SetRecordPricingModal } from "@/components/mtd/SetRecordPricingModal";
 import { CompletionBlockedModal } from "@/components/mtd/CompletionBlockedModal";
 import { ForwardOrderMailModal } from "@/components/orders/ForwardOrderMailModal";
+import { AddNewOrderModal } from "@/components/orders/AddNewOrderModal";
 import { OrderRequirementsCell } from "@/components/orders/OrderRequirementsCell";
 import { OrderStatusDropdown } from "@/components/orders/OrderStatusDropdown";
 import {
@@ -132,6 +133,7 @@ function OrdersPageContent() {
     activeOrders,
     allOrders,
     updateMTD,
+    addManualScheduleEntry,
     producers,
     schedule,
     packagePrices,
@@ -253,6 +255,7 @@ function OrdersPageContent() {
   const [mailRecipient, setMailRecipient] = useState<"producer" | "customer">(
     "producer"
   );
+  const [addNewOrderOpen, setAddNewOrderOpen] = useState(false);
 
   const preMtdRecords = useMemo(
     () => listPreMtdOrderRecords(activeOrders, mtdRecords, packagePrices),
@@ -1060,6 +1063,11 @@ function OrdersPageContent() {
         badge={`${filtered.length} of ${typeFilteredPreMtdRecords.length}`}
         subtitle="Pre-MTD order staging: assign editor, set dates, and move to MTD"
         action={{
+          label: "Add New Order",
+          onClick: () => setAddNewOrderOpen(true),
+          showPlus: true,
+        }}
+        secondaryAction={{
           label: "Pricing",
           onClick: () => setPricingOpen(true),
           showPlus: false,
@@ -1176,6 +1184,19 @@ function OrdersPageContent() {
         producers={producers}
         recipient={mailRecipient}
         onClose={() => setMailRecord(null)}
+      />
+
+      <AddNewOrderModal
+        open={addNewOrderOpen}
+        onClose={() => setAddNewOrderOpen(false)}
+        producers={producers}
+        mtdRecords={mtdRecords}
+        allOrders={allOrders}
+        schedule={schedule}
+        initialFormType={form}
+        initialCheerSubtype={cheerSubtype}
+        initialDanceSubtype={danceSubtype}
+        onAdd={addManualScheduleEntry}
       />
     </>
   );
