@@ -270,7 +270,7 @@ function OrdersPageContent() {
   const needToBeScheduledCount = useMemo(
     () =>
       preMtdRecords.filter(
-        (r) => !r.isReassigned && getOrderRequirements(r).missingCount === 0
+        (r) => getOrderStatus(r).status === "Complete"
       ).length,
     [preMtdRecords]
   );
@@ -278,12 +278,12 @@ function OrdersPageContent() {
   const newOrdersCount = needToBeScheduledCount;
 
   const reassignedOrdersCount = useMemo(
-    () => preMtdRecords.filter((r) => Boolean(r.isReassigned)).length,
+    () => preMtdRecords.filter((r) => getOrderStatus(r).status === "Reassign" || Boolean(r.isReassigned)).length,
     [preMtdRecords]
   );
 
   const waitingForDataCount = useMemo(
-    () => preMtdRecords.filter((r) => getOrderRequirements(r).missingCount > 0).length,
+    () => preMtdRecords.filter((r) => getOrderStatus(r).status === "Missing Data").length,
     [preMtdRecords]
   );
 
@@ -291,10 +291,11 @@ function OrdersPageContent() {
     () =>
       preMtdRecords.filter((rec) => {
         if (rangeFilter === "all") return true;
-        if (rangeFilter === "reassigned") return Boolean(rec.isReassigned);
-        if (rangeFilter === "waiting_for_data") return getOrderRequirements(rec).missingCount > 0;
-        // Default "need_to_be_scheduled" (and legacy "new_orders")
-        return !rec.isReassigned && getOrderRequirements(rec).missingCount === 0;
+        const st = getOrderStatus(rec).status;
+        if (rangeFilter === "reassigned") return st === "Reassign" || Boolean(rec.isReassigned);
+        if (rangeFilter === "waiting_for_data") return st === "Missing Data";
+        // Default "need_to_be_scheduled" (Complete tab)
+        return st === "Complete";
       }),
     [preMtdRecords, rangeFilter]
   );
@@ -813,22 +814,25 @@ function OrdersPageContent() {
         cellClassName: clsx(compactCellClass, "max-w-[100px]"),
         headerClassName: compactHeaderClass,
         render: (rec) => {
+          const isMissingDataRow = rangeFilter === "waiting_for_data" || getOrderStatus(rec).status === "Missing Data";
           const assigned = getDisplayAssignedProducer(rec);
           const producer = assigned
             ? findProducerByAssignmentKey(assigned, producers)
             : undefined;
 
           return (
-            <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
+            <div className={clsx("flex justify-center", isMissingDataRow && "opacity-40 pointer-events-none cursor-not-allowed")} onClick={(e) => e.stopPropagation()}>
               {assigned ? (
                 <button
                   type="button"
+                  disabled={isMissingDataRow}
                   onMouseDown={(e) => e.stopPropagation()}
                   onClick={(e) => {
+                    if (isMissingDataRow) return;
                     e.stopPropagation();
                     setAssignRecordId(rec.id);
                   }}
-                  title="Edit assignment"
+                  title={isMissingDataRow ? "Scheduling disabled in Missing Data" : "Edit assignment"}
                   aria-label={`Edit assignment for ${assigned}`}
                   className={clsx(
                     clickableChipClass,
@@ -841,12 +845,14 @@ function OrdersPageContent() {
                 <div className="flex flex-col items-center gap-1">
                   <button
                     type="button"
+                    disabled={isMissingDataRow}
                     onMouseDown={(e) => e.stopPropagation()}
                     onClick={(e) => {
+                      if (isMissingDataRow) return;
                       e.stopPropagation();
                       setAssignRecordId(rec.id);
                     }}
-                    className={actionButtonClass(false)}
+                    className={clsx(actionButtonClass(false), isMissingDataRow && "opacity-40 pointer-events-none cursor-not-allowed")}
                   >
                     {rec.isReassigned || rangeFilter === "reassigned" ? "Reassign" : "Assign"}
                   </button>
@@ -865,12 +871,16 @@ function OrdersPageContent() {
         cellClassName: "!px-2 !py-1.5",
         headerClassName: "!px-2",
         render: (rec) => {
+          const isMissingDataRow = rangeFilter === "waiting_for_data" || getOrderStatus(rec).status === "Missing Data";
           return (
-            <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
+            <div className={clsx("flex justify-center", isMissingDataRow && "opacity-40 pointer-events-none cursor-not-allowed")} onClick={(e) => e.stopPropagation()}>
               <InlineDateInput
                 value={rec.mixStartDate}
+                disabled={isMissingDataRow}
+                readOnly={isMissingDataRow}
                 className={tableDateClass}
                 onChange={(next) => {
+                  if (isMissingDataRow) return;
                   let nextEnd = rec.mixEndDate;
                   // Keep the mix window valid: if the new start is on/after the
                   // existing end (or no end yet), push the end to start + 7 days.
@@ -898,14 +908,20 @@ function OrdersPageContent() {
         cellClassName: "!px-2 !py-1.5",
         headerClassName: "!px-2",
         render: (rec) => {
+          const isMissingDataRow = rangeFilter === "waiting_for_data" || getOrderStatus(rec).status === "Missing Data";
           const startIso = toIsoDateString(rec.mixStartDate);
           return (
-            <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
+            <div className={clsx("flex justify-center", isMissingDataRow && "opacity-40 pointer-events-none cursor-not-allowed")} onClick={(e) => e.stopPropagation()}>
               <InlineDateInput
                 value={rec.mixEndDate ?? ""}
                 min={startIso || undefined}
+                disabled={isMissingDataRow}
+                readOnly={isMissingDataRow}
                 className={tableDateClass}
-                onChange={(next) => updateMTD(rec.id, { mixEndDate: next })}
+                onChange={(next) => {
+                  if (isMissingDataRow) return;
+                  updateMTD(rec.id, { mixEndDate: next });
+                }}
               />
             </div>
           );

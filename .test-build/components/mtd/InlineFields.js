@@ -267,7 +267,8 @@ function isDateDisabled(iso, minIso, maxIso) {
         return true;
     return false;
 }
-function InlineDateInput({ value, onChange, template, placeholder, min, max, className, readOnly = false, menuZIndex = 60, suffix, displayValue, }) {
+function InlineDateInput({ value, onChange, template, placeholder, min, max, className, readOnly = false, disabled = false, menuZIndex = 60, suffix, displayValue, }) {
+    const isEffectiveReadOnly = readOnly || disabled;
     const triggerRef = (0, react_1.useRef)(null);
     const menuRef = (0, react_1.useRef)(null);
     const [open, setOpen] = (0, react_1.useState)(false);
@@ -352,14 +353,14 @@ function InlineDateInput({ value, onChange, template, placeholder, min, max, cla
                 ? (0, dates_1.formatDisplayDate)(templateIso)
                 : "Select date"
         : displayValue?.trim() || (0, dates_1.formatDisplayDate)(normalized);
-    return ((0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsxs)("button", { ref: triggerRef, type: "button", disabled: readOnly, "aria-haspopup": "dialog", "aria-expanded": open, title: isUnset && templateIso
+    return ((0, jsx_runtime_1.jsxs)(jsx_runtime_1.Fragment, { children: [(0, jsx_runtime_1.jsxs)("button", { ref: triggerRef, type: "button", disabled: isEffectiveReadOnly, "aria-haspopup": "dialog", "aria-expanded": open, title: isUnset && templateIso
                     ? `Suggested mix date: ${templateIso}`
                     : undefined, onClick: (e) => {
                     e.stopPropagation();
-                    if (readOnly)
+                    if (isEffectiveReadOnly)
                         return;
                     setOpen((v) => !v);
-                }, onMouseDown: (e) => e.stopPropagation(), className: (0, clsx_1.default)(inlineControlClass, "flex min-w-[108px] cursor-pointer items-center justify-between gap-1.5 pr-2 text-left tabular-nums", isUnset && "text-brand-ink-tertiary", readOnly && "!cursor-default !bg-slate-50/50 opacity-80 pointer-events-none", className), children: [(0, jsx_runtime_1.jsxs)("span", { className: "flex min-w-0 items-center gap-1.5 truncate", children: [(0, jsx_runtime_1.jsx)(lucide_react_1.Calendar, { className: "h-3.5 w-3.5 shrink-0 text-brand-ink-tertiary", strokeWidth: 2 }), (0, jsx_runtime_1.jsxs)("span", { className: (0, clsx_1.default)("truncate", !isUnset && "text-brand-ink"), children: [displayLabel, suffix && !isUnset ? ((0, jsx_runtime_1.jsxs)("span", { className: "text-brand-ink-tertiary", children: [" \u00B7 ", suffix] })) : null] })] }), (0, jsx_runtime_1.jsx)(lucide_react_1.ChevronDown, { className: (0, clsx_1.default)("h-3.5 w-3.5 shrink-0 text-brand-ink-tertiary transition-transform duration-150", open && "rotate-180"), strokeWidth: 2.25 })] }), mounted && open && position
+                }, onMouseDown: (e) => e.stopPropagation(), className: (0, clsx_1.default)(inlineControlClass, "flex min-w-[108px] cursor-pointer items-center justify-between gap-1.5 pr-2 text-left tabular-nums", isUnset && "text-brand-ink-tertiary", isEffectiveReadOnly && "!cursor-default !bg-slate-50/50 opacity-80 pointer-events-none", className), children: [(0, jsx_runtime_1.jsxs)("span", { className: "flex min-w-0 items-center gap-1.5 truncate", children: [(0, jsx_runtime_1.jsx)(lucide_react_1.Calendar, { className: "h-3.5 w-3.5 shrink-0 text-brand-ink-tertiary", strokeWidth: 2 }), (0, jsx_runtime_1.jsxs)("span", { className: (0, clsx_1.default)("truncate", !isUnset && "text-brand-ink"), children: [displayLabel, suffix && !isUnset ? ((0, jsx_runtime_1.jsxs)("span", { className: "text-brand-ink-tertiary", children: [" \u00B7 ", suffix] })) : null] })] }), (0, jsx_runtime_1.jsx)(lucide_react_1.ChevronDown, { className: (0, clsx_1.default)("h-3.5 w-3.5 shrink-0 text-brand-ink-tertiary transition-transform duration-150", open && "rotate-180"), strokeWidth: 2.25 })] }), mounted && open && position
                 ? (0, react_dom_1.createPortal)((0, jsx_runtime_1.jsxs)("div", { ref: menuRef, role: "dialog", "aria-label": "Choose date", onClick: (e) => e.stopPropagation(), onMouseDown: (e) => e.stopPropagation(), className: "fixed overflow-hidden rounded-xl border border-brand-line/60 bg-white shadow-[var(--shadow-premium)] ring-1 ring-inset ring-brand-line/15", style: {
                         left: position.left,
                         top: position.top,

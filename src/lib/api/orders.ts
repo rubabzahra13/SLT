@@ -53,6 +53,11 @@ export interface BackendOrder {
   collection_states?: any;
   order_status?: string | null;
   is_reassigned?: boolean;
+  assigned_producer?: string | null;
+  mix_start_date?: string | null;
+  mix_end_date?: string | null;
+  eight_count_sheet?: string | null;
+  have_songs?: string | null;
 
   customer_name: string;
   contact_name: string;
@@ -146,7 +151,11 @@ export function transformOrder(bo: BackendOrder): Order {
     musicTheme: bo.music_theme || "",
     editorRequest: bo.editor_request || "FA",
     requestedProducer: bo.requested_producer || "",
-    assignedProducer: null,
+    assignedProducer: bo.assigned_producer || null,
+    mixStartDate: bo.mix_start_date || undefined,
+    mixEndDate: bo.mix_end_date || undefined,
+    eightCountSheet: (bo.eight_count_sheet as any) || undefined,
+    haveSongs: (bo.have_songs as any) || undefined,
     price: bo.price ?? 0,
     priceCompliance: (bo.price_compliance as any) || "compliant",
     status: bo.status || "new",
@@ -229,8 +238,16 @@ export async function updateOrderApi(
   }
   if ((patch as any).orderStatus !== undefined) payload.order_status = (patch as any).orderStatus;
   if ((patch as any).order_status !== undefined) payload.order_status = (patch as any).order_status;
+  if (patch.assignedProducer !== undefined) payload.assigned_producer = patch.assignedProducer;
+  if ((patch as any).assigned_producer !== undefined) payload.assigned_producer = (patch as any).assigned_producer;
+  if (patch.mixStartDate !== undefined) payload.mix_start_date = patch.mixStartDate;
+  if ((patch as any).mix_start_date !== undefined) payload.mix_start_date = (patch as any).mix_start_date;
+  if (patch.mixEndDate !== undefined) payload.mix_end_date = patch.mixEndDate;
+  if ((patch as any).mix_end_date !== undefined) payload.mix_end_date = (patch as any).mix_end_date;
   if (patch.haveSongs !== undefined) payload.have_songs = patch.haveSongs;
+  if ((patch as any).have_songs !== undefined) payload.have_songs = (patch as any).have_songs;
   if (patch.eightCountSheet !== undefined) payload.eight_count_sheet = patch.eightCountSheet;
+  if ((patch as any).eight_count_sheet !== undefined) payload.eight_count_sheet = (patch as any).eight_count_sheet;
 
   try {
     const res = await apiClient.patch<BackendOrder>(`/api/orders/${id}`, payload);

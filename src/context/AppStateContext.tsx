@@ -117,7 +117,7 @@ type AppStateContextValue = {
   removeDiscountCode: (id: string) => Promise<void>;
   addPayrollAddon: (payload: CreatePayrollAddonPayload) => Promise<PayrollAddon>;
   removePayrollAddon: (id: string) => Promise<void>;
-  addManualScheduleEntry: (payload: CreateManualSchedulePayload) => Promise<MTDRecord>;
+  addManualScheduleEntry: (payload: CreateManualSchedulePayload) => Promise<Order>;
   addNotification: (notification: Omit<AppNotification, "id" | "read" | "createdAt">) => void;
   addHoliday: (holiday: StudioHoliday) => void;
   updateHoliday: (id: string, patch: Partial<StudioHoliday>) => void;
@@ -760,10 +760,10 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           );
         });
     } else {
-      const hasMtdRecord = mtdRecords.some(
-        (r) => r.id === id || r.orderId === id || r.uuid === id || r.legacyId === id
+      const isRealMtdRecord = Boolean(
+        existing && (existing.inMTD === true || existing.isManualScheduleEntry === true || !linkedOrder)
       );
-      if (hasMtdRecord) {
+      if (isRealMtdRecord) {
         updateMTDRecordApi(apiId, apiPatch).catch((err) =>
           console.error("Failed to persist MTD Record update to backend:", err)
         );
@@ -1188,10 +1188,10 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   );
 
   const addManualScheduleEntry = useCallback(
-    async (payload: CreateManualSchedulePayload): Promise<MTDRecord> => {
+    async (payload: CreateManualSchedulePayload): Promise<Order> => {
       if (isViewOnly) throw new Error("View-only accounts cannot create manual schedule entries.");
       const created = await createManualScheduleEntryApi(payload);
-      setMtdRecords((prev) => [created, ...prev]);
+      setActiveOrders((prev) => [created, ...prev]);
       return created;
     },
     [isViewOnly]

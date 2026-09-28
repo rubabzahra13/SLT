@@ -148,11 +148,14 @@ class ManualScheduleCreateSchema(BaseModel):
     form_type: Optional[str] = "school-all-star-cheer"
     cheer_form_subtype: Optional[str] = "all-star-cheer"
     dance_form_subtype: Optional[str] = "pom"
-    mix_start_date: date
-    mix_end_date: date
+    mix_start_date: str
+    mix_end_date: str
     assigned_producer: str
     program_name: Optional[str] = None
+    school_program_name: Optional[str] = None
     contact_name: Optional[str] = None
+    email: Optional[str] = None
+    coach_email: Optional[str] = None
     package: Optional[str] = None
     routine_notes: Optional[str] = None
     music_affiliate: Optional[str] = None
@@ -160,3 +163,10 @@ class ManualScheduleCreateSchema(BaseModel):
     song_list_suggestions: Optional[str] = None
     custom_voiceovers: Optional[str] = None
     eight_count_sheet: Optional[str] = None
+    video_url: Optional[str] = None
+    has_rally_mix: Optional[bool] = False
+    has_extend_8ct_addon: Optional[bool] = False
+    has_processing_8ct_sheets_addon: Optional[bool] = False
+    has_traditional_voiceover: Optional[bool] = False
+    has_themed_voiceover: Optional[bool] = False
+    dance_voiceover: Optional[str] = None

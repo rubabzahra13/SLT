@@ -199,7 +199,9 @@ def update_mtd_record(mtd_id: str, payload: MTDRecordUpdateSchema, db: Session =
     return mtd
 
 
-@router.post("/mtd/manual-schedule", response_model=MTDRecordSchema, status_code=status.HTTP_201_CREATED)
+from app.schemas.order import OrderSchema
+
+@router.post("/mtd/manual-schedule", response_model=OrderSchema, status_code=status.HTTP_201_CREATED)
 def create_manual_schedule_entry(
     payload: ManualScheduleCreateSchema,
     db: Session = Depends(get_db),
@@ -207,44 +209,45 @@ def create_manual_schedule_entry(
 ):
     data = payload.model_dump()
     assigned_prod_str = data.pop("assigned_producer", None)
-    producer = resolve_producer_by_assignment_key(db, assigned_prod_str) if assigned_prod_str else None
 
     category = data.get("category") or "Cheer"
-    section = "DANCE MUSIC" if category == "Dance" else "CHEERLEADING MUSIC"
+    form_type = data.get("form_type") or "school-all-star-cheer"
+    cheer_form_subtype = data.get("cheer_form_subtype")
+    dance_form_subtype = data.get("dance_form_subtype")
 
-    program_name = (data.get("program_name") or "").strip() or "Manual Schedule Entry"
-    contact_name = (data.get("contact_name") or "").strip() or "N/A"
-    package = (data.get("package") or "").strip() or "Standard"
+    contact = data.get("contact_name")
+    program = data.get("program_name")
+    school_program = data.get("school_program_name")
+    cust_name = contact or program or school_program or "Customer"
 
-    mtd = MTDRecord(
-        order_id=None,
-        section=section,
+    order = Order(
         category=category,
-        program_name=program_name,
-        contact_name=contact_name,
-        package=package,
-        price=0.0,
-        price_compliance="compliant",
-        invoice="",
+        form_type=form_type,
+        cheer_form_subtype=cheer_form_subtype,
+        dance_form_subtype=dance_form_subtype,
+        customer_name=cust_name,
+        contact_name=contact,
+        program_name=program,
+        school_program_name=school_program,
+        email_address=data.get("email"),
+        coach_email=data.get("coach_email"),
+        package=data.get("package") or "Standard",
         mix_start_date=data.get("mix_start_date"),
         mix_end_date=data.get("mix_end_date"),
-        assigned_producer_id=producer.id if producer else None,
-        editor_initials=canonical_producer_assignment_key(producer) if producer else (assigned_prod_str or "UNASSIGNED"),
-        editor_request="FA",
-        status="active",
-        in_mtd=False,
-        is_manual_schedule_entry=True,
+        assigned_producer=assigned_prod_str,
+        order_status="Complete",
+        status="new",
+        price=0.0,
         routine_notes=data.get("routine_notes"),
         music_affiliate=data.get("music_affiliate"),
         time_length_of_mix=data.get("time_length_of_mix"),
         song_list_suggestions=data.get("song_list_suggestions"),
         custom_voiceovers=data.get("custom_voiceovers"),
-        eight_count_sheet=data.get("eight_count_sheet") or "NEED CS",
-        have_songs="NEED SONGS",
-        needs_attention=False,
+        eight_count_sheet=data.get("eight_count_sheet"),
+        have_songs="HAVE SONGS" if data.get("song_list_suggestions") else "NEED SONGS",
     )
 
-    db.add(mtd)
+    db.add(order)
     db.commit()
-    db.refresh(mtd)
-    return mtd
+    db.refresh(order)
+    return order

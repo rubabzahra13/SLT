@@ -59,18 +59,23 @@ class OrderSchema(BaseModel):
     how_did_you_find_out: Optional[str] = None
     collection_states: Optional[Any] = None
     order_status: Optional[str] = None
+    assigned_producer: Optional[str] = None
+    mix_start_date: Optional[str] = None
+    mix_end_date: Optional[str] = None
+    eight_count_sheet: Optional[str] = None
+    have_songs: Optional[str] = None
 
-    customer_name: str
-    contact_name: str
-    program_name: str
-    category: str
-    package: str
+    customer_name: Optional[str] = None
+    contact_name: Optional[str] = None
+    program_name: Optional[str] = None
+    category: Optional[str] = None
+    package: Optional[str] = None
     music_theme: Optional[str] = None
     editor_request: Optional[str] = None
     requested_producer: Optional[str] = None
-    price: float
+    price: float = 0.0
     price_compliance: Optional[str] = None
-    status: str
+    status: str = "new"
     created_at: datetime
     completed_at: Optional[datetime] = None
     needs_attention: bool = False
@@ -82,11 +87,11 @@ class OrderSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 class OrderCreateSchema(BaseModel):
-    customer_name: str
-    contact_name: str
-    program_name: str
-    category: str
-    package: str
+    customer_name: Optional[str] = None
+    contact_name: Optional[str] = None
+    program_name: Optional[str] = None
+    category: Optional[str] = "Cheer"
+    package: Optional[str] = "Standard"
     price: float = 0.0
     music_theme: Optional[str] = None
     editor_request: Optional[str] = "FA"
@@ -144,6 +149,11 @@ class OrderCreateSchema(BaseModel):
     song_list_suggestions: Optional[str] = None
     coupon_code: Optional[str] = None
     how_did_you_find_out: Optional[str] = None
+    assigned_producer: Optional[str] = None
+    mix_start_date: Optional[str] = None
+    mix_end_date: Optional[str] = None
+    eight_count_sheet: Optional[str] = None
+    have_songs: Optional[str] = None
 
 class OrderUpdateSchema(BaseModel):
     customer_name: Optional[str] = None
@@ -165,3 +175,8 @@ class OrderUpdateSchema(BaseModel):
     missing_data_email_sent_at: Optional[datetime] = None
     collection_states: Optional[Any] = None
     order_status: Optional[str] = None
+    assigned_producer: Optional[str] = None
+    mix_start_date: Optional[str] = None
+    mix_end_date: Optional[str] = None
+    eight_count_sheet: Optional[str] = None
+    have_songs: Optional[str] = None

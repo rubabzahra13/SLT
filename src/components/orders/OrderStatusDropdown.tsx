@@ -24,7 +24,7 @@ export function OrderStatusDropdown({
   record: Order | MTDRecord;
   disabled?: boolean;
 }) {
-  const { updateMTD, addNotification, isViewOnly } = useAppState();
+  const { updateMTD, updateOrder, addNotification, isViewOnly } = useAppState();
   const { status } = getOrderStatus(record);
   const isDisabled = disabled || isViewOnly;
 
@@ -34,6 +34,15 @@ export function OrderStatusDropdown({
 
     const oldStatus = status;
     if (oldStatus === nextStatus) return;
+
+    const orderPatch: Record<string, any> = {
+      orderStatus: nextStatus,
+      order_status: nextStatus,
+      status: nextStatus === "Complete" ? "completed" : "active",
+      isReassigned: nextStatus === "Reassign",
+    };
+
+    updateOrder(record.id, orderPatch);
 
     updateMTD(record.id, {
       orderStatus: nextStatus,

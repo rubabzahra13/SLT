@@ -40,7 +40,7 @@ type AddNewOrderModalProps = {
   initialFormType?: OrderFormType;
   initialCheerSubtype?: CheerFormSubtypeFilter;
   initialDanceSubtype?: DanceFormSubtypeFilter;
-  onAdd: (payload: CreateManualSchedulePayload) => Promise<MTDRecord>;
+  onAdd: (payload: CreateManualSchedulePayload) => Promise<Order>;
 };
 
 const CHEER_PACKAGES = [
@@ -148,10 +148,36 @@ export function AddNewOrderModal({
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  const resetForm = useCallback(() => {
+    setMixStartDate("");
+    setMixEndDate("");
+    setAssignedProducer("");
+    setContactName("");
+    setEmail("");
+    setCoachEmail("");
+    setProgramName("");
+    setSchoolProgramName("");
+    setPkg("");
+    setTimeLengthOfMix("");
+    setSongListSuggestions("");
+    setRoutineNotes("");
+    setCustomVoiceovers("");
+    setEightCountSheet("NEED CS");
+    setVideoUrl("");
+    setHasRallyMix(false);
+    setHasExtend8ctAddon(false);
+    setHasProcessing8ctSheetsAddon(false);
+    setHasTraditionalVoiceover(false);
+    setHasThemedVoiceover(false);
+    setMusicAffiliate("Power Music Covers");
+    setDanceVoiceover(null);
+    setError(null);
+  }, []);
+
   // Sync modal state when opened with active Orders filter props
   useEffect(() => {
     if (open) {
-      setError(null);
+      resetForm();
       setSaving(false);
       const nextForm = initialFormType || "school-all-star-cheer";
       setFormType(nextForm);
@@ -170,7 +196,7 @@ export function AddNewOrderModal({
         );
       }
     }
-  }, [open, initialFormType, initialCheerSubtype, initialDanceSubtype]);
+  }, [open, initialFormType, initialCheerSubtype, initialDanceSubtype, resetForm]);
 
   // Handle Mix Start Date selection & auto-calculate Mix End Date (start + 7 days)
   const handleMixStartDateChange = (nextStart: string) => {
@@ -368,6 +394,7 @@ export function AddNewOrderModal({
         has_themed_voiceover: hasThemedVoiceover,
       });
 
+      resetForm();
       onClose();
     } catch (err: any) {
       setError(err?.message || "Failed to create manual schedule entry.");

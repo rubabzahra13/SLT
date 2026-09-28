@@ -635,6 +635,7 @@ type InlineDateInputProps = {
   max?: string;
   className?: string;
   readOnly?: boolean;
+  disabled?: boolean;
   /** Portaled calendar stacking (use above modals, e.g. 110 when modal is z-[100]). */
   menuZIndex?: number;
   /** Extra label after the date (e.g. ordinal day "9TH"). */
@@ -689,10 +690,12 @@ export function InlineDateInput({
   max,
   className,
   readOnly = false,
+  disabled = false,
   menuZIndex = 60,
   suffix,
   displayValue,
 }: InlineDateInputProps) {
+  const isEffectiveReadOnly = readOnly || disabled;
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
@@ -798,7 +801,7 @@ export function InlineDateInput({
       <button
         ref={triggerRef}
         type="button"
-        disabled={readOnly}
+        disabled={isEffectiveReadOnly}
         aria-haspopup="dialog"
         aria-expanded={open}
         title={
@@ -808,7 +811,7 @@ export function InlineDateInput({
         }
         onClick={(e) => {
           e.stopPropagation();
-          if (readOnly) return;
+          if (isEffectiveReadOnly) return;
           setOpen((v) => !v);
         }}
         onMouseDown={(e) => e.stopPropagation()}
@@ -816,7 +819,7 @@ export function InlineDateInput({
           inlineControlClass,
           "flex min-w-[108px] cursor-pointer items-center justify-between gap-1.5 pr-2 text-left tabular-nums",
           isUnset && "text-brand-ink-tertiary",
-          readOnly && "!cursor-default !bg-slate-50/50 opacity-80 pointer-events-none",
+          isEffectiveReadOnly && "!cursor-default !bg-slate-50/50 opacity-80 pointer-events-none",
           className
         )}
       >

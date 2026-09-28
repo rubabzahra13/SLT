@@ -1,5 +1,6 @@
 import { apiClient, ApiClientError } from "./client";
-import type { MTDRecord, PriceCompliance, EditorRequest, MTDRecordStatus } from "@/types";
+import type { MTDRecord, PriceCompliance, EditorRequest, MTDRecordStatus, Order } from "@/types";
+import { transformOrder, type BackendOrder } from "./orders";
 
 export interface BackendMTDRecord {
   id: string;
@@ -260,12 +261,13 @@ export interface CreateManualSchedulePayload {
 
 export async function createManualScheduleEntryApi(
   payload: CreateManualSchedulePayload
-): Promise<MTDRecord> {
+): Promise<Order> {
   const startDate = payload.mixStartDate || payload.mix_start_date || "";
   const endDate = payload.mixEndDate || payload.mix_end_date || "";
   const producer = payload.assignedProducer || payload.assigned_producer || "";
   const contact = payload.contactName || payload.contact_name || "";
   const program = payload.programName || payload.program_name || "";
+  const schoolProgram = payload.schoolProgramName || payload.school_program_name || "";
 
   const body = {
     category: payload.category,
@@ -276,7 +278,10 @@ export async function createManualScheduleEntryApi(
     mix_end_date: endDate,
     assigned_producer: producer,
     program_name: program || null,
+    school_program_name: schoolProgram || null,
     contact_name: contact || null,
+    email: payload.email || null,
+    coach_email: payload.coachEmail || payload.coach_email || null,
     package: payload.package || null,
     routine_notes: payload.routineNotes || payload.routine_notes || null,
     music_affiliate: payload.musicAffiliate || payload.music_affiliate || null,
@@ -284,49 +289,49 @@ export async function createManualScheduleEntryApi(
     song_list_suggestions: payload.songListSuggestions || payload.song_list_suggestions || null,
     custom_voiceovers: payload.customVoiceovers || payload.custom_voiceovers || null,
     eight_count_sheet: payload.eightCountSheet || payload.eight_count_sheet || null,
+    video_url: payload.videoUrl || payload.video_url || null,
   };
   try {
-    const res = await apiClient.post<BackendMTDRecord>("/api/mtd/manual-schedule", body);
-    return transformMTDRecord(res);
+    const res = await apiClient.post<BackendOrder>("/api/mtd/manual-schedule", body);
+    return transformOrder(res);
   } catch (err) {
     if (err instanceof ApiClientError) {
-      console.warn("Backend unavailable for manual schedule entry; falling back to local object.");
+      console.warn("Backend unavailable for manual schedule entry; falling back to local Order.");
     }
-    const tempId = `mtd-manual-${Date.now()}`;
+    const tempId = `order-manual-${Date.now()}`;
     return {
       id: tempId,
-      orderId: null,
-      section: payload.category === "Dance" ? "DANCE MUSIC" : "CHEERLEADING MUSIC",
-      assignedProducer: producer,
-      category: payload.category,
-      editorRequest: "FA",
-      contactName: contact || "N/A",
-      editorInitials: producer,
-      programName: program || "Manual Schedule Entry",
+      uuid: tempId,
+      formType: ((payload.formType || payload.form_type) as any) || "school-all-star-cheer",
+      cheerFormSubtype: (payload.cheerFormSubtype || payload.cheer_form_subtype) as any,
+      danceFormSubtype: (payload.danceFormSubtype || payload.dance_form_subtype) as any,
+      customerName: contact || program || schoolProgram || "Customer",
+      contactName: contact || "",
+      programName: program || "",
+      schoolProgramName: schoolProgram || "",
+      category: payload.category || "Cheer",
       package: payload.package || "Standard",
       musicTheme: "",
-      price: 0,
-      priceCompliance: "compliant",
-      invoice: "",
+      editorRequest: "FA",
+      requestedProducer: "",
       mixStartDate: startDate,
       mixEndDate: endDate,
-      eightCountSheet: payload.eightCountSheet || payload.eight_count_sheet || "NEED CS",
-      haveSongs: "NEED SONGS",
+      assignedProducer: producer,
+      orderStatus: "Complete",
+      status: "new",
+      price: 0,
+      routineNotes: payload.routineNotes || payload.routine_notes || "",
+      musicAffiliate: payload.musicAffiliate || payload.music_affiliate || "",
+      timeLengthOfMix: payload.timeLengthOfMix || payload.time_length_of_mix || "",
+      songListSuggestions: payload.songListSuggestions || payload.song_list_suggestions || "",
+      customVoiceovers: payload.customVoiceovers || payload.custom_voiceovers || "",
+      eightCountSheet: (payload.eightCountSheet || payload.eight_count_sheet) as any,
+      createdAt: new Date().toISOString(),
+      completedAt: null,
       needsAttention: false,
-      status: "active",
-      inMTD: false,
-      isManualScheduleEntry: true,
-      routineNotes: payload.routineNotes || payload.routine_notes || undefined,
-      musicAffiliate: payload.musicAffiliate || payload.music_affiliate || undefined,
-      timeLengthOfMix: payload.timeLengthOfMix || payload.time_length_of_mix || undefined,
-      songListSuggestions: payload.songListSuggestions || payload.song_list_suggestions || undefined,
-      customVoiceovers: payload.customVoiceovers || payload.custom_voiceovers || undefined,
-      hasRallyMix: payload.hasRallyMix || payload.has_rally_mix,
-      hasExtend8ctAddon: payload.hasExtend8ctAddon || payload.has_extend_8ct_addon,
-      hasProcessing8ctSheetsAddon: payload.hasProcessing8ctSheetsAddon || payload.has_processing_8ct_sheets_addon,
-      hasTraditionalVoiceover: payload.hasTraditionalVoiceover || payload.has_traditional_voiceover,
-      hasThemedVoiceover: payload.hasThemedVoiceover || payload.has_themed_voiceover,
-      danceVoiceover: (payload.danceVoiceover || payload.dance_voiceover) as any,
+      attentionReason: null,
+      missingDataEmailSentAt: null,
+      isReassigned: false,
     };
   }
 }

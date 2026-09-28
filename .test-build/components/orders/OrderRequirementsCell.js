@@ -46,24 +46,10 @@ function OrderRequirementsCell({ record, category, }) {
             ...existingOverrides,
             [item.id]: nextCollected,
         };
-        const oldStatus = (0, order_requirements_1.getOrderRequirements)(record).status;
-        const simulatedRecord = {
-            ...record,
-            collectionStates: updatedCollectionStates,
-            collection_states: updatedCollectionStates,
-            orderStatus: undefined,
-            order_status: undefined,
-        };
-        const newStatus = (0, order_requirements_1.getOrderRequirements)(simulatedRecord).status;
-        const statusChanged = oldStatus !== newStatus;
         const patch = {
             collectionStates: updatedCollectionStates,
             collection_states: updatedCollectionStates,
         };
-        if (statusChanged) {
-            patch.orderStatus = newStatus;
-            patch.order_status = newStatus;
-        }
         // Synchronize legacy text flags if applicable
         if (item.id === "songs") {
             patch.haveSongs = nextCollected ? "HAVE SONGS" : "NEED SONGS";
@@ -72,13 +58,6 @@ function OrderRequirementsCell({ record, category, }) {
             patch.eightCountSheet = nextCollected ? "HAVE CS" : "NEED CS";
         }
         updateMTD(record.id, patch);
-        if (statusChanged) {
-            addNotification({
-                type: "mtd_move",
-                title: "Order status updated",
-                message: `Order moved to ${newStatus}.`,
-            });
-        }
     };
     return ((0, jsx_runtime_1.jsx)("div", { className: "inline-flex items-center justify-center gap-1 rounded-full bg-[#f0f3f6] border border-[#e2e8f0] p-1 shadow-inner max-w-fit mx-auto", onClick: (e) => e.stopPropagation(), children: items.map((item) => ((0, jsx_runtime_1.jsx)(OrderRequirementPill, { item: item, onToggle: handleToggle, disabled: isViewOnly }, item.id))) }));
 }

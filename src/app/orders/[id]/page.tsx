@@ -2,24 +2,42 @@
 
 import { use, useCallback, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { ArrowLeft, ArrowRight, Pencil, X } from "lucide-react";
 import clsx from "clsx";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Avatar } from "@/components/ui/Avatar";
-import { InlineDateInput } from "@/components/mtd/InlineFields";
+import {
+  InlineDateInput,
+  InlineTriStateCheckGroup,
+} from "@/components/mtd/InlineFields";
 import {
   AssignEditorModal,
   type EditorAssignmentResult,
 } from "@/components/mtd/AssignEditorModal";
 import { MTDOrderDetails } from "@/components/mtd/MTDOrderDetails";
+import { OrderStatusDropdown } from "@/components/orders/OrderStatusDropdown";
 import { CompletionBlockedModal } from "@/components/mtd/CompletionBlockedModal";
 import { SetPricingModal } from "@/components/mtd/SetPricingModal";
 import { useAppState } from "@/context/AppStateContext";
-import { formatPrice } from "@/lib/data";
-import { orderFromMTDRecord } from "@/lib/order-detail-fields";
+import { orderFromMTDRecord, rawFieldValue } from "@/lib/order-detail-fields";
 import { orderToMTDRecord } from "@/lib/order-form";
+import { getOrderDetailSections } from "@/lib/order-detail-sections";
 import { findLinkedOrder, findProducerByAssignmentKey } from "@/lib/editor-assignment";
-import { isOrderScheduledAndAssigned, isPreMTDOrderRecord } from "@/lib/mtd-filters";
+import { isOrderScheduledAndAssigned } from "@/lib/mtd-filters";
+import {
+  cycleEightCsItem,
+  cycleSongsItem,
+  encodeEightCsState,
+  encodeSongsState,
+  getCollectionItemsForCategory,
+  getSongsItems,
+  parseEightCsState,
+  parseSongsState,
+} from "@/lib/mtd-checklist";
+import {
+  mtdPatchFromOrderField,
+  orderPatchFromOrderField,
+} from "@/lib/mtd-order-sync";
 import type { MTDRecord, Order } from "@/types";
 
 export default function OrderDetailPage({
@@ -32,14 +50,20 @@ export default function OrderDetailPage({
     mtdRecords,
     allOrders,
     updateMTD,
+    updateOrder,
     producers,
     schedule,
+    discountCodes,
+    isViewOnly,
     isLoading,
+    addNotification,
   } = useAppState();
 
   const [assignOpen, setAssignOpen] = useState(false);
   const [validationModalOpen, setValidationModalOpen] = useState(false);
   const [pricingOpen, setPricingOpen] = useState(false);
+  const [orderFormEditing, setOrderFormEditing] = useState(false);
+  const [orderDraft, setOrderDraft] = useState<Order | null>(null);
 
   const record = useMemo(() => {
     const directMatch = mtdRecords.find(
@@ -65,20 +89,27 @@ export default function OrderDetailPage({
   }, [linkedOrder, record]);
 
   const assignedProducerObj = useMemo(() => {
-    if (!record?.assignedProducer) return undefined;
-    return findProducerByAssignmentKey(record.assignedProducer, producers);
-  }, [record, producers]);
+    const producerKey = record?.assignedProducer || displayOrder?.assignedProducer;
+    if (!producerKey) return undefined;
+    return findProducerByAssignmentKey(producerKey, producers);
+  }, [record, displayOrder, producers]);
 
   const handleAssign = useCallback(
     (recordId: string, result: EditorAssignmentResult) => {
-      updateMTD(recordId, {
+      const patch = {
         editorRequest: result.editorRequest,
         assignedProducer: result.assignedProducer,
         ...(result.mixStartDate ? { mixStartDate: result.mixStartDate } : {}),
         ...(result.mixEndDate ? { mixEndDate: result.mixEndDate } : {}),
-      });
+      };
+      if (displayOrder) {
+        updateOrder(displayOrder.id, patch, displayOrder);
+      }
+      if (record) {
+        updateMTD(record.id, patch);
+      }
     },
-    [updateMTD]
+    [displayOrder, record, updateOrder, updateMTD]
   );
 
   const handleMoveToMTD = useCallback(() => {
@@ -94,6 +125,54 @@ export default function OrderDetailPage({
     });
     window.location.href = "/mtd";
   }, [record, updateMTD]);
+
+  const startOrderFormEdit = useCallback(() => {
+    if (isViewOnly || !displayOrder) return;
+    setOrderDraft({ ...displayOrder });
+    setOrderFormEditing(true);
+  }, [displayOrder, isViewOnly]);
+
+  const cancelOrderFormEdit = useCallback(() => {
+    setOrderDraft(null);
+    setOrderFormEditing(false);
+  }, []);
+
+  const saveOrderFormEdit = useCallback(() => {
+    if (!displayOrder || !orderDraft) return;
+
+    updateOrder(displayOrder.id, orderDraft, displayOrder);
+
+    if (record) {
+      const sections = getOrderDetailSections(displayOrder);
+      for (const section of sections) {
+        for (const field of section.fields) {
+          const nextValue = rawFieldValue(orderDraft, field.key);
+          const prevValue = rawFieldValue(displayOrder, field.key);
+          if (nextValue === prevValue) continue;
+          const mtdPatch = mtdPatchFromOrderField(field.key, nextValue);
+          if (Object.keys(mtdPatch).length > 0) {
+            updateMTD(record.id, mtdPatch);
+          }
+        }
+      }
+    }
+
+    addNotification({
+      type: "mtd_move",
+      title: "Order details updated",
+      message: "Order form changes saved successfully.",
+    });
+
+    setOrderDraft(null);
+    setOrderFormEditing(false);
+  }, [displayOrder, orderDraft, record, updateOrder, updateMTD, addNotification]);
+
+  const handleOrderDraftChange = useCallback((key: string, value: string) => {
+    setOrderDraft((prev) => {
+      if (!prev) return prev;
+      return { ...prev, ...orderPatchFromOrderField(key, value) };
+    });
+  }, []);
 
   if (isLoading && (!record || !displayOrder)) {
     return (
@@ -117,12 +196,71 @@ export default function OrderDetailPage({
   }
 
   const isReadyForMTD = isOrderScheduledAndAssigned(record);
+  const eightCsState = parseEightCsState(
+    record?.eightCountSheet ??
+      displayOrder?.eightCountSheet ??
+      displayOrder?.sendingEightCountSheets ??
+      ""
+  );
+  const songsState = parseSongsState(
+    record?.haveSongs ??
+      displayOrder?.haveSongs ??
+      displayOrder?.songListSuggestions ??
+      ""
+  );
+
+  const handleMixStartChange = (next: string) => {
+    let nextEnd = record.mixEndDate ?? displayOrder.mixEndDate;
+    if (next && !nextEnd) {
+      const d = new Date(next);
+      d.setDate(d.getDate() + 7);
+      nextEnd = d.toISOString().slice(0, 10);
+    }
+    const patch = { mixStartDate: next, mixEndDate: nextEnd };
+    updateOrder(displayOrder.id, patch, displayOrder);
+    if (record) {
+      updateMTD(record.id, patch);
+    }
+  };
+
+  const handleMixEndChange = (next: string) => {
+    const patch = { mixEndDate: next };
+    updateOrder(displayOrder.id, patch, displayOrder);
+    if (record) {
+      updateMTD(record.id, patch);
+    }
+  };
+
+  const handleCycleEightCs = (id: string) => {
+    if (isViewOnly || !displayOrder) return;
+    const next = cycleEightCsItem(eightCsState, id as keyof typeof eightCsState);
+    const encoded = encodeEightCsState(next);
+    const patch = {
+      eightCountSheet: encoded,
+      sendingEightCountSheets: encoded,
+    };
+    updateOrder(displayOrder.id, patch, displayOrder);
+    if (record) {
+      updateMTD(record.id, { eightCountSheet: encoded });
+    }
+  };
+
+  const handleCycleSongs = (id: string) => {
+    if (isViewOnly || !displayOrder) return;
+    const next = cycleSongsItem(songsState, id as keyof typeof songsState);
+    const encoded = encodeSongsState(next);
+    const patch = { haveSongs: encoded };
+    updateOrder(displayOrder.id, patch, displayOrder);
+    if (record) {
+      updateMTD(record.id, { haveSongs: encoded });
+    }
+  };
 
   return (
     <>
       <PageHeader
-        title={record.programName || "Order Details"}
-        subtitle={record.contactName || "Customer"}
+        title={displayOrder.programName || displayOrder.teamName || record.programName || "Order Details"}
+        subtitle={displayOrder.contactName || displayOrder.customerName || record.contactName || "Customer"}
         secondaryAction={{
           label: "Pricing",
           onClick: () => setPricingOpen(true),
@@ -150,22 +288,26 @@ export default function OrderDetailPage({
               </p>
             </div>
 
-            <button
-              type="button"
-              onClick={handleMoveToMTD}
-              className={clsx(
-                "inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-[13px] font-semibold transition shadow-sm",
-                isReadyForMTD
-                  ? "bg-brand-blue text-white hover:bg-brand-blue-hover"
-                  : "border border-brand-line/60 bg-brand-bg-subtle text-brand-ink-tertiary hover:bg-brand-bg-subtle/80 hover:text-brand-ink"
-              )}
-            >
-              <span>Move to MTD</span>
-              <ArrowRight className="h-4 w-4" strokeWidth={2} />
-            </button>
+            <div className="flex items-center gap-3">
+              <OrderStatusDropdown record={displayOrder} disabled={isViewOnly} />
+
+              <button
+                type="button"
+                onClick={handleMoveToMTD}
+                className={clsx(
+                  "inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-[13px] font-semibold transition shadow-sm",
+                  isReadyForMTD
+                    ? "bg-brand-blue text-white hover:bg-brand-blue-hover"
+                    : "border border-brand-line/60 bg-brand-bg-subtle text-brand-ink-tertiary hover:bg-brand-bg-subtle/80 hover:text-brand-ink"
+                )}
+              >
+                <span>Move to MTD</span>
+                <ArrowRight className="h-4 w-4" strokeWidth={2} />
+              </button>
+            </div>
           </div>
 
-          <div className="mt-4 grid gap-4 sm:grid-cols-3">
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {/* Editor Tile */}
             <div className="rounded-xl border border-brand-line/40 bg-brand-bg/60 p-3.5">
               <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-brand-ink-tertiary">
@@ -184,18 +326,20 @@ export default function OrderDetailPage({
                   <span className="text-[13px] font-medium text-brand-ink-tertiary">No assigned producer yet</span>
                 )}
 
-                <button
-                  type="button"
-                  onClick={() => setAssignOpen(true)}
-                  className={clsx(
-                    "rounded-lg px-2.5 py-1 text-[12px] font-semibold transition shadow-sm",
-                    assignedProducerObj
-                      ? "bg-brand-blue/10 text-brand-blue hover:bg-brand-blue/20"
-                      : "border border-brand-orange-deep bg-brand-orange text-white hover:bg-brand-orange-hover"
-                  )}
-                >
-                  {assignedProducerObj ? "Change" : "Assign"}
-                </button>
+                {!isViewOnly && (
+                  <button
+                    type="button"
+                    onClick={() => setAssignOpen(true)}
+                    className={clsx(
+                      "rounded-lg px-2.5 py-1 text-[12px] font-semibold transition shadow-sm",
+                      assignedProducerObj
+                        ? "bg-brand-blue/10 text-brand-blue hover:bg-brand-blue/20"
+                        : "border border-brand-orange-deep bg-brand-orange text-white hover:bg-brand-orange-hover"
+                    )}
+                  >
+                    {assignedProducerObj ? "Change" : "Assign"}
+                  </button>
+                )}
               </div>
             </div>
 
@@ -206,17 +350,10 @@ export default function OrderDetailPage({
               </span>
               <div className="mt-2">
                 <InlineDateInput
-                  value={record.mixStartDate}
+                  value={displayOrder.mixStartDate || record.mixStartDate}
                   placeholder="No scheduled start"
-                  onChange={(next) => {
-                    let nextEnd = record.mixEndDate;
-                    if (next && !nextEnd) {
-                      const d = new Date(next);
-                      d.setDate(d.getDate() + 7);
-                      nextEnd = d.toISOString().slice(0, 10);
-                    }
-                    updateMTD(record.id, { mixStartDate: next, mixEndDate: nextEnd });
-                  }}
+                  readOnly={isViewOnly}
+                  onChange={handleMixStartChange}
                 />
               </div>
             </div>
@@ -228,9 +365,29 @@ export default function OrderDetailPage({
               </span>
               <div className="mt-2">
                 <InlineDateInput
-                  value={record.mixEndDate ?? ""}
+                  value={displayOrder.mixEndDate || record.mixEndDate || ""}
                   placeholder="No scheduled end"
-                  onChange={(next) => updateMTD(record.id, { mixEndDate: next })}
+                  readOnly={isViewOnly}
+                  onChange={handleMixEndChange}
+                />
+              </div>
+            </div>
+
+            {/* Collections Tile */}
+            <div className="rounded-xl border border-brand-line/40 bg-brand-bg/60 p-3.5">
+              <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-brand-ink-tertiary">
+                Collections & Materials
+              </span>
+              <div className="mt-2 space-y-1.5">
+                <InlineTriStateCheckGroup
+                  items={getCollectionItemsForCategory(displayOrder.formType, eightCsState)}
+                  onCycle={handleCycleEightCs}
+                  readOnly={isViewOnly}
+                />
+                <InlineTriStateCheckGroup
+                  items={getSongsItems(songsState)}
+                  onCycle={handleCycleSongs}
+                  readOnly={isViewOnly}
                 />
               </div>
             </div>
@@ -239,10 +396,24 @@ export default function OrderDetailPage({
 
         {/* Order Form Fields Only */}
         <section className="dashboard-panel p-6">
-          <h3 className="mb-4 border-b border-brand-line/40 pb-3 text-[14px] font-bold uppercase tracking-[0.06em] text-brand-ink">
-            Customer Order Form Submission
-          </h3>
-          <MTDOrderDetails order={displayOrder} editable={false} />
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-brand-line/40 pb-3">
+            <h3 className="text-[14px] font-bold uppercase tracking-[0.06em] text-brand-ink">
+              Customer Order Form Submission
+            </h3>
+            <DetailSectionActions
+              editing={orderFormEditing}
+              onEdit={startOrderFormEdit}
+              onCancel={cancelOrderFormEdit}
+              onSave={saveOrderFormEdit}
+              editLabel="Edit order form fields"
+            />
+          </div>
+          <MTDOrderDetails
+            order={orderDraft ?? displayOrder}
+            discountCodes={discountCodes}
+            editable={orderFormEditing && !isViewOnly}
+            onFieldChange={handleOrderDraftChange}
+          />
         </section>
       </div>
 
@@ -272,5 +443,75 @@ export default function OrderDetailPage({
         onClose={() => setPricingOpen(false)}
       />
     </>
+  );
+}
+
+const detailEditButtonClass =
+  "inline-flex h-9 w-9 items-center justify-center rounded-xl border border-brand-line/60 bg-white text-brand-ink-secondary shadow-sm transition hover:border-brand-orange/50 hover:bg-brand-orange-soft/40 hover:text-brand-orange focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange/30";
+
+function DetailSectionActions({
+  editing,
+  onEdit,
+  onCancel,
+  onSave,
+  editLabel,
+}: {
+  editing: boolean;
+  onEdit: () => void;
+  onCancel: () => void;
+  onSave: () => void;
+  editLabel: string;
+}) {
+  const { isViewOnly } = useAppState();
+
+  if (isViewOnly) return null;
+
+  return (
+    <div className="flex items-center gap-2">
+      {editing ? (
+        <button
+          type="button"
+          onClick={onSave}
+          className="rounded-xl bg-brand-orange px-4 py-2 text-[13px] font-semibold text-white shadow-sm transition hover:bg-brand-orange-hover"
+        >
+          Save
+        </button>
+      ) : null}
+      <DetailEditButton
+        active={editing}
+        onClick={editing ? onCancel : onEdit}
+        label={editLabel}
+      />
+    </div>
+  );
+}
+
+function DetailEditButton({
+  active,
+  onClick,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={active ? "Cancel editing" : label}
+      aria-label={active ? "Cancel editing" : label}
+      aria-pressed={active}
+      className={clsx(
+        detailEditButtonClass,
+        active && "border-brand-orange/60 bg-brand-orange-soft/50 text-brand-orange shadow-md"
+      )}
+    >
+      {active ? (
+        <X className="h-4 w-4" strokeWidth={2.5} />
+      ) : (
+        <Pencil className="h-4 w-4" strokeWidth={2} />
+      )}
+    </button>
   );
 }

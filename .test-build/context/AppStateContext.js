@@ -479,8 +479,8 @@ function AppStateProvider({ children }) {
             });
         }
         else {
-            const hasMtdRecord = mtdRecords.some((r) => r.id === id || r.orderId === id || r.uuid === id || r.legacyId === id);
-            if (hasMtdRecord) {
+            const isRealMtdRecord = Boolean(existing && (existing.inMTD === true || existing.isManualScheduleEntry === true || !linkedOrder));
+            if (isRealMtdRecord) {
                 (0, api_1.updateMTDRecordApi)(apiId, apiPatch).catch((err) => console.error("Failed to persist MTD Record update to backend:", err));
             }
         }

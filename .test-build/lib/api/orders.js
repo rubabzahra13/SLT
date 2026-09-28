@@ -67,7 +67,11 @@ function transformOrder(bo) {
         musicTheme: bo.music_theme || "",
         editorRequest: bo.editor_request || "FA",
         requestedProducer: bo.requested_producer || "",
-        assignedProducer: null,
+        assignedProducer: bo.assigned_producer || null,
+        mixStartDate: bo.mix_start_date || undefined,
+        mixEndDate: bo.mix_end_date || undefined,
+        eightCountSheet: bo.eight_count_sheet || undefined,
+        haveSongs: bo.have_songs || undefined,
         price: bo.price ?? 0,
         priceCompliance: bo.price_compliance || "compliant",
         status: bo.status || "new",
@@ -161,10 +165,26 @@ async function updateOrderApi(id, patch) {
         payload.order_status = patch.orderStatus;
     if (patch.order_status !== undefined)
         payload.order_status = patch.order_status;
+    if (patch.assignedProducer !== undefined)
+        payload.assigned_producer = patch.assignedProducer;
+    if (patch.assigned_producer !== undefined)
+        payload.assigned_producer = patch.assigned_producer;
+    if (patch.mixStartDate !== undefined)
+        payload.mix_start_date = patch.mixStartDate;
+    if (patch.mix_start_date !== undefined)
+        payload.mix_start_date = patch.mix_start_date;
+    if (patch.mixEndDate !== undefined)
+        payload.mix_end_date = patch.mixEndDate;
+    if (patch.mix_end_date !== undefined)
+        payload.mix_end_date = patch.mix_end_date;
     if (patch.haveSongs !== undefined)
         payload.have_songs = patch.haveSongs;
+    if (patch.have_songs !== undefined)
+        payload.have_songs = patch.have_songs;
     if (patch.eightCountSheet !== undefined)
         payload.eight_count_sheet = patch.eightCountSheet;
+    if (patch.eight_count_sheet !== undefined)
+        payload.eight_count_sheet = patch.eight_count_sheet;
     try {
         const res = await client_1.apiClient.patch(`/api/orders/${id}`, payload);
         return transformOrder(res);
