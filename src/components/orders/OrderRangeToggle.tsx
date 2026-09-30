@@ -81,7 +81,7 @@ export function OrderRangeToggle({
                 : "font-medium text-brand-ink-secondary hover:bg-brand-elevated/90 hover:text-brand-ink"
             )}
           >
-            <span className="inline-block max-w-[125px] whitespace-normal text-center leading-tight">
+            <span className="inline-block whitespace-nowrap text-center leading-tight">
               {opt.label}
               {typeof opt.count === "number" ? (
                 <span className="ml-1 text-[10.5px] opacity-75 font-medium">({opt.count})</span>
