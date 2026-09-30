@@ -63,6 +63,45 @@ async def lifespan(app: FastAPI):
                 conn.execute(text("ALTER TABLE mtd_records ADD COLUMN IF NOT EXISTS producer_email_sent_at TIMESTAMPTZ;"))
                 conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS producer_email_sent_to VARCHAR;"))
                 conn.execute(text("ALTER TABLE mtd_records ADD COLUMN IF NOT EXISTS producer_email_sent_to VARCHAR;"))
+                conn.execute(text("ALTER TABLE producers ADD COLUMN IF NOT EXISTS max_producer_cost_per_day INTEGER;"))
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS studio_holidays (
+                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        legacy_id VARCHAR,
+                        name VARCHAR NOT NULL,
+                        start_date VARCHAR NOT NULL,
+                        end_date VARCHAR NOT NULL,
+                        applies_to_all BOOLEAN NOT NULL DEFAULT TRUE,
+                        producer_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
+                        sort_order INTEGER NOT NULL DEFAULT 0,
+                        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                    );
+                """))
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS studio_personal_reasons (
+                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        legacy_id VARCHAR,
+                        name VARCHAR NOT NULL,
+                        enabled BOOLEAN NOT NULL DEFAULT TRUE,
+                        is_other BOOLEAN NOT NULL DEFAULT FALSE,
+                        sort_order INTEGER NOT NULL DEFAULT 0,
+                        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                    );
+                """))
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS email_templates (
+                        id VARCHAR PRIMARY KEY,
+                        subject TEXT NOT NULL DEFAULT '',
+                        greeting TEXT NOT NULL DEFAULT '',
+                        intro TEXT NOT NULL DEFAULT '',
+                        footer TEXT NOT NULL DEFAULT '',
+                        signature TEXT NOT NULL DEFAULT '',
+                        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                    );
+                """))
     except Exception as exc:
         logger.warning("Auto-migration check skipped/failed: %s", exc)
 

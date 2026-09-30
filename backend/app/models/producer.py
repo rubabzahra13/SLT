@@ -20,6 +20,7 @@ class Producer(Base):
     status = Column(String, default="available", nullable=False)
     work_days = Column(JSON, default=lambda: ["mon", "tue", "wed", "thu", "fri"], nullable=False)
     max_mixes_per_day = Column(Integer, nullable=True)
+    max_producer_cost_per_day = Column(Integer, nullable=True)
     overtime_days = Column(JSON, default=list, nullable=False)
 
     compensation_model = Column(String, nullable=True)

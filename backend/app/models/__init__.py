@@ -12,6 +12,7 @@ from app.models.compliant_affiliate import CompliantAffiliate
 from app.models.user import User
 from app.models.email_connection import EmailConnection
 from app.models.payroll_addon import PayrollAddon
+from app.models.studio_settings import StudioHoliday, StudioPersonalReason, EmailTemplate
 
 __all__ = [
     "Base",
@@ -29,4 +30,7 @@ __all__ = [
     "User",
     "EmailConnection",
     "PayrollAddon",
+    "StudioHoliday",
+    "StudioPersonalReason",
+    "EmailTemplate",
 ]

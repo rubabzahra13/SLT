@@ -79,6 +79,16 @@ import {
   type CreatePayrollAddonPayload,
   createManualScheduleEntryApi,
   type CreateManualSchedulePayload,
+  fetchStudioHolidaysApi,
+  createStudioHolidayApi,
+  updateStudioHolidayApi,
+  deleteStudioHolidayApi,
+  fetchStudioPersonalReasonsApi,
+  createStudioPersonalReasonApi,
+  updateStudioPersonalReasonApi,
+  deleteStudioPersonalReasonApi,
+  fetchEmailTemplatesApi,
+  upsertEmailTemplateApi,
 } from "@/lib/api";
 
 type AppStateContextValue = {
@@ -303,12 +313,24 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
     async function loadBackendData() {
       try {
-        const [producersData, ordersData, mtdData, codesData, addonsData] = await Promise.all([
+        const [
+          producersData,
+          ordersData,
+          mtdData,
+          codesData,
+          addonsData,
+          holidaysData,
+          personalReasonsData,
+          emailTemplatesData,
+        ] = await Promise.all([
           fetchProducersApi(),
           fetchOrdersApi(),
           fetchMTDRecordsApi(),
           fetchDiscountCodesApi(),
           fetchPayrollAddonsApi(),
+          fetchStudioHolidaysApi(),
+          fetchStudioPersonalReasonsApi(),
+          fetchEmailTemplatesApi(),
         ]);
 
         if (!isMounted) return;
@@ -372,6 +394,24 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
         if (addonsData) {
           setPayrollAddons(addonsData);
+        }
+
+        if (holidaysData && holidaysData.length > 0) {
+          setHolidays(holidaysData.map((entry) => normalizeStudioHoliday(entry)));
+        }
+
+        if (personalReasonsData && personalReasonsData.length > 0) {
+          setPersonalReasons(
+            ensurePersonalReasonsList(
+              personalReasonsData.map((entry) =>
+                normalizeStudioPersonalReason(entry)
+              )
+            )
+          );
+        }
+
+        if (emailTemplatesData) {
+          setEmailTemplates(normalizeEmailTemplates(emailTemplatesData));
         }
 
         setIsBackendConnected(true);
@@ -1105,7 +1145,18 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     (holiday: StudioHoliday) => {
       if (isViewOnly) return;
       const normalized = normalizeStudioHoliday(holiday);
+      const tempId = normalized.id;
       setHolidays((prev) => [normalized, ...prev]);
+      void createStudioHolidayApi(normalized)
+        .then((saved) => {
+          setHolidays((prev) =>
+            prev.map((entry) => (entry.id === tempId ? saved : entry))
+          );
+        })
+        .catch((err) => {
+          setHolidays((prev) => prev.filter((entry) => entry.id !== tempId));
+          console.warn("Failed to save studio holiday:", err);
+        });
     },
     [isViewOnly]
   );
@@ -1113,13 +1164,28 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const updateHoliday = useCallback(
     (id: string, patch: Partial<StudioHoliday>) => {
       if (isViewOnly) return;
-      setHolidays((prev) =>
-        prev.map((entry) =>
+      let previous: StudioHoliday | undefined;
+      setHolidays((prev) => {
+        previous = prev.find((entry) => entry.id === id);
+        return prev.map((entry) =>
           entry.id === id
             ? normalizeStudioHoliday({ ...entry, ...patch, id })
             : entry
-        )
-      );
+        );
+      });
+      if (!previous) return;
+      void updateStudioHolidayApi(id, patch)
+        .then((saved) => {
+          setHolidays((prev) =>
+            prev.map((entry) => (entry.id === id ? saved : entry))
+          );
+        })
+        .catch((err) => {
+          setHolidays((prev) =>
+            prev.map((entry) => (entry.id === id ? previous! : entry))
+          );
+          console.warn("Failed to update studio holiday:", err);
+        });
     },
     [isViewOnly]
   );
@@ -1127,7 +1193,16 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const removeHoliday = useCallback(
     (id: string) => {
       if (isViewOnly) return;
-      setHolidays((prev) => prev.filter((entry) => entry.id !== id));
+      let removed: StudioHoliday | undefined;
+      setHolidays((prev) => {
+        removed = prev.find((entry) => entry.id === id);
+        return prev.filter((entry) => entry.id !== id);
+      });
+      if (!removed) return;
+      void deleteStudioHolidayApi(id).catch((err) => {
+        setHolidays((prev) => [removed!, ...prev]);
+        console.warn("Failed to delete studio holiday:", err);
+      });
     },
     [isViewOnly]
   );
@@ -1139,9 +1214,26 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         ...reason,
         isOther: false,
       });
+      const tempId = normalized.id;
       setPersonalReasons((prev) =>
         ensurePersonalReasonsList([normalized, ...prev])
       );
+      void createStudioPersonalReasonApi(normalized)
+        .then((saved) => {
+          setPersonalReasons((prev) =>
+            ensurePersonalReasonsList(
+              prev.map((entry) => (entry.id === tempId ? saved : entry))
+            )
+          );
+        })
+        .catch((err) => {
+          setPersonalReasons((prev) =>
+            ensurePersonalReasonsList(
+              prev.filter((entry) => entry.id !== tempId)
+            )
+          );
+          console.warn("Failed to save personal reason:", err);
+        });
     },
     [isViewOnly]
   );
@@ -1149,8 +1241,10 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const updatePersonalReason = useCallback(
     (id: string, patch: Partial<StudioPersonalReason>) => {
       if (isViewOnly) return;
-      setPersonalReasons((prev) =>
-        ensurePersonalReasonsList(
+      let previous: StudioPersonalReason | undefined;
+      setPersonalReasons((prev) => {
+        previous = prev.find((entry) => entry.id === id);
+        return ensurePersonalReasonsList(
           prev.map((entry) => {
             if (entry.id !== id) return entry;
             if (entry.isOther) {
@@ -1164,8 +1258,25 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
             }
             return normalizeStudioPersonalReason({ ...entry, ...patch, id });
           })
-        )
-      );
+        );
+      });
+      if (!previous) return;
+      void updateStudioPersonalReasonApi(id, patch)
+        .then((saved) => {
+          setPersonalReasons((prev) =>
+            ensurePersonalReasonsList(
+              prev.map((entry) => (entry.id === id ? saved : entry))
+            )
+          );
+        })
+        .catch((err) => {
+          setPersonalReasons((prev) =>
+            ensurePersonalReasonsList(
+              prev.map((entry) => (entry.id === id ? previous! : entry))
+            )
+          );
+          console.warn("Failed to update personal reason:", err);
+        });
     },
     [isViewOnly]
   );
@@ -1173,11 +1284,20 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const removePersonalReason = useCallback(
     (id: string) => {
       if (isViewOnly) return;
-      setPersonalReasons((prev) =>
-        ensurePersonalReasonsList(
+      let removed: StudioPersonalReason | undefined;
+      setPersonalReasons((prev) => {
+        removed = prev.find((entry) => entry.id === id);
+        return ensurePersonalReasonsList(
           prev.filter((entry) => entry.id !== id || entry.isOther)
-        )
-      );
+        );
+      });
+      if (!removed || removed.isOther) return;
+      void deleteStudioPersonalReasonApi(id).catch((err) => {
+        setPersonalReasons((prev) =>
+          ensurePersonalReasonsList([removed!, ...prev])
+        );
+        console.warn("Failed to delete personal reason:", err);
+      });
     },
     [isViewOnly]
   );
@@ -1214,15 +1334,22 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const updateEmailTemplate = useCallback(
     (id: EmailTemplateId, patch: Partial<EmailTemplateCopy>) => {
       if (isViewOnly) return;
-      setEmailTemplates((prev) =>
-        normalizeEmailTemplates({
+      let nextCopy: EmailTemplateCopy | undefined;
+      setEmailTemplates((prev) => {
+        const merged = normalizeEmailTemplates({
           ...prev,
           [id]: {
             ...prev[id],
             ...patch,
           },
-        })
-      );
+        });
+        nextCopy = merged[id];
+        return merged;
+      });
+      if (!nextCopy) return;
+      void upsertEmailTemplateApi(id, nextCopy).catch((err) => {
+        console.warn("Failed to save email template:", err);
+      });
     },
     [isViewOnly]
   );
@@ -1230,12 +1357,16 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const resetEmailTemplate = useCallback(
     (id: EmailTemplateId) => {
       if (isViewOnly) return;
+      const nextCopy = DEFAULT_EMAIL_TEMPLATES[id];
       setEmailTemplates((prev) =>
         normalizeEmailTemplates({
           ...prev,
-          [id]: DEFAULT_EMAIL_TEMPLATES[id],
+          [id]: nextCopy,
         })
       );
+      void upsertEmailTemplateApi(id, nextCopy).catch((err) => {
+        console.warn("Failed to reset email template:", err);
+      });
     },
     [isViewOnly]
   );

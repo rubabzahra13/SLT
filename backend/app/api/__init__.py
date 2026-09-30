@@ -8,6 +8,7 @@ from app.api.discount_codes import router as discount_codes_router
 from app.api.pricing import router as pricing_router
 from app.api.gmail import router as gmail_router
 from app.api.payroll_addons import router as payroll_addons_router
+from app.api.studio_settings import router as studio_settings_router
 
 api_router = APIRouter()
 api_router.include_router(health_router, tags=["health"])
@@ -20,3 +21,4 @@ api_router.include_router(discount_codes_router, prefix="/api", tags=["discount_
 api_router.include_router(pricing_router, prefix="/api", tags=["pricing"])
 api_router.include_router(gmail_router, prefix="/api", tags=["gmail"])
 api_router.include_router(payroll_addons_router, prefix="/api", tags=["payroll_addons"])
+api_router.include_router(studio_settings_router, prefix="/api", tags=["studio_settings"])

@@ -89,6 +89,34 @@ export async function fetchProducersApi(): Promise<Producer[]> {
   return backendProducers.map(transformProducer);
 }
 
+function isUuidLike(value: string | undefined): boolean {
+  if (!value) return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value
+  );
+}
+
+function serializeTimeOffs(
+  timeOff: Producer["timeOff"] | undefined
+):
+  | {
+      id?: string;
+      start_date: string;
+      end_date: string;
+      type: "holiday" | "personal";
+      reason: string;
+    }[]
+  | undefined {
+  if (timeOff === undefined) return undefined;
+  return timeOff.map((entry) => ({
+    ...(isUuidLike(entry.id) ? { id: entry.id } : {}),
+    start_date: entry.startDate,
+    end_date: entry.endDate || entry.startDate,
+    type: entry.type,
+    reason: entry.reason || "",
+  }));
+}
+
 export async function createProducerApi(producer: Producer): Promise<Producer> {
   const payload = {
     legacy_id: producer.legacyId || producer.id,
@@ -100,6 +128,7 @@ export async function createProducerApi(producer: Producer): Promise<Producer> {
     avatar: producer.avatar,
     status: producer.status,
     work_days: producer.workDays,
+    time_offs: serializeTimeOffs(producer.timeOff) ?? [],
     max_mixes_per_day: producer.maxMixesPerDay,
     max_producer_cost_per_day: producer.maxProducerCostPerDay,
     overtime_days: producer.overtimeDays,
@@ -131,6 +160,7 @@ export async function updateProducerApi(
   if (patch.avatar !== undefined) payload.avatar = patch.avatar;
   if (patch.status !== undefined) payload.status = patch.status;
   if (patch.workDays !== undefined) payload.work_days = patch.workDays;
+  if (patch.timeOff !== undefined) payload.time_offs = serializeTimeOffs(patch.timeOff);
   if (patch.maxMixesPerDay !== undefined) payload.max_mixes_per_day = patch.maxMixesPerDay;
   if (patch.maxProducerCostPerDay !== undefined) payload.max_producer_cost_per_day = patch.maxProducerCostPerDay;
   if (patch.overtimeDays !== undefined) payload.overtime_days = patch.overtimeDays;
