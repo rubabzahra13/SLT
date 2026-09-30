@@ -411,7 +411,6 @@ function OrdersPageContent() {
         inMTD: true,
         isReassigned: false,
         orderStatus: "",
-        order_status: "",
         status: "active",
         recordStatus: "Ongoing",
         mixStartDate: rec.mixStartDate,

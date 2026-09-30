@@ -48,7 +48,6 @@ function OrderAssignPageContent({ id }: { id: string }) {
         // Completing reassignment — clear so the row moves to Assigned
         isReassigned: false,
         orderStatus: "",
-        order_status: "",
         ...(result.mixStartDate ? { mixStartDate: result.mixStartDate } : {}),
         ...(result.mixEndDate ? { mixEndDate: result.mixEndDate } : {}),
       });

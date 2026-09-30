@@ -15,10 +15,9 @@ function completeDataFields(): Partial<MTDRecord> {
   };
   return {
     collectionStates,
-    collection_states: collectionStates,
     haveSongs: "HAVE SONGS",
     eightCountSheet: "HAVE CS",
-  } as Partial<MTDRecord>;
+  };
 }
 
 /** Clear assignment/schedule and flag Orders as Reassign: leave. */
@@ -27,7 +26,6 @@ export function patchForReassignLeave(): Partial<MTDRecord> {
     inMTD: false,
     isReassigned: true,
     orderStatus: "Reassign: leave",
-    order_status: "Reassign: leave",
     assignedProducer: null,
     editorRequest: "FA",
     mixStartDate: "",
@@ -44,7 +42,6 @@ export function patchForReassignRush(): Partial<MTDRecord> {
     inMTD: false,
     isReassigned: true,
     orderStatus: "Reassign: rush order",
-    order_status: "Reassign: rush order",
     assignedProducer: null,
     editorRequest: "FA",
     mixStartDate: "",
