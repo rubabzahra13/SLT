@@ -1,14 +1,25 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { MTDRecord, Producer } from "@/types";
+import type { MTDRecord, Producer, ProducerTimeOff } from "@/types";
 import {
   isProducerAvailableOnDate,
   calculateProducerNextOpening,
 } from "@/lib/producer-schedule-calc";
 import {
+  checkProducerDailyLimits,
+  collectProducerMixBlockedDays,
+  countProducerWorkingDays,
+  dailyLimitCheckHasIssues,
+  describeProducerMixDayForLeave,
+  findLeaveMixConflicts,
+  findMixWindowBlocker,
+  isProducerAvailableForMixWindow,
   isProducerUnavailableForRecord,
   getProducerUnavailabilityReason,
+  listProducerMixBookingsOnDay,
+  suggestMixEndDate,
 } from "@/lib/producer-availability";
+import type { StudioHoliday } from "@/lib/producer-time-off";
 import { suggestMixStartDate } from "@/lib/scheduling";
 
 function createMockProducer(overrides: Partial<Producer> = {}): Producer {
@@ -44,7 +55,7 @@ function createMockRecord(overrides: Partial<MTDRecord> = {}): MTDRecord {
     editorRequest: "FA",
     assignedProducer: null,
     mixStartDate: "2026-09-14",
-    mixEndDate: "2026-09-19",
+    mixEndDate: "2026-09-18",
     status: "active",
     recordStatus: "Ongoing",
     producerPayout: 500,
@@ -52,6 +63,14 @@ function createMockRecord(overrides: Partial<MTDRecord> = {}): MTDRecord {
     ...overrides,
   } as MTDRecord;
 }
+
+const dentistLeave: ProducerTimeOff = {
+  id: "off-1",
+  startDate: "2026-09-16",
+  endDate: "2026-09-16",
+  type: "personal",
+  reason: "Dentist",
+};
 
 describe("Assign Producer Availability Logic", () => {
   const saturdayDate = new Date("2026-09-12T12:00:00Z"); // Saturday Sep 12, 2026
@@ -72,14 +91,35 @@ describe("Assign Producer Availability Logic", () => {
     const producer = createMockProducer();
     const mondayRecord = createMockRecord({
       mixStartDate: "2026-09-14",
-      mixEndDate: "2026-09-19",
+      mixEndDate: "2026-09-18",
     });
 
     const isUnavailable = isProducerUnavailableForRecord(producer, mondayRecord, []);
     assert.equal(isUnavailable, false, "Producer working Mon-Fri must be ELIGIBLE for Monday Sep 14 mix");
   });
 
-  it("Test 3: Monday Sep 14 mix blocks producer who is at daily capacity on Sep 14", () => {
+  it("Test 2b: A range may cross weekends and leave; only the start and end must be workable", () => {
+    const producer = createMockProducer({
+      timeOff: [dentistLeave],
+    });
+
+    assert.equal(
+      isProducerAvailableForMixWindow(producer, "2026-09-14", "2026-09-22"),
+      true,
+      "Weekend and leave inside the range are skipped, not blocking"
+    );
+
+    assert.deepEqual(
+      findMixWindowBlocker(producer, "2026-09-14", "2026-09-19"),
+      { reason: "not_working", iso: "2026-09-19", edge: "end" }
+    );
+    assert.deepEqual(
+      findMixWindowBlocker(producer, "2026-09-16", "2026-09-18"),
+      { reason: "leave", iso: "2026-09-16", edge: "start" }
+    );
+  });
+
+  it("Test 3: Daily mix limit never makes a producer unavailable, only flags the over days", () => {
     const producer = createMockProducer({ maxMixesPerDay: 1 });
     const existingMix = createMockRecord({
       id: "rec-existing",
@@ -94,11 +134,65 @@ describe("Assign Producer Availability Logic", () => {
       mixEndDate: "2026-09-18",
     });
 
-    const isUnavailable = isProducerUnavailableForRecord(producer, newMix, [existingMix]);
-    assert.equal(isUnavailable, true, "Producer at max daily capacity must NOT be eligible");
+    assert.equal(isProducerUnavailableForRecord(producer, newMix), false);
+    assert.equal(getProducerUnavailabilityReason(producer, newMix), null);
 
-    const reason = getProducerUnavailabilityReason(producer, newMix, [existingMix]);
-    assert.ok(reason?.includes("capacity"), `Reason should mention capacity limit: ${reason}`);
+    const check = checkProducerDailyLimits(
+      producer,
+      "2026-09-14",
+      "2026-09-18",
+      [existingMix, newMix],
+      { excludeRecordId: newMix.id }
+    );
+    assert.deepEqual(check.overMixDays, [
+      "2026-09-14",
+      "2026-09-15",
+      "2026-09-16",
+      "2026-09-17",
+      "2026-09-18",
+    ]);
+    assert.equal(check.peakMixDay?.bookedMixes, 1);
+    assert.equal(dailyLimitCheckHasIssues(check), true);
+  });
+
+  it("Test 3b: Cost cap counts the new mix's payout on every day of each booked range", () => {
+    const producer = createMockProducer({ maxMixesPerDay: null, maxProducerCostPerDay: 1000 });
+    const existingMix = createMockRecord({
+      id: "rec-existing",
+      assignedProducer: "Casey Marlow",
+      mixStartDate: "2026-09-14",
+      mixEndDate: "2026-09-15",
+      producerPayout: 500,
+    });
+
+    const within = checkProducerDailyLimits(producer, "2026-09-15", "2026-09-16", [existingMix], {
+      newMixCost: 500,
+    });
+    assert.deepEqual(within.overCostDays, []);
+    assert.equal(within.peakCostDay?.bookedCost, 500);
+
+    const over = checkProducerDailyLimits(producer, "2026-09-15", "2026-09-16", [existingMix], {
+      newMixCost: 600,
+    });
+    assert.deepEqual(over.overCostDays, ["2026-09-15"]);
+  });
+
+  it("Test 3c: Completed, outsourced, and in-payroll mixes don't count toward limits", () => {
+    const producer = createMockProducer({ maxMixesPerDay: 1 });
+    const base = {
+      assignedProducer: "Casey Marlow",
+      mixStartDate: "2026-09-14",
+      mixEndDate: "2026-09-18",
+    };
+    const records = [
+      createMockRecord({ ...base, id: "done", recordStatus: "Completed", status: "completed" }),
+      createMockRecord({ ...base, id: "out", recordStatus: "Outsourced", status: "outsourced" }),
+      createMockRecord({ ...base, id: "pay", inPayroll: true }),
+    ];
+
+    const check = checkProducerDailyLimits(producer, "2026-09-14", "2026-09-18", records);
+    assert.deepEqual(check.overMixDays, []);
+    assert.equal(check.peakMixDay?.bookedMixes, 0);
   });
 
   it("Test 4: Editor who does not work Monday is NOT eligible for Sep 14 mix", () => {
@@ -136,5 +230,135 @@ describe("Assign Producer Availability Logic", () => {
 
     const reason = getProducerUnavailabilityReason(producer, saturdayRecord, []);
     assert.equal(reason, "Not scheduled to work on Sats");
+  });
+
+  it("Test 7: Suggested mix end counts package working days, start included", () => {
+    const producer = createMockProducer();
+    assert.equal(suggestMixEndDate("2026-09-14", "Gold", { producer }), "2026-09-18");
+    assert.equal(suggestMixEndDate("2026-09-14", "Platinum", { producer }), "2026-09-22");
+    // Without a producer the studio week (Mon–Fri) is used.
+    assert.equal(suggestMixEndDate("2026-09-14", "Platinum"), "2026-09-22");
+  });
+
+  it("Test 7b: Suggested mix end skips the producer's leave and studio holidays", () => {
+    const holiday: StudioHoliday = {
+      id: "h-1",
+      name: "Studio Day",
+      startDate: "09-17",
+      endDate: "09-17",
+      appliesToAll: true,
+      producerIds: [],
+    };
+    const onLeave = createMockProducer({
+      timeOff: [dentistLeave],
+    });
+
+    assert.equal(
+      suggestMixEndDate("2026-09-14", "Gold", { producer: onLeave }),
+      "2026-09-21"
+    );
+    assert.equal(
+      suggestMixEndDate("2026-09-14", "Gold", {
+        producer: onLeave,
+        studioHolidays: [holiday],
+      }),
+      "2026-09-22"
+    );
+    // A start on a day off doesn't count as day one.
+    assert.equal(
+      suggestMixEndDate("2026-09-12", "Gold", { producer: onLeave }),
+      "2026-09-21"
+    );
+  });
+
+  it("Test 8: countProducerWorkingDays skips days off, leave and holidays", () => {
+    const holiday: StudioHoliday = {
+      id: "h-1",
+      name: "Studio Day",
+      startDate: "09-17",
+      endDate: "09-17",
+      appliesToAll: true,
+      producerIds: [],
+    };
+    const producer = createMockProducer({
+      timeOff: [dentistLeave],
+    });
+
+    assert.equal(countProducerWorkingDays(producer, "2026-09-14", "2026-09-22"), 6);
+    assert.equal(
+      countProducerWorkingDays(producer, "2026-09-14", "2026-09-22", [holiday]),
+      5
+    );
+    assert.equal(countProducerWorkingDays(producer, "2026-09-19", "2026-09-20"), 0);
+  });
+
+  it("Test 9: Leave calendar lists Ongoing mix days for the tooltip (not hard-blocked)", () => {
+    const producer = createMockProducer({ name: "Casey Marlow", initials: "CM" });
+    const ongoing = createMockRecord({
+      id: "mix-1",
+      assignedProducer: "Casey Marlow",
+      programName: "Star Athletics Shine",
+      mixStartDate: "2026-09-14",
+      mixEndDate: "2026-09-18",
+      recordStatus: "Ongoing",
+      status: "active",
+      inMTD: true,
+    });
+    const completed = createMockRecord({
+      id: "mix-done",
+      assignedProducer: "Casey Marlow",
+      programName: "Done Mix",
+      mixStartDate: "2026-09-21",
+      mixEndDate: "2026-09-22",
+      recordStatus: "Completed",
+      status: "completed",
+    });
+
+    const onDay = listProducerMixBookingsOnDay(producer, "2026-09-15", [
+      ongoing,
+      completed,
+    ]);
+    assert.equal(onDay.length, 1);
+    assert.equal(onDay[0].programName, "Star Athletics Shine");
+    assert.equal(onDay[0].mixEndDate, "2026-09-18");
+    assert.equal(onDay[0].inMTD, true);
+
+    const tip = describeProducerMixDayForLeave(onDay);
+    assert.match(tip ?? "", /Mix on this day/);
+    assert.match(tip ?? "", /Star Athletics Shine/);
+    assert.match(tip ?? "", /Sep/);
+
+    assert.deepEqual(
+      collectProducerMixBlockedDays(
+        producer,
+        [ongoing, completed],
+        "2026-09-14",
+        "2026-09-22"
+      ),
+      [
+        "2026-09-14",
+        "2026-09-15",
+        "2026-09-16",
+        "2026-09-17",
+        "2026-09-18",
+      ]
+    );
+
+    const conflicts = findLeaveMixConflicts(
+      producer,
+      "2026-09-17",
+      "2026-09-22",
+      [ongoing, completed]
+    );
+    assert.equal(conflicts.length, 1);
+    assert.equal(conflicts[0].recordId, "mix-1");
+
+    assert.deepEqual(
+      findLeaveMixConflicts(producer, "2026-09-21", "2026-09-22", [
+        ongoing,
+        completed,
+      ]),
+      []
+    );
   });
 });

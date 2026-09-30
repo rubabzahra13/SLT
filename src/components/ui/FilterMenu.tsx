@@ -5,12 +5,15 @@ import { createPortal } from "react-dom";
 import { Check, ChevronDown } from "lucide-react";
 import clsx from "clsx";
 import type { BrandAccent } from "@/lib/brand-colors";
+import { HoverTip } from "@/components/ui/HoverTip";
 
 export type FilterMenuOption = {
   value: string;
   label: string;
   count?: number;
   isRed?: boolean;
+  disabled?: boolean;
+  disabledReason?: string;
 };
 
 export type FilterMenuAccent = BrandAccent | "red";
@@ -129,19 +132,26 @@ export function FilterMenu({
     <>
       {options.map((opt) => {
         const active = opt.value === value;
-        return (
+        const isOptionDisabled = Boolean(opt.disabled);
+        const button = (
           <button
-            key={opt.value}
             type="button"
+            disabled={isOptionDisabled}
+            aria-disabled={isOptionDisabled || undefined}
             onClick={() => {
+              if (isOptionDisabled) return;
               onChange(opt.value);
               setOpen(false);
             }}
             className={clsx(
-              "flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-[13px] transition hover:bg-brand-bg",
-              active
-                ? "font-semibold text-brand-ink"
-                : "text-brand-ink-secondary"
+              "flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-[13px] transition",
+              isOptionDisabled
+                ? "cursor-not-allowed text-brand-ink-tertiary opacity-55"
+                : "hover:bg-brand-bg",
+              !isOptionDisabled &&
+                (active
+                  ? "font-semibold text-brand-ink"
+                  : "text-brand-ink-secondary")
             )}
           >
             <span className="flex min-w-0 items-center gap-2">
@@ -153,7 +163,14 @@ export function FilterMenu({
               ) : (
                 <span className="h-3.5 w-3.5 shrink-0" aria-hidden />
               )}
-              <span className={clsx("truncate", opt.isRed && "text-red-600 font-medium dark:text-red-400")}>
+              <span
+                className={clsx(
+                  "truncate",
+                  opt.isRed &&
+                    !isOptionDisabled &&
+                    "font-medium text-red-600 dark:text-red-400"
+                )}
+              >
                 {opt.label}
               </span>
             </span>
@@ -164,6 +181,21 @@ export function FilterMenu({
             ) : null}
           </button>
         );
+
+        if (isOptionDisabled && opt.disabledReason) {
+          return (
+            <HoverTip
+              key={opt.value}
+              label={opt.disabledReason}
+              placement="top"
+              className="block w-full"
+            >
+              {button}
+            </HoverTip>
+          );
+        }
+
+        return <div key={opt.value}>{button}</div>;
       })}
     </>
   );

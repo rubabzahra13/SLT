@@ -4,6 +4,10 @@ export type OrderViewRangeFilter =
   | "all"
   | "need_to_be_scheduled"
   | "new_orders"
+  | "assigned"
+  | "not_assigned"
+  | "reassign_leave"
+  | "reassign_rush"
   | "reassigned"
   | "waiting_for_data";
 
@@ -44,6 +48,10 @@ export type MTDRecord = {
   isReassigned?: boolean;
   /** When the customer missing-data email was last sent (ISO timestamp) */
   missingDataEmailSentAt?: string | null;
+  /** When the producer/editor order email was last sent (ISO timestamp) */
+  producerEmailSentAt?: string | null;
+  /** Producer key/name the last producer email was sent to */
+  producerEmailSentTo?: string | null;
   collectionStates?: Record<string, boolean>;
   orderStatus?: string;
   routineNotes?: string;
@@ -279,6 +287,8 @@ export type BaseOrderAdminFields = {
   attentionReason: string | null;
   isReassigned?: boolean;
   missingDataEmailSentAt?: string | null;
+  producerEmailSentAt?: string | null;
+  producerEmailSentTo?: string | null;
   collectionStates?: Record<string, boolean>;
   eightCountSheet?: string;
   haveSongs?: string;
@@ -857,6 +867,8 @@ export type Order = {
   mixStartDate?: string;
   mixEndDate?: string;
   missingDataEmailSentAt?: string | null;
+  producerEmailSentAt?: string | null;
+  producerEmailSentTo?: string | null;
 };
 
 export type ScheduleEntry = {

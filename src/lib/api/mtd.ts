@@ -31,6 +31,8 @@ export interface BackendMTDRecord {
   order_status?: string | null;
   collection_states?: Record<string, boolean> | null;
   missing_data_email_sent_at?: string | null;
+  producer_email_sent_at?: string | null;
+  producer_email_sent_to?: string | null;
   in_mtd?: boolean;
   inMTD?: boolean;
   in_payroll: boolean;
@@ -84,8 +86,22 @@ export function transformMTDRecord(bm: BackendMTDRecord): MTDRecord {
     inPayroll: Boolean(bm.in_payroll),
     isManualScheduleEntry: Boolean(bm.is_manual_schedule_entry),
     isReassigned: Boolean(bm.is_reassigned),
-    collectionStates: bm.collection_states || undefined,
+    collectionStates: (() => {
+      const raw = bm.collection_states;
+      if (!raw) return undefined;
+      if (typeof raw === "string") {
+        try {
+          return JSON.parse(raw);
+        } catch {
+          return undefined;
+        }
+      }
+      return raw;
+    })(),
+    orderStatus: bm.order_status || undefined,
     missingDataEmailSentAt: bm.missing_data_email_sent_at || null,
+    producerEmailSentAt: bm.producer_email_sent_at || null,
+    producerEmailSentTo: bm.producer_email_sent_to || null,
     completedAt: bm.completed_at || undefined,
     hasRallyMix: Boolean(bm.has_rally_mix ?? bm.hasRallyMix),
     hasExtend8ctAddon: Boolean(bm.has_extend_8ct_addon ?? bm.hasExtend8ctAddon),
@@ -169,6 +185,12 @@ export async function updateMTDRecordApi(
   if ((patch as any).orderStatus !== undefined) payload.order_status = (patch as any).orderStatus;
   if (patch.missingDataEmailSentAt !== undefined) {
     payload.missing_data_email_sent_at = patch.missingDataEmailSentAt;
+  }
+  if (patch.producerEmailSentAt !== undefined) {
+    payload.producer_email_sent_at = patch.producerEmailSentAt;
+  }
+  if (patch.producerEmailSentTo !== undefined) {
+    payload.producer_email_sent_to = patch.producerEmailSentTo;
   }
   if (patch.completedAt !== undefined) payload.completed_at = patch.completedAt;
   if (patch.hasRallyMix !== undefined) payload.has_rally_mix = patch.hasRallyMix;

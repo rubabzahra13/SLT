@@ -141,6 +141,14 @@ function makeRecord(id, assignedProducer, producerPayout = 0, startDate = "2026-
         strict_1.default.equal((0, editor_assignment_1.producerSupportsCategory)(p, "Hip Hop"), true);
         strict_1.default.equal((0, editor_assignment_1.producerSupportsCategory)(p, "Gameday"), true);
     });
+    (0, node_test_1.it)("specific cheer subtypes do not cross-match", () => {
+        const allStar = makeProducer({ categories: ["All-Star Cheer"] });
+        const school = makeProducer({ categories: ["School Cheer"] });
+        strict_1.default.equal((0, editor_assignment_1.producerSupportsCategory)(allStar, "School Cheer"), false);
+        strict_1.default.equal((0, editor_assignment_1.producerSupportsCategory)(school, "All-Star Cheer"), false);
+        strict_1.default.equal((0, editor_assignment_1.producerSupportsCategory)(allStar, "All-Star Cheer"), true);
+        strict_1.default.equal((0, editor_assignment_1.producerSupportsCategory)(school, "School Cheer"), true);
+    });
 });
 // ---------------------------------------------------------------------------
 // 3. getProducersForCategory

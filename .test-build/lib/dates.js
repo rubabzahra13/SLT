@@ -7,6 +7,8 @@ exports.formatDisplayDate = formatDisplayDate;
 exports.compareIsoDates = compareIsoDates;
 exports.isIsoDateBefore = isIsoDateBefore;
 exports.isIsoDateAfter = isIsoDateAfter;
+exports.inclusiveBookedDays = inclusiveBookedDays;
+exports.formatMixBookedDaysLabel = formatMixBookedDaysLabel;
 exports.toCanonicalIsoDate = toCanonicalIsoDate;
 exports.extractDateRange = extractDateRange;
 exports.doDateRangesOverlap = doDateRangesOverlap;
@@ -70,6 +72,37 @@ function isIsoDateBefore(a, b) {
 }
 function isIsoDateAfter(a, b) {
     return compareIsoDates(a, b) > 0;
+}
+/**
+ * Inclusive calendar days spanned by a mix window (start → end).
+ * Returns null when either date is missing/invalid or end is before start.
+ */
+function inclusiveBookedDays(start, end) {
+    const startIso = toIsoDateString(start);
+    const endIso = toIsoDateString(end);
+    if (!startIso || !endIso)
+        return null;
+    const a = new Date(`${startIso}T12:00:00`);
+    const b = new Date(`${endIso}T12:00:00`);
+    if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime()))
+        return null;
+    const diff = Math.round((b.getTime() - a.getTime()) / 86_400_000);
+    if (diff < 0)
+        return null;
+    return diff + 1;
+}
+/**
+ * Label for the Days booked column: "5 work days" when the producer's working
+ * days are known, else calendar days ("3 days" / "1 day"), or "Not booked yet".
+ */
+function formatMixBookedDaysLabel(start, end, workDays) {
+    const days = inclusiveBookedDays(start, end);
+    if (days == null)
+        return "Not booked yet";
+    if (workDays != null) {
+        return workDays === 1 ? "1 work day" : `${workDays} work days`;
+    }
+    return days === 1 ? "1 day" : `${days} days`;
 }
 /** Extract canonical YYYY-MM-DD from string, Date, or serial */
 function toCanonicalIsoDate(val) {

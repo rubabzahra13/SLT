@@ -62,8 +62,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <NotificationToaster />
 
       <div
-        className="app-canvas flex min-h-screen min-w-0 flex-col transition-[margin] duration-300 ease-out md:ml-[var(--sidebar-margin)]"
-        style={{ "--sidebar-margin": `${desktopMargin}px` } as React.CSSProperties}
+        className="app-canvas app-canvas-shell flex min-w-0 flex-col transition-[margin] duration-300 ease-out md:ml-[var(--sidebar-margin)]"
+        style={
+          {
+            "--sidebar-margin": `${desktopMargin}px`,
+            height: "100vh",
+            maxHeight: "100vh",
+            minHeight: 0,
+            overflow: "hidden",
+          } as React.CSSProperties
+        }
       >
         {isViewOnly ? (
           <div className="relative z-20 flex w-full shrink-0 items-center justify-center gap-2 border-b border-amber-300/40 bg-amber-500/10 px-4 py-2 text-[12px] font-semibold text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/15 dark:text-amber-300">
@@ -87,7 +95,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        <main className="app-canvas flex min-h-0 min-w-0 flex-1 flex-col">{children}</main>
+        <main
+          className="app-canvas flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+          style={{ minHeight: 0 }}
+        >
+          {children}
+        </main>
       </div>
     </>
   );

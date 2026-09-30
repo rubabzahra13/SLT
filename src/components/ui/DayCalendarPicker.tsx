@@ -240,7 +240,7 @@ export type DayCalendarPickerProps = {
   dayTone?: (
     iso: string,
     disabled: boolean
-  ) => "overtime" | "holiday" | "leave" | undefined;
+  ) => "overtime" | "holiday" | "leave" | "mix" | undefined;
   /** Footer content (e.g. Today button / helper text). */
   footer?: ReactNode;
   /** Shown instead of the grid when true. */
@@ -607,6 +607,8 @@ export function DayCalendarPicker({
                         ? "cursor-not-allowed bg-brand-orange-soft/55 text-brand-orange/65 opacity-70 ring-1 ring-inset ring-brand-orange/20 hover:bg-brand-orange-soft/55"
                         : tone === "leave"
                           ? "cursor-not-allowed bg-brand-orange-muted text-brand-orange-deep opacity-80 ring-1 ring-inset ring-brand-orange-deep/35 hover:bg-brand-orange-muted"
+                          : tone === "mix"
+                            ? "bg-rose-100 text-rose-700 ring-1 ring-inset ring-rose-300/70 hover:bg-rose-200/80"
                           : disabled
                             ? "cursor-not-allowed text-brand-ink-tertiary opacity-30 hover:bg-transparent"
                             : highlightIso === iso || selectedSet.has(iso)

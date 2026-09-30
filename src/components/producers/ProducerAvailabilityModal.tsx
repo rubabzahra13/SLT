@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { CalendarPlus, ChevronDown, Minus, Pencil, Plus, Trash2, X } from "lucide-react";
 import clsx from "clsx";
 import { ProducerCategoryAddMenu } from "@/components/producers/ProducerCategoryAddMenu";
@@ -17,17 +18,23 @@ import { SoftSelect } from "@/components/ui/SoftSelect";
 import { useAppState } from "@/context/AppStateContext";
 import {
   describeTimeOffOutsideWorkDaysParts,
+  describeProducerMixDayForLeave,
+  collectProducerMixBlockedDays,
   expandTimeOffDates,
+  findLeaveMixConflicts,
   formatIsoDayMonthYear,
   formatSkippedProducerSummary,
   isEligibleOvertimeDate,
   isEligibleTimeOffDate,
   isTimeOffDateBlockedByOvertime,
+  listProducerMixBookingsOnDay,
   nextOvertimeOnOrAfter,
   overtimeDatesInRange,
   prevOvertimeOnOrBefore,
   timeOffRangeCoversWorkDay,
+  type ProducerMixDayBooking,
 } from "@/lib/producer-availability";
+import { patchForReassignLeave } from "@/lib/order-reassign";
 import {
   defaultReasonForTimeOffType,
   isOtherPersonalReason,
@@ -106,6 +113,13 @@ type TimeOffNotice =
       dateLine?: string;
       pendingEntry: DraftTimeOff;
       conflicts: OtConflictRow[];
+    }
+  | {
+      kind: "mix-conflict";
+      title: string;
+      pendingEntry: DraftTimeOff;
+      fromOrders: ProducerMixDayBooking[];
+      fromMtd: ProducerMixDayBooking[];
     };
 
 type AvailabilityTab = "schedule" | "leave" | "holidays" | "limit" | "category";
@@ -457,7 +471,8 @@ export function ProducerAvailabilityModal({
   onSave,
   readOnly = false,
 }: ProducerAvailabilityModalProps) {
-  const { holidays, personalReasons } = useAppState();
+  const router = useRouter();
+  const { holidays, personalReasons, mtdRecords, updateMTD } = useAppState();
   const [workDays, setWorkDays] = useState<Weekday[]>([...DEFAULT_WORK_DAYS]);
   const [timeOff, setTimeOff] = useState<DraftTimeOff[]>([]);
   const [timeOffDraft, setTimeOffDraft] = useState<DraftTimeOff>(() =>
@@ -542,6 +557,17 @@ export function ProducerAvailabilityModal({
 
   // Nested helpers don't keep the null narrowing from the guard above.
   const producerId = producer.id;
+  const todayIso = isoFromLocalDate(new Date());
+  const timeOffMinIso = todayIso;
+  const timeOffMaxIso = `${Number(todayIso.slice(0, 4)) + 1}-12-31`;
+  const mixBlockedTimeOffDaySet = new Set(
+    collectProducerMixBlockedDays(
+      producer,
+      mtdRecords,
+      timeOffMinIso,
+      timeOffMaxIso
+    )
+  );
 
   const usesPercentageCompensation =
     producer.compensationModel !== "not_paid_for_mixing" &&
@@ -638,6 +664,19 @@ export function ProducerAvailabilityModal({
     ];
   }
 
+  function hasMixOnLeaveDay(iso: string): boolean {
+    return mixBlockedTimeOffDaySet.has(iso);
+  }
+
+  function mixLeaveDayTitle(iso: string): string | undefined {
+    if (!producer) return undefined;
+    return (
+      describeProducerMixDayForLeave(
+        listProducerMixBookingsOnDay(producer, iso, mtdRecords)
+      ) ?? undefined
+    );
+  }
+
   function snapOffBlockedTimeOffDay(iso: string): string {
     let next = iso;
     for (let i = 0; i < 60; i += 1) {
@@ -657,6 +696,14 @@ export function ProducerAvailabilityModal({
     if (getBlockedTimeOffDays().includes(iso)) return true;
     if (isStudioHolidayIso(iso, holidays, producerId)) return true;
     if (isNonWorkTimeOffDay(iso)) return true;
+    // Mix days are highlighted (pink) but still selectable for leave.
+    return false;
+  }
+
+  function isLeaveSpanBarrierDay(iso: string): boolean {
+    if (overtimeDays.includes(iso)) return true;
+    if (expandTimeOffDates(timeOff).includes(iso)) return true;
+    if (isStudioHolidayIso(iso, holidays, producerId)) return true;
     return false;
   }
 
@@ -664,7 +711,7 @@ export function ProducerAvailabilityModal({
     const end = endIso < startIso ? startIso : endIso;
     let cursor = addDaysToIso(startIso, 1);
     for (let i = 0; i < 800 && cursor <= end; i += 1) {
-      if (isBlockedTimeOffCalendarDay(cursor)) {
+      if (isLeaveSpanBarrierDay(cursor)) {
         const before = addDaysToIso(cursor, -1);
         return before < startIso ? startIso : before;
       }
@@ -679,7 +726,7 @@ export function ProducerAvailabilityModal({
     if (start < minIso) start = minIso;
     let cursor = addDaysToIso(endIso, -1);
     for (let i = 0; i < 800 && cursor >= minIso; i += 1) {
-      if (isBlockedTimeOffCalendarDay(cursor)) {
+      if (isLeaveSpanBarrierDay(cursor)) {
         const after = addDaysToIso(cursor, 1);
         if (after > start) start = after;
         break;
@@ -764,6 +811,25 @@ export function ProducerAvailabilityModal({
         title: "Not a usual work day",
         dateLine: parts.dateLine,
         producerLine: parts.producerLine,
+      });
+      return;
+    }
+
+    const mixConflicts = findLeaveMixConflicts(
+      producer,
+      pendingEntry.startDate,
+      endDate,
+      mtdRecords
+    );
+    if (mixConflicts.length > 0) {
+      const fromMtd = mixConflicts.filter((b) => b.inMTD);
+      const fromOrders = mixConflicts.filter((b) => !b.inMTD);
+      showTimeOffNotice({
+        kind: "mix-conflict",
+        title: "Leave overlaps booked mixes",
+        pendingEntry,
+        fromOrders,
+        fromMtd,
       });
       return;
     }
@@ -869,11 +935,9 @@ export function ProducerAvailabilityModal({
     }));
   }
 
-  function handleDone() {
-    if (readOnly) {
-      onClose();
-      return;
-    }
+  function buildAvailabilityPatch(
+    nextTimeOff: DraftTimeOff[] = timeOff
+  ): AvailabilityPatch {
     const parsed = parseInt(maxCostInput, 10);
     const committedMaxCost = hasMaxCapacity
       ? clampMaxCostPerDay(Number.isNaN(parsed) ? maxProducerCostPerDay : parsed)
@@ -884,9 +948,9 @@ export function ProducerAvailabilityModal({
       ratesByCategory[category] = value > 1 ? value / 100 : value;
     }
 
-    onSave({
+    return {
       workDays,
-      timeOff: timeOff
+      timeOff: nextTimeOff
         .filter(
           (entry) =>
             entry.type === "personal" &&
@@ -908,13 +972,39 @@ export function ProducerAvailabilityModal({
       categories,
       specialty: categories[0] ?? producer?.specialty ?? "",
       ratesByCategory,
-    });
+    };
+  }
+
+  function handleDone() {
+    if (readOnly) {
+      onClose();
+      return;
+    }
+    onSave(buildAvailabilityPatch());
     onClose();
   }
 
-  const todayIso = isoFromLocalDate(new Date());
-  const timeOffMinIso = todayIso;
-  const timeOffMaxIso = `${Number(todayIso.slice(0, 4)) + 1}-12-31`;
+  function confirmMixConflictLeave() {
+    if (!timeOffNotice || timeOffNotice.kind !== "mix-conflict" || !producer) {
+      return;
+    }
+    const { pendingEntry, fromOrders, fromMtd } = timeOffNotice;
+    const affected = [...fromOrders, ...fromMtd];
+    for (const booking of affected) {
+      updateMTD(booking.recordId, patchForReassignLeave());
+    }
+    const nextTimeOff = [...timeOff, pendingEntry];
+    onSave(buildAvailabilityPatch(nextTimeOff));
+    clearTimeOffNotice();
+    closeTimeOffForm();
+    onClose();
+
+    const focusId = affected[0]?.recordId;
+    const params = new URLSearchParams();
+    params.set("range", "reassign_leave");
+    if (focusId) params.set("focus", focusId);
+    router.push(`/orders?${params.toString()}`);
+  }
 
   // Overtime and already-added time off block new ranges: start can't land
   // on/before a blocked day inside the chosen end, and end can't land on/after
@@ -933,17 +1023,27 @@ export function ProducerAvailabilityModal({
     })
     .sort((a, b) => a.startDate.localeCompare(b.startDate));
 
-  // Contiguous leave ranges can't cross any unavailable day (overtime, existing
-  // leave, holidays, or non-work weekdays). Start stays after the previous
-  // blocked day; end stops before the next blocked day.
-  const rangeBlockedDays: string[] = [];
+  // Days that cannot be pick points for leave start/end (and can't sit inside
+  // a leave range): overtime, existing leave, and studio holidays.
+  // Weekends/non-work weekdays are only invalid as endpoints — a leave range
+  // may span them. Mix days stay selectable (pink) and confirm on commit.
+  const leaveSpanBarrierDays: string[] = [];
   {
     let cursor = timeOffMinIso;
     for (let i = 0; i < 800 && cursor <= timeOffMaxIso; i += 1) {
-      if (isBlockedTimeOffCalendarDay(cursor)) rangeBlockedDays.push(cursor);
+      if (
+        overtimeDays.includes(cursor) ||
+        existingTimeOffDays.includes(cursor) ||
+        isStudioHolidayIso(cursor, holidays, producerId)
+      ) {
+        leaveSpanBarrierDays.push(cursor);
+      }
       cursor = addDaysToIso(cursor, 1);
     }
   }
+
+  // Legacy name used by clamp helpers — barriers that split contiguous leave.
+  const rangeBlockedDays = leaveSpanBarrierDays;
 
   let timeOffStartMinIso = timeOffMinIso;
   let timeOffStartMaxIso =
@@ -1013,14 +1113,15 @@ export function ProducerAvailabilityModal({
           ? holidayNames[0]
           : holidayNames.join(", ");
       if (outsideRange) {
-        return `${name}\nRange can’t include holidays or non-working days`;
+        return `${name}\nRange can’t include holidays or overtime`;
       }
       return `${name}\nLeave can’t be added on holidays`;
     }
-    // Off days can't take leave — OT on an off day doesn't change that.
+    // Off days can't be leave start/end — OT on an off day doesn't change that.
+    // Leave ranges may still span weekends between two work days.
     if (isNonWorkTimeOffDay(iso)) {
       if (outsideRange) {
-        return "Not a working day\nRange can’t include holidays or non-working days";
+        return "Not a working day\nPick a work day for leave start/end";
       }
       return "Not a working day";
     }
@@ -1029,6 +1130,10 @@ export function ProducerAvailabilityModal({
     }
     if (existingTimeOffDays.includes(iso)) {
       return "Already added as time off";
+    }
+    const mixTitle = mixLeaveDayTitle(iso);
+    if (mixTitle) {
+      return mixTitle;
     }
     if (
       disabled &&
@@ -1042,7 +1147,7 @@ export function ProducerAvailabilityModal({
           rangeBlockedDays
         ))
     ) {
-      return "Range can’t include holidays or non-working days";
+      return "Range can’t include holidays or overtime";
     }
     if (iso === todayIso) return "Today";
     return undefined;
@@ -1079,13 +1184,14 @@ export function ProducerAvailabilityModal({
   function timeOffDayTone(
     iso: string,
     _disabled: boolean
-  ): "overtime" | "holiday" | "leave" | undefined {
+  ): "overtime" | "holiday" | "leave" | "mix" | undefined {
     if (iso < todayIso) return undefined;
     if (isStudioHolidayIso(iso, holidays, producerId)) return "holiday";
     // OT blue only when the day is otherwise a work day (leave could apply).
     if (overtimeDays.includes(iso) && !isNonWorkTimeOffDay(iso)) {
       return "overtime";
     }
+    if (hasMixOnLeaveDay(iso)) return "mix";
     return undefined;
   }
 
@@ -1383,7 +1489,8 @@ export function ProducerAvailabilityModal({
                 <p className="mt-0.5 text-[12px] text-brand-ink-tertiary">
                   Block regular work days when this producer won&apos;t be
                   available. Holidays and non-working days can&apos;t be
-                  selected.
+                  start/end dates; pink mix days can be included (you&apos;ll
+                  confirm reassignment).
                 </p>
               </div>
               {!showTimeOffForm ? (
@@ -1600,7 +1707,7 @@ export function ProducerAvailabilityModal({
                           ) : (
                             <p className="px-1 text-[11px] font-medium text-brand-ink-tertiary">
                               {rangeBlockedDays.length > 0
-                                ? "Range can’t include holidays or non-working days"
+                                ? "Range can’t include holidays or overtime"
                                 : "Through December next year"}
                             </p>
                           )
@@ -1705,7 +1812,7 @@ export function ProducerAvailabilityModal({
                           ) : (
                             <p className="px-1 text-[11px] font-medium text-brand-ink-tertiary">
                               {rangeBlockedDays.length > 0
-                                ? "Range can’t include holidays or non-working days"
+                                ? "Range can’t include holidays or overtime"
                                 : "Through December next year"}
                             </p>
                           )
@@ -2112,8 +2219,10 @@ export function ProducerAvailabilityModal({
                 {timeOffNotice.title}
               </h2>
 
-              {timeOffNotice.dateLine ||
-              (timeOffNotice.kind === "info" && timeOffNotice.producerLine) ? (
+              {(timeOffNotice.kind === "info" ||
+                timeOffNotice.kind === "ot-conflict") &&
+              (timeOffNotice.dateLine ||
+                (timeOffNotice.kind === "info" && timeOffNotice.producerLine)) ? (
                 <div className="mt-4 rounded-2xl bg-brand-bg px-4 py-3 ring-1 ring-inset ring-black/[0.06]">
                   {timeOffNotice.dateLine ? (
                     <p className="text-[13px] font-semibold text-brand-ink">
@@ -2183,6 +2292,61 @@ export function ProducerAvailabilityModal({
                 </div>
               ) : null}
 
+              {timeOffNotice.kind === "mix-conflict" ? (
+                <div className="mt-4 space-y-3">
+                  <p className="text-[12px] leading-relaxed text-brand-ink-secondary">
+                    Leave is set. Reassign clears their producer assignment and
+                    schedule and sends them to{" "}
+                    <span className="font-semibold text-brand-ink">
+                      Reassign: Leave
+                    </span>{" "}
+                    on Orders.
+                  </p>
+                  {timeOffNotice.fromOrders.length > 0 ? (
+                    <div className="rounded-2xl bg-brand-bg px-3 py-3 ring-1 ring-inset ring-black/[0.06]">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-brand-ink-secondary">
+                        Orders · Assigned → Reassign: Leave
+                      </p>
+                      <ul className="mt-2 space-y-1.5">
+                        {timeOffNotice.fromOrders.map((b) => (
+                          <li
+                            key={b.recordId}
+                            className="text-[12.5px] leading-snug text-brand-ink"
+                          >
+                            <span className="font-semibold">{b.programName}</span>
+                            <span className="mt-0.5 block text-[11px] text-brand-ink-tertiary">
+                              {formatIsoDayMonthYear(b.mixStartDate)} –{" "}
+                              {formatIsoDayMonthYear(b.mixEndDate)}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                  {timeOffNotice.fromMtd.length > 0 ? (
+                    <div className="rounded-2xl bg-brand-bg px-3 py-3 ring-1 ring-inset ring-black/[0.06]">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-brand-ink-secondary">
+                        MTD → Orders · Reassign: Leave
+                      </p>
+                      <ul className="mt-2 space-y-1.5">
+                        {timeOffNotice.fromMtd.map((b) => (
+                          <li
+                            key={b.recordId}
+                            className="text-[12.5px] leading-snug text-brand-ink"
+                          >
+                            <span className="font-semibold">{b.programName}</span>
+                            <span className="mt-0.5 block text-[11px] text-brand-ink-tertiary">
+                              {formatIsoDayMonthYear(b.mixStartDate)} –{" "}
+                              {formatIsoDayMonthYear(b.mixEndDate)}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
               {timeOffNotice.kind === "info" &&
               ((timeOffNotice.skippedNames?.length ?? 0) > 0 ||
                 (timeOffNotice.applyNames?.length ?? 0) > 0)
@@ -2223,7 +2387,15 @@ export function ProducerAvailabilityModal({
             </div>
 
             <div className="shrink-0 border-t border-black/[0.08]">
-              {timeOffNotice.kind === "ot-conflict" ? (
+              {timeOffNotice.kind === "mix-conflict" ? (
+                <button
+                  type="button"
+                  onClick={confirmMixConflictLeave}
+                  className="w-full py-3.5 text-[15px] font-semibold text-rose-700 transition hover:bg-rose-50"
+                >
+                  Reassign
+                </button>
+              ) : timeOffNotice.kind === "ot-conflict" ? (
                 (() => {
                   const applyCount = timeOffNotice.conflicts.filter(
                     (row) => row.cancelOvertime

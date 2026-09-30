@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import clsx from "clsx";
-import { Calendar, Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
 import { formatDisplayDate } from "@/lib/dates";
 import type { Producer } from "@/types";
@@ -191,7 +191,7 @@ export function EditorSelectDropdown({
       ? `Available from ${formatDisplayDate(selected.bookedUntil)}`
       : "Eligible for mix"
     : hasOptions
-      ? "Choose an editor"
+      ? "Select here or from first available dates"
       : emptyLabel;
 
   const menu =
@@ -279,47 +279,22 @@ export function EditorSelectDropdown({
                                   Requested
                                 </span>
                               ) : null}
-                              {option.isAvailableToday ? (
-                                <span className="rounded-full bg-brand-success/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-brand-success">
-                                  Available Today
-                                </span>
-                              ) : option.isEligibleForMix ? (
-                                <span className="rounded-full bg-brand-info/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-brand-info">
-                                  {option.nextAvailableDateStr
-                                    ? `Available from ${option.nextAvailableDateStr}`
-                                    : "Eligible for Mix"}
-                                </span>
-                              ) : option.unavailabilityReason ? (
-                                <span className="rounded-full bg-brand-warning/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-brand-warning">
-                                  {option.unavailabilityReason}
-                                </span>
-                              ) : null}
                             </span>
                             <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-brand-ink-tertiary">
-                              {option.disabled || option.isEligibleForMix === false ? (
-                                <span className="text-brand-warning font-medium">
-                                  {option.unavailabilityReason || "Unavailable for mix dates"}
+                              {option.disabled ||
+                              option.isEligibleForMix === false ? (
+                                <span className="font-medium text-brand-warning">
+                                  {option.unavailabilityReason ||
+                                    "Unavailable for mix dates"}
                                 </span>
-                              ) : group.tone === "booked" ? (
-                                <>
-                                  <span>
-                                    {option.mixCount ?? 0} mix
-                                    {(option.mixCount ?? 0) === 1 ? "" : "es"}
-                                  </span>
-                                  {option.bookedUntil ? (
-                                    <span className="inline-flex items-center gap-1">
-                                      <Calendar
-                                        className="h-3 w-3 shrink-0"
-                                        strokeWidth={2}
-                                      />
-                                      Till {formatDisplayDate(option.bookedUntil)}
-                                    </span>
-                                  ) : null}
-                                </>
                               ) : option.isAvailableToday ? (
-                                <span>Ready to assign today</span>
+                                <span className="font-medium text-brand-success">
+                                  Available today
+                                </span>
                               ) : option.nextAvailableDateStr ? (
-                                <span>Available from {option.nextAvailableDateStr}</span>
+                                <span>
+                                  Available from {option.nextAvailableDateStr}
+                                </span>
                               ) : (
                                 <span>Eligible for selected mix dates</span>
                               )}

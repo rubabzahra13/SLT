@@ -76,6 +76,8 @@ export interface BackendOrder {
   attention_reason?: string | null;
   is_past_order: boolean;
   missing_data_email_sent_at?: string | null;
+  producer_email_sent_at?: string | null;
+  producer_email_sent_to?: string | null;
   system_calculated_customer_price?: number | null;
   final_customer_price?: number | null;
   final_customer_price_overridden?: boolean;
@@ -164,6 +166,8 @@ export function transformOrder(bo: BackendOrder): Order {
     needsAttention: Boolean(bo.needs_attention),
     attentionReason: bo.attention_reason || null,
     missingDataEmailSentAt: bo.missing_data_email_sent_at || null,
+    producerEmailSentAt: bo.producer_email_sent_at || null,
+    producerEmailSentTo: bo.producer_email_sent_to || null,
     systemCalculatedCustomerPrice: bo.system_calculated_customer_price ?? null,
     finalCustomerPrice: bo.final_customer_price ?? null,
     finalCustomerPriceOverridden: Boolean(bo.final_customer_price_overridden),
@@ -235,6 +239,12 @@ export async function updateOrderApi(
   if (patch.isReassigned !== undefined) payload.is_reassigned = patch.isReassigned;
   if (patch.missingDataEmailSentAt !== undefined) {
     payload.missing_data_email_sent_at = patch.missingDataEmailSentAt;
+  }
+  if (patch.producerEmailSentAt !== undefined) {
+    payload.producer_email_sent_at = patch.producerEmailSentAt;
+  }
+  if (patch.producerEmailSentTo !== undefined) {
+    payload.producer_email_sent_to = patch.producerEmailSentTo;
   }
   if ((patch as any).orderStatus !== undefined) payload.order_status = (patch as any).orderStatus;
   if ((patch as any).order_status !== undefined) payload.order_status = (patch as any).order_status;

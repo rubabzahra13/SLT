@@ -621,6 +621,14 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         if (patch.editorRequest === "NA" || patch.assignedProducer === null) {
           updated.assignedProducer = null;
           apiPatch = { ...apiPatch, assignedProducer: null };
+          if (patch.mixStartDate === undefined) {
+            updated.mixStartDate = "";
+            apiPatch = { ...apiPatch, mixStartDate: "" };
+          }
+          if (patch.mixEndDate === undefined) {
+            updated.mixEndDate = undefined;
+            apiPatch = { ...apiPatch, mixEndDate: undefined };
+          }
         } else if (patch.assignedProducer !== undefined) {
           const resolved = resolveAssignedProducerForPatch(
             patch.assignedProducer,
@@ -718,6 +726,12 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       if (patch.isReassigned !== undefined) orderPatch.isReassigned = patch.isReassigned;
       if (patch.missingDataEmailSentAt !== undefined) {
         orderPatch.missingDataEmailSentAt = patch.missingDataEmailSentAt;
+      }
+      if (patch.producerEmailSentAt !== undefined) {
+        orderPatch.producerEmailSentAt = patch.producerEmailSentAt;
+      }
+      if (patch.producerEmailSentTo !== undefined) {
+        orderPatch.producerEmailSentTo = patch.producerEmailSentTo;
       }
       if (patch.collectionStates !== undefined) orderPatch.collectionStates = patch.collectionStates;
       if ((patch as any).collection_states !== undefined) orderPatch.collection_states = (patch as any).collection_states;

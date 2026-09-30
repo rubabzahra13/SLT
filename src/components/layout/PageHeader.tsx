@@ -14,6 +14,8 @@ type PageHeaderProps = {
   tabs?: React.ReactNode;
   toolbar?: React.ReactNode;
   meta?: React.ReactNode;
+  /** Extra controls in the top-right action cluster (before the notification bell). */
+  headerActions?: React.ReactNode;
   search?: {
     value: string;
     onChange: (value: string) => void;
@@ -32,6 +34,7 @@ export function PageHeader({
   tabs,
   toolbar,
   meta,
+  headerActions,
   search,
 }: PageHeaderProps) {
   return (
@@ -91,6 +94,8 @@ export function PageHeader({
                 />
               </div>
             ) : null}
+
+            {headerActions}
 
             <NotificationBell />
 

@@ -5,13 +5,14 @@ import { X, Calendar, Loader2, AlertCircle } from "lucide-react";
 import clsx from "clsx";
 import { FilterMenu } from "@/components/ui/FilterMenu";
 import { InlineDateInput } from "@/components/mtd/InlineFields";
+import { useMixDateCalendarRules } from "@/components/mtd/useMixDateCalendarRules";
 import {
   AssignEditorModal,
   type EditorAssignmentResult,
 } from "@/components/mtd/AssignEditorModal";
 import { Avatar } from "@/components/ui/Avatar";
 import { findProducerByAssignmentKey } from "@/lib/editor-assignment";
-import { isIsoDateBefore, toIsoDateString } from "@/lib/dates";
+import { toIsoDateString } from "@/lib/dates";
 import type {
   CheerFormSubtype,
   CheerFormSubtypeFilter,
@@ -23,6 +24,7 @@ import type {
   Producer,
   ScheduleEntry,
 } from "@/types";
+import type { StudioHoliday } from "@/lib/producer-time-off";
 import {
   CHEER_FORM_SUBTABS,
   DANCE_FORM_SUBTABS,
@@ -37,6 +39,7 @@ type AddNewOrderModalProps = {
   mtdRecords?: MTDRecord[];
   allOrders?: Order[];
   schedule?: ScheduleEntry[];
+  studioHolidays?: StudioHoliday[];
   initialFormType?: OrderFormType;
   initialCheerSubtype?: CheerFormSubtypeFilter;
   initialDanceSubtype?: DanceFormSubtypeFilter;
@@ -100,6 +103,7 @@ export function AddNewOrderModal({
   mtdRecords = [],
   allOrders = [],
   schedule = [],
+  studioHolidays = [],
   initialFormType = "school-all-star-cheer",
   initialCheerSubtype = "all-star-cheer",
   initialDanceSubtype = "pom",
@@ -198,17 +202,8 @@ export function AddNewOrderModal({
     }
   }, [open, initialFormType, initialCheerSubtype, initialDanceSubtype, resetForm]);
 
-  // Handle Mix Start Date selection & auto-calculate Mix End Date (start + 7 days)
   const handleMixStartDateChange = (nextStart: string) => {
     setMixStartDate(nextStart);
-    if (nextStart) {
-      const endIso = toIsoDateString(mixEndDate);
-      if (!endIso || !isIsoDateBefore(nextStart, endIso)) {
-        const d = new Date(`${nextStart}T12:00:00`);
-        d.setDate(d.getDate() + 7);
-        setMixEndDate(d.toISOString().slice(0, 10));
-      }
-    }
   };
 
   // Handle Form / Category changes
@@ -318,6 +313,16 @@ export function AddNewOrderModal({
     if (!assignedProducer) return undefined;
     return findProducerByAssignmentKey(assignedProducer, producers);
   }, [assignedProducer, producers]);
+
+  const mixDateRules = useMixDateCalendarRules({
+    record: draftRecordForAssign,
+    producer: assignedProducerObj,
+    mixStartDate,
+    producers,
+    mtdRecords,
+    allOrders,
+    studioHolidays,
+  });
 
   const handleSave = async () => {
     setError(null);
@@ -560,6 +565,9 @@ export function AddNewOrderModal({
                     onChange={handleMixStartDateChange}
                     placeholder="Select Date"
                     menuZIndex={100}
+                    isDateDisabled={mixDateRules.isDateDisabled}
+                    dayTitle={mixDateRules.dayTitle}
+                    dayTone={mixDateRules.dayTone}
                   />
                 </div>
 
@@ -572,8 +580,12 @@ export function AddNewOrderModal({
                     value={mixEndDate}
                     onChange={(val) => setMixEndDate(val)}
                     placeholder="Select Date"
+                    template={mixDateRules.suggestedEndIso || undefined}
                     min={toIsoDateString(mixStartDate) || undefined}
                     menuZIndex={100}
+                    isDateDisabled={mixDateRules.isDateDisabled}
+                    dayTitle={mixDateRules.dayTitle}
+                    dayTone={mixDateRules.dayTone}
                   />
                 </div>
               </div>
@@ -908,6 +920,7 @@ export function AddNewOrderModal({
         allOrders={allOrders}
         producers={producers}
         schedule={schedule}
+        studioHolidays={studioHolidays}
         onClose={() => setAssignModalOpen(false)}
         onAssign={handleAssignResult}
       />

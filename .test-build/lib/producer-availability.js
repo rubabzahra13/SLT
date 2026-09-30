@@ -26,19 +26,33 @@ exports.isProducerScheduledDay = isProducerScheduledDay;
 exports.isProducerOnTimeOff = isProducerOnTimeOff;
 exports.mixWindowForRecord = mixWindowForRecord;
 exports.mixEndIsoForRecord = mixEndIsoForRecord;
+exports.isProducerBookingRecord = isProducerBookingRecord;
 exports.countProducerMixesOnDay = countProducerMixesOnDay;
+exports.listProducerMixBookingsOnDay = listProducerMixBookingsOnDay;
+exports.describeProducerMixDayForLeave = describeProducerMixDayForLeave;
+exports.collectProducerMixBlockedDays = collectProducerMixBlockedDays;
+exports.findLeaveMixConflicts = findLeaveMixConflicts;
 exports.countProducerDailyCost = countProducerDailyCost;
 exports.isProducerUnderDailyCapacity = isProducerUnderDailyCapacity;
 exports.isProducerUnderDailyCostCapacity = isProducerUnderDailyCostCapacity;
 exports.isProducerAtDailyCapacity = isProducerAtDailyCapacity;
-exports.isProducerAvailableOnDay = isProducerAvailableOnDay;
+exports.isProducerWorkableDay = isProducerWorkableDay;
+exports.countProducerWorkingDays = countProducerWorkingDays;
+exports.packageMixWorkingDays = packageMixWorkingDays;
+exports.suggestMixEndDate = suggestMixEndDate;
 exports.isProducerAvailableForMixWindow = isProducerAvailableForMixWindow;
 exports.isProducerUnavailableForRecord = isProducerUnavailableForRecord;
+exports.dailyLimitCheckHasIssues = dailyLimitCheckHasIssues;
+exports.checkProducerDailyLimits = checkProducerDailyLimits;
+exports.getProducerDayBlockReason = getProducerDayBlockReason;
+exports.findMixWindowBlocker = findMixWindowBlocker;
+exports.describeMixWindowBlocker = describeMixWindowBlocker;
 exports.getProducerUnavailabilityReason = getProducerUnavailabilityReason;
 const types_1 = require("@/types");
 const dates_1 = require("@/lib/dates");
 const producer_keys_1 = require("@/lib/producer-keys");
-const scheduling_1 = require("@/lib/scheduling");
+const package_1 = require("@/lib/package");
+const mtd_status_1 = require("@/lib/mtd-status");
 const producer_time_off_1 = require("@/lib/producer-time-off");
 const JS_DAY_TO_WEEKDAY = [
     "sun",
@@ -263,7 +277,7 @@ function isTimeOffDateBlockedByOvertime(iso, field, otherIso, overtimeDays) {
 }
 function isProducerOvertimeDay(producer, date) {
     const iso = dateToIsoLocal(date);
-    return producer.overtimeDays.includes(iso);
+    return (producer.overtimeDays ?? []).includes(iso);
 }
 /** Regular work day or a one-off overtime date. */
 function isProducerScheduledDay(producer, date) {
@@ -274,14 +288,15 @@ function isProducerOnTimeOff(producer, date, studioHolidays) {
     if (studioHolidays?.length && (0, producer_time_off_1.isStudioHolidayIso)(dayIso, studioHolidays, producer.id)) {
         return true;
     }
-    return producer.timeOff.some((entry) => dayIso >= entry.startDate && dayIso <= entry.endDate);
+    const timeOff = producer.timeOff ?? [];
+    return timeOff.some((entry) => dayIso >= entry.startDate && dayIso <= entry.endDate);
 }
-function mixWindowForRecord(rec) {
+function mixWindowForRecord(rec, options = {}) {
     const start = (0, dates_1.parseFlexibleDate)(rec.mixStartDate);
     if (!start)
         return null;
     const endIso = (0, dates_1.toIsoDateString)(rec.mixEndDate ?? "") ||
-        (0, scheduling_1.suggestMixEndDate)(rec.mixStartDate, rec.package);
+        suggestMixEndDate(rec.mixStartDate, rec.package, options);
     const end = (0, dates_1.parseFlexibleDate)(endIso);
     if (!end)
         return null;
@@ -289,7 +304,7 @@ function mixWindowForRecord(rec) {
 }
 function mixEndIsoForRecord(rec) {
     return ((0, dates_1.toIsoDateString)(rec.mixEndDate ?? "") ||
-        (0, scheduling_1.suggestMixEndDate)(rec.mixStartDate, rec.package));
+        suggestMixEndDate(rec.mixStartDate, rec.package));
 }
 function recordCoversDay(rec, day) {
     if (!rec.assignedProducer)
@@ -301,38 +316,135 @@ function recordCoversDay(rec, day) {
     const dayEnd = toDayEnd(day);
     return dayStart <= window.end && window.start <= dayEnd;
 }
+/**
+ * Whether a record holds its producer's time: assigned and Ongoing.
+ * Completed, outsourced, and in-payroll mixes never count toward daily limits.
+ */
+function isProducerBookingRecord(rec) {
+    if (!rec.assignedProducer?.trim())
+        return false;
+    if (rec.inPayroll || rec.in_payroll)
+        return false;
+    if (rec.status === "completed")
+        return false;
+    return (0, mtd_status_1.inferMTDRecordStatus)(rec) === "Ongoing";
+}
+function bookedRecordCost(rec, estimateCost) {
+    return estimateCost?.(rec) ?? rec.producerPayout ?? 0;
+}
+/** Records may be assigned by initials, legacy code, or full name. */
+function isRecordAssignedToProducer(rec, producer) {
+    const assigned = rec.assignedProducer?.trim();
+    if (!assigned)
+        return false;
+    if ((0, producer_keys_1.producerKeysMatch)(assigned, (0, producer_keys_1.producerAssignmentKey)(producer)))
+        return true;
+    return assigned.toUpperCase() === producer.name.trim().toUpperCase();
+}
+function isBookingForProducerOnDay(rec, producer, day, excludeRecordId) {
+    if (rec.id === excludeRecordId)
+        return false;
+    if (!isProducerBookingRecord(rec))
+        return false;
+    if (!isRecordAssignedToProducer(rec, producer))
+        return false;
+    return recordCoversDay(rec, day);
+}
 function countProducerMixesOnDay(producer, day, mtdRecords, excludeRecordId) {
-    const key = (0, producer_keys_1.normalizeProducerKey)((0, producer_keys_1.producerAssignmentKey)(producer));
     let count = 0;
     for (const rec of mtdRecords) {
-        if (rec.id === excludeRecordId)
-            continue;
-        if (!rec.assignedProducer)
-            continue;
-        if (!(0, producer_keys_1.producerKeysMatch)(rec.assignedProducer, key))
-            continue;
-        if (recordCoversDay(rec, day))
+        if (isBookingForProducerOnDay(rec, producer, day, excludeRecordId))
             count += 1;
     }
     return count;
 }
+function bookingFromRecord(rec) {
+    const startIso = (0, dates_1.toIsoDateString)(rec.mixStartDate ?? "") || rec.mixStartDate;
+    const endIso = mixEndIsoForRecord(rec) || startIso;
+    return {
+        recordId: rec.id,
+        programName: rec.programName?.trim() || "Untitled mix",
+        mixStartDate: startIso,
+        mixEndDate: endIso,
+    };
+}
+/** Ongoing mixes assigned to this producer that cover the given day. */
+function listProducerMixBookingsOnDay(producer, dayIso, mtdRecords) {
+    const day = (0, dates_1.parseFlexibleDate)(dayIso);
+    if (!day)
+        return [];
+    const out = [];
+    for (const rec of mtdRecords) {
+        if (isBookingForProducerOnDay(rec, producer, day)) {
+            out.push(bookingFromRecord(rec));
+        }
+    }
+    return out;
+}
 /**
- * Sum the producer payout costs for all records assigned to this producer on a given day.
- * Uses `rec.producerPayout` (the producer's cut, not the customer price).
+ * Leave-calendar tooltip for a day with Ongoing mixes.
+ * e.g. "Mix scheduled · SPIRIT XTREME · ends Oct 15, 2026"
  */
-function countProducerDailyCost(producer, day, mtdRecords, excludeRecordId) {
-    const key = (0, producer_keys_1.normalizeProducerKey)((0, producer_keys_1.producerAssignmentKey)(producer));
+function describeProducerMixDayForLeave(bookings) {
+    if (bookings.length === 0)
+        return null;
+    const lines = bookings.map((b) => {
+        const endLabel = formatIsoDayMonthYear(b.mixEndDate);
+        return `Mix scheduled · ${b.programName} · ends ${endLabel}`;
+    });
+    return lines.join("\n");
+}
+/** ISO days in [fromIso, toIso] that have an Ongoing mix for this producer. */
+function collectProducerMixBlockedDays(producer, mtdRecords, fromIso, toIso) {
+    const start = (0, dates_1.parseFlexibleDate)(fromIso);
+    const end = (0, dates_1.parseFlexibleDate)(toIso || fromIso);
+    if (!start || !end)
+        return [];
+    const days = [];
+    const cursor = toDayStart(start);
+    const last = toDayStart(end);
+    for (let guard = 0; cursor <= last && guard < 800; guard += 1) {
+        const iso = dateToIsoLocal(cursor);
+        if (countProducerMixesOnDay(producer, cursor, mtdRecords) > 0) {
+            days.push(iso);
+        }
+        cursor.setDate(cursor.getDate() + 1);
+    }
+    return days;
+}
+/** Ongoing mixes overlapping a proposed leave range (any day in range). */
+function findLeaveMixConflicts(producer, startIso, endIso, mtdRecords) {
+    const start = (0, dates_1.parseFlexibleDate)(startIso);
+    const end = (0, dates_1.parseFlexibleDate)(endIso || startIso);
+    if (!start || !end)
+        return [];
+    const seen = new Set();
+    const out = [];
+    const cursor = toDayStart(start);
+    const last = toDayStart(end);
+    for (let guard = 0; cursor <= last && guard < 800; guard += 1) {
+        for (const rec of mtdRecords) {
+            if (!isBookingForProducerOnDay(rec, producer, cursor))
+                continue;
+            if (seen.has(rec.id))
+                continue;
+            seen.add(rec.id);
+            out.push(bookingFromRecord(rec));
+        }
+        cursor.setDate(cursor.getDate() + 1);
+    }
+    return out;
+}
+/**
+ * Sum of producer payouts for every booked mix covering this day. Each mix
+ * counts its full payout on every day of its range.
+ */
+function countProducerDailyCost(producer, day, mtdRecords, excludeRecordId, estimateCost) {
     let total = 0;
     for (const rec of mtdRecords) {
-        if (rec.id === excludeRecordId)
+        if (!isBookingForProducerOnDay(rec, producer, day, excludeRecordId))
             continue;
-        if (!rec.assignedProducer)
-            continue;
-        if (!(0, producer_keys_1.producerKeysMatch)(rec.assignedProducer, key))
-            continue;
-        if (!recordCoversDay(rec, day))
-            continue;
-        total += rec.producerPayout ?? 0;
+        total += bookedRecordCost(rec, estimateCost);
     }
     return total;
 }
@@ -342,67 +454,210 @@ function isProducerUnderDailyCapacity(producer, day, mtdRecords, excludeRecordId
     return (countProducerMixesOnDay(producer, day, mtdRecords, excludeRecordId) <
         producer.maxMixesPerDay);
 }
-function isProducerUnderDailyCostCapacity(producer, day, mtdRecords, excludeRecordId) {
+function isProducerUnderDailyCostCapacity(producer, day, mtdRecords, excludeRecordId, options = {}) {
     if (producer.maxProducerCostPerDay == null)
         return true;
-    return (countProducerDailyCost(producer, day, mtdRecords, excludeRecordId) <
-        producer.maxProducerCostPerDay);
+    const booked = countProducerDailyCost(producer, day, mtdRecords, excludeRecordId, options.estimateCost);
+    if (options.newMixCost != null) {
+        return booked + options.newMixCost <= producer.maxProducerCostPerDay;
+    }
+    return booked < producer.maxProducerCostPerDay;
 }
 /**
  * Returns true when a producer has reached their daily capacity on a given date.
  * Capacity is reached when EITHER the daily mix count limit OR the daily cost limit is hit.
  */
-function isProducerAtDailyCapacity(producer, day, mtdRecords, excludeRecordId) {
+function isProducerAtDailyCapacity(producer, day, mtdRecords, excludeRecordId, options = {}) {
     const mixCapacityReached = !isProducerUnderDailyCapacity(producer, day, mtdRecords, excludeRecordId);
-    const costCapacityReached = !isProducerUnderDailyCostCapacity(producer, day, mtdRecords, excludeRecordId);
+    const costCapacityReached = !isProducerUnderDailyCostCapacity(producer, day, mtdRecords, excludeRecordId, options);
     return mixCapacityReached || costCapacityReached;
 }
-/** True on scheduled days that are not time off and still have mix AND cost capacity. */
-function isProducerAvailableOnDay(producer, day, mtdRecords, excludeRecordId, studioHolidays) {
+/** A day the producer actually works: scheduled (or overtime) and not on leave or a studio holiday. */
+function isProducerWorkableDay(producer, day, studioHolidays) {
     if (!isProducerScheduledDay(producer, day))
         return false;
     // Time off / studio holidays only block regular work days. Overtime is undone by removing the OT date.
-    if (isProducerWorkDay(producer, day) &&
-        isProducerOnTimeOff(producer, day, studioHolidays)) {
-        return false;
-    }
-    if (!isProducerUnderDailyCapacity(producer, day, mtdRecords, excludeRecordId)) {
-        return false;
-    }
-    if (!isProducerUnderDailyCostCapacity(producer, day, mtdRecords, excludeRecordId)) {
-        return false;
-    }
-    return true;
+    return !(isProducerWorkDay(producer, day) &&
+        isProducerOnTimeOff(producer, day, studioHolidays));
 }
-function isProducerAvailableForMixWindow(producer, startIso, endIso, mtdRecords, excludeRecordId, studioHolidays) {
+/** Working days in [startIso, endIso] inclusive; weekends, leave, and studio holidays are skipped. */
+function countProducerWorkingDays(producer, startIso, endIso, studioHolidays) {
     const start = (0, dates_1.parseFlexibleDate)(startIso);
-    const end = (0, dates_1.parseFlexibleDate)(endIso);
+    const end = (0, dates_1.parseFlexibleDate)(endIso || startIso);
     if (!start || !end)
-        return true;
-    const startDay = toDayStart(start);
-    const endDay = toDayStart(end);
-    if (!isProducerScheduledDay(producer, startDay)) {
-        return false;
+        return 0;
+    let count = 0;
+    const cursor = toDayStart(start);
+    const last = toDayStart(end);
+    for (let guard = 0; cursor <= last && guard < 800; guard += 1) {
+        if (isProducerWorkableDay(producer, cursor, studioHolidays))
+            count += 1;
+        cursor.setDate(cursor.getDate() + 1);
     }
-    const cursor = new Date(startDay);
-    while (cursor <= endDay) {
-        if (isProducerScheduledDay(producer, cursor)) {
-            if (!isProducerAvailableOnDay(producer, cursor, mtdRecords, excludeRecordId, studioHolidays)) {
-                return false;
+    return count;
+}
+/** Working days a mix takes for its package tier. */
+function packageMixWorkingDays(packageStr) {
+    const { tier, limit } = (0, package_1.parsePackage)(packageStr);
+    const t = tier.toUpperCase();
+    if (t.includes("PLATINUM"))
+        return 7;
+    if (t.includes("GOLD"))
+        return 5;
+    if (t.includes("SILVER"))
+        return 4;
+    if (t.includes("HOMECOMING"))
+        return 3;
+    if (limit === "TBD")
+        return 6;
+    return 5;
+}
+function isMixWorkingDay(day, options) {
+    if (options.producer) {
+        return isProducerWorkableDay(options.producer, day, options.studioHolidays);
+    }
+    if (!types_1.DEFAULT_WORK_DAYS.includes(dateToWeekday(day)))
+        return false;
+    const studioWide = (options.studioHolidays ?? []).filter((holiday) => holiday.appliesToAll !== false);
+    return !(0, producer_time_off_1.isStudioHolidayIso)(dateToIsoLocal(day), studioWide);
+}
+/**
+ * Suggested mix end: the start plus the package's working days, with the
+ * start counting as day one when it is a working day.
+ */
+function suggestMixEndDate(mixStartDate, packageStr, options = {}) {
+    const start = (0, dates_1.parseFlexibleDate)(mixStartDate);
+    if (!start)
+        return "";
+    const needed = packageMixWorkingDays(packageStr);
+    const cursor = toDayStart(start);
+    let counted = 0;
+    for (let guard = 0; guard < 400; guard += 1) {
+        if (isMixWorkingDay(cursor, options)) {
+            counted += 1;
+            if (counted >= needed)
+                break;
+        }
+        cursor.setDate(cursor.getDate() + 1);
+    }
+    return dateToIsoLocal(cursor);
+}
+/**
+ * Whether the producer can work this mix window: the start and end are days
+ * they work. Weekends, leave, and holidays in between are skipped, and daily
+ * limits never make a producer unavailable — see `checkProducerDailyLimits`.
+ */
+function isProducerAvailableForMixWindow(producer, startIso, endIso, studioHolidays) {
+    if (!(0, dates_1.parseFlexibleDate)(startIso) || !(0, dates_1.parseFlexibleDate)(endIso))
+        return true;
+    return findMixWindowBlocker(producer, startIso, endIso, studioHolidays) === null;
+}
+function isProducerUnavailableForRecord(producer, rec, studioHolidays) {
+    const window = mixWindowForRecord(rec, { producer, studioHolidays });
+    if (!window)
+        return false;
+    return !isProducerAvailableForMixWindow(producer, dateToIsoLocal(window.start), dateToIsoLocal(window.end), studioHolidays);
+}
+function dailyLimitCheckHasIssues(check) {
+    return Boolean(check && (check.overMixDays.length > 0 || check.overCostDays.length > 0));
+}
+/**
+ * Daily mix and cost load across a mix window (start and end included) with
+ * the new mix added. Only days the producer works are checked.
+ */
+function checkProducerDailyLimits(producer, startIso, endIso, mtdRecords, options = {}) {
+    const maxMixesPerDay = producer.maxMixesPerDay ?? null;
+    const maxCostPerDay = producer.maxProducerCostPerDay ?? null;
+    const newMixCost = options.newMixCost ?? null;
+    const result = {
+        maxMixesPerDay,
+        maxCostPerDay,
+        newMixCost,
+        peakMixDay: null,
+        peakCostDay: null,
+        overMixDays: [],
+        overCostDays: [],
+    };
+    const start = (0, dates_1.parseFlexibleDate)(startIso);
+    const end = (0, dates_1.parseFlexibleDate)(endIso || startIso);
+    if (!start || !end)
+        return result;
+    const cursor = toDayStart(start);
+    const last = toDayStart(end);
+    for (let guard = 0; cursor <= last && guard < 400; guard += 1) {
+        if (isProducerWorkableDay(producer, cursor, options.studioHolidays)) {
+            const day = {
+                iso: dateToIsoLocal(cursor),
+                bookedMixes: countProducerMixesOnDay(producer, cursor, mtdRecords, options.excludeRecordId),
+                bookedCost: countProducerDailyCost(producer, cursor, mtdRecords, options.excludeRecordId, options.estimateCost),
+            };
+            if (!result.peakMixDay || day.bookedMixes > result.peakMixDay.bookedMixes) {
+                result.peakMixDay = day;
+            }
+            if (!result.peakCostDay || day.bookedCost > result.peakCostDay.bookedCost) {
+                result.peakCostDay = day;
+            }
+            if (maxMixesPerDay != null && day.bookedMixes + 1 > maxMixesPerDay) {
+                result.overMixDays.push(day.iso);
+            }
+            if (maxCostPerDay != null &&
+                (newMixCost != null
+                    ? day.bookedCost + newMixCost > maxCostPerDay
+                    : day.bookedCost >= maxCostPerDay)) {
+                result.overCostDays.push(day.iso);
             }
         }
         cursor.setDate(cursor.getDate() + 1);
     }
-    return true;
+    return result;
 }
-function isProducerUnavailableForRecord(producer, rec, mtdRecords) {
-    const window = mixWindowForRecord(rec);
-    if (!window)
-        return false;
-    return !isProducerAvailableForMixWindow(producer, dateToIsoLocal(window.start), dateToIsoLocal(window.end), mtdRecords, rec.id);
+/** Why the producer can't work this day (not a work day, studio holiday, or leave), or null. */
+function getProducerDayBlockReason(producer, day, studioHolidays) {
+    if (!isProducerScheduledDay(producer, day))
+        return "not_working";
+    if (isProducerWorkableDay(producer, day, studioHolidays))
+        return null;
+    const isHoliday = Boolean(studioHolidays?.length) &&
+        (0, producer_time_off_1.isStudioHolidayIso)(dateToIsoLocal(day), studioHolidays, producer.id);
+    return isHoliday ? "holiday" : "leave";
 }
-function getProducerUnavailabilityReason(producer, rec, mtdRecords, schedule = []) {
-    const window = mixWindowForRecord(rec);
+/**
+ * The first mix edge (start, then end) that falls on a day the producer
+ * can't work. Returns null when both edges are working days.
+ */
+function findMixWindowBlocker(producer, startIso, endIso, studioHolidays) {
+    const start = (0, dates_1.parseFlexibleDate)(startIso);
+    const end = (0, dates_1.parseFlexibleDate)(endIso || startIso);
+    if (!start)
+        return null;
+    const edges = [["start", toDayStart(start)]];
+    if (end)
+        edges.push(["end", toDayStart(end)]);
+    for (const [edge, day] of edges) {
+        const reason = getProducerDayBlockReason(producer, day, studioHolidays);
+        if (reason)
+            return { reason, iso: dateToIsoLocal(day), edge };
+    }
+    return null;
+}
+/** Short human label for a mix-window blocker. */
+function describeMixWindowBlocker(blocker) {
+    if (!blocker)
+        return null;
+    const dayLabel = formatIsoDayMonthYear(blocker.iso);
+    switch (blocker.reason) {
+        case "not_working":
+            return `Doesn't work on the ${blocker.edge} date (${dayLabel})`;
+        case "holiday":
+            return `Studio holiday on the ${blocker.edge} date (${dayLabel})`;
+        case "leave":
+            return `On leave on the ${blocker.edge} date (${dayLabel})`;
+        default:
+            return null;
+    }
+}
+function getProducerUnavailabilityReason(producer, rec, studioHolidays) {
+    const window = mixWindowForRecord(rec, { producer, studioHolidays });
     const start = window ? window.start : (0, dates_1.parseFlexibleDate)(rec.mixStartDate ?? "");
     if (!start)
         return null;
@@ -410,16 +665,10 @@ function getProducerUnavailabilityReason(producer, rec, mtdRecords, schedule = [
         const weekdayName = start.toLocaleDateString("en-US", { weekday: "short" });
         return `Not scheduled to work on ${weekdayName}s`;
     }
-    if (isProducerOnTimeOff(producer, start)) {
+    if (!isProducerWorkableDay(producer, start, studioHolidays)) {
         return "On approved time off";
     }
-    if (isProducerAtDailyCapacity(producer, start, mtdRecords, rec.id)) {
-        return "Reached maximum daily mix capacity";
-    }
-    if (window) {
-        if (!isProducerAvailableForMixWindow(producer, dateToIsoLocal(window.start), dateToIsoLocal(window.end), mtdRecords, rec.id)) {
-            return "Conflicting mix or capacity on mix dates";
-        }
-    }
-    return null;
+    if (!window)
+        return null;
+    return describeMixWindowBlocker(findMixWindowBlocker(producer, dateToIsoLocal(window.start), dateToIsoLocal(window.end), studioHolidays));
 }

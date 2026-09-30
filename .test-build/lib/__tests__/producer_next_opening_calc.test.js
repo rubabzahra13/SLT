@@ -20,7 +20,7 @@ const caseyProducer = {
     workDays: ["mon", "tue", "wed", "thu", "fri"],
     overtimeDays: [],
     timeOff: [],
-    maxMixesPerDay: 5,
+    maxMixesPerDay: 1,
     maxProducerCostPerDay: 1000,
 };
 function createMockRecord(overrides) {
@@ -182,5 +182,52 @@ function createMockRecord(overrides) {
         const enriched = (0, producer_schedule_calc_1.enrichProducerWithSchedule)(caseyProducer, [rec], [], mondayAnchor);
         strict_1.default.equal(enriched.nextAvailable, "Sep 16, 2026");
         strict_1.default.equal(enriched.status, "limited");
+    });
+    (0, node_test_1.it)("Test 8: Without daily limits, bookings never push the first available date", () => {
+        const unlimited = {
+            ...caseyProducer,
+            maxMixesPerDay: null,
+            maxProducerCostPerDay: null,
+        };
+        const recs = [
+            createMockRecord({ id: "rec-1", mixStartDate: "2026-09-14", mixEndDate: "2026-09-18" }),
+            createMockRecord({ id: "rec-2", mixStartDate: "2026-09-14", mixEndDate: "2026-09-16" }),
+        ];
+        const res = (0, producer_schedule_calc_1.calculateProducerNextOpening)(unlimited, recs, [], "2026-09-14");
+        strict_1.default.equal(res.nextAvailable, "Today");
+    });
+    (0, node_test_1.it)("Test 9: Under the mix limit, a booked day is still the first available date", () => {
+        const twoPerDay = { ...caseyProducer, maxMixesPerDay: 2 };
+        const rec = createMockRecord({ id: "rec-1", mixStartDate: "2026-09-14", mixEndDate: "2026-09-15" });
+        const res = (0, producer_schedule_calc_1.calculateProducerNextOpening)(twoPerDay, [rec], [], "2026-09-14");
+        strict_1.default.equal(res.nextAvailable, "Today");
+    });
+    (0, node_test_1.it)("Test 10: The order being assigned never counts against its producer", () => {
+        const rec = createMockRecord({ id: "rec-self", mixStartDate: "2026-09-14", mixEndDate: "2026-09-15" });
+        const res = (0, producer_schedule_calc_1.calculateProducerNextOpening)(caseyProducer, [rec], [], "2026-09-14", [], {
+            excludeRecordId: "rec-self",
+        });
+        strict_1.default.equal(res.nextAvailable, "Today");
+    });
+    (0, node_test_1.it)("Test 11: The new mix's payout counts toward the daily cost cap", () => {
+        const costCapped = {
+            ...caseyProducer,
+            maxMixesPerDay: null,
+            maxProducerCostPerDay: 1000,
+        };
+        const rec = createMockRecord({
+            id: "rec-1",
+            mixStartDate: "2026-09-14",
+            mixEndDate: "2026-09-15",
+            producerPayout: 700,
+        });
+        const fits = (0, producer_schedule_calc_1.calculateProducerNextOpening)(costCapped, [rec], [], "2026-09-14", [], {
+            newMixCost: 300,
+        });
+        strict_1.default.equal(fits.nextAvailable, "Today");
+        const over = (0, producer_schedule_calc_1.calculateProducerNextOpening)(costCapped, [rec], [], "2026-09-14", [], {
+            newMixCost: 400,
+        });
+        strict_1.default.equal(over.nextAvailable, "Sep 16, 2026");
     });
 });

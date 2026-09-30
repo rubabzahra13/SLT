@@ -211,7 +211,7 @@ function NoticeProducerList({ label, names, total, expanded, onToggleExpand, }) 
     return ((0, jsx_runtime_1.jsxs)("div", { className: "mt-4", children: [(0, jsx_runtime_1.jsx)("p", { className: "text-[11px] font-semibold uppercase tracking-[0.06em] text-brand-ink-tertiary", children: heading }), (0, jsx_runtime_1.jsx)("ul", { className: "mt-2 space-y-1.5", children: summary.shown.map((name) => ((0, jsx_runtime_1.jsx)("li", { className: "rounded-xl bg-brand-bg px-3 py-2 text-[13px] font-medium text-brand-ink ring-1 ring-inset ring-black/[0.05]", children: name }, name))) }), summary.extra > 0 ? ((0, jsx_runtime_1.jsxs)("button", { type: "button", onClick: onToggleExpand, className: "mt-2 w-full text-center text-[12px] font-semibold text-brand-blue transition hover:text-brand-signature", children: ["View all ", names.length] })) : expanded && names.length > 3 ? ((0, jsx_runtime_1.jsx)("button", { type: "button", onClick: onToggleExpand, className: "mt-2 w-full text-center text-[12px] font-semibold text-brand-ink-tertiary transition hover:text-brand-ink", children: "Show less" })) : null] }));
 }
 function ProducerAvailabilityModal({ open, onClose, producer, onSave, readOnly = false, }) {
-    const { holidays, personalReasons } = (0, AppStateContext_1.useAppState)();
+    const { holidays, personalReasons, mtdRecords } = (0, AppStateContext_1.useAppState)();
     const [workDays, setWorkDays] = (0, react_1.useState)([...types_1.DEFAULT_WORK_DAYS]);
     const [timeOff, setTimeOff] = (0, react_1.useState)([]);
     const [timeOffDraft, setTimeOffDraft] = (0, react_1.useState)(() => createEmptyTimeOffDraft());
@@ -283,6 +283,10 @@ function ProducerAvailabilityModal({ open, onClose, producer, onSave, readOnly =
         return null;
     // Nested helpers don't keep the null narrowing from the guard above.
     const producerId = producer.id;
+    const todayIso = (0, DayCalendarPicker_1.isoFromLocalDate)(new Date());
+    const timeOffMinIso = todayIso;
+    const timeOffMaxIso = `${Number(todayIso.slice(0, 4)) + 1}-12-31`;
+    const mixBlockedTimeOffDaySet = new Set((0, producer_availability_1.collectProducerMixBlockedDays)(producer, mtdRecords, timeOffMinIso, timeOffMaxIso));
     const usesPercentageCompensation = producer.compensationModel !== "not_paid_for_mixing" &&
         producer.compensationModel !== "hourly_manual";
     function applyWorkDayChange(nextWorkDays) {
@@ -360,6 +364,14 @@ function ProducerAvailabilityModal({ open, onClose, producer, onSave, readOnly =
             ...new Set([...overtimeDays, ...(0, producer_availability_1.expandTimeOffDates)(timeOff)]),
         ];
     }
+    function hasMixOnLeaveDay(iso) {
+        return mixBlockedTimeOffDaySet.has(iso);
+    }
+    function mixLeaveDayTitle(iso) {
+        if (!producer)
+            return undefined;
+        return ((0, producer_availability_1.describeProducerMixDayForLeave)((0, producer_availability_1.listProducerMixBookingsOnDay)(producer, iso, mtdRecords)) ?? undefined);
+    }
     function snapOffBlockedTimeOffDay(iso) {
         let next = iso;
         for (let i = 0; i < 60; i += 1) {
@@ -381,6 +393,8 @@ function ProducerAvailabilityModal({ open, onClose, producer, onSave, readOnly =
         if ((0, producer_time_off_1.isStudioHolidayIso)(iso, holidays, producerId))
             return true;
         if (isNonWorkTimeOffDay(iso))
+            return true;
+        if (hasMixOnLeaveDay(iso))
             return true;
         return false;
     }
@@ -472,6 +486,20 @@ function ProducerAvailabilityModal({ open, onClose, producer, onSave, readOnly =
                 title: "Not a usual work day",
                 dateLine: parts.dateLine,
                 producerLine: parts.producerLine,
+            });
+            return;
+        }
+        const mixConflicts = (0, producer_availability_1.findLeaveMixConflicts)(producer, pendingEntry.startDate, endDate, mtdRecords);
+        if (mixConflicts.length > 0) {
+            const first = mixConflicts[0];
+            const more = mixConflicts.length > 1
+                ? ` (+${mixConflicts.length - 1} more)`
+                : "";
+            showTimeOffNotice({
+                kind: "info",
+                title: "Mix scheduled on these dates",
+                dateLine: `${first.programName} ends ${(0, producer_availability_1.formatIsoDayMonthYear)(first.mixEndDate)}${more}.`,
+                producerLine: "Move or reassign the mix before adding leave.",
             });
             return;
         }
@@ -600,9 +628,6 @@ function ProducerAvailabilityModal({ open, onClose, producer, onSave, readOnly =
         });
         onClose();
     }
-    const todayIso = (0, DayCalendarPicker_1.isoFromLocalDate)(new Date());
-    const timeOffMinIso = todayIso;
-    const timeOffMaxIso = `${Number(todayIso.slice(0, 4)) + 1}-12-31`;
     // Overtime and already-added time off block new ranges: start can't land
     // on/before a blocked day inside the chosen end, and end can't land on/after
     // a blocked day after start.
@@ -618,8 +643,8 @@ function ProducerAvailabilityModal({ open, onClose, producer, onSave, readOnly =
     })
         .sort((a, b) => a.startDate.localeCompare(b.startDate));
     // Contiguous leave ranges can't cross any unavailable day (overtime, existing
-    // leave, holidays, or non-work weekdays). Start stays after the previous
-    // blocked day; end stops before the next blocked day.
+    // leave, Ongoing mixes, holidays, or non-work weekdays). Start stays after the
+    // previous blocked day; end stops before the next blocked day.
     const rangeBlockedDays = [];
     {
         let cursor = timeOffMinIso;
@@ -701,6 +726,10 @@ function ProducerAvailabilityModal({ open, onClose, producer, onSave, readOnly =
         if (existingTimeOffDays.includes(iso)) {
             return "Already added as time off";
         }
+        const mixTitle = mixLeaveDayTitle(iso);
+        if (mixTitle) {
+            return `${mixTitle}\nMove or reassign the mix before adding leave`;
+        }
         if (disabled &&
             (isOutsideTimeOffFieldRange(iso) ||
                 (0, producer_availability_1.isTimeOffDateBlockedByOvertime)(iso, timeOffDateField === "end" ? "end" : "start", timeOffDateField === "end"
@@ -743,6 +772,8 @@ function ProducerAvailabilityModal({ open, onClose, producer, onSave, readOnly =
         if (overtimeDays.includes(iso) && !isNonWorkTimeOffDay(iso)) {
             return "overtime";
         }
+        if (hasMixOnLeaveDay(iso))
+            return "leave";
         return undefined;
     }
     return ((0, jsx_runtime_1.jsxs)("div", { className: "fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4", children: [(0, jsx_runtime_1.jsx)("button", { type: "button", className: "absolute inset-0 bg-black/45 backdrop-blur-[2px]", onClick: onClose, "aria-label": "Close" }), (0, jsx_runtime_1.jsxs)("div", { className: "relative flex max-h-[min(92dvh,720px)] w-full max-w-[440px] flex-col overflow-hidden rounded-t-[28px] bg-brand-elevated shadow-[0_24px_80px_rgba(0,0,0,0.28)] sm:rounded-[28px]", children: [(0, jsx_runtime_1.jsxs)("header", { className: "relative flex shrink-0 items-center justify-between border-b border-black/[0.08] px-4 py-3.5", children: [(0, jsx_runtime_1.jsx)("button", { type: "button", onClick: onClose, className: "min-w-[64px] text-left text-[15px] text-brand-ink-secondary transition hover:text-brand-ink", children: readOnly ? "Close" : "Cancel" }), (0, jsx_runtime_1.jsx)("h2", { className: "absolute left-1/2 -translate-x-1/2 text-[16px] font-semibold tracking-[-0.01em] text-brand-ink", children: readOnly ? "Availability" : "Producer settings" }), !readOnly ? ((0, jsx_runtime_1.jsx)("button", { type: "button", onClick: handleDone, className: "min-w-[64px] text-right text-[15px] font-semibold text-brand-blue transition hover:text-brand-blue-hover", children: "Done" })) : ((0, jsx_runtime_1.jsx)("span", { className: "min-w-[64px]" }))] }), (0, jsx_runtime_1.jsxs)("div", { className: "min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-8 pt-6", children: [(0, jsx_runtime_1.jsxs)("div", { className: "mb-6 flex items-center gap-3", children: [(0, jsx_runtime_1.jsx)(Avatar_1.Avatar, { producer: producer, size: "md" }), (0, jsx_runtime_1.jsxs)("div", { className: "min-w-0", children: [(0, jsx_runtime_1.jsx)("p", { className: "truncate text-[15px] font-semibold text-brand-ink", children: producer.name }), (0, jsx_runtime_1.jsx)("p", { className: "text-[12px] text-brand-ink-tertiary", children: categories.length

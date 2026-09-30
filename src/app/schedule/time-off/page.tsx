@@ -90,6 +90,7 @@ export default function ScheduleTimeOffPage() {
     producers,
     holidays,
     personalReasons,
+    mtdRecords,
     updateProducer,
     isViewOnly,
   } = useAppState();
@@ -204,8 +205,9 @@ export default function ScheduleTimeOffPage() {
             type: mode === "holidays" ? "holiday" : "personal",
             reason,
             selectedIds: selection,
+            mtdRecords,
           }),
-    [sortedProducers, startDate, endDate, mode, reason, selection]
+    [sortedProducers, startDate, endDate, mode, reason, selection, mtdRecords]
   );
 
   const overtimePreview = useMemo(
@@ -220,7 +222,8 @@ export default function ScheduleTimeOffPage() {
   const applyRows = preview.filter((r) => r.status === "apply");
   const otRows = preview.filter((r) => r.status === "overtime");
   const skipRows = preview.filter(
-    (r) => r.status === "nonwork" || r.status === "already"
+    (r) =>
+      r.status === "nonwork" || r.status === "already" || r.status === "mix"
   );
   const otApplyRows = overtimePreview.filter((r) => r.status === "apply");
   const otSkipRows = overtimePreview.filter((r) => r.status !== "apply");
@@ -1096,6 +1099,21 @@ export default function ScheduleTimeOffPage() {
                         </button>
                       </li>
                     ))}
+                  </ul>
+                ) : null}
+                {skipRows.some((r) => r.status === "mix") ? (
+                  <ul className="mt-2 max-h-14 space-y-0.5 overflow-y-auto text-center text-[11px] text-brand-orange-deep scrollbar-hide">
+                    {skipRows
+                      .filter((r) => r.status === "mix")
+                      .slice(0, 4)
+                      .map((row) => (
+                        <li key={row.id}>
+                          {row.name} — mix scheduled
+                          {row.mixLabels?.[0]
+                            ? ` · ${row.mixLabels[0]}`
+                            : ""}
+                        </li>
+                      ))}
                   </ul>
                 ) : null}
               </>

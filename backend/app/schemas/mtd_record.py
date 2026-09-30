@@ -34,6 +34,8 @@ class MTDRecordSchema(BaseModel):
     in_mtd: bool = False
     is_reassigned: bool = False
     missing_data_email_sent_at: Optional[datetime] = None
+    producer_email_sent_at: Optional[datetime] = None
+    producer_email_sent_to: Optional[str] = None
     in_payroll: bool = False
     is_manual_schedule_entry: bool = False
     completed_at: Optional[datetime] = None
@@ -125,6 +127,8 @@ class MTDRecordUpdateSchema(BaseModel):
     in_mtd: Optional[bool] = None
     is_reassigned: Optional[bool] = None
     missing_data_email_sent_at: Optional[datetime] = None
+    producer_email_sent_at: Optional[datetime] = None
+    producer_email_sent_to: Optional[str] = None
     in_payroll: Optional[bool] = None
     completed_at: Optional[datetime] = None
     has_rally_mix: Optional[bool] = None

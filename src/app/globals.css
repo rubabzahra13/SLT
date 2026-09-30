@@ -110,7 +110,18 @@ body {
 
 .app-canvas {
   background: #f6f8fa;
-  min-height: 100vh;
+}
+
+/* Shell fills the viewport; nested regions must be allowed to shrink for inner scroll. */
+.app-canvas-shell {
+  height: 100vh;
+  max-height: 100vh;
+  min-height: 0;
+  overflow: hidden;
+}
+
+main.app-canvas {
+  min-height: 0 !important;
 }
 
 .surface-premium {

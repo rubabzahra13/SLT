@@ -1,12 +1,17 @@
 import type { MTDRecord, Order, Producer, ScheduleEntry } from "../types";
 import { EDITOR_NAMES } from "../types";
 import {
+  checkProducerDailyLimits,
+  countProducerWorkingDays,
+  dailyLimitCheckHasIssues,
+  dateToIsoLocal,
+  getProducerUnavailabilityReason,
   isProducerUnavailableForRecord,
   mixEndIsoForRecord,
-  mixWindowForRecord as availabilityMixWindow,
-  type MixWindow,
+  mixWindowForRecord,
 } from "./producer-availability";
-import { parseFlexibleDate } from "./dates";
+import type { StudioHoliday } from "./producer-time-off";
+import { parseFlexibleDate, toIsoDateString } from "./dates";
 import {
   normalizeProducerKey,
   producerAssignmentKey,
@@ -154,6 +159,24 @@ export type EditorPick = {
   reason: EditorPickReason;
 };
 
+function isProducerOverDailyLimitsForRecord(
+  producer: Producer,
+  rec: MTDRecord,
+  mtdRecords: MTDRecord[]
+): boolean {
+  const window = mixWindowForRecord(rec);
+  if (!window) return false;
+  return dailyLimitCheckHasIssues(
+    checkProducerDailyLimits(
+      producer,
+      dateToIsoLocal(window.start),
+      dateToIsoLocal(window.end),
+      mtdRecords,
+      { excludeRecordId: rec.id }
+    )
+  );
+}
+
 export function pickDefaultEditor(
   record: MTDRecord,
   producers: Producer[],
@@ -193,9 +216,13 @@ export function pickDefaultEditor(
       producerKeysMatch(name, requestedEditor)
     );
     if (matchedKey) {
-      const isAvailable = available.some((name) =>
-        producerKeysMatch(name, requestedEditor)
-      );
+      const requestedProducer = findProducerByAssignmentKey(matchedKey, producers);
+      const isAvailable =
+        available.some((name) => producerKeysMatch(name, requestedEditor)) &&
+        !(
+          requestedProducer &&
+          isProducerOverDailyLimitsForRecord(requestedProducer, record, mtdRecords)
+        );
       return {
         editor: matchedKey,
         requestedEditor,
@@ -304,6 +331,26 @@ export function getDisplayAssignedProducer(
   if (request && request !== "FA" && request !== "NA") return request;
 
   return null;
+}
+
+/**
+ * Working days in a record's mix range for its producer (their days off,
+ * leave and studio holidays skipped). Null without both dates or a producer.
+ */
+export function mixWorkDaysForRecord(
+  rec: MTDRecord,
+  producers: Producer[],
+  studioHolidays?: StudioHoliday[]
+): number | null {
+  const startIso = toIsoDateString(rec.mixStartDate ?? "");
+  const endIso = toIsoDateString(rec.mixEndDate ?? "");
+  if (!startIso || !endIso || endIso < startIso) return null;
+  const producer = findProducerByAssignmentKey(
+    getDisplayAssignedProducer(rec),
+    producers
+  );
+  if (!producer) return null;
+  return countProducerWorkingDays(producer, startIso, endIso, studioHolidays);
 }
 
 /**
@@ -433,7 +480,8 @@ function producerCategoryMatchesRequired(
   const rn = r.replace(/[/\-\s]+/g, "-");
   if (pn === rn) return true;
 
-  const rIsDance = r.includes("dance");
+  // Coarse legacy labels only — specific subtypes (All-Star Cheer, Pom, …)
+  // must match the producer's Category tab exactly (after normalization).
   const pIsDance =
     p.includes("dance") ||
     p === "pom" ||
@@ -441,11 +489,10 @@ function producerCategoryMatchesRequired(
     p.includes("jazz") ||
     p.includes("team performance") ||
     p === "gameday";
-  if (rIsDance && pIsDance) return true;
+  if (r === "dance" && pIsDance) return true;
 
-  const rIsCheer = r.includes("cheer");
   const pIsCheer = p.includes("cheer") || p === "school";
-  if (rIsCheer && pIsCheer) return true;
+  if (r === "cheer" && pIsCheer) return true;
 
   const rIsBand = r.includes("band") || r.includes("marching");
   const pIsBand = p.includes("band") || p.includes("marching");
@@ -587,46 +634,23 @@ export function isEditorBooked(
   );
 }
 
-function mixWindowForRecord(rec: MTDRecord): MixWindow | null {
-  return availabilityMixWindow(rec);
-}
-
-function mixWindowsOverlap(a: MixWindow, b: MixWindow): boolean {
-  return a.start <= b.end && b.start <= a.end;
-}
-
-/** True when the requested editor cannot take this mix (overlap, schedule, or capacity). */
-export function isRequestedEditorUnavailableForMixWindow(
+/**
+ * Why the requested editor can't work this mix's dates (not a work day, leave,
+ * or studio holiday), or null when they can. Other bookings and daily limits
+ * never make an editor unavailable.
+ */
+export function getRequestedEditorUnavailableReason(
   rec: MTDRecord,
   requestedEditor: string,
-  mtdRecords: MTDRecord[],
-  producers: Producer[] = []
-): boolean {
+  producers: Producer[] = [],
+  studioHolidays?: StudioHoliday[]
+): string | null {
   const editorKey = normalizeProducerKey(requestedEditor);
-  if (!editorKey || isFirstAvailableRequest(editorKey)) return false;
+  if (!editorKey || isFirstAvailableRequest(editorKey)) return null;
 
   const producer = findProducerByAssignmentKey(requestedEditor, producers);
-  if (producer && isProducerUnavailableForRecord(producer, rec, mtdRecords)) {
-    return true;
-  }
-
-  const window = mixWindowForRecord(rec);
-  if (!window) {
-    return isEditorBooked(requestedEditor, mtdRecords, rec.id);
-  }
-
-  for (const other of mtdRecords) {
-    if (other.id === rec.id) continue;
-    if (!other.assignedProducer) continue;
-    if (normalizeProducerKey(other.assignedProducer) !== editorKey) continue;
-
-    const otherWindow = mixWindowForRecord(other);
-    if (otherWindow && mixWindowsOverlap(window, otherWindow)) {
-      return true;
-    }
-  }
-
-  return false;
+  if (!producer) return null;
+  return getProducerUnavailabilityReason(producer, rec, studioHolidays);
 }
 
 export function getAssignedEditors(
@@ -655,11 +679,7 @@ export function getUnassignedEditors(
     const available = categoryEditors.filter((name) => {
       const producer = findProducerByAssignmentKey(name, producers);
       if (!producer) return false;
-      return !isProducerUnavailableForRecord(
-        producer,
-        targetRecord,
-        mtdRecords
-      );
+      return !isProducerUnavailableForRecord(producer, targetRecord);
     });
     if (available.length > 0) return available;
   }

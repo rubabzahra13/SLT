@@ -65,6 +65,7 @@ class OrderSchema(BaseModel):
     eight_count_sheet: Optional[str] = None
     have_songs: Optional[str] = None
 
+    # Legacy rows may have nulls; optional so list endpoints don't 500.
     customer_name: Optional[str] = None
     contact_name: Optional[str] = None
     program_name: Optional[str] = None
@@ -83,6 +84,8 @@ class OrderSchema(BaseModel):
     is_past_order: bool = False
     is_reassigned: bool = False
     missing_data_email_sent_at: Optional[datetime] = None
+    producer_email_sent_at: Optional[datetime] = None
+    producer_email_sent_to: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -173,6 +176,8 @@ class OrderUpdateSchema(BaseModel):
     is_past_order: Optional[bool] = None
     is_reassigned: Optional[bool] = None
     missing_data_email_sent_at: Optional[datetime] = None
+    producer_email_sent_at: Optional[datetime] = None
+    producer_email_sent_to: Optional[str] = None
     collection_states: Optional[Any] = None
     order_status: Optional[str] = None
     assigned_producer: Optional[str] = None

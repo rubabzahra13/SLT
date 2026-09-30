@@ -1,5 +1,6 @@
 import type { MTDRecord, Order, OrderFormType } from "@/types";
 import { parsePackage } from "@/lib/package";
+import { getDisplayAssignedProducer } from "@/lib/editor-assignment";
 
 export type RequirementCategory = "collections" | "songs";
 export type RequirementState = "green" | "red" | "white";
@@ -15,17 +16,68 @@ export type OrderRequirementItem = {
   status: "green" | "red" | "white";
 };
 
+export type OrderDataStatus = "Missing Data" | "Complete data";
+
+/** Read-only assignment column states on the Orders tab. */
+export type OrderAssignmentStatus =
+  | "not_assigned"
+  | "assigned"
+  | "reassign_leave"
+  | "reassign_rush";
+
+export type OrderReassignReason = "leave" | "rush_order";
+
+export const ORDER_ASSIGNMENT_STATUS_LABEL: Record<
+  OrderAssignmentStatus,
+  string
+> = {
+  not_assigned: "Not assigned",
+  assigned: "Assigned",
+  reassign_leave: "Reassign: leave",
+  reassign_rush: "Reassign: rush order",
+};
+
+export const ORDER_REASSIGN_STATUS: Record<OrderReassignReason, string> = {
+  leave: "Reassign: leave",
+  rush_order: "Reassign: rush order",
+};
+
 export type OrderRequirementsResult = {
   collections: OrderRequirementItem[];
   songsArea: OrderRequirementItem[];
   all: OrderRequirementItem[];
   allMet: boolean;
   missingCount: number;
-  status: "Missing Data" | "Complete" | "Reassign";
+  /** Data completeness only — independent of reassignment. */
+  status: OrderDataStatus;
+  needsReassign: boolean;
+  reassignReason: OrderReassignReason | null;
   isWaitingForData: boolean;
   /** True when compliancy is applicable AND the affiliate/compliancy field is empty */
   compliancyMet: boolean;
 };
+
+function parseReassignReason(
+  rawManual: string | null | undefined,
+  isReassignedFlag: boolean
+): OrderReassignReason | null {
+  // Once reassignment is completed (producer assigned), isReassigned is cleared.
+  // Ignore stale leave/rush labels left in orderStatus.
+  if (!isReassignedFlag) return null;
+  const raw = String(rawManual || "").trim().toLowerCase();
+  if (raw === "reassign: leave" || raw === "reassign leave") return "leave";
+  if (
+    raw === "reassign: rush order" ||
+    raw === "reassign rush order" ||
+    raw === "reassigned" ||
+    raw === "reassign"
+  ) {
+    return "rush_order";
+  }
+  // Data-status labels used to be written into orderStatus and wiped leave/rush.
+  // With the flag set and no explicit leave label, default to rush.
+  return "rush_order";
+}
 
 /**
  * Determines whether a string value is present and non-empty.
@@ -105,7 +157,14 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
       all: neutralAll,
       allMet: true,
       missingCount: 0,
-      status: "Complete",
+      status: "Complete data",
+      needsReassign: Boolean(
+        (order as any).isReassigned ?? (order as any).is_reassigned
+      ),
+      reassignReason: parseReassignReason(
+        (order as any).orderStatus || (order as any).order_status,
+        Boolean((order as any).isReassigned ?? (order as any).is_reassigned)
+      ),
       isWaitingForData: false,
       compliancyMet: true,
     };
@@ -374,36 +433,76 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
   const collections = requirements.filter((r) => r.category === "collections");
   const songsArea = requirements.filter((r) => r.category === "songs");
 
-  const applicableItems = requirements.filter((r) => r.isApplicable);
-  const hasRed = applicableItems.some((r) => r.state === "red") || !compliancyMet;
-  const missingCount = applicableItems.filter((r) => r.state === "red").length + (!compliancyMet ? 1 : 0);
-  const allMet = !hasRed;
-
-  const calculatedStatus = hasRed ? "Missing Data" : "Complete";
   const rawManual = (order as any).orderStatus || (order as any).order_status;
-  // Normalize legacy labels to match Orders range toggles.
-  const manualStatus =
+  // Normalize legacy labels. "Reassign" / "Reassigned" are not data statuses.
+  // Also ignore data labels that used to be incorrectly stored in orderStatus —
+  // those must not override pill-derived completeness for reassigned rows.
+  const isDataStatusLabel =
     rawManual === "Need to be Scheduled" ||
     rawManual === "Reschedule" ||
     rawManual === "Unscheduled" ||
-    rawManual === "Unassigned"
-      ? "Complete"
-      : rawManual === "Reassigned"
-        ? "Reassign"
-        : rawManual === "Waiting for Data" || rawManual === "Incomplete Data"
-          ? "Missing Data"
-          : rawManual;
+    rawManual === "Unassigned" ||
+    rawManual === "Complete" ||
+    rawManual === "Complete data" ||
+    rawManual === "Waiting for Data" ||
+    rawManual === "Incomplete Data" ||
+    rawManual === "Missing Data";
+  const manualDataStatus: OrderDataStatus | null =
+    rawManual === "Need to be Scheduled" ||
+    rawManual === "Reschedule" ||
+    rawManual === "Unscheduled" ||
+    rawManual === "Unassigned" ||
+    rawManual === "Complete" ||
+    rawManual === "Complete data"
+      ? "Complete data"
+      : rawManual === "Waiting for Data" ||
+          rawManual === "Incomplete Data" ||
+          rawManual === "Missing Data"
+        ? "Missing Data"
+        : null;
   const isReassignedFlag = Boolean(
     (order as any).isReassigned ?? (order as any).is_reassigned
   );
-  // Reassign always wins when flagged or manually selected.
-  const status: "Missing Data" | "Complete" | "Reassign" =
-    manualStatus === "Reassign" || isReassignedFlag
-      ? "Reassign"
-      : manualStatus === "Missing Data" || manualStatus === "Complete"
-        ? manualStatus
-        : calculatedStatus;
+  // When orderStatus was overwritten with a data label, parse leave/rush from
+  // the flag only (rush default). Prefer calculated data status for those rows.
+  const reassignReason = parseReassignReason(
+    isDataStatusLabel ? null : rawManual,
+    isReassignedFlag
+  );
+  const needsReassign = reassignReason !== null;
 
+  // Reassign leave/rush always land on Orders as Complete data — force
+  // applicable pills green so Data badge and collection UI stay aligned.
+  if (needsReassign) {
+    for (const item of requirements) {
+      if (!item.isApplicable) continue;
+      item.state = "green";
+      item.provided = true;
+      item.status = "green";
+    }
+  }
+
+  const applicableItems = requirements.filter((r) => r.isApplicable);
+  const effectiveCompliancyMet = needsReassign ? true : compliancyMet;
+  const hasRed =
+    applicableItems.some((r) => r.state === "red") || !effectiveCompliancyMet;
+  const missingCount = needsReassign
+    ? 0
+    : applicableItems.filter((r) => r.state === "red").length +
+      (!compliancyMet ? 1 : 0);
+  const allMet = !hasRed;
+
+  const calculatedStatus: OrderDataStatus = needsReassign
+    ? "Complete data"
+    : hasRed
+      ? "Missing Data"
+      : "Complete data";
+
+  const status: OrderDataStatus = needsReassign
+    ? "Complete data"
+    : isDataStatusLabel
+      ? calculatedStatus
+      : (manualDataStatus ?? calculatedStatus);
   const isWaitingForData = status === "Missing Data";
 
   return {
@@ -413,20 +512,38 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
     allMet,
     missingCount,
     status,
+    needsReassign,
+    reassignReason,
     isWaitingForData,
-    compliancyMet,
+    compliancyMet: effectiveCompliancyMet,
   };
 }
 
 export function getOrderStatus(order: Order | MTDRecord): {
-  status: "Missing Data" | "Complete" | "Reassign";
+  status: OrderDataStatus;
+  needsReassign: boolean;
+  reassignReason: OrderReassignReason | null;
   isWaitingForData: boolean;
   missingCount: number;
 } {
   const reqs = getOrderRequirements(order);
   return {
     status: reqs.status,
+    needsReassign: reqs.needsReassign,
+    reassignReason: reqs.reassignReason,
     isWaitingForData: reqs.isWaitingForData,
     missingCount: reqs.missingCount,
   };
+}
+
+export function getOrderAssignmentStatus(
+  order: Order | MTDRecord
+): OrderAssignmentStatus {
+  const assigned = Boolean(getDisplayAssignedProducer(order as MTDRecord));
+  const { needsReassign, reassignReason } = getOrderStatus(order);
+  // Once a producer is assigned, the row is Assigned — not Leave/Rush reassign.
+  if (needsReassign && !assigned) {
+    return reassignReason === "leave" ? "reassign_leave" : "reassign_rush";
+  }
+  return assigned ? "assigned" : "not_assigned";
 }

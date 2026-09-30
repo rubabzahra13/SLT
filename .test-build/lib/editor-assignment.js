@@ -12,6 +12,7 @@ exports.findProducerByAssignmentKey = findProducerByAssignmentKey;
 exports.resolveValidProducerAssignment = resolveValidProducerAssignment;
 exports.resolveAssignedProducerForPatch = resolveAssignedProducerForPatch;
 exports.getDisplayAssignedProducer = getDisplayAssignedProducer;
+exports.mixWorkDaysForRecord = mixWorkDaysForRecord;
 exports.resolveSeederAssignment = resolveSeederAssignment;
 exports.seedAssignedProducerForOrder = seedAssignedProducerForOrder;
 exports.orderCategoryToProducerCategory = orderCategoryToProducerCategory;
@@ -22,7 +23,7 @@ exports.getEditorNamesForCategory = getEditorNamesForCategory;
 exports.getEditorWorkload = getEditorWorkload;
 exports.getEditorBookedUntilIso = getEditorBookedUntilIso;
 exports.isEditorBooked = isEditorBooked;
-exports.isRequestedEditorUnavailableForMixWindow = isRequestedEditorUnavailableForMixWindow;
+exports.getRequestedEditorUnavailableReason = getRequestedEditorUnavailableReason;
 exports.getAssignedEditors = getAssignedEditors;
 exports.getUnassignedEditors = getUnassignedEditors;
 exports.inferAssignmentMode = inferAssignmentMode;
@@ -119,6 +120,12 @@ function formatRequestedEditorLabel(record, producers, linkedOrder) {
         return requested;
     return "FA";
 }
+function isProducerOverDailyLimitsForRecord(producer, rec, mtdRecords) {
+    const window = (0, producer_availability_1.mixWindowForRecord)(rec);
+    if (!window)
+        return false;
+    return (0, producer_availability_1.dailyLimitCheckHasIssues)((0, producer_availability_1.checkProducerDailyLimits)(producer, (0, producer_availability_1.dateToIsoLocal)(window.start), (0, producer_availability_1.dateToIsoLocal)(window.end), mtdRecords, { excludeRecordId: rec.id }));
+}
 function pickDefaultEditor(record, producers, mtdRecords, schedule, linkedOrder) {
     const category = record.category;
     const eligible = getEditorNamesForCategory(producers, category);
@@ -135,7 +142,10 @@ function pickDefaultEditor(record, producers, mtdRecords, schedule, linkedOrder)
     if (requestedEditor) {
         const matchedKey = eligible.find((name) => (0, producer_keys_1.producerKeysMatch)(name, requestedEditor));
         if (matchedKey) {
-            const isAvailable = available.some((name) => (0, producer_keys_1.producerKeysMatch)(name, requestedEditor));
+            const requestedProducer = findProducerByAssignmentKey(matchedKey, producers);
+            const isAvailable = available.some((name) => (0, producer_keys_1.producerKeysMatch)(name, requestedEditor)) &&
+                !(requestedProducer &&
+                    isProducerOverDailyLimitsForRecord(requestedProducer, record, mtdRecords));
             return {
                 editor: matchedKey,
                 requestedEditor,
@@ -218,6 +228,20 @@ function getDisplayAssignedProducer(rec) {
     if (request && request !== "FA" && request !== "NA")
         return request;
     return null;
+}
+/**
+ * Working days in a record's mix range for its producer (their days off,
+ * leave and studio holidays skipped). Null without both dates or a producer.
+ */
+function mixWorkDaysForRecord(rec, producers, studioHolidays) {
+    const startIso = (0, dates_1.toIsoDateString)(rec.mixStartDate ?? "");
+    const endIso = (0, dates_1.toIsoDateString)(rec.mixEndDate ?? "");
+    if (!startIso || !endIso || endIso < startIso)
+        return null;
+    const producer = findProducerByAssignmentKey(getDisplayAssignedProducer(rec), producers);
+    if (!producer)
+        return null;
+    return (0, producer_availability_1.countProducerWorkingDays)(producer, startIso, endIso, studioHolidays);
 }
 /**
  * Seeder assignment rule helper.
@@ -340,18 +364,18 @@ function producerCategoryMatchesRequired(producerCategory, requiredCategory) {
     const rn = r.replace(/[/\-\s]+/g, "-");
     if (pn === rn)
         return true;
-    const rIsDance = r.includes("dance");
+    // Coarse legacy labels only — specific subtypes (All-Star Cheer, Pom, …)
+    // must match the producer's Category tab exactly (after normalization).
     const pIsDance = p.includes("dance") ||
         p === "pom" ||
         p === "hip hop" ||
         p.includes("jazz") ||
         p.includes("team performance") ||
         p === "gameday";
-    if (rIsDance && pIsDance)
+    if (r === "dance" && pIsDance)
         return true;
-    const rIsCheer = r.includes("cheer");
     const pIsCheer = p.includes("cheer") || p === "school";
-    if (rIsCheer && pIsCheer)
+    if (r === "cheer" && pIsCheer)
         return true;
     const rIsBand = r.includes("band") || r.includes("marching");
     const pIsBand = p.includes("band") || p.includes("marching");
@@ -468,38 +492,19 @@ function getEditorBookedUntilIso(editor, mtdRecords, excludeRecordId) {
 function isEditorBooked(editor, mtdRecords, excludeRecordId) {
     return getEditorWorkload(mtdRecords, excludeRecordId).has((0, producer_keys_1.normalizeProducerKey)(editor));
 }
-function mixWindowForRecord(rec) {
-    return (0, producer_availability_1.mixWindowForRecord)(rec);
-}
-function mixWindowsOverlap(a, b) {
-    return a.start <= b.end && b.start <= a.end;
-}
-/** True when the requested editor cannot take this mix (overlap, schedule, or capacity). */
-function isRequestedEditorUnavailableForMixWindow(rec, requestedEditor, mtdRecords, producers = []) {
+/**
+ * Why the requested editor can't work this mix's dates (not a work day, leave,
+ * or studio holiday), or null when they can. Other bookings and daily limits
+ * never make an editor unavailable.
+ */
+function getRequestedEditorUnavailableReason(rec, requestedEditor, producers = [], studioHolidays) {
     const editorKey = (0, producer_keys_1.normalizeProducerKey)(requestedEditor);
     if (!editorKey || isFirstAvailableRequest(editorKey))
-        return false;
+        return null;
     const producer = findProducerByAssignmentKey(requestedEditor, producers);
-    if (producer && (0, producer_availability_1.isProducerUnavailableForRecord)(producer, rec, mtdRecords)) {
-        return true;
-    }
-    const window = mixWindowForRecord(rec);
-    if (!window) {
-        return isEditorBooked(requestedEditor, mtdRecords, rec.id);
-    }
-    for (const other of mtdRecords) {
-        if (other.id === rec.id)
-            continue;
-        if (!other.assignedProducer)
-            continue;
-        if ((0, producer_keys_1.normalizeProducerKey)(other.assignedProducer) !== editorKey)
-            continue;
-        const otherWindow = mixWindowForRecord(other);
-        if (otherWindow && mixWindowsOverlap(window, otherWindow)) {
-            return true;
-        }
-    }
-    return false;
+    if (!producer)
+        return null;
+    return (0, producer_availability_1.getProducerUnavailabilityReason)(producer, rec, studioHolidays);
 }
 function getAssignedEditors(mtdRecords, excludeRecordId) {
     return new Set(getEditorWorkload(mtdRecords, excludeRecordId).keys());
@@ -515,7 +520,7 @@ function getUnassignedEditors(mtdRecords, producers, category, excludeRecordId, 
             const producer = findProducerByAssignmentKey(name, producers);
             if (!producer)
                 return false;
-            return !(0, producer_availability_1.isProducerUnavailableForRecord)(producer, targetRecord, mtdRecords);
+            return !(0, producer_availability_1.isProducerUnavailableForRecord)(producer, targetRecord);
         });
         if (available.length > 0)
             return available;

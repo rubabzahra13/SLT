@@ -42,6 +42,14 @@ async def lifespan(app: FastAPI):
                         conn.execute(text(f"ALTER TABLE {table} ADD COLUMN missing_data_email_sent_at DATETIME"))
                     except Exception:
                         pass
+                    try:
+                        conn.execute(text(f"ALTER TABLE {table} ADD COLUMN producer_email_sent_at DATETIME"))
+                    except Exception:
+                        pass
+                    try:
+                        conn.execute(text(f"ALTER TABLE {table} ADD COLUMN producer_email_sent_to VARCHAR"))
+                    except Exception:
+                        pass
             else:
                 conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS is_reassigned BOOLEAN DEFAULT FALSE;"))
                 conn.execute(text("ALTER TABLE mtd_records ADD COLUMN IF NOT EXISTS is_reassigned BOOLEAN DEFAULT FALSE;"))
@@ -51,6 +59,10 @@ async def lifespan(app: FastAPI):
                 conn.execute(text("ALTER TABLE mtd_records ADD COLUMN IF NOT EXISTS order_status VARCHAR;"))
                 conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS missing_data_email_sent_at TIMESTAMPTZ;"))
                 conn.execute(text("ALTER TABLE mtd_records ADD COLUMN IF NOT EXISTS missing_data_email_sent_at TIMESTAMPTZ;"))
+                conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS producer_email_sent_at TIMESTAMPTZ;"))
+                conn.execute(text("ALTER TABLE mtd_records ADD COLUMN IF NOT EXISTS producer_email_sent_at TIMESTAMPTZ;"))
+                conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS producer_email_sent_to VARCHAR;"))
+                conn.execute(text("ALTER TABLE mtd_records ADD COLUMN IF NOT EXISTS producer_email_sent_to VARCHAR;"))
     except Exception as exc:
         logger.warning("Auto-migration check skipped/failed: %s", exc)
 

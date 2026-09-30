@@ -178,6 +178,15 @@ describe("producerSupportsCategory", () => {
     assert.equal(producerSupportsCategory(p, "Hip Hop"), true);
     assert.equal(producerSupportsCategory(p, "Gameday"), true);
   });
+
+  it("specific cheer subtypes do not cross-match", () => {
+    const allStar = makeProducer({ categories: ["All-Star Cheer"] });
+    const school = makeProducer({ categories: ["School Cheer"] });
+    assert.equal(producerSupportsCategory(allStar, "School Cheer"), false);
+    assert.equal(producerSupportsCategory(school, "All-Star Cheer"), false);
+    assert.equal(producerSupportsCategory(allStar, "All-Star Cheer"), true);
+    assert.equal(producerSupportsCategory(school, "School Cheer"), true);
+  });
 });
 
 // ---------------------------------------------------------------------------

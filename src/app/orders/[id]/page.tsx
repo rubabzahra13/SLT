@@ -2,7 +2,8 @@
 
 import { use, useCallback, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, Pencil, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ArrowRight, Pencil, X } from "lucide-react";
 import clsx from "clsx";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Avatar } from "@/components/ui/Avatar";
@@ -10,15 +11,13 @@ import {
   InlineDateInput,
   InlineTriStateCheckGroup,
 } from "@/components/mtd/InlineFields";
-import {
-  AssignEditorModal,
-  type EditorAssignmentResult,
-} from "@/components/mtd/AssignEditorModal";
 import { MTDOrderDetails } from "@/components/mtd/MTDOrderDetails";
 import { OrderStatusDropdown } from "@/components/orders/OrderStatusDropdown";
 import { CompletionBlockedModal } from "@/components/mtd/CompletionBlockedModal";
 import { SetPricingModal } from "@/components/mtd/SetPricingModal";
+import { useMixDateCalendarRules } from "@/components/mtd/useMixDateCalendarRules";
 import { useAppState } from "@/context/AppStateContext";
+import { toIsoDateString } from "@/lib/dates";
 import { orderFromMTDRecord, rawFieldValue } from "@/lib/order-detail-fields";
 import { orderToMTDRecord } from "@/lib/order-form";
 import { getOrderDetailSections } from "@/lib/order-detail-sections";
@@ -38,7 +37,7 @@ import {
   mtdPatchFromOrderField,
   orderPatchFromOrderField,
 } from "@/lib/mtd-order-sync";
-import type { MTDRecord, Order } from "@/types";
+import type { Order } from "@/types";
 
 export default function OrderDetailPage({
   params,
@@ -46,20 +45,20 @@ export default function OrderDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
+  const router = useRouter();
   const {
     mtdRecords,
     allOrders,
     updateMTD,
     updateOrder,
     producers,
-    schedule,
+    holidays,
     discountCodes,
     isViewOnly,
     isLoading,
     addNotification,
   } = useAppState();
 
-  const [assignOpen, setAssignOpen] = useState(false);
   const [validationModalOpen, setValidationModalOpen] = useState(false);
   const [pricingOpen, setPricingOpen] = useState(false);
   const [orderFormEditing, setOrderFormEditing] = useState(false);
@@ -94,23 +93,15 @@ export default function OrderDetailPage({
     return findProducerByAssignmentKey(producerKey, producers);
   }, [record, displayOrder, producers]);
 
-  const handleAssign = useCallback(
-    (recordId: string, result: EditorAssignmentResult) => {
-      const patch = {
-        editorRequest: result.editorRequest,
-        assignedProducer: result.assignedProducer,
-        ...(result.mixStartDate ? { mixStartDate: result.mixStartDate } : {}),
-        ...(result.mixEndDate ? { mixEndDate: result.mixEndDate } : {}),
-      };
-      if (displayOrder) {
-        updateOrder(displayOrder.id, patch, displayOrder);
-      }
-      if (record) {
-        updateMTD(record.id, patch);
-      }
-    },
-    [displayOrder, record, updateOrder, updateMTD]
-  );
+  const mixDateRules = useMixDateCalendarRules({
+    record,
+    producer: assignedProducerObj,
+    mixStartDate: record?.mixStartDate ?? "",
+    producers,
+    mtdRecords,
+    allOrders,
+    studioHolidays: holidays,
+  });
 
   const handleMoveToMTD = useCallback(() => {
     if (!record) return;
@@ -231,9 +222,9 @@ export default function OrderDetailPage({
     }
   };
 
-  const handleCycleEightCs = (id: string) => {
+  const handleCycleEightCs = (itemId: string) => {
     if (isViewOnly || !displayOrder) return;
-    const next = cycleEightCsItem(eightCsState, id as keyof typeof eightCsState);
+    const next = cycleEightCsItem(eightCsState, itemId as keyof typeof eightCsState);
     const encoded = encodeEightCsState(next);
     const patch = {
       eightCountSheet: encoded,
@@ -245,9 +236,9 @@ export default function OrderDetailPage({
     }
   };
 
-  const handleCycleSongs = (id: string) => {
+  const handleCycleSongs = (itemId: string) => {
     if (isViewOnly || !displayOrder) return;
-    const next = cycleSongsItem(songsState, id as keyof typeof songsState);
+    const next = cycleSongsItem(songsState, itemId as keyof typeof songsState);
     const encoded = encodeSongsState(next);
     const patch = { haveSongs: encoded };
     updateOrder(displayOrder.id, patch, displayOrder);
@@ -284,7 +275,7 @@ export default function OrderDetailPage({
                 Pre-MTD Staging & Scheduling
               </h2>
               <p className="mt-0.5 text-[12px] text-brand-ink-tertiary">
-                Assign an editor and set mix start & end dates to move this order into MTD
+                Assign a producer and set mix start & end dates to move this order into MTD
               </p>
             </div>
 
@@ -311,7 +302,7 @@ export default function OrderDetailPage({
             {/* Editor Tile */}
             <div className="rounded-xl border border-brand-line/40 bg-brand-bg/60 p-3.5">
               <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-brand-ink-tertiary">
-                Assigned Editor
+                Assigned producer
               </span>
               <div className="mt-2 flex items-center justify-between">
                 {assignedProducerObj ? (
@@ -329,7 +320,11 @@ export default function OrderDetailPage({
                 {!isViewOnly && (
                   <button
                     type="button"
-                    onClick={() => setAssignOpen(true)}
+                    onClick={() =>
+                      router.push(
+                        `/orders/${id}/assign?return=${encodeURIComponent(`/orders/${id}`)}`
+                      )
+                    }
                     className={clsx(
                       "rounded-lg px-2.5 py-1 text-[12px] font-semibold transition shadow-sm",
                       assignedProducerObj
@@ -354,6 +349,9 @@ export default function OrderDetailPage({
                   placeholder="No scheduled start"
                   readOnly={isViewOnly}
                   onChange={handleMixStartChange}
+                  isDateDisabled={mixDateRules.isDateDisabled}
+                  dayTitle={mixDateRules.dayTitle}
+                  dayTone={mixDateRules.dayTone}
                 />
               </div>
             </div>
@@ -369,6 +367,11 @@ export default function OrderDetailPage({
                   placeholder="No scheduled end"
                   readOnly={isViewOnly}
                   onChange={handleMixEndChange}
+                  template={mixDateRules.suggestedEndIso || undefined}
+                  min={toIsoDateString(record.mixStartDate) || undefined}
+                  isDateDisabled={mixDateRules.isDateDisabled}
+                  dayTitle={mixDateRules.dayTitle}
+                  dayTone={mixDateRules.dayTone}
                 />
               </div>
             </div>
@@ -416,18 +419,6 @@ export default function OrderDetailPage({
           />
         </section>
       </div>
-
-      {/* Assign Editor Modal */}
-      <AssignEditorModal
-        open={assignOpen}
-        record={record}
-        mtdRecords={mtdRecords}
-        allOrders={allOrders}
-        producers={producers}
-        schedule={schedule}
-        onClose={() => setAssignOpen(false)}
-        onAssign={handleAssign}
-      />
 
       <CompletionBlockedModal
         open={validationModalOpen}

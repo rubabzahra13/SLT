@@ -642,6 +642,12 @@ type InlineDateInputProps = {
   suffix?: string;
   /** Replace the default short date label when set. */
   displayValue?: string;
+  /** Block extra days beyond min/max (e.g. a producer's days off). */
+  isDateDisabled?: (iso: string) => boolean;
+  /** Hover text for a day cell. */
+  dayTitle?: (iso: string) => string | undefined;
+  /** Colors leave / holiday days, or flags a pickable day that is not recommended. */
+  dayTone?: (iso: string) => "holiday" | "leave" | "limit" | undefined;
 };
 
 const WEEKDAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
@@ -671,7 +677,7 @@ function buildCalendarCells(year: number, month: number): (string | null)[] {
   return cells;
 }
 
-function isDateDisabled(
+function isOutsideDateRange(
   iso: string,
   minIso?: string,
   maxIso?: string
@@ -694,6 +700,9 @@ export function InlineDateInput({
   menuZIndex = 60,
   suffix,
   displayValue,
+  isDateDisabled: isDateBlocked,
+  dayTitle,
+  dayTone,
 }: InlineDateInputProps) {
   const isEffectiveReadOnly = readOnly || disabled;
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -781,8 +790,11 @@ export function InlineDateInput({
     year: "numeric",
   });
 
+  const isDateDisabled = (iso: string) =>
+    isOutsideDateRange(iso, minIso, maxIso) || Boolean(isDateBlocked?.(iso));
+
   function selectDate(iso: string) {
-    if (isDateDisabled(iso, minIso, maxIso)) return;
+    if (isDateDisabled(iso)) return;
     onChange(iso);
     setOpen(false);
     triggerRef.current?.focus();
@@ -894,7 +906,7 @@ export function InlineDateInput({
                   <button
                     type="button"
                     onClick={() => selectDate(templateIso)}
-                    disabled={isDateDisabled(templateIso, minIso, maxIso)}
+                    disabled={isDateDisabled(templateIso)}
                     className="w-full rounded-lg px-2 py-1.5 text-left text-[12px] font-medium text-brand-signature transition hover:bg-white/80 disabled:opacity-40"
                   >
                     Suggested: {formatDisplayDate(templateIso)}
@@ -914,37 +926,62 @@ export function InlineDateInput({
               </div>
 
               <div className="grid grid-cols-7 gap-1 px-3 pb-2 pt-1">
-                {cells.map((iso, index) =>
-                  iso ? (
+                {cells.map((iso, index) => {
+                  if (!iso) return <span key={`empty-${index}`} aria-hidden />;
+                  const outOfRange = isOutsideDateRange(iso, minIso, maxIso);
+                  const disabled = isDateDisabled(iso);
+                  const tone = outOfRange ? undefined : dayTone?.(iso);
+                  const tip = outOfRange ? undefined : dayTitle?.(iso);
+                  // aria-disabled (not disabled) so blocked days still show their hover tip.
+                  const dayButton = (
                     <button
-                      key={iso}
                       type="button"
-                      disabled={isDateDisabled(iso, minIso, maxIso)}
-                      onClick={() => selectDate(iso)}
+                      aria-disabled={disabled}
+                      aria-label={tip || undefined}
+                      onClick={() => {
+                        if (disabled) return;
+                        selectDate(iso);
+                      }}
                       className={clsx(
-                        "h-8 rounded-lg text-[12px] font-medium tabular-nums transition",
+                        "h-8 w-full rounded-lg text-[12px] font-medium tabular-nums transition",
                         normalized === iso
                           ? "bg-brand-signature text-white shadow-sm"
-                          : todayIso === iso
-                            ? "bg-brand-blue-soft text-brand-signature ring-1 ring-inset ring-brand-blue/20"
-                            : "text-brand-ink-secondary hover:bg-brand-bg-subtle hover:text-brand-ink",
-                        isDateDisabled(iso, minIso, maxIso) &&
-                          "cursor-not-allowed opacity-30 hover:bg-transparent"
+                          : disabled && tone === "holiday"
+                            ? "cursor-not-allowed bg-brand-orange-soft/55 text-brand-orange/65 opacity-70 ring-1 ring-inset ring-brand-orange/20"
+                            : disabled && tone === "leave"
+                              ? "cursor-not-allowed bg-rose-100 text-rose-700 opacity-90 ring-1 ring-inset ring-rose-300/70"
+                              : disabled
+                                ? "cursor-not-allowed text-brand-ink-tertiary opacity-30"
+                                : tone === "limit"
+                                  ? "text-brand-warning ring-1 ring-inset ring-brand-warning/40 hover:bg-brand-warning/10"
+                                  : todayIso === iso
+                                    ? "bg-brand-blue-soft text-brand-signature ring-1 ring-inset ring-brand-blue/20"
+                                    : "text-brand-ink-secondary hover:bg-brand-bg-subtle hover:text-brand-ink"
                       )}
                     >
                       {parseIsoToLocalDate(iso)?.getDate()}
                     </button>
+                  );
+                  return tip ? (
+                    <HoverTip
+                      key={iso}
+                      label={tip}
+                      placement="top"
+                      className="block w-full"
+                    >
+                      {dayButton}
+                    </HoverTip>
                   ) : (
-                    <span key={`empty-${index}`} aria-hidden />
-                  )
-                )}
+                    <div key={iso}>{dayButton}</div>
+                  );
+                })}
               </div>
 
               <div className="flex items-center justify-between gap-2 border-t border-brand-line/40 bg-brand-bg-subtle/50 px-3 py-2">
                 <button
                   type="button"
                   onClick={() => selectDate(todayIso)}
-                  disabled={isDateDisabled(todayIso, minIso, maxIso)}
+                  disabled={isDateDisabled(todayIso)}
                   className="rounded-lg px-2 py-1 text-[11px] font-semibold text-brand-signature transition hover:bg-white disabled:opacity-40"
                 >
                   Today

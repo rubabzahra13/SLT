@@ -182,8 +182,14 @@ def update_mtd_record(mtd_id: str, payload: MTDRecordUpdateSchema, db: Session =
                 linked_order.is_reassigned = mtd.is_reassigned
             if "order_status" in update_data:
                 linked_order.order_status = mtd.order_status
+            if "collection_states" in update_data:
+                linked_order.collection_states = mtd.collection_states
             if "missing_data_email_sent_at" in update_data:
                 linked_order.missing_data_email_sent_at = mtd.missing_data_email_sent_at
+            if "producer_email_sent_at" in update_data:
+                linked_order.producer_email_sent_at = mtd.producer_email_sent_at
+            if "producer_email_sent_to" in update_data:
+                linked_order.producer_email_sent_to = mtd.producer_email_sent_to
             if "in_mtd" in update_data:
                 # Keep Order.status aligned with MTD board membership so Move to
                 # Orders / Move to MTD survive reloads.

@@ -89,13 +89,13 @@ function mtdWorkflowFields(
     },
     {
       key: "mtd-requested-editor",
-      label: "Requested editor",
+      label: "Requested producer",
       value: formatRequestedEditorLabel(record, producers, linkedOrder),
       section: "Assignment & scheduling",
     },
     {
       key: "mtd-assigned-editor",
-      label: "Assigned editor",
+      label: "Assigned producer",
       value: record.assignedProducer
         ? findProducerByAssignmentKey(record.assignedProducer, producers)?.name ??
           record.assignedProducer
@@ -457,7 +457,7 @@ function pushUniqueContact(
 ) {
   const trimmed = email?.trim();
   if (!trimmed || !trimmed.includes("@")) return;
-  if (contacts.some((c) => c.email.toLowerCase() === trimmed.toLowerCase())) return;
+  if (contacts.some((c) => c.id === id)) return;
   contacts.push({
     id,
     name: name.trim() || role,
@@ -466,17 +466,8 @@ function pushUniqueContact(
   });
 }
 
-function slugForEmail(value: string): string {
-  const slug = value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "")
-    .slice(0, 24);
-  return slug || "demo";
-}
-
-function dummyCustomerEmail(role: string, seed: string): string {
-  return `${role}.${slugForEmail(seed)}@demogym.com`;
-}
+/** Override all customer mail recipients for local send testing. */
+const CUSTOMER_MAIL_OVERRIDE_EMAIL = "rubabzahra248@gmail.com";
 
 export function resolveCustomerMailContacts(
   record: MTDRecord,
@@ -484,38 +475,26 @@ export function resolveCustomerMailContacts(
 ): CustomerMailContact[] {
   const order = (linkedOrder ?? {}) as Order & Record<string, string | undefined>;
   const contacts: CustomerMailContact[] = [];
-  const seed =
-    record.programName ||
-    record.contactName ||
-    record.id ||
-    "order";
 
   pushUniqueContact(
     contacts,
     "billing",
     order.billingPersonName || record.contactName || "Demo Billing",
-    order.billingPersonEmail ||
-      order.emailAddress ||
-      dummyCustomerEmail("billing", seed),
+    CUSTOMER_MAIL_OVERRIDE_EMAIL,
     "Billing"
   );
   pushUniqueContact(
     contacts,
     "coach",
     order.coachName || record.contactName || "Demo Coach",
-    order.coachEmail ||
-      order.coachEmailAddress ||
-      dummyCustomerEmail("coach", seed),
+    CUSTOMER_MAIL_OVERRIDE_EMAIL,
     "Coach"
   );
   pushUniqueContact(
     contacts,
     "contact",
     record.contactName || "Demo Contact",
-    order.emailAddress ||
-      order.billingPersonEmail ||
-      order.coachEmail ||
-      dummyCustomerEmail("contact", seed),
+    CUSTOMER_MAIL_OVERRIDE_EMAIL,
     "Contact"
   );
 

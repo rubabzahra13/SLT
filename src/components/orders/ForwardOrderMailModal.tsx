@@ -533,6 +533,16 @@ export function ForwardOrderMailModal({
         updateMTD(record.id, {
           missingDataEmailSentAt: new Date().toISOString(),
         });
+      } else if (!isCustomer && record) {
+        const sentTo =
+          record.assignedProducer?.trim() ||
+          draft.toName?.trim() ||
+          editor?.name?.trim() ||
+          null;
+        updateMTD(record.id, {
+          producerEmailSentAt: new Date().toISOString(),
+          producerEmailSentTo: sentTo,
+        });
       }
       setSent(true);
     } catch (err) {

@@ -1,11 +1,14 @@
 import type { MTDRecord, Producer, ScheduleEntry } from "@/types";
 import { parseFlexibleDate } from "@/lib/dates";
-import { isEligibleProducerScheduleRecord } from "@/lib/export-csv";
 import {
   isProducerAtDailyCapacity,
+  isProducerBookingRecord,
   isProducerOnTimeOff,
   isProducerScheduledDay,
+  isProducerWorkDay,
+  type DailyCostOptions,
 } from "@/lib/producer-availability";
+import type { StudioHoliday } from "@/lib/producer-time-off";
 import { parseToDate, producerScheduleId } from "@/lib/schedule-view";
 
 const MONTH_NAMES = [
@@ -61,22 +64,35 @@ function isRecordCoveringDate(rec: MTDRecord, date: Date, producer: Producer): b
   return dayStart <= endDay && startDay <= dayStart;
 }
 
+export type ProducerOpeningOptions = DailyCostOptions & {
+  /** The order being assigned; its own booking never counts against the producer. */
+  excludeRecordId?: string;
+};
+
 /**
- * Returns whether a producer is open/available to take a mix on a specific date.
+ * Whether this is a producer's recommended day to start a new mix: a working
+ * day that stays within their daily mix and cost limits once the new mix is
+ * added. Without limits, bookings never push the date.
  */
 export function isProducerAvailableOnDate(
   producer: Producer,
   date: Date,
   mtdRecords: MTDRecord[],
-  schedule: ScheduleEntry[] = []
+  schedule: ScheduleEntry[] = [],
+  studioHolidays: StudioHoliday[] = [],
+  options: ProducerOpeningOptions = {}
 ): boolean {
   // 1. Must be a scheduled work day (or overtime day) for the producer
   if (!isProducerScheduledDay(producer, date)) {
     return false;
   }
 
-  // 2. Must not be on approved time off
-  if (isProducerOnTimeOff(producer, date)) {
+  // 2. Leave / studio holidays block regular work days only.
+  //    Overtime days are managed by adding/removing OT (UI blocks OT on holidays).
+  if (
+    isProducerWorkDay(producer, date) &&
+    isProducerOnTimeOff(producer, date, studioHolidays)
+  ) {
     return false;
   }
 
@@ -92,18 +108,16 @@ export function isProducerAvailableOnDate(
     }
   }
 
-  // 4. Must not have an active eligible mix covering this date
-  const eligibleRecords = mtdRecords.filter(isEligibleProducerScheduleRecord);
-  const isCoveredByMix = eligibleRecords.some((rec) =>
-    isRecordCoveringDate(rec, date, producer)
-  );
-
-  if (isCoveredByMix) {
-    return false;
-  }
-
-  // 5. Must not have reached daily mix count capacity or daily cost capacity
-  if (isProducerAtDailyCapacity(producer, date, eligibleRecords)) {
+  // 4. Daily mix / cost limits (only when set on the producer)
+  if (
+    isProducerAtDailyCapacity(
+      producer,
+      date,
+      mtdRecords,
+      options.excludeRecordId,
+      options
+    )
+  ) {
     return false;
   }
 
@@ -123,7 +137,9 @@ export function calculateProducerNextOpening(
   producer: Producer,
   mtdRecords: MTDRecord[] = [],
   schedule: ScheduleEntry[] = [],
-  anchorDateInput: Date | string = new Date()
+  anchorDateInput: Date | string = new Date(),
+  studioHolidays: StudioHoliday[] = [],
+  options: ProducerOpeningOptions = {}
 ): ProducerScheduleCalcResult {
   const anchorDate =
     typeof anchorDateInput === "string"
@@ -131,12 +147,21 @@ export function calculateProducerNextOpening(
       : parseToDate(anchorDateInput);
   anchorDate.setHours(0, 0, 0, 0);
 
-  // Search ahead up to 180 days for the first available work day
+  // Walk forward day-by-day until the next open day (cap avoids infinite loops).
   let foundDate: Date | null = null;
   const cursor = new Date(anchorDate);
 
-  for (let i = 0; i < 180; i += 1) {
-    if (isProducerAvailableOnDate(producer, cursor, mtdRecords, schedule)) {
+  for (let i = 0; i < 366; i += 1) {
+    if (
+      isProducerAvailableOnDate(
+        producer,
+        cursor,
+        mtdRecords,
+        schedule,
+        studioHolidays,
+        options
+      )
+    ) {
       foundDate = new Date(cursor);
       break;
     }
@@ -155,7 +180,9 @@ export function calculateProducerNextOpening(
   }
 
   // Evaluate status over a 7-day week window starting from anchorDate
-  const eligibleRecords = mtdRecords.filter(isEligibleProducerScheduleRecord);
+  const bookedRecords = mtdRecords.filter(
+    (rec) => rec.id !== options.excludeRecordId && isProducerBookingRecord(rec)
+  );
   const weekDates: Date[] = [];
   for (let i = 0; i < 7; i += 1) {
     const d = new Date(anchorDate);
@@ -165,19 +192,19 @@ export function calculateProducerNextOpening(
 
   const workDaysInWeek = weekDates.filter((d) => isProducerScheduledDay(producer, d));
   const availableWorkDaysInWeek = workDaysInWeek.filter((d) =>
-    isProducerAvailableOnDate(producer, d, mtdRecords, schedule)
+    isProducerAvailableOnDate(
+      producer,
+      d,
+      mtdRecords,
+      schedule,
+      studioHolidays,
+      options
+    )
   );
 
-  // Check if producer has active eligible mixes covering any day in the week
+  // Check if producer has booked mixes covering any day in the week
   const hasBookedMixesInWeek = weekDates.some((d) =>
-    eligibleRecords.some((rec) => isRecordCoveringDate(rec, d, producer))
-  );
-
-  const isAvailableToday = isProducerAvailableOnDate(
-    producer,
-    anchorDate,
-    mtdRecords,
-    schedule
+    bookedRecords.some((rec) => isRecordCoveringDate(rec, d, producer))
   );
 
   let status: "available" | "limited" | "unavailable";
@@ -204,13 +231,15 @@ export function enrichProducerWithSchedule(
   producer: Producer,
   mtdRecords: MTDRecord[] = [],
   schedule: ScheduleEntry[] = [],
-  anchorDate: Date | string = new Date()
+  anchorDate: Date | string = new Date(),
+  studioHolidays: StudioHoliday[] = []
 ): Producer {
   const calc = calculateProducerNextOpening(
     producer,
     mtdRecords,
     schedule,
-    anchorDate
+    anchorDate,
+    studioHolidays
   );
   return {
     ...producer,
@@ -223,9 +252,10 @@ export function enrichProducersWithSchedule(
   producers: Producer[],
   mtdRecords: MTDRecord[] = [],
   schedule: ScheduleEntry[] = [],
-  anchorDate: Date | string = new Date()
+  anchorDate: Date | string = new Date(),
+  studioHolidays: StudioHoliday[] = []
 ): Producer[] {
   return producers.map((p) =>
-    enrichProducerWithSchedule(p, mtdRecords, schedule, anchorDate)
+    enrichProducerWithSchedule(p, mtdRecords, schedule, anchorDate, studioHolidays)
   );
 }

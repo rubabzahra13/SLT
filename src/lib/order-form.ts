@@ -299,6 +299,13 @@ export function orderToMTDRecord(order: Order): MTDRecord {
       ? "SCHOOL ANTHEMS"
       : "CHEERLEADING MUSIC";
 
+  const eightCountSheet =
+    order.eightCountSheet ||
+    order.sendingEightCountSheets ||
+    order.usingEightCountSheets ||
+    "";
+  const haveSongs = order.haveSongs || (order as any).have_songs || "";
+
   return {
     id: order.id || order.legacyId || order.uuid || `ord-${Date.now()}`,
     legacyId: order.legacyId,
@@ -318,13 +325,23 @@ export function orderToMTDRecord(order: Order): MTDRecord {
     invoice: "",
     mixStartDate: (order as any).mixStartDate || "",
     mixEndDate: (order as any).mixEndDate || undefined,
-    eightCountSheet: "NEED CS",
-    haveSongs: "NEED SONGS",
+    eightCountSheet,
+    haveSongs,
     needsAttention: Boolean(order.needsAttention),
     status: order.status === "in_mtd" ? "active" : (order.assignedProducer ? "active" : (order.needsAttention ? "needs_attention" : "active")),
     recordStatus: order.assignedProducer || order.status === "in_mtd" ? "Ongoing" : "Waiting for Data",
     inMTD: order.status === "in_mtd",
     isReassigned: Boolean(order.isReassigned),
+    orderStatus: order.orderStatus || (order as any).order_status,
+    collectionStates: order.collectionStates || (order as any).collection_states,
+    musicAffiliate: order.musicAffiliate || (order as any).music_affiliate,
+    routineNotes: order.routineNotes,
+    timeLengthOfMix: order.timeLengthOfMix,
+    songListSuggestions: order.songListSuggestions,
+    customVoiceovers: order.customVoiceovers,
+    missingDataEmailSentAt: order.missingDataEmailSentAt,
+    producerEmailSentAt: order.producerEmailSentAt,
+    producerEmailSentTo: order.producerEmailSentTo,
     inPayroll: false,
     hasRallyMix: false,
     hasExtend8ctAddon: false,

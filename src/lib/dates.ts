@@ -76,6 +76,42 @@ export function isIsoDateAfter(
   return compareIsoDates(a, b) > 0;
 }
 
+/**
+ * Inclusive calendar days spanned by a mix window (start → end).
+ * Returns null when either date is missing/invalid or end is before start.
+ */
+export function inclusiveBookedDays(
+  start?: string | null,
+  end?: string | null
+): number | null {
+  const startIso = toIsoDateString(start);
+  const endIso = toIsoDateString(end);
+  if (!startIso || !endIso) return null;
+  const a = new Date(`${startIso}T12:00:00`);
+  const b = new Date(`${endIso}T12:00:00`);
+  if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return null;
+  const diff = Math.round((b.getTime() - a.getTime()) / 86_400_000);
+  if (diff < 0) return null;
+  return diff + 1;
+}
+
+/**
+ * Label for the Days booked column: "5 work days" when the producer's working
+ * days are known, else calendar days ("3 days" / "1 day"), or "Not booked yet".
+ */
+export function formatMixBookedDaysLabel(
+  start?: string | null,
+  end?: string | null,
+  workDays?: number | null
+): string {
+  const days = inclusiveBookedDays(start, end);
+  if (days == null) return "Not booked yet";
+  if (workDays != null) {
+    return workDays === 1 ? "1 work day" : `${workDays} work days`;
+  }
+  return days === 1 ? "1 day" : `${days} days`;
+}
+
 export type DateRangeSpec =
   | {
       start?: string | Date | null;

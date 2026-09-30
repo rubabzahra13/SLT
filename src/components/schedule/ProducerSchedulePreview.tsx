@@ -407,7 +407,7 @@ export function ProducerSchedulePreview({
             <div className="max-h-[320px] overflow-y-auto p-1.5 lg:max-h-[480px]">
               {filteredProducerSummaries.length === 0 ? (
                 <p className="px-2 py-3 text-[12px] text-brand-ink-tertiary">
-                  No editors match your search.
+                  No producers match your search.
                 </p>
               ) : (
                 filteredProducerSummaries.map(({ name, mixCount, producerObj }) => {

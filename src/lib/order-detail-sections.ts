@@ -70,7 +70,7 @@ const ALL_STAR_CHEER_FIELDS: { title: string; fields: FieldDef[] }[] = [
   {
     title: "Mix information",
     fields: [
-      { key: "requestedEditor", label: "Requested editor", preserveCase: true },
+      { key: "requestedEditor", label: "Requested producer", preserveCase: true },
       { key: "packageType", label: "Package type", multiline: true },
       { key: "timeLengthOfMix", label: "Length of mix", preserveCase: true },
       { key: "musicAffiliate", label: "Music affiliate" },
@@ -146,7 +146,7 @@ const SCHOOL_CHEER_VIROC_YES_FIELDS: { title: string; fields: FieldDef[] }[] = [
   {
     title: "Mix information",
     fields: [
-      { key: "requestedEditor", label: "Requested editor", preserveCase: true },
+      { key: "requestedEditor", label: "Requested producer", preserveCase: true },
       { key: "packageType", label: "Package type", multiline: true },
       { key: "timeLengthOfMix", label: "Length of mix", preserveCase: true },
       { key: "splitOrNoSplit", label: "Split or No Split" },
@@ -223,7 +223,7 @@ const SCHOOL_CHEER_VIROC_NO_FIELDS: { title: string; fields: FieldDef[] }[] = [
   {
     title: "Mix information",
     fields: [
-      { key: "requestedEditor", label: "Requested editor", preserveCase: true },
+      { key: "requestedEditor", label: "Requested producer", preserveCase: true },
       { key: "packageType", label: "Package type", multiline: true },
       { key: "timeLengthOfMix", label: "Length of mix", preserveCase: true },
       { key: "splitOrNoSplit", label: "Split or No Split" },
@@ -355,7 +355,7 @@ const POM_DANCE_FIELDS: { title: string; fields: FieldDef[] }[] = [
         wide: true,
       },
       { key: "packageType", label: "Package type", multiline: true },
-      { key: "requestedEditor", label: "Requested editor", preserveCase: true },
+      { key: "requestedEditor", label: "Requested producer", preserveCase: true },
       { key: "timeLengthOfMix", label: "Time length of mix", preserveCase: true },
       { key: "musicAffiliate", label: "Music affiliate" },
       {
@@ -416,7 +416,7 @@ const HIP_HOP_DANCE_FIELDS: { title: string; fields: FieldDef[] }[] = [
         wide: true,
       },
       { key: "packageType", label: "Package type", multiline: true },
-      { key: "requestedEditor", label: "Requested editor", preserveCase: true },
+      { key: "requestedEditor", label: "Requested producer", preserveCase: true },
       { key: "timeLengthOfMix", label: "Time length of mix", preserveCase: true },
       { key: "musicAffiliate", label: "Music affiliate" },
       {
@@ -478,7 +478,7 @@ const TEAM_PERFORMANCE_VARIETY_DANCE_FIELDS: { title: string; fields: FieldDef[]
       },
       { key: "divisionOfTeam", label: "Division of Team", multiline: true },
       { key: "style", label: "Style" },
-      { key: "requestedEditor", label: "Requested editor", preserveCase: true },
+      { key: "requestedEditor", label: "Requested producer", preserveCase: true },
       { key: "packageType", label: "Package type", multiline: true },
       { key: "timeLengthOfMix", label: "Time length of mix", preserveCase: true },
       { key: "musicAffiliate", label: "Music affiliate" },
@@ -542,7 +542,7 @@ const GAMEDAY_DANCE_FIELDS: { title: string; fields: FieldDef[] }[] = [
       { key: "packageType", label: "Package type", multiline: true },
       { key: "styleOfGamedayMix", label: "Style of Gameday Mix" },
       { key: "timeLengthOfMix", label: "Time length of mix", preserveCase: true },
-      { key: "requestedEditor", label: "Requested editor", preserveCase: true },
+      { key: "requestedEditor", label: "Requested producer", preserveCase: true },
       { key: "musicAffiliate", label: "Music affiliate" },
       {
         key: "routineNotes",
@@ -603,7 +603,7 @@ const JAZZ_KICK_DANCE_FIELDS: { title: string; fields: FieldDef[] }[] = [
         wide: true,
       },
       { key: "style", label: "Style" },
-      { key: "requestedEditor", label: "Requested editor", preserveCase: true },
+      { key: "requestedEditor", label: "Requested producer", preserveCase: true },
       { key: "packageType", label: "Package type", multiline: true },
       { key: "timeLengthOfMix", label: "Time length of mix", preserveCase: true },
       {

@@ -10,6 +10,10 @@ type OrderRangeToggleProps = {
     all?: number;
     needToBeScheduled?: number;
     newOrders?: number;
+    assigned?: number;
+    notAssigned?: number;
+    reassignLeave?: number;
+    reassignRush?: number;
     reassigned?: number;
     waitingForData?: number;
   };
@@ -29,10 +33,23 @@ export function OrderRangeToggle({
     { id: "all", label: "All", count: counts?.all },
     {
       id: "need_to_be_scheduled",
-      label: "Complete",
+      label: "Complete data",
       count: counts?.needToBeScheduled ?? counts?.newOrders,
     },
-    { id: "reassigned", label: "Reassign", count: counts?.reassigned, isRed: true },
+    { id: "assigned", label: "Assigned", count: counts?.assigned },
+    { id: "not_assigned", label: "Not assigned", count: counts?.notAssigned },
+    {
+      id: "reassign_leave",
+      label: "Reassign: Leave",
+      count: counts?.reassignLeave,
+      isRed: true,
+    },
+    {
+      id: "reassign_rush",
+      label: "Reassign: Rush order",
+      count: counts?.reassignRush,
+      isRed: true,
+    },
     { id: "waiting_for_data", label: "Missing Data", count: counts?.waitingForData },
   ];
 
@@ -45,7 +62,9 @@ export function OrderRangeToggle({
       {options.map((opt) => {
         const active =
           value === opt.id ||
-          (value === ("new_orders" as any) && opt.id === "need_to_be_scheduled");
+          (value === ("new_orders" as any) && opt.id === "need_to_be_scheduled") ||
+          (value === ("reassigned" as any) &&
+            (opt.id === "reassign_leave" || opt.id === "reassign_rush"));
         return (
           <button
             key={opt.id}

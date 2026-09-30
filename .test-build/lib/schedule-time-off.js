@@ -16,6 +16,7 @@ const producer_time_off_2 = require("@/lib/producer-time-off");
 function previewTimeOffAssignees(producers, options) {
     const end = options.endDate || options.startDate;
     const reason = options.reason.trim();
+    const records = options.mtdRecords ?? [];
     const rows = [];
     for (const producer of producers) {
         if (!options.selectedIds.has(producer.id))
@@ -39,6 +40,17 @@ function previewTimeOffAssignees(producers, options) {
                 name: producer.name,
                 status: "already",
                 overtimeDates: [],
+            });
+            continue;
+        }
+        const mixConflicts = (0, producer_availability_1.findLeaveMixConflicts)(producer, options.startDate, end, records);
+        if (mixConflicts.length > 0) {
+            rows.push({
+                id: producer.id,
+                name: producer.name,
+                status: "mix",
+                overtimeDates: [],
+                mixLabels: mixConflicts.map((m) => m.programName),
             });
             continue;
         }

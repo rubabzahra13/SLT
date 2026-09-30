@@ -1,11 +1,10 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.suggestMixEndDate = void 0;
 exports.getNextAvailableSlot = getNextAvailableSlot;
 exports.formatSlotForDisplay = formatSlotForDisplay;
 exports.suggestMixStartDate = suggestMixStartDate;
-exports.suggestMixEndDate = suggestMixEndDate;
 const dates_1 = require("@/lib/dates");
-const package_1 = require("@/lib/package");
 const producer_schedule_calc_1 = require("@/lib/producer-schedule-calc");
 function getNextAvailableSlot(producerInitials, producers, schedule, mtdRecords = []) {
     const producer = producers.find((p) => p.initials === producerInitials ||
@@ -42,30 +41,5 @@ function suggestMixStartDate(producerInitials, producers, schedule, mtdRecords =
     const d = String(slot.dateObj.getDate()).padStart(2, "0");
     return `${y}-${m}-${d}`;
 }
-function mixWindowDays(packageStr) {
-    const { tier, limit } = (0, package_1.parsePackage)(packageStr);
-    const t = tier.toUpperCase();
-    if (t.includes("PLATINUM"))
-        return 7;
-    if (t.includes("GOLD"))
-        return 5;
-    if (t.includes("SILVER"))
-        return 4;
-    if (t.includes("HOMECOMING"))
-        return 3;
-    if (limit === "TBD")
-        return 6;
-    return 5;
-}
-/** Estimate mix end from start date and package tier. */
-function suggestMixEndDate(mixStartDate, packageStr) {
-    const start = (0, dates_1.parseFlexibleDate)(mixStartDate);
-    if (!start)
-        return "";
-    const end = new Date(start);
-    end.setDate(end.getDate() + mixWindowDays(packageStr));
-    const y = end.getFullYear();
-    const m = String(end.getMonth() + 1).padStart(2, "0");
-    const d = String(end.getDate()).padStart(2, "0");
-    return `${y}-${m}-${d}`;
-}
+var producer_availability_1 = require("@/lib/producer-availability");
+Object.defineProperty(exports, "suggestMixEndDate", { enumerable: true, get: function () { return producer_availability_1.suggestMixEndDate; } });

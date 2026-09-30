@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Eye, Lock, Pencil } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -14,7 +14,6 @@ import {
   InlineTriStateCheckGroup,
   InlineTwoStateToggle,
   InlineSelect,
-  InlineDateInput,
   InlineDanceVoiceoverPills,
   InlineCheerVoiceoverPills,
   InlineRushFeePills,
@@ -30,6 +29,7 @@ import { SetInvoiceModal } from "@/components/mtd/SetInvoiceModal";
 import { SetRecordPricingModal } from "@/components/mtd/SetRecordPricingModal";
 import { CompleteToPayrollModal } from "@/components/mtd/CompleteToPayrollModal";
 import { MoveToOrdersConfirmModal } from "@/components/mtd/MoveToOrdersConfirmModal";
+import { patchForReassignRush } from "@/lib/order-reassign";
 import {
   CompletionBlockedModal,
   type StatusBlockReason,
@@ -49,7 +49,6 @@ import {
   calculateSportsEntertainmentOrderPricing,
   calculateSchoolAnthemOrderPricing,
 } from "@/lib/pricing-engine";
-import { formatSlotForDisplay } from "@/lib/scheduling";
 import { inferMTDRecordStatus, patchFromRecordStatus } from "@/lib/mtd-status";
 import {
   canCompleteForPayroll,
@@ -57,7 +56,7 @@ import {
   getMTDBoardRecords,
   patchMoveToPayroll,
 } from "@/lib/mtd-completion";
-import { formatDisplayDate, isIsoDateBefore, toIsoDateString } from "@/lib/dates";
+import { formatDisplayDate, formatMixBookedDaysLabel, toIsoDateString } from "@/lib/dates";
 import { todayIso } from "@/lib/date-filters";
 import { generateMTDCsv, triggerCsvDownload } from "@/lib/export-csv";
 import {
@@ -65,9 +64,9 @@ import {
   findProducerByAssignmentKey,
   formatRequestedEditorLabel,
   getDisplayAssignedProducer,
-  getEditorBookedUntilIso,
   getRequestedEditorFromRecord,
-  isRequestedEditorUnavailableForMixWindow,
+  getRequestedEditorUnavailableReason,
+  mixWorkDaysForRecord,
   producerKeysMatch,
 } from "@/lib/editor-assignment";
 import {
@@ -76,7 +75,6 @@ import {
   countMTDByForm,
   filterMTDRecords,
   getRecordMusicAffiliateInfo,
-  hasMixStartDate,
   isMTDRecord,
   matchesAssignedProducerFilter,
   matchesFormFilter,
@@ -133,7 +131,6 @@ const clickableChipClass =
 const unavailableTagClass =
   "inline-flex items-center rounded-full bg-brand-warning/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.04em] text-brand-warning ring-1 ring-inset ring-brand-warning/25";
 
-const tableDateClass = "!w-auto min-w-[108px] max-w-full";
 const tableStatusSelectClass =
   "!h-8 !min-h-0 !w-auto min-w-[132px] max-w-full !py-0";
 const compactCellClass = "!px-1 !py-1 overflow-hidden";
@@ -144,7 +141,10 @@ function multilineTableCell(value: string, maxWidth = "180px") {
   if (!value?.trim()) {
     return (
       <span
-        className={clsx("mx-auto block w-full min-w-0 max-w-full truncate text-center", compactTextClass)}
+        className={clsx(
+          "mx-auto block w-full min-w-0 max-w-full text-center",
+          compactTextClass
+        )}
         style={{ maxWidth }}
       >
         —
@@ -154,12 +154,19 @@ function multilineTableCell(value: string, maxWidth = "180px") {
 
   const display = titleCase(value.replace(/\s+/g, " ").trim());
 
+  // Wrap long labels (e.g. Music "Songs For Cheer See Notes (CM)") instead of
+  // ellipsizing them in a narrow column.
   return (
-    <TruncatedText
-      text={display}
-      className={clsx("mx-auto block w-full min-w-0 max-w-full truncate text-center", compactTextClass)}
+    <span
+      className={clsx(
+        "mx-auto block w-full min-w-0 max-w-full whitespace-normal break-words text-center leading-snug",
+        compactTextClass
+      )}
       style={{ maxWidth }}
-    />
+      title={display}
+    >
+      {display}
+    </span>
   );
 }
 
@@ -175,6 +182,7 @@ function MTDPageContent() {
     secretMenuPrices,
     producers,
     schedule,
+    holidays,
     isViewOnly,
   } = useAppState();
   const [formState, setFormState] = useState<OrderFormType>(DEFAULT_FORM);
@@ -242,6 +250,7 @@ function MTDPageContent() {
   }, []);
 
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const assignedParam = searchParams.get("assigned");
   const scheduleParam = searchParams.get("schedule");
@@ -358,8 +367,12 @@ function MTDPageContent() {
       updateMTD(recordId, {
         editorRequest: result.editorRequest,
         assignedProducer: result.assignedProducer,
-        ...(result.mixStartDate ? { mixStartDate: result.mixStartDate } : {}),
-        ...(result.mixEndDate ? { mixEndDate: result.mixEndDate } : {}),
+        ...(result.mixStartDate !== undefined
+          ? { mixStartDate: result.mixStartDate }
+          : {}),
+        ...(result.mixEndDate !== undefined
+          ? { mixEndDate: result.mixEndDate }
+          : {}),
         ...(result.recordStatus
           ? {
               recordStatus: result.recordStatus,
@@ -375,9 +388,18 @@ function MTDPageContent() {
     (rec: MTDRecord, e: React.MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      setAssignRecordId(rec.id);
+      const assigned = Boolean(rec.assignedProducer?.trim());
+      if (isViewOnly || assigned) {
+        setAssignRecordId(rec.id);
+        return;
+      }
+      const query = searchParams.toString();
+      const returnTo = query ? `${pathname}?${query}` : pathname;
+      router.push(
+        `/mtd/${rec.id}/assign?return=${encodeURIComponent(returnTo)}`
+      );
     },
-    []
+    [isViewOnly, pathname, router, searchParams]
   );
 
   const handleMoveToOrders = useCallback(
@@ -392,21 +414,19 @@ function MTDPageContent() {
     [isViewOnly]
   );
 
-  const confirmMoveToOrders = useCallback(() => {
-    const rec = moveToOrdersRecord;
-    if (!rec || isViewOnly) return;
+  const confirmMoveToOrders = useCallback(
+    () => {
+      const rec = moveToOrdersRecord;
+      if (!rec || isViewOnly) return;
 
-    updateMTD(rec.id, {
-      inMTD: false,
-      isReassigned: true,
-      status: "active",
-      orderStatus: "Reassigned",
-      order_status: "Reassigned",
-    } as Partial<MTDRecord>);
-    setMoveToOrdersRecord(null);
-    // Jump to the Orders tab and highlight the row we just moved.
-    router.push(`/orders?focus=${encodeURIComponent(rec.id)}`);
-  }, [isViewOnly, moveToOrdersRecord, router, updateMTD]);
+      // Move to Orders from MTD always lands as Reassign: rush order with
+      // assignment/schedule cleared until the order is reassigned.
+      updateMTD(rec.id, patchForReassignRush());
+      setMoveToOrdersRecord(null);
+      router.push(`/orders?focus=${encodeURIComponent(rec.id)}`);
+    },
+    [isViewOnly, moveToOrdersRecord, router, updateMTD]
+  );
 
   const openInvoiceModal = useCallback(
     (rec: MTDRecord, e: React.MouseEvent) => {
@@ -707,16 +727,16 @@ function MTDPageContent() {
       {
         key: "themeF",
         header: "Music",
-        width: "100px",
+        width: "160px",
         align: "center" as const,
         nowrap: false,
-        cellClassName: clsx(compactCellClass, "max-w-[100px]"),
+        cellClassName: clsx(compactCellClass, "max-w-[160px]"),
         headerClassName: compactHeaderClass,
         render: (rec) => multilineTableCell(rec.musicTheme, "100%"),
       },
       {
         key: "chosenInitialsF",
-        header: "Requested editor",
+        header: "Requested producer",
         width: "100px",
         align: "center" as const,
         nowrap: false,
@@ -727,26 +747,20 @@ function MTDPageContent() {
           const label = formatRequestedEditorLabel(rec, producers, linked);
           const requested = getRequestedEditorFromRecord(rec, producers, linked);
           const isFa = label === "FA";
+          const unavailableReason =
+            !isFa && requested
+              ? getRequestedEditorUnavailableReason(
+                  rec,
+                  requested,
+                  producers,
+                  holidays
+                )
+              : null;
           const showUnavailable =
-            !isFa &&
-            requested &&
-            isRequestedEditorUnavailableForMixWindow(
-              rec,
-              requested,
-              mtdRecords,
-              producers
-            ) &&
+            Boolean(unavailableReason) &&
             (!rec.assignedProducer ||
-              !producerKeysMatch(rec.assignedProducer, requested));
-
-          const bookedUntil = requested
-            ? getEditorBookedUntilIso(requested, mtdRecords, rec.id)
-            : "";
-          const unavailableTitle = requested
-            ? bookedUntil
-              ? `${requested} booked till ${formatDisplayDate(bookedUntil)}`
-              : `${requested} is booked on other mixes`
-            : "Requested editor is unavailable";
+              !producerKeysMatch(rec.assignedProducer, requested as string));
+          const unavailableTitle = `${requested}: ${unavailableReason}`;
 
           return (
             <div className="inline-flex flex-col items-center gap-0.5">
@@ -924,36 +938,17 @@ function MTDPageContent() {
         cellClassName: "!px-2 !py-1.5",
         headerClassName: "!px-2",
         render: (rec) => {
-          const endIso = toIsoDateString(rec.mixEndDate ?? "");
-
+          const assigned = Boolean(getDisplayAssignedProducer(rec));
+          const startIso = assigned ? toIsoDateString(rec.mixStartDate) : "";
           return (
-            <InlineCell
-              centered
-              footer={
-                rec.assignedProducer && !hasMixStartDate(rec) ? (
-                  <span
-                    className="text-brand-ink-tertiary"
-                    title="Next available slot for this producer on the team schedule"
-                  >
-                    Next slot ·{" "}
-                    {formatSlotForDisplay(
-                      rec.assignedProducer,
-                      producers,
-                      schedule,
-                      mtdRecords
-                    )}
-                  </span>
-                ) : null
-              }
+            <span
+              className={clsx(
+                "mx-auto block text-center tabular-nums text-[12px] font-medium",
+                startIso ? "text-brand-ink" : "text-brand-ink-tertiary"
+              )}
             >
-              <InlineDateInput
-                value={rec.mixStartDate}
-                max={endIso || undefined}
-                readOnly={isViewOnly}
-                className={tableDateClass}
-                onChange={(v) => updateMTD(rec.id, { mixStartDate: v })}
-              />
-            </InlineCell>
+              {startIso ? formatDisplayDate(startIso) : "Assign producer to set"}
+            </span>
           );
         },
       },
@@ -966,27 +961,51 @@ function MTDPageContent() {
         cellClassName: "!px-2 !py-1.5",
         headerClassName: "!px-2",
         render: (rec) => {
-          const startIso = toIsoDateString(rec.mixStartDate);
-
+          const assigned = Boolean(getDisplayAssignedProducer(rec));
+          const endIso = assigned
+            ? toIsoDateString(rec.mixEndDate ?? "")
+            : "";
           return (
-            <InlineCell centered>
-              <InlineDateInput
-                value={rec.mixEndDate ?? ""}
-                min={startIso || undefined}
-                readOnly={isViewOnly}
-                className={tableDateClass}
-                onChange={(v) => {
-                  if (!v) {
-                    updateMTD(rec.id, { mixEndDate: v });
-                    return;
-                  }
-                  if (startIso && isIsoDateBefore(v, startIso)) {
-                    return;
-                  }
-                  updateMTD(rec.id, { mixEndDate: v });
-                }}
-              />
-            </InlineCell>
+            <span
+              className={clsx(
+                "mx-auto block text-center tabular-nums text-[12px] font-medium",
+                endIso ? "text-brand-ink" : "text-brand-ink-tertiary"
+              )}
+            >
+              {endIso ? formatDisplayDate(endIso) : "Assign producer to set"}
+            </span>
+          );
+        },
+      },
+      {
+        key: "daysBooked",
+        header: "Days booked",
+        width: "120px",
+        align: "center" as const,
+        nowrap: false,
+        cellClassName: clsx(compactCellClass, "max-w-[120px]"),
+        headerClassName: compactHeaderClass,
+        render: (rec) => {
+          const label =
+            getDisplayAssignedProducer(rec) &&
+            toIsoDateString(rec.mixStartDate) &&
+            toIsoDateString(rec.mixEndDate ?? "")
+              ? formatMixBookedDaysLabel(
+                  rec.mixStartDate,
+                  rec.mixEndDate,
+                  mixWorkDaysForRecord(rec, producers, holidays)
+                )
+              : "Not booked yet";
+          const booked = label !== "Not booked yet";
+          return (
+            <span
+              className={clsx(
+                "mx-auto block text-center text-[12px] font-medium",
+                booked ? "text-brand-ink" : "text-brand-ink-tertiary"
+              )}
+            >
+              {label}
+            </span>
           );
         },
       },
@@ -1175,7 +1194,7 @@ function MTDPageContent() {
     baseCols.push(
       {
         key: "editorB",
-        header: "Editor",
+        header: "Assigned producer",
         width: "100px",
         align: "center",
         nowrap: false,
@@ -1208,11 +1227,11 @@ function MTDPageContent() {
                 </button>
               ) : (
                 <span
-                  title="Editors are assigned on the Orders tab"
+                  title="Producers are assigned on the Orders tab"
                   className="inline-flex items-center gap-1 rounded-md border border-brand-line/70 bg-brand-bg/50 px-2 py-1 text-[10px] font-medium text-brand-ink-tertiary"
                 >
                   <Lock className="h-3 w-3" strokeWidth={2} />
-                  No editor
+                  No producer
                 </span>
               )}
             </div>
@@ -1350,6 +1369,7 @@ function MTDPageContent() {
     mtdRecords,
     producers,
     schedule,
+    holidays,
     openAssignModal,
     openInvoiceModal,
     openPricingModal,
@@ -1357,11 +1377,11 @@ function MTDPageContent() {
 );
 
   return (
-    <>
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <PageHeader
         title="Music To Do"
         badge={`${filtered.length} of ${mtdBoardRecords.length}`}
-        subtitle="Assign editors, set pricing, and track mix progress"
+        subtitle="Assign producers, set pricing, and track mix progress"
         action={{
           label: "Pricing",
           onClick: () => setPricingOpen(true),
@@ -1403,7 +1423,7 @@ function MTDPageContent() {
         }
       />
 
-      <div className="px-6 pb-6 pt-5 lg:px-8">
+      <div className="min-h-0 flex-1 overflow-auto px-6 pb-6 pt-5 lg:px-8">
         <div className="dashboard-panel dashboard-panel-framed overflow-hidden">
           <DataTable
             key={`${form}-${cheerSubtype}-${danceSubtype}-${tableFilterKey}`}
@@ -1428,6 +1448,7 @@ function MTDPageContent() {
         allOrders={allOrders}
         producers={producers}
         schedule={schedule}
+        studioHolidays={holidays}
         readOnly={isViewOnly || Boolean(assignRecord?.assignedProducer?.trim())}
         onClose={() => setAssignRecordId(null)}
         onAssign={handleAssign}
@@ -1492,7 +1513,7 @@ function MTDPageContent() {
         onClose={() => setMoveToOrdersRecord(null)}
         onConfirm={confirmMoveToOrders}
       />
-    </>
+    </div>
   );
 }
 

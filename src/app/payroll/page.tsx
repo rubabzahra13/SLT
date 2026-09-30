@@ -509,7 +509,7 @@ export default function PayrollPage() {
       },
       {
         key: "editor",
-        header: "Editor",
+        header: "Assigned producer",
         width: "96px",
         align: "center",
         cellClassName: "!px-2 !py-1.5",
@@ -902,7 +902,7 @@ export default function PayrollPage() {
         subtitle={
           pageTab === "view"
             ? "Completed mixes ready for payout"
-            : "Filter editors, preview statements, and send via Gmail"
+            : "Filter producers, preview statements, and send via Gmail"
         }
         tabs={
           <Tabs

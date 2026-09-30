@@ -56,12 +56,21 @@ export function stagingRecordFromOrder(
     invoice: "",
     mixStartDate: order.mixStartDate || "",
     mixEndDate: order.mixEndDate || "",
-    eightCountSheet: order.eightCountSheet || "NEED CS",
-    haveSongs: order.haveSongs || "NEED SONGS",
+    // Do not default to NEED * — that forces Missing data even when songs /
+    // CS are present on the order via songListSuggestions / sheets fields.
+    eightCountSheet:
+      order.eightCountSheet ||
+      order.sendingEightCountSheets ||
+      order.usingEightCountSheets ||
+      "",
+    haveSongs: order.haveSongs || (order as any).have_songs || "",
     needsAttention: order.needsAttention ?? true,
     status: order.needsAttention ? "needs_attention" : "active",
     inMTD: false,
     isReassigned: order.isReassigned,
+    missingDataEmailSentAt: order.missingDataEmailSentAt,
+    producerEmailSentAt: order.producerEmailSentAt,
+    producerEmailSentTo: order.producerEmailSentTo,
     collectionStates: order.collectionStates || (order as any).collection_states,
     orderStatus: (order as any).orderStatus || (order as any).order_status,
     musicAffiliate: order.musicAffiliate || (order as any).music_affiliate,

@@ -23,6 +23,10 @@ type MTDPageToolbarProps = {
   allOrdersCount?: number;
   needToBeScheduledCount?: number;
   newOrdersCount?: number;
+  assignedOrdersCount?: number;
+  notAssignedOrdersCount?: number;
+  reassignLeaveOrdersCount?: number;
+  reassignRushOrdersCount?: number;
   reassignedOrdersCount?: number;
   waitingForDataCount?: number;
   onFormChange: (form: OrderFormType) => void;
@@ -49,6 +53,10 @@ export function MTDPageToolbar({
   allOrdersCount,
   needToBeScheduledCount,
   newOrdersCount,
+  assignedOrdersCount,
+  notAssignedOrdersCount,
+  reassignLeaveOrdersCount,
+  reassignRushOrdersCount,
   reassignedOrdersCount,
   waitingForDataCount,
   onFormChange,
@@ -113,6 +121,10 @@ export function MTDPageToolbar({
                 all: allOrdersCount,
                 needToBeScheduled: needToBeScheduledCount ?? newOrdersCount,
                 newOrders: newOrdersCount,
+                assigned: assignedOrdersCount,
+                notAssigned: notAssignedOrdersCount,
+                reassignLeave: reassignLeaveOrdersCount,
+                reassignRush: reassignRushOrdersCount,
                 reassigned: reassignedOrdersCount,
                 waitingForData: waitingForDataCount,
               }}

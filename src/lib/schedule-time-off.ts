@@ -1,6 +1,7 @@
 import {
   effectiveWorkDays,
   expandTimeOffDates,
+  findLeaveMixConflicts,
   isEligibleOvertimeDate,
   overtimeDatesInRange,
   timeOffRangeCoversWorkDay,
@@ -10,19 +11,22 @@ import {
   isStudioHolidayIso,
   type StudioHoliday,
 } from "@/lib/producer-time-off";
-import type { Producer, ProducerTimeOff } from "@/types";
+import type { MTDRecord, Producer, ProducerTimeOff } from "@/types";
 
 export type TimeOffAssigneeStatus =
   | "apply"
   | "already"
   | "nonwork"
-  | "overtime";
+  | "overtime"
+  | "mix";
 
 export type TimeOffAssigneePreview = {
   id: string;
   name: string;
   status: TimeOffAssigneeStatus;
   overtimeDates: string[];
+  /** Program names of Ongoing mixes that overlap the leave range. */
+  mixLabels?: string[];
 };
 
 export function previewTimeOffAssignees(
@@ -33,10 +37,12 @@ export function previewTimeOffAssignees(
     type: "holiday" | "personal";
     reason: string;
     selectedIds: ReadonlySet<string>;
+    mtdRecords?: MTDRecord[];
   }
 ): TimeOffAssigneePreview[] {
   const end = options.endDate || options.startDate;
   const reason = options.reason.trim();
+  const records = options.mtdRecords ?? [];
   const rows: TimeOffAssigneePreview[] = [];
 
   for (const producer of producers) {
@@ -67,6 +73,23 @@ export function previewTimeOffAssignees(
         name: producer.name,
         status: "already",
         overtimeDates: [],
+      });
+      continue;
+    }
+
+    const mixConflicts = findLeaveMixConflicts(
+      producer,
+      options.startDate,
+      end,
+      records
+    );
+    if (mixConflicts.length > 0) {
+      rows.push({
+        id: producer.id,
+        name: producer.name,
+        status: "mix",
+        overtimeDates: [],
+        mixLabels: mixConflicts.map((m) => m.programName),
       });
       continue;
     }

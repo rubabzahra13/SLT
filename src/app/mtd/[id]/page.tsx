@@ -26,7 +26,9 @@ import {
 import { MTDOrderDetails, formatDetailDisplay } from "@/components/mtd/MTDOrderDetails";
 import { SetRecordPricingModal } from "@/components/mtd/SetRecordPricingModal";
 import { SetPricingModal } from "@/components/mtd/SetPricingModal";
+import { useMixDateCalendarRules } from "@/components/mtd/useMixDateCalendarRules";
 import { useAppState } from "@/context/AppStateContext";
+import { toIsoDateString } from "@/lib/dates";
 import { formatPrice } from "@/lib/data";
 import { orderFromMTDRecord, rawFieldValue } from "@/lib/order-detail-fields";
 import { getOrderDetailSections } from "@/lib/order-detail-sections";
@@ -103,6 +105,7 @@ export default function MTDDetailPage({
     setSecretMenuPrices,
     producers,
     schedule,
+    holidays,
     discountCodes,
     isViewOnly,
     isLoading,
@@ -139,6 +142,17 @@ export default function MTDDetailPage({
     if (!rec?.assignedProducer) return undefined;
     return findProducerByAssignmentKey(rec.assignedProducer, producers);
   }, [rec, producers]);
+
+  const mixDateRules = useMixDateCalendarRules({
+    record: rec,
+    producer: assignedProducerObj,
+    mixStartDate:
+      spreadsheetDraft?.mixStartDate ?? rec?.mixStartDate ?? "",
+    producers,
+    mtdRecords,
+    allOrders,
+    studioHolidays: holidays,
+  });
 
   const formLabel = ORDER_FORM_TABS.find((tab) => tab.id === order?.formType)?.label;
 
@@ -308,17 +322,11 @@ export default function MTDDetailPage({
   const meta = resolveMTDFormMeta(rec, orderById);
 
   const handleMixStartChange = (next: string) => {
-    let nextEnd = sheet.mixEndDate || rec.mixEndDate;
-    if (next && !nextEnd) {
-      const d = new Date(next);
-      d.setDate(d.getDate() + 7);
-      nextEnd = d.toISOString().slice(0, 10);
-    }
     if (spreadsheetEditing) {
-      updateSpreadsheetDraft({ mixStartDate: next, mixEndDate: nextEnd ?? "" });
+      updateSpreadsheetDraft({ mixStartDate: next });
       return;
     }
-    patchMTD({ mixStartDate: next, mixEndDate: nextEnd });
+    patchMTD({ mixStartDate: next });
   };
 
   const handleMixEndChange = (next: string) => {
@@ -439,6 +447,9 @@ export default function MTDDetailPage({
                     readOnly={isViewOnly}
                     onChange={handleMixStartChange}
                     className="min-h-[30px] min-w-0 flex-1 py-1"
+                    isDateDisabled={mixDateRules.isDateDisabled}
+                    dayTitle={mixDateRules.dayTitle}
+                    dayTone={mixDateRules.dayTone}
                   />
                   {slotLabel ? (
                     <span className="hidden max-w-[128px] truncate text-[10px] font-medium text-brand-signature xl:inline">
@@ -457,6 +468,11 @@ export default function MTDDetailPage({
                   readOnly={isViewOnly}
                   onChange={handleMixEndChange}
                   className="min-h-[30px] min-w-0 flex-1 py-1"
+                  template={mixDateRules.suggestedEndIso || undefined}
+                  min={toIsoDateString(sheet.mixStartDate) || undefined}
+                  isDateDisabled={mixDateRules.isDateDisabled}
+                  dayTitle={mixDateRules.dayTitle}
+                  dayTone={mixDateRules.dayTone}
                 />
               </div>
             </div>
@@ -645,6 +661,7 @@ export default function MTDDetailPage({
         allOrders={allOrders}
         producers={producers}
         schedule={schedule}
+        studioHolidays={holidays}
         readOnly={isViewOnly || Boolean(rec?.assignedProducer?.trim())}
         onClose={() => setAssignOpen(false)}
         onAssign={handleAssign}

@@ -65,8 +65,9 @@ export function MoveToOrdersConfirmModal({
             Move to Orders?
           </h2>
           <p className="mt-2 text-[13px] leading-relaxed text-brand-ink-secondary">
-            {titleCase(record.programName)} will move back to the Orders tab for
-            reschedule and reassign.
+            {titleCase(record.programName)} will move to{" "}
+            <span className="font-semibold text-brand-ink">Reassign: Rush order</span>{" "}
+            on the Orders tab. Assignment and schedule will be cleared.
           </p>
         </div>
 
@@ -97,13 +98,10 @@ export function MoveToOrdersConfirmModal({
           </button>
           <button
             type="button"
-            onClick={() => {
-              onConfirm();
-              onClose();
-            }}
+            onClick={onConfirm}
             className="py-3.5 text-[15px] font-semibold text-brand-signature transition hover:bg-brand-blue-soft/40"
           >
-            Move to Orders
+            Move
           </button>
         </div>
       </div>

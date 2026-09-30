@@ -375,6 +375,14 @@ function AppStateProvider({ children }) {
                 if (patch.editorRequest === "NA" || patch.assignedProducer === null) {
                     updated.assignedProducer = null;
                     apiPatch = { ...apiPatch, assignedProducer: null };
+                    if (patch.mixStartDate === undefined) {
+                        updated.mixStartDate = "";
+                        apiPatch = { ...apiPatch, mixStartDate: "" };
+                    }
+                    if (patch.mixEndDate === undefined) {
+                        updated.mixEndDate = undefined;
+                        apiPatch = { ...apiPatch, mixEndDate: undefined };
+                    }
                 }
                 else if (patch.assignedProducer !== undefined) {
                     const resolved = (0, editor_assignment_1.resolveAssignedProducerForPatch)(patch.assignedProducer, producers, updated.category);
