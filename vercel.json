@@ -4,6 +4,7 @@
   "installCommand": "npm install",
   "buildCommand": "npm run build",
   "devCommand": "npm run dev",
+  "regions": ["syd1"],
   "functions": {
     "api/index.py": {
       "maxDuration": 60,

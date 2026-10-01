@@ -9,11 +9,13 @@ from app.api.pricing import router as pricing_router
 from app.api.gmail import router as gmail_router
 from app.api.payroll_addons import router as payroll_addons_router
 from app.api.studio_settings import router as studio_settings_router
+from app.api.bootstrap import router as bootstrap_router
 
 api_router = APIRouter()
 api_router.include_router(health_router, tags=["health"])
 api_router.include_router(health_router, prefix="/api", tags=["health"])
 api_router.include_router(auth_router, prefix="/api", tags=["auth"])
+api_router.include_router(bootstrap_router, prefix="/api", tags=["bootstrap"])
 api_router.include_router(producers_router, prefix="/api", tags=["producers"])
 api_router.include_router(orders_router, prefix="/api", tags=["orders"])
 api_router.include_router(mtd_router, prefix="/api", tags=["mtd"])

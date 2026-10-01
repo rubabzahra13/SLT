@@ -1,4 +1,4 @@
-import { apiClient, ApiClientError } from "./client";
+import { apiClient } from "./client";
 import type { Order, OrderFormType, CheerFormSubtype, DanceFormSubtype } from "@/types";
 
 export interface BackendOrder {
@@ -263,10 +263,7 @@ export async function updateOrderApi(
     const res = await apiClient.patch<BackendOrder>(`/api/orders/${id}`, payload);
     return transformOrder(res);
   } catch (err) {
-    if (err instanceof ApiClientError) {
-      console.warn(`Order ${id} update not persisted to backend (${err.message}). Local update retained.`);
-      return { id, ...patch } as Order;
-    }
+    // Never fake success — callers must handle failure or the UI lies.
     throw err;
   }
 }

@@ -12,44 +12,36 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Skip DDL on Vercel/serverless with Postgres — schema is managed via Alembic on Supabase.
-    # Create tables if running against SQLite fallback.
+    # Schema is owned by Alembic. Never run DDL on Vercel cold starts —
+    # it adds multi-second latency and fights the connection pooler.
+    if os.getenv("VERCEL"):
+        yield
+        return
+
+    # Local / SQLite: create tables and apply lightweight column patches.
     if USING_SQLITE_FALLBACK or not os.getenv("VERCEL"):
         try:
             Base.metadata.create_all(bind=engine)
         except Exception as exc:
             logger.warning("Skipping create_all during startup: %s", exc)
 
-    # Ensure is_reassigned and collection_states columns exist on existing orders and mtd_records tables
     try:
         from sqlalchemy import text
         with engine.begin() as conn:
             if engine.dialect.name == "sqlite":
                 for table in ["orders", "mtd_records"]:
-                    try:
-                        conn.execute(text(f"ALTER TABLE {table} ADD COLUMN is_reassigned BOOLEAN DEFAULT 0"))
-                    except Exception:
-                        pass
-                    try:
-                        conn.execute(text(f"ALTER TABLE {table} ADD COLUMN collection_states TEXT"))
-                    except Exception:
-                        pass
-                    try:
-                        conn.execute(text(f"ALTER TABLE {table} ADD COLUMN order_status VARCHAR"))
-                    except Exception:
-                        pass
-                    try:
-                        conn.execute(text(f"ALTER TABLE {table} ADD COLUMN missing_data_email_sent_at DATETIME"))
-                    except Exception:
-                        pass
-                    try:
-                        conn.execute(text(f"ALTER TABLE {table} ADD COLUMN producer_email_sent_at DATETIME"))
-                    except Exception:
-                        pass
-                    try:
-                        conn.execute(text(f"ALTER TABLE {table} ADD COLUMN producer_email_sent_to VARCHAR"))
-                    except Exception:
-                        pass
+                    for stmt in (
+                        f"ALTER TABLE {table} ADD COLUMN is_reassigned BOOLEAN DEFAULT 0",
+                        f"ALTER TABLE {table} ADD COLUMN collection_states TEXT",
+                        f"ALTER TABLE {table} ADD COLUMN order_status VARCHAR",
+                        f"ALTER TABLE {table} ADD COLUMN missing_data_email_sent_at DATETIME",
+                        f"ALTER TABLE {table} ADD COLUMN producer_email_sent_at DATETIME",
+                        f"ALTER TABLE {table} ADD COLUMN producer_email_sent_to VARCHAR",
+                    ):
+                        try:
+                            conn.execute(text(stmt))
+                        except Exception:
+                            pass
             else:
                 conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS is_reassigned BOOLEAN DEFAULT FALSE;"))
                 conn.execute(text("ALTER TABLE mtd_records ADD COLUMN IF NOT EXISTS is_reassigned BOOLEAN DEFAULT FALSE;"))
@@ -64,49 +56,9 @@ async def lifespan(app: FastAPI):
                 conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS producer_email_sent_to VARCHAR;"))
                 conn.execute(text("ALTER TABLE mtd_records ADD COLUMN IF NOT EXISTS producer_email_sent_to VARCHAR;"))
                 conn.execute(text("ALTER TABLE producers ADD COLUMN IF NOT EXISTS max_producer_cost_per_day INTEGER;"))
-                conn.execute(text("""
-                    CREATE TABLE IF NOT EXISTS studio_holidays (
-                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                        legacy_id VARCHAR,
-                        name VARCHAR NOT NULL,
-                        start_date VARCHAR NOT NULL,
-                        end_date VARCHAR NOT NULL,
-                        applies_to_all BOOLEAN NOT NULL DEFAULT TRUE,
-                        producer_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
-                        sort_order INTEGER NOT NULL DEFAULT 0,
-                        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-                        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-                    );
-                """))
-                conn.execute(text("""
-                    CREATE TABLE IF NOT EXISTS studio_personal_reasons (
-                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                        legacy_id VARCHAR,
-                        name VARCHAR NOT NULL,
-                        enabled BOOLEAN NOT NULL DEFAULT TRUE,
-                        is_other BOOLEAN NOT NULL DEFAULT FALSE,
-                        sort_order INTEGER NOT NULL DEFAULT 0,
-                        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-                        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-                    );
-                """))
-                conn.execute(text("""
-                    CREATE TABLE IF NOT EXISTS email_templates (
-                        id VARCHAR PRIMARY KEY,
-                        subject TEXT NOT NULL DEFAULT '',
-                        greeting TEXT NOT NULL DEFAULT '',
-                        intro TEXT NOT NULL DEFAULT '',
-                        footer TEXT NOT NULL DEFAULT '',
-                        signature TEXT NOT NULL DEFAULT '',
-                        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-                        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-                    );
-                """))
     except Exception as exc:
         logger.warning("Auto-migration check skipped/failed: %s", exc)
 
-    # When running against the local SQLite fallback, seed the sample users so
-    # the frontend's offline session tokens authenticate.
     if USING_SQLITE_FALLBACK:
         from app.core.seed import seed_sample_users
 

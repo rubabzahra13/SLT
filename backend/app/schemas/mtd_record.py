@@ -77,7 +77,8 @@ class MTDRecordSchema(BaseModel):
         return None
 
 class MTDRecordCreateSchema(BaseModel):
-    order_id: Optional[UUID] = None
+    # Accept UUID or legacy_id string; resolved to UUID in the API layer.
+    order_id: Optional[Any] = None
     section: Optional[str] = "CHEERLEADING MUSIC"
     category: str
     contact_name: str

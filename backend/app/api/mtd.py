@@ -79,6 +79,19 @@ def create_mtd_record(payload: MTDRecordCreateSchema, db: Session = Depends(get_
     data = payload.model_dump()
     order_id = data.get("order_id")
 
+    # Resolve legacy order ids to the real UUID FK before insert.
+    if order_id is not None:
+        from app.api.orders import _find_order
+
+        linked = _find_order(db, str(order_id))
+        if linked:
+            data["order_id"] = linked.id
+            order_id = linked.id
+        elif not isinstance(order_id, uuid.UUID):
+            # Non-UUID that didn't resolve — omit FK rather than 422.
+            data["order_id"] = None
+            order_id = None
+
     # If an MTD record already exists for this order_id, update it instead of duplicating
     existing_mtd = None
     if order_id:

@@ -5,6 +5,9 @@ export const API_BASE_URL =
       ? ""
       : "http://localhost:8001";
 
+/** Default request timeout — shorter than Vercel maxDuration so UI can recover. */
+export const API_TIMEOUT_MS = 20_000;
+
 export class ApiClientError extends Error {
   public status: number;
   public data: unknown;
@@ -17,7 +20,7 @@ export class ApiClientError extends Error {
   }
 }
 
-const BACKEND_UNAVAILABLE_MESSAGE = `Backend unavailable at ${API_BASE_URL}. Is the server running on port 8001?`;
+const BACKEND_UNAVAILABLE_MESSAGE = `Backend unavailable at ${API_BASE_URL || "/api"}. Is the server running?`;
 
 function isNetworkFetchFailure(err: unknown): boolean {
   if (!(err instanceof Error)) return false;
@@ -46,32 +49,43 @@ export function formatApiClientError(
   return err instanceof Error ? err.message : fallback;
 }
 
-async function request<T>(
+function authHeaderFromStorage(): string {
+  if (typeof window === "undefined") return "Bearer token-usr-megan";
+  try {
+    const rawSession = localStorage.getItem("slt_auth_session");
+    if (rawSession) {
+      const parsed = JSON.parse(rawSession);
+      if (parsed?.token) return `Bearer ${parsed.token}`;
+    }
+  } catch {
+    // ignore corrupt session
+  }
+  return "Bearer token-usr-megan";
+}
+
+async function requestOnce<T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit,
+  timeoutMs: number
 ): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-  let authHeader = "";
-  if (typeof window !== "undefined") {
-    try {
-      const rawSession = localStorage.getItem("slt_auth_session");
-      if (rawSession) {
-        const parsed = JSON.parse(rawSession);
-        if (parsed?.token) {
-          authHeader = `Bearer ${parsed.token}`;
-        }
-      }
-    } catch {}
-  }
-
-  if (!authHeader) {
-    authHeader = "Bearer token-usr-megan";
+  // Honor caller abort while still applying our timeout.
+  const callerSignal = options.signal;
+  if (callerSignal) {
+    if (callerSignal.aborted) controller.abort();
+    else {
+      callerSignal.addEventListener("abort", () => controller.abort(), {
+        once: true,
+      });
+    }
   }
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    ...(authHeader ? { Authorization: authHeader } : {}),
+    Authorization: authHeaderFromStorage(),
     ...(options.headers as Record<string, string>),
   };
 
@@ -80,6 +94,7 @@ async function request<T>(
       cache: "no-store",
       ...options,
       headers,
+      signal: controller.signal,
     });
 
     if (!response.ok) {
@@ -99,11 +114,7 @@ async function request<T>(
       ) {
         errorMessage = (errorData as { detail: string }).detail;
       }
-      throw new ApiClientError(
-        errorMessage,
-        response.status,
-        errorData
-      );
+      throw new ApiClientError(errorMessage, response.status, errorData);
     }
 
     if (response.status === 204) {
@@ -112,8 +123,9 @@ async function request<T>(
 
     return (await response.json()) as T;
   } catch (err) {
-    if (err instanceof ApiClientError) {
-      throw err;
+    if (err instanceof ApiClientError) throw err;
+    if (err instanceof Error && err.name === "AbortError") {
+      throw new ApiClientError(`Request timed out after ${timeoutMs}ms`, 0);
     }
     throw new ApiClientError(
       isNetworkFetchFailure(err)
@@ -123,6 +135,26 @@ async function request<T>(
           : "Network error connecting to backend",
       0
     );
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+async function request<T>(
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<T> {
+  try {
+    return await requestOnce<T>(endpoint, options, API_TIMEOUT_MS);
+  } catch (err) {
+    // One retry for cold-start / transient network failures only.
+    if (
+      err instanceof ApiClientError &&
+      (err.status === 0 || err.status === 503 || err.status === 504)
+    ) {
+      return requestOnce<T>(endpoint, options, API_TIMEOUT_MS);
+    }
+    throw err;
   }
 }
 

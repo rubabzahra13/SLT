@@ -1,4 +1,4 @@
-import { apiClient, ApiClientError } from "./client";
+import { apiClient } from "./client";
 import type { MTDRecord, PriceCompliance, EditorRequest, MTDRecordStatus, Order } from "@/types";
 import { transformOrder, type BackendOrder } from "./orders";
 
@@ -125,8 +125,12 @@ export async function fetchMTDRecordsApi(): Promise<MTDRecord[]> {
 }
 
 export async function createMTDRecordApi(record: Partial<MTDRecord>): Promise<MTDRecord> {
+  // Prefer UUID; backend also resolves legacy_id strings.
+  const orderRef =
+    (record as { orderUuid?: string }).orderUuid || record.orderId || null;
+
   const payload = {
-    order_id: record.orderId || null,
+    order_id: orderRef,
     section: record.section || "CHEERLEADING MUSIC",
     category: record.category || "Cheer",
     contact_name: record.contactName || "",
@@ -220,10 +224,7 @@ export async function updateMTDRecordApi(
     const res = await apiClient.patch<BackendMTDRecord>(`/api/mtd/${id}`, payload);
     return transformMTDRecord(res);
   } catch (err) {
-    if (err instanceof ApiClientError) {
-      console.warn(`MTD Record ${id} update not persisted to backend (${err.message}). Local update retained.`);
-      return { id, ...patch } as MTDRecord;
-    }
+    // Never fake success — callers must handle failure or the UI lies.
     throw err;
   }
 }
@@ -317,43 +318,7 @@ export async function createManualScheduleEntryApi(
     const res = await apiClient.post<BackendOrder>("/api/mtd/manual-schedule", body);
     return transformOrder(res);
   } catch (err) {
-    if (err instanceof ApiClientError) {
-      console.warn("Backend unavailable for manual schedule entry; falling back to local Order.");
-    }
-    const tempId = `order-manual-${Date.now()}`;
-    return {
-      id: tempId,
-      uuid: tempId,
-      formType: ((payload.formType || payload.form_type) as any) || "school-all-star-cheer",
-      cheerFormSubtype: (payload.cheerFormSubtype || payload.cheer_form_subtype) as any,
-      danceFormSubtype: (payload.danceFormSubtype || payload.dance_form_subtype) as any,
-      customerName: contact || program || schoolProgram || "Customer",
-      contactName: contact || "",
-      programName: program || "",
-      schoolProgramName: schoolProgram || "",
-      category: payload.category || "Cheer",
-      package: payload.package || "Standard",
-      musicTheme: "",
-      editorRequest: "FA",
-      requestedProducer: "",
-      mixStartDate: startDate,
-      mixEndDate: endDate,
-      assignedProducer: producer,
-      orderStatus: "Complete",
-      status: "new",
-      price: 0,
-      routineNotes: payload.routineNotes || payload.routine_notes || "",
-      musicAffiliate: payload.musicAffiliate || payload.music_affiliate || "",
-      timeLengthOfMix: payload.timeLengthOfMix || payload.time_length_of_mix || "",
-      songListSuggestions: payload.songListSuggestions || payload.song_list_suggestions || "",
-      customVoiceovers: payload.customVoiceovers || payload.custom_voiceovers || "",
-      eightCountSheet: (payload.eightCountSheet || payload.eight_count_sheet) as any,
-      createdAt: new Date().toISOString(),
-      completedAt: null,
-      needsAttention: false,
-      attentionReason: null,
-      missingDataEmailSentAt: null,
-      isReassigned: false,
-    };
+    // Do not invent a local-only order that will never appear in production.
+    throw err;
   }
 }

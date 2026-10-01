@@ -59,6 +59,12 @@ if db_url:
             connect_args=_PG_CONNECT_ARGS,
         )
     USING_SQLITE_FALLBACK = False
+elif os.getenv("VERCEL"):
+    # Never silently fall back to ephemeral SQLite on Vercel — writes would vanish.
+    raise RuntimeError(
+        "DATABASE_URL is not configured on Vercel. "
+        "Set DATABASE_URL (or RUNTIME_DATABASE_URL) to the Supabase pooler URL."
+    )
 else:
     # Local development fallback: file-based SQLite so the backend can run
     # without a configured Supabase/Postgres database. This is what enables

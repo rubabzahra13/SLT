@@ -58,37 +58,30 @@ import { inferMTDRecordStatus } from "@/lib/mtd-status";
 import { toIsoDateString } from "@/lib/dates";
 import { ApiClientError } from "@/lib/api/client";
 import {
-  fetchProducersApi,
   createProducerApi,
   resolveProducerApiId,
   updateProducerApi,
   deleteProducerApi,
-  fetchOrdersApi,
   createOrderApi,
   updateOrderApi,
-  fetchMTDRecordsApi,
   createMTDRecordApi,
   updateMTDRecordApi,
-  fetchDiscountCodesApi,
   createDiscountCodeApi,
   updateDiscountCodeApi,
   deleteDiscountCodeApi,
-  fetchPayrollAddonsApi,
   createPayrollAddonApi,
   deletePayrollAddonApi,
   type CreatePayrollAddonPayload,
   createManualScheduleEntryApi,
   type CreateManualSchedulePayload,
-  fetchStudioHolidaysApi,
   createStudioHolidayApi,
   updateStudioHolidayApi,
   deleteStudioHolidayApi,
-  fetchStudioPersonalReasonsApi,
   createStudioPersonalReasonApi,
   updateStudioPersonalReasonApi,
   deleteStudioPersonalReasonApi,
-  fetchEmailTemplatesApi,
   upsertEmailTemplateApi,
+  fetchBootstrapApi,
 } from "@/lib/api";
 
 type AppStateContextValue = {
@@ -307,72 +300,35 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
   const schedule = seed.schedule;
 
-  // Load data from FastAPI Backend on Mount
+  // Load data from FastAPI Backend on Mount — one bootstrap request, not 8 cold starts.
   useEffect(() => {
     let isMounted = true;
+    let loadGen = 0;
 
     async function loadBackendData() {
+      const gen = ++loadGen;
       try {
-        const [
-          producersData,
-          ordersData,
-          mtdData,
-          codesData,
-          addonsData,
-          holidaysData,
-          personalReasonsData,
-          emailTemplatesData,
-        ] = await Promise.all([
-          fetchProducersApi(),
-          fetchOrdersApi(),
-          fetchMTDRecordsApi(),
-          fetchDiscountCodesApi(),
-          fetchPayrollAddonsApi(),
-          fetchStudioHolidaysApi(),
-          fetchStudioPersonalReasonsApi(),
-          fetchEmailTemplatesApi(),
-        ]);
+        const boot = await fetchBootstrapApi();
+        if (!isMounted || gen !== loadGen) return;
 
-        if (!isMounted) return;
-
-        if (producersData && producersData.length > 0) {
-          const normalizedProducers = deduplicateProducers(
-            producersData.map((p) => normalizeProducer(p))
-          );
-          setProducers(normalizedProducers);
-          setLocalItem(CACHE_PRODUCERS_KEY, normalizedProducers);
+        if (boot.producers.length > 0) {
+          setProducers(boot.producers);
+          setLocalItem(CACHE_PRODUCERS_KEY, boot.producers);
         }
 
-        let loadedActiveOrders: Order[] = [];
-        let loadedPastOrders: Order[] = [];
-        let loadedMtdRecords: MTDRecord[] = [];
+        const loadedActiveOrders = normalizeOrders(boot.activeOrders);
+        const loadedPastOrders = normalizeOrders(boot.pastOrders);
+        setActiveOrders(loadedActiveOrders);
+        setPastOrders(loadedPastOrders);
+        setLocalItem(CACHE_ORDERS_KEY, {
+          active: loadedActiveOrders,
+          past: loadedPastOrders,
+        });
 
-        if (ordersData) {
-          // Database is the single source of truth for orders.
-          // Replace state entirely — no seed fallback.
-          loadedActiveOrders = normalizeOrders(ordersData.activeOrders);
-          loadedPastOrders = normalizeOrders(ordersData.pastOrders);
-          setActiveOrders(loadedActiveOrders);
-          setPastOrders(loadedPastOrders);
-          setLocalItem(CACHE_ORDERS_KEY, {
-            active: loadedActiveOrders,
-            past: loadedPastOrders,
-          });
-        }
-
-        if (mtdData) {
-          // Database is the single source of truth for MTD records.
-          // Replace state entirely — no seed fallback.
-          loadedMtdRecords = normalizeMTD(mtdData);
-        }
-
-        // Map active orders to MTDRecords for staging in Orders tab.
-        // Orders with status !== "in_mtd" have inMTD: false (pre-MTD staging).
-        // Orders with status === "in_mtd" have inMTD: true.
+        let loadedMtdRecords = normalizeMTD(boot.mtdRecords);
         const existingMtdOrderIds = new Set(
           loadedMtdRecords.map((r) => r.orderId).filter(Boolean)
         );
-
         const convertedOrders: MTDRecord[] = [];
         for (const order of loadedActiveOrders) {
           const oid = order.id || order.uuid || order.legacyId;
@@ -380,48 +336,58 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
             convertedOrders.push(orderToMTDRecord(order));
           }
         }
-
         const combinedMtd = [...loadedMtdRecords, ...convertedOrders];
         setMtdRecords(combinedMtd);
         setLocalItem(CACHE_MTD_KEY, combinedMtd);
 
-        if (codesData) {
-          // Database is the single source of truth for discount codes.
-          // Replace state entirely — no seed fallback.
-          const normalizedCodes = codesData.map((c) => normalizeDiscountCode(c));
-          setDiscountCodes(normalizedCodes);
-        }
+        setDiscountCodes(boot.discountCodes);
+        setPayrollAddons(boot.payrollAddons);
 
-        if (addonsData) {
-          setPayrollAddons(addonsData);
+        if (boot.holidays.length > 0) {
+          setHolidays(boot.holidays.map((entry) => normalizeStudioHoliday(entry)));
         }
-
-        if (holidaysData && holidaysData.length > 0) {
-          setHolidays(holidaysData.map((entry) => normalizeStudioHoliday(entry)));
+        if (boot.personalReasons.length > 0) {
+          setPersonalReasons(ensurePersonalReasonsList(boot.personalReasons));
         }
-
-        if (personalReasonsData && personalReasonsData.length > 0) {
-          setPersonalReasons(
-            ensurePersonalReasonsList(
-              personalReasonsData.map((entry) =>
-                normalizeStudioPersonalReason(entry)
-              )
-            )
-          );
-        }
-
-        if (emailTemplatesData) {
-          setEmailTemplates(normalizeEmailTemplates(emailTemplatesData));
+        if (boot.emailTemplates) {
+          setEmailTemplates(normalizeEmailTemplates(boot.emailTemplates));
         }
 
         setIsBackendConnected(true);
       } catch (err) {
         if (!isMounted) return;
+        // Keep previous cache visible but mark disconnected so UI can retry.
         setIsBackendConnected(false);
         console.warn(
-          "FastAPI backend unavailable or unreachable. Falling back to local state.",
+          "FastAPI backend unavailable or unreachable. Falling back to local cache.",
           err
         );
+        // Soft retry once after a short delay (covers single cold-start miss).
+        window.setTimeout(() => {
+          if (!isMounted) return;
+          fetchBootstrapApi()
+            .then((boot) => {
+              if (!isMounted) return;
+              setProducers(boot.producers);
+              setActiveOrders(normalizeOrders(boot.activeOrders));
+              setPastOrders(normalizeOrders(boot.pastOrders));
+              setMtdRecords(normalizeMTD(boot.mtdRecords));
+              setDiscountCodes(boot.discountCodes);
+              setPayrollAddons(boot.payrollAddons);
+              if (boot.holidays.length) setHolidays(boot.holidays);
+              if (boot.personalReasons.length) {
+                setPersonalReasons(ensurePersonalReasonsList(boot.personalReasons));
+              }
+              if (boot.emailTemplates) {
+                setEmailTemplates(normalizeEmailTemplates(boot.emailTemplates));
+              }
+              setIsBackendConnected(true);
+              setIsLoading(false);
+            })
+            .catch(() => {
+              /* still offline */
+            });
+        }, 1500);
       } finally {
         if (isMounted) {
           setIsLoading(false);
@@ -499,7 +465,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
       const draftRecord: MTDRecord = {
         id: draftId,
-        orderId: order.id,
+        orderId: order.uuid || order.id,
         section: sectionForCategory(order.category),
         assignedProducer: null,
         category: order.category,
@@ -565,7 +531,10 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
       // Persist to Backend API and write real DB UUID back into state
       // so that subsequent PATCH calls use the correct ID (avoids 404s).
-      createMTDRecordApi(newRecord)
+      createMTDRecordApi({
+        ...newRecord,
+        orderId: order.uuid || order.id,
+      })
         .then((saved) => {
           if (saved.uuid && saved.uuid !== draftId) {
             setMtdRecords((prev) =>
@@ -576,12 +545,20 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
               )
             );
           }
+          setIsBackendConnected(true);
         })
-        .catch((err) =>
-          console.error("Failed to persist MTD Record to backend:", err)
-        );
-      updateOrderApi(orderId, { status: "in_mtd" }).catch((err) =>
-        console.error("Failed to persist Order status to backend:", err)
+        .catch((err) => {
+          console.error("Failed to create MTD record in backend:", err);
+          addNotification({
+            type: "mtd_move",
+            title: "Save failed",
+            message: "Could not save this order to MTD in the database. Please try again.",
+          });
+        });
+      updateOrderApi(orderId, { status: "in_mtd", mtdId: newRecord.id }).catch(
+        (err) => {
+          console.error("Failed to update order status in backend:", err);
+        }
       );
 
       const slotMsg = assignedProducer
@@ -601,7 +578,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
       return newRecord;
     },
-    [activeOrders, isInMTD, mtdRecords, producers, schedule, addNotification, packagePrices]
+    [activeOrders, isInMTD, mtdRecords, producers, schedule, addNotification, packagePrices, isViewOnly]
   );
 
   const setPackagePrices = useCallback((prices: Record<string, number>) => {
