@@ -15,7 +15,6 @@ const nextConfig: NextConfig = {
   },
   async rewrites() {
     // Local: proxy /api to the FastAPI process on :8001.
-    // On Vercel, vercel.json Services rewrites own /api → the api service.
     if (process.env.NODE_ENV === "development" && !process.env.VERCEL) {
       return {
         beforeFiles: [
@@ -26,6 +25,9 @@ const nextConfig: NextConfig = {
         ],
       };
     }
+    // Production: API is not hosted inside this Next.js project (Vercel no longer
+    // treats root api/*.py as Serverless Functions alongside Next.js). Point
+    // NEXT_PUBLIC_API_URL at the FastAPI host (e.g. Render) when available.
     return [];
   },
 };

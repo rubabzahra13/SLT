@@ -1,21 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "regions": ["syd1"],
-  "services": {
-    "web": {
-      "root": ".",
-      "framework": "nextjs",
-      "installCommand": "npm install",
-      "buildCommand": "npm run build"
-    },
-    "api": {
-      "root": "backend",
-      "entrypoint": "index:app"
-    }
-  },
-  "rewrites": [
-    { "source": "/api/(.*)", "destination": { "service": "api" } },
-    { "source": "/health", "destination": { "service": "api" } },
-    { "source": "/(.*)", "destination": { "service": "web" } }
-  ]
+  "framework": "nextjs",
+  "installCommand": "npm install",
+  "buildCommand": "npm run build",
+  "devCommand": "npm run dev",
+  "regions": ["syd1"]
 }
