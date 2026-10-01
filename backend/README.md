@@ -178,7 +178,7 @@ uvicorn app.main:app --reload --port 8001
 * **`producer_time_off`**: Vacation, holiday, and personal leave ranges for producers (`producer_id` FK).
 * **`orders`**: Form submissions and order intake details.
 * **`mtd_records`**: Operational Music To Do board entries linked to `orders.id` (`order_id` FK) and `producers.id` (`assigned_producer_id` FK).
-* **`schedule_entries`**: Matrix view daily producer capacity and booking counts (`producer_id` FK).
+* **`schedule_entries`**: Removed — schedule capacity is derived from producer assignments and mix dates, not a separate matrix table.
 * **`discount_codes`**: Promo codes and usage rules.
 * **`package_prices`**: Standard package pricing catalog.
 * **`secret_menu_pricing`**: Semi-Custom Plus package extra song tiers.

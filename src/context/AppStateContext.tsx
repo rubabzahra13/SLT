@@ -56,7 +56,7 @@ import { normalizeDiscountCode } from "@/lib/discount-codes";
 import { isOutsourcedRecord } from "@/lib/mtd-filters";
 import { inferMTDRecordStatus } from "@/lib/mtd-status";
 import { toIsoDateString } from "@/lib/dates";
-import { ApiClientError } from "@/lib/api/client";
+import { ApiClientError, formatApiClientError } from "@/lib/api/client";
 import {
   createProducerApi,
   resolveProducerApiId,
@@ -516,6 +516,17 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     []
   );
 
+  const notifySaveError = useCallback(
+    (title: string, err: unknown) => {
+      addNotification({
+        type: "error",
+        title,
+        message: formatApiClientError(err, "Could not save. Please try again."),
+      });
+    },
+    [addNotification]
+  );
+
   const allOrders = useMemo(
     () => [...activeOrders, ...pastOrders],
     [activeOrders, pastOrders]
@@ -618,6 +629,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       };
 
       setMtdRecords((prev) => [newRecord, ...prev]);
+      const prevActive = activeOrders;
+      const prevMtd = mtdRecords;
       setActiveOrders((prev) =>
         prev.map((o) =>
           o.id === orderId
@@ -628,35 +641,38 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
       // Persist to Backend API and write real DB UUID back into state
       // so that subsequent PATCH calls use the correct ID (avoids 404s).
-      createMTDRecordApi({
-        ...newRecord,
-        orderId: order.uuid || order.id,
-      })
-        .then((saved) => {
+      void (async () => {
+        try {
+          const saved = await createMTDRecordApi({
+            ...newRecord,
+            orderId: order.uuid || order.id,
+          });
           if (saved.uuid && saved.uuid !== draftId) {
             setMtdRecords((prev) =>
               prev.map((r) =>
                 r.id === draftId
-                  ? { ...r, id: saved.id, uuid: saved.uuid, legacyId: saved.legacyId }
+                  ? {
+                      ...r,
+                      id: saved.id,
+                      uuid: saved.uuid,
+                      legacyId: saved.legacyId,
+                    }
                   : r
               )
             );
           }
-          setIsBackendConnected(true);
-        })
-        .catch((err) => {
-          console.error("Failed to create MTD record in backend:", err);
-          addNotification({
-            type: "mtd_move",
-            title: "Save failed",
-            message: "Could not save this order to MTD in the database. Please try again.",
+          await updateOrderApi(orderId, {
+            status: "in_mtd",
+            mtdId: saved.id || newRecord.id,
           });
-        });
-      updateOrderApi(orderId, { status: "in_mtd", mtdId: newRecord.id }).catch(
-        (err) => {
-          console.error("Failed to update order status in backend:", err);
+          setIsBackendConnected(true);
+        } catch (err) {
+          console.error("Failed to move order to MTD:", err);
+          setActiveOrders(prevActive);
+          setMtdRecords(prevMtd);
+          notifySaveError("Could not move to MTD", err);
         }
-      );
+      })();
 
       const slotMsg = assignedProducer
         ? ` Next slot: ${formatSlot(assignedProducer, producers, schedule)}.`
@@ -675,12 +691,24 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
       return newRecord;
     },
-    [activeOrders, isInMTD, mtdRecords, producers, schedule, addNotification, packagePrices, isViewOnly]
+    [
+      activeOrders,
+      isInMTD,
+      mtdRecords,
+      producers,
+      schedule,
+      addNotification,
+      notifySaveError,
+      packagePrices,
+      isViewOnly,
+    ]
   );
 
   const setPackagePrices = useCallback(
     (prices: Record<string, number>) => {
       if (isViewOnly) return;
+      const prevPrices = packagePrices;
+      const prevMtd = mtdRecords;
       setPackagePricesState(prices);
       setMtdRecords((prev) =>
         prev.map((record) => {
@@ -699,24 +727,28 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       );
       void savePackagePricesApi(prices)
         .then((saved) => setPackagePricesState(saved))
-        .catch((err) =>
-          console.error("Failed to persist package prices to backend:", err)
-        );
+        .catch((err) => {
+          setPackagePricesState(prevPrices);
+          setMtdRecords(prevMtd);
+          notifySaveError("Could not save package prices", err);
+        });
     },
-    [isViewOnly]
+    [isViewOnly, packagePrices, mtdRecords, notifySaveError]
   );
 
   const setSecretMenuPrices = useCallback(
     (pricing: SecretMenuPricing) => {
       if (isViewOnly) return;
+      const prev = secretMenuPrices;
       setSecretMenuPricesState(pricing);
       void saveSecretMenuPricingApi(pricing)
         .then((saved) => setSecretMenuPricesState(saved))
-        .catch((err) =>
-          console.error("Failed to persist secret menu pricing:", err)
-        );
+        .catch((err) => {
+          setSecretMenuPricesState(prev);
+          notifySaveError("Could not save secret menu pricing", err);
+        });
     },
-    [isViewOnly]
+    [isViewOnly, secretMenuPrices, notifySaveError]
   );
 
   const updateMTD = useCallback((id: string, patch: Partial<MTDRecord>) => {
@@ -844,16 +876,28 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         (o.uuid && orderLookupIds.has(o.uuid)) ||
         (o.mtdId && orderLookupIds.has(o.mtdId))
     );
+
+    const orderPatch: Record<string, unknown> = {};
     if (linkedOrder) {
-      const orderPatch: Record<string, any> = {};
-      if (patch.assignedProducer !== undefined) orderPatch.assignedProducer = patch.assignedProducer;
-      if (patch.mixStartDate !== undefined) orderPatch.mixStartDate = patch.mixStartDate;
-      if (patch.mixEndDate !== undefined) orderPatch.mixEndDate = patch.mixEndDate;
+      if (patch.assignedProducer !== undefined) {
+        orderPatch.assignedProducer =
+          apiPatch.assignedProducer ?? patch.assignedProducer;
+      }
+      if (patch.mixStartDate !== undefined) {
+        orderPatch.mixStartDate = apiPatch.mixStartDate ?? patch.mixStartDate;
+      }
+      if (patch.mixEndDate !== undefined) {
+        orderPatch.mixEndDate = apiPatch.mixEndDate ?? patch.mixEndDate;
+      }
       if (patch.price !== undefined) orderPatch.price = patch.price;
-      if (patch.editorRequest !== undefined) orderPatch.editorRequest = patch.editorRequest;
+      if (patch.editorRequest !== undefined) {
+        orderPatch.editorRequest = patch.editorRequest;
+      }
       if (patch.inMTD === true) orderPatch.status = "in_mtd";
       if (patch.inMTD === false) orderPatch.status = "active";
-      if (patch.isReassigned !== undefined) orderPatch.isReassigned = patch.isReassigned;
+      if (patch.isReassigned !== undefined) {
+        orderPatch.isReassigned = patch.isReassigned;
+      }
       if (patch.missingDataEmailSentAt !== undefined) {
         orderPatch.missingDataEmailSentAt = patch.missingDataEmailSentAt;
       }
@@ -863,66 +907,106 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       if (patch.producerEmailSentTo !== undefined) {
         orderPatch.producerEmailSentTo = patch.producerEmailSentTo;
       }
-      if (patch.collectionStates !== undefined) orderPatch.collectionStates = patch.collectionStates;
-      if ((patch as any).collection_states !== undefined) orderPatch.collection_states = (patch as any).collection_states;
+      if (patch.collectionStates !== undefined) {
+        orderPatch.collectionStates = patch.collectionStates;
+      }
       if (patch.haveSongs !== undefined) orderPatch.haveSongs = patch.haveSongs;
-      if (patch.eightCountSheet !== undefined) orderPatch.eightCountSheet = patch.eightCountSheet;
-      if ((patch as any).orderStatus !== undefined) orderPatch.orderStatus = (patch as any).orderStatus;
-      if ((patch as any).order_status !== undefined) orderPatch.order_status = (patch as any).order_status;
-
+      if (patch.eightCountSheet !== undefined) {
+        orderPatch.eightCountSheet = patch.eightCountSheet;
+      }
+      if ((patch as { orderStatus?: string }).orderStatus !== undefined) {
+        orderPatch.orderStatus = (patch as { orderStatus?: string }).orderStatus;
+      }
       if (Object.keys(orderPatch).length > 0) {
         setActiveOrders((prev) =>
           prev.map((o) =>
             o.id === linkedOrder.id ? { ...o, ...orderPatch } : o
           )
         );
-        updateOrderApi(linkedOrder.id, orderPatch).catch((err) =>
-          console.error("Failed to sync order update to backend:", err)
-        );
       }
     }
 
-    // Persist MTD patch to backend API
-    if (patch.inMTD === true) {
-      const targetRecord = mtdRecords.find(
-        (r) => r.id === id || r.orderId === id || r.uuid === id || r.legacyId === id
-      );
-      const updatedRecord = targetRecord ? { ...targetRecord, ...patch, inMTD: true } : { ...patch, inMTD: true };
-      createMTDRecordApi(updatedRecord)
-        .then((saved) => {
-          setMtdRecords((prev) =>
-            prev.map((r) =>
-              r.id === id || r.orderId === id || r.uuid === id || r.legacyId === id
-                ? { ...r, id: saved.id, uuid: saved.uuid, legacyId: saved.legacyId, inMTD: true }
-                : r
-            )
+    const prevActive = activeOrders;
+    const prevMtd = mtdRecords;
+
+    // Persist: order shared fields first (canonical), then MTD board row.
+    void (async () => {
+      try {
+        if (linkedOrder && Object.keys(orderPatch).length > 0) {
+          await updateOrderApi(linkedOrder.id, orderPatch);
+        }
+
+        if (patch.inMTD === true) {
+          const targetRecord = mtdRecords.find(
+            (r) =>
+              r.id === id ||
+              r.orderId === id ||
+              r.uuid === id ||
+              r.legacyId === id
           );
-        })
-        .catch(() => {
-          updateMTDRecordApi(apiId, apiPatch).catch((err) =>
-            console.error("Failed to persist MTD Record update to backend:", err)
+          const updatedRecord = targetRecord
+            ? { ...targetRecord, ...apiPatch, inMTD: true }
+            : { ...apiPatch, inMTD: true };
+          try {
+            const saved = await createMTDRecordApi(updatedRecord as MTDRecord);
+            setMtdRecords((prev) =>
+              prev.map((r) =>
+                r.id === id ||
+                r.orderId === id ||
+                r.uuid === id ||
+                r.legacyId === id
+                  ? {
+                      ...r,
+                      id: saved.id,
+                      uuid: saved.uuid,
+                      legacyId: saved.legacyId,
+                      inMTD: true,
+                    }
+                  : r
+              )
+            );
+          } catch {
+            await updateMTDRecordApi(apiId, apiPatch);
+          }
+        } else {
+          const isRealMtdRecord = Boolean(
+            existing &&
+              (existing.inMTD === true ||
+                existing.isManualScheduleEntry === true ||
+                !linkedOrder)
           );
-        });
-    } else {
-      const isRealMtdRecord = Boolean(
-        existing && (existing.inMTD === true || existing.isManualScheduleEntry === true || !linkedOrder)
-      );
-      if (isRealMtdRecord) {
-        updateMTDRecordApi(apiId, apiPatch).catch((err) =>
-          console.error("Failed to persist MTD Record update to backend:", err)
-        );
+          if (isRealMtdRecord) {
+            await updateMTDRecordApi(apiId, apiPatch);
+          }
+        }
+      } catch (err) {
+        setActiveOrders(prevActive);
+        setMtdRecords(prevMtd);
+        notifySaveError("Could not save MTD changes", err);
       }
-    }
+    })();
 
     if (payrollNotice) {
       addNotification(payrollNotice);
     }
-  }, [activeOrders, addNotification, mtdRecords, packagePrices, producers, schedule]);
+  }, [
+    activeOrders,
+    addNotification,
+    notifySaveError,
+    mtdRecords,
+    packagePrices,
+    producers,
+    schedule,
+    isViewOnly,
+  ]);
 
   const updateOrder = useCallback(
     (id: string, patch: Partial<Order>, seed?: Order) => {
       if (isViewOnly) return;
       const merge = (order: Order) => normalizeOrder({ ...order, ...patch, id });
+      const prevActive = activeOrders;
+      const prevPast = pastOrders;
+      const prevMtd = mtdRecords;
 
       setActiveOrders((prev) => {
         if (prev.some((order) => order.id === id)) {
@@ -958,6 +1042,14 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         mtdPatch.eightCountSheet = patch.eightCountSheet;
       }
       if (patch.orderStatus !== undefined) mtdPatch.orderStatus = patch.orderStatus;
+
+      const linkedMtd = mtdRecords.find(
+        (r) =>
+          r.orderId === id ||
+          r.id === id ||
+          r.uuid === id ||
+          (r.legacyId && r.legacyId === id)
+      );
       if (Object.keys(mtdPatch).length > 0) {
         setMtdRecords((prev) =>
           prev.map((r) => {
@@ -969,27 +1061,29 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
             return linked ? { ...r, ...mtdPatch } : r;
           })
         );
-        const linkedMtd = mtdRecords.find(
-          (r) =>
-            r.orderId === id ||
-            r.id === id ||
-            r.uuid === id ||
-            (r.legacyId && r.legacyId === id)
-        );
-        if (linkedMtd && (linkedMtd.inMTD || linkedMtd.isManualScheduleEntry)) {
-          const apiId = linkedMtd.uuid || linkedMtd.id;
-          updateMTDRecordApi(apiId, mtdPatch).catch((err) =>
-            console.error("Failed to sync MTD from order update:", err)
-          );
-        }
       }
 
-      // Persist Order patch to backend API
-      updateOrderApi(id, patch).catch((err) =>
-        console.error("Failed to persist Order update to backend:", err)
-      );
+      void (async () => {
+        try {
+          // Order is canonical — write it first; backend mirrors to MTD.
+          await updateOrderApi(id, patch);
+          if (
+            linkedMtd &&
+            (linkedMtd.inMTD || linkedMtd.isManualScheduleEntry) &&
+            Object.keys(mtdPatch).length > 0
+          ) {
+            const apiId = linkedMtd.uuid || linkedMtd.id;
+            await updateMTDRecordApi(apiId, mtdPatch);
+          }
+        } catch (err) {
+          setActiveOrders(prevActive);
+          setPastOrders(prevPast);
+          setMtdRecords(prevMtd);
+          notifySaveError("Could not save order", err);
+        }
+      })();
     },
-    [isViewOnly, mtdRecords]
+    [isViewOnly, mtdRecords, activeOrders, pastOrders, notifySaveError]
   );
 
   const markComplete = useCallback(
@@ -1009,43 +1103,54 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         ),
       };
 
+      const prevActive = activeOrders;
+      const prevPast = pastOrders;
       setActiveOrders((prev) => prev.filter((o) => o.id !== orderId));
       setPastOrders((prev) => [completed, ...prev]);
 
-      // Persist completed status to backend API
-      updateOrderApi(orderId, {
+      void updateOrderApi(orderId, {
         status: "completed",
         completedAt: completed.completedAt,
-      }).catch((err) =>
-        console.error("Failed to persist Order completion to backend:", err)
-      );
+      }).catch((err) => {
+        setActiveOrders(prevActive);
+        setPastOrders(prevPast);
+        notifySaveError("Could not complete order", err);
+      });
     },
-    [activeOrders, isViewOnly, producers]
+    [activeOrders, pastOrders, isViewOnly, producers, notifySaveError]
   );
 
-  const addPastOrder = useCallback((order: Order) => {
-    if (isViewOnly) return;
-    setPastOrders((prev) => [order, ...prev]);
-    updateOrderApi(order.id, { status: "completed", completedAt: order.completedAt }).catch((err) =>
-      console.error("Failed to persist past order to backend:", err)
-    );
-  }, [isViewOnly]);
-
+  const addPastOrder = useCallback(
+    (order: Order) => {
+      if (isViewOnly) return;
+      const prevPast = pastOrders;
+      setPastOrders((prev) => [order, ...prev]);
+      void updateOrderApi(order.id, {
+        status: "completed",
+        completedAt: order.completedAt,
+      }).catch((err) => {
+        setPastOrders(prevPast);
+        notifySaveError("Could not save past order", err);
+      });
+    },
+    [isViewOnly, pastOrders, notifySaveError]
+  );
   const receiveOrder = useCallback(
     (order: Order) => {
       const incoming = normalizeOrder({
         ...order,
         status: order.status || "new",
       });
+      const prevActive = activeOrders;
       setActiveOrders((prev) => {
         if (prev.some((o) => o.id === incoming.id)) return prev;
         return [incoming, ...prev];
       });
 
-      // Persist new incoming order to backend API
-      createOrderApi(incoming).catch((err) =>
-        console.error("Failed to persist new order to backend:", err)
-      );
+      void createOrderApi(incoming).catch((err) => {
+        setActiveOrders(prevActive);
+        notifySaveError("Could not save new order", err);
+      });
 
       addNotification({
         type: "new_order",
@@ -1056,7 +1161,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         href: "/mtd",
       });
     },
-    [addNotification]
+    [addNotification, activeOrders, notifySaveError]
   );
 
   const addProducer = useCallback(async (producer: Producer) => {
@@ -1291,7 +1396,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         })
         .catch((err) => {
           setHolidays((prev) => prev.filter((entry) => entry.id !== tempId));
-          console.warn("Failed to save studio holiday:", err);
+          notifySaveError("Could not save holiday", err);
         });
     },
     [isViewOnly]
@@ -1320,7 +1425,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           setHolidays((prev) =>
             prev.map((entry) => (entry.id === id ? previous! : entry))
           );
-          console.warn("Failed to update studio holiday:", err);
+          notifySaveError("Could not update holiday", err);
         });
     },
     [isViewOnly]
@@ -1337,7 +1442,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       if (!removed) return;
       void deleteStudioHolidayApi(id).catch((err) => {
         setHolidays((prev) => [removed!, ...prev]);
-        console.warn("Failed to delete studio holiday:", err);
+        notifySaveError("Could not delete holiday", err);
       });
     },
     [isViewOnly]
@@ -1368,7 +1473,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
               prev.filter((entry) => entry.id !== tempId)
             )
           );
-          console.warn("Failed to save personal reason:", err);
+          notifySaveError("Could not save personal reason", err);
         });
     },
     [isViewOnly]
@@ -1411,7 +1516,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
               prev.map((entry) => (entry.id === id ? previous! : entry))
             )
           );
-          console.warn("Failed to update personal reason:", err);
+          notifySaveError("Could not update personal reason", err);
         });
     },
     [isViewOnly]
@@ -1432,7 +1537,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         setPersonalReasons((prev) =>
           ensurePersonalReasonsList([removed!, ...prev])
         );
-        console.warn("Failed to delete personal reason:", err);
+        notifySaveError("Could not delete personal reason", err);
       });
     },
     [isViewOnly]
@@ -1484,7 +1589,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       });
       if (!nextCopy) return;
       void upsertEmailTemplateApi(id, nextCopy).catch((err) => {
-        console.warn("Failed to save email template:", err);
+        notifySaveError("Could not save email template", err);
       });
     },
     [isViewOnly]
@@ -1501,7 +1606,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         })
       );
       void upsertEmailTemplateApi(id, nextCopy).catch((err) => {
-        console.warn("Failed to reset email template:", err);
+        notifySaveError("Could not reset email template", err);
       });
     },
     [isViewOnly]

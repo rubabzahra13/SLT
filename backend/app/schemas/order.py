@@ -60,6 +60,7 @@ class OrderSchema(BaseModel):
     collection_states: Optional[Any] = None
     order_status: Optional[str] = None
     assigned_producer: Optional[str] = None
+    assigned_producer_id: Optional[UUID] = None
     mix_start_date: Optional[str] = None
     mix_end_date: Optional[str] = None
     eight_count_sheet: Optional[str] = None
@@ -153,6 +154,7 @@ class OrderCreateSchema(BaseModel):
     coupon_code: Optional[str] = None
     how_did_you_find_out: Optional[str] = None
     assigned_producer: Optional[str] = None
+    assigned_producer_id: Optional[UUID] = None
     mix_start_date: Optional[str] = None
     mix_end_date: Optional[str] = None
     eight_count_sheet: Optional[str] = None
@@ -181,6 +183,7 @@ class OrderUpdateSchema(BaseModel):
     collection_states: Optional[Any] = None
     order_status: Optional[str] = None
     assigned_producer: Optional[str] = None
+    assigned_producer_id: Optional[UUID] = None
     mix_start_date: Optional[str] = None
     mix_end_date: Optional[str] = None
     eight_count_sheet: Optional[str] = None

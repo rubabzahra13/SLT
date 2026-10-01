@@ -10,7 +10,6 @@ from app.models import (
     ProducerTimeOff,
     Order,
     MTDRecord,
-    ScheduleEntry,
     DiscountCode,
     PackagePrice,
     SecretMenuPricing,
@@ -362,30 +361,6 @@ def seed_all(db: Session):
         else:
             existing_mtd.assigned_producer_id = assigned_producer_id or existing_mtd.assigned_producer_id
             existing_mtd.invoice = m.get("invoice", existing_mtd.invoice)
-
-    db.commit()
-
-    # 5. Seed Schedule Entries
-    raw_schedule = mock_data.get("schedule", [])
-    print(f"Seeding {len(raw_schedule)} schedule entries...")
-    for s in raw_schedule:
-        prod_initials = s.get("producer", "").strip()
-        day_str = s.get("day", "").strip()
-        prod = producer_initials_map.get(prod_initials)
-
-        existing_entry = db.query(ScheduleEntry).filter(
-            ScheduleEntry.producer_initials == prod_initials,
-            ScheduleEntry.day == day_str,
-        ).first()
-
-        if not existing_entry:
-            db.add(ScheduleEntry(
-                producer_id=prod.id if prod else None,
-                producer_initials=prod_initials,
-                day=day_str,
-                status=s.get("status", "available"),
-                count=s.get("count", 0),
-            ))
 
     db.commit()
     print("Database seeding completed successfully!")

@@ -170,47 +170,70 @@ def update_mtd_record(mtd_id: str, payload: MTDRecordUpdateSchema, db: Session =
 
     for key, value in update_data.items():
         # Text columns that store JSON dicts must be serialised to string
-        if isinstance(value, (dict, list)):
+        if isinstance(value, (dict, list)) and key in (
+            "pricing_breakdown",
+            "payroll_breakdown",
+        ):
             value = json.dumps(value)
         setattr(mtd, key, value)
 
-    # Sync fields to linked Order if present
+    # Canonical sync: mirror shared fields onto the linked Order (order is SoT).
     if mtd.order_id:
         linked_order = db.query(Order).filter(Order.id == mtd.order_id).first()
         if linked_order:
-            if "contact_name" in update_data:
+            unset = payload.model_dump(exclude_unset=True)
+            if "assigned_producer" in unset:
+                linked_order.assigned_producer_id = mtd.assigned_producer_id
+                linked_order.assigned_producer = mtd.editor_initials
+            if "mix_start_date" in unset:
+                linked_order.mix_start_date = (
+                    mtd.mix_start_date.isoformat()
+                    if hasattr(mtd.mix_start_date, "isoformat") and mtd.mix_start_date
+                    else (str(mtd.mix_start_date) if mtd.mix_start_date else None)
+                )
+            if "mix_end_date" in unset:
+                linked_order.mix_end_date = (
+                    mtd.mix_end_date.isoformat()
+                    if hasattr(mtd.mix_end_date, "isoformat") and mtd.mix_end_date
+                    else (str(mtd.mix_end_date) if mtd.mix_end_date else None)
+                )
+            if "contact_name" in unset:
                 linked_order.contact_name = mtd.contact_name
                 linked_order.customer_name = mtd.contact_name
-            if "program_name" in update_data:
+            if "program_name" in unset:
                 linked_order.program_name = mtd.program_name
-            if "package" in update_data:
+            if "package" in unset:
                 linked_order.package = mtd.package
-            if "music_theme" in update_data:
+            if "music_theme" in unset:
                 linked_order.music_theme = mtd.music_theme
-            if "price" in update_data:
+            if "price" in unset:
                 linked_order.price = mtd.price
-            if "price_compliance" in update_data:
+            if "price_compliance" in unset:
                 linked_order.price_compliance = mtd.price_compliance
-            if "is_reassigned" in update_data:
+            if "editor_request" in unset:
+                linked_order.editor_request = mtd.editor_request
+            if "is_reassigned" in unset:
                 linked_order.is_reassigned = mtd.is_reassigned
-            if "order_status" in update_data:
+            if "order_status" in unset:
                 linked_order.order_status = mtd.order_status
-            if "collection_states" in update_data:
+            if "collection_states" in unset:
                 linked_order.collection_states = mtd.collection_states
-            if "missing_data_email_sent_at" in update_data:
+            if "have_songs" in unset:
+                linked_order.have_songs = mtd.have_songs
+            if "eight_count_sheet" in unset:
+                linked_order.eight_count_sheet = mtd.eight_count_sheet
+            if "missing_data_email_sent_at" in unset:
                 linked_order.missing_data_email_sent_at = mtd.missing_data_email_sent_at
-            if "producer_email_sent_at" in update_data:
+            if "producer_email_sent_at" in unset:
                 linked_order.producer_email_sent_at = mtd.producer_email_sent_at
-            if "producer_email_sent_to" in update_data:
+            if "producer_email_sent_to" in unset:
                 linked_order.producer_email_sent_to = mtd.producer_email_sent_to
-            if "in_mtd" in update_data:
-                # Keep Order.status aligned with MTD board membership so Move to
-                # Orders / Move to MTD survive reloads.
+            if "in_mtd" in unset:
                 if mtd.in_mtd:
                     linked_order.status = "in_mtd"
                 elif linked_order.status == "in_mtd":
                     linked_order.status = "active"
-            if "status" in update_data and mtd.status == "completed":
+            if "status" in unset and mtd.status == "completed":
                 linked_order.status = "completed"
 
     db.commit()
@@ -253,7 +276,6 @@ def create_manual_schedule_entry(
         package=data.get("package") or "Standard",
         mix_start_date=data.get("mix_start_date"),
         mix_end_date=data.get("mix_end_date"),
-        assigned_producer=assigned_prod_str,
         order_status="Complete",
         status="new",
         price=0.0,
@@ -265,6 +287,14 @@ def create_manual_schedule_entry(
         eight_count_sheet=data.get("eight_count_sheet"),
         have_songs="HAVE SONGS" if data.get("song_list_suggestions") else "NEED SONGS",
     )
+    if assigned_prod_str:
+        producer = resolve_producer_by_assignment_key(db, assigned_prod_str)
+        order.assigned_producer_id = producer.id if producer else None
+        order.assigned_producer = (
+            canonical_producer_assignment_key(producer)
+            if producer
+            else assigned_prod_str.strip().upper()
+        )
 
     db.add(order)
     db.commit()

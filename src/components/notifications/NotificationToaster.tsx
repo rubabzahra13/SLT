@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
-import { Bell, CalendarClock, PackageCheck, Wallet, X } from "lucide-react";
+import { Bell, CalendarClock, PackageCheck, Wallet, X, AlertTriangle } from "lucide-react";
 import { useAppState } from "@/context/AppStateContext";
 import type { AppNotification } from "@/types";
 
@@ -36,6 +36,12 @@ const toneByType: Record<
     ring: "ring-brand-blue/30",
     iconColor: "text-brand-blue",
     bar: "bg-brand-blue",
+  },
+  error: {
+    icon: AlertTriangle,
+    ring: "ring-red-500/30",
+    iconColor: "text-red-600",
+    bar: "bg-red-500",
   },
 };
 

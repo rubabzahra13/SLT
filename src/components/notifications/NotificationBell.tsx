@@ -105,7 +105,8 @@ export function NotificationBell({
                           n.type === "new_order" && "bg-brand-orange",
                           n.type === "mtd_move" && "bg-brand-success",
                           n.type === "schedule" && "bg-brand-warning",
-                          n.type === "payroll" && "bg-brand-blue"
+                          n.type === "payroll" && "bg-brand-blue",
+                          n.type === "error" && "bg-red-500"
                         )}
                       />
                       <div>

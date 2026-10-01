@@ -38,7 +38,6 @@ class Producer(Base):
 
     time_offs = relationship("ProducerTimeOff", back_populates="producer", cascade="all, delete-orphan")
     mtd_records = relationship("MTDRecord", back_populates="assigned_producer")
-    schedule_entries = relationship("ScheduleEntry", back_populates="producer", cascade="all, delete-orphan")
 
 
 class ProducerTimeOff(Base):

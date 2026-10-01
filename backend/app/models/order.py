@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, Boolean, Text, Numeric, DateTime, func, JSON
+from sqlalchemy import Column, String, Boolean, Text, Numeric, DateTime, ForeignKey, func, JSON
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from app.core.database import Base
@@ -67,6 +67,12 @@ class Order(Base):
     collection_states = Column(JSON, nullable=True)
     order_status = Column(String, nullable=True)
     assigned_producer = Column(String, nullable=True)
+    assigned_producer_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("producers.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     mix_start_date = Column(String, nullable=True)
     mix_end_date = Column(String, nullable=True)
     eight_count_sheet = Column(String, nullable=True)

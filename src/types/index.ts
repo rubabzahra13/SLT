@@ -886,7 +886,7 @@ export type ScheduleCellStatus = "available" | "mix" | "off" | "capacity" | "non
 
 export type AppNotification = {
   id: string;
-  type: "new_order" | "mtd_move" | "schedule" | "payroll";
+  type: "new_order" | "mtd_move" | "schedule" | "payroll" | "error";
   title: string;
   message: string;
   href?: string;
