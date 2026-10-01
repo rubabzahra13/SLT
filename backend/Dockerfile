@@ -11,7 +11,7 @@ RUN pip install --no-cache-dir -r /app/backend/requirements.txt
 
 COPY backend /app/backend
 COPY pricing-rules.json /app/pricing-rules.json
-COPY src/data/mock-data.json /app/src/data/mock-data.json
+COPY frontend/src/data/mock-data.json /app/src/data/mock-data.json
 
 WORKDIR /app/backend
 ENV PYTHONPATH=/app/backend

@@ -21,7 +21,7 @@ from app.lib.producer_assignment import resolve_producer_by_assignment_key
 from app.seed.seed_pricing import seed_pricing
 
 MOCK_DATA_PATH = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "../../../src/data/mock-data.json")
+    os.path.join(os.path.dirname(__file__), "../../../frontend/src/data/mock-data.json")
 )
 
 def parse_date(val: Optional[str]) -> Optional[date]:

@@ -5,38 +5,33 @@ Next.js admin dashboard for music order operations: orders, MTD spreadsheet, sch
 ## Development
 
 ```bash
-npm install
+npm install --prefix frontend
 npm run dev
-uvicorn app.main:app --reload --port 8001
-
+# in another terminal:
+cd backend && ./venv/bin/uvicorn app.main:app --reload --port 8001
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
-
-For a clean dev start (clears port conflicts and cache):
-
-```bash
-npm run dev:clean
-```
+Open [http://localhost:3000](http://localhost:3000). Root `npm run dev` proxies into `frontend/`.
 
 ## Stack
 
-- Next.js 15 (App Router)
-- TypeScript
-- Tailwind CSS v4
-- Mock data in `src/data/mock-data.json`
+- Next.js 15 (App Router) in `frontend/`
+- FastAPI in `backend/`
+- TypeScript + Tailwind CSS v4
 
-## Deploy
+## Deploy (Vercel Services)
 
-Deploy the repository root to [Vercel](https://vercel.com):
+Deploy the **repository root** to Vercel. `vercel.json` runs two services:
 
-| Setting | Value |
-|--------|--------|
-| Framework Preset | **Next.js** |
-| Root Directory | **`./`** (repo root — not `frontend/`) |
-| Build Command | `npm run build` (default) |
-| Output Directory | *(leave default — Vercel sets this for Next.js)* |
-| Install Command | `npm install` (default) |
-| Environment Variables | **None required** (mock data only) |
+| Service | Root | Role |
+|--------|------|------|
+| `web` | `frontend/` | Next.js UI |
+| `api` | `backend/` | FastAPI (`index:app`) |
 
-Click **Deploy**. `vercel.json` in the repo root pins the build settings above.
+Public routing: `/api/*` and `/health` → api; everything else → web.
+
+Set these project env vars (shared by both services):
+
+- `DATABASE_URL` — Supabase pooler URL
+- `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `GOOGLE_REDIRECT_URI` (optional Gmail)
+- `FRONTEND_URL` = `https://slt-teal.vercel.app`
