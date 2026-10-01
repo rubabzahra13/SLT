@@ -43,6 +43,13 @@ class Settings(BaseSettings):
             return ""
         if url.startswith("postgres://"):
             url = url.replace("postgres://", "postgresql://", 1)
+
+        # Strip accidental driver prefixes so host rewrites stay consistent.
+        for prefix in ("postgresql+psycopg2://", "postgresql+psycopg://"):
+            if url.startswith(prefix):
+                url = "postgresql://" + url[len(prefix) :]
+                break
+
         # Remove surrounding brackets if present in password string
         if "postgresql://" in url and ":[" in url and "]@" in url:
             url = url.replace(":[", ":").replace("]@ ", "@").replace("]@", "@")
@@ -61,6 +68,11 @@ class Settings(BaseSettings):
                     "postgresql://postgres.fqjwjiltizsjzrinoiwv:",
                     1,
                 )
+
+        # Pin psycopg2 — we install psycopg2-binary. Plain postgresql:// can
+        # resolve to psycopg v3 on newer SQLAlchemy, which is not in our deps.
+        if url.startswith("postgresql://"):
+            url = "postgresql+psycopg2://" + url[len("postgresql://") :]
 
         if "sslmode=" not in url:
             separator = "&" if "?" in url else "?"
