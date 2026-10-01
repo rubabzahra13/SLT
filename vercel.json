@@ -12,7 +12,7 @@
     }
   },
   "rewrites": [
-    { "source": "/health", "destination": "/api" },
-    { "source": "/api/:path*", "destination": "/api/index.py" }
+    { "source": "/health", "destination": "/api/index" },
+    { "source": "/api/:path*", "destination": "/api/index" }
   ]
 }

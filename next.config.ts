@@ -14,6 +14,9 @@ const nextConfig: NextConfig = {
     return config;
   },
   async rewrites() {
+    // Local only: proxy /api to the FastAPI process on :8001.
+    // On Vercel, vercel.json routes /api → the Python serverless function.
+    // Do not also rewrite here — double-routing produces opaque 500s.
     if (process.env.NODE_ENV === "development" && !process.env.VERCEL) {
       return {
         beforeFiles: [
@@ -24,14 +27,7 @@ const nextConfig: NextConfig = {
         ],
       };
     }
-    return {
-      beforeFiles: [
-        {
-          source: "/api/:path*",
-          destination: "/api/index.py",
-        },
-      ],
-    };
+    return [];
   },
 };
 

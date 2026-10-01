@@ -1,23 +1,43 @@
 #!/usr/bin/env python3
 """Keep only the 5 Greek Demo Coach orders; delete everything else.
 
-Usage (from repo root):
-  cd backend && set -a && source ../.env && set +a && \\
-    PYTHONPATH=. ./venv/bin/python scripts/keep_demo_orders.py
+Usage (from repo root, via Terminal — agent DNS often cannot reach Supabase):
+  bash backend/run-cleanup.command
 """
 from __future__ import annotations
 
 import os
 import sys
+from urllib.parse import urlparse
 
-# Prefer direct connection for DDL/bulk deletes (session mode).
-os.environ.pop("RUNTIME_DATABASE_URL", None)
-
-from sqlalchemy import text
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
-from app.core.config import settings
-from app.core.database import engine
+# Prefer direct/session connection for bulk deletes (not the transaction pooler).
+os.environ.pop("RUNTIME_DATABASE_URL", None)
+
+
+def _direct_url() -> str:
+    url = (
+        os.environ.get("SUPABASE_DIRECT_CONNECTION_STRING")
+        or os.environ.get("DATABASE_URL")
+        or ""
+    ).strip()
+    if not url:
+        raise SystemExit(
+            "ERROR: set SUPABASE_DIRECT_CONNECTION_STRING (db.*.supabase.co:5432) in .env"
+        )
+    if url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql://", 1)
+    if "pooler.supabase.com" in url:
+        raise SystemExit(
+            "ERROR: SUPABASE_DIRECT_CONNECTION_STRING must be the direct host "
+            "(db.*.supabase.co), not the pooler."
+        )
+    if "sslmode=" not in url:
+        url = f"{url}&sslmode=require" if "?" in url else f"{url}?sslmode=require"
+    return url
+
 
 KEEP_PROGRAM_FRAGMENTS = (
     "Gamma Prep",
@@ -29,8 +49,11 @@ KEEP_PROGRAM_FRAGMENTS = (
 
 
 def main() -> int:
-    url = settings.get_database_url()
-    print("Connecting:", url.split("@")[-1] if "@" in url else url)
+    url = _direct_url()
+    host = urlparse(url).hostname
+    print("Connecting:", host)
+
+    engine = create_engine(url, pool_pre_ping=True, connect_args={"connect_timeout": 15})
     Session = sessionmaker(bind=engine)
     db = Session()
     try:
@@ -59,11 +82,9 @@ def main() -> int:
             return 1
 
         keep_ids = [str(r.id) for r in keep_rows]
-        # Also match by legacy string ids stored on mtd/addons if any
         placeholders = ", ".join(f":k{i}" for i in range(len(keep_ids)))
         params = {f"k{i}": kid for i, kid in enumerate(keep_ids)}
 
-        # Dependent rows first
         for stmt in (
             f"DELETE FROM payroll_addons WHERE order_id IS NOT NULL AND order_id::text NOT IN ({placeholders})",
             f"DELETE FROM mtd_records WHERE order_id IS NOT NULL AND order_id::text NOT IN ({placeholders})",
@@ -84,6 +105,7 @@ def main() -> int:
         return 0
     finally:
         db.close()
+        engine.dispose()
 
 
 if __name__ == "__main__":

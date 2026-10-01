@@ -1181,21 +1181,17 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       );
       return saved;
     } catch (err) {
+      setProducers((prev) => prev.filter((p) => p.id !== tempId));
       if (
         err instanceof ApiClientError &&
         (err.status === 0 || err.status >= 500)
       ) {
         setIsBackendConnected(false);
-        console.warn(
-          "Backend unavailable; keeping local producer create.",
-          err
-        );
-        return normalized;
       }
-      setProducers((prev) => prev.filter((p) => p.id !== tempId));
+      notifySaveError("Could not save producer", err);
       throw err;
     }
-  }, [isViewOnly, isBackendConnected]);
+  }, [isViewOnly, isBackendConnected, notifySaveError]);
 
   const updateProducer = useCallback(async (id: string, patch: Partial<Producer>) => {
     if (isViewOnly) {
@@ -1224,23 +1220,19 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       setProducers((prev) => prev.map((p) => (p.id === id ? saved : p)));
       return saved;
     } catch (err) {
+      setProducers((prev) =>
+        prev.map((p) => (p.id === id ? previous! : p))
+      );
       if (
         err instanceof ApiClientError &&
         (err.status === 0 || err.status >= 500)
       ) {
         setIsBackendConnected(false);
-        console.warn(
-          "Backend unavailable; keeping local producer update.",
-          err
-        );
-        return next;
       }
-      setProducers((prev) =>
-        prev.map((p) => (p.id === id ? previous! : p))
-      );
+      notifySaveError("Could not save producer", err);
       throw err;
     }
-  }, [isViewOnly, isBackendConnected]);
+  }, [isViewOnly, isBackendConnected, notifySaveError]);
 
   const removeProducer = useCallback(async (id: string) => {
     if (isViewOnly) {
@@ -1260,21 +1252,17 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     try {
       await deleteProducerApi(id, resolveProducerApiId(removed));
     } catch (err) {
+      setProducers((prev) => [removed!, ...prev]);
       if (
         err instanceof ApiClientError &&
         (err.status === 0 || err.status >= 500)
       ) {
         setIsBackendConnected(false);
-        console.warn(
-          "Backend unavailable; keeping local producer delete.",
-          err
-        );
-        return;
       }
-      setProducers((prev) => [removed!, ...prev]);
+      notifySaveError("Could not delete producer", err);
       throw err;
     }
-  }, [isViewOnly, isBackendConnected]);
+  }, [isViewOnly, isBackendConnected, notifySaveError]);
 
   const addDiscountCode = useCallback(
     async (discountCode: DiscountCode): Promise<DiscountCode> => {

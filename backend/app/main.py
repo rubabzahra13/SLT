@@ -79,14 +79,38 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-from fastapi import Request
+from fastapi import Request, HTTPException
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 import traceback
+
+def _cors_headers(request: Request) -> dict:
+    origin = request.headers.get("origin", "*")
+    return {
+        "Access-Control-Allow-Origin": origin
+        if origin in settings.CORS_ORIGINS or "vercel.app" in origin
+        else "*",
+        "Access-Control-Allow-Credentials": "true",
+    }
+
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
+    # Never swallow FastAPI/Starlette HTTP errors into opaque 500s.
+    if isinstance(exc, (HTTPException, StarletteHTTPException)):
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.detail},
+            headers=_cors_headers(request),
+        )
+    if isinstance(exc, RequestValidationError):
+        return JSONResponse(
+            status_code=422,
+            content={"detail": exc.errors()},
+            headers=_cors_headers(request),
+        )
     logger.error(f"Unhandled exception on {request.url}: {exc}", exc_info=True)
-    origin = request.headers.get("origin", "*")
     return JSONResponse(
         status_code=500,
         content={
@@ -94,12 +118,9 @@ async def global_exception_handler(request: Request, exc: Exception):
             "detail": str(exc),
             "type": exc.__class__.__name__,
             "path": str(request.url),
-            "traceback": traceback.format_exc().splitlines()[-6:]
+            "traceback": traceback.format_exc().splitlines()[-6:],
         },
-        headers={
-            "Access-Control-Allow-Origin": origin if origin in settings.CORS_ORIGINS or "vercel.app" in origin else "*",
-            "Access-Control-Allow-Credentials": "true",
-        }
+        headers=_cors_headers(request),
     )
 
 # CORS middleware

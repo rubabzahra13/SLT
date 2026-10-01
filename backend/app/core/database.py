@@ -1,7 +1,8 @@
 import logging
 import os
-from typing import Generator
+from typing import Generator, Optional
 from sqlalchemy import create_engine
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 from sqlalchemy.pool import NullPool
 from app.core.config import settings
@@ -11,6 +12,10 @@ logger = logging.getLogger(__name__)
 # The live API engine uses the transaction pooler (port 6543) when available;
 # Alembic keeps using get_database_url() (session/direct) for safe DDL.
 db_url = settings.get_runtime_database_url()
+
+_engine: Optional[Engine] = None
+_engine_error: Optional[str] = None
+USING_SQLITE_FALLBACK = False
 
 
 def _int_env(name: str, default: int) -> int:
@@ -36,55 +41,80 @@ _PG_CONNECT_ARGS = {
     ),
 }
 
-if db_url:
-    if os.getenv("VERCEL"):
-        # Serverless: one short-lived connection per invocation, no client pool.
-        engine = create_engine(
-            db_url,
-            poolclass=NullPool,
-            pool_pre_ping=True,
-            connect_args=_PG_CONNECT_ARGS,
-        )
-    else:
+
+def _build_engine() -> Engine:
+    global USING_SQLITE_FALLBACK, _engine_error
+    url = settings.get_runtime_database_url()
+    if url:
+        USING_SQLITE_FALLBACK = False
+        _engine_error = None
+        if os.getenv("VERCEL"):
+            # Serverless: one short-lived connection per invocation, no client pool.
+            return create_engine(
+                url,
+                poolclass=NullPool,
+                pool_pre_ping=True,
+                connect_args=_PG_CONNECT_ARGS,
+            )
         # Long-running server: a small, hard-bounded, self-healing pool.
-        # Total connections per process are capped at pool_size + max_overflow,
-        # kept well under Supabase's client limit even across a few processes.
-        engine = create_engine(
-            db_url,
-            pool_pre_ping=True,       # drop dead connections before handing them out
+        return create_engine(
+            url,
+            pool_pre_ping=True,
             pool_size=_int_env("DB_POOL_SIZE", 5),
             max_overflow=_int_env("DB_MAX_OVERFLOW", 5),
             pool_timeout=_int_env("DB_POOL_TIMEOUT", 10),
-            pool_recycle=_int_env("DB_POOL_RECYCLE", 300),  # recycle every 5 min
+            pool_recycle=_int_env("DB_POOL_RECYCLE", 300),
             connect_args=_PG_CONNECT_ARGS,
         )
-    USING_SQLITE_FALLBACK = False
-elif os.getenv("VERCEL"):
-    # Never silently fall back to ephemeral SQLite on Vercel — writes would vanish.
-    raise RuntimeError(
-        "DATABASE_URL is not configured on Vercel. "
-        "Set DATABASE_URL (or RUNTIME_DATABASE_URL) to the Supabase pooler URL."
-    )
-else:
+
+    if os.getenv("VERCEL"):
+        # Never silently fall back to ephemeral SQLite on Vercel — writes would vanish.
+        # Delay the hard failure until a request needs the DB so /health can still boot
+        # and report a clear misconfiguration instead of an opaque platform 500.
+        _engine_error = (
+            "DATABASE_URL is not configured on Vercel. "
+            "Set DATABASE_URL (or RUNTIME_DATABASE_URL) to the Supabase pooler URL."
+        )
+        logger.error(_engine_error)
+        USING_SQLITE_FALLBACK = False
+        # Placeholder engine; get_db/health will surface _engine_error.
+        return create_engine(
+            "sqlite:///:memory:",
+            connect_args={"check_same_thread": False},
+        )
+
     # Local development fallback: file-based SQLite so the backend can run
-    # without a configured Supabase/Postgres database. This is what enables
-    # the local Google/Gmail connection and email-sending flow to work end
-    # to end even when DATABASE_URL is not set.
+    # without a configured Supabase/Postgres database.
     logger.warning(
         "No DATABASE_URL configured. Falling back to local SQLite database "
         "(local_dev.db). This is intended for local development only."
     )
-    engine = create_engine(
+    USING_SQLITE_FALLBACK = True
+    _engine_error = None
+    return create_engine(
         "sqlite:///./local_dev.db",
         connect_args={"check_same_thread": False},
     )
-    USING_SQLITE_FALLBACK = True
 
+
+engine = _build_engine()
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
 
+
+def get_db_config_error() -> Optional[str]:
+    return _engine_error
+
+
 def get_db() -> Generator:
+    if _engine_error:
+        from fastapi import HTTPException, status
+
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=_engine_error,
+        )
     db = SessionLocal()
     try:
         yield db
