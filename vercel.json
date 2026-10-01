@@ -7,7 +7,6 @@
   "regions": ["syd1"],
   "functions": {
     "api/index.py": {
-      "runtime": "python3.12",
       "maxDuration": 60,
       "includeFiles": "backend/**",
       "excludeFiles": "{backend/tests/**,backend/venv/**,backend/.venv/**,backend/local_dev.db,.next/**,node_modules/**,.test-build/**,public/**,**/*.xlsx}"
