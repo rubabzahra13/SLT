@@ -140,45 +140,63 @@ async function requestOnce<T>(
   }
 }
 
+export type ApiRequestOptions = RequestInit & {
+  /** Override default 20s timeout. */
+  timeoutMs?: number;
+  /** When false, skip the cold-start retry (default true). */
+  retry?: boolean;
+};
+
 async function request<T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: ApiRequestOptions = {}
 ): Promise<T> {
+  const { timeoutMs = API_TIMEOUT_MS, retry = true, ...init } = options;
   try {
-    return await requestOnce<T>(endpoint, options, API_TIMEOUT_MS);
+    return await requestOnce<T>(endpoint, init, timeoutMs);
   } catch (err) {
     // One retry for cold-start / transient network failures only.
+    // Do not retry AbortError timeouts — that turns a 20s hang into 40s of
+    // "Loading orders…" with no benefit when the backend is down.
     if (
+      retry &&
+      err instanceof ApiClientError &&
+      err.message.includes("timed out")
+    ) {
+      throw err;
+    }
+    if (
+      retry &&
       err instanceof ApiClientError &&
       (err.status === 0 || err.status === 503 || err.status === 504)
     ) {
-      return requestOnce<T>(endpoint, options, API_TIMEOUT_MS);
+      return requestOnce<T>(endpoint, init, timeoutMs);
     }
     throw err;
   }
 }
 
 export const apiClient = {
-  get: <T>(endpoint: string, options?: RequestInit) =>
+  get: <T>(endpoint: string, options?: ApiRequestOptions) =>
     request<T>(endpoint, { ...options, method: "GET" }),
-  post: <T>(endpoint: string, body?: unknown, options?: RequestInit) =>
+  post: <T>(endpoint: string, body?: unknown, options?: ApiRequestOptions) =>
     request<T>(endpoint, {
       ...options,
       method: "POST",
       body: body ? JSON.stringify(body) : undefined,
     }),
-  patch: <T>(endpoint: string, body?: unknown, options?: RequestInit) =>
+  patch: <T>(endpoint: string, body?: unknown, options?: ApiRequestOptions) =>
     request<T>(endpoint, {
       ...options,
       method: "PATCH",
       body: body ? JSON.stringify(body) : undefined,
     }),
-  put: <T>(endpoint: string, body?: unknown, options?: RequestInit) =>
+  put: <T>(endpoint: string, body?: unknown, options?: ApiRequestOptions) =>
     request<T>(endpoint, {
       ...options,
       method: "PUT",
       body: body ? JSON.stringify(body) : undefined,
     }),
-  delete: <T>(endpoint: string, options?: RequestInit) =>
+  delete: <T>(endpoint: string, options?: ApiRequestOptions) =>
     request<T>(endpoint, { ...options, method: "DELETE" }),
 };

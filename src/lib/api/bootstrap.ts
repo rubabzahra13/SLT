@@ -75,7 +75,11 @@ type RawBootstrap = {
 
 /** Single round-trip warm-start — avoids 8 parallel Vercel cold starts. */
 export async function fetchBootstrapApi(): Promise<BootstrapPayload> {
-  const raw = await apiClient.get<RawBootstrap>("/api/bootstrap");
+  // One attempt, longer budget for Vercel cold start + DB — no double 20s retry.
+  const raw = await apiClient.get<RawBootstrap>("/api/bootstrap", {
+    timeoutMs: 45_000,
+    retry: false,
+  });
 
   const producers = deduplicateProducers(
     (raw.producers || []).map((p) => normalizeProducer(transformProducer(p)))

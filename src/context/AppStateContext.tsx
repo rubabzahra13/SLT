@@ -82,6 +82,15 @@ import {
   deleteStudioPersonalReasonApi,
   upsertEmailTemplateApi,
   fetchBootstrapApi,
+  fetchOrdersApi,
+  fetchProducersApi,
+  fetchMTDRecordsApi,
+  fetchDiscountCodesApi,
+  fetchPayrollAddonsApi,
+  fetchStudioHolidaysApi,
+  fetchStudioPersonalReasonsApi,
+  fetchEmailTemplatesApi,
+  type BootstrapPayload,
 } from "@/lib/api";
 
 type AppStateContextValue = {
@@ -207,34 +216,61 @@ function setLocalItem<T>(key: string, value: T): void {
 }
 
 // --- Stale-while-revalidate cache -------------------------------------------
-// The backend lives in a distant region, so every cold fetch pays a multi-second
-// round-trip. We cache the last-known orders / MTD / producers in localStorage
-// and hydrate from it synchronously on mount so tabs paint instantly, then
-// refresh from the API in the background. Bump the version suffix if the cached
-// (normalized) shape ever changes incompatibly.
-const CACHE_ORDERS_KEY = "slt_cache_orders_v1";
-const CACHE_MTD_KEY = "slt_cache_mtd_v1";
-const CACHE_PRODUCERS_KEY = "slt_cache_producers_v1";
+// Paint last-known data instantly, then refresh from the API. This is NOT a
+// source of truth: hard refresh does NOT clear localStorage, so a long-lived
+// cache makes deleted DB rows look "still there" (exactly the Instagram/Google
+// problem if you cache mutable lists forever).
+//
+// Rules (how large apps avoid this):
+// 1) Version the key — bump to invalidate everyone's old blobs after schema/data resets
+// 2) TTL — after max age, ignore the cache and wait for the network
+// 3) Only rewrite cache after a successful backend sync
+const CACHE_VERSION = "v2";
+const CACHE_ORDERS_KEY = `slt_cache_orders_${CACHE_VERSION}`;
+const CACHE_MTD_KEY = `slt_cache_mtd_${CACHE_VERSION}`;
+const CACHE_PRODUCERS_KEY = `slt_cache_producers_${CACHE_VERSION}`;
+/** Ignore cached lists older than this — force a live fetch. */
+const CACHE_MAX_AGE_MS = 30_000;
+
+type TimedCache<T> = { savedAt: number; data: T };
+
+function readTimedCache<T>(key: string): T | null {
+  const wrapped = getLocalItem<TimedCache<T> | T | null>(key, null);
+  if (!wrapped) return null;
+  // Legacy unwrapped shape from older builds — treat as expired.
+  if (typeof wrapped === "object" && wrapped !== null && "savedAt" in wrapped && "data" in wrapped) {
+    const { savedAt, data } = wrapped as TimedCache<T>;
+    if (typeof savedAt !== "number" || Date.now() - savedAt > CACHE_MAX_AGE_MS) {
+      return null;
+    }
+    return data;
+  }
+  return null;
+}
+
+function writeTimedCache<T>(key: string, data: T): void {
+  setLocalItem<TimedCache<T>>(key, { savedAt: Date.now(), data });
+}
 
 export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const seed = getData();
 
-  // One-time migration: clear any stale localStorage keys that may contain
-  // old mock/demo data, ensuring the backend API is always the data source.
+  // Drop legacy cache keys so hard-to-clear v1 blobs (e.g. 439 deleted orders)
+  // can never hydrate again.
   if (typeof window !== "undefined") {
     localStorage.removeItem("slt_persisted_active_orders");
     localStorage.removeItem("slt_persisted_past_orders");
     localStorage.removeItem("slt_persisted_mtd_records");
+    localStorage.removeItem("slt_cache_orders_v1");
+    localStorage.removeItem("slt_cache_mtd_v1");
+    localStorage.removeItem("slt_cache_producers_v1");
   }
 
-  // Transactional data is populated from the backend API (Supabase), but we
-  // seed initial state from the stale-while-revalidate cache so the first paint
-  // is instant instead of waiting on a cross-region fetch.
-  const cachedOrders = getLocalItem<{ active: Order[]; past: Order[] } | null>(
-    CACHE_ORDERS_KEY,
-    null
+  // Hydrate only from a fresh (TTL) cache; otherwise start empty and load live.
+  const cachedOrders = readTimedCache<{ active: Order[]; past: Order[] }>(
+    CACHE_ORDERS_KEY
   );
-  const cachedMtd = getLocalItem<MTDRecord[] | null>(CACHE_MTD_KEY, null);
+  const cachedMtd = readTimedCache<MTDRecord[]>(CACHE_MTD_KEY);
   const hasCachedData = Boolean(cachedOrders && cachedMtd);
 
   const [activeOrders, setActiveOrders] = useState<Order[]>(
@@ -256,10 +292,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
 
   const [producers, setProducers] = useState<Producer[]>(() => {
-    const cachedProducers = getLocalItem<Producer[] | null>(
-      CACHE_PRODUCERS_KEY,
-      null
-    );
+    const cachedProducers = readTimedCache<Producer[]>(CACHE_PRODUCERS_KEY);
     if (cachedProducers && cachedProducers.length > 0) {
       return deduplicateProducers(cachedProducers.map((p) => normalizeProducer(p)));
     }
@@ -294,66 +327,126 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     )
   );
   const [isBackendConnected, setIsBackendConnected] = useState<boolean>(false);
-  // If we hydrated from cache, we already have data to show, so don't block the
-  // UI with a loading state — the background refresh updates silently.
+  // If we hydrated from a fresh cache, don't block the UI; otherwise wait on API.
   const [isLoading, setIsLoading] = useState<boolean>(!hasCachedData);
 
   const schedule = seed.schedule;
 
-  // Load data from FastAPI Backend on Mount — one bootstrap request, not 8 cold starts.
+  // Load data from FastAPI Backend on Mount — prefer one bootstrap request.
   useEffect(() => {
     let isMounted = true;
     let loadGen = 0;
 
+    function applyBoot(boot: BootstrapPayload) {
+      if (boot.producers.length > 0) {
+        setProducers(boot.producers);
+        writeTimedCache(CACHE_PRODUCERS_KEY, boot.producers);
+      }
+
+      const loadedActiveOrders = normalizeOrders(boot.activeOrders);
+      const loadedPastOrders = normalizeOrders(boot.pastOrders);
+      setActiveOrders(loadedActiveOrders);
+      setPastOrders(loadedPastOrders);
+      writeTimedCache(CACHE_ORDERS_KEY, {
+        active: loadedActiveOrders,
+        past: loadedPastOrders,
+      });
+
+      const loadedMtdRecords = normalizeMTD(boot.mtdRecords);
+      const existingMtdOrderIds = new Set(
+        loadedMtdRecords.map((r) => r.orderId).filter(Boolean)
+      );
+      const convertedOrders: MTDRecord[] = [];
+      for (const order of loadedActiveOrders) {
+        const oid = order.id || order.uuid || order.legacyId;
+        if (oid && !existingMtdOrderIds.has(oid)) {
+          convertedOrders.push(orderToMTDRecord(order));
+        }
+      }
+      const combinedMtd = [...loadedMtdRecords, ...convertedOrders];
+      setMtdRecords(combinedMtd);
+      writeTimedCache(CACHE_MTD_KEY, combinedMtd);
+
+      setDiscountCodes(boot.discountCodes);
+      setPayrollAddons(boot.payrollAddons);
+
+      if (boot.holidays.length > 0) {
+        setHolidays(boot.holidays.map((entry) => normalizeStudioHoliday(entry)));
+      }
+      if (boot.personalReasons.length > 0) {
+        setPersonalReasons(ensurePersonalReasonsList(boot.personalReasons));
+      }
+      if (boot.emailTemplates) {
+        setEmailTemplates(normalizeEmailTemplates(boot.emailTemplates));
+      }
+
+      setIsBackendConnected(true);
+    }
+
+    /** Legacy path: parallel GETs when /api/bootstrap is missing or down. */
+    async function fetchLegacyBootstrap(): Promise<BootstrapPayload> {
+      const [
+        producers,
+        orders,
+        mtdRecords,
+        discountCodes,
+        payrollAddons,
+        holidays,
+        personalReasons,
+        emailTemplates,
+      ] = await Promise.all([
+        fetchProducersApi().catch(() => [] as Producer[]),
+        fetchOrdersApi().catch(() => ({
+          activeOrders: [] as Order[],
+          pastOrders: [] as Order[],
+        })),
+        fetchMTDRecordsApi().catch(() => [] as MTDRecord[]),
+        fetchDiscountCodesApi().catch(() => [] as DiscountCode[]),
+        fetchPayrollAddonsApi().catch(() => [] as PayrollAddon[]),
+        fetchStudioHolidaysApi().catch(() => [] as StudioHoliday[]),
+        fetchStudioPersonalReasonsApi().catch(
+          () => [] as StudioPersonalReason[]
+        ),
+        fetchEmailTemplatesApi().catch(() => null),
+      ]);
+
+      if (
+        producers.length === 0 &&
+        orders.activeOrders.length === 0 &&
+        orders.pastOrders.length === 0 &&
+        mtdRecords.length === 0
+      ) {
+        throw new Error("Legacy bootstrap returned no data");
+      }
+
+      return {
+        producers,
+        activeOrders: orders.activeOrders,
+        pastOrders: orders.pastOrders,
+        mtdRecords,
+        discountCodes,
+        payrollAddons,
+        holidays,
+        personalReasons,
+        emailTemplates,
+      };
+    }
+
     async function loadBackendData() {
       const gen = ++loadGen;
       try {
-        const boot = await fetchBootstrapApi();
+        let boot: BootstrapPayload;
+        try {
+          boot = await fetchBootstrapApi();
+        } catch (bootErr) {
+          console.warn(
+            "Bootstrap endpoint failed; trying legacy parallel fetches.",
+            bootErr
+          );
+          boot = await fetchLegacyBootstrap();
+        }
         if (!isMounted || gen !== loadGen) return;
-
-        if (boot.producers.length > 0) {
-          setProducers(boot.producers);
-          setLocalItem(CACHE_PRODUCERS_KEY, boot.producers);
-        }
-
-        const loadedActiveOrders = normalizeOrders(boot.activeOrders);
-        const loadedPastOrders = normalizeOrders(boot.pastOrders);
-        setActiveOrders(loadedActiveOrders);
-        setPastOrders(loadedPastOrders);
-        setLocalItem(CACHE_ORDERS_KEY, {
-          active: loadedActiveOrders,
-          past: loadedPastOrders,
-        });
-
-        let loadedMtdRecords = normalizeMTD(boot.mtdRecords);
-        const existingMtdOrderIds = new Set(
-          loadedMtdRecords.map((r) => r.orderId).filter(Boolean)
-        );
-        const convertedOrders: MTDRecord[] = [];
-        for (const order of loadedActiveOrders) {
-          const oid = order.id || order.uuid || order.legacyId;
-          if (oid && !existingMtdOrderIds.has(oid)) {
-            convertedOrders.push(orderToMTDRecord(order));
-          }
-        }
-        const combinedMtd = [...loadedMtdRecords, ...convertedOrders];
-        setMtdRecords(combinedMtd);
-        setLocalItem(CACHE_MTD_KEY, combinedMtd);
-
-        setDiscountCodes(boot.discountCodes);
-        setPayrollAddons(boot.payrollAddons);
-
-        if (boot.holidays.length > 0) {
-          setHolidays(boot.holidays.map((entry) => normalizeStudioHoliday(entry)));
-        }
-        if (boot.personalReasons.length > 0) {
-          setPersonalReasons(ensurePersonalReasonsList(boot.personalReasons));
-        }
-        if (boot.emailTemplates) {
-          setEmailTemplates(normalizeEmailTemplates(boot.emailTemplates));
-        }
-
-        setIsBackendConnected(true);
+        applyBoot(boot);
       } catch (err) {
         if (!isMounted) return;
         // Keep previous cache visible but mark disconnected so UI can retry.
@@ -366,22 +459,10 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         window.setTimeout(() => {
           if (!isMounted) return;
           fetchBootstrapApi()
+            .catch(() => fetchLegacyBootstrap())
             .then((boot) => {
               if (!isMounted) return;
-              setProducers(boot.producers);
-              setActiveOrders(normalizeOrders(boot.activeOrders));
-              setPastOrders(normalizeOrders(boot.pastOrders));
-              setMtdRecords(normalizeMTD(boot.mtdRecords));
-              setDiscountCodes(boot.discountCodes);
-              setPayrollAddons(boot.payrollAddons);
-              if (boot.holidays.length) setHolidays(boot.holidays);
-              if (boot.personalReasons.length) {
-                setPersonalReasons(ensurePersonalReasonsList(boot.personalReasons));
-              }
-              if (boot.emailTemplates) {
-                setEmailTemplates(normalizeEmailTemplates(boot.emailTemplates));
-              }
-              setIsBackendConnected(true);
+              applyBoot(boot);
               setIsLoading(false);
             })
             .catch(() => {
@@ -1102,12 +1183,12 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   // clobber a good cache with the empty initial state on a cold start.
   useEffect(() => {
     if (!isBackendConnected) return;
-    setLocalItem(CACHE_ORDERS_KEY, { active: activeOrders, past: pastOrders });
+    writeTimedCache(CACHE_ORDERS_KEY, { active: activeOrders, past: pastOrders });
   }, [activeOrders, pastOrders, isBackendConnected]);
 
   useEffect(() => {
     if (!isBackendConnected) return;
-    setLocalItem(CACHE_MTD_KEY, mtdRecords);
+    writeTimedCache(CACHE_MTD_KEY, mtdRecords);
   }, [mtdRecords, isBackendConnected]);
 
   useEffect(() => {

@@ -37,11 +37,8 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    def get_database_url(self) -> str:
-        url = self.DATABASE_URL or self.SUPABASE_DIRECT_CONNECTION_STRING
-        if not url:
-            # Fallback check directly from os.environ
-            url = os.getenv("DATABASE_URL") or os.getenv("SUPABASE_DIRECT_CONNECTION_STRING", "")
+    @staticmethod
+    def _normalize_database_url(url: str) -> str:
         if not url:
             return ""
         if url.startswith("postgres://"):
@@ -50,16 +47,32 @@ class Settings(BaseSettings):
         if "postgresql://" in url and ":[" in url and "]@" in url:
             url = url.replace(":[", ":").replace("]@ ", "@").replace("]@", "@")
 
-        # Convert direct Supabase IPv6-only host to IPv4 pooler host for Vercel compatibility
+        # Convert direct Supabase IPv6-only host to IPv4 pooler host for Vercel/local
+        # compatibility. RUNTIME_DATABASE_URL overrides must go through this too —
+        # otherwise a direct-host override silently breaks serverless + some networks.
         if "db.fqjwjiltizsjzrinoiwv.supabase.co" in url:
-            url = url.replace("db.fqjwjiltizsjzrinoiwv.supabase.co", "aws-0-ap-southeast-2.pooler.supabase.com")
+            url = url.replace(
+                "db.fqjwjiltizsjzrinoiwv.supabase.co",
+                "aws-0-ap-southeast-2.pooler.supabase.com",
+            )
             if "postgresql://postgres:" in url:
-                url = url.replace("postgresql://postgres:", "postgresql://postgres.fqjwjiltizsjzrinoiwv:", 1)
+                url = url.replace(
+                    "postgresql://postgres:",
+                    "postgresql://postgres.fqjwjiltizsjzrinoiwv:",
+                    1,
+                )
 
         if "sslmode=" not in url:
             separator = "&" if "?" in url else "?"
             url = f"{url}{separator}sslmode=require"
         return url
+
+    def get_database_url(self) -> str:
+        url = self.DATABASE_URL or self.SUPABASE_DIRECT_CONNECTION_STRING
+        if not url:
+            # Fallback check directly from os.environ
+            url = os.getenv("DATABASE_URL") or os.getenv("SUPABASE_DIRECT_CONNECTION_STRING", "")
+        return self._normalize_database_url(url)
 
     def get_runtime_database_url(self) -> str:
         """URL used by the live API engine.
@@ -74,16 +87,14 @@ class Settings(BaseSettings):
         Migrations still use get_database_url() (session/direct) because DDL and
         advisory locks are not safe over the transaction pooler.
         """
-        # Explicit override wins (e.g. RUNTIME_DATABASE_URL in the environment).
+        # Explicit override wins as the *source* URL, but still gets normalized
+        # (direct → pooler, sslmode, user rewrite) so local scripts can't bypass it.
         override = os.getenv("RUNTIME_DATABASE_URL")
-        if override:
-            return override
-
-        url = self.get_database_url()
+        url = self._normalize_database_url(override) if override else self.get_database_url()
         if not url:
             return url
 
-        # Only rewrite when we're actually going through the Supabase pooler.
+        # Prefer transaction pooler (6543) over session mode (5432).
         if "pooler.supabase.com:5432" in url:
             url = url.replace("pooler.supabase.com:5432", "pooler.supabase.com:6543", 1)
 
