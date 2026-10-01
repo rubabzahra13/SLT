@@ -17,11 +17,18 @@ import {
   type BackendStudioPersonalReason,
   type BackendEmailTemplate,
 } from "./studio-settings";
+import {
+  packagePricesFromRows,
+  secretMenuFromBackend,
+  type BackendPackagePrice,
+  type BackendSecretMenuPricing,
+} from "./catalog-pricing";
 import { normalizeEmailTemplates } from "@/lib/email-templates";
 import { ensurePersonalReasonsList } from "@/lib/producer-time-off";
 import { normalizeProducer, deduplicateProducers } from "@/lib/producers";
 import { normalizeDiscountCode } from "@/lib/discount-codes";
 import { normalizeOrder } from "@/lib/order-form";
+import type { SecretMenuPricing } from "@/lib/pricing";
 
 function mapPayrollAddon(raw: BackendPayrollAddon): PayrollAddon {
   let mtdId = raw.mtd_id ?? null;
@@ -60,6 +67,8 @@ export type BootstrapPayload = {
   holidays: StudioHoliday[];
   personalReasons: StudioPersonalReason[];
   emailTemplates: EmailTemplatesState | null;
+  packagePrices: Record<string, number> | null;
+  secretMenuPricing: SecretMenuPricing | null;
 };
 
 type RawBootstrap = {
@@ -71,6 +80,8 @@ type RawBootstrap = {
   studio_holidays?: BackendStudioHoliday[];
   studio_personal_reasons?: BackendStudioPersonalReason[];
   email_templates?: BackendEmailTemplate[];
+  package_prices?: BackendPackagePrice[];
+  secret_menu_pricing?: BackendSecretMenuPricing;
 };
 
 /** Single round-trip warm-start — avoids 8 parallel Vercel cold starts. */
@@ -125,5 +136,11 @@ export async function fetchBootstrapApi(): Promise<BootstrapPayload> {
       (raw.studio_personal_reasons || []).map(transformStudioPersonalReason)
     ),
     emailTemplates,
+    packagePrices: raw.package_prices?.length
+      ? packagePricesFromRows(raw.package_prices)
+      : null,
+    secretMenuPricing: raw.secret_menu_pricing
+      ? secretMenuFromBackend(raw.secret_menu_pricing)
+      : null,
   };
 }

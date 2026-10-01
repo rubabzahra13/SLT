@@ -90,6 +90,10 @@ import {
   fetchStudioHolidaysApi,
   fetchStudioPersonalReasonsApi,
   fetchEmailTemplatesApi,
+  savePackagePricesApi,
+  saveSecretMenuPricingApi,
+  fetchPackagePricesApi,
+  fetchSecretMenuPricingApi,
   type BootstrapPayload,
 } from "@/lib/api";
 
@@ -379,6 +383,12 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       if (boot.emailTemplates) {
         setEmailTemplates(normalizeEmailTemplates(boot.emailTemplates));
       }
+      if (boot.packagePrices) {
+        setPackagePricesState(boot.packagePrices);
+      }
+      if (boot.secretMenuPricing) {
+        setSecretMenuPricesState(boot.secretMenuPricing);
+      }
 
       setIsBackendConnected(true);
     }
@@ -394,6 +404,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         holidays,
         personalReasons,
         emailTemplates,
+        packagePrices,
+        secretMenuPricing,
       ] = await Promise.all([
         fetchProducersApi().catch(() => [] as Producer[]),
         fetchOrdersApi().catch(() => ({
@@ -408,6 +420,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           () => [] as StudioPersonalReason[]
         ),
         fetchEmailTemplatesApi().catch(() => null),
+        fetchPackagePricesApi().catch(() => null),
+        fetchSecretMenuPricingApi().catch(() => null),
       ]);
 
       if (
@@ -429,6 +443,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         holidays,
         personalReasons,
         emailTemplates,
+        packagePrices,
+        secretMenuPricing,
       };
     }
 
@@ -662,30 +678,46 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     [activeOrders, isInMTD, mtdRecords, producers, schedule, addNotification, packagePrices, isViewOnly]
   );
 
-  const setPackagePrices = useCallback((prices: Record<string, number>) => {
-    if (isViewOnly) return;
-    setPackagePricesState(prices);
-    setMtdRecords((prev) =>
-      prev.map((record) => {
-        const compliance =
-          record.priceCompliance || detectCompliance(record.musicTheme);
-        return {
-          ...record,
-          price: getPriceForPackage(
-            record.package,
-            compliance,
-            record.price,
-            prices
-          ),
-        };
-      })
-    );
-  }, [isViewOnly]);
+  const setPackagePrices = useCallback(
+    (prices: Record<string, number>) => {
+      if (isViewOnly) return;
+      setPackagePricesState(prices);
+      setMtdRecords((prev) =>
+        prev.map((record) => {
+          const compliance =
+            record.priceCompliance || detectCompliance(record.musicTheme);
+          return {
+            ...record,
+            price: getPriceForPackage(
+              record.package,
+              compliance,
+              record.price,
+              prices
+            ),
+          };
+        })
+      );
+      void savePackagePricesApi(prices)
+        .then((saved) => setPackagePricesState(saved))
+        .catch((err) =>
+          console.error("Failed to persist package prices to backend:", err)
+        );
+    },
+    [isViewOnly]
+  );
 
-  const setSecretMenuPrices = useCallback((pricing: SecretMenuPricing) => {
-    if (isViewOnly) return;
-    setSecretMenuPricesState(pricing);
-  }, [isViewOnly]);
+  const setSecretMenuPrices = useCallback(
+    (pricing: SecretMenuPricing) => {
+      if (isViewOnly) return;
+      setSecretMenuPricesState(pricing);
+      void saveSecretMenuPricingApi(pricing)
+        .then((saved) => setSecretMenuPricesState(saved))
+        .catch((err) =>
+          console.error("Failed to persist secret menu pricing:", err)
+        );
+    },
+    [isViewOnly]
+  );
 
   const updateMTD = useCallback((id: string, patch: Partial<MTDRecord>) => {
     if (isViewOnly) return;
@@ -906,12 +938,58 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         return prev;
       });
 
+      // Keep linked MTD board rows in sync (shared fields only).
+      const mtdPatch: Partial<MTDRecord> = {};
+      if (patch.assignedProducer !== undefined) {
+        mtdPatch.assignedProducer = patch.assignedProducer;
+      }
+      if (patch.mixStartDate !== undefined) mtdPatch.mixStartDate = patch.mixStartDate;
+      if (patch.mixEndDate !== undefined) mtdPatch.mixEndDate = patch.mixEndDate;
+      if (patch.price !== undefined) mtdPatch.price = patch.price;
+      if (patch.editorRequest !== undefined) {
+        mtdPatch.editorRequest = patch.editorRequest;
+      }
+      if (patch.isReassigned !== undefined) mtdPatch.isReassigned = patch.isReassigned;
+      if (patch.collectionStates !== undefined) {
+        mtdPatch.collectionStates = patch.collectionStates;
+      }
+      if (patch.haveSongs !== undefined) mtdPatch.haveSongs = patch.haveSongs;
+      if (patch.eightCountSheet !== undefined) {
+        mtdPatch.eightCountSheet = patch.eightCountSheet;
+      }
+      if (patch.orderStatus !== undefined) mtdPatch.orderStatus = patch.orderStatus;
+      if (Object.keys(mtdPatch).length > 0) {
+        setMtdRecords((prev) =>
+          prev.map((r) => {
+            const linked =
+              r.orderId === id ||
+              r.id === id ||
+              r.uuid === id ||
+              (r.legacyId && r.legacyId === id);
+            return linked ? { ...r, ...mtdPatch } : r;
+          })
+        );
+        const linkedMtd = mtdRecords.find(
+          (r) =>
+            r.orderId === id ||
+            r.id === id ||
+            r.uuid === id ||
+            (r.legacyId && r.legacyId === id)
+        );
+        if (linkedMtd && (linkedMtd.inMTD || linkedMtd.isManualScheduleEntry)) {
+          const apiId = linkedMtd.uuid || linkedMtd.id;
+          updateMTDRecordApi(apiId, mtdPatch).catch((err) =>
+            console.error("Failed to sync MTD from order update:", err)
+          );
+        }
+      }
+
       // Persist Order patch to backend API
       updateOrderApi(id, patch).catch((err) =>
         console.error("Failed to persist Order update to backend:", err)
       );
     },
-    [isViewOnly]
+    [isViewOnly, mtdRecords]
   );
 
   const markComplete = useCallback(

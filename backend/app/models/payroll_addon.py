@@ -19,7 +19,12 @@ class PayrollAddon(Base):
         ForeignKey("orders.id", ondelete="SET NULL"),
         nullable=True,
     )
-    mtd_id = Column(UUID(as_uuid=True), nullable=True)
+    mtd_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("mtd_records.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
 
     # "Cheer" or "Dance"
     category = Column(String, nullable=False)
