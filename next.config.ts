@@ -14,7 +14,8 @@ const nextConfig: NextConfig = {
     return config;
   },
   async rewrites() {
-    // Local: proxy /api to the FastAPI process on :8001.
+    // Local only: proxy /api to uvicorn. On Vercel, api/index.py is the
+    // Python serverless function for /api/* (zero-config alongside Next.js).
     if (process.env.NODE_ENV === "development" && !process.env.VERCEL) {
       return {
         beforeFiles: [
@@ -25,9 +26,6 @@ const nextConfig: NextConfig = {
         ],
       };
     }
-    // Production: API is not hosted inside this Next.js project (Vercel no longer
-    // treats root api/*.py as Serverless Functions alongside Next.js). Point
-    // NEXT_PUBLIC_API_URL at the FastAPI host (e.g. Render) when available.
     return [];
   },
 };

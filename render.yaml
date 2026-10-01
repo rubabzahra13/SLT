@@ -5,7 +5,7 @@ services:
     dockerfilePath: ./backend/Dockerfile
     dockerContext: .
     plan: free
-    healthCheckPath: /health
+    healthCheckPath: /api/health
     envVars:
       - key: DATABASE_URL
         sync: false
@@ -13,3 +13,9 @@ services:
         value: https://slt-teal.vercel.app
       - key: PYTHONPATH
         value: /app/backend
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_REDIRECT_URI
+        sync: false
