@@ -15,6 +15,7 @@ const nextConfig: NextConfig = {
   },
   async rewrites() {
     // Local: proxy /api to the FastAPI process on :8001.
+    // On Vercel, vercel.json Services rewrites own /api → the api service.
     if (process.env.NODE_ENV === "development" && !process.env.VERCEL) {
       return {
         beforeFiles: [
@@ -25,17 +26,7 @@ const nextConfig: NextConfig = {
         ],
       };
     }
-    // Vercel: beforeFiles so the App Router cannot 404 /api before the
-    // Python serverless function runs. Destination must be the function
-    // route (/api/index), not a filesystem path with .py.
-    return {
-      beforeFiles: [
-        {
-          source: "/api/:path*",
-          destination: "/api/index",
-        },
-      ],
-    };
+    return [];
   },
 };
 
