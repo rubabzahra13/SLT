@@ -8,7 +8,6 @@ import {
 } from "@/lib/producer-availability";
 import { isEligibleProducerScheduleRecord } from "@/lib/export-csv";
 import type { StudioHoliday } from "@/lib/producer-time-off";
-import { studioHolidayNamesForIso } from "@/lib/producer-time-off";
 
 export type ScheduleViewRange = "today" | "week" | "month" | "90days" | "6months";
 
@@ -82,26 +81,18 @@ function formatLegacyDay(date: any): string {
   return `${DAY_NAMES[d.getDay()]} ${MONTH_NAMES[d.getMonth()]} ${d.getDate()}`;
 }
 
-/** Leave reason and/or public holiday name for an Off day. */
+/** Leave name for an Off day (calendar holidays are reference only). */
 export function describeScheduleOffDetail(
   producer: Producer,
   date: Date,
-  studioHolidays?: StudioHoliday[]
+  _studioHolidays?: StudioHoliday[]
 ): string | undefined {
   const dayIso = toLocalIsoDate(date);
   const parts: string[] = [];
 
-  for (const name of studioHolidayNamesForIso(
-    dayIso,
-    studioHolidays ?? [],
-    producer.id
-  )) {
-    if (!parts.includes(name)) parts.push(name);
-  }
-
   for (const entry of producer.timeOff ?? []) {
     if (dayIso < entry.startDate || dayIso > entry.endDate) continue;
-    const reason = (entry.reason || "").trim() || "Personal leave";
+    const reason = (entry.reason || "").trim() || "Leave";
     if (!parts.includes(reason)) parts.push(reason);
   }
 

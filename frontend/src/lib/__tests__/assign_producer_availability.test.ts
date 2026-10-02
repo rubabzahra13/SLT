@@ -240,15 +240,7 @@ describe("Assign Producer Availability Logic", () => {
     assert.equal(suggestMixEndDate("2026-09-14", "Platinum"), "2026-09-22");
   });
 
-  it("Test 7b: Suggested mix end skips the producer's leave and studio holidays", () => {
-    const holiday: StudioHoliday = {
-      id: "h-1",
-      name: "Studio Day",
-      startDate: "09-17",
-      endDate: "09-17",
-      appliesToAll: true,
-      producerIds: [],
-    };
+  it("Test 7b: Suggested mix end skips the producer's leave", () => {
     const onLeave = createMockProducer({
       timeOff: [dentistLeave],
     });
@@ -257,12 +249,21 @@ describe("Assign Producer Availability Logic", () => {
       suggestMixEndDate("2026-09-14", "Gold", { producer: onLeave }),
       "2026-09-21"
     );
+    // Calendar holidays are reference only — they do not skip mix days.
+    const holiday: StudioHoliday = {
+      id: "h-1",
+      name: "Studio Day",
+      startDate: "09-17",
+      endDate: "09-17",
+      appliesToAll: true,
+      producerIds: [],
+    };
     assert.equal(
       suggestMixEndDate("2026-09-14", "Gold", {
         producer: onLeave,
         studioHolidays: [holiday],
       }),
-      "2026-09-22"
+      "2026-09-21"
     );
     // A start on a day off doesn't count as day one.
     assert.equal(
@@ -271,7 +272,7 @@ describe("Assign Producer Availability Logic", () => {
     );
   });
 
-  it("Test 8: countProducerWorkingDays skips days off, leave and holidays", () => {
+  it("Test 8: countProducerWorkingDays skips days off and leave", () => {
     const holiday: StudioHoliday = {
       id: "h-1",
       name: "Studio Day",
@@ -285,9 +286,10 @@ describe("Assign Producer Availability Logic", () => {
     });
 
     assert.equal(countProducerWorkingDays(producer, "2026-09-14", "2026-09-22"), 6);
+    // Calendar holidays do not reduce working days.
     assert.equal(
       countProducerWorkingDays(producer, "2026-09-14", "2026-09-22", [holiday]),
-      5
+      6
     );
     assert.equal(countProducerWorkingDays(producer, "2026-09-19", "2026-09-20"), 0);
   });

@@ -21,13 +21,13 @@ export const SCHEDULE_LEGEND_ITEMS = [
   {
     key: "off",
     label: "Off",
-    tip: "Personal leave or public holiday",
+    tip: "Named leave on a working day",
     swatchClass: "bg-brand-orange/80",
   },
   {
     key: "nonwork",
     label: "Non-working",
-    tip: "Outside regular work days, with no overtime",
+    tip: "Outside regular work days, with no extra day",
     swatchClass:
       "ring-1 ring-inset ring-brand-orange shadow-[0_1px_2px_rgba(240,120,64,0.12)]",
   },

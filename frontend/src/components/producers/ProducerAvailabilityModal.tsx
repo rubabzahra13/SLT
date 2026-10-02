@@ -694,7 +694,6 @@ export function ProducerAvailabilityModal({
 
   function isBlockedTimeOffCalendarDay(iso: string): boolean {
     if (getBlockedTimeOffDays().includes(iso)) return true;
-    if (isStudioHolidayIso(iso, holidays, producerId)) return true;
     if (isNonWorkTimeOffDay(iso)) return true;
     // Mix days are highlighted (pink) but still selectable for leave.
     return false;
@@ -703,7 +702,6 @@ export function ProducerAvailabilityModal({
   function isLeaveSpanBarrierDay(iso: string): boolean {
     if (overtimeDays.includes(iso)) return true;
     if (expandTimeOffDates(timeOff).includes(iso)) return true;
-    if (isStudioHolidayIso(iso, holidays, producerId)) return true;
     return false;
   }
 
@@ -785,7 +783,7 @@ export function ProducerAvailabilityModal({
           pendingEntry.startDate !== endDate
             ? ` to ${formatIsoDayMonthYear(endDate)}`
             : ""
-        } overlaps overtime.`,
+        } overlaps an extra day.`,
         pendingEntry,
         conflicts: [
           {
@@ -885,8 +883,6 @@ export function ProducerAvailabilityModal({
     const [y, m, d] = value.split("-").map(Number);
     const date = new Date(y, m - 1, d);
     if (!isEligibleOvertimeDate(date, workDays)) return;
-    // Holidays only block OT on off days; work-day holidays already fail above.
-    if (isStudioHolidayIso(value, holidays, producerId)) return;
     setOvertimeDays((prev) =>
       [...new Set([...prev, value])].sort((a, b) => a.localeCompare(b))
     );
@@ -1024,17 +1020,16 @@ export function ProducerAvailabilityModal({
     .sort((a, b) => a.startDate.localeCompare(b.startDate));
 
   // Days that cannot be pick points for leave start/end (and can't sit inside
-  // a leave range): overtime, existing leave, and studio holidays.
-  // Weekends/non-work weekdays are only invalid as endpoints — a leave range
-  // may span them. Mix days stay selectable (pink) and confirm on commit.
+  // a leave range): extra days and existing leave. Calendar holidays are
+  // reference only. Weekends/non-work weekdays are only invalid as endpoints —
+  // a leave range may span them. Mix days stay selectable (pink) and confirm on commit.
   const leaveSpanBarrierDays: string[] = [];
   {
     let cursor = timeOffMinIso;
     for (let i = 0; i < 800 && cursor <= timeOffMaxIso; i += 1) {
       if (
         overtimeDays.includes(cursor) ||
-        existingTimeOffDays.includes(cursor) ||
-        isStudioHolidayIso(cursor, holidays, producerId)
+        existingTimeOffDays.includes(cursor)
       ) {
         leaveSpanBarrierDays.push(cursor);
       }
@@ -1106,17 +1101,6 @@ export function ProducerAvailabilityModal({
       return "Past day";
     }
     const outsideRange = disabled && isOutsideTimeOffFieldRange(iso);
-    const holidayNames = studioHolidayNamesForIso(iso, holidays, producerId);
-    if (holidayNames.length > 0) {
-      const name =
-        holidayNames.length === 1
-          ? holidayNames[0]
-          : holidayNames.join(", ");
-      if (outsideRange) {
-        return `${name}\nRange can’t include holidays or extra days`;
-      }
-      return `${name}\nLeave can’t be added on holidays`;
-    }
     // Off days can't be leave start/end — OT on an off day doesn't change that.
     // Leave ranges may still span weekends between two work days.
     if (isNonWorkTimeOffDay(iso)) {
@@ -1130,6 +1114,14 @@ export function ProducerAvailabilityModal({
     }
     if (existingTimeOffDays.includes(iso)) {
       return "Already added as time off";
+    }
+    const holidayNames = studioHolidayNamesForIso(iso, holidays, producerId);
+    if (holidayNames.length > 0) {
+      const name =
+        holidayNames.length === 1
+          ? holidayNames[0]
+          : holidayNames.join(", ");
+      return `${name}\nCalendar holiday — request leave with a name if taking off`;
     }
     const mixTitle = mixLeaveDayTitle(iso);
     if (mixTitle) {
@@ -1147,7 +1139,7 @@ export function ProducerAvailabilityModal({
           rangeBlockedDays
         ))
     ) {
-      return "Range can’t include holidays or extra days";
+      return "Range can’t include extra days";
     }
     if (iso === todayIso) return "Today";
     return undefined;
@@ -2245,8 +2237,9 @@ export function ProducerAvailabilityModal({
               {timeOffNotice.kind === "ot-conflict" ? (
                 <div className="mt-4">
                   <p className="text-[12px] leading-relaxed text-brand-ink-secondary">
-                    Cancel overtime to apply this leave, or keep overtime and
-                    skip. You can also remove overtime from the chips above.
+                    Cancel the extra day to apply this leave, or keep it and
+                    skip. You can also remove an extra day with the × on its
+                    chip above.
                   </p>
                   <ul className="mt-3 space-y-2">
                     {timeOffNotice.conflicts.map((row) => (

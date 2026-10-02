@@ -6,11 +6,7 @@ import {
   overtimeDatesInRange,
   timeOffRangeCoversWorkDay,
 } from "@/lib/producer-availability";
-import { producerHasHoliday } from "@/lib/producer-time-off";
-import {
-  isStudioHolidayIso,
-  type StudioHoliday,
-} from "@/lib/producer-time-off";
+import { producerHasHoliday, type StudioHoliday } from "@/lib/producer-time-off";
 import type { MTDRecord, Producer, ProducerTimeOff } from "@/types";
 
 export type TimeOffAssigneeStatus =
@@ -290,11 +286,7 @@ export function formatOvertimeDayLabel(iso: string): string {
   });
 }
 
-export type OvertimeCalendarBlockReason =
-  | "past"
-  | "studio_holiday"
-  | "time_off"
-  | "none";
+export type OvertimeCalendarBlockReason = "past" | "time_off" | "none";
 
 export function overtimeCalendarBlockReason(
   iso: string,
@@ -309,13 +301,6 @@ export function overtimeCalendarBlockReason(
   const selected = options.producers.filter((p) =>
     options.selectedIds.has(p.id)
   );
-  const holidayHitsSelected =
-    selected.length === 0
-      ? isStudioHolidayIso(iso, options.studioHolidays)
-      : selected.some((p) =>
-          isStudioHolidayIso(iso, options.studioHolidays, p.id)
-        );
-  if (holidayHitsSelected) return "studio_holiday";
 
   if (selected.length === 0) return "none";
 
@@ -332,7 +317,7 @@ export function isOvertimeCalendarDateDisabled(
   options: Parameters<typeof overtimeCalendarBlockReason>[1]
 ): boolean {
   const reason = overtimeCalendarBlockReason(iso, options);
-  return reason === "past" || reason === "studio_holiday" || reason === "time_off";
+  return reason === "past" || reason === "time_off";
 }
 
 export function overtimeCalendarDayTitle(
@@ -341,7 +326,6 @@ export function overtimeCalendarDayTitle(
 ): string | undefined {
   const reason = overtimeCalendarBlockReason(iso, options);
   if (reason === "past") return "Past day";
-  if (reason === "studio_holiday") return "Studio holiday\nNot available";
   if (reason === "time_off") return "Leave day";
   return undefined;
 }

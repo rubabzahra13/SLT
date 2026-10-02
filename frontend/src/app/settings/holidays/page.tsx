@@ -38,8 +38,6 @@ type HolidayDraft = {
   endDate: string;
   /** Single calendar day vs inclusive From–To range */
   dateMode: "single" | "range";
-  appliesToAll: boolean;
-  producerIds: string[];
 };
 
 type SettingsTab = "studio" | "personal";
@@ -57,8 +55,6 @@ function emptyDraft(): HolidayDraft {
     startDate: todayMd,
     endDate: todayMd,
     dateMode: "single",
-    appliesToAll: true,
-    producerIds: [],
   };
 }
 
@@ -95,21 +91,6 @@ function ensureDistinctRange(
   return { startDate: prev, endDate: startMd };
 }
 
-function holidayAppliesLabel(
-  holiday: StudioHoliday,
-  producers: { id: string; name: string }[]
-): string {
-  if (holiday.appliesToAll !== false) return "All producers";
-  const ids = new Set(holiday.producerIds ?? []);
-  const names = producers
-    .filter((p) => ids.has(p.id))
-    .map((p) => p.name);
-  if (names.length === 0) return "No producers";
-  if (names.length === 1) return names[0];
-  if (names.length === 2) return `${names[0]}, ${names[1]}`;
-  return `${names.length} producers`;
-}
-
 export default function HolidaysSettingsPage() {
   const {
     holidays,
@@ -120,7 +101,6 @@ export default function HolidaysSettingsPage() {
     addPersonalReason,
     updatePersonalReason,
     removePersonalReason,
-    producers,
     isViewOnly,
   } = useAppState();
   const [tab, setTab] = useState<SettingsTab>("studio");
@@ -134,14 +114,6 @@ export default function HolidaysSettingsPage() {
   const [renameValue, setRenameValue] = useState("");
   const startRef = useRef<HTMLButtonElement>(null);
   const endRef = useRef<HTMLButtonElement>(null);
-
-  const sortedProducers = useMemo(
-    () =>
-      [...producers].sort((a, b) =>
-        a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
-      ),
-    [producers]
-  );
 
   const sorted = useMemo(
     () =>
@@ -178,8 +150,6 @@ export default function HolidaysSettingsPage() {
       startDate: range.startDate,
       endDate: range.endDate,
       dateMode: isSingle ? "single" : "range",
-      appliesToAll: holiday.appliesToAll !== false,
-      producerIds: [...(holiday.producerIds ?? [])],
     });
     setDateField(null);
     setHolidaySelectOpen(false);
@@ -219,7 +189,6 @@ export default function HolidaysSettingsPage() {
     if (isViewOnly) return;
     const name = draftDisplayName(draft);
     if (!name || !draft.startDate) return;
-    if (!draft.appliesToAll && draft.producerIds.length === 0) return;
     if (
       draft.dateMode === "range" &&
       !isValidHolidayRange(draft.startDate, draft.endDate)
@@ -235,8 +204,8 @@ export default function HolidaysSettingsPage() {
       name,
       startDate: draft.startDate,
       endDate,
-      appliesToAll: draft.appliesToAll,
-      producerIds: draft.producerIds,
+      appliesToAll: true,
+      producerIds: [],
     });
     if (editing) {
       updateHoliday(editing.id, payload);
@@ -244,18 +213,6 @@ export default function HolidaysSettingsPage() {
       addHoliday(payload);
     }
     closeForm();
-  }
-
-  function toggleDraftProducer(producerId: string) {
-    setDraft((current) => {
-      const has = current.producerIds.includes(producerId);
-      return {
-        ...current,
-        producerIds: has
-          ? current.producerIds.filter((id) => id !== producerId)
-          : [...current.producerIds, producerId],
-      };
-    });
   }
 
   function startRename(entry: StudioPersonalReason) {
@@ -317,15 +274,6 @@ export default function HolidaysSettingsPage() {
           </span>
         ),
       },
-      {
-        key: "applies",
-        header: "Applies to",
-        render: (entry) => (
-          <span className="text-brand-ink-secondary">
-            {holidayAppliesLabel(entry, sortedProducers)}
-          </span>
-        ),
-      },
       ...(isViewOnly
         ? []
         : [
@@ -357,7 +305,7 @@ export default function HolidaysSettingsPage() {
             },
           ]),
     ],
-    [isViewOnly, removeHoliday, sortedProducers]
+    [isViewOnly, removeHoliday]
   );
 
   return (
@@ -416,7 +364,7 @@ export default function HolidaysSettingsPage() {
                 columns={columns}
                 data={sorted}
                 rowKey={(entry) => entry.id}
-                emptyMessage="No holidays yet. Add one to use in producer time off."
+                emptyMessage="No calendar holidays yet. Add one as a reference — producers request leave by name for days off."
               />
             </div>
           ) : (
@@ -817,103 +765,6 @@ export default function HolidaysSettingsPage() {
                   </div>
                 )}
               </div>
-
-              <div className="relative z-0">
-                <span className="text-[10px] font-semibold uppercase tracking-[0.06em] text-brand-ink-tertiary">
-                  Applies to
-                </span>
-                <div className="mt-1.5 inline-flex w-full rounded-xl bg-brand-bg p-1 ring-1 ring-inset ring-brand-line/45">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setDraft((current) => ({
-                        ...current,
-                        appliesToAll: true,
-                      }))
-                    }
-                    className={clsx(
-                      "flex-1 rounded-lg px-2.5 py-1.5 text-[12px] font-medium transition",
-                      draft.appliesToAll
-                        ? "bg-brand-elevated font-semibold text-brand-ink shadow-sm"
-                        : "text-brand-ink-secondary hover:text-brand-ink"
-                    )}
-                  >
-                    All producers
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setDraft((current) => ({
-                        ...current,
-                        appliesToAll: false,
-                      }))
-                    }
-                    className={clsx(
-                      "flex-1 rounded-lg px-2.5 py-1.5 text-[12px] font-medium transition",
-                      !draft.appliesToAll
-                        ? "bg-brand-elevated font-semibold text-brand-ink shadow-sm"
-                        : "text-brand-ink-secondary hover:text-brand-ink"
-                    )}
-                  >
-                    Some producers
-                  </button>
-                </div>
-
-                {!draft.appliesToAll ? (
-                  <div className="mt-2 max-h-48 overflow-y-auto overscroll-contain rounded-xl ring-1 ring-inset ring-brand-line/45">
-                    {sortedProducers.length === 0 ? (
-                      <p className="px-3 py-3 text-[12px] text-brand-ink-tertiary">
-                        No producers in the roster yet.
-                      </p>
-                    ) : (
-                      <ul className="divide-y divide-brand-line/35">
-                        {sortedProducers.map((producer) => {
-                          const checked = draft.producerIds.includes(
-                            producer.id
-                          );
-                          return (
-                            <li key={producer.id}>
-                              <button
-                                type="button"
-                                role="checkbox"
-                                aria-checked={checked}
-                                onClick={() =>
-                                  toggleDraftProducer(producer.id)
-                                }
-                                className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition hover:bg-brand-bg/70"
-                              >
-                                <span
-                                  className={clsx(
-                                    "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md transition",
-                                    checked
-                                      ? "bg-brand-blue text-white shadow-sm ring-1 ring-inset ring-brand-blue-deep/30"
-                                      : "bg-brand-elevated ring-1 ring-inset ring-brand-line/70"
-                                  )}
-                                >
-                                  {checked ? (
-                                    <Check
-                                      className="h-3 w-3"
-                                      strokeWidth={2.5}
-                                    />
-                                  ) : null}
-                                </span>
-                                <span className="min-w-0 truncate text-[13px] font-medium text-brand-ink">
-                                  {producer.name}
-                                </span>
-                              </button>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    )}
-                  </div>
-                ) : null}
-                {!draft.appliesToAll && draft.producerIds.length === 0 ? (
-                  <p className="mt-1.5 text-[11px] text-brand-orange-deep">
-                    Select at least one producer.
-                  </p>
-                ) : null}
-              </div>
             </div>
 
             <div className="flex shrink-0 gap-2 border-t border-brand-line/40 px-5 py-4">
@@ -930,7 +781,6 @@ export default function HolidaysSettingsPage() {
                 disabled={
                   !draftDisplayName(draft) ||
                   !draft.startDate ||
-                  (!draft.appliesToAll && draft.producerIds.length === 0) ||
                   (draft.dateMode === "range" &&
                     !isValidHolidayRange(draft.startDate, draft.endDate))
                 }

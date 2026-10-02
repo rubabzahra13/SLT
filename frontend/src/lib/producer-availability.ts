@@ -8,7 +8,6 @@ import {
 import { parsePackage } from "@/lib/package";
 import { inferMTDRecordStatus } from "@/lib/mtd-status";
 import {
-  isStudioHolidayIso,
   type StudioHoliday,
 } from "@/lib/producer-time-off";
 
@@ -327,12 +326,11 @@ export function isProducerScheduledDay(producer: Producer, date: Date): boolean 
 export function isProducerOnTimeOff(
   producer: Producer,
   date: Date,
-  studioHolidays?: StudioHoliday[]
+  _studioHolidays?: StudioHoliday[]
 ): boolean {
+  // Public / calendar holidays are reference only — producers are not given
+  // them automatically. Off days come from named leave on working days.
   const dayIso = dateToIsoLocal(date);
-  if (studioHolidays?.length && isStudioHolidayIso(dayIso, studioHolidays, producer.id)) {
-    return true;
-  }
   const timeOff = producer.timeOff ?? [];
   return timeOff.some(
     (entry) => dayIso >= entry.startDate && dayIso <= entry.endDate
@@ -680,11 +678,8 @@ function isMixWorkingDay(day: Date, options: MixWorkingDayOptions): boolean {
   if (options.producer) {
     return isProducerWorkableDay(options.producer, day, options.studioHolidays);
   }
-  if (!DEFAULT_WORK_DAYS.includes(dateToWeekday(day))) return false;
-  const studioWide = (options.studioHolidays ?? []).filter(
-    (holiday) => holiday.appliesToAll !== false
-  );
-  return !isStudioHolidayIso(dateToIsoLocal(day), studioWide);
+  // Without a producer: Mon–Fri. Calendar holidays do not auto-close the studio.
+  return DEFAULT_WORK_DAYS.includes(dateToWeekday(day));
 }
 
 /**
@@ -855,7 +850,7 @@ export type MixWindowBlocker = {
   edge: "start" | "end";
 };
 
-/** Why the producer can't work this day (not a work day, studio holiday, or leave), or null. */
+/** Why the producer can't work this day (not a work day, or leave), or null. */
 export function getProducerDayBlockReason(
   producer: Producer,
   day: Date,
@@ -863,14 +858,7 @@ export function getProducerDayBlockReason(
 ): MixWindowBlockReason | null {
   if (!isProducerScheduledDay(producer, day)) return "not_working";
   if (isProducerWorkableDay(producer, day, studioHolidays)) return null;
-  const isHoliday =
-    Boolean(studioHolidays?.length) &&
-    isStudioHolidayIso(
-      dateToIsoLocal(day),
-      studioHolidays as StudioHoliday[],
-      producer.id
-    );
-  return isHoliday ? "holiday" : "leave";
+  return "leave";
 }
 
 /**

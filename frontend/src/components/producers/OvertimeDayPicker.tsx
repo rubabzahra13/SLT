@@ -102,13 +102,9 @@ export function OvertimeDayPicker({
     );
   }
 
-  /** Leave / holiday only use OT-specific tips when the day is an off day. */
+  // Leave only uses OT-specific tips when the day is an off day.
   function isOffDay(iso: string, date: Date): boolean {
     return isEligibleOvertimeDate(date, workDays);
-  }
-
-  function isHolidayOnOffDay(iso: string, date: Date): boolean {
-    return isStudioHoliday(iso) && isOffDay(iso, date);
   }
 
   function isLeaveOnOffDay(iso: string, date: Date): boolean {
@@ -123,7 +119,6 @@ export function OvertimeDayPicker({
     if (!isEligibleOvertimeDate(date, workDays)) return true;
     // Leave shouldn't land on off days; if it does, it blocks OT.
     if (isLeaveOnOffDay(iso, date)) return true;
-    if (isHolidayOnOffDay(iso, date)) return true;
     if (selectedSet.has(iso)) return true;
     return false;
   }
@@ -141,14 +136,13 @@ export function OvertimeDayPicker({
         reasons && reasons.length > 0 ? reasons.join(", ") : "Leave";
       return `${name}\nCancel leave to add an extra day`;
     }
-    if (date && isHolidayOnOffDay(iso, date)) {
+    if (selectedSet.has(iso)) return "Already added";
+    if (isStudioHoliday(iso)) {
       const names = studioHolidayNamesForIso(iso, studioHolidays, producerId);
       if (names.length > 0) {
-        return `${names.join(", ")}\nNot available as an extra day`;
+        return `${names.join(", ")}\nCalendar holiday (reference)`;
       }
-      return "Studio holiday\nNot available";
     }
-    if (selectedSet.has(iso)) return "Already added";
     return undefined;
   }
 
