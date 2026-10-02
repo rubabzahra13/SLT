@@ -1443,7 +1443,7 @@ const CALENDAR_KIND_META: Record<
 > = {
   studio_holiday: { dot: "bg-brand-warning", label: "Studio holiday" },
   leave: { dot: "bg-brand-orange", label: "Leave" },
-  overtime: { dot: "bg-brand-info", label: "Overtime" },
+  overtime: { dot: "bg-brand-info", label: "Extra day" },
   non_work: { dot: "bg-brand-line-strong", label: "Non-work day" },
 };
 

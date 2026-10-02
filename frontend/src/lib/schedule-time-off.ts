@@ -342,6 +342,6 @@ export function overtimeCalendarDayTitle(
   const reason = overtimeCalendarBlockReason(iso, options);
   if (reason === "past") return "Past day";
   if (reason === "studio_holiday") return "Studio holiday\nNot available";
-  if (reason === "time_off") return "Holiday or personal time off";
+  if (reason === "time_off") return "Leave day";
   return undefined;
 }

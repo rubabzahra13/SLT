@@ -130,21 +130,21 @@ export function OvertimeDayPicker({
 
   function dayTitle(iso: string, disabled: boolean): string | undefined {
     if (iso < todayIso) return "Past day";
-    if (!disabled) return `Add ${iso} as overtime`;
+    if (!disabled) return `Add ${iso} as an extra day`;
     const date = parseIsoToLocalDate(iso);
     if (date && !isEligibleOvertimeDate(date, workDays)) {
-      return "Regular work day\nNot overtime";
+      return "Regular work day\nNot an extra day";
     }
     if (date && isLeaveOnOffDay(iso, date)) {
       const reasons = leaveReasonMap.get(iso);
       const name =
         reasons && reasons.length > 0 ? reasons.join(", ") : "Leave";
-      return `${name}\nCancel leave to mark overtime`;
+      return `${name}\nCancel leave to add an extra day`;
     }
     if (date && isHolidayOnOffDay(iso, date)) {
       const names = studioHolidayNamesForIso(iso, studioHolidays, producerId);
       if (names.length > 0) {
-        return `${names.join(", ")}\nNot available for overtime`;
+        return `${names.join(", ")}\nNot available as an extra day`;
       }
       return "Studio holiday\nNot available";
     }
@@ -184,13 +184,13 @@ export function OvertimeDayPicker({
       dayTone={dayTone}
       emptyMessage={
         offDayCount <= 0
-          ? "Every weekday is already a regular work day. Turn one off above to add overtime."
+          ? "Every weekday is already a regular work day. Turn one off above to add an extra day."
           : null
       }
       footer={
         todayIsWorkDay ? (
           <p className="px-1 text-[11px] font-medium text-brand-ink-tertiary">
-            Today is already a work day. Choose a non-working day for overtime.
+            Today is already a work day. Choose a non-working day for an extra day.
           </p>
         ) : (
           <button
@@ -203,14 +203,14 @@ export function OvertimeDayPicker({
             disabled={todayDisabled}
             title={
               todayAlreadyAdded
-                ? "Already added as overtime"
+                ? "Already added as an extra day"
                 : todayDate && !isEligibleOvertimeDate(todayDate, workDays)
-                  ? "Regular work day\nNot overtime"
+                  ? "Regular work day\nNot an extra day"
                   : timeOffSet.has(todayIso)
-                    ? `${(leaveReasonMap.get(todayIso) ?? ["Leave"]).join(", ")}\nCancel leave to mark overtime`
+                    ? `${(leaveReasonMap.get(todayIso) ?? ["Leave"]).join(", ")}\nCancel leave to add an extra day`
                     : todayDisabled
-                      ? "Not available for overtime"
-                      : "Add today as overtime"
+                      ? "Not available as an extra day"
+                      : "Add today as an extra day"
             }
             className="rounded-lg px-2 py-1 text-[11px] font-semibold text-brand-signature transition hover:bg-white disabled:opacity-40"
           >

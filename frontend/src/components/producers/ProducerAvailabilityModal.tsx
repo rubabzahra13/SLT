@@ -780,7 +780,7 @@ export function ProducerAvailabilityModal({
     if (currentOt.length > 0) {
       showTimeOffNotice({
         kind: "ot-conflict",
-        title: "Overtime on these dates",
+        title: "Extra days on these dates",
         dateLine: `${formatIsoDayMonthYear(pendingEntry.startDate)}${
           pendingEntry.startDate !== endDate
             ? ` to ${formatIsoDayMonthYear(endDate)}`
@@ -1113,7 +1113,7 @@ export function ProducerAvailabilityModal({
           ? holidayNames[0]
           : holidayNames.join(", ");
       if (outsideRange) {
-        return `${name}\nRange can’t include holidays or overtime`;
+        return `${name}\nRange can’t include holidays or extra days`;
       }
       return `${name}\nLeave can’t be added on holidays`;
     }
@@ -1126,7 +1126,7 @@ export function ProducerAvailabilityModal({
       return "Not a working day";
     }
     if (overtimeDays.includes(iso)) {
-      return "Overtime Day\nCancel overtime to mark leave";
+      return "Extra day\nCancel the extra day to mark leave";
     }
     if (existingTimeOffDays.includes(iso)) {
       return "Already added as time off";
@@ -1147,7 +1147,7 @@ export function ProducerAvailabilityModal({
           rangeBlockedDays
         ))
     ) {
-      return "Range can’t include holidays or overtime";
+      return "Range can’t include holidays or extra days";
     }
     if (iso === todayIso) return "Today";
     return undefined;
@@ -1250,7 +1250,7 @@ export function ProducerAvailabilityModal({
               options={[
                 { value: "schedule", label: "Schedule" },
                 { value: "leave", label: "Leaves" },
-                { value: "holidays", label: "Holidays" },
+                { value: "holidays", label: "Calendar" },
                 { value: "limit", label: "Limit" },
                 {
                   value: "category",
@@ -1415,11 +1415,11 @@ export function ProducerAvailabilityModal({
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-[13px] font-semibold text-brand-ink">
-                  Overtime
+                  Extra days
                 </p>
                 <p className="mt-0.5 text-[12px] text-brand-ink-tertiary">
-                  Work days outside the regular schedule. Cross a date to
-                  cancel it.
+                  Days outside their regular work week. Click the × on a date
+                  to cancel that extra day.
                 </p>
               </div>
               <button
@@ -1453,7 +1453,7 @@ export function ProducerAvailabilityModal({
 
             {overtimeDays.length === 0 ? (
               <p className="mt-4 text-center text-[13px] text-brand-ink-tertiary">
-                No overtime days added.
+                No extra days added.
               </p>
             ) : (
               <ul className="mt-4 flex flex-wrap gap-2">
@@ -1465,7 +1465,7 @@ export function ProducerAvailabilityModal({
                         type="button"
                         onClick={() => removeOvertimeDay(iso)}
                         className="rounded-full p-1 text-brand-blue-deep/70 transition hover:bg-brand-blue-muted hover:text-brand-blue-deep"
-                        aria-label={`Remove ${iso}`}
+                        aria-label={`Remove extra day ${iso}`}
                       >
                         <X className="h-3 w-3" strokeWidth={2.5} />
                       </button>
@@ -1484,13 +1484,12 @@ export function ProducerAvailabilityModal({
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-[13px] font-semibold text-brand-ink">
-                  Personal leave
+                  Leave
                 </p>
                 <p className="mt-0.5 text-[12px] text-brand-ink-tertiary">
-                  Block regular work days when this producer won&apos;t be
-                  available. Holidays and non-working days can&apos;t be
-                  start/end dates; pink mix days can be included (you&apos;ll
-                  confirm reassignment).
+                  Request day(s) off on their working days and give the leave a
+                  name. Non-working days can&apos;t be start/end dates; pink mix
+                  days can be included (you&apos;ll confirm reassignment).
                 </p>
               </div>
               {!showTimeOffForm ? (
@@ -1707,7 +1706,7 @@ export function ProducerAvailabilityModal({
                           ) : (
                             <p className="px-1 text-[11px] font-medium text-brand-ink-tertiary">
                               {rangeBlockedDays.length > 0
-                                ? "Range can’t include holidays or overtime"
+                                ? "Range can’t include holidays or extra days"
                                 : "Through December next year"}
                             </p>
                           )
@@ -1812,7 +1811,7 @@ export function ProducerAvailabilityModal({
                           ) : (
                             <p className="px-1 text-[11px] font-medium text-brand-ink-tertiary">
                               {rangeBlockedDays.length > 0
-                                ? "Range can’t include holidays or overtime"
+                                ? "Range can’t include holidays or extra days"
                                 : "Through December next year"}
                             </p>
                           )
@@ -1984,10 +1983,11 @@ export function ProducerAvailabilityModal({
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-[13px] font-semibold text-brand-ink">
-                  Public holidays
+                  Calendar holidays
                 </p>
                 <p className="mt-0.5 text-[12px] text-brand-ink-tertiary">
-                  Holidays that apply to this producer. Managed in Settings.
+                  Reference only — producers are not given public holidays.
+                  Use Leaves to request working day(s) off with a name.
                 </p>
               </div>
               {!readOnly ? (
@@ -2260,7 +2260,7 @@ export function ProducerAvailabilityModal({
                               {row.name}
                             </p>
                             <p className="mt-0.5 text-[11px] text-brand-ink-tertiary">
-                              Overtime{" "}
+                              Extra day{" "}
                               {row.overtimeDates
                                 .map((iso) => formatIsoDayMonthYear(iso))
                                 .join(", ")}
@@ -2277,14 +2277,14 @@ export function ProducerAvailabilityModal({
                             )}
                           >
                             {row.cancelOvertime
-                              ? "OT canceled"
-                              : "Cancel OT"}
+                              ? "Extra day canceled"
+                              : "Cancel extra day"}
                           </button>
                         </div>
                         <p className="mt-2 text-[11px] text-brand-ink-tertiary">
                           {row.cancelOvertime
                             ? "Leave will be assigned."
-                            : "Leave will be skipped. Overtime stays."}
+                            : "Leave will be skipped. Extra day stays."}
                         </p>
                       </li>
                     ))}
@@ -2409,7 +2409,7 @@ export function ProducerAvailabilityModal({
                         className="border-b border-black/[0.08] py-3.5 text-[15px] font-semibold text-brand-blue transition hover:bg-brand-blue-soft/40 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
                       >
                         {applyCount === 0
-                          ? "Cancel OT to apply"
+                          ? "Cancel extra day to apply"
                           : "Apply leave"}
                       </button>
                       <button
@@ -2456,11 +2456,11 @@ export function ProducerAvailabilityModal({
                     id="work-day-ot-conflict-title"
                     className="text-center text-[17px] font-semibold tracking-[-0.02em] text-brand-ink"
                   >
-                    Remove overtime?
+                    Remove extra day?
                   </h2>
                   <p className="mt-3 text-center text-[13px] leading-relaxed text-brand-ink-secondary">
                     Making {weekdayLabel(workDayOtConflict.day)} a regular work
-                    day will remove overtime on{" "}
+                    day will remove the extra day on{" "}
                     {workDayOtConflict.overtimeDates.length === 1
                       ? "this date."
                       : "these dates."}
@@ -2476,7 +2476,7 @@ export function ProducerAvailabilityModal({
                       onClick={confirmWorkDayOtRemoval}
                       className="border-b border-black/[0.08] py-3.5 text-[15px] font-semibold text-brand-blue transition hover:bg-brand-blue-soft/40"
                     >
-                      Remove overtime
+                      Remove extra day
                     </button>
                     <button
                       type="button"

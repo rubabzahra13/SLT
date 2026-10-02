@@ -47,7 +47,7 @@ import {
 } from "@/lib/schedule-time-off";
 import type { Producer } from "@/types";
 
-type Mode = "holidays" | "leaves" | "overtime";
+type Mode = "leaves" | "overtime";
 type Audience = "everyone" | "choose";
 type DateField = "start" | "end" | "ot" | null;
 
@@ -96,7 +96,7 @@ export default function ScheduleTimeOffPage() {
   } = useAppState();
 
   const todayIso = isoFromLocalDate(new Date());
-  const [mode, setMode] = useState<Mode>("holidays");
+  const [mode, setMode] = useState<Mode>("leaves");
   const [dateField, setDateField] = useState<DateField>(null);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -184,16 +184,16 @@ export default function ScheduleTimeOffPage() {
     audience === "everyone" ? allProducerIds : pickedIds;
 
   const selection =
-    mode === "holidays" || mode === "overtime"
+    mode === "overtime"
       ? teamSelection
       : new Set(leaveProducerId ? [leaveProducerId] : []);
 
-  const startDate = mode === "holidays" ? holidayRange.startDate : leaveStart;
-  const endDate = mode === "holidays" ? holidayRange.endDate : leaveEnd;
+  const startDate = leaveStart;
+  const endDate = leaveEnd;
   const leaveReasonLabel = isOtherPersonalReason(leaveReason)
     ? otherLeaveName.trim()
     : leaveReason;
-  const reason = mode === "holidays" ? holidayRange.reason : leaveReasonLabel;
+  const reason = leaveReasonLabel;
 
   const preview = useMemo(
     () =>
@@ -202,7 +202,7 @@ export default function ScheduleTimeOffPage() {
         : previewTimeOffAssignees(sortedProducers, {
             startDate,
             endDate,
-            type: mode === "holidays" ? "holiday" : "personal",
+            type: "personal",
             reason,
             selectedIds: selection,
             mtdRecords,
@@ -273,7 +273,7 @@ export default function ScheduleTimeOffPage() {
       return true;
     });
     if (eligible.length === 0) {
-      return "No one selected can take overtime on this day";
+      return "No one selected can take an extra day on this date";
     }
     if (!disabled) return `${eligible.length} can be assigned`;
     return undefined;
@@ -322,7 +322,7 @@ export default function ScheduleTimeOffPage() {
     const entry = buildTimeOffEntry({
       startDate,
       endDate,
-      type: mode === "holidays" ? "holiday" : "personal",
+      type: "personal",
       reason,
       producerId: producer.id,
     });
@@ -357,7 +357,9 @@ export default function ScheduleTimeOffPage() {
           n += 1;
         }
         setStatus(
-          n === 1 ? "Overtime added for 1 person" : `Overtime added for ${n} people`
+          n === 1
+            ? "Extra day added for 1 person"
+            : `Extra days added for ${n} people`
         );
       } else {
         for (const row of preview) {
@@ -371,15 +373,9 @@ export default function ScheduleTimeOffPage() {
             n += 1;
           }
         }
-      setCancelOtIds(new Set());
+        setCancelOtIds(new Set());
         setStatus(
-          mode === "holidays"
-            ? n === 1
-              ? "Holiday assigned to 1 person"
-              : `Holiday assigned to ${n} people`
-            : n === 1
-              ? "Leave assigned"
-              : `Leave assigned to ${n} people`
+          n === 1 ? "Leave assigned" : `Leave assigned to ${n} people`
         );
       }
     } finally {
@@ -420,14 +416,14 @@ export default function ScheduleTimeOffPage() {
             Schedule
           </Link>
           <h1 className="text-[15px] font-semibold tracking-[-0.02em] text-brand-ink">
-            Leaves & holidays
+            Leaves &amp; extra days
           </h1>
           <Link
             href="/settings/holidays"
             className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[13px] font-semibold text-brand-blue transition hover:text-brand-signature focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue/30"
           >
             <Settings2 className="h-4 w-4" aria-hidden />
-            <span className="hidden sm:inline">Catalog</span>
+            <span className="hidden sm:inline">Leave names</span>
           </Link>
         </div>
         <div
@@ -438,9 +434,8 @@ export default function ScheduleTimeOffPage() {
           <div className="inline-flex rounded-full bg-brand-bg p-0.5 ring-1 ring-inset ring-black/[0.06]">
             {(
               [
-                { id: "holidays" as const, label: "Holidays" },
-                { id: "overtime" as const, label: "Overtime" },
                 { id: "leaves" as const, label: "Leaves" },
+                { id: "overtime" as const, label: "Extra days" },
               ] as const
             ).map((tab) => {
               const active = mode === tab.id;
@@ -477,202 +472,19 @@ export default function ScheduleTimeOffPage() {
           className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-black/[0.06] bg-white shadow-[0_8px_30px_rgba(0,0,0,0.04)]"
         >
           <h2 id="compose-heading" className="sr-only">
-            {mode === "holidays"
-              ? "Assign studio holiday"
-              : mode === "overtime"
-                ? "Assign overtime day"
-                : "Assign leave"}
+            {mode === "overtime" ? "Assign extra day" : "Assign leave"}
           </h2>
 
-          {mode === "holidays" ? (
-            <>
-              <div className="shrink-0 border-b border-black/[0.06] px-4 py-3 sm:px-5">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-brand-ink-tertiary">
-                  From settings
-                </p>
-                {catalogHolidays.length === 0 ? (
-                  <div className="mt-2 rounded-2xl bg-brand-bg/80 px-4 py-5 text-center">
-                    <p className="text-[14px] font-semibold text-brand-ink">
-                      No holidays in catalog
-                    </p>
-                <Link
-                  href="/settings/holidays"
-                      className="mt-2 inline-block text-[13px] font-semibold text-brand-blue"
-                >
-                      Add holidays in Settings
-                </Link>
-                  </div>
-                ) : (
-                  <ul
-                    className="mt-2 flex gap-2 overflow-x-auto pb-1 scrollbar-hide"
-                    role="listbox"
-                    aria-label="Studio holidays"
-                  >
-                    {catalogHolidays.map((holiday) => {
-                      const selected = activeHoliday?.id === holiday.id;
-                      const annual =
-                        holiday.startDate === holiday.endDate
-                          ? formatMonthDayLabel(holiday.startDate)
-                          : `${formatMonthDayLabel(holiday.startDate)} – ${formatMonthDayLabel(holiday.endDate)}`;
-                      return (
-                        <li key={holiday.id} className="shrink-0">
-                          <button
-                            type="button"
-                            role="option"
-                            aria-selected={selected}
-                            onClick={() => {
-                              setSelectedHolidayId(holiday.id);
-                              setStatus(null);
-                              setCancelOtIds(new Set());
-                            }}
-                            className={clsx(
-                              "flex min-w-[128px] flex-col rounded-2xl border px-3 py-2.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue/35",
-                              selected
-                                ? "border-brand-signature/40 bg-brand-blue-soft/35 shadow-sm"
-                                : "border-black/[0.06] bg-brand-bg/50 hover:bg-brand-bg"
-                            )}
-                          >
-                            <span className="truncate text-[13px] font-semibold text-brand-ink">
-                              {holiday.name}
-                            </span>
-                            <span className="mt-0.5 text-[11px] text-brand-ink-tertiary">
-                              {annual}
-                            </span>
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-                {activeHoliday ? (
-                  <p className="mt-3 text-[13px] text-brand-ink-secondary">
-                    Assigning{" "}
-                    <span className="font-semibold text-brand-ink">
-                      {formatHolidayRangeLabel(activeHoliday, todayIso)}
-                    </span>
-                    <span className="text-brand-ink-tertiary">
-                      {" "}
-                      (from catalog dates)
-                    </span>
-                  </p>
-                ) : null}
-              </div>
-
-              <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 py-3 sm:px-5">
-                <div
-                  className="flex shrink-0 justify-center"
-                  role="group"
-                  aria-label="Who receives this holiday"
-                >
-                  <div className="inline-flex rounded-full bg-brand-bg p-0.5 ring-1 ring-inset ring-black/[0.06]">
-                    <button
-                      type="button"
-                      aria-pressed={audience === "everyone"}
-                      onClick={() => setAudience("everyone")}
-                      className={clsx(
-                        "rounded-full px-4 py-1.5 text-[12px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue/35",
-                        audience === "everyone"
-                          ? "bg-white text-brand-ink shadow-sm"
-                          : "text-brand-ink-tertiary"
-                      )}
-                    >
-                      Everyone
-                    </button>
-                    <button
-                      type="button"
-                      aria-pressed={audience === "choose"}
-                      onClick={() => setAudience("choose")}
-                      className={clsx(
-                        "rounded-full px-4 py-1.5 text-[12px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue/35",
-                        audience === "choose"
-                          ? "bg-white text-brand-ink shadow-sm"
-                          : "text-brand-ink-tertiary"
-                      )}
-                    >
-                      Choose people
-                    </button>
-                  </div>
-                </div>
-
-                {audience === "choose" ? (
-                  <ul
-                    className="mt-3 flex min-h-0 flex-1 gap-3 overflow-x-auto pb-1 scrollbar-hide"
-                    aria-label="Choose producers for this holiday"
-                  >
-                    {sortedProducers.map((producer) => {
-                      const on = pickedIds.has(producer.id);
-                      return (
-                        <li key={producer.id} className="shrink-0">
-                          <button
-                            type="button"
-                            aria-pressed={on}
-                            aria-label={`${on ? "Remove" : "Include"} ${producer.name}`}
-                            onClick={() => togglePicked(producer.id)}
-                            className="flex w-[68px] flex-col items-center gap-1.5 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue/40 focus-visible:ring-offset-2"
-                          >
-                            <div
-                              className={clsx(
-                                "rounded-full p-[2px]",
-                                on
-                                  ? "bg-gradient-to-tr from-brand-signature via-brand-blue to-brand-orange"
-                                  : "bg-black/10 opacity-60"
-                              )}
-                            >
-                              <div className="rounded-full bg-white p-[2px]">
-                                <Avatar producer={producer} size="lg" />
-                              </div>
-                            </div>
-                            <span
-                              className={clsx(
-                                "max-w-full truncate text-[11px] font-medium",
-                                on ? "text-brand-ink" : "text-brand-ink-tertiary"
-                              )}
-                            >
-                              {firstName(producer.name)}
-                            </span>
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                ) : (
-                  <div className="mt-4 flex flex-1 flex-col items-center justify-center text-center">
-                    <div className="flex -space-x-2">
-                      {sortedProducers.slice(0, 6).map((p) => (
-                        <Avatar
-                          key={p.id}
-                          producer={p}
-                          size="md"
-                          className="ring-2 ring-white"
-                        />
-                      ))}
-                      {sortedProducers.length > 6 ? (
-                        <span className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-bg text-[11px] font-semibold text-brand-ink-secondary ring-2 ring-white">
-                          +{sortedProducers.length - 6}
-                        </span>
-                      ) : null}
-                    </div>
-                    <p className="mt-3 text-[14px] font-semibold text-brand-ink">
-                      Whole team
-                    </p>
-                    <p className="mt-0.5 text-[13px] text-brand-ink-tertiary">
-                      {sortedProducers.length} producers · skips apply for OT
-                      and non-work days
-                    </p>
-                  </div>
-                )}
-              </div>
-            </>
-          ) : mode === "overtime" ? (
+          {mode === "overtime" ? (
             <>
               <div className="shrink-0 border-b border-black/[0.06] px-4 py-3 sm:px-5">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-[11px] font-semibold uppercase tracking-wider text-brand-ink-tertiary">
-                      Overtime date
+                      Extra day date
                     </p>
                     <p className="mt-0.5 text-[12px] text-brand-ink-tertiary">
-                      Outside their regular weekly schedule
+                      Add a day that is not on their regular work week
                     </p>
                   </div>
                   <button
@@ -719,7 +531,7 @@ export default function ScheduleTimeOffPage() {
                   minIso={todayIso}
                   isDateDisabled={isOvertimeDateDisabled}
                   dayTitle={overtimeDayTitle}
-                  ariaLabel="Overtime date"
+                  ariaLabel="Extra day date"
                   onSelect={(iso) => {
                     setOtDate(iso);
                     setStatus(null);
@@ -731,7 +543,7 @@ export default function ScheduleTimeOffPage() {
                 <div
                   className="flex shrink-0 justify-center"
                   role="group"
-                  aria-label="Who receives overtime on this day"
+                  aria-label="Who receives an extra day"
                 >
                   <div className="inline-flex rounded-full bg-brand-bg p-0.5 ring-1 ring-inset ring-black/[0.06]">
                     <button
@@ -766,7 +578,7 @@ export default function ScheduleTimeOffPage() {
                 {audience === "choose" ? (
                   <ul
                     className="mt-3 flex min-h-0 flex-1 gap-3 overflow-x-auto pb-1 scrollbar-hide"
-                    aria-label="Choose producers for overtime"
+                    aria-label="Choose producers for an extra day"
                   >
                     {sortedProducers.map((producer) => {
                       const on = pickedIds.has(producer.id);
@@ -829,7 +641,7 @@ export default function ScheduleTimeOffPage() {
                       Whole team
                     </p>
                     <p className="mt-0.5 max-w-xs text-[13px] text-brand-ink-tertiary">
-                      Skips regular work days, existing overtime, and days with
+                      Skips regular work days, existing extra days, and days with
                       time off
                     </p>
                   </div>
@@ -839,6 +651,9 @@ export default function ScheduleTimeOffPage() {
           ) : (
             <>
               <div className="shrink-0 border-b border-black/[0.06] px-4 py-3 sm:px-5">
+                <p className="mb-3 text-[12px] text-brand-ink-tertiary">
+                  Producers request day(s) off on their working days and give the leave a name.
+                </p>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
                     <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-brand-ink-tertiary">
@@ -981,7 +796,7 @@ export default function ScheduleTimeOffPage() {
                   <span className="font-semibold tabular-nums text-brand-blue-deep">
                     {applyCount}
                   </span>{" "}
-                  will get overtime
+                  will get an extra day
                   {otSkipRows.length > 0 ? (
                     <>
                       {" · "}
@@ -1016,7 +831,7 @@ export default function ScheduleTimeOffPage() {
                         {row.status === "workday"
                           ? "regular work day"
                           : row.status === "already"
-                            ? "already overtime"
+                            ? "already an extra day"
                             : "time off"}
                             </li>
                           ))}
@@ -1046,7 +861,7 @@ export default function ScheduleTimeOffPage() {
                   {otRows.length > 0 ? (
                     <>
                       {" · "}
-                      <span className="tabular-nums">{otRows.length}</span> OT
+                      <span className="tabular-nums">{otRows.length}</span> extra day
                     </>
                   ) : null}
                 </p>
@@ -1095,7 +910,7 @@ export default function ScheduleTimeOffPage() {
                               : "text-brand-blue"
                           )}
                         >
-                          {cancelOtIds.has(row.id) ? "OT off" : "Cancel OT"}
+                          {cancelOtIds.has(row.id) ? "Extra day off" : "Cancel extra day"}
                         </button>
                       </li>
                     ))}
@@ -1129,7 +944,6 @@ export default function ScheduleTimeOffPage() {
                 disabled={
                   busy ||
                   applyCount === 0 ||
-                  (mode === "holidays" && !activeHoliday) ||
                   (mode === "leaves" &&
                     isOtherPersonalReason(leaveReason) &&
                     !otherLeaveName.trim())
@@ -1147,16 +961,12 @@ export default function ScheduleTimeOffPage() {
                     ? "Adding…"
                     : "Assigning…"
                   : applyCount === 0
-                    ? mode === "holidays"
-                      ? "No one eligible yet"
-                      : mode === "overtime"
-                        ? "No one eligible on this day"
-                        : "Nothing to assign"
-                    : mode === "holidays"
-                      ? `Assign holiday · ${applyCount}`
-                      : mode === "overtime"
-                        ? `Add overtime · ${applyCount}`
-                        : `Assign leave · ${applyCount}`}
+                    ? mode === "overtime"
+                      ? "No one eligible on this day"
+                      : "Nothing to assign"
+                    : mode === "overtime"
+                      ? `Add extra day · ${applyCount}`
+                      : `Assign leave · ${applyCount}`}
               </button>
             ) : (
               <p className="mt-3 text-center text-[12px] text-brand-ink-tertiary">
@@ -1175,18 +985,16 @@ export default function ScheduleTimeOffPage() {
               Scheduled
             </h2>
             <p className="text-[11px] text-brand-ink-tertiary">
-              {mode === "holidays"
-                ? `${upcomingHolidays.length} holidays · ${upcoming.length} total`
-                : mode === "overtime"
-                  ? `${upcomingOt.length} overtime days`
-                  : `${upcoming.length} upcoming`}
+              {mode === "overtime"
+                ? `${upcomingOt.length} extra days`
+                : `${upcoming.length} upcoming`}
             </p>
           </div>
           <ul className="min-h-0 flex-1 divide-y divide-black/[0.06] overflow-y-auto scrollbar-hide">
             {mode === "overtime" ? (
               upcomingOt.length === 0 ? (
                 <li className="px-3 py-6 text-center text-[12px] text-brand-ink-tertiary">
-                  No overtime scheduled yet.
+                  No extra days scheduled yet.
                 </li>
               ) : (
                 upcomingOt.map((row) => {
@@ -1219,7 +1027,7 @@ export default function ScheduleTimeOffPage() {
                             void removeOvertimeDay(row.producerId, row.iso)
                         }
                           className="shrink-0 rounded-full p-1.5 text-brand-ink-tertiary hover:bg-brand-bg hover:text-brand-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue/30"
-                          aria-label={`Remove overtime ${row.iso} for ${row.producerName}`}
+                          aria-label={`Remove extra day ${row.iso} for ${row.producerName}`}
                       >
                           <Trash2 className="h-3.5 w-3.5" />
                       </button>
@@ -1228,20 +1036,12 @@ export default function ScheduleTimeOffPage() {
                   );
                 })
               )
-            ) : (mode === "holidays"
-              ? upcoming.filter((r) => r.entry.type === "holiday")
-              : upcoming
-            ).length === 0 ? (
+             ) : upcoming.length === 0 ? (
               <li className="px-3 py-6 text-center text-[12px] text-brand-ink-tertiary">
-                {mode === "holidays"
-                  ? "No holidays assigned yet."
-                  : "Nothing scheduled yet."}
+                Nothing scheduled yet.
               </li>
             ) : (
-              (mode === "holidays"
-                ? upcoming.filter((r) => r.entry.type === "holiday")
-                : upcoming
-              ).map((row) => {
+              upcoming.map((row) => {
                 const producer = producersById.get(row.producerId);
                 return (
                   <li

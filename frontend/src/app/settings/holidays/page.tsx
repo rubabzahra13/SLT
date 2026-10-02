@@ -363,28 +363,28 @@ export default function HolidaysSettingsPage() {
   return (
     <>
       <PageHeader
-        title="Holidays"
+        title="Leave names"
         badge={
           tab === "studio"
-            ? `${sorted.length} public`
+            ? `${sorted.length} calendar`
             : `${enabledPersonalCount} categories`
         }
         subtitle={
           tab === "studio"
-            ? "Public holidays for the current and next year"
-            : "Add leave categories producers usually take off for."
+            ? "Calendar holiday reference only — producers are not assigned public holidays. Use Leaves for days off."
+            : "Names producers can use when requesting day(s) off on a working day."
         }
         tabs={
           <Tabs
             options={[
               {
                 value: "studio",
-                label: "Public holidays",
+                label: "Calendar holidays",
                 count: sorted.length,
               },
               {
                 value: "personal",
-                label: "Leave categories",
+                label: "Leave names",
                 count: enabledPersonalCount,
               },
             ]}

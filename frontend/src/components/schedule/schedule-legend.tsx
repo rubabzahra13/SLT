@@ -34,7 +34,7 @@ export const SCHEDULE_LEGEND_ITEMS = [
   {
     key: "available",
     label: "Available",
-    tip: "Open for booking, including overtime days",
+    tip: "Open for booking, including extra days",
     swatchClass:
       "bg-cyan-50/80 ring-1 ring-inset ring-cyan-400/60 shadow-[0_1px_2px_rgba(6,182,212,0.12)]",
   },
@@ -179,7 +179,7 @@ function ScheduleStatusTooltip({
           ) : null}
           {cell.status === "available" && cell.isOvertime ? (
             <p className="mt-1 text-[12px] font-medium leading-snug text-brand-ink">
-              Overtime day
+              Extra day
             </p>
           ) : null}
           <p className="mt-1 text-[11px] text-brand-ink-secondary">

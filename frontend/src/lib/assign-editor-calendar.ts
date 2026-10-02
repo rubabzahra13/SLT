@@ -130,7 +130,7 @@ export function collectAssignCalendarEvents(
     events.push({
       iso,
       kind: "overtime",
-      label: "Overtime (extra work day)",
+      label: "Extra day",
     });
   }
 

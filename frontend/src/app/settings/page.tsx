@@ -31,7 +31,7 @@ const sections: SettingSection[] = [
       },
       {
         label: "Holidays",
-        description: "Public holidays and personal leave categories",
+        description: "Leave names and calendar holiday reference",
         href: "/settings/holidays",
       },
     ],

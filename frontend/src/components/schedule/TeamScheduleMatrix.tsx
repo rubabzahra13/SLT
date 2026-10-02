@@ -342,7 +342,7 @@ function ScheduleCellButton({
             Available
           </p>
           <p className="mt-1 text-[12px] font-medium leading-snug text-brand-ink">
-            Overtime day
+            Extra day
           </p>
           <p className="mt-1 text-[11px] text-brand-ink-secondary">
             {cell.dayLabel}, {cell.dateLabel}
