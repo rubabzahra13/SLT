@@ -1,30 +1,27 @@
-import type { AppData, DiscountCode, Producer } from "@/types";
-import { normalizeDiscountCode } from "@/lib/discount-codes";
-import { normalizeProducer } from "@/lib/producers";
-import data from "@/data/mock-data.json";
+import type { AppData } from "@/types";
 
 /**
- * Returns app configuration data (producers, discount codes, schedule entries).
- * Transactional data (orders, MTD records) is intentionally empty here —
- * the AppStateContext loads those exclusively from the backend API (Supabase).
+ * Returns empty fallback app data structure.
+ * All application data (producers, discount codes, schedule entries, orders, MTD records)
+ * is loaded exclusively from the backend API (Supabase).
  */
 export function getData(): AppData {
-  const raw = data as unknown as AppData;
-  const producers = (raw.producers as Producer[]).map((p) => normalizeProducer(p));
-
   return {
-    ...raw,
-    producers,
-    // Discount codes: always empty — loaded exclusively from backend API (Supabase).
-    discountCodes: (raw.discountCodes ?? []).map((entry) =>
-      normalizeDiscountCode(entry as DiscountCode)
-    ),
-    orders: (raw.orders as any) || [],
-    pastOrders: (raw.pastOrders as any) || [],
-    mtdRecords: (raw.mtdRecords as any) || [],
+    producers: [],
+    discountCodes: [],
+    orders: [],
+    pastOrders: [],
+    mtdRecords: [],
     schedule: [],
+    stats: {
+      newOrders: 0,
+      needsAttention: 0,
+      activeMixes: 0,
+      outsourced: 0,
+    },
   };
 }
+
 
 
 

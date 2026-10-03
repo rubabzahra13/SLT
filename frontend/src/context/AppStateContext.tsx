@@ -297,10 +297,10 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
   const [producers, setProducers] = useState<Producer[]>(() => {
     const cachedProducers = readTimedCache<Producer[]>(CACHE_PRODUCERS_KEY);
-    if (cachedProducers && cachedProducers.length > 0) {
+    if (cachedProducers) {
       return deduplicateProducers(cachedProducers.map((p) => normalizeProducer(p)));
     }
-    return deduplicateProducers(seed.producers.map((p) => normalizeProducer(p)));
+    return [];
   });
   const [discountCodes, setDiscountCodes] = useState<DiscountCode[]>([]);
   const [payrollAddons, setPayrollAddons] = useState<PayrollAddon[]>([]);
@@ -342,10 +342,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     let loadGen = 0;
 
     function applyBoot(boot: BootstrapPayload) {
-      if (boot.producers.length > 0) {
-        setProducers(boot.producers);
-        writeTimedCache(CACHE_PRODUCERS_KEY, boot.producers);
-      }
+      setProducers(boot.producers);
+      writeTimedCache(CACHE_PRODUCERS_KEY, boot.producers);
 
       const loadedActiveOrders = normalizeOrders(boot.activeOrders);
       const loadedPastOrders = normalizeOrders(boot.pastOrders);
