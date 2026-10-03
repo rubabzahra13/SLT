@@ -31,8 +31,8 @@ export const ORDER_ASSIGNMENT_STATUS_LABEL: Record<
 > = {
   not_assigned: "Not assigned",
   assigned: "Assigned",
-  reassign_leave: "Reassign: Off day",
-  reassign_rush: "Reassign: rush order",
+  reassign_leave: "Reassign",
+  reassign_rush: "Reassign rush",
 };
 
 export const ORDER_REASSIGN_STATUS: Record<OrderReassignReason, string> = {
@@ -74,6 +74,7 @@ function parseReassignReason(
   if (
     raw === "reassign: rush order" ||
     raw === "reassign rush order" ||
+    raw === "reassign rush" ||
     raw === "reassigned" ||
     raw === "reassign"
   ) {

@@ -1,10 +1,16 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { isMTDRecord, isPreMTDOrderRecord, isOrderScheduledAndAssigned } from "../mtd-filters";
-import { listPreMtdOrderRecords } from "../order-staging";
+import {
+  listPreMtdOrderRecords,
+  mergeCollectionStateFromOrder,
+} from "../order-staging";
 import { mergeLocalMtdRecordFields } from "../mtd-completion";
 import { getOrderDetailSections } from "../order-detail-sections";
-import { getOrderAssignmentStatus } from "../order-requirements";
+import {
+  getOrderAssignmentStatus,
+  getOrderRequirements,
+} from "../order-requirements";
 import { getDisplayAssignedProducer } from "../editor-assignment";
 import type { MTDRecord, Order } from "../../types";
 
@@ -116,6 +122,60 @@ describe("Orders Tab & Workflow Separation", () => {
     assert.equal(merged.assignedProducer, "CM");
     assert.equal(merged.inMTD, false);
     assert.equal(isPreMTDOrderRecord(merged), true);
+  });
+
+  it("Thin assigned MTD rows keep order songs/mix fields so Data stays Complete", () => {
+    const order: Order = {
+      id: "ord-assign-1",
+      customerName: "Coach",
+      contactName: "Coach",
+      programName: "Alpha High School – All-Star Cheer",
+      category: "Cheer",
+      package: "GOLD 2:30",
+      musicTheme: "Theme",
+      editorRequest: "FA",
+      requestedProducer: "",
+      assignedProducer: "CP",
+      price: 475,
+      priceCompliance: "compliant",
+      status: "new",
+      createdAt: "2026-01-01",
+      needsAttention: false,
+      attentionReason: null,
+      formType: "school-all-star-cheer",
+      cheerFormSubtype: "all-star-cheer",
+      songListSuggestions: "Song A, Song B, Song C",
+      timeLengthOfMix: "2:30",
+      routineNotes: "Keep energy high",
+      haveSongs: "HAVE SONGS",
+      eightCountSheet: "HAVE CS",
+    };
+    const thinMtd = makeRecord({
+      id: "mtd-assign-1",
+      orderId: order.id,
+      package: order.package,
+      formType: order.formType,
+      cheerFormSubtype: order.cheerFormSubtype,
+      assignedProducer: "CP",
+      mixStartDate: "2026-10-05",
+      mixEndDate: "2026-10-15",
+      inMTD: false,
+      haveSongs: "",
+      eightCountSheet: "",
+      songListSuggestions: "",
+      timeLengthOfMix: "",
+      routineNotes: "",
+    });
+
+    const merged = mergeCollectionStateFromOrder(thinMtd, order);
+    assert.equal(merged.songListSuggestions, order.songListSuggestions);
+    assert.equal(merged.timeLengthOfMix, order.timeLengthOfMix);
+    assert.equal(merged.routineNotes, order.routineNotes);
+    assert.equal(getOrderRequirements(merged).status, "Complete data");
+
+    const rows = listPreMtdOrderRecords([order], [thinMtd]);
+    assert.equal(rows.length, 1);
+    assert.equal(getOrderRequirements(rows[0]).status, "Complete data");
   });
 
   it("Open orders without mtd_records appear on the Orders tab", () => {

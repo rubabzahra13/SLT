@@ -716,15 +716,13 @@ function contributorFromRecord(
   rec: MTDRecord,
   estimateCost?: RecordCostEstimator
 ): DailyCostContributor | null {
-  const dayShare = dailyShareOfRecordCost(producer, rec, estimateCost);
   const startIso = toIsoDateString(rec.mixStartDate ?? "") || rec.mixStartDate;
   const endIso = mixEndIsoForRecord(rec) || startIso;
+  if (!startIso || !endIso) return null;
+  const dayShare = dailyShareOfRecordCost(producer, rec, estimateCost);
   const mixTotal = bookedRecordCost(rec, estimateCost);
-  const workDays =
-    startIso && endIso
-      ? countProducerWorkingDays(producer, startIso, endIso)
-      : 0;
-  if (mixTotal <= 0 && dayShare <= 0) return null;
+  const workDays = countProducerWorkingDays(producer, startIso, endIso);
+  // Keep $0 mixes too — they still fill a mix slot on the chart.
   return {
     recordId: rec.id,
     programName: rec.programName?.trim() || "Untitled mix",

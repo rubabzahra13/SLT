@@ -87,10 +87,19 @@ function hasCollectionStates(
   return Boolean(states && Object.keys(states).length > 0);
 }
 
+function pickFilled(
+  primary: string | null | undefined,
+  fallback: string | null | undefined
+): string | undefined {
+  if (typeof primary === "string" && primary.trim()) return primary;
+  if (typeof fallback === "string" && fallback.trim()) return fallback;
+  return primary || fallback || undefined;
+}
+
 /**
- * When an MTD board row is missing collection toggles, copy them from the
- * linked order so Mix/CS/Video/Songs don't flip back to Missing after
- * assign/unassign creates a thin MTD row.
+ * When an MTD board row is missing collection toggles / order content fields,
+ * copy them from the linked order so Mix/CS/Video/Songs/Notes don't flip back
+ * to Missing after assign creates a thin MTD row (order remains source of truth).
  */
 export function mergeCollectionStateFromOrder(
   record: MTDRecord,
@@ -112,15 +121,53 @@ export function mergeCollectionStateFromOrder(
     order.sendingEightCountSheets ||
     order.usingEightCountSheets ||
     "";
+  const orderSongs =
+    order.songListSuggestions ||
+    (order as { song_list_suggestions?: string }).song_list_suggestions ||
+    "";
+  const orderMixLen =
+    order.timeLengthOfMix ||
+    (order as { time_length_of_mix?: string }).time_length_of_mix ||
+    "";
+  const orderAffiliate =
+    order.musicAffiliate ||
+    (order as { music_affiliate?: string }).music_affiliate ||
+    "";
+  const orderNotes =
+    order.routineNotes ||
+    (order as { routine_notes?: string }).routine_notes ||
+    "";
+  const orderVoiceovers =
+    order.customVoiceovers ||
+    (order as { custom_voiceovers?: string }).custom_voiceovers ||
+    "";
+  const orderVideo =
+    (order as { videoUrl?: string }).videoUrl ||
+    (order as { video_url?: string }).video_url ||
+    "";
 
   return {
     ...record,
     collectionStates: nextStates,
-    haveSongs: record.haveSongs || orderHaveSongs || record.haveSongs,
-    eightCountSheet: record.eightCountSheet || orderCs || record.eightCountSheet,
+    haveSongs: pickFilled(record.haveSongs, orderHaveSongs) || record.haveSongs,
+    eightCountSheet:
+      pickFilled(record.eightCountSheet, orderCs) || record.eightCountSheet,
+    songListSuggestions: pickFilled(record.songListSuggestions, orderSongs),
+    timeLengthOfMix: pickFilled(record.timeLengthOfMix, orderMixLen),
+    musicAffiliate: pickFilled(record.musicAffiliate, orderAffiliate),
+    routineNotes: pickFilled(record.routineNotes, orderNotes),
+    customVoiceovers: pickFilled(record.customVoiceovers, orderVoiceovers),
+    ...(pickFilled((record as { videoUrl?: string }).videoUrl, orderVideo)
+      ? {
+          videoUrl: pickFilled(
+            (record as { videoUrl?: string }).videoUrl,
+            orderVideo
+          ),
+        }
+      : {}),
     orderStatus: record.orderStatus || (order as { orderStatus?: string }).orderStatus,
     isReassigned: record.isReassigned ?? order.isReassigned,
-  };
+  } as MTDRecord;
 }
 
 /** Orders-tab rows: persisted pre-MTD mtd_records plus open orders without a row yet. */

@@ -837,17 +837,11 @@ export function AssignEditorModal({
                     : "px-5 py-4 scrollbar-hide sm:px-6"
                 )}
               >
-                <style>{`
-                  .assign-editor-layout {
-                    display: grid;
-                    gap: 1rem;
-                  }
-                `}</style>
                 <div className="space-y-4 lg:space-y-5">
-                  <div className="assign-editor-layout">
-                    <div className="min-w-0 space-y-4">
+                  <div className="assign-editor-layout grid grid-cols-1 items-start gap-4 lg:grid-cols-2 lg:gap-5">
+                    <div className="min-w-0">
                       {categoryEditors.length === 0 ? (
-                        <p className="rounded-xl border border-brand-warning/30 bg-brand-warning/8 px-3 py-2 text-[13px] text-brand-warning">
+                        <p className="rounded-2xl border border-brand-warning/30 bg-brand-warning/8 px-3 py-2 text-[13px] text-brand-warning">
                           No producers specialize in {genreLabel}.
                         </p>
                       ) : (
@@ -866,111 +860,108 @@ export function AssignEditorModal({
                           onSelect={applyEditorSelection}
                         />
                       )}
+                    </div>
 
-                      <div
-                        className={clsx(
-                          "rounded-2xl border border-brand-line/60 bg-white p-4",
-                          !selectedEditor && "opacity-70"
-                        )}
-                      >
-                        <SectionHeading title="Booking dates" />
-                        {!selectedEditor ? (
-                          <p className="mb-3 text-[12px] text-brand-ink-tertiary">
-                            Select a producer first to set booking dates.
-                          </p>
-                        ) : null}
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          <div>
-                            <label className="text-[11px] font-medium text-brand-ink-tertiary">
-                              Mix start
-                            </label>
-                            <div className="mt-1">
-                              <InlineDateInput
-                                value={draftMixStartDate}
-                                placeholder="Required"
-                                min={todayIso}
-                                menuZIndex={80}
-                                disabled={!selectedEditor}
-                                onChange={handleMixStartChange}
-                                isDateDisabled={mixDateRules.isDateDisabled}
-                                dayTitle={mixDateRules.dayTitle}
-                                dayTone={mixDateRules.dayTone}
-                                calendarRevision={mixDateScheduleRevision}
-                              />
-                            </div>
-                          </div>
-                          <div>
-                            <label className="text-[11px] font-medium text-brand-ink-tertiary">
-                              Mix end
-                            </label>
-                            <div className="mt-1">
-                              <InlineDateInput
-                                value={draftMixEndDate}
-                                placeholder="Required"
-                                template={suggestedEndIso || undefined}
-                                min={draftStartIso || todayIso}
-                                menuZIndex={80}
-                                disabled={!selectedEditor}
-                                onChange={setDraftMixEndDate}
-                                isDateDisabled={mixDateRules.isDateDisabled}
-                                dayTitle={mixDateRules.dayTitle}
-                                dayTone={mixDateRules.dayTone}
-                                calendarRevision={mixDateScheduleRevision}
-                              />
-                            </div>
-                          </div>
-                        </div>
-                        {windowMode && selectedEditor ? (
-                          <button
-                            type="button"
-                            onClick={clearDates}
-                            className="mt-3 text-[11px] font-semibold text-brand-info transition hover:text-brand-ink"
-                          >
-                            Clear
-                          </button>
-                        ) : null}
-                        {selectedWindowConflict ? (
-                          <p className="mt-3 rounded-xl border border-brand-warning/30 bg-brand-warning/8 px-3 py-2 text-[12px] text-brand-warning">
-                            {selectedEditor} can&apos;t take these dates
-                            {selectedRow?.blockerLabel
-                              ? `: ${selectedRow.blockerLabel.toLowerCase()}`
-                              : ""}
-                            .
-                          </p>
-                        ) : null}
-                        {selectedEditor &&
-                        stripWindowMode &&
-                        selectedLimitCheck ? (
-                          <div className="mt-4 border-t border-brand-line/40 pt-3">
-                            <SelectedMixLimitPanel
-                              check={selectedLimitCheck}
-                              producer={selectedProducer}
-                              producerName={
-                                selectedProducer?.name?.trim() ||
-                                selectedEditor
-                              }
-                              currentMixName={
-                                activeRecord.programName?.trim() ||
-                                "Current mix"
-                              }
-                              rangeStartIso={mixStartIso}
-                              rangeEndIso={mixEndIso || mixStartIso}
-                              windowLabel={`${windowStartLabel}${
-                                windowEndLabel &&
-                                windowEndLabel !== windowStartLabel
-                                  ? ` – ${windowEndLabel}`
-                                  : ""
-                              }`}
-                              payoutDetail={selectedPayoutDetail}
-                              mtdRecords={mtdRecords}
-                              excludeRecordId={record?.id}
-                              estimateCost={estimateBookedCost}
+                    <div
+                      className={clsx(
+                        "min-w-0 rounded-2xl border border-brand-line/60 bg-white p-4",
+                        !selectedEditor && "opacity-70"
+                      )}
+                    >
+                      <SectionHeading title="Booking dates" />
+                      {!selectedEditor ? (
+                        <p className="mb-3 text-[12px] text-brand-ink-tertiary">
+                          Select a producer first to set booking dates.
+                        </p>
+                      ) : null}
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div>
+                          <label className="text-[11px] font-medium text-brand-ink-tertiary">
+                            Mix start
+                          </label>
+                          <div className="mt-1">
+                            <InlineDateInput
+                              value={draftMixStartDate}
+                              placeholder="Required"
+                              min={todayIso}
+                              menuZIndex={80}
+                              disabled={!selectedEditor}
+                              onChange={handleMixStartChange}
+                              isDateDisabled={mixDateRules.isDateDisabled}
+                              dayTitle={mixDateRules.dayTitle}
+                              dayTone={mixDateRules.dayTone}
+                              calendarRevision={mixDateScheduleRevision}
                             />
                           </div>
-                        ) : null}
+                        </div>
+                        <div>
+                          <label className="text-[11px] font-medium text-brand-ink-tertiary">
+                            Mix end
+                          </label>
+                          <div className="mt-1">
+                            <InlineDateInput
+                              value={draftMixEndDate}
+                              placeholder="Required"
+                              template={suggestedEndIso || undefined}
+                              min={draftStartIso || todayIso}
+                              menuZIndex={80}
+                              disabled={!selectedEditor}
+                              onChange={setDraftMixEndDate}
+                              isDateDisabled={mixDateRules.isDateDisabled}
+                              dayTitle={mixDateRules.dayTitle}
+                              dayTone={mixDateRules.dayTone}
+                              calendarRevision={mixDateScheduleRevision}
+                            />
+                          </div>
+                        </div>
                       </div>
+                      {windowMode && selectedEditor ? (
+                        <button
+                          type="button"
+                          onClick={clearDates}
+                          className="mt-3 text-[11px] font-semibold text-brand-info transition hover:text-brand-ink"
+                        >
+                          Clear
+                        </button>
+                      ) : null}
+                      {selectedWindowConflict ? (
+                        <p className="mt-3 rounded-xl border border-brand-warning/30 bg-brand-warning/8 px-3 py-2 text-[12px] text-brand-warning">
+                          {selectedEditor} can&apos;t take these dates
+                          {selectedRow?.blockerLabel
+                            ? `: ${selectedRow.blockerLabel.toLowerCase()}`
+                            : ""}
+                          .
+                        </p>
+                      ) : null}
                     </div>
                   </div>
+
+                  {selectedEditor &&
+                  stripWindowMode &&
+                  selectedLimitCheck ? (
+                    <SelectedMixLimitPanel
+                      check={selectedLimitCheck}
+                      producer={selectedProducer}
+                      producerName={
+                        selectedProducer?.name?.trim() || selectedEditor
+                      }
+                      currentMixName={
+                        activeRecord.programName?.trim() || "Current mix"
+                      }
+                      rangeStartIso={mixStartIso}
+                      rangeEndIso={mixEndIso || mixStartIso}
+                      windowLabel={`${windowStartLabel}${
+                        windowEndLabel &&
+                        windowEndLabel !== windowStartLabel
+                          ? ` – ${windowEndLabel}`
+                          : ""
+                      }`}
+                      payoutDetail={selectedPayoutDetail}
+                      mtdRecords={mtdRecords}
+                      excludeRecordId={record?.id}
+                      estimateCost={estimateBookedCost}
+                    />
+                  ) : null}
                 </div>
               </div>
 
@@ -1247,11 +1238,6 @@ function formatLimitUsd(amount: number): string {
   })}`;
 }
 
-function mixLimitDayOnly(iso: string): string {
-  const d = parseFlexibleDate(iso);
-  return d ? String(d.getDate()) : iso;
-}
-
 /** Small pad above the max line so the dashed stroke stays clear of the top edge. */
 const LIMIT_TOP_PAD = 8;
 /** Plot height from 0% up to the dashed max line. */
@@ -1402,7 +1388,6 @@ function LimitDayBarGroup({
   maxMixes,
   bookedMixes,
   maxCost,
-  bookedCost,
   costSegments,
   thisMixDaily,
   selected,
@@ -1412,7 +1397,6 @@ function LimitDayBarGroup({
   maxMixes: number | null;
   bookedMixes: number;
   maxCost: number | null;
-  bookedCost: number;
   costSegments: CostBarSegment[];
   thisMixDaily: number | null;
   selected: boolean;
@@ -1421,23 +1405,12 @@ function LimitDayBarGroup({
   const showCost = maxCost != null;
   const showMix = maxMixes != null;
 
-  const tip = [
-    shortMixLimitDay(iso),
-    showCost
-      ? `Cost ${formatLimitUsd(bookedCost + (thisMixDaily ?? 0))}/${formatLimitUsd(maxCost!)}`
-      : null,
-    showMix ? `Mixes ${bookedMixes}/${maxMixes}` : null,
-    "Click for breakdown",
-  ]
-    .filter(Boolean)
-    .join(" · ");
-
   return (
     <button
       type="button"
-      title={tip}
       onClick={onSelect}
       aria-pressed={selected}
+      aria-label={shortMixLimitDay(iso)}
       className={clsx(
         "flex min-w-[40px] flex-1 flex-col items-center outline-none",
         selected && "opacity-100"
@@ -1605,7 +1578,6 @@ function DailyLimitBarChart({
                     maxMixes={maxMixes}
                     bookedMixes={day.bookedMixes}
                     maxCost={maxCost}
-                    bookedCost={day.bookedCost}
                     costSegments={dayCostSegments[day.iso] ?? []}
                     thisMixDaily={thisMixDaily}
                     selected={day.iso === selectedIso}
@@ -1645,7 +1617,7 @@ function DailyLimitBarChart({
                         selected && "font-semibold"
                       )}
                     >
-                      {mixLimitDayOnly(day.iso)}
+                      {shortMixLimitDay(day.iso)}
                     </span>
                     <span className="text-[9px] uppercase leading-none tracking-wide opacity-80">
                       {mixLimitWeekday(day.iso).slice(0, 2)}
@@ -1805,17 +1777,25 @@ function SelectedMixLimitPanel({
     }
   }, [chartDays, defaultIso, inspectIso]);
 
-  const contributors =
-    producer && rangeStartIso
-      ? listProducerCostContributorsInRange(
-          producer,
-          rangeStartIso,
-          rangeEndIso || rangeStartIso,
-          mtdRecords,
-          excludeRecordId,
-          estimateCost
-        )
-      : [];
+  const contributors = useMemo(() => {
+    if (!producer || !rangeStartIso) return [];
+    // Only already-booked mixes — the draft selection is not assigned until Assign.
+    return listProducerCostContributorsInRange(
+      producer,
+      rangeStartIso,
+      rangeEndIso || rangeStartIso,
+      mtdRecords,
+      excludeRecordId,
+      estimateCost
+    );
+  }, [
+    producer,
+    rangeStartIso,
+    rangeEndIso,
+    mtdRecords,
+    excludeRecordId,
+    estimateCost,
+  ]);
 
   const dayCostSegments = useMemo(() => {
     const out: Record<string, CostBarSegment[]> = {};
@@ -1858,39 +1838,33 @@ function SelectedMixLimitPanel({
     currentMixName,
   ]);
 
-  return (
-    <div className="space-y-3.5">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-        <p className="min-w-0 text-[13px] font-semibold tracking-tight text-brand-ink">
-          Overlapping days where {producerName} is past 50% of daily limits
-        </p>
-        {windowLabel ? (
-          <p className="shrink-0 text-[12px] tabular-nums text-brand-ink-tertiary">
-            {windowLabel}
-          </p>
-        ) : null}
-      </div>
+  if (!hasLimits || chartDays.length === 0) return null;
 
-      {days.length === 0 ? (
-        <p className="text-[12px] text-brand-ink-tertiary">No work days in range</p>
-      ) : hasLimits ? (
-        <div>
-          {chartDays.length > 0 ? (
-            <DailyLimitBarChart
-              days={chartDays}
-              maxMixes={maxMixes}
-              maxCost={maxCost}
-              thisMixDaily={thisMixDaily}
-              selectedIso={inspectIso}
-              onSelect={setInspectIso}
-              dayCostSegments={dayCostSegments}
-            />
-          ) : (
-            <p className="text-[12px] text-brand-ink-tertiary">
-              No days over 50% of a daily limit in this range.
+  return (
+    <div className="rounded-2xl border border-brand-line/60 bg-white p-4">
+      <div className="space-y-3.5">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+          <p className="min-w-0 text-[13px] font-semibold tracking-tight text-brand-ink">
+            Overlapping days where {producerName} is past 50% of daily limits
+          </p>
+          {windowLabel ? (
+            <p className="shrink-0 text-[12px] tabular-nums text-brand-ink-tertiary">
+              {windowLabel}
             </p>
-          )}
-          {rangeStartIso ? (
+          ) : null}
+        </div>
+
+        <div>
+          <DailyLimitBarChart
+            days={chartDays}
+            maxMixes={maxMixes}
+            maxCost={maxCost}
+            thisMixDaily={thisMixDaily}
+            selectedIso={inspectIso}
+            onSelect={setInspectIso}
+            dayCostSegments={dayCostSegments}
+          />
+          {rangeStartIso && contributors.length > 0 ? (
             <RangeMixBreakdown
               rangeStartIso={rangeStartIso}
               rangeEndIso={rangeEndIso || rangeStartIso}
@@ -1898,30 +1872,26 @@ function SelectedMixLimitPanel({
             />
           ) : null}
         </div>
-      ) : (
-        <p className="text-[12px] text-brand-ink-tertiary">
-          {days.map((d) => shortMixLimitDay(d.iso)).join(" · ")}
-        </p>
-      )}
 
-      {payoutDetail ? (
-        <div className="rounded-xl border border-brand-warning/30 bg-brand-warning/8 px-3 py-2.5">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-brand-warning">
-            Disclaimer
-          </p>
-          <div className="mt-1 space-y-0.5 text-[11px] leading-relaxed text-brand-ink-secondary">
-            <p>
-              {payoutDetail.extrasApplied
-                ? `Extras ${formatLimitUsd(
-                    payoutDetail.rushFeePayout + payoutDetail.voiceoverPayout
-                  )} are on the order but not in the daily sum.`
-                : "Rush and voiceover extras are not included yet and may push a day closer to the max."}{" "}
-              Prices may change when edited.
+        {payoutDetail ? (
+          <div className="rounded-xl border border-brand-warning/30 bg-brand-warning/8 px-3 py-2.5">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-brand-warning">
+              Disclaimer
             </p>
-            <p>Completed and payroll mixes are not included.</p>
+            <div className="mt-1 space-y-0.5 text-[11px] leading-relaxed text-brand-ink-secondary">
+              <p>
+                {payoutDetail.extrasApplied
+                  ? `Extras ${formatLimitUsd(
+                      payoutDetail.rushFeePayout + payoutDetail.voiceoverPayout
+                    )} are on the order but not in the daily sum.`
+                  : "Rush and voiceover extras are not included yet and may push a day closer to the max."}{" "}
+                Prices may change when edited.
+              </p>
+              <p>Completed and payroll mixes are not included.</p>
+            </div>
           </div>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
     </div>
   );
 }
