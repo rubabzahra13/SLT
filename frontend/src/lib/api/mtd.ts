@@ -82,7 +82,7 @@ export function transformMTDRecord(bm: BackendMTDRecord): MTDRecord {
     needsAttention: Boolean(bm.needs_attention),
     status: bm.status || "active",
     recordStatus: (bm.record_status as MTDRecordStatus) || undefined,
-    inMTD: Boolean(bm.in_mtd ?? bm.inMTD),
+    inMTD: bm.is_reassigned && bm.in_mtd === false ? false : (bm.in_mtd !== undefined ? Boolean(bm.in_mtd) : (bm.inMTD !== undefined ? Boolean(bm.inMTD) : true)),
     inPayroll: Boolean(bm.in_payroll),
     isManualScheduleEntry: Boolean(bm.is_manual_schedule_entry),
     isReassigned: Boolean(bm.is_reassigned),

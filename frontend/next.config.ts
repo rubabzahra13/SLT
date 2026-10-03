@@ -3,16 +3,11 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   // Hide Next.js dev indicator ("N" badge) in development
   devIndicators: false,
+  transpilePackages: ["lucide-react"],
   images: {
     remotePatterns: [{ protocol: "https", hostname: "api.dicebear.com" }],
   },
-  // Prevent corrupted webpack disk cache when multiple dev servers run (causes unstyled pages)
-  webpack: (config, { dev }) => {
-    if (dev) {
-      config.cache = false;
-    }
-    return config;
-  },
+
   async rewrites() {
     // Local only: proxy /api to uvicorn. On Vercel, api/index.py is the
     // Python serverless function for /api/* (zero-config alongside Next.js).

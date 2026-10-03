@@ -33,7 +33,7 @@ class MTDRecord(Base):
     needs_attention = Column(Boolean, default=False, nullable=False)
     status = Column(String, default="active", nullable=False)
     record_status = Column(String, nullable=True)
-    in_mtd = Column(Boolean, default=False, nullable=False)
+    in_mtd = Column(Boolean, default=True, nullable=False)
     is_reassigned = Column(Boolean, default=False, nullable=False)
     missing_data_email_sent_at = Column(DateTime(timezone=True), nullable=True)
     producer_email_sent_at = Column(DateTime(timezone=True), nullable=True)

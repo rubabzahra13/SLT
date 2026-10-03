@@ -42,17 +42,23 @@ export function BrandIconMarkup({ logoSrc, size }: BrandIconMarkupProps) {
           overflow: "hidden",
         }}
       >
-        <img
-          src={logoSrc}
-          alt=""
-          width={inner}
-          height={inner}
-          style={{
-            objectFit: "contain",
-            objectPosition: "center",
-            transform: `translateX(${offset}px) scale(${BRAND_LOGO_IMAGE.scale})`,
-          }}
-        />
+        {logoSrc ? (
+          <img
+            src={logoSrc}
+            alt=""
+            width={inner}
+            height={inner}
+            style={{
+              objectFit: "contain",
+              objectPosition: "center",
+              transform: `translateX(${offset}px) scale(${BRAND_LOGO_IMAGE.scale})`,
+            }}
+          />
+        ) : (
+          <span style={{ fontSize: Math.round(inner * 0.4), fontWeight: 700, color: "#111" }}>
+            SLT
+          </span>
+        )}
       </div>
     </div>
   );
