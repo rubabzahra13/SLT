@@ -17,12 +17,10 @@ import type {
   Producer,
   ScheduleEntry,
 } from "@/types";
-import type { StudioHoliday, StudioPersonalReason } from "@/lib/producer-time-off";
+import type { StudioPersonalReason } from "@/lib/producer-time-off";
 import {
   createDefaultPersonalReasons,
-  createDefaultStudioHolidays,
   ensurePersonalReasonsList,
-  normalizeStudioHoliday,
   normalizeStudioPersonalReason,
 } from "@/lib/producer-time-off";
 import {
@@ -35,6 +33,7 @@ import {
 } from "@/lib/email-templates";
 import { getData } from "@/lib/data";
 import { normalizeOrder, orderToMTDRecord } from "@/lib/order-form";
+import { mergeCollectionStateFromOrder } from "@/lib/order-staging";
 import { useAuth } from "@/context/AuthContext";
 import {
   detectCompliance,
@@ -51,7 +50,7 @@ import {
   resolveValidProducerAssignment,
 } from "@/lib/editor-assignment";
 import { suggestMixEndDate, suggestMixStartDate } from "@/lib/scheduling";
-import { normalizeProducer, deduplicateProducers } from "@/lib/producers";
+import { normalizeProducer, normalizeProducerList } from "@/lib/producers";
 import { normalizeDiscountCode } from "@/lib/discount-codes";
 import { isOutsourcedRecord } from "@/lib/mtd-filters";
 import { inferMTDRecordStatus } from "@/lib/mtd-status";
@@ -74,9 +73,6 @@ import {
   type CreatePayrollAddonPayload,
   createManualScheduleEntryApi,
   type CreateManualSchedulePayload,
-  createStudioHolidayApi,
-  updateStudioHolidayApi,
-  deleteStudioHolidayApi,
   createStudioPersonalReasonApi,
   updateStudioPersonalReasonApi,
   deleteStudioPersonalReasonApi,
@@ -87,7 +83,6 @@ import {
   fetchMTDRecordsApi,
   fetchDiscountCodesApi,
   fetchPayrollAddonsApi,
-  fetchStudioHolidaysApi,
   fetchStudioPersonalReasonsApi,
   fetchEmailTemplatesApi,
   savePackagePricesApi,
@@ -107,7 +102,6 @@ type AppStateContextValue = {
   producers: Producer[];
   discountCodes: DiscountCode[];
   payrollAddons: PayrollAddon[];
-  holidays: StudioHoliday[];
   personalReasons: StudioPersonalReason[];
   emailTemplates: EmailTemplatesState;
   schedule: ScheduleEntry[];
@@ -135,9 +129,6 @@ type AppStateContextValue = {
   removePayrollAddon: (id: string) => Promise<void>;
   addManualScheduleEntry: (payload: CreateManualSchedulePayload) => Promise<Order>;
   addNotification: (notification: Omit<AppNotification, "id" | "read" | "createdAt">) => void;
-  addHoliday: (holiday: StudioHoliday) => void;
-  updateHoliday: (id: string, patch: Partial<StudioHoliday>) => void;
-  removeHoliday: (id: string) => void;
   addPersonalReason: (reason: StudioPersonalReason) => void;
   updatePersonalReason: (
     id: string,
@@ -221,32 +212,36 @@ function setLocalItem<T>(key: string, value: T): void {
 
 // --- Stale-while-revalidate cache -------------------------------------------
 // Paint last-known data instantly, then refresh from the API. This is NOT a
-// source of truth: hard refresh does NOT clear localStorage, so a long-lived
-// cache makes deleted DB rows look "still there" (exactly the Instagram/Google
-// problem if you cache mutable lists forever).
+// source of truth: hard refresh does NOT clear localStorage, so forever-fresh
+// blobs can briefly show deleted rows until bootstrap overwrites them.
 //
 // Rules (how large apps avoid this):
 // 1) Version the key — bump to invalidate everyone's old blobs after schema/data resets
-// 2) TTL — after max age, ignore the cache and wait for the network
-// 3) Only rewrite cache after a successful backend sync
+// 2) Always paint any snapshot; always revalidate from the network (SWR)
+// 3) Drop only absurdly old blobs (safety); rewrite cache after successful sync / mutations
 const CACHE_VERSION = "v2";
 const CACHE_ORDERS_KEY = `slt_cache_orders_${CACHE_VERSION}`;
 const CACHE_MTD_KEY = `slt_cache_mtd_${CACHE_VERSION}`;
 const CACHE_PRODUCERS_KEY = `slt_cache_producers_${CACHE_VERSION}`;
-/** Ignore cached lists older than this — force a live fetch. */
-const CACHE_MAX_AGE_MS = 30_000;
+/** Drop snapshots older than this — not used to block first paint under 7 days. */
+const CACHE_HARD_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 type TimedCache<T> = { savedAt: number; data: T };
 
-function readTimedCache<T>(key: string): T | null {
+/** Last snapshot for first paint, even if stale. Null only when missing/corrupt/too old. */
+function readCache<T>(key: string): T | null {
   const wrapped = getLocalItem<TimedCache<T> | T | null>(key, null);
   if (!wrapped) return null;
-  // Legacy unwrapped shape from older builds — treat as expired.
-  if (typeof wrapped === "object" && wrapped !== null && "savedAt" in wrapped && "data" in wrapped) {
+  // Legacy unwrapped shape from older builds — treat as unusable.
+  if (
+    typeof wrapped === "object" &&
+    wrapped !== null &&
+    "savedAt" in wrapped &&
+    "data" in wrapped
+  ) {
     const { savedAt, data } = wrapped as TimedCache<T>;
-    if (typeof savedAt !== "number" || Date.now() - savedAt > CACHE_MAX_AGE_MS) {
-      return null;
-    }
+    if (typeof savedAt !== "number") return null;
+    if (Date.now() - savedAt > CACHE_HARD_MAX_AGE_MS) return null;
     return data;
   }
   return null;
@@ -270,12 +265,15 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem("slt_cache_producers_v1");
   }
 
-  // Hydrate only from a fresh (TTL) cache; otherwise start empty and load live.
-  const cachedOrders = readTimedCache<{ active: Order[]; past: Order[] }>(
+  // Paint any SWR snapshot immediately; bootstrap always revalidates in background.
+  const cachedOrders = readCache<{ active: Order[]; past: Order[] }>(
     CACHE_ORDERS_KEY
   );
-  const cachedMtd = readTimedCache<MTDRecord[]>(CACHE_MTD_KEY);
-  const hasCachedData = Boolean(cachedOrders && cachedMtd);
+  const cachedMtd = readCache<MTDRecord[]>(CACHE_MTD_KEY);
+  const cachedProducers = readCache<Producer[]>(CACHE_PRODUCERS_KEY);
+  const hasCachedData = Boolean(
+    cachedOrders || cachedMtd || (cachedProducers && cachedProducers.length > 0)
+  );
 
   const [activeOrders, setActiveOrders] = useState<Order[]>(
     () => cachedOrders?.active ?? []
@@ -296,21 +294,16 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
 
   const [producers, setProducers] = useState<Producer[]>(() => {
-    const cachedProducers = readTimedCache<Producer[]>(CACHE_PRODUCERS_KEY);
-    if (cachedProducers) {
-      return deduplicateProducers(cachedProducers.map((p) => normalizeProducer(p)));
+    if (cachedProducers && cachedProducers.length > 0) {
+      return normalizeProducerList(
+        cachedProducers.map((p) => normalizeProducer(p))
+      );
     }
+    // Don't paint seed order first — that reshuffles when DB bootstrap arrives.
     return [];
   });
   const [discountCodes, setDiscountCodes] = useState<DiscountCode[]>([]);
   const [payrollAddons, setPayrollAddons] = useState<PayrollAddon[]>([]);
-  const [holidays, setHolidays] = useState<StudioHoliday[]>(() => {
-    const stored = getLocalItem<StudioHoliday[] | null>("slt_studio_holidays", null);
-    if (stored && Array.isArray(stored) && stored.length > 0) {
-      return stored.map((entry) => normalizeStudioHoliday(entry));
-    }
-    return createDefaultStudioHolidays();
-  });
   const [personalReasons, setPersonalReasons] = useState<StudioPersonalReason[]>(
     () => {
       const stored = getLocalItem<StudioPersonalReason[] | null>(
@@ -331,7 +324,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     )
   );
   const [isBackendConnected, setIsBackendConnected] = useState<boolean>(false);
-  // If we hydrated from a fresh cache, don't block the UI; otherwise wait on API.
+  // Block UI only on true cold start; cached paint stays interactive while revalidating.
   const [isLoading, setIsLoading] = useState<boolean>(!hasCachedData);
 
   const schedule = seed.schedule;
@@ -342,8 +335,11 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     let loadGen = 0;
 
     function applyBoot(boot: BootstrapPayload) {
-      setProducers(boot.producers);
-      writeTimedCache(CACHE_PRODUCERS_KEY, boot.producers);
+      if (boot.producers.length > 0) {
+        const nextProducers = normalizeProducerList(boot.producers);
+        setProducers(nextProducers);
+        writeTimedCache(CACHE_PRODUCERS_KEY, nextProducers);
+      }
 
       const loadedActiveOrders = normalizeOrders(boot.activeOrders);
       const loadedPastOrders = normalizeOrders(boot.pastOrders);
@@ -354,7 +350,22 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         past: loadedPastOrders,
       });
 
-      const loadedMtdRecords = normalizeMTD(boot.mtdRecords);
+      const orderById = new Map<string, Order>();
+      for (const order of [...loadedActiveOrders, ...loadedPastOrders]) {
+        for (const key of [order.id, order.uuid, order.legacyId]) {
+          if (key) orderById.set(key, order);
+        }
+      }
+
+      const loadedMtdRecords = normalizeMTD(boot.mtdRecords).map((rec) => {
+        const linked =
+          (rec.orderId && orderById.get(rec.orderId)) ||
+          orderById.get(rec.id) ||
+          (rec.uuid && orderById.get(rec.uuid)) ||
+          (rec.legacyId && orderById.get(rec.legacyId)) ||
+          null;
+        return mergeCollectionStateFromOrder(rec, linked);
+      });
       const existingMtdOrderIds = new Set(
         loadedMtdRecords.map((r) => r.orderId).filter(Boolean)
       );
@@ -372,9 +383,6 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       setDiscountCodes(boot.discountCodes);
       setPayrollAddons(boot.payrollAddons);
 
-      if (boot.holidays.length > 0) {
-        setHolidays(boot.holidays.map((entry) => normalizeStudioHoliday(entry)));
-      }
       if (boot.personalReasons.length > 0) {
         setPersonalReasons(ensurePersonalReasonsList(boot.personalReasons));
       }
@@ -399,7 +407,6 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         mtdRecords,
         discountCodes,
         payrollAddons,
-        holidays,
         personalReasons,
         emailTemplates,
         packagePrices,
@@ -413,7 +420,6 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         fetchMTDRecordsApi().catch(() => [] as MTDRecord[]),
         fetchDiscountCodesApi().catch(() => [] as DiscountCode[]),
         fetchPayrollAddonsApi().catch(() => [] as PayrollAddon[]),
-        fetchStudioHolidaysApi().catch(() => [] as StudioHoliday[]),
         fetchStudioPersonalReasonsApi().catch(
           () => [] as StudioPersonalReason[]
         ),
@@ -438,7 +444,6 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         mtdRecords,
         discountCodes,
         payrollAddons,
-        holidays,
         personalReasons,
         emailTemplates,
         packagePrices,
@@ -497,9 +502,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  // NOTE: Orders and MTD records are intentionally NOT persisted to localStorage.
-  // The backend API (Supabase) is the sole persistent store. On each page load
-  // the app fetches fresh data from the database.
+  // Orders / MTD / producers use localStorage only as an SWR paint buffer.
+  // Supabase via the API remains the source of truth; bootstrap always revalidates.
 
   const addNotification = useCallback(
     (n: Omit<AppNotification, "id" | "read" | "createdAt">) => {
@@ -943,7 +947,25 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
               r.legacyId === id
           );
           const updatedRecord = targetRecord
-            ? { ...targetRecord, ...apiPatch, inMTD: true }
+            ? {
+                ...targetRecord,
+                ...apiPatch,
+                inMTD: true,
+                collectionStates:
+                  (apiPatch as MTDRecord).collectionStates ??
+                  targetRecord.collectionStates ??
+                  linkedOrder?.collectionStates,
+                haveSongs:
+                  (apiPatch as MTDRecord).haveSongs ||
+                  targetRecord.haveSongs ||
+                  linkedOrder?.haveSongs ||
+                  "",
+                eightCountSheet:
+                  (apiPatch as MTDRecord).eightCountSheet ||
+                  targetRecord.eightCountSheet ||
+                  linkedOrder?.eightCountSheet ||
+                  "",
+              }
             : { ...apiPatch, inMTD: true };
           try {
             const saved = await createMTDRecordApi(updatedRecord as MTDRecord);
@@ -955,10 +977,23 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
                 r.legacyId === id
                   ? {
                       ...r,
+                      ...apiPatch,
                       id: saved.id,
                       uuid: saved.uuid,
                       legacyId: saved.legacyId,
                       inMTD: true,
+                      collectionStates:
+                        saved.collectionStates ??
+                        (updatedRecord as MTDRecord).collectionStates ??
+                        r.collectionStates,
+                      haveSongs:
+                        saved.haveSongs ||
+                        (updatedRecord as MTDRecord).haveSongs ||
+                        r.haveSongs,
+                      eightCountSheet:
+                        saved.eightCountSheet ||
+                        (updatedRecord as MTDRecord).eightCountSheet ||
+                        r.eightCountSheet,
                     }
                   : r
               )
@@ -975,6 +1010,72 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           );
           if (isRealMtdRecord) {
             await updateMTDRecordApi(apiId, apiPatch);
+          } else if (existing && Object.keys(apiPatch).length > 0) {
+            // Orders-board virtual row: create a real MTD row so MTD-only
+            // fields (payroll, invoice, etc.) survive hard refresh.
+            try {
+              const seeded: MTDRecord = {
+                ...existing,
+                ...apiPatch,
+                collectionStates:
+                  (apiPatch as MTDRecord).collectionStates ??
+                  existing.collectionStates ??
+                  linkedOrder?.collectionStates,
+                haveSongs:
+                  (apiPatch as MTDRecord).haveSongs ||
+                  existing.haveSongs ||
+                  linkedOrder?.haveSongs ||
+                  "",
+                eightCountSheet:
+                  (apiPatch as MTDRecord).eightCountSheet ||
+                  existing.eightCountSheet ||
+                  linkedOrder?.eightCountSheet ||
+                  linkedOrder?.sendingEightCountSheets ||
+                  linkedOrder?.usingEightCountSheets ||
+                  "",
+                orderStatus:
+                  (apiPatch as { orderStatus?: string }).orderStatus ||
+                  existing.orderStatus ||
+                  linkedOrder?.orderStatus,
+                isReassigned:
+                  (apiPatch as MTDRecord).isReassigned ??
+                  existing.isReassigned ??
+                  linkedOrder?.isReassigned,
+              };
+              const saved = await createMTDRecordApi(seeded);
+              setMtdRecords((prev) =>
+                prev.map((r) =>
+                  r.id === id ||
+                  r.orderId === id ||
+                  r.uuid === id ||
+                  r.legacyId === id
+                    ? {
+                        ...r,
+                        ...apiPatch,
+                        id: saved.id,
+                        uuid: saved.uuid,
+                        legacyId: saved.legacyId,
+                        collectionStates:
+                          saved.collectionStates ??
+                          seeded.collectionStates ??
+                          r.collectionStates,
+                        haveSongs:
+                          saved.haveSongs || seeded.haveSongs || r.haveSongs,
+                        eightCountSheet:
+                          saved.eightCountSheet ||
+                          seeded.eightCountSheet ||
+                          r.eightCountSheet,
+                        orderStatus:
+                          saved.orderStatus ||
+                          seeded.orderStatus ||
+                          r.orderStatus,
+                      }
+                    : r
+                )
+              );
+            } catch {
+              await updateMTDRecordApi(apiId, apiPatch);
+            }
           }
         }
       } catch (err) {
@@ -1168,15 +1269,17 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     }
     const normalized = normalizeProducer(producer);
     const tempId = normalized.id;
-    setProducers((prev) => [normalized, ...prev]);
-    if (!isBackendConnected) {
-      return normalized;
-    }
+    setProducers((prev) => normalizeProducerList([normalized, ...prev]));
     try {
       const saved = await createProducerApi(normalized);
-      setProducers((prev) =>
-        prev.map((p) => (p.id === tempId ? saved : p))
-      );
+      setProducers((prev) => {
+        const nextList = normalizeProducerList(
+          prev.map((p) => (p.id === tempId ? saved : p))
+        );
+        writeTimedCache(CACHE_PRODUCERS_KEY, nextList);
+        return nextList;
+      });
+      setIsBackendConnected(true);
       return saved;
     } catch (err) {
       setProducers((prev) => prev.filter((p) => p.id !== tempId));
@@ -1189,37 +1292,92 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       notifySaveError("Could not save producer", err);
       throw err;
     }
-  }, [isViewOnly, isBackendConnected, notifySaveError]);
+  }, [isViewOnly, notifySaveError]);
 
   const updateProducer = useCallback(async (id: string, patch: Partial<Producer>) => {
     if (isViewOnly) {
       throw new Error("View-only accounts cannot edit producers.");
     }
+    const matchProducer = (p: Producer) =>
+      p.id === id || p.uuid === id || p.legacyId === id;
+
     let previous: Producer | undefined;
     let next: Producer | undefined;
     setProducers((prev) => {
-      previous = prev.find((p) => p.id === id);
+      previous = prev.find(matchProducer);
       if (!previous) return prev;
-      next = normalizeProducer({ ...previous, ...patch, id });
-      return prev.map((p) => (p.id === id ? next! : p));
+      next = normalizeProducer({ ...previous, ...patch, id: previous.id });
+      return normalizeProducerList(
+        prev.map((p) => (matchProducer(p) ? next! : p))
+      );
     });
     if (!previous || !next) {
       throw new Error("Producer not found.");
     }
-    if (!isBackendConnected) {
-      return next;
-    }
+    // Always hit the API — skipping when "disconnected" left leave/schedule/
+    // limits in memory only, so they vanished on refresh.
     try {
       const saved = await updateProducerApi(
-        id,
+        previous.id,
         patch,
         resolveProducerApiId(previous)
       );
-      setProducers((prev) => prev.map((p) => (p.id === id ? saved : p)));
-      return saved;
+      // Keep optimistic leave / Extra days / work days when the PATCH body
+      // included them but the response omitted or emptied those fields.
+      const merged = normalizeProducer({
+        ...saved,
+        id: previous.id,
+        uuid: saved.uuid || previous.uuid,
+        legacyId: saved.legacyId || previous.legacyId,
+        ...(patch.timeOff !== undefined
+          ? {
+              timeOff:
+                Array.isArray(saved.timeOff) && saved.timeOff.length > 0
+                  ? saved.timeOff
+                  : next.timeOff,
+            }
+          : {}),
+        ...(patch.overtimeDays !== undefined
+          ? {
+              overtimeDays:
+                Array.isArray(saved.overtimeDays) &&
+                (saved.overtimeDays.length > 0 || next.overtimeDays.length === 0)
+                  ? saved.overtimeDays
+                  : next.overtimeDays,
+            }
+          : {}),
+        ...(patch.workDays !== undefined
+          ? {
+              workDays:
+                Array.isArray(saved.workDays) && saved.workDays.length > 0
+                  ? saved.workDays
+                  : next.workDays,
+            }
+          : {}),
+        ...(patch.maxMixesPerDay !== undefined
+          ? { maxMixesPerDay: saved.maxMixesPerDay ?? next.maxMixesPerDay }
+          : {}),
+        ...(patch.maxProducerCostPerDay !== undefined
+          ? {
+              maxProducerCostPerDay:
+                saved.maxProducerCostPerDay ?? next.maxProducerCostPerDay,
+            }
+          : {}),
+      });
+      setProducers((prev) => {
+        const nextList = normalizeProducerList(
+          prev.map((p) => (matchProducer(p) ? merged : p))
+        );
+        writeTimedCache(CACHE_PRODUCERS_KEY, nextList);
+        return nextList;
+      });
+      setIsBackendConnected(true);
+      return merged;
     } catch (err) {
       setProducers((prev) =>
-        prev.map((p) => (p.id === id ? previous! : p))
+        normalizeProducerList(
+          prev.map((p) => (matchProducer(p) ? previous! : p))
+        )
       );
       if (
         err instanceof ApiClientError &&
@@ -1230,7 +1388,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       notifySaveError("Could not save producer", err);
       throw err;
     }
-  }, [isViewOnly, isBackendConnected, notifySaveError]);
+  }, [isViewOnly, notifySaveError]);
 
   const removeProducer = useCallback(async (id: string) => {
     if (isViewOnly) {
@@ -1244,11 +1402,13 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     if (!removed) {
       throw new Error("Producer not found.");
     }
-    if (!isBackendConnected) {
-      return;
-    }
     try {
       await deleteProducerApi(id, resolveProducerApiId(removed));
+      setProducers((prev) => {
+        writeTimedCache(CACHE_PRODUCERS_KEY, prev);
+        return prev;
+      });
+      setIsBackendConnected(true);
     } catch (err) {
       setProducers((prev) => [removed!, ...prev]);
       if (
@@ -1260,7 +1420,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       notifySaveError("Could not delete producer", err);
       throw err;
     }
-  }, [isViewOnly, isBackendConnected, notifySaveError]);
+  }, [isViewOnly, notifySaveError]);
 
   const addDiscountCode = useCallback(
     async (discountCode: DiscountCode): Promise<DiscountCode> => {
@@ -1343,12 +1503,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     [isViewOnly]
   );
 
-  useEffect(() => {
-    setLocalItem("slt_studio_holidays", holidays);
-  }, [holidays]);
-
   // Keep the stale-while-revalidate cache in sync after edits (Move to Orders/MTD,
-  // inline changes, etc.). Only write once the backend has loaded so we never
+  // leave/Extra days, etc.). Only write once the backend has loaded so we never
   // clobber a good cache with the empty initial state on a cold start.
   useEffect(() => {
     if (!isBackendConnected) return;
@@ -1361,78 +1517,17 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   }, [mtdRecords, isBackendConnected]);
 
   useEffect(() => {
+    if (!isBackendConnected) return;
+    writeTimedCache(CACHE_PRODUCERS_KEY, producers);
+  }, [producers, isBackendConnected]);
+
+  useEffect(() => {
     setLocalItem(EMAIL_TEMPLATES_STORAGE_KEY, emailTemplates);
   }, [emailTemplates]);
 
   useEffect(() => {
     setLocalItem("slt_studio_personal_reasons", personalReasons);
   }, [personalReasons]);
-
-  const addHoliday = useCallback(
-    (holiday: StudioHoliday) => {
-      if (isViewOnly) return;
-      const normalized = normalizeStudioHoliday(holiday);
-      const tempId = normalized.id;
-      setHolidays((prev) => [normalized, ...prev]);
-      void createStudioHolidayApi(normalized)
-        .then((saved) => {
-          setHolidays((prev) =>
-            prev.map((entry) => (entry.id === tempId ? saved : entry))
-          );
-        })
-        .catch((err) => {
-          setHolidays((prev) => prev.filter((entry) => entry.id !== tempId));
-          notifySaveError("Could not save holiday", err);
-        });
-    },
-    [isViewOnly]
-  );
-
-  const updateHoliday = useCallback(
-    (id: string, patch: Partial<StudioHoliday>) => {
-      if (isViewOnly) return;
-      let previous: StudioHoliday | undefined;
-      setHolidays((prev) => {
-        previous = prev.find((entry) => entry.id === id);
-        return prev.map((entry) =>
-          entry.id === id
-            ? normalizeStudioHoliday({ ...entry, ...patch, id })
-            : entry
-        );
-      });
-      if (!previous) return;
-      void updateStudioHolidayApi(id, patch)
-        .then((saved) => {
-          setHolidays((prev) =>
-            prev.map((entry) => (entry.id === id ? saved : entry))
-          );
-        })
-        .catch((err) => {
-          setHolidays((prev) =>
-            prev.map((entry) => (entry.id === id ? previous! : entry))
-          );
-          notifySaveError("Could not update holiday", err);
-        });
-    },
-    [isViewOnly]
-  );
-
-  const removeHoliday = useCallback(
-    (id: string) => {
-      if (isViewOnly) return;
-      let removed: StudioHoliday | undefined;
-      setHolidays((prev) => {
-        removed = prev.find((entry) => entry.id === id);
-        return prev.filter((entry) => entry.id !== id);
-      });
-      if (!removed) return;
-      void deleteStudioHolidayApi(id).catch((err) => {
-        setHolidays((prev) => [removed!, ...prev]);
-        notifySaveError("Could not delete holiday", err);
-      });
-    },
-    [isViewOnly]
-  );
 
   const addPersonalReason = useCallback(
     (reason: StudioPersonalReason) => {
@@ -1561,8 +1656,10 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const updateEmailTemplate = useCallback(
     (id: EmailTemplateId, patch: Partial<EmailTemplateCopy>) => {
       if (isViewOnly) return;
+      let previousCopy: EmailTemplateCopy | undefined;
       let nextCopy: EmailTemplateCopy | undefined;
       setEmailTemplates((prev) => {
+        previousCopy = prev[id];
         const merged = normalizeEmailTemplates({
           ...prev,
           [id]: {
@@ -1574,28 +1671,50 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         return merged;
       });
       if (!nextCopy) return;
-      void upsertEmailTemplateApi(id, nextCopy).catch((err) => {
-        notifySaveError("Could not save email template", err);
-      });
+      void upsertEmailTemplateApi(id, nextCopy)
+        .then(() => {
+          // localStorage sync effect will persist the saved state
+        })
+        .catch((err) => {
+          if (previousCopy) {
+            setEmailTemplates((prev) =>
+              normalizeEmailTemplates({
+                ...prev,
+                [id]: previousCopy!,
+              })
+            );
+          }
+          notifySaveError("Could not save email template", err);
+        });
     },
-    [isViewOnly]
+    [isViewOnly, notifySaveError]
   );
 
   const resetEmailTemplate = useCallback(
     (id: EmailTemplateId) => {
       if (isViewOnly) return;
+      let previousCopy: EmailTemplateCopy | undefined;
       const nextCopy = DEFAULT_EMAIL_TEMPLATES[id];
-      setEmailTemplates((prev) =>
-        normalizeEmailTemplates({
+      setEmailTemplates((prev) => {
+        previousCopy = prev[id];
+        return normalizeEmailTemplates({
           ...prev,
           [id]: nextCopy,
-        })
-      );
+        });
+      });
       void upsertEmailTemplateApi(id, nextCopy).catch((err) => {
+        if (previousCopy) {
+          setEmailTemplates((prev) =>
+            normalizeEmailTemplates({
+              ...prev,
+              [id]: previousCopy!,
+            })
+          );
+        }
         notifySaveError("Could not reset email template", err);
       });
     },
-    [isViewOnly]
+    [isViewOnly, notifySaveError]
   );
 
   const markNotificationRead = useCallback((id: string) => {
@@ -1620,7 +1739,6 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     producers,
     discountCodes,
     payrollAddons,
-    holidays,
     personalReasons,
     emailTemplates,
     schedule,
@@ -1647,9 +1765,6 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     removePayrollAddon,
     addManualScheduleEntry,
     addNotification,
-    addHoliday,
-    updateHoliday,
-    removeHoliday,
     addPersonalReason,
     updatePersonalReason,
     removePersonalReason,

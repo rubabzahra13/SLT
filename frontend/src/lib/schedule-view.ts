@@ -7,7 +7,6 @@ import {
   isProducerWorkDay,
 } from "@/lib/producer-availability";
 import { isEligibleProducerScheduleRecord } from "@/lib/export-csv";
-import type { StudioHoliday } from "@/lib/producer-time-off";
 
 export type ScheduleViewRange = "today" | "week" | "month" | "90days" | "6months";
 
@@ -35,7 +34,7 @@ export type ScheduleCell = {
   unavailable: boolean;
   booking?: CellBooking | null;
   bookings?: CellBooking[];
-  /** Leave reason and/or holiday name when status is "off". */
+  /** Leave reason when status is "off". */
   offDetail?: string;
   /** True when this day is an overtime date (not a regular work weekday). */
   isOvertime?: boolean;
@@ -81,18 +80,17 @@ function formatLegacyDay(date: any): string {
   return `${DAY_NAMES[d.getDay()]} ${MONTH_NAMES[d.getMonth()]} ${d.getDate()}`;
 }
 
-/** Leave name for an Off day (calendar holidays are reference only). */
+/** Leave name for an Off day. */
 export function describeScheduleOffDetail(
   producer: Producer,
-  date: Date,
-  _studioHolidays?: StudioHoliday[]
+  date: Date
 ): string | undefined {
   const dayIso = toLocalIsoDate(date);
   const parts: string[] = [];
 
   for (const entry of producer.timeOff ?? []) {
     if (dayIso < entry.startDate || dayIso > entry.endDate) continue;
-    const reason = (entry.reason || "").trim() || "Leave";
+    const reason = (entry.reason || "").trim() || "Off day";
     if (!parts.includes(reason)) parts.push(reason);
   }
 
@@ -120,8 +118,7 @@ export function describeScheduleOffDetail(
 function inferStatus(
   producer: Producer,
   date: Date,
-  scheduleByDay: Map<string, ScheduleEntry>,
-  studioHolidays?: StudioHoliday[]
+  scheduleByDay: Map<string, ScheduleEntry>
 ): ScheduleCell["status"] {
   const legacy = formatLegacyDay(date);
   const entry = scheduleByDay.get(legacy);
@@ -132,11 +129,11 @@ function inferStatus(
     return entry.status;
   }
 
-  // Time off / studio holidays only apply on regular work days. Overtime days are cancelled
-  // via removing the overtime date — not by adding time off.
+  // Time off only applies on regular work days. Extra days are cancelled
+  // via removing the Extra day date — not by adding leave.
   if (
     isProducerWorkDay(producer, date) &&
-    isProducerOnTimeOff(producer, date, studioHolidays)
+    isProducerOnTimeOff(producer, date)
   ) {
     return "off";
   }
@@ -247,7 +244,7 @@ function resolveBookings(
   if (status === "off") {
     return [
       {
-        work: "Time off",
+        work: "Off day",
         until: formatDisplayDate(date),
       },
     ];
@@ -346,8 +343,7 @@ export function getScheduleCells(
   schedule: ScheduleEntry[],
   range: ScheduleViewRange,
   anchorDate = new Date(),
-  mtdRecords: MTDRecord[] = [],
-  studioHolidays?: StudioHoliday[]
+  mtdRecords: MTDRecord[] = []
 ): ScheduleCell[] {
   const scheduleId = producerScheduleId(producer);
   const scheduleByDay = new Map(
@@ -358,7 +354,7 @@ export function getScheduleCells(
   const assignments = producerAssignments(producer, mtdRecords);
 
   return buildDateRange(range, anchorDate).map((date) => {
-    let status = inferStatus(producer, date, scheduleByDay, studioHolidays);
+    let status = inferStatus(producer, date, scheduleByDay);
     const coveringBookings = bookingsFromAssignments(
       date,
       coveringAssignments(date, assignments)
@@ -401,7 +397,7 @@ export function getScheduleCells(
       bookings,
       offDetail:
         status === "off"
-          ? describeScheduleOffDetail(producer, date, studioHolidays)
+          ? describeScheduleOffDetail(producer, date)
           : undefined,
       isOvertime: isOvertime || undefined,
     };
@@ -541,8 +537,7 @@ export function buildTeamSchedule(
   schedule: ScheduleEntry[],
   range: ScheduleViewRange,
   anchorDate = new Date(),
-  mtdRecords: MTDRecord[] = [],
-  studioHolidays?: StudioHoliday[]
+  mtdRecords: MTDRecord[] = []
 ): TeamScheduleRow[] {
   return producers.map((producer) => ({
     producer,
@@ -551,8 +546,7 @@ export function buildTeamSchedule(
       schedule,
       range,
       anchorDate,
-      mtdRecords,
-      studioHolidays
+      mtdRecords
     ),
   }));
 }
@@ -706,7 +700,7 @@ export function statusLabel(status: ScheduleCell["status"]): string {
   if (status === "off") return "Off";
   if (status === "nonwork") return "Non-working";
   if (status === "capacity") return "Capacity Reached";
-  return "Available";
+  return "Free slot";
 }
 
 export type ScheduleStatusFilter = "all" | ScheduleCell["status"];
@@ -720,7 +714,7 @@ export const SCHEDULE_STATUS_FILTERS: {
   { value: "capacity", label: "Capacity Reached" },
   { value: "off", label: "Off" },
   { value: "nonwork", label: "Non-working" },
-  { value: "available", label: "Available" },
+  { value: "available", label: "Free slot" },
 ];
 
 function maskCellForStatusFilter(cell: ScheduleCell): ScheduleCell {

@@ -40,7 +40,7 @@ export function PageHeader({
   return (
     <header className="sticky top-0 z-30 shrink-0 border-b border-brand-line-strong/50 bg-white">
       <div className={compact ? "px-6 py-3 lg:px-8" : "px-6 py-4 lg:px-8"}>
-        <div className="flex items-center justify-between gap-6">
+        <div className="flex items-center justify-between gap-4 sm:gap-6">
           <div className="flex min-w-0 flex-1 items-center gap-3">
             <span
               className="hidden h-8 w-1 shrink-0 rounded-full bg-gradient-to-b from-brand-signature to-brand-blue/40 sm:block"
@@ -75,6 +75,11 @@ export function PageHeader({
                 </p>
               ) : null}
             </div>
+            {meta ? (
+              <div className="ml-auto hidden min-w-0 shrink-0 sm:block">
+                {meta}
+              </div>
+            ) : null}
           </div>
 
           <div className="flex shrink-0 items-center gap-2.5">
@@ -145,11 +150,12 @@ export function PageHeader({
 
         {tabs ? <div className="mt-4 -mb-px">{tabs}</div> : null}
 
-        {toolbar || meta ? (
+        {toolbar ? (
           <div className={compact ? "mt-4" : "mt-5"}>
-            {toolbar ? <div className="min-w-0">{toolbar}</div> : null}
-            {meta ? <div className={toolbar ? "mt-3" : undefined}>{meta}</div> : null}
+            <div className="min-w-0">{toolbar}</div>
           </div>
+        ) : meta ? (
+          <div className="mt-3 sm:hidden">{meta}</div>
         ) : (
           <div className="h-0" aria-hidden />
         )}

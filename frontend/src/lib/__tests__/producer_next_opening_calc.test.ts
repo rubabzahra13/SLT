@@ -228,7 +228,7 @@ describe("Producer Next Opening Calculation Engine", () => {
   it("Test 10: The order being assigned never counts against its producer", () => {
     const rec = createMockRecord({ id: "rec-self", mixStartDate: "2026-09-14", mixEndDate: "2026-09-15" });
 
-    const res = calculateProducerNextOpening(caseyProducer, [rec], [], "2026-09-14", [], {
+    const res = calculateProducerNextOpening(caseyProducer, [rec], [], "2026-09-14", {
       excludeRecordId: "rec-self",
     });
     assert.equal(res.nextAvailable, "Today");
@@ -247,13 +247,14 @@ describe("Producer Next Opening Calculation Engine", () => {
       producerPayout: 700,
     });
 
-    const fits = calculateProducerNextOpening(costCapped, [rec], [], "2026-09-14", [], {
-      newMixCost: 300,
+    // Existing mix $700 ÷ 2 work days = $350/day. newMixCost is a per-day share.
+    const fits = calculateProducerNextOpening(costCapped, [rec], [], "2026-09-14", {
+      newMixCost: 300, // 350 + 300 = 650 ≤ 1000
     });
     assert.equal(fits.nextAvailable, "Today");
 
-    const over = calculateProducerNextOpening(costCapped, [rec], [], "2026-09-14", [], {
-      newMixCost: 400,
+    const over = calculateProducerNextOpening(costCapped, [rec], [], "2026-09-14", {
+      newMixCost: 700, // 350 + 700 > 1000 → skip to Sep 16
     });
     assert.equal(over.nextAvailable, "Sep 16, 2026");
   });

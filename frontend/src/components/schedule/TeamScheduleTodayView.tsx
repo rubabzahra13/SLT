@@ -116,7 +116,7 @@ export function TeamScheduleTodayView({
           if (bookings.length === 0) {
             if (entry.cell.status === "available") {
               return (
-                <span className="text-[12px] font-semibold text-brand-signature">Available</span>
+                <span className="text-[12px] font-semibold text-brand-signature">Free slot</span>
               );
             }
             if (entry.cell.status === "capacity") {
@@ -152,7 +152,7 @@ export function TeamScheduleTodayView({
           const until = bookings[0]?.until;
           if (!until && entry.cell.status === "available") {
             return (
-              <span className="text-[12px] font-semibold text-brand-signature">Available</span>
+              <span className="text-[12px] font-semibold text-brand-signature">Free slot</span>
             );
           }
           if (!until && entry.cell.status === "capacity") {

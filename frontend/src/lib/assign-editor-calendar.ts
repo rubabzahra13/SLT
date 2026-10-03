@@ -2,24 +2,21 @@ import { parseFlexibleDate } from "@/lib/dates";
 import {
   checkProducerDailyLimits,
   dateToIsoLocal,
+  describeProducerMixDayForLeave,
   effectiveWorkDays,
+  formatCompactLeaveDaySpans,
   getProducerDayBlockReason,
   isProducerWorkDay,
+  isProducerWorkableDay,
   isProducerOvertimeDay,
+  listProducerMixBookingsOnDay,
   toDayStart,
   type DailyCostOptions,
   type DailyLimitCheck,
 } from "@/lib/producer-availability";
-import {
-  expandStudioHolidayDatesForYear,
-  holidayAppliesToProducer,
-  studioHolidayNamesForIso,
-  type StudioHoliday,
-} from "@/lib/producer-time-off";
 import type { MTDRecord, Producer } from "@/types";
 
 export type AssignCalendarEventKind =
-  | "studio_holiday"
   | "leave"
   | "overtime"
   | "non_work";
@@ -48,67 +45,20 @@ export function eachIsoDayInRange(startIso: string, endIso: string): string[] {
   return out;
 }
 
-function studioHolidayDatesInRange(
-  startIso: string,
-  endIso: string,
-  holidays: StudioHoliday[],
-  producerId?: string
-): AssignCalendarEvent[] {
-  const days = eachIsoDayInRange(startIso, endIso);
-  if (days.length === 0) return [];
-
-  const years = new Set<number>();
-  for (const iso of days) years.add(Number(iso.slice(0, 4)));
-
-  const holidayDates = new Map<string, string[]>();
-  for (const holiday of holidays) {
-    if (producerId && !holidayAppliesToProducer(holiday, producerId)) continue;
-    if (!producerId && holiday.appliesToAll === false) continue;
-
-    for (const year of years) {
-      for (const iso of expandStudioHolidayDatesForYear(holiday, year)) {
-        if (iso < startIso || iso > endIso) continue;
-        const list = holidayDates.get(iso) ?? [];
-        if (!list.includes(holiday.name)) list.push(holiday.name);
-        holidayDates.set(iso, list);
-      }
-    }
-  }
-
-  const events: AssignCalendarEvent[] = [];
-  for (const [iso, names] of holidayDates) {
-    events.push({
-      iso,
-      kind: "studio_holiday",
-      label: names.join(", "),
-    });
-  }
-  return events;
-}
-
 /**
  * Transparent calendar context while picking mix dates.
- * Without a producer: studio-wide holidays only.
- * With a producer: their holidays, leave, overtime, and non-work days in range.
+ * With a producer: their leave, overtime, and non-work days in range.
  */
 export function collectAssignCalendarEvents(
   startIso: string,
   endIso: string,
-  studioHolidays: StudioHoliday[],
   producer?: Producer | null
 ): AssignCalendarEvent[] {
   const end = endIso || startIso;
-  const events: AssignCalendarEvent[] = [
-    ...studioHolidayDatesInRange(
-      startIso,
-      end,
-      studioHolidays,
-      producer?.id
-    ),
-  ];
+  const events: AssignCalendarEvent[] = [];
 
   if (!producer) {
-    return events.sort((a, b) => a.iso.localeCompare(b.iso));
+    return events;
   }
 
   for (const entry of producer.timeOff ?? []) {
@@ -120,7 +70,7 @@ export function collectAssignCalendarEvents(
       events.push({
         iso,
         kind: "leave",
-        label: entry.reason?.trim() || "Time off",
+        label: entry.reason?.trim() || "Off day",
       });
     }
   }
@@ -148,6 +98,129 @@ export function collectAssignCalendarEvents(
   }
 
   return events.sort((a, b) => a.iso.localeCompare(b.iso));
+}
+
+/** Day-number spans only: "12,15,17-20" (no month/year). */
+export function formatCompactDayNumbers(isos: string[]): string {
+  if (isos.length === 0) return "";
+  const sorted = [...isos].sort((a, b) => a.localeCompare(b));
+  type Run = { start: string; end: string };
+  const runs: Run[] = [];
+  for (const iso of sorted) {
+    const last = runs[runs.length - 1];
+    if (!last) {
+      runs.push({ start: iso, end: iso });
+      continue;
+    }
+    const [y, m, d] = last.end.split("-").map(Number);
+    const next = new Date(y, m - 1, d);
+    next.setDate(next.getDate() + 1);
+    if (dateToIsoLocal(next) === iso) {
+      last.end = iso;
+    } else {
+      runs.push({ start: iso, end: iso });
+    }
+  }
+  function dayNum(iso: string): number {
+    return Number(iso.slice(8, 10));
+  }
+  return runs
+    .map((run) =>
+      run.start === run.end
+        ? String(dayNum(run.start))
+        : `${dayNum(run.start)}-${dayNum(run.end)}`
+    )
+    .join(",");
+}
+
+export type MixWindowDaySummary = {
+  /** Working days counted in the mix window, e.g. "12,15,17-20 Oct 2026". */
+  includedLabel: string;
+  /** Compact day numbers for the chip, e.g. "12,15,17-20". */
+  includedDays: string;
+  includedCount: number;
+  /** e.g. "13-14 off for Personal", "16 non-work day". */
+  excludedNotes: string[];
+};
+
+/**
+ * Compact booking-range summary like producer leave chips: included work
+ * days with commas/dashes, plus notes for off / non-work days skipped.
+ */
+export function summarizeMixWindowDays(
+  startIso: string,
+  endIso: string,
+  producer?: Producer | null
+): MixWindowDaySummary {
+  const end = endIso || startIso;
+  const days = eachIsoDayInRange(startIso, end);
+  if (days.length === 0) {
+    return {
+      includedLabel: "",
+      includedDays: "",
+      includedCount: 0,
+      excludedNotes: [],
+    };
+  }
+
+  if (!producer) {
+    return {
+      includedLabel: formatCompactLeaveDaySpans(days),
+      includedDays: formatCompactDayNumbers(days),
+      includedCount: days.length,
+      excludedNotes: [],
+    };
+  }
+
+  const included: string[] = [];
+  const leaveByReason = new Map<string, string[]>();
+  const nonWork: string[] = [];
+
+  for (const iso of days) {
+    const day = parseFlexibleDate(iso);
+    if (!day) continue;
+    if (isProducerWorkableDay(producer, day)) {
+      included.push(iso);
+      continue;
+    }
+    const reason = getProducerDayBlockReason(producer, day);
+    if (reason === "leave") {
+      const entry = (producer.timeOff ?? []).find(
+        (off) => iso >= off.startDate && iso <= (off.endDate || off.startDate)
+      );
+      const label = entry?.reason?.trim() || "Off day";
+      const list = leaveByReason.get(label) ?? [];
+      list.push(iso);
+      leaveByReason.set(label, list);
+    } else {
+      nonWork.push(iso);
+    }
+  }
+
+  const excludedNotes: string[] = [];
+  for (const [reason, isos] of leaveByReason) {
+    const span = formatCompactDayNumbers(isos);
+    if (!span) continue;
+    excludedNotes.push(`${span} off for ${reason}`);
+  }
+  if (nonWork.length > 0) {
+    const span = formatCompactDayNumbers(nonWork);
+    excludedNotes.push(
+      nonWork.length === 1
+        ? `${span} non-work day`
+        : `${span} non-work days`
+    );
+  }
+
+  return {
+    includedLabel:
+      included.length > 0
+        ? formatCompactLeaveDaySpans(included)
+        : formatCompactLeaveDaySpans(days),
+    includedDays: formatCompactDayNumbers(included),
+    includedCount: included.length,
+    excludedNotes,
+  };
 }
 
 export function formatProducerWorkDaysShort(producer: Producer): string {
@@ -253,11 +326,12 @@ export function describeDailyLimitUsage(
         ? ` · busiest ${formatShortDay(check.peakCostDay.iso)}`
         : "";
     const cap = formatUsd(check.maxCostPerDay);
+    const thisMixDaily = check.newMixDailyCost ?? check.newMixCost;
     lines.push({
       label: "Cost per day",
       value:
-        check.newMixCost != null
-          ? `${formatUsd(booked)} booked + ${formatUsd(check.newMixCost)} this mix = ${formatUsd(booked + check.newMixCost)}/${cap}${busiest}`
+        thisMixDaily != null
+          ? `${formatUsd(booked)} booked + ${formatUsd(thisMixDaily)} this mix/day = ${formatUsd(booked + thisMixDaily)}/${cap}${busiest}`
           : `${formatUsd(booked)}/${cap} booked${busiest} · this mix's payout is set in payroll`,
       over: check.overCostDays.length > 0,
     });
@@ -266,7 +340,7 @@ export function describeDailyLimitUsage(
   return lines;
 }
 
-export type MixDateDayTone = "holiday" | "leave" | "limit";
+export type MixDateDayTone = "leave" | "limit" | "mix" | "overtime";
 
 export type MixDateCalendarRules = {
   isDateDisabled: (iso: string) => boolean;
@@ -277,8 +351,7 @@ export type MixDateCalendarRules = {
 export type MixDateCalendarOptions = DailyCostOptions & {
   /** Without a producer only past days are blocked. */
   producer?: Producer | null;
-  studioHolidays?: StudioHoliday[];
-  /** Bookings used to flag days at a daily limit; those stay pickable. */
+  /** Bookings used for pink mix days and daily-limit flags. */
   mtdRecords?: MTDRecord[];
   excludeRecordId?: string;
   todayIso?: string;
@@ -292,9 +365,65 @@ type MixDateDayInfo = {
   tone?: MixDateDayTone;
 };
 
+function mixBookingsOnDay(
+  producer: Producer,
+  iso: string,
+  mtdRecords: MTDRecord[] | undefined,
+  excludeRecordId?: string
+) {
+  if (!mtdRecords?.length) return [];
+  return listProducerMixBookingsOnDay(producer, iso, mtdRecords).filter(
+    (b) => b.recordId !== excludeRecordId
+  );
+}
+
 /**
- * Day rules for mix start/end calendars: past days and days the producer
- * can't work are blocked; days at a daily limit stay pickable but flagged.
+ * Fingerprint of schedule fields the mix calendars paint from.
+ * Used so leave / Extra days / work-day edits rebuild rules immediately.
+ */
+export function producerScheduleFingerprint(
+  producer: Producer | null | undefined,
+  mtdRecords?: MTDRecord[],
+  excludeRecordId?: string
+): string {
+  if (!producer) return "none";
+  const leave = (producer.timeOff ?? [])
+    .map(
+      (off) =>
+        `${off.startDate}:${off.endDate || off.startDate}:${off.reason ?? ""}`
+    )
+    .join("|");
+  const ot = (producer.overtimeDays ?? []).join(",");
+  const work = (producer.workDays ?? []).join(",");
+  const key = producerAssignmentKeyForFingerprint(producer);
+  const bookings = (mtdRecords ?? [])
+    .filter((rec) => {
+      if (excludeRecordId && rec.id === excludeRecordId) return false;
+      if (!rec.assignedProducer?.trim()) return false;
+      return true;
+    })
+    .map(
+      (rec) =>
+        `${rec.id}:${rec.assignedProducer}:${rec.mixStartDate ?? ""}:${rec.mixEndDate ?? ""}:${rec.status ?? ""}:${rec.inPayroll ? 1 : 0}`
+    )
+    .join("|");
+  return `${producer.id}:${key}:${work}:${ot}:${leave}:${bookings}`;
+}
+
+function producerAssignmentKeyForFingerprint(producer: Producer): string {
+  return (
+    producer.initials?.trim().toUpperCase() ||
+    producer.name?.trim().toUpperCase() ||
+    producer.id
+  );
+}
+
+/**
+ * Day rules for mix start/end calendars: only work + Extra days are
+ * pickable; leave is shown (blocked); other mixes for this producer are
+ * pink with a tooltip listing each mix name and date range.
+ *
+ * No per-day memo cache — schedule edits must repaint every cell instantly.
  */
 export function buildMixDateCalendarRules(
   options: MixDateCalendarOptions
@@ -304,7 +433,22 @@ export function buildMixDateCalendarRules(
   const name = producer?.name?.trim().split(/\s+/)[0] || "Producer";
   const hasLimits =
     producer?.maxMixesPerDay != null || producer?.maxProducerCostPerDay != null;
-  const cache = new Map<string, MixDateDayInfo>();
+
+  function limitParts(iso: string): string[] {
+    if (!hasLimits || !producer || !options.mtdRecords) return [];
+    const check = checkProducerDailyLimits(producer, iso, iso, options.mtdRecords, {
+      excludeRecordId: options.excludeRecordId,
+      estimateCost: options.estimateCost,
+      newMixCost: options.newMixCost,
+    });
+    const parts: string[] = [];
+    if (check.overCostDays.length > 0 && check.maxCostPerDay != null) {
+      parts.push(
+        `${formatUsd(check.peakCostDay?.bookedCost ?? 0)}/${formatUsd(check.maxCostPerDay)} booked`
+      );
+    }
+    return parts;
+  }
 
   function compute(iso: string): MixDateDayInfo {
     if (!options.allowPastDays && iso < todayIso) {
@@ -314,75 +458,70 @@ export function buildMixDateCalendarRules(
     const day = parseFlexibleDate(iso);
     if (!day) return { disabled: true };
 
-    const reason = getProducerDayBlockReason(producer, day, options.studioHolidays);
+    const bookings = mixBookingsOnDay(
+      producer,
+      iso,
+      options.mtdRecords,
+      options.excludeRecordId
+    );
+    const mixTip = describeProducerMixDayForLeave(bookings);
+
+    const reason = getProducerDayBlockReason(producer, day);
     if (reason === "not_working") {
       return { disabled: true, title: `${name} doesn't work this day` };
-    }
-    if (reason === "holiday") {
-      const names = studioHolidayNamesForIso(
-        iso,
-        options.studioHolidays ?? [],
-        producer.id
-      );
-      return {
-        disabled: true,
-        tone: "holiday",
-        title: `Studio holiday · ${names.join(", ") || "Holiday"}`,
-      };
     }
     if (reason === "leave") {
       const entry = (producer.timeOff ?? []).find(
         (off) => iso >= off.startDate && iso <= (off.endDate || off.startDate)
       );
+      const leaveLine = `${name} off${
+        entry?.reason?.trim() ? ` · ${entry.reason.trim()}` : ""
+      }`;
       return {
         disabled: true,
         tone: "leave",
-        title: `${name} on leave${entry?.reason?.trim() ? ` · ${entry.reason.trim()}` : ""}`,
+        title: mixTip ? `${leaveLine}\n\n${mixTip}` : leaveLine,
       };
     }
 
-    if (hasLimits && options.mtdRecords) {
-      const check = checkProducerDailyLimits(producer, iso, iso, options.mtdRecords, {
-        excludeRecordId: options.excludeRecordId,
-        estimateCost: options.estimateCost,
-        newMixCost: options.newMixCost,
-        studioHolidays: options.studioHolidays,
-      });
-      const parts: string[] = [];
-      if (check.overMixDays.length > 0 && check.maxMixesPerDay != null) {
-        parts.push(
-          `${check.peakMixDay?.bookedMixes ?? 0}/${check.maxMixesPerDay} mixes booked`
-        );
-      }
-      if (check.overCostDays.length > 0 && check.maxCostPerDay != null) {
-        parts.push(
-          `${formatUsd(check.peakCostDay?.bookedCost ?? 0)}/${formatUsd(check.maxCostPerDay)} booked`
-        );
-      }
-      if (parts.length > 0) {
-        return {
-          disabled: false,
-          tone: "limit",
-          title: `Not recommended · ${parts.join(" · ")}`,
-        };
-      }
+    const isExtra = isProducerOvertimeDay(producer, day);
+    const limits = limitParts(iso);
+
+    if (bookings.length > 0 && mixTip) {
+      const lines = [mixTip];
+      if (isExtra) lines.push("Extra day");
+      if (limits.length > 0) lines.push(limits.join(" · "));
+      return {
+        disabled: false,
+        tone: "mix",
+        title: lines.join("\n"),
+      };
+    }
+
+    if (isExtra) {
+      const lines = ["Extra day"];
+      if (limits.length > 0) lines.push(limits.join(" · "));
+      return {
+        disabled: false,
+        tone: limits.length > 0 ? "limit" : "overtime",
+        title: lines.join("\n"),
+      };
+    }
+
+    if (limits.length > 0) {
+      return {
+        disabled: false,
+        tone: "limit",
+        title: limits.join(" · "),
+      };
     }
 
     return { disabled: false };
   }
 
-  function describe(iso: string): MixDateDayInfo {
-    let info = cache.get(iso);
-    if (!info) {
-      info = compute(iso);
-      cache.set(iso, info);
-    }
-    return info;
-  }
-
   return {
-    isDateDisabled: (iso) => describe(iso).disabled,
-    dayTitle: (iso) => describe(iso).title,
-    dayTone: (iso) => describe(iso).tone,
+    isDateDisabled: (iso) => compute(iso).disabled,
+    dayTitle: (iso) => compute(iso).title,
+    dayTone: (iso) => compute(iso).tone,
   };
 }

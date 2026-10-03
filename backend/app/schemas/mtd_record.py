@@ -91,6 +91,8 @@ class MTDRecordCreateSchema(BaseModel):
     invoice: Optional[str] = ""
     eight_count_sheet: Optional[str] = "NEED CS"
     have_songs: Optional[str] = "NEED SONGS"
+    collection_states: Optional[Any] = None
+    order_status: Optional[str] = None
     needs_attention: Optional[bool] = True
     status: Optional[str] = "needs_attention"
     record_status: Optional[str] = None

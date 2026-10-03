@@ -105,7 +105,6 @@ export default function MTDDetailPage({
     setSecretMenuPrices,
     producers,
     schedule,
-    holidays,
     discountCodes,
     isViewOnly,
     isLoading,
@@ -151,7 +150,6 @@ export default function MTDDetailPage({
     producers,
     mtdRecords,
     allOrders,
-    studioHolidays: holidays,
   });
 
   const formLabel = ORDER_FORM_TABS.find((tab) => tab.id === order?.formType)?.label;
@@ -450,6 +448,7 @@ export default function MTDDetailPage({
                     isDateDisabled={mixDateRules.isDateDisabled}
                     dayTitle={mixDateRules.dayTitle}
                     dayTone={mixDateRules.dayTone}
+                    calendarRevision={mixDateRules.calendarRevision}
                   />
                   {slotLabel ? (
                     <span className="hidden max-w-[128px] truncate text-[10px] font-medium text-brand-signature xl:inline">
@@ -473,6 +472,7 @@ export default function MTDDetailPage({
                   isDateDisabled={mixDateRules.isDateDisabled}
                   dayTitle={mixDateRules.dayTitle}
                   dayTone={mixDateRules.dayTone}
+                  calendarRevision={mixDateRules.calendarRevision}
                 />
               </div>
             </div>
@@ -661,7 +661,6 @@ export default function MTDDetailPage({
         allOrders={allOrders}
         producers={producers}
         schedule={schedule}
-        studioHolidays={holidays}
         readOnly={isViewOnly || Boolean(rec?.assignedProducer?.trim())}
         onClose={() => setAssignOpen(false)}
         onAssign={handleAssign}

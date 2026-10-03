@@ -5,12 +5,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Check,
+  ChevronDown,
   Lock,
   X,
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import clsx from "clsx";
 import { Avatar } from "@/components/ui/Avatar";
+import { HoverTip } from "@/components/ui/HoverTip";
 import { InlineDateInput } from "@/components/mtd/InlineFields";
 import { AssignLimitWarningModal } from "@/components/mtd/AssignLimitWarningModal";
 import {
@@ -32,17 +34,22 @@ import {
   toCanonicalIsoDate,
   toIsoDateString,
 } from "@/lib/dates";
-import { suggestMixStartDate, suggestMixEndDate } from "@/lib/scheduling";
+import { suggestMixEndDate } from "@/lib/scheduling";
 import {
   checkProducerDailyLimits,
-  countProducerWorkingDays,
   dailyLimitCheckHasIssues,
   isProducerAvailableForMixWindow,
   isProducerWorkableDay,
+  nextProducerWorkableDayIso,
   findMixWindowBlocker,
   describeMixWindowBlocker,
+  listProducerCostContributorsInRange,
+  listProducerDailyCostContributors,
+  packageMixWorkingDays,
+  type DailyCostContributor,
   type DailyLimitCheck,
   type MixWindowBlocker,
+  type RecordCostEstimator,
 } from "@/lib/producer-availability";
 import {
   isProducerAvailableOnDate,
@@ -51,17 +58,17 @@ import {
 } from "@/lib/producer-schedule-calc";
 import {
   createBookedCostEstimator,
-  estimateRecordProducerPayout,
+  estimateRecordBasePayout,
+  estimateRecordProducerPayoutDetail,
+  type ProducerPayoutEstimateDetail,
 } from "@/lib/producer-payout-estimate";
-import type { StudioHoliday } from "@/lib/producer-time-off";
 import {
   buildMixDateCalendarRules,
-  collectAssignCalendarEvents,
   describeDailyLimitIssues,
   describeDailyLimitUsage,
   formatDailyLimits,
   formatProducerWorkDaysShort,
-  type AssignCalendarEvent,
+  producerScheduleFingerprint,
 } from "@/lib/assign-editor-calendar";
 import {
   CHEER_FORM_SUBTABS,
@@ -73,6 +80,7 @@ import {
   type Producer,
   type ScheduleEntry,
 } from "@/types";
+import { useAppState } from "@/context/AppStateContext";
 
 export type EditorAssignmentResult = {
   editorRequest: string;
@@ -90,8 +98,6 @@ type AssignEditorModalProps = {
   allOrders: Order[];
   producers: Producer[];
   schedule: ScheduleEntry[];
-  /** Studio holidays from settings (defaults + any custom dates you add). */
-  studioHolidays?: StudioHoliday[];
   /** When true, show assignment details only (MTD tab after move). */
   readOnly?: boolean;
   /** Full assign flow as an app page. */
@@ -144,38 +150,21 @@ function mixWindowEndFor(
   window: { startIso: string; endIso: string },
   packageStr: string,
   producer: Producer | undefined,
-  studioHolidays: StudioHoliday[]
 ): string {
   return (
     window.endIso ||
-    suggestMixEndDate(window.startIso, packageStr, { producer, studioHolidays }) ||
+    suggestMixEndDate(window.startIso, packageStr, { producer }) ||
     window.startIso
   );
 }
 
-const MONTH_LABELS = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-];
-
 export function AssignEditorModal({
   open,
   record,
-  mtdRecords,
-  allOrders,
-  producers,
-  schedule,
-  studioHolidays = [],
+  mtdRecords: mtdRecordsProp,
+  allOrders: allOrdersProp,
+  producers: producersProp,
+  schedule: scheduleProp,
   readOnly = false,
   variant = "modal",
   returnHref,
@@ -184,6 +173,13 @@ export function AssignEditorModal({
 }: AssignEditorModalProps) {
   const isPage = variant === "page";
   const router = useRouter();
+  // Always prefer live studio state so leave / Extra days / mix bookings
+  // paint on the calendars immediately after save (not only after refresh).
+  const live = useAppState();
+  const producers = live.producers;
+  const mtdRecords = live.mtdRecords;
+  const allOrders = live.allOrders;
+  const schedule = live.schedule.length > 0 ? live.schedule : scheduleProp;
 
   const orderById = useMemo(() => {
     const map = new Map<string, Order>();
@@ -248,6 +244,7 @@ export function AssignEditorModal({
   const isAssignmentLocked = Boolean(formalAssigned);
 
   const today = useMemo(() => startOfLocalDay(new Date()), []);
+  const todayIso = toCanonicalIsoDate(today);
 
   const draftStartIso = toIsoDateString(draftMixStartDate);
   const draftEndIso = toIsoDateString(draftMixEndDate);
@@ -322,19 +319,30 @@ export function AssignEditorModal({
       let limitCheck: DailyLimitCheck | null = null;
 
       if (producer) {
+        const basePayout = estimateRecordBasePayout(
+          record,
+          producer,
+          orderById
+        );
+        const packageDays = Math.max(1, packageMixWorkingDays(record.package));
+        const newMixDailyShare =
+          basePayout != null
+            ? Math.round((basePayout / packageDays) * 100) / 100
+            : null;
+
         const openingOptions: ProducerOpeningOptions = {
           excludeRecordId: record.id,
           estimateCost: estimateBookedCost,
-          newMixCost: estimateRecordProducerPayout(record, producer, orderById),
+          // Single-day availability checks expect a per-day share.
+          newMixCost: newMixDailyShare,
         };
 
-        canWorkToday = isProducerWorkableDay(producer, today, studioHolidays);
+        canWorkToday = isProducerWorkableDay(producer, today);
         isAvailableToday = isProducerAvailableOnDate(
           producer,
           today,
           mtdRecords,
           schedule,
-          studioHolidays,
           openingOptions
         );
 
@@ -343,7 +351,6 @@ export function AssignEditorModal({
           mtdRecords,
           schedule,
           today,
-          studioHolidays,
           openingOptions
         );
         if (calc.nextAvailable !== "TBD") {
@@ -355,28 +362,30 @@ export function AssignEditorModal({
             evalWindow,
             record.package,
             producer,
-            studioHolidays
           );
           availableForWindow = isProducerAvailableForMixWindow(
             producer,
             evalWindow.startIso,
             endIso,
-            studioHolidays
           );
           if (!availableForWindow) {
             blocker = findMixWindowBlocker(
               producer,
               evalWindow.startIso,
               endIso,
-              studioHolidays
             );
           }
+          // Window check divides full base payout across actual work days.
           limitCheck = checkProducerDailyLimits(
             producer,
             evalWindow.startIso,
             endIso,
             mtdRecords,
-            { ...openingOptions, studioHolidays }
+            {
+              excludeRecordId: record.id,
+              estimateCost: estimateBookedCost,
+              newMixCost: basePayout,
+            }
           );
         }
       }
@@ -409,7 +418,6 @@ export function AssignEditorModal({
     producers,
     mtdRecords,
     schedule,
-    studioHolidays,
     editorWorkload,
     editorBookedUntil,
     evalWindow,
@@ -428,26 +436,6 @@ export function AssignEditorModal({
   function isRowCandidate(row: ProducerRow): boolean {
     return windowMode ? row.availableForWindow : Boolean(row.nextOpeningDate);
   }
-
-  /**
-   * Best alternative producer given all factors: within daily limits first,
-   * then soonest opening, then lightest workload.
-   */
-  const bestCandidateRow = useMemo(() => {
-    const candidates = producerRows.filter((row) =>
-      windowMode ? row.availableForWindow : Boolean(row.nextOpeningDate)
-    );
-    if (candidates.length === 0) return null;
-    return [...candidates].sort((a, b) => {
-      const la = windowMode && a.overLimit ? 1 : 0;
-      const lb = windowMode && b.overLimit ? 1 : 0;
-      if (la !== lb) return la - lb;
-      const ta = a.nextOpeningDate ? a.nextOpeningDate.getTime() : Infinity;
-      const tb = b.nextOpeningDate ? b.nextOpeningDate.getTime() : Infinity;
-      if (ta !== tb) return ta - tb;
-      return a.mixCount - b.mixCount;
-    })[0];
-  }, [producerRows, windowMode]);
 
   const requestedRow = useMemo(
     () =>
@@ -503,68 +491,49 @@ export function AssignEditorModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requestedEditor, requestedRow, windowMode]);
 
-  /** The single best recommendation, honouring the request when possible. */
-  const suggestion = useMemo(() => {
-    if (!record) return null;
-
-    // 1. Honour the requested producer when they can take it within their limits.
-    if (
-      requestedRow &&
-      isRowCandidate(requestedRow) &&
-      !(windowMode && requestedRow.overLimit)
-    ) {
-      return {
-        name: requestedRow.name,
-        row: requestedRow,
-        tone: "good" as const,
-        reason: "requested_available" as const,
-        reasonTitle: "Requested producer available",
-      };
-    }
-
-    const best = bestCandidateRow;
-    if (!best) return null;
-
-    const bestOverLimit = windowMode && best.overLimit;
-    return {
-      name: best.name,
-      row: best,
-      tone:
-        requestedRow || bestOverLimit ? ("swap" as const) : ("good" as const),
-      reason: "first_available" as const,
-      reasonTitle: bestOverLimit
-        ? "First available · everyone goes over a daily limit on these dates"
-        : "First available",
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [record, requestedRow, bestCandidateRow, windowMode]);
-
   const availableNames = useMemo(
     () => producerRows.filter(isRowCandidate).map((row) => row.name),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [producerRows, windowMode]
   );
 
+  // Hydrate draft from a locked assignment. Do NOT clear draft whenever an
+  // unassigned record object refreshes — that wiped first-available picks
+  // right after Unassign while the parent re-synced MTD/order.
   useEffect(() => {
     if (!record) return;
     if (!isPage && !open) return;
 
     const assignedKey = record.assignedProducer?.trim();
-    if (assignedKey) {
-      const match = categoryEditors.find((name) =>
-        producerKeysMatch(name, assignedKey)
-      );
-      setSelectedEditor(match ?? assignedKey.toUpperCase());
-      setDraftMixStartDate(toIsoDateString(record.mixStartDate) || "");
-      setDraftMixEndDate(toIsoDateString(record.mixEndDate) || "");
-      return;
-    }
+    if (!assignedKey) return;
 
-    // No producer yet — leave everything empty until the user chooses.
+    const match = categoryEditors.find((name) =>
+      producerKeysMatch(name, assignedKey)
+    );
+    setSelectedEditor(match ?? assignedKey.toUpperCase());
+    setDraftMixStartDate(toIsoDateString(record.mixStartDate) || "");
+    setDraftMixEndDate(toIsoDateString(record.mixEndDate) || "");
+  }, [
+    open,
+    isPage,
+    record?.id,
+    record?.assignedProducer,
+    record?.mixStartDate,
+    record?.mixEndDate,
+    categoryEditors,
+  ]);
+
+  // Fresh open / switch to a different unassigned record — leave dates empty
+  // until a producer is selected.
+  useEffect(() => {
+    if (!record) return;
+    if (!isPage && !open) return;
+    if (record.assignedProducer?.trim()) return;
+
     setSelectedEditor("");
     setDraftMixStartDate("");
     setDraftMixEndDate("");
-  }, [open, record, categoryEditors, isPage]);
+  }, [open, isPage, record?.id]);
 
   const selectedProducer = useMemo(
     () =>
@@ -574,78 +543,61 @@ export function AssignEditorModal({
     [selectedEditor, producers]
   );
 
-  const calendarRange = useMemo(() => {
-    if (!evalWindow || !record) return null;
-    return {
-      startIso: evalWindow.startIso,
-      endIso: mixWindowEndFor(
-        evalWindow,
-        record.package,
-        selectedProducer,
-        studioHolidays
-      ),
-    };
-  }, [evalWindow, record, selectedProducer, studioHolidays]);
-
-  const calendarWorkDays = useMemo(
-    () =>
-      calendarRange && selectedProducer
-        ? countProducerWorkingDays(
-            selectedProducer,
-            calendarRange.startIso,
-            calendarRange.endIso,
-            studioHolidays
-          )
-        : null,
-    [calendarRange, selectedProducer, studioHolidays]
-  );
-
   /** Suggested end shown in the end calendar; never auto-filled. */
   const suggestedEndIso = useMemo(
     () =>
       draftStartIso && record
         ? suggestMixEndDate(draftStartIso, record.package, {
             producer: selectedProducer,
-            studioHolidays,
           })
         : "",
-    [draftStartIso, record, selectedProducer, studioHolidays]
+    [draftStartIso, record, selectedProducer]
   );
 
-  const mixDateRules = useMemo(
+  const mixDateScheduleRevision = useMemo(
     () =>
-      buildMixDateCalendarRules({
+      producerScheduleFingerprint(
+        selectedProducer,
+        mtdRecords,
+        record?.id
+      ),
+    [selectedProducer, mtdRecords, record?.id]
+  );
+
+  const selectedPayoutDetail = useMemo((): ProducerPayoutEstimateDetail | null => {
+    if (!record || !selectedProducer) return null;
+    return estimateRecordProducerPayoutDetail(
+      record,
+      selectedProducer,
+      orderById
+    );
+  }, [record, selectedProducer, orderById]);
+
+  const mixDateRules = useMemo(
+    () => {
+      const base =
+        record && selectedProducer
+          ? estimateRecordBasePayout(record, selectedProducer, orderById)
+          : null;
+      const packageDays = Math.max(
+        1,
+        packageMixWorkingDays(record?.package ?? "")
+      );
+      const dailyShare =
+        base != null ? Math.round((base / packageDays) * 100) / 100 : null;
+      return buildMixDateCalendarRules({
         producer: selectedProducer,
-        studioHolidays,
         mtdRecords,
         excludeRecordId: record?.id,
         estimateCost: estimateBookedCost,
-        newMixCost:
-          record && selectedProducer
-            ? estimateRecordProducerPayout(record, selectedProducer, orderById)
-            : null,
-        todayIso: toCanonicalIsoDate(today),
-      }),
-    [
-      selectedProducer,
-      studioHolidays,
-      mtdRecords,
-      record,
-      estimateBookedCost,
-      orderById,
-      today,
-    ]
+        newMixCost: dailyShare,
+        todayIso,
+      });
+    },
+    // Fingerprint catches nested leave / Extra / work-day / mix booking edits.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [mixDateScheduleRevision, record, selectedProducer, estimateBookedCost, orderById, todayIso]
   );
-
-  const calendarEvents = useMemo((): AssignCalendarEvent[] => {
-    if (!calendarRange) return [];
-    return collectAssignCalendarEvents(
-      calendarRange.startIso,
-      calendarRange.endIso,
-      studioHolidays,
-      selectedProducer ?? null
-    );
-  }, [calendarRange, studioHolidays, selectedProducer]);
 
   const selectedRow = selectedEditor
     ? rowsByKey.get(normalizeProducerKey(selectedEditor))
@@ -708,14 +660,20 @@ export function AssignEditorModal({
   }
 
   /**
-   * Pick an editor. When no start date is set yet, fill it from the producer's
-   * availability. When the user already chose dates, keep them untouched.
+   * Pick an editor. On first pick with no start date yet, prefill their next
+   * workable day (skips leave / non-work only — not existing mixes).
    */
-  function applyEditorSelection(name: string, startIso?: string) {
+  function applyEditorSelection(name: string, _startIso?: string) {
+    if (selectedEditor && producerKeysMatch(selectedEditor, name)) {
+      setSelectedEditor("");
+      return;
+    }
     setSelectedEditor(name);
     if (toIsoDateString(draftMixStartDate)) return;
-    const nextStart =
-      startIso || suggestMixStartDate(name, producers, schedule, mtdRecords) || "";
+    const producer = findProducerByAssignmentKey(name, producers);
+    const nextStart = producer
+      ? nextProducerWorkableDayIso(producer, today)
+      : todayIso;
     setDraftMixStartDate(nextStart);
     // Mix end is never auto-filled — the user sets it explicitly.
   }
@@ -884,13 +842,6 @@ export function AssignEditorModal({
                     display: grid;
                     gap: 1rem;
                   }
-                  @media (min-width: 1024px) {
-                    .assign-editor-layout {
-                      grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.85fr);
-                      align-items: start;
-                      gap: 1.25rem 1.75rem;
-                    }
-                  }
                 `}</style>
                 <div className="space-y-4 lg:space-y-5">
                   <div className="assign-editor-layout">
@@ -915,85 +866,19 @@ export function AssignEditorModal({
                           onSelect={applyEditorSelection}
                         />
                       )}
-                    </div>
 
-                    <div className="min-w-0 space-y-4">
-                      <div className="rounded-2xl border border-brand-line/60 bg-white p-4">
-                        <p className="text-[10px] font-bold uppercase tracking-[0.06em] text-brand-ink-tertiary">
-                          Requested on form
-                        </p>
-                        <div className="mt-2">
-                          <RequestedCard
-                            variant="compact"
-                            info={requestedInfo}
-                            producers={producers}
-                            readOnly
-                          />
-                        </div>
-                        <div className="mt-4 border-t border-brand-line/40 pt-3">
-                          <p className="text-[11px] font-medium text-brand-ink-tertiary">
-                            Assigned producer
-                          </p>
-                          <div className="mt-1.5">
-                            {selectedEditor ? (
-                              <div
-                                className={clsx(
-                                  "flex w-full items-center gap-2 rounded-lg border px-2 py-1.5",
-                                  selectedWindowConflict || selectedOverLimit
-                                    ? "border-brand-warning/35 bg-brand-warning/8"
-                                    : "border-brand-line/50 bg-brand-bg/40"
-                                )}
-                              >
-                                <Avatar
-                                  producer={selectedProducer}
-                                  initials={selectedEditor}
-                                  size="xs"
-                                />
-                                <span className="min-w-0 flex-1">
-                                  <span className="block truncate text-[12px] font-semibold text-brand-ink">
-                                    {selectedEditor}
-                                  </span>
-                                  <span
-                                    className={clsx(
-                                      "block truncate text-[10px]",
-                                      selectedWindowConflict || selectedOverLimit
-                                        ? "text-brand-warning"
-                                        : "text-brand-success"
-                                    )}
-                                  >
-                                    {selectedWindowConflict
-                                      ? selectedRow?.blockerLabel ||
-                                        "Not free for selected dates"
-                                      : selectedOverLimit
-                                        ? "Available · not recommended (daily limit)"
-                                        : selectedRow?.isAvailableToday
-                                        ? "Available today"
-                                        : selectedRow?.nextOpeningIso
-                                          ? `Available from ${formatDisplayDate(selectedRow.nextOpeningIso)}`
-                                          : "Selected"}
-                                  </span>
-                                </span>
-                              </div>
-                            ) : (
-                              <p className="rounded-lg border border-dashed border-brand-line/70 bg-brand-bg/30 px-3 py-2.5 text-[12px] text-brand-ink-tertiary">
-                                Pick someone from first available dates
-                              </p>
-                            )}
-                          </div>
-                          {selectedWindowConflict ? (
-                            <p className="mt-2 rounded-xl border border-brand-warning/30 bg-brand-warning/8 px-3 py-2 text-[12px] text-brand-warning">
-                              {selectedEditor} can&apos;t take these dates
-                              {selectedRow?.blockerLabel
-                                ? ` — ${selectedRow.blockerLabel.toLowerCase()}`
-                                : ""}
-                              .
-                            </p>
-                          ) : null}
-                        </div>
-                      </div>
-
-                      <div className="rounded-2xl border border-brand-line/60 bg-white p-4">
+                      <div
+                        className={clsx(
+                          "rounded-2xl border border-brand-line/60 bg-white p-4",
+                          !selectedEditor && "opacity-70"
+                        )}
+                      >
                         <SectionHeading title="Booking dates" />
+                        {!selectedEditor ? (
+                          <p className="mb-3 text-[12px] text-brand-ink-tertiary">
+                            Select a producer first to set booking dates.
+                          </p>
+                        ) : null}
                         <div className="grid gap-3 sm:grid-cols-2">
                           <div>
                             <label className="text-[11px] font-medium text-brand-ink-tertiary">
@@ -1003,12 +888,14 @@ export function AssignEditorModal({
                               <InlineDateInput
                                 value={draftMixStartDate}
                                 placeholder="Required"
-                                min={toCanonicalIsoDate(today)}
+                                min={todayIso}
                                 menuZIndex={80}
+                                disabled={!selectedEditor}
                                 onChange={handleMixStartChange}
                                 isDateDisabled={mixDateRules.isDateDisabled}
                                 dayTitle={mixDateRules.dayTitle}
                                 dayTone={mixDateRules.dayTone}
+                                calendarRevision={mixDateScheduleRevision}
                               />
                             </div>
                           </div>
@@ -1021,62 +908,66 @@ export function AssignEditorModal({
                                 value={draftMixEndDate}
                                 placeholder="Required"
                                 template={suggestedEndIso || undefined}
-                                min={draftStartIso || toCanonicalIsoDate(today)}
+                                min={draftStartIso || todayIso}
                                 menuZIndex={80}
+                                disabled={!selectedEditor}
                                 onChange={setDraftMixEndDate}
                                 isDateDisabled={mixDateRules.isDateDisabled}
                                 dayTitle={mixDateRules.dayTitle}
                                 dayTone={mixDateRules.dayTone}
+                                calendarRevision={mixDateScheduleRevision}
                               />
                             </div>
                           </div>
                         </div>
-                        {windowMode ? (
+                        {windowMode && selectedEditor ? (
                           <button
                             type="button"
                             onClick={clearDates}
                             className="mt-3 text-[11px] font-semibold text-brand-info transition hover:text-brand-ink"
                           >
-                            Clear dates · browse by soonest opening
+                            Clear
                           </button>
                         ) : null}
-                        {calendarRange ? (
-                          <div className="mt-4">
-                            <CalendarTransparencyPanel
-                              calendarRange={calendarRange}
-                              events={calendarEvents}
-                              selectedProducer={selectedProducer}
-                              selectedEditor={selectedEditor}
-                              limitCheck={selectedLimitCheck}
-                              workDays={calendarWorkDays}
-                              endIsSuggested={!draftEndIso}
+                        {selectedWindowConflict ? (
+                          <p className="mt-3 rounded-xl border border-brand-warning/30 bg-brand-warning/8 px-3 py-2 text-[12px] text-brand-warning">
+                            {selectedEditor} can&apos;t take these dates
+                            {selectedRow?.blockerLabel
+                              ? `: ${selectedRow.blockerLabel.toLowerCase()}`
+                              : ""}
+                            .
+                          </p>
+                        ) : null}
+                        {selectedEditor &&
+                        stripWindowMode &&
+                        selectedLimitCheck ? (
+                          <div className="mt-4 border-t border-brand-line/40 pt-3">
+                            <SelectedMixLimitPanel
+                              check={selectedLimitCheck}
+                              producer={selectedProducer}
+                              producerName={
+                                selectedProducer?.name?.trim() ||
+                                selectedEditor
+                              }
+                              currentMixName={
+                                activeRecord.programName?.trim() ||
+                                "Current mix"
+                              }
+                              rangeStartIso={mixStartIso}
+                              rangeEndIso={mixEndIso || mixStartIso}
+                              windowLabel={`${windowStartLabel}${
+                                windowEndLabel &&
+                                windowEndLabel !== windowStartLabel
+                                  ? ` – ${windowEndLabel}`
+                                  : ""
+                              }`}
+                              payoutDetail={selectedPayoutDetail}
+                              mtdRecords={mtdRecords}
+                              excludeRecordId={record?.id}
+                              estimateCost={estimateBookedCost}
                             />
                           </div>
                         ) : null}
-                      </div>
-
-                      <div className="rounded-2xl border border-brand-line/60 bg-white p-4">
-                        <SectionHeading
-                          title="Suggested pick"
-                          subtitle="Best match from request, dates, and workload"
-                        />
-                        {suggestion ? (
-                          <SuggestionDetailCard
-                            suggestion={suggestion}
-                            producers={producers}
-                            selectedEditor={selectedEditor}
-                            windowMode={windowMode}
-                            onSelect={() =>
-                              applyEditorSelection(suggestion.name)
-                            }
-                          />
-                        ) : (
-                          <p className="rounded-xl border border-brand-line/70 bg-brand-bg/40 px-3 py-2.5 text-[13px] text-brand-ink-tertiary">
-                            {windowMode
-                              ? "No producer is free for the selected dates."
-                              : "No suggestion available yet."}
-                          </p>
-                        )}
                       </div>
                     </div>
                   </div>
@@ -1106,12 +997,6 @@ export function AssignEditorModal({
                       {draftStartIso && draftEndIso
                         ? ` · ${formatDisplayDate(draftStartIso)} – ${formatDisplayDate(draftEndIso)}`
                         : " · set mix dates to assign"}
-                      {selectedOverLimit ? (
-                        <span className="font-semibold text-brand-warning">
-                          {" "}
-                          · Not recommended (daily limit)
-                        </span>
-                      ) : null}
                     </>
                   ) : (
                     "Select a producer and mix dates to assign"
@@ -1140,12 +1025,48 @@ export function AssignEditorModal({
         </form>
   );
 
+  const requestedHeaderLabel =
+    requestedInfo.kind === "first_available"
+      ? "First available"
+      : requestedInfo.kind === "unknown"
+        ? requestedInfo.name
+        : requestedInfo.name;
+
+  const requestedHeaderMeta = (
+    <div className="inline-flex max-w-full items-center gap-2 rounded-full bg-brand-blue-soft/70 px-3 py-1.5 ring-1 ring-inset ring-brand-blue/25">
+      <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.05em] text-brand-signature/70">
+        Requested
+      </span>
+      <span className="h-3 w-px shrink-0 bg-brand-blue/25" aria-hidden />
+      <span className="min-w-0 truncate text-[12px] font-semibold text-brand-signature">
+        {requestedHeaderLabel}
+      </span>
+      {requestedInfo.kind === "specific" ? (
+        <span
+          className={clsx(
+            "shrink-0 text-[11px]",
+            !requestedInfo.available || requestedInfo.caution
+              ? "text-brand-warning"
+              : "text-brand-success"
+          )}
+        >
+          {requestedInfo.statusLabel}
+        </span>
+      ) : requestedInfo.kind === "unknown" ? (
+        <span className="shrink-0 text-[11px] text-brand-ink-tertiary">
+          Not on roster
+        </span>
+      ) : null}
+    </div>
+  );
+
   if (isPage) {
     return (
       <div className="flex h-0 min-h-0 flex-1 flex-col overflow-hidden">
         <PageHeader
           title={showCompactAssigned ? "View assignment" : "Assign producer"}
           subtitle={`${activeRecord.programName} · ${genreLabel} specialists`}
+          meta={requestedHeaderMeta}
           headerActions={
             returnHref ? (
               <Link
@@ -1187,18 +1108,21 @@ export function AssignEditorModal({
         )}
       >
         <div className="flex shrink-0 items-start justify-between gap-4 border-b border-brand-line/60 px-5 py-4 sm:px-6">
-          <div>
-            <p className="text-label">Producer assignment</p>
-            <h2 className="text-display mt-1 text-[18px]">
-              {showCompactAssigned ? "View assignment" : "Assign producer"}
-            </h2>
-            <p className="mt-1 text-[13px] text-brand-ink-secondary">
-              {activeRecord.programName}
-              <span className="text-brand-ink-tertiary">
-                {" "}
-                · {genreLabel} specialists
-              </span>
-            </p>
+          <div className="flex min-w-0 flex-1 flex-wrap items-start justify-between gap-x-4 gap-y-2">
+            <div className="min-w-0">
+              <p className="text-label">Producer assignment</p>
+              <h2 className="text-display mt-1 text-[18px]">
+                {showCompactAssigned ? "View assignment" : "Assign producer"}
+              </h2>
+              <p className="mt-1 text-[13px] text-brand-ink-secondary">
+                {activeRecord.programName}
+                <span className="text-brand-ink-tertiary">
+                  {" "}
+                  · {genreLabel} specialists
+                </span>
+              </p>
+            </div>
+            <div className="shrink-0 pt-0.5">{requestedHeaderMeta}</div>
           </div>
           <button
             type="button"
@@ -1211,211 +1135,6 @@ export function AssignEditorModal({
         {assignmentForm}
       </div>
       {limitConfirmModal}
-    </div>
-  );
-}
-
-type RequestedInfo =
-  | { kind: "first_available" }
-  | { kind: "unknown"; name: string }
-  | {
-      kind: "specific";
-      name: string;
-      row: ProducerRow;
-      available: boolean;
-      /** Available but not recommended (daily limits). */
-      caution: boolean;
-      statusLabel: string;
-    };
-
-function RequestedCard({
-  variant = "default",
-  info,
-  producers,
-  selectedEditor = "",
-  onSelect,
-  readOnly = false,
-}: {
-  variant?: "default" | "compact";
-  info: RequestedInfo;
-  producers: Producer[];
-  selectedEditor?: string;
-  onSelect?: (name: string, startIso?: string) => void;
-  /** When true, show form request only — not a selectable assignment control. */
-  readOnly?: boolean;
-}) {
-  const compact = variant === "compact";
-
-  if (info.kind === "first_available") {
-    return (
-      <div className={compact ? "mt-1.5" : "rounded-xl border border-brand-line/70 bg-brand-bg/40 px-3 py-2.5"}>
-        {!compact ? (
-          <p className="text-[11px] font-medium text-brand-ink-tertiary">Requested</p>
-        ) : null}
-        <p
-          className={clsx(
-            "font-semibold text-brand-ink",
-            compact ? "text-[13px]" : "mt-0.5 text-[13px]"
-          )}
-        >
-          First available
-        </p>
-        {!compact ? (
-          <p className="mt-0.5 text-[11px] leading-snug text-brand-ink-tertiary">
-            No specific producer was requested on the form.
-          </p>
-        ) : null}
-      </div>
-    );
-  }
-
-  if (info.kind === "unknown") {
-    return (
-      <div className={compact ? "mt-1.5" : "rounded-xl border border-brand-line/70 bg-brand-bg/40 px-3 py-2.5"}>
-        {!compact ? (
-          <p className="text-[11px] font-medium text-brand-ink-tertiary">Requested</p>
-        ) : null}
-        <p
-          className={clsx(
-            "font-semibold text-brand-ink",
-            compact ? "text-[13px]" : "mt-0.5 text-[13px]"
-          )}
-        >
-          {info.name}
-        </p>
-        <p className="mt-0.5 text-[11px] leading-snug text-brand-ink-tertiary">
-          {compact
-            ? "Not on this genre roster."
-            : "Not on this genre's roster."}
-        </p>
-      </div>
-    );
-  }
-
-  const isSelected =
-    Boolean(selectedEditor) && producerKeysMatch(selectedEditor, info.name);
-  const warn = !info.available || info.caution;
-
-  if (compact) {
-    if (readOnly || !onSelect) {
-      return (
-        <div
-          className={clsx(
-            "mt-1.5 flex w-full items-center gap-2 rounded-lg border px-2 py-1.5",
-            warn
-              ? "border-brand-warning/35 bg-brand-warning/8"
-              : "border-brand-line/50 bg-brand-bg/40"
-          )}
-          title={info.statusLabel}
-        >
-          <Avatar
-            producer={findProducerByAssignmentKey(info.name, producers)}
-            initials={info.name}
-            size="xs"
-          />
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-[12px] font-semibold text-brand-ink">
-              {info.name}
-            </span>
-            <span
-              className={clsx(
-                "block truncate text-[10px]",
-                warn ? "text-brand-warning" : "text-brand-success"
-              )}
-            >
-              {info.statusLabel}
-            </span>
-          </span>
-        </div>
-      );
-    }
-
-    return (
-      <button
-        type="button"
-        disabled={!info.available}
-        onClick={() => onSelect(info.name, info.row.nextOpeningIso || undefined)}
-        className={clsx(
-          "mt-1.5 flex w-full items-center gap-2 rounded-lg border px-2 py-1.5 text-left transition",
-          !info.available && "cursor-not-allowed opacity-90",
-          isSelected
-            ? "border-brand-signature bg-brand-signature-soft/80"
-            : info.available
-              ? "border-brand-line/50 bg-brand-bg/40 hover:border-brand-line hover:bg-brand-bg/70"
-              : "border-brand-warning/35 bg-brand-warning/8"
-        )}
-      >
-        <Avatar
-          producer={findProducerByAssignmentKey(info.name, producers)}
-          initials={info.name}
-          size="xs"
-        />
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-[12px] font-semibold text-brand-ink">
-            {info.name}
-          </span>
-          <span
-            className={clsx(
-              "block truncate text-[10px]",
-              info.available ? "text-brand-success" : "text-brand-warning"
-            )}
-          >
-            {info.statusLabel}
-          </span>
-        </span>
-      </button>
-    );
-  }
-
-  return (
-    <div
-      className={clsx(
-        "rounded-xl border px-3 py-2.5",
-        info.available
-          ? "border-brand-line/70 bg-brand-bg/40"
-          : "border-brand-warning/30 bg-brand-warning/8"
-      )}
-    >
-      <p className="text-[11px] font-medium text-brand-ink-tertiary">Requested</p>
-      <button
-        type="button"
-        disabled={!info.available || !onSelect}
-        onClick={() => {
-          if (!onSelect) return;
-          onSelect(info.name, info.row.nextOpeningIso || undefined);
-        }}
-        className={clsx(
-          "mt-1.5 flex w-full items-center gap-2.5 rounded-lg border px-2.5 py-2 text-left transition",
-          (!info.available || !onSelect) && "cursor-not-allowed",
-          isSelected
-            ? "border-brand-signature bg-brand-signature-soft shadow-sm"
-            : info.available
-              ? "border-brand-line/70 bg-brand-elevated hover:border-brand-line hover:bg-brand-bg"
-              : "border-brand-warning/30 bg-brand-elevated/60"
-        )}
-      >
-        <Avatar
-          producer={findProducerByAssignmentKey(info.name, producers)}
-          initials={info.name}
-          size="xs"
-        />
-        <span className="min-w-0 flex-1">
-          <span className="block text-[13px] font-semibold text-brand-ink">
-            {info.name}
-          </span>
-          <span
-            className={clsx(
-              "block text-[11px]",
-              info.available ? "text-brand-success" : "text-brand-warning"
-            )}
-          >
-            {info.statusLabel}
-          </span>
-          <span className="mt-1 block text-[10px] text-brand-ink-tertiary">
-            {info.row.dailyLimitsLabel} · {info.row.workDaysShort}
-          </span>
-        </span>
-      </button>
     </div>
   );
 }
@@ -1437,183 +1156,6 @@ function SectionHeading({
   );
 }
 
-const CALENDAR_KIND_META: Record<
-  AssignCalendarEvent["kind"],
-  { dot: string; label: string }
-> = {
-  studio_holiday: { dot: "bg-brand-warning", label: "Studio holiday" },
-  leave: { dot: "bg-brand-orange", label: "Leave" },
-  overtime: { dot: "bg-brand-info", label: "Extra day" },
-  non_work: { dot: "bg-brand-line-strong", label: "Non-work day" },
-};
-
-function DailyLimitsSummary({ check }: { check: DailyLimitCheck }) {
-  const usage = describeDailyLimitUsage(check);
-  if (usage.length === 0) return null;
-
-  const issues = describeDailyLimitIssues(check);
-  const notRecommended = issues.length > 0;
-
-  return (
-    <div
-      className={clsx(
-        "mt-3 rounded-lg border px-2.5 py-2",
-        notRecommended
-          ? "border-brand-warning/30 bg-brand-warning/8"
-          : "border-brand-success/25 bg-brand-success/8"
-      )}
-    >
-      <p
-        className={clsx(
-          "text-[11px] font-semibold",
-          notRecommended ? "text-brand-warning" : "text-brand-success"
-        )}
-      >
-        {notRecommended
-          ? "Not recommended · goes over daily limits"
-          : "Within daily limits"}
-      </p>
-      {notRecommended ? (
-        <ul className="mt-1 space-y-0.5">
-          {issues.map((issue) => (
-            <li key={issue} className="text-[11px] leading-snug text-brand-warning">
-              {issue}
-            </li>
-          ))}
-        </ul>
-      ) : null}
-      <dl className="mt-1.5 space-y-1">
-        {usage.map((line) => (
-          <div key={line.label}>
-            <dt className="text-[10px] font-medium uppercase tracking-wide text-brand-ink-tertiary">
-              {line.label}
-            </dt>
-            <dd
-              className={clsx(
-                "text-[11px] tabular-nums",
-                line.over ? "font-semibold text-brand-warning" : "text-brand-ink"
-              )}
-            >
-              {line.value}
-            </dd>
-          </div>
-        ))}
-      </dl>
-      {notRecommended ? (
-        <p className="mt-1.5 text-[10px] leading-snug text-brand-ink-tertiary">
-          You can still assign — you&apos;ll be asked to confirm.
-        </p>
-      ) : null}
-    </div>
-  );
-}
-
-function CalendarTransparencyPanel({
-  calendarRange,
-  events,
-  selectedProducer,
-  selectedEditor,
-  limitCheck,
-  workDays,
-  endIsSuggested,
-}: {
-  calendarRange: { startIso: string; endIso: string } | null;
-  events: AssignCalendarEvent[];
-  selectedProducer?: Producer;
-  selectedEditor: string;
-  limitCheck: DailyLimitCheck | null;
-  workDays: number | null;
-  endIsSuggested: boolean;
-}) {
-  if (!calendarRange) {
-    return null;
-  }
-
-  const rangeLabel = `${formatDisplayDate(calendarRange.startIso)} – ${formatDisplayDate(calendarRange.endIso)}`;
-  const skippedCount = events.filter(
-    (event) => event.kind !== "overtime"
-  ).length;
-
-  return (
-    <div className="rounded-2xl border border-brand-line/70 bg-brand-bg/40 p-4">
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <p className="text-[12px] font-semibold text-brand-ink">
-            Calendar context
-          </p>
-          <p className="mt-0.5 text-[11px] text-brand-ink-tertiary tabular-nums">
-            {rangeLabel}
-            {endIsSuggested ? " (suggested end)" : ""}
-          </p>
-          {workDays != null ? (
-            <p className="mt-0.5 text-[11px] font-medium text-brand-ink-secondary tabular-nums">
-              {workDays} work {workDays === 1 ? "day" : "days"}
-              {skippedCount > 0
-                ? " · days off, leave and holidays skipped"
-                : ""}
-            </p>
-          ) : null}
-        </div>
-        <span className="rounded-full bg-brand-elevated px-2 py-0.5 text-[10px] font-semibold text-brand-ink-secondary ring-1 ring-brand-line/60">
-          {selectedProducer
-            ? selectedEditor || "Producer"
-            : "Studio-wide"}
-        </span>
-      </div>
-
-      {events.length === 0 ? (
-        <p className="mt-3 rounded-lg border border-brand-success/25 bg-brand-success/8 px-2.5 py-2 text-[11px] text-brand-success">
-          No holidays or leave in this range
-          {selectedProducer ? " for this producer" : " (studio-wide)"}.
-        </p>
-      ) : (
-        <ul className="mt-3 max-h-[220px] space-y-1.5 overflow-y-auto scrollbar-hide">
-          {events.map((event) => {
-            const meta = CALENDAR_KIND_META[event.kind];
-            return (
-              <li
-                key={`${event.iso}-${event.kind}-${event.label}`}
-                className="flex items-start gap-2 rounded-lg border border-brand-line/50 bg-brand-elevated/70 px-2.5 py-1.5"
-              >
-                <span
-                  className={clsx(
-                    "mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full",
-                    meta.dot
-                  )}
-                />
-                <span className="min-w-0 flex-1">
-                  <span className="block text-[11px] font-semibold tabular-nums text-brand-ink">
-                    {formatDisplayDate(event.iso)}
-                  </span>
-                  <span className="block text-[10px] text-brand-ink-tertiary">
-                    {meta.label} · {event.label}
-                  </span>
-                </span>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-
-      {selectedProducer && limitCheck ? (
-        <DailyLimitsSummary check={limitCheck} />
-      ) : null}
-
-      {selectedProducer ? (
-        <p className="mt-3 text-[10px] leading-snug text-brand-ink-tertiary">
-          Work days: {formatProducerWorkDaysShort(selectedProducer)} ·{" "}
-          {formatDailyLimits(selectedProducer)}
-        </p>
-      ) : (
-        <p className="mt-3 text-[10px] leading-snug text-brand-ink-tertiary">
-          Showing studio holidays that apply to all producers. Select someone to
-          see personal leave and schedule.
-        </p>
-      )}
-    </div>
-  );
-}
-
 function sortProducerRowsByOpening(a: ProducerRow, b: ProducerRow): number {
   const ta = a.nextOpeningDate?.getTime() ?? Infinity;
   const tb = b.nextOpeningDate?.getTime() ?? Infinity;
@@ -1622,16 +1164,6 @@ function sortProducerRowsByOpening(a: ProducerRow, b: ProducerRow): number {
 
 function isProducerRowOpen(row: ProducerRow, windowMode: boolean): boolean {
   return windowMode ? row.availableForWindow : Boolean(row.nextOpeningDate);
-}
-
-function producerStatusLabel(
-  row: ProducerRow,
-  windowMode: boolean
-): string {
-  if (windowMode) return "Free";
-  if (!row.nextOpeningDate) return "TBD";
-  if (row.isAvailableToday) return "Today";
-  return `${MONTH_LABELS[row.nextOpeningDate.getMonth()].slice(0, 3)} ${row.nextOpeningDate.getDate()}`;
 }
 
 function ProducerAvailChip({
@@ -1649,41 +1181,39 @@ function ProducerAvailChip({
   const selected =
     Boolean(selectedEditor) && producerKeysMatch(selectedEditor, row.name);
   const displayName = row.producer?.name?.trim() || row.name;
-  const statusLabel = producerStatusLabel(row, windowMode);
-  const fullStatus = windowMode
-    ? row.overLimit
-      ? "Free · not recommended (daily limit)"
-      : "Free"
+  const statusLabel = windowMode
+    ? !row.availableForWindow
+      ? row.blockerLabel || "Not free"
+      : row.overLimit
+        ? "Free · over limit"
+        : "Free"
     : row.isAvailableToday
-      ? "Today"
+      ? "Available today"
       : row.nextOpeningIso
-        ? formatDisplayDate(row.nextOpeningIso)
-        : "TBD";
+        ? `From ${formatDisplayDate(row.nextOpeningIso)}`
+        : "No date yet";
 
   return (
     <button
       type="button"
-      disabled={!open}
-      title={`${displayName} · ${fullStatus}`}
+      disabled={!open && !selected}
+      title={
+        selected
+          ? `${displayName} · click to unselect`
+          : `${displayName} · ${statusLabel}`
+      }
       onClick={() => {
-        if (!open) return;
+        if (!open && !selected) return;
         onSelect(row.name, row.nextOpeningIso || undefined);
       }}
       className={clsx(
-        "inline-flex w-11 shrink-0 flex-col items-center gap-1 rounded-lg px-0.5 py-1 transition",
+        "inline-flex items-center justify-center rounded-xl border p-2 transition",
+        !open && !selected && "cursor-not-allowed opacity-55",
         selected
-          ? "bg-brand-signature-soft ring-1 ring-brand-signature/30"
-          : "hover:bg-brand-bg/70"
+          ? "border-brand-signature bg-brand-signature-soft shadow-sm ring-1 ring-brand-signature/25"
+          : "border-brand-line/60 bg-brand-bg/30 hover:border-brand-line hover:bg-brand-bg/60"
       )}
     >
-      <span
-        className={clsx(
-          "w-full truncate text-center text-[9px] font-semibold leading-tight tabular-nums",
-          open ? "text-brand-success" : "text-brand-ink-tertiary"
-        )}
-      >
-        {statusLabel}
-      </span>
       <span className="relative">
         <Avatar producer={row.producer} initials={row.name} size="sm" />
         {selected ? (
@@ -1693,6 +1223,706 @@ function ProducerAvailChip({
         ) : null}
       </span>
     </button>
+  );
+}
+
+function shortMixLimitDay(iso: string): string {
+  const d = parseFlexibleDate(iso);
+  return d
+    ? d.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+    : iso;
+}
+
+function mixLimitWeekday(iso: string): string {
+  const d = parseFlexibleDate(iso);
+  return d ? d.toLocaleDateString("en-US", { weekday: "short" }) : "";
+}
+
+function formatLimitUsd(amount: number): string {
+  const rounded = Math.round(amount * 100) / 100;
+  const whole = Number.isInteger(rounded);
+  return `$${rounded.toLocaleString("en-US", {
+    minimumFractionDigits: whole ? 0 : 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+function mixLimitDayOnly(iso: string): string {
+  const d = parseFlexibleDate(iso);
+  return d ? String(d.getDate()) : iso;
+}
+
+/** Small pad above the max line so the dashed stroke stays clear of the top edge. */
+const LIMIT_TOP_PAD = 8;
+/** Plot height from 0% up to the dashed max line. */
+const LIMIT_PLOT_HEIGHT = 148;
+const LIMIT_CHART_HEIGHT = LIMIT_TOP_PAD + LIMIT_PLOT_HEIGHT;
+/** Clear air between a full bar top and the dashed max line. */
+const LIMIT_MAX_LINE_GAP = 6;
+/** Max line / 100% sit this many px above the chart bottom. */
+const LIMIT_MAX_LINE_Y = LIMIT_PLOT_HEIGHT;
+const LIMIT_BAR_HEIGHT = LIMIT_MAX_LINE_Y - LIMIT_MAX_LINE_GAP;
+const LIMIT_Y_AXIS_WIDTH = 40;
+/** Right inset so the Max label never sits on the bars. */
+const LIMIT_MAX_LABEL_PAD = 128;
+
+type CostBarSegment = {
+  key: string;
+  pct: number;
+  label: string;
+  amount: number;
+};
+
+const LIMIT_METRIC_BAR_WIDTH = "w-3 sm:w-3.5";
+
+/** Cost bar: separate rounded blocks stacked by mix share (% of daily cost max). */
+function CostMetricBar({ segments }: { segments: CostBarSegment[] }) {
+  const visible = segments
+    .map((seg) => ({
+      ...seg,
+      pct: Math.max(0, Math.min(100, seg.pct)),
+    }))
+    .filter((seg) => seg.pct > 0);
+  const totalPct = Math.min(
+    100,
+    visible.reduce((sum, seg) => sum + seg.pct, 0)
+  );
+  /** Keep block stack height true to %, then gap eats a little visual space inside. */
+  const stackHeightPct = Math.max(totalPct, visible.length > 0 ? 6 : 0);
+
+  return (
+    <div
+      className={clsx(
+        "relative rounded-t-md bg-brand-line/20",
+        LIMIT_METRIC_BAR_WIDTH
+      )}
+      style={{ height: LIMIT_BAR_HEIGHT }}
+    >
+      {visible.length > 0 ? (
+        <div
+          className="absolute inset-x-0 bottom-0 flex flex-col-reverse gap-px"
+          style={{ height: `${stackHeightPct}%` }}
+        >
+          {visible.map((seg, i) => {
+            const tip = `${seg.label}\n${formatLimitUsd(seg.amount)}/day`;
+            const isCurrent = seg.key === "__current__";
+            return (
+              <div
+                key={seg.key}
+                className="relative min-h-[5px] w-full"
+                style={{ flex: `${seg.pct} 1 0` }}
+              >
+                <HoverTip
+                  label={tip}
+                  placement="top"
+                  className="block h-full w-full"
+                  zIndex={260}
+                >
+                  <div
+                    className={clsx(
+                      "h-full w-full rounded-[3px] transition-[filter] hover:brightness-110",
+                      isCurrent ? "bg-brand-info" : "bg-brand-info/75",
+                      i % 2 === 1 && !isCurrent && "bg-brand-info/55"
+                    )}
+                  />
+                </HoverTip>
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** Mixes bar: equal slots up to max; filled slots are separate rounded mix blocks. */
+function MixMetricBar({
+  bookedMixes,
+  maxMixes,
+  mixLabels = [],
+}: {
+  bookedMixes: number;
+  maxMixes: number;
+  /** Bottom-up labels for filled mix blocks (tooltips). */
+  mixLabels?: string[];
+}) {
+  const slots = Math.max(1, Math.floor(maxMixes));
+  const filled = Math.max(0, Math.min(slots, bookedMixes));
+
+  return (
+    <div
+      className={clsx(
+        "relative rounded-t-md bg-brand-line/20",
+        LIMIT_METRIC_BAR_WIDTH
+      )}
+      style={{ height: LIMIT_BAR_HEIGHT }}
+    >
+      <div className="absolute inset-0 flex flex-col-reverse gap-px">
+        {Array.from({ length: slots }, (_, i) => {
+          const isFilled = i < filled;
+          const label = mixLabels[i]?.trim();
+          const tip = isFilled
+            ? label || `Mix ${i + 1}`
+            : null;
+          const block = (
+            <div
+              className={clsx(
+                "h-full w-full rounded-[3px] transition-[filter]",
+                isFilled
+                  ? "bg-brand-warning hover:brightness-110"
+                  : "bg-transparent"
+              )}
+            />
+          );
+          return (
+            <div key={i} className="relative min-h-[5px] w-full flex-1">
+              {tip ? (
+                <HoverTip
+                  label={tip}
+                  placement="top"
+                  className="block h-full w-full"
+                  zIndex={260}
+                >
+                  {block}
+                </HoverTip>
+              ) : (
+                block
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/** Grouped bars per date: cost (blue, mix-stacked) + mixes (orange, slotted by max). */
+function LimitDayBarGroup({
+  iso,
+  maxMixes,
+  bookedMixes,
+  maxCost,
+  bookedCost,
+  costSegments,
+  thisMixDaily,
+  selected,
+  onSelect,
+}: {
+  iso: string;
+  maxMixes: number | null;
+  bookedMixes: number;
+  maxCost: number | null;
+  bookedCost: number;
+  costSegments: CostBarSegment[];
+  thisMixDaily: number | null;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  const showCost = maxCost != null;
+  const showMix = maxMixes != null;
+
+  const tip = [
+    shortMixLimitDay(iso),
+    showCost
+      ? `Cost ${formatLimitUsd(bookedCost + (thisMixDaily ?? 0))}/${formatLimitUsd(maxCost!)}`
+      : null,
+    showMix ? `Mixes ${bookedMixes}/${maxMixes}` : null,
+    "Click for breakdown",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  return (
+    <button
+      type="button"
+      title={tip}
+      onClick={onSelect}
+      aria-pressed={selected}
+      className={clsx(
+        "flex min-w-[40px] flex-1 flex-col items-center outline-none",
+        selected && "opacity-100"
+      )}
+    >
+      <div
+        className="flex items-end justify-center gap-[3px] px-0.5"
+        style={{ height: LIMIT_BAR_HEIGHT }}
+      >
+        {showCost ? <CostMetricBar segments={costSegments} /> : null}
+        {showMix ? (
+          <MixMetricBar
+            bookedMixes={
+              bookedMixes + (thisMixDaily != null && thisMixDaily > 0 ? 1 : 0)
+            }
+            maxMixes={maxMixes as number}
+            mixLabels={costSegments.map((seg) => seg.label)}
+          />
+        ) : null}
+      </div>
+    </button>
+  );
+}
+
+function DailyLimitBarChart({
+  days,
+  maxMixes,
+  maxCost,
+  thisMixDaily,
+  selectedIso,
+  onSelect,
+  dayCostSegments,
+}: {
+  days: DailyLimitCheck["workDays"];
+  maxMixes: number | null;
+  maxCost: number | null;
+  thisMixDaily: number | null;
+  selectedIso: string;
+  onSelect: (iso: string) => void;
+  dayCostSegments: Record<string, CostBarSegment[]>;
+}) {
+  const yTicks = [0, 50, 100];
+
+  return (
+    <div className="space-y-2">
+      <div
+        className="flex min-w-0 items-center justify-between gap-x-3"
+        style={{ paddingLeft: LIMIT_Y_AXIS_WIDTH }}
+      >
+        <p className="shrink-0 text-[10px] font-medium text-brand-ink-tertiary">
+          % of daily limit
+        </p>
+        <div className="flex min-w-0 flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[10px] text-brand-ink-tertiary">
+          {maxCost != null ? (
+            <span className="inline-flex items-center gap-1.5">
+              <span
+                className="h-2.5 w-2.5 rounded-[3px] bg-brand-info"
+                aria-hidden
+              />
+              Cost of mix
+            </span>
+          ) : null}
+          {maxMixes != null ? (
+            <span className="inline-flex items-center gap-1.5">
+              <span
+                className="h-2.5 w-2.5 rounded-[3px] bg-brand-warning"
+                aria-hidden
+              />
+              No of mixes per day
+            </span>
+          ) : null}
+        </div>
+        {thisMixDaily != null ? (
+          <p className="shrink-0 text-right text-[10px] tabular-nums text-brand-ink-secondary">
+            Producer cost for current mix:{" "}
+            <span className="font-semibold text-brand-info">
+              {formatLimitUsd(thisMixDaily)}/day
+            </span>
+          </p>
+        ) : (
+          <span className="shrink-0" />
+        )}
+      </div>
+      <div className="flex min-w-0 items-start">
+        <div
+          className="relative shrink-0"
+          style={{ width: LIMIT_Y_AXIS_WIDTH, height: LIMIT_CHART_HEIGHT }}
+          aria-hidden
+        >
+          {yTicks.map((tick) => {
+            // Same top offset as the dashed max / grid lines in the plot.
+            const top =
+              LIMIT_TOP_PAD + (LIMIT_PLOT_HEIGHT * (100 - tick)) / 100;
+            return (
+              <span
+                key={tick}
+                className="absolute right-1.5 -translate-y-1/2 text-right text-[10px] tabular-nums leading-none text-brand-ink-tertiary"
+                style={{ top }}
+              >
+                {tick}%
+              </span>
+            );
+          })}
+        </div>
+
+        <div className="min-w-0 flex-1 overflow-x-auto overscroll-x-contain scrollbar-hide">
+          <div className="relative min-w-full">
+            <div
+              className="relative border-b-2 border-l-2 border-brand-ink/25"
+              style={{ height: LIMIT_CHART_HEIGHT }}
+            >
+              {yTicks.map((tick) => {
+                if (tick === 0) return null;
+                const top =
+                  LIMIT_TOP_PAD + (LIMIT_PLOT_HEIGHT * (100 - tick)) / 100;
+                return (
+                  <div
+                    key={`grid-${tick}`}
+                    className={clsx(
+                      "pointer-events-none absolute inset-x-0",
+                      tick === 100
+                        ? "z-[1] border-t-2 border-dashed border-brand-warning"
+                        : "border-t border-brand-line/35"
+                    )}
+                    style={{ top }}
+                    aria-hidden
+                  >
+                    {tick === 100 ? (
+                      <span className="absolute right-1.5 top-0 flex -translate-y-1/2 items-center gap-1.5 whitespace-nowrap bg-white px-1.5 text-[9px] font-semibold tabular-nums leading-none">
+                        <span className="uppercase tracking-wide text-brand-ink-tertiary">
+                          Max
+                        </span>
+                        {maxCost != null ? (
+                          <span className="text-brand-info">
+                            {formatLimitUsd(maxCost)}/day
+                          </span>
+                        ) : null}
+                        {maxCost != null && maxMixes != null ? (
+                          <span className="font-normal text-brand-ink-tertiary/70">
+                            ·
+                          </span>
+                        ) : null}
+                        {maxMixes != null ? (
+                          <span className="text-brand-warning">
+                            {maxMixes} {maxMixes === 1 ? "mix" : "mixes"}/day
+                          </span>
+                        ) : null}
+                      </span>
+                    ) : null}
+                  </div>
+                );
+              })}
+
+              <div
+                className="absolute bottom-0 left-0 z-0 flex items-end gap-1 px-1"
+                style={{
+                  height: LIMIT_BAR_HEIGHT,
+                  right: LIMIT_MAX_LABEL_PAD,
+                }}
+              >
+                {days.map((day) => (
+                  <LimitDayBarGroup
+                    key={day.iso}
+                    iso={day.iso}
+                    maxMixes={maxMixes}
+                    bookedMixes={day.bookedMixes}
+                    maxCost={maxCost}
+                    bookedCost={day.bookedCost}
+                    costSegments={dayCostSegments[day.iso] ?? []}
+                    thisMixDaily={thisMixDaily}
+                    selected={day.iso === selectedIso}
+                    onSelect={() => onSelect(day.iso)}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div
+              className="flex gap-1 border-t border-transparent px-1 pt-1.5"
+              style={{ paddingRight: LIMIT_MAX_LABEL_PAD }}
+            >
+              {days.map((day) => {
+                const selected = day.iso === selectedIso;
+                const over =
+                  (maxCost != null &&
+                    day.bookedCost + (thisMixDaily ?? 0) > maxCost) ||
+                  (maxMixes != null && day.bookedMixes + 1 > maxMixes);
+                return (
+                  <button
+                    key={`x-${day.iso}`}
+                    type="button"
+                    onClick={() => onSelect(day.iso)}
+                    className={clsx(
+                      "flex min-w-[40px] flex-1 flex-col items-center gap-0.5 outline-none",
+                      selected
+                        ? "text-brand-ink"
+                        : over
+                          ? "text-brand-warning"
+                          : "text-brand-ink-tertiary"
+                    )}
+                  >
+                    <span
+                      className={clsx(
+                        "text-[10px] tabular-nums leading-none",
+                        selected && "font-semibold"
+                      )}
+                    >
+                      {mixLimitDayOnly(day.iso)}
+                    </span>
+                    <span className="text-[9px] uppercase leading-none tracking-wide opacity-80">
+                      {mixLimitWeekday(day.iso).slice(0, 2)}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-1 text-center text-[9px] font-medium uppercase tracking-[0.06em] text-brand-ink-tertiary">
+              Date
+            </p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  );
+}
+
+function RangeMixBreakdown({
+  rangeStartIso,
+  rangeEndIso,
+  contributors,
+}: {
+  rangeStartIso: string;
+  rangeEndIso: string;
+  contributors: DailyCostContributor[];
+}) {
+  const rangeLabel =
+    rangeEndIso && rangeEndIso !== rangeStartIso
+      ? `${shortMixLimitDay(rangeStartIso)} – ${shortMixLimitDay(rangeEndIso)}`
+      : shortMixLimitDay(rangeStartIso);
+
+  return (
+    <details className="group mt-3 overflow-hidden rounded-xl border border-brand-line/50">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 bg-brand-bg/40 px-3.5 py-2.5 marker:content-none [&::-webkit-details-marker]:hidden">
+        <span className="flex min-w-0 items-center gap-2">
+          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-brand-ink-tertiary transition duration-200 group-open:rotate-180" />
+          <span className="min-w-0 text-[13px] font-semibold tracking-tight text-brand-ink">
+            How previous mixes use daily cost
+            <span className="ml-2 font-normal tabular-nums text-brand-ink-secondary">
+              {rangeLabel}
+            </span>
+          </span>
+        </span>
+        <span className="shrink-0 rounded-md bg-brand-ink/[0.06] px-2 py-0.5 text-[11px] font-medium tabular-nums text-brand-ink-secondary">
+          {contributors.length}{" "}
+          {contributors.length === 1 ? "mix" : "mixes"}
+        </span>
+      </summary>
+
+      <div className="border-t border-brand-line/40">
+        {contributors.length > 0 ? (
+          <p className="px-3.5 pt-2.5 text-[11px] leading-relaxed text-brand-ink-tertiary">
+            Producer payout ÷ that mix&apos;s work days = daily cost on
+            overlapping days
+          </p>
+        ) : null}
+
+        {contributors.length === 0 ? (
+          <p className="px-3.5 py-3 text-[12px] text-brand-ink-tertiary">
+            No booked mixes in this date range yet.
+          </p>
+        ) : (
+          <ul className="flex gap-2 overflow-x-auto overscroll-x-contain p-2.5 scrollbar-hide">
+            {contributors.map((c) => {
+              const dateRange =
+                c.mixEndDate !== c.mixStartDate
+                  ? `${shortMixLimitDay(c.mixStartDate)} – ${shortMixLimitDay(c.mixEndDate)}`
+                  : shortMixLimitDay(c.mixStartDate);
+              const workDays = Math.max(c.workDays, 0);
+              return (
+                <li
+                  key={c.recordId}
+                  className="flex w-[220px] shrink-0 flex-col gap-2 rounded-lg border border-brand-line/45 bg-white px-3 py-2.5"
+                >
+                  <span className="truncate text-[12.5px] font-medium text-brand-ink">
+                    {c.programName}
+                  </span>
+                  <span className="text-[11px] tabular-nums text-brand-ink-tertiary">
+                    {dateRange}
+                  </span>
+                  <span className="flex flex-wrap items-center gap-1 text-[11px] tabular-nums">
+                    <span className="rounded-md bg-brand-bg px-1.5 py-0.5 font-medium text-brand-ink ring-1 ring-inset ring-brand-line/50">
+                      {formatLimitUsd(c.mixTotal)}
+                    </span>
+                    <span className="text-brand-ink-tertiary">÷</span>
+                    <span className="rounded-md bg-brand-bg px-1.5 py-0.5 font-medium text-brand-ink ring-1 ring-inset ring-brand-line/50">
+                      {workDays || "—"}
+                    </span>
+                    <span className="text-brand-ink-tertiary">=</span>
+                    <span className="rounded-md bg-brand-info/10 px-1.5 py-0.5 font-semibold text-brand-info ring-1 ring-inset ring-brand-info/25">
+                      {formatLimitUsd(c.dayShare)}/day
+                    </span>
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+    </details>
+  );
+}
+
+function SelectedMixLimitPanel({
+  check,
+  producer,
+  producerName,
+  currentMixName,
+  rangeStartIso,
+  rangeEndIso,
+  windowLabel,
+  payoutDetail,
+  mtdRecords,
+  excludeRecordId,
+  estimateCost,
+}: {
+  check: DailyLimitCheck;
+  producer?: Producer | null;
+  producerName: string;
+  currentMixName: string;
+  rangeStartIso: string;
+  rangeEndIso: string;
+  windowLabel: string;
+  payoutDetail: ProducerPayoutEstimateDetail | null;
+  mtdRecords: MTDRecord[];
+  excludeRecordId?: string;
+  estimateCost: RecordCostEstimator;
+}) {
+  const maxMixes = check.maxMixesPerDay;
+  const maxCost = check.maxCostPerDay;
+  const days = check.workDays;
+  /** Chart only: days where cost or mixes are already over half the daily max. */
+  const chartDays = useMemo(
+    () =>
+      days.filter((d) => {
+        const costOverHalf =
+          maxCost != null && maxCost > 0 && d.bookedCost / maxCost > 0.5;
+        const mixesOverHalf =
+          maxMixes != null &&
+          maxMixes > 0 &&
+          d.bookedMixes / maxMixes > 0.5;
+        return costOverHalf || mixesOverHalf;
+      }),
+    [days, maxCost, maxMixes]
+  );
+  const thisMixDaily = check.newMixDailyCost;
+  const hasLimits = maxMixes != null || maxCost != null;
+
+  const defaultIso = chartDays[0]?.iso || "";
+  const [inspectIso, setInspectIso] = useState(defaultIso);
+
+  useEffect(() => {
+    if (!chartDays.some((d) => d.iso === inspectIso)) {
+      setInspectIso(defaultIso);
+    }
+  }, [chartDays, defaultIso, inspectIso]);
+
+  const contributors =
+    producer && rangeStartIso
+      ? listProducerCostContributorsInRange(
+          producer,
+          rangeStartIso,
+          rangeEndIso || rangeStartIso,
+          mtdRecords,
+          excludeRecordId,
+          estimateCost
+        )
+      : [];
+
+  const dayCostSegments = useMemo(() => {
+    const out: Record<string, CostBarSegment[]> = {};
+    if (!producer || maxCost == null || maxCost <= 0) return out;
+    for (const day of chartDays) {
+      const dayDate = parseFlexibleDate(day.iso);
+      if (!dayDate) continue;
+      const dayContributors = listProducerDailyCostContributors(
+        producer,
+        dayDate,
+        mtdRecords,
+        excludeRecordId,
+        estimateCost
+      );
+      const segments: CostBarSegment[] = dayContributors.map((c) => ({
+        key: c.recordId,
+        pct: (c.dayShare / maxCost) * 100,
+        label: c.programName,
+        amount: c.dayShare,
+      }));
+      if (thisMixDaily != null && thisMixDaily > 0) {
+        segments.push({
+          key: "__current__",
+          pct: (thisMixDaily / maxCost) * 100,
+          label: currentMixName || "Current mix",
+          amount: thisMixDaily,
+        });
+      }
+      out[day.iso] = segments;
+    }
+    return out;
+  }, [
+    producer,
+    maxCost,
+    chartDays,
+    mtdRecords,
+    excludeRecordId,
+    estimateCost,
+    thisMixDaily,
+    currentMixName,
+  ]);
+
+  return (
+    <div className="space-y-3.5">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <p className="min-w-0 text-[13px] font-semibold tracking-tight text-brand-ink">
+          Overlapping days where {producerName} is past 50% of daily limits
+        </p>
+        {windowLabel ? (
+          <p className="shrink-0 text-[12px] tabular-nums text-brand-ink-tertiary">
+            {windowLabel}
+          </p>
+        ) : null}
+      </div>
+
+      {days.length === 0 ? (
+        <p className="text-[12px] text-brand-ink-tertiary">No work days in range</p>
+      ) : hasLimits ? (
+        <div>
+          {chartDays.length > 0 ? (
+            <DailyLimitBarChart
+              days={chartDays}
+              maxMixes={maxMixes}
+              maxCost={maxCost}
+              thisMixDaily={thisMixDaily}
+              selectedIso={inspectIso}
+              onSelect={setInspectIso}
+              dayCostSegments={dayCostSegments}
+            />
+          ) : (
+            <p className="text-[12px] text-brand-ink-tertiary">
+              No days over 50% of a daily limit in this range.
+            </p>
+          )}
+          {rangeStartIso ? (
+            <RangeMixBreakdown
+              rangeStartIso={rangeStartIso}
+              rangeEndIso={rangeEndIso || rangeStartIso}
+              contributors={contributors}
+            />
+          ) : null}
+        </div>
+      ) : (
+        <p className="text-[12px] text-brand-ink-tertiary">
+          {days.map((d) => shortMixLimitDay(d.iso)).join(" · ")}
+        </p>
+      )}
+
+      {payoutDetail ? (
+        <div className="rounded-xl border border-brand-warning/30 bg-brand-warning/8 px-3 py-2.5">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-brand-warning">
+            Disclaimer
+          </p>
+          <div className="mt-1 space-y-0.5 text-[11px] leading-relaxed text-brand-ink-secondary">
+            <p>
+              {payoutDetail.extrasApplied
+                ? `Extras ${formatLimitUsd(
+                    payoutDetail.rushFeePayout + payoutDetail.voiceoverPayout
+                  )} are on the order but not in the daily sum.`
+                : "Rush and voiceover extras are not included yet and may push a day closer to the max."}{" "}
+              Prices may change when edited.
+            </p>
+            <p>Completed and payroll mixes are not included.</p>
+          </div>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -1711,75 +1941,16 @@ function AvailabilityProducerStrip({
   windowLabel: string | null;
   onSelect: (name: string, startIso?: string) => void;
 }) {
-  const monthSections = useMemo(() => {
-    if (windowMode) {
-      const free = rows
-        .filter((row) => isProducerRowOpen(row, true))
-        .sort(sortProducerRowsByOpening);
-      return free.length
-        ? [
-            {
-              key: "window",
-              title: windowLabel || "Selected dates",
-              rows: free,
-            },
-          ]
-        : [];
-    }
-
-    // Every category producer appears once, grouped by their first available date.
-    const byMonth = new Map<
-      string,
-      { sortKey: number; title: string; rows: ProducerRow[] }
-    >();
-    const noDateYet: ProducerRow[] = [];
-
-    for (const row of rows) {
-      if (!row.nextOpeningDate) {
-        noDateYet.push(row);
-        continue;
-      }
-      const y = row.nextOpeningDate.getFullYear();
-      const m = row.nextOpeningDate.getMonth();
-      const key = `${y}-${m}`;
-      const existing = byMonth.get(key);
-      if (existing) {
-        existing.rows.push(row);
-      } else {
-        byMonth.set(key, {
-          sortKey: y * 12 + m,
-          title: `${MONTH_LABELS[m]} ${y}`,
-          rows: [row],
-        });
-      }
-    }
-
-    const sections = [...byMonth.values()]
-      .sort((a, b) => a.sortKey - b.sortKey)
-      .map((section) => ({
-        key: `${section.sortKey}`,
-        title: section.title,
-        rows: [...section.rows].sort(sortProducerRowsByOpening),
-      }));
-
-    if (noDateYet.length > 0) {
-      sections.push({
-        key: "no-date",
-        title: "No date yet",
-        rows: [...noDateYet].sort((a, b) => a.name.localeCompare(b.name)),
-      });
-    }
-
-    return sections;
-  }, [rows, windowMode, windowLabel]);
+  const sortedRows = useMemo(
+    () => [...rows].sort(sortProducerRowsByOpening),
+    [rows]
+  );
 
   if (rows.length === 0) {
     return (
       <div className="rounded-2xl border border-brand-line/60 bg-white p-4">
         <p className="rounded-xl border border-brand-warning/30 bg-brand-warning/8 px-3 py-2 text-[13px] text-brand-warning">
-          {windowMode
-            ? "No producers match this mix window."
-            : `No producers specialize in ${genreLabel}.`}
+          No producers specialize in {genreLabel}.
         </p>
       </div>
     );
@@ -1789,130 +1960,26 @@ function AvailabilityProducerStrip({
     <div className="overflow-hidden rounded-2xl border border-brand-line/60 bg-white">
       <div className="border-b border-brand-line/50 px-4 py-3.5 sm:px-5">
         <h3 className="text-[14px] font-semibold text-brand-ink">
-          Producer&apos;s first available dates
+          Select producer for details
         </h3>
         <p className="mt-0.5 text-[12px] text-brand-ink-tertiary">
           {windowLabel
             ? `${genreLabel} · ${windowLabel}`
-            : `${genreLabel} · choose a producer below`}
+            : `${genreLabel} · ${rows.length} producer${rows.length === 1 ? "" : "s"}`}
         </p>
       </div>
 
-      <div className="divide-y divide-brand-line/40">
-        {monthSections.map((section) => (
-          <div key={section.key}>
-            <div className="flex items-center justify-between gap-2 bg-brand-bg/30 px-4 py-2 sm:px-5">
-              <p className="text-[12px] font-semibold tabular-nums text-brand-ink">
-                {section.title}
-              </p>
-              <p className="text-[11px] text-brand-ink-tertiary">
-                {section.rows.length} producer
-                {section.rows.length === 1 ? "" : "s"}
-              </p>
-            </div>
-            <div className="flex flex-nowrap gap-1 overflow-x-auto overscroll-x-contain px-3 py-2 scrollbar-hide sm:px-4">
-              {section.rows.map((row) => (
-                <ProducerAvailChip
-                  key={row.key}
-                  row={row}
-                  windowMode={windowMode}
-                  selectedEditor={selectedEditor}
-                  onSelect={onSelect}
-                />
-              ))}
-            </div>
-          </div>
+      <div className="flex flex-wrap gap-2 p-3 sm:p-4">
+        {sortedRows.map((row) => (
+          <ProducerAvailChip
+            key={row.key}
+            row={row}
+            windowMode={windowMode}
+            selectedEditor={selectedEditor}
+            onSelect={onSelect}
+          />
         ))}
       </div>
     </div>
-  );
-}
-
-type SuggestionView = {
-  name: string;
-  row: ProducerRow;
-  tone: "good" | "swap";
-  reason: "requested_available" | "first_available";
-  reasonTitle: string;
-};
-
-function SuggestionDetailCard({
-  suggestion,
-  producers,
-  selectedEditor,
-  windowMode,
-  onSelect,
-}: {
-  suggestion: SuggestionView;
-  producers: Producer[];
-  selectedEditor: string;
-  windowMode: boolean;
-  onSelect: () => void;
-}) {
-  const isSelected =
-    Boolean(selectedEditor) &&
-    producerKeysMatch(selectedEditor, suggestion.name);
-
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      className={clsx(
-        "flex w-full items-start gap-3 rounded-xl border p-3 text-left transition",
-        isSelected
-          ? "border-brand-signature bg-brand-signature-soft shadow-sm ring-1 ring-brand-signature/25"
-          : "border-brand-line/70 bg-brand-bg/40 hover:border-brand-line hover:bg-brand-bg/70"
-      )}
-    >
-      <Avatar
-        producer={findProducerByAssignmentKey(suggestion.name, producers)}
-        initials={suggestion.name}
-        size="sm"
-      />
-      <span className="min-w-0 flex-1">
-        <span className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[13px] font-semibold text-brand-ink">
-            {suggestion.name}
-          </span>
-          <span className="rounded-full bg-brand-info/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-brand-info">
-            Recommended
-          </span>
-        </span>
-        <p
-          className={clsx(
-            "mt-1 text-[12px] font-medium leading-snug",
-            suggestion.tone === "swap"
-              ? "text-brand-warning"
-              : "text-brand-ink-secondary"
-          )}
-        >
-          {suggestion.reasonTitle}
-        </p>
-        <dl className="mt-2 grid gap-1.5">
-          <div className="rounded-lg bg-white/80 px-2.5 py-1.5">
-            <dt className="text-[10px] font-medium uppercase tracking-wide text-brand-ink-tertiary">
-              Daily limits
-            </dt>
-            <dd className="text-[12px] font-medium text-brand-ink">
-              {suggestion.row.dailyLimitsLabel}
-            </dd>
-          </div>
-          <div className="rounded-lg bg-white/80 px-2.5 py-1.5">
-            <dt className="text-[10px] font-medium uppercase tracking-wide text-brand-ink-tertiary">
-              {windowMode ? "Mix window" : "Schedule"}
-            </dt>
-            <dd className="text-[12px] text-brand-ink">
-              {windowMode
-                ? suggestion.row.availableForWindow
-                  ? suggestion.row.overLimit
-                    ? "Can take these dates · goes over daily limits"
-                    : "Can take the full selected mix window"
-                  : suggestion.row.blockerLabel ?? "Cannot take selected dates"
-                : suggestion.row.workDaysShort}
-            </dd>
-          </div>
-        </dl>
-      </span>
-    </button>
   );
 }

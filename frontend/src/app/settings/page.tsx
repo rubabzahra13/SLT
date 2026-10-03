@@ -29,11 +29,6 @@ const sections: SettingSection[] = [
         description: "Edit producer profiles and per-category compensation percentages",
         href: "/settings/producers",
       },
-      {
-        label: "Holidays",
-        description: "Leave names and calendar holiday reference",
-        href: "/settings/holidays",
-      },
     ],
   },
   {

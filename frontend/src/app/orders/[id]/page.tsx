@@ -52,7 +52,6 @@ export default function OrderDetailPage({
     updateMTD,
     updateOrder,
     producers,
-    holidays,
     discountCodes,
     isViewOnly,
     isLoading,
@@ -100,7 +99,6 @@ export default function OrderDetailPage({
     producers,
     mtdRecords,
     allOrders,
-    studioHolidays: holidays,
   });
 
   const handleMoveToMTD = useCallback(() => {
@@ -352,6 +350,7 @@ export default function OrderDetailPage({
                   isDateDisabled={mixDateRules.isDateDisabled}
                   dayTitle={mixDateRules.dayTitle}
                   dayTone={mixDateRules.dayTone}
+                  calendarRevision={mixDateRules.calendarRevision}
                 />
               </div>
             </div>
@@ -372,6 +371,7 @@ export default function OrderDetailPage({
                   isDateDisabled={mixDateRules.isDateDisabled}
                   dayTitle={mixDateRules.dayTitle}
                   dayTone={mixDateRules.dayTone}
+                  calendarRevision={mixDateRules.calendarRevision}
                 />
               </div>
             </div>

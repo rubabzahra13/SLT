@@ -4,6 +4,8 @@ import { isMTDRecord, isPreMTDOrderRecord, isOrderScheduledAndAssigned } from ".
 import { listPreMtdOrderRecords } from "../order-staging";
 import { mergeLocalMtdRecordFields } from "../mtd-completion";
 import { getOrderDetailSections } from "../order-detail-sections";
+import { getOrderAssignmentStatus } from "../order-requirements";
+import { getDisplayAssignedProducer } from "../editor-assignment";
 import type { MTDRecord, Order } from "../../types";
 
 function makeRecord(overrides: Partial<MTDRecord> = {}): MTDRecord {
@@ -188,5 +190,48 @@ describe("Orders Tab & Workflow Separation", () => {
     assert.equal(allFieldKeys.includes("haveSongs"), false);
     assert.equal(allFieldKeys.includes("danceVoiceover"), false);
     assert.equal(allFieldKeys.includes("extraSongsQuantity"), false);
+  });
+
+  it("Assigned tab excludes reassign and requested-only rows until a producer is set", () => {
+    const reassignLeave = makeRecord({
+      programName: "Beta Academy",
+      isReassigned: true,
+      orderStatus: "Reassign: Off day",
+      assignedProducer: null,
+      editorRequest: "FA",
+    });
+    assert.equal(getOrderAssignmentStatus(reassignLeave), "reassign_leave");
+    assert.equal(getDisplayAssignedProducer(reassignLeave), null);
+
+    // Named requested producer must not count as Assigned while awaiting reassign.
+    const reassignWithRequested = makeRecord({
+      programName: "Beta Academy",
+      isReassigned: true,
+      orderStatus: "Reassign: Off day",
+      assignedProducer: null,
+      editorRequest: "CP",
+    });
+    assert.equal(
+      getOrderAssignmentStatus(reassignWithRequested),
+      "reassign_leave"
+    );
+    assert.equal(getDisplayAssignedProducer(reassignWithRequested), "CP");
+
+    const requestedOnly = makeRecord({
+      assignedProducer: null,
+      editorRequest: "CP",
+    });
+    assert.equal(getOrderAssignmentStatus(requestedOnly), "not_assigned");
+    // Display may show the request; assignment status still Not assigned.
+    assert.equal(getDisplayAssignedProducer(requestedOnly), "CP");
+
+    const assigned = makeRecord({
+      assignedProducer: "CP",
+      editorRequest: "FA",
+      mixStartDate: "2026-10-09",
+      mixEndDate: "2026-10-30",
+    });
+    assert.equal(getOrderAssignmentStatus(assigned), "assigned");
+    assert.equal(getDisplayAssignedProducer(assigned), "CP");
   });
 });

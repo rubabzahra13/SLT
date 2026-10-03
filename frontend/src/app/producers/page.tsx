@@ -8,9 +8,9 @@ import { DeleteProducerModal } from "@/components/producers/DeleteProducerModal"
 import { ProducerAvailabilityModal } from "@/components/producers/ProducerAvailabilityModal";
 import { ProducerFormModal } from "@/components/producers/ProducerFormModal";
 import { Avatar } from "@/components/ui/Avatar";
-import { useAppState } from "@/context/AppStateContext";
-import { getProducerCategories } from "@/lib/producers";
+import { getProducerCategories, normalizeProducerList } from "@/lib/producers";
 import type { Producer, Weekday } from "@/types";
+import { useAppState } from "@/context/AppStateContext";
 
 function getProducerHeaderLabel(categories: string[]): string {
   if (categories.length === 0) return "Producer";
@@ -90,10 +90,10 @@ export default function ProducersPage() {
     specialty: string;
     ratesByCategory: Record<string, number>;
   }) {
-    if (isViewOnly || !availabilityProducer) return;
-    void updateProducer(availabilityProducer.id, patch).catch((err) => {
-      console.warn("Failed to save producer availability:", err);
-    });
+    if (isViewOnly || !availabilityProducer) {
+      return Promise.reject(new Error("Cannot save producer availability."));
+    }
+    return updateProducer(availabilityProducer.id, patch);
   }
 
   function confirmDelete() {
@@ -110,15 +110,10 @@ export default function ProducersPage() {
     }
   }
 
-  const uniqueProducers = useMemo(() => {
-    const seen = new Set<string>();
-    return producers.filter((p) => {
-      const key = (p.id || p.name).toLowerCase().trim();
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-  }, [producers]);
+  const uniqueProducers = useMemo(
+    () => normalizeProducerList(producers),
+    [producers]
+  );
 
   return (
     <>
@@ -130,12 +125,12 @@ export default function ProducersPage() {
       />
 
       <div className="grid auto-rows-fr items-stretch gap-4 px-6 pb-6 pt-5 sm:grid-cols-2 lg:grid-cols-3 lg:px-8 xl:grid-cols-4">
-        {uniqueProducers.map((producer, idx) => {
+        {uniqueProducers.map((producer) => {
           const categories = getProducerCategories(producer);
 
           return (
           <article
-            key={`${producer.id}-${idx}`}
+            key={producer.uuid || producer.id}
             className="dashboard-panel relative flex w-full flex-col self-start"
           >
             <div className="dashboard-panel-head dashboard-panel-head-accent flex shrink-0 items-center justify-between gap-2 px-4 py-3">
@@ -254,7 +249,15 @@ export default function ProducersPage() {
       <ProducerAvailabilityModal
         open={Boolean(availabilityProducer)}
         onClose={() => setAvailabilityProducer(null)}
-        producer={availabilityProducer}
+        producer={
+          availabilityProducer
+            ? producers.find(
+                (p) =>
+                  p.id === availabilityProducer.id ||
+                  (p.uuid && p.uuid === availabilityProducer.uuid)
+              ) ?? availabilityProducer
+            : null
+        }
         onSave={handleSaveAvailability}
         readOnly={isViewOnly}
       />

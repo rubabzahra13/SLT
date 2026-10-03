@@ -10,7 +10,6 @@ import {
   mixEndIsoForRecord,
   mixWindowForRecord,
 } from "./producer-availability";
-import type { StudioHoliday } from "./producer-time-off";
 import { parseFlexibleDate, toIsoDateString } from "./dates";
 import {
   normalizeProducerKey,
@@ -334,13 +333,12 @@ export function getDisplayAssignedProducer(
 }
 
 /**
- * Working days in a record's mix range for its producer (their days off,
- * leave and studio holidays skipped). Null without both dates or a producer.
+ * Working days in a record's mix range for its producer (their days off
+ * and leave skipped). Null without both dates or a producer.
  */
 export function mixWorkDaysForRecord(
   rec: MTDRecord,
-  producers: Producer[],
-  studioHolidays?: StudioHoliday[]
+  producers: Producer[]
 ): number | null {
   const startIso = toIsoDateString(rec.mixStartDate ?? "");
   const endIso = toIsoDateString(rec.mixEndDate ?? "");
@@ -350,7 +348,7 @@ export function mixWorkDaysForRecord(
     producers
   );
   if (!producer) return null;
-  return countProducerWorkingDays(producer, startIso, endIso, studioHolidays);
+  return countProducerWorkingDays(producer, startIso, endIso);
 }
 
 /**
@@ -635,22 +633,21 @@ export function isEditorBooked(
 }
 
 /**
- * Why the requested editor can't work this mix's dates (not a work day, leave,
- * or studio holiday), or null when they can. Other bookings and daily limits
+ * Why the requested editor can't work this mix's dates (not a work day or
+ * leave), or null when they can. Other bookings and daily limits
  * never make an editor unavailable.
  */
 export function getRequestedEditorUnavailableReason(
   rec: MTDRecord,
   requestedEditor: string,
-  producers: Producer[] = [],
-  studioHolidays?: StudioHoliday[]
+  producers: Producer[] = []
 ): string | null {
   const editorKey = normalizeProducerKey(requestedEditor);
   if (!editorKey || isFirstAvailableRequest(editorKey)) return null;
 
   const producer = findProducerByAssignmentKey(requestedEditor, producers);
   if (!producer) return null;
-  return getProducerUnavailabilityReason(producer, rec, studioHolidays);
+  return getProducerUnavailabilityReason(producer, rec);
 }
 
 export function getAssignedEditors(

@@ -80,7 +80,7 @@ export function OrderRequirementsCell({
   const items = category === "collections" ? reqs.collections : reqs.songsArea;
   const isReassign = reqs.needsReassign;
   const reassignLockReason = isReassign
-    ? "Can't mark missing on Reassign leave/rush orders"
+    ? "Can't mark missing on Reassign off day/rush orders"
     : null;
 
   if (!items || items.length === 0) {

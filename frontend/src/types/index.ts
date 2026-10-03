@@ -150,7 +150,7 @@ export type Producer = {
   status: "available" | "limited" | "unavailable";
   /** Days of the week this producer normally works */
   workDays: Weekday[];
-  /** Holidays or personal unavailability windows */
+  /** Named leave windows on working days */
   timeOff: ProducerTimeOff[];
   /** Max mixes per working day; null = no limit (default) */
   maxMixesPerDay: number | null;

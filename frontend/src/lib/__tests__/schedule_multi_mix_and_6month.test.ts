@@ -83,7 +83,7 @@ describe("Schedule Tab — Extended 6 Month Range and Multi-Mix Resolution", () 
   });
 
   it("preserves visual distinction for available, booked, and off statuses", () => {
-    assert.equal(statusLabel("available"), "Available");
+    assert.equal(statusLabel("available"), "Free slot");
     assert.equal(statusLabel("mix"), "Booked");
     assert.equal(statusLabel("off"), "Off");
     assert.equal(statusLabel("nonwork"), "Non-working");

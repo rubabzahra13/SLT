@@ -1,4 +1,4 @@
-import { apiClient, ApiClientError } from "./client";
+import { apiClient } from "./client";
 
 export interface AddOnLineItem {
   addon_id: string;
@@ -104,49 +104,19 @@ export async function completePricingApi(
   orderId: string,
   req: CompletePricingRequest
 ): Promise<OrderPricingResponse> {
-  try {
-    return await apiClient.post<OrderPricingResponse>(
-      `/api/orders/${orderId}/complete-pricing`,
-      req
-    );
-  } catch (err) {
-    if (err instanceof ApiClientError) {
-      console.warn(`Order ${orderId} complete pricing managed locally (${err.message}).`);
-      return {
-        order_id: orderId,
-        system_calculated_customer_price: null,
-        final_customer_price: req.final_customer_price_override ?? null,
-        final_customer_price_overridden: Boolean(req.final_customer_price_override),
-        price_compliance: null,
-        pricing_breakdown: null,
-      };
-    }
-    throw err;
-  }
+  return apiClient.post<OrderPricingResponse>(
+    `/api/orders/${orderId}/complete-pricing`,
+    req
+  );
 }
 
 export async function finalizePayrollApi(
   orderId: string,
   req: FinalizePayrollRequest
 ): Promise<OrderPricingResponse> {
-  try {
-    return await apiClient.post<OrderPricingResponse>(
-      `/api/orders/${orderId}/finalize-payroll`,
-      req
-    );
-  } catch (err) {
-    if (err instanceof ApiClientError) {
-      console.warn(`Order ${orderId} finalize payroll managed locally (${err.message}).`);
-      return {
-        order_id: orderId,
-        system_calculated_customer_price: null,
-        final_customer_price: req.final_customer_price ?? null,
-        final_customer_price_overridden: false,
-        price_compliance: null,
-        pricing_breakdown: null,
-      };
-    }
-    throw err;
-  }
+  return apiClient.post<OrderPricingResponse>(
+    `/api/orders/${orderId}/finalize-payroll`,
+    req
+  );
 }
 

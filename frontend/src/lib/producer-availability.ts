@@ -7,9 +7,6 @@ import {
 } from "@/lib/producer-keys";
 import { parsePackage } from "@/lib/package";
 import { inferMTDRecordStatus } from "@/lib/mtd-status";
-import {
-  type StudioHoliday,
-} from "@/lib/producer-time-off";
 
 const JS_DAY_TO_WEEKDAY: Weekday[] = [
   "sun",
@@ -256,6 +253,129 @@ export function expandTimeOffDates(
   return dates;
 }
 
+/** Work days in [startIso, endIso] where leave actually applies. */
+export function leaveApplicableDaysInRange(
+  startIso: string,
+  endIso: string,
+  workDays: Weekday[]
+): string[] {
+  const start = parseFlexibleDate(startIso);
+  const end = parseFlexibleDate(endIso || startIso);
+  if (!start || !end) return [];
+  const out: string[] = [];
+  const cursor = toDayStart(start);
+  const last = toDayStart(end);
+  for (let guard = 0; cursor <= last && guard < 800; guard += 1) {
+    if (isEligibleTimeOffDate(cursor, workDays)) {
+      out.push(dateToIsoLocal(cursor));
+    }
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return out;
+}
+
+function monthShort(date: Date): string {
+  return date.toLocaleDateString(undefined, { month: "short" });
+}
+
+/**
+ * Compact leave-day list when a range skips non-work days.
+ * e.g. "14-18,21-24 Dec 2027" or "28-30 Sep, 1-3 Oct 2027".
+ */
+export function formatCompactLeaveDaySpans(isos: string[]): string {
+  if (isos.length === 0) return "";
+  if (isos.length === 1) {
+    const [y, m, d] = isos[0].split("-").map(Number);
+    const date = new Date(y, m - 1, d);
+    return date.toLocaleDateString(undefined, {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  }
+
+  type Run = { start: string; end: string };
+  const runs: Run[] = [];
+  for (const iso of isos) {
+    const last = runs[runs.length - 1];
+    if (!last) {
+      runs.push({ start: iso, end: iso });
+      continue;
+    }
+    const [y, m, d] = last.end.split("-").map(Number);
+    const next = new Date(y, m - 1, d);
+    next.setDate(next.getDate() + 1);
+    if (dateToIsoLocal(next) === iso) {
+      last.end = iso;
+    } else {
+      runs.push({ start: iso, end: iso });
+    }
+  }
+
+  const firstDate = (() => {
+    const [y, m, d] = isos[0].split("-").map(Number);
+    return new Date(y, m - 1, d);
+  })();
+  const lastDate = (() => {
+    const [y, m, d] = isos[isos.length - 1].split("-").map(Number);
+    return new Date(y, m - 1, d);
+  })();
+  const sameMonth =
+    firstDate.getFullYear() === lastDate.getFullYear() &&
+    firstDate.getMonth() === lastDate.getMonth();
+  const year = lastDate.getFullYear();
+
+  function dayNum(iso: string): number {
+    return Number(iso.slice(8, 10));
+  }
+
+  function formatRun(run: Run, withMonth: boolean): string {
+    const days =
+      run.start === run.end
+        ? String(dayNum(run.start))
+        : `${dayNum(run.start)}-${dayNum(run.end)}`;
+    if (!withMonth) return days;
+    const [y, m, d] = run.end.split("-").map(Number);
+    const date = new Date(y, m - 1, d);
+    return `${days} ${monthShort(date)}`;
+  }
+
+  if (sameMonth) {
+    const body = runs.map((run) => formatRun(run, false)).join(", ");
+    return `${body} ${monthShort(firstDate)} ${year}`;
+  }
+
+  return `${runs.map((run) => formatRun(run, true)).join(", ")} ${year}`;
+}
+
+/**
+ * Leave chip / list label. Lists leave-applicable days compactly with commas
+ * and dashes (e.g. "14-18, 21-24 Dec 2027"), never the long weekday arrow form.
+ */
+export function formatLeaveDateLabel(
+  startIso: string,
+  endIso: string,
+  workDays: Weekday[]
+): string {
+  const end = endIso || startIso;
+  const formatFull = (iso: string) => {
+    const [y, m, d] = iso.split("-").map(Number);
+    const date = new Date(y, m - 1, d);
+    return date.toLocaleDateString(undefined, {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  };
+
+  if (startIso === end) return formatFull(startIso);
+
+  const leaveDays = leaveApplicableDaysInRange(startIso, end, workDays);
+  if (leaveDays.length === 0) return formatFull(startIso);
+  return formatCompactLeaveDaySpans(leaveDays);
+}
+
 /** Overtime ISO dates that fall inside [startIso, endIso] inclusive. */
 export function overtimeDatesInRange(
   overtimeDays: string[],
@@ -325,16 +445,17 @@ export function isProducerScheduledDay(producer: Producer, date: Date): boolean 
 
 export function isProducerOnTimeOff(
   producer: Producer,
-  date: Date,
-  _studioHolidays?: StudioHoliday[]
+  date: Date
 ): boolean {
-  // Public / calendar holidays are reference only — producers are not given
-  // them automatically. Off days come from named leave on working days.
+  // Off days come from named leave on working days.
   const dayIso = dateToIsoLocal(date);
   const timeOff = producer.timeOff ?? [];
-  return timeOff.some(
-    (entry) => dayIso >= entry.startDate && dayIso <= entry.endDate
-  );
+  return timeOff.some((entry) => {
+    const start = entry.startDate;
+    const end = entry.endDate || entry.startDate;
+    if (!start) return false;
+    return dayIso >= start && dayIso <= end;
+  });
 }
 
 export function mixWindowForRecord(
@@ -370,14 +491,19 @@ function recordCoversDay(rec: MTDRecord, day: Date): boolean {
 }
 
 /**
- * Whether a record holds its producer's time: assigned and Ongoing.
- * Completed, outsourced, and in-payroll mixes never count toward daily limits.
+ * Whether a record holds its producer's open workload for daily limits.
+ * Only assigned Ongoing mixes count — not Completed / payroll / outsourced.
+ * (Payroll tab mixes are finished work; limits cover what they are working on.)
  */
 export function isProducerBookingRecord(rec: MTDRecord): boolean {
   if (!rec.assignedProducer?.trim()) return false;
   if (rec.inPayroll || (rec as { in_payroll?: boolean }).in_payroll) return false;
   if (rec.status === "completed") return false;
-  return inferMTDRecordStatus(rec) === "Ongoing";
+  if ((rec as { recordStatus?: string }).recordStatus === "Completed") {
+    return false;
+  }
+  const status = inferMTDRecordStatus(rec);
+  return status === "Ongoing";
 }
 
 /** Payout estimate for a booked record whose payout isn't settled until payroll. */
@@ -474,10 +600,10 @@ export function describeProducerMixDayForLeave(
   if (bookings.length === 0) return null;
   const header =
     bookings.length === 1 ? "Mix on this day" : `Mixes on this day (${bookings.length})`;
-  const lines = bookings.map((b) => {
+  const lines = bookings.flatMap((b) => {
     const startLabel = formatIsoDayMonthYear(b.mixStartDate);
     const endLabel = formatIsoDayMonthYear(b.mixEndDate);
-    return `• ${b.programName} (${startLabel} – ${endLabel})`;
+    return [`• ${b.programName}`, `  ${startLabel} – ${endLabel}`];
   });
   return [header, ...lines].join("\n");
 }
@@ -534,8 +660,26 @@ export function findLeaveMixConflicts(
 }
 
 /**
- * Sum of producer payouts for every booked mix covering this day. Each mix
- * counts its full payout on every day of its range.
+ * Daily share of a mix's payout: total ÷ workable days in that mix's range.
+ */
+export function dailyShareOfRecordCost(
+  producer: Producer,
+  rec: MTDRecord,
+  estimateCost?: RecordCostEstimator
+): number {
+  const total = bookedRecordCost(rec, estimateCost);
+  if (total <= 0) return 0;
+  const startIso = toIsoDateString(rec.mixStartDate ?? "") || rec.mixStartDate;
+  const endIso = mixEndIsoForRecord(rec) || startIso;
+  if (!startIso) return total;
+  const days = countProducerWorkingDays(producer, startIso, endIso);
+  if (days <= 0) return total;
+  return Math.round((total / days) * 100) / 100;
+}
+
+/**
+ * Sum of per-day payout shares for every booked mix covering this day.
+ * Each mix's cost is divided across its own workable days (not repeated in full).
  */
 export function countProducerDailyCost(
   producer: Producer,
@@ -548,10 +692,107 @@ export function countProducerDailyCost(
 
   for (const rec of mtdRecords) {
     if (!isBookingForProducerOnDay(rec, producer, day, excludeRecordId)) continue;
-    total += bookedRecordCost(rec, estimateCost);
+    total += dailyShareOfRecordCost(producer, rec, estimateCost);
   }
 
-  return total;
+  return Math.round(total * 100) / 100;
+}
+
+export type DailyCostContributor = {
+  recordId: string;
+  programName: string;
+  /** This mix's share counted on this day. */
+  dayShare: number;
+  /** Full base payout for the mix before dividing across its work days. */
+  mixTotal: number;
+  /** Producer work days in this mix's range used to divide mixTotal. */
+  workDays: number;
+  mixStartDate: string;
+  mixEndDate: string;
+};
+
+function contributorFromRecord(
+  producer: Producer,
+  rec: MTDRecord,
+  estimateCost?: RecordCostEstimator
+): DailyCostContributor | null {
+  const dayShare = dailyShareOfRecordCost(producer, rec, estimateCost);
+  const startIso = toIsoDateString(rec.mixStartDate ?? "") || rec.mixStartDate;
+  const endIso = mixEndIsoForRecord(rec) || startIso;
+  const mixTotal = bookedRecordCost(rec, estimateCost);
+  const workDays =
+    startIso && endIso
+      ? countProducerWorkingDays(producer, startIso, endIso)
+      : 0;
+  if (mixTotal <= 0 && dayShare <= 0) return null;
+  return {
+    recordId: rec.id,
+    programName: rec.programName?.trim() || "Untitled mix",
+    dayShare,
+    mixTotal,
+    workDays: Math.max(workDays, 0),
+    mixStartDate: startIso,
+    mixEndDate: endIso,
+  };
+}
+
+/** Mixes whose per-day payout share makes up a day's booked cost. */
+export function listProducerDailyCostContributors(
+  producer: Producer,
+  day: Date,
+  mtdRecords: MTDRecord[],
+  excludeRecordId?: string,
+  estimateCost?: RecordCostEstimator
+): DailyCostContributor[] {
+  const out: DailyCostContributor[] = [];
+  for (const rec of mtdRecords) {
+    if (!isBookingForProducerOnDay(rec, producer, day, excludeRecordId)) continue;
+    const row = contributorFromRecord(producer, rec, estimateCost);
+    if (!row || row.dayShare <= 0) continue;
+    out.push(row);
+  }
+  return out.sort((a, b) => b.dayShare - a.dayShare);
+}
+
+/**
+ * Unique booked mixes overlapping [startIso, endIso] inclusive
+ * (start and end dates included).
+ */
+export function listProducerCostContributorsInRange(
+  producer: Producer,
+  startIso: string,
+  endIso: string,
+  mtdRecords: MTDRecord[],
+  excludeRecordId?: string,
+  estimateCost?: RecordCostEstimator
+): DailyCostContributor[] {
+  const start = parseFlexibleDate(startIso);
+  const end = parseFlexibleDate(endIso || startIso);
+  if (!start || !end) return [];
+
+  const seen = new Set<string>();
+  const out: DailyCostContributor[] = [];
+  const cursor = toDayStart(start);
+  const last = toDayStart(end);
+  for (let guard = 0; cursor <= last && guard < 800; guard += 1) {
+    for (const rec of mtdRecords) {
+      if (!isBookingForProducerOnDay(rec, producer, cursor, excludeRecordId)) {
+        continue;
+      }
+      if (seen.has(rec.id)) continue;
+      seen.add(rec.id);
+      const row = contributorFromRecord(producer, rec, estimateCost);
+      if (!row) continue;
+      out.push(row);
+    }
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  return out.sort((a, b) => {
+    const byStart = a.mixStartDate.localeCompare(b.mixStartDate);
+    if (byStart !== 0) return byStart;
+    return a.programName.localeCompare(b.programName);
+  });
 }
 
 export function isProducerUnderDailyCapacity(
@@ -569,7 +810,10 @@ export function isProducerUnderDailyCapacity(
 
 export type DailyCostOptions = {
   estimateCost?: RecordCostEstimator;
-  /** Payout of the mix being placed; when unknown, only existing bookings are checked. */
+  /**
+   * Per-day payout share of the mix being placed (full payout ÷ its work days).
+   * When unknown, only existing bookings are checked.
+   */
   newMixCost?: number | null;
 };
 
@@ -621,26 +865,42 @@ export function isProducerAtDailyCapacity(
   return mixCapacityReached || costCapacityReached;
 }
 
-/** A day the producer actually works: scheduled (or overtime) and not on leave or a studio holiday. */
+/** A day the producer actually works: scheduled (or overtime) and not on leave. */
 export function isProducerWorkableDay(
   producer: Producer,
-  day: Date,
-  studioHolidays?: StudioHoliday[]
+  day: Date
 ): boolean {
   if (!isProducerScheduledDay(producer, day)) return false;
-  // Time off / studio holidays only block regular work days. Overtime is undone by removing the OT date.
+  // Leave only blocks regular work days. Overtime is undone by removing the OT date.
   return !(
     isProducerWorkDay(producer, day) &&
-    isProducerOnTimeOff(producer, day, studioHolidays)
+    isProducerOnTimeOff(producer, day)
   );
 }
 
-/** Working days in [startIso, endIso] inclusive; weekends, leave, and studio holidays are skipped. */
+/**
+ * Next day the producer can work from `fromDate` (inclusive).
+ * Skips non-work / leave only — ignores already-scheduled mixes.
+ */
+export function nextProducerWorkableDayIso(
+  producer: Producer,
+  fromDate: Date = new Date()
+): string {
+  const cursor = toDayStart(fromDate);
+  for (let i = 0; i < 366; i += 1) {
+    if (isProducerWorkableDay(producer, cursor)) {
+      return dateToIsoLocal(cursor);
+    }
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return "";
+}
+
+/** Working days in [startIso, endIso] inclusive; weekends and leave are skipped. */
 export function countProducerWorkingDays(
   producer: Producer,
   startIso: string,
-  endIso: string,
-  studioHolidays?: StudioHoliday[]
+  endIso: string
 ): number {
   const start = parseFlexibleDate(startIso);
   const end = parseFlexibleDate(endIso || startIso);
@@ -650,7 +910,7 @@ export function countProducerWorkingDays(
   const cursor = toDayStart(start);
   const last = toDayStart(end);
   for (let guard = 0; cursor <= last && guard < 800; guard += 1) {
-    if (isProducerWorkableDay(producer, cursor, studioHolidays)) count += 1;
+    if (isProducerWorkableDay(producer, cursor)) count += 1;
     cursor.setDate(cursor.getDate() + 1);
   }
   return count;
@@ -671,14 +931,12 @@ export function packageMixWorkingDays(packageStr: string): number {
 export type MixWorkingDayOptions = {
   /** Without a producer, Mon–Fri count as working days. */
   producer?: Producer | null;
-  studioHolidays?: StudioHoliday[];
 };
 
 function isMixWorkingDay(day: Date, options: MixWorkingDayOptions): boolean {
   if (options.producer) {
-    return isProducerWorkableDay(options.producer, day, options.studioHolidays);
+    return isProducerWorkableDay(options.producer, day);
   }
-  // Without a producer: Mon–Fri. Calendar holidays do not auto-close the studio.
   return DEFAULT_WORK_DAYS.includes(dateToWeekday(day));
 }
 
@@ -709,32 +967,29 @@ export function suggestMixEndDate(
 
 /**
  * Whether the producer can work this mix window: the start and end are days
- * they work. Weekends, leave, and holidays in between are skipped, and daily
+ * they work. Weekends and leave in between are skipped, and daily
  * limits never make a producer unavailable — see `checkProducerDailyLimits`.
  */
 export function isProducerAvailableForMixWindow(
   producer: Producer,
   startIso: string,
-  endIso: string,
-  studioHolidays?: StudioHoliday[]
+  endIso: string
 ): boolean {
   if (!parseFlexibleDate(startIso) || !parseFlexibleDate(endIso)) return true;
-  return findMixWindowBlocker(producer, startIso, endIso, studioHolidays) === null;
+  return findMixWindowBlocker(producer, startIso, endIso) === null;
 }
 
 export function isProducerUnavailableForRecord(
   producer: Producer,
-  rec: MTDRecord,
-  studioHolidays?: StudioHoliday[]
+  rec: MTDRecord
 ): boolean {
-  const window = mixWindowForRecord(rec, { producer, studioHolidays });
+  const window = mixWindowForRecord(rec, { producer });
   if (!window) return false;
 
   return !isProducerAvailableForMixWindow(
     producer,
     dateToIsoLocal(window.start),
-    dateToIsoLocal(window.end),
-    studioHolidays
+    dateToIsoLocal(window.end)
   );
 }
 
@@ -747,12 +1002,16 @@ export type DailyLimitDay = {
 export type DailyLimitCheck = {
   maxMixesPerDay: number | null;
   maxCostPerDay: number | null;
-  /** Estimated payout of the mix being assigned; null when unknown until payroll. */
+  /** Full estimated base payout of the mix being assigned; null when unknown. */
   newMixCost: number | null;
+  /** Per-day share of newMixCost across workable days in this window. */
+  newMixDailyCost: number | null;
   /** Working day in the range with the most booked mixes (before this mix). */
   peakMixDay: DailyLimitDay | null;
   /** Working day in the range with the highest booked payout (before this mix). */
   peakCostDay: DailyLimitDay | null;
+  /** Every workable day in the range with current booked load (before this mix). */
+  workDays: DailyLimitDay[];
   /** Working days where adding this mix goes over the mixes/day limit. */
   overMixDays: string[];
   /** Working days where adding this mix goes over the cost/day cap. */
@@ -776,19 +1035,21 @@ export function checkProducerDailyLimits(
   mtdRecords: MTDRecord[],
   options: DailyCostOptions & {
     excludeRecordId?: string;
-    studioHolidays?: StudioHoliday[];
   } = {}
 ): DailyLimitCheck {
   const maxMixesPerDay = producer.maxMixesPerDay ?? null;
   const maxCostPerDay = producer.maxProducerCostPerDay ?? null;
+  // options.newMixCost is the FULL base payout; we divide across work days below.
   const newMixCost = options.newMixCost ?? null;
 
   const result: DailyLimitCheck = {
     maxMixesPerDay,
     maxCostPerDay,
     newMixCost,
+    newMixDailyCost: null,
     peakMixDay: null,
     peakCostDay: null,
+    workDays: [],
     overMixDays: [],
     overCostDays: [],
   };
@@ -800,7 +1061,7 @@ export function checkProducerDailyLimits(
   const cursor = toDayStart(start);
   const last = toDayStart(end);
   for (let guard = 0; cursor <= last && guard < 400; guard += 1) {
-    if (isProducerWorkableDay(producer, cursor, options.studioHolidays)) {
+    if (isProducerWorkableDay(producer, cursor)) {
       const day: DailyLimitDay = {
         iso: dateToIsoLocal(cursor),
         bookedMixes: countProducerMixesOnDay(
@@ -818,31 +1079,41 @@ export function checkProducerDailyLimits(
         ),
       };
 
+      result.workDays.push(day);
       if (!result.peakMixDay || day.bookedMixes > result.peakMixDay.bookedMixes) {
         result.peakMixDay = day;
       }
       if (!result.peakCostDay || day.bookedCost > result.peakCostDay.bookedCost) {
         result.peakCostDay = day;
       }
-      if (maxMixesPerDay != null && day.bookedMixes + 1 > maxMixesPerDay) {
-        result.overMixDays.push(day.iso);
-      }
-      if (
-        maxCostPerDay != null &&
-        (newMixCost != null
-          ? day.bookedCost + newMixCost > maxCostPerDay
-          : day.bookedCost >= maxCostPerDay)
-      ) {
-        result.overCostDays.push(day.iso);
-      }
     }
     cursor.setDate(cursor.getDate() + 1);
+  }
+
+  const newMixDailyCost =
+    newMixCost != null && result.workDays.length > 0
+      ? Math.round((newMixCost / result.workDays.length) * 100) / 100
+      : null;
+  result.newMixDailyCost = newMixDailyCost;
+
+  for (const day of result.workDays) {
+    if (maxMixesPerDay != null && day.bookedMixes + 1 > maxMixesPerDay) {
+      result.overMixDays.push(day.iso);
+    }
+    if (
+      maxCostPerDay != null &&
+      (newMixDailyCost != null
+        ? day.bookedCost + newMixDailyCost > maxCostPerDay
+        : day.bookedCost >= maxCostPerDay)
+    ) {
+      result.overCostDays.push(day.iso);
+    }
   }
 
   return result;
 }
 
-export type MixWindowBlockReason = "not_working" | "holiday" | "leave";
+export type MixWindowBlockReason = "not_working" | "leave";
 
 export type MixWindowBlocker = {
   reason: MixWindowBlockReason;
@@ -853,11 +1124,10 @@ export type MixWindowBlocker = {
 /** Why the producer can't work this day (not a work day, or leave), or null. */
 export function getProducerDayBlockReason(
   producer: Producer,
-  day: Date,
-  studioHolidays?: StudioHoliday[]
+  day: Date
 ): MixWindowBlockReason | null {
   if (!isProducerScheduledDay(producer, day)) return "not_working";
-  if (isProducerWorkableDay(producer, day, studioHolidays)) return null;
+  if (isProducerWorkableDay(producer, day)) return null;
   return "leave";
 }
 
@@ -868,8 +1138,7 @@ export function getProducerDayBlockReason(
 export function findMixWindowBlocker(
   producer: Producer,
   startIso: string,
-  endIso: string,
-  studioHolidays?: StudioHoliday[]
+  endIso: string
 ): MixWindowBlocker | null {
   const start = parseFlexibleDate(startIso);
   const end = parseFlexibleDate(endIso || startIso);
@@ -879,7 +1148,7 @@ export function findMixWindowBlocker(
   if (end) edges.push(["end", toDayStart(end)]);
 
   for (const [edge, day] of edges) {
-    const reason = getProducerDayBlockReason(producer, day, studioHolidays);
+    const reason = getProducerDayBlockReason(producer, day);
     if (reason) return { reason, iso: dateToIsoLocal(day), edge };
   }
   return null;
@@ -894,10 +1163,8 @@ export function describeMixWindowBlocker(
   switch (blocker.reason) {
     case "not_working":
       return `Doesn't work on the ${blocker.edge} date (${dayLabel})`;
-    case "holiday":
-      return `Studio holiday on the ${blocker.edge} date (${dayLabel})`;
     case "leave":
-      return `On leave on the ${blocker.edge} date (${dayLabel})`;
+      return `Off day on the ${blocker.edge} date (${dayLabel})`;
     default:
       return null;
   }
@@ -905,10 +1172,9 @@ export function describeMixWindowBlocker(
 
 export function getProducerUnavailabilityReason(
   producer: Producer,
-  rec: MTDRecord,
-  studioHolidays?: StudioHoliday[]
+  rec: MTDRecord
 ): string | null {
-  const window = mixWindowForRecord(rec, { producer, studioHolidays });
+  const window = mixWindowForRecord(rec, { producer });
   const start = window ? window.start : parseFlexibleDate(rec.mixStartDate ?? "");
   if (!start) return null;
 
@@ -917,8 +1183,8 @@ export function getProducerUnavailabilityReason(
     return `Not scheduled to work on ${weekdayName}s`;
   }
 
-  if (!isProducerWorkableDay(producer, start, studioHolidays)) {
-    return "On approved time off";
+  if (!isProducerWorkableDay(producer, start)) {
+    return "On an approved off day";
   }
 
   if (!window) return null;
@@ -926,8 +1192,7 @@ export function getProducerUnavailabilityReason(
     findMixWindowBlocker(
       producer,
       dateToIsoLocal(window.start),
-      dateToIsoLocal(window.end),
-      studioHolidays
+      dateToIsoLocal(window.end)
     )
   );
 }

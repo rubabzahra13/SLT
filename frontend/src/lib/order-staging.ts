@@ -81,13 +81,70 @@ export function stagingRecordFromOrder(
   };
 }
 
+function hasCollectionStates(
+  states: Record<string, boolean> | null | undefined
+): boolean {
+  return Boolean(states && Object.keys(states).length > 0);
+}
+
+/**
+ * When an MTD board row is missing collection toggles, copy them from the
+ * linked order so Mix/CS/Video/Songs don't flip back to Missing after
+ * assign/unassign creates a thin MTD row.
+ */
+export function mergeCollectionStateFromOrder(
+  record: MTDRecord,
+  order: Order | null | undefined
+): MTDRecord {
+  if (!order) return record;
+  const orderStates =
+    order.collectionStates || (order as { collection_states?: Record<string, boolean> }).collection_states;
+  const recordStates = record.collectionStates;
+  const nextStates = hasCollectionStates(recordStates)
+    ? recordStates
+    : hasCollectionStates(orderStates)
+      ? orderStates
+      : recordStates;
+
+  const orderHaveSongs = order.haveSongs || (order as { have_songs?: string }).have_songs || "";
+  const orderCs =
+    order.eightCountSheet ||
+    order.sendingEightCountSheets ||
+    order.usingEightCountSheets ||
+    "";
+
+  return {
+    ...record,
+    collectionStates: nextStates,
+    haveSongs: record.haveSongs || orderHaveSongs || record.haveSongs,
+    eightCountSheet: record.eightCountSheet || orderCs || record.eightCountSheet,
+    orderStatus: record.orderStatus || (order as { orderStatus?: string }).orderStatus,
+    isReassigned: record.isReassigned ?? order.isReassigned,
+  };
+}
+
 /** Orders-tab rows: persisted pre-MTD mtd_records plus open orders without a row yet. */
 export function listPreMtdOrderRecords(
   activeOrders: Order[],
   mtdRecords: MTDRecord[],
   packagePrices?: Record<string, number>
 ): MTDRecord[] {
-  const fromMtd = mtdRecords.filter(isPreMTDOrderRecord);
+  const orderById = new Map<string, Order>();
+  for (const order of activeOrders) {
+    for (const key of [order.id, order.uuid, order.legacyId]) {
+      if (key) orderById.set(key, order);
+    }
+  }
+
+  const fromMtd = mtdRecords.filter(isPreMTDOrderRecord).map((rec) => {
+    const linked =
+      (rec.orderId && orderById.get(rec.orderId)) ||
+      orderById.get(rec.id) ||
+      (rec.uuid && orderById.get(rec.uuid)) ||
+      (rec.legacyId && orderById.get(rec.legacyId)) ||
+      null;
+    return mergeCollectionStateFromOrder(rec, linked);
+  });
 
   const synthetic: MTDRecord[] = [];
   for (const order of activeOrders) {

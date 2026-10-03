@@ -51,7 +51,7 @@ function SchedulePageContent() {
   const searchParams = useSearchParams();
   const viewParam = searchParams.get("view") || searchParams.get("range");
 
-  const { producers, schedule, mtdRecords, allOrders, holidays } = useAppState();
+  const { producers, schedule, mtdRecords, allOrders } = useAppState();
   const [pageTab, setPageTab] = useState<SchedulePageTab>("view");
   const [selectedEditor, setSelectedEditor] = useState("all");
   const [selectedSendEditor, setSelectedSendEditor] = useState("all");
@@ -140,12 +140,11 @@ function SchedulePageContent() {
           view,
           anchorDate,
           mtdRecords,
-          holidays
         ),
         statusFilter,
         view
       ),
-    [viewFilteredProducers, schedule, view, anchorDate, mtdRecords, holidays, statusFilter]
+    [viewFilteredProducers, schedule, view, anchorDate, mtdRecords, statusFilter]
   );
 
   const emptyMessage = useMemo(() => {

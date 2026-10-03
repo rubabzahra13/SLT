@@ -8,12 +8,10 @@ import {
 } from "./discount-codes";
 import type { BackendPayrollAddon } from "./payroll-addons";
 import type { PayrollAddon, Producer, Order, MTDRecord, DiscountCode } from "@/types";
-import type { StudioHoliday, StudioPersonalReason } from "@/lib/producer-time-off";
+import type { StudioPersonalReason } from "@/lib/producer-time-off";
 import type { EmailTemplatesState } from "@/lib/email-templates";
 import {
-  transformStudioHoliday,
   transformStudioPersonalReason,
-  type BackendStudioHoliday,
   type BackendStudioPersonalReason,
   type BackendEmailTemplate,
 } from "./studio-settings";
@@ -25,7 +23,7 @@ import {
 } from "./catalog-pricing";
 import { normalizeEmailTemplates } from "@/lib/email-templates";
 import { ensurePersonalReasonsList } from "@/lib/producer-time-off";
-import { normalizeProducer, deduplicateProducers } from "@/lib/producers";
+import { normalizeProducer, normalizeProducerList } from "@/lib/producers";
 import { normalizeDiscountCode } from "@/lib/discount-codes";
 import { normalizeOrder } from "@/lib/order-form";
 import type { SecretMenuPricing } from "@/lib/pricing";
@@ -64,7 +62,6 @@ export type BootstrapPayload = {
   mtdRecords: MTDRecord[];
   discountCodes: DiscountCode[];
   payrollAddons: PayrollAddon[];
-  holidays: StudioHoliday[];
   personalReasons: StudioPersonalReason[];
   emailTemplates: EmailTemplatesState | null;
   packagePrices: Record<string, number> | null;
@@ -77,7 +74,6 @@ type RawBootstrap = {
   mtd?: BackendMTDRecord[];
   discount_codes?: BackendDiscountCode[];
   payroll_addons?: BackendPayrollAddon[];
-  studio_holidays?: BackendStudioHoliday[];
   studio_personal_reasons?: BackendStudioPersonalReason[];
   email_templates?: BackendEmailTemplate[];
   package_prices?: BackendPackagePrice[];
@@ -92,7 +88,7 @@ export async function fetchBootstrapApi(): Promise<BootstrapPayload> {
     retry: false,
   });
 
-  const producers = deduplicateProducers(
+  const producers = normalizeProducerList(
     (raw.producers || []).map((p) => normalizeProducer(transformProducer(p)))
   );
 
@@ -131,7 +127,6 @@ export async function fetchBootstrapApi(): Promise<BootstrapPayload> {
       normalizeDiscountCode(transformDiscountCode(c))
     ),
     payrollAddons: (raw.payroll_addons || []).map(mapPayrollAddon),
-    holidays: (raw.studio_holidays || []).map(transformStudioHoliday),
     personalReasons: ensurePersonalReasonsList(
       (raw.studio_personal_reasons || []).map(transformStudioPersonalReason)
     ),

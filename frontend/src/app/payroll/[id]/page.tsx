@@ -104,7 +104,6 @@ export default function PayrollDetailPage({
     packagePrices,
     producers,
     schedule,
-    holidays,
     discountCodes,
     isViewOnly,
     isLoading,
@@ -870,7 +869,6 @@ export default function PayrollDetailPage({
         allOrders={allOrders}
         producers={producers}
         schedule={schedule}
-        studioHolidays={holidays}
         readOnly={isViewOnly || Boolean(rec?.assignedProducer?.trim())}
         onClose={() => setAssignOpen(false)}
         onAssign={handleAssign}

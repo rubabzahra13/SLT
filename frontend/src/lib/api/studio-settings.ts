@@ -1,23 +1,11 @@
 import { apiClient } from "./client";
-import type { StudioHoliday, StudioPersonalReason } from "@/lib/producer-time-off";
+import type { StudioPersonalReason } from "@/lib/producer-time-off";
 import {
-  normalizeStudioHoliday,
   normalizeStudioPersonalReason,
   ensurePersonalReasonsList,
 } from "@/lib/producer-time-off";
 import type { EmailTemplateCopy, EmailTemplateId, EmailTemplatesState } from "@/lib/email-templates";
 import { normalizeEmailTemplates } from "@/lib/email-templates";
-
-export interface BackendStudioHoliday {
-  id: string;
-  legacy_id?: string | null;
-  name: string;
-  start_date: string;
-  end_date: string;
-  applies_to_all: boolean;
-  producer_ids?: string[] | null;
-  sort_order?: number;
-}
 
 export interface BackendStudioPersonalReason {
   id: string;
@@ -37,17 +25,6 @@ export interface BackendEmailTemplate {
   signature: string;
 }
 
-export function transformStudioHoliday(row: BackendStudioHoliday): StudioHoliday {
-  return normalizeStudioHoliday({
-    id: row.legacy_id || row.id,
-    name: row.name,
-    startDate: row.start_date,
-    endDate: row.end_date,
-    appliesToAll: row.applies_to_all,
-    producerIds: row.producer_ids || [],
-  });
-}
-
 function isUuidLike(value: string | undefined): boolean {
   if (!value) return false;
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
@@ -64,55 +41,6 @@ export function transformStudioPersonalReason(
     enabled: row.enabled,
     isOther: row.is_other,
   });
-}
-
-export async function fetchStudioHolidaysApi(): Promise<StudioHoliday[]> {
-  try {
-    const rows = await apiClient.get<BackendStudioHoliday[]>("/api/studio-holidays");
-    return rows.map(transformStudioHoliday);
-  } catch (err) {
-    console.warn("Failed to fetch studio holidays:", err);
-    return [];
-  }
-}
-
-export async function createStudioHolidayApi(
-  holiday: StudioHoliday
-): Promise<StudioHoliday> {
-  const payload = {
-    legacy_id: isUuidLike(holiday.id) ? undefined : holiday.id,
-    name: holiday.name,
-    start_date: holiday.startDate,
-    end_date: holiday.endDate,
-    applies_to_all: holiday.appliesToAll,
-    producer_ids: holiday.producerIds,
-  };
-  const res = await apiClient.post<BackendStudioHoliday>(
-    "/api/studio-holidays",
-    payload
-  );
-  return transformStudioHoliday(res);
-}
-
-export async function updateStudioHolidayApi(
-  id: string,
-  patch: Partial<StudioHoliday>
-): Promise<StudioHoliday> {
-  const payload: Record<string, unknown> = {};
-  if (patch.name !== undefined) payload.name = patch.name;
-  if (patch.startDate !== undefined) payload.start_date = patch.startDate;
-  if (patch.endDate !== undefined) payload.end_date = patch.endDate;
-  if (patch.appliesToAll !== undefined) payload.applies_to_all = patch.appliesToAll;
-  if (patch.producerIds !== undefined) payload.producer_ids = patch.producerIds;
-  const res = await apiClient.patch<BackendStudioHoliday>(
-    `/api/studio-holidays/${id}`,
-    payload
-  );
-  return transformStudioHoliday(res);
-}
-
-export async function deleteStudioHolidayApi(id: string): Promise<void> {
-  await apiClient.delete(`/api/studio-holidays/${id}`);
 }
 
 export async function fetchStudioPersonalReasonsApi(): Promise<

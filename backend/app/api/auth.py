@@ -26,14 +26,24 @@ def get_current_user(
     user_id = SESSION_TOKENS.get(token)
     
     if not user_id:
-        # Check if token itself encodes user_id or legacy fallback
+        # Durable token formats (survive backend reload):
+        # - token-{user_id} (login + offline fallback)
+        # - slt-token-{user_id} (legacy)
         if token.startswith("token-"):
-            user_id = token.replace("token-", "")
+            user_id = token[len("token-"):]
+        elif token.startswith("slt-token-"):
+            user_id = token[len("slt-token-"):]
         else:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid or expired session token"
             )
+
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired session token"
+        )
             
     user = db.query(User).filter(User.id == user_id).first()
     if not user or not user.is_active:

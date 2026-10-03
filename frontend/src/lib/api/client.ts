@@ -55,7 +55,12 @@ function authHeaderFromStorage(): string {
     const rawSession = localStorage.getItem("slt_auth_session");
     if (rawSession) {
       const parsed = JSON.parse(rawSession);
-      if (parsed?.token) return `Bearer ${parsed.token}`;
+      const token = typeof parsed?.token === "string" ? parsed.token.trim() : "";
+      const userId =
+        typeof parsed?.user?.id === "string" ? parsed.user.id.trim() : "";
+      // Prefer durable token-{userId} so saves keep working after backend reload.
+      if (userId) return `Bearer token-${userId}`;
+      if (token) return `Bearer ${token}`;
     }
   } catch {
     // ignore corrupt session

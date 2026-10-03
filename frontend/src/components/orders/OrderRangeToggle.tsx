@@ -40,7 +40,7 @@ export function OrderRangeToggle({
     { id: "not_assigned", label: "Not assigned", count: counts?.notAssigned },
     {
       id: "reassign_leave",
-      label: "Reassign: Leave",
+      label: "Reassign: Off day",
       count: counts?.reassignLeave,
       isRed: true,
     },

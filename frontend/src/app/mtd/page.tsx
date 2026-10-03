@@ -182,7 +182,6 @@ function MTDPageContent() {
     secretMenuPrices,
     producers,
     schedule,
-    holidays,
     isViewOnly,
   } = useAppState();
   const [formState, setFormState] = useState<OrderFormType>(DEFAULT_FORM);
@@ -753,7 +752,6 @@ function MTDPageContent() {
                   rec,
                   requested,
                   producers,
-                  holidays
                 )
               : null;
           const showUnavailable =
@@ -993,7 +991,7 @@ function MTDPageContent() {
               ? formatMixBookedDaysLabel(
                   rec.mixStartDate,
                   rec.mixEndDate,
-                  mixWorkDaysForRecord(rec, producers, holidays)
+                  mixWorkDaysForRecord(rec, producers)
                 )
               : "Not booked yet";
           const booked = label !== "Not booked yet";
@@ -1369,7 +1367,6 @@ function MTDPageContent() {
     mtdRecords,
     producers,
     schedule,
-    holidays,
     openAssignModal,
     openInvoiceModal,
     openPricingModal,
@@ -1448,7 +1445,6 @@ function MTDPageContent() {
         allOrders={allOrders}
         producers={producers}
         schedule={schedule}
-        studioHolidays={holidays}
         readOnly={isViewOnly || Boolean(assignRecord?.assignedProducer?.trim())}
         onClose={() => setAssignRecordId(null)}
         onAssign={handleAssign}

@@ -2,15 +2,15 @@
 
 import { useMemo } from "react";
 import type { MTDRecord, Order, Producer } from "@/types";
-import type { StudioHoliday } from "@/lib/producer-time-off";
-import { buildMixDateCalendarRules } from "@/lib/assign-editor-calendar";
+import { buildMixDateCalendarRules, producerScheduleFingerprint } from "@/lib/assign-editor-calendar";
 import { toIsoDateString } from "@/lib/dates";
 import { inferMTDRecordStatus } from "@/lib/mtd-status";
 import { suggestMixEndDate } from "@/lib/producer-availability";
 import {
   createBookedCostEstimator,
-  estimateRecordProducerPayout,
+  estimateRecordBasePayout,
 } from "@/lib/producer-payout-estimate";
+import { packageMixWorkingDays } from "@/lib/producer-availability";
 
 type MixDateCalendarRulesInput = {
   record: MTDRecord | null | undefined;
@@ -20,13 +20,12 @@ type MixDateCalendarRulesInput = {
   producers: Producer[];
   mtdRecords: MTDRecord[];
   allOrders: Order[];
-  studioHolidays: StudioHoliday[];
 };
 
 /**
- * Mix start/end picker rules for a record's producer: blocks their days off,
- * leave and studio holidays; flags days at a daily limit. Also returns the
- * suggested end (start + package working days).
+ * Mix start/end picker rules for a record's producer: only work + Extra days
+ * are pickable; leave is shown blocked; other mixes are pink with tooltips.
+ * Also returns the suggested end (start + package working days).
  */
 export function useMixDateCalendarRules({
   record,
@@ -35,7 +34,6 @@ export function useMixDateCalendarRules({
   producers,
   mtdRecords,
   allOrders,
-  studioHolidays,
 }: MixDateCalendarRulesInput) {
   const orderById = useMemo(
     () => new Map(allOrders.map((order) => [order.id, order])),
@@ -46,24 +44,31 @@ export function useMixDateCalendarRules({
     [producers, orderById]
   );
 
-  const rules = useMemo(
-    () =>
-      buildMixDateCalendarRules({
-        producer: producer ?? null,
-        studioHolidays,
-        mtdRecords,
-        excludeRecordId: record?.id,
-        estimateCost,
-        newMixCost:
-          record && producer
-            ? estimateRecordProducerPayout(record, producer, orderById)
-            : null,
-        allowPastDays: record
-          ? Boolean(record.inPayroll) || inferMTDRecordStatus(record) !== "Ongoing"
-          : false,
-      }),
-    [producer, studioHolidays, mtdRecords, record, estimateCost, orderById]
+  const scheduleRevision = useMemo(
+    () => producerScheduleFingerprint(producer, mtdRecords, record?.id),
+    [producer, mtdRecords, record?.id]
   );
+
+  const rules = useMemo(() => {
+    const base =
+      record && producer
+        ? estimateRecordBasePayout(record, producer, orderById)
+        : null;
+    const packageDays = Math.max(1, packageMixWorkingDays(record?.package ?? ""));
+    const dailyShare =
+      base != null ? Math.round((base / packageDays) * 100) / 100 : null;
+    return buildMixDateCalendarRules({
+      producer: producer ?? null,
+      mtdRecords,
+      excludeRecordId: record?.id,
+      estimateCost,
+      newMixCost: dailyShare,
+      allowPastDays: record
+        ? Boolean(record.inPayroll) || inferMTDRecordStatus(record) !== "Ongoing"
+        : false,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scheduleRevision, record, producer, estimateCost, orderById]);
 
   const startIso = toIsoDateString(mixStartDate);
   const packageStr = record?.package ?? "";
@@ -72,11 +77,10 @@ export function useMixDateCalendarRules({
       startIso
         ? suggestMixEndDate(startIso, packageStr, {
             producer: producer ?? null,
-            studioHolidays,
           })
         : "",
-    [startIso, packageStr, producer, studioHolidays]
+    [startIso, packageStr, producer]
   );
 
-  return { ...rules, suggestedEndIso };
+  return { ...rules, suggestedEndIso, calendarRevision: scheduleRevision };
 }

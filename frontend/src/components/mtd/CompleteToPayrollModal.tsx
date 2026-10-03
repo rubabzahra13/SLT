@@ -501,8 +501,10 @@ export function CompleteToPayrollModal({
       }
       setStep(2);
     } catch (err: any) {
-      console.warn("Could not save complete-pricing to backend, proceeding to step 2 locally.", err);
-      setStep(2);
+      setError(
+        err?.message ||
+          "Could not save pricing to the server. Fix the connection and try again."
+      );
     } finally {
       setLoading(false);
     }
@@ -560,19 +562,10 @@ export function CompleteToPayrollModal({
       );
       onClose();
     } catch (err: any) {
-      console.warn("Finalize payroll backend API call failed, completing locally.", err);
-      onConfirm({
-        price: finalCustomerPriceNum,
-        finalCustomerPrice: finalCustomerPriceNum,
-        systemCalculatedCustomerPrice: systemPriceNum,
-        finalCustomerPriceOverridden: isCustomerPriceOverridden,
-        producerPayout: clientPayroll.producerPayout ?? undefined,
-        sltPortion: clientPayroll.sltPortion ?? undefined,
-        rateUsed: finalRate ?? undefined,
-        rateSource: clientPayroll.rateSource,
-        payrollFinalized: true,
-      });
-      onClose();
+      setError(
+        err?.message ||
+          "Could not finalize payroll on the server. Fix the connection and try again."
+      );
     } finally {
       setLoading(false);
     }

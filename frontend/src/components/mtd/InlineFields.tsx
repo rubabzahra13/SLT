@@ -8,10 +8,11 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
-import { Check, ChevronDown, ChevronLeft, ChevronRight, Calendar } from "lucide-react";
-import { toIsoDateString, isIsoDateAfter, isIsoDateBefore, formatDisplayDate } from "@/lib/dates";
+import { Check, ChevronDown, Calendar } from "lucide-react";
+import { toIsoDateString, formatDisplayDate } from "@/lib/dates";
 import clsx from "clsx";
 import { HoverTip } from "@/components/ui/HoverTip";
+import { DayCalendarPicker } from "@/components/ui/DayCalendarPicker";
 import type { MTDRecord, Order } from "@/types";
 
 const inlineControlClass =
@@ -646,46 +647,13 @@ type InlineDateInputProps = {
   isDateDisabled?: (iso: string) => boolean;
   /** Hover text for a day cell. */
   dayTitle?: (iso: string) => string | undefined;
-  /** Colors leave / holiday days, or flags a pickable day that is not recommended. */
-  dayTone?: (iso: string) => "holiday" | "leave" | "limit" | undefined;
+  /** Colors leave / holiday / mix / Extra days, or flags a pickable day that is not recommended. */
+  dayTone?: (
+    iso: string
+  ) => "holiday" | "leave" | "limit" | "mix" | "overtime" | undefined;
+  /** Bust open-calendar day cells when producer schedule / mixes change. */
+  calendarRevision?: string;
 };
-
-const WEEKDAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
-
-function parseIsoToLocalDate(iso: string): Date | null {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null;
-  const parsed = new Date(`${iso}T12:00:00`);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-}
-
-function isoFromLocalDate(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
-
-function buildCalendarCells(year: number, month: number): (string | null)[] {
-  const firstDay = new Date(year, month, 1).getDay();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const cells: (string | null)[] = Array(firstDay).fill(null);
-  for (let day = 1; day <= daysInMonth; day += 1) {
-    cells.push(
-      `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`
-    );
-  }
-  return cells;
-}
-
-function isOutsideDateRange(
-  iso: string,
-  minIso?: string,
-  maxIso?: string
-): boolean {
-  if (minIso && isIsoDateBefore(iso, minIso)) return true;
-  if (maxIso && isIsoDateAfter(iso, maxIso)) return true;
-  return false;
-}
 
 export function InlineDateInput({
   value,
@@ -703,98 +671,24 @@ export function InlineDateInput({
   isDateDisabled: isDateBlocked,
   dayTitle,
   dayTone,
+  calendarRevision,
 }: InlineDateInputProps) {
   const isEffectiveReadOnly = readOnly || disabled;
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
-  const [position, setPosition] = useState<MenuPosition | null>(null);
 
   const normalized = toIsoDateString(value);
   const minIso = toIsoDateString(min) || undefined;
   const maxIso = toIsoDateString(max) || undefined;
   const templateIso = toIsoDateString(template) || undefined;
   const isUnset = !normalized;
+  const now = new Date();
+  const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 
-  const initialView = parseIsoToLocalDate(normalized || templateIso || "") ?? new Date();
-  const [viewMonth, setViewMonth] = useState(
-    () => new Date(initialView.getFullYear(), initialView.getMonth(), 1)
-  );
-
-  useEffect(() => setMounted(true), []);
-
-  const updatePosition = () => {
-    const el = triggerRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const gap = 6;
-    const menuWidth = 280;
-    const menuHeight = 340;
-    const spaceBelow = window.innerHeight - rect.bottom - gap;
-    const spaceAbove = rect.top - gap;
-    const openUp = spaceBelow < menuHeight && spaceAbove > spaceBelow;
-    const left = Math.min(
-      Math.max(8, rect.left),
-      window.innerWidth - menuWidth - 8
-    );
-    setPosition({
-      left: Math.round(left),
-      width: menuWidth,
-      maxHeight: menuHeight,
-      ...(openUp
-        ? { bottom: Math.round(window.innerHeight - rect.top + gap) }
-        : { top: Math.round(rect.bottom + gap) }),
-    });
-  };
-
-  useLayoutEffect(() => {
-    if (!open) return;
-    const base = parseIsoToLocalDate(normalized || templateIso || "");
-    if (base) {
-      setViewMonth(new Date(base.getFullYear(), base.getMonth(), 1));
-    }
-    updatePosition();
-    const handle = () => updatePosition();
-    window.addEventListener("scroll", handle, true);
-    window.addEventListener("resize", handle);
-    return () => {
-      window.removeEventListener("scroll", handle, true);
-      window.removeEventListener("resize", handle);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onDocMouseDown = (e: MouseEvent) => {
-      const target = e.target as Node;
-      if (
-        !triggerRef.current?.contains(target) &&
-        !menuRef.current?.contains(target)
-      ) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", onDocMouseDown);
-    return () => document.removeEventListener("mousedown", onDocMouseDown);
-  }, [open]);
-
-  const todayIso = isoFromLocalDate(new Date());
-  const cells = buildCalendarCells(
-    viewMonth.getFullYear(),
-    viewMonth.getMonth()
-  );
-  const monthLabel = viewMonth.toLocaleDateString("en-US", {
-    month: "long",
-    year: "numeric",
-  });
-
-  const isDateDisabled = (iso: string) =>
-    isOutsideDateRange(iso, minIso, maxIso) || Boolean(isDateBlocked?.(iso));
+  const isDayBlocked = (iso: string) => Boolean(isDateBlocked?.(iso));
 
   function selectDate(iso: string) {
-    if (isDateDisabled(iso)) return;
+    if (isDayBlocked(iso)) return;
     onChange(iso);
     setOpen(false);
     triggerRef.current?.focus();
@@ -807,6 +701,11 @@ export function InlineDateInput({
       ? formatDisplayDate(templateIso)
       : "Select date"
     : displayValue?.trim() || formatDisplayDate(normalized);
+
+  const isOutOfBounds = (iso: string) =>
+    Boolean((minIso && iso < minIso) || (maxIso && iso > maxIso));
+
+  const todayDisabled = isOutOfBounds(todayIso) || isDayBlocked(todayIso);
 
   return (
     <>
@@ -856,153 +755,55 @@ export function InlineDateInput({
         />
       </button>
 
-      {mounted && open && position
-        ? createPortal(
-            <div
-              ref={menuRef}
-              role="dialog"
-              aria-label="Choose date"
-              onClick={(e) => e.stopPropagation()}
-              onMouseDown={(e) => e.stopPropagation()}
-              className="fixed overflow-hidden rounded-xl border border-brand-line/60 bg-white shadow-[var(--shadow-premium)] ring-1 ring-inset ring-brand-line/15"
-              style={{
-                left: position.left,
-                top: position.top,
-                bottom: position.bottom,
-                width: position.width,
-                zIndex: menuZIndex,
-              }}
-            >
-              <div className="flex items-center justify-between border-b border-brand-line/40 px-3 py-2.5">
-                <button
-                  type="button"
-                  onClick={() =>
-                    setViewMonth(
-                      (prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1)
-                    )
-                  }
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-brand-ink-secondary transition hover:bg-brand-bg-subtle hover:text-brand-ink"
-                  aria-label="Previous month"
-                >
-                  <ChevronLeft className="h-4 w-4" strokeWidth={2} />
-                </button>
-                <p className="text-[13px] font-semibold text-brand-ink">{monthLabel}</p>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setViewMonth(
-                      (prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1)
-                    )
-                  }
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-brand-ink-secondary transition hover:bg-brand-bg-subtle hover:text-brand-ink"
-                  aria-label="Next month"
-                >
-                  <ChevronRight className="h-4 w-4" strokeWidth={2} />
-                </button>
-              </div>
-
-              {templateIso && isUnset ? (
-                <div className="border-b border-brand-line/35 bg-brand-blue-soft/25 px-3 py-2">
-                  <button
-                    type="button"
-                    onClick={() => selectDate(templateIso)}
-                    disabled={isDateDisabled(templateIso)}
-                    className="w-full rounded-lg px-2 py-1.5 text-left text-[12px] font-medium text-brand-signature transition hover:bg-white/80 disabled:opacity-40"
-                  >
-                    Suggested: {formatDisplayDate(templateIso)}
-                  </button>
-                </div>
-              ) : null}
-
-              <div className="grid grid-cols-7 gap-1 px-3 pt-2">
-                {WEEKDAY_LABELS.map((label) => (
-                  <span
-                    key={label}
-                    className="py-1 text-center text-[10px] font-bold uppercase tracking-wide text-brand-ink-tertiary"
-                  >
-                    {label}
-                  </span>
-                ))}
-              </div>
-
-              <div className="grid grid-cols-7 gap-1 px-3 pb-2 pt-1">
-                {cells.map((iso, index) => {
-                  if (!iso) return <span key={`empty-${index}`} aria-hidden />;
-                  const outOfRange = isOutsideDateRange(iso, minIso, maxIso);
-                  const disabled = isDateDisabled(iso);
-                  const tone = outOfRange ? undefined : dayTone?.(iso);
-                  const tip = outOfRange ? undefined : dayTitle?.(iso);
-                  // aria-disabled (not disabled) so blocked days still show their hover tip.
-                  const dayButton = (
-                    <button
-                      type="button"
-                      aria-disabled={disabled}
-                      aria-label={tip || undefined}
-                      onClick={() => {
-                        if (disabled) return;
-                        selectDate(iso);
-                      }}
-                      className={clsx(
-                        "h-8 w-full rounded-lg text-[12px] font-medium tabular-nums transition",
-                        normalized === iso
-                          ? "bg-brand-signature text-white shadow-sm"
-                          : disabled && tone === "holiday"
-                            ? "cursor-not-allowed bg-brand-orange-soft/55 text-brand-orange/65 opacity-70 ring-1 ring-inset ring-brand-orange/20"
-                            : disabled && tone === "leave"
-                              ? "cursor-not-allowed bg-rose-100 text-rose-700 opacity-90 ring-1 ring-inset ring-rose-300/70"
-                              : disabled
-                                ? "cursor-not-allowed text-brand-ink-tertiary opacity-30"
-                                : tone === "limit"
-                                  ? "text-brand-warning ring-1 ring-inset ring-brand-warning/40 hover:bg-brand-warning/10"
-                                  : todayIso === iso
-                                    ? "bg-brand-blue-soft text-brand-signature ring-1 ring-inset ring-brand-blue/20"
-                                    : "text-brand-ink-secondary hover:bg-brand-bg-subtle hover:text-brand-ink"
-                      )}
-                    >
-                      {parseIsoToLocalDate(iso)?.getDate()}
-                    </button>
-                  );
-                  return tip ? (
-                    <HoverTip
-                      key={iso}
-                      label={tip}
-                      placement="top"
-                      className="block w-full"
-                    >
-                      {dayButton}
-                    </HoverTip>
-                  ) : (
-                    <div key={iso}>{dayButton}</div>
-                  );
-                })}
-              </div>
-
-              <div className="flex items-center justify-between gap-2 border-t border-brand-line/40 bg-brand-bg-subtle/50 px-3 py-2">
-                <button
-                  type="button"
-                  onClick={() => selectDate(todayIso)}
-                  disabled={isDateDisabled(todayIso)}
-                  className="rounded-lg px-2 py-1 text-[11px] font-semibold text-brand-signature transition hover:bg-white disabled:opacity-40"
-                >
-                  Today
-                </button>
-                {normalized ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onChange("");
-                      setOpen(false);
-                    }}
-                    className="rounded-lg px-2 py-1 text-[11px] font-semibold text-brand-ink-secondary transition hover:bg-white hover:text-brand-ink"
-                  >
-                    Clear
-                  </button>
-                ) : null}
-              </div>
-            </div>,
-            document.body
-          )
-        : null}
+      <DayCalendarPicker
+        open={open && !isEffectiveReadOnly}
+        onClose={() => setOpen(false)}
+        onSelect={selectDate}
+        excludeRef={triggerRef}
+        value={normalized || null}
+        minIso={minIso}
+        maxIso={maxIso}
+        zIndex={menuZIndex}
+        dataRevision={calendarRevision}
+        isDateDisabled={isDateBlocked}
+        dayTitle={(iso, disabled) =>
+          dayTitle?.(iso) ??
+          (iso < todayIso
+            ? "Past day"
+            : !disabled && todayIso === iso
+              ? "Today"
+              : undefined)
+        }
+        dayTone={(iso) => dayTone?.(iso)}
+        footer={
+          <>
+            <div className="flex min-w-0 items-center gap-1">
+              <button
+                type="button"
+                onClick={() => selectDate(todayIso)}
+                disabled={todayDisabled}
+                className="rounded-lg px-2 py-1 text-[11px] font-semibold text-brand-signature transition hover:bg-white disabled:opacity-40"
+              >
+                Today
+              </button>
+            </div>
+            {normalized ? (
+              <button
+                type="button"
+                onClick={() => {
+                  onChange("");
+                  setOpen(false);
+                }}
+                className="rounded-lg px-2 py-1 text-[11px] font-semibold text-brand-ink-secondary transition hover:bg-white hover:text-brand-ink"
+              >
+                Clear
+              </button>
+            ) : (
+              <span />
+            )}
+          </>
+        }
+      />
     </>
   );
 }

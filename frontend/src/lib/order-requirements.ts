@@ -1,7 +1,5 @@
 import type { MTDRecord, Order, OrderFormType } from "@/types";
 import { parsePackage } from "@/lib/package";
-import { getDisplayAssignedProducer } from "@/lib/editor-assignment";
-
 export type RequirementCategory = "collections" | "songs";
 export type RequirementState = "green" | "red" | "white";
 
@@ -33,12 +31,12 @@ export const ORDER_ASSIGNMENT_STATUS_LABEL: Record<
 > = {
   not_assigned: "Not assigned",
   assigned: "Assigned",
-  reassign_leave: "Reassign: leave",
+  reassign_leave: "Reassign: Off day",
   reassign_rush: "Reassign: rush order",
 };
 
 export const ORDER_REASSIGN_STATUS: Record<OrderReassignReason, string> = {
-  leave: "Reassign: leave",
+  leave: "Reassign: Off day",
   rush_order: "Reassign: rush order",
 };
 
@@ -65,7 +63,14 @@ function parseReassignReason(
   // Ignore stale leave/rush labels left in orderStatus.
   if (!isReassignedFlag) return null;
   const raw = String(rawManual || "").trim().toLowerCase();
-  if (raw === "reassign: leave" || raw === "reassign leave") return "leave";
+  if (
+    raw === "reassign: leave" ||
+    raw === "reassign leave" ||
+    raw === "reassign: off day" ||
+    raw === "reassign off day"
+  ) {
+    return "leave";
+  }
   if (
     raw === "reassign: rush order" ||
     raw === "reassign rush order" ||
@@ -539,9 +544,10 @@ export function getOrderStatus(order: Order | MTDRecord): {
 export function getOrderAssignmentStatus(
   order: Order | MTDRecord
 ): OrderAssignmentStatus {
-  const assigned = Boolean(getDisplayAssignedProducer(order as MTDRecord));
+  // Only a real assignedProducer counts — requested producer / FA do not.
+  const assigned = Boolean((order as MTDRecord).assignedProducer?.trim());
   const { needsReassign, reassignReason } = getOrderStatus(order);
-  // Once a producer is assigned, the row is Assigned — not Leave/Rush reassign.
+  // Reassign rows stay in Leave/Rush until a producer is assigned again.
   if (needsReassign && !assigned) {
     return reassignReason === "leave" ? "reassign_leave" : "reassign_rush";
   }

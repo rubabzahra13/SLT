@@ -196,6 +196,13 @@ export function addYearsToIso(iso: string, years: number): string {
   return isoFromLocalDate(date);
 }
 
+/** Dec 31 of (the year of `iso` + `years`) — full last year in the picker. */
+export function endOfYearPlusYearsIso(iso: string, years: number): string {
+  const date = parseIsoToLocalDate(iso);
+  if (!date) return iso;
+  return `${date.getFullYear() + years}-12-31`;
+}
+
 function buildCalendarCells(year: number, month: number): (string | null)[] {
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -227,7 +234,7 @@ export type DayCalendarPickerProps = {
   selectedDays?: string[];
   /** Inclusive minimum selectable ISO date. Defaults to today. */
   minIso?: string;
-  /** Inclusive maximum selectable ISO date. Defaults to today + 5 years. */
+  /** Inclusive maximum selectable ISO date. Defaults to Dec 31 of today + 2 years. */
   maxIso?: string;
   /** Return true to disable a calendar day. */
   isDateDisabled?: (iso: string) => boolean;
@@ -240,12 +247,19 @@ export type DayCalendarPickerProps = {
   dayTone?: (
     iso: string,
     disabled: boolean
-  ) => "overtime" | "holiday" | "leave" | "mix" | undefined;
+  ) => "overtime" | "holiday" | "leave" | "mix" | "limit" | undefined;
   /** Footer content (e.g. Today button / helper text). */
   footer?: ReactNode;
   /** Shown instead of the grid when true. */
   emptyMessage?: string | null;
   ariaLabel?: string;
+  /** Stacking for the portaled menu (assign editor uses ~80). */
+  zIndex?: number;
+  /**
+   * Remount day cells when producer leave / Extra days / mix bookings change
+   * so an open calendar repaints immediately.
+   */
+  dataRevision?: string;
   /**
    * Month/day only: hide year control, use a fixed leap year for the grid.
    * `onSelect` still receives YYYY-MM-DD (reference year); callers strip to MM-DD.
@@ -272,6 +286,8 @@ export function DayCalendarPicker({
   footer,
   emptyMessage = null,
   ariaLabel = "Choose date",
+  zIndex = 60,
+  dataRevision,
   yearless = false,
 }: DayCalendarPickerProps) {
   const menuRef = useRef<HTMLDivElement>(null);
@@ -300,13 +316,13 @@ export function DayCalendarPicker({
     : (minIso ?? todayIso);
   const effectiveMaxIso = yearless
     ? `${referenceYear}-12-31`
-    : (maxIso ?? addYearsToIso(todayIso, 5));
+    : (maxIso ?? endOfYearPlusYearsIso(todayIso, 2));
 
   const minBoundDate =
     parseIsoToLocalDate(effectiveMinIso) ?? new Date();
   const maxBoundDate =
     parseIsoToLocalDate(effectiveMaxIso) ??
-    parseIsoToLocalDate(addYearsToIso(todayIso, 5)) ??
+    parseIsoToLocalDate(endOfYearPlusYearsIso(todayIso, 2)) ??
     new Date();
   const minYear = minBoundDate.getFullYear();
   const maxYear = maxBoundDate.getFullYear();
@@ -483,12 +499,13 @@ export function DayCalendarPicker({
       aria-label={ariaLabel}
       onClick={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.stopPropagation()}
-      className="fixed z-[60] overflow-visible rounded-xl border border-brand-line/60 bg-white shadow-[var(--shadow-premium)] ring-1 ring-inset ring-brand-line/15"
+      className="fixed overflow-visible rounded-xl border border-brand-line/60 bg-white shadow-[var(--shadow-premium)] ring-1 ring-inset ring-brand-line/15"
       style={{
         left: position.left,
         top: position.top,
         bottom: position.bottom,
         width: position.width,
+        zIndex,
       }}
     >
       <div className="relative z-10 flex items-center justify-between gap-1 rounded-t-xl border-b border-brand-line/40 bg-brand-bg-subtle/40 px-2 py-2">
@@ -576,7 +593,10 @@ export function DayCalendarPicker({
             ))}
           </div>
 
-          <div className="grid grid-cols-7 gap-1 px-3 pb-2 pt-1">
+          <div
+            key={dataRevision ?? "days"}
+            className="grid grid-cols-7 gap-1 px-3 pb-2 pt-1"
+          >
             {cells.map((iso, index) => {
               if (!iso) {
                 return <span key={`empty-${index}`} aria-hidden />;
@@ -601,21 +621,33 @@ export function DayCalendarPicker({
                   }}
                   className={clsx(
                     "h-8 w-full rounded-lg text-[12px] font-medium tabular-nums transition",
-                    tone === "overtime"
-                      ? "cursor-not-allowed bg-brand-blue-soft text-brand-blue-deep/70 opacity-70 ring-1 ring-inset ring-brand-blue/25 hover:bg-brand-blue-soft"
-                      : tone === "holiday"
-                        ? "cursor-not-allowed bg-brand-orange-soft/55 text-brand-orange/65 opacity-70 ring-1 ring-inset ring-brand-orange/20 hover:bg-brand-orange-soft/55"
-                        : tone === "leave"
-                          ? "cursor-not-allowed bg-brand-orange-muted text-brand-orange-deep opacity-80 ring-1 ring-inset ring-brand-orange-deep/35 hover:bg-brand-orange-muted"
-                          : tone === "mix"
-                            ? "bg-rose-100 text-rose-700 ring-1 ring-inset ring-rose-300/70 hover:bg-rose-200/80"
-                          : disabled
-                            ? "cursor-not-allowed text-brand-ink-tertiary opacity-30 hover:bg-transparent"
-                            : highlightIso === iso || selectedSet.has(iso)
-                              ? "bg-brand-signature text-white shadow-sm"
-                              : !yearless && todayIso === iso
-                                ? "bg-brand-blue-soft text-brand-signature ring-1 ring-inset ring-brand-blue/20"
-                                : "text-brand-ink-secondary hover:bg-brand-bg-subtle hover:text-brand-ink"
+                    tone === "holiday"
+                      ? "cursor-not-allowed bg-brand-orange-soft/55 text-brand-orange/65 opacity-70 ring-1 ring-inset ring-brand-orange/20 hover:bg-brand-orange-soft/55"
+                      : tone === "leave"
+                        ? "cursor-not-allowed bg-brand-orange-muted text-brand-orange-deep opacity-80 ring-1 ring-inset ring-brand-orange-deep/35 hover:bg-brand-orange-muted"
+                        : tone === "mix"
+                          ? clsx(
+                              "text-rose-700 ring-1 ring-inset ring-rose-300/70",
+                              disabled
+                                ? "cursor-not-allowed opacity-90"
+                                : "hover:bg-rose-50"
+                            )
+                          : tone === "overtime"
+                            ? clsx(
+                                "bg-brand-blue-soft text-brand-blue-deep ring-1 ring-inset ring-brand-blue/25",
+                                disabled
+                                  ? "cursor-not-allowed opacity-70 hover:bg-brand-blue-soft"
+                                  : "hover:bg-brand-blue-soft/80"
+                              )
+                            : tone === "limit"
+                              ? "text-brand-warning ring-1 ring-inset ring-brand-warning/40 hover:bg-brand-warning/10"
+                              : disabled
+                                ? "cursor-not-allowed text-brand-ink-tertiary opacity-30 hover:bg-transparent"
+                                : highlightIso === iso || selectedSet.has(iso)
+                                  ? "bg-brand-signature text-white shadow-sm"
+                                  : !yearless && todayIso === iso
+                                    ? "bg-brand-blue-soft text-brand-signature ring-1 ring-inset ring-brand-blue/20"
+                                    : "text-brand-ink-secondary hover:bg-brand-bg-subtle hover:text-brand-ink"
                   )}
                 >
                   {parseIsoToLocalDate(iso)?.getDate()}
@@ -627,6 +659,7 @@ export function DayCalendarPicker({
                   label={tip}
                   placement="top"
                   className="block w-full"
+                  zIndex={zIndex + 40}
                 >
                   {dayButton}
                 </HoverTip>

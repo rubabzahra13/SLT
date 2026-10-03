@@ -25,7 +25,7 @@ export function patchForReassignLeave(): Partial<MTDRecord> {
   return {
     inMTD: false,
     isReassigned: true,
-    orderStatus: "Reassign: leave",
+    orderStatus: "Reassign: Off day",
     assignedProducer: null,
     editorRequest: "FA",
     mixStartDate: "",

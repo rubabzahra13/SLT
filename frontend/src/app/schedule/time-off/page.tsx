@@ -6,7 +6,6 @@ import {
   ArrowLeft,
   ArrowRight,
   CalendarPlus,
-  Settings2,
   Trash2,
 } from "lucide-react";
 import clsx from "clsx";
@@ -22,17 +21,14 @@ import { useAppState } from "@/context/AppStateContext";
 import {
   effectiveWorkDays,
   expandTimeOffDates,
+  formatLeaveDateLabel,
   isEligibleOvertimeDate,
   overtimeDatesInRange,
 } from "@/lib/producer-availability";
 import {
-  defaultReasonForTimeOffType,
-  formatMonthDayLabel,
-  isOtherPersonalReason,
-  OTHER_PERSONAL_REASON_NAME,
-  reasonsForTimeOffType,
-  resolveHolidayDatesForToday,
-  type StudioHoliday,
+  formatOffWorkReason,
+  isValidOffWorkReason,
+  OFF_WORK_FOR_PREFIX,
 } from "@/lib/producer-time-off";
 import {
   buildTimeOffEntry,
@@ -60,14 +56,6 @@ function formatShortDate(iso: string): string {
   });
 }
 
-function formatHolidayRangeLabel(holiday: StudioHoliday, todayIso: string): string {
-  const resolved = resolveHolidayDatesForToday(holiday, todayIso);
-  if (resolved.startDate === resolved.endDate) {
-    return formatShortDate(resolved.startDate);
-  }
-  return `${formatShortDate(resolved.startDate)} – ${formatShortDate(resolved.endDate)}`;
-}
-
 function firstName(name: string): string {
   return name.trim().split(/\s+/)[0] ?? name;
 }
@@ -88,8 +76,6 @@ function formatOtHeroDate(iso: string): { primary: string; secondary: string } {
 export default function ScheduleTimeOffPage() {
   const {
     producers,
-    holidays,
-    personalReasons,
     mtdRecords,
     updateProducer,
     isViewOnly,
@@ -101,16 +87,6 @@ export default function ScheduleTimeOffPage() {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
 
-  const catalogHolidays = useMemo(
-    () => [...holidays].sort((a, b) => a.startDate.localeCompare(b.startDate)),
-    [holidays]
-  );
-
-  const leaveOptions = useMemo(
-    () => reasonsForTimeOffType("personal", holidays, personalReasons),
-    [holidays, personalReasons]
-  );
-
   const sortedProducers = useMemo(
     () => [...producers].sort((a, b) => a.name.localeCompare(b.name)),
     [producers]
@@ -121,16 +97,10 @@ export default function ScheduleTimeOffPage() {
     [sortedProducers]
   );
 
-  const [selectedHolidayId, setSelectedHolidayId] = useState(
-    () => catalogHolidays[0]?.id ?? ""
-  );
   const [audience, setAudience] = useState<Audience>("everyone");
   const [pickedIds, setPickedIds] = useState<Set<string>>(() => new Set(allProducerIds));
 
-  const [leaveReason, setLeaveReason] = useState(() =>
-    defaultReasonForTimeOffType("personal", holidays, personalReasons)
-  );
-  const [otherLeaveName, setOtherLeaveName] = useState("");
+  const [offWorkDetail, setOffWorkDetail] = useState("");
   const [leaveStart, setLeaveStart] = useState(todayIso);
   const [leaveEnd, setLeaveEnd] = useState(todayIso);
   const [leaveProducerId, setLeaveProducerId] = useState(
@@ -139,34 +109,11 @@ export default function ScheduleTimeOffPage() {
   const [otDate, setOtDate] = useState(todayIso);
   const [cancelOtIds, setCancelOtIds] = useState<Set<string>>(() => new Set());
 
-  const [leaveOpen, setLeaveOpen] = useState(false);
   const [producerOpen, setProducerOpen] = useState(false);
 
   const leaveStartRef = useRef<HTMLButtonElement>(null);
   const leaveEndRef = useRef<HTMLButtonElement>(null);
   const otDateRef = useRef<HTMLButtonElement>(null);
-
-  const activeHoliday = useMemo(
-    () => catalogHolidays.find((h) => h.id === selectedHolidayId) ?? catalogHolidays[0],
-    [catalogHolidays, selectedHolidayId]
-  );
-
-  const holidayRange = useMemo(() => {
-    if (!activeHoliday) {
-      return { startDate: todayIso, endDate: todayIso, reason: "" };
-    }
-    const resolved = resolveHolidayDatesForToday(activeHoliday, todayIso);
-    return {
-      ...resolved,
-      reason: activeHoliday.name,
-    };
-  }, [activeHoliday, todayIso]);
-
-  useEffect(() => {
-    if (!selectedHolidayId && catalogHolidays[0]) {
-      setSelectedHolidayId(catalogHolidays[0].id);
-    }
-  }, [catalogHolidays, selectedHolidayId]);
 
   useEffect(() => {
     if (!leaveProducerId && sortedProducers[0]) {
@@ -190,10 +137,7 @@ export default function ScheduleTimeOffPage() {
 
   const startDate = leaveStart;
   const endDate = leaveEnd;
-  const leaveReasonLabel = isOtherPersonalReason(leaveReason)
-    ? otherLeaveName.trim()
-    : leaveReason;
-  const reason = leaveReasonLabel;
+  const reason = formatOffWorkReason(offWorkDetail);
 
   const preview = useMemo(
     () =>
@@ -237,11 +181,6 @@ export default function ScheduleTimeOffPage() {
     [sortedProducers, todayIso]
   );
 
-  const upcomingHolidays = useMemo(
-    () => upcoming.filter((row) => row.entry.type === "holiday"),
-    [upcoming]
-  );
-
   const upcomingOt = useMemo(
     () => listUpcomingOvertime(sortedProducers, todayIso).slice(0, 12),
     [sortedProducers, todayIso]
@@ -252,11 +191,10 @@ export default function ScheduleTimeOffPage() {
   const overtimeCalendarOptions = useMemo(
     () => ({
       todayIso,
-      studioHolidays: holidays,
       producers: sortedProducers,
       selectedIds: selection,
     }),
-    [todayIso, holidays, sortedProducers, selection]
+    [todayIso, sortedProducers, selection]
   );
 
   function overtimeDayTitle(iso: string, disabled: boolean): string | undefined {
@@ -299,10 +237,6 @@ export default function ScheduleTimeOffPage() {
     [sortedProducers]
   );
 
-  const leaveSelectOptions: SoftSelectOption[] = leaveOptions.map((n) => ({
-    value: n,
-    label: n,
-  }));
   const producerOptions: SoftSelectOption[] = sortedProducers.map((p) => ({
     value: p.id,
     label: p.name,
@@ -375,7 +309,7 @@ export default function ScheduleTimeOffPage() {
         }
         setCancelOtIds(new Set());
         setStatus(
-          n === 1 ? "Leave assigned" : `Leave assigned to ${n} people`
+          n === 1 ? "Off day assigned" : `Off day assigned to ${n} people`
         );
       }
     } finally {
@@ -416,15 +350,9 @@ export default function ScheduleTimeOffPage() {
             Schedule
           </Link>
           <h1 className="text-[15px] font-semibold tracking-[-0.02em] text-brand-ink">
-            Leaves &amp; extra days
+            Off days &amp; extra days
           </h1>
-          <Link
-            href="/settings/holidays"
-            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[13px] font-semibold text-brand-blue transition hover:text-brand-signature focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue/30"
-          >
-            <Settings2 className="h-4 w-4" aria-hidden />
-            <span className="hidden sm:inline">Leave names</span>
-          </Link>
+          <span className="w-[72px]" aria-hidden />
         </div>
         <div
           className="mx-auto mt-2 flex max-w-6xl justify-center"
@@ -434,7 +362,7 @@ export default function ScheduleTimeOffPage() {
           <div className="inline-flex rounded-full bg-brand-bg p-0.5 ring-1 ring-inset ring-black/[0.06]">
             {(
               [
-                { id: "leaves" as const, label: "Leaves" },
+                { id: "leaves" as const, label: "Off days" },
                 { id: "overtime" as const, label: "Extra days" },
               ] as const
             ).map((tab) => {
@@ -472,7 +400,7 @@ export default function ScheduleTimeOffPage() {
           className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-black/[0.06] bg-white shadow-[0_8px_30px_rgba(0,0,0,0.04)]"
         >
           <h2 id="compose-heading" className="sr-only">
-            {mode === "overtime" ? "Assign extra day" : "Assign leave"}
+            {mode === "overtime" ? "Assign extra day" : "Assign off day"}
           </h2>
 
           {mode === "overtime" ? (
@@ -641,8 +569,7 @@ export default function ScheduleTimeOffPage() {
                       Whole team
                     </p>
                     <p className="mt-0.5 max-w-xs text-[13px] text-brand-ink-tertiary">
-                      Skips regular work days, existing extra days, and days with
-                      time off
+                      Skips regular work days, existing extra days, and off days
                     </p>
                   </div>
                 )}
@@ -652,7 +579,7 @@ export default function ScheduleTimeOffPage() {
             <>
               <div className="shrink-0 border-b border-black/[0.06] px-4 py-3 sm:px-5">
                 <p className="mb-3 text-[12px] text-brand-ink-tertiary">
-                  Producers request day(s) off on their working days and give the leave a name.
+                  Assign off days on scheduled work days with a short reason.
                 </p>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
@@ -674,41 +601,27 @@ export default function ScheduleTimeOffPage() {
                     <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-brand-ink-tertiary">
                       Reason
                     </label>
-                    <SoftSelect
-                      aria-label="Leave reason"
-                      open={leaveOpen}
-                      onOpenChange={setLeaveOpen}
-                      value={
-                        leaveOptions.includes(leaveReason)
-                          ? leaveReason
-                          : OTHER_PERSONAL_REASON_NAME
-                      }
-                      options={leaveSelectOptions}
-                      onChange={(next) => {
-                        setLeaveReason(next);
-                        if (!isOtherPersonalReason(next)) {
-                          setOtherLeaveName("");
-                        }
-                      }}
-                      placement="above"
-                    />
-                    {isOtherPersonalReason(leaveReason) ? (
+                    <label className="flex h-10 min-w-0 items-center gap-1.5 rounded-xl border border-brand-line/60 bg-brand-bg px-3 focus-within:border-brand-blue/45 focus-within:ring-2 focus-within:ring-brand-blue/15">
+                      <span className="shrink-0 text-[13px] font-medium text-brand-ink-secondary">
+                        {OFF_WORK_FOR_PREFIX.trim()}
+                      </span>
                       <input
                         type="text"
-                        value={otherLeaveName}
-                        onChange={(e) => setOtherLeaveName(e.target.value)}
-                        placeholder="Name this leave…"
-                        className="mt-2 h-10 w-full rounded-xl border border-brand-line/60 bg-brand-bg px-3 text-[13px] font-medium text-brand-ink outline-none transition focus:border-brand-blue/45 focus:ring-2 focus:ring-brand-blue/15"
-                        aria-label="Custom leave name"
+                        value={offWorkDetail}
+                        onChange={(e) => setOffWorkDetail(e.target.value)}
+                        placeholder="wedding"
+                        required
+                        className="min-w-0 flex-1 bg-transparent text-[13px] font-medium text-brand-ink outline-none placeholder:text-brand-ink-tertiary"
+                        aria-label="Off work reason"
                       />
-                    ) : null}
+                    </label>
                   </div>
                 </div>
                 <div className="mt-3 flex items-center gap-1 rounded-2xl bg-brand-bg/80 p-1">
                   <button
                     ref={leaveStartRef}
                     type="button"
-                    aria-label="Leave start date"
+                    aria-label="Off day start date"
                     onClick={() =>
                       setDateField(dateField === "start" ? null : "start")
                     }
@@ -725,7 +638,7 @@ export default function ScheduleTimeOffPage() {
                   <button
                     ref={leaveEndRef}
                     type="button"
-                    aria-label="Leave end date"
+                    aria-label="Off day end date"
                     onClick={() =>
                       setDateField(dateField === "end" ? null : "end")
                     }
@@ -746,7 +659,7 @@ export default function ScheduleTimeOffPage() {
                   value={leaveStart}
                     minIso={leaveMin}
                     maxIso={leaveMax}
-                  ariaLabel="Leave start date"
+                  ariaLabel="Off day start date"
                   onSelect={(iso) => {
                       setLeaveStart(iso);
                       if (leaveEnd < iso) setLeaveEnd(iso);
@@ -759,7 +672,7 @@ export default function ScheduleTimeOffPage() {
                   value={leaveEnd}
                   minIso={leaveStart || leaveMin}
                   maxIso={leaveMax}
-                  ariaLabel="Leave end date"
+                  ariaLabel="Off day end date"
                   onSelect={setLeaveEnd}
                     />
                   </div>
@@ -778,7 +691,7 @@ export default function ScheduleTimeOffPage() {
                       {producersById.get(leaveProducerId)?.name}
                     </p>
                     <p className="mt-0.5 text-[13px] text-brand-ink-tertiary">
-                      {leaveReasonLabel || "Name this leave"}
+                      {reason || "Off work for …"}
                     </p>
                   </div>
                         ) : null}
@@ -832,7 +745,7 @@ export default function ScheduleTimeOffPage() {
                           ? "regular work day"
                           : row.status === "already"
                             ? "already an extra day"
-                            : "time off"}
+                            : "off day"}
                             </li>
                           ))}
                     {otSkipRows.length > 4 ? (
@@ -944,9 +857,7 @@ export default function ScheduleTimeOffPage() {
                 disabled={
                   busy ||
                   applyCount === 0 ||
-                  (mode === "leaves" &&
-                    isOtherPersonalReason(leaveReason) &&
-                    !otherLeaveName.trim())
+                  (mode === "leaves" && !isValidOffWorkReason(reason))
                 }
                 onClick={() => void handleShare()}
                 className={clsx(
@@ -966,11 +877,11 @@ export default function ScheduleTimeOffPage() {
                       : "Nothing to assign"
                     : mode === "overtime"
                       ? `Add extra day · ${applyCount}`
-                      : `Assign leave · ${applyCount}`}
+                      : `Assign off day · ${applyCount}`}
               </button>
             ) : (
               <p className="mt-3 text-center text-[12px] text-brand-ink-tertiary">
-                View-only: you can’t assign time off.
+                View-only: you can’t assign off days.
               </p>
             )}
           </div>
@@ -1057,7 +968,12 @@ export default function ScheduleTimeOffPage() {
                         {row.producerName}
                       </p>
                       <p className="text-[10px] tabular-nums text-brand-ink-tertiary">
-                        {formatTimeOffRangeLabel(row.entry)}
+                        {formatTimeOffRangeLabel(
+                          row.entry,
+                          producer
+                            ? effectiveWorkDays(producer)
+                            : undefined
+                        )}
                       </p>
         </div>
                     {!isViewOnly ? (

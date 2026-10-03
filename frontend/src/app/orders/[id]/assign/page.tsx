@@ -18,7 +18,6 @@ function OrderAssignPageContent({ id }: { id: string }) {
     updateMTD,
     producers,
     schedule,
-    holidays,
     isLoading,
   } = useAppState();
 
@@ -86,7 +85,6 @@ function OrderAssignPageContent({ id }: { id: string }) {
       allOrders={allOrders}
       producers={producers}
       schedule={schedule}
-      studioHolidays={holidays}
       returnHref={returnHref}
       onClose={() => {}}
       onAssign={handleAssign}

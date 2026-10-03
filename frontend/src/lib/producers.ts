@@ -190,7 +190,12 @@ export function normalizeProducer(raw: Partial<Producer> & { id: string }): Prod
       raw.workDays && raw.workDays.length > 0
         ? raw.workDays
         : [...DEFAULT_WORK_DAYS],
-    timeOff: Array.isArray(raw.timeOff) ? raw.timeOff : [],
+    timeOff: Array.isArray(raw.timeOff)
+      ? raw.timeOff.map((entry) => ({
+          ...entry,
+          endDate: entry.endDate || entry.startDate,
+        }))
+      : [],
     maxMixesPerDay:
       raw.maxMixesPerDay != null && raw.maxMixesPerDay > 0
         ? raw.maxMixesPerDay
@@ -339,9 +344,24 @@ export function producerSearchScore(producer: Producer, query: string): number {
 export function deduplicateProducers(producers: Producer[]): Producer[] {
   const seen = new Set<string>();
   return producers.filter((p) => {
-    const key = (p.id || p.name).toLowerCase().trim();
+    const key = (p.uuid || p.id || p.name).toLowerCase().trim();
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
   });
+}
+
+/** Stable roster order — always match DB / bootstrap (name, then id). */
+export function sortProducersByName(producers: Producer[]): Producer[] {
+  return [...producers].sort((a, b) => {
+    const byName = a.name.localeCompare(b.name, undefined, {
+      sensitivity: "base",
+    });
+    if (byName !== 0) return byName;
+    return (a.uuid || a.id).localeCompare(b.uuid || b.id);
+  });
+}
+
+export function normalizeProducerList(producers: Producer[]): Producer[] {
+  return sortProducersByName(deduplicateProducers(producers));
 }

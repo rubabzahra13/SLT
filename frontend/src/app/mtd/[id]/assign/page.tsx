@@ -17,7 +17,6 @@ function MtdAssignPageContent({ id }: { id: string }) {
     updateMTD,
     producers,
     schedule,
-    holidays,
     isLoading,
   } = useAppState();
 
@@ -80,7 +79,6 @@ function MtdAssignPageContent({ id }: { id: string }) {
       allOrders={allOrders}
       producers={producers}
       schedule={schedule}
-      studioHolidays={holidays}
       returnHref={returnHref}
       onClose={() => {}}
       onAssign={handleAssign}

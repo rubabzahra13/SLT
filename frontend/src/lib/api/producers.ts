@@ -65,7 +65,7 @@ export function transformProducer(bp: BackendProducer): Producer {
     timeOff: (bp.time_offs || []).map((to) => ({
       id: to.id,
       startDate: to.start_date,
-      endDate: to.end_date,
+      endDate: to.end_date || to.start_date,
       type: to.type,
       reason: to.reason,
     })),

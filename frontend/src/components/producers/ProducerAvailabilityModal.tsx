@@ -2,9 +2,8 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CalendarPlus, ChevronDown, Minus, Pencil, Plus, Trash2, X } from "lucide-react";
+import { CalendarPlus, Minus, Plus, Trash2, X } from "lucide-react";
 import clsx from "clsx";
 import { ProducerCategoryAddMenu } from "@/components/producers/ProducerCategoryAddMenu";
 import { OvertimeDayPicker } from "@/components/producers/OvertimeDayPicker";
@@ -14,7 +13,6 @@ import {
   isoFromLocalDate,
   parseIsoToLocalDate,
 } from "@/components/ui/DayCalendarPicker";
-import { SoftSelect } from "@/components/ui/SoftSelect";
 import { useAppState } from "@/context/AppStateContext";
 import {
   describeTimeOffOutsideWorkDaysParts,
@@ -23,10 +21,13 @@ import {
   expandTimeOffDates,
   findLeaveMixConflicts,
   formatIsoDayMonthYear,
+  formatLeaveDateLabel,
+  formatCompactLeaveDaySpans,
   formatSkippedProducerSummary,
   isEligibleOvertimeDate,
   isEligibleTimeOffDate,
   isTimeOffDateBlockedByOvertime,
+  leaveApplicableDaysInRange,
   listProducerMixBookingsOnDay,
   nextOvertimeOnOrAfter,
   overtimeDatesInRange,
@@ -36,14 +37,9 @@ import {
 } from "@/lib/producer-availability";
 import { patchForReassignLeave } from "@/lib/order-reassign";
 import {
-  defaultReasonForTimeOffType,
-  isOtherPersonalReason,
-  isStudioHolidayIso,
-  OTHER_PERSONAL_REASON_NAME,
-  reasonsForTimeOffType,
-  resolveHolidayDatesForToday,
-  studioHolidayNamesForIso,
-  holidaysForProducer,
+  formatOffWorkReason,
+  isValidOffWorkReason,
+  OFF_WORK_FOR_PREFIX,
 } from "@/lib/producer-time-off";
 import { findProducerCategoryGroup } from "@/lib/producer-category-groups";
 import {
@@ -78,7 +74,7 @@ type ProducerAvailabilityModalProps = {
   open: boolean;
   onClose: () => void;
   producer: Producer | null;
-  onSave: (patch: AvailabilityPatch) => void;
+  onSave: (patch: AvailabilityPatch) => void | Promise<void>;
   readOnly?: boolean;
 };
 
@@ -122,7 +118,7 @@ type TimeOffNotice =
       fromMtd: ProducerMixDayBooking[];
     };
 
-type AvailabilityTab = "schedule" | "leave" | "holidays" | "limit" | "category";
+type AvailabilityTab = "schedule" | "leave" | "limit" | "category";
 
 type WorkDayOtConflict = {
   day: Weekday;
@@ -147,9 +143,10 @@ function overtimeDatesBlockedByWorkDays(
   });
 }
 
-/** Leave dates that would no longer fall on a work day. */
+/** Leave dates that currently apply and would no longer fall on a work day. */
 function leaveDatesBlockedByWorkDays(
   entries: { startDate: string; endDate?: string | null }[],
+  currentWorkDays: Weekday[],
   nextWorkDays: Weekday[]
 ): string[] {
   return [
@@ -160,13 +157,23 @@ function leaveDatesBlockedByWorkDays(
           return false;
         }
         const [y, m, d] = parts;
-        return !isEligibleTimeOffDate(new Date(y, m - 1, d), nextWorkDays);
+        const date = new Date(y, m - 1, d);
+        // Off days only apply on work days — ignore weekends/other off weekdays
+        // already outside the current schedule.
+        return (
+          isEligibleTimeOffDate(date, currentWorkDays) &&
+          !isEligibleTimeOffDate(date, nextWorkDays)
+        );
       })
     ),
   ].sort((a, b) => a.localeCompare(b));
 }
 
-/** Drop blocked dates from leave ranges; split into contiguous entries. */
+/**
+ * Drop cancelled leave dates from stored ranges and split around gaps.
+ * Important: cancelled weekdays must not remain inside start→end, or they
+ * would reappear if that weekday is turned back into a work day later.
+ */
 function stripLeaveDatesFromEntries(
   entries: DraftTimeOff[],
   removeIso: string[]
@@ -334,15 +341,13 @@ function formatOvertimeLabel(iso: string): string {
   });
 }
 
-function createEmptyTimeOffDraft(
-  personalReasons?: Parameters<typeof defaultReasonForTimeOffType>[2]
-): DraftTimeOff {
+function createEmptyTimeOffDraft(): DraftTimeOff {
   return {
     key: "draft",
     startDate: "",
     endDate: "",
     type: "personal",
-    reason: defaultReasonForTimeOffType("personal", undefined, personalReasons),
+    reason: "",
   };
 }
 
@@ -355,19 +360,6 @@ function formatShortDateLabel(iso: string): string {
     day: "numeric",
     year: "numeric",
   });
-}
-
-function formatHolidayListDate(startIso: string, endIso: string): string {
-  const fmt = (iso: string) => {
-    const [y, m, d] = iso.split("-").map(Number);
-    return new Date(y, m - 1, d).toLocaleDateString(undefined, {
-      month: "short",
-      day: "numeric",
-    });
-  };
-  if (!startIso) return "—";
-  if (startIso === endIso) return fmt(startIso);
-  return `${fmt(startIso)} – ${fmt(endIso)}`;
 }
 
 const MIN_MAX_COST_PER_DAY = 100;
@@ -399,11 +391,48 @@ function categoriesFromProducer(producer: Producer): {
   return { categories, categoryRates };
 }
 
-function formatTimeOffDateLabel(entry: DraftTimeOff): string {
-  if (entry.startDate === entry.endDate) {
-    return formatOvertimeLabel(entry.startDate);
+function formatTimeOffDateLabel(
+  entry: DraftTimeOff,
+  workDays: Weekday[]
+): string {
+  return formatLeaveDateLabel(entry.startDate, entry.endDate, workDays);
+}
+
+/** One chip per reason — keeps split storage (so cancelled weekdays stay gone)
+ *  but shows the compact comma/dash label the user expects. */
+function groupPersonalOffDayChips(
+  entries: DraftTimeOff[],
+  workDays: Weekday[]
+): { keys: string[]; reason: string; label: string }[] {
+  const groups = new Map<string, DraftTimeOff[]>();
+  for (const entry of entries) {
+    if (entry.type !== "personal") continue;
+    const groupKey = entry.reason.trim().toLowerCase() || "__empty__";
+    const list = groups.get(groupKey) ?? [];
+    list.push(entry);
+    groups.set(groupKey, list);
   }
-  return `${formatOvertimeLabel(entry.startDate)} → ${formatOvertimeLabel(entry.endDate)}`;
+  return [...groups.values()].map((group) => {
+    const days = [
+      ...new Set(
+        group.flatMap((entry) =>
+          leaveApplicableDaysInRange(
+            entry.startDate,
+            entry.endDate || entry.startDate,
+            workDays
+          )
+        )
+      ),
+    ].sort((a, b) => a.localeCompare(b));
+    return {
+      keys: group.map((entry) => entry.key),
+      reason: group[0].reason,
+      label:
+        days.length > 0
+          ? formatCompactLeaveDaySpans(days)
+          : formatTimeOffDateLabel(group[0], workDays),
+    };
+  });
 }
 
 function NoticeProducerList({
@@ -472,7 +501,7 @@ export function ProducerAvailabilityModal({
   readOnly = false,
 }: ProducerAvailabilityModalProps) {
   const router = useRouter();
-  const { holidays, personalReasons, mtdRecords, updateMTD } = useAppState();
+  const { mtdRecords, updateMTD } = useAppState();
   const [workDays, setWorkDays] = useState<Weekday[]>([...DEFAULT_WORK_DAYS]);
   const [timeOff, setTimeOff] = useState<DraftTimeOff[]>([]);
   const [timeOffDraft, setTimeOffDraft] = useState<DraftTimeOff>(() =>
@@ -496,20 +525,30 @@ export function ProducerAvailabilityModal({
   const [timeOffDateField, setTimeOffDateField] = useState<"start" | "end" | null>(
     null
   );
-  const [reasonSelectOpen, setReasonSelectOpen] = useState(false);
-  const [otherReasonName, setOtherReasonName] = useState("");
+  const [offWorkDetail, setOffWorkDetail] = useState("");
   const [timeOffMultiDay, setTimeOffMultiDay] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<AvailabilityTab>("schedule");
-  const [showAllHolidays, setShowAllHolidays] = useState(false);
   const [categories, setCategories] = useState<string[]>([]);
   const [categoryRates, setCategoryRates] = useState<Record<string, number>>({});
   const overtimeButtonRef = useRef<HTMLButtonElement>(null);
   const timeOffStartRef = useRef<HTMLButtonElement>(null);
   const timeOffEndRef = useRef<HTMLButtonElement>(null);
+  /** Only re-hydrate when the modal opens or the producer id changes — not when
+   *  the parent passes a new producer object for the same person (bootstrap/cache). */
+  const hydratedProducerKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!open || !producer) return;
+    if (!open || !producer) {
+      if (!open) hydratedProducerKeyRef.current = null;
+      return;
+    }
+    const key = producer.uuid || producer.id;
+    if (hydratedProducerKeyRef.current === key) return;
+    hydratedProducerKeyRef.current = key;
+
     setActiveTab("schedule");
+    setSaving(false);
     setWorkDays([...producer.workDays]);
     setTimeOff(
       producer.timeOff
@@ -532,25 +571,23 @@ export function ProducerAvailabilityModal({
     setWorkDayOtConflict(null);
     setWorkDayLeaveConflict(null);
     setOvertimePickerOpen(false);
-    setShowAllHolidays(false);
-    setTimeOffDraft(createEmptyTimeOffDraft(personalReasons));
+    setTimeOffDraft(createEmptyTimeOffDraft());
+    setOffWorkDetail("");
     setShowTimeOffForm(false);
     const { categories: nextCategories, categoryRates: nextCategoryRates } =
       categoriesFromProducer(producer);
     setCategories(nextCategories);
     setCategoryRates(nextCategoryRates);
-  }, [open, producer, personalReasons]);
+  }, [open, producer]);
 
   useEffect(() => {
     if (activeTab !== "schedule") setOvertimePickerOpen(false);
     if (activeTab !== "leave") {
       setShowTimeOffForm(false);
       setTimeOffDateField(null);
-      setReasonSelectOpen(false);
-      setOtherReasonName("");
+      setOffWorkDetail("");
       setTimeOffMultiDay(false);
     }
-    if (activeTab !== "holidays") setShowAllHolidays(false);
   }, [activeTab]);
 
   if (!open || !producer) return null;
@@ -587,7 +624,11 @@ export function ProducerAvailabilityModal({
   function toggleDay(day: Weekday) {
     if (workDays.includes(day)) {
       const nextWorkDays = workDays.filter((d) => d !== day);
-      const conflicting = leaveDatesBlockedByWorkDays(timeOff, nextWorkDays);
+      const conflicting = leaveDatesBlockedByWorkDays(
+        timeOff,
+        workDays,
+        nextWorkDays
+      );
       if (conflicting.length > 0) {
         setWorkDayLeaveConflict({ day, leaveDates: conflicting });
         return;
@@ -629,17 +670,18 @@ export function ProducerAvailabilityModal({
     if (!workDayLeaveConflict) return;
     const { day, leaveDates } = workDayLeaveConflict;
     const next = workDays.filter((d) => d !== day);
+    // Strip the cancelled dates out of stored ranges so they cannot return
+    // if this weekday is turned back on later.
     setTimeOff((entries) => stripLeaveDatesFromEntries(entries, leaveDates));
     applyWorkDayChange(next);
     setWorkDayLeaveConflict(null);
   }
 
   function closeTimeOffForm() {
-    setTimeOffDraft(createEmptyTimeOffDraft(personalReasons));
-    setOtherReasonName("");
+    setTimeOffDraft(createEmptyTimeOffDraft());
+    setOffWorkDetail("");
     setTimeOffMultiDay(false);
     setTimeOffDateField(null);
-    setReasonSelectOpen(false);
     setShowTimeOffForm(false);
   }
 
@@ -659,9 +701,9 @@ export function ProducerAvailabilityModal({
   }
 
   function getBlockedTimeOffDays(): string[] {
-    return [
-      ...new Set([...overtimeDays, ...expandTimeOffDates(timeOff)]),
-    ];
+    // Extra days sit on non-work weekdays — leave already can't start/end there.
+    // Don't treat them as a separate cancel-first barrier.
+    return [...new Set(expandTimeOffDates(timeOff))];
   }
 
   function hasMixOnLeaveDay(iso: string): boolean {
@@ -700,7 +742,6 @@ export function ProducerAvailabilityModal({
   }
 
   function isLeaveSpanBarrierDay(iso: string): boolean {
-    if (overtimeDays.includes(iso)) return true;
     if (expandTimeOffDates(timeOff).includes(iso)) return true;
     return false;
   }
@@ -738,18 +779,15 @@ export function ProducerAvailabilityModal({
   function openTimeOffForm() {
     clearTimeOffNotice();
     setTimeOffDateField(null);
-    setReasonSelectOpen(false);
-    setOtherReasonName("");
+    setOffWorkDetail("");
     setTimeOffMultiDay(false);
-    setTimeOffDraft(createEmptyTimeOffDraft(personalReasons));
+    setTimeOffDraft(createEmptyTimeOffDraft());
     setShowTimeOffForm(true);
   }
 
   function commitTimeOffDraft() {
-    const reasonLabel = isOtherPersonalReason(timeOffDraft.reason)
-      ? otherReasonName.trim()
-      : timeOffDraft.reason.trim();
-    if (!timeOffDraft.startDate || !reasonLabel || !producer) {
+    const reasonLabel = formatOffWorkReason(offWorkDetail);
+    if (!timeOffDraft.startDate || !isValidOffWorkReason(reasonLabel) || !producer) {
       return;
     }
     const endDate = timeOffMultiDay
@@ -773,7 +811,12 @@ export function ProducerAvailabilityModal({
       overtimeDays,
       pendingEntry.startDate,
       endDate
-    );
+    ).filter((iso) => {
+      // Extra days are non-work weekdays; leave never applies there.
+      // Only conflict when an Extra day somehow lands on a work day.
+      const date = parseIsoToLocalDate(iso);
+      return !!date && isEligibleTimeOffDate(date, workDays);
+    });
 
     if (currentOt.length > 0) {
       showTimeOffNotice({
@@ -824,7 +867,7 @@ export function ProducerAvailabilityModal({
       const fromOrders = mixConflicts.filter((b) => !b.inMTD);
       showTimeOffNotice({
         kind: "mix-conflict",
-        title: "Leave overlaps booked mixes",
+        title: "Off day overlaps booked mixes",
         pendingEntry,
         fromOrders,
         fromMtd,
@@ -869,8 +912,9 @@ export function ProducerAvailabilityModal({
     clearTimeOffNotice();
   }
 
-  function removeTimeOff(key: string) {
-    setTimeOff((prev) => prev.filter((entry) => entry.key !== key));
+  function removeTimeOff(keys: string | string[]) {
+    const remove = new Set(Array.isArray(keys) ? keys : [keys]);
+    setTimeOff((prev) => prev.filter((entry) => !remove.has(entry.key)));
   }
 
   function addOvertimeDay(iso: string) {
@@ -971,13 +1015,21 @@ export function ProducerAvailabilityModal({
     };
   }
 
-  function handleDone() {
+  async function handleDone() {
     if (readOnly) {
       onClose();
       return;
     }
-    onSave(buildAvailabilityPatch());
-    onClose();
+    if (saving) return;
+    setSaving(true);
+    try {
+      await onSave(buildAvailabilityPatch());
+      onClose();
+    } catch {
+      // Error toast comes from updateProducer; keep modal open to retry.
+    } finally {
+      setSaving(false);
+    }
   }
 
   function confirmMixConflictLeave() {
@@ -1006,31 +1058,32 @@ export function ProducerAvailabilityModal({
   // on/before a blocked day inside the chosen end, and end can't land on/after
   // a blocked day after start.
   const existingTimeOffDays = expandTimeOffDates(timeOff);
+  // Off days only apply on work days — Extra day calendar must match chips.
+  const applicableTimeOffDays = [
+    ...new Set(
+      timeOff.flatMap((entry) =>
+        leaveApplicableDaysInRange(
+          entry.startDate,
+          entry.endDate || entry.startDate,
+          workDays
+        )
+      )
+    ),
+  ];
   const blockedTimeOffDays = [
     ...new Set([...overtimeDays, ...existingTimeOffDays]),
   ];
 
-  const producerHolidays = holidaysForProducer(holidays, producer.id);
-
-  const upcomingStudioHolidays = producerHolidays
-    .map((holiday) => {
-      const range = resolveHolidayDatesForToday(holiday, todayIso);
-      return { holiday, ...range };
-    })
-    .sort((a, b) => a.startDate.localeCompare(b.startDate));
-
   // Days that cannot be pick points for leave start/end (and can't sit inside
-  // a leave range): extra days and existing leave. Calendar holidays are
-  // reference only. Weekends/non-work weekdays are only invalid as endpoints —
-  // a leave range may span them. Mix days stay selectable (pink) and confirm on commit.
+  // a leave range): existing leave. Extra days are non-work weekdays — shown
+  // with Extra day styling, but leave can't start/end there either way.
+  // Weekends/non-work weekdays are only invalid as endpoints — a leave range
+  // may span them. Mix days stay selectable (pink) and confirm on commit.
   const leaveSpanBarrierDays: string[] = [];
   {
     let cursor = timeOffMinIso;
     for (let i = 0; i < 800 && cursor <= timeOffMaxIso; i += 1) {
-      if (
-        overtimeDays.includes(cursor) ||
-        existingTimeOffDays.includes(cursor)
-      ) {
+      if (existingTimeOffDays.includes(cursor)) {
         leaveSpanBarrierDays.push(cursor);
       }
       cursor = addDaysToIso(cursor, 1);
@@ -1081,13 +1134,51 @@ export function ProducerAvailabilityModal({
   }
 
   const todayInTimeOffStartRange =
-    todayIso >= timeOffStartMinIso &&
-    todayIso <= timeOffStartMaxIso &&
-    !isBlockedTimeOffCalendarDay(todayIso);
+    todayIso >= timeOffStartMinIso && todayIso <= timeOffStartMaxIso;
   const todayInTimeOffEndRange =
-    todayIso >= timeOffEndMinIso &&
-    todayIso <= timeOffEndMaxIso &&
-    !isBlockedTimeOffCalendarDay(todayIso);
+    todayIso >= timeOffEndMinIso && todayIso <= timeOffEndMaxIso;
+
+  const todayStartDisabled =
+    !todayInTimeOffStartRange ||
+    isBlockedTimeOffCalendarDay(todayIso) ||
+    (!!timeOffDraft.endDate && todayIso >= timeOffDraft.endDate) ||
+    isTimeOffDateBlockedByOvertime(
+      todayIso,
+      "start",
+      timeOffDraft.endDate || null,
+      rangeBlockedDays
+    );
+  const todayEndDisabled =
+    !todayInTimeOffEndRange ||
+    isBlockedTimeOffCalendarDay(todayIso) ||
+    (!!timeOffDraft.startDate && todayIso <= timeOffDraft.startDate) ||
+    isTimeOffDateBlockedByOvertime(
+      todayIso,
+      "end",
+      timeOffDraft.startDate || null,
+      rangeBlockedDays
+    );
+  const todaySingleDisabled =
+    !todayInTimeOffStartRange ||
+    isBlockedTimeOffCalendarDay(todayIso) ||
+    isTimeOffDateBlockedByOvertime(
+      todayIso,
+      "start",
+      todayIso,
+      blockedTimeOffDays
+    );
+
+  function todayOffDayTitle(disabled: boolean): string {
+    if (!disabled) return "Use today";
+    return (
+      timeOffDayTitle(todayIso, true) ??
+      (isNonWorkTimeOffDay(todayIso)
+        ? "Not a working day"
+        : existingTimeOffDays.includes(todayIso)
+          ? "Already added as an off day"
+          : "Not available")
+    );
+  }
 
   function isOutsideTimeOffFieldRange(iso: string): boolean {
     if (timeOffDateField === "end") {
@@ -1101,45 +1192,23 @@ export function ProducerAvailabilityModal({
       return "Past day";
     }
     const outsideRange = disabled && isOutsideTimeOffFieldRange(iso);
-    // Off days can't be leave start/end — OT on an off day doesn't change that.
-    // Leave ranges may still span weekends between two work days.
-    if (isNonWorkTimeOffDay(iso)) {
+    // Extra days are still non-work weekdays — canceling them doesn't enable leave.
+    // Keep Extra day styling via tone; tooltip matches other non-work days.
+    if (overtimeDays.includes(iso) || isNonWorkTimeOffDay(iso)) {
       if (outsideRange) {
-        return "Not a working day\nPick a work day for leave start/end";
+        return "Not a working day\nPick a work day for off day start/end";
       }
       return "Not a working day";
     }
-    if (overtimeDays.includes(iso)) {
-      return "Extra day\nCancel the extra day to mark leave";
-    }
     if (existingTimeOffDays.includes(iso)) {
-      return "Already added as time off";
-    }
-    const holidayNames = studioHolidayNamesForIso(iso, holidays, producerId);
-    if (holidayNames.length > 0) {
-      const name =
-        holidayNames.length === 1
-          ? holidayNames[0]
-          : holidayNames.join(", ");
-      return `${name}\nCalendar holiday — request leave with a name if taking off`;
+      return "Already added as an off day";
     }
     const mixTitle = mixLeaveDayTitle(iso);
     if (mixTitle) {
       return mixTitle;
     }
-    if (
-      disabled &&
-      (isOutsideTimeOffFieldRange(iso) ||
-        isTimeOffDateBlockedByOvertime(
-          iso,
-          timeOffDateField === "end" ? "end" : "start",
-          timeOffDateField === "end"
-            ? timeOffDraft.startDate
-            : timeOffDraft.endDate,
-          rangeBlockedDays
-        ))
-    ) {
-      return "Range can’t include extra days";
+    if (disabled && isOutsideTimeOffFieldRange(iso)) {
+      return "Outside off day range";
     }
     if (iso === todayIso) return "Today";
     return undefined;
@@ -1176,13 +1245,9 @@ export function ProducerAvailabilityModal({
   function timeOffDayTone(
     iso: string,
     _disabled: boolean
-  ): "overtime" | "holiday" | "leave" | "mix" | undefined {
+  ): "overtime" | "leave" | "mix" | undefined {
     if (iso < todayIso) return undefined;
-    if (isStudioHolidayIso(iso, holidays, producerId)) return "holiday";
-    // OT blue only when the day is otherwise a work day (leave could apply).
-    if (overtimeDays.includes(iso) && !isNonWorkTimeOffDay(iso)) {
-      return "overtime";
-    }
+    if (overtimeDays.includes(iso)) return "overtime";
     if (hasMixOnLeaveDay(iso)) return "mix";
     return undefined;
   }
@@ -1211,10 +1276,11 @@ export function ProducerAvailabilityModal({
           {!readOnly ? (
             <button
               type="button"
-              onClick={handleDone}
-              className="min-w-[64px] text-right text-[15px] font-semibold text-brand-blue transition hover:text-brand-blue-hover"
+              onClick={() => void handleDone()}
+              disabled={saving}
+              className="min-w-[64px] text-right text-[15px] font-semibold text-brand-blue transition hover:text-brand-blue-hover disabled:opacity-40"
             >
-              Done
+              {saving ? "Saving…" : "Done"}
             </button>
           ) : (
             <span className="min-w-[64px]" />
@@ -1241,8 +1307,7 @@ export function ProducerAvailabilityModal({
             <Tabs
               options={[
                 { value: "schedule", label: "Schedule" },
-                { value: "leave", label: "Leaves" },
-                { value: "holidays", label: "Calendar" },
+                { value: "leave", label: "Off days" },
                 { value: "limit", label: "Limit" },
                 {
                   value: "category",
@@ -1436,10 +1501,8 @@ export function ProducerAvailabilityModal({
                 selectedDays={overtimeDays}
                 onSelect={addOvertimeDay}
                 excludeRef={overtimeButtonRef}
-                studioHolidays={holidays}
-                producerId={producer.id}
-                blockedTimeOffDays={existingTimeOffDays}
-                leaveEntries={timeOff}
+                blockedTimeOffDays={applicableTimeOffDays}
+                mixBlockedDays={[...mixBlockedTimeOffDaySet]}
               />
             </div>
 
@@ -1476,12 +1539,11 @@ export function ProducerAvailabilityModal({
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-[13px] font-semibold text-brand-ink">
-                  Leave
+                  Off days
                 </p>
                 <p className="mt-0.5 text-[12px] text-brand-ink-tertiary">
-                  Request day(s) off on their working days and give the leave a
-                  name. Non-working days can&apos;t be start/end dates; pink mix
-                  days can be included (you&apos;ll confirm reassignment).
+                  Mark off days on scheduled work days and add a short reason.
+                  Booked mix days stay selectable and prompt for reassignment.
                 </p>
               </div>
               {!showTimeOffForm ? (
@@ -1499,31 +1561,29 @@ export function ProducerAvailabilityModal({
             <div className="mt-4">
               {timeOff.filter((entry) => entry.type === "personal").length === 0 ? (
                 <p className="text-center text-[13px] text-brand-ink-tertiary">
-                  No personal leave scheduled yet.
+                  No off days scheduled yet.
                 </p>
               ) : (
                 <ul className="flex flex-wrap gap-2">
-                  {timeOff
-                    .filter((entry) => entry.type === "personal")
-                    .map((entry) => (
-                    <li key={entry.key}>
+                  {groupPersonalOffDayChips(timeOff, workDays).map((chip) => (
+                    <li key={chip.keys.join("|")} className="min-w-0 max-w-full">
                       <span
-                        className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-brand-blue-soft py-1.5 pl-3 pr-1.5 text-[12px] font-semibold text-brand-blue-deep ring-1 ring-inset ring-brand-blue-muted"
+                        className="flex max-w-full items-start gap-1.5 rounded-2xl bg-brand-blue-soft py-1.5 pl-3 pr-1.5 text-[12px] font-semibold leading-snug text-brand-blue-deep ring-1 ring-inset ring-brand-blue-muted"
                       >
-                        <span className="min-w-0 truncate">
-                          {formatTimeOffDateLabel(entry)}
-                          {entry.reason.trim() ? (
+                        <span className="min-w-0 flex-1 whitespace-normal break-words">
+                          {chip.label}
+                          {chip.reason.trim() ? (
                             <span className="font-medium text-brand-blue-deep/75">
                               {" · "}
-                              {entry.reason.trim()}
+                              {chip.reason.trim()}
                             </span>
                           ) : null}
                         </span>
                         <button
                           type="button"
-                          onClick={() => removeTimeOff(entry.key)}
-                          className="shrink-0 rounded-full p-1 text-brand-blue-deep/70 transition hover:bg-brand-blue-muted hover:text-brand-blue-deep"
-                          aria-label={`Remove ${formatTimeOffDateLabel(entry)} (${entry.reason})`}
+                          onClick={() => removeTimeOff(chip.keys)}
+                          className="mt-0.5 shrink-0 rounded-full p-1 text-brand-blue-deep/70 transition hover:bg-brand-blue-muted hover:text-brand-blue-deep"
+                          aria-label={`Remove ${chip.label} (${chip.reason})`}
                         >
                           <X className="h-3 w-3" strokeWidth={2.5} />
                         </button>
@@ -1538,13 +1598,13 @@ export function ProducerAvailabilityModal({
             <div className="mt-3 overflow-visible rounded-2xl border border-dashed border-brand-blue/35 bg-brand-blue-soft/20">
               <div className="flex items-center justify-between px-3 py-2">
                 <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-brand-blue-deep">
-                  Add personal leave
+                  Add off day
                 </p>
                 <button
                   type="button"
                   onClick={closeTimeOffForm}
                   className="rounded-full p-1 text-brand-blue-deep/70 transition hover:bg-brand-blue-muted hover:text-brand-blue-deep"
-                  aria-label="Cancel add time off"
+                  aria-label="Cancel add off day"
                 >
                   <X className="h-3.5 w-3.5" strokeWidth={2.5} />
                 </button>
@@ -1601,7 +1661,6 @@ export function ProducerAvailabilityModal({
                         ref={timeOffStartRef}
                         type="button"
                         onClick={() => {
-                          setReasonSelectOpen(false);
                           setTimeOffDateField((current) =>
                             current === "start" ? null : "start"
                           );
@@ -1641,7 +1700,7 @@ export function ProducerAvailabilityModal({
                         }
                         dayTitle={timeOffStartDayTitle}
                         dayTone={timeOffDayTone}
-                        ariaLabel="Leave start date"
+                        ariaLabel="Off day start date"
                         onSelect={(iso) => {
                           if (isBlockedTimeOffCalendarDay(iso)) return;
                           if (
@@ -1665,43 +1724,31 @@ export function ProducerAvailabilityModal({
                           });
                         }}
                         footer={
-                          todayInTimeOffStartRange ? (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (isBlockedTimeOffCalendarDay(todayIso)) return;
-                                if (
-                                  timeOffDraft.endDate &&
-                                  todayIso >= timeOffDraft.endDate
-                                ) {
-                                  return;
-                                }
-                                if (!timeOffDraft.endDate) {
-                                  updateTimeOffDraft({ startDate: todayIso });
-                                  setTimeOffDateField(null);
-                                  return;
-                                }
-                                const nextEnd = clampEndAroundBlockedDays(
-                                  todayIso,
-                                  timeOffDraft.endDate
-                                );
-                                updateTimeOffDraft({
-                                  startDate: todayIso,
-                                  endDate: nextEnd,
-                                });
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (todayStartDisabled) return;
+                              if (!timeOffDraft.endDate) {
+                                updateTimeOffDraft({ startDate: todayIso });
                                 setTimeOffDateField(null);
-                              }}
-                              className="rounded-lg px-2 py-1 text-[11px] font-semibold text-brand-signature transition hover:bg-white"
-                            >
-                              Today
-                            </button>
-                          ) : (
-                            <p className="px-1 text-[11px] font-medium text-brand-ink-tertiary">
-                              {rangeBlockedDays.length > 0
-                                ? "Range can’t include holidays or extra days"
-                                : "Through December next year"}
-                            </p>
-                          )
+                                return;
+                              }
+                              const nextEnd = clampEndAroundBlockedDays(
+                                todayIso,
+                                timeOffDraft.endDate
+                              );
+                              updateTimeOffDraft({
+                                startDate: todayIso,
+                                endDate: nextEnd,
+                              });
+                              setTimeOffDateField(null);
+                            }}
+                            disabled={todayStartDisabled}
+                            title={todayOffDayTitle(todayStartDisabled)}
+                            className="rounded-lg px-2 py-1 text-[11px] font-semibold text-brand-signature transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+                          >
+                            Today
+                          </button>
                         }
                       />
                     </div>
@@ -1713,7 +1760,6 @@ export function ProducerAvailabilityModal({
                         ref={timeOffEndRef}
                         type="button"
                         onClick={() => {
-                          setReasonSelectOpen(false);
                           setTimeOffDateField((current) =>
                             current === "end" ? null : "end"
                           );
@@ -1749,7 +1795,7 @@ export function ProducerAvailabilityModal({
                         }
                         dayTitle={timeOffEndDayTitle}
                         dayTone={timeOffDayTone}
-                        ariaLabel="Leave end date"
+                        ariaLabel="Off day end date"
                         onSelect={(iso) => {
                           if (isBlockedTimeOffCalendarDay(iso)) return;
                           if (
@@ -1771,42 +1817,30 @@ export function ProducerAvailabilityModal({
                           updateTimeOffDraft({ startDate, endDate });
                         }}
                         footer={
-                          todayInTimeOffEndRange ? (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (isBlockedTimeOffCalendarDay(todayIso)) return;
-                                if (
-                                  timeOffDraft.startDate &&
-                                  todayIso <= timeOffDraft.startDate
-                                ) {
-                                  return;
-                                }
-                                const endDate = todayIso;
-                                if (!timeOffDraft.startDate) {
-                                  updateTimeOffDraft({ endDate });
-                                  setTimeOffDateField(null);
-                                  return;
-                                }
-                                const startDate = clampStartAroundBlockedDays(
-                                  timeOffDraft.startDate,
-                                  endDate
-                                );
-                                if (startDate >= endDate) return;
-                                updateTimeOffDraft({ startDate, endDate });
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (todayEndDisabled) return;
+                              const endDate = todayIso;
+                              if (!timeOffDraft.startDate) {
+                                updateTimeOffDraft({ endDate });
                                 setTimeOffDateField(null);
-                              }}
-                              className="rounded-lg px-2 py-1 text-[11px] font-semibold text-brand-signature transition hover:bg-white"
-                            >
-                              Today
-                            </button>
-                          ) : (
-                            <p className="px-1 text-[11px] font-medium text-brand-ink-tertiary">
-                              {rangeBlockedDays.length > 0
-                                ? "Range can’t include holidays or extra days"
-                                : "Through December next year"}
-                            </p>
-                          )
+                                return;
+                              }
+                              const startDate = clampStartAroundBlockedDays(
+                                timeOffDraft.startDate,
+                                endDate
+                              );
+                              if (startDate >= endDate) return;
+                              updateTimeOffDraft({ startDate, endDate });
+                              setTimeOffDateField(null);
+                            }}
+                            disabled={todayEndDisabled}
+                            title={todayOffDayTitle(todayEndDisabled)}
+                            className="rounded-lg px-2 py-1 text-[11px] font-semibold text-brand-signature transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+                          >
+                            Today
+                          </button>
                         }
                       />
                     </div>
@@ -1820,7 +1854,6 @@ export function ProducerAvailabilityModal({
                       ref={timeOffStartRef}
                       type="button"
                       onClick={() => {
-                        setReasonSelectOpen(false);
                         setTimeOffDateField((current) =>
                           current === "start" ? null : "start"
                         );
@@ -1854,7 +1887,7 @@ export function ProducerAvailabilityModal({
                       }
                       dayTitle={timeOffDayTitle}
                       dayTone={timeOffDayTone}
-                      ariaLabel="Leave date"
+                      ariaLabel="Off day date"
                       onSelect={(iso) => {
                         if (isBlockedTimeOffCalendarDay(iso)) return;
                         updateTimeOffDraft({
@@ -1863,26 +1896,22 @@ export function ProducerAvailabilityModal({
                         });
                       }}
                       footer={
-                        todayInTimeOffStartRange ? (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (isBlockedTimeOffCalendarDay(todayIso)) return;
-                              updateTimeOffDraft({
-                                startDate: todayIso,
-                                endDate: todayIso,
-                              });
-                              setTimeOffDateField(null);
-                            }}
-                            className="rounded-lg px-2 py-1 text-[11px] font-semibold text-brand-signature transition hover:bg-white"
-                          >
-                            Today
-                          </button>
-                        ) : (
-                          <p className="px-1 text-[11px] font-medium text-brand-ink-tertiary">
-                            Work days only · through December next year
-                          </p>
-                        )
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (todaySingleDisabled) return;
+                            updateTimeOffDraft({
+                              startDate: todayIso,
+                              endDate: todayIso,
+                            });
+                            setTimeOffDateField(null);
+                          }}
+                          disabled={todaySingleDisabled}
+                          title={todayOffDayTitle(todaySingleDisabled)}
+                          className="rounded-lg px-2 py-1 text-[11px] font-semibold text-brand-signature transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+                        >
+                          Today
+                        </button>
                       }
                     />
                   </div>
@@ -1892,57 +1921,20 @@ export function ProducerAvailabilityModal({
                     <span className="block text-[9px] font-medium uppercase tracking-[0.06em] text-brand-ink-tertiary">
                       Why
                     </span>
-                    <SoftSelect
-                      aria-label="Leave reason"
-                      className="mt-1"
-                      placement="above"
-                      value={
-                        reasonsForTimeOffType(
-                          "personal",
-                          holidays,
-                          personalReasons
-                        ).includes(timeOffDraft.reason)
-                          ? timeOffDraft.reason
-                          : isOtherPersonalReason(timeOffDraft.reason)
-                            ? OTHER_PERSONAL_REASON_NAME
-                            : defaultReasonForTimeOffType(
-                                "personal",
-                                holidays,
-                                personalReasons
-                              )
-                      }
-                      options={reasonsForTimeOffType(
-                        "personal",
-                        holidays,
-                        personalReasons
-                      ).map((reason) => ({ value: reason, label: reason }))}
-                      onChange={(reason) => {
-                        updateTimeOffDraft({ reason });
-                        if (!isOtherPersonalReason(reason)) {
-                          setOtherReasonName("");
-                        }
-                      }}
-                      open={reasonSelectOpen}
-                      onOpenChange={(next) => {
-                        if (next) setTimeOffDateField(null);
-                        setReasonSelectOpen(next);
-                      }}
-                    />
-                    {isOtherPersonalReason(timeOffDraft.reason) ? (
-                      <label className="mt-2 block">
-                        <span className="block text-[9px] font-medium uppercase tracking-[0.06em] text-brand-ink-tertiary">
-                          Name this leave
-                        </span>
-                        <input
-                          type="text"
-                          value={otherReasonName}
-                          onChange={(e) => setOtherReasonName(e.target.value)}
-                          placeholder="e.g. Sabbatical"
-                          className="mt-1 h-8 w-full rounded-full bg-brand-bg px-3 text-[13px] font-medium text-brand-ink outline-none ring-1 ring-inset ring-black/[0.06] transition placeholder:text-brand-ink-tertiary focus:ring-brand-blue/30"
-                          aria-label="Custom leave name"
-                        />
-                      </label>
-                    ) : null}
+                    <label className="mt-1 flex min-w-0 items-center gap-1.5 rounded-full bg-brand-bg px-3 py-1.5 ring-1 ring-inset ring-black/[0.06] focus-within:ring-brand-blue/30">
+                      <span className="shrink-0 text-[13px] font-medium text-brand-ink-secondary">
+                        {OFF_WORK_FOR_PREFIX.trim()}
+                      </span>
+                      <input
+                        type="text"
+                        value={offWorkDetail}
+                        onChange={(e) => setOffWorkDetail(e.target.value)}
+                        placeholder="wedding"
+                        required
+                        className="min-w-0 flex-1 bg-transparent text-[13px] font-medium text-brand-ink outline-none placeholder:text-brand-ink-tertiary"
+                        aria-label="Off work reason"
+                      />
+                    </label>
                   </div>
                 </div>
 
@@ -1954,8 +1946,7 @@ export function ProducerAvailabilityModal({
                     (timeOffMultiDay &&
                       (!timeOffDraft.endDate ||
                         timeOffDraft.endDate <= timeOffDraft.startDate)) ||
-                    (isOtherPersonalReason(timeOffDraft.reason) &&
-                      !otherReasonName.trim())
+                    !offWorkDetail.trim()
                   }
                   className="inline-flex w-full items-center justify-center gap-1 rounded-full bg-brand-blue px-3 py-2 text-[12px] font-semibold text-white transition hover:bg-brand-blue-hover disabled:opacity-40"
                 >
@@ -1965,98 +1956,6 @@ export function ProducerAvailabilityModal({
               </div>
             </div>
             ) : null}
-          </div>
-            </>
-          ) : null}
-
-          {activeTab === "holidays" ? (
-            <>
-          <div>
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-[13px] font-semibold text-brand-ink">
-                  Calendar holidays
-                </p>
-                <p className="mt-0.5 text-[12px] text-brand-ink-tertiary">
-                  Reference only — producers are not given public holidays.
-                  Use Leaves to request working day(s) off with a name.
-                </p>
-              </div>
-              {!readOnly ? (
-                <Link
-                  href="/settings/holidays"
-                  onClick={onClose}
-                  className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full bg-brand-bg px-3 text-[13px] font-semibold text-brand-blue ring-1 ring-inset ring-black/[0.06] transition hover:bg-brand-bg-subtle"
-                >
-                  <Pencil className="h-3.5 w-3.5" strokeWidth={2.5} />
-                  Edit
-                </Link>
-              ) : null}
-            </div>
-            <div className="mt-4">
-              {upcomingStudioHolidays.length === 0 ? (
-                <p className="text-center text-[13px] text-brand-ink-tertiary">
-                  No public holidays set yet.
-                </p>
-              ) : (
-                <div className="rounded-2xl ring-1 ring-inset ring-black/[0.06]">
-                  <button
-                    type="button"
-                    onClick={() => setShowAllHolidays((open) => !open)}
-                    className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition hover:bg-brand-bg/60"
-                    aria-expanded={showAllHolidays}
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[13px] font-semibold text-brand-ink">
-                        {upcomingStudioHolidays[0].holiday.name}
-                      </p>
-                      <p className="mt-0.5 text-[11px] text-brand-ink-tertiary">
-                        Next ·{" "}
-                        {formatHolidayListDate(
-                          upcomingStudioHolidays[0].startDate,
-                          upcomingStudioHolidays[0].endDate
-                        )}
-                        {upcomingStudioHolidays.length > 1
-                          ? ` · ${upcomingStudioHolidays.length} total`
-                          : null}
-                      </p>
-                    </div>
-                    <ChevronDown
-                      className={clsx(
-                        "h-4 w-4 shrink-0 text-brand-ink-tertiary transition",
-                        showAllHolidays && "rotate-180"
-                      )}
-                      strokeWidth={2.25}
-                      aria-hidden
-                    />
-                  </button>
-                  {showAllHolidays ? (
-                    <div
-                      className="border-t border-black/[0.06] overflow-y-auto overscroll-contain"
-                      style={{ maxHeight: 128 }}
-                    >
-                      <ul>
-                        {upcomingStudioHolidays.map(
-                          ({ holiday, startDate, endDate }) => (
-                            <li
-                              key={holiday.id}
-                              className="flex items-center justify-between gap-3 px-3 py-1.5"
-                            >
-                              <span className="min-w-0 truncate text-[11px] font-medium text-brand-ink">
-                                {holiday.name}
-                              </span>
-                              <span className="shrink-0 text-[10px] tabular-nums text-brand-ink-tertiary">
-                                {formatHolidayListDate(startDate, endDate)}
-                              </span>
-                            </li>
-                          )
-                        )}
-                      </ul>
-                    </div>
-                  ) : null}
-                </div>
-              )}
-            </div>
           </div>
             </>
           ) : null}
@@ -2237,7 +2136,7 @@ export function ProducerAvailabilityModal({
               {timeOffNotice.kind === "ot-conflict" ? (
                 <div className="mt-4">
                   <p className="text-[12px] leading-relaxed text-brand-ink-secondary">
-                    Cancel the extra day to apply this leave, or keep it and
+                    Cancel the extra day to apply this off day, or keep it and
                     skip. You can also remove an extra day with the × on its
                     chip above.
                   </p>
@@ -2276,8 +2175,8 @@ export function ProducerAvailabilityModal({
                         </div>
                         <p className="mt-2 text-[11px] text-brand-ink-tertiary">
                           {row.cancelOvertime
-                            ? "Leave will be assigned."
-                            : "Leave will be skipped. Extra day stays."}
+                            ? "Off day will be assigned."
+                            : "Off day will be skipped. Extra day stays."}
                         </p>
                       </li>
                     ))}
@@ -2288,17 +2187,17 @@ export function ProducerAvailabilityModal({
               {timeOffNotice.kind === "mix-conflict" ? (
                 <div className="mt-4 space-y-3">
                   <p className="text-[12px] leading-relaxed text-brand-ink-secondary">
-                    Leave is set. Reassign clears their producer assignment and
+                    Off day is set. Reassign clears their producer assignment and
                     schedule and sends them to{" "}
                     <span className="font-semibold text-brand-ink">
-                      Reassign: Leave
+                      Reassign: Off day
                     </span>{" "}
                     on Orders.
                   </p>
                   {timeOffNotice.fromOrders.length > 0 ? (
                     <div className="rounded-2xl bg-brand-bg px-3 py-3 ring-1 ring-inset ring-black/[0.06]">
                       <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-brand-ink-secondary">
-                        Orders · Assigned → Reassign: Leave
+                        Orders · Assigned → Reassign: Off day
                       </p>
                       <ul className="mt-2 space-y-1.5">
                         {timeOffNotice.fromOrders.map((b) => (
@@ -2319,7 +2218,7 @@ export function ProducerAvailabilityModal({
                   {timeOffNotice.fromMtd.length > 0 ? (
                     <div className="rounded-2xl bg-brand-bg px-3 py-3 ring-1 ring-inset ring-black/[0.06]">
                       <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-brand-ink-secondary">
-                        MTD → Orders · Reassign: Leave
+                        MTD → Orders · Reassign: Off day
                       </p>
                       <ul className="mt-2 space-y-1.5">
                         {timeOffNotice.fromMtd.map((b) => (
@@ -2403,7 +2302,7 @@ export function ProducerAvailabilityModal({
                       >
                         {applyCount === 0
                           ? "Cancel extra day to apply"
-                          : "Apply leave"}
+                          : "Apply off day"}
                       </button>
                       <button
                         type="button"
@@ -2449,14 +2348,14 @@ export function ProducerAvailabilityModal({
                     id="work-day-ot-conflict-title"
                     className="text-center text-[17px] font-semibold tracking-[-0.02em] text-brand-ink"
                   >
-                    Remove extra day?
+                    Convert to regular work day?
                   </h2>
                   <p className="mt-3 text-center text-[13px] leading-relaxed text-brand-ink-secondary">
-                    Making {weekdayLabel(workDayOtConflict.day)} a regular work
-                    day will remove the extra day on{" "}
+                    {weekdayLabel(workDayOtConflict.day)} will become a normal
+                    work day, and{" "}
                     {workDayOtConflict.overtimeDates.length === 1
-                      ? "this date."
-                      : "these dates."}
+                      ? "this date will be cancelled from Extra days."
+                      : "these dates will be cancelled from Extra days."}
                   </p>
                   <WorkDayOtConflictDateList
                     dates={workDayOtConflict.overtimeDates}
@@ -2469,7 +2368,7 @@ export function ProducerAvailabilityModal({
                       onClick={confirmWorkDayOtRemoval}
                       className="border-b border-black/[0.08] py-3.5 text-[15px] font-semibold text-brand-blue transition hover:bg-brand-blue-soft/40"
                     >
-                      Remove extra day
+                      Make regular work day
                     </button>
                     <button
                       type="button"
@@ -2506,11 +2405,11 @@ export function ProducerAvailabilityModal({
                     id="work-day-leave-conflict-title"
                     className="text-center text-[17px] font-semibold tracking-[-0.02em] text-brand-ink"
                   >
-                    Cancel leave?
+                    Cancel off day?
                   </h2>
                   <p className="mt-3 text-center text-[13px] leading-relaxed text-brand-ink-secondary">
                     Making {weekdayLabel(workDayLeaveConflict.day)} a
-                    non-working day will cancel leave on{" "}
+                    non-working day will cancel the off day on{" "}
                     {workDayLeaveConflict.leaveDates.length === 1
                       ? "this date."
                       : "these dates."}
@@ -2526,7 +2425,7 @@ export function ProducerAvailabilityModal({
                       onClick={confirmWorkDayLeaveRemoval}
                       className="border-b border-black/[0.08] py-3.5 text-[15px] font-semibold text-brand-blue transition hover:bg-brand-blue-soft/40"
                     >
-                      Cancel leave
+                      Cancel off day
                     </button>
                     <button
                       type="button"

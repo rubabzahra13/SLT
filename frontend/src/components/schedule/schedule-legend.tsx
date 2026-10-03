@@ -21,7 +21,7 @@ export const SCHEDULE_LEGEND_ITEMS = [
   {
     key: "off",
     label: "Off",
-    tip: "Named leave on a working day",
+    tip: "Off day on a scheduled work day",
     swatchClass: "bg-brand-orange/80",
   },
   {
@@ -33,7 +33,7 @@ export const SCHEDULE_LEGEND_ITEMS = [
   },
   {
     key: "available",
-    label: "Available",
+    label: "Free slot",
     tip: "Open for booking, including extra days",
     swatchClass:
       "bg-cyan-50/80 ring-1 ring-inset ring-cyan-400/60 shadow-[0_1px_2px_rgba(6,182,212,0.12)]",

@@ -2,12 +2,12 @@ import {
   effectiveWorkDays,
   expandTimeOffDates,
   findLeaveMixConflicts,
+  formatLeaveDateLabel,
   isEligibleOvertimeDate,
   overtimeDatesInRange,
   timeOffRangeCoversWorkDay,
 } from "@/lib/producer-availability";
-import { producerHasHoliday, type StudioHoliday } from "@/lib/producer-time-off";
-import type { MTDRecord, Producer, ProducerTimeOff } from "@/types";
+import type { MTDRecord, Producer, ProducerTimeOff, Weekday } from "@/types";
 
 export type TimeOffAssigneeStatus =
   | "apply"
@@ -43,16 +43,6 @@ export function previewTimeOffAssignees(
 
   for (const producer of producers) {
     if (!options.selectedIds.has(producer.id)) continue;
-
-    if (options.type === "holiday" && producerHasHoliday(producer, reason)) {
-      rows.push({
-        id: producer.id,
-        name: producer.name,
-        status: "already",
-        overtimeDates: [],
-      });
-      continue;
-    }
 
     if (
       options.type === "personal" &&
@@ -179,7 +169,13 @@ export function listUpcomingTimeOff(
   });
 }
 
-export function formatTimeOffRangeLabel(entry: ProducerTimeOff): string {
+export function formatTimeOffRangeLabel(
+  entry: ProducerTimeOff,
+  workDays?: Weekday[]
+): string {
+  if (workDays && workDays.length > 0) {
+    return formatLeaveDateLabel(entry.startDate, entry.endDate, workDays);
+  }
   if (entry.startDate === entry.endDate) return entry.startDate;
   return `${entry.startDate} → ${entry.endDate}`;
 }
@@ -292,7 +288,6 @@ export function overtimeCalendarBlockReason(
   iso: string,
   options: {
     todayIso: string;
-    studioHolidays: StudioHoliday[];
     producers: Producer[];
     selectedIds: ReadonlySet<string>;
   }
@@ -326,6 +321,6 @@ export function overtimeCalendarDayTitle(
 ): string | undefined {
   const reason = overtimeCalendarBlockReason(iso, options);
   if (reason === "past") return "Past day";
-  if (reason === "time_off") return "Leave day";
+  if (reason === "time_off") return "Cancel off day to add an extra day";
   return undefined;
 }

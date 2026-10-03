@@ -133,7 +133,13 @@ def _load_producer(db: Session, producer_id: uuid.UUID) -> Producer:
 def get_producers(db: Session = Depends(get_db)):
     # Eager-load time_offs so serializing each producer's time_offs does not
     # fire one query per producer (N+1) against the remote database.
-    return db.query(Producer).options(selectinload(Producer.time_offs)).all()
+    # Stable name order matches /api/bootstrap so the roster never reshuffles.
+    return (
+        db.query(Producer)
+        .options(selectinload(Producer.time_offs))
+        .order_by(Producer.name.asc())
+        .all()
+    )
 
 
 @router.post("/producers", response_model=ProducerSchema, status_code=status.HTTP_201_CREATED)
@@ -199,6 +205,9 @@ def update_producer(
     _sync_time_offs(producer, time_offs, db)
 
     db.commit()
+    # Fresh load so time_offs / overtime_days are present in the response
+    # (stale identity-map rows were omitting leave until a full page refresh).
+    db.expire_all()
     return _load_producer(db, producer.id)
 
 

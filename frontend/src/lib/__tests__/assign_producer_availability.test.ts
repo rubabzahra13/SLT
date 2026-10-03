@@ -19,7 +19,6 @@ import {
   listProducerMixBookingsOnDay,
   suggestMixEndDate,
 } from "@/lib/producer-availability";
-import type { StudioHoliday } from "@/lib/producer-time-off";
 import { suggestMixStartDate } from "@/lib/scheduling";
 
 function createMockProducer(overrides: Partial<Producer> = {}): Producer {
@@ -94,7 +93,7 @@ describe("Assign Producer Availability Logic", () => {
       mixEndDate: "2026-09-18",
     });
 
-    const isUnavailable = isProducerUnavailableForRecord(producer, mondayRecord, []);
+    const isUnavailable = isProducerUnavailableForRecord(producer, mondayRecord);
     assert.equal(isUnavailable, false, "Producer working Mon-Fri must be ELIGIBLE for Monday Sep 14 mix");
   });
 
@@ -155,7 +154,7 @@ describe("Assign Producer Availability Logic", () => {
     assert.equal(dailyLimitCheckHasIssues(check), true);
   });
 
-  it("Test 3b: Cost cap counts the new mix's payout on every day of each booked range", () => {
+  it("Test 3b: Cost cap divides each mix payout across its workable days", () => {
     const producer = createMockProducer({ maxMixesPerDay: null, maxProducerCostPerDay: 1000 });
     const existingMix = createMockRecord({
       id: "rec-existing",
@@ -165,14 +164,17 @@ describe("Assign Producer Availability Logic", () => {
       producerPayout: 500,
     });
 
+    // 500 across Mon–Tue = $250/day booked on Sep 15
     const within = checkProducerDailyLimits(producer, "2026-09-15", "2026-09-16", [existingMix], {
-      newMixCost: 500,
+      newMixCost: 500, // full payout → $250/day over 2 work days
     });
     assert.deepEqual(within.overCostDays, []);
-    assert.equal(within.peakCostDay?.bookedCost, 500);
+    assert.equal(within.peakCostDay?.bookedCost, 250);
+    assert.equal(within.newMixDailyCost, 250);
 
+    // 1600 → $800/day; 250 + 800 > 1000 on Sep 15
     const over = checkProducerDailyLimits(producer, "2026-09-15", "2026-09-16", [existingMix], {
-      newMixCost: 600,
+      newMixCost: 1600,
     });
     assert.deepEqual(over.overCostDays, ["2026-09-15"]);
   });
@@ -206,10 +208,10 @@ describe("Assign Producer Availability Logic", () => {
       mixEndDate: "2026-09-18",
     });
 
-    const isUnavailable = isProducerUnavailableForRecord(tueFriProducer, mondayRecord, []);
+    const isUnavailable = isProducerUnavailableForRecord(tueFriProducer, mondayRecord);
     assert.equal(isUnavailable, true, "Producer not working Monday must NOT be eligible for Sep 14 mix");
 
-    const reason = getProducerUnavailabilityReason(tueFriProducer, mondayRecord, []);
+    const reason = getProducerUnavailabilityReason(tueFriProducer, mondayRecord);
     assert.equal(reason, "Not scheduled to work on Mons");
   });
 
@@ -223,12 +225,12 @@ describe("Assign Producer Availability Logic", () => {
     const producer = createMockProducer();
 
     const mondayRecord = createMockRecord({ mixStartDate: "2026-09-14" });
-    assert.equal(isProducerUnavailableForRecord(producer, mondayRecord, []), false);
+    assert.equal(isProducerUnavailableForRecord(producer, mondayRecord), false);
 
     const saturdayRecord = createMockRecord({ mixStartDate: "2026-09-12" });
-    assert.equal(isProducerUnavailableForRecord(producer, saturdayRecord, []), true);
+    assert.equal(isProducerUnavailableForRecord(producer, saturdayRecord), true);
 
-    const reason = getProducerUnavailabilityReason(producer, saturdayRecord, []);
+    const reason = getProducerUnavailabilityReason(producer, saturdayRecord);
     assert.equal(reason, "Not scheduled to work on Sats");
   });
 
@@ -249,22 +251,6 @@ describe("Assign Producer Availability Logic", () => {
       suggestMixEndDate("2026-09-14", "Gold", { producer: onLeave }),
       "2026-09-21"
     );
-    // Calendar holidays are reference only — they do not skip mix days.
-    const holiday: StudioHoliday = {
-      id: "h-1",
-      name: "Studio Day",
-      startDate: "09-17",
-      endDate: "09-17",
-      appliesToAll: true,
-      producerIds: [],
-    };
-    assert.equal(
-      suggestMixEndDate("2026-09-14", "Gold", {
-        producer: onLeave,
-        studioHolidays: [holiday],
-      }),
-      "2026-09-21"
-    );
     // A start on a day off doesn't count as day one.
     assert.equal(
       suggestMixEndDate("2026-09-12", "Gold", { producer: onLeave }),
@@ -273,24 +259,11 @@ describe("Assign Producer Availability Logic", () => {
   });
 
   it("Test 8: countProducerWorkingDays skips days off and leave", () => {
-    const holiday: StudioHoliday = {
-      id: "h-1",
-      name: "Studio Day",
-      startDate: "09-17",
-      endDate: "09-17",
-      appliesToAll: true,
-      producerIds: [],
-    };
     const producer = createMockProducer({
       timeOff: [dentistLeave],
     });
 
     assert.equal(countProducerWorkingDays(producer, "2026-09-14", "2026-09-22"), 6);
-    // Calendar holidays do not reduce working days.
-    assert.equal(
-      countProducerWorkingDays(producer, "2026-09-14", "2026-09-22", [holiday]),
-      6
-    );
     assert.equal(countProducerWorkingDays(producer, "2026-09-19", "2026-09-20"), 0);
   });
 

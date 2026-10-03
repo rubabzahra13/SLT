@@ -24,7 +24,6 @@ import type {
   Producer,
   ScheduleEntry,
 } from "@/types";
-import type { StudioHoliday } from "@/lib/producer-time-off";
 import {
   CHEER_FORM_SUBTABS,
   DANCE_FORM_SUBTABS,
@@ -39,7 +38,6 @@ type AddNewOrderModalProps = {
   mtdRecords?: MTDRecord[];
   allOrders?: Order[];
   schedule?: ScheduleEntry[];
-  studioHolidays?: StudioHoliday[];
   initialFormType?: OrderFormType;
   initialCheerSubtype?: CheerFormSubtypeFilter;
   initialDanceSubtype?: DanceFormSubtypeFilter;
@@ -103,7 +101,6 @@ export function AddNewOrderModal({
   mtdRecords = [],
   allOrders = [],
   schedule = [],
-  studioHolidays = [],
   initialFormType = "school-all-star-cheer",
   initialCheerSubtype = "all-star-cheer",
   initialDanceSubtype = "pom",
@@ -321,7 +318,6 @@ export function AddNewOrderModal({
     producers,
     mtdRecords,
     allOrders,
-    studioHolidays,
   });
 
   const handleSave = async () => {
@@ -568,6 +564,7 @@ export function AddNewOrderModal({
                     isDateDisabled={mixDateRules.isDateDisabled}
                     dayTitle={mixDateRules.dayTitle}
                     dayTone={mixDateRules.dayTone}
+                    calendarRevision={mixDateRules.calendarRevision}
                   />
                 </div>
 
@@ -586,6 +583,7 @@ export function AddNewOrderModal({
                     isDateDisabled={mixDateRules.isDateDisabled}
                     dayTitle={mixDateRules.dayTitle}
                     dayTone={mixDateRules.dayTone}
+                    calendarRevision={mixDateRules.calendarRevision}
                   />
                 </div>
               </div>
@@ -920,7 +918,6 @@ export function AddNewOrderModal({
         allOrders={allOrders}
         producers={producers}
         schedule={schedule}
-        studioHolidays={studioHolidays}
         onClose={() => setAssignModalOpen(false)}
         onAssign={handleAssignResult}
       />

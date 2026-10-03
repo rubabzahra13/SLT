@@ -13,6 +13,8 @@ import {
 import {
   countProducerMixesOnDay,
   countProducerDailyCost,
+  dailyShareOfRecordCost,
+  listProducerCostContributorsInRange,
   isProducerUnderDailyCapacity,
   isProducerUnderDailyCostCapacity,
   isProducerAtDailyCapacity,
@@ -264,28 +266,84 @@ describe("Mix count capacity", () => {
 
 describe("Cost capacity", () => {
   const today = new Date(2026, 8, 10);
+  // Single-day mixes so daily share === full payout
+  const day = "2026-09-10";
 
   it("no limit → always under capacity", () => {
     const p = makeProducer({ initials: "TP", maxProducerCostPerDay: null });
-    const records = [makeRecord("r1", "TP", 9999)];
+    const records = [makeRecord("r1", "TP", 9999, day, day)];
     assert.equal(isProducerUnderDailyCostCapacity(p, today, records), true);
   });
 
-  it("countProducerDailyCost sums payout for covering records", () => {
+  it("countProducerDailyCost sums per-day payout shares for covering records", () => {
     const p = makeProducer({ initials: "TP" });
-    const records = [makeRecord("r1", "TP", 400), makeRecord("r2", "TP", 600)];
+    const records = [
+      makeRecord("r1", "TP", 400, day, day),
+      makeRecord("r2", "TP", 600, day, day),
+    ];
     assert.equal(countProducerDailyCost(p, today, records), 1000);
+  });
+
+  it("previous mix payout ÷ that mix's work days; share only on overlapping days", () => {
+    // Mon–Thu Oct 5–8, 2026 → 4 producer work days
+    const p = makeProducer({ initials: "TP" });
+    const previous = makeRecord("prev", "TP", 825, "2026-10-05", "2026-10-08");
+    assert.equal(dailyShareOfRecordCost(p, previous), 206.25);
+
+    // Overlapping day in a new booking gets the daily share
+    assert.equal(
+      countProducerDailyCost(p, new Date(2026, 9, 6), [previous]),
+      206.25
+    );
+    // Day outside the previous mix does not
+    assert.equal(
+      countProducerDailyCost(p, new Date(2026, 9, 9), [previous]),
+      0
+    );
+  });
+
+  it("cost breakdown excludes completed and in-payroll mixes", () => {
+    const p = makeProducer({ initials: "TP" });
+    const ongoing = makeRecord("live", "TP", 400, "2026-10-05", "2026-10-08");
+    const completed = {
+      ...makeRecord("done", "TP", 900, "2026-10-05", "2026-10-08"),
+      recordStatus: "Completed" as const,
+      status: "completed" as const,
+      inPayroll: true,
+    };
+    const payrollOnly = {
+      ...makeRecord("pay", "TP", 700, "2026-10-05", "2026-10-08"),
+      inPayroll: true,
+    };
+
+    const day = new Date(2026, 9, 6);
+    assert.equal(
+      countProducerDailyCost(p, day, [ongoing, completed, payrollOnly]),
+      dailyShareOfRecordCost(p, ongoing)
+    );
+
+    const contributors = listProducerCostContributorsInRange(
+      p,
+      "2026-10-05",
+      "2026-10-08",
+      [ongoing, completed, payrollOnly]
+    );
+    assert.equal(contributors.length, 1);
+    assert.equal(contributors[0]?.recordId, "live");
   });
 
   it("under limit → under capacity", () => {
     const p = makeProducer({ initials: "TP", maxProducerCostPerDay: 2000 });
-    const records = [makeRecord("r1", "TP", 500)];
+    const records = [makeRecord("r1", "TP", 500, day, day)];
     assert.equal(isProducerUnderDailyCostCapacity(p, today, records), true);
   });
 
   it("at limit → over capacity", () => {
     const p = makeProducer({ initials: "TP", maxProducerCostPerDay: 1000 });
-    const records = [makeRecord("r1", "TP", 500), makeRecord("r2", "TP", 500)];
+    const records = [
+      makeRecord("r1", "TP", 500, day, day),
+      makeRecord("r2", "TP", 500, day, day),
+    ];
     assert.equal(isProducerUnderDailyCostCapacity(p, today, records), false);
   });
 });
@@ -311,27 +369,33 @@ describe("isProducerAtDailyCapacity", () => {
 
   it("returns true when cost limit reached", () => {
     const p = makeProducer({ initials: "TP", maxMixesPerDay: null, maxProducerCostPerDay: 500 });
-    const records = [makeRecord("r1", "TP", 500)];
+    const records = [makeRecord("r1", "TP", 500, "2026-09-10", "2026-09-10")];
     assert.equal(isProducerAtDailyCapacity(p, today, records), true);
   });
 
   it("returns true when cost reached before mix count limit", () => {
     const p = makeProducer({ initials: "TP", maxMixesPerDay: 6, maxProducerCostPerDay: 1000 });
-    // 2 mixes but cost already $1000
-    const records = [makeRecord("r1", "TP", 500), makeRecord("r2", "TP", 500)];
+    // 2 single-day mixes → $1000 on that day
+    const records = [
+      makeRecord("r1", "TP", 500, "2026-09-10", "2026-09-10"),
+      makeRecord("r2", "TP", 500, "2026-09-10", "2026-09-10"),
+    ];
     assert.equal(isProducerAtDailyCapacity(p, today, records), true);
   });
 
   it("returns true when mix count reached before cost limit", () => {
     const p = makeProducer({ initials: "TP", maxMixesPerDay: 2, maxProducerCostPerDay: 10000 });
     // 2 mixes = at mix limit, cost only $200
-    const records = [makeRecord("r1", "TP", 100), makeRecord("r2", "TP", 100)];
+    const records = [
+      makeRecord("r1", "TP", 100, "2026-09-10", "2026-09-10"),
+      makeRecord("r2", "TP", 100, "2026-09-10", "2026-09-10"),
+    ];
     assert.equal(isProducerAtDailyCapacity(p, today, records), true);
   });
 
   it("returns false when both limits set but neither reached", () => {
     const p = makeProducer({ initials: "TP", maxMixesPerDay: 4, maxProducerCostPerDay: 2000 });
-    const records = [makeRecord("r1", "TP", 400)];
+    const records = [makeRecord("r1", "TP", 400, "2026-09-10", "2026-09-10")];
     assert.equal(isProducerAtDailyCapacity(p, today, records), false);
   });
 });

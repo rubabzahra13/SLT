@@ -9,6 +9,8 @@ type HoverTipProps = {
   children: React.ReactNode;
   className?: string;
   placement?: "bottom" | "top" | "right" | "left";
+  /** Stacking for portaled tip (keep above date menus / modals). */
+  zIndex?: number;
 };
 
 export function HoverTip({
@@ -17,6 +19,7 @@ export function HoverTip({
   children,
   className = "",
   placement = "bottom",
+  zIndex = 200,
 }: HoverTipProps) {
   const ref = useRef<HTMLSpanElement>(null);
   const [open, setOpen] = useState(false);
@@ -79,13 +82,14 @@ export function HoverTip({
               role="tooltip"
               className={
                 content
-                  ? "pointer-events-none fixed z-[200] max-w-[240px] rounded-xl border border-brand-line/80 bg-brand-elevated px-3 py-2.5 text-left shadow-[var(--shadow-premium)]"
-                  : "pointer-events-none fixed z-[200] w-max max-w-[min(92vw,28rem)] whitespace-pre-line rounded-md bg-brand-accent px-2.5 py-1.5 text-center text-[11px] font-semibold leading-snug text-white shadow-md"
+                  ? "pointer-events-none fixed max-w-[240px] rounded-xl border border-brand-line/80 bg-brand-elevated px-3 py-2.5 text-left shadow-[var(--shadow-premium)]"
+                  : "pointer-events-none fixed w-max max-w-[min(92vw,28rem)] whitespace-pre-line rounded-md bg-brand-accent px-2.5 py-1.5 text-center text-[11px] font-semibold leading-snug text-white shadow-md"
               }
               style={{
                 top: coords.top,
                 left: coords.left,
                 transform: coords.transform,
+                zIndex,
               }}
             >
               {tip}

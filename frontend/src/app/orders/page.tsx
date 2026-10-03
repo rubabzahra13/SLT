@@ -116,7 +116,6 @@ function OrdersPageContent() {
     addManualScheduleEntry,
     producers,
     schedule,
-    holidays,
     packagePrices,
     secretMenuPrices,
     setPackagePrices,
@@ -841,7 +840,6 @@ function OrdersPageContent() {
                   rec,
                   requested,
                   producers,
-                  holidays
                 )
               : null;
           const showUnavailable =
@@ -1027,7 +1025,7 @@ function OrdersPageContent() {
               ? formatMixBookedDaysLabel(
                   rec.mixStartDate,
                   rec.mixEndDate,
-                  mixWorkDaysForRecord(rec, producers, holidays)
+                  mixWorkDaysForRecord(rec, producers)
                 )
               : "Not booked yet";
           const booked = label !== "Not booked yet";
@@ -1292,7 +1290,6 @@ function OrdersPageContent() {
     form,
     rangeFilter,
     producers,
-    holidays,
     allOrders,
     mtdRecords,
     orderById,
@@ -1430,7 +1427,6 @@ function OrdersPageContent() {
         mtdRecords={mtdRecords}
         allOrders={allOrders}
         schedule={schedule}
-        studioHolidays={holidays}
         initialFormType={form}
         initialCheerSubtype={cheerSubtype}
         initialDanceSubtype={danceSubtype}

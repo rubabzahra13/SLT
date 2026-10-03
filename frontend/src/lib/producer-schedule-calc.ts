@@ -8,7 +8,6 @@ import {
   isProducerWorkDay,
   type DailyCostOptions,
 } from "@/lib/producer-availability";
-import type { StudioHoliday } from "@/lib/producer-time-off";
 import { parseToDate, producerScheduleId } from "@/lib/schedule-view";
 
 const MONTH_NAMES = [
@@ -79,7 +78,6 @@ export function isProducerAvailableOnDate(
   date: Date,
   mtdRecords: MTDRecord[],
   schedule: ScheduleEntry[] = [],
-  studioHolidays: StudioHoliday[] = [],
   options: ProducerOpeningOptions = {}
 ): boolean {
   // 1. Must be a scheduled work day (or overtime day) for the producer
@@ -87,11 +85,11 @@ export function isProducerAvailableOnDate(
     return false;
   }
 
-  // 2. Leave / studio holidays block regular work days only.
-  //    Overtime days are managed by adding/removing OT (UI blocks OT on holidays).
+  // 2. Leave blocks regular work days only.
+  //    Extra days are managed by adding/removing the Extra day date.
   if (
     isProducerWorkDay(producer, date) &&
-    isProducerOnTimeOff(producer, date, studioHolidays)
+    isProducerOnTimeOff(producer, date)
   ) {
     return false;
   }
@@ -138,7 +136,6 @@ export function calculateProducerNextOpening(
   mtdRecords: MTDRecord[] = [],
   schedule: ScheduleEntry[] = [],
   anchorDateInput: Date | string = new Date(),
-  studioHolidays: StudioHoliday[] = [],
   options: ProducerOpeningOptions = {}
 ): ProducerScheduleCalcResult {
   const anchorDate =
@@ -158,7 +155,6 @@ export function calculateProducerNextOpening(
         cursor,
         mtdRecords,
         schedule,
-        studioHolidays,
         options
       )
     ) {
@@ -197,7 +193,6 @@ export function calculateProducerNextOpening(
       d,
       mtdRecords,
       schedule,
-      studioHolidays,
       options
     )
   );
@@ -231,15 +226,13 @@ export function enrichProducerWithSchedule(
   producer: Producer,
   mtdRecords: MTDRecord[] = [],
   schedule: ScheduleEntry[] = [],
-  anchorDate: Date | string = new Date(),
-  studioHolidays: StudioHoliday[] = []
+  anchorDate: Date | string = new Date()
 ): Producer {
   const calc = calculateProducerNextOpening(
     producer,
     mtdRecords,
     schedule,
-    anchorDate,
-    studioHolidays
+    anchorDate
   );
   return {
     ...producer,
@@ -252,10 +245,9 @@ export function enrichProducersWithSchedule(
   producers: Producer[],
   mtdRecords: MTDRecord[] = [],
   schedule: ScheduleEntry[] = [],
-  anchorDate: Date | string = new Date(),
-  studioHolidays: StudioHoliday[] = []
+  anchorDate: Date | string = new Date()
 ): Producer[] {
   return producers.map((p) =>
-    enrichProducerWithSchedule(p, mtdRecords, schedule, anchorDate, studioHolidays)
+    enrichProducerWithSchedule(p, mtdRecords, schedule, anchorDate)
   );
 }
