@@ -13,13 +13,19 @@ import {
   buildRequestedProducerOptions,
   buildSplitOptions,
   buildTimeLimitOptions,
-  hasMixStartDate,
+  producersForFormCategory,
   type InfoFilter,
   type MixScheduleFilter,
   type SplitFilter,
 } from "@/lib/mtd-filters";
-import type { MTDRecord, Order, OrderFormType, Producer } from "@/types";
-import { EDITOR_NAMES } from "@/types";
+import type {
+  CheerFormSubtypeFilter,
+  DanceFormSubtypeFilter,
+  MTDRecord,
+  Order,
+  OrderFormType,
+  Producer,
+} from "@/types";
 
 export type MTDTableFilterState = {
   packageTier: string;
@@ -40,7 +46,9 @@ type MTDTableFilterPanelProps = {
   onChange: (patch: Partial<MTDTableFilterState>) => void;
   onReset: () => void;
   form?: OrderFormType;
-  /** Orders tab hides Data (covered by range toggles); shows Editor instead of Assigned. */
+  cheerSubtype?: CheerFormSubtypeFilter;
+  danceSubtype?: DanceFormSubtypeFilter;
+  /** Orders tab hides Data (covered by range toggles). */
   variant?: "mtd" | "orders";
 };
 
@@ -57,7 +65,6 @@ export function hasActiveMTDFilters(
     (isCheer && filters.split !== "all") ||
     filters.assignedProducer !== "All" ||
     filters.requestedProducer !== "All" ||
-    filters.scheduleFilter !== "all" ||
     (showDataFilter && (filters.infoFilter ?? "all") !== "all") ||
     filters.dateFilter.type !== "all"
   );
@@ -76,7 +83,6 @@ function countTableFilters(
   if (isCheer && filters.split !== "all") count += 1;
   if (filters.assignedProducer !== "All") count += 1;
   if (filters.requestedProducer !== "All") count += 1;
-  if (filters.scheduleFilter !== "all") count += 1;
   if (showDataFilter && (filters.infoFilter ?? "all") !== "all") count += 1;
   if (filters.dateFilter.type !== "all") count += 1;
   return count;
@@ -90,13 +96,15 @@ export function MTDTableFilterPanel({
   onChange,
   onReset,
   form,
+  cheerSubtype,
+  danceSubtype,
   grouped = false,
   variant = "mtd",
 }: MTDTableFilterPanelProps & { grouped?: boolean }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const showDataFilter = variant !== "orders";
-  const editorFilterLabel = variant === "orders" ? "Editor" : "Assigned";
+  const editorFilterLabel = "Assigned editor";
 
   const packageOptions = useMemo(
     () => buildPackageTierOptions(records),
@@ -107,34 +115,25 @@ export function MTDTableFilterPanel({
     [records]
   );
   const splitOptions = useMemo(() => buildSplitOptions(records), [records]);
+  const categoryProducers = useMemo(
+    () =>
+      producersForFormCategory(producers, form, cheerSubtype, danceSubtype),
+    [producers, form, cheerSubtype, danceSubtype]
+  );
   const assignedOptions = useMemo(
-    () => buildAssignedProducerOptions(records, EDITOR_NAMES, producers),
-    [records, producers]
+    () => buildAssignedProducerOptions(records, [], categoryProducers),
+    [records, categoryProducers]
   );
   const requestedOptions = useMemo(
     () =>
       buildRequestedProducerOptions(
         records,
-        EDITOR_NAMES,
-        producers,
+        [],
+        categoryProducers,
         orderById
       ),
-    [records, producers, orderById]
+    [records, categoryProducers, orderById]
   );
-
-  const scheduleOptions = useMemo(() => {
-    let scheduled = 0;
-    let notScheduled = 0;
-    for (const rec of records) {
-      if (hasMixStartDate(rec)) scheduled += 1;
-      else notScheduled += 1;
-    }
-    return [
-      { value: "all", label: "All", count: records.length },
-      { value: "scheduled", label: "Scheduled", count: scheduled },
-      { value: "not_scheduled", label: "Not scheduled", count: notScheduled },
-    ];
-  }, [records]);
 
   const infoOptions = useMemo(() => buildInfoOptions(records), [records]);
 
@@ -243,14 +242,6 @@ export function MTDTableFilterPanel({
                 onChange={(value) => onChange({ requestedProducer: value })}
                 accent="orange"
               />
-              <FilterMenu
-                label="Schedule"
-                value={filters.scheduleFilter}
-                options={scheduleOptions}
-                onChange={(value) =>
-                  onChange({ scheduleFilter: value as MixScheduleFilter })
-                }
-              />
               {showDataFilter ? (
                 <FilterMenu
                   label="Data"
@@ -312,11 +303,13 @@ export function useMTDFilterChips(
     filters,
     onChange,
     form,
+    cheerSubtype,
+    danceSubtype,
     variant = "mtd",
   } = props;
   const isCheer = !form || form === "school-all-star-cheer";
   const showDataFilter = variant !== "orders";
-  const editorFilterLabel = variant === "orders" ? "Editor" : "Assigned";
+  const editorFilterLabel = "Assigned editor";
 
   const packageOptions = useMemo(
     () => buildPackageTierOptions(records),
@@ -327,33 +320,25 @@ export function useMTDFilterChips(
     [records]
   );
   const splitOptions = useMemo(() => buildSplitOptions(records), [records]);
+  const categoryProducers = useMemo(
+    () =>
+      producersForFormCategory(producers, form, cheerSubtype, danceSubtype),
+    [producers, form, cheerSubtype, danceSubtype]
+  );
   const assignedOptions = useMemo(
-    () => buildAssignedProducerOptions(records, EDITOR_NAMES, producers),
-    [records, producers]
+    () => buildAssignedProducerOptions(records, [], categoryProducers),
+    [records, categoryProducers]
   );
   const requestedOptions = useMemo(
     () =>
       buildRequestedProducerOptions(
         records,
-        EDITOR_NAMES,
-        producers,
+        [],
+        categoryProducers,
         orderById
       ),
-    [records, producers, orderById]
+    [records, categoryProducers, orderById]
   );
-  const scheduleOptions = useMemo(() => {
-    let scheduled = 0;
-    let notScheduled = 0;
-    for (const rec of records) {
-      if (hasMixStartDate(rec)) scheduled += 1;
-      else notScheduled += 1;
-    }
-    return [
-      { value: "all", label: "All", count: records.length },
-      { value: "scheduled", label: "Scheduled", count: scheduled },
-      { value: "not_scheduled", label: "Not scheduled", count: notScheduled },
-    ];
-  }, [records]);
   const infoOptions = useMemo(() => buildInfoOptions(records), [records]);
 
   return useMemo(() => {
@@ -410,16 +395,6 @@ export function useMTDFilterChips(
         onClear: () => onChange({ requestedProducer: "All" }),
       });
     }
-    if (filters.scheduleFilter !== "all") {
-      const label =
-        scheduleOptions.find((o) => o.value === filters.scheduleFilter)
-          ?.label ?? filters.scheduleFilter;
-      items.push({
-        key: "scheduleFilter",
-        label: `Schedule · ${label}`,
-        onClear: () => onChange({ scheduleFilter: "all" }),
-      });
-    }
     if (showDataFilter && (filters.infoFilter ?? "all") !== "all") {
       const label =
         infoOptions.find((o) => o.value === filters.infoFilter)?.label ??
@@ -446,7 +421,6 @@ export function useMTDFilterChips(
     splitOptions,
     assignedOptions,
     requestedOptions,
-    scheduleOptions,
     infoOptions,
     onChange,
     isCheer,

@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import { Eye, Mail, Music, Pencil, Plus, Trash2 } from "lucide-react";
-import clsx from "clsx";
 import { PageHeader } from "@/components/layout/PageHeader";
 import {
   DeleteProducerModal,
@@ -11,105 +10,15 @@ import {
 import { ProducerAvailabilityModal } from "@/components/producers/ProducerAvailabilityModal";
 import { ProducerFormModal } from "@/components/producers/ProducerFormModal";
 import { Avatar } from "@/components/ui/Avatar";
-import {
-  producerAssignmentKey,
-  producerKeysMatch,
-} from "@/lib/editor-assignment";
-import { getPayrollRecords } from "@/lib/mtd-completion";
-import { isMTDRecord } from "@/lib/mtd-filters";
-import {
-  listPreMtdOrderRecords,
-  stagingRecordFromOrder,
-} from "@/lib/order-staging";
 import { patchForReassignProducerRemoved } from "@/lib/order-reassign";
+import {
+  collectAssignedMixesForProducer,
+  collectUnpaidPayrollMixesForProducer,
+} from "@/lib/producer-assigned-mixes";
 import { getProducerCategories, normalizeProducerList } from "@/lib/producers";
-import type { MTDRecord, Order, Producer, Weekday } from "@/types";
+import { countProducerMixesThisWeek } from "@/lib/producer-availability";
+import type { MTDRecord, Producer, Weekday } from "@/types";
 import { useAppState } from "@/context/AppStateContext";
-
-function isActiveAssignedMix(rec: MTDRecord): boolean {
-  const status = String(rec.status || "").toLowerCase();
-  if (
-    rec.completedAt ||
-    rec.inPayroll ||
-    status === "completed" ||
-    status === "payroll"
-  ) {
-    return false;
-  }
-  return Boolean(rec.assignedProducer?.trim());
-}
-
-function recordDedupeKey(rec: MTDRecord): string {
-  return (
-    rec.orderId ||
-    rec.id ||
-    rec.uuid ||
-    rec.legacyId ||
-    rec.programName ||
-    ""
-  );
-}
-
-/** Every active mix assigned to this producer — Orders and MTD board. */
-function collectAssignedMixesForProducer(
-  producer: Producer,
-  activeOrders: Order[],
-  mtdRecords: MTDRecord[]
-): AssignedMixForDelete[] {
-  const key = producerAssignmentKey(producer);
-  const seen = new Set<string>();
-  const combined: AssignedMixForDelete[] = [];
-
-  const push = (rec: MTDRecord) => {
-    if (!isActiveAssignedMix(rec)) return;
-    if (!producerKeysMatch(rec.assignedProducer || "", key)) return;
-    const dedupe = recordDedupeKey(rec);
-    if (!dedupe || seen.has(dedupe)) return;
-    seen.add(dedupe);
-    combined.push({ ...rec, onMtdBoard: isMTDRecord(rec) });
-  };
-
-  // MTD-board rows first so their ids win for Reschedule updates.
-  for (const rec of mtdRecords) {
-    if (isMTDRecord(rec)) push(rec);
-  }
-  // Orders-tab rows (assigned, not yet moved to MTD).
-  for (const rec of listPreMtdOrderRecords(activeOrders, mtdRecords)) {
-    push(rec);
-  }
-  // Any other stored MTD rows still assigned (edge cases).
-  for (const rec of mtdRecords) {
-    push(rec);
-  }
-  // Orders with an assignment that somehow aren't covered above.
-  for (const order of activeOrders) {
-    if (order.status === "completed") continue;
-    if (!order.assignedProducer?.trim()) continue;
-    if (!producerKeysMatch(order.assignedProducer, key)) continue;
-    const dedupe = order.id || order.uuid || order.legacyId || "";
-    if (!dedupe || seen.has(dedupe)) continue;
-    push(stagingRecordFromOrder(order));
-  }
-
-  return combined;
-}
-
-function collectUnpaidPayrollMixesForProducer(
-  producer: Producer,
-  mtdRecords: MTDRecord[]
-): MTDRecord[] {
-  const key = producerAssignmentKey(producer);
-  const seen = new Set<string>();
-  const rows: MTDRecord[] = [];
-  for (const rec of getPayrollRecords(mtdRecords)) {
-    if (!producerKeysMatch(rec.assignedProducer || "", key)) continue;
-    const dedupe = recordDedupeKey(rec);
-    if (!dedupe || seen.has(dedupe)) continue;
-    seen.add(dedupe);
-    rows.push(rec);
-  }
-  return rows;
-}
 
 function getProducerHeaderLabel(categories: string[]): string {
   if (categories.length === 0) return "Producer";
@@ -235,7 +144,7 @@ export default function ProducersPage() {
   );
 
   return (
-    <>
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <PageHeader
         title="Producer Roster"
         badge={`${uniqueProducers.length} producers`}
@@ -243,6 +152,7 @@ export default function ProducersPage() {
         action={isViewOnly ? undefined : { label: "Add Producer", onClick: openAdd }}
       />
 
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
       <div className="grid auto-rows-fr items-stretch gap-4 px-6 pb-6 pt-5 sm:grid-cols-2 lg:grid-cols-3 lg:px-8 xl:grid-cols-4">
         {uniqueProducers.map((producer) => {
           const categories = getProducerCategories(producer);
@@ -287,15 +197,7 @@ export default function ProducersPage() {
 
             <div className="dashboard-panel-body flex flex-col p-4 pt-3">
             <div className="flex flex-col items-center text-center">
-              <div
-                className={clsx(
-                  producer.status === "available" && "ring-available",
-                  producer.status === "limited" && "ring-limited",
-                  producer.status === "unavailable" && "ring-unavailable"
-                )}
-              >
-                <Avatar producer={producer} size="lg" />
-              </div>
+              <Avatar producer={producer} size="lg" />
               <h3 className="text-display mt-3 text-[15px]">{producer.name}</h3>
             </div>
 
@@ -312,7 +214,10 @@ export default function ProducersPage() {
                   className="h-3.5 w-3.5 shrink-0 text-brand-ink-tertiary"
                   strokeWidth={1.75}
                 />
-                <span>{producer.mixesThisWeek} mixes this week</span>
+                <span>
+                  {countProducerMixesThisWeek(producer, mtdRecords)} mixes this
+                  week
+                </span>
               </div>
 
               <button
@@ -356,6 +261,7 @@ export default function ProducersPage() {
           </button>
         ) : null}
       </div>
+      </div>
 
       <ProducerFormModal
         open={modalOpen}
@@ -391,6 +297,6 @@ export default function ProducersPage() {
         onSendToReassign={() => void handleSendToReassignAndDelete()}
         busy={deleteBusy}
       />
-    </>
+    </div>
   );
 }

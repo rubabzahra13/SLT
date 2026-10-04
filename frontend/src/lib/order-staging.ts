@@ -1,3 +1,4 @@
+import { orderCategoryToProducerCategory } from "@/lib/producer-category";
 import { isPreMTDOrderRecord } from "@/lib/mtd-filters";
 import {
   detectCompliance,
@@ -11,7 +12,8 @@ function orderEligibleForStaging(order: Order): boolean {
   return true;
 }
 
-function mtdRecordCoversOrder(rec: MTDRecord, order: Order): boolean {
+/** True when an MTD/payroll row is the same booking as this order. */
+export function mtdRecordCoversOrder(rec: MTDRecord, order: Order): boolean {
   // An order can be referenced by its legacy id, backend UUID, or plain id, and
   // an MTD record may carry any of those forms in orderId/id/legacyId/uuid.
   // Compare every combination so a linked record (order_id = order UUID) still
@@ -35,6 +37,15 @@ export function stagingRecordFromOrder(
       order.price,
       packagePrices
     );
+  const subtype = order.danceFormSubtype || order.cheerFormSubtype;
+  const producerCategory =
+    orderCategoryToProducerCategory(
+      order.formType,
+      subtype,
+      order.category || undefined
+    ) ||
+    order.category ||
+    "Cheer";
 
   return {
     id: order.id,
@@ -42,9 +53,14 @@ export function stagingRecordFromOrder(
     legacyId: order.legacyId || order.id,
     uuid: order.uuid,
     section:
-      order.category === "Dance" ? "DANCE MUSIC" : "CHEERLEADING MUSIC",
+      order.category === "Dance" || order.formType === "school-all-star-dance"
+        ? "DANCE MUSIC"
+        : "CHEERLEADING MUSIC",
     assignedProducer: order.assignedProducer ?? null,
-    category: order.category || "Cheer",
+    category: producerCategory,
+    formType: order.formType,
+    cheerFormSubtype: order.cheerFormSubtype,
+    danceFormSubtype: order.danceFormSubtype,
     editorRequest: order.editorRequest || "FA",
     contactName: order.contactName || order.customerName || "",
     editorInitials: order.contactName || order.customerName || "",
@@ -146,9 +162,25 @@ export function mergeCollectionStateFromOrder(
     (order as { video_url?: string }).video_url ||
     "";
 
+  const formType = record.formType || order.formType;
+  const cheerFormSubtype = record.cheerFormSubtype || order.cheerFormSubtype;
+  const danceFormSubtype = record.danceFormSubtype || order.danceFormSubtype;
+  const producerCategory =
+    orderCategoryToProducerCategory(
+      formType,
+      danceFormSubtype || cheerFormSubtype,
+      record.category || order.category || undefined
+    ) ||
+    record.category ||
+    order.category;
+
   return {
     ...record,
     collectionStates: nextStates,
+    formType,
+    cheerFormSubtype,
+    danceFormSubtype,
+    category: producerCategory || record.category,
     haveSongs: pickFilled(record.haveSongs, orderHaveSongs) || record.haveSongs,
     eightCountSheet:
       pickFilled(record.eightCountSheet, orderCs) || record.eightCountSheet,

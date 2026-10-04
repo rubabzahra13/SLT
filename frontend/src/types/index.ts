@@ -142,9 +142,15 @@ export type Producer = {
   categories: string[];
   avatar: string;
   color?: string;
+  /** Display count for Producers cards; not used for live schedule logic. */
   mixesThisWeek: number;
-  nextAvailable: string;
-  status: "available" | "limited" | "unavailable";
+  /**
+   * Computed at runtime by schedule enrichment — not stored in DB.
+   * Prefer `calculateProducerNextOpening` / enrich helpers.
+   */
+  nextAvailable?: string;
+  /** Computed at runtime by schedule enrichment — not stored in DB. */
+  status?: "available" | "limited" | "unavailable";
   /** Days of the week this producer normally works */
   workDays: Weekday[];
   /** Named leave windows on working days */
@@ -164,6 +170,8 @@ export type Producer = {
   rateOverrides?: Record<string, number> | null;
   manualInputFields?: ProducerManualInputField[] | null;
   notes?: string | null;
+  /** Server version for optimistic concurrency / live sync. */
+  updatedAt?: string | null;
 };
 
 export const WEEKDAYS: { id: Weekday; label: string; short: string }[] = [

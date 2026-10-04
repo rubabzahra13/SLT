@@ -48,6 +48,10 @@ import {
   calculateSportsEntertainmentOrderPricing,
   calculateSchoolAnthemOrderPricing,
 } from "@/lib/pricing-engine";
+import {
+  buildRecordPriceSavePatch,
+  resolveOrderPackageDisplayPrice,
+} from "@/lib/order-package-price";
 import { inferMTDRecordStatus, patchFromRecordStatus } from "@/lib/mtd-status";
 import {
   canCompleteForPayroll,
@@ -406,6 +410,17 @@ function MTDPageContent() {
     []
   );
 
+  const pricingRecordDisplayPrice = useMemo(() => {
+    if (!pricingRecord) return null;
+    const linked = findLinkedOrder(pricingRecord, allOrders);
+    return resolveOrderPackageDisplayPrice(
+      pricingRecord,
+      linked,
+      resolveMTDFormMeta(pricingRecord, orderById),
+      orderById
+    );
+  }, [pricingRecord, allOrders, orderById]);
+
   const handleInvoiceSave = useCallback(
     (recordId: string, invoice: string) => {
       updateMTD(recordId, { invoice });
@@ -414,13 +429,27 @@ function MTDPageContent() {
   );
 
   const handleRecordPricingSave = useCallback(
-    (
+    async (
       recordId: string,
       patch: { price: number; priceCompliance: PriceCompliance }
     ) => {
-      updateMTD(recordId, patch);
+      const rec =
+        pricingRecord?.id === recordId
+          ? pricingRecord
+          : mtdRecords.find((row) => row.id === recordId) || null;
+      if (!rec) return;
+      const linked = findLinkedOrder(rec, allOrders);
+      const next = buildRecordPriceSavePatch(
+        rec,
+        linked,
+        patch.price,
+        patch.priceCompliance,
+        resolveMTDFormMeta(rec, orderById),
+        orderById
+      );
+      await updateMTD(recordId, next);
     },
-    [updateMTD]
+    [pricingRecord, mtdRecords, allOrders, orderById, updateMTD]
   );
 
   const handleInvoicesSave = useCallback(
@@ -815,14 +844,12 @@ function MTDPageContent() {
           const isOverridden = Boolean(
             order?.finalCustomerPriceOverridden ?? rec.finalCustomerPriceOverridden
           );
-
-          const numericEnginePrice = engineCustomerPrice ?? 0;
-
-          const displayPrice = isOverridden
-            ? (order?.finalCustomerPrice ?? rec.finalCustomerPrice ?? numericEnginePrice)
-            : (numericEnginePrice > 0
-                ? numericEnginePrice
-                : (order?.finalCustomerPrice ?? rec.price));
+          const displayPrice = resolveOrderPackageDisplayPrice(
+            rec,
+            order,
+            meta,
+            orderById
+          );
 
           return (
             <div
@@ -1404,6 +1431,7 @@ function MTDPageContent() {
         open={Boolean(pricingRecord)}
         record={pricingRecord}
         packagePrices={packagePrices}
+        initialPrice={pricingRecordDisplayPrice}
         readOnly={isViewOnly}
         musicAffiliateInfo={
           pricingRecord

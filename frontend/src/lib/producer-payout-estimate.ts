@@ -1,6 +1,7 @@
 import type { MTDRecord, Order, Producer } from "@/types";
 import { findProducerByAssignmentKey } from "@/lib/editor-assignment";
 import { resolveMTDFormMeta } from "@/lib/mtd-filters";
+import { resolveLiveOrderPricing } from "@/lib/order-package-price";
 import { computeClientPayroll } from "@/lib/pricing-display";
 
 function rushFeeQuantity(rec: MTDRecord): number {
@@ -33,18 +34,24 @@ export type ProducerPayoutEstimateDetail = {
 /**
  * Estimated producer payout breakdown for a mix, same compliance / payroll
  * math as the Orders → Complete to Payroll pricing step.
+ *
+ * Uses live Pricing Reference + engine prices (and order overrides) so assign
+ * daily-cost updates immediately when package prices or producer % change.
  */
 export function estimateRecordProducerPayoutDetail(
   rec: MTDRecord,
   producer: Producer | undefined | null,
   orderById: Map<string, Order>
 ): ProducerPayoutEstimateDetail {
-  const order = orderById.get(rec.orderId || "");
+  const order =
+    orderById.get(rec.orderId || "") ||
+    orderById.get(rec.id) ||
+    (rec.uuid ? orderById.get(rec.uuid) : undefined) ||
+    (rec.legacyId ? orderById.get(rec.legacyId) : undefined);
   const meta = resolveMTDFormMeta(rec, orderById);
-  const packagePrice =
-    order?.finalCustomerPrice ?? rec.finalCustomerPrice ?? rec.price ?? null;
-  const payrollPrice =
-    rec.finalPayrollPrice ?? order?.finalPayrollPrice ?? rec.price ?? null;
+  const live = resolveLiveOrderPricing(rec, order, meta, orderById);
+  const packagePrice = live.customerPrice;
+  const payrollPrice = live.payrollPrice;
 
   const calc = computeClientPayroll(
     producer,
@@ -82,7 +89,10 @@ export function estimateRecordProducerPayoutDetail(
   let basePayout =
     calc.categoryPayout ??
     (totalPayout != null
-      ? Math.max(0, Math.round((totalPayout - rushFeePayout - voiceoverPayout) * 100) / 100)
+      ? Math.max(
+          0,
+          Math.round((totalPayout - rushFeePayout - voiceoverPayout) * 100) / 100
+        )
       : null);
 
   const unknownUntilPayroll =
@@ -133,14 +143,17 @@ export function createBookedCostEstimator(
   producers: Producer[],
   orderById: Map<string, Order>
 ): (rec: MTDRecord) => number | null {
-  const cache = new WeakMap<MTDRecord, number | null>();
+  // Per-factory Map (not WeakMap): a new factory is created whenever prices /
+  // rates change, so stale payouts can't stick across Pricing Reference edits.
+  const cache = new Map<string, number | null>();
   return (rec) => {
-    if (cache.has(rec)) return cache.get(rec) ?? null;
+    const key = rec.id || rec.orderId || rec.uuid || rec.legacyId || "";
+    if (key && cache.has(key)) return cache.get(key) ?? null;
     const producer = rec.assignedProducer
       ? findProducerByAssignmentKey(rec.assignedProducer, producers)
       : undefined;
     const value = estimateRecordBasePayout(rec, producer, orderById);
-    cache.set(rec, value);
+    if (key) cache.set(key, value);
     return value;
   };
 }

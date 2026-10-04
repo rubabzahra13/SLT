@@ -19,8 +19,14 @@ export type ProducerCategoryGroup = {
 
 function labelForProducerCategory(id: string, fallback: string): string {
   if (id === "All-Star Cheer") return "All Star Cheer";
+  if (id === "School Cheer") return "School Cheer";
   if (id === "Team Performance / Variety") return "Team Performance & Variety";
-  return fallback.replace(" · VIROC Yes", "").replace(" · VIROC No", "").replace("VIROC Yes", "VIROC").replace("VIROC No", "School Cheer");
+  return fallback
+    .replace(" · VIROC Yes", "")
+    .replace(" · VIROC No", "")
+    .replace("VIROC Yes", "School Cheer")
+    .replace("VIROC No", "School Cheer")
+    .replace(/^VIROC$/, "School Cheer");
 }
 
 function uniqueSubcategories(

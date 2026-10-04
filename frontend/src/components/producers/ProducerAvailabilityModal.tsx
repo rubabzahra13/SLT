@@ -17,6 +17,7 @@ import {
   describeTimeOffOutsideWorkDaysParts,
   describeProducerMixDayForLeave,
   collectProducerMixBlockedDays,
+  collectProducerWeekdayMixConflict,
   expandTimeOffDates,
   findLeaveMixConflicts,
   formatIsoDayMonthYear,
@@ -27,13 +28,16 @@ import {
   isEligibleTimeOffDate,
   isTimeOffDateBlockedByExtraDay,
   leaveApplicableDaysInRange,
+  leaveDatesOnWeekday,
   listProducerMixBookingsOnDay,
   nextExtraDayOnOrAfter,
   extraDatesInRange,
   prevExtraDayOnOrBefore,
+  splitTimeOffToWorkDayRanges,
   timeOffRangeCoversWorkDay,
   type ProducerMixDayBooking,
 } from "@/lib/producer-availability";
+import { collectAssignedMixesForProducer } from "@/lib/producer-assigned-mixes";
 import { patchForReassignLeave } from "@/lib/order-reassign";
 import {
   formatOffWorkReason,
@@ -116,6 +120,17 @@ type WorkDayOtConflict = {
 type WorkDayLeaveConflict = {
   day: Weekday;
   leaveDates: string[];
+};
+
+type WorkDayMixConflict = {
+  day: Weekday;
+  mixDates: string[];
+  bookings: ProducerMixDayBooking[];
+};
+
+type ExtraDayMixConflict = {
+  iso: string;
+  bookings: ProducerMixDayBooking[];
 };
 
 /** OT dates that would be dropped if these work days became active. */
@@ -469,7 +484,7 @@ export function ProducerAvailabilityModal({
   readOnly = false,
 }: ProducerAvailabilityModalProps) {
   const router = useRouter();
-  const { mtdRecords, updateMTD } = useAppState();
+  const { mtdRecords, activeOrders, updateMTD, updateOrder } = useAppState();
   const [workDays, setWorkDays] = useState<Weekday[]>([...DEFAULT_WORK_DAYS]);
   const [timeOff, setTimeOff] = useState<DraftTimeOff[]>([]);
   const [timeOffDraft, setTimeOffDraft] = useState<DraftTimeOff>(() =>
@@ -480,7 +495,8 @@ export function ProducerAvailabilityModal({
   const [noticeListExpand, setNoticeListExpand] = useState<
     "skipped" | "apply" | null
   >(null);
-  const [hasMaxCapacity, setHasMaxCapacity] = useState(false);
+  const [hasMaxMixesLimit, setHasMaxMixesLimit] = useState(false);
+  const [hasMaxCostLimit, setHasMaxCostLimit] = useState(false);
   const [maxMixesPerDay, setMaxMixesPerDay] = useState(6);
   const [maxProducerCostPerDay, setMaxProducerCostPerDay] = useState(2000);
   const [maxCostInput, setMaxCostInput] = useState("2000");
@@ -489,6 +505,10 @@ export function ProducerAvailabilityModal({
     useState<WorkDayOtConflict | null>(null);
   const [workDayLeaveConflict, setWorkDayLeaveConflict] =
     useState<WorkDayLeaveConflict | null>(null);
+  const [workDayMixConflict, setWorkDayMixConflict] =
+    useState<WorkDayMixConflict | null>(null);
+  const [extraDayMixConflict, setExtraDayMixConflict] =
+    useState<ExtraDayMixConflict | null>(null);
   const [extraDayPickerOpen, setExtraDayPickerOpen] = useState(false);
   const [timeOffDateField, setTimeOffDateField] = useState<"start" | "end" | null>(
     null
@@ -502,10 +522,15 @@ export function ProducerAvailabilityModal({
   /** Only re-hydrate when the modal opens or the producer id changes — not when
    *  the parent passes a new producer object for the same person (bootstrap/cache). */
   const hydratedProducerKeyRef = useRef<string | null>(null);
+  /** Prevent double-submit while the modal is closing (Google-style optimistic save). */
+  const saveStartedRef = useRef(false);
 
   useEffect(() => {
     if (!open || !producer) {
-      if (!open) hydratedProducerKeyRef.current = null;
+      if (!open) {
+        hydratedProducerKeyRef.current = null;
+        saveStartedRef.current = false;
+      }
       return;
     }
     const key = producer.uuid || producer.id;
@@ -513,27 +538,48 @@ export function ProducerAvailabilityModal({
     hydratedProducerKeyRef.current = key;
 
     setActiveTab("schedule");
-    setWorkDays([...producer.workDays]);
+    const initialWorkDays =
+      producer.workDays?.length > 0
+        ? [...producer.workDays]
+        : [...DEFAULT_WORK_DAYS];
+    setWorkDays(initialWorkDays);
+    // Drop non-work days from stored spans so they cannot become leave later
+    // when that weekday is turned on (chip may still show "22-23, 26-27").
+    const personalLeave = (producer.timeOff ?? [])
+      .filter((entry) => entry.type === "personal" && entry.startDate)
+      .map((entry) => ({
+        key: entry.id || `to-${entry.startDate}`,
+        startDate: entry.startDate,
+        endDate: entry.endDate || entry.startDate,
+        type: entry.type,
+        reason: entry.reason || "",
+      }));
+    const splitLeave = splitTimeOffToWorkDayRanges(
+      personalLeave,
+      initialWorkDays
+    );
     setTimeOff(
-      producer.timeOff
-        .filter((entry) => entry.type === "personal")
-        .map((entry) => ({
-          key: entry.id,
-          startDate: entry.startDate,
-          endDate: entry.endDate,
-          type: entry.type,
-          reason: entry.reason,
-        }))
+      splitLeave.map((entry, index) => ({
+        ...entry,
+        // Keep a stable UUID on the first segment; only suffix extras from a split.
+        key:
+          index === 0 &&
+          splitLeave.length === 1 &&
+          /^[0-9a-f-]{36}$/i.test(entry.key)
+            ? entry.key
+            : `${entry.key}-${entry.startDate}-${index}`,
+      }))
     );
-    setHasMaxCapacity(
-      producer.maxMixesPerDay != null || producer.maxProducerCostPerDay != null
-    );
+    setHasMaxMixesLimit(producer.maxMixesPerDay != null);
+    setHasMaxCostLimit(producer.maxProducerCostPerDay != null);
     setMaxMixesPerDay(producer.maxMixesPerDay ?? 6);
     setMaxProducerCostPerDay(producer.maxProducerCostPerDay ?? 2000);
     setMaxCostInput(String(producer.maxProducerCostPerDay ?? 2000));
-    setExtraDays([...producer.extraDays]);
+    setExtraDays([...(producer.extraDays ?? [])]);
     setWorkDayOtConflict(null);
     setWorkDayLeaveConflict(null);
+    setWorkDayMixConflict(null);
+    setExtraDayMixConflict(null);
     setExtraDayPickerOpen(false);
     setTimeOffDraft(createEmptyTimeOffDraft());
     setOffWorkDetail("");
@@ -557,29 +603,68 @@ export function ProducerAvailabilityModal({
   const todayIso = isoFromLocalDate(new Date());
   const timeOffMinIso = todayIso;
   const timeOffMaxIso = `${Number(todayIso.slice(0, 4)) + 1}-12-31`;
+  const assignedMixRecords = collectAssignedMixesForProducer(
+    producer,
+    activeOrders,
+    mtdRecords
+  );
   const mixBlockedTimeOffDaySet = new Set(
     collectProducerMixBlockedDays(
       producer,
-      mtdRecords,
+      assignedMixRecords,
       timeOffMinIso,
       timeOffMaxIso
     )
   );
 
-  function applyWorkDayChange(nextWorkDays: Weekday[]) {
+  function applyWorkDayChange(
+    nextWorkDays: Weekday[],
+    options?: { addedDay?: Weekday; keepExtraDates?: string[] }
+  ) {
+    const addedDay = options?.addedDay;
+    const keepExtraDates = options?.keepExtraDates ?? [];
     setWorkDays(nextWorkDays);
-    // Drop extra dates that now fall on regular work weekdays.
-    setExtraDays((days) =>
-      days.filter((iso) => {
+    // Drop extra dates that now fall on regular work weekdays, then optionally
+    // keep specific dates (mix days) as Extra days on the newly off weekday.
+    setExtraDays((days) => {
+      const kept = days.filter((iso) => {
         const date = parseIsoToLocalDate(iso);
         return !!date && isEligibleExtraDate(date, nextWorkDays);
-      })
-    );
+      });
+      if (keepExtraDates.length === 0) return kept;
+      return [...new Set([...kept, ...keepExtraDates])].sort((a, b) =>
+        a.localeCompare(b)
+      );
+    });
+    // Turning a weekday on must not invent leave for gap days that only sat
+    // inside an old start→end span (display skipped them as non-work days).
+    if (addedDay && !workDays.includes(addedDay)) {
+      const gapDates = leaveDatesOnWeekday(timeOff, addedDay);
+      if (gapDates.length > 0) {
+        setTimeOff((entries) => stripLeaveDatesFromEntries(entries, gapDates));
+      }
+    }
   }
 
   function toggleDay(day: Weekday) {
+    if (!producer) return;
     if (workDays.includes(day)) {
       const nextWorkDays = workDays.filter((d) => d !== day);
+      const mixConflict = collectProducerWeekdayMixConflict(
+        producer,
+        day,
+        assignedMixRecords,
+        timeOffMinIso,
+        timeOffMaxIso
+      );
+      if (mixConflict.mixDates.length > 0) {
+        setWorkDayMixConflict({
+          day,
+          mixDates: mixConflict.mixDates,
+          bookings: mixConflict.bookings,
+        });
+        return;
+      }
       const conflicting = leaveDatesBlockedByWorkDays(
         timeOff,
         workDays,
@@ -603,7 +688,7 @@ export function ProducerAvailabilityModal({
       return;
     }
 
-    applyWorkDayChange(nextWorkDays);
+    applyWorkDayChange(nextWorkDays, { addedDay: day });
   }
 
   function clearWorkDayOtConflict() {
@@ -614,7 +699,7 @@ export function ProducerAvailabilityModal({
     if (!workDayExtraConflict) return;
     const { day } = workDayExtraConflict;
     const next = workDays.includes(day) ? workDays : [...workDays, day];
-    applyWorkDayChange(next);
+    applyWorkDayChange(next, { addedDay: day });
     setWorkDayOtConflict(null);
   }
 
@@ -631,6 +716,110 @@ export function ProducerAvailabilityModal({
     setTimeOff((entries) => stripLeaveDatesFromEntries(entries, leaveDates));
     applyWorkDayChange(next);
     setWorkDayLeaveConflict(null);
+  }
+
+  function clearWorkDayMixConflict() {
+    setWorkDayMixConflict(null);
+  }
+
+  function confirmWorkDayMixKeepExtra() {
+    if (!workDayMixConflict) return;
+    const { day, mixDates } = workDayMixConflict;
+    const next = workDays.filter((d) => d !== day);
+    const leaveDates = leaveDatesBlockedByWorkDays(timeOff, workDays, next);
+    if (leaveDates.length > 0) {
+      setTimeOff((entries) => stripLeaveDatesFromEntries(entries, leaveDates));
+    }
+    applyWorkDayChange(next, { keepExtraDates: mixDates });
+    setWorkDayMixConflict(null);
+  }
+
+  function confirmWorkDayMixReassign() {
+    if (!workDayMixConflict || !producer) return;
+    if (saveStartedRef.current) return;
+    saveStartedRef.current = true;
+
+    const { day, bookings } = workDayMixConflict;
+    const nextWork = workDays.filter((d) => d !== day);
+    const leaveDates = leaveDatesBlockedByWorkDays(
+      timeOff,
+      workDays,
+      nextWork
+    );
+    const nextTimeOffDrafts = stripLeaveDatesFromEntries(timeOff, leaveDates);
+    const nextExtra = extraDays.filter((iso) => {
+      const date = parseIsoToLocalDate(iso);
+      return !!date && isEligibleExtraDate(date, nextWork);
+    });
+    const reassignPatch = patchForReassignLeave();
+    const mtdIds = new Set(
+      mtdRecords.flatMap((r) =>
+        [r.id, r.orderId, r.uuid, r.legacyId].filter(Boolean)
+      )
+    );
+
+    for (const booking of bookings) {
+      if (mtdIds.has(booking.recordId)) {
+        updateMTD(booking.recordId, reassignPatch);
+      } else {
+        updateOrder(booking.recordId, {
+          assignedProducer: null,
+          editorRequest: "FA",
+          mixStartDate: "",
+          mixEndDate: "",
+          isReassigned: true,
+          orderStatus: "Reassign: Off day",
+          producerEmailSentAt: null,
+          status: "active",
+          collectionStates: reassignPatch.collectionStates,
+          haveSongs: reassignPatch.haveSongs,
+          eightCountSheet: reassignPatch.eightCountSheet,
+        });
+      }
+    }
+
+    setWorkDays(nextWork);
+    setTimeOff(nextTimeOffDrafts);
+    setExtraDays(nextExtra);
+    setWorkDayMixConflict(null);
+
+    const savedTimeOff = nextTimeOffDrafts
+      .filter(
+        (entry) =>
+          entry.type === "personal" &&
+          entry.startDate &&
+          entry.reason.trim()
+      )
+      .map((entry) => ({
+        id: entry.key,
+        startDate: entry.startDate,
+        endDate: entry.endDate || entry.startDate,
+        type: "personal" as const,
+        reason: entry.reason.trim(),
+      }));
+
+    try {
+      const pending = onSave({
+        workDays: nextWork,
+        timeOff: savedTimeOff,
+        maxMixesPerDay: hasMaxMixesLimit ? Math.max(1, maxMixesPerDay) : null,
+        maxProducerCostPerDay: hasMaxCostLimit
+          ? Math.max(1, maxProducerCostPerDay)
+          : null,
+        extraDays: nextExtra,
+      });
+      onClose();
+      const focusId = bookings[0]?.recordId;
+      const params = new URLSearchParams();
+      params.set("range", "reassigned");
+      if (focusId) params.set("focus", focusId);
+      router.push(`/orders?${params.toString()}`);
+      void Promise.resolve(pending).catch(() => {
+        saveStartedRef.current = false;
+      });
+    } catch {
+      saveStartedRef.current = false;
+    }
   }
 
   function closeTimeOffForm() {
@@ -670,7 +859,7 @@ export function ProducerAvailabilityModal({
     if (!producer) return undefined;
     return (
       describeProducerMixDayForLeave(
-        listProducerMixBookingsOnDay(producer, iso, mtdRecords)
+        listProducerMixBookingsOnDay(producer, iso, assignedMixRecords)
       ) ?? undefined
     );
   }
@@ -816,14 +1005,14 @@ export function ProducerAvailabilityModal({
       producer,
       pendingEntry.startDate,
       endDate,
-      mtdRecords
+      assignedMixRecords
     );
     if (mixConflicts.length > 0) {
       const fromMtd = mixConflicts.filter((b) => b.inMTD);
       const fromOrders = mixConflicts.filter((b) => !b.inMTD);
       showTimeOffNotice({
         kind: "mix-conflict",
-        title: "Off day overlaps booked mixes",
+        title: "Mixes scheduled on these days",
         pendingEntry,
         fromOrders,
         fromMtd,
@@ -831,7 +1020,14 @@ export function ProducerAvailabilityModal({
       return;
     }
 
-    setTimeOff((prev) => [...prev, pendingEntry]);
+    const splitEntries = splitTimeOffToWorkDayRanges(
+      [pendingEntry],
+      workDays
+    ).map((entry, index) => ({
+      ...entry,
+      key: `${pendingEntry.key}-${entry.startDate}-${index}`,
+    }));
+    setTimeOff((prev) => [...prev, ...splitEntries]);
     closeTimeOffForm();
   }
 
@@ -863,7 +1059,14 @@ export function ProducerAvailabilityModal({
       pendingEntry.endDate
     );
     setExtraDays((prev) => prev.filter((day) => !removeOt.includes(day)));
-    setTimeOff((prev) => [...prev, pendingEntry]);
+    const splitEntries = splitTimeOffToWorkDayRanges(
+      [pendingEntry],
+      workDays
+    ).map((entry, index) => ({
+      ...entry,
+      key: `${pendingEntry.key}-${entry.startDate}-${index}`,
+    }));
+    setTimeOff((prev) => [...prev, ...splitEntries]);
     closeTimeOffForm();
     clearTimeOffNotice();
   }
@@ -890,7 +1093,98 @@ export function ProducerAvailabilityModal({
   }
 
   function removeExtraDay(iso: string) {
+    if (!producer) return;
+    const bookings = findLeaveMixConflicts(
+      producer,
+      iso,
+      iso,
+      assignedMixRecords
+    );
+    if (bookings.length > 0) {
+      setExtraDayMixConflict({ iso, bookings });
+      return;
+    }
     setExtraDays((prev) => prev.filter((day) => day !== iso));
+  }
+
+  function clearExtraDayMixConflict() {
+    setExtraDayMixConflict(null);
+  }
+
+  function confirmExtraDayMixReassign() {
+    if (!extraDayMixConflict || !producer) return;
+    if (saveStartedRef.current) return;
+    saveStartedRef.current = true;
+
+    const { iso, bookings } = extraDayMixConflict;
+    const nextExtra = extraDays.filter((day) => day !== iso);
+    const reassignPatch = patchForReassignLeave();
+    const mtdIds = new Set(
+      mtdRecords.flatMap((r) =>
+        [r.id, r.orderId, r.uuid, r.legacyId].filter(Boolean)
+      )
+    );
+
+    for (const booking of bookings) {
+      if (mtdIds.has(booking.recordId) || booking.inMTD) {
+        updateMTD(booking.recordId, reassignPatch);
+      } else {
+        updateOrder(booking.recordId, {
+          assignedProducer: null,
+          editorRequest: "FA",
+          mixStartDate: "",
+          mixEndDate: "",
+          isReassigned: true,
+          orderStatus: "Reassign: Off day",
+          producerEmailSentAt: null,
+          status: "active",
+          collectionStates: reassignPatch.collectionStates,
+          haveSongs: reassignPatch.haveSongs,
+          eightCountSheet: reassignPatch.eightCountSheet,
+        });
+      }
+    }
+
+    setExtraDays(nextExtra);
+    setExtraDayMixConflict(null);
+
+    const savedTimeOff = timeOff
+      .filter(
+        (entry) =>
+          entry.type === "personal" &&
+          entry.startDate &&
+          entry.reason.trim()
+      )
+      .map((entry) => ({
+        id: entry.key,
+        startDate: entry.startDate,
+        endDate: entry.endDate || entry.startDate,
+        type: "personal" as const,
+        reason: entry.reason.trim(),
+      }));
+
+    try {
+      const pending = onSave({
+        workDays,
+        timeOff: savedTimeOff,
+        maxMixesPerDay: hasMaxMixesLimit ? Math.max(1, maxMixesPerDay) : null,
+        maxProducerCostPerDay: hasMaxCostLimit
+          ? Math.max(1, maxProducerCostPerDay)
+          : null,
+        extraDays: nextExtra,
+      });
+      onClose();
+      const focusId = bookings[0]?.recordId;
+      const params = new URLSearchParams();
+      params.set("range", "reassigned");
+      if (focusId) params.set("focus", focusId);
+      router.push(`/orders?${params.toString()}`);
+      void Promise.resolve(pending).catch(() => {
+        saveStartedRef.current = false;
+      });
+    } catch {
+      saveStartedRef.current = false;
+    }
   }
 
   function syncMaxCostInput(value: number) {
@@ -908,7 +1202,7 @@ export function ProducerAvailabilityModal({
     nextTimeOff: DraftTimeOff[] = timeOff
   ): AvailabilityPatch {
     const parsed = parseInt(maxCostInput, 10);
-    const committedMaxCost = hasMaxCapacity
+    const committedMaxCost = hasMaxCostLimit
       ? clampMaxCostPerDay(Number.isNaN(parsed) ? maxProducerCostPerDay : parsed)
       : null;
 
@@ -928,25 +1222,34 @@ export function ProducerAvailabilityModal({
           type: "personal" as const,
           reason: entry.reason.trim(),
         })),
-      maxMixesPerDay: hasMaxCapacity ? Math.max(1, maxMixesPerDay) : null,
-      maxProducerCostPerDay: hasMaxCapacity
+      maxMixesPerDay: hasMaxMixesLimit ? Math.max(1, maxMixesPerDay) : null,
+      maxProducerCostPerDay: hasMaxCostLimit
         ? Math.max(1, committedMaxCost ?? maxProducerCostPerDay)
         : null,
       extraDays,
     };
   }
 
-  async function handleSave() {
+  function handleSave() {
     if (readOnly) {
       onClose();
       return;
     }
+    if (saveStartedRef.current) return;
+    saveStartedRef.current = true;
+
     const patch = buildAvailabilityPatch();
-    onClose();
+    // Optimistic (Google docs/calendar style): apply + close in this tick,
+    // persist in the background. Shared AppState updates Schedule instantly.
     try {
-      await onSave(patch);
+      const pending = onSave(patch);
+      onClose();
+      void Promise.resolve(pending).catch(() => {
+        // Toast + rollback come from updateProducer.
+        saveStartedRef.current = false;
+      });
     } catch {
-      // Error toast comes from updateProducer (optimistic update already applied).
+      saveStartedRef.current = false;
     }
   }
 
@@ -954,22 +1257,61 @@ export function ProducerAvailabilityModal({
     if (!timeOffNotice || timeOffNotice.kind !== "mix-conflict" || !producer) {
       return;
     }
+    if (saveStartedRef.current) return;
+    saveStartedRef.current = true;
+
     const { pendingEntry, fromOrders, fromMtd } = timeOffNotice;
     const affected = [...fromOrders, ...fromMtd];
+    const reassignPatch = patchForReassignLeave();
+    const mtdIds = new Set(
+      mtdRecords.flatMap((r) =>
+        [r.id, r.orderId, r.uuid, r.legacyId].filter(Boolean)
+      )
+    );
     for (const booking of affected) {
-      updateMTD(booking.recordId, patchForReassignLeave());
+      if (mtdIds.has(booking.recordId) || booking.inMTD) {
+        updateMTD(booking.recordId, reassignPatch);
+      } else {
+        updateOrder(booking.recordId, {
+          assignedProducer: null,
+          editorRequest: "FA",
+          mixStartDate: "",
+          mixEndDate: "",
+          isReassigned: true,
+          orderStatus: "Reassign: Off day",
+          producerEmailSentAt: null,
+          status: "active",
+          collectionStates: reassignPatch.collectionStates,
+          haveSongs: reassignPatch.haveSongs,
+          eightCountSheet: reassignPatch.eightCountSheet,
+        });
+      }
     }
-    const nextTimeOff = [...timeOff, pendingEntry];
-    onSave(buildAvailabilityPatch(nextTimeOff));
+    const splitEntries = splitTimeOffToWorkDayRanges(
+      [pendingEntry],
+      workDays
+    ).map((entry, index) => ({
+      ...entry,
+      key: `${pendingEntry.key}-${entry.startDate}-${index}`,
+    }));
+    const nextTimeOff = [...timeOff, ...splitEntries];
     clearTimeOffNotice();
     closeTimeOffForm();
-    onClose();
 
-    const focusId = affected[0]?.recordId;
-    const params = new URLSearchParams();
-    params.set("range", "reassigned");
-    if (focusId) params.set("focus", focusId);
-    router.push(`/orders?${params.toString()}`);
+    try {
+      const pending = onSave(buildAvailabilityPatch(nextTimeOff));
+      onClose();
+      const focusId = affected[0]?.recordId;
+      const params = new URLSearchParams();
+      params.set("range", "reassigned");
+      if (focusId) params.set("focus", focusId);
+      router.push(`/orders?${params.toString()}`);
+      void Promise.resolve(pending).catch(() => {
+        saveStartedRef.current = false;
+      });
+    } catch {
+      saveStartedRef.current = false;
+    }
   }
 
   // Extra days and already-added time off block new ranges: start can't land
@@ -1194,8 +1536,8 @@ export function ProducerAvailabilityModal({
           {!readOnly ? (
             <button
               type="button"
-              onClick={() => void handleSave()}
-              className="min-w-[64px] text-right text-[15px] font-semibold text-brand-blue transition hover:text-brand-blue-hover"
+              onClick={handleSave}
+              className="min-w-[64px] text-right text-[15px] font-semibold text-brand-blue transition hover:text-brand-blue-hover active:opacity-70"
             >
               Save
             </button>
@@ -1772,46 +2114,43 @@ export function ProducerAvailabilityModal({
             <>
           <div>
             <p className="text-[13px] font-semibold text-brand-ink">
-              Daily mix limit
+              Daily limits
             </p>
             <p className="mt-0.5 text-[12px] text-brand-ink-tertiary">
-              How many mixes they can take on a scheduled day.
+              Turn on mixes, cost, or both for a scheduled day.
             </p>
 
-            <div className="mt-4 flex gap-1 rounded-full bg-brand-bg p-1 ring-1 ring-inset ring-black/[0.06]">
-              <button
-                type="button"
-                onClick={() => setHasMaxCapacity(false)}
-                className={clsx(
-                  "flex-1 rounded-full py-2 text-[13px] font-semibold transition",
-                  !hasMaxCapacity
-                    ? "bg-brand-ink text-white shadow-sm"
-                    : "text-brand-ink-secondary hover:text-brand-ink"
-                )}
-              >
-                No limit
-              </button>
-              <button
-                type="button"
-                onClick={() => setHasMaxCapacity(true)}
-                className={clsx(
-                  "flex-1 rounded-full py-2 text-[13px] font-semibold transition",
-                  hasMaxCapacity
-                    ? "bg-brand-ink text-white shadow-sm"
-                    : "text-brand-ink-secondary hover:text-brand-ink"
-                )}
-              >
-                Set limit
-              </button>
-            </div>
-
-            {hasMaxCapacity ? (
-              <div className="mt-4 space-y-2">
-                <div className="grid grid-cols-[minmax(0,1fr)_9.5rem] items-center gap-x-3 rounded-2xl bg-brand-bg px-4 py-3 ring-1 ring-inset ring-black/[0.06]">
+            <div className="mt-4 space-y-2">
+              <div className="rounded-2xl bg-brand-bg px-4 py-3 ring-1 ring-inset ring-black/[0.06]">
+                <div className="flex items-center justify-between gap-3">
                   <span className="text-[13px] font-medium text-brand-ink">
                     Max mixes per day
                   </span>
-                  <div className="grid grid-cols-[2rem_1fr_2rem] items-center gap-2">
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={hasMaxMixesLimit}
+                    onClick={() => setHasMaxMixesLimit((on) => !on)}
+                    className={clsx(
+                      "relative h-7 w-12 shrink-0 rounded-full transition",
+                      hasMaxMixesLimit ? "bg-brand-blue" : "bg-black/15"
+                    )}
+                    aria-label={
+                      hasMaxMixesLimit
+                        ? "Disable max mixes per day"
+                        : "Enable max mixes per day"
+                    }
+                  >
+                    <span
+                      className={clsx(
+                        "absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition",
+                        hasMaxMixesLimit ? "left-5" : "left-0.5"
+                      )}
+                    />
+                  </button>
+                </div>
+                {hasMaxMixesLimit ? (
+                  <div className="mt-3 grid grid-cols-[2rem_1fr_2rem] items-center gap-2">
                     <button
                       type="button"
                       onClick={() =>
@@ -1838,16 +2177,46 @@ export function ProducerAvailabilityModal({
                       <Plus className="h-3.5 w-3.5" strokeWidth={2.5} />
                     </button>
                   </div>
-                </div>
+                ) : (
+                  <p className="mt-2 text-[12px] text-brand-ink-tertiary">
+                    No mix count cap
+                  </p>
+                )}
+              </div>
 
-                <div className="grid grid-cols-[minmax(0,1fr)_9.5rem] items-center gap-x-3 rounded-2xl bg-brand-bg px-4 py-3 ring-1 ring-inset ring-black/[0.06]">
+              <div className="rounded-2xl bg-brand-bg px-4 py-3 ring-1 ring-inset ring-black/[0.06]">
+                <div className="flex items-center justify-between gap-3">
                   <span className="text-[13px] font-medium text-brand-ink">
                     <span className="mr-1 text-[15px] font-semibold text-brand-ink-secondary">
                       $
                     </span>
                     Max cost per day
                   </span>
-                  <div className="grid grid-cols-[2rem_1fr_2rem] items-center gap-2">
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={hasMaxCostLimit}
+                    onClick={() => setHasMaxCostLimit((on) => !on)}
+                    className={clsx(
+                      "relative h-7 w-12 shrink-0 rounded-full transition",
+                      hasMaxCostLimit ? "bg-brand-blue" : "bg-black/15"
+                    )}
+                    aria-label={
+                      hasMaxCostLimit
+                        ? "Disable max cost per day"
+                        : "Enable max cost per day"
+                    }
+                  >
+                    <span
+                      className={clsx(
+                        "absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition",
+                        hasMaxCostLimit ? "left-5" : "left-0.5"
+                      )}
+                    />
+                  </button>
+                </div>
+                {hasMaxCostLimit ? (
+                  <div className="mt-3 grid grid-cols-[2rem_1fr_2rem] items-center gap-2">
                     <button
                       type="button"
                       onClick={() =>
@@ -1887,9 +2256,13 @@ export function ProducerAvailabilityModal({
                       <Plus className="h-3.5 w-3.5" strokeWidth={2.5} />
                     </button>
                   </div>
-                </div>
+                ) : (
+                  <p className="mt-2 text-[12px] text-brand-ink-tertiary">
+                    No daily cost cap
+                  </p>
+                )}
               </div>
-            ) : null}
+            </div>
           </div>
             </>
           ) : null}
@@ -1995,12 +2368,8 @@ export function ProducerAvailabilityModal({
               {timeOffNotice.kind === "mix-conflict" ? (
                 <div className="mt-4 space-y-3">
                   <p className="text-[12px] leading-relaxed text-brand-ink-secondary">
-                    Off day is set. Reassign clears their producer assignment and
-                    schedule and sends them to{" "}
-                    <span className="font-semibold text-brand-ink">
-                      Reassign: Off day
-                    </span>{" "}
-                    on Orders.
+                    These mixes land on the leave dates. Send them to Reassign
+                    and add the leave, or cancel and keep the schedule.
                   </p>
                   {timeOffNotice.fromOrders.length > 0 ? (
                     <div className="rounded-2xl bg-brand-bg px-3 py-3 ring-1 ring-inset ring-black/[0.06]">
@@ -2088,13 +2457,22 @@ export function ProducerAvailabilityModal({
 
             <div className="shrink-0 border-t border-black/[0.08]">
               {timeOffNotice.kind === "mix-conflict" ? (
-                <button
-                  type="button"
-                  onClick={confirmMixConflictLeave}
-                  className="w-full py-3.5 text-[15px] font-semibold text-rose-700 transition hover:bg-rose-50"
-                >
-                  Reassign
-                </button>
+                <div className="flex flex-col">
+                  <button
+                    type="button"
+                    onClick={confirmMixConflictLeave}
+                    className="border-b border-black/[0.08] py-3.5 text-[15px] font-semibold text-rose-700 transition hover:bg-rose-50"
+                  >
+                    Send to Reassign & add leave
+                  </button>
+                  <button
+                    type="button"
+                    onClick={clearTimeOffNotice}
+                    className="py-3.5 text-[15px] font-medium text-brand-ink transition hover:bg-brand-bg"
+                  >
+                    Cancel
+                  </button>
+                </div>
               ) : timeOffNotice.kind === "ot-conflict" ? (
                 (() => {
                   const applyCount = timeOffNotice.conflicts.filter(
@@ -2238,6 +2616,184 @@ export function ProducerAvailabilityModal({
                     <button
                       type="button"
                       onClick={clearWorkDayLeaveConflict}
+                      className="py-3.5 text-[15px] font-medium text-brand-ink transition hover:bg-brand-bg"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
+
+      {workDayMixConflict
+        ? createPortal(
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+              <button
+                type="button"
+                className="absolute inset-0 bg-brand-scrim/80"
+                aria-label="Close"
+                onClick={clearWorkDayMixConflict}
+              />
+              <div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="work-day-mix-conflict-title"
+                className="relative flex max-h-[min(92dvh,640px)] w-full max-w-[360px] flex-col overflow-hidden rounded-[22px] bg-brand-elevated shadow-[0_24px_80px_rgba(0,0,0,0.28)]"
+              >
+                <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-4 pt-7">
+                  <h2
+                    id="work-day-mix-conflict-title"
+                    className="text-center text-[17px] font-semibold tracking-[-0.02em] text-brand-ink"
+                  >
+                    Mixes on {weekdayLabel(workDayMixConflict.day)}
+                  </h2>
+                  <p className="mt-3 text-center text-[13px] leading-relaxed text-brand-ink-secondary">
+                    {workDayMixConflict.bookings.length === 1
+                      ? "1 assigned mix lands on this weekday."
+                      : `${workDayMixConflict.bookings.length} assigned mixes land on this weekday.`}{" "}
+                    Keep {workDayMixConflict.mixDates.length === 1
+                      ? "that date"
+                      : "those dates"}{" "}
+                    as Extra days, or send the mixes to Reassign.
+                  </p>
+                  <WorkDayOtConflictDateList
+                    dates={workDayMixConflict.mixDates}
+                  />
+                  {workDayMixConflict.bookings.length > 0 ? (
+                    <ul className="mt-3 space-y-1.5">
+                      {workDayMixConflict.bookings.slice(0, 6).map((b) => (
+                        <li
+                          key={b.recordId}
+                          className="rounded-xl bg-brand-bg px-3 py-2 text-[12px] text-brand-ink-secondary ring-1 ring-inset ring-black/[0.06]"
+                        >
+                          <span className="font-semibold text-brand-ink">
+                            {b.programName}
+                          </span>
+                          <span className="mt-0.5 block tabular-nums">
+                            {formatIsoDayMonthYear(b.mixStartDate)}
+                            {b.mixEndDate && b.mixEndDate !== b.mixStartDate
+                              ? ` – ${formatIsoDayMonthYear(b.mixEndDate)}`
+                              : ""}
+                            {b.inMTD ? " · MTD" : " · Orders"}
+                          </span>
+                        </li>
+                      ))}
+                      {workDayMixConflict.bookings.length > 6 ? (
+                        <li className="px-1 text-center text-[11px] text-brand-ink-tertiary">
+                          +{workDayMixConflict.bookings.length - 6} more
+                        </li>
+                      ) : null}
+                    </ul>
+                  ) : null}
+                </div>
+                <div className="shrink-0 border-t border-black/[0.08]">
+                  <div className="flex flex-col">
+                    <button
+                      type="button"
+                      onClick={confirmWorkDayMixKeepExtra}
+                      className="border-b border-black/[0.08] py-3.5 text-[15px] font-semibold text-brand-blue transition hover:bg-brand-blue-soft/40"
+                    >
+                      Keep as Extra days
+                    </button>
+                    <button
+                      type="button"
+                      onClick={confirmWorkDayMixReassign}
+                      className="border-b border-black/[0.08] py-3.5 text-[15px] font-semibold text-brand-ink transition hover:bg-brand-bg"
+                    >
+                      Send to Reassign
+                    </button>
+                    <button
+                      type="button"
+                      onClick={clearWorkDayMixConflict}
+                      className="py-3.5 text-[15px] font-medium text-brand-ink-secondary transition hover:bg-brand-bg"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
+
+      {extraDayMixConflict
+        ? createPortal(
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+              <button
+                type="button"
+                className="absolute inset-0 bg-brand-scrim/80"
+                aria-label="Close"
+                onClick={clearExtraDayMixConflict}
+              />
+              <div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="extra-day-mix-conflict-title"
+                className="relative flex max-h-[min(92dvh,640px)] w-full max-w-[360px] flex-col overflow-hidden rounded-[22px] bg-brand-elevated shadow-[0_24px_80px_rgba(0,0,0,0.28)]"
+              >
+                <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-4 pt-7">
+                  <h2
+                    id="extra-day-mix-conflict-title"
+                    className="text-center text-[17px] font-semibold tracking-[-0.02em] text-brand-ink"
+                  >
+                    Mixes on this Extra day
+                  </h2>
+                  <p className="mt-3 text-center text-[13px] leading-relaxed text-brand-ink-secondary">
+                    {extraDayMixConflict.bookings.length === 1
+                      ? "1 assigned mix is on "
+                      : `${extraDayMixConflict.bookings.length} assigned mixes are on `}
+                    {formatIsoDayMonthYear(extraDayMixConflict.iso)}. Canceling
+                    the Extra day sends {extraDayMixConflict.bookings.length === 1
+                      ? "it"
+                      : "them"}{" "}
+                    to Reassign.
+                  </p>
+                  <WorkDayOtConflictDateList
+                    dates={[extraDayMixConflict.iso]}
+                  />
+                  {extraDayMixConflict.bookings.length > 0 ? (
+                    <ul className="mt-3 space-y-1.5">
+                      {extraDayMixConflict.bookings.slice(0, 6).map((b) => (
+                        <li
+                          key={b.recordId}
+                          className="rounded-xl bg-brand-bg px-3 py-2 text-[12px] text-brand-ink-secondary ring-1 ring-inset ring-black/[0.06]"
+                        >
+                          <span className="font-semibold text-brand-ink">
+                            {b.programName}
+                          </span>
+                          <span className="mt-0.5 block tabular-nums">
+                            {formatIsoDayMonthYear(b.mixStartDate)}
+                            {b.mixEndDate && b.mixEndDate !== b.mixStartDate
+                              ? ` – ${formatIsoDayMonthYear(b.mixEndDate)}`
+                              : ""}
+                            {b.inMTD ? " · MTD" : " · Orders"}
+                          </span>
+                        </li>
+                      ))}
+                      {extraDayMixConflict.bookings.length > 6 ? (
+                        <li className="px-1 text-center text-[11px] text-brand-ink-tertiary">
+                          +{extraDayMixConflict.bookings.length - 6} more
+                        </li>
+                      ) : null}
+                    </ul>
+                  ) : null}
+                </div>
+                <div className="shrink-0 border-t border-black/[0.08]">
+                  <div className="flex flex-col">
+                    <button
+                      type="button"
+                      onClick={confirmExtraDayMixReassign}
+                      className="border-b border-black/[0.08] py-3.5 text-[15px] font-semibold text-rose-700 transition hover:bg-rose-50"
+                    >
+                      Send to Reassign
+                    </button>
+                    <button
+                      type="button"
+                      onClick={clearExtraDayMixConflict}
                       className="py-3.5 text-[15px] font-medium text-brand-ink transition hover:bg-brand-bg"
                     >
                       Cancel

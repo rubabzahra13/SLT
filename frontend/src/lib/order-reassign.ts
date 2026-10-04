@@ -126,3 +126,24 @@ export function patchForReassignProducerRemoved(): Partial<MTDRecord> {
     ...completeDataFields(),
   };
 }
+
+/** Clear assignment when a producer category/rate row is removed. */
+export function patchForReassignCategoryRemoved(
+  category?: string
+): Partial<MTDRecord> {
+  const label = category?.trim();
+  return {
+    inMTD: false,
+    isReassigned: true,
+    orderStatus: label
+      ? `Reassign: category removed (${label})`
+      : "Reassign: category removed",
+    assignedProducer: null,
+    editorRequest: "FA",
+    mixStartDate: "",
+    mixEndDate: "",
+    producerEmailSentAt: null,
+    status: "active",
+    ...completeDataFields(),
+  };
+}

@@ -23,7 +23,11 @@ export type OrderAssignmentStatus =
   | "reassign_leave"
   | "reassign_rush";
 
-export type OrderReassignReason = "leave" | "rush_order" | "producer_deletion";
+export type OrderReassignReason =
+  | "leave"
+  | "rush_order"
+  | "producer_deletion"
+  | "category_removed";
 
 export const ORDER_ASSIGNMENT_STATUS_LABEL: Record<
   OrderAssignmentStatus,
@@ -39,6 +43,7 @@ export const ORDER_REASSIGN_STATUS: Record<OrderReassignReason, string> = {
   leave: "Reassign: Off day",
   rush_order: "Reassign: rush order",
   producer_deletion: "Reassign: Delete producer",
+  category_removed: "Reassign: Category removed",
 };
 
 export const ORDER_RESELECTION_REASON_LABEL: Record<
@@ -48,6 +53,7 @@ export const ORDER_RESELECTION_REASON_LABEL: Record<
   leave: "Off day",
   rush_order: "Rush order",
   producer_deletion: "Delete producer",
+  category_removed: "Category removed",
 };
 
 export type OrderRequirementsResult = {
@@ -91,6 +97,12 @@ function parseReassignReason(
     raw === "producer deleted"
   ) {
     return "producer_deletion";
+  }
+  if (
+    raw.startsWith("reassign: category removed") ||
+    raw.includes("category removed")
+  ) {
+    return "category_removed";
   }
   if (
     raw === "reassign: rush order" ||

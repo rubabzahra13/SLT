@@ -179,7 +179,6 @@ def _seed_producers(session: Session) -> None:
                 initials=p["initials"],
                 email=p["email"],
                 categories=p["categories"],
-                status="available",
                 work_days=["mon", "tue", "wed", "thu", "fri"],
                 extra_days=[],
                 compensation_model=p["compensation_model"],

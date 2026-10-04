@@ -82,15 +82,17 @@ export default function AssignmentsPage() {
                               ({producer.initials})
                             </span>
                           </p>
-                          <p
-                            className={
-                              i === 0
-                                ? "text-sm text-brand-orange"
-                                : "text-sm text-brand-blue"
-                            }
-                          >
-                            Available {producer.nextAvailable}
-                          </p>
+                          {producer.nextAvailable ? (
+                            <p
+                              className={
+                                i === 0
+                                  ? "text-sm text-brand-orange"
+                                  : "text-sm text-brand-blue"
+                              }
+                            >
+                              Available {producer.nextAvailable}
+                            </p>
+                          ) : null}
                         </div>
                       </div>
                       <button

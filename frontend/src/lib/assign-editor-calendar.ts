@@ -369,12 +369,16 @@ function mixBookingsOnDay(
   producer: Producer,
   iso: string,
   mtdRecords: MTDRecord[] | undefined,
-  excludeRecordId?: string
+  excludeRecordId?: string,
+  categoryMatch?: Pick<DailyCostOptions, "matchCategory" | "matchFormType"> | null
 ) {
   if (!mtdRecords?.length) return [];
-  return listProducerMixBookingsOnDay(producer, iso, mtdRecords).filter(
-    (b) => b.recordId !== excludeRecordId
-  );
+  return listProducerMixBookingsOnDay(
+    producer,
+    iso,
+    mtdRecords,
+    categoryMatch
+  ).filter((b) => b.recordId !== excludeRecordId);
 }
 
 /**
@@ -434,12 +438,19 @@ export function buildMixDateCalendarRules(
   const hasLimits =
     producer?.maxMixesPerDay != null || producer?.maxProducerCostPerDay != null;
 
+  const categoryMatch = {
+    matchCategory: options.matchCategory,
+    matchFormType: options.matchFormType,
+  };
+
   function limitParts(iso: string): string[] {
     if (!hasLimits || !producer || !options.mtdRecords) return [];
     const check = checkProducerDailyLimits(producer, iso, iso, options.mtdRecords, {
       excludeRecordId: options.excludeRecordId,
       estimateCost: options.estimateCost,
       newMixCost: options.newMixCost,
+      matchCategory: options.matchCategory,
+      matchFormType: options.matchFormType,
     });
     const parts: string[] = [];
     if (check.overCostDays.length > 0 && check.maxCostPerDay != null) {
@@ -458,18 +469,24 @@ export function buildMixDateCalendarRules(
     const day = parseFlexibleDate(iso);
     if (!day) return { disabled: true };
 
+    const reason = getProducerDayBlockReason(producer, day);
+    // Non-work days are not Extra days and don't carry daily mix cost — don't
+    // paint mix bookings here just because the mix date range spans the weekend.
+    if (reason === "not_working") {
+      return { disabled: true, title: `${name} doesn't work this day` };
+    }
+
+    // Same category/subcategory mixes paint on work + Extra days only
+    // (no 50% filter — that threshold is only for the daily-limits graph).
     const bookings = mixBookingsOnDay(
       producer,
       iso,
       options.mtdRecords,
-      options.excludeRecordId
+      options.excludeRecordId,
+      categoryMatch
     );
     const mixTip = describeProducerMixDayForLeave(bookings);
 
-    const reason = getProducerDayBlockReason(producer, day);
-    if (reason === "not_working") {
-      return { disabled: true, title: `${name} doesn't work this day` };
-    }
     if (reason === "leave") {
       const entry = (producer.timeOff ?? []).find(
         (off) => iso >= off.startDate && iso <= (off.endDate || off.startDate)

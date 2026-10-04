@@ -403,6 +403,8 @@ export function loadPricingReferenceStore(): PricingReferenceStore {
 export function savePricingReferenceStore(store: PricingReferenceStore): void {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+  // Assign daily-cost / Orders chips re-read reference prices on this event.
+  window.dispatchEvent(new CustomEvent("slt-pricing-reference-changed"));
 }
 
 export function updateCategoryPricingSnapshot(

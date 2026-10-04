@@ -16,6 +16,7 @@ import {
   producerAssignmentKey,
   producerKeysMatch,
 } from "./producer-keys";
+import { orderCategoryToProducerCategory } from "./producer-category";
 import { formatSlotForDisplay } from "./scheduling";
 import { calculateProducerNextOpening } from "./producer-schedule-calc";
 
@@ -24,6 +25,7 @@ export {
   producerAssignmentKey,
   producerKeysMatch,
 } from "./producer-keys";
+export { orderCategoryToProducerCategory } from "./producer-category";
 
 export function isFirstAvailableRequest(
   value: string | null | undefined
@@ -75,7 +77,7 @@ export function resolveProducerKey(
   category: string
 ): string | null {
   const normalized = normalizeProducerKey(raw);
-  if (!normalized || isFirstAvailableRequest(normalized)) return null;
+  if (!normalized) return null;
 
   const eligible = getProducersForCategory(producers, category);
   for (const producer of eligible) {
@@ -99,6 +101,8 @@ export function resolveProducerKey(
     }
   }
 
+  // Reserved "FA" / first-available codes with no roster hit.
+  if (isFirstAvailableRequest(normalized)) return null;
   return null;
 }
 
@@ -110,12 +114,19 @@ export function getRequestedEditorFromRecord(
   const candidates: string[] = [];
 
   if (linkedOrder) {
-    if (linkedOrder.requestedEditor) {
+    if (
+      linkedOrder.requestedEditor &&
+      !isFirstAvailableRequest(linkedOrder.requestedEditor)
+    ) {
       candidates.push(linkedOrder.requestedEditor);
     }
-    if (linkedOrder.requestedProducer) {
+    if (
+      linkedOrder.requestedProducer &&
+      !isFirstAvailableRequest(linkedOrder.requestedProducer)
+    ) {
       candidates.push(linkedOrder.requestedProducer);
     }
+    // editorRequest "FA" is the First-available *request code*, not a producer.
     if (
       linkedOrder.editorRequest &&
       !isFirstAvailableRequest(linkedOrder.editorRequest)
@@ -171,7 +182,11 @@ function isProducerOverDailyLimitsForRecord(
       dateToIsoLocal(window.start),
       dateToIsoLocal(window.end),
       mtdRecords,
-      { excludeRecordId: rec.id }
+      {
+        excludeRecordId: rec.id,
+        matchCategory: rec.category,
+        matchFormType: rec.formType,
+      }
     )
   );
 }
@@ -259,9 +274,12 @@ export function findProducerByAssignmentKey(
 ): Producer | undefined {
   if (!key?.trim()) return undefined;
   const normalized = normalizeProducerKey(key);
-  if (!normalized || isFirstAvailableRequest(normalized)) return undefined;
+  if (!normalized) return undefined;
 
-  return producers.find((producer) => {
+  // Prefer a real roster match first. Initials like "FA" are also the
+  // reserved "First available" request code — without this order, a producer
+  // whose initials are FA can never be resolved and stays disabled in Assign.
+  const match = producers.find((producer) => {
     const assignmentKey = producerAssignmentKey(producer);
     const firstName = producer.name.trim().split(/\s+/)[0].toUpperCase();
     return (
@@ -272,6 +290,10 @@ export function findProducerByAssignmentKey(
       firstName === normalized
     );
   });
+  if (match) return match;
+
+  if (isFirstAvailableRequest(normalized)) return undefined;
+  return undefined;
 }
 
 /**
@@ -410,62 +432,6 @@ export function seedAssignedProducerForOrder(
 
   const selected = eligible[index % eligible.length];
   return producerAssignmentKey(selected);
-}
-
-/**
- * Maps an order's form type and subtype to the canonical producer category.
- * This is the authoritative mapping used for all producer assignment eligibility.
- */
-export function orderCategoryToProducerCategory(
-  formType: string | undefined,
-  subtype: string | undefined,
-  legacyCategory?: string | undefined
-): string {
-  // Use subtype-specific mapping first
-  if (subtype) {
-    const s = subtype.trim().toLowerCase();
-    if (s === "all-star-cheer") return "All-Star Cheer";
-    if (s === "school-cheer-viroc-yes" || s === "school-cheer-viroc-no") return "School Cheer";
-    if (s === "youth-rec-cheer") return "Youth Rec Cheer";
-    if (s === "pom") return "Pom";
-    if (s === "hip-hop" || s === "hiphop") return "Hip Hop";
-    if (s === "team-performance-variety" || s === "team-performance") return "Team Performance / Variety";
-    if (s === "gameday") return "Gameday";
-    if (s === "jazz-kick" || s === "jazz/kick") return "Jazz / Kick";
-  }
-  // Use form type mapping
-  if (formType) {
-    const f = formType.trim().toLowerCase();
-    if (f === "marching-band") return "Marching Band";
-    if (f === "sports-entertainment") return "Sports Entertainment";
-    if (f === "school-anthem") return "School Anthem";
-  }
-  // Legacy category string fallback (used by MTD records which store plain strings)
-  if (legacyCategory) {
-    const c = legacyCategory.trim().toLowerCase();
-    if (c === "cheer") return "All-Star Cheer";
-    if (c === "dance") return "Pom";
-    if (c === "marching band" || c === "marching-band") return "Marching Band";
-    if (c === "hip-hop" || c === "hip hop") return "Hip Hop";
-    if (c === "sports entertainment" || c === "sports-entertainment") return "Sports Entertainment";
-    if (c === "school anthem" || c === "school-anthem") return "School Anthem";
-    if (c === "school cheer" || c === "school-cheer") return "School Cheer";
-    if (c === "all-star cheer" || c === "all star cheer") return "All-Star Cheer";
-    if (c === "youth rec cheer" || c === "youth-rec-cheer") return "Youth Rec Cheer";
-    if (c === "pom") return "Pom";
-    if (c === "gameday") return "Gameday";
-    if (c === "jazz / kick" || c === "jazz/kick" || c === "jazz-kick") return "Jazz / Kick";
-    if (
-      c === "team performance / variety" ||
-      c === "team performance" ||
-      c === "general"
-    ) {
-      return "Team Performance / Variety";
-    }
-    // Return the category as-is if no mapping found
-    return legacyCategory;
-  }
-  return "";
 }
 
 /**
@@ -645,7 +611,7 @@ export function getRequestedEditorUnavailableReason(
   producers: Producer[] = []
 ): string | null {
   const editorKey = normalizeProducerKey(requestedEditor);
-  if (!editorKey || isFirstAvailableRequest(editorKey)) return null;
+  if (!editorKey) return null;
 
   const producer = findProducerByAssignmentKey(requestedEditor, producers);
   if (!producer) return null;

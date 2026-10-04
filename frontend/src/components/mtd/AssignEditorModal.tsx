@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -41,8 +41,12 @@ import { suggestMixEndDate } from "@/lib/scheduling";
 import {
   checkProducerDailyLimits,
   dailyLimitCheckHasIssues,
+  extraDatesInRange,
+  formatCompactLeaveDaySpans,
+  formatLeaveDateLabel,
   isProducerAvailableForMixWindow,
   isProducerWorkableDay,
+  leaveApplicableDaysInRange,
   nextProducerWorkableDayIso,
   findMixWindowBlocker,
   describeMixWindowBlocker,
@@ -54,6 +58,7 @@ import {
   type MixWindowBlocker,
   type RecordCostEstimator,
 } from "@/lib/producer-availability";
+import { collectOpenAssignedMixRecords } from "@/lib/producer-assigned-mixes";
 import {
   isProducerAvailableOnDate,
   calculateProducerNextOpening,
@@ -65,6 +70,7 @@ import {
   estimateRecordProducerPayoutDetail,
   type ProducerPayoutEstimateDetail,
 } from "@/lib/producer-payout-estimate";
+import { PRICING_REFERENCE_CHANGED_EVENT } from "@/lib/order-package-price";
 import {
   buildMixDateCalendarRules,
   describeDailyLimitIssues,
@@ -76,6 +82,7 @@ import {
 import {
   CHEER_FORM_SUBTABS,
   DANCE_FORM_SUBTABS,
+  DEFAULT_WORK_DAYS,
   ORDER_FORM_TABS,
   type MTDRecord,
   type MTDRecordStatus,
@@ -182,7 +189,14 @@ export function AssignEditorModal({
   const producers = live.producers;
   const mtdRecords = live.mtdRecords;
   const allOrders = live.allOrders;
+  const activeOrders = live.activeOrders;
   const schedule = live.schedule.length > 0 ? live.schedule : scheduleProp;
+
+  /** Orders + MTD assigned mixes (excludes payroll/completed) for limit comparison. */
+  const bookingRecords = useMemo(
+    () => collectOpenAssignedMixRecords(activeOrders, mtdRecords),
+    [activeOrders, mtdRecords]
+  );
 
   const orderById = useMemo(() => {
     const map = new Map<string, Order>();
@@ -320,10 +334,54 @@ export function AssignEditorModal({
   /** Strip only switches to “free for window” once both mix dates are set. */
   const stripWindowMode = Boolean(draftStartIso && draftEndIso);
 
-  /** Payout per booked mix, counted in full on every day of its range. */
+  // Recompute daily-cost estimates when Pricing Reference / Secret Menu saves.
+  const [pricingReferenceRevision, setPricingReferenceRevision] = useState(0);
+  useEffect(() => {
+    const bump = () => setPricingReferenceRevision((n) => n + 1);
+    window.addEventListener(PRICING_REFERENCE_CHANGED_EVENT, bump);
+    window.addEventListener("storage", bump);
+    return () => {
+      window.removeEventListener(PRICING_REFERENCE_CHANGED_EVENT, bump);
+      window.removeEventListener("storage", bump);
+    };
+  }, []);
+
+  const producerRatesRevision = useMemo(
+    () =>
+      producers
+        .map(
+          (p) =>
+            `${p.id}:${JSON.stringify(p.ratesByCategory ?? null)}:${p.defaultRate ?? ""}:${p.rushFeeRate ?? ""}:${p.cheerVoiceoverRate ?? ""}:${p.danceVoiceoverRate ?? ""}`
+        )
+        .join("|"),
+    [producers]
+  );
+
+  const orderPriceRevision = useMemo(
+    () =>
+      allOrders
+        .map(
+          (o) =>
+            `${o.id}:${o.price ?? ""}:${o.finalCustomerPrice ?? ""}:${o.finalPayrollPrice ?? ""}:${o.finalCustomerPriceOverridden ? 1 : 0}:${o.package ?? ""}:${o.timeLengthOfMix ?? ""}`
+        )
+        .join("|"),
+    [allOrders]
+  );
+
+  /** Payout per booked mix, divided across that mix's work days. */
   const estimateBookedCost = useMemo(
     () => createBookedCostEstimator(producers, orderById),
-    [producers, orderById]
+    // pricingReferenceRevision / rate / order price revisions bust the estimator.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      producers,
+      orderById,
+      pricingReferenceRevision,
+      producerRatesRevision,
+      orderPriceRevision,
+      live.packagePrices,
+      live.secretMenuPrices,
+    ]
   );
 
   const producerRows = useMemo((): ProducerRow[] => {
@@ -359,20 +417,23 @@ export function AssignEditorModal({
           estimateCost: estimateBookedCost,
           // Single-day availability checks expect a per-day share.
           newMixCost: newMixDailyShare,
+          // Only compare capacity against mixes in this category + subcategory.
+          matchCategory: requiredProducerCategory || record.category,
+          matchFormType: formMeta?.formType || record.formType,
         };
 
         canWorkToday = isProducerWorkableDay(producer, today);
         isAvailableToday = isProducerAvailableOnDate(
           producer,
           today,
-          mtdRecords,
+          bookingRecords,
           schedule,
           openingOptions
         );
 
         const calc = calculateProducerNextOpening(
           producer,
-          mtdRecords,
+          bookingRecords,
           schedule,
           today,
           openingOptions
@@ -404,11 +465,13 @@ export function AssignEditorModal({
             producer,
             evalWindow.startIso,
             endIso,
-            mtdRecords,
+            bookingRecords,
             {
               excludeRecordId: record.id,
               estimateCost: estimateBookedCost,
               newMixCost: basePayout,
+              matchCategory: requiredProducerCategory || record.category,
+              matchFormType: formMeta?.formType || record.formType,
             }
           );
         }
@@ -440,7 +503,7 @@ export function AssignEditorModal({
     record,
     categoryEditors,
     producers,
-    mtdRecords,
+    bookingRecords,
     schedule,
     editorWorkload,
     editorBookedUntil,
@@ -448,6 +511,8 @@ export function AssignEditorModal({
     today,
     orderById,
     estimateBookedCost,
+    requiredProducerCategory,
+    formMeta?.formType,
   ]);
 
   const rowsByKey = useMemo(() => {
@@ -521,6 +586,56 @@ export function AssignEditorModal({
     [producerRows, windowMode]
   );
 
+  /** When the selected producer loses this order's category mid-assign. */
+  const categoryLossNotifiedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if ((!open && !isPage) || readOnly || !selectedEditor) {
+      if (!selectedEditor) categoryLossNotifiedRef.current = null;
+      return;
+    }
+    // Wait until the order's producer category is known.
+    if (!requiredProducerCategory) return;
+
+    const stillEligible = categoryEditors.some((name) =>
+      producerKeysMatch(name, selectedEditor)
+    );
+    if (stillEligible) {
+      categoryLossNotifiedRef.current = null;
+      return;
+    }
+
+    const noticeKey = `${normalizeProducerKey(selectedEditor)}:${requiredProducerCategory}`;
+    if (categoryLossNotifiedRef.current === noticeKey) return;
+    categoryLossNotifiedRef.current = noticeKey;
+
+    const producer = findProducerByAssignmentKey(selectedEditor, producers);
+    const displayName =
+      producer?.name?.trim() || selectedEditor.trim().toUpperCase();
+    const categoryLabel =
+      orderCategoryLabel || requiredProducerCategory || "this category";
+
+    setSelectedEditor("");
+    setDraftMixStartDate("");
+    setDraftMixEndDate("");
+    live.addNotification({
+      type: "schedule",
+      title: "Producer category removed",
+      message: `${displayName} no longer covers ${categoryLabel}. Choose another producer.`,
+      href: record?.id ? `/orders/${record.id}/assign` : "/orders",
+    });
+  }, [
+    open,
+    isPage,
+    readOnly,
+    selectedEditor,
+    categoryEditors,
+    producers,
+    requiredProducerCategory,
+    orderCategoryLabel,
+    live.addNotification,
+    record?.id,
+  ]);
+
   // Hydrate draft from a locked assignment. Do NOT clear draft whenever an
   // unassigned record object refreshes — that wiped first-available picks
   // right after Unassign while the parent re-synced MTD/order.
@@ -582,10 +697,10 @@ export function AssignEditorModal({
     () =>
       producerScheduleFingerprint(
         selectedProducer,
-        mtdRecords,
+        bookingRecords,
         record?.id
       ),
-    [selectedProducer, mtdRecords, record?.id]
+    [selectedProducer, bookingRecords, record?.id]
   );
 
   const selectedPayoutDetail = useMemo((): ProducerPayoutEstimateDetail | null => {
@@ -611,16 +726,28 @@ export function AssignEditorModal({
         base != null ? Math.round((base / packageDays) * 100) / 100 : null;
       return buildMixDateCalendarRules({
         producer: selectedProducer,
-        mtdRecords,
+        mtdRecords: bookingRecords,
         excludeRecordId: record?.id,
         estimateCost: estimateBookedCost,
         newMixCost: dailyShare,
+        matchCategory: requiredProducerCategory || record?.category,
+        matchFormType: formMeta?.formType || record?.formType,
         todayIso,
       });
     },
     // Fingerprint catches nested leave / Extra / work-day / mix booking edits.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [mixDateScheduleRevision, record, selectedProducer, estimateBookedCost, orderById, todayIso]
+    [
+      mixDateScheduleRevision,
+      record,
+      selectedProducer,
+      estimateBookedCost,
+      orderById,
+      todayIso,
+      bookingRecords,
+      requiredProducerCategory,
+      formMeta?.formType,
+    ]
   );
 
   const selectedRow = selectedEditor
@@ -643,6 +770,33 @@ export function AssignEditorModal({
     draftMixEndDate || (isAssignmentLocked ? record?.mixEndDate : "") || ""
   );
   const showProducerBooking = Boolean(mixStartIso || mixEndIso);
+
+  /** Same compact work-day spans as leave chips (skip non-work days). */
+  const producerBookingLabel = useMemo(() => {
+    if (!mixStartIso && !mixEndIso) return "Not set";
+    const start = mixStartIso || mixEndIso || "";
+    const end = mixEndIso || mixStartIso || start;
+    const workDays =
+      selectedProducer?.workDays && selectedProducer.workDays.length > 0
+        ? selectedProducer.workDays
+        : [...DEFAULT_WORK_DAYS];
+    if (!selectedProducer) {
+      return formatLeaveDateLabel(start, end, workDays);
+    }
+    const workIsos = leaveApplicableDaysInRange(start, end, workDays);
+    const extraIsos = extraDatesInRange(
+      selectedProducer.extraDays ?? [],
+      start,
+      end
+    );
+    const bookedIsos = [...new Set([...workIsos, ...extraIsos])].sort((a, b) =>
+      a.localeCompare(b)
+    );
+    if (bookedIsos.length === 0) {
+      return formatLeaveDateLabel(start, end, workDays);
+    }
+    return formatCompactLeaveDaySpans(bookedIsos);
+  }, [mixStartIso, mixEndIso, selectedProducer]);
 
   if (!record) return null;
   if (!isPage && !open) return null;
@@ -781,6 +935,15 @@ export function AssignEditorModal({
         message: `${selectedEditor} assigned to ${programLabel}.`,
         href: `/orders/${activeRecord.id}`,
       });
+    } else if (
+      getOrderStatus(activeRecord).reassignReason === "category_removed"
+    ) {
+      live.addNotification({
+        type: "schedule",
+        title: "Reassigned after category change",
+        message: `${selectedEditor} assigned to ${programLabel}.`,
+        href: `/orders/${activeRecord.id}`,
+      });
     }
 
     if (isPage && returnHref) {
@@ -895,22 +1058,12 @@ export function AssignEditorModal({
                   <div className="rounded-xl border border-brand-line/70 bg-brand-bg/40 px-3 py-2.5">
                     <p className="text-label">Producer booking</p>
                     <p className="mt-0.5 text-[11px] leading-snug text-brand-ink-tertiary">
-                      Mix dates from assignment. Reassign to change them.
+                      Booked work days from assignment (non-work days excluded).
+                      Reassign to change them.
                     </p>
-                    <dl className="mt-2.5 space-y-1.5">
-                      <div className="flex items-baseline justify-between gap-3 text-[12px]">
-                        <dt className="text-brand-ink-tertiary">From</dt>
-                        <dd className="font-medium tabular-nums text-brand-ink">
-                          {mixStartIso ? formatDisplayDate(mixStartIso) : "Not set"}
-                        </dd>
-                      </div>
-                      <div className="flex items-baseline justify-between gap-3 text-[12px]">
-                        <dt className="text-brand-ink-tertiary">Until</dt>
-                        <dd className="font-medium tabular-nums text-brand-ink">
-                          {mixEndIso ? formatDisplayDate(mixEndIso) : "Not set"}
-                        </dd>
-                      </div>
-                    </dl>
+                    <p className="mt-2.5 text-[13px] font-semibold tabular-nums tracking-tight text-brand-ink">
+                      {producerBookingLabel}
+                    </p>
                   </div>
                 ) : null}
               </div>
@@ -935,7 +1088,6 @@ export function AssignEditorModal({
                       ) : (
                         <AvailabilityProducerStrip
                           rows={producerRows}
-                          windowMode={stripWindowMode}
                           selectedEditor={selectedEditor}
                           genreLabel={genreLabel}
                           windowLabel={
@@ -1042,9 +1194,13 @@ export function AssignEditorModal({
                           : ""
                       }`}
                       payoutDetail={selectedPayoutDetail}
-                      mtdRecords={mtdRecords}
+                      mtdRecords={bookingRecords}
                       excludeRecordId={record?.id}
                       estimateCost={estimateBookedCost}
+                      matchCategory={
+                        requiredProducerCategory || record?.category
+                      }
+                      matchFormType={formMeta?.formType || record?.formType}
                     />
                   ) : null}
                 </div>
@@ -1234,68 +1390,41 @@ function SectionHeading({
   );
 }
 
-function sortProducerRowsByOpening(a: ProducerRow, b: ProducerRow): number {
-  const ta = a.nextOpeningDate?.getTime() ?? Infinity;
-  const tb = b.nextOpeningDate?.getTime() ?? Infinity;
-  return ta - tb || a.mixCount - b.mixCount;
-}
-
-function isProducerRowOpen(row: ProducerRow, windowMode: boolean): boolean {
-  return windowMode ? row.availableForWindow : Boolean(row.nextOpeningDate);
-}
-
 function ProducerAvailChip({
   row,
-  windowMode,
   selectedEditor,
   onSelect,
 }: {
   row: ProducerRow;
-  windowMode: boolean;
   selectedEditor: string;
   onSelect: (name: string, startIso?: string) => void;
 }) {
-  const open = isProducerRowOpen(row, windowMode);
+  // Category roster only — availability is handled by the booking calendars,
+  // not by greying out chips in this strip.
   const selected =
     Boolean(selectedEditor) && producerKeysMatch(selectedEditor, row.name);
   const displayName = row.producer?.name?.trim() || row.name;
-  const statusLabel = windowMode
-    ? !row.availableForWindow
-      ? row.blockerLabel || "Not free"
-      : row.overLimit
-        ? "Free · over limit"
-        : "Free"
-    : row.isAvailableToday
-      ? "Available today"
-      : row.nextOpeningIso
-        ? `From ${formatDisplayDate(row.nextOpeningIso)}`
-        : "No date yet";
 
   return (
     <button
       type="button"
-      disabled={!open && !selected}
       title={
         selected
           ? `${displayName} · click to unselect`
-          : `${displayName} · ${statusLabel}`
+          : displayName
       }
-      onClick={() => {
-        if (!open && !selected) return;
-        onSelect(row.name, row.nextOpeningIso || undefined);
-      }}
+      onClick={() => onSelect(row.name, row.nextOpeningIso || undefined)}
       className={clsx(
-        "inline-flex items-center justify-center rounded-xl border p-2 transition",
-        !open && !selected && "cursor-not-allowed opacity-55",
+        "inline-flex items-center justify-center overflow-visible rounded-xl border p-2 transition",
         selected
           ? "border-brand-signature bg-brand-signature-soft shadow-sm ring-1 ring-brand-signature/25"
           : "border-brand-line/60 bg-brand-bg/30 hover:border-brand-line hover:bg-brand-bg/60"
       )}
     >
-      <span className="relative">
+      <span className="relative inline-flex overflow-visible">
         <Avatar producer={row.producer} initials={row.name} size="sm" />
         {selected ? (
-          <span className="absolute -bottom-0.5 -right-0.5 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-brand-signature text-white shadow-sm">
+          <span className="pointer-events-none absolute -bottom-1 -right-1 z-10 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-brand-signature text-white shadow-sm ring-2 ring-white">
             <Check className="h-2 w-2" strokeWidth={3} />
           </span>
         ) : null}
@@ -1786,8 +1915,8 @@ function RangeMixBreakdown({
       <div className="border-t border-brand-line/40">
         {contributors.length > 0 ? (
           <p className="px-3.5 pt-2.5 text-[11px] leading-relaxed text-brand-ink-tertiary">
-            Producer payout ÷ that mix&apos;s work days = daily cost on
-            overlapping days
+            Same category &amp; subcategory only. Producer payout ÷ that
+            mix&apos;s work days = daily cost on overlapping days
           </p>
         ) : null}
 
@@ -1848,6 +1977,8 @@ function SelectedMixLimitPanel({
   mtdRecords,
   excludeRecordId,
   estimateCost,
+  matchCategory,
+  matchFormType,
 }: {
   check: DailyLimitCheck;
   producer?: Producer | null;
@@ -1859,12 +1990,34 @@ function SelectedMixLimitPanel({
   mtdRecords: MTDRecord[];
   excludeRecordId?: string;
   estimateCost: RecordCostEstimator;
+  matchCategory?: string | null;
+  matchFormType?: string | null;
 }) {
   const maxMixes = check.maxMixesPerDay;
   const maxCost = check.maxCostPerDay;
-  const chartDays = check.workDays;
   const thisMixDaily = check.newMixDailyCost;
   const hasLimits = maxMixes != null || maxCost != null;
+  const categoryMatch = {
+    matchCategory,
+    matchFormType,
+  };
+
+  // Graph only shows days at ≥50% of mix and/or cost limit (with this mix).
+  const chartDays = useMemo(() => {
+    const thisDaily = thisMixDaily ?? 0;
+    return check.workDays.filter((day) => {
+      let costHit = false;
+      let mixHit = false;
+      if (maxCost != null && maxCost > 0) {
+        costHit = (day.bookedCost + thisDaily) / maxCost >= 0.5;
+      }
+      if (maxMixes != null && maxMixes > 0) {
+        const mixes = day.bookedMixes + (thisDaily > 0 ? 1 : 0);
+        mixHit = mixes / maxMixes >= 0.5;
+      }
+      return costHit || mixHit;
+    });
+  }, [check.workDays, thisMixDaily, maxCost, maxMixes]);
 
   const defaultIso = chartDays[0]?.iso || "";
   const [inspectIso, setInspectIso] = useState(defaultIso);
@@ -1877,14 +2030,15 @@ function SelectedMixLimitPanel({
 
   const contributors = useMemo(() => {
     if (!producer || !rangeStartIso) return [];
-    // Only already-booked mixes — the draft selection is not assigned until Assign.
+    // Orders + MTD assigned mixes in the same category/subcategory only.
     return listProducerCostContributorsInRange(
       producer,
       rangeStartIso,
       rangeEndIso || rangeStartIso,
       mtdRecords,
       excludeRecordId,
-      estimateCost
+      estimateCost,
+      categoryMatch
     );
   }, [
     producer,
@@ -1893,6 +2047,8 @@ function SelectedMixLimitPanel({
     mtdRecords,
     excludeRecordId,
     estimateCost,
+    matchCategory,
+    matchFormType,
   ]);
 
   const dayCostSegments = useMemo(() => {
@@ -1906,7 +2062,8 @@ function SelectedMixLimitPanel({
         dayDate,
         mtdRecords,
         excludeRecordId,
-        estimateCost
+        estimateCost,
+        categoryMatch
       );
       // Booked mixes only — do not stack the draft/current mix into the bar.
       out[day.iso] = dayContributors.map((c) => ({
@@ -1924,34 +2081,11 @@ function SelectedMixLimitPanel({
     mtdRecords,
     excludeRecordId,
     estimateCost,
+    matchCategory,
+    matchFormType,
   ]);
 
-  // Hide empty "graph of itself" when no other mixes share the window and
-  // adding this mix stays under half of every daily cap.
-  const worthShowing = useMemo(() => {
-    if (contributors.length > 0) return true;
-    if (dailyLimitCheckHasIssues(check)) return true;
-    const thisDaily = thisMixDaily ?? 0;
-    for (const day of chartDays) {
-      if (maxCost != null && maxCost > 0) {
-        if ((day.bookedCost + thisDaily) / maxCost >= 0.5) return true;
-      }
-      if (maxMixes != null && maxMixes > 0) {
-        const mixes = day.bookedMixes + (thisDaily > 0 ? 1 : 0);
-        if (mixes / maxMixes >= 0.5) return true;
-      }
-    }
-    return false;
-  }, [
-    contributors.length,
-    check,
-    thisMixDaily,
-    chartDays,
-    maxCost,
-    maxMixes,
-  ]);
-
-  if (!hasLimits || chartDays.length === 0 || !worthShowing) return null;
+  if (!hasLimits || chartDays.length === 0) return null;
 
   return (
     <div className="rounded-2xl border border-brand-line/60 bg-white p-4">
@@ -2011,25 +2145,21 @@ function SelectedMixLimitPanel({
 
 function AvailabilityProducerStrip({
   rows,
-  windowMode,
   selectedEditor,
   genreLabel,
   windowLabel,
   onSelect,
 }: {
   rows: ProducerRow[];
-  windowMode: boolean;
   selectedEditor: string;
   genreLabel: string;
   windowLabel: string | null;
   onSelect: (name: string, startIso?: string) => void;
 }) {
-  const sortedRows = useMemo(
-    () => [...rows].sort(sortProducerRowsByOpening),
-    [rows]
-  );
+  // Stable category order — do not sort by next opening / free status.
+  const stripRows = rows;
 
-  if (rows.length === 0) {
+  if (stripRows.length === 0) {
     return (
       <div className="rounded-2xl border border-brand-line/60 bg-white p-4">
         <p className="rounded-xl border border-brand-warning/30 bg-brand-warning/8 px-3 py-2 text-[13px] text-brand-warning">
@@ -2048,16 +2178,15 @@ function AvailabilityProducerStrip({
         <p className="mt-0.5 text-[12px] text-brand-ink-tertiary">
           {windowLabel
             ? `${genreLabel} · ${windowLabel}`
-            : `${genreLabel} · ${rows.length} producer${rows.length === 1 ? "" : "s"}`}
+            : `${genreLabel} · ${stripRows.length} producer${stripRows.length === 1 ? "" : "s"}`}
         </p>
       </div>
 
       <div className="flex flex-wrap gap-2 p-3 sm:p-4">
-        {sortedRows.map((row) => (
+        {stripRows.map((row) => (
           <ProducerAvailChip
             key={row.key}
             row={row}
-            windowMode={windowMode}
             selectedEditor={selectedEditor}
             onSelect={onSelect}
           />

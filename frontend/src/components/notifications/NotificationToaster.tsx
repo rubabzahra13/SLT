@@ -1,47 +1,61 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
-import { Bell, CalendarClock, PackageCheck, Wallet, X, AlertTriangle } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowUpRight,
+  Bell,
+  CalendarClock,
+  PackageCheck,
+  Wallet,
+  X,
+} from "lucide-react";
 import { useAppState } from "@/context/AppStateContext";
 import type { AppNotification } from "@/types";
 
-const AUTO_DISMISS_MS = 6000;
+const AUTO_DISMISS_MS = 5600;
 
 const toneByType: Record<
   AppNotification["type"],
-  { icon: typeof Bell; ring: string; iconColor: string; bar: string }
+  {
+    icon: typeof Bell;
+    accent: string;
+    soft: string;
+    bar: string;
+  }
 > = {
   new_order: {
     icon: Bell,
-    ring: "ring-brand-orange/30",
-    iconColor: "text-brand-orange",
-    bar: "bg-brand-orange",
+    accent: "text-[#d97706]",
+    soft: "bg-[#fff7ed]",
+    bar: "bg-[#f07840]",
   },
   mtd_move: {
     icon: PackageCheck,
-    ring: "ring-brand-success/30",
-    iconColor: "text-brand-success",
-    bar: "bg-brand-success",
+    accent: "text-emerald-600",
+    soft: "bg-emerald-50",
+    bar: "bg-emerald-500",
   },
   schedule: {
     icon: CalendarClock,
-    ring: "ring-brand-warning/30",
-    iconColor: "text-brand-warning",
-    bar: "bg-brand-warning",
+    accent: "text-amber-700",
+    soft: "bg-amber-50",
+    bar: "bg-amber-500",
   },
   payroll: {
     icon: Wallet,
-    ring: "ring-brand-blue/30",
-    iconColor: "text-brand-blue",
-    bar: "bg-brand-blue",
+    accent: "text-sky-700",
+    soft: "bg-sky-50",
+    bar: "bg-sky-500",
   },
   error: {
     icon: AlertTriangle,
-    ring: "ring-red-500/30",
-    iconColor: "text-red-600",
-    bar: "bg-red-500",
+    accent: "text-rose-700",
+    soft: "bg-rose-50",
+    bar: "bg-rose-500",
   },
 };
 
@@ -49,7 +63,12 @@ export function NotificationToaster() {
   const { notifications, markNotificationRead } = useAppState();
   const router = useRouter();
   const [toasts, setToasts] = useState<AppNotification[]>([]);
+  const [mounted, setMounted] = useState(false);
   const seenRef = useRef<Set<string> | null>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     // First run: treat everything already present as seen (no toast on load).
@@ -61,30 +80,36 @@ export function NotificationToaster() {
     const fresh = notifications.filter((n) => !seenRef.current!.has(n.id));
     if (fresh.length === 0) return;
     fresh.forEach((n) => seenRef.current!.add(n.id));
-    setToasts((prev) => [...fresh, ...prev].slice(0, 4));
+    setToasts((prev) => [...fresh, ...prev].slice(0, 3));
   }, [notifications]);
 
   function dismiss(id: string) {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }
 
-  if (toasts.length === 0) return null;
+  if (!mounted || toasts.length === 0) return null;
 
-  return (
-    <div className="pointer-events-none fixed right-4 top-4 z-[60] flex w-[calc(100vw-2rem)] max-w-[360px] flex-col gap-2.5">
-      {toasts.map((toast) => (
-        <ToastCard
-          key={toast.id}
-          toast={toast}
-          onDismiss={() => dismiss(toast.id)}
-          onOpen={() => {
-            markNotificationRead(toast.id);
-            dismiss(toast.id);
-            if (toast.href) router.push(toast.href);
-          }}
-        />
-      ))}
-    </div>
+  return createPortal(
+    <div
+      className="pointer-events-none fixed inset-x-0 bottom-0 z-[80] flex justify-center px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4 sm:px-6"
+      aria-live="polite"
+    >
+      <div className="flex w-full max-w-[420px] flex-col-reverse gap-2.5">
+        {toasts.map((toast) => (
+          <ToastCard
+            key={toast.id}
+            toast={toast}
+            onDismiss={() => dismiss(toast.id)}
+            onOpen={() => {
+              markNotificationRead(toast.id);
+              dismiss(toast.id);
+              if (toast.href) router.push(toast.href);
+            }}
+          />
+        ))}
+      </div>
+    </div>,
+    document.body
   );
 }
 
@@ -97,7 +122,7 @@ function ToastCard({
   onDismiss: () => void;
   onOpen: () => void;
 }) {
-  const tone = toneByType[toast.type];
+  const tone = toneByType[toast.type] ?? toneByType.schedule;
   const Icon = tone.icon;
 
   useEffect(() => {
@@ -108,17 +133,18 @@ function ToastCard({
 
   return (
     <div
-      className="animate-toast-in pointer-events-auto overflow-hidden rounded-2xl border border-brand-line bg-brand-elevated shadow-[var(--shadow-premium)]"
+      className="animate-toast-in pointer-events-auto overflow-hidden rounded-[22px] border border-white/70 bg-white/90 shadow-[0_18px_50px_rgba(15,23,42,0.16),0_2px_8px_rgba(15,23,42,0.06)] backdrop-blur-xl"
       role="status"
     >
-      <div className="flex items-start gap-3 p-3.5">
+      <div className="flex items-start gap-3 px-3.5 pb-3 pt-3.5">
         <span
           className={clsx(
-            "mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-bg ring-1 ring-inset",
-            tone.ring
+            "mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl",
+            tone.soft,
+            tone.accent
           )}
         >
-          <Icon className={clsx("h-4 w-4", tone.iconColor)} strokeWidth={2} />
+          <Icon className="h-[18px] w-[18px]" strokeWidth={2.1} />
         </span>
 
         <button
@@ -126,15 +152,16 @@ function ToastCard({
           onClick={onOpen}
           className="min-w-0 flex-1 text-left"
         >
-          <p className="truncate text-[13px] font-semibold text-brand-ink">
+          <p className="text-[13px] font-semibold tracking-[-0.01em] text-slate-900">
             {toast.title}
           </p>
-          <p className="mt-0.5 line-clamp-2 text-[12px] leading-snug text-brand-ink-secondary">
+          <p className="mt-0.5 line-clamp-2 text-[12px] leading-snug text-slate-500">
             {toast.message}
           </p>
           {toast.href ? (
-            <span className="mt-1 inline-block text-[11px] font-semibold text-brand-signature">
-              View
+            <span className="mt-1.5 inline-flex items-center gap-0.5 text-[11px] font-semibold text-slate-800">
+              Open
+              <ArrowUpRight className="h-3 w-3" strokeWidth={2.25} />
             </span>
           ) : null}
         </button>
@@ -142,15 +169,15 @@ function ToastCard({
         <button
           type="button"
           onClick={onDismiss}
-          className="rounded-full p-1 text-brand-ink-tertiary transition hover:bg-brand-bg hover:text-brand-ink"
+          className="rounded-full p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
           aria-label="Dismiss notification"
         >
-          <X className="h-3.5 w-3.5" />
+          <X className="h-3.5 w-3.5" strokeWidth={2.25} />
         </button>
       </div>
 
-      <div className="h-0.5 w-full bg-brand-line/60">
-        <div className={clsx("animate-toast-bar h-full", tone.bar)} />
+      <div className="h-[3px] w-full bg-slate-100/90">
+        <div className={clsx("animate-toast-bar h-full rounded-full", tone.bar)} />
       </div>
     </div>
   );

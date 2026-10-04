@@ -498,9 +498,11 @@ export function sortProducersForCapacity(
   );
   const rank = { unavailable: 0, limited: 1, available: 2 } as const;
   return enriched.sort((a, b) => {
-    const byStatus = rank[a.status] - rank[b.status];
+    const aStatus = a.status ?? "available";
+    const bStatus = b.status ?? "available";
+    const byStatus = rank[aStatus] - rank[bStatus];
     if (byStatus !== 0) return byStatus;
-    return a.nextAvailable.localeCompare(b.nextAvailable);
+    return (a.nextAvailable ?? "").localeCompare(b.nextAvailable ?? "");
   });
 }
 

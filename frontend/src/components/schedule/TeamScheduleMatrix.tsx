@@ -22,8 +22,6 @@ type TeamScheduleMatrixProps = {
   columns: ColumnAggregate[];
   range: ScheduleViewRange;
   statusFilter?: ScheduleStatusFilter;
-  activeProducerId?: string | null;
-  onSelectProducer: (row: TeamScheduleRow, cell?: ScheduleCell) => void;
   emptyMessage?: string;
   className?: string;
 };
@@ -247,15 +245,11 @@ function scheduleCellCountClass(
 function ScheduleCellButton({
   cell,
   range,
-  selected,
   stretchRows = false,
-  onClick,
 }: {
   cell: ScheduleCell;
   range: ScheduleViewRange;
-  selected?: boolean;
   stretchRows?: boolean;
-  onClick: () => void;
 }) {
   if (cell.filteredOut) {
     return <span className="block w-full" aria-hidden />;
@@ -271,13 +265,8 @@ function ScheduleCellButton({
     </HoverTip>
   );
 
-  const selectedRing =
-    selected && "ring-2 ring-brand-orange ring-offset-1 ring-offset-white";
-
   const button = (
-    <button
-      type="button"
-      onClick={onClick}
+    <div
       title={
         booking && !showCount
           ? undefined
@@ -285,10 +274,7 @@ function ScheduleCellButton({
             ? undefined
             : `${cell.dayLabel} ${cell.dateLabel} · ${statusLabel(cell.status)}`
       }
-      className={clsx(
-        scheduleCellBarClass(cell, range, stretchRows),
-        selectedRing
-      )}
+      className={scheduleCellBarClass(cell, range, stretchRows)}
       style={{
         maxWidth: stretchRows ? Math.min(LAYOUT.barMax[range] * 1.35, 72) : LAYOUT.barMax[range],
         ...(cell.status === "nonwork" ? { backgroundColor: "#fff1e8" } : null),
@@ -308,7 +294,7 @@ function ScheduleCellButton({
           {bookings.length}
         </span>
       ) : null}
-    </button>
+    </div>
   );
 
   if (showCount) {
@@ -367,8 +353,6 @@ export function TeamScheduleMatrix({
   columns,
   range,
   statusFilter = "all",
-  activeProducerId,
-  onSelectProducer,
   emptyMessage = "No producers in this view.",
   className,
 }: TeamScheduleMatrixProps) {
@@ -567,19 +551,15 @@ export function TeamScheduleMatrix({
       ) : null}
 
       {producerRows.map(({ row, availableCount, bookingCount, offCount, nonworkCount, entries }, rowIndex) => {
-        const isActive = row.producer.id === activeProducerId;
         const isLastRow = rowIndex === producerRows.length - 1;
 
         return (
           <Fragment key={row.producer.id}>
-            <button
-              type="button"
-              onClick={() => onSelectProducer(row)}
+            <div
               aria-label={row.producer.name}
               className={clsx(
-                "sticky left-0 z-20 flex h-full min-h-0 min-w-0 w-full items-center justify-center self-stretch overflow-hidden border-b border-r border-brand-line/60 bg-white px-0.5 py-1.5 transition hover:bg-brand-blue-soft/30",
-                isLastRow && "border-b-0",
-                isActive && "bg-brand-orange-soft/40 hover:bg-brand-orange-soft/40"
+                "sticky left-0 z-20 flex h-full min-h-0 min-w-0 w-full items-center justify-center self-stretch overflow-hidden border-b border-r border-brand-line/60 bg-white px-0.5 py-1.5",
+                isLastRow && "border-b-0"
               )}
             >
               <HoverTip
@@ -587,20 +567,13 @@ export function TeamScheduleMatrix({
                 placement="right"
                 label={row.producer.name}
               >
-                <div
-                  className={clsx(
-                    "shrink-0 rounded-full ring-1 ring-inset ring-offset-0",
-                    isActive ? "ring-brand-orange/60" : "ring-brand-blue/30"
-                  )}
-                >
-                  <Avatar
-                    producer={row.producer}
-                    name={row.producer.name}
-                    size="sm"
-                  />
-                </div>
+                <Avatar
+                  producer={row.producer}
+                  name={row.producer.name}
+                  size="sm"
+                />
               </HoverTip>
-            </button>
+            </div>
 
             {showStatColumns ? (
               <>
@@ -682,19 +655,12 @@ export function TeamScheduleMatrix({
                     "group/cell flex h-full min-h-0 min-w-0 items-center justify-center self-stretch border-b border-r border-brand-line/35 px-0.5 py-1 transition-colors",
                     isLastRow && "border-b-0",
                     isLastCol && "border-r-0",
-                    isActive
-                      ? "bg-brand-orange-soft/40"
-                      : column.isToday
-                        ? "bg-brand-blue-soft hover:bg-brand-blue-soft/80"
-                        : "bg-white hover:bg-brand-blue-soft/25"
+                    column.isToday
+                      ? "bg-brand-blue-soft"
+                      : "bg-white"
                   )}
                 >
-                  <ScheduleCellButton
-                    cell={cell}
-                    range={range}
-                    selected={isActive && cell.key === column.key}
-                    onClick={() => onSelectProducer(row, cell)}
-                  />
+                  <ScheduleCellButton cell={cell} range={range} />
                 </div>
               );
             })}

@@ -2,6 +2,7 @@ export * from "./client";
 export * from "./producers";
 export * from "./orders";
 export * from "./mtd";
+export * from "./board-stream";
 export * from "./discount-codes";
 export * from "./pricing";
 export * from "./payroll-addons";

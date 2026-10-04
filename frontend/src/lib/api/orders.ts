@@ -238,6 +238,15 @@ export async function updateOrderApi(
     payload.split_or_no_split = patch.splitOrNoSplit;
   }
   if (patch.price !== undefined) payload.price = patch.price;
+  if (patch.finalCustomerPrice !== undefined) {
+    payload.final_customer_price = patch.finalCustomerPrice;
+  }
+  if (patch.finalCustomerPriceOverridden !== undefined) {
+    payload.final_customer_price_overridden = patch.finalCustomerPriceOverridden;
+  }
+  if (patch.priceCompliance !== undefined) {
+    payload.price_compliance = patch.priceCompliance;
+  }
   if (patch.musicTheme !== undefined) payload.music_theme = patch.musicTheme;
   if (patch.editorRequest !== undefined) payload.editor_request = patch.editorRequest;
   if (patch.requestedProducer !== undefined) payload.requested_producer = patch.requestedProducer;

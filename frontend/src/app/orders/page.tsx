@@ -33,12 +33,10 @@ import {
   ORDER_RESELECTION_REASON_LABEL,
 } from "@/lib/order-requirements";
 import {
-  calculateCheerOrderPricing,
-  calculateDanceOrderPricing,
-  calculateMarchingBandOrderPricing,
-  calculateSchoolAnthemOrderPricing,
-  calculateSportsEntertainmentOrderPricing,
-} from "@/lib/pricing-engine";
+  buildRecordPriceSavePatch,
+  resolveEngineCustomerPrice,
+  resolveOrderPackageDisplayPrice,
+} from "@/lib/order-package-price";
 import { formatDisplayDate, formatMixBookedDaysLabel, toIsoDateString } from "@/lib/dates";
 import { todayIso } from "@/lib/date-filters";
 import { generateOrdersCsv, triggerCsvDownload } from "@/lib/export-csv";
@@ -445,11 +443,41 @@ function OrdersPageContent() {
     setPricingRecord(rec);
   }, []);
 
+  const pricingRecordDisplayPrice = useMemo(() => {
+    if (!pricingRecord) return null;
+    const linked = findLinkedOrder(pricingRecord, allOrders);
+    return resolveOrderPackageDisplayPrice(
+      pricingRecord,
+      linked,
+      resolveMTDFormMeta(pricingRecord, orderById),
+      orderById
+    );
+  }, [pricingRecord, allOrders, orderById]);
+
   const handleRecordPricingSave = useCallback(
-    (recordId: string, patch: { price: number; priceCompliance: PriceCompliance }) => {
-      updateMTD(recordId, patch);
+    async (
+      recordId: string,
+      patch: { price: number; priceCompliance: PriceCompliance }
+    ) => {
+      const rec =
+        pricingRecord?.id === recordId
+          ? pricingRecord
+          : preMtdRecords.find((row) => row.id === recordId) || null;
+      if (!rec) return;
+      const linked = findLinkedOrder(rec, allOrders);
+      const next = buildRecordPriceSavePatch(
+        rec,
+        linked,
+        patch.price,
+        patch.priceCompliance,
+        resolveMTDFormMeta(rec, orderById),
+        orderById
+      );
+
+      // updateMTD optimistically syncs the linked order and awaits both API writes.
+      await updateMTD(recordId, next);
     },
-    [updateMTD]
+    [pricingRecord, preMtdRecords, allOrders, orderById, updateMTD]
   );
 
   // Filtered dataset for table
@@ -697,50 +725,15 @@ function OrdersPageContent() {
         render: (rec) => {
           const order = findLinkedOrder(rec, allOrders);
           const meta = resolveMTDFormMeta(rec, orderById);
-          let engineCustomerPrice: number | null = 0;
-          let isUnpriced = false;
-
-          if (meta.formType === "school-all-star-dance") {
-            const dancePricing = calculateDanceOrderPricing({
-              danceFormSubtype: meta.danceFormSubtype,
-              packageType: order?.packageType || rec.package,
-              musicAffiliate: order?.musicAffiliate,
-              hasTraditionalVoiceover: rec.hasTraditionalVoiceover,
-              hasThemedVoiceover: rec.hasThemedVoiceover,
-            });
-            engineCustomerPrice = dancePricing.customerFacingPrice;
-          } else if (meta.formType === "marching-band") {
-            const mbPricing = calculateMarchingBandOrderPricing({
-              packageType: order?.packageType || rec.package,
-              musicAffiliate: order?.musicAffiliate,
-              hasSheetMusicAdd: rec.hasSheetMusicAdd,
-              hasAddVocals: rec.hasAddVocals,
-            });
-            engineCustomerPrice = mbPricing.customerFacingPrice;
-          } else if (meta.formType === "sports-entertainment") {
-            const sePricing = calculateSportsEntertainmentOrderPricing({
-              packageType: order?.packageType || rec.package,
-              isRushOrder: rec.isRushOrder ?? (order as Order & { isRushOrder?: boolean })?.isRushOrder,
-            });
-            isUnpriced = sePricing.isUnpriced || sePricing.customerFacingPrice === null;
-            engineCustomerPrice = sePricing.customerFacingPrice;
-          } else if (meta.formType === "school-anthem") {
-            const saPricing = calculateSchoolAnthemOrderPricing({
-              packageType: order?.packageType || rec.package,
-            });
-            engineCustomerPrice = saPricing.customerFacingPrice;
-          } else {
-            const enginePricing = calculateCheerOrderPricing({
-              cheerFormSubtype: meta.cheerFormSubtype,
-              packageType: order?.packageType || rec.package,
-              timeLengthOfMix: order?.timeLengthOfMix,
-              musicAffiliate: order?.musicAffiliate,
-              hasRallyMix: rec.hasRallyMix,
-              hasExtend8ctAddon: rec.hasExtend8ctAddon,
-              hasProcessing8ctSheetsAddon: rec.hasProcessing8ctSheetsAddon,
-            });
-            engineCustomerPrice = enginePricing.customerFacingPrice;
-          }
+          const engineCustomerPrice = resolveEngineCustomerPrice(
+            rec,
+            order,
+            meta,
+            orderById
+          );
+          const isUnpriced =
+            meta.formType === "sports-entertainment" &&
+            (engineCustomerPrice == null || engineCustomerPrice <= 0);
 
           if (isUnpriced) {
             return (
@@ -769,14 +762,12 @@ function OrdersPageContent() {
           const isOverridden = Boolean(
             order?.finalCustomerPriceOverridden ?? rec.finalCustomerPriceOverridden
           );
-
-          const numericEnginePrice = engineCustomerPrice ?? 0;
-
-          const displayPrice = isOverridden
-            ? (order?.finalCustomerPrice ?? rec.finalCustomerPrice ?? numericEnginePrice)
-            : numericEnginePrice > 0
-              ? numericEnginePrice
-              : (order?.finalCustomerPrice ?? rec.price);
+          const displayPrice = resolveOrderPackageDisplayPrice(
+            rec,
+            order,
+            meta,
+            orderById
+          );
 
           return (
             <div
@@ -1443,6 +1434,7 @@ function OrdersPageContent() {
         open={Boolean(pricingRecord)}
         record={pricingRecord}
         packagePrices={packagePrices}
+        initialPrice={pricingRecordDisplayPrice}
         musicAffiliateInfo={
           pricingRecord
             ? getRecordMusicAffiliateInfo(pricingRecord, orderById, allOrders)
@@ -1472,10 +1464,6 @@ function OrdersPageContent() {
       <AddNewOrderModal
         open={addNewOrderOpen}
         onClose={() => setAddNewOrderOpen(false)}
-        producers={producers}
-        mtdRecords={mtdRecords}
-        allOrders={allOrders}
-        schedule={schedule}
         initialFormType={form}
         initialCheerSubtype={cheerSubtype}
         initialDanceSubtype={danceSubtype}

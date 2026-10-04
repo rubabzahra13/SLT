@@ -14,8 +14,6 @@ class Producer(Base):
     categories = Column(JSON, nullable=True)
     avatar = Column(String, nullable=True)
     mixes_this_week = Column(Integer, default=0, nullable=False)
-    next_available = Column(String, nullable=True)
-    status = Column(String, default="available", nullable=False)
     work_days = Column(JSON, default=lambda: ["mon", "tue", "wed", "thu", "fri"], nullable=False)
     max_mixes_per_day = Column(Integer, nullable=True)
     max_producer_cost_per_day = Column(Integer, nullable=True)

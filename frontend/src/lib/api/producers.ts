@@ -1,4 +1,4 @@
-import { apiClient, ApiClientError } from "./client";
+import { apiClient, ApiClientError, API_BASE_URL } from "./client";
 import type { Producer, ProducerCompensationModel, ProducerManualInputField } from "@/types";
 import { normalizeProducer } from "@/lib/producers";
 
@@ -14,8 +14,6 @@ export interface BackendProducer {
   categories?: string[] | null;
   avatar?: string | null;
   mixes_this_week: number;
-  next_available?: string | null;
-  status: "available" | "limited" | "unavailable";
   work_days: ("sun" | "mon" | "tue" | "wed" | "thu" | "fri" | "sat")[];
   time_offs?: {
     id: string;
@@ -38,6 +36,7 @@ export interface BackendProducer {
   rate_overrides?: Record<string, number> | null;
   manual_input_fields?: ProducerManualInputField[] | null;
   notes?: string | null;
+  updated_at?: string | null;
 }
 
 export function transformProducer(bp: BackendProducer): Producer {
@@ -55,8 +54,6 @@ export function transformProducer(bp: BackendProducer): Producer {
     categories,
     avatar: bp.avatar || `https://api.dicebear.com/9.x/avataaars/svg?seed=${bp.initials}`,
     mixesThisWeek: bp.mixes_this_week ?? 0,
-    nextAvailable: bp.next_available || "Available",
-    status: bp.status || "available",
     workDays: bp.work_days || ["mon", "tue", "wed", "thu", "fri"],
     timeOff: (bp.time_offs || []).map((to) => ({
       id: to.id,
@@ -77,12 +74,22 @@ export function transformProducer(bp: BackendProducer): Producer {
     rateOverrides: bp.rate_overrides ?? null,
     manualInputFields: bp.manual_input_fields ?? null,
     notes: bp.notes ?? null,
+    updatedAt: bp.updated_at ?? null,
   });
 }
 
 export async function fetchProducersApi(): Promise<Producer[]> {
   const backendProducers = await apiClient.get<BackendProducer[]>("/api/producers");
   return backendProducers.map(transformProducer);
+}
+
+export async function fetchProducerApi(id: string): Promise<Producer> {
+  const list = await fetchProducersApi();
+  const match = list.find((p) => p.id === id || p.uuid === id);
+  if (!match) {
+    throw new ApiClientError("Producer not found", 404);
+  }
+  return match;
 }
 
 function isUuidLike(value: string | undefined): boolean {
@@ -120,7 +127,6 @@ export async function createProducerApi(producer: Producer): Promise<Producer> {
     email: producer.email,
     categories: producer.categories,
     avatar: producer.avatar,
-    status: producer.status,
     work_days: producer.workDays,
     time_offs: serializeTimeOffs(producer.timeOff) ?? [],
     max_mixes_per_day: producer.maxMixesPerDay,
@@ -140,10 +146,27 @@ export async function createProducerApi(producer: Producer): Promise<Producer> {
   return transformProducer(res);
 }
 
+export type UpdateProducerOptions = {
+  /** When set, server returns 409 if the row is newer. */
+  ifMatchUpdatedAt?: string | null;
+};
+
+export function producerFromConflictError(err: unknown): Producer | null {
+  if (!(err instanceof ApiClientError) || err.status !== 409) return null;
+  const data = err.data;
+  if (!data || typeof data !== "object") return null;
+  const detail = (data as { detail?: unknown }).detail;
+  if (!detail || typeof detail !== "object") return null;
+  const producer = (detail as { producer?: BackendProducer }).producer;
+  if (!producer || typeof producer !== "object" || !producer.id) return null;
+  return transformProducer(producer);
+}
+
 export async function updateProducerApi(
   id: string,
   patch: Partial<Producer>,
-  apiId?: string
+  apiId?: string,
+  options?: UpdateProducerOptions
 ): Promise<Producer> {
   const payload: Record<string, unknown> = {};
   if (patch.name !== undefined) payload.name = patch.name;
@@ -151,14 +174,12 @@ export async function updateProducerApi(
   if (patch.email !== undefined) payload.email = patch.email;
   if (patch.categories !== undefined) payload.categories = patch.categories;
   if (patch.avatar !== undefined) payload.avatar = patch.avatar;
-  if (patch.status !== undefined) payload.status = patch.status;
   if (patch.workDays !== undefined) payload.work_days = patch.workDays;
   if (patch.timeOff !== undefined) payload.time_offs = serializeTimeOffs(patch.timeOff);
   if (patch.maxMixesPerDay !== undefined) payload.max_mixes_per_day = patch.maxMixesPerDay;
   if (patch.maxProducerCostPerDay !== undefined) payload.max_producer_cost_per_day = patch.maxProducerCostPerDay;
   if (patch.extraDays !== undefined) payload.extra_days = patch.extraDays;
   if (patch.mixesThisWeek !== undefined) payload.mixes_this_week = patch.mixesThisWeek;
-  if (patch.nextAvailable !== undefined) payload.next_available = patch.nextAvailable;
   if (patch.compensationModel !== undefined) payload.compensation_model = patch.compensationModel;
   if (patch.defaultRate !== undefined) payload.default_rate = patch.defaultRate;
   if (patch.ratesByCategory !== undefined) payload.rates_by_category = patch.ratesByCategory;
@@ -168,6 +189,9 @@ export async function updateProducerApi(
   if (patch.rateOverrides !== undefined) payload.rate_overrides = patch.rateOverrides;
   if (patch.manualInputFields !== undefined) payload.manual_input_fields = patch.manualInputFields;
   if (patch.notes !== undefined) payload.notes = patch.notes;
+  if (options?.ifMatchUpdatedAt) {
+    payload.if_match_updated_at = options.ifMatchUpdatedAt;
+  }
 
   try {
     const res = await apiClient.patch<BackendProducer>(
@@ -192,5 +216,109 @@ export async function deleteProducerApi(id: string, apiId?: string): Promise<voi
       return;
     }
     throw err;
+  }
+}
+
+export type ProducerStreamEvent =
+  | { type: "ready"; ok?: boolean }
+  | { type: "producer.updated"; producer: BackendProducer }
+  | { type: "producer.deleted"; id: string };
+
+function authHeaderFromStorage(): string {
+  if (typeof window === "undefined") return "Bearer token-usr-megan";
+  try {
+    const rawSession = localStorage.getItem("slt_auth_session");
+    if (rawSession) {
+      const parsed = JSON.parse(rawSession);
+      const token = typeof parsed?.token === "string" ? parsed.token.trim() : "";
+      const userId =
+        typeof parsed?.user?.id === "string" ? parsed.user.id.trim() : "";
+      if (userId) return `Bearer token-${userId}`;
+      if (token) return `Bearer ${token}`;
+    }
+  } catch {
+    /* ignore */
+  }
+  return "Bearer token-usr-megan";
+}
+
+/**
+ * Authenticated fetch-based SSE (EventSource cannot set Authorization).
+ * Hit the API host directly — Next.js rewrites buffer streams and break SSE.
+ * Calls onEvent for each parsed message until aborted / connection drops.
+ */
+export async function subscribeProducerStream(
+  onEvent: (event: ProducerStreamEvent) => void,
+  signal?: AbortSignal
+): Promise<void> {
+  // Prefer absolute API host in the browser so the Next proxy cannot buffer SSE.
+  const base =
+    typeof window !== "undefined" && (!API_BASE_URL || API_BASE_URL === "/")
+      ? "http://127.0.0.1:8001"
+      : API_BASE_URL || "http://127.0.0.1:8001";
+  const url = `${base.replace(/\/$/, "")}/api/producers/stream`;
+  const response = await fetch(url, {
+    method: "GET",
+    headers: {
+      Accept: "text/event-stream",
+      Authorization: authHeaderFromStorage(),
+    },
+    cache: "no-store",
+    signal,
+  });
+  if (!response.ok || !response.body) {
+    throw new ApiClientError(
+      `Producer stream failed: ${response.status}`,
+      response.status
+    );
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  const flushBlock = (block: string) => {
+    const lines = block.split(/\r?\n/);
+    let data = "";
+    let name = "message";
+    for (const line of lines) {
+      if (line.startsWith("event:")) {
+        name = line.slice(6).trim();
+      } else if (line.startsWith("data:")) {
+        data += (data ? "\n" : "") + line.slice(5).trimStart();
+      }
+    }
+    if (!data) return;
+    try {
+      const parsed = JSON.parse(data) as Record<string, unknown>;
+      if (name === "ready") {
+        onEvent({ type: "ready", ok: Boolean(parsed.ok) });
+        return;
+      }
+      if (name === "producer.updated" && parsed.producer) {
+        onEvent({
+          type: "producer.updated",
+          producer: parsed.producer as BackendProducer,
+        });
+        return;
+      }
+      if (name === "producer.deleted" && typeof parsed.id === "string") {
+        onEvent({ type: "producer.deleted", id: parsed.id });
+      }
+    } catch {
+      /* ignore malformed chunks */
+    }
+  };
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let sep: number;
+    while ((sep = buffer.search(/\r?\n\r?\n/)) !== -1) {
+      const block = buffer.slice(0, sep);
+      buffer = buffer.slice(sep).replace(/^\r?\n\r?\n/, "");
+      if (block.trim()) flushBlock(block);
+    }
   }
 }

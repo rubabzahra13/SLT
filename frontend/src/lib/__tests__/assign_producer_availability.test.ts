@@ -17,6 +17,7 @@ import {
   isProducerUnavailableForRecord,
   getProducerUnavailabilityReason,
   listProducerMixBookingsOnDay,
+  recordMatchesAssignCategory,
   suggestMixEndDate,
 } from "@/lib/producer-availability";
 import { suggestMixStartDate } from "@/lib/scheduling";
@@ -333,6 +334,53 @@ describe("Assign Producer Availability Logic", () => {
         completed,
       ]),
       []
+    );
+  });
+
+  it("same category/subcategory matches across Cheer / All Star Cheer / form subtype", () => {
+    const want = {
+      matchCategory: "All-Star Cheer",
+      matchFormType: "school-all-star-cheer",
+    };
+    assert.equal(
+      recordMatchesAssignCategory(
+        {
+          category: "Cheer",
+          formType: "school-all-star-cheer",
+          cheerFormSubtype: "all-star-cheer",
+        },
+        want
+      ),
+      true
+    );
+    assert.equal(
+      recordMatchesAssignCategory(
+        { category: "All Star Cheer" },
+        want
+      ),
+      true
+    );
+    assert.equal(
+      recordMatchesAssignCategory(
+        {
+          category: "Cheer",
+          formType: "school-all-star-cheer",
+          cheerFormSubtype: "youth-rec-cheer",
+        },
+        want
+      ),
+      false
+    );
+    assert.equal(
+      recordMatchesAssignCategory(
+        {
+          category: "Pom",
+          formType: "school-all-star-dance",
+          danceFormSubtype: "pom",
+        },
+        want
+      ),
+      false
     );
   });
 });

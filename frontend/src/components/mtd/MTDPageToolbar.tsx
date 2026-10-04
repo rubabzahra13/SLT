@@ -109,6 +109,8 @@ export function MTDPageToolbar({
             onChange={onFiltersChange}
             onReset={onFiltersReset}
             form={form}
+            cheerSubtype={cheerSubtype}
+            danceSubtype={danceSubtype}
           />
         </div>
 
@@ -137,10 +139,12 @@ export function MTDPageToolbar({
         records={records}
         producers={producers}
         orderById={orderById}
+        form={form}
+        cheerSubtype={cheerSubtype}
+        danceSubtype={danceSubtype}
         filters={filters}
         onChange={onFiltersChange}
         onReset={onFiltersReset}
-        form={form}
         variant={filterVariant}
       />
     </div>

@@ -77,6 +77,9 @@ class OrderSchema(BaseModel):
     requested_producer: Optional[str] = None
     price: float = 0.0
     price_compliance: Optional[str] = None
+    system_calculated_customer_price: Optional[float] = None
+    final_customer_price: Optional[float] = None
+    final_customer_price_overridden: bool = False
     status: str = "new"
     created_at: datetime
     completed_at: Optional[datetime] = None
@@ -167,6 +170,9 @@ class OrderUpdateSchema(BaseModel):
     category: Optional[str] = None
     package: Optional[str] = None
     price: Optional[float] = None
+    final_customer_price: Optional[float] = None
+    final_customer_price_overridden: Optional[bool] = None
+    price_compliance: Optional[str] = None
     music_theme: Optional[str] = None
     editor_request: Optional[str] = None
     requested_producer: Optional[str] = None

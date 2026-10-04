@@ -1,17 +1,25 @@
+import asyncio
+import json
 import uuid
-from typing import List
+from typing import Any, List
+
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
+
+from app.api.auth import get_current_user, require_full_access
 from app.core.database import get_db
-from app.models.order import Order
-from app.models.mtd_record import MTDRecord
-from app.models.producer import Producer
-from app.schemas.order import OrderSchema, OrderCreateSchema, OrderUpdateSchema
 from app.lib.producer_assignment import (
     canonical_producer_assignment_key,
     resolve_producer_by_assignment_key,
 )
-from app.api.auth import require_full_access
+from app.models.mtd_record import MTDRecord
+from app.models.order import Order
+from app.models.producer import Producer
+from app.models.user import User
+from app.schemas.mtd_record import MTDRecordSchema
+from app.schemas.order import OrderSchema, OrderCreateSchema, OrderUpdateSchema
+from app.services.board_events import board_event_hub
 
 router = APIRouter()
 
@@ -22,6 +30,8 @@ ORDER_MTD_SHARED_KEYS = (
     "mix_start_date",
     "mix_end_date",
     "price",
+    "final_customer_price",
+    "final_customer_price_overridden",
     "editor_request",
     "collection_states",
     "order_status",
@@ -113,6 +123,14 @@ def _mirror_shared_fields_to_mtd(db: Session, order: Order, changed: dict) -> No
             mtd.mix_end_date = raw_end if raw_end else None
         if "price" in shared:
             mtd.price = order.price
+        if "final_customer_price" in shared:
+            mtd.final_customer_price = order.final_customer_price
+        if "final_customer_price_overridden" in shared:
+            mtd.final_customer_price_overridden = bool(
+                order.final_customer_price_overridden
+            )
+        if "price_compliance" in shared:
+            mtd.price_compliance = order.price_compliance
         if "editor_request" in shared:
             mtd.editor_request = order.editor_request
         if "collection_states" in shared:
@@ -167,6 +185,65 @@ def get_orders(
     return query.all()
 
 
+def _serialize_order(order: Order) -> dict[str, Any]:
+    return OrderSchema.model_validate(order).model_dump(mode="json")
+
+
+def _publish_order_updated(order: Order) -> None:
+    board_event_hub.publish(
+        {
+            "type": "order.updated",
+            "order": _serialize_order(order),
+        }
+    )
+
+
+def _publish_linked_mtd_rows(db: Session, order: Order) -> None:
+    linked = (
+        db.query(MTDRecord)
+        .filter(MTDRecord.order_id == order.id)
+        .order_by(MTDRecord.updated_at.desc())
+        .all()
+    )
+    for mtd in linked:
+        board_event_hub.publish(
+            {
+                "type": "mtd.updated",
+                "mtd": MTDRecordSchema.model_validate(mtd).model_dump(mode="json"),
+            }
+        )
+
+
+@router.get("/orders/stream")
+async def stream_orders(_: User = Depends(get_current_user)):
+    """Authenticated SSE fan-out of order / MTD board changes."""
+    queue = board_event_hub.subscribe()
+
+    async def event_generator():
+        try:
+            yield f"event: ready\ndata: {json.dumps({'ok': True})}\n\n"
+            while True:
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=25.0)
+                except asyncio.TimeoutError:
+                    yield ": keepalive\n\n"
+                    continue
+                event_type = str(event.get("type") or "message")
+                yield f"event: {event_type}\ndata: {json.dumps(event, default=str)}\n\n"
+        finally:
+            board_event_hub.unsubscribe(queue)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
 @router.get("/orders/{order_id}", response_model=OrderSchema)
 def get_order(order_id: str, db: Session = Depends(get_db)):
     order = _find_order(db, order_id)
@@ -187,6 +264,7 @@ def create_order(
     db.add(order)
     db.commit()
     db.refresh(order)
+    _publish_order_updated(order)
     return order
 
 
@@ -213,4 +291,15 @@ def update_order(
 
     db.commit()
     db.refresh(order)
+    _publish_order_updated(order)
+    if any(
+        key in changed
+        for key in (
+            "price",
+            "final_customer_price",
+            "final_customer_price_overridden",
+            "price_compliance",
+        )
+    ):
+        _publish_linked_mtd_rows(db, order)
     return order

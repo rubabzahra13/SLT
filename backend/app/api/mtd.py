@@ -17,6 +17,8 @@ from app.schemas.mtd_record import (
     MTDRecordUpdateSchema,
     ManualScheduleCreateSchema,
 )
+from app.schemas.order import OrderSchema
+from app.services.board_events import board_event_hub
 
 router = APIRouter()
 
@@ -153,12 +155,13 @@ def update_mtd_record(mtd_id: str, payload: MTDRecordUpdateSchema, db: Session =
 
         if assigned_prod_str:
             producer = resolve_producer_by_assignment_key(db, assigned_prod_str)
-            mtd.assigned_producer_id = producer.id if producer else None
-            mtd.editor_initials = (
-                canonical_producer_assignment_key(producer)
-                if producer
-                else assigned_prod_str.strip().upper()
-            )
+            if producer:
+                mtd.assigned_producer_id = producer.id
+                mtd.editor_initials = canonical_producer_assignment_key(producer)
+            else:
+                # Don't orphan the FK when a rename races ahead of producer
+                # persistence — keep the link and only refresh the display key.
+                mtd.editor_initials = assigned_prod_str.strip().upper()
         else:
             mtd.assigned_producer_id = None
             if (
@@ -208,6 +211,12 @@ def update_mtd_record(mtd_id: str, payload: MTDRecordUpdateSchema, db: Session =
                 linked_order.music_theme = mtd.music_theme
             if "price" in unset:
                 linked_order.price = mtd.price
+            if "final_customer_price" in unset:
+                linked_order.final_customer_price = mtd.final_customer_price
+            if "final_customer_price_overridden" in unset:
+                linked_order.final_customer_price_overridden = bool(
+                    mtd.final_customer_price_overridden
+                )
             if "price_compliance" in unset:
                 linked_order.price_compliance = mtd.price_compliance
             if "editor_request" in unset:
@@ -236,9 +245,39 @@ def update_mtd_record(mtd_id: str, payload: MTDRecordUpdateSchema, db: Session =
             if "status" in unset and mtd.status == "completed":
                 linked_order.status = "completed"
 
+    unset = payload.model_dump(exclude_unset=True)
     db.commit()
     db.refresh(mtd)
+    _publish_mtd_updated(mtd)
+    if mtd.order_id and any(
+        key in unset
+        for key in (
+            "price",
+            "final_customer_price",
+            "final_customer_price_overridden",
+            "price_compliance",
+        )
+    ):
+        linked_order = db.query(Order).filter(Order.id == mtd.order_id).first()
+        if linked_order:
+            board_event_hub.publish(
+                {
+                    "type": "order.updated",
+                    "order": OrderSchema.model_validate(linked_order).model_dump(
+                        mode="json"
+                    ),
+                }
+            )
     return mtd
+
+
+def _publish_mtd_updated(mtd: MTDRecord) -> None:
+    board_event_hub.publish(
+        {
+            "type": "mtd.updated",
+            "mtd": MTDRecordSchema.model_validate(mtd).model_dump(mode="json"),
+        }
+    )
 
 
 @router.delete("/mtd/{mtd_id}", status_code=status.HTTP_204_NO_CONTENT)

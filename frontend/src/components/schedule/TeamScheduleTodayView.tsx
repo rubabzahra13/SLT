@@ -14,8 +14,6 @@ import {
 type TeamScheduleTodayViewProps = {
   rows: TeamScheduleRow[];
   date: Date;
-  activeProducerId?: string | null;
-  onSelectProducer: (row: TeamScheduleRow, cell?: ScheduleCell) => void;
   emptyMessage?: string;
   className?: string;
 };
@@ -60,8 +58,6 @@ function buildTodayEntries(rows: TeamScheduleRow[]): ProducerDayEntry[] {
 export function TeamScheduleTodayView({
   rows,
   date,
-  activeProducerId,
-  onSelectProducer,
   emptyMessage = "No producers in this view.",
   className,
 }: TeamScheduleTodayViewProps) {
@@ -79,26 +75,13 @@ export function TeamScheduleTodayView({
         cellClassName: "!overflow-visible whitespace-normal",
         render: (entry) => {
           const { producer } = entry.row;
-          const active = producer.id === activeProducerId;
           return (
             <div
               className="mx-auto flex w-full flex-col items-center justify-center gap-1"
               title={producer.name}
             >
-              <div
-                className={clsx(
-                  "shrink-0 rounded-full ring-1 ring-offset-1 ring-offset-white",
-                  active ? "ring-brand-orange/60" : "ring-brand-blue/30"
-                )}
-              >
-                <Avatar producer={producer} size="sm" />
-              </div>
-              <span
-                className={clsx(
-                  "max-w-full truncate text-[10px] font-bold leading-none",
-                  active ? "text-brand-orange-deep" : "text-brand-ink-secondary"
-                )}
-              >
+              <Avatar producer={producer} size="sm" />
+              <span className="max-w-full truncate text-[10px] font-bold leading-none text-brand-ink-secondary">
                 {producer.initials}
               </span>
             </div>
@@ -183,7 +166,7 @@ export function TeamScheduleTodayView({
         ),
       },
     ],
-    [activeProducerId]
+    []
   );
 
   return (
@@ -207,7 +190,6 @@ export function TeamScheduleTodayView({
             data={entries}
             columns={columns}
             rowKey={(entry) => entry.row.producer.id}
-            onRowClick={(entry) => onSelectProducer(entry.row, entry.cell)}
             emptyMessage={emptyMessage}
             embedded
             compact

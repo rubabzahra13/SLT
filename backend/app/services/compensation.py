@@ -79,6 +79,16 @@ def _decimal(val: Any) -> Optional[Decimal]:
         return None
 
 
+def _fraction_rate(val: Any) -> Optional[Decimal]:
+    """Coerce percent-style rates (50) to fractions (0.5) before payout math."""
+    rate = _decimal(val)
+    if rate is None:
+        return None
+    if rate > 1:
+        return rate / Decimal("100")
+    return rate
+
+
 def _payout(payroll_base: Decimal, rate: Decimal) -> Decimal:
     return (payroll_base * rate).quantize(Decimal("0.01"))
 
@@ -91,10 +101,10 @@ def _determine_rate_for_subtype(producer: Producer, subtype_id: Optional[str]) -
     if subtype_id and producer.rates_by_category:
         cat_rate = producer.rates_by_category.get(subtype_id)
         if cat_rate is not None:
-            return _decimal(cat_rate), f"rates_by_category[{subtype_id}]"
+            return _fraction_rate(cat_rate), f"rates_by_category[{subtype_id}]"
 
     if producer.default_rate is not None:
-        return _decimal(producer.default_rate), "default_rate"
+        return _fraction_rate(producer.default_rate), "default_rate"
 
     return None, "no_rate_configured"
 
@@ -196,7 +206,7 @@ def calculate_compensation(
 
     # If an override rate was explicitly provided (from finalize-payroll endpoint)
     if overridden_rate is not None:
-        rate = overridden_rate
+        rate = _fraction_rate(overridden_rate) or overridden_rate
         rate_source = "manual_override"
         payout = _payout(payroll_base, rate)
         slt = (final_customer_price - payout).quantize(Decimal("0.01"))
@@ -221,7 +231,7 @@ def calculate_compensation(
     has_cheer_vo = any("cheer_voiceover" in aid for aid in addon_ids)
 
     if has_dance_vo and "dance_voiceover" in rate_overrides:
-        rate = _decimal(rate_overrides["dance_voiceover"])
+        rate = _fraction_rate(rate_overrides["dance_voiceover"])
         rate_source = "rate_overrides[dance_voiceover]"
         payout = _payout(payroll_base, rate)
         slt = (final_customer_price - payout).quantize(Decimal("0.01"))
@@ -237,7 +247,7 @@ def calculate_compensation(
         )
 
     if has_cheer_vo and "cheer_voiceover" in rate_overrides:
-        rate = _decimal(rate_overrides["cheer_voiceover"])
+        rate = _fraction_rate(rate_overrides["cheer_voiceover"])
         rate_source = "rate_overrides[cheer_voiceover]"
         payout = _payout(payroll_base, rate)
         slt = (final_customer_price - payout).quantize(Decimal("0.01"))
@@ -254,8 +264,8 @@ def calculate_compensation(
 
     # Casey old/new pricing: return BOTH, flag as unconfirmed
     if is_casey:
-        old_rate = _decimal(rate_overrides["old_pricing"])
-        new_rate = _decimal(rate_overrides["new_pricing"])
+        old_rate = _fraction_rate(rate_overrides["old_pricing"])
+        new_rate = _fraction_rate(rate_overrides["new_pricing"])
         old_payout = _payout(payroll_base, old_rate)
         new_payout = _payout(payroll_base, new_rate)
         return CompensationResult(

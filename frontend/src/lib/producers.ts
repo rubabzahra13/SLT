@@ -143,6 +143,30 @@ function rewriteLegacyGeneralCategory(categories: string[]): string[] {
   return next;
 }
 
+/**
+ * Canonical producer % rates are stored as fractions (0.5 = 50%).
+ * Form UI uses whole percents; coerce percent-style values on read/write.
+ */
+export function normalizeFractionRate(
+  rate: number | null | undefined
+): number | null {
+  if (rate == null || Number.isNaN(rate)) return null;
+  if (rate > 1) return rate / 100;
+  return rate;
+}
+
+export function normalizeRatesByCategory(
+  rates: Record<string, number> | null | undefined
+): Record<string, number> | null {
+  if (!rates || Object.keys(rates).length === 0) return null;
+  const next: Record<string, number> = {};
+  for (const [key, value] of Object.entries(rates)) {
+    const normalized = normalizeFractionRate(value);
+    if (normalized != null) next[key] = normalized;
+  }
+  return Object.keys(next).length > 0 ? next : null;
+}
+
 function rewriteLegacyGeneralRates(
   rates: Record<string, number> | null
 ): Record<string, number> | null {
@@ -167,12 +191,12 @@ export function normalizeProducer(raw: Partial<Producer> & { id: string }): Prod
   const rawAny = raw as Record<string, unknown>;
   const initials = (raw.initials || "XX").toUpperCase().slice(0, 4);
 
-  let categories: string[] =
-    Array.isArray(raw.categories) && (raw.categories as string[]).length > 0
-      ? (raw.categories as string[])
-      : typeof rawAny["specialty"] === "string" && rawAny["specialty"]
-        ? [rawAny["specialty"] as string]
-        : [];
+  const categoriesExplicit = Array.isArray(raw.categories);
+  let categories: string[] = categoriesExplicit
+    ? [...(raw.categories as string[])]
+    : typeof rawAny["specialty"] === "string" && rawAny["specialty"]
+      ? [rawAny["specialty"] as string]
+      : [];
 
   categories = rewriteLegacyGeneralCategory(categories);
 
@@ -182,13 +206,12 @@ export function normalizeProducer(raw: Partial<Producer> & { id: string }): Prod
     name: raw.name,
   });
 
+  // Seed / migrate only — never force canonical back over an explicit user edit
+  // (add/remove category in the producer form must stick across tabs).
   if (canonical) {
-    if (
-      categories.length <= 1 ||
-      categories.includes("Cheer") ||
-      categories.includes("Dance") ||
-      !canonical.every((c) => categories.includes(c))
-    ) {
+    const hasLegacyGenre =
+      categories.includes("Cheer") || categories.includes("Dance");
+    if (hasLegacyGenre || (!categoriesExplicit && categories.length === 0)) {
       categories = rewriteLegacyGeneralCategory([...canonical]);
     }
   }
@@ -199,16 +222,7 @@ export function normalizeProducer(raw: Partial<Producer> & { id: string }): Prod
       ? { ...raw.ratesByCategory }
       : null;
   ratesByCategory = rewriteLegacyGeneralRates(ratesByCategory);
-
-  if (ratesByCategory) {
-    const normalized: Record<string, number> = {};
-    for (const [cat, val] of Object.entries(ratesByCategory)) {
-      if (typeof val === "number") {
-        normalized[cat] = val > 1 ? val / 100 : val;
-      }
-    }
-    ratesByCategory = normalized;
-  }
+  ratesByCategory = normalizeRatesByCategory(ratesByCategory);
 
   const resolvedEmail =
     raw.email && raw.email.trim() && !raw.email.includes("example.com")
@@ -230,8 +244,8 @@ export function normalizeProducer(raw: Partial<Producer> & { id: string }): Prod
         PRODUCER_COLORS[initials]
     ),
     mixesThisWeek: raw.mixesThisWeek ?? 0,
-    nextAvailable: raw.nextAvailable || "TBD",
-    status: raw.status || "available",
+    nextAvailable: raw.nextAvailable,
+    status: raw.status,
     workDays:
       raw.workDays && raw.workDays.length > 0
         ? raw.workDays
@@ -262,31 +276,32 @@ export function normalizeProducer(raw: Partial<Producer> & { id: string }): Prod
           ].sort()
         : [],
     compensationModel: raw.compensationModel ?? null,
-    defaultRate: raw.defaultRate ?? null,
+    defaultRate: normalizeFractionRate(raw.defaultRate),
     ratesByCategory,
     danceVoiceoverRate:
       raw.danceVoiceoverRate !== undefined
-        ? raw.danceVoiceoverRate
+        ? normalizeFractionRate(raw.danceVoiceoverRate)
         : initials === "CM"
-        ? 0.80
+        ? 0.8
         : null,
     cheerVoiceoverRate:
       raw.cheerVoiceoverRate !== undefined
-        ? raw.cheerVoiceoverRate
+        ? normalizeFractionRate(raw.cheerVoiceoverRate)
         : initials === "CM"
-        ? 1.00
+        ? 1.0
         : initials === "R"
-        ? 0.60
+        ? 0.6
         : null,
     rushFeeRate:
       raw.rushFeeRate !== undefined
-        ? raw.rushFeeRate
+        ? normalizeFractionRate(raw.rushFeeRate)
         : initials === "CM"
-        ? 1.00
+        ? 1.0
         : null,
     rateOverrides: raw.rateOverrides ?? null,
     manualInputFields: raw.manualInputFields ?? null,
     notes: raw.notes ?? null,
+    updatedAt: raw.updatedAt ?? null,
   };
 }
 
@@ -411,13 +426,54 @@ export function producerSearchScore(producer: Producer, query: string): number {
 }
 
 export function deduplicateProducers(producers: Producer[]): Producer[] {
-  const seen = new Set<string>();
-  return producers.filter((p) => {
-    const key = (p.uuid || p.id || p.name).toLowerCase().trim();
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
+  // Prefer newer / non-temp rows when the same person appears twice
+  // (optimistic create + SSE/BroadcastChannel echo).
+  const ranked = [...producers].sort((a, b) => {
+    const aMs = a.updatedAt ? Date.parse(a.updatedAt) : 0;
+    const bMs = b.updatedAt ? Date.parse(b.updatedAt) : 0;
+    if (aMs !== bMs) return bMs - aMs;
+    const aTemp = /^(prod-|temp)/i.test(a.id);
+    const bTemp = /^(prod-|temp)/i.test(b.id);
+    if (aTemp !== bTemp) return aTemp ? 1 : -1;
+    return 0;
   });
+
+  const seenIds = new Set<string>();
+  const seenInitials = new Set<string>();
+  const out: Producer[] = [];
+
+  for (const p of ranked) {
+    const idKeys = [p.uuid, p.id]
+      .filter(Boolean)
+      .map((value) => String(value).toLowerCase());
+    const initialsKey = (p.initials || "").toUpperCase();
+
+    if (idKeys.some((key) => seenIds.has(key))) continue;
+    if (initialsKey && seenInitials.has(initialsKey)) continue;
+
+    for (const key of idKeys) seenIds.add(key);
+    if (initialsKey) seenInitials.add(initialsKey);
+    out.push(p);
+  }
+
+  return out;
+}
+
+/** Match the same roster person across temp ids / uuid / initials. */
+export function producersReferToSamePerson(
+  a: Pick<Producer, "id" | "uuid" | "initials">,
+  b: Pick<Producer, "id" | "uuid" | "initials">
+): boolean {
+  if (a.id && (a.id === b.id || a.id === b.uuid)) return true;
+  if (a.uuid && (a.uuid === b.id || a.uuid === b.uuid)) return true;
+  if (
+    a.initials &&
+    b.initials &&
+    a.initials.toUpperCase() === b.initials.toUpperCase()
+  ) {
+    return true;
+  }
+  return false;
 }
 
 /** Stable roster order — always match DB / bootstrap (name, then id). */
@@ -433,4 +489,38 @@ export function sortProducersByName(producers: Producer[]): Producer[] {
 
 export function normalizeProducerList(producers: Producer[]): Producer[] {
   return sortProducersByName(deduplicateProducers(producers));
+}
+
+/** True when both lists contain the same values (order ignored). */
+export function sameStringSet(
+  a: readonly string[] | null | undefined,
+  b: readonly string[] | null | undefined
+): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  if (a.length !== b.length) return false;
+  const left = new Set(a);
+  for (const value of b) {
+    if (!left.has(value)) return false;
+  }
+  return true;
+}
+
+/** Compare leave rows by dates/type/reason (ids may differ after replace-sync). */
+export function sameTimeOffList(
+  a: Producer["timeOff"] | null | undefined,
+  b: Producer["timeOff"] | null | undefined
+): boolean {
+  if (a === b) return true;
+  if (!a || !b) return (a?.length ?? 0) === 0 && (b?.length ?? 0) === 0;
+  if (a.length !== b.length) return false;
+  const norm = (list: Producer["timeOff"]) =>
+    list
+      .map(
+        (entry) =>
+          `${entry.startDate}|${entry.endDate || entry.startDate}|${entry.type}|${(entry.reason || "").trim()}`
+      )
+      .sort()
+      .join(";");
+  return norm(a) === norm(b);
 }

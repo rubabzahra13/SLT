@@ -64,7 +64,11 @@ export function transformMTDRecord(bm: BackendMTDRecord): MTDRecord {
     uuid: bm.id,
     orderId: bm.order_id || undefined,
     section: bm.section || "CHEERLEADING MUSIC",
-    assignedProducer: bm.assigned_producer && bm.assigned_producer !== "FA" && bm.assigned_producer !== "NA" ? bm.assigned_producer : null,
+    // Keep "FA" — it can be a real producer's initials. Only "NA" means unassigned.
+    assignedProducer:
+      bm.assigned_producer && bm.assigned_producer !== "NA"
+        ? bm.assigned_producer
+        : null,
     category: bm.category || "Cheer",
     editorRequest: (bm.editor_request as EditorRequest) || "FA",
     contactName: bm.contact_name || "",
@@ -296,9 +300,9 @@ export interface CreateManualSchedulePayload {
 export async function createManualScheduleEntryApi(
   payload: CreateManualSchedulePayload
 ): Promise<Order> {
-  const startDate = payload.mixStartDate || payload.mix_start_date || "";
-  const endDate = payload.mixEndDate || payload.mix_end_date || "";
-  const producer = payload.assignedProducer || payload.assigned_producer || "";
+  const startDate = payload.mixStartDate ?? payload.mix_start_date ?? null;
+  const endDate = payload.mixEndDate ?? payload.mix_end_date ?? null;
+  const producer = payload.assignedProducer ?? payload.assigned_producer ?? null;
   const contact = payload.contactName || payload.contact_name || "";
   const program = payload.programName || payload.program_name || "";
   const schoolProgram = payload.schoolProgramName || payload.school_program_name || "";
@@ -308,9 +312,9 @@ export async function createManualScheduleEntryApi(
     form_type: payload.formType || payload.form_type,
     cheer_form_subtype: payload.cheerFormSubtype || payload.cheer_form_subtype,
     dance_form_subtype: payload.danceFormSubtype || payload.dance_form_subtype,
-    mix_start_date: startDate,
-    mix_end_date: endDate,
-    assigned_producer: producer,
+    mix_start_date: startDate || null,
+    mix_end_date: endDate || null,
+    assigned_producer: producer || null,
     program_name: program || null,
     school_program_name: schoolProgram || null,
     contact_name: contact || null,

@@ -3,24 +3,19 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import type { MTDRecord, Producer } from "@/types";
-import {
-  type AssignedMixForProducer,
-} from "@/lib/producer-assigned-mixes";
+import type { AssignedMixForProducer } from "@/lib/producer-assigned-mixes";
 import { Avatar } from "@/components/ui/Avatar";
 import { formatDisplayDate, toIsoDateString } from "@/lib/dates";
 import { resolveMTDFormMeta } from "@/lib/mtd-filters";
 
-/** @deprecated Prefer AssignedMixForProducer — kept for existing imports. */
-export type AssignedMixForDelete = AssignedMixForProducer;
-
-type DeleteProducerModalProps = {
+type RemoveCategoryModalProps = {
   open: boolean;
   producer: Producer | null;
-  assignedMixes?: AssignedMixForDelete[];
+  category: string | null;
+  assignedMixes?: AssignedMixForProducer[];
   unpaidPayrollMixes?: MTDRecord[];
   onClose: () => void;
-  onConfirm: () => void;
-  /** Move assigned Orders/MTD mixes to Reassign and delete the producer in place. */
+  /** Move category mixes to Reassign and remove the category. */
   onSendToReassign?: () => void;
   busy?: boolean;
 };
@@ -36,7 +31,7 @@ function formatMixDateRange(rec: MTDRecord): string {
   return "No dates";
 }
 
-function hrefForAssignedMix(rec: AssignedMixForDelete): string {
+function hrefForAssignedMix(rec: AssignedMixForProducer): string {
   const focus = encodeURIComponent(rec.id);
   if (rec.onMtdBoard) {
     return `/mtd?focus=${focus}`;
@@ -125,8 +120,7 @@ function SectionCard({
     tone === "warn"
       ? "bg-amber-200/80 text-amber-950"
       : "bg-brand-blue-soft text-brand-blue";
-  const titleClass =
-    tone === "warn" ? "text-amber-950" : "text-brand-ink";
+  const titleClass = tone === "warn" ? "text-amber-950" : "text-brand-ink";
 
   return (
     <div className={`mt-3 rounded-xl border p-3.5 text-left ${shell}`}>
@@ -138,7 +132,9 @@ function SectionCard({
             {step}
           </span>
         ) : null}
-        <p className={`min-w-0 flex-1 text-[13px] font-semibold leading-snug ${titleClass}`}>
+        <p
+          className={`min-w-0 flex-1 text-[13px] font-semibold leading-snug ${titleClass}`}
+        >
           {title}
         </p>
       </div>
@@ -147,17 +143,17 @@ function SectionCard({
   );
 }
 
-export function DeleteProducerModal({
+export function RemoveCategoryModal({
   open,
   producer,
+  category,
   assignedMixes = [],
   unpaidPayrollMixes = [],
   onClose,
-  onConfirm,
   onSendToReassign,
   busy = false,
-}: DeleteProducerModalProps) {
-  if (!open || !producer) return null;
+}: RemoveCategoryModalProps) {
+  if (!open || !producer || !category) return null;
 
   const payrollBlockCount = unpaidPayrollMixes.length;
   const assignedMixesCount = assignedMixes.length;
@@ -168,7 +164,7 @@ export function DeleteProducerModal({
   const showSteps = needsPayrollPaid && hasAssignedMixes;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
       <button
         type="button"
         className="absolute inset-0 bg-brand-scrim backdrop-blur-sm"
@@ -181,7 +177,7 @@ export function DeleteProducerModal({
       <div
         role="dialog"
         aria-modal="true"
-        aria-labelledby="delete-producer-title"
+        aria-labelledby="remove-category-title"
         className="relative w-full max-w-[400px] overflow-hidden rounded-[22px] bg-brand-elevated shadow-[0_24px_80px_rgba(0,0,0,0.28)]"
       >
         <div className="max-h-[min(70vh,640px)] overflow-y-auto px-6 pb-5 pt-7 text-center">
@@ -189,26 +185,30 @@ export function DeleteProducerModal({
             <Avatar producer={producer} size="xl" />
           </div>
           <h2
-            id="delete-producer-title"
+            id="remove-category-title"
             className="mt-4 text-[18px] font-semibold tracking-[-0.02em] text-brand-ink"
           >
             {needsPayrollPaid
-              ? `Finish payroll first`
-              : `Delete ${producer.name}?`}
+              ? "Finish payroll first"
+              : `Remove ${category}?`}
           </h2>
           {needsPayrollPaid ? (
             <p className="mt-1.5 text-[13px] leading-relaxed text-brand-ink-secondary">
-              {producer.name} still has unpaid mixes. Mark them Paid, then you
-              can delete.
+              {producer.name} already completed{" "}
+              {payrollBlockCount === 1 ? "a mix" : "mixes"} on {category}. Mark{" "}
+              {payrollBlockCount === 1 ? "it" : "them"} Paid on Payroll, then
+              come back and remove the category.
             </p>
           ) : hasAssignedMixes ? (
             <p className="mt-1.5 text-[13px] leading-relaxed text-brand-ink-secondary">
-              Assigned mixes in Orders and MTD will move to Orders → Reassign,
-              then {producer.name} is removed.
+              Removes {category} from the draft. When you Save,{" "}
+              {producer.name.charAt(0).toUpperCase() + producer.name.slice(1)}
+              &apos;s {category} mixes on Orders and MTD move to Reassign.
             </p>
           ) : (
             <p className="mt-1.5 text-[13px] leading-relaxed text-brand-ink-secondary">
-              Removes them from the roster. You can add them again later.
+              Removes {category} from {producer.name}&apos;s compensation when
+              you Save.
             </p>
           )}
 
@@ -244,11 +244,11 @@ export function DeleteProducerModal({
               title={
                 needsPayrollPaid
                   ? assignedMixesCount === 1
-                    ? "Also moves to Reassign when deleted"
-                    : `Also moves ${assignedMixesCount} mixes to Reassign when deleted`
+                    ? "Also moves to Reassign after payroll"
+                    : `Also moves ${assignedMixesCount} mixes to Reassign after payroll`
                   : assignedMixesCount === 1
-                    ? "Moves to Reassign when deleted"
-                    : `Moves ${assignedMixesCount} mixes to Reassign when deleted`
+                    ? "Moves to Reassign when you Save"
+                    : `Moves ${assignedMixesCount} mixes to Reassign when you Save`
               }
             >
               <ul className="max-h-[140px] space-y-2 overflow-y-auto">
@@ -282,16 +282,7 @@ export function DeleteProducerModal({
               onClick={onSendToReassign}
               className="border-b border-black/[0.08] py-3.5 text-[15px] font-semibold text-brand-blue transition hover:bg-brand-blue-soft/40 disabled:opacity-60"
             >
-              {busy ? "Sending…" : "Send to reassign & delete"}
-            </button>
-          ) : !needsPayrollPaid ? (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={onConfirm}
-              className="border-b border-black/[0.08] py-3.5 text-[15px] font-semibold text-brand-danger transition hover:bg-brand-orange-soft/60 disabled:opacity-60"
-            >
-              {busy ? "Deleting…" : "Delete Producer"}
+              {busy ? "Saving…" : "Remove from draft"}
             </button>
           ) : null}
           <button

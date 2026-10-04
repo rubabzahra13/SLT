@@ -1,13 +1,12 @@
 import type { MTDRecord, Producer, Weekday } from "@/types";
 import { DEFAULT_WORK_DAYS } from "@/types";
 import { parseFlexibleDate, toIsoDateString } from "@/lib/dates";
+import { orderCategoryToProducerCategory } from "@/lib/producer-category";
 import {
   producerAssignmentKey,
   producerKeysMatch,
 } from "@/lib/producer-keys";
 import { parsePackage } from "@/lib/package";
-import { inferMTDRecordStatus } from "@/lib/mtd-status";
-
 const JS_DAY_TO_WEEKDAY: Weekday[] = [
   "sun",
   "mon",
@@ -274,6 +273,71 @@ export function leaveApplicableDaysInRange(
   return out;
 }
 
+function nextIsoDay(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const date = new Date(y, m - 1, d);
+  date.setDate(date.getDate() + 1);
+  return dateToIsoLocal(date);
+}
+
+/**
+ * Persist leave as work-day-only ranges. Non-work days inside a selected
+ * span are dropped so turning that weekday on later does not invent leave.
+ */
+export function splitTimeOffToWorkDayRanges<
+  T extends { startDate: string; endDate?: string | null }
+>(entries: T[], workDays: Weekday[] | null | undefined): T[] {
+  const days =
+    workDays && workDays.length > 0 ? workDays : [...DEFAULT_WORK_DAYS];
+  const next: T[] = [];
+  for (const entry of entries) {
+    if (!entry?.startDate) continue;
+    const leaveDays = leaveApplicableDaysInRange(
+      entry.startDate,
+      entry.endDate || entry.startDate,
+      days
+    );
+    if (leaveDays.length === 0) continue;
+
+    let rangeStart = leaveDays[0];
+    let prev = leaveDays[0];
+    for (let i = 1; i < leaveDays.length; i += 1) {
+      const iso = leaveDays[i];
+      if (iso !== nextIsoDay(prev)) {
+        next.push({
+          ...entry,
+          startDate: rangeStart,
+          endDate: prev,
+        });
+        rangeStart = iso;
+      }
+      prev = iso;
+    }
+    next.push({
+      ...entry,
+      startDate: rangeStart,
+      endDate: prev,
+    });
+  }
+  return next;
+}
+
+/** ISO dates inside leave ranges that fall on the given weekday. */
+export function leaveDatesOnWeekday(
+  entries: { startDate: string; endDate?: string | null }[],
+  day: Weekday
+): string[] {
+  return [
+    ...new Set(
+      expandTimeOffDates(entries).filter((iso) => {
+        const [y, m, d] = iso.split("-").map(Number);
+        if ([y, m, d].some((n) => Number.isNaN(n))) return false;
+        return dateToWeekday(new Date(y, m - 1, d)) === day;
+      })
+    ),
+  ].sort((a, b) => a.localeCompare(b));
+}
+
 function monthShort(date: Date): string {
   return date.toLocaleDateString(undefined, { month: "short" });
 }
@@ -491,19 +555,22 @@ function recordCoversDay(rec: MTDRecord, day: Date): boolean {
 }
 
 /**
- * Whether a record holds its producer's open workload for daily limits.
- * Only assigned Ongoing mixes count — not Completed / payroll / outsourced.
- * (Payroll tab mixes are finished work; limits cover what they are working on.)
+ * Whether a record holds open workload for daily limits / assign comparison.
+ * Assigned + scheduled + not completed/payroll (Orders or MTD).
  */
 export function isProducerBookingRecord(rec: MTDRecord): boolean {
   if (!rec.assignedProducer?.trim()) return false;
-  if (rec.inPayroll || (rec as { in_payroll?: boolean }).in_payroll) return false;
-  if (rec.status === "completed") return false;
+  if (rec.inPayroll || (rec as { in_payroll?: boolean }).in_payroll) {
+    return false;
+  }
+  if (rec.status === "completed" || rec.status === "outsourced") return false;
   if ((rec as { recordStatus?: string }).recordStatus === "Completed") {
     return false;
   }
-  const status = inferMTDRecordStatus(rec);
-  return status === "Ongoing";
+  if (rec.section === "OUTSOURCED MIXES") return false;
+  if (Boolean(rec.completedAt)) return false;
+  // Must have a mix window so it can land on calendar days.
+  return Boolean(rec.mixStartDate?.trim());
 }
 
 /** Payout estimate for a booked record whose payout isn't settled until payroll. */
@@ -540,15 +607,55 @@ export function countProducerMixesOnDay(
   producer: Producer,
   day: Date,
   mtdRecords: MTDRecord[],
-  excludeRecordId?: string
+  excludeRecordId?: string,
+  categoryMatch?: Pick<DailyCostOptions, "matchCategory" | "matchFormType"> | null
 ): number {
   let count = 0;
 
   for (const rec of mtdRecords) {
-    if (isBookingForProducerOnDay(rec, producer, day, excludeRecordId)) count += 1;
+    if (!isBookingForProducerOnDay(rec, producer, day, excludeRecordId)) {
+      continue;
+    }
+    if (!recordMatchesAssignCategory(rec, categoryMatch)) continue;
+    count += 1;
   }
 
   return count;
+}
+
+/** Monday-start local week containing `anchorDate`. */
+export function startOfLocalWeek(anchorDate: Date = new Date()): Date {
+  const day = toDayStart(anchorDate);
+  const weekday = day.getDay(); // 0=Sun … 6=Sat
+  const diff = weekday === 0 ? -6 : 1 - weekday;
+  day.setDate(day.getDate() + diff);
+  return day;
+}
+
+/**
+ * Distinct ongoing mixes assigned to this producer that cover any day
+ * in the Mon–Sun week containing `anchorDate`.
+ */
+export function countProducerMixesThisWeek(
+  producer: Producer,
+  mtdRecords: MTDRecord[],
+  anchorDate: Date = new Date(),
+  excludeRecordId?: string
+): number {
+  const weekStart = startOfLocalWeek(anchorDate);
+  const seen = new Set<string>();
+
+  for (let i = 0; i < 7; i += 1) {
+    const day = new Date(weekStart);
+    day.setDate(weekStart.getDate() + i);
+    for (const rec of mtdRecords) {
+      if (!isBookingForProducerOnDay(rec, producer, day, excludeRecordId)) continue;
+      const key = rec.id || rec.orderId || rec.legacyId || rec.uuid;
+      if (key) seen.add(key);
+    }
+  }
+
+  return seen.size;
 }
 
 /** Ongoing mix covering a day — shown on leave calendar (not blocked). */
@@ -561,6 +668,21 @@ export type ProducerMixDayBooking = {
   inMTD: boolean;
 };
 
+function isActiveAssignedMixForConflict(
+  rec: MTDRecord,
+  producer: Producer
+): boolean {
+  if (!isRecordAssignedToProducer(rec, producer)) return false;
+  if (rec.inPayroll || (rec as { in_payroll?: boolean }).in_payroll) {
+    return false;
+  }
+  if (rec.status === "completed") return false;
+  if ((rec as { recordStatus?: string }).recordStatus === "Completed") {
+    return false;
+  }
+  return Boolean(rec.mixStartDate?.trim());
+}
+
 function bookingFromRecord(rec: MTDRecord): ProducerMixDayBooking {
   const startIso = toIsoDateString(rec.mixStartDate ?? "") || rec.mixStartDate;
   const endIso = mixEndIsoForRecord(rec) || startIso;
@@ -569,23 +691,27 @@ function bookingFromRecord(rec: MTDRecord): ProducerMixDayBooking {
     programName: rec.programName?.trim() || "Untitled mix",
     mixStartDate: startIso,
     mixEndDate: endIso,
-    inMTD: Boolean(rec.inMTD),
+    inMTD: Boolean(
+      rec.inMTD || (rec as { onMtdBoard?: boolean }).onMtdBoard
+    ),
   };
 }
 
-/** Ongoing mixes assigned to this producer that cover the given day. */
+/** Active assigned mixes covering the given day (Orders or MTD). */
 export function listProducerMixBookingsOnDay(
   producer: Producer,
   dayIso: string,
-  mtdRecords: MTDRecord[]
+  mtdRecords: MTDRecord[],
+  categoryMatch?: Pick<DailyCostOptions, "matchCategory" | "matchFormType"> | null
 ): ProducerMixDayBooking[] {
   const day = parseFlexibleDate(dayIso);
   if (!day) return [];
   const out: ProducerMixDayBooking[] = [];
   for (const rec of mtdRecords) {
-    if (isBookingForProducerOnDay(rec, producer, day)) {
-      out.push(bookingFromRecord(rec));
-    }
+    if (!isActiveAssignedMixForConflict(rec, producer)) continue;
+    if (!recordCoversDay(rec, day)) continue;
+    if (!recordMatchesAssignCategory(rec, categoryMatch)) continue;
+    out.push(bookingFromRecord(rec));
   }
   return out;
 }
@@ -608,7 +734,7 @@ export function describeProducerMixDayForLeave(
   return [header, ...lines].join("\n");
 }
 
-/** ISO days in [fromIso, toIso] that have an Ongoing mix for this producer. */
+/** ISO days in [fromIso, toIso] that have an assigned mix for this producer. */
 export function collectProducerMixBlockedDays(
   producer: Producer,
   mtdRecords: MTDRecord[],
@@ -624,15 +750,64 @@ export function collectProducerMixBlockedDays(
   const last = toDayStart(end);
   for (let guard = 0; cursor <= last && guard < 800; guard += 1) {
     const iso = dateToIsoLocal(cursor);
-    if (countProducerMixesOnDay(producer, cursor, mtdRecords) > 0) {
-      days.push(iso);
+    let hit = false;
+    for (const rec of mtdRecords) {
+      if (!isActiveAssignedMixForConflict(rec, producer)) continue;
+      if (!recordCoversDay(rec, cursor)) continue;
+      hit = true;
+      break;
     }
+    if (hit) days.push(iso);
     cursor.setDate(cursor.getDate() + 1);
   }
   return days;
 }
 
-/** Ongoing mixes overlapping a proposed leave range (any day in range). */
+/**
+ * Upcoming calendar dates on a weekday that still have assigned mixes
+ * (Orders or MTD), plus the distinct bookings covering those dates.
+ * Broader than leave-calendar "Ongoing" checks — any active assigned mix
+ * with dates counts so schedule changes can't orphan booked work.
+ */
+export function collectProducerWeekdayMixConflict(
+  producer: Producer,
+  weekday: Weekday,
+  records: MTDRecord[],
+  fromIso: string,
+  toIso: string
+): { mixDates: string[]; bookings: ProducerMixDayBooking[] } {
+  const start = parseFlexibleDate(fromIso);
+  const end = parseFlexibleDate(toIso || fromIso);
+  if (!start || !end) return { mixDates: [], bookings: [] };
+
+  const mixDates: string[] = [];
+  const seen = new Set<string>();
+  const bookings: ProducerMixDayBooking[] = [];
+  const cursor = toDayStart(start);
+  const last = toDayStart(end);
+
+  for (let guard = 0; cursor <= last && guard < 800; guard += 1) {
+    if (dateToWeekday(cursor) === weekday) {
+      const iso = dateToIsoLocal(cursor);
+      let hit = false;
+      for (const rec of records) {
+        if (!isActiveAssignedMixForConflict(rec, producer)) continue;
+        if (!recordCoversDay(rec, cursor)) continue;
+        hit = true;
+        if (!seen.has(rec.id)) {
+          seen.add(rec.id);
+          bookings.push(bookingFromRecord(rec));
+        }
+      }
+      if (hit) mixDates.push(iso);
+    }
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  return { mixDates, bookings };
+}
+
+/** Assigned mixes (Orders or MTD) overlapping a date range. */
 export function findLeaveMixConflicts(
   producer: Producer,
   startIso: string,
@@ -649,7 +824,8 @@ export function findLeaveMixConflicts(
   const last = toDayStart(end);
   for (let guard = 0; cursor <= last && guard < 800; guard += 1) {
     for (const rec of mtdRecords) {
-      if (!isBookingForProducerOnDay(rec, producer, cursor)) continue;
+      if (!isActiveAssignedMixForConflict(rec, producer)) continue;
+      if (!recordCoversDay(rec, cursor)) continue;
       if (seen.has(rec.id)) continue;
       seen.add(rec.id);
       out.push(bookingFromRecord(rec));
@@ -686,12 +862,14 @@ export function countProducerDailyCost(
   day: Date,
   mtdRecords: MTDRecord[],
   excludeRecordId?: string,
-  estimateCost?: RecordCostEstimator
+  estimateCost?: RecordCostEstimator,
+  categoryMatch?: Pick<DailyCostOptions, "matchCategory" | "matchFormType"> | null
 ): number {
   let total = 0;
 
   for (const rec of mtdRecords) {
     if (!isBookingForProducerOnDay(rec, producer, day, excludeRecordId)) continue;
+    if (!recordMatchesAssignCategory(rec, categoryMatch)) continue;
     total += dailyShareOfRecordCost(producer, rec, estimateCost);
   }
 
@@ -740,11 +918,13 @@ export function listProducerDailyCostContributors(
   day: Date,
   mtdRecords: MTDRecord[],
   excludeRecordId?: string,
-  estimateCost?: RecordCostEstimator
+  estimateCost?: RecordCostEstimator,
+  categoryMatch?: Pick<DailyCostOptions, "matchCategory" | "matchFormType"> | null
 ): DailyCostContributor[] {
   const out: DailyCostContributor[] = [];
   for (const rec of mtdRecords) {
     if (!isBookingForProducerOnDay(rec, producer, day, excludeRecordId)) continue;
+    if (!recordMatchesAssignCategory(rec, categoryMatch)) continue;
     const row = contributorFromRecord(producer, rec, estimateCost);
     if (!row || row.dayShare <= 0) continue;
     out.push(row);
@@ -762,7 +942,8 @@ export function listProducerCostContributorsInRange(
   endIso: string,
   mtdRecords: MTDRecord[],
   excludeRecordId?: string,
-  estimateCost?: RecordCostEstimator
+  estimateCost?: RecordCostEstimator,
+  categoryMatch?: Pick<DailyCostOptions, "matchCategory" | "matchFormType"> | null
 ): DailyCostContributor[] {
   const start = parseFlexibleDate(startIso);
   const end = parseFlexibleDate(endIso || startIso);
@@ -777,6 +958,7 @@ export function listProducerCostContributorsInRange(
       if (!isBookingForProducerOnDay(rec, producer, cursor, excludeRecordId)) {
         continue;
       }
+      if (!recordMatchesAssignCategory(rec, categoryMatch)) continue;
       if (seen.has(rec.id)) continue;
       seen.add(rec.id);
       const row = contributorFromRecord(producer, rec, estimateCost);
@@ -797,12 +979,18 @@ export function isProducerUnderDailyCapacity(
   producer: Producer,
   day: Date,
   mtdRecords: MTDRecord[],
-  excludeRecordId?: string
+  excludeRecordId?: string,
+  options: DailyCostOptions = {}
 ): boolean {
   if (producer.maxMixesPerDay == null) return true;
   return (
-    countProducerMixesOnDay(producer, day, mtdRecords, excludeRecordId) <
-    producer.maxMixesPerDay
+    countProducerMixesOnDay(
+      producer,
+      day,
+      mtdRecords,
+      excludeRecordId,
+      options
+    ) < producer.maxMixesPerDay
   );
 }
 
@@ -813,7 +1001,73 @@ export type DailyCostOptions = {
    * When unknown, only existing bookings are checked.
    */
   newMixCost?: number | null;
+  /**
+   * Only compare against booked mixes in this producer subcategory
+   * (e.g. "Team Performance / Variety", "Pom").
+   */
+  matchCategory?: string | null;
+  /** When set, also require the same order form type (category group). */
+  matchFormType?: string | null;
 };
+
+function normalizeAssignCategoryKey(value: string): string {
+  return value.trim().toLowerCase().replace(/[/\-\s]+/g, "-");
+}
+
+/** Canonical producer subcategory for assign limit / calendar matching. */
+export function assignCategoryForRecord(
+  rec: Pick<
+    MTDRecord,
+    "category" | "formType" | "cheerFormSubtype" | "danceFormSubtype"
+  >
+): string {
+  const subtype = rec.danceFormSubtype || rec.cheerFormSubtype;
+  return (
+    orderCategoryToProducerCategory(
+      rec.formType,
+      subtype,
+      rec.category || undefined
+    ) ||
+    (rec.category || "").trim()
+  );
+}
+
+/** Whether a booked mix counts toward assign limits / calendar comparison. */
+export function recordMatchesAssignCategory(
+  rec: Pick<
+    MTDRecord,
+    "category" | "formType" | "cheerFormSubtype" | "danceFormSubtype"
+  >,
+  match?: Pick<
+    DailyCostOptions,
+    "matchCategory" | "matchFormType"
+  > | null
+): boolean {
+  if (!match) return true;
+  const wantCategory = match.matchCategory?.trim() || "";
+  const wantForm = match.matchFormType?.trim() || "";
+  if (!wantCategory && !wantForm) return true;
+
+  if (wantForm) {
+    const recForm = (rec.formType || "").trim();
+    if (recForm && recForm !== wantForm) return false;
+  }
+
+  if (!wantCategory) return true;
+
+  const recCategory = assignCategoryForRecord(rec);
+  if (!recCategory) return false;
+  if (recCategory === wantCategory) return true;
+
+  const wantCanonical =
+    orderCategoryToProducerCategory(undefined, undefined, wantCategory) ||
+    wantCategory;
+  if (recCategory === wantCanonical) return true;
+  return (
+    normalizeAssignCategoryKey(recCategory) ===
+    normalizeAssignCategoryKey(wantCanonical)
+  );
+}
 
 export function isProducerUnderDailyCostCapacity(
   producer: Producer,
@@ -828,7 +1082,8 @@ export function isProducerUnderDailyCostCapacity(
     day,
     mtdRecords,
     excludeRecordId,
-    options.estimateCost
+    options.estimateCost,
+    options
   );
   if (options.newMixCost != null) {
     return booked + options.newMixCost <= producer.maxProducerCostPerDay;
@@ -851,7 +1106,8 @@ export function isProducerAtDailyCapacity(
     producer,
     day,
     mtdRecords,
-    excludeRecordId
+    excludeRecordId,
+    options
   );
   const costCapacityReached = !isProducerUnderDailyCostCapacity(
     producer,
@@ -1066,14 +1322,16 @@ export function checkProducerDailyLimits(
           producer,
           cursor,
           mtdRecords,
-          options.excludeRecordId
+          options.excludeRecordId,
+          options
         ),
         bookedCost: countProducerDailyCost(
           producer,
           cursor,
           mtdRecords,
           options.excludeRecordId,
-          options.estimateCost
+          options.estimateCost,
+          options
         ),
       };
 

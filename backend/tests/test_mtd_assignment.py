@@ -34,6 +34,13 @@ def test_resolve_producer_by_assignment_key_ignores_first_available(db):
     assert resolve_producer_by_assignment_key(db, "") is None
 
 
+def test_resolve_producer_by_assignment_key_allows_fa_initials(db):
+    fa_producer = _get_or_create_producer(db, initials="FA", name="Fran Ace")
+    db.commit()
+
+    assert resolve_producer_by_assignment_key(db, "FA").id == fa_producer.id
+
+
 def test_find_producer_matches_various_identifiers(db):
     from app.api.producers import _find_producer
 

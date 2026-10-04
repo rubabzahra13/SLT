@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Check, Mic, Pencil, Trash2, Zap } from "lucide-react";
 import { AddVoiceoverModal } from "@/components/payroll/AddVoiceoverModal";
@@ -394,18 +395,26 @@ export default function PayrollPage() {
         : rec.rushFeeOption === "single" || rec.isRushOrder === "yes" || rec.isRushOrder === true
         ? 1
         : 0;
+      // Prefer live producer rates after Producers-tab edits; keep only explicit
+      // admin overrides snapshotted on the mix/order.
+      const rateIsManual =
+        rec.rateSource === "manual_override" ||
+        order?.rateSource === "manual_override";
+      const selectedRate = rateIsManual
+        ? rec.rateUsed ?? order?.rateUsed ?? null
+        : null;
 
       const calc = computeClientPayroll(
         producerObj,
         custPrice,
         null,
-        rec.rateUsed ?? order?.rateUsed ?? null,
+        selectedRate,
         rec.manualPayoutInput ?? null,
         meta.canonicalSubtypeId,
         payrollPrice,
         {
           rushFeeQuantity: rushQty,
-          rushFeeCompensationRate: rec.rushFeeCompensationRate ?? producerObj?.rushFeeRate ?? 1.0,
+          rushFeeCompensationRate: producerObj?.rushFeeRate ?? rec.rushFeeCompensationRate ?? 1.0,
           danceVoiceover: rec.danceVoiceover,
           hasTraditionalVoiceover: rec.hasTraditionalVoiceover,
           hasThemedVoiceover: rec.hasThemedVoiceover,
@@ -792,17 +801,25 @@ export default function PayrollPage() {
             ? 1
             : 0;
 
+          const rateIsManual =
+            rec.rateSource === "manual_override" ||
+            order?.rateSource === "manual_override";
+          const selectedRate = rateIsManual
+            ? rec.rateUsed ?? order?.rateUsed ?? null
+            : null;
+
           const calculated = computeClientPayroll(
             producerObj,
             custPrice,
             null,
-            rec.rateUsed ?? order?.rateUsed ?? null,
+            selectedRate,
             rec.manualPayoutInput ?? null,
             meta.canonicalSubtypeId,
             payrollPrice,
             {
               rushFeeQuantity: rushQty,
-              rushFeeCompensationRate: rec.rushFeeCompensationRate ?? producerObj?.rushFeeRate ?? 1.0,
+              rushFeeCompensationRate:
+                producerObj?.rushFeeRate ?? rec.rushFeeCompensationRate ?? 1.0,
               danceVoiceover: rec.danceVoiceover,
               hasTraditionalVoiceover: rec.hasTraditionalVoiceover,
               hasThemedVoiceover: rec.hasThemedVoiceover,
@@ -1071,7 +1088,11 @@ export default function PayrollPage() {
               >
                 <button
                   type="button"
-                  onClick={() => setDeleteForeverRecord(rec)}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setDeleteForeverRecord(rec);
+                  }}
                   className={deleteForeverBtnClass}
                   title="Delete forever"
                 >
@@ -1284,56 +1305,62 @@ export default function PayrollPage() {
         onAdd={handleReplaceAddon}
       />
 
-      {deleteForeverRecord ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <button
-            type="button"
-            className="absolute inset-0 bg-brand-scrim backdrop-blur-sm"
-            onClick={() => {
-              if (!deletingForever) setDeleteForeverRecord(null);
-            }}
-            aria-label="Close"
-          />
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="delete-forever-title"
-            className="relative w-full max-w-[400px] overflow-hidden rounded-[22px] bg-brand-elevated shadow-[0_24px_80px_rgba(0,0,0,0.28)]"
-          >
-            <div className="px-6 pb-5 pt-7 text-center">
-              <h2
-                id="delete-forever-title"
-                className="text-[18px] font-semibold tracking-[-0.02em] text-brand-ink"
+      {deleteForeverRecord && typeof document !== "undefined"
+        ? createPortal(
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+              <button
+                type="button"
+                className="absolute inset-0 bg-brand-scrim backdrop-blur-sm"
+                onClick={() => {
+                  if (!deletingForever) setDeleteForeverRecord(null);
+                }}
+                aria-label="Close"
+              />
+              <div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="delete-forever-title"
+                className="relative w-full max-w-[400px] overflow-hidden rounded-[22px] bg-brand-elevated shadow-[0_24px_80px_rgba(0,0,0,0.28)]"
               >
-                Delete forever?
-              </h2>
-              <p className="mt-3 text-[13px] leading-relaxed text-brand-ink-secondary">
-                {titleCase(deleteForeverRecord.programName)} · invoice{" "}
-                {deleteForeverRecord.invoice || "—"} will be permanently removed
-                from payroll archive. This cannot be undone.
-              </p>
-              <div className="mt-6 flex gap-2">
-                <button
-                  type="button"
-                  disabled={deletingForever}
-                  onClick={() => setDeleteForeverRecord(null)}
-                  className="flex-1 rounded-xl border border-brand-line px-3 py-2.5 text-[13px] font-semibold text-brand-ink transition hover:bg-brand-surface"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  disabled={deletingForever}
-                  onClick={() => void confirmDeleteForever()}
-                  className="flex-1 rounded-xl bg-brand-danger px-3 py-2.5 text-[13px] font-semibold text-white transition hover:bg-brand-danger/90 disabled:opacity-60"
-                >
-                  {deletingForever ? "Deleting…" : "Delete forever"}
-                </button>
+                <div className="px-6 pb-5 pt-7 text-center">
+                  <h2
+                    id="delete-forever-title"
+                    className="text-[18px] font-semibold tracking-[-0.02em] text-brand-ink"
+                  >
+                    Delete forever?
+                  </h2>
+                  <p className="mt-1.5 text-[13px] leading-relaxed text-brand-ink-secondary">
+                    {titleCase(deleteForeverRecord.programName)}
+                    {deleteForeverRecord.invoice?.trim()
+                      ? ` · #${deleteForeverRecord.invoice.trim()}`
+                      : ""}{" "}
+                    will be permanently removed from the payroll archive. This
+                    cannot be undone.
+                  </p>
+                </div>
+                <div className="flex flex-col border-t border-black/[0.08]">
+                  <button
+                    type="button"
+                    disabled={deletingForever}
+                    onClick={() => void confirmDeleteForever()}
+                    className="border-b border-black/[0.08] py-3.5 text-[15px] font-semibold text-brand-danger transition hover:bg-brand-orange-soft/60 disabled:opacity-60"
+                  >
+                    {deletingForever ? "Deleting…" : "Delete forever"}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={deletingForever}
+                    onClick={() => setDeleteForeverRecord(null)}
+                    className="py-3.5 text-[15px] font-medium text-brand-ink transition hover:bg-brand-bg disabled:opacity-60"
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
-            </div>
-          </div>
-        </div>
-      ) : null}
+            </div>,
+            document.body
+          )
+        : null}
     </div>
   );
 }

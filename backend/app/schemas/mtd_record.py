@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 from typing import Optional, Any
 from uuid import UUID
 from datetime import date, datetime
@@ -76,6 +76,17 @@ class MTDRecordSchema(BaseModel):
         if isinstance(v, str):
             return v
         return None
+
+    @model_validator(mode="after")
+    def fallback_assigned_from_editor_initials(self) -> "MTDRecordSchema":
+        # When FK was cleared during an initials rename race, editor_initials
+        # still holds the assignment key — expose it so Orders doesn't flash Assign.
+        if self.assigned_producer:
+            return self
+        initials = (self.editor_initials or "").strip().upper()
+        if initials and initials != "NA":
+            self.assigned_producer = initials
+        return self
 
 class MTDRecordCreateSchema(BaseModel):
     # Accept UUID or legacy_id string; resolved to UUID in the API layer.
@@ -157,9 +168,10 @@ class ManualScheduleCreateSchema(BaseModel):
     form_type: Optional[str] = "school-all-star-cheer"
     cheer_form_subtype: Optional[str] = "all-star-cheer"
     dance_form_subtype: Optional[str] = "pom"
-    mix_start_date: str
-    mix_end_date: str
-    assigned_producer: str
+    # Scheduling is done from the Orders table after the row is created.
+    mix_start_date: Optional[str] = None
+    mix_end_date: Optional[str] = None
+    assigned_producer: Optional[str] = None
     program_name: Optional[str] = None
     school_program_name: Optional[str] = None
     contact_name: Optional[str] = None

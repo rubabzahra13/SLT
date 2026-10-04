@@ -7,7 +7,9 @@ import {
   findLinkedOrder,
   findProducerByAssignmentKey,
   getRequestedEditorFromRecord,
+  orderCategoryToProducerCategory,
   producerAssignmentKey,
+  producerSupportsCategory,
 } from "./editor-assignment";
 import { producerKeysMatch } from "./producer-keys";
 import { titleCase } from "./data";
@@ -286,7 +288,8 @@ export function matchesRequestedProducerFilter(
   const requested = getRequestedEditorFromRecord(rec, producers, linked);
 
   if (producer === "FA") return !requested;
-  return requested?.toUpperCase() === producer.toUpperCase();
+  if (!requested) return false;
+  return producerKeysMatch(requested, producer);
 }
 
 export type SplitFilter = "all" | "split" | "no_split";
@@ -404,35 +407,95 @@ export function buildSplitOptions(records: MTDRecord[]) {
   ];
 }
 
+const CHEER_PRODUCER_CATEGORIES = [
+  "All-Star Cheer",
+  "School Cheer",
+  "Youth Rec Cheer",
+] as const;
+
+const DANCE_PRODUCER_CATEGORIES = [
+  "Pom",
+  "Hip Hop",
+  "Team Performance / Variety",
+  "Gameday",
+  "Jazz / Kick",
+] as const;
+
+/** Producers who can take work for the active Orders/MTD form + subtype. */
+export function producersForFormCategory(
+  producers: Producer[],
+  form?: OrderFormType,
+  cheerSubtype?: CheerFormSubtypeFilter,
+  danceSubtype?: DanceFormSubtypeFilter
+): Producer[] {
+  if (!form) return producers;
+
+  if (form === "school-all-star-cheer") {
+    const subtype =
+      cheerSubtype && cheerSubtype !== "all" ? cheerSubtype : undefined;
+    if (!subtype) {
+      return producers.filter((producer) =>
+        CHEER_PRODUCER_CATEGORIES.some((category) =>
+          producerSupportsCategory(producer, category)
+        )
+      );
+    }
+    const category = orderCategoryToProducerCategory(form, subtype);
+    return category
+      ? producers.filter((producer) =>
+          producerSupportsCategory(producer, category)
+        )
+      : producers;
+  }
+
+  if (form === "school-all-star-dance") {
+    const subtype =
+      danceSubtype && danceSubtype !== "all" ? danceSubtype : undefined;
+    if (!subtype) {
+      return producers.filter((producer) =>
+        DANCE_PRODUCER_CATEGORIES.some((category) =>
+          producerSupportsCategory(producer, category)
+        )
+      );
+    }
+    const category = orderCategoryToProducerCategory(form, subtype);
+    return category
+      ? producers.filter((producer) =>
+          producerSupportsCategory(producer, category)
+        )
+      : producers;
+  }
+
+  const category = orderCategoryToProducerCategory(form, undefined);
+  return category
+    ? producers.filter((producer) =>
+        producerSupportsCategory(producer, category)
+      )
+    : producers;
+}
+
 export function buildAssignedProducerOptions(
   records: MTDRecord[],
-  producerNames: readonly string[],
+  producerNames: readonly string[] = [],
   producers: Producer[] = []
 ) {
   const counts = new Map<string, number>();
-  let unassigned = 0;
-  let outsourced = 0;
 
   for (const rec of records) {
-    if (isOutsourcedRecord(rec)) {
-      outsourced += 1;
-    }
     const assigned = rec.assignedProducer?.trim();
-    if (!assigned) {
-      unassigned += 1;
-    } else {
-      const matched = findProducerByAssignmentKey(assigned, producers);
-      const key = matched
-        ? producerAssignmentKey(matched)
-        : assigned.toUpperCase();
-      counts.set(key, (counts.get(key) ?? 0) + 1);
-    }
+    if (!assigned) continue;
+    const matched = findProducerByAssignmentKey(assigned, producers);
+    const key = matched
+      ? producerAssignmentKey(matched)
+      : assigned.toUpperCase();
+    counts.set(key, (counts.get(key) ?? 0) + 1);
   }
 
   const seen = new Set<string>();
   const editorOptions: Array<{ value: string; label: string; count: number }> =
     [];
 
+  // Live roster only — do not pad with legacy mock EDITOR_NAMES.
   for (const producer of producers) {
     const key = producerAssignmentKey(producer);
     if (!key || seen.has(key)) continue;
@@ -464,18 +527,16 @@ export function buildAssignedProducerOptions(
   editorOptions.sort((a, b) => a.label.localeCompare(b.label));
 
   return [
-    { value: "All", label: "All editors", count: records.length },
-    { value: "Unassigned", label: "Unassigned", count: unassigned },
-    { value: "Outsourced", label: "Outsourced", count: outsourced },
+    { value: "All", label: "All", count: records.length },
     ...editorOptions,
   ];
 }
 
 export function buildRequestedProducerOptions(
   records: MTDRecord[],
-  producerNames: readonly string[],
-  producers: Producer[],
-  orderById: Map<string, Order>
+  producerNames: readonly string[] = [],
+  producers: Producer[] = [],
+  orderById: Map<string, Order> = new Map()
 ) {
   const counts = new Map<string, number>();
   let fa = 0;
@@ -486,18 +547,53 @@ export function buildRequestedProducerOptions(
     if (!requested) {
       fa += 1;
     } else {
-      counts.set(requested, (counts.get(requested) ?? 0) + 1);
+      const matched = findProducerByAssignmentKey(requested, producers);
+      const key = matched
+        ? producerAssignmentKey(matched)
+        : requested.trim().toUpperCase();
+      counts.set(key, (counts.get(key) ?? 0) + 1);
     }
   }
+
+  const seen = new Set<string>();
+  const editorOptions: Array<{ value: string; label: string; count: number }> =
+    [];
+
+  for (const producer of producers) {
+    const key = producerAssignmentKey(producer);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    editorOptions.push({
+      value: key,
+      label: producer.name?.trim() || key,
+      count: counts.get(key) ?? 0,
+    });
+  }
+
+  for (const name of producerNames) {
+    const key = name.trim().toUpperCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    editorOptions.push({
+      value: key,
+      label: name,
+      count: counts.get(key) ?? 0,
+    });
+  }
+
+  for (const [key, count] of counts) {
+    // "FA" may be a real producer (initials) — only skip duplicates already added.
+    if (seen.has(key)) continue;
+    seen.add(key);
+    editorOptions.push({ value: key, label: key, count });
+  }
+
+  editorOptions.sort((a, b) => a.label.localeCompare(b.label));
 
   return [
     { value: "All", label: "All requests", count: records.length },
     { value: "FA", label: "First available", count: fa },
-    ...producerNames.map((name) => ({
-      value: name,
-      label: name,
-      count: counts.get(name) ?? 0,
-    })),
+    ...editorOptions,
   ];
 }
 

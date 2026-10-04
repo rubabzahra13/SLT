@@ -9,7 +9,6 @@ import { ScheduleSendToolbar } from "@/components/schedule/ScheduleSendToolbar";
 import { Tabs } from "@/components/ui/Tabs";
 import { TeamScheduleMatrix } from "@/components/schedule/TeamScheduleMatrix";
 import { TeamScheduleTodayView } from "@/components/schedule/TeamScheduleTodayView";
-import { ProducerScheduleDrawer } from "@/components/schedule/ProducerScheduleDrawer";
 import { useAppState } from "@/context/AppStateContext";
 import { todayIso } from "@/lib/date-filters";
 import { doDateRangesOverlap } from "@/lib/dates";
@@ -23,11 +22,9 @@ import {
   scheduleSendFilterPeriod,
   sendPeriodLabel,
   statusLabel,
-  type ScheduleCell,
   type ScheduleSendPeriod,
   type ScheduleStatusFilter,
   type ScheduleViewRange,
-  type TeamScheduleRow,
 } from "@/lib/schedule-view";
 import {
   countProducersByCheerSubtype,
@@ -76,8 +73,6 @@ function SchedulePageContent() {
     DEFAULT_DANCE_SUBTYPE
   );
   const [statusFilter, setStatusFilter] = useState<ScheduleStatusFilter>("all");
-  const [drawerRow, setDrawerRow] = useState<TeamScheduleRow | null>(null);
-  const [focusCell, setFocusCell] = useState<ScheduleCell | null>(null);
   const switchForm = useCallback((next: OrderFormType) => {
     setForm(next);
     if (next !== "school-all-star-cheer") {
@@ -163,19 +158,6 @@ function SchedulePageContent() {
     const label = scheduleFormFilterLabel(form, cheerSubtype, danceSubtype);
     return `No producers specialize in ${label}.`;
   }, [form, cheerSubtype, danceSubtype, statusFilter, selectedEditor, producers]);
-
-  const handleSelectProducerRow = useCallback(
-    (row: TeamScheduleRow, cell?: ScheduleCell) => {
-      setDrawerRow(row);
-      setFocusCell(cell ?? null);
-    },
-    []
-  );
-
-  const closeDrawer = useCallback(() => {
-    setDrawerRow(null);
-    setFocusCell(null);
-  }, []);
 
   const columns = useMemo(
     () => aggregateColumns(teamRows, anchorDate),
@@ -328,8 +310,6 @@ function SchedulePageContent() {
             <TeamScheduleTodayView
               rows={teamRows}
               date={anchorDate}
-              activeProducerId={drawerRow?.producer.id}
-              onSelectProducer={handleSelectProducerRow}
               emptyMessage={emptyMessage}
               className="w-full"
             />
@@ -339,8 +319,6 @@ function SchedulePageContent() {
               columns={columns}
               range={view}
               statusFilter={statusFilter}
-              activeProducerId={drawerRow?.producer.id}
-              onSelectProducer={handleSelectProducerRow}
               emptyMessage={emptyMessage}
               className="w-full"
             />
@@ -359,15 +337,6 @@ function SchedulePageContent() {
           />
         )}
       </div>
-
-      <ProducerScheduleDrawer
-        open={Boolean(drawerRow)}
-        producer={drawerRow?.producer ?? null}
-        cells={drawerRow?.cells ?? []}
-        range={view}
-        focusCell={focusCell}
-        onClose={closeDrawer}
-      />
 
     </div>
   );

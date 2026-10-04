@@ -257,11 +257,13 @@ main.app-canvas {
 @keyframes toast-in {
   from {
     opacity: 0;
-    transform: translateY(-10px) scale(0.98);
+    transform: translateY(18px) scale(0.96);
+    filter: blur(2px);
   }
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
+    filter: blur(0);
   }
 }
 
@@ -1471,11 +1473,11 @@ main.app-canvas {
 }
 
 .animate-toast-in {
-  animation: toast-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: toast-in 0.42s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .animate-toast-bar {
-  animation: toast-bar 6s linear forwards;
+  animation: toast-bar 5.6s linear forwards;
 }
 
 .dashboard-fit {
@@ -1814,20 +1816,39 @@ main.app-canvas {
   transform: translateY(-1px);
 }
 
-.ring-available {
-  background: linear-gradient(135deg, #52c8ee, #2a8fb0);
-  padding: 2px;
-  border-radius: 999px;
+/* Shared decorative avatar ring — gradient color set inline from producer color. */
+.avatar-gradient-ring {
+  position: relative;
 }
 
-.ring-limited {
-  background: linear-gradient(135deg, #6b7280, #f07840);
-  padding: 2px;
-  border-radius: 999px;
+.avatar-gradient-ring::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: conic-gradient(
+    from 210deg,
+    rgba(255, 255, 255, 0.35) 0deg,
+    transparent 90deg,
+    transparent 220deg,
+    rgba(255, 255, 255, 0.2) 300deg,
+    rgba(255, 255, 255, 0.35) 360deg
+  );
+  pointer-events: none;
 }
 
-.ring-unavailable {
-  background: rgba(15, 20, 25, 0.14);
-  padding: 2px;
-  border-radius: 999px;
+.avatar-gradient-ring > .avatar-gradient-ring-inner {
+  position: relative;
+  z-index: 1;
+}
+
+.avatar-initials {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.96);
+  text-shadow: none;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "ss01" 1, "kern" 1;
+  transform: translateY(0.5px);
 }

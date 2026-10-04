@@ -11,12 +11,6 @@ import {
 } from "@/lib/producer-availability";
 import type { MTDRecord, Producer } from "@/types";
 
-const statusRingClass = {
-  available: "ring-available",
-  limited: "ring-limited",
-  unavailable: "ring-unavailable",
-} as const;
-
 function mixBadgeClass(mixCount: number, maxMixes: number | null): string {
   if (mixCount <= 0) {
     return "border-emerald-200/70 bg-emerald-50/90 text-emerald-800";
@@ -54,7 +48,7 @@ export function TeamRosterMarquee({
           const insight = producerInsight(producer, mixesToday);
           return (
             <DashboardTip
-              key={producer.id}
+              key={producer.uuid || producer.id || producer.initials}
               title={insight.title}
               body={insight.body}
               className="shrink-0"
@@ -64,16 +58,7 @@ export function TeamRosterMarquee({
                 href={`/schedule?producer=${producer.initials}`}
                 className="dashboard-team-card group flex w-[140px] shrink-0 flex-col items-center gap-2.5 rounded-xl px-3 py-4 text-center"
               >
-                <div
-                  className={clsx(
-                    "rounded-full",
-                    statusRingClass[producer.status]
-                  )}
-                >
-                  <div className="rounded-full bg-white p-0.5">
-                    <Avatar producer={producer} size="xl" />
-                  </div>
-                </div>
+                <Avatar producer={producer} size="xl" />
                 <div className="min-w-0 w-full">
                   <p className="truncate text-[15px] font-bold tracking-[-0.03em] text-brand-ink">
                     {producer.name}

@@ -175,9 +175,14 @@ test("Dashboard Status & Date-Aware Classification", async (t) => {
     assert.equal(matchesAssignedProducerFilter(regularRec, "Outsourced"), false);
 
     const options = buildAssignedProducerOptions([outsourcedRec, regularRec], ["CA"]);
-    const outsourcedOpt = options.find((o: any) => o.value === "Outsourced");
-    assert.ok(outsourcedOpt);
-    assert.equal(outsourcedOpt.count, 1);
+    assert.equal(
+      options.some((o: { value: string }) => o.value === "Outsourced"),
+      false
+    );
+    assert.equal(
+      options.some((o: { value: string }) => o.value === "Unassigned"),
+      false
+    );
 
     const inQueueTip = kpiInsight("In Queue", {} as any);
     assert.equal(inQueueTip.body, "Mixes that are scheduled but not currently being worked on.");

@@ -19,6 +19,7 @@ import {
   InlineQuantityStepper,
 } from "@/components/mtd/InlineFields";
 import { resolveMTDFormMeta, getRecordMusicAffiliateInfo } from "@/lib/mtd-filters";
+import { buildRecordPriceSavePatch } from "@/lib/order-package-price";
 import {
   AssignEditorModal,
   type EditorAssignmentResult,
@@ -193,24 +194,43 @@ export default function MTDDetailPage({
   );
 
   const handleRecordPricingSave = useCallback(
-    (
+    async (
       _recordId: string,
       patch: { price: number; priceCompliance: PriceCompliance }
     ) => {
+      if (!rec) return;
+      const linked = linkedOrder ?? order ?? null;
+      const next = buildRecordPriceSavePatch(
+        rec,
+        linked,
+        patch.price,
+        patch.priceCompliance,
+        resolveMTDFormMeta(rec, orderById),
+        orderById
+      );
       if (spreadsheetEditing && spreadsheetDraft) {
         setSpreadsheetDraft((prev) =>
-          prev ? { ...prev, ...patch } : prev
+          prev
+            ? {
+                ...prev,
+                price: next.price,
+                priceCompliance: next.priceCompliance,
+              }
+            : prev
         );
         return;
       }
-      patchMTD(patch);
-      if (linkedOrder) {
-        updateOrder(linkedOrder.id, patch);
-      } else if (order) {
-        updateOrder(order.id, patch, order);
-      }
+      await updateMTD(rec.id, next);
     },
-    [spreadsheetEditing, spreadsheetDraft, patchMTD, linkedOrder, order, updateOrder]
+    [
+      spreadsheetEditing,
+      spreadsheetDraft,
+      rec,
+      linkedOrder,
+      order,
+      orderById,
+      updateMTD,
+    ]
   );
 
   const startSpreadsheetEdit = useCallback(() => {

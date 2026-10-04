@@ -126,8 +126,6 @@ def seed_all(db: Session):
                 or ([p["specialty"]] if p.get("specialty") else []),
                 avatar=p.get("avatar"),
                 mixes_this_week=p.get("mixesThisWeek", 0),
-                next_available=p.get("nextAvailable"),
-                status=p.get("status", "available"),
                 work_days=p.get("workDays", ["mon", "tue", "wed", "thu", "fri"]),
                 max_mixes_per_day=p.get("maxMixesPerDay"),
                 extra_days=p.get("extraDays", p.get("overtimeDays", [])),
@@ -148,7 +146,6 @@ def seed_all(db: Session):
             elif p.get("specialty"):
                 producer.categories = [p["specialty"]]
             producer.avatar = p.get("avatar", producer.avatar)
-            producer.status = p.get("status", producer.status)
             producer.compensation_model = p.get("compensationModel") if "compensationModel" in p else p.get("compensation_model", producer.compensation_model)
             producer.default_rate = p.get("defaultRate") if "defaultRate" in p else p.get("default_rate", producer.default_rate)
             producer.rates_by_category = p.get("ratesByCategory") if "ratesByCategory" in p else p.get("rates_by_category", producer.rates_by_category)

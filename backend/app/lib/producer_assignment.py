@@ -64,12 +64,14 @@ def is_first_available_request(raw: str | None) -> bool:
 
 
 def resolve_producer_by_assignment_key(db: Session, key: str | None) -> Producer | None:
-    if not key or not key.strip() or is_first_available_request(key):
+    if not key or not key.strip():
         return None
 
     normalized = normalize_producer_key(key)
     producers = db.query(Producer).all()
 
+    # Roster match wins over reserved request codes ("FA" = First available).
+    # A producer whose initials are FA must still resolve for assignment.
     for producer in producers:
         initials = (producer.initials or "").strip().upper()
         name = (producer.name or "").strip().upper()
@@ -86,6 +88,9 @@ def resolve_producer_by_assignment_key(db: Session, key: str | None) -> Producer
             return producer
         if first_name == normalized:
             return producer
+
+    if is_first_available_request(key):
+        return None
 
     return None
 

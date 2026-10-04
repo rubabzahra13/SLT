@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import BaseModel, ConfigDict, field_validator
 from typing import Optional, List, Dict, Any, Union
 from uuid import UUID
@@ -35,8 +37,6 @@ class ProducerSchema(BaseModel):
     categories: Optional[List[str]] = None
     avatar: Optional[str] = None
     mixes_this_week: int = 0
-    next_available: Optional[str] = None
-    status: str = "available"
     work_days: List[str] = ["mon", "tue", "wed", "thu", "fri"]
     time_offs: List[ProducerTimeOffSchema] = []
     max_mixes_per_day: Optional[int] = None
@@ -52,6 +52,7 @@ class ProducerSchema(BaseModel):
     rate_overrides: Optional[Dict[str, float]] = None
     manual_input_fields: Optional[List[Dict[str, Any]]] = None
     notes: Optional[str] = None
+    updated_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -61,7 +62,6 @@ class ProducerCreateSchema(BaseModel):
     email: str
     categories: Optional[List[str]] = None
     avatar: Optional[str] = None
-    status: Optional[str] = "available"
     work_days: Optional[List[str]] = ["mon", "tue", "wed", "thu", "fri"]
     max_mixes_per_day: Optional[int] = None
     max_producer_cost_per_day: Optional[int] = None
@@ -85,8 +85,6 @@ class ProducerUpdateSchema(BaseModel):
     categories: Optional[List[str]] = None
     avatar: Optional[str] = None
     mixes_this_week: Optional[int] = None
-    next_available: Optional[str] = None
-    status: Optional[str] = None
     work_days: Optional[List[str]] = None
     max_mixes_per_day: Optional[int] = None
     max_producer_cost_per_day: Optional[int] = None
@@ -102,3 +100,5 @@ class ProducerUpdateSchema(BaseModel):
     rate_overrides: Optional[Dict[str, float]] = None
     manual_input_fields: Optional[List[Dict[str, Any]]] = None
     notes: Optional[str] = None
+    # Client's last-seen updated_at; when set and server is newer → 409.
+    if_match_updated_at: Optional[datetime] = None

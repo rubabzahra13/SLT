@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { DollarSign, ShieldAlert, ShieldCheck, X } from "lucide-react";
+import { DollarSign, Loader2, ShieldAlert, ShieldCheck, X } from "lucide-react";
 import clsx from "clsx";
 import { formatPrice, titleCase } from "@/lib/data";
 import type { RecordMusicAffiliateInfo } from "@/lib/mtd-filters";
@@ -13,18 +13,24 @@ type SetRecordPricingModalProps = {
   open: boolean;
   record: MTDRecord | null;
   packagePrices: Record<string, number>;
+  /**
+   * Amount shown in the Orders/MTD price chip (engine or overridden).
+   * When set, the input seeds from this instead of stale record.price.
+   */
+  initialPrice?: number | null;
   musicAffiliateInfo?: RecordMusicAffiliateInfo | null;
   onClose: () => void;
   onSave: (
     recordId: string,
     patch: { price: number; priceCompliance: PriceCompliance }
-  ) => void;
+  ) => void | Promise<void>;
   readOnly?: boolean;
 };
 
 export function SetRecordPricingModal({
   open,
   record,
+  initialPrice = null,
   musicAffiliateInfo = null,
   onClose,
   onSave,
@@ -32,6 +38,7 @@ export function SetRecordPricingModal({
 }: SetRecordPricingModalProps) {
   const [mounted, setMounted] = useState(false);
   const [priceDraft, setPriceDraft] = useState("");
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -39,8 +46,13 @@ export function SetRecordPricingModal({
 
   useEffect(() => {
     if (!open || !record) return;
-    setPriceDraft(String(record.price));
-  }, [open, record]);
+    const seed =
+      typeof initialPrice === "number" && Number.isFinite(initialPrice)
+        ? initialPrice
+        : record.price;
+    setPriceDraft(String(seed));
+    setSaving(false);
+  }, [open, record, initialPrice]);
 
   useEffect(() => {
     if (!open) return;
@@ -53,18 +65,36 @@ export function SetRecordPricingModal({
 
   if (!mounted || !open || !record) return null;
 
+  const seededPrice =
+    typeof initialPrice === "number" && Number.isFinite(initialPrice)
+      ? initialPrice
+      : record.price;
   const parsedDraft = parsePriceInput(priceDraft);
   const hasValidPrice = parsedDraft !== null;
-  const priceChanged = hasValidPrice && parsedDraft !== record.price;
+  const priceChanged = hasValidPrice && parsedDraft !== seededPrice;
   const compliance = musicAffiliateInfo?.compliance ?? record.priceCompliance;
   const isCompliant = compliance === "compliant";
 
-  function handleSave() {
-    if (readOnly || !hasValidPrice) return;
-    onSave(record!.id, {
-      price: parsedDraft!,
-      priceCompliance: record!.priceCompliance,
-    });
+  async function handleSave() {
+    if (readOnly || !hasValidPrice || saving) return;
+    setSaving(true);
+    try {
+      await Promise.resolve(
+        onSave(record!.id, {
+          price: parsedDraft!,
+          priceCompliance: record!.priceCompliance,
+        })
+      );
+      onClose();
+    } catch {
+      // Parent surfaces the error toast; keep the modal open.
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function handleDismiss() {
+    if (saving) return;
     onClose();
   }
 
@@ -73,8 +103,9 @@ export function SetRecordPricingModal({
       <button
         type="button"
         className="absolute inset-0 bg-black/45 backdrop-blur-[2px]"
-        onClick={onClose}
+        onClick={handleDismiss}
         aria-label="Close"
+        disabled={saving}
       />
 
       <div
@@ -106,8 +137,9 @@ export function SetRecordPricingModal({
             </div>
             <button
               type="button"
-              onClick={onClose}
-              className="rounded-lg p-1.5 text-brand-ink-tertiary transition hover:bg-brand-bg hover:text-brand-ink"
+              onClick={handleDismiss}
+              disabled={saving}
+              className="rounded-lg p-1.5 text-brand-ink-tertiary transition hover:bg-brand-bg hover:text-brand-ink disabled:opacity-50"
               aria-label="Close dialog"
             >
               <X className="h-4 w-4" />
@@ -166,13 +198,13 @@ export function SetRecordPricingModal({
                 type="text"
                 inputMode="decimal"
                 value={priceDraft}
-                readOnly={readOnly}
-                disabled={readOnly}
+                readOnly={readOnly || saving}
+                disabled={readOnly || saving}
                 onChange={(event) => setPriceDraft(event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key === "Enter") {
                     event.preventDefault();
-                    handleSave();
+                    void handleSave();
                   }
                 }}
                 autoFocus={!readOnly}
@@ -182,7 +214,7 @@ export function SetRecordPricingModal({
             </div>
             {priceChanged ? (
               <p className="mt-1.5 text-[12px] text-brand-ink-tertiary">
-                Previously {formatPrice(record.price)}
+                Previously {formatPrice(seededPrice)}
               </p>
             ) : null}
           </label>
@@ -192,17 +224,25 @@ export function SetRecordPricingModal({
           {!readOnly && (
             <button
               type="button"
-              onClick={handleSave}
-              disabled={!hasValidPrice}
-              className="border-b border-black/[0.08] py-3.5 text-[15px] font-semibold text-brand-orange transition hover:bg-brand-orange/8 disabled:cursor-not-allowed disabled:text-brand-ink-tertiary disabled:hover:bg-transparent"
+              onClick={() => void handleSave()}
+              disabled={!hasValidPrice || saving}
+              className="inline-flex items-center justify-center gap-2 border-b border-black/[0.08] py-3.5 text-[15px] font-semibold text-brand-orange transition hover:bg-brand-orange/8 disabled:cursor-not-allowed disabled:text-brand-ink-tertiary disabled:hover:bg-transparent"
             >
-              Save pricing
+              {saving ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2.25} />
+                  Saving…
+                </>
+              ) : (
+                "Save pricing"
+              )}
             </button>
           )}
           <button
             type="button"
-            onClick={onClose}
-            className="py-3.5 text-[15px] font-medium text-brand-ink transition hover:bg-brand-bg"
+            onClick={handleDismiss}
+            disabled={saving}
+            className="py-3.5 text-[15px] font-medium text-brand-ink transition hover:bg-brand-bg disabled:opacity-50"
           >
             {readOnly ? "Close" : "Cancel"}
           </button>

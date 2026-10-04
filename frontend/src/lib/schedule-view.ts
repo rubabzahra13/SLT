@@ -95,7 +95,6 @@ export function describeScheduleOffDetail(
   }
 
   if (parts.length > 0) return parts.join(", ");
-  if (producer.status === "unavailable") return "Unavailable";
   return undefined;
 }
 
@@ -105,9 +104,8 @@ export function describeScheduleOffDetail(
  * Priority:
  * 1. Legacy `schedule` entry (explicit day-level override, e.g. from a future
  *    db-backed producer availability table).
- * 2. Producer record status: "unavailable" → "off".
- * 3. Weekends: "off" (producers generally don't work weekends by default).
- * 4. All other cases: "available".
+ * 2. Weekends / non-work: "nonwork".
+ * 3. Work / Extra days: "available" (unless on leave → "off").
  *
  * NOTE: We deliberately do NOT randomly generate "mix" statuses here.
  * A cell is marked "mix" only when `coveringAssignments()` finds a real
@@ -139,7 +137,6 @@ function inferStatus(
   }
 
   if (isProducerWorkDay(producer, date) || isProducerExtraDay(producer, date)) {
-    if (producer.status === "unavailable") return "off";
     return "available";
   }
 
