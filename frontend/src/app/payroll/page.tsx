@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Mic, Pencil, Trash2, Zap } from "lucide-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Check, Mic, Pencil, Trash2, Zap } from "lucide-react";
 import { AddVoiceoverModal } from "@/components/payroll/AddVoiceoverModal";
 import { AddRushFeeModal } from "@/components/payroll/AddRushFeeModal";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -25,7 +26,11 @@ import {
 } from "@/lib/date-filters";
 import { generatePayrollCsv, triggerCsvDownload } from "@/lib/export-csv";
 import { formatPrice, titleCase } from "@/lib/data";
-import { getPayrollRecords } from "@/lib/mtd-completion";
+import {
+  getArchivedPayrollRecords,
+  getPayrollRecords,
+  patchMarkPayrollPaid,
+} from "@/lib/mtd-completion";
 import {
   countMTDByCheerSubtype,
   countMTDByDanceSubtype,
@@ -62,7 +67,7 @@ import {
 } from "@/lib/schedule-filters";
 
 const DEFAULT_FORM: OrderFormType = "school-all-star-cheer";
-type PayrollPageTab = "view" | "send";
+type PayrollPageTab = "view" | "archive" | "send";
 const DEFAULT_CHEER_SUBTYPE: CheerFormSubtypeFilter = "all";
 const DEFAULT_DANCE_SUBTYPE: DanceFormSubtypeFilter = "all";
 
@@ -74,8 +79,16 @@ const addonEditBtnClass =
   "inline-flex h-7 w-7 items-center justify-center rounded-full text-brand-ink-tertiary transition hover:bg-brand-signature/10 hover:text-brand-signature";
 const addonRemoveBtnClass =
   "inline-flex h-7 w-7 items-center justify-center rounded-full text-brand-ink-tertiary transition hover:bg-brand-danger/10 hover:text-brand-danger";
+const paidBtnClass =
+  "inline-flex h-7 items-center gap-1 rounded-md border border-brand-success/35 bg-brand-success/10 px-2.5 text-[11px] font-semibold text-brand-success transition hover:bg-brand-success/18";
+const deleteForeverBtnClass =
+  "inline-flex h-7 items-center gap-1 rounded-md border border-brand-danger/35 bg-brand-danger/8 px-2.5 text-[11px] font-semibold text-brand-danger transition hover:bg-brand-danger/15";
 
 export default function PayrollPage() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const focusParam = searchParams.get("focus");
   const {
     mtdRecords,
     allOrders,
@@ -83,13 +96,19 @@ export default function PayrollPage() {
     payrollAddons,
     addPayrollAddon,
     removePayrollAddon,
+    updateMTD,
+    removeMTDRecord,
     isViewOnly,
   } = useAppState();
   const [pageTab, setPageTab] = useState<PayrollPageTab>("view");
+  const [highlightId, setHighlightId] = useState<string | null>(focusParam);
   const [selectedSendEditor, setSelectedSendEditor] = useState("all");
   const [voiceoverRecord, setVoiceoverRecord] = useState<MTDRecord | null>(null);
   const [rushFeeRecord, setRushFeeRecord] = useState<MTDRecord | null>(null);
   const [addonDeleteId, setAddonDeleteId] = useState<string | null>(null);
+  const [deleteForeverRecord, setDeleteForeverRecord] =
+    useState<MTDRecord | null>(null);
+  const [deletingForever, setDeletingForever] = useState(false);
 
 
   const [formState, setFormState] = useState<OrderFormType>(DEFAULT_FORM);
@@ -202,10 +221,94 @@ export default function PayrollPage() {
     [mtdRecords]
   );
 
+  const archivedPayrollRecords = useMemo(
+    () =>
+      [...getArchivedPayrollRecords(mtdRecords)].sort((a, b) =>
+        (b.paidAt ?? b.completedAt ?? "").localeCompare(
+          a.paidAt ?? a.completedAt ?? ""
+        )
+      ),
+    [mtdRecords]
+  );
+
+  const sourceRecords =
+    pageTab === "archive" ? archivedPayrollRecords : payrollRecords;
+
+  const markPaid = useCallback(
+    (rec: MTDRecord) => {
+      if (isViewOnly) return;
+      updateMTD(rec.id, patchMarkPayrollPaid());
+      const meta = resolveMTDFormMeta(
+        rec,
+        new Map(allOrders.map((order) => [order.id, order]))
+      );
+      setFormState(meta.formType);
+      if (meta.formType === "school-all-star-cheer" && meta.cheerFormSubtype) {
+        setCheerSubtypeState(meta.cheerFormSubtype as CheerFormSubtypeFilter);
+      }
+      if (meta.formType === "school-all-star-dance" && meta.danceFormSubtype) {
+        setDanceSubtypeState(meta.danceFormSubtype as DanceFormSubtypeFilter);
+      }
+      setHighlightId(rec.id);
+      setPageTab("archive");
+    },
+    [isViewOnly, updateMTD, allOrders]
+  );
+
+  const clearHighlight = useCallback(() => {
+    setHighlightId(null);
+    if (typeof window !== "undefined" && focusParam) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("focus");
+      const next = params.toString();
+      router.replace(next ? `${pathname}?${next}` : pathname, { scroll: false });
+    }
+  }, [focusParam, pathname, router, searchParams]);
+
+  useEffect(() => {
+    setHighlightId(focusParam);
+  }, [focusParam]);
+
+  const confirmDeleteForever = useCallback(async () => {
+    if (isViewOnly || !deleteForeverRecord || deletingForever) return;
+    setDeletingForever(true);
+    try {
+      await removeMTDRecord(deleteForeverRecord.id);
+      setDeleteForeverRecord(null);
+    } catch {
+      // Error toast from removeMTDRecord
+    } finally {
+      setDeletingForever(false);
+    }
+  }, [isViewOnly, deleteForeverRecord, deletingForever, removeMTDRecord]);
+
   const orderById = useMemo(
     () => new Map(allOrders.map((order) => [order.id, order])),
     [allOrders]
   );
+
+  useEffect(() => {
+    if (!focusParam) return;
+    const focused =
+      mtdRecords.find(
+        (r) =>
+          r.id === focusParam ||
+          r.orderId === focusParam ||
+          r.uuid === focusParam ||
+          r.legacyId === focusParam
+      ) ?? null;
+    if (!focused) return;
+    const paid = Boolean(focused.paidAt);
+    setPageTab(paid ? "archive" : "view");
+    const meta = resolveMTDFormMeta(focused, orderById);
+    setFormState(meta.formType);
+    if (meta.formType === "school-all-star-cheer" && meta.cheerFormSubtype) {
+      setCheerSubtypeState(meta.cheerFormSubtype as CheerFormSubtypeFilter);
+    }
+    if (meta.formType === "school-all-star-dance" && meta.danceFormSubtype) {
+      setDanceSubtypeState(meta.danceFormSubtype as DanceFormSubtypeFilter);
+    }
+  }, [focusParam, mtdRecords, orderById]);
 
   const switchForm = useCallback(
     (next: OrderFormType) => {
@@ -225,14 +328,14 @@ export default function PayrollPage() {
     const savedForm = sessionStorage.getItem("slt_payroll_form");
     if (savedForm) return;
 
-    if (payrollRecords.length === 0) return;
+    if (sourceRecords.length === 0) return;
 
-    const hasVisibleForForm = payrollRecords.some((rec) =>
+    const hasVisibleForForm = sourceRecords.some((rec) =>
       matchesFormFilter(rec, orderById, form, cheerSubtype, danceSubtype)
     );
     if (hasVisibleForForm) return;
 
-    const latest = payrollRecords[0];
+    const latest = sourceRecords[0];
     const meta = resolveMTDFormMeta(latest, orderById);
     setFormState(meta.formType);
     if (meta.formType === "school-all-star-cheer" && meta.cheerFormSubtype) {
@@ -241,11 +344,11 @@ export default function PayrollPage() {
     if (meta.formType === "school-all-star-dance" && meta.danceFormSubtype) {
       setDanceSubtypeState(meta.danceFormSubtype as DanceFormSubtypeFilter);
     }
-  }, [payrollRecords, orderById, form, cheerSubtype, danceSubtype]);
+  }, [sourceRecords, orderById, form, cheerSubtype, danceSubtype]);
 
   const tableFiltered = useMemo(
     () =>
-      filterMTDRecords(payrollRecords, {
+      filterMTDRecords(sourceRecords, {
         packageTier: tableFilters.packageTier,
         timeLimit: tableFilters.timeLimit,
         split: tableFilters.split,
@@ -261,7 +364,7 @@ export default function PayrollPage() {
         producers,
       }),
     [
-      payrollRecords,
+      sourceRecords,
       tableFilters,
       form,
       cheerSubtype,
@@ -320,21 +423,30 @@ export default function PayrollPage() {
   }, [filtered, orderById, producers, payrollAddons]);
 
   const formCounts = useMemo(
-    () => countMTDByForm(payrollRecords, orderById),
-    [payrollRecords, orderById]
+    () => countMTDByForm(sourceRecords, orderById),
+    [sourceRecords, orderById]
   );
 
   const cheerSubtypeCounts = useMemo(
-    () => countMTDByCheerSubtype(payrollRecords, orderById),
-    [payrollRecords, orderById]
+    () => countMTDByCheerSubtype(sourceRecords, orderById),
+    [sourceRecords, orderById]
   );
 
   const danceSubtypeCounts = useMemo(
-    () => countMTDByDanceSubtype(payrollRecords, orderById),
-    [payrollRecords, orderById]
+    () => countMTDByDanceSubtype(sourceRecords, orderById),
+    [sourceRecords, orderById]
   );
 
   const emptyMessage = useMemo(() => {
+    if (pageTab === "archive") {
+      if (archivedPayrollRecords.length === 0) {
+        return "No paid mixes in archive yet. Mark a mix as Paid on View Payroll to move it here.";
+      }
+      if (filtered.length === 0) {
+        return "No archived mixes match the current category or filters.";
+      }
+      return "No mixes to show.";
+    }
     if (payrollRecords.length === 0) {
       return "No completed mixes in payroll yet. On MTD, set status to Completed and click Confirm & Move to Payroll in the final step.";
     }
@@ -342,7 +454,12 @@ export default function PayrollPage() {
       return "No mixes match the current category or filters. Try another tab or clear filters.";
     }
     return "No mixes to show.";
-  }, [payrollRecords.length, filtered.length]);
+  }, [
+    pageTab,
+    archivedPayrollRecords.length,
+    payrollRecords.length,
+    filtered.length,
+  ]);
 
   const tableFilterKey = [
     tableFilters.packageTier,
@@ -472,6 +589,7 @@ export default function PayrollPage() {
 
   const showCheerVoiceover = form === "school-all-star-cheer";
   const showDanceVoiceover = form === "school-all-star-dance";
+  const addonsLocked = isViewOnly || pageTab === "archive";
 
   const columns: Column<MTDRecord>[] = useMemo(
     () => {
@@ -811,7 +929,7 @@ export default function PayrollPage() {
                   {formatPrice(voAmount)}
                 </span>
               ) : null}
-              {!isViewOnly && !hasVoiceover ? (
+              {!addonsLocked && !hasVoiceover ? (
                 <button
                   type="button"
                   onClick={() => setVoiceoverRecord(rec)}
@@ -822,7 +940,7 @@ export default function PayrollPage() {
                   <span>Add</span>
                 </button>
               ) : null}
-              {!isViewOnly && hasVoiceover ? (
+              {!addonsLocked && hasVoiceover ? (
                 <>
                   <button
                     type="button"
@@ -883,7 +1001,7 @@ export default function PayrollPage() {
                   {formatPrice(rushAmount)}
                 </span>
               ) : null}
-              {!isViewOnly && !hasRush ? (
+              {!addonsLocked && !hasRush ? (
                 <button
                   type="button"
                   onClick={() => setRushFeeRecord(rec)}
@@ -894,7 +1012,7 @@ export default function PayrollPage() {
                   <span>Add</span>
                 </button>
               ) : null}
-              {!isViewOnly && hasRush ? (
+              {!addonsLocked && hasRush ? (
                 <>
                   <button
                     type="button"
@@ -922,16 +1040,88 @@ export default function PayrollPage() {
       }
       );
 
+      if (pageTab === "archive") {
+        baseCols.push({
+          key: "paidAt",
+          header: "Paid",
+          width: "112px",
+          align: "center",
+          cellClassName: "!px-2 !py-1.5",
+          headerClassName: "!px-2 !py-2",
+          render: (rec) => (
+            <span className="text-[12px] tabular-nums text-brand-ink-secondary">
+              {rec.paidAt
+                ? formatDisplayDate(rec.paidAt.slice(0, 10))
+                : "—"}
+            </span>
+          ),
+        });
+        if (!isViewOnly) {
+          baseCols.push({
+            key: "deleteForever",
+            header: "Archive",
+            width: "128px",
+            align: "center",
+            cellClassName: "!px-2 !py-1.5",
+            headerClassName: "!px-2 !py-2",
+            render: (rec) => (
+              <div
+                className="flex items-center justify-center"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <button
+                  type="button"
+                  onClick={() => setDeleteForeverRecord(rec)}
+                  className={deleteForeverBtnClass}
+                  title="Delete forever"
+                >
+                  <Trash2 className="h-3 w-3" strokeWidth={2.25} />
+                  <span>Delete forever</span>
+                </button>
+              </div>
+            ),
+          });
+        }
+      } else if (pageTab === "view" && !isViewOnly) {
+        baseCols.push({
+          key: "markPaid",
+          header: "Paid",
+          width: "96px",
+          align: "center",
+          cellClassName: "!px-2 !py-1.5",
+          headerClassName: "!px-2 !py-2",
+          render: (rec) => (
+            <div
+              className="flex items-center justify-center"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                onClick={() => markPaid(rec)}
+                className={paidBtnClass}
+                title="Mark paid and move to archive"
+              >
+                <Check className="h-3 w-3" strokeWidth={2.5} />
+                <span>Paid</span>
+              </button>
+            </div>
+          ),
+        });
+      }
+
       return baseCols;
     },
     [
       allOrders,
       producers,
       form,
+      addonsLocked,
       isViewOnly,
       payrollAddons,
       orderById,
       handleDeleteAddon,
+      pageTab,
+      markPaid,
     ]
   );
 
@@ -943,12 +1133,16 @@ export default function PayrollPage() {
         badge={
           pageTab === "view"
             ? `${filtered.length} of ${payrollRecords.length} · ${formatPrice(totalPayroll)}`
-            : undefined
+            : pageTab === "archive"
+              ? `${filtered.length} of ${archivedPayrollRecords.length}`
+              : undefined
         }
         subtitle={
           pageTab === "view"
             ? "Ready for payout"
-            : "Filter producers, preview statements, and send via Gmail"
+            : pageTab === "archive"
+              ? "Paid mixes · delete forever when done"
+              : "Filter producers, preview statements, and send via Gmail"
         }
         tabs={
           <Tabs
@@ -958,6 +1152,11 @@ export default function PayrollPage() {
             options={[
               { value: "view", label: "View Payroll" },
               {
+                value: "archive",
+                label: "Archive",
+                count: archivedPayrollRecords.length || undefined,
+              },
+              {
                 value: "send",
                 label: "Send Statements",
                 count: sendProducerNames.length || undefined,
@@ -966,7 +1165,7 @@ export default function PayrollPage() {
           />
         }
         exportAction={
-          pageTab === "view"
+          pageTab === "view" || pageTab === "archive"
             ? {
                 label: "CSV",
                 onClick: () => {
@@ -976,13 +1175,17 @@ export default function PayrollPage() {
                     producers,
                     payrollAddons
                   );
-                  triggerCsvDownload(`Payroll_Export_${todayIso()}.csv`, csv);
+                  const prefix =
+                    pageTab === "archive"
+                      ? "Payroll_Archive"
+                      : "Payroll_Export";
+                  triggerCsvDownload(`${prefix}_${todayIso()}.csv`, csv);
                 },
               }
             : undefined
         }
         search={
-          pageTab === "view"
+          pageTab === "view" || pageTab === "archive"
             ? {
                 value: searchQuery,
                 onChange: setSearchQuery,
@@ -991,7 +1194,7 @@ export default function PayrollPage() {
             : undefined
         }
         toolbar={
-          pageTab === "view" ? (
+          pageTab === "view" || pageTab === "archive" ? (
             <MTDPageToolbar
               form={form}
               cheerSubtype={cheerSubtype}
@@ -1002,7 +1205,7 @@ export default function PayrollPage() {
               formCounts={formCounts}
               cheerCounts={cheerSubtypeCounts}
               danceCounts={danceSubtypeCounts}
-              records={payrollRecords}
+              records={sourceRecords}
               producers={producers}
               orderById={orderById}
               filters={tableFilters}
@@ -1033,18 +1236,19 @@ export default function PayrollPage() {
       />
 
       <div className="min-h-0 flex-1 overflow-auto px-2 pb-6 pt-5 lg:px-3">
-        {pageTab === "view" ? (
+        {pageTab === "view" || pageTab === "archive" ? (
           <div className="dashboard-panel dashboard-panel-framed overflow-hidden">
             <DataTable
-              key={`${form}-${cheerSubtype}-${danceSubtype}-${tableFilterKey}`}
+              key={`${pageTab}-${form}-${cheerSubtype}-${danceSubtype}-${tableFilterKey}`}
               columns={columns}
               data={filtered}
               rowKey={(rec) => rec.id}
-              href={(rec) => `/payroll/${rec.id}`}
               emptyMessage={emptyMessage}
               pageSize={15}
               embedded
               showScrollIndicator={false}
+              highlightRowKey={highlightId}
+              onClearHighlight={clearHighlight}
             />
           </div>
         ) : (
@@ -1079,6 +1283,57 @@ export default function PayrollPage() {
         producers={producers}
         onAdd={handleReplaceAddon}
       />
+
+      {deleteForeverRecord ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <button
+            type="button"
+            className="absolute inset-0 bg-brand-scrim backdrop-blur-sm"
+            onClick={() => {
+              if (!deletingForever) setDeleteForeverRecord(null);
+            }}
+            aria-label="Close"
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-forever-title"
+            className="relative w-full max-w-[400px] overflow-hidden rounded-[22px] bg-brand-elevated shadow-[0_24px_80px_rgba(0,0,0,0.28)]"
+          >
+            <div className="px-6 pb-5 pt-7 text-center">
+              <h2
+                id="delete-forever-title"
+                className="text-[18px] font-semibold tracking-[-0.02em] text-brand-ink"
+              >
+                Delete forever?
+              </h2>
+              <p className="mt-3 text-[13px] leading-relaxed text-brand-ink-secondary">
+                {titleCase(deleteForeverRecord.programName)} · invoice{" "}
+                {deleteForeverRecord.invoice || "—"} will be permanently removed
+                from payroll archive. This cannot be undone.
+              </p>
+              <div className="mt-6 flex gap-2">
+                <button
+                  type="button"
+                  disabled={deletingForever}
+                  onClick={() => setDeleteForeverRecord(null)}
+                  className="flex-1 rounded-xl border border-brand-line px-3 py-2.5 text-[13px] font-semibold text-brand-ink transition hover:bg-brand-surface"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={deletingForever}
+                  onClick={() => void confirmDeleteForever()}
+                  className="flex-1 rounded-xl bg-brand-danger px-3 py-2.5 text-[13px] font-semibold text-white transition hover:bg-brand-danger/90 disabled:opacity-60"
+                >
+                  {deletingForever ? "Deleting…" : "Delete forever"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

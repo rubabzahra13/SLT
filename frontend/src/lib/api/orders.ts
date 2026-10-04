@@ -262,10 +262,18 @@ export async function updateOrderApi(
   if ((patch as any).order_status !== undefined) payload.order_status = (patch as any).order_status;
   if (patch.assignedProducer !== undefined) payload.assigned_producer = patch.assignedProducer;
   if ((patch as any).assigned_producer !== undefined) payload.assigned_producer = (patch as any).assigned_producer;
-  if (patch.mixStartDate !== undefined) payload.mix_start_date = patch.mixStartDate;
-  if ((patch as any).mix_start_date !== undefined) payload.mix_start_date = (patch as any).mix_start_date;
-  if (patch.mixEndDate !== undefined) payload.mix_end_date = patch.mixEndDate;
-  if ((patch as any).mix_end_date !== undefined) payload.mix_end_date = (patch as any).mix_end_date;
+  if (patch.mixStartDate !== undefined) {
+    payload.mix_start_date = patch.mixStartDate || null;
+  }
+  if ((patch as any).mix_start_date !== undefined) {
+    payload.mix_start_date = (patch as any).mix_start_date || null;
+  }
+  if (patch.mixEndDate !== undefined) {
+    payload.mix_end_date = patch.mixEndDate || null;
+  }
+  if ((patch as any).mix_end_date !== undefined) {
+    payload.mix_end_date = (patch as any).mix_end_date || null;
+  }
   if (patch.haveSongs !== undefined) payload.have_songs = patch.haveSongs;
   if ((patch as any).have_songs !== undefined) payload.have_songs = (patch as any).have_songs;
   if (patch.eightCountSheet !== undefined) payload.eight_count_sheet = patch.eightCountSheet;

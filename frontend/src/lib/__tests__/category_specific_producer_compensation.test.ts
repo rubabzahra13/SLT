@@ -11,8 +11,7 @@ function makeProducer(overrides: Partial<Producer> = {}): Producer {
     name: "Test Producer",
     initials: "TP",
     email: "test@soundslikethat.com",
-    categories: ["Pom", "School Cheer", "Hip Hop"],
-    specialty: "Pom",
+    categories: ["Pom"],
     avatar: "",
     mixesThisWeek: 0,
     nextAvailable: "TBD",
@@ -21,7 +20,7 @@ function makeProducer(overrides: Partial<Producer> = {}): Producer {
     timeOff: [],
     maxMixesPerDay: null,
     maxProducerCostPerDay: null,
-    overtimeDays: [],
+    extraDays: [],
     compensationModel: "percentage_of_payroll_base",
     defaultRate: 0.50,
     ratesByCategory: {

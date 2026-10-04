@@ -37,7 +37,7 @@ describe("Prompt 11 — Producer Color-Coding in Selection UI Tests", () => {
       id: "prod-test-no-color",
       name: "Test Producer No Color",
       initials: "TP",
-      specialty: "Cheer",
+      categories: ["Cheer"],
     };
 
     const color = unconfiguredProducer.color || "#94a3b8";

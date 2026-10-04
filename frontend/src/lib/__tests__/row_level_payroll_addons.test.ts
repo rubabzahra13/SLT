@@ -9,14 +9,14 @@ const mockProducers = [
     name: "Casey Marlow",
     initials: "CM",
     email: "casey@example.com",
-    specialty: "Cheer",
+    categories: ["Cheer"],
   },
   {
     id: "prod-2",
     name: "Matt",
     initials: "M",
     email: "matt@example.com",
-    specialty: "Dance",
+    categories: ["Dance"],
   },
 ] as unknown as Producer[];
 

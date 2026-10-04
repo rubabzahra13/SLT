@@ -174,7 +174,7 @@ uvicorn app.main:app --reload --port 8001
 
 ## 9. Database Model Overview
 
-* **`producers`**: Producer profiles, initials, specialties, work days, max daily mixes limit, and overtime days.
+* **`producers`**: Producer profiles, initials, categories, work days, max daily mixes limit, and extra days.
 * **`producer_time_off`**: Vacation, holiday, and personal leave ranges for producers (`producer_id` FK).
 * **`orders`**: Form submissions and order intake details.
 * **`mtd_records`**: Operational Music To Do board entries linked to `orders.id` (`order_id` FK) and `producers.id` (`assigned_producer_id` FK).

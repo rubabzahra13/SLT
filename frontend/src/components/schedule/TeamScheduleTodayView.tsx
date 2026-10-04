@@ -143,7 +143,7 @@ export function TeamScheduleTodayView({
       },
       {
         key: "endDate",
-        header: "End Date",
+        header: "Due Date",
         width: "120px",
         align: "center",
         render: (entry) => {

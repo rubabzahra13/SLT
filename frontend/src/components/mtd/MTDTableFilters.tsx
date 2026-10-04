@@ -40,7 +40,7 @@ type MTDTableFilterPanelProps = {
   onChange: (patch: Partial<MTDTableFilterState>) => void;
   onReset: () => void;
   form?: OrderFormType;
-  /** Orders tab hides Assigned + Data (covered by range toggles). */
+  /** Orders tab hides Data (covered by range toggles); shows Editor instead of Assigned. */
   variant?: "mtd" | "orders";
 };
 
@@ -50,15 +50,15 @@ export function hasActiveMTDFilters(
   variant: "mtd" | "orders" = "mtd"
 ): boolean {
   const isCheer = !form || form === "school-all-star-cheer";
-  const showAssignedAndData = variant !== "orders";
+  const showDataFilter = variant !== "orders";
   return (
     filters.packageTier !== "All" ||
     (isCheer && filters.timeLimit !== "All") ||
     (isCheer && filters.split !== "all") ||
-    (showAssignedAndData && filters.assignedProducer !== "All") ||
+    filters.assignedProducer !== "All" ||
     filters.requestedProducer !== "All" ||
     filters.scheduleFilter !== "all" ||
-    (showAssignedAndData && (filters.infoFilter ?? "all") !== "all") ||
+    (showDataFilter && (filters.infoFilter ?? "all") !== "all") ||
     filters.dateFilter.type !== "all"
   );
 }
@@ -69,15 +69,15 @@ function countTableFilters(
   variant: "mtd" | "orders" = "mtd"
 ): number {
   const isCheer = !form || form === "school-all-star-cheer";
-  const showAssignedAndData = variant !== "orders";
+  const showDataFilter = variant !== "orders";
   let count = 0;
   if (filters.packageTier !== "All") count += 1;
   if (isCheer && filters.timeLimit !== "All") count += 1;
   if (isCheer && filters.split !== "all") count += 1;
-  if (showAssignedAndData && filters.assignedProducer !== "All") count += 1;
+  if (filters.assignedProducer !== "All") count += 1;
   if (filters.requestedProducer !== "All") count += 1;
   if (filters.scheduleFilter !== "all") count += 1;
-  if (showAssignedAndData && (filters.infoFilter ?? "all") !== "all") count += 1;
+  if (showDataFilter && (filters.infoFilter ?? "all") !== "all") count += 1;
   if (filters.dateFilter.type !== "all") count += 1;
   return count;
 }
@@ -95,7 +95,8 @@ export function MTDTableFilterPanel({
 }: MTDTableFilterPanelProps & { grouped?: boolean }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
-  const showAssignedAndData = variant !== "orders";
+  const showDataFilter = variant !== "orders";
+  const editorFilterLabel = variant === "orders" ? "Editor" : "Assigned";
 
   const packageOptions = useMemo(
     () => buildPackageTierOptions(records),
@@ -107,8 +108,8 @@ export function MTDTableFilterPanel({
   );
   const splitOptions = useMemo(() => buildSplitOptions(records), [records]);
   const assignedOptions = useMemo(
-    () => buildAssignedProducerOptions(records, EDITOR_NAMES),
-    [records]
+    () => buildAssignedProducerOptions(records, EDITOR_NAMES, producers),
+    [records, producers]
   );
   const requestedOptions = useMemo(
     () =>
@@ -228,15 +229,13 @@ export function MTDTableFilterPanel({
                   />
                 </>
               ) : null}
-              {showAssignedAndData ? (
-                <FilterMenu
-                  label="Assigned"
-                  value={filters.assignedProducer}
-                  options={assignedOptions}
-                  onChange={(value) => onChange({ assignedProducer: value })}
-                  accent="orange"
-                />
-              ) : null}
+              <FilterMenu
+                label={editorFilterLabel}
+                value={filters.assignedProducer}
+                options={assignedOptions}
+                onChange={(value) => onChange({ assignedProducer: value })}
+                accent="orange"
+              />
               <FilterMenu
                 label="Requested"
                 value={filters.requestedProducer}
@@ -252,7 +251,7 @@ export function MTDTableFilterPanel({
                   onChange({ scheduleFilter: value as MixScheduleFilter })
                 }
               />
-              {showAssignedAndData ? (
+              {showDataFilter ? (
                 <FilterMenu
                   label="Data"
                   value={filters.infoFilter ?? "all"}
@@ -316,7 +315,8 @@ export function useMTDFilterChips(
     variant = "mtd",
   } = props;
   const isCheer = !form || form === "school-all-star-cheer";
-  const showAssignedAndData = variant !== "orders";
+  const showDataFilter = variant !== "orders";
+  const editorFilterLabel = variant === "orders" ? "Editor" : "Assigned";
 
   const packageOptions = useMemo(
     () => buildPackageTierOptions(records),
@@ -328,8 +328,8 @@ export function useMTDFilterChips(
   );
   const splitOptions = useMemo(() => buildSplitOptions(records), [records]);
   const assignedOptions = useMemo(
-    () => buildAssignedProducerOptions(records, EDITOR_NAMES),
-    [records]
+    () => buildAssignedProducerOptions(records, EDITOR_NAMES, producers),
+    [records, producers]
   );
   const requestedOptions = useMemo(
     () =>
@@ -390,13 +390,13 @@ export function useMTDFilterChips(
         onClear: () => onChange({ split: "all" }),
       });
     }
-    if (showAssignedAndData && filters.assignedProducer !== "All") {
+    if (filters.assignedProducer !== "All") {
       const label =
         assignedOptions.find((o) => o.value === filters.assignedProducer)
           ?.label ?? filters.assignedProducer;
       items.push({
         key: "assignedProducer",
-        label: `Assigned · ${label}`,
+        label: `${editorFilterLabel} · ${label}`,
         onClear: () => onChange({ assignedProducer: "All" }),
       });
     }
@@ -420,7 +420,7 @@ export function useMTDFilterChips(
         onClear: () => onChange({ scheduleFilter: "all" }),
       });
     }
-    if (showAssignedAndData && (filters.infoFilter ?? "all") !== "all") {
+    if (showDataFilter && (filters.infoFilter ?? "all") !== "all") {
       const label =
         infoOptions.find((o) => o.value === filters.infoFilter)?.label ??
         filters.infoFilter;
@@ -450,7 +450,8 @@ export function useMTDFilterChips(
     infoOptions,
     onChange,
     isCheer,
-    showAssignedAndData,
+    showDataFilter,
+    editorFilterLabel,
   ]);
 }
 

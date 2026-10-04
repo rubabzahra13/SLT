@@ -241,6 +241,39 @@ def update_mtd_record(mtd_id: str, payload: MTDRecordUpdateSchema, db: Session =
     return mtd
 
 
+@router.delete("/mtd/{mtd_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_mtd_record(
+    mtd_id: str,
+    db: Session = Depends(get_db),
+    _: None = Depends(require_full_access),
+):
+    """Permanently delete an archived payroll mix (and its linked order)."""
+    from app.models.payroll_addon import PayrollAddon
+
+    mtd = _find_mtd(db, mtd_id)
+    if not mtd:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="MTD Record not found"
+        )
+
+    order_id = mtd.order_id
+    db.query(PayrollAddon).filter(PayrollAddon.mtd_id == mtd.id).delete(
+        synchronize_session=False
+    )
+    db.delete(mtd)
+
+    if order_id:
+        linked = db.query(Order).filter(Order.id == order_id).first()
+        if linked:
+            db.query(PayrollAddon).filter(PayrollAddon.order_id == order_id).delete(
+                synchronize_session=False
+            )
+            db.delete(linked)
+
+    db.commit()
+    return None
+
+
 from app.schemas.order import OrderSchema
 
 @router.post("/mtd/manual-schedule", response_model=OrderSchema, status_code=status.HTTP_201_CREATED)

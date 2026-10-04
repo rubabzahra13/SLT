@@ -187,16 +187,6 @@ function SchedulePageContent() {
     [view, anchorDate]
   );
 
-  const availableToday = useMemo(() => {
-    const todayKey = todayIso();
-    let count = 0;
-    for (const r of teamRows) {
-      const cell = r.cells.find((c) => c.key === todayKey);
-      if (cell && cell.status === "available") count += 1;
-    }
-    return count;
-  }, [teamRows]);
-
   const offToday = useMemo(() => {
     const todayKey = todayIso();
     let count = 0;
@@ -300,8 +290,6 @@ function SchedulePageContent() {
               danceCounts={danceSubtypeCounts}
               view={view}
               statusFilter={statusFilter}
-              columns={columns}
-              availableCount={availableToday}
               offToday={offToday}
               totalProducers={teamRows.length}
               producers={categoryFilteredProducers}

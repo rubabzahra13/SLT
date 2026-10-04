@@ -15,7 +15,7 @@ import {
 
 type InsertTarget = "subject" | "body";
 
-const VARIABLE_HINTS: Record<string, string> = {
+const BASE_VARIABLE_HINTS: Record<string, string> = {
   programName: "Program",
   contactName: "Contact",
   day: "Day",
@@ -31,6 +31,17 @@ const VARIABLE_HINTS: Record<string, string> = {
   todayLabel: "Today",
 };
 
+/** Producer order: subject uses order name; message body uses order details. */
+const PRODUCER_ORDER_SUBJECT_HINTS: Record<string, string> = {
+  ...BASE_VARIABLE_HINTS,
+  programName: "Order name",
+};
+
+const PRODUCER_ORDER_BODY_HINTS: Record<string, string> = {
+  ...BASE_VARIABLE_HINTS,
+  programName: "Order details",
+};
+
 function buildPackedDocument(subject: string, body: string): string {
   const sub = subject.trim();
   const message = body.trim();
@@ -44,6 +55,8 @@ type EmailTemplateDocumentPanelProps = {
   catalogPlaceholders: string[];
   isEditing: boolean;
   onDocumentChange: (text: string) => void;
+  /** When set, use producer-order chip labels (e.g. Order details). */
+  templateId?: string;
 };
 
 export function EmailTemplateDocumentPanel({
@@ -51,10 +64,21 @@ export function EmailTemplateDocumentPanel({
   catalogPlaceholders,
   isEditing,
   onDocumentChange,
+  templateId,
 }: EmailTemplateDocumentPanelProps) {
   const subjectRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const insertTargetRef = useRef<InsertTarget>("body");
+
+  const isProducerOrder = templateId === "producer_order";
+  const subjectHints = isProducerOrder
+    ? PRODUCER_ORDER_SUBJECT_HINTS
+    : BASE_VARIABLE_HINTS;
+  const bodyHints = isProducerOrder
+    ? PRODUCER_ORDER_BODY_HINTS
+    : BASE_VARIABLE_HINTS;
+  /** Variable picker uses subject labels for shared keys on producer order. */
+  const catalogHints = subjectHints;
 
   const { subject, body } = useMemo(
     () => parsePackedEmailDocument(documentText),
@@ -74,7 +98,11 @@ export function EmailTemplateDocumentPanel({
     const el = isSubject ? subjectRef.current : bodyRef.current;
     if (!el) return;
 
-    insertVariableChipAtSelection(el, key, VARIABLE_HINTS);
+    insertVariableChipAtSelection(
+      el,
+      key,
+      isSubject ? subjectHints : bodyHints
+    );
     const next = serializeTemplateEditable(el, !isSubject);
     if (isSubject) updateSubject(next);
     else updateBody(next);
@@ -111,7 +139,7 @@ export function EmailTemplateDocumentPanel({
                   )}
                 >
                   <span className="text-[12px] font-semibold">
-                    {variableDisplayName(key, VARIABLE_HINTS)}
+                    {variableDisplayName(key, catalogHints)}
                   </span>
                 </button>
               );
@@ -145,7 +173,7 @@ export function EmailTemplateDocumentPanel({
           }}
           placeholder="Subject line"
           ariaLabel="Email subject"
-          variableHints={VARIABLE_HINTS}
+          variableHints={subjectHints}
           className="border-b border-brand-line/30 px-4 py-3 text-[14px]"
         />
 
@@ -165,7 +193,7 @@ export function EmailTemplateDocumentPanel({
           }}
           placeholder="Email message"
           ariaLabel="Email message"
-          variableHints={VARIABLE_HINTS}
+          variableHints={bodyHints}
           className="px-4 py-4 text-[13px]"
         />
       </div>

@@ -106,7 +106,7 @@ export function ProducerScheduleDrawer({
             <div>
               <h2 className="text-display text-[17px]">{producer.name}</h2>
               <p className="mt-0.5 text-[12px] text-brand-ink-secondary">
-                {producer.specialty} · Next {producer.nextAvailable}
+                {(producer.categories[0] || "Producer")} · Next {producer.nextAvailable}
               </p>
             </div>
           </div>

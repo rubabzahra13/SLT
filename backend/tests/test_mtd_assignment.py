@@ -13,7 +13,6 @@ def _get_or_create_producer(db, *, initials: str, name: str) -> Producer:
         name=name,
         initials=initials,
         email=f"{initials.lower()}@example.com",
-        specialty="Cheer",
         categories=["All-Star Cheer"],
     )
     db.add(producer)
@@ -39,12 +38,9 @@ def test_find_producer_matches_various_identifiers(db):
     from app.api.producers import _find_producer
 
     riley = _get_or_create_producer(db, initials="RL", name="Riley Test")
-    riley.legacy_id = "prod-10"
     db.commit()
 
     assert _find_producer(db, str(riley.id)).id == riley.id
-    assert _find_producer(db, "prod-10").id == riley.id
-    assert _find_producer(db, "10").id == riley.id
     assert _find_producer(db, "Riley Test").id == riley.id
     assert _find_producer(db, "RL").id == riley.id
 

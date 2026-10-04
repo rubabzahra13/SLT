@@ -175,7 +175,7 @@ describe("Category-Specific Collections & Songs Columns Requirements", () => {
   describe("Payroll UI & Pricing Display Format Requirements", () => {
     test("computeClientPayroll summary message excludes SLT cut text", () => {
       const { computeClientPayroll } = require("../pricing-display");
-      const producer = { name: "Riley", initials: "R", specialty: "School Cheer", ratesByCategory: { "School Cheer": 0.6 } };
+      const producer = { name: "Riley", initials: "R", categories: ["School Cheer"], ratesByCategory: { "School Cheer": 0.6 } };
       const payroll = computeClientPayroll(producer, 470, null, 0.6, null, "school-cheer-viroc-yes", 470);
       assert.strictEqual(payroll.message, "Payout: $282.00 (60%)");
       assert.ok(!payroll.message.includes("SLT"), "Message must NOT contain SLT portion text");

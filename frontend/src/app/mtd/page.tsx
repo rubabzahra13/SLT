@@ -15,7 +15,6 @@ import {
   InlineSelect,
   InlineDanceVoiceoverPills,
   InlineCheerVoiceoverPills,
-  InlineRushFeePills,
   InlineQuantityStepper,
 } from "@/components/mtd/InlineFields";
 import {
@@ -64,10 +63,7 @@ import {
   findProducerByAssignmentKey,
   formatRequestedEditorLabel,
   getDisplayAssignedProducer,
-  getRequestedEditorFromRecord,
-  getRequestedEditorUnavailableReason,
   mixWorkDaysForRecord,
-  producerKeysMatch,
 } from "@/lib/editor-assignment";
 import {
   countMTDByCheerSubtype,
@@ -127,9 +123,6 @@ const ordersMtdButtonClass = (ready: boolean) =>
 
 const clickableChipClass =
   "cursor-pointer border border-brand-line/70 bg-brand-bg/60 shadow-sm transition hover:border-brand-orange/40 hover:bg-brand-orange-soft/35 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange/25";
-
-const unavailableTagClass =
-  "inline-flex items-center rounded-full bg-brand-warning/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.04em] text-brand-warning ring-1 ring-inset ring-brand-warning/25";
 
 const tableStatusSelectClass =
   "!h-8 !min-h-0 !w-auto min-w-[132px] max-w-full !py-0";
@@ -724,39 +717,18 @@ function MTDPageContent() {
         render: (rec) => {
           const linked = findLinkedOrder(rec, allOrders);
           const label = formatRequestedEditorLabel(rec, producers, linked);
-          const requested = getRequestedEditorFromRecord(rec, producers, linked);
           const isFa = label === "FA";
-          const unavailableReason =
-            !isFa && requested
-              ? getRequestedEditorUnavailableReason(
-                  rec,
-                  requested,
-                  producers,
-                )
-              : null;
-          const showUnavailable =
-            Boolean(unavailableReason) &&
-            (!rec.assignedProducer ||
-              !producerKeysMatch(rec.assignedProducer, requested as string));
-          const unavailableTitle = `${requested}: ${unavailableReason}`;
 
           return (
-            <div className="inline-flex flex-col items-center gap-0.5">
-              <span
-                className={clsx(
-                  "font-medium uppercase tabular-nums",
-                  compactTextClass,
-                  isFa ? "text-brand-info" : "text-brand-ink"
-                )}
-              >
-                {isFa ? "FA" : label}
-              </span>
-              {showUnavailable ? (
-                <HoverTip label={unavailableTitle} placement="top">
-                  <span className={unavailableTagClass}>Unavailable</span>
-                </HoverTip>
-              ) : null}
-            </div>
+            <span
+              className={clsx(
+                "font-medium uppercase tabular-nums",
+                compactTextClass,
+                isFa ? "text-brand-info" : "text-brand-ink"
+              )}
+            >
+              {isFa ? "FA" : label}
+            </span>
           );
         },
       },
@@ -1215,25 +1187,6 @@ function MTDPageContent() {
             </div>
           );
         },
-      },
-      {
-        key: "rushFeeCol",
-        header: "Rush Fee",
-        width: "165px",
-        align: "center",
-        nowrap: false,
-        cellClassName: "!px-2 !py-2",
-        headerClassName: "!px-2",
-        render: (rec) => (
-          <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
-            <InlineRushFeePills
-              record={rec}
-              readOnly={isViewOnly}
-              onUpdate={(id, patch) => updateMTD(id, patch)}
-              onUpdateOrder={(orderId, patch) => updateOrder(orderId, patch)}
-            />
-          </div>
-        ),
       },
       {
         key: "invoiceAction",

@@ -15,6 +15,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { HoverTip } from "@/components/ui/HoverTip";
 import { InlineDateInput } from "@/components/mtd/InlineFields";
 import { AssignLimitWarningModal } from "@/components/mtd/AssignLimitWarningModal";
+import { ConfirmDeleteProducerAssignModal } from "@/components/mtd/ConfirmDeleteProducerAssignModal";
 import {
   editorRequestForAssignment,
   findLinkedOrder,
@@ -26,6 +27,8 @@ import {
   getDisplayAssignedProducer,
   orderCategoryToProducerCategory,
 } from "@/lib/editor-assignment";
+import { getOrderStatus } from "@/lib/order-requirements";
+import { parsePendingDeletedProducer } from "@/lib/order-reassign";
 import { resolveMTDFormMeta } from "@/lib/mtd-filters";
 import { normalizeProducerKey, producerKeysMatch } from "@/lib/producer-keys";
 import {
@@ -238,10 +241,31 @@ export function AssignEditorModal({
   const [draftMixStartDate, setDraftMixStartDate] = useState("");
   const [draftMixEndDate, setDraftMixEndDate] = useState("");
   const [limitConfirmOpen, setLimitConfirmOpen] = useState(false);
+  const [deleteProducerConfirmOpen, setDeleteProducerConfirmOpen] =
+    useState(false);
 
   const displayAssigned = record ? getDisplayAssignedProducer(record) : null;
   const formalAssigned = record?.assignedProducer?.trim() || null;
   const isAssignmentLocked = Boolean(formalAssigned);
+
+  const pendingDeletedProducer = useMemo(() => {
+    if (!record) return null;
+    const { needsReassign, reassignReason } = getOrderStatus(record);
+    if (!needsReassign || reassignReason !== "producer_deletion") return null;
+    return parsePendingDeletedProducer(record.orderStatus);
+  }, [record]);
+
+  /** Only prompt to delete while the producer is still on the roster. */
+  const pendingDeletedProducerOnRoster = useMemo(() => {
+    if (!pendingDeletedProducer) return null;
+    const stillOnRoster = producers.some(
+      (p) =>
+        p.id === pendingDeletedProducer.id ||
+        p.uuid === pendingDeletedProducer.id ||
+        producerKeysMatch(p.name, pendingDeletedProducer.name)
+    );
+    return stillOnRoster ? pendingDeletedProducer : null;
+  }, [pendingDeletedProducer, producers]);
 
   const today = useMemo(() => startOfLocalDay(new Date()), []);
   const todayIso = toCanonicalIsoDate(today);
@@ -701,6 +725,11 @@ export function AssignEditorModal({
       return;
     }
 
+    if (pendingDeletedProducerOnRoster) {
+      setDeleteProducerConfirmOpen(true);
+      return;
+    }
+
     if (selectedOverLimit) {
       setLimitConfirmOpen(true);
       return;
@@ -709,6 +738,10 @@ export function AssignEditorModal({
   }
 
   function commitAssignment() {
+    setDeleteProducerConfirmOpen(false);
+    setLimitConfirmOpen(false);
+    const toDelete = pendingDeletedProducerOnRoster;
+    const programLabel = activeRecord?.programName || "this mix";
     onAssign(activeRecord.id, {
       editorRequest: editorRequestForAssignment(
         selectedEditor,
@@ -719,12 +752,67 @@ export function AssignEditorModal({
       mixStartDate: draftStartIso,
       mixEndDate: draftEndIso,
     });
+
+    if (toDelete) {
+      const deletedName =
+        toDelete.name?.trim() || toDelete.initials?.trim() || "Producer";
+      void live.removeProducer(toDelete.id).then(
+        () => {
+          live.addNotification({
+            type: "schedule",
+            title: `${deletedName} deleted`,
+            message: `${deletedName} was removed from the producer roster.`,
+          });
+          live.addNotification({
+            type: "schedule",
+            title: "New producer assigned to mix",
+            message: `${selectedEditor} assigned to ${programLabel}.`,
+            href: `/orders/${activeRecord.id}`,
+          });
+        },
+        () => {
+          // removeProducer already surfaces its own error notification
+        }
+      );
+    } else if (pendingDeletedProducer) {
+      live.addNotification({
+        type: "schedule",
+        title: "New producer assigned to mix",
+        message: `${selectedEditor} assigned to ${programLabel}.`,
+        href: `/orders/${activeRecord.id}`,
+      });
+    }
+
     if (isPage && returnHref) {
       router.push(returnHref);
     } else {
       onClose();
     }
   }
+
+  function confirmDeleteProducerAssign() {
+    if (selectedOverLimit) {
+      setDeleteProducerConfirmOpen(false);
+      setLimitConfirmOpen(true);
+      return;
+    }
+    commitAssignment();
+  }
+
+  const deleteProducerConfirmModal = (
+    <ConfirmDeleteProducerAssignModal
+      open={deleteProducerConfirmOpen}
+      deletedProducerName={
+        pendingDeletedProducerOnRoster?.name ||
+        pendingDeletedProducerOnRoster?.initials ||
+        "this producer"
+      }
+      newProducerName={selectedEditor}
+      programName={activeRecord?.programName || "this mix"}
+      onClose={() => setDeleteProducerConfirmOpen(false)}
+      onConfirm={confirmDeleteProducerAssign}
+    />
+  );
 
   const limitConfirmModal = (
     <AssignLimitWarningModal
@@ -945,9 +1033,6 @@ export function AssignEditorModal({
                       producerName={
                         selectedProducer?.name?.trim() || selectedEditor
                       }
-                      currentMixName={
-                        activeRecord.programName?.trim() || "Current mix"
-                      }
                       rangeStartIso={mixStartIso}
                       rangeEndIso={mixEndIso || mixStartIso}
                       windowLabel={`${windowStartLabel}${
@@ -1078,6 +1163,7 @@ export function AssignEditorModal({
           {assignmentForm}
         </div>
         {limitConfirmModal}
+        {deleteProducerConfirmModal}
       </div>
     );
   }
@@ -1126,6 +1212,7 @@ export function AssignEditorModal({
         {assignmentForm}
       </div>
       {limitConfirmModal}
+      {deleteProducerConfirmModal}
     </div>
   );
 }
@@ -1291,7 +1378,6 @@ function CostMetricBar({ segments }: { segments: CostBarSegment[] }) {
         >
           {visible.map((seg, i) => {
             const tip = `${seg.label}\n${formatLimitUsd(seg.amount)}/day`;
-            const isCurrent = seg.key === "__current__";
             return (
               <div
                 key={seg.key}
@@ -1307,8 +1393,7 @@ function CostMetricBar({ segments }: { segments: CostBarSegment[] }) {
                   <div
                     className={clsx(
                       "h-full w-full rounded-[3px] transition-[filter] hover:brightness-110",
-                      isCurrent ? "bg-brand-info" : "bg-brand-info/75",
-                      i % 2 === 1 && !isCurrent && "bg-brand-info/55"
+                      i % 2 === 1 ? "bg-brand-info/55" : "bg-brand-info/75"
                     )}
                   />
                 </HoverTip>
@@ -1404,14 +1489,25 @@ function LimitDayBarGroup({
 }) {
   const showCost = maxCost != null;
   const showMix = maxMixes != null;
-  const mixCount =
-    bookedMixes + (thisMixDaily != null && thisMixDaily > 0 ? 1 : 0);
+  // Bars = already-booked load only. Current mix is shown in the header label,
+  // not stacked into the chart (that looked like the graph was "for itself").
+  const mixCount = bookedMixes;
   const costSum = costSegments.reduce((sum, seg) => sum + seg.amount, 0);
+  const projectedCost = costSum + (thisMixDaily ?? 0);
+  const projectedMixes =
+    bookedMixes + (thisMixDaily != null && thisMixDaily > 0 ? 1 : 0);
   const dayTipParts: string[] = [];
   if (showCost && costSum > 0) dayTipParts.push(formatLimitUsd(costSum));
   if (showMix) {
     dayTipParts.push(
-      `${mixCount} ${mixCount === 1 ? "mix" : "mixes"}`
+      `${mixCount} ${mixCount === 1 ? "mix" : "mixes"} booked`
+    );
+  }
+  if (thisMixDaily != null && thisMixDaily > 0) {
+    dayTipParts.push(
+      `+ current → ${formatLimitUsd(projectedCost)} · ${projectedMixes} ${
+        projectedMixes === 1 ? "mix" : "mixes"
+      }`
     );
   }
   const dayTip = dayTipParts.length > 0 ? dayTipParts.join(" · ") : null;
@@ -1488,7 +1584,7 @@ function DailyLimitBarChart({
                 className="h-2.5 w-2.5 rounded-[3px] bg-brand-info"
                 aria-hidden
               />
-              Cost of mix
+              Booked cost
             </span>
           ) : null}
           {maxMixes != null ? (
@@ -1497,7 +1593,7 @@ function DailyLimitBarChart({
                 className="h-2.5 w-2.5 rounded-[3px] bg-brand-warning"
                 aria-hidden
               />
-              No of mixes per day
+              Booked mixes
             </span>
           ) : null}
         </div>
@@ -1745,7 +1841,6 @@ function SelectedMixLimitPanel({
   check,
   producer,
   producerName,
-  currentMixName,
   rangeStartIso,
   rangeEndIso,
   windowLabel,
@@ -1757,7 +1852,6 @@ function SelectedMixLimitPanel({
   check: DailyLimitCheck;
   producer?: Producer | null;
   producerName: string;
-  currentMixName: string;
   rangeStartIso: string;
   rangeEndIso: string;
   windowLabel: string;
@@ -1814,21 +1908,13 @@ function SelectedMixLimitPanel({
         excludeRecordId,
         estimateCost
       );
-      const segments: CostBarSegment[] = dayContributors.map((c) => ({
+      // Booked mixes only — do not stack the draft/current mix into the bar.
+      out[day.iso] = dayContributors.map((c) => ({
         key: c.recordId,
         pct: (c.dayShare / maxCost) * 100,
         label: c.programName,
         amount: c.dayShare,
       }));
-      if (thisMixDaily != null && thisMixDaily > 0) {
-        segments.push({
-          key: "__current__",
-          pct: (thisMixDaily / maxCost) * 100,
-          label: currentMixName || "Current mix",
-          amount: thisMixDaily,
-        });
-      }
-      out[day.iso] = segments;
     }
     return out;
   }, [
@@ -1838,11 +1924,34 @@ function SelectedMixLimitPanel({
     mtdRecords,
     excludeRecordId,
     estimateCost,
-    thisMixDaily,
-    currentMixName,
   ]);
 
-  if (!hasLimits || chartDays.length === 0) return null;
+  // Hide empty "graph of itself" when no other mixes share the window and
+  // adding this mix stays under half of every daily cap.
+  const worthShowing = useMemo(() => {
+    if (contributors.length > 0) return true;
+    if (dailyLimitCheckHasIssues(check)) return true;
+    const thisDaily = thisMixDaily ?? 0;
+    for (const day of chartDays) {
+      if (maxCost != null && maxCost > 0) {
+        if ((day.bookedCost + thisDaily) / maxCost >= 0.5) return true;
+      }
+      if (maxMixes != null && maxMixes > 0) {
+        const mixes = day.bookedMixes + (thisDaily > 0 ? 1 : 0);
+        if (mixes / maxMixes >= 0.5) return true;
+      }
+    }
+    return false;
+  }, [
+    contributors.length,
+    check,
+    thisMixDaily,
+    chartDays,
+    maxCost,
+    maxMixes,
+  ]);
+
+  if (!hasLimits || chartDays.length === 0 || !worthShowing) return null;
 
   return (
     <div className="rounded-2xl border border-brand-line/60 bg-white p-4">

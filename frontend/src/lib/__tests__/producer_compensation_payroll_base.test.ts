@@ -10,7 +10,7 @@ describe("Producer Compensation — Final Payroll Price Basis Unit Tests", () =>
     name: "Test Producer",
     initials: "TP",
     email: "test@example.com",
-    specialty: "Producer",
+    categories: ["All-Star Cheer"],
     avatar: "/avatars/test.png",
     mixesThisWeek: 1,
     nextAvailable: "Today",
@@ -19,8 +19,7 @@ describe("Producer Compensation — Final Payroll Price Basis Unit Tests", () =>
     timeOff: [],
     maxMixesPerDay: null,
     maxProducerCostPerDay: null,
-    categories: ["All-Star Cheer"],
-    overtimeDays: [],
+    extraDays: [],
     compensationModel: "percentage_of_payroll_base",
     defaultRate: 0.50,
   };

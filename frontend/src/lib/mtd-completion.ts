@@ -103,17 +103,40 @@ export function patchReturnFromPayroll(): Partial<MTDRecord> {
     recordStatus: "Ongoing",
     status: "active",
     completedAt: undefined,
+    paidAt: null,
   };
 }
 
-export function getPayrollRecords(records: MTDRecord[]): MTDRecord[] {
-  return records.filter(
-    (rec) =>
-      Boolean(rec.inPayroll) ||
-      Boolean((rec as any).in_payroll) ||
-      rec.status === "completed" ||
-      (rec as any).recordStatus === "Completed"
+export function patchMarkPayrollPaid(): Partial<MTDRecord> {
+  return {
+    inPayroll: true,
+    status: "completed",
+    recordStatus: "Completed",
+    paidAt: new Date().toISOString(),
+  };
+}
+
+function isPayrollMember(rec: MTDRecord): boolean {
+  return (
+    Boolean(rec.inPayroll) ||
+    Boolean((rec as { in_payroll?: boolean }).in_payroll) ||
+    rec.status === "completed" ||
+    (rec as { recordStatus?: string }).recordStatus === "Completed"
   );
+}
+
+function isPayrollPaid(rec: MTDRecord): boolean {
+  return Boolean(rec.paidAt || (rec as { paid_at?: string }).paid_at);
+}
+
+/** Active payroll (ready for payout) — excludes Paid / Archive. */
+export function getPayrollRecords(records: MTDRecord[]): MTDRecord[] {
+  return records.filter((rec) => isPayrollMember(rec) && !isPayrollPaid(rec));
+}
+
+/** Paid mixes archived from View Payroll. */
+export function getArchivedPayrollRecords(records: MTDRecord[]): MTDRecord[] {
+  return records.filter((rec) => isPayrollMember(rec) && isPayrollPaid(rec));
 }
 
 export function getMTDBoardRecords(records: MTDRecord[]): MTDRecord[] {

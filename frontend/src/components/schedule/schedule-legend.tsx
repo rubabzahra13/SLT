@@ -8,7 +8,7 @@ import { statusLabel } from "@/lib/schedule-view";
 export const SCHEDULE_LEGEND_ITEMS = [
   {
     key: "booked",
-    label: "Booked",
+    label: "Assigned",
     tip: "Has one or more mixes assigned",
     swatchClass: "bg-brand-signature",
   },
@@ -177,7 +177,7 @@ function ScheduleStatusTooltip({
               {cell.offDetail}
             </p>
           ) : null}
-          {cell.status === "available" && cell.isOvertime ? (
+          {cell.status === "available" && cell.isExtraDay ? (
             <p className="mt-1 text-[12px] font-medium leading-snug text-brand-ink">
               Extra day
             </p>

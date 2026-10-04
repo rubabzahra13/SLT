@@ -8,7 +8,7 @@ import {
   getProducerDayBlockReason,
   isProducerWorkDay,
   isProducerWorkableDay,
-  isProducerOvertimeDay,
+  isProducerExtraDay,
   listProducerMixBookingsOnDay,
   toDayStart,
   type DailyCostOptions,
@@ -18,7 +18,7 @@ import type { MTDRecord, Producer } from "@/types";
 
 export type AssignCalendarEventKind =
   | "leave"
-  | "overtime"
+  | "extra"
   | "non_work";
 
 export type AssignCalendarEvent = {
@@ -47,7 +47,7 @@ export function eachIsoDayInRange(startIso: string, endIso: string): string[] {
 
 /**
  * Transparent calendar context while picking mix dates.
- * With a producer: their leave, overtime, and non-work days in range.
+ * With a producer: their leave, extra days, and non-work days in range.
  */
 export function collectAssignCalendarEvents(
   startIso: string,
@@ -75,11 +75,11 @@ export function collectAssignCalendarEvents(
     }
   }
 
-  for (const iso of producer.overtimeDays ?? []) {
+  for (const iso of producer.extraDays ?? []) {
     if (iso < startIso || iso > end) continue;
     events.push({
       iso,
-      kind: "overtime",
+      kind: "extra",
       label: "Extra day",
     });
   }
@@ -87,7 +87,7 @@ export function collectAssignCalendarEvents(
   for (const iso of eachIsoDayInRange(startIso, end)) {
     const d = parseFlexibleDate(iso);
     if (!d) continue;
-    if (isProducerWorkDay(producer, d) || isProducerOvertimeDay(producer, d)) {
+    if (isProducerWorkDay(producer, d) || isProducerExtraDay(producer, d)) {
       continue;
     }
     events.push({
@@ -340,7 +340,7 @@ export function describeDailyLimitUsage(
   return lines;
 }
 
-export type MixDateDayTone = "leave" | "limit" | "mix" | "overtime";
+export type MixDateDayTone = "leave" | "limit" | "mix" | "extra";
 
 export type MixDateCalendarRules = {
   isDateDisabled: (iso: string) => boolean;
@@ -393,7 +393,7 @@ export function producerScheduleFingerprint(
         `${off.startDate}:${off.endDate || off.startDate}:${off.reason ?? ""}`
     )
     .join("|");
-  const ot = (producer.overtimeDays ?? []).join(",");
+  const ot = (producer.extraDays ?? []).join(",");
   const work = (producer.workDays ?? []).join(",");
   const key = producerAssignmentKeyForFingerprint(producer);
   const bookings = (mtdRecords ?? [])
@@ -484,7 +484,7 @@ export function buildMixDateCalendarRules(
       };
     }
 
-    const isExtra = isProducerOvertimeDay(producer, day);
+    const isExtra = isProducerExtraDay(producer, day);
     const limits = limitParts(iso);
 
     if (bookings.length > 0 && mixTip) {
@@ -503,7 +503,7 @@ export function buildMixDateCalendarRules(
       if (limits.length > 0) lines.push(limits.join(" · "));
       return {
         disabled: false,
-        tone: limits.length > 0 ? "limit" : "overtime",
+        tone: limits.length > 0 ? "limit" : "extra",
         title: lines.join("\n"),
       };
     }

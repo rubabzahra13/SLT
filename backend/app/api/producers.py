@@ -15,6 +15,50 @@ from app.schemas.producer import ProducerCreateSchema, ProducerSchema, ProducerU
 
 router = APIRouter()
 
+_LEGACY_GENERAL_CATEGORY = "general"
+_CANONICAL_TEAM_PERF_CATEGORY = "Team Performance / Variety"
+
+
+def _rewrite_legacy_general_category(categories: Any) -> list[str]:
+    if not isinstance(categories, list):
+        return []
+    next_cats: list[str] = []
+    seen: set[str] = set()
+    for raw in categories:
+        if not isinstance(raw, str):
+            continue
+        value = (
+            _CANONICAL_TEAM_PERF_CATEGORY
+            if raw.strip().lower() == _LEGACY_GENERAL_CATEGORY
+            else raw
+        )
+        if value in seen:
+            continue
+        next_cats.append(value)
+        seen.add(value)
+    return next_cats
+
+
+def _rewrite_legacy_general_rates(rates: Any) -> Any:
+    if not isinstance(rates, dict):
+        return rates
+    general_keys = [
+        key
+        for key in rates
+        if isinstance(key, str) and key.strip().lower() == _LEGACY_GENERAL_CATEGORY
+    ]
+    if not general_keys:
+        return rates
+    next_rates = {
+        key: value
+        for key, value in rates.items()
+        if not (isinstance(key, str) and key.strip().lower() == _LEGACY_GENERAL_CATEGORY)
+    }
+    general_rate = rates.get(general_keys[0])
+    if _CANONICAL_TEAM_PERF_CATEGORY not in next_rates and general_rate is not None:
+        next_rates[_CANONICAL_TEAM_PERF_CATEGORY] = general_rate
+    return next_rates
+
 
 def is_valid_uuid(val: str) -> bool:
     try:
@@ -85,35 +129,16 @@ def _find_producer(db: Session, producer_id: str) -> Producer | None:
 
     # 1. UUID lookup
     if is_valid_uuid(pid_str):
-        prod = db.query(Producer).filter(
-            (Producer.id == uuid.UUID(pid_str)) | (Producer.legacy_id == pid_str)
-        ).first()
+        prod = db.query(Producer).filter(Producer.id == uuid.UUID(pid_str)).first()
         if prod:
             return prod
 
-    # 2. Exact legacy_id match
-    prod = db.query(Producer).filter(Producer.legacy_id == pid_str).first()
-    if prod:
-        return prod
-
-    # 3. Handle prod- prefix variations (prod-10 vs 10)
-    if pid_str.startswith("prod-"):
-        short_id = pid_str.replace("prod-", "")
-        prod = db.query(Producer).filter(Producer.legacy_id == short_id).first()
-        if prod:
-            return prod
-    else:
-        full_id = f"prod-{pid_str}"
-        prod = db.query(Producer).filter(Producer.legacy_id == full_id).first()
-        if prod:
-            return prod
-
-    # 4. Lookup using assignment key resolver (checks initials, name, first name, legacy_id)
+    # 2. Assignment key (initials / name)
     prod = resolve_producer_by_assignment_key(db, pid_str)
     if prod:
         return prod
 
-    # 5. Case-insensitive fallback on name or initials
+    # 3. Case-insensitive fallback on name or initials
     return db.query(Producer).filter(
         (func.lower(Producer.name) == pid_str.lower()) |
         (func.lower(Producer.initials) == pid_str.lower())
@@ -164,9 +189,12 @@ def create_producer(
             detail=f"A producer with initials “{initials}” already exists.",
         )
 
-    if not (data.get("specialty") or "").strip():
-        categories = data.get("categories") or []
-        data["specialty"] = categories[0] if categories else "General"
+    categories = data.get("categories") or []
+    data["categories"] = _rewrite_legacy_general_category(categories)
+    if "rates_by_category" in data:
+        data["rates_by_category"] = _rewrite_legacy_general_rates(
+            data.get("rates_by_category")
+        )
 
     data["initials"] = initials
 
@@ -199,13 +227,22 @@ def update_producer(
     update_data = payload.model_dump(exclude_unset=True)
     time_offs = update_data.pop("time_offs", None)
 
+    if "categories" in update_data:
+        update_data["categories"] = _rewrite_legacy_general_category(
+            update_data.get("categories")
+        )
+    if "rates_by_category" in update_data:
+        update_data["rates_by_category"] = _rewrite_legacy_general_rates(
+            update_data.get("rates_by_category")
+        )
+
     for key, value in update_data.items():
         setattr(producer, key, value)
 
     _sync_time_offs(producer, time_offs, db)
 
     db.commit()
-    # Fresh load so time_offs / overtime_days are present in the response
+    # Fresh load so time_offs / extra_days are present in the response
     # (stale identity-map rows were omitting leave until a full page refresh).
     db.expire_all()
     return _load_producer(db, producer.id)

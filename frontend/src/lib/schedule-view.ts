@@ -3,7 +3,7 @@ import { parseFlexibleDate } from "@/lib/dates";
 import {
   isProducerAtDailyCapacity,
   isProducerOnTimeOff,
-  isProducerOvertimeDay,
+  isProducerExtraDay,
   isProducerWorkDay,
 } from "@/lib/producer-availability";
 import { isEligibleProducerScheduleRecord } from "@/lib/export-csv";
@@ -28,7 +28,7 @@ export type ScheduleCell = {
   dayLabel: string;
   dateLabel: string;
   /** "capacity" = producer has reached their daily mix or cost limit.
-   *  "nonwork" = outside regular workDays and not an overtime date.
+   *  "nonwork" = outside regular workDays and not an extra day.
    *  "off" = time off on a regular work day. */
   status: "available" | "mix" | "off" | "capacity" | "nonwork";
   unavailable: boolean;
@@ -36,8 +36,8 @@ export type ScheduleCell = {
   bookings?: CellBooking[];
   /** Leave reason when status is "off". */
   offDetail?: string;
-  /** True when this day is an overtime date (not a regular work weekday). */
-  isOvertime?: boolean;
+  /** True when this day is an extra day (not a regular work weekday). */
+  isExtraDay?: boolean;
   /** Hidden when a status filter is active and this day does not match. */
   filteredOut?: boolean;
 };
@@ -138,7 +138,7 @@ function inferStatus(
     return "off";
   }
 
-  if (isProducerWorkDay(producer, date) || isProducerOvertimeDay(producer, date)) {
+  if (isProducerWorkDay(producer, date) || isProducerExtraDay(producer, date)) {
     if (producer.status === "unavailable") return "off";
     return "available";
   }
@@ -384,8 +384,8 @@ export function getScheduleCells(
       status === "mix" ||
       status === "capacity" ||
       bookings.length > 0;
-    const isOvertime =
-      isProducerOvertimeDay(producer, date) && !isProducerWorkDay(producer, date);
+    const isExtraDay =
+      isProducerExtraDay(producer, date) && !isProducerWorkDay(producer, date);
     return {
       key: toLocalIsoDate(date),
       date,
@@ -399,7 +399,7 @@ export function getScheduleCells(
         status === "off"
           ? describeScheduleOffDetail(producer, date)
           : undefined,
-      isOvertime: isOvertime || undefined,
+      isExtraDay: isExtraDay || undefined,
     };
   });
 }
@@ -696,7 +696,7 @@ export function cellSizeForRange(range: ScheduleViewRange): "sm" | "md" | "lg" {
 }
 
 export function statusLabel(status: ScheduleCell["status"]): string {
-  if (status === "mix") return "Booked";
+  if (status === "mix") return "Assigned";
   if (status === "off") return "Off";
   if (status === "nonwork") return "Non-working";
   if (status === "capacity") return "Capacity Reached";
@@ -710,7 +710,7 @@ export const SCHEDULE_STATUS_FILTERS: {
   label: string;
 }[] = [
   { value: "all", label: "All" },
-  { value: "mix", label: "Booked" },
+  { value: "mix", label: "Assigned" },
   { value: "capacity", label: "Capacity Reached" },
   { value: "off", label: "Off" },
   { value: "nonwork", label: "Non-working" },

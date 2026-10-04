@@ -109,31 +109,28 @@ def seed_all(db: Session):
 
     # 1. Seed Producers
     producer_initials_map: Dict[str, Producer] = {}
-    producer_legacy_map: Dict[str, Producer] = {}
 
     raw_producers = mock_data.get("producers", [])
     print(f"Seeding {len(raw_producers)} producers...")
     for p in raw_producers:
         initials = p.get("initials", "").strip()
-        legacy_id = p.get("id", "").strip()
         canonical_email = CANONICAL_PRODUCER_EMAILS.get(initials, p.get("email", f"{initials.lower()}@soundslikethat.com"))
 
         producer = db.query(Producer).filter(Producer.initials == initials).first()
         if not producer:
             producer = Producer(
-                legacy_id=legacy_id,
                 name=p.get("name", initials),
                 initials=initials,
                 email=p.get("email") or canonical_email,
-                specialty=p.get("specialty", "Cheer"),
-                categories=p.get("categories"),
+                categories=p.get("categories")
+                or ([p["specialty"]] if p.get("specialty") else []),
                 avatar=p.get("avatar"),
                 mixes_this_week=p.get("mixesThisWeek", 0),
                 next_available=p.get("nextAvailable"),
                 status=p.get("status", "available"),
                 work_days=p.get("workDays", ["mon", "tue", "wed", "thu", "fri"]),
                 max_mixes_per_day=p.get("maxMixesPerDay"),
-                overtime_days=p.get("overtimeDays", []),
+                extra_days=p.get("extraDays", p.get("overtimeDays", [])),
                 compensation_model=p.get("compensationModel") if p.get("compensationModel") is not None else p.get("compensation_model"),
                 default_rate=p.get("defaultRate") if p.get("defaultRate") is not None else p.get("default_rate"),
                 rates_by_category=p.get("ratesByCategory") if p.get("ratesByCategory") is not None else p.get("rates_by_category"),
@@ -146,8 +143,10 @@ def seed_all(db: Session):
         else:
             producer.name = p.get("name", producer.name)
             producer.email = p.get("email", producer.email)
-            producer.specialty = p.get("specialty", producer.specialty)
-            producer.categories = p.get("categories", producer.categories)
+            if "categories" in p:
+                producer.categories = p.get("categories")
+            elif p.get("specialty"):
+                producer.categories = [p["specialty"]]
             producer.avatar = p.get("avatar", producer.avatar)
             producer.status = p.get("status", producer.status)
             producer.compensation_model = p.get("compensationModel") if "compensationModel" in p else p.get("compensation_model", producer.compensation_model)
@@ -158,7 +157,6 @@ def seed_all(db: Session):
             producer.notes = p.get("notes") if "notes" in p else producer.notes
 
         producer_initials_map[initials] = producer
-        producer_legacy_map[legacy_id] = producer
 
         # Seed producer time off if available
         time_offs = p.get("timeOff", [])

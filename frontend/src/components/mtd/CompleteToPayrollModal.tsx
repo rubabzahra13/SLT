@@ -875,7 +875,7 @@ export function CompleteToPayrollModal({
                     {assignedProducerObj?.name || record.assignedProducer || "None"}
                   </p>
                   <p className="text-[11px] text-brand-ink-secondary">
-                    {assignedProducerObj?.specialty || "Music Producer"}
+                    {assignedProducerObj?.categories?.[0] || "Music Producer"}
                   </p>
                 </div>
 

@@ -80,7 +80,7 @@ export function isProducerAvailableOnDate(
   schedule: ScheduleEntry[] = [],
   options: ProducerOpeningOptions = {}
 ): boolean {
-  // 1. Must be a scheduled work day (or overtime day) for the producer
+  // 1. Must be a scheduled work day (or extra day) for the producer
   if (!isProducerScheduledDay(producer, date)) {
     return false;
   }

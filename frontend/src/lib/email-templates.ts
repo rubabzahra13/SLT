@@ -176,6 +176,9 @@ export function migrateEmailTemplateTokens(text: string): string {
     );
   }
 
+  // Rush is a row in order details now — drop the old intro placeholder.
+  next = next.replace(/\{\{\s*rushNotice\s*\}\}/gi, "");
+
   // Drop duplicated footer/signature blocks that got packed into the body twice.
   const footerAnchor = "All items must be submitted by this date";
   const firstFooter = next.indexOf(footerAnchor);

@@ -22,8 +22,8 @@ import {
   effectiveWorkDays,
   expandTimeOffDates,
   formatLeaveDateLabel,
-  isEligibleOvertimeDate,
-  overtimeDatesInRange,
+  isEligibleExtraDate,
+  extraDatesInRange,
 } from "@/lib/producer-availability";
 import {
   formatOffWorkReason,
@@ -32,18 +32,18 @@ import {
 } from "@/lib/producer-time-off";
 import {
   buildTimeOffEntry,
-  formatOvertimeDayLabel,
+  formatExtraDayLabel,
   formatTimeOffRangeLabel,
-  isOvertimeCalendarDateDisabled,
-  listUpcomingOvertime,
+  isExtraDayCalendarDateDisabled,
+  listUpcomingExtraDays,
   listUpcomingTimeOff,
-  overtimeCalendarDayTitle,
-  previewOvertimeAssignees,
+  extraDayCalendarDayTitle,
+  previewExtraDayAssignees,
   previewTimeOffAssignees,
 } from "@/lib/schedule-time-off";
 import type { Producer } from "@/types";
 
-type Mode = "leaves" | "overtime";
+type Mode = "leaves" | "extra";
 type Audience = "everyone" | "choose";
 type DateField = "start" | "end" | "ot" | null;
 
@@ -131,7 +131,7 @@ export default function ScheduleTimeOffPage() {
     audience === "everyone" ? allProducerIds : pickedIds;
 
   const selection =
-    mode === "overtime"
+    mode === "extra"
       ? teamSelection
       : new Set(leaveProducerId ? [leaveProducerId] : []);
 
@@ -141,7 +141,7 @@ export default function ScheduleTimeOffPage() {
 
   const preview = useMemo(
     () =>
-      mode === "overtime"
+      mode === "extra"
         ? []
         : previewTimeOffAssignees(sortedProducers, {
             startDate,
@@ -154,9 +154,9 @@ export default function ScheduleTimeOffPage() {
     [sortedProducers, startDate, endDate, mode, reason, selection, mtdRecords]
   );
 
-  const overtimePreview = useMemo(
+  const extraDayPreview = useMemo(
     () =>
-      previewOvertimeAssignees(sortedProducers, {
+      previewExtraDayAssignees(sortedProducers, {
         dateIso: otDate,
         selectedIds: selection,
       }),
@@ -164,15 +164,15 @@ export default function ScheduleTimeOffPage() {
   );
 
   const applyRows = preview.filter((r) => r.status === "apply");
-  const otRows = preview.filter((r) => r.status === "overtime");
+  const otRows = preview.filter((r) => r.status === "extra");
   const skipRows = preview.filter(
     (r) =>
       r.status === "nonwork" || r.status === "already" || r.status === "mix"
   );
-  const otApplyRows = overtimePreview.filter((r) => r.status === "apply");
-  const otSkipRows = overtimePreview.filter((r) => r.status !== "apply");
+  const otApplyRows = extraDayPreview.filter((r) => r.status === "apply");
+  const otSkipRows = extraDayPreview.filter((r) => r.status !== "apply");
   const applyCount =
-    mode === "overtime"
+    mode === "extra"
       ? otApplyRows.length
       : applyRows.length + otRows.filter((r) => cancelOtIds.has(r.id)).length;
 
@@ -182,13 +182,13 @@ export default function ScheduleTimeOffPage() {
   );
 
   const upcomingOt = useMemo(
-    () => listUpcomingOvertime(sortedProducers, todayIso).slice(0, 12),
+    () => listUpcomingExtraDays(sortedProducers, todayIso).slice(0, 12),
     [sortedProducers, todayIso]
   );
 
   const otHero = formatOtHeroDate(otDate);
 
-  const overtimeCalendarOptions = useMemo(
+  const extraDayCalendarOptions = useMemo(
     () => ({
       todayIso,
       producers: sortedProducers,
@@ -197,14 +197,14 @@ export default function ScheduleTimeOffPage() {
     [todayIso, sortedProducers, selection]
   );
 
-  function overtimeDayTitle(iso: string, disabled: boolean): string | undefined {
-    const blockTitle = overtimeCalendarDayTitle(iso, overtimeCalendarOptions);
+  function extraDayTitle(iso: string, disabled: boolean): string | undefined {
+    const blockTitle = extraDayCalendarDayTitle(iso, extraDayCalendarOptions);
     if (blockTitle) return blockTitle;
     const eligible = sortedProducers.filter((p) => {
       if (!selection.has(p.id)) return false;
-      if (p.overtimeDays.includes(iso)) return false;
+      if (p.extraDays.includes(iso)) return false;
       const date = parseIsoToLocalDate(iso);
-      if (!date || !isEligibleOvertimeDate(date, effectiveWorkDays(p))) {
+      if (!date || !isEligibleExtraDate(date, effectiveWorkDays(p))) {
         return false;
       }
       if (expandTimeOffDates(p.timeOff).includes(iso)) return false;
@@ -217,13 +217,13 @@ export default function ScheduleTimeOffPage() {
     return undefined;
   }
 
-  function isOvertimeDateDisabled(iso: string): boolean {
-    if (isOvertimeCalendarDateDisabled(iso, overtimeCalendarOptions)) return true;
+  function isExtraDayDateDisabled(iso: string): boolean {
+    if (isExtraDayCalendarDateDisabled(iso, extraDayCalendarOptions)) return true;
     const eligible = sortedProducers.filter((p) => {
       if (!selection.has(p.id)) return false;
-      if (p.overtimeDays.includes(iso)) return false;
+      if (p.extraDays.includes(iso)) return false;
       const date = parseIsoToLocalDate(iso);
-      if (!date || !isEligibleOvertimeDate(date, effectiveWorkDays(p))) {
+      if (!date || !isEligibleExtraDate(date, effectiveWorkDays(p))) {
         return false;
       }
       if (expandTimeOffDates(p.timeOff).includes(iso)) return false;
@@ -260,16 +260,16 @@ export default function ScheduleTimeOffPage() {
       reason,
       producerId: producer.id,
     });
-    const otInRange = overtimeDatesInRange(
-      producer.overtimeDays,
+    const otInRange = extraDatesInRange(
+      producer.extraDays,
       entry.startDate,
       entry.endDate
     );
     const nextOt = cancelOt
-      ? producer.overtimeDays.filter((d) => !otInRange.includes(d))
-      : producer.overtimeDays;
+      ? producer.extraDays.filter((d) => !otInRange.includes(d))
+      : producer.extraDays;
     await updateProducer(producer.id, {
-      overtimeDays: nextOt,
+      extraDays: nextOt,
       timeOff: [...producer.timeOff, entry],
     });
   }
@@ -280,14 +280,14 @@ export default function ScheduleTimeOffPage() {
     setStatus(null);
     try {
       let n = 0;
-      if (mode === "overtime") {
+      if (mode === "extra") {
         for (const row of otApplyRows) {
         const producer = sortedProducers.find((p) => p.id === row.id);
         if (!producer) continue;
-          const next = [...new Set([...producer.overtimeDays, otDate])].sort(
+          const next = [...new Set([...producer.extraDays, otDate])].sort(
             (a, b) => a.localeCompare(b)
           );
-          await updateProducer(producer.id, { overtimeDays: next });
+          await updateProducer(producer.id, { extraDays: next });
           n += 1;
         }
         setStatus(
@@ -302,7 +302,7 @@ export default function ScheduleTimeOffPage() {
           if (row.status === "apply") {
             await assignOne(producer, false);
             n += 1;
-          } else if (row.status === "overtime" && cancelOtIds.has(row.id)) {
+          } else if (row.status === "extra" && cancelOtIds.has(row.id)) {
             await assignOne(producer, true);
             n += 1;
           }
@@ -317,12 +317,12 @@ export default function ScheduleTimeOffPage() {
     }
   }
 
-  async function removeOvertimeDay(producerId: string, iso: string) {
+  async function removeExtraDay(producerId: string, iso: string) {
     if (isViewOnly) return;
     const producer = sortedProducers.find((p) => p.id === producerId);
     if (!producer) return;
     await updateProducer(producer.id, {
-      overtimeDays: producer.overtimeDays.filter((d) => d !== iso),
+      extraDays: producer.extraDays.filter((d) => d !== iso),
     });
   }
 
@@ -363,7 +363,7 @@ export default function ScheduleTimeOffPage() {
             {(
               [
                 { id: "leaves" as const, label: "Off days" },
-                { id: "overtime" as const, label: "Extra days" },
+                { id: "extra" as const, label: "Extra days" },
               ] as const
             ).map((tab) => {
               const active = mode === tab.id;
@@ -400,10 +400,10 @@ export default function ScheduleTimeOffPage() {
           className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-black/[0.06] bg-white shadow-[0_8px_30px_rgba(0,0,0,0.04)]"
         >
           <h2 id="compose-heading" className="sr-only">
-            {mode === "overtime" ? "Assign extra day" : "Assign off day"}
+            {mode === "extra" ? "Assign extra day" : "Assign off day"}
           </h2>
 
-          {mode === "overtime" ? (
+          {mode === "extra" ? (
             <>
               <div className="shrink-0 border-b border-black/[0.06] px-4 py-3 sm:px-5">
                 <div className="flex items-start justify-between gap-3">
@@ -457,8 +457,8 @@ export default function ScheduleTimeOffPage() {
                   excludeRef={otDateRef}
                   value={otDate}
                   minIso={todayIso}
-                  isDateDisabled={isOvertimeDateDisabled}
-                  dayTitle={overtimeDayTitle}
+                  isDateDisabled={isExtraDayDateDisabled}
+                  dayTitle={extraDayTitle}
                   ariaLabel="Extra day date"
                   onSelect={(iso) => {
                     setOtDate(iso);
@@ -510,7 +510,7 @@ export default function ScheduleTimeOffPage() {
                   >
                     {sortedProducers.map((producer) => {
                       const on = pickedIds.has(producer.id);
-                      const row = overtimePreview.find((r) => r.id === producer.id);
+                      const row = extraDayPreview.find((r) => r.id === producer.id);
                       const ringOk = row?.status === "apply";
                       return (
                         <li key={producer.id} className="shrink-0">
@@ -700,7 +700,7 @@ export default function ScheduleTimeOffPage() {
           )}
 
           <div className="shrink-0 border-t border-black/[0.06] px-4 py-3 sm:px-5">
-            {mode === "overtime" ? (
+            {mode === "extra" ? (
               <>
                 <p
                   className="text-center text-[12px] text-brand-ink-secondary"
@@ -862,20 +862,20 @@ export default function ScheduleTimeOffPage() {
                 onClick={() => void handleShare()}
                 className={clsx(
                   "mt-3 w-full rounded-xl py-3 text-[15px] font-semibold text-white transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue/40 disabled:cursor-not-allowed disabled:opacity-40",
-                  mode === "overtime"
+                  mode === "extra"
                     ? "bg-brand-blue hover:bg-brand-blue/90"
                     : "bg-brand-ink hover:bg-brand-ink/90"
                 )}
               >
                 {busy
-                  ? mode === "overtime"
+                  ? mode === "extra"
                     ? "Adding…"
                     : "Assigning…"
                   : applyCount === 0
-                    ? mode === "overtime"
+                    ? mode === "extra"
                       ? "No one eligible on this day"
                       : "Nothing to assign"
-                    : mode === "overtime"
+                    : mode === "extra"
                       ? `Add extra day · ${applyCount}`
                       : `Assign off day · ${applyCount}`}
               </button>
@@ -896,13 +896,13 @@ export default function ScheduleTimeOffPage() {
               Scheduled
             </h2>
             <p className="text-[11px] text-brand-ink-tertiary">
-              {mode === "overtime"
+              {mode === "extra"
                 ? `${upcomingOt.length} extra days`
                 : `${upcoming.length} upcoming`}
             </p>
           </div>
           <ul className="min-h-0 flex-1 divide-y divide-black/[0.06] overflow-y-auto scrollbar-hide">
-            {mode === "overtime" ? (
+            {mode === "extra" ? (
               upcomingOt.length === 0 ? (
                 <li className="px-3 py-6 text-center text-[12px] text-brand-ink-tertiary">
                   No extra days scheduled yet.
@@ -922,7 +922,7 @@ export default function ScheduleTimeOffPage() {
                       />
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-[12px] font-semibold text-brand-ink">
-                          {formatOvertimeDayLabel(row.iso)}
+                          {formatExtraDayLabel(row.iso)}
                         </p>
                         <p className="truncate text-[11px] text-brand-ink-secondary">
                         {row.producerName}
@@ -935,7 +935,7 @@ export default function ScheduleTimeOffPage() {
                       <button
                         type="button"
                         onClick={() =>
-                            void removeOvertimeDay(row.producerId, row.iso)
+                            void removeExtraDay(row.producerId, row.iso)
                         }
                           className="shrink-0 rounded-full p-1.5 text-brand-ink-tertiary hover:bg-brand-bg hover:text-brand-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue/30"
                           aria-label={`Remove extra day ${row.iso} for ${row.producerName}`}

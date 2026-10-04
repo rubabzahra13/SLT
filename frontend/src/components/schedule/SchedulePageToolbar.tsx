@@ -7,7 +7,6 @@ import { ProducerSelect } from "@/components/ui/ProducerSelect";
 import { ScheduleHeaderMeta } from "@/components/schedule/ScheduleHeaderMeta";
 import { ScheduleStatusFilterPanel } from "@/components/schedule/ScheduleStatusFilterPanel";
 import {
-  type ColumnAggregate,
   type ScheduleStatusFilter,
   type ScheduleViewRange,
 } from "@/lib/schedule-view";
@@ -27,8 +26,6 @@ type SchedulePageToolbarProps = {
   danceCounts: Record<DanceFormSubtypeFilter, number>;
   view: ScheduleViewRange;
   statusFilter: ScheduleStatusFilter;
-  columns: ColumnAggregate[];
-  availableCount: number;
   offToday: number;
   totalProducers: number;
   producers?: Producer[];
@@ -75,8 +72,6 @@ export function SchedulePageToolbar({
   danceCounts,
   view,
   statusFilter,
-  columns,
-  availableCount,
   offToday,
   totalProducers,
   producers,
@@ -175,8 +170,6 @@ export function SchedulePageToolbar({
 
       <div className="border-t border-brand-line/30 px-1 pt-3.5">
         <ScheduleHeaderMeta
-          columns={columns}
-          availableCount={availableCount}
           offToday={offToday}
           totalProducers={totalProducers}
           view={view}

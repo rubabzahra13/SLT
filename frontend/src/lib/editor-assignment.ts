@@ -455,7 +455,13 @@ export function orderCategoryToProducerCategory(
     if (c === "pom") return "Pom";
     if (c === "gameday") return "Gameday";
     if (c === "jazz / kick" || c === "jazz/kick" || c === "jazz-kick") return "Jazz / Kick";
-    if (c === "team performance / variety" || c === "team performance") return "Team Performance / Variety";
+    if (
+      c === "team performance / variety" ||
+      c === "team performance" ||
+      c === "general"
+    ) {
+      return "Team Performance / Variety";
+    }
     // Return the category as-is if no mapping found
     return legacyCategory;
   }
@@ -486,7 +492,8 @@ function producerCategoryMatchesRequired(
     p === "hip hop" ||
     p.includes("jazz") ||
     p.includes("team performance") ||
-    p === "gameday";
+    p === "gameday" ||
+    p === "general";
   if (r === "dance" && pIsDance) return true;
 
   const pIsCheer = p.includes("cheer") || p === "school";
@@ -509,31 +516,26 @@ function producerCategoryMatchesRequired(
 
 /**
  * Returns true when the producer supports the required category.
- * Checks producer.categories[] (multi-category) first, falls back to specialty.
+ * Uses producer.categories[] only.
  */
 export function producerSupportsCategory(
   producer: Producer,
   requiredCategory: string
 ): boolean {
   if (!requiredCategory || requiredCategory === "all") return true;
-  const cats = producer.categories?.length
-    ? producer.categories
-    : producer.specialty
-      ? [producer.specialty]
-      : [];
+  const cats = producer.categories ?? [];
   return cats.some((c) => producerCategoryMatchesRequired(c, requiredCategory));
 }
 
 /**
  * @deprecated Use producerSupportsCategory instead.
- * Match order category to a producer's mastered genre (specialty).
- * Hip-Hop producers can take Dance work; School specialty maps to Cheer.
+ * Match a category string to a required order category.
  */
 export function specialtyMatchesCategory(
-  specialty: string,
+  producerCategory: string,
   category: string
 ): boolean {
-  const s = specialty.trim().toLowerCase().replace(/\s+/g, "-");
+  const s = producerCategory.trim().toLowerCase().replace(/\s+/g, "-");
   const c = category.trim().toLowerCase().replace(/\s+/g, "-");
   if (!c || c === "all") return true;
   if (s === c) return true;

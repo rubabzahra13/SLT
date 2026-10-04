@@ -4,13 +4,112 @@ import { useMemo, useState } from "react";
 import { Eye, Mail, Music, Pencil, Plus, Trash2 } from "lucide-react";
 import clsx from "clsx";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { DeleteProducerModal } from "@/components/producers/DeleteProducerModal";
+import {
+  DeleteProducerModal,
+  type AssignedMixForDelete,
+} from "@/components/producers/DeleteProducerModal";
 import { ProducerAvailabilityModal } from "@/components/producers/ProducerAvailabilityModal";
 import { ProducerFormModal } from "@/components/producers/ProducerFormModal";
 import { Avatar } from "@/components/ui/Avatar";
+import {
+  producerAssignmentKey,
+  producerKeysMatch,
+} from "@/lib/editor-assignment";
+import { getPayrollRecords } from "@/lib/mtd-completion";
+import { isMTDRecord } from "@/lib/mtd-filters";
+import {
+  listPreMtdOrderRecords,
+  stagingRecordFromOrder,
+} from "@/lib/order-staging";
+import { patchForReassignProducerRemoved } from "@/lib/order-reassign";
 import { getProducerCategories, normalizeProducerList } from "@/lib/producers";
-import type { Producer, Weekday } from "@/types";
+import type { MTDRecord, Order, Producer, Weekday } from "@/types";
 import { useAppState } from "@/context/AppStateContext";
+
+function isActiveAssignedMix(rec: MTDRecord): boolean {
+  const status = String(rec.status || "").toLowerCase();
+  if (
+    rec.completedAt ||
+    rec.inPayroll ||
+    status === "completed" ||
+    status === "payroll"
+  ) {
+    return false;
+  }
+  return Boolean(rec.assignedProducer?.trim());
+}
+
+function recordDedupeKey(rec: MTDRecord): string {
+  return (
+    rec.orderId ||
+    rec.id ||
+    rec.uuid ||
+    rec.legacyId ||
+    rec.programName ||
+    ""
+  );
+}
+
+/** Every active mix assigned to this producer — Orders and MTD board. */
+function collectAssignedMixesForProducer(
+  producer: Producer,
+  activeOrders: Order[],
+  mtdRecords: MTDRecord[]
+): AssignedMixForDelete[] {
+  const key = producerAssignmentKey(producer);
+  const seen = new Set<string>();
+  const combined: AssignedMixForDelete[] = [];
+
+  const push = (rec: MTDRecord) => {
+    if (!isActiveAssignedMix(rec)) return;
+    if (!producerKeysMatch(rec.assignedProducer || "", key)) return;
+    const dedupe = recordDedupeKey(rec);
+    if (!dedupe || seen.has(dedupe)) return;
+    seen.add(dedupe);
+    combined.push({ ...rec, onMtdBoard: isMTDRecord(rec) });
+  };
+
+  // MTD-board rows first so their ids win for Reschedule updates.
+  for (const rec of mtdRecords) {
+    if (isMTDRecord(rec)) push(rec);
+  }
+  // Orders-tab rows (assigned, not yet moved to MTD).
+  for (const rec of listPreMtdOrderRecords(activeOrders, mtdRecords)) {
+    push(rec);
+  }
+  // Any other stored MTD rows still assigned (edge cases).
+  for (const rec of mtdRecords) {
+    push(rec);
+  }
+  // Orders with an assignment that somehow aren't covered above.
+  for (const order of activeOrders) {
+    if (order.status === "completed") continue;
+    if (!order.assignedProducer?.trim()) continue;
+    if (!producerKeysMatch(order.assignedProducer, key)) continue;
+    const dedupe = order.id || order.uuid || order.legacyId || "";
+    if (!dedupe || seen.has(dedupe)) continue;
+    push(stagingRecordFromOrder(order));
+  }
+
+  return combined;
+}
+
+function collectUnpaidPayrollMixesForProducer(
+  producer: Producer,
+  mtdRecords: MTDRecord[]
+): MTDRecord[] {
+  const key = producerAssignmentKey(producer);
+  const seen = new Set<string>();
+  const rows: MTDRecord[] = [];
+  for (const rec of getPayrollRecords(mtdRecords)) {
+    if (!producerKeysMatch(rec.assignedProducer || "", key)) continue;
+    const dedupe = recordDedupeKey(rec);
+    if (!dedupe || seen.has(dedupe)) continue;
+    seen.add(dedupe);
+    rows.push(rec);
+  }
+  return rows;
+}
 
 function getProducerHeaderLabel(categories: string[]): string {
   if (categories.length === 0) return "Producer";
@@ -20,45 +119,52 @@ function getProducerHeaderLabel(categories: string[]): string {
 }
 
 export default function ProducersPage() {
-  const { producers, activeOrders, mtdRecords, addProducer, updateProducer, removeProducer, isViewOnly } =
-    useAppState();
+  const {
+    producers,
+    mtdRecords,
+    activeOrders,
+    addProducer,
+    updateProducer,
+    updateMTD,
+    removeProducer,
+    isViewOnly,
+  } = useAppState();
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Producer | null>(null);
   const [availabilityProducer, setAvailabilityProducer] =
     useState<Producer | null>(null);
   const [deleting, setDeleting] = useState<Producer | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
 
-  const assignedMixesCount = useMemo(() => {
-    if (!deleting) return 0;
-    let count = 0;
-    const pName = (deleting.name || "").toLowerCase().trim();
-    const pInit = (deleting.initials || "").toLowerCase().trim();
-    const pId = (deleting.id || "").toLowerCase().trim();
+  const assignedMixRecords = useMemo(() => {
+    if (!deleting) return [] as AssignedMixForDelete[];
+    return collectAssignedMixesForProducer(
+      deleting,
+      activeOrders,
+      mtdRecords
+    );
+  }, [deleting, mtdRecords, activeOrders]);
 
-    for (const order of activeOrders) {
-      const editor = (order.requestedEditor || order.requestedProducer || "").toLowerCase().trim();
-      const assigned = (order.assignedProducer || "").toLowerCase().trim();
-      if (
-        (editor && (editor === pName || editor === pInit || editor === pId)) ||
-        (assigned && (assigned === pName || assigned === pInit || assigned === pId))
-      ) {
-        count++;
-      }
+  const unpaidPayrollMixes = useMemo(() => {
+    if (!deleting) return [] as MTDRecord[];
+    return collectUnpaidPayrollMixesForProducer(deleting, mtdRecords);
+  }, [deleting, mtdRecords]);
+
+  function closeDeleteModal() {
+    if (deleteBusy) return;
+    setDeleting(null);
+  }
+
+  function clearProducerUi(producer: Producer) {
+    setDeleting(null);
+    if (editing?.id === producer.id) {
+      setModalOpen(false);
+      setEditing(null);
     }
-
-    for (const rec of mtdRecords) {
-      const assigned = (rec.assignedProducer || "").toLowerCase().trim();
-      const initials = (rec.editorInitials || "").toLowerCase().trim();
-      if (
-        (assigned && (assigned === pName || assigned === pInit || assigned === pId)) ||
-        (initials && (initials === pName || initials === pInit || initials === pId))
-      ) {
-        count++;
-      }
+    if (availabilityProducer?.id === producer.id) {
+      setAvailabilityProducer(null);
     }
-
-    return count;
-  }, [deleting, activeOrders, mtdRecords]);
+  }
 
   function openAdd() {
     if (isViewOnly) return;
@@ -85,10 +191,7 @@ export default function ProducersPage() {
     timeOff: Producer["timeOff"];
     maxMixesPerDay: number | null;
     maxProducerCostPerDay: number | null;
-    overtimeDays: string[];
-    categories: string[];
-    specialty: string;
-    ratesByCategory: Record<string, number>;
+    extraDays: string[];
   }): Promise<void> {
     if (isViewOnly || !availabilityProducer) {
       throw new Error("Cannot save producer availability.");
@@ -96,17 +199,33 @@ export default function ProducersPage() {
     await updateProducer(availabilityProducer.id, patch);
   }
 
-  function confirmDelete() {
-    if (isViewOnly || !deleting) return;
+  async function confirmDelete() {
+    if (isViewOnly || !deleting || deleteBusy) return;
+    if (unpaidPayrollMixes.length > 0 || assignedMixRecords.length > 0) return;
     const producer = deleting;
-    removeProducer(producer.id);
-    setDeleting(null);
-    if (editing?.id === producer.id) {
-      setModalOpen(false);
-      setEditing(null);
+    setDeleteBusy(true);
+    try {
+      await removeProducer(producer.id);
+      clearProducerUi(producer);
+    } finally {
+      setDeleteBusy(false);
     }
-    if (availabilityProducer?.id === producer.id) {
-      setAvailabilityProducer(null);
+  }
+
+  async function handleSendToReassignAndDelete() {
+    if (isViewOnly || !deleting || deleteBusy) return;
+    if (unpaidPayrollMixes.length > 0) return;
+    const producer = deleting;
+    const patch = patchForReassignProducerRemoved();
+    setDeleteBusy(true);
+    try {
+      for (const rec of assignedMixRecords) {
+        updateMTD(rec.id, patch);
+      }
+      await removeProducer(producer.id);
+      clearProducerUi(producer);
+    } finally {
+      setDeleteBusy(false);
     }
   }
 
@@ -201,7 +320,7 @@ export default function ProducersPage() {
                 onClick={() => setAvailabilityProducer(producer)}
                 className="mt-1 w-full rounded-xl border border-brand-line/50 bg-white/80 py-2.5 text-[13px] font-semibold text-brand-ink-secondary transition hover:border-brand-blue/30 hover:bg-brand-blue-soft/20 hover:text-brand-ink"
               >
-                Days & schedule
+                Schedule and capacity
               </button>
             </div>
             </div>
@@ -265,9 +384,12 @@ export default function ProducersPage() {
       <DeleteProducerModal
         open={Boolean(deleting)}
         producer={deleting}
-        assignedMixesCount={assignedMixesCount}
-        onClose={() => setDeleting(null)}
-        onConfirm={confirmDelete}
+        assignedMixes={assignedMixRecords}
+        unpaidPayrollMixes={unpaidPayrollMixes}
+        onClose={closeDeleteModal}
+        onConfirm={() => void confirmDelete()}
+        onSendToReassign={() => void handleSendToReassignAndDelete()}
+        busy={deleteBusy}
       />
     </>
   );

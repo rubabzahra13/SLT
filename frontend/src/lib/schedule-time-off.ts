@@ -3,8 +3,8 @@ import {
   expandTimeOffDates,
   findLeaveMixConflicts,
   formatLeaveDateLabel,
-  isEligibleOvertimeDate,
-  overtimeDatesInRange,
+  isEligibleExtraDate,
+  extraDatesInRange,
   timeOffRangeCoversWorkDay,
 } from "@/lib/producer-availability";
 import type { MTDRecord, Producer, ProducerTimeOff, Weekday } from "@/types";
@@ -13,14 +13,14 @@ export type TimeOffAssigneeStatus =
   | "apply"
   | "already"
   | "nonwork"
-  | "overtime"
+  | "extra"
   | "mix";
 
 export type TimeOffAssigneePreview = {
   id: string;
   name: string;
   status: TimeOffAssigneeStatus;
-  overtimeDates: string[];
+  extraDates: string[];
   /** Program names of Ongoing mixes that overlap the leave range. */
   mixLabels?: string[];
 };
@@ -58,7 +58,7 @@ export function previewTimeOffAssignees(
         id: producer.id,
         name: producer.name,
         status: "already",
-        overtimeDates: [],
+        extraDates: [],
       });
       continue;
     }
@@ -74,14 +74,14 @@ export function previewTimeOffAssignees(
         id: producer.id,
         name: producer.name,
         status: "mix",
-        overtimeDates: [],
+        extraDates: [],
         mixLabels: mixConflicts.map((m) => m.programName),
       });
       continue;
     }
 
-    const otDates = overtimeDatesInRange(
-      producer.overtimeDays,
+    const otDates = extraDatesInRange(
+      producer.extraDays,
       options.startDate,
       end
     );
@@ -89,8 +89,8 @@ export function previewTimeOffAssignees(
       rows.push({
         id: producer.id,
         name: producer.name,
-        status: "overtime",
-        overtimeDates: otDates,
+        status: "extra",
+        extraDates: otDates,
       });
       continue;
     }
@@ -102,7 +102,7 @@ export function previewTimeOffAssignees(
         id: producer.id,
         name: producer.name,
         status: "nonwork",
-        overtimeDates: [],
+        extraDates: [],
       });
       continue;
     }
@@ -111,7 +111,7 @@ export function previewTimeOffAssignees(
       id: producer.id,
       name: producer.name,
       status: "apply",
-      overtimeDates: [],
+      extraDates: [],
     });
   }
 
@@ -180,12 +180,12 @@ export function formatTimeOffRangeLabel(
   return `${entry.startDate} → ${entry.endDate}`;
 }
 
-export type OvertimeAssigneeStatus = "apply" | "already" | "workday" | "timeoff";
+export type ExtraDayAssigneeStatus = "apply" | "already" | "workday" | "timeoff";
 
-export type OvertimeAssigneePreview = {
+export type ExtraDayAssigneePreview = {
   id: string;
   name: string;
-  status: OvertimeAssigneeStatus;
+  status: ExtraDayAssigneeStatus;
 };
 
 function isoToLocalDate(iso: string): Date {
@@ -193,17 +193,17 @@ function isoToLocalDate(iso: string): Date {
   return new Date(y, m - 1, d);
 }
 
-export function previewOvertimeAssignees(
+export function previewExtraDayAssignees(
   producers: Producer[],
   options: { dateIso: string; selectedIds: ReadonlySet<string> }
-): OvertimeAssigneePreview[] {
+): ExtraDayAssigneePreview[] {
   const dateIso = options.dateIso.trim();
-  const rows: OvertimeAssigneePreview[] = [];
+  const rows: ExtraDayAssigneePreview[] = [];
 
   for (const producer of producers) {
     if (!options.selectedIds.has(producer.id)) continue;
 
-    if (producer.overtimeDays.includes(dateIso)) {
+    if (producer.extraDays.includes(dateIso)) {
       rows.push({
         id: producer.id,
         name: producer.name,
@@ -214,7 +214,7 @@ export function previewOvertimeAssignees(
 
     const workDays = effectiveWorkDays(producer);
     const date = isoToLocalDate(dateIso);
-    if (!isEligibleOvertimeDate(date, workDays)) {
+    if (!isEligibleExtraDate(date, workDays)) {
       rows.push({
         id: producer.id,
         name: producer.name,
@@ -243,20 +243,20 @@ export function previewOvertimeAssignees(
   return rows.sort((a, b) => a.name.localeCompare(b.name));
 }
 
-export type UpcomingOvertimeRow = {
+export type UpcomingExtraDayRow = {
   key: string;
   producerId: string;
   producerName: string;
   iso: string;
 };
 
-export function listUpcomingOvertime(
+export function listUpcomingExtraDays(
   producers: Producer[],
   fromIso: string
-): UpcomingOvertimeRow[] {
-  const rows: UpcomingOvertimeRow[] = [];
+): UpcomingExtraDayRow[] {
+  const rows: UpcomingExtraDayRow[] = [];
   for (const producer of producers) {
-    for (const iso of producer.overtimeDays) {
+    for (const iso of producer.extraDays) {
       if (iso < fromIso) continue;
       rows.push({
         key: `${producer.id}:${iso}`,
@@ -273,7 +273,7 @@ export function listUpcomingOvertime(
   });
 }
 
-export function formatOvertimeDayLabel(iso: string): string {
+export function formatExtraDayLabel(iso: string): string {
   const date = isoToLocalDate(iso);
   return date.toLocaleDateString(undefined, {
     weekday: "short",
@@ -282,16 +282,16 @@ export function formatOvertimeDayLabel(iso: string): string {
   });
 }
 
-export type OvertimeCalendarBlockReason = "past" | "time_off" | "none";
+export type ExtraDayCalendarBlockReason = "past" | "time_off" | "none";
 
-export function overtimeCalendarBlockReason(
+export function extraDayCalendarBlockReason(
   iso: string,
   options: {
     todayIso: string;
     producers: Producer[];
     selectedIds: ReadonlySet<string>;
   }
-): OvertimeCalendarBlockReason {
+): ExtraDayCalendarBlockReason {
   if (iso < options.todayIso) return "past";
   const selected = options.producers.filter((p) =>
     options.selectedIds.has(p.id)
@@ -307,19 +307,19 @@ export function overtimeCalendarBlockReason(
   return "none";
 }
 
-export function isOvertimeCalendarDateDisabled(
+export function isExtraDayCalendarDateDisabled(
   iso: string,
-  options: Parameters<typeof overtimeCalendarBlockReason>[1]
+  options: Parameters<typeof extraDayCalendarBlockReason>[1]
 ): boolean {
-  const reason = overtimeCalendarBlockReason(iso, options);
+  const reason = extraDayCalendarBlockReason(iso, options);
   return reason === "past" || reason === "time_off";
 }
 
-export function overtimeCalendarDayTitle(
+export function extraDayCalendarDayTitle(
   iso: string,
-  options: Parameters<typeof overtimeCalendarBlockReason>[1]
+  options: Parameters<typeof extraDayCalendarBlockReason>[1]
 ): string | undefined {
-  const reason = overtimeCalendarBlockReason(iso, options);
+  const reason = extraDayCalendarBlockReason(iso, options);
   if (reason === "past") return "Past day";
   if (reason === "time_off") return "Cancel off day to add an extra day";
   return undefined;

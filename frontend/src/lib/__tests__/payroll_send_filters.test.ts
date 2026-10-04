@@ -8,7 +8,7 @@ const rubab = {
   name: "Rubab",
   initials: "R",
   email: "rubab@example.com",
-  specialty: "Dance",
+  categories: ["Hip Hop"],
   avatar: "",
   color: "#6366f1",
   mixesThisWeek: 0,
@@ -16,8 +16,7 @@ const rubab = {
   status: "available",
   workDays: ["mon"],
   maxMixesPerDay: 5,
-  overtimeDays: [],
-  categories: ["Hip Hop"],
+  extraDays: [],
 } as unknown as Producer;
 
 const pomProducer = {

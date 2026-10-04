@@ -13,6 +13,11 @@ import {
   buildTeamSchedule,
   type ColumnAggregate,
 } from "@/lib/schedule-view";
+import {
+  isProducerAtDailyCapacity,
+  isProducerWorkableDay,
+  toDayStart,
+} from "@/lib/producer-availability";
 import { enrichProducersWithSchedule } from "@/lib/producer-schedule-calc";
 
 /** Dashboard "today" — defaults to current system date. */
@@ -140,8 +145,10 @@ export type WorkflowStage = {
 export type WeekCapacityDay = {
   dayLabel: string;
   label: string;
-  available: number;
-  booked: number;
+  /** Producers working that day who hit mix or cost daily max. */
+  atCapacity: number;
+  /** Producers working that day who still have daily capacity. */
+  hasCapacity: number;
   total: number;
   isToday: boolean;
 };
@@ -581,23 +588,40 @@ export function buildWorkflowStages(pulse: DashboardPulse): WorkflowStage[] {
 export function buildWeeklyCapacity(
   producers: Producer[],
   schedule: ScheduleEntry[],
-  mtdRecords: MTDRecord[]
+  mtdRecords: MTDRecord[],
+  anchorDate: Date = DASHBOARD_ANCHOR_DATE
 ): WeekCapacityDay[] {
   const rows = buildTeamSchedule(
     producers,
     schedule,
     "week",
-    DASHBOARD_ANCHOR_DATE,
+    anchorDate,
     mtdRecords
   );
-  return aggregateColumns(rows, DASHBOARD_ANCHOR_DATE).map((col) => ({
-    dayLabel: col.dayLabel,
-    label: col.label,
-    available: col.total - col.unavailableCount,
-    booked: col.unavailableCount,
-    total: col.total,
-    isToday: col.isToday,
-  }));
+  return aggregateColumns(rows, anchorDate).map((col) => {
+    const day =
+      parseFlexibleDate(col.key) ?? toDayStart(new Date(`${col.key}T12:00:00`));
+    let atCapacity = 0;
+    let hasCapacity = 0;
+
+    for (const producer of producers) {
+      if (!isProducerWorkableDay(producer, day)) continue;
+      if (isProducerAtDailyCapacity(producer, day, mtdRecords)) {
+        atCapacity += 1;
+      } else {
+        hasCapacity += 1;
+      }
+    }
+
+    return {
+      dayLabel: col.dayLabel,
+      label: col.label,
+      atCapacity,
+      hasCapacity,
+      total: atCapacity + hasCapacity,
+      isToday: col.isToday,
+    };
+  });
 }
 
 export function buildMixOpsSlices(pulse: DashboardPulse): MixOpsSlice[] {

@@ -8,11 +8,9 @@ class Producer(Base):
     __tablename__ = "producers"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    legacy_id = Column(String, nullable=True, index=True)
     name = Column(String, nullable=False)
     initials = Column(String, nullable=False, unique=True, index=True)
     email = Column(String, nullable=False)
-    specialty = Column(String, nullable=False)
     categories = Column(JSON, nullable=True)
     avatar = Column(String, nullable=True)
     mixes_this_week = Column(Integer, default=0, nullable=False)
@@ -21,7 +19,7 @@ class Producer(Base):
     work_days = Column(JSON, default=lambda: ["mon", "tue", "wed", "thu", "fri"], nullable=False)
     max_mixes_per_day = Column(Integer, nullable=True)
     max_producer_cost_per_day = Column(Integer, nullable=True)
-    overtime_days = Column(JSON, default=list, nullable=False)
+    extra_days = Column(JSON, default=list, nullable=False)
 
     compensation_model = Column(String, nullable=True)
     default_rate = Column(Numeric(5, 4), nullable=True)

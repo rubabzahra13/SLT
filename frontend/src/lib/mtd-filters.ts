@@ -1,14 +1,15 @@
 import {
   calculateDateBounds,
-  isDateInBounds,
   type DateFilterValue,
 } from "./date-filters";
 import { doDateRangesOverlap, toIsoDateString } from "./dates";
 import {
   findLinkedOrder,
-  getDisplayAssignedProducer,
+  findProducerByAssignmentKey,
   getRequestedEditorFromRecord,
+  producerAssignmentKey,
 } from "./editor-assignment";
+import { producerKeysMatch } from "./producer-keys";
 import { titleCase } from "./data";
 import { determineComplianceStatus } from "./pricing-engine";
 import {
@@ -260,11 +261,9 @@ export function matchesAssignedProducerFilter(
   producer: string
 ): boolean {
   if (producer === "All") return true;
-  if (producer === "Unassigned") return !rec.assignedProducer;
+  if (producer === "Unassigned") return !rec.assignedProducer?.trim();
   if (producer === "Outsourced") return isOutsourcedRecord(rec);
-  return (
-    rec.assignedProducer?.toUpperCase() === producer.toUpperCase()
-  );
+  return producerKeysMatch(rec.assignedProducer || "", producer);
 }
 
 /** @deprecated Use matchesAssignedProducerFilter */
@@ -407,7 +406,8 @@ export function buildSplitOptions(records: MTDRecord[]) {
 
 export function buildAssignedProducerOptions(
   records: MTDRecord[],
-  producerNames: readonly string[]
+  producerNames: readonly string[],
+  producers: Producer[] = []
 ) {
   const counts = new Map<string, number>();
   let unassigned = 0;
@@ -417,25 +417,57 @@ export function buildAssignedProducerOptions(
     if (isOutsourcedRecord(rec)) {
       outsourced += 1;
     }
-    if (!rec.assignedProducer) {
+    const assigned = rec.assignedProducer?.trim();
+    if (!assigned) {
       unassigned += 1;
     } else {
-      counts.set(
-        rec.assignedProducer,
-        (counts.get(rec.assignedProducer) ?? 0) + 1
-      );
+      const matched = findProducerByAssignmentKey(assigned, producers);
+      const key = matched
+        ? producerAssignmentKey(matched)
+        : assigned.toUpperCase();
+      counts.set(key, (counts.get(key) ?? 0) + 1);
     }
   }
 
+  const seen = new Set<string>();
+  const editorOptions: Array<{ value: string; label: string; count: number }> =
+    [];
+
+  for (const producer of producers) {
+    const key = producerAssignmentKey(producer);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    editorOptions.push({
+      value: key,
+      label: producer.name?.trim() || key,
+      count: counts.get(key) ?? 0,
+    });
+  }
+
+  for (const name of producerNames) {
+    const key = name.trim().toUpperCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    editorOptions.push({
+      value: key,
+      label: name,
+      count: counts.get(key) ?? 0,
+    });
+  }
+
+  for (const [key, count] of counts) {
+    if (seen.has(key)) continue;
+    seen.add(key);
+    editorOptions.push({ value: key, label: key, count });
+  }
+
+  editorOptions.sort((a, b) => a.label.localeCompare(b.label));
+
   return [
-    { value: "All", label: "All assigned", count: records.length },
+    { value: "All", label: "All editors", count: records.length },
     { value: "Unassigned", label: "Unassigned", count: unassigned },
     { value: "Outsourced", label: "Outsourced", count: outsourced },
-    ...producerNames.map((name) => ({
-      value: name,
-      label: name,
-      count: counts.get(name) ?? 0,
-    })),
+    ...editorOptions,
   ];
 }
 

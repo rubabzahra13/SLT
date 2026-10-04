@@ -15,7 +15,6 @@ const mockProducer: Producer = {
   initials: "J",
   email: "john@example.com",
   avatar: "/avatars/john.jpg",
-  specialty: "Cheer",
   categories: ["All-Star Cheer"],
   status: "available",
   mixesThisWeek: 2,
@@ -24,7 +23,7 @@ const mockProducer: Producer = {
   timeOff: [],
   maxMixesPerDay: 5,
   maxProducerCostPerDay: null,
-  overtimeDays: [],
+  extraDays: [],
 };
 
 const mockProducerMary: Producer = {
@@ -33,7 +32,6 @@ const mockProducerMary: Producer = {
   initials: "M",
   email: "mary@example.com",
   avatar: "/avatars/mary.jpg",
-  specialty: "Dance",
   categories: ["Pom", "Gameday"],
   status: "available",
   mixesThisWeek: 1,
@@ -42,7 +40,7 @@ const mockProducerMary: Producer = {
   timeOff: [],
   maxMixesPerDay: 5,
   maxProducerCostPerDay: null,
-  overtimeDays: [],
+  extraDays: [],
 };
 
 const anchorDate = new Date(2026, 8, 10); // Sept 10, 2026

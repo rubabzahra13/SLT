@@ -39,6 +39,7 @@ class MTDRecordSchema(BaseModel):
     in_payroll: bool = False
     is_manual_schedule_entry: bool = False
     completed_at: Optional[datetime] = None
+    paid_at: Optional[datetime] = None
     has_rally_mix: bool = False
     has_extend_8ct_addon: bool = False
     has_processing_8ct_sheets_addon: bool = False
@@ -134,6 +135,7 @@ class MTDRecordUpdateSchema(BaseModel):
     producer_email_sent_to: Optional[str] = None
     in_payroll: Optional[bool] = None
     completed_at: Optional[datetime] = None
+    paid_at: Optional[datetime] = None
     has_rally_mix: Optional[bool] = None
     has_extend_8ct_addon: Optional[bool] = None
     has_processing_8ct_sheets_addon: Optional[bool] = None

@@ -6,10 +6,10 @@ import {
   isoFromLocalDate,
   parseIsoToLocalDate,
 } from "@/components/ui/DayCalendarPicker";
-import { isEligibleOvertimeDate } from "@/lib/producer-availability";
+import { isEligibleExtraDate } from "@/lib/producer-availability";
 import type { Weekday } from "@/types";
 
-type OvertimeDayPickerProps = {
+type ExtraDayPickerProps = {
   open: boolean;
   onClose: () => void;
   workDays: Weekday[];
@@ -23,7 +23,7 @@ type OvertimeDayPickerProps = {
   mixBlockedDays?: string[];
 };
 
-export function OvertimeDayPicker({
+export function ExtraDayPicker({
   open,
   onClose,
   workDays,
@@ -32,7 +32,7 @@ export function OvertimeDayPicker({
   excludeRef,
   blockedTimeOffDays = [],
   mixBlockedDays = [],
-}: OvertimeDayPickerProps) {
+}: ExtraDayPickerProps) {
   const todayIso = isoFromLocalDate(new Date());
   // Current year + next year, through December.
   const maxIso = `${Number(todayIso.slice(0, 4)) + 1}-12-31`;
@@ -49,7 +49,7 @@ export function OvertimeDayPicker({
     if (!date) return true;
     if (iso < todayIso) return true;
     // Work days are never OT.
-    if (!isEligibleOvertimeDate(date, workDays)) return true;
+    if (!isEligibleExtraDate(date, workDays)) return true;
     if (timeOffSet.has(iso)) return true;
     if (mixSet.has(iso)) return true;
     if (selectedSet.has(iso)) return true;
@@ -61,7 +61,7 @@ export function OvertimeDayPicker({
     if (!disabled) return `Add ${iso} as an extra day`;
     const date = parseIsoToLocalDate(iso);
     if (mixSet.has(iso)) return "Mix on this day\nNot available as an extra day";
-    if (timeOffSet.has(iso) || (date && !isEligibleOvertimeDate(date, workDays))) {
+    if (timeOffSet.has(iso) || (date && !isEligibleExtraDate(date, workDays))) {
       return "Not a working day";
     }
     if (selectedSet.has(iso)) return "Already added";
@@ -71,7 +71,7 @@ export function OvertimeDayPicker({
   function dayTone(
     iso: string,
     disabled: boolean
-  ): "overtime" | "leave" | "mix" | undefined {
+  ): "extra" | "leave" | "mix" | undefined {
     if (!disabled || iso < todayIso) return undefined;
     if (mixSet.has(iso)) return "mix";
     // Leave UI on scheduled work days that are already Off days.
@@ -81,7 +81,7 @@ export function OvertimeDayPicker({
 
   const todayDate = parseIsoToLocalDate(todayIso);
   const todayIsWorkDay =
-    !!todayDate && !isEligibleOvertimeDate(todayDate, workDays);
+    !!todayDate && !isEligibleExtraDate(todayDate, workDays);
   const todayAlreadyAdded = selectedSet.has(todayIso);
   const todayHasMix = mixSet.has(todayIso);
   const todayHasLeave = timeOffSet.has(todayIso);

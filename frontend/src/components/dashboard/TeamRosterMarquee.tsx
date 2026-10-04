@@ -5,13 +5,11 @@ import clsx from "clsx";
 import { Avatar } from "@/components/ui/Avatar";
 import { DashboardTip } from "@/components/dashboard/DashboardTip";
 import { producerInsight } from "@/lib/dashboard-tooltips";
-import type { Producer } from "@/types";
-
-const statusLabel = {
-  available: "Available",
-  limited: "Unavailable",
-  unavailable: "Unavailable",
-} as const;
+import {
+  countProducerMixesOnDay,
+  toDayStart,
+} from "@/lib/producer-availability";
+import type { MTDRecord, Producer } from "@/types";
 
 const statusRingClass = {
   available: "ring-available",
@@ -19,20 +17,41 @@ const statusRingClass = {
   unavailable: "ring-unavailable",
 } as const;
 
-const statusBadgeClass = {
-  available:
-    "border-emerald-200/70 bg-emerald-50/90 text-emerald-800",
-  limited: "border-amber-200/70 bg-amber-50/90 text-amber-800",
-  unavailable:
-    "border-brand-line/45 bg-brand-bg-subtle/90 text-brand-ink-secondary",
-} as const;
+function mixBadgeClass(mixCount: number, maxMixes: number | null): string {
+  if (mixCount <= 0) {
+    return "border-emerald-200/70 bg-emerald-50/90 text-emerald-800";
+  }
+  if (maxMixes != null && mixCount >= maxMixes) {
+    return "border-brand-line/45 bg-brand-bg-subtle/90 text-brand-ink-secondary";
+  }
+  return "border-amber-200/70 bg-amber-50/90 text-amber-800";
+}
 
-export function TeamRosterMarquee({ team }: { team: Producer[] }) {
+function formatMixCount(count: number): string {
+  return count === 1 ? "1 mix today" : `${count} mixes today`;
+}
+
+export function TeamRosterMarquee({
+  team,
+  mtdRecords,
+  currentDate = new Date(),
+}: {
+  team: Producer[];
+  mtdRecords: MTDRecord[];
+  currentDate?: Date;
+}) {
+  const today = toDayStart(currentDate);
+
   return (
     <div className="dashboard-team-track relative flex min-h-[180px] flex-1 overflow-x-auto">
       <div className="flex min-h-[180px] flex-1 items-center gap-4 px-2 py-2">
         {team.map((producer) => {
-          const insight = producerInsight(producer);
+          const mixesToday = countProducerMixesOnDay(
+            producer,
+            today,
+            mtdRecords
+          );
+          const insight = producerInsight(producer, mixesToday);
           return (
             <DashboardTip
               key={producer.id}
@@ -62,14 +81,20 @@ export function TeamRosterMarquee({ team }: { team: Producer[] }) {
                   <span
                     className={clsx(
                       "mt-2.5 inline-flex rounded-full border px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.06em]",
-                      statusBadgeClass[producer.status]
+                      mixBadgeClass(mixesToday, producer.maxMixesPerDay)
                     )}
                   >
-                    {statusLabel[producer.status]}
+                    {formatMixCount(mixesToday)}
                   </span>
-                  <p className="mt-2 truncate text-[10px] font-semibold text-brand-ink-tertiary">
-                    {producer.nextAvailable}
-                  </p>
+                  {producer.maxMixesPerDay != null ? (
+                    <p className="mt-2 truncate text-[10px] font-semibold text-brand-ink-tertiary">
+                      Max {producer.maxMixesPerDay}/day
+                    </p>
+                  ) : (
+                    <p className="mt-2 truncate text-[10px] font-semibold text-brand-ink-tertiary">
+                      No daily limit
+                    </p>
+                  )}
                 </div>
               </Link>
             </DashboardTip>

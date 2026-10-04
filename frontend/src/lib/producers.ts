@@ -4,7 +4,12 @@ import {
   type ProducerTimeOff,
   type Weekday,
 } from "@/types";
-import { defaultAvatarSrc, PRODUCER_COLORS, getProducerColor } from "@/lib/producer-avatars";
+import {
+  defaultAvatarSrc,
+  isProducerColorHex,
+  PRODUCER_COLORS,
+  resolveProducerColor,
+} from "@/lib/producer-avatars";
 
 /**
  * Authoritative canonical specializations for all registered producers.
@@ -120,17 +125,56 @@ export const SEED_PRODUCER_CATEGORY_RATES: Record<string, Record<string, number>
   R: { "School Cheer": 0.60, "All-Star Cheer": 0.60, "Youth Rec Cheer": 0.60 },
 };
 
+const LEGACY_GENERAL_CATEGORY = "general";
+const CANONICAL_TEAM_PERF_CATEGORY = "Team Performance / Variety";
+
+function rewriteLegacyGeneralCategory(categories: string[]): string[] {
+  const next: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of categories) {
+    const value =
+      raw.trim().toLowerCase() === LEGACY_GENERAL_CATEGORY
+        ? CANONICAL_TEAM_PERF_CATEGORY
+        : raw;
+    if (seen.has(value)) continue;
+    next.push(value);
+    seen.add(value);
+  }
+  return next;
+}
+
+function rewriteLegacyGeneralRates(
+  rates: Record<string, number> | null
+): Record<string, number> | null {
+  if (!rates) return rates;
+  const entries = Object.entries(rates);
+  const general = entries.find(
+    ([key]) => key.trim().toLowerCase() === LEGACY_GENERAL_CATEGORY
+  );
+  if (!general) return rates;
+  const next: Record<string, number> = {};
+  for (const [key, value] of entries) {
+    if (key.trim().toLowerCase() === LEGACY_GENERAL_CATEGORY) continue;
+    next[key] = value;
+  }
+  if (next[CANONICAL_TEAM_PERF_CATEGORY] == null) {
+    next[CANONICAL_TEAM_PERF_CATEGORY] = general[1];
+  }
+  return next;
+}
+
 export function normalizeProducer(raw: Partial<Producer> & { id: string }): Producer {
   const rawAny = raw as Record<string, unknown>;
   const initials = (raw.initials || "XX").toUpperCase().slice(0, 4);
 
-  // Support legacy data that has specialty but not categories
   let categories: string[] =
     Array.isArray(raw.categories) && (raw.categories as string[]).length > 0
       ? (raw.categories as string[])
       : typeof rawAny["specialty"] === "string" && rawAny["specialty"]
         ? [rawAny["specialty"] as string]
         : [];
+
+  categories = rewriteLegacyGeneralCategory(categories);
 
   const canonical = getCanonicalCategories({
     id: raw.id,
@@ -145,17 +189,16 @@ export function normalizeProducer(raw: Partial<Producer> & { id: string }): Prod
       categories.includes("Dance") ||
       !canonical.every((c) => categories.includes(c))
     ) {
-      categories = [...canonical];
+      categories = rewriteLegacyGeneralCategory([...canonical]);
     }
   }
-
-  const specialty = categories[0] ?? raw.specialty ?? "";
 
   // Resolve ratesByCategory map per producer categories
   let ratesByCategory: Record<string, number> | null =
     raw.ratesByCategory && Object.keys(raw.ratesByCategory).length > 0
       ? { ...raw.ratesByCategory }
       : null;
+  ratesByCategory = rewriteLegacyGeneralRates(ratesByCategory);
 
   if (!ratesByCategory && SEED_PRODUCER_CATEGORY_RATES[initials]) {
     ratesByCategory = { ...SEED_PRODUCER_CATEGORY_RATES[initials] };
@@ -180,9 +223,13 @@ export function normalizeProducer(raw: Partial<Producer> & { id: string }): Prod
     initials: (raw.initials || "XX").toUpperCase().slice(0, 4),
     email: resolvedEmail,
     categories,
-    specialty,
     avatar: raw.avatar || defaultAvatarSrc(),
-    color: (raw.color as string) || (PRODUCER_COLORS[initials] ?? getProducerColor(initials)),
+    color: resolveProducerColor(
+      initials,
+      (raw.color as string) ||
+        (isProducerColorHex(raw.avatar) ? raw.avatar : null) ||
+        PRODUCER_COLORS[initials]
+    ),
     mixesThisWeek: raw.mixesThisWeek ?? 0,
     nextAvailable: raw.nextAvailable || "TBD",
     status: raw.status || "available",
@@ -204,9 +251,17 @@ export function normalizeProducer(raw: Partial<Producer> & { id: string }): Prod
       raw.maxProducerCostPerDay != null && raw.maxProducerCostPerDay > 0
         ? raw.maxProducerCostPerDay
         : null,
-    overtimeDays: Array.isArray(raw.overtimeDays)
-      ? [...new Set(raw.overtimeDays.filter(Boolean))].sort()
-      : [],
+    extraDays: Array.isArray(raw.extraDays)
+      ? [...new Set(raw.extraDays.filter(Boolean))].sort()
+      : Array.isArray((raw as { overtimeDays?: string[] }).overtimeDays)
+        ? [
+            ...new Set(
+              ((raw as { overtimeDays?: string[] }).overtimeDays || []).filter(
+                Boolean
+              )
+            ),
+          ].sort()
+        : [],
     compensationModel: raw.compensationModel ?? null,
     defaultRate: raw.defaultRate ?? null,
     ratesByCategory,
@@ -238,7 +293,16 @@ export function normalizeProducer(raw: Partial<Producer> & { id: string }): Prod
 
 /** Returns the first category (primary display label) for a producer. */
 export function primaryCategory(producer: Producer): string {
-  return producer.categories[0] ?? producer.specialty ?? "";
+  return producer.categories[0] ?? "";
+}
+
+/** Compact label for producer category lists in UI. */
+export function formatProducerCategories(producer: Producer): string {
+  const cats = getProducerCategories(producer);
+  if (cats.length === 0) return "No categories";
+  if (cats.length === 1) return cats[0];
+  if (cats.length === 2) return `${cats[0]} · ${cats[1]}`;
+  return `${cats.length} categories`;
 }
 
 export function formatMaxMixCapacity(maxMixesPerDay: number | null): string {
@@ -280,9 +344,15 @@ export function formatTimeOffRange(entry: ProducerTimeOff): string {
 }
 
 export function getProducerCategories(producer: Producer): string[] {
-  if (producer.categories?.length) return producer.categories;
-  if (producer.specialty) return [producer.specialty];
-  return [];
+  return producer.categories?.length ? producer.categories : [];
+}
+
+export function formatCompensationPercent(
+  rate: number | null | undefined
+): string | null {
+  if (rate == null || Number.isNaN(rate)) return null;
+  const pct = rate <= 1 ? Math.round(rate * 100) : Math.round(rate);
+  return `${pct}%`;
 }
 
 export function formatCategoryCompensationRate(
@@ -294,7 +364,7 @@ export function formatCategoryCompensationRate(
 
   const rawRate =
     producer.ratesByCategory?.[category] ?? producer.defaultRate ?? 0.5;
-  return `${rawRate <= 1 ? Math.round(rawRate * 100) : rawRate}%`;
+  return formatCompensationPercent(rawRate) ?? "0%";
 }
 
 export function initialsFromName(name: string): string {

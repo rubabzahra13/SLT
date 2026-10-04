@@ -4,8 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.lib.producer_assignment import resolve_producer_by_assignment_key
 from app.models.payroll_addon import PayrollAddon
-from app.models.producer import Producer
 from app.models.order import Order
 from app.schemas.payroll_addon import PayrollAddonCreate, PayrollAddonOut
 
@@ -20,15 +20,7 @@ def _resolve_producer_id(raw_id: Optional[str], db: Session) -> Optional[uuid.UU
         return uuid.UUID(raw_str)
     except ValueError:
         pass
-    producer = (
-        db.query(Producer)
-        .filter(
-            (Producer.legacy_id == raw_str)
-            | (Producer.initials == raw_str)
-            | (Producer.name == raw_str)
-        )
-        .first()
-    )
+    producer = resolve_producer_by_assignment_key(db, raw_str)
     return producer.id if producer else None
 
 

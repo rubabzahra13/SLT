@@ -105,9 +105,12 @@ def _mirror_shared_fields_to_mtd(db: Session, order: Order, changed: dict) -> No
             if order.assigned_producer:
                 mtd.editor_initials = order.assigned_producer
         if "mix_start_date" in shared:
-            mtd.mix_start_date = order.mix_start_date
+            # Orders store dates as strings; MTD uses Date — never mirror "".
+            raw_start = order.mix_start_date
+            mtd.mix_start_date = raw_start if raw_start else None
         if "mix_end_date" in shared:
-            mtd.mix_end_date = order.mix_end_date
+            raw_end = order.mix_end_date
+            mtd.mix_end_date = raw_end if raw_end else None
         if "price" in shared:
             mtd.price = order.price
         if "editor_request" in shared:

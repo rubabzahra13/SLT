@@ -230,7 +230,7 @@ export type DayCalendarPickerProps = {
   excludeRef?: React.RefObject<HTMLElement | null>;
   /** Highlighted / currently chosen date. */
   value?: string | null;
-  /** Extra selected dates (e.g. already-added overtime). */
+  /** Extra selected dates (e.g. already-added extra days). */
   selectedDays?: string[];
   /** Inclusive minimum selectable ISO date. Defaults to today. */
   minIso?: string;
@@ -242,12 +242,12 @@ export type DayCalendarPickerProps = {
   dayTitle?: (iso: string, disabled: boolean) => string | undefined;
   /**
    * Visual tone for a day cell. Keeps the day looking unavailable while
-   * coloring leave / holiday / overtime clashes differently.
+   * coloring leave / holiday / extra day clashes differently.
    */
   dayTone?: (
     iso: string,
     disabled: boolean
-  ) => "overtime" | "holiday" | "leave" | "mix" | "limit" | undefined;
+  ) => "extra" | "holiday" | "leave" | "mix" | "limit" | undefined;
   /** Footer content (e.g. Today button / helper text). */
   footer?: ReactNode;
   /** Shown instead of the grid when true. */
@@ -632,7 +632,7 @@ export function DayCalendarPicker({
                                 ? "cursor-not-allowed opacity-90"
                                 : "hover:bg-rose-50"
                             )
-                          : tone === "overtime"
+                          : tone === "extra"
                             ? clsx(
                                 "bg-brand-blue-soft text-brand-blue-deep ring-1 ring-inset ring-brand-blue/25",
                                 disabled

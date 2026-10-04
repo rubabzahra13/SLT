@@ -42,6 +42,8 @@ export type MTDRecord = {
   recordStatus?: MTDRecordStatus;
   /** Completed mixes moved off the MTD board into payroll */
   inPayroll?: boolean;
+  /** Marked Paid — archived out of active payroll view */
+  paidAt?: string | null;
   /** Explicitly moved from Orders staging to MTD */
   inMTD?: boolean;
   /** Explicitly moved from MTD back to Orders staging for reassignment */
@@ -128,7 +130,7 @@ export type ProducerManualInputField = {
 
 export type Producer = {
   id: string;
-  legacyId?: string;
+  /** Same as id (UUID); kept for callers that still read uuid. */
   uuid?: string;
   name: string;
   initials: string;
@@ -138,11 +140,6 @@ export type Producer = {
    * Use this for all assignment and eligibility checks.
    */
   categories: string[];
-  /**
-   * Kept for backward-compatibility and display fallback.
-   * Derived from categories[0] where possible.
-   */
-  specialty: string;
   avatar: string;
   color?: string;
   mixesThisWeek: number;
@@ -157,7 +154,7 @@ export type Producer = {
   /** Max producer payroll cost per day; null = no limit (default) */
   maxProducerCostPerDay: number | null;
   /** One-off extra work days (YYYY-MM-DD), outside regular workDays */
-  overtimeDays: string[];
+  extraDays: string[];
   compensationModel?: ProducerCompensationModel;
   defaultRate?: number | null;
   ratesByCategory?: Record<string, number> | null;

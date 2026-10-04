@@ -5,10 +5,10 @@ import type { WeekCapacityDay } from "@/lib/dashboard";
 import { weekDayInsight } from "@/lib/dashboard-tooltips";
 import { DashboardTip } from "@/components/dashboard/DashboardTip";
 
-const BOOKED_BAR_CLASS = "bg-brand-signature";
-const AVAILABLE_BAR_CLASS = "bg-brand-orange";
-const BOOKED_LEGEND_CLASS = "bg-brand-signature";
-const AVAILABLE_LEGEND_CLASS = "bg-brand-orange";
+const AT_CAPACITY_BAR_CLASS = "bg-brand-signature";
+const HAS_CAPACITY_BAR_CLASS = "bg-brand-orange";
+const AT_CAPACITY_LEGEND_CLASS = "bg-brand-signature";
+const HAS_CAPACITY_LEGEND_CLASS = "bg-brand-orange";
 
 type ScheduleWeekChartProps = {
   days: WeekCapacityDay[];
@@ -32,8 +32,8 @@ export function ScheduleWeekChart({
   const maxTotal = Math.max(...days.map((d) => d.total), 1);
 
   const dayBar = (day: WeekCapacityDay) => {
-    const bookedPct = (day.booked / maxTotal) * 100;
-    const availablePct = (day.available / maxTotal) * 100;
+    const atCapacityPct = (day.atCapacity / maxTotal) * 100;
+    const hasCapacityPct = (day.hasCapacity / maxTotal) * 100;
     const insight = weekDayInsight(day);
 
     return (
@@ -49,16 +49,16 @@ export function ScheduleWeekChart({
           className="flex h-full min-w-0 w-full flex-col items-center justify-end gap-2"
         >
           <div className="flex w-full max-w-[34px] flex-1 flex-col justify-end gap-1 overflow-hidden rounded-lg border border-brand-line/15 bg-brand-line/8 p-1">
-            {day.available > 0 ? (
+            {day.hasCapacity > 0 ? (
               <div
-                className={`w-full rounded-sm ${AVAILABLE_BAR_CLASS}`}
-                style={{ height: `${availablePct}%`, minHeight: 3 }}
+                className={`w-full rounded-sm ${HAS_CAPACITY_BAR_CLASS}`}
+                style={{ height: `${hasCapacityPct}%`, minHeight: 3 }}
               />
             ) : null}
-            {day.booked > 0 ? (
+            {day.atCapacity > 0 ? (
               <div
-                className={`w-full rounded-sm ${BOOKED_BAR_CLASS}`}
-                style={{ height: `${bookedPct}%`, minHeight: 3 }}
+                className={`w-full rounded-sm ${AT_CAPACITY_BAR_CLASS}`}
+                style={{ height: `${atCapacityPct}%`, minHeight: 3 }}
               />
             ) : null}
           </div>
@@ -76,34 +76,44 @@ export function ScheduleWeekChart({
     );
   };
 
+  const legend = (
+    <div
+      className={
+        compact
+          ? "mt-2.5 flex shrink-0 items-center justify-center gap-4 text-[9px] font-semibold uppercase tracking-wide text-brand-ink-tertiary"
+          : "mt-3 flex items-center justify-center gap-4 text-[10px] text-brand-ink-tertiary"
+      }
+    >
+      <DashboardTip
+        title="Full"
+        body="Hit their daily mix or cost limit."
+        placement="top"
+      >
+        <span className="flex cursor-default items-center gap-1.5">
+          <span className={`h-2 w-2 rounded-sm ${AT_CAPACITY_LEGEND_CLASS}`} />
+          Full
+        </span>
+      </DashboardTip>
+      <DashboardTip
+        title="Open"
+        body="Still have room for new mixes."
+        placement="top"
+      >
+        <span className="flex cursor-default items-center gap-1.5">
+          <span className={`h-2 w-2 rounded-sm ${HAS_CAPACITY_LEGEND_CLASS}`} />
+          Open
+        </span>
+      </DashboardTip>
+    </div>
+  );
+
   if (compact) {
     return (
       <div className="flex h-full min-h-0 flex-col px-3 py-3">
         <div className="flex min-h-0 flex-1 items-end justify-between gap-2.5">
           {days.map(dayBar)}
         </div>
-        <div className="mt-2.5 flex shrink-0 items-center justify-center gap-4 text-[9px] font-semibold uppercase tracking-wide text-brand-ink-tertiary">
-          <DashboardTip
-            title="Booked"
-            body="Producers marked unavailable. Mixes or off days scheduled."
-            placement="top"
-          >
-            <span className="flex cursor-default items-center gap-1.5">
-              <span className={`h-2 w-2 rounded-sm ${BOOKED_LEGEND_CLASS}`} />
-              Booked
-            </span>
-          </DashboardTip>
-          <DashboardTip
-            title="Available"
-            body="Producers still open for new assignments that day."
-            placement="top"
-          >
-            <span className="flex cursor-default items-center gap-1.5">
-              <span className={`h-2 w-2 rounded-sm ${AVAILABLE_LEGEND_CLASS}`} />
-              Available
-            </span>
-          </DashboardTip>
-        </div>
+        {legend}
       </div>
     );
   }
@@ -111,20 +121,7 @@ export function ScheduleWeekChart({
   return (
     <div className="px-5 py-4">
       <div className="flex items-end justify-between gap-1.5">{days.map(dayBar)}</div>
-      <div className="mt-3 flex items-center justify-center gap-4 text-[10px] text-brand-ink-tertiary">
-        <DashboardTip title="Booked" body="Producers marked unavailable that day." placement="top">
-          <span className="flex cursor-default items-center gap-1.5">
-            <span className={`h-2 w-2 rounded-sm ${BOOKED_LEGEND_CLASS}`} />
-            Booked
-          </span>
-        </DashboardTip>
-        <DashboardTip title="Available" body="Open producer capacity that day." placement="top">
-          <span className="flex cursor-default items-center gap-1.5">
-            <span className={`h-2 w-2 rounded-sm ${AVAILABLE_LEGEND_CLASS}`} />
-            Available
-          </span>
-        </DashboardTip>
-      </div>
+      {legend}
     </div>
   );
 }

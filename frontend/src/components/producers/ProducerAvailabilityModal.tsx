@@ -5,8 +5,7 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { CalendarPlus, Minus, Plus, Trash2, X } from "lucide-react";
 import clsx from "clsx";
-import { ProducerCategoryAddMenu } from "@/components/producers/ProducerCategoryAddMenu";
-import { OvertimeDayPicker } from "@/components/producers/OvertimeDayPicker";
+import { ExtraDayPicker } from "@/components/producers/ExtraDayPicker";
 import {
   DayCalendarPicker,
   addDaysToIso,
@@ -24,14 +23,14 @@ import {
   formatLeaveDateLabel,
   formatCompactLeaveDaySpans,
   formatSkippedProducerSummary,
-  isEligibleOvertimeDate,
+  isEligibleExtraDate,
   isEligibleTimeOffDate,
-  isTimeOffDateBlockedByOvertime,
+  isTimeOffDateBlockedByExtraDay,
   leaveApplicableDaysInRange,
   listProducerMixBookingsOnDay,
-  nextOvertimeOnOrAfter,
-  overtimeDatesInRange,
-  prevOvertimeOnOrBefore,
+  nextExtraDayOnOrAfter,
+  extraDatesInRange,
+  prevExtraDayOnOrBefore,
   timeOffRangeCoversWorkDay,
   type ProducerMixDayBooking,
 } from "@/lib/producer-availability";
@@ -41,11 +40,6 @@ import {
   isValidOffWorkReason,
   OFF_WORK_FOR_PREFIX,
 } from "@/lib/producer-time-off";
-import { findProducerCategoryGroup } from "@/lib/producer-category-groups";
-import {
-  formatCategoryCompensationRate,
-  normalizeProducer,
-} from "@/lib/producers";
 import { Tabs } from "@/components/ui/Tabs";
 import { Avatar } from "@/components/ui/Avatar";
 import {
@@ -61,13 +55,7 @@ type AvailabilityPatch = {
   timeOff: ProducerTimeOff[];
   maxMixesPerDay: number | null;
   maxProducerCostPerDay: number | null;
-  overtimeDays: string[];
-  categories: string[];
-  specialty: string;
-  ratesByCategory: Record<string, number>;
-  danceVoiceoverRate?: number;
-  cheerVoiceoverRate?: number;
-  rushFeeRate?: number;
+  extraDays: string[];
 };
 
 type ProducerAvailabilityModalProps = {
@@ -89,8 +77,8 @@ type DraftTimeOff = {
 type OtConflictRow = {
   id: string;
   name: string;
-  overtimeDates: string[];
-  cancelOvertime: boolean;
+  extraDates: string[];
+  cancelExtraDays: boolean;
 };
 
 type TimeOffNotice =
@@ -118,11 +106,11 @@ type TimeOffNotice =
       fromMtd: ProducerMixDayBooking[];
     };
 
-type AvailabilityTab = "schedule" | "leave" | "limit" | "category";
+type AvailabilityTab = "schedule" | "leave" | "limit";
 
 type WorkDayOtConflict = {
   day: Weekday;
-  overtimeDates: string[];
+  extraDates: string[];
 };
 
 type WorkDayLeaveConflict = {
@@ -131,15 +119,15 @@ type WorkDayLeaveConflict = {
 };
 
 /** OT dates that would be dropped if these work days became active. */
-function overtimeDatesBlockedByWorkDays(
-  overtimeDays: string[],
+function extraDatesBlockedByWorkDays(
+  extraDays: string[],
   nextWorkDays: Weekday[]
 ): string[] {
-  return overtimeDays.filter((iso) => {
+  return extraDays.filter((iso) => {
     const parts = iso.split("-").map(Number);
     if (parts.length !== 3 || parts.some((n) => Number.isNaN(n))) return false;
     const [y, m, d] = parts;
-    return !isEligibleOvertimeDate(new Date(y, m - 1, d), nextWorkDays);
+    return !isEligibleExtraDate(new Date(y, m - 1, d), nextWorkDays);
   });
 }
 
@@ -220,8 +208,6 @@ const OT_CONFLICT_VISIBLE_ROWS = 3;
 const OT_CONFLICT_LIST_PX =
   OT_CONFLICT_VISIBLE_ROWS * OT_CONFLICT_ROW_PX +
   (OT_CONFLICT_VISIBLE_ROWS - 1) * OT_CONFLICT_GAP_PX;
-const CATEGORY_RATE_LIST_PX = 224;
-
 function CustomScrollRail({
   children,
   maxHeight,
@@ -323,14 +309,14 @@ function WorkDayOtConflictDateList({ dates }: { dates: string[] }) {
           key={iso}
           className="flex h-11 shrink-0 items-center rounded-2xl bg-brand-bg px-4 text-[13px] font-semibold text-brand-ink ring-1 ring-inset ring-black/[0.06]"
         >
-          {formatOvertimeLabel(iso)}
+          {formatExtraDayLabel(iso)}
         </div>
       ))}
     </CustomScrollRail>
   );
 }
 
-function formatOvertimeLabel(iso: string): string {
+function formatExtraDayLabel(iso: string): string {
   const [y, m, d] = iso.split("-").map(Number);
   const date = new Date(y, m - 1, d);
   return date.toLocaleDateString(undefined, {
@@ -371,24 +357,6 @@ function clampMaxCostPerDay(value: number): number {
     MAX_MAX_COST_PER_DAY,
     Math.max(MIN_MAX_COST_PER_DAY, Math.round(value))
   );
-}
-
-function categoriesFromProducer(producer: Producer): {
-  categories: string[];
-  categoryRates: Record<string, number>;
-} {
-  const norm = normalizeProducer(producer);
-  const categories = norm.categories?.length
-    ? [...norm.categories]
-    : norm.specialty
-      ? [norm.specialty]
-      : [];
-  const categoryRates: Record<string, number> = {};
-  for (const cat of categories) {
-    const raw = norm.ratesByCategory?.[cat] ?? norm.defaultRate ?? 0.5;
-    categoryRates[cat] = raw <= 1 ? Math.round(raw * 100) : raw;
-  }
-  return { categories, categoryRates };
 }
 
 function formatTimeOffDateLabel(
@@ -516,22 +484,19 @@ export function ProducerAvailabilityModal({
   const [maxMixesPerDay, setMaxMixesPerDay] = useState(6);
   const [maxProducerCostPerDay, setMaxProducerCostPerDay] = useState(2000);
   const [maxCostInput, setMaxCostInput] = useState("2000");
-  const [overtimeDays, setOvertimeDays] = useState<string[]>([]);
-  const [workDayOtConflict, setWorkDayOtConflict] =
+  const [extraDays, setExtraDays] = useState<string[]>([]);
+  const [workDayExtraConflict, setWorkDayOtConflict] =
     useState<WorkDayOtConflict | null>(null);
   const [workDayLeaveConflict, setWorkDayLeaveConflict] =
     useState<WorkDayLeaveConflict | null>(null);
-  const [overtimePickerOpen, setOvertimePickerOpen] = useState(false);
+  const [extraDayPickerOpen, setExtraDayPickerOpen] = useState(false);
   const [timeOffDateField, setTimeOffDateField] = useState<"start" | "end" | null>(
     null
   );
   const [offWorkDetail, setOffWorkDetail] = useState("");
   const [timeOffMultiDay, setTimeOffMultiDay] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<AvailabilityTab>("schedule");
-  const [categories, setCategories] = useState<string[]>([]);
-  const [categoryRates, setCategoryRates] = useState<Record<string, number>>({});
-  const overtimeButtonRef = useRef<HTMLButtonElement>(null);
+  const extraDayButtonRef = useRef<HTMLButtonElement>(null);
   const timeOffStartRef = useRef<HTMLButtonElement>(null);
   const timeOffEndRef = useRef<HTMLButtonElement>(null);
   /** Only re-hydrate when the modal opens or the producer id changes — not when
@@ -548,7 +513,6 @@ export function ProducerAvailabilityModal({
     hydratedProducerKeyRef.current = key;
 
     setActiveTab("schedule");
-    setSaving(false);
     setWorkDays([...producer.workDays]);
     setTimeOff(
       producer.timeOff
@@ -567,21 +531,17 @@ export function ProducerAvailabilityModal({
     setMaxMixesPerDay(producer.maxMixesPerDay ?? 6);
     setMaxProducerCostPerDay(producer.maxProducerCostPerDay ?? 2000);
     setMaxCostInput(String(producer.maxProducerCostPerDay ?? 2000));
-    setOvertimeDays([...producer.overtimeDays]);
+    setExtraDays([...producer.extraDays]);
     setWorkDayOtConflict(null);
     setWorkDayLeaveConflict(null);
-    setOvertimePickerOpen(false);
+    setExtraDayPickerOpen(false);
     setTimeOffDraft(createEmptyTimeOffDraft());
     setOffWorkDetail("");
     setShowTimeOffForm(false);
-    const { categories: nextCategories, categoryRates: nextCategoryRates } =
-      categoriesFromProducer(producer);
-    setCategories(nextCategories);
-    setCategoryRates(nextCategoryRates);
   }, [open, producer]);
 
   useEffect(() => {
-    if (activeTab !== "schedule") setOvertimePickerOpen(false);
+    if (activeTab !== "schedule") setExtraDayPickerOpen(false);
     if (activeTab !== "leave") {
       setShowTimeOffForm(false);
       setTimeOffDateField(null);
@@ -606,17 +566,13 @@ export function ProducerAvailabilityModal({
     )
   );
 
-  const usesPercentageCompensation =
-    producer.compensationModel !== "not_paid_for_mixing" &&
-    producer.compensationModel !== "hourly_manual";
-
   function applyWorkDayChange(nextWorkDays: Weekday[]) {
     setWorkDays(nextWorkDays);
-    // Drop overtime dates that now fall on regular work weekdays.
-    setOvertimeDays((days) =>
+    // Drop extra dates that now fall on regular work weekdays.
+    setExtraDays((days) =>
       days.filter((iso) => {
         const date = parseIsoToLocalDate(iso);
-        return !!date && isEligibleOvertimeDate(date, nextWorkDays);
+        return !!date && isEligibleExtraDate(date, nextWorkDays);
       })
     );
   }
@@ -638,12 +594,12 @@ export function ProducerAvailabilityModal({
     }
 
     const nextWorkDays = [...workDays, day];
-    const conflicting = overtimeDatesBlockedByWorkDays(
-      overtimeDays,
+    const conflicting = extraDatesBlockedByWorkDays(
+      extraDays,
       nextWorkDays
     );
     if (conflicting.length > 0) {
-      setWorkDayOtConflict({ day, overtimeDates: conflicting });
+      setWorkDayOtConflict({ day, extraDates: conflicting });
       return;
     }
 
@@ -655,8 +611,8 @@ export function ProducerAvailabilityModal({
   }
 
   function confirmWorkDayOtRemoval() {
-    if (!workDayOtConflict) return;
-    const { day } = workDayOtConflict;
+    if (!workDayExtraConflict) return;
+    const { day } = workDayExtraConflict;
     const next = workDays.includes(day) ? workDays : [...workDays, day];
     applyWorkDayChange(next);
     setWorkDayOtConflict(null);
@@ -807,8 +763,8 @@ export function ProducerAvailabilityModal({
       endDate,
     };
 
-    const currentOt = overtimeDatesInRange(
-      overtimeDays,
+    const currentOt = extraDatesInRange(
+      extraDays,
       pendingEntry.startDate,
       endDate
     ).filter((iso) => {
@@ -832,8 +788,8 @@ export function ProducerAvailabilityModal({
           {
             id: producer.id,
             name: producer.name,
-            overtimeDates: currentOt,
-            cancelOvertime: false,
+            extraDates: currentOt,
+            cancelExtraDays: false,
           },
         ],
       });
@@ -886,7 +842,7 @@ export function ProducerAvailabilityModal({
         ...current,
         conflicts: current.conflicts.map((row) =>
           row.id === producerId
-            ? { ...row, cancelOvertime: !row.cancelOvertime }
+            ? { ...row, cancelExtraDays: !row.cancelExtraDays }
             : row
         ),
       };
@@ -899,14 +855,14 @@ export function ProducerAvailabilityModal({
     }
     const { pendingEntry, conflicts } = timeOffNotice;
     const row = conflicts.find((c) => c.id === producer.id);
-    if (!row?.cancelOvertime) return;
+    if (!row?.cancelExtraDays) return;
 
-    const removeOt = overtimeDatesInRange(
-      overtimeDays,
+    const removeOt = extraDatesInRange(
+      extraDays,
       pendingEntry.startDate,
       pendingEntry.endDate
     );
-    setOvertimeDays((prev) => prev.filter((day) => !removeOt.includes(day)));
+    setExtraDays((prev) => prev.filter((day) => !removeOt.includes(day)));
     setTimeOff((prev) => [...prev, pendingEntry]);
     closeTimeOffForm();
     clearTimeOffNotice();
@@ -917,7 +873,7 @@ export function ProducerAvailabilityModal({
     setTimeOff((prev) => prev.filter((entry) => !remove.has(entry.key)));
   }
 
-  function addOvertimeDay(iso: string) {
+  function addExtraDay(iso: string) {
     const value = iso.trim();
     if (!value) return;
     const today = new Date();
@@ -926,15 +882,15 @@ export function ProducerAvailabilityModal({
     if (existingTimeOffDays.includes(value)) return;
     const [y, m, d] = value.split("-").map(Number);
     const date = new Date(y, m - 1, d);
-    if (!isEligibleOvertimeDate(date, workDays)) return;
-    setOvertimeDays((prev) =>
+    if (!isEligibleExtraDate(date, workDays)) return;
+    setExtraDays((prev) =>
       [...new Set([...prev, value])].sort((a, b) => a.localeCompare(b))
     );
-    setOvertimePickerOpen(false);
+    setExtraDayPickerOpen(false);
   }
 
-  function removeOvertimeDay(iso: string) {
-    setOvertimeDays((prev) => prev.filter((day) => day !== iso));
+  function removeExtraDay(iso: string) {
+    setExtraDays((prev) => prev.filter((day) => day !== iso));
   }
 
   function syncMaxCostInput(value: number) {
@@ -948,33 +904,6 @@ export function ProducerAvailabilityModal({
     syncMaxCostInput(Number.isNaN(parsed) ? maxProducerCostPerDay : parsed);
   }
 
-  function addCategory(category: string) {
-    setCategories((prev) =>
-      prev.includes(category) ? prev : [...prev, category]
-    );
-    setCategoryRates((prev) => ({
-      ...prev,
-      [category]: prev[category] ?? 50,
-    }));
-  }
-
-  function removeCategory(category: string) {
-    setCategories((prev) => prev.filter((item) => item !== category));
-    setCategoryRates((prev) => {
-      const next = { ...prev };
-      delete next[category];
-      return next;
-    });
-  }
-
-  function updateCategoryRate(category: string, value: number) {
-    if (readOnly) return;
-    setCategoryRates((prev) => ({
-      ...prev,
-      [category]: value,
-    }));
-  }
-
   function buildAvailabilityPatch(
     nextTimeOff: DraftTimeOff[] = timeOff
   ): AvailabilityPatch {
@@ -982,11 +911,6 @@ export function ProducerAvailabilityModal({
     const committedMaxCost = hasMaxCapacity
       ? clampMaxCostPerDay(Number.isNaN(parsed) ? maxProducerCostPerDay : parsed)
       : null;
-    const ratesByCategory: Record<string, number> = {};
-    for (const category of categories) {
-      const value = categoryRates[category] ?? 50;
-      ratesByCategory[category] = value > 1 ? value / 100 : value;
-    }
 
     return {
       workDays,
@@ -1008,27 +932,21 @@ export function ProducerAvailabilityModal({
       maxProducerCostPerDay: hasMaxCapacity
         ? Math.max(1, committedMaxCost ?? maxProducerCostPerDay)
         : null,
-      overtimeDays,
-      categories,
-      specialty: categories[0] ?? producer?.specialty ?? "",
-      ratesByCategory,
+      extraDays,
     };
   }
 
-  async function handleDone() {
+  async function handleSave() {
     if (readOnly) {
       onClose();
       return;
     }
-    if (saving) return;
-    setSaving(true);
+    const patch = buildAvailabilityPatch();
+    onClose();
     try {
-      await onSave(buildAvailabilityPatch());
-      onClose();
+      await onSave(patch);
     } catch {
-      // Error toast comes from updateProducer; keep modal open to retry.
-    } finally {
-      setSaving(false);
+      // Error toast comes from updateProducer (optimistic update already applied).
     }
   }
 
@@ -1054,7 +972,7 @@ export function ProducerAvailabilityModal({
     router.push(`/orders?${params.toString()}`);
   }
 
-  // Overtime and already-added time off block new ranges: start can't land
+  // Extra days and already-added time off block new ranges: start can't land
   // on/before a blocked day inside the chosen end, and end can't land on/after
   // a blocked day after start.
   const existingTimeOffDays = expandTimeOffDates(timeOff);
@@ -1071,7 +989,7 @@ export function ProducerAvailabilityModal({
     ),
   ];
   const blockedTimeOffDays = [
-    ...new Set([...overtimeDays, ...existingTimeOffDays]),
+    ...new Set([...extraDays, ...existingTimeOffDays]),
   ];
 
   // Days that cannot be pick points for leave start/end (and can't sit inside
@@ -1106,7 +1024,7 @@ export function ProducerAvailabilityModal({
   let timeOffEndMaxIso = timeOffMaxIso;
 
   if (timeOffDraft.endDate) {
-    const prevBlocked = prevOvertimeOnOrBefore(
+    const prevBlocked = prevExtraDayOnOrBefore(
       rangeBlockedDays,
       addDaysToIso(timeOffDraft.endDate, -1)
     );
@@ -1116,7 +1034,7 @@ export function ProducerAvailabilityModal({
     }
   }
   if (timeOffDraft.startDate) {
-    const nextBlocked = nextOvertimeOnOrAfter(
+    const nextBlocked = nextExtraDayOnOrAfter(
       rangeBlockedDays,
       addDaysToIso(timeOffDraft.startDate, 1)
     );
@@ -1142,7 +1060,7 @@ export function ProducerAvailabilityModal({
     !todayInTimeOffStartRange ||
     isBlockedTimeOffCalendarDay(todayIso) ||
     (!!timeOffDraft.endDate && todayIso >= timeOffDraft.endDate) ||
-    isTimeOffDateBlockedByOvertime(
+    isTimeOffDateBlockedByExtraDay(
       todayIso,
       "start",
       timeOffDraft.endDate || null,
@@ -1152,7 +1070,7 @@ export function ProducerAvailabilityModal({
     !todayInTimeOffEndRange ||
     isBlockedTimeOffCalendarDay(todayIso) ||
     (!!timeOffDraft.startDate && todayIso <= timeOffDraft.startDate) ||
-    isTimeOffDateBlockedByOvertime(
+    isTimeOffDateBlockedByExtraDay(
       todayIso,
       "end",
       timeOffDraft.startDate || null,
@@ -1161,7 +1079,7 @@ export function ProducerAvailabilityModal({
   const todaySingleDisabled =
     !todayInTimeOffStartRange ||
     isBlockedTimeOffCalendarDay(todayIso) ||
-    isTimeOffDateBlockedByOvertime(
+    isTimeOffDateBlockedByExtraDay(
       todayIso,
       "start",
       todayIso,
@@ -1194,7 +1112,7 @@ export function ProducerAvailabilityModal({
     const outsideRange = disabled && isOutsideTimeOffFieldRange(iso);
     // Extra days are still non-work weekdays — canceling them doesn't enable leave.
     // Keep Extra day styling via tone; tooltip matches other non-work days.
-    if (overtimeDays.includes(iso) || isNonWorkTimeOffDay(iso)) {
+    if (extraDays.includes(iso) || isNonWorkTimeOffDay(iso)) {
       if (outsideRange) {
         return "Not a working day\nPick a work day for off day start/end";
       }
@@ -1245,9 +1163,9 @@ export function ProducerAvailabilityModal({
   function timeOffDayTone(
     iso: string,
     _disabled: boolean
-  ): "overtime" | "leave" | "mix" | undefined {
+  ): "extra" | "leave" | "mix" | undefined {
     if (iso < todayIso) return undefined;
-    if (overtimeDays.includes(iso)) return "overtime";
+    if (extraDays.includes(iso)) return "extra";
     if (hasMixOnLeaveDay(iso)) return "mix";
     return undefined;
   }
@@ -1271,16 +1189,15 @@ export function ProducerAvailabilityModal({
             {readOnly ? "Close" : "Cancel"}
           </button>
           <h2 className="absolute left-1/2 -translate-x-1/2 text-[16px] font-semibold tracking-[-0.01em] text-brand-ink">
-            {readOnly ? "Availability" : "Producer settings"}
+            {readOnly ? "Availability" : "Schedule and capacity"}
           </h2>
           {!readOnly ? (
             <button
               type="button"
-              onClick={() => void handleDone()}
-              disabled={saving}
-              className="min-w-[64px] text-right text-[15px] font-semibold text-brand-blue transition hover:text-brand-blue-hover disabled:opacity-40"
+              onClick={() => void handleSave()}
+              className="min-w-[64px] text-right text-[15px] font-semibold text-brand-blue transition hover:text-brand-blue-hover"
             >
-              {saving ? "Saving…" : "Done"}
+              Save
             </button>
           ) : (
             <span className="min-w-[64px]" />
@@ -1295,10 +1212,12 @@ export function ProducerAvailabilityModal({
                 {producer.name}
               </p>
               <p className="text-[12px] text-brand-ink-tertiary">
-                {categories.length
-                  ? categories.slice(0, 3).join(", ") +
-                    (categories.length > 3 ? ` +${categories.length - 3}` : "")
-                  : producer.specialty}
+                {producer.categories?.length
+                  ? producer.categories.slice(0, 3).join(", ") +
+                    (producer.categories.length > 3
+                      ? ` +${producer.categories.length - 3}`
+                      : "")
+                  : "No categories"}
               </p>
             </div>
           </div>
@@ -1309,123 +1228,12 @@ export function ProducerAvailabilityModal({
                 { value: "schedule", label: "Schedule" },
                 { value: "leave", label: "Off days" },
                 { value: "limit", label: "Limit" },
-                {
-                  value: "category",
-                  label: "Category",
-                  count: categories.length || undefined,
-                },
               ]}
               value={activeTab}
               onChange={(value) => setActiveTab(value as AvailabilityTab)}
               accent="blue"
             />
           </div>
-
-          {activeTab === "category" ? (
-            <div className="rounded-2xl bg-brand-bg px-4 py-3 ring-1 ring-inset ring-black/[0.06]">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-[13px] font-semibold text-brand-ink">
-                    Compensation rates
-                  </p>
-                  <p className="mt-0.5 text-[12px] text-brand-ink-tertiary">
-                    Payroll percentage by category.
-                  </p>
-                </div>
-                <ProducerCategoryAddMenu
-                  assignedCategories={categories}
-                  onAdd={addCategory}
-                />
-              </div>
-
-              {categories.length > 0 ? (
-                (() => {
-                  const rows = (
-                    <ul className="divide-y divide-black/[0.06]">
-                      {categories.map((category) => {
-                        const group = findProducerCategoryGroup(category);
-                        return (
-                          <li
-                            key={category}
-                            className="flex items-center gap-2 py-2.5 text-[13px] first:pt-0 last:pb-0"
-                          >
-                            <div className="min-w-0 flex-1">
-                              <p className="truncate font-medium text-brand-ink-secondary">
-                                {category}
-                              </p>
-                              {group ? (
-                                <p className="truncate text-[11px] text-brand-ink-tertiary">
-                                  {group.label}
-                                </p>
-                              ) : null}
-                            </div>
-                            {usesPercentageCompensation ? (
-                              <div className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-brand-elevated px-2 py-1 ring-1 ring-inset ring-black/[0.06] focus-within:ring-brand-blue/30">
-                                <input
-                                  type="number"
-                                  min={0}
-                                  max={100}
-                                  step={1}
-                                  value={categoryRates[category] ?? 50}
-                                  onChange={(e) => {
-                                    const value = parseFloat(e.target.value);
-                                    updateCategoryRate(
-                                      category,
-                                      Number.isNaN(value) ? 0 : value
-                                    );
-                                  }}
-                                  className="w-10 bg-transparent text-right text-[13px] font-semibold tabular-nums text-brand-ink outline-none"
-                                  aria-label={`Compensation percentage for ${category}`}
-                                />
-                                <span className="text-[12px] font-semibold text-brand-ink-tertiary">
-                                  %
-                                </span>
-                              </div>
-                            ) : (
-                              <span className="shrink-0 font-semibold tabular-nums text-brand-blue">
-                                {formatCategoryCompensationRate(
-                                  producer,
-                                  category
-                                )}
-                              </span>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => removeCategory(category)}
-                              className="shrink-0 rounded-full p-1.5 text-brand-ink-tertiary transition hover:bg-brand-elevated hover:text-brand-danger"
-                              aria-label={`Remove ${category}`}
-                            >
-                              <Trash2
-                                className="h-3.5 w-3.5"
-                                strokeWidth={1.75}
-                              />
-                            </button>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  );
-                  return categories.length >= 4 ? (
-                    <CustomScrollRail
-                      className="mt-3"
-                      maxHeight={CATEGORY_RATE_LIST_PX}
-                      fadeFromClassName="from-brand-bg"
-                      syncKey={categories.join("|")}
-                    >
-                      {rows}
-                    </CustomScrollRail>
-                  ) : (
-                    <div className="mt-3">{rows}</div>
-                  );
-                })()
-              ) : (
-                <p className="mt-3 text-[12px] text-brand-ink-tertiary">
-                  No categories assigned. Click Add to pick a category and
-                  subcategory.
-                </p>
-              )}
-            </div>
-          ) : null}
 
           {activeTab === "schedule" ? (
             <>
@@ -1480,13 +1288,13 @@ export function ProducerAvailabilityModal({
                 </p>
               </div>
               <button
-                ref={overtimeButtonRef}
+                ref={extraDayButtonRef}
                 type="button"
-                onClick={() => setOvertimePickerOpen((open) => !open)}
+                onClick={() => setExtraDayPickerOpen((open) => !open)}
                 onMouseDown={(e) => e.stopPropagation()}
                 className={clsx(
                   "inline-flex h-8 shrink-0 items-center gap-1 rounded-full px-3 text-[13px] font-semibold ring-1 ring-inset transition",
-                  overtimePickerOpen
+                  extraDayPickerOpen
                     ? "bg-brand-blue text-white ring-brand-blue"
                     : "bg-brand-bg text-brand-blue ring-black/[0.06] hover:bg-brand-bg-subtle"
                 )}
@@ -1494,31 +1302,31 @@ export function ProducerAvailabilityModal({
                 <CalendarPlus className="h-3.5 w-3.5" strokeWidth={2.5} />
                 Add day
               </button>
-              <OvertimeDayPicker
-                open={overtimePickerOpen}
-                onClose={() => setOvertimePickerOpen(false)}
+              <ExtraDayPicker
+                open={extraDayPickerOpen}
+                onClose={() => setExtraDayPickerOpen(false)}
                 workDays={workDays}
-                selectedDays={overtimeDays}
-                onSelect={addOvertimeDay}
-                excludeRef={overtimeButtonRef}
+                selectedDays={extraDays}
+                onSelect={addExtraDay}
+                excludeRef={extraDayButtonRef}
                 blockedTimeOffDays={applicableTimeOffDays}
                 mixBlockedDays={[...mixBlockedTimeOffDaySet]}
               />
             </div>
 
-            {overtimeDays.length === 0 ? (
+            {extraDays.length === 0 ? (
               <p className="mt-4 text-center text-[13px] text-brand-ink-tertiary">
                 No extra days added.
               </p>
             ) : (
               <ul className="mt-4 flex flex-wrap gap-2">
-                {overtimeDays.map((iso) => (
+                {extraDays.map((iso) => (
                   <li key={iso}>
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-blue-soft py-1.5 pl-3 pr-1.5 text-[12px] font-semibold text-brand-blue-deep ring-1 ring-inset ring-brand-blue-muted">
-                      {formatOvertimeLabel(iso)}
+                      {formatExtraDayLabel(iso)}
                       <button
                         type="button"
-                        onClick={() => removeOvertimeDay(iso)}
+                        onClick={() => removeExtraDay(iso)}
                         className="rounded-full p-1 text-brand-blue-deep/70 transition hover:bg-brand-blue-muted hover:text-brand-blue-deep"
                         aria-label={`Remove extra day ${iso}`}
                       >
@@ -1691,7 +1499,7 @@ export function ProducerAvailabilityModal({
                           (!!timeOffDraft.endDate &&
                             iso >= timeOffDraft.endDate) ||
                           isBlockedTimeOffCalendarDay(iso) ||
-                          isTimeOffDateBlockedByOvertime(
+                          isTimeOffDateBlockedByExtraDay(
                             iso,
                             "start",
                             timeOffDraft.endDate || null,
@@ -1786,7 +1594,7 @@ export function ProducerAvailabilityModal({
                           (!!timeOffDraft.startDate &&
                             iso <= timeOffDraft.startDate) ||
                           isBlockedTimeOffCalendarDay(iso) ||
-                          isTimeOffDateBlockedByOvertime(
+                          isTimeOffDateBlockedByExtraDay(
                             iso,
                             "end",
                             timeOffDraft.startDate || null,
@@ -1878,7 +1686,7 @@ export function ProducerAvailabilityModal({
                       maxIso={timeOffStartMaxIso}
                       isDateDisabled={(iso) =>
                         isBlockedTimeOffCalendarDay(iso) ||
-                        isTimeOffDateBlockedByOvertime(
+                        isTimeOffDateBlockedByExtraDay(
                           iso,
                           "start",
                           iso,
@@ -2153,7 +1961,7 @@ export function ProducerAvailabilityModal({
                             </p>
                             <p className="mt-0.5 text-[11px] text-brand-ink-tertiary">
                               Extra day{" "}
-                              {row.overtimeDates
+                              {row.extraDates
                                 .map((iso) => formatIsoDayMonthYear(iso))
                                 .join(", ")}
                             </p>
@@ -2163,18 +1971,18 @@ export function ProducerAvailabilityModal({
                             onClick={() => toggleConflictCancel(row.id)}
                             className={clsx(
                               "shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold transition",
-                              row.cancelOvertime
+                              row.cancelExtraDays
                                 ? "bg-brand-blue text-white"
                                 : "bg-brand-elevated text-brand-blue ring-1 ring-inset ring-brand-blue/30"
                             )}
                           >
-                            {row.cancelOvertime
+                            {row.cancelExtraDays
                               ? "Extra day canceled"
                               : "Cancel extra day"}
                           </button>
                         </div>
                         <p className="mt-2 text-[11px] text-brand-ink-tertiary">
-                          {row.cancelOvertime
+                          {row.cancelExtraDays
                             ? "Off day will be assigned."
                             : "Off day will be skipped. Extra day stays."}
                         </p>
@@ -2290,7 +2098,7 @@ export function ProducerAvailabilityModal({
               ) : timeOffNotice.kind === "ot-conflict" ? (
                 (() => {
                   const applyCount = timeOffNotice.conflicts.filter(
-                    (row) => row.cancelOvertime
+                    (row) => row.cancelExtraDays
                   ).length;
                   return (
                     <div className="flex flex-col">
@@ -2328,7 +2136,7 @@ export function ProducerAvailabilityModal({
         </div>
       ) : null}
 
-      {workDayOtConflict
+      {workDayExtraConflict
         ? createPortal(
             <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
               <button
@@ -2351,14 +2159,14 @@ export function ProducerAvailabilityModal({
                     Convert to regular work day?
                   </h2>
                   <p className="mt-3 text-center text-[13px] leading-relaxed text-brand-ink-secondary">
-                    {weekdayLabel(workDayOtConflict.day)} will become a normal
+                    {weekdayLabel(workDayExtraConflict.day)} will become a normal
                     work day, and{" "}
-                    {workDayOtConflict.overtimeDates.length === 1
+                    {workDayExtraConflict.extraDates.length === 1
                       ? "this date will be cancelled from Extra days."
                       : "these dates will be cancelled from Extra days."}
                   </p>
                   <WorkDayOtConflictDateList
-                    dates={workDayOtConflict.overtimeDates}
+                    dates={workDayExtraConflict.extraDates}
                   />
                 </div>
                 <div className="shrink-0 border-t border-black/[0.08]">

@@ -45,8 +45,8 @@ export function DashboardPageClient() {
   );
 
   const weekCapacity = useMemo(
-    () => buildWeeklyCapacity(producers, schedule, mtdRecords),
-    [producers, schedule, mtdRecords]
+    () => buildWeeklyCapacity(producers, schedule, mtdRecords, currentDate),
+    [producers, schedule, mtdRecords, currentDate]
   );
 
   const mixOps = useMemo(() => buildMixOpsSlices(pulse), [pulse]);
@@ -63,14 +63,18 @@ export function DashboardPageClient() {
       <div className="dashboard-ops-col min-h-0">
         <DashboardPanel
           className="min-h-0"
-          title="All team"
+          title="All team today"
           count={pulse.totalProducers}
           href="/producers"
           linkLabel="Manage team"
           tip={teamTip}
         >
           <div className="flex min-h-0 flex-1 p-3">
-            <TeamRosterMarquee team={team} />
+            <TeamRosterMarquee
+              team={team}
+              mtdRecords={mtdRecords}
+              currentDate={currentDate}
+            />
           </div>
         </DashboardPanel>
 

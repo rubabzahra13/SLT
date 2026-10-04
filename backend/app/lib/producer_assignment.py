@@ -74,7 +74,6 @@ def resolve_producer_by_assignment_key(db: Session, key: str | None) -> Producer
         initials = (producer.initials or "").strip().upper()
         name = (producer.name or "").strip().upper()
         first_name = name.split()[0] if name else ""
-        legacy_id = (producer.legacy_id or "").strip().upper()
         producer_id = str(producer.id).upper()
 
         if producer_id == normalized:
@@ -86,8 +85,6 @@ def resolve_producer_by_assignment_key(db: Session, key: str | None) -> Producer
         if name == normalized:
             return producer
         if first_name == normalized:
-            return producer
-        if legacy_id and legacy_id == normalized:
             return producer
 
     return None

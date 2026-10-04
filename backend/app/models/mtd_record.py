@@ -41,6 +41,8 @@ class MTDRecord(Base):
     in_payroll = Column(Boolean, default=False, nullable=False)
     is_manual_schedule_entry = Column(Boolean, default=False, nullable=False)
     completed_at = Column(DateTime(timezone=True), nullable=True)
+    # When marked Paid — moves from View Payroll into Archive.
+    paid_at = Column(DateTime(timezone=True), nullable=True)
     has_rally_mix = Column(Boolean, default=False, nullable=False)
     has_extend_8ct_addon = Column(Boolean, default=False, nullable=False)
     has_processing_8ct_sheets_addon = Column(Boolean, default=False, nullable=False)

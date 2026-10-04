@@ -12,11 +12,13 @@ import { TruncatedText } from "@/components/ui/TruncatedText";
 import { SetPricingModal } from "@/components/mtd/SetPricingModal";
 import { SetRecordPricingModal } from "@/components/mtd/SetRecordPricingModal";
 import { CompletionBlockedModal } from "@/components/mtd/CompletionBlockedModal";
+import { InlineTwoStateToggle } from "@/components/mtd/InlineFields";
 import { ForwardOrderMailModal } from "@/components/orders/ForwardOrderMailModal";
 import { AddNewOrderModal } from "@/components/orders/AddNewOrderModal";
 import { OrderFormEditModal } from "@/components/orders/OrderFormEditModal";
 import { OrderRequirementsCell } from "@/components/orders/OrderRequirementsCell";
 import { OrderDataStatusBadge, OrderAssignmentStatusBadge } from "@/components/orders/OrderStatusDropdown";
+import { recordIsRushOrder } from "@/lib/forward-order-mail";
 import {
   DEFAULT_MTD_TABLE_FILTERS,
   type MTDTableFilterState,
@@ -28,6 +30,7 @@ import {
   getOrderAssignmentStatus,
   getOrderRequirements,
   getOrderStatus,
+  ORDER_RESELECTION_REASON_LABEL,
 } from "@/lib/order-requirements";
 import {
   calculateCheerOrderPricing,
@@ -45,8 +48,6 @@ import {
   findProducerByAssignmentKey,
   formatRequestedEditorLabel,
   getDisplayAssignedProducer,
-  getRequestedEditorFromRecord,
-  getRequestedEditorUnavailableReason,
   mixWorkDaysForRecord,
   producerKeysMatch,
 } from "@/lib/editor-assignment";
@@ -75,8 +76,6 @@ const DEFAULT_FORM: OrderFormType = "school-all-star-cheer";
 const DEFAULT_CHEER_SUBTYPE: CheerFormSubtypeFilter = "all-star-cheer";
 const DEFAULT_DANCE_SUBTYPE: DanceFormSubtypeFilter = "all";
 
-const unavailableTagClass =
-  "inline-flex items-center rounded-full bg-brand-warning/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.04em] text-brand-warning ring-1 ring-inset ring-brand-warning/25";
 const actionButtonClass = (filled: boolean, disabled = false) =>
   clsx(
     "mt-1 rounded-md border px-2 py-1 text-[11px] font-semibold transition shadow-sm",
@@ -113,6 +112,7 @@ function OrdersPageContent() {
     activeOrders,
     allOrders,
     updateMTD,
+    updateOrder,
     addManualScheduleEntry,
     producers,
     schedule,
@@ -137,6 +137,15 @@ function OrdersPageContent() {
   const scheduleParam = searchParams.get("schedule");
   const focusParam = searchParams.get("focus");
   const rangeParam = searchParams.get("range");
+  const formParam = searchParams.get("form");
+
+  const validOrderForms: OrderFormType[] = [
+    "school-all-star-cheer",
+    "school-all-star-dance",
+    "marching-band",
+    "sports-entertainment",
+    "school-anthem",
+  ];
 
   const allowedRangeFilters: OrderViewRangeFilter[] = [
     "all",
@@ -198,6 +207,13 @@ function OrdersPageContent() {
     }
   }, [rangeParam]);
 
+  useEffect(() => {
+    if (!formParam) return;
+    if (validOrderForms.includes(formParam as OrderFormType)) {
+      setForm(formParam as OrderFormType);
+    }
+  }, [formParam]);
+
   const clearHighlight = useCallback(() => {
     setHighlightId(null);
     if (typeof window !== "undefined" && focusParam) {
@@ -210,16 +226,13 @@ function OrdersPageContent() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    // URL ?form= wins over the last-used Orders form in sessionStorage.
+    if (formParam && validOrderForms.includes(formParam as OrderFormType)) {
+      return;
+    }
     const savedForm = sessionStorage.getItem("slt_orders_form") as OrderFormType | null;
     const savedCheer = sessionStorage.getItem("slt_orders_cheer_subtype") as CheerFormSubtypeFilter | null;
     const savedDance = sessionStorage.getItem("slt_orders_dance_subtype") as DanceFormSubtypeFilter | null;
-    const validForms: OrderFormType[] = [
-      "school-all-star-cheer",
-      "school-all-star-dance",
-      "marching-band",
-      "sports-entertainment",
-      "school-anthem",
-    ];
     const validCheerSubtypes: CheerFormSubtypeFilter[] = [
       "all",
       "all-star-cheer",
@@ -235,10 +248,10 @@ function OrdersPageContent() {
       "gameday",
       "jazz-kick",
     ];
-    if (savedForm && validForms.includes(savedForm)) setFormState(savedForm);
+    if (savedForm && validOrderForms.includes(savedForm)) setFormState(savedForm);
     if (savedCheer && validCheerSubtypes.includes(savedCheer)) setCheerSubtypeState(savedCheer);
     if (savedDance && validDanceSubtypes.includes(savedDance)) setDanceSubtypeState(savedDance);
-  }, []);
+  }, [formParam]);
 
   const [tableFilters, setTableFilters] = useState<MTDTableFilterState>(
     DEFAULT_MTD_TABLE_FILTERS
@@ -836,39 +849,18 @@ function OrdersPageContent() {
         render: (rec) => {
           const linked = findLinkedOrder(rec, allOrders);
           const label = formatRequestedEditorLabel(rec, producers, linked);
-          const requested = getRequestedEditorFromRecord(rec, producers, linked);
           const isFa = label === "FA";
-          const unavailableReason =
-            !isFa && requested
-              ? getRequestedEditorUnavailableReason(
-                  rec,
-                  requested,
-                  producers,
-                )
-              : null;
-          const showUnavailable =
-            Boolean(unavailableReason) &&
-            (!rec.assignedProducer ||
-              !producerKeysMatch(rec.assignedProducer, requested as string));
-          const unavailableTitle = `${requested}: ${unavailableReason}`;
 
           return (
-            <div className="inline-flex flex-col items-center gap-0.5">
-              <span
-                className={clsx(
-                  "font-medium uppercase tabular-nums",
-                  compactTextClass,
-                  isFa ? "text-brand-info" : "text-brand-ink"
-                )}
-              >
-                {isFa ? "FA" : label}
-              </span>
-              {showUnavailable ? (
-                <HoverTip label={unavailableTitle} placement="top">
-                  <span className={unavailableTagClass}>Unavailable</span>
-                </HoverTip>
-              ) : null}
-            </div>
+            <span
+              className={clsx(
+                "font-medium uppercase tabular-nums",
+                compactTextClass,
+                isFa ? "text-brand-info" : "text-brand-ink"
+              )}
+            >
+              {isFa ? "FA" : label}
+            </span>
           );
         },
       },
@@ -886,7 +878,8 @@ function OrdersPageContent() {
           const producer = assigned
             ? findProducerByAssignmentKey(assigned, producers)
             : undefined;
-          const { missingCount } = getOrderStatus(rec);
+          const { missingCount, needsReassign, reassignReason } =
+            getOrderStatus(rec);
           const assignBlockedByMissingData = missingCount > 0;
           const assignBlockedReason = assignBlockedByMissingData
             ? "Resolve missing data\nbefore assigning"
@@ -898,6 +891,10 @@ function OrdersPageContent() {
             rangeFilter === "reassign_rush"
               ? "Reassign"
               : "Assign";
+          const reassignReasonLabel =
+            needsReassign && reassignReason
+              ? ORDER_RESELECTION_REASON_LABEL[reassignReason]
+              : null;
 
           return (
             <div className={clsx("flex justify-center", isMissingDataRow && "opacity-40 pointer-events-none cursor-not-allowed")} onClick={(e) => e.stopPropagation()}>
@@ -923,7 +920,12 @@ function OrdersPageContent() {
               ) : (
                 <div className="flex flex-col items-center gap-1">
                   <HoverTip
-                    label={assignBlockedReason ?? assignLabel}
+                    label={
+                      assignBlockedReason ??
+                      (reassignReasonLabel
+                        ? `${assignLabel}: ${reassignReasonLabel}`
+                        : assignLabel)
+                    }
                     placement="top"
                   >
                     <button
@@ -943,11 +945,21 @@ function OrdersPageContent() {
                         false,
                         assignBlockedByMissingData
                       )}
-                      aria-label={assignBlockedReason ?? assignLabel}
+                      aria-label={
+                        assignBlockedReason ??
+                        (reassignReasonLabel
+                          ? `${assignLabel}: ${reassignReasonLabel}`
+                          : assignLabel)
+                      }
                     >
                       {assignLabel}
                     </button>
                   </HoverTip>
+                  {reassignReasonLabel ? (
+                    <span className="max-w-[110px] text-center text-[9px] font-medium leading-tight text-brand-ink-tertiary">
+                      {reassignReasonLabel}
+                    </span>
+                  ) : null}
                 </div>
               )}
             </div>
@@ -1052,6 +1064,37 @@ function OrdersPageContent() {
         render: (rec: MTDRecord) => (
           <OrderAssignmentStatusBadge record={rec} />
         ),
+      },
+      {
+        key: "rushOrder",
+        header: "Rush\norder",
+        width: "72px",
+        align: "center" as const,
+        nowrap: true,
+        cellClassName: compactCellClass,
+        headerClassName: clsx(compactHeaderClass, "whitespace-pre-line leading-tight"),
+        render: (rec: MTDRecord) => {
+          const isRush = recordIsRushOrder(rec);
+          return (
+            <div
+              className="flex justify-center"
+              onClick={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <InlineTwoStateToggle
+                value={isRush}
+                readOnly={isViewOnly}
+                onToggle={() => {
+                  const next = isRush ? "no" : "yes";
+                  updateMTD(rec.id, { isRushOrder: next });
+                  if (rec.orderId) {
+                    updateOrder(rec.orderId, { isRushOrder: next });
+                  }
+                }}
+              />
+            </div>
+          );
+        },
       },
       {
         key: "email",
@@ -1300,6 +1343,7 @@ function OrdersPageContent() {
     mtdRecords,
     orderById,
     updateMTD,
+    updateOrder,
     handleMoveToMTD,
     openPricingModal,
     openAssignPage,

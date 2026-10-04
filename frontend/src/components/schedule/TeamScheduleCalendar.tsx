@@ -153,7 +153,7 @@ export function ScheduleDayDrawer({
                   <div>
                     <p className="text-[14px] font-semibold text-brand-ink">{producer.name}</p>
                     <p className="mt-0.5 text-[12px] text-brand-ink-secondary">
-                      {producer.specialty}
+                      {producer.categories[0] || "Producer"}
                     </p>
                   </div>
                 </div>

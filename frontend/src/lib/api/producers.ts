@@ -3,17 +3,15 @@ import type { Producer, ProducerCompensationModel, ProducerManualInputField } fr
 import { normalizeProducer } from "@/lib/producers";
 
 export function resolveProducerApiId(producer: Pick<Producer, "id" | "uuid">): string {
-  return producer.uuid || producer.id;
+  return producer.id || producer.uuid || "";
 }
 
 export interface BackendProducer {
   id: string;
-  legacy_id?: string | null;
   name: string;
   initials: string;
   email: string;
   categories?: string[] | null;
-  specialty?: string | null;
   avatar?: string | null;
   mixes_this_week: number;
   next_available?: string | null;
@@ -28,6 +26,8 @@ export interface BackendProducer {
   }[];
   max_mixes_per_day?: number | null;
   max_producer_cost_per_day?: number | null;
+  extra_days?: string[];
+  /** @deprecated read-only fallback while caches catch up */
   overtime_days?: string[];
   compensation_model?: ProducerCompensationModel;
   default_rate?: number | null;
@@ -44,19 +44,15 @@ export function transformProducer(bp: BackendProducer): Producer {
   const categories: string[] =
     Array.isArray(bp.categories) && bp.categories.length > 0
       ? bp.categories
-      : bp.specialty
-        ? [bp.specialty]
-        : [];
+      : [];
 
   return normalizeProducer({
-    id: bp.legacy_id || bp.id,
-    legacyId: bp.legacy_id || undefined,
+    id: bp.id,
     uuid: bp.id,
     name: bp.name,
     initials: bp.initials,
     email: bp.email,
     categories,
-    specialty: bp.specialty || categories[0] || "",
     avatar: bp.avatar || `https://api.dicebear.com/9.x/avataaars/svg?seed=${bp.initials}`,
     mixesThisWeek: bp.mixes_this_week ?? 0,
     nextAvailable: bp.next_available || "Available",
@@ -71,7 +67,7 @@ export function transformProducer(bp: BackendProducer): Producer {
     })),
     maxMixesPerDay: bp.max_mixes_per_day ?? null,
     maxProducerCostPerDay: bp.max_producer_cost_per_day ?? null,
-    overtimeDays: bp.overtime_days || [],
+    extraDays: bp.extra_days || bp.overtime_days || [],
     compensationModel: bp.compensation_model ?? null,
     defaultRate: bp.default_rate ?? null,
     ratesByCategory: bp.rates_by_category ?? null,
@@ -119,19 +115,17 @@ function serializeTimeOffs(
 
 export async function createProducerApi(producer: Producer): Promise<Producer> {
   const payload = {
-    legacy_id: producer.legacyId || producer.id,
     name: producer.name,
     initials: producer.initials,
     email: producer.email,
     categories: producer.categories,
-    specialty: producer.specialty,
     avatar: producer.avatar,
     status: producer.status,
     work_days: producer.workDays,
     time_offs: serializeTimeOffs(producer.timeOff) ?? [],
     max_mixes_per_day: producer.maxMixesPerDay,
     max_producer_cost_per_day: producer.maxProducerCostPerDay,
-    overtime_days: producer.overtimeDays,
+    extra_days: producer.extraDays,
     compensation_model: producer.compensationModel,
     default_rate: producer.defaultRate,
     rates_by_category: producer.ratesByCategory,
@@ -156,14 +150,13 @@ export async function updateProducerApi(
   if (patch.initials !== undefined) payload.initials = patch.initials;
   if (patch.email !== undefined) payload.email = patch.email;
   if (patch.categories !== undefined) payload.categories = patch.categories;
-  if (patch.specialty !== undefined) payload.specialty = patch.specialty;
   if (patch.avatar !== undefined) payload.avatar = patch.avatar;
   if (patch.status !== undefined) payload.status = patch.status;
   if (patch.workDays !== undefined) payload.work_days = patch.workDays;
   if (patch.timeOff !== undefined) payload.time_offs = serializeTimeOffs(patch.timeOff);
   if (patch.maxMixesPerDay !== undefined) payload.max_mixes_per_day = patch.maxMixesPerDay;
   if (patch.maxProducerCostPerDay !== undefined) payload.max_producer_cost_per_day = patch.maxProducerCostPerDay;
-  if (patch.overtimeDays !== undefined) payload.overtime_days = patch.overtimeDays;
+  if (patch.extraDays !== undefined) payload.extra_days = patch.extraDays;
   if (patch.mixesThisWeek !== undefined) payload.mixes_this_week = patch.mixesThisWeek;
   if (patch.nextAvailable !== undefined) payload.next_available = patch.nextAvailable;
   if (patch.compensationModel !== undefined) payload.compensation_model = patch.compensationModel;

@@ -138,6 +138,15 @@ function mtdWorkflowFields(
     },
   ];
 
+  if (recordIsRushOrder(record)) {
+    items.unshift({
+      key: "mtd-rush-order",
+      label: "Rush order",
+      value: "Yes",
+      section: "Assignment & scheduling",
+    });
+  }
+
   return items.filter((item) => hasDisplayValue(item.value));
 }
 
@@ -222,6 +231,17 @@ function groupSelectedFields(selectedFields: ForwardMailField[]): ForwardMailSec
   }
 
   return sections;
+}
+
+export function recordIsRushOrder(record: MTDRecord | null | undefined): boolean {
+  if (!record) return false;
+  const flag = record.isRushOrder;
+  if (flag === true || flag === "yes" || flag === "Yes") return true;
+  if (typeof record.rushFeeQuantity === "number" && record.rushFeeQuantity > 0) {
+    return true;
+  }
+  const option = (record.rushFeeOption || "").toLowerCase();
+  return option === "single" || option === "double";
 }
 
 export function buildForwardMailDraft(

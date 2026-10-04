@@ -126,7 +126,8 @@ function MultiBookingTooltipContent({
           scheduleStatusTooltipTone(cell.status)
         )}
       >
-        {statusLabel(cell.status)} · {bookings.length} mixes
+        {statusLabel(cell.status)} · {bookings.length}{" "}
+        {bookings.length === 1 ? "mix" : "mixes"}
       </p>
       <div className="mt-2 max-h-48 space-y-2 overflow-y-auto pr-1">
         {bookings.map((booking, index) => (
@@ -262,7 +263,7 @@ function ScheduleCellButton({
 
   const bookings = cell.bookings ?? (cell.booking ? [cell.booking] : []);
   const booking = bookings[0] ?? cell.booking;
-  const showCount = bookings.length > 1;
+  const showCount = bookings.length >= 1 && cell.status !== "nonwork";
 
   const wrapWithTooltip = (node: React.ReactNode, content: React.ReactNode) => (
     <HoverTip className="w-full justify-center" placement="top" content={content}>
@@ -280,7 +281,7 @@ function ScheduleCellButton({
       title={
         booking && !showCount
           ? undefined
-          : cell.status === "off" || (cell.status === "available" && cell.isOvertime)
+          : cell.status === "off" || (cell.status === "available" && cell.isExtraDay)
             ? undefined
             : `${cell.dayLabel} ${cell.dateLabel} · ${statusLabel(cell.status)}`
       }
@@ -294,7 +295,7 @@ function ScheduleCellButton({
       }}
       aria-label={
         showCount
-          ? `${statusLabel(cell.status)}: ${bookings.length} mixes on ${cell.dayLabel}, ${cell.dateLabel}`
+          ? `${statusLabel(cell.status)}: ${bookings.length} mix${bookings.length === 1 ? "" : "es"} on ${cell.dayLabel}, ${cell.dateLabel}`
           : booking
             ? `${statusLabel(cell.status)}: ${booking.work}, until ${booking.until}`
             : cell.status === "off" && cell.offDetail
@@ -334,7 +335,7 @@ function ScheduleCellButton({
         </div>
       );
     }
-    if (cell.status === "available" && cell.isOvertime) {
+    if (cell.status === "available" && cell.isExtraDay) {
       return wrapWithTooltip(
         button,
         <div className="min-w-[140px]">
@@ -718,7 +719,7 @@ export function TeamScheduleMatrix({
             <div className="max-w-md text-center">
               <p className="text-[13px] font-semibold text-brand-ink">{emptyMessage}</p>
               <p className="mt-1 text-[12px] leading-relaxed text-brand-ink-tertiary">
-                Try another team filter or add a producer with this specialty.
+                Try another team filter or add a producer with this category.
               </p>
             </div>
           </div>

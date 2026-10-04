@@ -32,7 +32,6 @@ function makeProducer(overrides: Partial<Producer> = {}): Producer {
     initials: "TP",
     email: "test@test.com",
     categories: ["All-Star Cheer"],
-    specialty: "All-Star Cheer",
     avatar: "",
     mixesThisWeek: 0,
     nextAvailable: "TBD",
@@ -41,7 +40,7 @@ function makeProducer(overrides: Partial<Producer> = {}): Producer {
     timeOff: [],
     maxMixesPerDay: null,
     maxProducerCostPerDay: null,
-    overtimeDays: [],
+    extraDays: [],
     compensationModel: null,
     defaultRate: null,
     ratesByCategory: null,
@@ -168,9 +167,9 @@ describe("producerSupportsCategory", () => {
     assert.equal(producerSupportsCategory(p, "all"), true);
   });
 
-  it("falls back to specialty when categories array is empty", () => {
-    const p = makeProducer({ categories: [], specialty: "Marching Band" });
-    assert.equal(producerSupportsCategory(p, "Marching Band"), true);
+  it("empty categories means no category support", () => {
+    const p = makeProducer({ categories: [] });
+    assert.equal(producerSupportsCategory(p, "Marching Band"), false);
     assert.equal(producerSupportsCategory(p, "Pom"), false);
   });
 

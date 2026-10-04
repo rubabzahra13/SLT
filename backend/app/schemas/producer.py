@@ -29,11 +29,9 @@ class ProducerTimeOffWriteSchema(BaseModel):
 
 class ProducerSchema(BaseModel):
     id: UUID
-    legacy_id: Optional[str] = None
     name: str
     initials: str
     email: str
-    specialty: str
     categories: Optional[List[str]] = None
     avatar: Optional[str] = None
     mixes_this_week: int = 0
@@ -43,7 +41,7 @@ class ProducerSchema(BaseModel):
     time_offs: List[ProducerTimeOffSchema] = []
     max_mixes_per_day: Optional[int] = None
     max_producer_cost_per_day: Optional[int] = None
-    overtime_days: List[str] = []
+    extra_days: List[str] = []
 
     compensation_model: Optional[str] = None
     default_rate: Optional[float] = None
@@ -58,18 +56,16 @@ class ProducerSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 class ProducerCreateSchema(BaseModel):
-    legacy_id: Optional[str] = None
     name: str
     initials: str
     email: str
-    specialty: str
     categories: Optional[List[str]] = None
     avatar: Optional[str] = None
     status: Optional[str] = "available"
     work_days: Optional[List[str]] = ["mon", "tue", "wed", "thu", "fri"]
     max_mixes_per_day: Optional[int] = None
     max_producer_cost_per_day: Optional[int] = None
-    overtime_days: Optional[List[str]] = []
+    extra_days: Optional[List[str]] = []
     time_offs: Optional[List[ProducerTimeOffWriteSchema]] = None
 
     compensation_model: Optional[str] = None
@@ -86,7 +82,6 @@ class ProducerUpdateSchema(BaseModel):
     name: Optional[str] = None
     initials: Optional[str] = None
     email: Optional[str] = None
-    specialty: Optional[str] = None
     categories: Optional[List[str]] = None
     avatar: Optional[str] = None
     mixes_this_week: Optional[int] = None
@@ -95,7 +90,7 @@ class ProducerUpdateSchema(BaseModel):
     work_days: Optional[List[str]] = None
     max_mixes_per_day: Optional[int] = None
     max_producer_cost_per_day: Optional[int] = None
-    overtime_days: Optional[List[str]] = None
+    extra_days: Optional[List[str]] = None
     time_offs: Optional[List[ProducerTimeOffWriteSchema]] = None
 
     compensation_model: Optional[str] = None

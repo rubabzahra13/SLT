@@ -36,33 +36,56 @@ export function kpiInsight(
   }
 }
 
-export function producerInsight(producer: Producer): { title: string; body: string } {
-  const statusCopy =
-    producer.status === "available"
-      ? "Open for new work in the current week view."
-      : producer.status === "limited"
-        ? "Partially booked. Confirm schedule before assigning new mixes."
-        : "Fully booked in the current schedule window.";
+export function producerInsight(
+  producer: Producer,
+  mixesToday = 0
+): { title: string; body: string } {
+  const mixCopy =
+    mixesToday === 1
+      ? "1 mix on the schedule today."
+      : `${mixesToday} mixes on the schedule today.`;
+  const limitCopy =
+    producer.maxMixesPerDay != null
+      ? ` Daily max: ${producer.maxMixesPerDay}.`
+      : "";
 
   return {
     title: producer.name,
-    body: `${producer.specialty} · ${statusCopy} Next opening: ${producer.nextAvailable}.`,
+    body: `${producer.categories[0] || "Producer"} · ${mixCopy}${limitCopy}`,
   };
 }
 
 export function weekDayInsight(day: {
   label: string;
   dayLabel: string;
-  available: number;
-  booked: number;
+  atCapacity: number;
+  hasCapacity: number;
   total: number;
   isToday: boolean;
 }): { title: string; body: string } {
-  const openPct =
-    day.total > 0 ? Math.round((day.available / day.total) * 100) : 0;
+  const title = day.isToday
+    ? `Today · ${day.dayLabel}`
+    : `${day.dayLabel} · ${day.label}`;
+
+  if (day.total === 0) {
+    return {
+      title,
+      body: "No producers working this day.",
+    };
+  }
+
+  const openLabel =
+    day.hasCapacity === 1
+      ? "1 can take more work"
+      : `${day.hasCapacity} can take more work`;
+  const fullLabel =
+    day.atCapacity === 1
+      ? "1 is full"
+      : `${day.atCapacity} are full`;
+
   return {
-    title: day.isToday ? `Today · ${day.dayLabel}` : `${day.dayLabel} · ${day.label}`,
-    body: `${day.available} of ${day.total} producers available (${openPct}% open). ${day.booked} booked on this day.`,
+    title,
+    body: `${openLabel} · ${fullLabel}.`,
   };
 }
 
@@ -123,7 +146,7 @@ export function weekCapacityPanelInsight(pulse: DashboardPulse): {
 } {
   return {
     title: "Week at a glance",
-    body: `Dark blue = booked days, orange = open capacity across the roster.${pulse.busiestDay ? ` Peak load: ${pulse.busiestDay.dayLabel}.` : ""}`,
+    body: `Blue = full for the day. Orange = still open for new mixes.${pulse.busiestDay ? ` Peak day: ${pulse.busiestDay.dayLabel}.` : ""}`,
   };
 }
 

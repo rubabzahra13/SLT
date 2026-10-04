@@ -76,14 +76,14 @@ export function isProducerWorkDay(producer: Producer, date: Date): boolean {
 }
 
 /** True when this calendar date is outside the regular weekly workDays. */
-export function isEligibleOvertimeDate(
+export function isEligibleExtraDate(
   date: Date,
   workDays: Weekday[]
 ): boolean {
   return !workDays.includes(dateToWeekday(date));
 }
 
-/** Time off only applies to regular workDays (not overtime / non-work weekdays). */
+/** Time off only applies to regular workDays (not extra days / non-work weekdays). */
 export function isEligibleTimeOffDate(
   date: Date,
   workDays: Weekday[]
@@ -376,35 +376,35 @@ export function formatLeaveDateLabel(
   return formatCompactLeaveDaySpans(leaveDays);
 }
 
-/** Overtime ISO dates that fall inside [startIso, endIso] inclusive. */
-export function overtimeDatesInRange(
-  overtimeDays: string[],
+/** Extra-day ISO dates that fall inside [startIso, endIso] inclusive. */
+export function extraDatesInRange(
+  extraDays: string[],
   startIso: string,
   endIso: string
 ): string[] {
   const end = endIso || startIso;
-  return overtimeDays
+  return extraDays
     .filter((iso) => iso >= startIso && iso <= end)
     .sort((a, b) => a.localeCompare(b));
 }
 
-/** Earliest overtime day on or after `iso`, if any. */
-export function nextOvertimeOnOrAfter(
-  overtimeDays: string[],
+/** Earliest extra day on or after `iso`, if any. */
+export function nextExtraDayOnOrAfter(
+  extraDays: string[],
   iso: string
 ): string | null {
-  const next = overtimeDays
+  const next = extraDays
     .filter((day) => day >= iso)
     .sort((a, b) => a.localeCompare(b))[0];
   return next ?? null;
 }
 
-/** Latest overtime day on or before `iso`, if any. */
-export function prevOvertimeOnOrBefore(
-  overtimeDays: string[],
+/** Latest extra day on or before `iso`, if any. */
+export function prevExtraDayOnOrBefore(
+  extraDays: string[],
   iso: string
 ): string | null {
-  const prev = overtimeDays
+  const prev = extraDays
     .filter((day) => day <= iso)
     .sort((a, b) => a.localeCompare(b))
     .at(-1);
@@ -412,35 +412,35 @@ export function prevOvertimeOnOrBefore(
 }
 
 /**
- * Time-off ranges cannot include overtime days.
- * - Overtime days themselves are never selectable.
- * - With an end date set, start must be after any overtime on/before that end.
- * - With a start date set, end must be before any overtime on/after that start.
+ * Time-off ranges cannot include extra days.
+ * - Extra days themselves are never selectable.
+ * - With an end date set, start must be after any extra day on/before that end.
+ * - With a start date set, end must be before any extra day on/after that start.
  */
-export function isTimeOffDateBlockedByOvertime(
+export function isTimeOffDateBlockedByExtraDay(
   iso: string,
   field: "start" | "end",
   otherIso: string | null | undefined,
-  overtimeDays: string[]
+  extraDays: string[]
 ): boolean {
-  if (overtimeDays.includes(iso)) return true;
+  if (extraDays.includes(iso)) return true;
   if (!otherIso) return false;
   if (field === "start") {
     const end = otherIso < iso ? iso : otherIso;
-    return overtimeDatesInRange(overtimeDays, iso, end).length > 0;
+    return extraDatesInRange(extraDays, iso, end).length > 0;
   }
   if (iso < otherIso) return true;
-  return overtimeDatesInRange(overtimeDays, otherIso, iso).length > 0;
+  return extraDatesInRange(extraDays, otherIso, iso).length > 0;
 }
 
-export function isProducerOvertimeDay(producer: Producer, date: Date): boolean {
+export function isProducerExtraDay(producer: Producer, date: Date): boolean {
   const iso = dateToIsoLocal(date);
-  return (producer.overtimeDays ?? []).includes(iso);
+  return (producer.extraDays ?? []).includes(iso);
 }
 
-/** Regular work day or a one-off overtime date. */
+/** Regular work day or a one-off extra day. */
 export function isProducerScheduledDay(producer: Producer, date: Date): boolean {
-  return isProducerWorkDay(producer, date) || isProducerOvertimeDay(producer, date);
+  return isProducerWorkDay(producer, date) || isProducerExtraDay(producer, date);
 }
 
 export function isProducerOnTimeOff(
@@ -863,13 +863,13 @@ export function isProducerAtDailyCapacity(
   return mixCapacityReached || costCapacityReached;
 }
 
-/** A day the producer actually works: scheduled (or overtime) and not on leave. */
+/** A day the producer actually works: scheduled (or extra day) and not on leave. */
 export function isProducerWorkableDay(
   producer: Producer,
   day: Date
 ): boolean {
   if (!isProducerScheduledDay(producer, day)) return false;
-  // Leave only blocks regular work days. Overtime is undone by removing the OT date.
+  // Leave only blocks regular work days. Extra day is undone by removing the OT date.
   return !(
     isProducerWorkDay(producer, day) &&
     isProducerOnTimeOff(producer, day)

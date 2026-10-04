@@ -37,6 +37,7 @@ export interface BackendMTDRecord {
   inMTD?: boolean;
   in_payroll: boolean;
   completed_at?: string | null;
+  paid_at?: string | null;
   is_manual_schedule_entry?: boolean;
   has_rally_mix?: boolean;
   has_extend_8ct_addon?: boolean;
@@ -86,6 +87,7 @@ export function transformMTDRecord(bm: BackendMTDRecord): MTDRecord {
     inPayroll: Boolean(bm.in_payroll),
     isManualScheduleEntry: Boolean(bm.is_manual_schedule_entry),
     isReassigned: Boolean(bm.is_reassigned),
+    paidAt: bm.paid_at || null,
     collectionStates: (() => {
       const raw = bm.collection_states;
       if (!raw) return undefined;
@@ -201,6 +203,7 @@ export async function updateMTDRecordApi(
     payload.producer_email_sent_to = patch.producerEmailSentTo;
   }
   if (patch.completedAt !== undefined) payload.completed_at = patch.completedAt;
+  if (patch.paidAt !== undefined) payload.paid_at = patch.paidAt;
   if (patch.hasRallyMix !== undefined) payload.has_rally_mix = patch.hasRallyMix;
   if (patch.hasExtend8ctAddon !== undefined) payload.has_extend_8ct_addon = patch.hasExtend8ctAddon;
   if (patch.hasProcessing8ctSheetsAddon !== undefined) payload.has_processing_8ct_sheets_addon = patch.hasProcessing8ctSheetsAddon;
@@ -231,6 +234,10 @@ export async function updateMTDRecordApi(
     // Never fake success — callers must handle failure or the UI lies.
     throw err;
   }
+}
+
+export async function deleteMTDRecordApi(id: string): Promise<void> {
+  await apiClient.delete(`/api/mtd/${id}`);
 }
 
 export interface CreateManualSchedulePayload {

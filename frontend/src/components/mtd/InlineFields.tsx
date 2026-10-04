@@ -650,7 +650,7 @@ type InlineDateInputProps = {
   /** Colors leave / holiday / mix / Extra days, or flags a pickable day that is not recommended. */
   dayTone?: (
     iso: string
-  ) => "holiday" | "leave" | "limit" | "mix" | "overtime" | undefined;
+  ) => "holiday" | "leave" | "limit" | "mix" | "extra" | undefined;
   /** Bust open-calendar day cells when producer schedule / mixes change. */
   calendarRevision?: string;
 };

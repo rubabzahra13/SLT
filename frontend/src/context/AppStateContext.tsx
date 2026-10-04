@@ -46,12 +46,9 @@ import {
   editorRequestForAssignment,
   getSuggestedEditors,
   pickDefaultEditor,
-  producerAssignmentKey,
-  producerKeysMatch,
   resolveAssignedProducerForPatch,
   resolveValidProducerAssignment,
 } from "@/lib/editor-assignment";
-import { patchForReassignProducerDeletion } from "@/lib/order-reassign";
 import { suggestMixEndDate, suggestMixStartDate } from "@/lib/scheduling";
 import { normalizeProducer, normalizeProducerList } from "@/lib/producers";
 import { normalizeDiscountCode } from "@/lib/discount-codes";
@@ -68,6 +65,7 @@ import {
   updateOrderApi,
   createMTDRecordApi,
   updateMTDRecordApi,
+  deleteMTDRecordApi,
   createDiscountCodeApi,
   updateDiscountCodeApi,
   deleteDiscountCodeApi,
@@ -115,6 +113,7 @@ type AppStateContextValue = {
   isViewOnly: boolean;
   moveOrderToMTD: (orderId: string) => MTDRecord | null;
   updateMTD: (id: string, patch: Partial<MTDRecord>) => void;
+  removeMTDRecord: (id: string) => Promise<void>;
   updateOrder: (id: string, patch: Partial<Order>, seed?: Order) => void;
   setPackagePrices: (prices: Record<string, number>) => void;
   setSecretMenuPrices: (pricing: SecretMenuPricing) => void;
@@ -789,12 +788,13 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           updated.assignedProducer = null;
           apiPatch = { ...apiPatch, assignedProducer: null };
           if (patch.mixStartDate === undefined) {
+            // Local UI uses ""; API must send null (Postgres Date rejects "").
             updated.mixStartDate = "";
-            apiPatch = { ...apiPatch, mixStartDate: "" };
+            apiPatch = { ...apiPatch, mixStartDate: null as unknown as string };
           }
           if (patch.mixEndDate === undefined) {
             updated.mixEndDate = undefined;
-            apiPatch = { ...apiPatch, mixEndDate: undefined };
+            apiPatch = { ...apiPatch, mixEndDate: null as unknown as string };
           }
         } else if (patch.assignedProducer !== undefined) {
           const resolved = resolveAssignedProducerForPatch(
@@ -1102,6 +1102,84 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     isViewOnly,
   ]);
 
+  const removeMTDRecord = useCallback(
+    async (id: string) => {
+      if (isViewOnly) {
+        throw new Error("View-only accounts cannot delete payroll records.");
+      }
+      let removed: MTDRecord | undefined;
+      let removedOrder: Order | undefined;
+      setMtdRecords((prev) => {
+        removed = prev.find(
+          (r) => r.id === id || r.orderId === id || r.uuid === id || r.legacyId === id
+        );
+        return prev.filter(
+          (r) =>
+            r.id !== id &&
+            r.orderId !== id &&
+            r.uuid !== id &&
+            r.legacyId !== id &&
+            !(removed?.orderId && (r.orderId === removed.orderId || r.id === removed.orderId))
+        );
+      });
+      if (!removed) return;
+      const orderIds = new Set(
+        [removed.orderId, removed.id, removed.uuid, removed.legacyId].filter(
+          Boolean
+        ) as string[]
+      );
+      setActiveOrders((prev) => {
+        removedOrder = prev.find(
+          (o) =>
+            orderIds.has(o.id) ||
+            (o.uuid && orderIds.has(o.uuid)) ||
+            (o.legacyId && orderIds.has(o.legacyId))
+        );
+        if (!removedOrder) return prev;
+        return prev.filter((o) => o.id !== removedOrder!.id);
+      });
+      setPastOrders((prev) =>
+        prev.filter(
+          (o) =>
+            !orderIds.has(o.id) &&
+            !(o.uuid && orderIds.has(o.uuid)) &&
+            !(o.legacyId && orderIds.has(o.legacyId))
+        )
+      );
+      setPayrollAddons((prev) =>
+        prev.filter(
+          (a) =>
+            a.mtdId !== removed!.id &&
+            !(removed!.orderId && a.orderId === removed!.orderId)
+        )
+      );
+      try {
+        await deleteMTDRecordApi(removed.uuid || removed.id);
+        setMtdRecords((prev) => {
+          writeTimedCache(CACHE_MTD_KEY, prev);
+          return prev;
+        });
+        setIsBackendConnected(true);
+      } catch (err) {
+        if (removed) {
+          setMtdRecords((prev) => [removed!, ...prev]);
+        }
+        if (removedOrder) {
+          setActiveOrders((prev) => [removedOrder!, ...prev]);
+        }
+        if (
+          err instanceof ApiClientError &&
+          (err.status === 0 || err.status >= 500)
+        ) {
+          setIsBackendConnected(false);
+        }
+        notifySaveError("Could not delete payroll record", err);
+        throw err;
+      }
+    },
+    [isViewOnly, notifySaveError]
+  );
+
   const updateOrder = useCallback(
     (id: string, patch: Partial<Order>, seed?: Order) => {
       if (isViewOnly) return;
@@ -1301,8 +1379,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     if (isViewOnly) {
       throw new Error("View-only accounts cannot edit producers.");
     }
-    const matchProducer = (p: Producer) =>
-      p.id === id || p.uuid === id || p.legacyId === id;
+    const matchProducer = (p: Producer) => p.id === id || p.uuid === id;
 
     let previous: Producer | undefined;
     let next: Producer | undefined;
@@ -1329,9 +1406,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       // included them but the response omitted or emptied those fields.
       const merged = normalizeProducer({
         ...saved,
-        id: previous.id,
-        uuid: saved.uuid || previous.uuid,
-        legacyId: saved.legacyId || previous.legacyId,
+        id: saved.id || previous.id,
+        uuid: saved.uuid || saved.id || previous.uuid,
         ...(patch.timeOff !== undefined
           ? {
               timeOff:
@@ -1340,13 +1416,13 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
                   : next.timeOff,
             }
           : {}),
-        ...(patch.overtimeDays !== undefined
+        ...(patch.extraDays !== undefined
           ? {
-              overtimeDays:
-                Array.isArray(saved.overtimeDays) &&
-                (saved.overtimeDays.length > 0 || next.overtimeDays.length === 0)
-                  ? saved.overtimeDays
-                  : next.overtimeDays,
+              extraDays:
+                Array.isArray(saved.extraDays) &&
+                (saved.extraDays.length > 0 || next.extraDays.length === 0)
+                  ? saved.extraDays
+                  : next.extraDays,
             }
           : {}),
         ...(patch.workDays !== undefined
@@ -1399,30 +1475,13 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     }
     let removed: Producer | undefined;
     setProducers((prev) => {
-      removed = prev.find((p) => p.id === id);
-      return prev.filter((p) => p.id !== id);
+      removed = prev.find((p) => p.id === id || p.uuid === id);
+      return prev.filter((p) => p.id !== id && p.uuid !== id);
     });
     if (!removed) {
-      throw new Error("Producer not found.");
+      // Already removed (e.g. confirmed on a later reassignment).
+      return;
     }
-    const assignmentKey = producerAssignmentKey(removed);
-    const reassignPatch = patchForReassignProducerDeletion();
-    const affectedIds = mtdRecords
-      .filter((rec) => {
-        if (!rec.assignedProducer?.trim()) return false;
-        if (!producerKeysMatch(rec.assignedProducer, assignmentKey)) return false;
-        const status = String(rec.status || "").toLowerCase();
-        if (
-          rec.completedAt ||
-          rec.inPayroll ||
-          status === "completed" ||
-          status === "payroll"
-        ) {
-          return false;
-        }
-        return true;
-      })
-      .map((rec) => rec.id);
     try {
       await deleteProducerApi(id, resolveProducerApiId(removed));
       setProducers((prev) => {
@@ -1430,9 +1489,6 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         return prev;
       });
       setIsBackendConnected(true);
-      for (const recordId of affectedIds) {
-        updateMTD(recordId, reassignPatch);
-      }
     } catch (err) {
       setProducers((prev) => [removed!, ...prev]);
       if (
@@ -1444,7 +1500,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       notifySaveError("Could not delete producer", err);
       throw err;
     }
-  }, [isViewOnly, mtdRecords, notifySaveError, updateMTD]);
+  }, [isViewOnly, notifySaveError]);
 
   const addDiscountCode = useCallback(
     async (discountCode: DiscountCode): Promise<DiscountCode> => {
@@ -1773,6 +1829,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     isViewOnly,
     moveOrderToMTD,
     updateMTD,
+    removeMTDRecord,
     updateOrder,
     setPackagePrices,
     setSecretMenuPrices,

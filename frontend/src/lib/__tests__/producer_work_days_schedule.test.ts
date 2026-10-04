@@ -13,7 +13,6 @@ const monSatProducer: Producer = {
   initials: "CM",
   email: "casey@example.com",
   avatar: "",
-  specialty: "Cheer",
   categories: ["All-Star Cheer"],
   status: "available",
   mixesThisWeek: 0,
@@ -22,7 +21,7 @@ const monSatProducer: Producer = {
   timeOff: [],
   maxMixesPerDay: null,
   maxProducerCostPerDay: null,
-  overtimeDays: [],
+  extraDays: [],
 };
 
 describe("Producer work days on schedule and booking", () => {
@@ -41,22 +40,22 @@ describe("Producer work days on schedule and booking", () => {
     assert.equal(saturday?.status, "available");
   });
 
-  it("treats overtime on Sunday as a scheduled day", () => {
-    const withOvertime: Producer = {
+  it("treats extra day on Sunday as a scheduled day", () => {
+    const withExtraDays: Producer = {
       ...monSatProducer,
-      overtimeDays: ["2026-08-16"],
+      extraDays: ["2026-08-16"],
     };
     const anchor = new Date(2026, 7, 19);
-    const cells = getScheduleCells(withOvertime, [], "week", anchor, []);
+    const cells = getScheduleCells(withExtraDays, [], "week", anchor, []);
     const sunday = cells.find((c) => c.key === "2026-08-16");
 
     assert.equal(sunday?.status, "available");
   });
 
-  it("marks time off on work days as off, not overtime days", () => {
+  it("marks time off on work days as off, not extra days", () => {
     const withBoth: Producer = {
       ...monSatProducer,
-      overtimeDays: ["2026-08-16"],
+      extraDays: ["2026-08-16"],
       timeOff: [
         {
           id: "to-1",
@@ -72,15 +71,15 @@ describe("Producer work days on schedule and booking", () => {
     const sunday = cells.find((c) => c.key === "2026-08-16");
     const monday = cells.find((c) => c.key === "2026-08-17");
 
-    // Sunday is overtime — time off does not cancel it; remove OT instead.
+    // Sunday is an extra day — time off does not cancel it; remove OT instead.
     assert.equal(sunday?.status, "available");
     assert.equal(monday?.status, "off");
   });
 
-  it("returns to nonwork when overtime is removed", () => {
+  it("returns to nonwork when extra day is removed", () => {
     const withoutOt: Producer = {
       ...monSatProducer,
-      overtimeDays: [],
+      extraDays: [],
       timeOff: [
         {
           id: "to-1",

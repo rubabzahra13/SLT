@@ -59,15 +59,16 @@ describe("Prompt 3 — Detail View Context & Payroll Detail View Tests", () => {
         case "mtd":
           return `/mtd/${id}`;
         case "payroll":
-          return `/payroll/${id}`;
+          // Payroll has no detail page — deep links go to the list with focus.
+          return `/payroll?focus=${id}`;
       }
     };
 
     assert.equal(getDetailHref("orders", recordId), "/orders/rec-101");
     assert.equal(getDetailHref("mtd", recordId), "/mtd/rec-101");
-    assert.equal(getDetailHref("payroll", recordId), "/payroll/rec-101");
+    assert.equal(getDetailHref("payroll", recordId), "/payroll?focus=rec-101");
 
-    // Context isolation check: Payroll detail href must NEVER point to /mtd
+    // Context isolation check: Payroll list href must NEVER point to /mtd
     assert.notEqual(getDetailHref("payroll", recordId), "/mtd/rec-101");
   });
 

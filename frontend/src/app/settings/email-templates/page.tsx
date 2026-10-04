@@ -253,6 +253,7 @@ export default function EmailTemplatesSettingsPage() {
                 catalogPlaceholders={selectedDef.placeholders}
                 isEditing={isEditing && !isViewOnly}
                 onDocumentChange={setDocumentText}
+                templateId={selectedDef.id}
               />
 
               {isViewOnly ? (
