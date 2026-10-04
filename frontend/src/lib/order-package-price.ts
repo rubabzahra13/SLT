@@ -4,7 +4,6 @@ import {
   calculateMarchingBandOrderPricing,
   calculateSchoolAnthemOrderPricing,
   calculateSportsEntertainmentOrderPricing,
-  type PricingEngineResult,
 } from "@/lib/pricing-engine";
 import { resolveMTDFormMeta, type MTDFormMeta } from "@/lib/mtd-filters";
 import {
@@ -18,6 +17,13 @@ import { parsePackage } from "@/lib/package";
 import type { MTDRecord, Order, PriceCompliance } from "@/types";
 
 export const PRICING_REFERENCE_CHANGED_EVENT = "slt-pricing-reference-changed";
+
+/** Shared fields every category engine returns that live pricing needs. */
+type EnginePriceResult = {
+  customerFacingPrice: number | null;
+  payrollBasePrice: number | null;
+  complianceStatus?: string | null;
+};
 
 function categoryKeyForMeta(meta: MTDFormMeta): CategoryKey {
   if (meta.formType === "school-all-star-dance") {
@@ -80,7 +86,7 @@ function runEngine(
   rec: MTDRecord,
   order: Order | null | undefined,
   meta: MTDFormMeta
-): PricingEngineResult | null {
+): EnginePriceResult | null {
   const packageType = order?.packageType || rec.package;
   if (meta.formType === "school-all-star-dance") {
     return calculateDanceOrderPricing({
