@@ -1,9 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Eye, Lock, Pencil } from "lucide-react";
+import { ArrowLeft, Lock, Pencil } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Avatar } from "@/components/ui/Avatar";
 import { DataTable, type Column } from "@/components/ui/DataTable";
@@ -29,6 +28,7 @@ import { SetInvoiceModal } from "@/components/mtd/SetInvoiceModal";
 import { SetRecordPricingModal } from "@/components/mtd/SetRecordPricingModal";
 import { CompleteToPayrollModal } from "@/components/mtd/CompleteToPayrollModal";
 import { MoveToOrdersConfirmModal } from "@/components/mtd/MoveToOrdersConfirmModal";
+import { OrderFormEditModal } from "@/components/orders/OrderFormEditModal";
 import { patchForReassignRush } from "@/lib/order-reassign";
 import {
   CompletionBlockedModal,
@@ -136,39 +136,6 @@ const tableStatusSelectClass =
 const compactCellClass = "!px-1 !py-1 overflow-hidden";
 const compactHeaderClass = "!px-2";
 const compactTextClass = "text-[12px] leading-none text-brand-ink";
-
-function multilineTableCell(value: string, maxWidth = "180px") {
-  if (!value?.trim()) {
-    return (
-      <span
-        className={clsx(
-          "mx-auto block w-full min-w-0 max-w-full text-center",
-          compactTextClass
-        )}
-        style={{ maxWidth }}
-      >
-        —
-      </span>
-    );
-  }
-
-  const display = titleCase(value.replace(/\s+/g, " ").trim());
-
-  // Wrap long labels (e.g. Music "Songs For Cheer See Notes (CM)") instead of
-  // ellipsizing them in a narrow column.
-  return (
-    <span
-      className={clsx(
-        "mx-auto block w-full min-w-0 max-w-full whitespace-normal break-words text-center leading-snug",
-        compactTextClass
-      )}
-      style={{ maxWidth }}
-      title={display}
-    >
-      {display}
-    </span>
-  );
-}
 
 function MTDPageContent() {
   const {
@@ -299,6 +266,7 @@ function MTDPageContent() {
   const [pricingOpen, setPricingOpen] = useState(false);
   const [completeRecord, setCompleteRecord] = useState<MTDRecord | null>(null);
   const [blockedRecord, setBlockedRecord] = useState<MTDRecord | null>(null);
+  const [orderFormRecord, setOrderFormRecord] = useState<MTDRecord | null>(null);
   const [moveToOrdersRecord, setMoveToOrdersRecord] = useState<MTDRecord | null>(
     null
   );
@@ -621,7 +589,13 @@ function MTDPageContent() {
         nowrap: false,
         cellClassName: clsx(compactCellClass, "max-w-[100px]"),
         headerClassName: compactHeaderClass,
-        render: (rec) => multilineTableCell(rec.programName, "100%"),
+        render: (rec) => (
+          <TruncatedText
+            text={titleCase(rec.programName)}
+            className={clsx("mx-auto w-full min-w-0 text-center", compactTextClass)}
+            style={{ maxWidth: "100%" }}
+          />
+        ),
       },
       {
         key: "packageE",
@@ -726,12 +700,18 @@ function MTDPageContent() {
       {
         key: "themeF",
         header: "Music",
-        width: "160px",
+        width: "100px",
         align: "center" as const,
         nowrap: false,
-        cellClassName: clsx(compactCellClass, "max-w-[160px]"),
+        cellClassName: clsx(compactCellClass, "max-w-[100px]"),
         headerClassName: compactHeaderClass,
-        render: (rec) => multilineTableCell(rec.musicTheme, "100%"),
+        render: (rec) => (
+          <TruncatedText
+            text={titleCase((rec.musicTheme || "").replace(/\s+/g, " ").trim())}
+            className={clsx("mx-auto w-full min-w-0 text-center", compactTextClass)}
+            style={{ maxWidth: "100%" }}
+          />
+        ),
       },
       {
         key: "chosenInitialsF",
@@ -1318,10 +1298,10 @@ function MTDPageContent() {
       {
         key: "actions",
         header: "Actions",
-        width: "130px",
+        width: "120px",
         align: "center",
         nowrap: false,
-        cellClassName: clsx(compactCellClass, "max-w-[130px]"),
+        cellClassName: clsx(compactCellClass, "max-w-[120px]"),
         headerClassName: compactHeaderClass,
         render: (rec) => (
           <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
@@ -1339,18 +1319,28 @@ function MTDPageContent() {
                 </button>
               </HoverTip>
             ) : null}
-            <Link
-              href={`/mtd/${rec.id}`}
-              title={isViewOnly ? "View record" : "Open record"}
-              aria-label={`Open ${rec.programName}`}
-              className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-brand-line/70 bg-brand-bg/60 text-brand-ink-secondary shadow-sm transition hover:border-brand-orange/40 hover:bg-brand-orange-soft/35 hover:text-brand-orange focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange/25"
+            <HoverTip
+              label={isViewOnly ? "View order form" : "Edit order form"}
+              placement="top"
             >
-              {isViewOnly ? (
-                <Eye className="h-3.5 w-3.5" strokeWidth={2} />
-              ) : (
+              <button
+                type="button"
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setOrderFormRecord(rec);
+                }}
+                title={isViewOnly ? "View order form" : "Edit order form"}
+                aria-label={
+                  isViewOnly
+                    ? `View ${rec.programName || "order"}`
+                    : `Edit order form: ${rec.programName || "order"}`
+                }
+                className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-brand-line/70 bg-brand-bg/60 text-brand-ink-secondary shadow-sm transition hover:border-brand-orange/40 hover:bg-brand-orange-soft/35 hover:text-brand-orange focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange/25"
+              >
                 <Pencil className="h-3.5 w-3.5" strokeWidth={2} />
-              )}
-            </Link>
+              </button>
+            </HoverTip>
           </div>
         ),
       }
@@ -1378,14 +1368,14 @@ function MTDPageContent() {
       <PageHeader
         title="Music To Do"
         badge={`${filtered.length} of ${mtdBoardRecords.length}`}
-        subtitle="Assign producers, set pricing, and track mix progress"
+        subtitle="Complete mixes, pricing, and invoicing"
         action={{
           label: "Pricing",
           onClick: () => setPricingOpen(true),
           showPlus: false,
         }}
         exportAction={{
-          label: "Export to CSV",
+          label: "CSV",
           onClick: () => {
             const csv = generateMTDCsv(filtered, allOrders, producers);
             triggerCsvDownload(`MTD_Export_${todayIso()}.csv`, csv);
@@ -1420,14 +1410,13 @@ function MTDPageContent() {
         }
       />
 
-      <div className="min-h-0 flex-1 overflow-auto px-6 pb-6 pt-5 lg:px-8">
+      <div className="min-h-0 flex-1 overflow-auto px-2 pb-6 pt-5 lg:px-3">
         <div className="dashboard-panel dashboard-panel-framed overflow-hidden">
           <DataTable
             key={`${form}-${cheerSubtype}-${danceSubtype}-${tableFilterKey}`}
             columns={columns}
             data={filtered}
             rowKey={(rec) => rec.id}
-            href={(rec) => `/mtd/${rec.id}`}
             emptyMessage="No MTD entries match this filter."
             pageSize={15}
             embedded
@@ -1508,6 +1497,13 @@ function MTDPageContent() {
         record={moveToOrdersRecord}
         onClose={() => setMoveToOrdersRecord(null)}
         onConfirm={confirmMoveToOrders}
+      />
+
+      <OrderFormEditModal
+        open={Boolean(orderFormRecord)}
+        record={orderFormRecord}
+        allOrders={allOrders}
+        onClose={() => setOrderFormRecord(null)}
       />
     </div>
   );

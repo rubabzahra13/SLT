@@ -67,7 +67,6 @@ export function TeamScheduleTodayView({
 }: TeamScheduleTodayViewProps) {
   const entries = useMemo(() => buildTodayEntries(rows), [rows]);
   const hasEntries = entries.length > 0;
-  const shouldStretchRows = entries.length > 2;
 
   const columns = useMemo<Column<ProducerDayEntry>[]>(
     () => [
@@ -180,23 +179,17 @@ export function TeamScheduleTodayView({
         nowrap: false,
         cellClassName: "!overflow-visible whitespace-normal",
         render: (entry) => (
-          <ScheduleStatusTile
-            status={entry.cell.status}
-            cell={entry.cell}
-            className={
-              shouldStretchRows ? "h-8 w-14 max-w-[56px]" : undefined
-            }
-          />
+          <ScheduleStatusTile status={entry.cell.status} cell={entry.cell} />
         ),
       },
     ],
-    [activeProducerId, shouldStretchRows]
+    [activeProducerId]
   );
 
   return (
     <div
       className={clsx(
-        "dashboard-panel dashboard-panel-framed flex h-full min-h-0 w-full flex-col overflow-hidden",
+        "dashboard-panel dashboard-panel-framed w-full overflow-hidden",
         className
       )}
     >
@@ -208,16 +201,7 @@ export function TeamScheduleTodayView({
         </p>
       </div>
 
-      <div
-        className={clsx(
-          "min-h-0 flex-1",
-          hasEntries && shouldStretchRows
-            ? "flex flex-col overflow-hidden"
-            : hasEntries
-              ? "overflow-y-auto"
-              : "flex flex-col"
-        )}
-      >
+      <div>
         {hasEntries ? (
           <DataTable
             data={entries}
@@ -228,11 +212,9 @@ export function TeamScheduleTodayView({
             embedded
             compact
             showScrollIndicator={false}
-            stretchRows={shouldStretchRows}
-            className={shouldStretchRows ? "h-full min-h-0 flex-1" : undefined}
           />
         ) : (
-          <div className="flex flex-1 items-center justify-center px-6 py-12">
+          <div className="flex items-center justify-center px-6 py-12">
             <div className="max-w-md text-center">
               <p className="text-[13px] font-semibold text-brand-ink">{emptyMessage}</p>
               <p className="mt-1 text-[12px] leading-relaxed text-brand-ink-tertiary">

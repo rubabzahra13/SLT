@@ -1,15 +1,13 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Eye, Pencil, Trash2, Mic, Zap } from "lucide-react";
+import { Mic, Pencil, Trash2, Zap } from "lucide-react";
 import { AddVoiceoverModal } from "@/components/payroll/AddVoiceoverModal";
 import { AddRushFeeModal } from "@/components/payroll/AddRushFeeModal";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { MTDPageToolbar } from "@/components/mtd/MTDPageToolbar";
 import { PayrollSendPanel } from "@/components/payroll/PayrollSendPanel";
 import { PayrollSendToolbar } from "@/components/payroll/PayrollSendToolbar";
-import { ReturnToMTDModal } from "@/components/mtd/ReturnToMTDModal";
 import {
   DEFAULT_MTD_TABLE_FILTERS,
   type MTDTableFilterState,
@@ -27,10 +25,7 @@ import {
 } from "@/lib/date-filters";
 import { generatePayrollCsv, triggerCsvDownload } from "@/lib/export-csv";
 import { formatPrice, titleCase } from "@/lib/data";
-import {
-  getPayrollRecords,
-  patchReturnFromPayroll,
-} from "@/lib/mtd-completion";
+import { getPayrollRecords } from "@/lib/mtd-completion";
 import {
   countMTDByCheerSubtype,
   countMTDByDanceSubtype,
@@ -71,8 +66,14 @@ type PayrollPageTab = "view" | "send";
 const DEFAULT_CHEER_SUBTYPE: CheerFormSubtypeFilter = "all";
 const DEFAULT_DANCE_SUBTYPE: DanceFormSubtypeFilter = "all";
 
-const actionLinkClass =
-  "inline-flex h-8 w-8 items-center justify-center rounded-lg border border-brand-line/70 bg-brand-bg/60 text-brand-ink-secondary shadow-sm transition hover:border-brand-orange/40 hover:bg-brand-orange-soft/35 hover:text-brand-orange focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange/25";
+const addonAmountChipClass =
+  "inline-flex h-7 items-center rounded-full bg-brand-success/10 px-2.5 text-[12px] font-semibold tabular-nums text-brand-success ring-1 ring-inset ring-brand-success/20";
+const addonAddBtnClass =
+  "inline-flex h-7 items-center gap-1 rounded-full border border-dashed border-brand-line/70 bg-transparent px-2.5 text-[11px] font-medium text-brand-ink-tertiary transition hover:border-brand-signature/40 hover:bg-brand-signature/6 hover:text-brand-signature";
+const addonEditBtnClass =
+  "inline-flex h-7 w-7 items-center justify-center rounded-full text-brand-ink-tertiary transition hover:bg-brand-signature/10 hover:text-brand-signature";
+const addonRemoveBtnClass =
+  "inline-flex h-7 w-7 items-center justify-center rounded-full text-brand-ink-tertiary transition hover:bg-brand-danger/10 hover:text-brand-danger";
 
 export default function PayrollPage() {
   const {
@@ -82,10 +83,8 @@ export default function PayrollPage() {
     payrollAddons,
     addPayrollAddon,
     removePayrollAddon,
-    updateMTD,
     isViewOnly,
   } = useAppState();
-  const [returnRecord, setReturnRecord] = useState<MTDRecord | null>(null);
   const [pageTab, setPageTab] = useState<PayrollPageTab>("view");
   const [selectedSendEditor, setSelectedSendEditor] = useState("all");
   const [voiceoverRecord, setVoiceoverRecord] = useState<MTDRecord | null>(null);
@@ -358,12 +357,6 @@ export default function PayrollPage() {
     searchQuery,
   ].join("-");
 
-  const confirmReturn = useCallback(() => {
-    if (!returnRecord) return;
-    updateMTD(returnRecord.id, patchReturnFromPayroll());
-    setReturnRecord(null);
-  }, [returnRecord, updateMTD]);
-
   // Build unique program options from allOrders for the add-on modals
   const programOptions = useMemo(() => {
     const seen = new Set<string>();
@@ -391,6 +384,22 @@ export default function PayrollPage() {
       setAddonDeleteId(null);
     },
     [removePayrollAddon]
+  );
+
+  const handleReplaceAddon = useCallback(
+    async (payload: Parameters<typeof addPayrollAddon>[0]) => {
+      const match = payrollAddons.find(
+        (a) =>
+          a.addonType === payload.addonType &&
+          ((payload.mtdId && a.mtdId === payload.mtdId) ||
+            (payload.orderId && a.orderId === payload.orderId))
+      );
+      if (match) {
+        await removePayrollAddon(match.id);
+      }
+      return addPayrollAddon(payload);
+    },
+    [payrollAddons, removePayrollAddon, addPayrollAddon]
   );
 
   const categoryFilteredProducers = useMemo(
@@ -496,15 +505,14 @@ export default function PayrollPage() {
       {
         key: "program",
         header: "Program",
-        width: "160px",
+        width: "96px",
         align: "center",
-        nowrap: false,
         cellClassName: "!px-3 !py-2",
         headerClassName: "!px-3 !py-2",
         render: (rec) => (
-          <p className="text-center text-[13px] font-medium text-brand-ink">
+          <span className="block truncate text-[12px] leading-snug text-brand-ink">
             {titleCase(rec.programName)}
-          </p>
+          </span>
         ),
       },
       {
@@ -540,11 +548,11 @@ export default function PayrollPage() {
       },
       {
         key: "mixStart",
-        header: "Mix start",
+        header: "Mix start\ndate",
         width: "112px",
         align: "center",
         cellClassName: "!px-2 !py-1.5",
-        headerClassName: "!px-2 !py-2",
+        headerClassName: "!px-2 !py-2 whitespace-pre-line leading-tight",
         render: (rec) => (
           <span className="text-[12px] tabular-nums text-brand-ink-secondary">
             {formatDisplayDate(toIsoDateString(rec.mixStartDate))}
@@ -553,11 +561,11 @@ export default function PayrollPage() {
       },
       {
         key: "mixEnd",
-        header: "Mix end",
+        header: "Mix due\ndate",
         width: "112px",
         align: "center",
         cellClassName: "!px-2 !py-1.5",
-        headerClassName: "!px-2 !py-2",
+        headerClassName: "!px-2 !py-2 whitespace-pre-line leading-tight",
         render: (rec) => (
           <span className="text-[12px] tabular-nums text-brand-ink-secondary">
             {formatDisplayDate(toIsoDateString(rec.mixEndDate ?? ""))}
@@ -770,123 +778,161 @@ export default function PayrollPage() {
         ),
       },
       {
-        key: "rowAddons",
-        header: "Row Add-ons",
-        width: "320px",
+        key: "voiceover",
+        header: "Voiceover",
+        width: "150px",
         align: "center",
         cellClassName: "!px-2 !py-1.5",
         headerClassName: "!px-2 !py-2",
         render: (rec) => {
           const voAddon = payrollAddons.find(
-            (a) => (a.mtdId === rec.id || a.orderId === rec.orderId) && a.addonType === "voiceover"
+            (a) =>
+              (a.mtdId === rec.id || a.orderId === rec.orderId) &&
+              a.addonType === "voiceover"
           );
-          const rushAddon = payrollAddons.find(
-            (a) => (a.mtdId === rec.id || a.orderId === rec.orderId) && a.addonType === "rush_fee"
-          );
-
           const voAmount = voAddon
             ? voAddon.amount
             : rec.cheerVoiceover40
-            ? 40
-            : rec.cheerVoiceover20
-            ? 20
-            : rec.danceVoiceover && !isNaN(parseFloat(rec.danceVoiceover))
-            ? parseFloat(rec.danceVoiceover)
-            : 0;
-
-          const rushAmount = rushAddon
-            ? rushAddon.amount
-            : rec.rushFeeQuantity === 2 || rec.rushFeeOption === "double"
-            ? 300
-            : rec.rushFeeQuantity === 1 || rec.rushFeeOption === "single" || rec.isRushOrder === "yes" || rec.isRushOrder === true
-            ? 150
-            : 0;
+              ? 40
+              : rec.cheerVoiceover20
+                ? 20
+                : rec.danceVoiceover && !isNaN(parseFloat(rec.danceVoiceover))
+                  ? parseFloat(rec.danceVoiceover)
+                  : 0;
+          const hasVoiceover = voAmount > 0;
 
           return (
             <div
-              className="flex items-center justify-center gap-3 whitespace-nowrap"
+              className="flex items-center justify-center gap-1 whitespace-nowrap"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Voiceover Slot */}
-              <div className="flex items-center gap-1.5 min-w-[130px] justify-start">
-                {!isViewOnly && (
+              {hasVoiceover ? (
+                <span className={addonAmountChipClass}>
+                  {formatPrice(voAmount)}
+                </span>
+              ) : null}
+              {!isViewOnly && !hasVoiceover ? (
+                <button
+                  type="button"
+                  onClick={() => setVoiceoverRecord(rec)}
+                  title="Add Voiceover"
+                  className={addonAddBtnClass}
+                >
+                  <Mic className="h-3 w-3" strokeWidth={2.25} />
+                  <span>Add</span>
+                </button>
+              ) : null}
+              {!isViewOnly && hasVoiceover ? (
+                <>
                   <button
                     type="button"
                     onClick={() => setVoiceoverRecord(rec)}
-                    title="Add Voiceover"
-                    className="inline-flex items-center gap-1 rounded-md border border-brand-line/70 bg-brand-bg/80 px-2 py-1 text-[11px] font-medium text-brand-ink-secondary shadow-sm transition hover:border-brand-orange/40 hover:bg-brand-orange-soft/20 hover:text-brand-orange"
+                    title="Edit Voiceover"
+                    className={addonEditBtnClass}
                   >
-                    <Mic className="h-3 w-3 text-brand-ink-tertiary" />
-                    <span>+ Voiceover</span>
+                    <Pencil className="h-3.5 w-3.5" strokeWidth={2} />
                   </button>
-                )}
-                <span className="inline-block min-w-[40px] text-left text-[12px] font-bold tabular-nums text-brand-success">
-                  {voAmount > 0 ? formatPrice(voAmount) : ""}
-                </span>
-              </div>
-
-              {/* Rush Fee Slot */}
-              <div className="flex items-center gap-1.5 min-w-[135px] justify-start">
-                {!isViewOnly && (
-                  <button
-                    type="button"
-                    onClick={() => setRushFeeRecord(rec)}
-                    title="Add Rush Fee"
-                    className="inline-flex items-center gap-1 rounded-md border border-brand-line/70 bg-brand-bg/80 px-2 py-1 text-[11px] font-medium text-brand-ink-secondary shadow-sm transition hover:border-brand-orange/40 hover:bg-brand-orange-soft/20 hover:text-brand-orange"
-                  >
-                    <Zap className="h-3 w-3 text-brand-ink-tertiary" />
-                    <span>+ Rush Fee</span>
-                  </button>
-                )}
-                <span className="inline-block min-w-[45px] text-left text-[12px] font-bold tabular-nums text-brand-success">
-                  {rushAmount > 0 ? formatPrice(rushAmount) : ""}
-                </span>
-              </div>
+                  {voAddon ? (
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteAddon(voAddon.id)}
+                      title="Remove Voiceover"
+                      className={addonRemoveBtnClass}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" strokeWidth={2} />
+                    </button>
+                  ) : null}
+                </>
+              ) : null}
             </div>
           );
         },
       },
       {
-        key: "actions",
-        header: "Actions",
-        width: "148px",
+        key: "rushFee",
+        header: "Rush Fee",
+        width: "140px",
         align: "center",
         cellClassName: "!px-2 !py-1.5",
         headerClassName: "!px-2 !py-2",
-        render: (rec) => (
-          <div
-            className="flex items-center justify-center gap-2"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {!isViewOnly && (
-              <button
-                type="button"
-                onClick={() => setReturnRecord(rec)}
-                className="rounded-lg border border-brand-line/60 bg-brand-elevated px-2.5 py-1.5 text-[11px] font-semibold text-brand-signature shadow-sm transition hover:border-brand-signature/40 hover:bg-brand-blue-soft/40"
-              >
-                Return to MTD
-              </button>
-            )}
-            <Link
-              href={`/payroll/${rec.id}`}
-              title={isViewOnly ? "View record" : "Open record"}
-              aria-label={`Open ${rec.programName}`}
-              className={actionLinkClass}
+        render: (rec) => {
+          const rushAddon = payrollAddons.find(
+            (a) =>
+              (a.mtdId === rec.id || a.orderId === rec.orderId) &&
+              a.addonType === "rush_fee"
+          );
+          const rushAmount = rushAddon
+            ? rushAddon.amount
+            : rec.rushFeeQuantity === 2 || rec.rushFeeOption === "double"
+              ? 300
+              : rec.rushFeeQuantity === 1 ||
+                  rec.rushFeeOption === "single" ||
+                  rec.isRushOrder === "yes" ||
+                  rec.isRushOrder === true
+                ? 150
+                : 0;
+          const hasRush = rushAmount > 0;
+
+          return (
+            <div
+              className="flex items-center justify-center gap-1 whitespace-nowrap"
+              onClick={(e) => e.stopPropagation()}
             >
-              {isViewOnly ? (
-                <Eye className="h-3.5 w-3.5" strokeWidth={2} />
-              ) : (
-                <Pencil className="h-3.5 w-3.5" strokeWidth={2} />
-              )}
-            </Link>
-          </div>
-        ),
+              {hasRush ? (
+                <span className={addonAmountChipClass}>
+                  {formatPrice(rushAmount)}
+                </span>
+              ) : null}
+              {!isViewOnly && !hasRush ? (
+                <button
+                  type="button"
+                  onClick={() => setRushFeeRecord(rec)}
+                  title="Add Rush Fee"
+                  className={addonAddBtnClass}
+                >
+                  <Zap className="h-3 w-3" strokeWidth={2.25} />
+                  <span>Add</span>
+                </button>
+              ) : null}
+              {!isViewOnly && hasRush ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setRushFeeRecord(rec)}
+                    title="Edit Rush Fee"
+                    className={addonEditBtnClass}
+                  >
+                    <Pencil className="h-3.5 w-3.5" strokeWidth={2} />
+                  </button>
+                  {rushAddon ? (
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteAddon(rushAddon.id)}
+                      title="Remove Rush Fee"
+                      className={addonRemoveBtnClass}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" strokeWidth={2} />
+                    </button>
+                  ) : null}
+                </>
+              ) : null}
+            </div>
+          );
+        },
       }
       );
 
       return baseCols;
     },
-    [allOrders, producers, form, isViewOnly, payrollAddons, orderById]
+    [
+      allOrders,
+      producers,
+      form,
+      isViewOnly,
+      payrollAddons,
+      orderById,
+      handleDeleteAddon,
+    ]
   );
 
   return (
@@ -901,7 +947,7 @@ export default function PayrollPage() {
         }
         subtitle={
           pageTab === "view"
-            ? "Completed mixes ready for payout"
+            ? "Ready for payout"
             : "Filter producers, preview statements, and send via Gmail"
         }
         tabs={
@@ -922,9 +968,14 @@ export default function PayrollPage() {
         exportAction={
           pageTab === "view"
             ? {
-                label: "Export to CSV",
+                label: "CSV",
                 onClick: () => {
-                  const csv = generatePayrollCsv(filtered, allOrders, producers);
+                  const csv = generatePayrollCsv(
+                    filtered,
+                    allOrders,
+                    producers,
+                    payrollAddons
+                  );
                   triggerCsvDownload(`Payroll_Export_${todayIso()}.csv`, csv);
                 },
               }
@@ -981,24 +1032,21 @@ export default function PayrollPage() {
         }
       />
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-6 pb-6 pt-5 lg:px-8">
+      <div className="min-h-0 flex-1 overflow-auto px-2 pb-6 pt-5 lg:px-3">
         {pageTab === "view" ? (
-          <>
-            <div className="dashboard-panel dashboard-panel-framed min-h-0 flex-1 overflow-hidden">
-              <DataTable
-                key={`${form}-${cheerSubtype}-${danceSubtype}-${tableFilterKey}`}
-                columns={columns}
-                data={filtered}
-                rowKey={(rec) => rec.id}
-                href={(rec) => `/payroll/${rec.id}`}
-                emptyMessage={emptyMessage}
-                pageSize={15}
-                embedded
-                showScrollIndicator={false}
-              />
-            </div>
-
-          </>
+          <div className="dashboard-panel dashboard-panel-framed overflow-hidden">
+            <DataTable
+              key={`${form}-${cheerSubtype}-${danceSubtype}-${tableFilterKey}`}
+              columns={columns}
+              data={filtered}
+              rowKey={(rec) => rec.id}
+              href={(rec) => `/payroll/${rec.id}`}
+              emptyMessage={emptyMessage}
+              pageSize={15}
+              embedded
+              showScrollIndicator={false}
+            />
+          </div>
         ) : (
           <PayrollSendPanel
             categoryLabel={exportCategoryLabel}
@@ -1014,20 +1062,13 @@ export default function PayrollPage() {
         )}
       </div>
 
-      <ReturnToMTDModal
-        open={Boolean(returnRecord)}
-        record={returnRecord}
-        onClose={() => setReturnRecord(null)}
-        onConfirm={confirmReturn}
-      />
-
       <AddVoiceoverModal
         open={Boolean(voiceoverRecord)}
         onClose={() => setVoiceoverRecord(null)}
         record={voiceoverRecord}
         allOrders={allOrders}
         producers={producers}
-        onAdd={addPayrollAddon}
+        onAdd={handleReplaceAddon}
       />
 
       <AddRushFeeModal
@@ -1036,7 +1077,7 @@ export default function PayrollPage() {
         record={rushFeeRecord}
         allOrders={allOrders}
         producers={producers}
-        onAdd={addPayrollAddon}
+        onAdd={handleReplaceAddon}
       />
     </div>
   );

@@ -112,12 +112,8 @@ export function PageHeader({
                 title={exportAction.title ?? "Export current filtered view to CSV"}
               >
                 <Download className="h-4 w-4 text-brand-ink-secondary" strokeWidth={2} />
-                <span className="hidden sm:inline">{exportAction.label ?? "Export to CSV"}</span>
+                <span className="hidden sm:inline">{exportAction.label ?? "CSV"}</span>
               </button>
-            ) : null}
-
-            {action || secondaryAction ? (
-              <span className="hidden h-6 w-px bg-brand-line/50 sm:block" aria-hidden />
             ) : null}
 
             {secondaryAction ? (

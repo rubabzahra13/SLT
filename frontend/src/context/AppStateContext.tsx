@@ -46,9 +46,12 @@ import {
   editorRequestForAssignment,
   getSuggestedEditors,
   pickDefaultEditor,
+  producerAssignmentKey,
+  producerKeysMatch,
   resolveAssignedProducerForPatch,
   resolveValidProducerAssignment,
 } from "@/lib/editor-assignment";
+import { patchForReassignProducerDeletion } from "@/lib/order-reassign";
 import { suggestMixEndDate, suggestMixStartDate } from "@/lib/scheduling";
 import { normalizeProducer, normalizeProducerList } from "@/lib/producers";
 import { normalizeDiscountCode } from "@/lib/discount-codes";
@@ -1402,6 +1405,24 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     if (!removed) {
       throw new Error("Producer not found.");
     }
+    const assignmentKey = producerAssignmentKey(removed);
+    const reassignPatch = patchForReassignProducerDeletion();
+    const affectedIds = mtdRecords
+      .filter((rec) => {
+        if (!rec.assignedProducer?.trim()) return false;
+        if (!producerKeysMatch(rec.assignedProducer, assignmentKey)) return false;
+        const status = String(rec.status || "").toLowerCase();
+        if (
+          rec.completedAt ||
+          rec.inPayroll ||
+          status === "completed" ||
+          status === "payroll"
+        ) {
+          return false;
+        }
+        return true;
+      })
+      .map((rec) => rec.id);
     try {
       await deleteProducerApi(id, resolveProducerApiId(removed));
       setProducers((prev) => {
@@ -1409,6 +1430,9 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         return prev;
       });
       setIsBackendConnected(true);
+      for (const recordId of affectedIds) {
+        updateMTD(recordId, reassignPatch);
+      }
     } catch (err) {
       setProducers((prev) => [removed!, ...prev]);
       if (
@@ -1420,7 +1444,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       notifySaveError("Could not delete producer", err);
       throw err;
     }
-  }, [isViewOnly, notifySaveError]);
+  }, [isViewOnly, mtdRecords, notifySaveError, updateMTD]);
 
   const addDiscountCode = useCallback(
     async (discountCode: DiscountCode): Promise<DiscountCode> => {

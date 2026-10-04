@@ -226,10 +226,22 @@ export async function updateOrderApi(
   if (patch.programName !== undefined) payload.program_name = patch.programName;
   if (patch.category !== undefined) payload.category = patch.category;
   if (patch.package !== undefined) payload.package = patch.package;
+  if (patch.packageType !== undefined) payload.package_type = patch.packageType;
+  if (patch.timeLengthOfMix !== undefined) {
+    payload.time_length_of_mix = patch.timeLengthOfMix;
+  }
+  if (patch.musicAffiliate !== undefined) {
+    payload.music_affiliate = patch.musicAffiliate;
+  }
+  if (patch.routineNotes !== undefined) payload.routine_notes = patch.routineNotes;
+  if (patch.splitOrNoSplit !== undefined) {
+    payload.split_or_no_split = patch.splitOrNoSplit;
+  }
   if (patch.price !== undefined) payload.price = patch.price;
   if (patch.musicTheme !== undefined) payload.music_theme = patch.musicTheme;
   if (patch.editorRequest !== undefined) payload.editor_request = patch.editorRequest;
   if (patch.requestedProducer !== undefined) payload.requested_producer = patch.requestedProducer;
+  if (patch.requestedEditor !== undefined) payload.requested_editor = patch.requestedEditor;
   if (patch.status !== undefined) payload.status = patch.status;
   if (patch.needsAttention !== undefined) payload.needs_attention = patch.needsAttention;
   if (patch.attentionReason !== undefined) payload.attention_reason = patch.attentionReason;

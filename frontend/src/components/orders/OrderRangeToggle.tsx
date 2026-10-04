@@ -19,98 +19,122 @@ type OrderRangeToggleProps = {
   };
 };
 
+type RangeOption = {
+  id: OrderViewRangeFilter;
+  label: string;
+  count?: number;
+  tone?: "default" | "warn" | "danger";
+};
+
+function isOptionActive(
+  value: OrderViewRangeFilter,
+  optId: OrderViewRangeFilter
+): boolean {
+  return (
+    value === optId ||
+    (value === ("new_orders" as OrderViewRangeFilter) &&
+      optId === "need_to_be_scheduled") ||
+    ((value === "reassign_leave" || value === "reassign_rush") &&
+      optId === "reassigned")
+  );
+}
+
+const UNDERLINE: Record<NonNullable<RangeOption["tone"]>, string> = {
+  default: "bg-brand-signature",
+  warn: "bg-brand-orange",
+  danger: "bg-rose-500",
+};
+
+const ACTIVE_BADGE: Record<NonNullable<RangeOption["tone"]>, string> = {
+  default: "bg-brand-blue-soft text-brand-signature",
+  warn: "bg-brand-orange-soft text-brand-orange",
+  danger: "bg-rose-50 text-rose-600",
+};
+
+const INACTIVE_LABEL: Record<NonNullable<RangeOption["tone"]>, string> = {
+  default: "text-brand-ink-tertiary hover:text-brand-ink-secondary",
+  warn: "text-brand-orange/80 hover:text-brand-orange",
+  danger: "text-rose-600/80 hover:text-rose-700",
+};
+
 export function OrderRangeToggle({
   value,
   onChange,
   counts,
 }: OrderRangeToggleProps) {
-  const options: {
-    id: OrderViewRangeFilter;
-    label: string;
-    count?: number;
-    tone?: "default" | "warn" | "danger";
-  }[] = [
+  const reselectCount =
+    counts?.reassigned ??
+    (counts?.reassignLeave ?? 0) + (counts?.reassignRush ?? 0);
+
+  const options: RangeOption[] = [
     { id: "all", label: "All", count: counts?.all },
     {
       id: "need_to_be_scheduled",
-      label: "Complete",
+      label: "Complete data",
       count: counts?.needToBeScheduled ?? counts?.newOrders,
-    },
-    { id: "assigned", label: "Assigned", count: counts?.assigned },
-    { id: "not_assigned", label: "Unassigned", count: counts?.notAssigned },
-    {
-      id: "reassign_leave",
-      label: "Reassign",
-      count: counts?.reassignLeave,
-      tone: "danger",
-    },
-    {
-      id: "reassign_rush",
-      label: "Reassign rush",
-      count: counts?.reassignRush,
-      tone: "danger",
     },
     {
       id: "waiting_for_data",
-      label: "Missing",
+      label: "Missing data",
       count: counts?.waitingForData,
       tone: "warn",
+    },
+    { id: "assigned", label: "Assigned", count: counts?.assigned },
+    {
+      id: "not_assigned",
+      label: "Not assigned",
+      count: counts?.notAssigned,
+    },
+    {
+      id: "reassigned",
+      label: "Reassign",
+      count: reselectCount,
+      tone: "danger",
     },
   ];
 
   return (
     <div
-      className="inline-flex max-w-full flex-wrap items-center gap-1 rounded-2xl bg-brand-elevated p-1 ring-1 ring-inset ring-brand-line/55"
-      role="group"
+      className="scrollbar-hide -mb-px flex max-w-full items-center gap-0.5 overflow-x-auto"
+      role="tablist"
       aria-label="Orders view range"
     >
       {options.map((opt) => {
-        const active =
-          value === opt.id ||
-          (value === ("new_orders" as any) &&
-            opt.id === "need_to_be_scheduled") ||
-          (value === ("reassigned" as any) &&
-            (opt.id === "reassign_leave" || opt.id === "reassign_rush"));
+        const active = isOptionActive(value, opt.id);
         const tone = opt.tone ?? "default";
 
         return (
           <button
             key={opt.id}
             type="button"
+            role="tab"
+            aria-selected={active}
             onClick={() => onChange(opt.id)}
-            aria-pressed={active}
             className={clsx(
-              "inline-flex min-h-[32px] shrink-0 items-center gap-1.5 rounded-xl px-2.5 py-1 text-[12px] font-medium tracking-tight transition-colors",
-              active
-                ? tone === "danger"
-                  ? "bg-rose-600 text-white shadow-sm"
-                  : tone === "warn"
-                    ? "bg-brand-orange text-white shadow-sm"
-                    : "bg-brand-signature text-white shadow-sm"
-                : tone === "danger"
-                  ? "text-rose-700 hover:bg-rose-50"
-                  : tone === "warn"
-                    ? "text-brand-orange hover:bg-brand-orange-soft/60"
-                    : "text-brand-ink-secondary hover:bg-brand-bg hover:text-brand-ink"
+              "group relative flex shrink-0 items-center gap-1.5 whitespace-nowrap px-3 py-2 text-[13px] font-medium transition-colors",
+              active ? "text-brand-ink" : INACTIVE_LABEL[tone]
             )}
           >
-            <span className="whitespace-nowrap">{opt.label}</span>
+            <span>{opt.label}</span>
             {typeof opt.count === "number" ? (
               <span
                 className={clsx(
-                  "inline-flex min-w-[1.25rem] items-center justify-center rounded-md px-1 py-px text-[10px] font-semibold tabular-nums",
+                  "rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums transition-colors",
                   active
-                    ? "bg-white/20 text-white"
-                    : tone === "danger"
-                      ? "bg-rose-50 text-rose-700"
-                      : tone === "warn"
-                        ? "bg-brand-orange-soft/80 text-brand-orange"
-                        : "bg-brand-bg text-brand-ink-tertiary"
+                    ? ACTIVE_BADGE[tone]
+                    : "bg-brand-bg-subtle text-brand-ink-tertiary group-hover:bg-brand-line/60"
                 )}
               >
                 {opt.count}
               </span>
             ) : null}
+            <span
+              className={clsx(
+                "absolute inset-x-2 -bottom-px h-0.5 rounded-full transition-colors",
+                active ? UNDERLINE[tone] : "bg-transparent"
+              )}
+              aria-hidden
+            />
           </button>
         );
       })}

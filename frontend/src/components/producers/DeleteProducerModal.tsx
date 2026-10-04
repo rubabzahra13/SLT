@@ -56,7 +56,9 @@ export function DeleteProducerModal({
                 assigned to them. Are you sure you want to delete them?
               </p>
               <p className="mt-1.5 text-[11px] leading-snug text-amber-800/90">
-                Existing assignments will keep {producer.name}&apos;s name as read-only historical records, but {producer.name} will be removed from the producer roster and future scheduling.
+                Active and MTD mixes assigned to {producer.name} will move to
+                Orders as Reselect producer with reason Producer deletion.
+                Completed payroll history is kept.
               </p>
             </div>
           ) : (

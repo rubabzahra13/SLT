@@ -2,9 +2,8 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowRight, Eye, Mail, Pencil } from "lucide-react";
+import { ArrowRight, Mail, Pencil } from "lucide-react";
 import clsx from "clsx";
-import Link from "next/link";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Avatar } from "@/components/ui/Avatar";
 import { DataTable, type Column } from "@/components/ui/DataTable";
@@ -15,6 +14,7 @@ import { SetRecordPricingModal } from "@/components/mtd/SetRecordPricingModal";
 import { CompletionBlockedModal } from "@/components/mtd/CompletionBlockedModal";
 import { ForwardOrderMailModal } from "@/components/orders/ForwardOrderMailModal";
 import { AddNewOrderModal } from "@/components/orders/AddNewOrderModal";
+import { OrderFormEditModal } from "@/components/orders/OrderFormEditModal";
 import { OrderRequirementsCell } from "@/components/orders/OrderRequirementsCell";
 import { OrderDataStatusBadge, OrderAssignmentStatusBadge } from "@/components/orders/OrderStatusDropdown";
 import {
@@ -105,7 +105,7 @@ const clickableChipClass =
   "cursor-pointer border border-brand-line/70 bg-brand-bg/60 shadow-sm transition hover:border-brand-orange/40 hover:bg-brand-orange-soft/35 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange/25";
 const compactCellClass = "!px-1 !py-1 overflow-hidden";
 const compactHeaderClass = "!px-2";
-const compactTextClass = "text-[12px] leading-none text-brand-ink";
+const compactTextClass = "text-[12px] leading-snug text-brand-ink";
 
 function OrdersPageContent() {
   const {
@@ -143,14 +143,20 @@ function OrdersPageContent() {
     "need_to_be_scheduled",
     "assigned",
     "not_assigned",
+    "reassigned",
     "reassign_leave",
     "reassign_rush",
     "waiting_for_data",
   ];
-  const initialRangeFilter: OrderViewRangeFilter =
-    rangeParam && allowedRangeFilters.includes(rangeParam as OrderViewRangeFilter)
-      ? (rangeParam as OrderViewRangeFilter)
-      : "all";
+  const initialRangeFilter: OrderViewRangeFilter = (() => {
+    if (!rangeParam || !allowedRangeFilters.includes(rangeParam as OrderViewRangeFilter)) {
+      return "all";
+    }
+    if (rangeParam === "reassign_leave" || rangeParam === "reassign_rush") {
+      return "reassigned";
+    }
+    return rangeParam as OrderViewRangeFilter;
+  })();
   const [rangeFilter, setRangeFilter] =
     useState<OrderViewRangeFilter>(initialRangeFilter);
 
@@ -258,6 +264,7 @@ function OrdersPageContent() {
     "producer"
   );
   const [addNewOrderOpen, setAddNewOrderOpen] = useState(false);
+  const [orderFormRecord, setOrderFormRecord] = useState<MTDRecord | null>(null);
 
   const preMtdRecords = useMemo(
     () => listPreMtdOrderRecords(activeOrders, mtdRecords, packagePrices),
@@ -297,19 +304,12 @@ function OrdersPageContent() {
     [preMtdRecords]
   );
 
-  const reassignLeaveOrdersCount = useMemo(
+  const reassignedOrdersCount = useMemo(
     () =>
-      preMtdRecords.filter(
-        (r) => getOrderAssignmentStatus(r) === "reassign_leave"
-      ).length,
-    [preMtdRecords]
-  );
-
-  const reassignRushOrdersCount = useMemo(
-    () =>
-      preMtdRecords.filter(
-        (r) => getOrderAssignmentStatus(r) === "reassign_rush"
-      ).length,
+      preMtdRecords.filter((r) => {
+        const status = getOrderAssignmentStatus(r);
+        return status === "reassign_leave" || status === "reassign_rush";
+      }).length,
     [preMtdRecords]
   );
 
@@ -326,10 +326,14 @@ function OrdersPageContent() {
           return getOrderAssignmentStatus(rec) === "assigned";
         if (rangeFilter === "not_assigned")
           return getOrderAssignmentStatus(rec) === "not_assigned";
-        if (rangeFilter === "reassign_leave")
-          return getOrderAssignmentStatus(rec) === "reassign_leave";
-        if (rangeFilter === "reassign_rush" || rangeFilter === "reassigned")
-          return getOrderAssignmentStatus(rec) === "reassign_rush";
+        if (
+          rangeFilter === "reassigned" ||
+          rangeFilter === "reassign_leave" ||
+          rangeFilter === "reassign_rush"
+        ) {
+          const status = getOrderAssignmentStatus(rec);
+          return status === "reassign_leave" || status === "reassign_rush";
+        }
         if (rangeFilter === "waiting_for_data")
           return getOrderRequirements(rec).missingCount > 0;
         // Complete data: data complete and not yet assigned / reassigned
@@ -525,14 +529,14 @@ function OrdersPageContent() {
         key: "contact",
         header: "Contact",
         width: "100px",
-        align: "center" as const,
+        align: "left" as const,
         nowrap: false,
         cellClassName: clsx(compactCellClass, "max-w-[100px]"),
         headerClassName: compactHeaderClass,
         render: (rec) => (
           <TruncatedText
             text={titleCase(rec.contactName || rec.editorInitials)}
-            className={clsx("mx-auto w-full min-w-0 text-center", compactTextClass)}
+            className={clsx("w-full min-w-0 text-left", compactTextClass)}
             style={{ maxWidth: "100%" }}
           />
         ),
@@ -541,14 +545,14 @@ function OrdersPageContent() {
         key: "program",
         header: "Program",
         width: "100px",
-        align: "center" as const,
+        align: "left" as const,
         nowrap: false,
         cellClassName: clsx(compactCellClass, "max-w-[100px]"),
         headerClassName: compactHeaderClass,
         render: (rec) => (
           <TruncatedText
             text={titleCase(rec.programName)}
-            className={clsx("mx-auto w-full min-w-0 text-center", compactTextClass)}
+            className={clsx("w-full min-w-0 text-left", compactTextClass)}
             style={{ maxWidth: "100%" }}
           />
         ),
@@ -813,7 +817,7 @@ function OrdersPageContent() {
       },
       {
         key: "dataStatus",
-        header: "Data",
+        header: "Form data",
         width: "130px",
         align: "center" as const,
         nowrap: false,
@@ -823,12 +827,12 @@ function OrdersPageContent() {
       },
       {
         key: "requestedEditor",
-        header: "Requested producer",
+        header: "Form\nproducer",
         width: "100px",
         align: "center" as const,
         nowrap: false,
         cellClassName: clsx(compactCellClass, "max-w-[100px]"),
-        headerClassName: compactHeaderClass,
+        headerClassName: clsx(compactHeaderClass, "whitespace-pre-line leading-tight"),
         render: (rec) => {
           const linked = findLinkedOrder(rec, allOrders);
           const label = formatRequestedEditorLabel(rec, producers, linked);
@@ -871,10 +875,10 @@ function OrdersPageContent() {
       {
         key: "editor",
         header: "Assigned producer",
-        width: "100px",
+        width: "130px",
         align: "center" as const,
-        nowrap: false,
-        cellClassName: clsx(compactCellClass, "max-w-[100px]"),
+        nowrap: true,
+        cellClassName: clsx(compactCellClass, "max-w-[130px]"),
         headerClassName: compactHeaderClass,
         render: (rec) => {
           const isMissingDataRow = rangeFilter === "waiting_for_data" || getOrderStatus(rec).status === "Missing Data";
@@ -885,7 +889,7 @@ function OrdersPageContent() {
           const { missingCount } = getOrderStatus(rec);
           const assignBlockedByMissingData = missingCount > 0;
           const assignBlockedReason = assignBlockedByMissingData
-            ? "Resolve missing data before assigning"
+            ? "Resolve missing data\nbefore assigning"
             : null;
           const assignLabel =
             rec.isReassigned ||
@@ -907,8 +911,8 @@ function OrdersPageContent() {
                     e.stopPropagation();
                     openAssignPage(rec.id);
                   }}
-                  title={isMissingDataRow ? "Scheduling disabled in Missing Data" : "Edit assignment"}
-                  aria-label={`Edit assignment for ${assigned}`}
+                  title={isMissingDataRow ? "Scheduling disabled in Missing Data" : "Assign producer"}
+                  aria-label={`Assign producer for ${assigned}`}
                   className={clsx(
                     clickableChipClass,
                     "inline-flex items-center rounded-full p-0.5"
@@ -952,21 +956,19 @@ function OrdersPageContent() {
       },
       {
         key: "mixStartDate",
-        header: "Mix start date",
-        width: "176px",
+        header: "Mix start\ndate",
+        width: "120px",
         align: "center" as const,
         nowrap: false,
-        cellClassName: "!px-2 !py-1.5",
-        headerClassName: "!px-2",
+        cellClassName: "!px-1.5 !py-1.5",
+        headerClassName: "!px-1.5 whitespace-pre-line leading-tight",
         render: (rec) => {
           const needsReassign = Boolean(rec.isReassigned);
           const startIso =
             !needsReassign && rec.assignedProducer
               ? toIsoDateString(rec.mixStartDate)
               : "";
-          const placeholder = needsReassign
-            ? "Reassign producer to set"
-            : "Assign producer to set";
+          const placeholder = "Assign producer";
           return (
             <span
               className={clsx(
@@ -981,21 +983,19 @@ function OrdersPageContent() {
       },
       {
         key: "mixEndDate",
-        header: "Mix end date",
-        width: "176px",
+        header: "Mix due\ndate",
+        width: "120px",
         align: "center" as const,
         nowrap: false,
-        cellClassName: "!px-2 !py-1.5",
-        headerClassName: "!px-2",
+        cellClassName: "!px-1.5 !py-1.5",
+        headerClassName: "!px-1.5 whitespace-pre-line leading-tight",
         render: (rec) => {
           const needsReassign = Boolean(rec.isReassigned);
           const endIso =
             !needsReassign && rec.assignedProducer
               ? toIsoDateString(rec.mixEndDate ?? "")
               : "";
-          const placeholder = needsReassign
-            ? "Reassign producer to set"
-            : "Assign producer to set";
+          const placeholder = "Assign producer";
           return (
             <span
               className={clsx(
@@ -1010,10 +1010,10 @@ function OrdersPageContent() {
       },
       {
         key: "daysBooked",
-        header: "Days booked",
+        header: "Booked days",
         width: "120px",
         align: "center" as const,
-        nowrap: false,
+        nowrap: true,
         cellClassName: clsx(compactCellClass, "max-w-[120px]"),
         headerClassName: compactHeaderClass,
         render: (rec) => {
@@ -1027,12 +1027,12 @@ function OrdersPageContent() {
                   rec.mixEndDate,
                   mixWorkDaysForRecord(rec, producers)
                 )
-              : "Not booked yet";
-          const booked = label !== "Not booked yet";
+              : "Assign producer";
+          const booked = label !== "Assign producer";
           return (
             <span
               className={clsx(
-                "mx-auto block text-center text-[12px] font-medium",
+                "mx-auto block whitespace-nowrap text-center text-[12px] font-medium",
                 booked ? "text-brand-ink" : "text-brand-ink-tertiary"
               )}
             >
@@ -1054,121 +1054,9 @@ function OrdersPageContent() {
         ),
       },
       {
-        key: "actions",
-        header: "Actions",
-        width: "150px",
-        align: "center" as const,
-        nowrap: false,
-        cellClassName: compactCellClass,
-        headerClassName: compactHeaderClass,
-        render: (rec) => {
-          const { needsReassign, missingCount } = getOrderStatus(rec);
-          const blockedByMissingData = missingCount > 0;
-          const assignedProducer =
-            getDisplayAssignedProducer(rec) ||
-            rec.assignedProducer?.trim() ||
-            null;
-          const isAssigned = Boolean(assignedProducer);
-          const isScheduled = Boolean(
-            toIsoDateString(rec.mixStartDate) && toIsoDateString(rec.mixEndDate)
-          );
-          const producerSentAt = rec.producerEmailSentAt || null;
-          const producerSentTo = rec.producerEmailSentTo?.trim() || null;
-          const sameProducerAsLastSend = Boolean(
-            assignedProducer &&
-              producerSentTo &&
-              producerKeysMatch(assignedProducer, producerSentTo)
-          );
-          const producerMailSatisfied =
-            isAssigned && Boolean(producerSentAt) && sameProducerAsLastSend;
-          const producerMailIsResend =
-            !blockedByMissingData &&
-            isAssigned &&
-            !producerSentAt &&
-            sameProducerAsLastSend &&
-            (needsReassign || Boolean(rec.isReassigned));
-          const awaitingProducerMail =
-            isAssigned && !blockedByMissingData && !producerMailSatisfied;
-          const ready =
-            isAssigned &&
-            isScheduled &&
-            !blockedByMissingData &&
-            producerMailSatisfied;
-          const mtdBlockedReason = blockedByMissingData
-            ? "Resolve missing data before moving to MTD"
-            : !isAssigned && !isScheduled
-              ? "Assign a producer and set schedule dates before moving to MTD"
-              : !isAssigned
-                ? "Assign a producer before moving to MTD"
-                : !isScheduled
-                  ? "Set start and end dates before moving to MTD"
-                  : awaitingProducerMail
-                    ? producerMailIsResend
-                      ? "Resend producer email before moving to MTD"
-                      : "Email producer before moving to MTD"
-                    : null;
-          const mtdDisabled = Boolean(mtdBlockedReason);
-          return (
-            <div
-              className="flex items-center justify-center gap-1"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <HoverTip label="View" placement="top">
-                <Link
-                  href={`/orders/${rec.id}`}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-brand-line/60 bg-brand-elevated text-brand-ink-secondary shadow-sm transition hover:border-brand-signature/35 hover:bg-brand-signature/8 hover:text-brand-signature focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-signature/20"
-                  aria-label={`View ${rec.programName || "order"}`}
-                >
-                  <Eye className="h-3.5 w-3.5" strokeWidth={2.25} />
-                </Link>
-              </HoverTip>
-              {!isViewOnly ? (
-                <HoverTip label="Edit" placement="top">
-                  <Link
-                    href={`/orders/${rec.id}?edit=1`}
-                    onMouseDown={(e) => e.stopPropagation()}
-                    className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-brand-line/60 bg-brand-elevated text-brand-ink-secondary shadow-sm transition hover:border-brand-signature/35 hover:bg-brand-signature/8 hover:text-brand-signature focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-signature/20"
-                    aria-label={`Edit ${rec.programName || "order"}`}
-                  >
-                    <Pencil className="h-3.5 w-3.5" strokeWidth={2.25} />
-                  </Link>
-                </HoverTip>
-              ) : null}
-              {!isViewOnly ? (
-                <HoverTip
-                  label={mtdBlockedReason ?? "Move to MTD"}
-                  placement="top"
-                >
-                  <button
-                    type="button"
-                    disabled={mtdDisabled}
-                    aria-disabled={mtdDisabled}
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onClick={(e) => {
-                      if (mtdDisabled) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        return;
-                      }
-                      handleMoveToMTD(rec, e);
-                    }}
-                    className={ordersMtdButtonClass(ready, mtdDisabled)}
-                    aria-label={mtdBlockedReason ?? "Move to MTD"}
-                  >
-                    <span>MTD</span>
-                    <ArrowRight className="h-3 w-3 shrink-0" strokeWidth={2.25} />
-                  </button>
-                </HoverTip>
-              ) : null}
-            </div>
-          );
-        },
-      },
-      {
         key: "email",
         header: "Email",
-        width: "140px",
+        width: "120px",
         align: "center" as const,
         nowrap: false,
         cellClassName: compactCellClass,
@@ -1283,6 +1171,124 @@ function OrdersPageContent() {
           );
         },
       },
+      {
+        key: "actions",
+        header: "Actions",
+        width: "120px",
+        align: "center" as const,
+        nowrap: true,
+        cellClassName: compactCellClass,
+        headerClassName: compactHeaderClass,
+        render: (rec) => {
+          const { needsReassign, missingCount } = getOrderStatus(rec);
+          const blockedByMissingData = missingCount > 0;
+          const assignedProducer =
+            getDisplayAssignedProducer(rec) ||
+            rec.assignedProducer?.trim() ||
+            null;
+          const isAssigned = Boolean(assignedProducer);
+          const isScheduled = Boolean(
+            toIsoDateString(rec.mixStartDate) && toIsoDateString(rec.mixEndDate)
+          );
+          const producerSentAt = rec.producerEmailSentAt || null;
+          const producerSentTo = rec.producerEmailSentTo?.trim() || null;
+          const sameProducerAsLastSend = Boolean(
+            assignedProducer &&
+              producerSentTo &&
+              producerKeysMatch(assignedProducer, producerSentTo)
+          );
+          const producerMailSatisfied =
+            isAssigned && Boolean(producerSentAt) && sameProducerAsLastSend;
+          const producerMailIsResend =
+            !blockedByMissingData &&
+            isAssigned &&
+            !producerSentAt &&
+            sameProducerAsLastSend &&
+            (needsReassign || Boolean(rec.isReassigned));
+          const awaitingProducerMail =
+            isAssigned && !blockedByMissingData && !producerMailSatisfied;
+          const ready =
+            isAssigned &&
+            isScheduled &&
+            !blockedByMissingData &&
+            producerMailSatisfied;
+          const mtdBlockedReason = blockedByMissingData
+            ? "Resolve missing data\nbefore moving to MTD"
+            : !isAssigned && !isScheduled
+              ? "Assign a producer and set\nschedule dates before moving to MTD"
+              : !isAssigned
+                ? "Assign a producer\nbefore moving to MTD"
+                : !isScheduled
+                  ? "Set start and end dates\nbefore moving to MTD"
+                  : awaitingProducerMail
+                    ? producerMailIsResend
+                      ? "Resend producer email\nbefore moving to MTD"
+                      : "Email producer\nbefore moving to MTD"
+                    : null;
+          const mtdDisabled = Boolean(mtdBlockedReason);
+          return (
+            <div
+              className="flex items-center justify-center gap-1"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <HoverTip
+                label={isViewOnly ? "View order form" : "Edit order form"}
+                placement="top"
+              >
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setOrderFormRecord(rec);
+                  }}
+                  className={clsx(ordersMailTextButtonClass, "!px-1.5")}
+                  aria-label={
+                    isViewOnly
+                      ? `View ${rec.programName || "order"}`
+                      : `Edit order form: ${rec.programName || "order"}`
+                  }
+                >
+                  <Pencil className="h-3.5 w-3.5 shrink-0" strokeWidth={2.25} />
+                </button>
+              </HoverTip>
+              {!isViewOnly ? (
+                <HoverTip
+                  label={
+                    mtdBlockedReason ?? "MTD"
+                  }
+                  placement="top"
+                >
+                  <button
+                    type="button"
+                    disabled={mtdDisabled}
+                    aria-disabled={mtdDisabled}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                      if (mtdDisabled) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        return;
+                      }
+                      handleMoveToMTD(rec, e);
+                    }}
+                    className={clsx(
+                      ordersMtdButtonClass(ready, mtdDisabled),
+                      "whitespace-nowrap"
+                    )}
+                    aria-label={
+                      mtdBlockedReason ?? "MTD"
+                    }
+                  >
+                    <span>MTD</span>
+                    <ArrowRight className="h-3 w-3 shrink-0" strokeWidth={2.25} />
+                  </button>
+                </HoverTip>
+              ) : null}
+            </div>
+          );
+        },
+      },
     ];
 
     return baseCols;
@@ -1305,9 +1311,9 @@ function OrdersPageContent() {
       <PageHeader
         title="Orders"
         badge={`${filtered.length} of ${typeFilteredPreMtdRecords.length}`}
-        subtitle="Pre-MTD order staging: assign producer, set dates, and move to MTD"
+        subtitle="Assign orders to producers"
         action={{
-          label: "Add New Order",
+          label: "New Order",
           onClick: () => setAddNewOrderOpen(true),
           showPlus: true,
         }}
@@ -1317,7 +1323,7 @@ function OrdersPageContent() {
           showPlus: false,
         }}
         exportAction={{
-          label: "Export to CSV",
+          label: "CSV",
           onClick: () => {
             const csv = generateOrdersCsv(filtered, allOrders);
             triggerCsvDownload(`Orders_Export_${todayIso()}.csv`, csv);
@@ -1340,8 +1346,7 @@ function OrdersPageContent() {
             newOrdersCount={newOrdersCount}
             assignedOrdersCount={assignedOrdersCount}
             notAssignedOrdersCount={notAssignedOrdersCount}
-            reassignLeaveOrdersCount={reassignLeaveOrdersCount}
-            reassignRushOrdersCount={reassignRushOrdersCount}
+            reassignedOrdersCount={reassignedOrdersCount}
             waitingForDataCount={waitingForDataCount}
             onFormChange={switchForm}
             onCheerSubtypeChange={setCheerSubtype}
@@ -1362,7 +1367,7 @@ function OrdersPageContent() {
         }
       />
 
-      <div className="min-h-0 flex-1 overflow-auto px-6 pb-6 pt-5 lg:px-8">
+      <div className="min-h-0 flex-1 overflow-auto px-2 pb-6 pt-5 lg:px-3">
         <div className="dashboard-panel dashboard-panel-framed overflow-hidden">
           <DataTable
             key={`${form}-${cheerSubtype}-${danceSubtype}-${tableFilterKey}`}
@@ -1431,6 +1436,13 @@ function OrdersPageContent() {
         initialCheerSubtype={cheerSubtype}
         initialDanceSubtype={danceSubtype}
         onAdd={addManualScheduleEntry}
+      />
+
+      <OrderFormEditModal
+        open={Boolean(orderFormRecord)}
+        record={orderFormRecord}
+        allOrders={allOrders}
+        onClose={() => setOrderFormRecord(null)}
       />
     </div>
   );

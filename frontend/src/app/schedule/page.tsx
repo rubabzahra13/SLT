@@ -334,31 +334,29 @@ function SchedulePageContent() {
         }
       />
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-6 pb-6 pt-5 lg:px-8">
+      <div className="min-h-0 flex-1 overflow-auto px-2 pb-6 pt-5 lg:px-3">
         {pageTab === "view" ? (
-          <div className="flex min-h-0 w-full flex-1 flex-col">
-            {view === "today" ? (
-              <TeamScheduleTodayView
-                rows={teamRows}
-                date={anchorDate}
-                activeProducerId={drawerRow?.producer.id}
-                onSelectProducer={handleSelectProducerRow}
-                emptyMessage={emptyMessage}
-                className="min-h-0 w-full flex-1"
-              />
-            ) : (
-              <TeamScheduleMatrix
-                rows={teamRows}
-                columns={columns}
-                range={view}
-                statusFilter={statusFilter}
-                activeProducerId={drawerRow?.producer.id}
-                onSelectProducer={handleSelectProducerRow}
-                emptyMessage={emptyMessage}
-                className="min-h-0 w-full flex-1"
-              />
-            )}
-          </div>
+          view === "today" ? (
+            <TeamScheduleTodayView
+              rows={teamRows}
+              date={anchorDate}
+              activeProducerId={drawerRow?.producer.id}
+              onSelectProducer={handleSelectProducerRow}
+              emptyMessage={emptyMessage}
+              className="w-full"
+            />
+          ) : (
+            <TeamScheduleMatrix
+              rows={teamRows}
+              columns={columns}
+              range={view}
+              statusFilter={statusFilter}
+              activeProducerId={drawerRow?.producer.id}
+              onSelectProducer={handleSelectProducerRow}
+              emptyMessage={emptyMessage}
+              className="w-full"
+            />
+          )
         ) : (
           <ScheduleSendPanel
             categoryLabel={exportCategoryLabel}

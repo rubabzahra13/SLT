@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useMemo } from "react";
 import clsx from "clsx";
 import { Avatar } from "@/components/ui/Avatar";
 import { HoverTip } from "@/components/ui/HoverTip";
@@ -408,29 +408,6 @@ export function TeamScheduleMatrix({
   }, [columns, rows]);
 
   const producerCount = rows.length;
-  const shouldStretchRows = producerCount > 2;
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const [containerHeight, setContainerHeight] = useState<number | null>(null);
-
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el || !shouldStretchRows) {
-      setContainerHeight(null);
-      return;
-    }
-
-    const updateHeight = () => setContainerHeight(el.clientHeight);
-    updateHeight();
-
-    const resizeObserver = new ResizeObserver(updateHeight);
-    resizeObserver.observe(el);
-    window.addEventListener("resize", updateHeight);
-
-    return () => {
-      resizeObserver.disconnect();
-      window.removeEventListener("resize", updateHeight);
-    };
-  }, [shouldStretchRows, producerCount, columns.length, showStatColumns]);
 
   const dayCount = Math.max(columns.length, 1);
   const producerLabelCol = LAYOUT.dateCol;
@@ -458,26 +435,11 @@ export function TeamScheduleMatrix({
       parts.push(`${monthBarH}px`);
     }
     if (producerCount > 0) {
-      const minRowHeight = LAYOUT.rowH[range] as number;
-      let rowHeight: number = minRowHeight;
-
-      if (shouldStretchRows && containerHeight != null) {
-        const chromeHeight = LAYOUT.headerH[range] + (showMonthBars ? monthBarH : 0);
-        const available = containerHeight - chromeHeight;
-        rowHeight = Math.max(minRowHeight, Math.floor(available / producerCount));
-      }
-
+      const rowHeight = LAYOUT.rowH[range] as number;
       parts.push(`repeat(${producerCount}, ${rowHeight}px)`);
     }
     return parts.join(" ");
-  }, [
-    containerHeight,
-    monthBarH,
-    producerCount,
-    range,
-    showMonthBars,
-    shouldStretchRows,
-  ]);
+  }, [monthBarH, producerCount, range, showMonthBars]);
 
   const producerStickyLeft = 0;
   const freeStickyLeft = producerLabelCol;
@@ -493,9 +455,6 @@ export function TeamScheduleMatrix({
         minWidth: matrixWidth,
         gridTemplateColumns,
         gridTemplateRows,
-        ...(shouldStretchRows && containerHeight != null
-          ? { minHeight: containerHeight }
-          : {}),
       }}
     >
       <div className="schedule-chrome-header sticky left-0 top-0 z-40 flex items-center justify-center border-r border-brand-line/60 px-2 py-2">
@@ -732,7 +691,6 @@ export function TeamScheduleMatrix({
                   <ScheduleCellButton
                     cell={cell}
                     range={range}
-                    stretchRows={shouldStretchRows}
                     selected={isActive && cell.key === column.key}
                     onClick={() => onSelectProducer(row, cell)}
                   />
@@ -748,27 +706,15 @@ export function TeamScheduleMatrix({
   return (
     <div
       className={clsx(
-        "dashboard-panel dashboard-panel-framed flex h-full min-h-0 w-full flex-col overflow-hidden",
+        "dashboard-panel dashboard-panel-framed w-full overflow-hidden",
         className
       )}
-      style={{
-        width: "100%",
-        height: "100%",
-        maxHeight: "100%",
-        minHeight: 0,
-      }}
     >
-      <div
-        ref={scrollRef}
-        className={clsx(
-          "relative flex min-h-0 flex-1 flex-col overflow-auto",
-          shouldStretchRows && hasProducers && "overflow-x-auto"
-        )}
-      >
+      <div className="relative w-full overflow-x-auto">
         {hasProducers ? (
           grid
         ) : (
-          <div className="flex flex-1 items-center justify-center px-6 py-12">
+          <div className="flex items-center justify-center px-6 py-12">
             <div className="max-w-md text-center">
               <p className="text-[13px] font-semibold text-brand-ink">{emptyMessage}</p>
               <p className="mt-1 text-[12px] leading-relaxed text-brand-ink-tertiary">

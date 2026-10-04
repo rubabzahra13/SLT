@@ -51,3 +51,19 @@ export function patchForReassignRush(): Partial<MTDRecord> {
     ...completeDataFields(),
   };
 }
+
+/** Clear assignment/schedule when the assigned producer is deleted. */
+export function patchForReassignProducerDeletion(): Partial<MTDRecord> {
+  return {
+    inMTD: false,
+    isReassigned: true,
+    orderStatus: "Reassign: producer deletion",
+    assignedProducer: null,
+    editorRequest: "FA",
+    mixStartDate: "",
+    mixEndDate: "",
+    producerEmailSentAt: null,
+    status: "active",
+    ...completeDataFields(),
+  };
+}

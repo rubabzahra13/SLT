@@ -219,8 +219,8 @@ export function DataTable<T>({
         orientation="horizontal"
         scrollClassName={
           shouldStretchRows
-            ? "min-h-0 w-full flex-1 overflow-x-auto overflow-y-auto"
-            : "w-full overflow-x-auto"
+            ? "min-h-0 w-full flex-1 overflow-x-auto overflow-y-auto scrollbar-hide"
+            : "w-full overflow-x-auto scrollbar-hide"
         }
         indicatorPlacement="below"
         contentClassName={

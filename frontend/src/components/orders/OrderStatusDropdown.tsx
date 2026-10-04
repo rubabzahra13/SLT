@@ -6,6 +6,7 @@ import {
   getOrderAssignmentStatus,
   getOrderRequirements,
   ORDER_ASSIGNMENT_STATUS_LABEL,
+  ORDER_REASSIGN_STATUS,
   type OrderAssignmentStatus,
   type OrderDataStatus,
 } from "@/lib/order-requirements";
@@ -96,7 +97,7 @@ export function OrderDataStatusBadge({
       <HoverTip label={tip} placement="top">
         <span
           className={clsx(
-            "inline-flex h-8 min-w-[118px] items-center justify-center whitespace-nowrap rounded-full border px-2.5 text-[11px] font-medium shadow-sm",
+            "inline-flex h-6 min-w-[88px] items-center justify-center whitespace-nowrap rounded-full border px-2 text-[10px] font-medium shadow-sm",
             DATA_PILL[status]
           )}
         >
@@ -123,13 +124,17 @@ export function OrderAssignmentStatusBadge({
   record: Order | MTDRecord;
 }) {
   const status = getOrderAssignmentStatus(record);
-  const label = ORDER_ASSIGNMENT_STATUS_LABEL[status];
+  const reqs = getOrderRequirements(record);
+  const label =
+    reqs.needsReassign && reqs.reassignReason
+      ? ORDER_REASSIGN_STATUS[reqs.reassignReason]
+      : ORDER_ASSIGNMENT_STATUS_LABEL[status];
 
   return (
     <StatusCell>
       <span
         className={clsx(
-          "inline-flex h-8 max-w-[148px] items-center justify-center whitespace-nowrap rounded-full border px-2.5 text-[11px] font-medium shadow-sm",
+          "inline-flex h-6 min-w-[78px] items-center justify-center whitespace-nowrap rounded-full border px-2 text-[10px] font-medium shadow-sm",
           ASSIGNMENT_PILL[status]
         )}
         title={label}

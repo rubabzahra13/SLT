@@ -83,7 +83,7 @@ export function HoverTip({
               className={
                 content
                   ? "pointer-events-none fixed max-w-[240px] rounded-xl border border-brand-line/80 bg-brand-elevated px-3 py-2.5 text-left shadow-[var(--shadow-premium)]"
-                  : "pointer-events-none fixed w-max max-w-[min(92vw,28rem)] whitespace-pre-line rounded-md bg-brand-accent px-2.5 py-1.5 text-center text-[11px] font-semibold leading-snug text-white shadow-md"
+                  : "pointer-events-none fixed w-max max-w-[11.5rem] whitespace-pre-line rounded-md bg-brand-accent px-2.5 py-1.5 text-center text-[11px] font-semibold leading-snug text-white shadow-md"
               }
               style={{
                 top: coords.top,

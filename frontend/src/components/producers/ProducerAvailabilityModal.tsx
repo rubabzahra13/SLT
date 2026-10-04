@@ -1049,7 +1049,7 @@ export function ProducerAvailabilityModal({
 
     const focusId = affected[0]?.recordId;
     const params = new URLSearchParams();
-    params.set("range", "reassign_leave");
+    params.set("range", "reassigned");
     if (focusId) params.set("focus", focusId);
     router.push(`/orders?${params.toString()}`);
   }

@@ -80,7 +80,7 @@ export default function ProducersPage() {
     }
   }
 
-  function handleSaveAvailability(patch: {
+  async function handleSaveAvailability(patch: {
     workDays: Weekday[];
     timeOff: Producer["timeOff"];
     maxMixesPerDay: number | null;
@@ -89,11 +89,11 @@ export default function ProducersPage() {
     categories: string[];
     specialty: string;
     ratesByCategory: Record<string, number>;
-  }) {
+  }): Promise<void> {
     if (isViewOnly || !availabilityProducer) {
-      return Promise.reject(new Error("Cannot save producer availability."));
+      throw new Error("Cannot save producer availability.");
     }
-    return updateProducer(availabilityProducer.id, patch);
+    await updateProducer(availabilityProducer.id, patch);
   }
 
   function confirmDelete() {
