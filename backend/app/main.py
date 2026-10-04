@@ -56,6 +56,8 @@ async def lifespan(app: FastAPI):
                 conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS producer_email_sent_to VARCHAR;"))
                 conn.execute(text("ALTER TABLE mtd_records ADD COLUMN IF NOT EXISTS producer_email_sent_to VARCHAR;"))
                 conn.execute(text("ALTER TABLE producers ADD COLUMN IF NOT EXISTS max_producer_cost_per_day INTEGER;"))
+                conn.execute(text("ALTER TABLE producers ADD COLUMN IF NOT EXISTS next_available VARCHAR;"))
+                conn.execute(text("ALTER TABLE producers ADD COLUMN IF NOT EXISTS status VARCHAR DEFAULT 'available';"))
     except Exception as exc:
         logger.warning("Auto-migration check skipped/failed: %s", exc)
 

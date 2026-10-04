@@ -284,7 +284,12 @@ export function ProducerFormModal({
       maxMixesPerDay: producer?.maxMixesPerDay ?? null,
       maxProducerCostPerDay: producer?.maxProducerCostPerDay ?? null,
       extraDays: producer?.extraDays ?? [],
-      ratesByCategory: form.categoryRates,
+      ratesByCategory: Object.fromEntries(
+        Object.entries(form.categoryRates || {}).map(([cat, val]) => [
+          cat,
+          typeof val === "number" && val > 1 ? val / 100 : val,
+        ])
+      ),
       danceVoiceoverRate:
         form.danceVoiceoverRate == null
           ? null

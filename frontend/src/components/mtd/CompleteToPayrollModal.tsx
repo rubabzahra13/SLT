@@ -48,6 +48,12 @@ type CompleteToPayrollModalProps = {
   onConfirm: (patch?: Partial<MTDRecord>, orderPatch?: Partial<Order>) => void;
 };
 
+function formatRatePercentStr(rate: number | null | undefined): string {
+  if (rate === null || rate === undefined || isNaN(rate)) return "";
+  const pct = rate <= 1 ? rate * 100 : rate;
+  return Number(pct.toFixed(4)).toString();
+}
+
 export function CompleteToPayrollModal({
   open,
   record,
@@ -1060,9 +1066,9 @@ export function CompleteToPayrollModal({
                           customRateInput !== ""
                             ? customRateInput
                             : selectedCaseyRate !== null
-                            ? (selectedCaseyRate * 100).toString()
+                            ? formatRatePercentStr(selectedCaseyRate)
                             : clientPayroll.rateUsed !== null
-                            ? (clientPayroll.rateUsed * 100).toString()
+                            ? formatRatePercentStr(clientPayroll.rateUsed)
                             : ""
                         }
                         onChange={(e) => setCustomRateInput(e.target.value)}

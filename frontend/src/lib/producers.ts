@@ -200,15 +200,14 @@ export function normalizeProducer(raw: Partial<Producer> & { id: string }): Prod
       : null;
   ratesByCategory = rewriteLegacyGeneralRates(ratesByCategory);
 
-  if (!ratesByCategory && SEED_PRODUCER_CATEGORY_RATES[initials]) {
-    ratesByCategory = { ...SEED_PRODUCER_CATEGORY_RATES[initials] };
-  } else if (!ratesByCategory && categories.length > 0) {
-    const fallbackRate = raw.defaultRate ?? 0.50;
-    const rates: Record<string, number> = {};
-    for (const cat of categories) {
-      rates[cat] = fallbackRate;
+  if (ratesByCategory) {
+    const normalized: Record<string, number> = {};
+    for (const [cat, val] of Object.entries(ratesByCategory)) {
+      if (typeof val === "number") {
+        normalized[cat] = val > 1 ? val / 100 : val;
+      }
     }
-    ratesByCategory = rates;
+    ratesByCategory = normalized;
   }
 
   const resolvedEmail =

@@ -39,6 +39,12 @@ def _rewrite_legacy_general_category(categories: Any) -> list[str]:
     return next_cats
 
 
+def _normalize_rate_value(val: Any) -> Any:
+    if isinstance(val, (int, float)):
+        return float(val / 100.0) if val > 1 else float(val)
+    return val
+
+
 def _rewrite_legacy_general_rates(rates: Any) -> Any:
     if not isinstance(rates, dict):
         return rates
@@ -47,16 +53,15 @@ def _rewrite_legacy_general_rates(rates: Any) -> Any:
         for key in rates
         if isinstance(key, str) and key.strip().lower() == _LEGACY_GENERAL_CATEGORY
     ]
-    if not general_keys:
-        return rates
     next_rates = {
-        key: value
+        key: _normalize_rate_value(value)
         for key, value in rates.items()
         if not (isinstance(key, str) and key.strip().lower() == _LEGACY_GENERAL_CATEGORY)
     }
-    general_rate = rates.get(general_keys[0])
-    if _CANONICAL_TEAM_PERF_CATEGORY not in next_rates and general_rate is not None:
-        next_rates[_CANONICAL_TEAM_PERF_CATEGORY] = general_rate
+    if general_keys:
+        general_rate = rates.get(general_keys[0])
+        if _CANONICAL_TEAM_PERF_CATEGORY not in next_rates and general_rate is not None:
+            next_rates[_CANONICAL_TEAM_PERF_CATEGORY] = _normalize_rate_value(general_rate)
     return next_rates
 
 
@@ -122,7 +127,13 @@ def _sync_time_offs(producer: Producer, time_offs: Optional[List[Any]], db: Sess
             producer.time_offs.append(row)
 
 
-def _find_producer(db: Session, producer_id: str) -> Producer | None:
+def _find_producer(
+    db: Session,
+    producer_id: str,
+    initials: Optional[str] = None,
+    name: Optional[str] = None,
+    email: Optional[str] = None,
+) -> Producer | None:
     if not producer_id or not str(producer_id).strip():
         return None
     pid_str = str(producer_id).strip()
@@ -138,11 +149,29 @@ def _find_producer(db: Session, producer_id: str) -> Producer | None:
     if prod:
         return prod
 
-    # 3. Case-insensitive fallback on name or initials
-    return db.query(Producer).filter(
+    # 3. Case-insensitive fallback on name or initials from path param
+    prod = db.query(Producer).filter(
         (func.lower(Producer.name) == pid_str.lower()) |
         (func.lower(Producer.initials) == pid_str.lower())
     ).first()
+    if prod:
+        return prod
+
+    # 4. Fallback lookup by payload initials, name, or email (handles synthetic client IDs like prod-12345)
+    if initials and initials.strip():
+        prod = db.query(Producer).filter(func.lower(Producer.initials) == initials.strip().lower()).first()
+        if prod:
+            return prod
+    if name and name.strip():
+        prod = db.query(Producer).filter(func.lower(Producer.name) == name.strip().lower()).first()
+        if prod:
+            return prod
+    if email and email.strip():
+        prod = db.query(Producer).filter(func.lower(Producer.email) == email.strip().lower()).first()
+        if prod:
+            return prod
+
+    return None
 
 
 def _load_producer(db: Session, producer_id: uuid.UUID) -> Producer:
@@ -191,10 +220,9 @@ def create_producer(
 
     categories = data.get("categories") or []
     data["categories"] = _rewrite_legacy_general_category(categories)
-    if "rates_by_category" in data:
-        data["rates_by_category"] = _rewrite_legacy_general_rates(
-            data.get("rates_by_category")
-        )
+    for rate_key in ("default_rate", "dance_voiceover_rate", "cheer_voiceover_rate", "rush_fee_rate"):
+        if rate_key in data and data[rate_key] is not None:
+            data[rate_key] = _normalize_rate_value(data[rate_key])
 
     data["initials"] = initials
 
@@ -220,11 +248,16 @@ def update_producer(
     db: Session = Depends(get_db),
     _: None = Depends(require_full_access),
 ):
-    producer = _find_producer(db, producer_id)
+    update_data = payload.model_dump(exclude_unset=True)
+    producer = _find_producer(
+        db,
+        producer_id,
+        initials=update_data.get("initials"),
+        name=update_data.get("name"),
+        email=update_data.get("email"),
+    )
     if not producer:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Producer not found")
-
-    update_data = payload.model_dump(exclude_unset=True)
     time_offs = update_data.pop("time_offs", None)
 
     if "categories" in update_data:
@@ -235,6 +268,9 @@ def update_producer(
         update_data["rates_by_category"] = _rewrite_legacy_general_rates(
             update_data.get("rates_by_category")
         )
+    for rate_key in ("default_rate", "dance_voiceover_rate", "cheer_voiceover_rate", "rush_fee_rate"):
+        if rate_key in update_data and update_data[rate_key] is not None:
+            update_data[rate_key] = _normalize_rate_value(update_data[rate_key])
 
     for key, value in update_data.items():
         setattr(producer, key, value)

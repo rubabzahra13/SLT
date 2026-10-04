@@ -332,7 +332,7 @@ export function computeClientPayroll(
     voiceoverRateUsed,
     message:
       rushFeePayout || voiceoverPayout
-        ? `Payout: $${payout.toFixed(2)} (${(normalizedCategoryRate * 100).toFixed(0)}% base + addons)`
-        : `Payout: $${payout.toFixed(2)} (${(normalizedCategoryRate * 100).toFixed(0)}%)`,
+        ? `Payout: $${payout.toFixed(2)} (${Number((normalizedCategoryRate * 100).toFixed(4))}% base + addons)`
+        : `Payout: $${payout.toFixed(2)} (${Number((normalizedCategoryRate * 100).toFixed(4))}%)`,
   };
 }
