@@ -91,7 +91,7 @@ export function NotificationToaster() {
 
   return createPortal(
     <div
-      className="pointer-events-none fixed inset-x-0 bottom-0 z-[80] flex justify-center px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4 sm:px-6"
+      className="pointer-events-none fixed inset-x-0 bottom-0 z-[200] flex justify-center px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4 sm:px-6"
       aria-live="polite"
     >
       <div className="flex w-full max-w-[420px] flex-col-reverse gap-2.5">

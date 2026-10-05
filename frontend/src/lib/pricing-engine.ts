@@ -131,6 +131,45 @@ export const MUSIC_AFFILIATE_ALIASES: Record<string, string> = {
   "UNLEASH THE BEATS COVERS": "UNLEASH THE BEATS",
 };
 
+/** Ignore case, spacing, and punctuation for free-text affiliate matching. */
+export function affiliateCompactKey(value: string): string {
+  return value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
+/** Canonical compliant names as compact keys (text-field tolerant). */
+const COMPLIANT_AFFILIATE_COMPACT_KEYS = [
+  affiliateCompactKey("POWER MUSIC"),
+  affiliateCompactKey("POWER MUSIC + UNLEASH THE BEATS"),
+  affiliateCompactKey("UNLEASH THE BEATS"),
+  affiliateCompactKey("LIBRARY MUSIC"),
+  affiliateCompactKey("POWER MUSIC COVERS"),
+  affiliateCompactKey("UNLEASH THE BEATS COVERS"),
+] as const;
+
+/**
+ * True when free-text affiliate matches a compliant name closely enough
+ * (case / spacing / punctuation ignored). Anything else is non-compliant.
+ */
+export function isCompliantMusicAffiliateText(musicAffiliate: string): boolean {
+  const compact = affiliateCompactKey(musicAffiliate);
+  if (!compact) return false;
+
+  // Covers variants collapse to core compliant names.
+  const aliased =
+    compact === "POWERMUSICCOVERS"
+      ? "POWERMUSIC"
+      : compact === "UNLEASHTHEBEATSCOVERS"
+        ? "UNLEASHTHEBEATS"
+        : compact;
+
+  return COMPLIANT_AFFILIATE_COMPACT_KEYS.some((key) => {
+    if (aliased === key || aliased.includes(key)) return true;
+    // Short-but-unique forms from a text field, e.g. "unleash" / "PowerMusic".
+    if (aliased.length >= 6 && key.startsWith(aliased)) return true;
+    return false;
+  });
+}
+
 /**
  * Normalizes a raw music affiliate string by applying alias lookups
  * before checking compliance status.
@@ -139,7 +178,14 @@ export function normalizeMusicAffiliate(musicAffiliate?: string): string | undef
   if (musicAffiliate === undefined || musicAffiliate === null) return undefined;
   const trimmed = musicAffiliate.trim();
   if (!trimmed) return undefined;
-  const upper = trimmed.toUpperCase();
+
+  const compact = affiliateCompactKey(trimmed);
+  if (!compact) return undefined;
+
+  if (compact === "POWERMUSICCOVERS") return "POWER MUSIC";
+  if (compact === "UNLEASHTHEBEATSCOVERS") return "UNLEASH THE BEATS";
+
+  const upper = trimmed.toUpperCase().replace(/\s+/g, " ").trim();
   if (MUSIC_AFFILIATE_ALIASES[upper]) {
     return MUSIC_AFFILIATE_ALIASES[upper];
   }
@@ -183,10 +229,7 @@ export function determineComplianceStatus(
   subType: CheerFormSubtype | DanceFormSubtype,
   musicAffiliate?: string
 ): ComplianceStatus {
-  if (
-    musicAffiliate === undefined ||
-    musicAffiliate === null
-  ) {
+  if (musicAffiliate === undefined || musicAffiliate === null) {
     return "unknown-no-affiliate-field";
   }
 
@@ -195,15 +238,9 @@ export function determineComplianceStatus(
     return "unknown-no-affiliate-field";
   }
 
-  const upper = normalized.toUpperCase();
-
-  const isCompliant =
-    upper.includes("POWER MUSIC") ||
-    upper.includes("UNLEASH THE BEATS") ||
-    upper.includes("UNLEASH") ||
-    upper.includes("LIBRARY MUSIC");
-
-  return isCompliant ? "compliant" : "non-compliant";
+  // Compliant = free-text matches Power Music / Unleash / Library (spacing/case-tolerant).
+  // Non-compliant = any other non-empty text (not a fixed Custom Music / SFC list).
+  return isCompliantMusicAffiliateText(normalized) ? "compliant" : "non-compliant";
 }
 
 export function lookupRateCardEntry(
@@ -617,14 +654,28 @@ export const MARCHING_BAND_RATE_CARD: MarchingBandRateCardEntry[] = [
   { package: "BAND CHANT", customer: 600, compliant: 300, nonCompliant: 600 },
   { package: "DRUM CADENCE ORIGINAL", customer: 350, compliant: 150, nonCompliant: 350 },
   {
-    package: "FIGHT SONG / ALMA MATER",
+    package: "FIGHT SONG ORIGINAL",
     customer: 1100,
     compliant: 1100,
     nonCompliant: 1100,
     alwaysFixedPayroll: true,
   },
   {
-    package: "FIGHT SONG / ALMA MATER PLUS (Written & Recorded Lyrics)",
+    package: "ALMA MATER ORIGINAL",
+    customer: 1100,
+    compliant: 1100,
+    nonCompliant: 1100,
+    alwaysFixedPayroll: true,
+  },
+  {
+    package: "FIGHT SONG PLUS",
+    customer: 2250,
+    compliant: 2250,
+    nonCompliant: 2250,
+    alwaysFixedPayroll: true,
+  },
+  {
+    package: "ALMA MATER PLUS",
     customer: 2250,
     compliant: 2250,
     nonCompliant: 2250,
@@ -632,35 +683,45 @@ export const MARCHING_BAND_RATE_CARD: MarchingBandRateCardEntry[] = [
   },
 ];
 
+/** Normalize dropdown / legacy labels for exact Marching Band matching. */
+function normalizeMarchingBandPackageLabel(packageType: string): string {
+  return packageType
+    .toUpperCase()
+    .replace(/\$[\d,]+(?:\.\d+)?/g, " ")
+    .replace(/\([^)]*\)/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Legacy / order-form labels → canonical rate-card package name. */
+const MARCHING_BAND_PACKAGE_ALIASES: Record<string, string> = {
+  "FIGHT SONG": "FIGHT SONG ORIGINAL",
+  "FIGHT SONG / ALMA MATER": "FIGHT SONG ORIGINAL",
+  "BOTH FIGHT SONG & ALMA MATER": "FIGHT SONG ORIGINAL",
+  "BOTH FIGHT SONG AND ALMA MATER": "FIGHT SONG ORIGINAL",
+  "ALMA MATER": "ALMA MATER ORIGINAL",
+  "FIGHT SONG / ALMA MATER PLUS": "FIGHT SONG PLUS",
+  "FIGHT SONG / ALMA MATER PLUS (WRITTEN & RECORDED LYRICS)": "FIGHT SONG PLUS",
+  "FIGHT SONG PLUS (WRITTEN & RECORDED LYRICS)": "FIGHT SONG PLUS",
+  "ALMA MATER PLUS (WRITTEN & RECORDED LYRICS)": "ALMA MATER PLUS",
+  "DRUM CADENCE": "DRUM CADENCE ORIGINAL",
+};
+
 export function lookupMarchingBandRateCardEntry(
   packageType: string
 ): MarchingBandRateCardEntry | null {
   if (!packageType || !packageType.trim()) return null;
-  const target = packageType.toUpperCase().trim();
 
-  // Direct exact match first
-  let matched = MARCHING_BAND_RATE_CARD.find(
-    (entry) => entry.package.toUpperCase() === target
+  // Dropdown names are fixed — exact match only (after normalize + aliases).
+  // Never substring-match PLUS onto ORIGINAL (cheaper row).
+  let target = normalizeMarchingBandPackageLabel(packageType);
+  target = MARCHING_BAND_PACKAGE_ALIASES[target] ?? target;
+
+  return (
+    MARCHING_BAND_RATE_CARD.find(
+      (entry) => entry.package.toUpperCase() === target
+    ) ?? null
   );
-  if (matched) return matched;
-
-  // Substring or prefix match - sort by length descending to match more specific variants first
-  const sorted = [...MARCHING_BAND_RATE_CARD].sort(
-    (a, b) => b.package.length - a.package.length
-  );
-
-  matched = sorted.find((entry) => {
-    const pkgUpper = entry.package.toUpperCase();
-    const pkgCore = pkgUpper.split("(")[0]?.trim() || pkgUpper;
-    return (
-      target.includes(pkgUpper) ||
-      pkgUpper.includes(target) ||
-      target.includes(pkgCore) ||
-      pkgCore.includes(target)
-    );
-  });
-
-  return matched ?? null;
 }
 
 export type MarchingBandPricingEngineInput = {
@@ -714,15 +775,14 @@ export function calculateMarchingBandOrderPricing(
 
   let payrollBasePrice = compliantPayrollBasePrice;
   if (alwaysFixedPayroll) {
-    // Fight Song / Alma Mater (both variants): "pull full amount", compliance-insensitive
+    // Fight Song / Alma Mater Original & Plus: flat payroll regardless of music affiliate.
     payrollBasePrice = compliantPayrollBasePrice;
   } else if (complianceStatus === "non-compliant") {
-    payrollBasePrice = nonCompliantPayrollBasePrice;
-  } else if (complianceStatus === "unknown-no-affiliate-field") {
-    // Per Conflict #1: no affiliate on file, return unknown-no-affiliate-field status
-    // payrollBasePrice defaults to non-compliant / full package amount ($600 / $350 + add-ons)
+    // Band Chant / Drum Cadence + non-compliant affiliate (e.g. Custom Music).
     payrollBasePrice = nonCompliantPayrollBasePrice;
   } else {
+    // Band Chant / Drum Cadence + compliant affiliate (Power Music, Unleash, …),
+    // or no affiliate on file → compliant column.
     payrollBasePrice = compliantPayrollBasePrice;
   }
 

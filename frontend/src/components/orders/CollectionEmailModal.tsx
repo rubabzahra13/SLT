@@ -25,6 +25,7 @@ import { findLinkedOrder } from "@/lib/editor-assignment";
 import { getGmailStatus, sendGmailEmail } from "@/lib/api/gmail";
 import { ApiClientError } from "@/lib/api/client";
 import { useAuth } from "@/context/AuthContext";
+import { useAppState } from "@/context/AppStateContext";
 import type { MTDRecord, Order } from "@/types";
 
 type CollectionEmailModalProps = {
@@ -187,6 +188,7 @@ export function CollectionEmailModal({
   onClose,
 }: CollectionEmailModalProps) {
   const { token, isViewOnly } = useAuth();
+  const { addNotification } = useAppState();
   const [mounted, setMounted] = useState(false);
   const [copied, setCopied] = useState(false);
   const [gmailConnected, setGmailConnected] = useState(false);
@@ -330,6 +332,13 @@ export function CollectionEmailModal({
         token
       );
       setSent(true);
+      addNotification({
+        type: "schedule",
+        title: "Email sent",
+        message: draft.to
+          ? `Sent to ${draft.to}.`
+          : "Your email was sent successfully.",
+      });
     } catch (err) {
       setSendError(
         err instanceof ApiClientError

@@ -35,8 +35,8 @@ export type ProducerPayoutEstimateDetail = {
  * Estimated producer payout breakdown for a mix, same compliance / payroll
  * math as the Orders → Complete to Payroll pricing step.
  *
- * Uses live Pricing Reference + engine prices (and order overrides) so assign
- * daily-cost updates immediately when package prices or producer % change.
+ * Uses live Pricing Reference + engine payroll (compliant/non-compliant by
+ * music affiliate). Customer package-price edits do not change this base.
  */
 export function estimateRecordProducerPayoutDetail(
   rec: MTDRecord,

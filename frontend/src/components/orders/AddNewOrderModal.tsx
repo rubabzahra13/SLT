@@ -17,6 +17,12 @@ import {
   ORDER_FORM_TABS,
 } from "@/types";
 import type { CreateManualSchedulePayload } from "@/lib/api/mtd";
+import {
+  ALL_STAR_CHEER_RATE_CARD,
+  SCHOOL_CHEER_RATE_CARD,
+  YOUTH_REC_CHEER_RATE_CARD,
+  type RateCardEntry,
+} from "@/lib/pricing-engine";
 
 type AddNewOrderModalProps = {
   open: boolean;
@@ -27,17 +33,30 @@ type AddNewOrderModalProps = {
   onAdd: (payload: CreateManualSchedulePayload) => Promise<Order>;
 };
 
-const CHEER_PACKAGES = [
-  "BRONZE 1:30",
-  "BRONZE 2:00",
-  "SILVER 1:30",
-  "SILVER 2:00",
-  "GOLD 1:30",
-  "GOLD 2:00",
-  "GOLD 2:30",
-  "PLATINUM 2:30",
-  "TITANIUM 2:30",
-];
+function packagesFromRateCard(rows: RateCardEntry[]): string[] {
+  return rows.map((row) =>
+    row.limit && row.limit !== "-"
+      ? `${row.tier} ${row.limit}`
+      : row.tier
+  );
+}
+
+const ALL_STAR_CHEER_PACKAGES = packagesFromRateCard(ALL_STAR_CHEER_RATE_CARD);
+const SCHOOL_CHEER_PACKAGES = packagesFromRateCard(SCHOOL_CHEER_RATE_CARD);
+const YOUTH_REC_CHEER_PACKAGES = packagesFromRateCard(YOUTH_REC_CHEER_RATE_CARD);
+
+function cheerPackagesForSubtype(subtype: CheerFormSubtype): string[] {
+  switch (subtype) {
+    case "youth-rec-cheer":
+      return YOUTH_REC_CHEER_PACKAGES;
+    case "school-cheer-viroc-yes":
+    case "school-cheer-viroc-no":
+      return SCHOOL_CHEER_PACKAGES;
+    case "all-star-cheer":
+    default:
+      return ALL_STAR_CHEER_PACKAGES;
+  }
+}
 
 const DANCE_PACKAGES: Record<string, string[]> = {
   pom: ["POM 1:30", "POM 2:00", "POM 2:15"],
@@ -54,8 +73,10 @@ const DANCE_PACKAGES: Record<string, string[]> = {
 const MARCHING_BAND_PACKAGES = [
   "Band Chant",
   "Drum Cadence",
-  "Both Fight Song & Alma Mater",
-  "Alma Mater",
+  "Fight Song Original",
+  "Alma Mater Original",
+  "Fight Song Plus",
+  "Alma Mater Plus",
   "Custom Marching Band",
 ];
 
@@ -168,7 +189,9 @@ export function AddNewOrderModal({
   };
 
   const availablePackages = useMemo(() => {
-    if (formType === "school-all-star-cheer") return CHEER_PACKAGES;
+    if (formType === "school-all-star-cheer") {
+      return cheerPackagesForSubtype(cheerSubtype);
+    }
     if (formType === "school-all-star-dance") {
       return DANCE_PACKAGES[danceSubtype] || ["Custom Dance Mix"];
     }
@@ -178,7 +201,7 @@ export function AddNewOrderModal({
     }
     if (formType === "school-anthem") return SCHOOL_ANTHEM_PACKAGES;
     return ["Standard 2:00", "Custom Length"];
-  }, [formType, danceSubtype]);
+  }, [formType, cheerSubtype, danceSubtype]);
 
   const handleSave = async () => {
     setError(null);

@@ -18,14 +18,15 @@ import {
   InlineRushFeePills,
   InlineQuantityStepper,
 } from "@/components/mtd/InlineFields";
-import { resolveMTDFormMeta, getRecordMusicAffiliateInfo } from "@/lib/mtd-filters";
-import { buildRecordPriceSavePatch } from "@/lib/order-package-price";
+import { resolveMTDFormMeta } from "@/lib/mtd-filters";
+import {
+  resolveOrderPackageDisplayPrice,
+} from "@/lib/order-package-price";
 import {
   AssignEditorModal,
   type EditorAssignmentResult,
 } from "@/components/mtd/AssignEditorModal";
 import { MTDOrderDetails, formatDetailDisplay } from "@/components/mtd/MTDOrderDetails";
-import { SetRecordPricingModal } from "@/components/mtd/SetRecordPricingModal";
 import { SetPricingModal } from "@/components/mtd/SetPricingModal";
 import { useMixDateCalendarRules } from "@/components/mtd/useMixDateCalendarRules";
 import { useAppState } from "@/context/AppStateContext";
@@ -100,10 +101,6 @@ export default function MTDDetailPage({
     allOrders,
     updateMTD,
     updateOrder,
-    packagePrices,
-    secretMenuPrices,
-    setPackagePrices,
-    setSecretMenuPrices,
     producers,
     schedule,
     discountCodes,
@@ -111,7 +108,6 @@ export default function MTDDetailPage({
     isLoading,
   } = useAppState();
   const [assignOpen, setAssignOpen] = useState(false);
-  const [recordPricingOpen, setRecordPricingOpen] = useState(false);
   const [packagePricingOpen, setPackagePricingOpen] = useState(false);
   const [spreadsheetEditing, setSpreadsheetEditing] = useState(false);
   const [spreadsheetDraft, setSpreadsheetDraft] = useState<SpreadsheetDraft | null>(
@@ -193,45 +189,24 @@ export default function MTDDetailPage({
     [updateMTD]
   );
 
-  const handleRecordPricingSave = useCallback(
-    async (
-      _recordId: string,
-      patch: { price: number; priceCompliance: PriceCompliance }
-    ) => {
-      if (!rec) return;
-      const linked = linkedOrder ?? order ?? null;
-      const next = buildRecordPriceSavePatch(
-        rec,
-        linked,
-        patch.price,
-        patch.priceCompliance,
-        resolveMTDFormMeta(rec, orderById),
-        orderById
-      );
-      if (spreadsheetEditing && spreadsheetDraft) {
-        setSpreadsheetDraft((prev) =>
-          prev
-            ? {
-                ...prev,
-                price: next.price,
-                priceCompliance: next.priceCompliance,
-              }
-            : prev
-        );
-        return;
-      }
-      await updateMTD(rec.id, next);
-    },
-    [
-      spreadsheetEditing,
-      spreadsheetDraft,
-      rec,
-      linkedOrder,
-      order,
-      orderById,
-      updateMTD,
-    ]
-  );
+  const displayPackagePrice = useMemo(() => {
+    if (!rec) return 0;
+    return resolveOrderPackageDisplayPrice(
+      spreadsheetEditing && spreadsheetDraft
+        ? { ...rec, ...spreadsheetDraft }
+        : rec,
+      linkedOrder ?? order,
+      resolveMTDFormMeta(rec, orderById),
+      orderById
+    );
+  }, [
+    rec,
+    spreadsheetEditing,
+    spreadsheetDraft,
+    linkedOrder,
+    order,
+    orderById,
+  ]);
 
   const startSpreadsheetEdit = useCallback(() => {
     if (isViewOnly || !rec) return;
@@ -503,16 +478,16 @@ export default function MTDDetailPage({
               {spreadsheetEditing ? (
                 <button
                   type="button"
-                  onClick={() => setRecordPricingOpen(true)}
-                  title="Edit pricing"
-                  aria-label={`Edit pricing ${formatPrice(sheet.price)}`}
+                  onClick={() => setPackagePricingOpen(true)}
+                  title="Open Pricing to edit customer package price"
+                  aria-label={`Open Pricing ${formatPrice(displayPackagePrice)}`}
                   className={clsx(
                     clickableChipClass,
                     "w-full rounded-lg px-3 py-2 text-left"
                   )}
                 >
                   <p className="text-[13px] font-semibold tabular-nums text-brand-ink hover:text-brand-orange">
-                    {formatPrice(sheet.price)}
+                    {formatPrice(displayPackagePrice)}
                   </p>
                   <p
                     className={clsx(
@@ -526,9 +501,18 @@ export default function MTDDetailPage({
                   </p>
                 </button>
               ) : (
-                <div>
-                  <p className="text-[13px] font-semibold tabular-nums text-brand-ink">
-                    {formatPrice(rec.price)}
+                <button
+                  type="button"
+                  onClick={() => setPackagePricingOpen(true)}
+                  title="Open Pricing to edit customer package price"
+                  aria-label={`Open Pricing ${formatPrice(displayPackagePrice)}`}
+                  className={clsx(
+                    clickableChipClass,
+                    "w-full rounded-lg px-3 py-2 text-left"
+                  )}
+                >
+                  <p className="text-[13px] font-semibold tabular-nums text-brand-ink hover:text-brand-orange">
+                    {formatPrice(displayPackagePrice)}
                   </p>
                   <p
                     className={clsx(
@@ -540,7 +524,7 @@ export default function MTDDetailPage({
                   >
                     {complianceLabel(rec.priceCompliance)}
                   </p>
-                </div>
+                </button>
               )}
             </FieldTile>
             <FieldTile label="Invoice">
@@ -684,20 +668,6 @@ export default function MTDDetailPage({
         readOnly={isViewOnly || Boolean(rec?.assignedProducer?.trim())}
         onClose={() => setAssignOpen(false)}
         onAssign={handleAssign}
-      />
-
-      <SetRecordPricingModal
-        open={recordPricingOpen}
-        record={
-          spreadsheetEditing && spreadsheetDraft
-            ? { ...rec, ...spreadsheetDraft }
-            : rec
-        }
-        packagePrices={packagePrices}
-        readOnly={isViewOnly}
-        musicAffiliateInfo={getRecordMusicAffiliateInfo(rec, orderById, allOrders)}
-        onClose={() => setRecordPricingOpen(false)}
-        onSave={handleRecordPricingSave}
       />
 
       <SetPricingModal

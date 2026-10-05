@@ -10,7 +10,6 @@ import { DataTable, type Column } from "@/components/ui/DataTable";
 import { HoverTip } from "@/components/ui/HoverTip";
 import { TruncatedText } from "@/components/ui/TruncatedText";
 import { SetPricingModal } from "@/components/mtd/SetPricingModal";
-import { SetRecordPricingModal } from "@/components/mtd/SetRecordPricingModal";
 import { CompletionBlockedModal } from "@/components/mtd/CompletionBlockedModal";
 import { InlineTwoStateToggle } from "@/components/mtd/InlineFields";
 import { ForwardOrderMailModal } from "@/components/orders/ForwardOrderMailModal";
@@ -33,7 +32,7 @@ import {
   ORDER_RESELECTION_REASON_LABEL,
 } from "@/lib/order-requirements";
 import {
-  buildRecordPriceSavePatch,
+  PRICING_REFERENCE_CHANGED_EVENT,
   resolveEngineCustomerPrice,
   resolveOrderPackageDisplayPrice,
 } from "@/lib/order-package-price";
@@ -54,7 +53,6 @@ import {
   countMTDByDanceSubtype,
   countMTDByForm,
   filterMTDRecords,
-  getRecordMusicAffiliateInfo,
   isOrderScheduledAndAssigned,
   matchesMTDSearch,
   resolveMTDFormMeta,
@@ -67,7 +65,6 @@ import type {
   Order,
   OrderFormType,
   OrderViewRangeFilter,
-  PriceCompliance,
 } from "@/types";
 
 const DEFAULT_FORM: OrderFormType = "school-all-star-cheer";
@@ -269,7 +266,10 @@ function OrdersPageContent() {
   const [searchQuery, setSearchQuery] = useState("");
   const [validationModalRecord, setValidationModalRecord] = useState<MTDRecord | null>(null);
   const [pricingOpen, setPricingOpen] = useState(false);
-  const [pricingRecord, setPricingRecord] = useState<MTDRecord | null>(null);
+  const [pricingFocusRecord, setPricingFocusRecord] = useState<MTDRecord | null>(
+    null
+  );
+  const [pricingRevision, setPricingRevision] = useState(0);
   const [mailRecord, setMailRecord] = useState<MTDRecord | null>(null);
   const [mailRecipient, setMailRecipient] = useState<"producer" | "customer">(
     "producer"
@@ -437,47 +437,31 @@ function OrdersPageContent() {
     [isViewOnly, router, updateMTD]
   );
 
+  useEffect(() => {
+    const bump = () => setPricingRevision((n) => n + 1);
+    window.addEventListener(PRICING_REFERENCE_CHANGED_EVENT, bump);
+    return () =>
+      window.removeEventListener(PRICING_REFERENCE_CHANGED_EVENT, bump);
+  }, []);
+
   const openPricingModal = useCallback((rec: MTDRecord, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setPricingRecord(rec);
+    setPricingFocusRecord(rec);
+    setPricingOpen(true);
   }, []);
 
-  const pricingRecordDisplayPrice = useMemo(() => {
-    if (!pricingRecord) return null;
-    const linked = findLinkedOrder(pricingRecord, allOrders);
-    return resolveOrderPackageDisplayPrice(
-      pricingRecord,
-      linked,
-      resolveMTDFormMeta(pricingRecord, orderById),
-      orderById
-    );
-  }, [pricingRecord, allOrders, orderById]);
+  const openPricingReference = useCallback(() => {
+    setPricingFocusRecord(null);
+    setPricingOpen(true);
+  }, []);
 
-  const handleRecordPricingSave = useCallback(
-    async (
-      recordId: string,
-      patch: { price: number; priceCompliance: PriceCompliance }
-    ) => {
-      const rec =
-        pricingRecord?.id === recordId
-          ? pricingRecord
-          : preMtdRecords.find((row) => row.id === recordId) || null;
-      if (!rec) return;
-      const linked = findLinkedOrder(rec, allOrders);
-      const next = buildRecordPriceSavePatch(
-        rec,
-        linked,
-        patch.price,
-        patch.priceCompliance,
-        resolveMTDFormMeta(rec, orderById),
-        orderById
-      );
-
-      // updateMTD optimistically syncs the linked order and awaits both API writes.
-      await updateMTD(recordId, next);
-    },
-    [pricingRecord, preMtdRecords, allOrders, orderById, updateMTD]
+  const pricingFocusOrder = useMemo(
+    () =>
+      pricingFocusRecord
+        ? findLinkedOrder(pricingFocusRecord, allOrders)
+        : undefined,
+    [pricingFocusRecord, allOrders]
   );
 
   // Filtered dataset for table
@@ -744,8 +728,8 @@ function OrdersPageContent() {
                 <button
                   type="button"
                   onClick={(e) => openPricingModal(rec, e)}
-                  title="Edit Package Price (Needs Quote)"
-                  aria-label="Edit Package Price: Needs Quote"
+                  title="Open Pricing (Needs Quote)"
+                  aria-label="Open Pricing: Needs Quote"
                   className={clsx(
                     clickableChipClass,
                     "flex w-full flex-col items-center rounded-lg px-2 py-1 text-center border-brand-warning/35 bg-brand-warning/10"
@@ -759,9 +743,6 @@ function OrdersPageContent() {
             );
           }
 
-          const isOverridden = Boolean(
-            order?.finalCustomerPriceOverridden ?? rec.finalCustomerPriceOverridden
-          );
           const displayPrice = resolveOrderPackageDisplayPrice(
             rec,
             order,
@@ -777,23 +758,16 @@ function OrdersPageContent() {
               <button
                 type="button"
                 onClick={(e) => openPricingModal(rec, e)}
-                title="Edit Package Price"
-                aria-label={`Edit Package Price ${formatPrice(displayPrice)}`}
+                title="Open Pricing to edit customer package price"
+                aria-label={`Open Pricing ${formatPrice(displayPrice)}`}
                 className={clsx(
                   clickableChipClass,
                   "flex w-full flex-col items-center rounded-lg px-2 py-1 text-center"
                 )}
               >
-                <div className="flex items-center justify-center gap-1">
-                  <p className="font-semibold tabular-nums text-[12px] text-brand-ink hover:text-brand-orange">
-                    {formatPrice(displayPrice)}
-                  </p>
-                  {isOverridden ? (
-                    <span className="rounded bg-brand-orange/10 px-1 py-0.5 text-[9px] font-semibold uppercase text-brand-orange ring-1 ring-inset ring-brand-orange/20">
-                      edited
-                    </span>
-                  ) : null}
-                </div>
+                <p className="font-semibold tabular-nums text-[12px] text-brand-ink hover:text-brand-orange">
+                  {formatPrice(displayPrice)}
+                </p>
               </button>
             </div>
           );
@@ -1339,6 +1313,7 @@ function OrdersPageContent() {
     openPricingModal,
     openAssignPage,
     isViewOnly,
+    pricingRevision,
   ]);
 
   return (
@@ -1354,7 +1329,7 @@ function OrdersPageContent() {
         }}
         secondaryAction={{
           label: "Pricing",
-          onClick: () => setPricingOpen(true),
+          onClick: openPricingReference,
           showPlus: false,
         }}
         exportAction={{
@@ -1397,7 +1372,7 @@ function OrdersPageContent() {
               setTableFilters((prev) => ({ ...prev, ...patch }))
             }
             onFiltersReset={() => setTableFilters(DEFAULT_MTD_TABLE_FILTERS)}
-            onPricingClick={() => setPricingOpen(true)}
+            onPricingClick={openPricingReference}
           />
         }
       />
@@ -1421,27 +1396,18 @@ function OrdersPageContent() {
         </div>
       </div>
 
-      {/* Pricing Reference Modal */}
+      {/* Pricing Reference Modal — also opened from package-price cells */}
       <SetPricingModal
         open={pricingOpen}
-        form={form}
-        cheerSubtype={cheerSubtype}
-        danceSubtype={danceSubtype}
-        onClose={() => setPricingOpen(false)}
-      />
-
-      <SetRecordPricingModal
-        open={Boolean(pricingRecord)}
-        record={pricingRecord}
-        packagePrices={packagePrices}
-        initialPrice={pricingRecordDisplayPrice}
-        musicAffiliateInfo={
-          pricingRecord
-            ? getRecordMusicAffiliateInfo(pricingRecord, orderById, allOrders)
-            : null
-        }
-        onClose={() => setPricingRecord(null)}
-        onSave={handleRecordPricingSave}
+        order={pricingFocusOrder}
+        record={pricingFocusRecord}
+        form={pricingFocusRecord ? undefined : form}
+        cheerSubtype={pricingFocusRecord ? undefined : cheerSubtype}
+        danceSubtype={pricingFocusRecord ? undefined : danceSubtype}
+        onClose={() => {
+          setPricingOpen(false);
+          setPricingFocusRecord(null);
+        }}
       />
 
       <CompletionBlockedModal

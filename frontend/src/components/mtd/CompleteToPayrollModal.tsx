@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   AlertTriangle,
@@ -19,6 +19,11 @@ import {
 } from "@/lib/pricing-display";
 import { useAppState } from "@/context/AppStateContext";
 import { resolveMTDFormMeta } from "@/lib/mtd-filters";
+import {
+  PRICING_REFERENCE_CHANGED_EVENT,
+  resolveLiveOrderPricing,
+  resolveOrderPackageDisplayPrice,
+} from "@/lib/order-package-price";
 import {
   calculateCheerOrderPricing,
   calculateDanceOrderPricing,
@@ -199,13 +204,15 @@ export function CompleteToPayrollModal({
           };
 
           if (mbResult.alwaysFixedPayroll) {
-            complianceReason = "Fight Song / Alma Mater uses fixed customer/payroll pricing ($1,100 / $2,250); compliance-insensitive.";
+            complianceReason =
+              "Fight Song / Alma Mater (Original or Plus) is a fixed package — payroll is flat regardless of music affiliate.";
           } else if (mbResult.complianceStatus === "unknown-no-affiliate-field") {
-            complianceReason = "Unknown / No Affiliate Field Required on Marching Band customer form.";
+            complianceReason =
+              "Band Chant / Drum Cadence with no music affiliate on file; compliant payroll column applies.";
           } else if (mbResult.complianceStatus === "compliant") {
-            complianceReason = `Music affiliate '${affiliate || "Approved Affiliate"}' is on the compliant affiliate list.`;
+            complianceReason = `Band Chant / Drum Cadence: music affiliate '${affiliate || "Approved Affiliate"}' is compliant.`;
           } else {
-            complianceReason = `Music affiliate '${affiliate || "Unapproved"}' is not on the compliant list; non-compliant rate card applies.`;
+            complianceReason = `Band Chant / Drum Cadence: music affiliate '${affiliate || "Unapproved"}' is non-compliant.`;
           }
 
           if (sheetMusic) {
@@ -384,8 +391,24 @@ export function CompleteToPayrollModal({
         let initialCustStr = "";
         let initialPayStr = "";
 
+        // Package + payroll from live rate card (affiliate → compliant/non-compliant).
+        const live = resolveLiveOrderPricing(
+          currentRec,
+          order,
+          meta,
+          orderById
+        );
+        const packageDisplay = resolveOrderPackageDisplayPrice(
+          currentRec,
+          order,
+          meta,
+          orderById
+        );
+
         if (isUnpricedSE) {
-          if (order?.finalCustomerPrice && order.finalCustomerPrice > 0) {
+          if (packageDisplay > 0) {
+            initialCustStr = String(packageDisplay);
+          } else if (order?.finalCustomerPrice && order.finalCustomerPrice > 0) {
             initialCustStr = String(order.finalCustomerPrice);
           } else if (currentRec.price && currentRec.price > 0) {
             initialCustStr = String(currentRec.price);
@@ -394,10 +417,31 @@ export function CompleteToPayrollModal({
           }
           initialPayStr = initialCustStr;
         } else {
-          const custVal = order?.finalCustomerPrice ?? (enginePricing.customerFacingPrice > 0 ? enginePricing.customerFacingPrice : currentRec.price);
-          const payVal = enginePricing.payrollBasePrice > 0 ? enginePricing.payrollBasePrice : currentRec.price;
+          const custVal =
+            packageDisplay > 0
+              ? packageDisplay
+              : enginePricing.customerFacingPrice > 0
+                ? enginePricing.customerFacingPrice
+                : currentRec.price;
+          const payVal =
+            live.payrollPrice > 0
+              ? live.payrollPrice
+              : enginePricing.payrollBasePrice > 0
+                ? enginePricing.payrollBasePrice
+                : currentRec.price;
           initialCustStr = String(custVal);
           initialPayStr = String(payVal);
+          setBreakdown((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  base_customer_price: custVal,
+                  base_payroll_price: payVal,
+                  system_calculated_customer_price: custVal,
+                  payroll_base_price: payVal,
+                }
+              : prev
+          );
         }
 
         setFinalCustomerPriceInput(initialCustStr);
@@ -433,18 +477,89 @@ export function CompleteToPayrollModal({
     loadBreakdown();
   }, [open, record, linkedOrder, allOrders]);
 
+  const syncFromPricingReference = useCallback(() => {
+    if (!record) return;
+    const order = linkedOrder;
+    const orderById = new Map<string, Order>();
+    for (const o of allOrders) {
+      if (o.id) orderById.set(o.id, o);
+      if (o.legacyId) orderById.set(o.legacyId, o);
+      if (o.uuid) orderById.set(o.uuid, o);
+    }
+    const meta = resolveMTDFormMeta(record, orderById);
+    const live = resolveLiveOrderPricing(record, order, meta, orderById);
+    const packageDisplay = resolveOrderPackageDisplayPrice(
+      record,
+      order,
+      meta,
+      orderById
+    );
+    const isUnpricedSE =
+      meta.formType === "sports-entertainment" &&
+      (live.engineCustomerPrice == null || live.engineCustomerPrice <= 0);
+
+    if (isUnpricedSE) return;
+
+    const custVal =
+      packageDisplay > 0
+        ? packageDisplay
+        : live.customerPrice > 0
+          ? live.customerPrice
+          : record.price;
+    const payVal = live.payrollPrice > 0 ? live.payrollPrice : custVal;
+
+    setFinalCustomerPriceInput(String(custVal));
+    setFinalPayrollPriceInput(String(payVal));
+    setBreakdown((prev) =>
+      prev
+        ? {
+            ...prev,
+            base_customer_price: custVal,
+            base_payroll_price: payVal,
+            system_calculated_customer_price: custVal,
+            payroll_base_price: payVal,
+          }
+        : prev
+    );
+    setCalculatedEnginePricing((prev: any) =>
+      prev
+        ? {
+            ...prev,
+            customerFacingPrice: custVal,
+            payrollBasePrice: payVal,
+          }
+        : prev
+    );
+  }, [record, linkedOrder, allOrders]);
+
+  // When Pricing modal saves rate-card edits, refresh package + payroll here.
+  useEffect(() => {
+    if (!open || !record) return;
+    window.addEventListener(
+      PRICING_REFERENCE_CHANGED_EVENT,
+      syncFromPricingReference
+    );
+    return () =>
+      window.removeEventListener(
+        PRICING_REFERENCE_CHANGED_EVENT,
+        syncFromPricingReference
+      );
+  }, [open, record, syncFromPricingReference]);
+
   // Parsed numerical price
   const finalCustomerPriceNum = parseFloat(finalCustomerPriceInput) || 0;
   const systemPriceNum = breakdown?.system_calculated_customer_price ?? record?.price ?? 0;
-  const isCustomerPriceOverridden =
-    breakdown?.system_calculated_customer_price !== null &&
-    Math.abs(finalCustomerPriceNum - systemPriceNum) > 0.001;
+  const isCustomerPriceOverridden = false;
 
   const finalPayrollPriceNum = parseFloat(finalPayrollPriceInput) || breakdown?.payroll_base_price || 0;
   const sysPayrollPrice = calculatedEnginePricing?.payrollBasePrice ?? breakdown?.payroll_base_price ?? record?.price ?? 0;
-  const isPayrollPriceOverridden =
-    breakdown !== null &&
-    Math.abs(finalPayrollPriceNum - sysPayrollPrice) > 0.001;
+  const isPayrollPriceOverridden = false;
+
+  const isUnpricedSportsEntertainment = Boolean(
+    calculatedEnginePricing?.isUnpriced
+  );
+
+  const openPricingReference = () => setPricingRefOpen(true);
 
   const effectiveBreakdown = useMemo(() => {
     if (!breakdown) return null;
@@ -698,80 +813,99 @@ export function CompleteToPayrollModal({
                     const breakdownPrefixClass =
                       "pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 font-semibold text-[14px] text-brand-ink";
 
-                    const musicComplianceAmount =
-                      breakdown?.package_name?.toUpperCase().includes("TITANIUM") ||
-                      breakdown?.compliance_reason?.includes("Unknown") ||
-                      breakdown?.compliance_status !== "compliant"
-                        ? 0
-                        : -Math.abs(
-                            (breakdown?.base_customer_price ?? record.price) -
-                              (breakdown?.base_payroll_price ?? record.price)
-                          );
+                    // Delta between package (customer) and affiliate payroll column.
+                    const musicComplianceAmount = Math.round(
+                      (finalPayrollPriceNum - finalCustomerPriceNum) * 100
+                    ) / 100;
+
+                    const pricingFieldButtonClass = clsx(
+                      breakdownAmountInputClass,
+                      "cursor-pointer text-right transition hover:border-brand-orange/50 hover:bg-brand-orange-soft/20"
+                    );
 
                     return (
                       <>
-                  {/* Package Price */}
+                  {/* Package Price — edit in Pricing modal */}
                   <div className={breakdownRowClass}>
                     <div>
                       <div className="flex items-center gap-1.5">
                         <span className="font-semibold text-brand-ink">
                           Package price
                         </span>
-                        {isCustomerPriceOverridden && (
-                          <span className="inline-flex items-center gap-1 rounded bg-brand-orange/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-brand-orange ring-1 ring-inset ring-brand-orange/25">
-                            <Edit3 className="h-2.5 w-2.5" /> edited
-                          </span>
-                        )}
                       </div>
                     </div>
                     <div className={breakdownFieldWrap}>
                       <span className={breakdownPrefixClass}>$</span>
-                      <input
-                        type="number"
-                        step="1"
-                        min="0"
-                        placeholder="Enter quote"
-                        value={finalCustomerPriceInput}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setFinalCustomerPriceInput(val);
-                          const num = parseFloat(val) || 0;
-                          setBreakdown((prev) => (prev ? { ...prev, system_calculated_customer_price: num } : null));
-                          if (calculatedEnginePricing?.isUnpriced && (!finalPayrollPriceInput || finalPayrollPriceInput === "0")) {
-                            setFinalPayrollPriceInput(val);
-                          }
-                        }}
-                        className={clsx(
-                          breakdownAmountInputClass,
-                          "text-brand-ink",
-                          calculatedEnginePricing?.isUnpriced && (!finalCustomerPriceInput || finalCustomerPriceNum <= 0)
-                            ? "border-brand-warning bg-brand-warning/10 text-brand-warning ring-2 ring-brand-warning/30"
-                            : "focus:ring-brand-signature/20"
-                        )}
-                      />
+                      {isUnpricedSportsEntertainment ? (
+                        <input
+                          type="number"
+                          step="1"
+                          min="0"
+                          placeholder="Enter quote"
+                          value={finalCustomerPriceInput}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setFinalCustomerPriceInput(val);
+                            const num = parseFloat(val) || 0;
+                            setBreakdown((prev) =>
+                              prev
+                                ? { ...prev, system_calculated_customer_price: num }
+                                : null
+                            );
+                            if (
+                              !finalPayrollPriceInput ||
+                              finalPayrollPriceInput === "0"
+                            ) {
+                              setFinalPayrollPriceInput(val);
+                            }
+                          }}
+                          className={clsx(
+                            breakdownAmountInputClass,
+                            "text-brand-ink",
+                            !finalCustomerPriceInput || finalCustomerPriceNum <= 0
+                              ? "border-brand-warning bg-brand-warning/10 text-brand-warning ring-2 ring-brand-warning/30"
+                              : "focus:ring-brand-signature/20"
+                          )}
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={openPricingReference}
+                          title="Open Pricing to edit package price"
+                          aria-label={`Open Pricing package price ${formatPrice(finalCustomerPriceNum)}`}
+                          className={clsx(
+                            pricingFieldButtonClass,
+                            "text-brand-ink"
+                          )}
+                        >
+                          {finalCustomerPriceInput || "0"}
+                        </button>
+                      )}
                     </div>
                   </div>
 
-                  {/* Music Compliance Adjustment */}
+                  {/* Music Compliance — opens Pricing; amount from affiliate compliance */}
                   <div className={breakdownRowClass}>
                     <span className="font-medium text-brand-ink">
                       Music compliance
                     </span>
                     <div className={breakdownFieldWrap}>
                       <span className={breakdownPrefixClass}>$</span>
-                      <input
-                        type="text"
-                        readOnly
-                        tabIndex={-1}
-                        value={String(musicComplianceAmount)}
+                      <button
+                        type="button"
+                        onClick={openPricingReference}
+                        title="Open Pricing to edit compliant / non-compliant payroll"
+                        aria-label={`Open Pricing music compliance ${musicComplianceAmount}`}
                         className={clsx(
-                          breakdownAmountInputClass,
-                          "cursor-default focus:ring-0",
+                          pricingFieldButtonClass,
+                          "focus:ring-0",
                           musicComplianceAmount < 0
                             ? "text-brand-danger"
                             : "text-brand-ink-secondary"
                         )}
-                      />
+                      >
+                        {String(musicComplianceAmount)}
+                      </button>
                     </div>
                   </div>
 
@@ -821,7 +955,7 @@ export function CompleteToPayrollModal({
                     );
                   })}
 
-                  {/* Final Payroll Price (Editable Input) */}
+                  {/* Final Payroll Price — from compliant/non-compliant rate card */}
                   <div
                     className={clsx(
                       breakdownRowClass,
@@ -832,32 +966,44 @@ export function CompleteToPayrollModal({
                       <span className="text-[14px] font-bold text-brand-signature">
                         Payroll price
                       </span>
-                      {isPayrollPriceOverridden && (
-                        <span className="inline-flex items-center gap-1 rounded bg-brand-orange/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-brand-orange ring-1 ring-inset ring-brand-orange/25">
-                          <Edit3 className="h-2.5 w-2.5" /> edited
-                        </span>
-                      )}
                     </div>
                     <div className={breakdownFieldWrap}>
                       <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[14px] font-bold text-brand-signature">
                         $
                       </span>
-                      <input
-                        type="number"
-                        step="1"
-                        min="0"
-                        value={finalPayrollPriceInput}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setFinalPayrollPriceInput(val);
-                          const num = parseFloat(val) || 0;
-                          setBreakdown((prev) => (prev ? { ...prev, payroll_base_price: num } : null));
-                        }}
-                        className={clsx(
-                          breakdownAmountInputClass,
-                          "border-brand-signature/40 text-brand-signature"
-                        )}
-                      />
+                      {isUnpricedSportsEntertainment ? (
+                        <input
+                          type="number"
+                          step="1"
+                          min="0"
+                          value={finalPayrollPriceInput}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setFinalPayrollPriceInput(val);
+                            const num = parseFloat(val) || 0;
+                            setBreakdown((prev) =>
+                              prev ? { ...prev, payroll_base_price: num } : null
+                            );
+                          }}
+                          className={clsx(
+                            breakdownAmountInputClass,
+                            "border-brand-signature/40 text-brand-signature"
+                          )}
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={openPricingReference}
+                          title="Open Pricing to edit payroll price"
+                          aria-label={`Open Pricing payroll price ${formatPrice(finalPayrollPriceNum)}`}
+                          className={clsx(
+                            pricingFieldButtonClass,
+                            "border-brand-signature/40 text-brand-signature"
+                          )}
+                        >
+                          {finalPayrollPriceInput || "0"}
+                        </button>
+                      )}
                     </div>
                   </div>
                       </>
@@ -1191,7 +1337,10 @@ export function CompleteToPayrollModal({
         open={pricingRefOpen}
         order={linkedOrder}
         record={record}
-        onClose={() => setPricingRefOpen(false)}
+        onClose={() => {
+          setPricingRefOpen(false);
+          syncFromPricingReference();
+        }}
       />
     </div>,
     document.body

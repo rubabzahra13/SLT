@@ -489,7 +489,11 @@ export function SetPricingModal({
     return getCategoryPricingSnapshot(selectedCategory, referenceStore);
   }, [draftSnapshot, isEditingPricing, referenceStore, selectedCategory]);
 
-  const isTierTime = activeSnapshot.rows[0]?.kind === "tier-time";
+  const isTierTime =
+    selectedCategory === "All-Star Cheer" ||
+    selectedCategory === "School Cheer" ||
+    selectedCategory === "Youth Rec Cheer" ||
+    activeSnapshot.rows[0]?.kind === "tier-time";
   const affiliateOptions = useMemo(
     () => getVisibleMusicAffiliateOptions(selectedCategory),
     [selectedCategory]
@@ -1059,7 +1063,7 @@ export function SetPricingModal({
                         </th>
                       )}
                       <th className="sticky top-0 z-20 border border-neutral-300 px-3.5 py-2.5 text-center bg-neutral-200 text-neutral-900">
-                        Customer Price
+                        Package Price
                       </th>
                       <th className="sticky top-0 z-20 border border-neutral-300 px-3.5 py-2.5 text-center bg-emerald-200 text-emerald-950 font-bold">
                         Music Affiliate: Compliant (Payroll Price)
@@ -1340,7 +1344,7 @@ export function SetPricingModal({
                     <p className="mt-0.5 text-[12px] text-neutral-600">
                       {isEditingCompliant
                         ? "Check which affiliate values count as compliant for payroll pricing."
-                        : "Affiliate values marked non-compliant use the non-compliant payroll column above."}
+                        : "Free-text affiliates matching Power Music / Unleash / Library (any spacing or capitalization) use the compliant column; any other text uses the non-compliant column."}
                     </p>
                   </div>
                   {!isEditingCompliant ? (

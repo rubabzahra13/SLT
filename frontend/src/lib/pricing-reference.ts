@@ -11,6 +11,7 @@ import {
   TEAM_PERFORMANCE_VARIETY_RATE_CARD,
   YOUTH_REC_CHEER_RATE_CARD,
 } from "@/lib/pricing-engine";
+import { parsePackage } from "@/lib/package";
 
 export type CategoryKey =
   | "All-Star Cheer"
@@ -248,14 +249,15 @@ export function buildDefaultCategorySnapshot(
       }));
       break;
     case "Youth Rec Cheer":
+      // Same Tier + Time Limit shape as All-Star / School Cheer.
       rows = YOUTH_REC_CHEER_RATE_CARD.map((row) => ({
-        kind: "flat-package",
-        package: `${row.tier} ${row.limit}`,
-        customer: row.customer as number | null,
-        compliant: row.compliant as number | null,
-        nonCompliant: row.nonCompliant as number | null,
-        alwaysFixedPayroll: false,
-        isUnpriced: false,
+        kind: "tier-time" as const,
+        tier: row.tier,
+        limit: row.limit,
+        customer: row.customer,
+        compliant: row.compliant,
+        nonCompliant: row.nonCompliant,
+        isTitanium: row.isTitanium,
       }));
       break;
     case "Pom":
@@ -359,6 +361,83 @@ export function buildDefaultCategorySnapshot(
   };
 }
 
+/** Convert legacy Youth Rec "BRONZE 1:00" package rows → Tier + Time Limit. */
+function migrateYouthRecRowsToTierTime(
+  rows: PricingReferenceRow[]
+): PricingReferenceRow[] {
+  if (!rows.length) return rows;
+  if (rows.every((row) => row.kind === "tier-time")) return rows;
+
+  return rows.map((row): PricingReferenceRow => {
+    if (row.kind === "tier-time") return { ...row };
+
+    const packageLabel = row.package || "";
+    const parsed = parsePackage(packageLabel);
+    const tier =
+      parsed.tier && parsed.tier !== "-" ? parsed.tier : packageLabel || "BRONZE";
+    const limit =
+      parsed.limit && parsed.limit !== "-"
+        ? parsed.limit
+        : (packageLabel.match(/\d+:\d+/)?.[0] ?? "");
+    return {
+      kind: "tier-time",
+      tier,
+      limit,
+      customer: row.customer ?? 0,
+      compliant: row.compliant ?? row.customer ?? 0,
+      nonCompliant: row.nonCompliant ?? row.customer ?? 0,
+      isTitanium: false,
+    };
+  });
+}
+
+/** Normalize Marching Band rows to form labels (Original / Plus, no parentheticals). */
+function migrateMarchingBandCombinedPackages(
+  rows: PricingReferenceRow[]
+): PricingReferenceRow[] {
+  if (!rows.length) return rows;
+
+  const renamePackage = (raw: string): string[] => {
+    const pkg = raw
+      .replace(/\s*\(written\s*&\s*recorded\s*lyrics\)\s*$/i, "")
+      .trim()
+      .toUpperCase();
+
+    if (pkg === "FIGHT SONG / ALMA MATER PLUS") {
+      return ["FIGHT SONG PLUS", "ALMA MATER PLUS"];
+    }
+    if (pkg === "FIGHT SONG / ALMA MATER") {
+      return ["FIGHT SONG ORIGINAL", "ALMA MATER ORIGINAL"];
+    }
+    if (pkg === "FIGHT SONG" || pkg === "FIGHT SONG ORIGINAL") {
+      return ["FIGHT SONG ORIGINAL"];
+    }
+    if (pkg === "ALMA MATER" || pkg === "ALMA MATER ORIGINAL") {
+      return ["ALMA MATER ORIGINAL"];
+    }
+    if (pkg === "FIGHT SONG PLUS") return ["FIGHT SONG PLUS"];
+    if (pkg === "ALMA MATER PLUS") return ["ALMA MATER PLUS"];
+    return [raw.replace(/\s*\(written\s*&\s*recorded\s*lyrics\)\s*$/i, "").trim()];
+  };
+
+  const out: PricingReferenceRow[] = [];
+  const seen = new Set<string>();
+
+  for (const row of rows) {
+    if (row.kind !== "flat-package") {
+      out.push(row);
+      continue;
+    }
+    for (const nextName of renamePackage(row.package || "")) {
+      const key = nextName.toUpperCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ ...row, package: nextName });
+    }
+  }
+  return out;
+}
+
 export function getCategoryPricingSnapshot(
   category: CategoryKey,
   store?: PricingReferenceStore
@@ -370,8 +449,17 @@ export function getCategoryPricingSnapshot(
 
   const defaults = buildDefaultCategorySnapshot(category);
   const savedSnapshot = saved as CategoryPricingSnapshot & { notes?: string };
+  const rawRows = saved.rows?.length
+    ? saved.rows.map((row) => ({ ...row }))
+    : defaults.rows;
+  const rows =
+    category === "Youth Rec Cheer"
+      ? migrateYouthRecRowsToTierTime(rawRows)
+      : category === "Marching Band"
+        ? migrateMarchingBandCombinedPackages(rawRows)
+        : rawRows;
   return {
-    rows: saved.rows?.length ? saved.rows.map((row) => ({ ...row })) : defaults.rows,
+    rows,
     addOns: saved.addOns?.length
       ? saved.addOns.map((addon) => ({ ...addon }))
       : defaults.addOns,
@@ -394,7 +482,57 @@ export function loadPricingReferenceStore(): PricingReferenceStore {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return { categories: {} };
     const parsed = JSON.parse(raw) as PricingReferenceStore;
-    return parsed?.categories ? parsed : { categories: {} };
+    if (!parsed?.categories) return { categories: {} };
+
+    let categories = parsed.categories;
+    let changed = false;
+
+    // Persist Tier + Time Limit shape so Youth Rec matches other cheer tables.
+    const youth = categories["Youth Rec Cheer"];
+    if (
+      youth?.rows?.length &&
+      youth.rows.some((row) => row.kind !== "tier-time")
+    ) {
+      categories = {
+        ...categories,
+        "Youth Rec Cheer": {
+          ...youth,
+          rows: migrateYouthRecRowsToTierTime(youth.rows),
+        },
+      };
+      changed = true;
+    }
+
+    // Persist Fight Song + Alma Mater as separate Marching Band rows.
+    const marching = categories["Marching Band"];
+    if (marching?.rows?.length) {
+      const nextRows = migrateMarchingBandCombinedPackages(marching.rows);
+      const didSplit = nextRows.length !== marching.rows.length ||
+        nextRows.some((row, i) => {
+          const prev = marching.rows[i];
+          return (
+            row.kind !== prev?.kind ||
+            (row.kind === "flat-package" &&
+              prev.kind === "flat-package" &&
+              row.package !== prev.package)
+          );
+        });
+      if (didSplit) {
+        categories = {
+          ...categories,
+          "Marching Band": { ...marching, rows: nextRows },
+        };
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      const migrated: PricingReferenceStore = { categories };
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
+      return migrated;
+    }
+
+    return { categories };
   } catch {
     return { categories: {} };
   }

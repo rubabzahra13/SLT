@@ -54,6 +54,28 @@ function categoryKeyForMeta(meta: MTDFormMeta): CategoryKey {
   return "All-Star Cheer";
 }
 
+function normalizeFlatPackageQuery(value: string): string {
+  return value
+    .toUpperCase()
+    .replace(/\$[\d,]+(?:\.\d+)?/g, " ")
+    .replace(/\([^)]*\)/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function flatPackageCompatible(query: string, pkg: string): boolean {
+  if (query === pkg) return true;
+  // Prevent Fight Song Plus from matching Fight Song / Fight Song Original.
+  const queryPlus = /\bPLUS\b/.test(query);
+  const pkgPlus = /\bPLUS\b/.test(pkg);
+  if (queryPlus !== pkgPlus) return false;
+  const queryOriginal = /\bORIGINAL\b/.test(query);
+  const pkgOriginal = /\bORIGINAL\b/.test(pkg);
+  if (queryPlus && pkgOriginal) return false;
+  if (pkgPlus && queryOriginal) return false;
+  return query.includes(pkg) || pkg.includes(query);
+}
+
 function findReferenceRow(
   rows: PricingReferenceRow[],
   packageType: string,
@@ -64,18 +86,34 @@ function findReferenceRow(
   const tier = parsed.tier.toUpperCase().replace(/\s+PACKAGE$/i, "").trim();
   let limit = parsed.limit.trim();
   if (limit === "-" && timeLengthOfMix?.trim()) limit = timeLengthOfMix.trim();
-  const upperPkg = fullPkg.toUpperCase();
+  const upperPkg = normalizeFlatPackageQuery(fullPkg);
 
   for (const row of rows) {
     if (row.kind === "tier-time") {
       if (row.tier.toUpperCase() === tier && row.limit === limit) return row;
-    } else {
-      const pkg = row.package.toUpperCase();
-      if (pkg === upperPkg || upperPkg.includes(pkg) || pkg.includes(upperPkg)) {
-        return row;
-      }
     }
   }
+
+  // Exact flat-package match first (dropdown names are fixed).
+  for (const row of rows) {
+    if (row.kind !== "flat-package") continue;
+    if (normalizeFlatPackageQuery(row.package) === upperPkg) return row;
+  }
+
+  // Longest compatible contains-match; never prefer a shorter ORIGINAL over PLUS.
+  let best: PricingReferenceRow | null = null;
+  let bestLen = -1;
+  for (const row of rows) {
+    if (row.kind !== "flat-package") continue;
+    const pkg = normalizeFlatPackageQuery(row.package);
+    if (!flatPackageCompatible(upperPkg, pkg)) continue;
+    if (pkg.length > bestLen) {
+      best = row;
+      bestLen = pkg.length;
+    }
+  }
+  if (best) return best;
+
   for (const row of rows) {
     if (row.kind === "tier-time" && row.tier.toUpperCase() === tier) return row;
   }
@@ -137,7 +175,8 @@ export type LiveOrderPricing = {
 
 /**
  * Live customer + payroll package amounts: Pricing Reference overlay on the
- * rate-card engine, then Orders price overrides when present.
+ * rate-card engine (compliant/non-compliant by music affiliate). Customer
+ * package-price overrides affect customerPrice only — not payroll/cost.
  */
 export function resolveLiveOrderPricing(
   rec: MTDRecord,
@@ -146,8 +185,16 @@ export function resolveLiveOrderPricing(
   orderById?: Map<string, Order>,
   referenceStore?: PricingReferenceStore
 ): LiveOrderPricing {
-  const formMeta =
-    meta ?? (orderById ? resolveMTDFormMeta(rec, orderById) : null);
+  let formMeta = meta ?? null;
+  if (!formMeta && orderById) {
+    formMeta = resolveMTDFormMeta(rec, orderById);
+  } else if (!formMeta && order) {
+    const fallback = new Map<string, Order>();
+    fallback.set(order.id, order);
+    if (rec.orderId) fallback.set(rec.orderId, order);
+    if (rec.id) fallback.set(rec.id, order);
+    formMeta = resolveMTDFormMeta(rec, fallback);
+  }
 
   let engineCustomer: number | null = null;
   let enginePayroll: number | null = null;
@@ -185,11 +232,12 @@ export function resolveLiveOrderPricing(
         enginePayroll = row.isTitanium ? row.customer : compliant;
       } else if (row.customer != null) {
         engineCustomer = row.customer;
-        const compliant =
-          engine?.complianceStatus === "non-compliant"
-            ? row.nonCompliant
-            : row.compliant;
-        if (typeof compliant === "number") enginePayroll = compliant;
+        // alwaysFixed (Fight Song / Alma Mater): both columns are the flat amount.
+        const useNonCompliant =
+          !row.alwaysFixedPayroll &&
+          engine?.complianceStatus === "non-compliant";
+        const payrollCol = useNonCompliant ? row.nonCompliant : row.compliant;
+        if (typeof payrollCol === "number") enginePayroll = payrollCol;
         else enginePayroll = row.customer;
       }
     }
@@ -210,14 +258,15 @@ export function resolveLiveOrderPricing(
       ? engineCustomer
       : (order?.finalCustomerPrice ?? order?.price ?? rec.price ?? 0);
 
+  // Payroll/cost always follow Pricing Reference compliant vs non-compliant
+  // columns for the order's music affiliate + package — never the edited
+  // customer package price. (Customer override only affects customerPrice.)
   const payrollPrice =
-    order?.finalPayrollPrice ??
-    rec.finalPayrollPrice ??
-    (isOverridden
-      ? customerPrice
-      : enginePayroll && enginePayroll > 0
-        ? enginePayroll
-        : customerPrice);
+    enginePayroll && enginePayroll > 0
+      ? enginePayroll
+      : (order?.finalPayrollPrice ??
+        rec.finalPayrollPrice ??
+        customerPrice);
 
   return {
     customerPrice,
@@ -239,8 +288,9 @@ export function resolveEngineCustomerPrice(
 }
 
 /**
- * Same package amount the Orders price chip shows: overridden final price when
- * set, otherwise the live engine/reference price, else stored record/order price.
+ * Package amount the Orders/MTD price chip shows — same as Pricing modal
+ * PACKAGE PRICE for the package/tier (live rate card). Per-order overrides
+ * are ignored so the board stays in sync with Pricing edits.
  */
 export function resolveOrderPackageDisplayPrice(
   rec: MTDRecord,
@@ -248,7 +298,11 @@ export function resolveOrderPackageDisplayPrice(
   meta?: MTDFormMeta | null,
   orderById?: Map<string, Order>
 ): number {
-  return resolveLiveOrderPricing(rec, order, meta, orderById).customerPrice;
+  const live = resolveLiveOrderPricing(rec, order, meta, orderById);
+  if (live.engineCustomerPrice != null && live.engineCustomerPrice > 0) {
+    return live.engineCustomerPrice;
+  }
+  return live.customerPrice;
 }
 
 /** Patch written when editing the Orders/MTD package-price chip. */
@@ -266,14 +320,18 @@ export function buildRecordPriceSavePatch(
   finalCustomerPriceOverridden: boolean;
   finalPayrollPrice: number;
 } {
-  const engine = resolveEngineCustomerPrice(rec, order, meta, orderById);
+  const live = resolveLiveOrderPricing(rec, order, meta, orderById);
+  const engine = live.engineCustomerPrice;
   const overridden =
     engine == null || Math.round(price * 100) !== Math.round(engine * 100);
+  // Package-chip edits update customer price only. Payroll stays the live
+  // compliant/non-compliant rate-card amount for cost math.
+  const finalPayrollPrice = live.enginePayrollPrice ?? price;
   return {
     price,
     priceCompliance,
     finalCustomerPrice: price,
     finalCustomerPriceOverridden: overridden,
-    finalPayrollPrice: price,
+    finalPayrollPrice,
   };
 }

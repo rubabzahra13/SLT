@@ -24,7 +24,6 @@ import {
 import { SetPricingModal } from "@/components/mtd/SetPricingModal";
 import { SetInvoicesModal } from "@/components/mtd/SetInvoicesModal";
 import { SetInvoiceModal } from "@/components/mtd/SetInvoiceModal";
-import { SetRecordPricingModal } from "@/components/mtd/SetRecordPricingModal";
 import { CompleteToPayrollModal } from "@/components/mtd/CompleteToPayrollModal";
 import { MoveToOrdersConfirmModal } from "@/components/mtd/MoveToOrdersConfirmModal";
 import { OrderFormEditModal } from "@/components/orders/OrderFormEditModal";
@@ -49,7 +48,7 @@ import {
   calculateSchoolAnthemOrderPricing,
 } from "@/lib/pricing-engine";
 import {
-  buildRecordPriceSavePatch,
+  PRICING_REFERENCE_CHANGED_EVENT,
   resolveOrderPackageDisplayPrice,
 } from "@/lib/order-package-price";
 import { inferMTDRecordStatus, patchFromRecordStatus } from "@/lib/mtd-status";
@@ -74,7 +73,6 @@ import {
   countMTDByDanceSubtype,
   countMTDByForm,
   filterMTDRecords,
-  getRecordMusicAffiliateInfo,
   isMTDRecord,
   matchesAssignedProducerFilter,
   matchesFormFilter,
@@ -100,7 +98,6 @@ import type {
   MTDRecordStatus,
   Order,
   OrderFormType,
-  PriceCompliance,
 } from "@/types";
 import { MTD_RECORD_STATUS_OPTIONS } from "@/types";
 import clsx from "clsx";
@@ -140,10 +137,6 @@ function MTDPageContent() {
     allOrders,
     updateMTD,
     updateOrder,
-    setPackagePrices,
-    setSecretMenuPrices,
-    packagePrices,
-    secretMenuPrices,
     producers,
     schedule,
     isViewOnly,
@@ -258,9 +251,12 @@ function MTDPageContent() {
     [assignRecordId, mtdRecords]
   );
   const [invoiceRecord, setInvoiceRecord] = useState<MTDRecord | null>(null);
-  const [pricingRecord, setPricingRecord] = useState<MTDRecord | null>(null);
+  const [pricingFocusRecord, setPricingFocusRecord] = useState<MTDRecord | null>(
+    null
+  );
   const [invoicesOpen, setInvoicesOpen] = useState(false);
   const [pricingOpen, setPricingOpen] = useState(false);
+  const [pricingRevision, setPricingRevision] = useState(0);
   const [completeRecord, setCompleteRecord] = useState<MTDRecord | null>(null);
   const [blockedRecord, setBlockedRecord] = useState<MTDRecord | null>(null);
   const [orderFormRecord, setOrderFormRecord] = useState<MTDRecord | null>(null);
@@ -401,55 +397,41 @@ function MTDPageContent() {
     []
   );
 
+  useEffect(() => {
+    const bump = () => setPricingRevision((n) => n + 1);
+    window.addEventListener(PRICING_REFERENCE_CHANGED_EVENT, bump);
+    return () =>
+      window.removeEventListener(PRICING_REFERENCE_CHANGED_EVENT, bump);
+  }, []);
+
   const openPricingModal = useCallback(
     (rec: MTDRecord, e: React.MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      setPricingRecord(rec);
+      setPricingFocusRecord(rec);
+      setPricingOpen(true);
     },
     []
   );
 
-  const pricingRecordDisplayPrice = useMemo(() => {
-    if (!pricingRecord) return null;
-    const linked = findLinkedOrder(pricingRecord, allOrders);
-    return resolveOrderPackageDisplayPrice(
-      pricingRecord,
-      linked,
-      resolveMTDFormMeta(pricingRecord, orderById),
-      orderById
-    );
-  }, [pricingRecord, allOrders, orderById]);
+  const openPricingReference = useCallback(() => {
+    setPricingFocusRecord(null);
+    setPricingOpen(true);
+  }, []);
+
+  const pricingFocusOrder = useMemo(
+    () =>
+      pricingFocusRecord
+        ? findLinkedOrder(pricingFocusRecord, allOrders)
+        : undefined,
+    [pricingFocusRecord, allOrders]
+  );
 
   const handleInvoiceSave = useCallback(
     (recordId: string, invoice: string) => {
       updateMTD(recordId, { invoice });
     },
     [updateMTD]
-  );
-
-  const handleRecordPricingSave = useCallback(
-    async (
-      recordId: string,
-      patch: { price: number; priceCompliance: PriceCompliance }
-    ) => {
-      const rec =
-        pricingRecord?.id === recordId
-          ? pricingRecord
-          : mtdRecords.find((row) => row.id === recordId) || null;
-      if (!rec) return;
-      const linked = findLinkedOrder(rec, allOrders);
-      const next = buildRecordPriceSavePatch(
-        rec,
-        linked,
-        patch.price,
-        patch.priceCompliance,
-        resolveMTDFormMeta(rec, orderById),
-        orderById
-      );
-      await updateMTD(recordId, next);
-    },
-    [pricingRecord, mtdRecords, allOrders, orderById, updateMTD]
   );
 
   const handleInvoicesSave = useCallback(
@@ -826,8 +808,8 @@ function MTDPageContent() {
                 <button
                   type="button"
                   onClick={(e) => openPricingModal(rec, e)}
-                  title="Edit Package Price (Needs Quote)"
-                  aria-label="Edit Package Price: Needs Quote"
+                  title="Open Pricing (Needs Quote)"
+                  aria-label="Open Pricing: Needs Quote"
                   className={clsx(
                     clickableChipClass,
                     "flex w-full flex-col items-center rounded-lg px-2 py-1 text-center border-brand-warning/35 bg-brand-warning/10"
@@ -841,9 +823,6 @@ function MTDPageContent() {
             );
           }
 
-          const isOverridden = Boolean(
-            order?.finalCustomerPriceOverridden ?? rec.finalCustomerPriceOverridden
-          );
           const displayPrice = resolveOrderPackageDisplayPrice(
             rec,
             order,
@@ -859,23 +838,16 @@ function MTDPageContent() {
               <button
                 type="button"
                 onClick={(e) => openPricingModal(rec, e)}
-                title="Edit Package Price"
-                aria-label={`Edit Package Price ${formatPrice(displayPrice)}`}
+                title="Open Pricing to edit customer package price"
+                aria-label={`Open Pricing ${formatPrice(displayPrice)}`}
                 className={clsx(
                   clickableChipClass,
                   "flex w-full flex-col items-center rounded-lg px-2 py-1 text-center"
                 )}
               >
-                <div className="flex items-center justify-center gap-1">
-                  <p className="font-semibold tabular-nums text-[12px] text-brand-ink hover:text-brand-orange">
-                    {formatPrice(displayPrice)}
-                  </p>
-                  {isOverridden && (
-                    <span className="rounded bg-brand-orange/10 px-1 py-0.2 text-[9px] font-semibold uppercase text-brand-orange ring-1 ring-inset ring-brand-orange/20">
-                      edited
-                    </span>
-                  )}
-                </div>
+                <p className="font-semibold tabular-nums text-[12px] text-brand-ink hover:text-brand-orange">
+                  {formatPrice(displayPrice)}
+                </p>
               </button>
             </div>
           );
@@ -1340,6 +1312,8 @@ function MTDPageContent() {
     openAssignModal,
     openInvoiceModal,
     openPricingModal,
+    pricingRevision,
+    orderById,
   ]
 );
 
@@ -1351,7 +1325,7 @@ function MTDPageContent() {
         subtitle="Complete mixes, pricing, and invoicing"
         action={{
           label: "Pricing",
-          onClick: () => setPricingOpen(true),
+          onClick: openPricingReference,
           showPlus: false,
         }}
         exportAction={{
@@ -1385,7 +1359,7 @@ function MTDPageContent() {
               setTableFilters((prev) => ({ ...prev, ...patch }))
             }
             onFiltersReset={() => setTableFilters(DEFAULT_MTD_TABLE_FILTERS)}
-            onPricingClick={() => setPricingOpen(true)}
+            onPricingClick={openPricingReference}
           />
         }
       />
@@ -1427,21 +1401,6 @@ function MTDPageContent() {
         onSave={handleInvoiceSave}
       />
 
-      <SetRecordPricingModal
-        open={Boolean(pricingRecord)}
-        record={pricingRecord}
-        packagePrices={packagePrices}
-        initialPrice={pricingRecordDisplayPrice}
-        readOnly={isViewOnly}
-        musicAffiliateInfo={
-          pricingRecord
-            ? getRecordMusicAffiliateInfo(pricingRecord, orderById, allOrders)
-            : null
-        }
-        onClose={() => setPricingRecord(null)}
-        onSave={handleRecordPricingSave}
-      />
-
       <SetInvoicesModal
         open={invoicesOpen}
         records={filtered}
@@ -1451,10 +1410,15 @@ function MTDPageContent() {
 
       <SetPricingModal
         open={pricingOpen}
-        form={form}
-        cheerSubtype={cheerSubtype}
-        danceSubtype={danceSubtype}
-        onClose={() => setPricingOpen(false)}
+        order={pricingFocusOrder}
+        record={pricingFocusRecord}
+        form={pricingFocusRecord ? undefined : form}
+        cheerSubtype={pricingFocusRecord ? undefined : cheerSubtype}
+        danceSubtype={pricingFocusRecord ? undefined : danceSubtype}
+        onClose={() => {
+          setPricingOpen(false);
+          setPricingFocusRecord(null);
+        }}
       />
 
       <CompleteToPayrollModal
