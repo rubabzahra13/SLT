@@ -4,6 +4,7 @@ import type { LucideIcon } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 
 import { EmailSendingSettingsCard } from "@/components/settings/EmailSendingSettingsCard";
+import { DailyCostSettingsFields } from "@/components/settings/DailyCostSettingsCard";
 
 type SettingItem = {
   label: string;
@@ -23,13 +24,7 @@ const sections: SettingSection[] = [
     title: "Producers & Payroll",
     description: "Producer roster, categories, and compensation rates",
     icon: Users,
-    items: [
-      {
-        label: "Producers",
-        description: "Edit producer profiles and per-category compensation percentages",
-        href: "/settings/producers",
-      },
-    ],
+    items: [],
   },
   {
     title: "Email",
@@ -109,13 +104,19 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              <ul className="dashboard-panel-body divide-y divide-brand-line/30">
-                {section.items.map((item) => (
-                  <li key={item.label}>
-                    <SettingRow item={item} />
-                  </li>
-                ))}
-              </ul>
+              {section.items.length > 0 ? (
+                <ul className="dashboard-panel-body divide-y divide-brand-line/30">
+                  {section.items.map((item) => (
+                    <li key={item.label}>
+                      <SettingRow item={item} />
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+
+              {section.title === "Producers & Payroll" ? (
+                <DailyCostSettingsFields />
+              ) : null}
             </section>
           ))}
         </div>

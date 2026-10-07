@@ -72,6 +72,12 @@ import {
 } from "@/lib/producer-payout-estimate";
 import { PRICING_REFERENCE_CHANGED_EVENT } from "@/lib/order-package-price";
 import {
+  DAILY_COST_SETTINGS_CHANGED_EVENT,
+  describeDailyCostSettings,
+  loadDailyCostSettings,
+  type DailyCostSettings,
+} from "@/lib/daily-cost-settings";
+import {
   buildMixDateCalendarRules,
   describeDailyLimitIssues,
   describeDailyLimitUsage,
@@ -334,14 +340,16 @@ export function AssignEditorModal({
   /** Strip only switches to “free for window” once both mix dates are set. */
   const stripWindowMode = Boolean(draftStartIso && draftEndIso);
 
-  // Recompute daily-cost estimates when Pricing Reference / Secret Menu saves.
+  // Recompute daily-cost estimates when Pricing Reference / daily-cost settings change.
   const [pricingReferenceRevision, setPricingReferenceRevision] = useState(0);
   useEffect(() => {
     const bump = () => setPricingReferenceRevision((n) => n + 1);
     window.addEventListener(PRICING_REFERENCE_CHANGED_EVENT, bump);
+    window.addEventListener(DAILY_COST_SETTINGS_CHANGED_EVENT, bump);
     window.addEventListener("storage", bump);
     return () => {
       window.removeEventListener(PRICING_REFERENCE_CHANGED_EVENT, bump);
+      window.removeEventListener(DAILY_COST_SETTINGS_CHANGED_EVENT, bump);
       window.removeEventListener("storage", bump);
     };
   }, []);
@@ -1884,15 +1892,19 @@ function RangeMixBreakdown({
   rangeStartIso,
   rangeEndIso,
   contributors,
+  dailyCostSettings,
 }: {
   rangeStartIso: string;
   rangeEndIso: string;
   contributors: DailyCostContributor[];
+  dailyCostSettings: DailyCostSettings;
 }) {
   const rangeLabel =
     rangeEndIso && rangeEndIso !== rangeStartIso
       ? `${shortMixLimitDay(rangeStartIso)} – ${shortMixLimitDay(rangeEndIso)}`
       : shortMixLimitDay(rangeStartIso);
+
+  const mixCostFormula = describeDailyCostSettings(dailyCostSettings);
 
   return (
     <details className="group mt-3 overflow-hidden rounded-xl border border-brand-line/50">
@@ -1914,10 +1926,22 @@ function RangeMixBreakdown({
 
       <div className="border-t border-brand-line/40">
         {contributors.length > 0 ? (
-          <p className="px-3.5 pt-2.5 text-[11px] leading-relaxed text-brand-ink-tertiary">
-            Same category &amp; subcategory only. Producer payout ÷ that
-            mix&apos;s work days = daily cost on overlapping days
-          </p>
+          <div className="space-y-1.5 px-3.5 pt-2.5">
+            <div className="space-y-0.5 font-mono text-[11px] leading-relaxed text-brand-ink-tertiary">
+              <p>mix cost ÷ work days = daily share</p>
+              <p>mix cost = {mixCostFormula}</p>
+            </div>
+            <p className="text-[11px] leading-relaxed text-brand-ink-tertiary">
+              Change what counts as mix cost in{" "}
+              <Link
+                href="/settings"
+                className="font-medium text-brand-blue underline-offset-2 hover:underline"
+              >
+                Settings
+              </Link>
+              .
+            </p>
+          </div>
         ) : null}
 
         {contributors.length === 0 ? (
@@ -2116,6 +2140,9 @@ function SelectedMixLimitPanel({
               rangeStartIso={rangeStartIso}
               rangeEndIso={rangeEndIso || rangeStartIso}
               contributors={contributors}
+              dailyCostSettings={
+                payoutDetail?.dailyCostSettings ?? loadDailyCostSettings()
+              }
             />
           ) : null}
         </div>
@@ -2130,8 +2157,8 @@ function SelectedMixLimitPanel({
                 {payoutDetail.extrasApplied
                   ? `Extras ${formatLimitUsd(
                       payoutDetail.rushFeePayout + payoutDetail.voiceoverPayout
-                    )} are on the order but not in the daily sum.`
-                  : "Rush and voiceover extras are not included yet and may push a day closer to the max."}{" "}
+                    )} on this order are not in the daily sum. `
+                  : null}
                 Prices may change when edited.
               </p>
               <p>Completed and payroll mixes are not included.</p>

@@ -3,6 +3,10 @@ import { findProducerByAssignmentKey } from "@/lib/editor-assignment";
 import { resolveMTDFormMeta } from "@/lib/mtd-filters";
 import { resolveLiveOrderPricing } from "@/lib/order-package-price";
 import { computeClientPayroll } from "@/lib/pricing-display";
+import {
+  loadDailyCostSettings,
+  type DailyCostSettings,
+} from "@/lib/daily-cost-settings";
 
 function rushFeeQuantity(rec: MTDRecord): number {
   if (typeof rec.rushFeeQuantity === "number") return rec.rushFeeQuantity;
@@ -20,6 +24,12 @@ function rushFeeQuantity(rec: MTDRecord): number {
 export type ProducerPayoutEstimateDetail = {
   /** Category payout from payroll price × rate (excludes rush / voiceover). */
   basePayout: number | null;
+  /**
+   * Daily cost-cap amount for this mix (no add-ons). Follows daily-cost
+   * settings: package price always; optional compliance column; optional
+   * producer %.
+   */
+  dailyCostAmount: number | null;
   /** Full payout including extras when known. */
   totalPayout: number | null;
   rushFeePayout: number;
@@ -27,6 +37,7 @@ export type ProducerPayoutEstimateDetail = {
   extrasApplied: boolean;
   packagePrice: number | null;
   payrollPrice: number | null;
+  dailyCostSettings: DailyCostSettings;
   /** True when payout can't be known yet (hourly / needs review). */
   unknownUntilPayroll: boolean;
 };
@@ -52,6 +63,7 @@ export function estimateRecordProducerPayoutDetail(
   const live = resolveLiveOrderPricing(rec, order, meta, orderById);
   const packagePrice = live.customerPrice;
   const payrollPrice = live.payrollPrice;
+  const dailyCostSettings = loadDailyCostSettings();
 
   const calc = computeClientPayroll(
     producer,
@@ -104,14 +116,48 @@ export function estimateRecordProducerPayoutDetail(
     basePayout = null;
   }
 
+  // Daily cost: package price always; optional compliance column; optional %.
+  // Add-ons are intentionally never included here.
+  const dollarBase = dailyCostSettings.includeCompliance
+    ? (typeof payrollPrice === "number" && payrollPrice > 0
+        ? payrollPrice
+        : typeof packagePrice === "number"
+          ? packagePrice
+          : null)
+    : typeof packagePrice === "number"
+      ? packagePrice
+      : null;
+
+  let dailyCostAmount: number | null = null;
+  if (dollarBase != null) {
+    if (dailyCostSettings.includeProducerRate) {
+      if (unknownUntilPayroll && basePayout == null) {
+        dailyCostAmount = null;
+      } else if (basePayout != null && dailyCostSettings.includeCompliance) {
+        // Same path as today when both toggles are on.
+        dailyCostAmount = basePayout;
+      } else if (calc.rateUsed != null) {
+        const rate =
+          calc.rateUsed > 1 ? calc.rateUsed / 100 : calc.rateUsed;
+        dailyCostAmount = Math.round(dollarBase * rate * 100) / 100;
+      } else {
+        dailyCostAmount = null;
+      }
+    } else {
+      dailyCostAmount = Math.round(dollarBase * 100) / 100;
+    }
+  }
+
   return {
     basePayout,
+    dailyCostAmount,
     totalPayout,
     rushFeePayout,
     voiceoverPayout,
     extrasApplied,
     packagePrice: typeof packagePrice === "number" ? packagePrice : null,
     payrollPrice: typeof payrollPrice === "number" ? payrollPrice : null,
+    dailyCostSettings,
     unknownUntilPayroll,
   };
 }
@@ -129,13 +175,17 @@ export function estimateRecordProducerPayout(
   return estimateRecordProducerPayoutDetail(rec, producer, orderById).totalPayout;
 }
 
-/** Base category payout only (no rush / voiceover) for daily cost-limit sums. */
+/**
+ * Amount counted toward the producer daily cost cap for this mix.
+ * Honors daily-cost settings; never includes 8ct / sheet / vocals / rush / VO.
+ */
 export function estimateRecordBasePayout(
   rec: MTDRecord,
   producer: Producer | undefined | null,
   orderById: Map<string, Order>
 ): number | null {
-  return estimateRecordProducerPayoutDetail(rec, producer, orderById).basePayout;
+  return estimateRecordProducerPayoutDetail(rec, producer, orderById)
+    .dailyCostAmount;
 }
 
 /** Cached base payout estimate per booked mix, for daily cost limit checks. */
