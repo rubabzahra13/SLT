@@ -170,6 +170,8 @@ export type Producer = {
   rateOverrides?: Record<string, number> | null;
   manualInputFields?: ProducerManualInputField[] | null;
   notes?: string | null;
+  /** When the producer was first created (ISO timestamp from server). */
+  createdAt?: string | null;
   /** Server version for optimistic concurrency / live sync. */
   updatedAt?: string | null;
 };
@@ -885,7 +887,7 @@ export type ScheduleEntry = {
 
 /**
  * All possible statuses for a producer schedule cell.
- * "capacity" = producer has reached their daily mix or cost limit.
+ * "capacity" = either or both daily limits (mixes / cost) are ≥ 80% (Reaching limit).
  */
 export type ScheduleCellStatus = "available" | "mix" | "off" | "capacity" | "nonwork";
 

@@ -193,7 +193,7 @@ function UnavailableProducerAvatar({
         isOff
           ? ` · Off${cell.offDetail ? ` · ${cell.offDetail}` : ""}`
           : isNonwork
-            ? " · Non-working"
+            ? " · Regular off day"
             : " · Booked"
       }`}
     >

@@ -59,9 +59,10 @@ describe("Schedule Tab — Extended 6 Month Range and Multi-Mix Resolution", () 
         assert.equal(cells[cells.length - 1]?.key, "2026-09-30");
       }
       if (range === "90days") {
-        assert.equal(cells.length, 90);
-        assert.equal(cells[0]?.key, "2026-09-10");
-        assert.equal(cells[cells.length - 1]?.key, "2026-12-08");
+        // Sep–Nov 2026: 30+31+30 = 91
+        assert.equal(cells.length, 91);
+        assert.equal(cells[0]?.key, "2026-09-01");
+        assert.equal(cells[cells.length - 1]?.key, "2026-11-30");
       }
       if (range === "6months") {
         // Sep 2026–Feb 2027: 30+31+30+31+31+28 = 181
@@ -74,7 +75,7 @@ describe("Schedule Tab — Extended 6 Month Range and Multi-Mix Resolution", () 
 
   it("calculates range labels and cell sizes correctly for 6months while preserving 90days", () => {
     assert.equal(rangeLabel("month", anchorDate), "This month");
-    assert.equal(rangeLabel("90days", anchorDate), "Next 90 days");
+    assert.equal(rangeLabel("90days", anchorDate), "This month + next 2");
     assert.equal(rangeLabel("6months", anchorDate), "Next 6 months");
     assert.equal(cellSizeForRange("90days"), "sm");
     assert.equal(cellSizeForRange("6months"), "sm");
@@ -84,7 +85,7 @@ describe("Schedule Tab — Extended 6 Month Range and Multi-Mix Resolution", () 
     assert.equal(statusLabel("available"), "Free slot");
     assert.equal(statusLabel("mix"), "Booked");
     assert.equal(statusLabel("off"), "Off");
-    assert.equal(statusLabel("nonwork"), "Non-working");
+    assert.equal(statusLabel("nonwork"), "Regular off day");
   });
 
   it("renders multiple mixes on the same date for the same producer as separate schedule bookings", () => {

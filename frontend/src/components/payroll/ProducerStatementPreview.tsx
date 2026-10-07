@@ -18,9 +18,11 @@ import { formatPrice } from "@/lib/data";
 import { calculateDateBounds, todayIso } from "@/lib/date-filters";
 import { doDateRangesOverlap, toCanonicalIsoDate } from "@/lib/dates";
 import {
-  PRODUCER_STATEMENT_COLUMNS,
   getProducerFacingPayrollRows,
   generateProducerFacingPayrollCsv,
+  isVoiceoverOnlyStatement,
+  isVoiceoverStatementRow,
+  producerStatementColumnsForRows,
   triggerCsvDownload,
   type ProducerFacingPayrollRow,
 } from "@/lib/export-csv";
@@ -42,7 +44,16 @@ type ProducerStatementPreviewProps = {
 };
 
 
+function formatMixAndVoSummary(mixCount: number, voCount: number): string {
+  const mixLabel = `${mixCount} mix${mixCount === 1 ? "" : "es"}`;
+  if (voCount <= 0) return mixLabel;
+  return `${mixLabel} · ${voCount} voiceover${voCount === 1 ? "" : "s"}`;
+}
+
 function StatementPreviewTable({ rows }: { rows: ProducerFacingPayrollRow[] }) {
+  const voOnly = isVoiceoverOnlyStatement(rows);
+  const columns = producerStatementColumnsForRows(rows);
+
   return (
     <div className="dashboard-panel dashboard-panel-framed overflow-hidden rounded-2xl">
       <div className="flex items-center justify-between border-b border-brand-line/70 bg-brand-surface/90 px-4 py-3">
@@ -53,18 +64,22 @@ function StatementPreviewTable({ rows }: { rows: ProducerFacingPayrollRow[] }) {
           </h4>
         </div>
         <span className="font-mono text-[11px] text-brand-ink-tertiary">
-          {PRODUCER_STATEMENT_COLUMNS.length} columns
+          {columns.length} columns
         </span>
       </div>
 
       <div className="overflow-x-auto scrollbar-hide">
-        <table className="w-full min-w-[1200px] border-collapse text-left">
+        <table
+          className={`w-full border-collapse text-left ${
+            voOnly ? "min-w-[720px]" : "min-w-[1200px]"
+          }`}
+        >
           <thead>
             <tr className="table-header-row border-b border-brand-line/70 bg-brand-bg/80">
               <th className="table-header-cell w-12 px-3 py-2.5 text-center text-[11px] font-bold uppercase text-brand-ink-secondary">
                 #
               </th>
-              {PRODUCER_STATEMENT_COLUMNS.map((col) => (
+              {columns.map((col) => (
                 <th
                   key={col.key}
                   className="table-header-cell whitespace-nowrap px-3 py-2.5 text-[11px] font-bold uppercase tracking-wider text-brand-ink-secondary"
@@ -78,7 +93,7 @@ function StatementPreviewTable({ rows }: { rows: ProducerFacingPayrollRow[] }) {
             {rows.length === 0 ? (
               <tr>
                 <td
-                  colSpan={PRODUCER_STATEMENT_COLUMNS.length + 1}
+                  colSpan={columns.length + 1}
                   className="px-6 py-12 text-center text-brand-ink-secondary"
                 >
                   <div className="flex flex-col items-center justify-center gap-2">
@@ -98,7 +113,7 @@ function StatementPreviewTable({ rows }: { rows: ProducerFacingPayrollRow[] }) {
                   <td className="px-3 py-2 text-center text-[12px] font-semibold tabular-nums text-brand-ink-tertiary">
                     {idx + 1}
                   </td>
-                  {PRODUCER_STATEMENT_COLUMNS.map((col) => {
+                  {columns.map((col) => {
                     const val = row[col.key];
                     const isTotalCol = col.key === "totalPayout";
                     const isProgramCol = col.key === "programName";
@@ -114,7 +129,8 @@ function StatementPreviewTable({ rows }: { rows: ProducerFacingPayrollRow[] }) {
                               : "text-brand-ink-secondary"
                         }`}
                       >
-                        {val || "—"}
+                        {/* "" = intentionally blank; nullish → — */}
+                        {val === "" ? "" : val ?? "—"}
                       </td>
                     );
                   })}
@@ -172,6 +188,55 @@ export function ProducerStatementPreview({
       payoutByProducer.set(name, (payoutByProducer.get(name) ?? 0) + 1);
     }
 
+    // Include VO-only producers who have no mix rows in this period
+    for (const addon of payrollAddons) {
+      if (addon.addonType !== "voiceover") continue;
+      if (filterPeriod.start || filterPeriod.end) {
+        const linked =
+          (addon.mtdId &&
+            payrollRecords.find(
+              (r) => r.id === addon.mtdId || r.orderId === addon.mtdId
+            )) ||
+          (addon.orderId &&
+            payrollRecords.find(
+              (r) => r.orderId === addon.orderId || r.id === addon.orderId
+            )) ||
+          (addon.programName
+            ? payrollRecords.find(
+                (r) =>
+                  r.programName?.trim().toUpperCase() ===
+                  addon.programName.trim().toUpperCase()
+              )
+            : undefined);
+        const rangeStart =
+          linked?.completedAt || linked?.mixStartDate || addon.createdAt || "";
+        const rangeEnd =
+          linked?.completedAt ||
+          linked?.mixEndDate ||
+          linked?.mixStartDate ||
+          addon.createdAt ||
+          "";
+        if (
+          !doDateRangesOverlap(
+            { start: rangeStart, end: rangeEnd },
+            filterPeriod
+          )
+        ) {
+          continue;
+        }
+      }
+      const prodObj =
+        (addon.producerId
+          ? producers.find((p) => p.id === addon.producerId)
+          : undefined) ||
+        findProducerByAssignmentKey(addon.producerInitials, producers);
+      const name = prodObj?.name || addon.producerInitials?.trim();
+      if (!name) continue;
+      if (!payoutByProducer.has(name)) {
+        payoutByProducer.set(name, 0);
+      }
+    }
+
     const allowed =
       allowedProducerNames && allowedProducerNames.length > 0
         ? new Set(allowedProducerNames.map((name) => name.toUpperCase()))
@@ -187,14 +252,16 @@ export function ProducerStatementPreview({
           filterPeriod,
           payrollAddons
         );
+        const voiceoverCount = rows.filter(isVoiceoverStatementRow).length;
         const total = rows.reduce((sum, row) => sum + row.rawTotalPayout, 0);
         const producerObj =
           producers.find(
             (p) => p.name.toUpperCase() === name.toUpperCase() || p.id === name
           ) || findProducerByAssignmentKey(name, producers);
-        return { name, mixCount, total, producerObj, rows };
+        return { name, mixCount, voiceoverCount, total, producerObj, rows };
       })
       .filter((entry) => !allowed || allowed.has(entry.name.toUpperCase()))
+      .filter((entry) => entry.rows.length > 0)
       .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
   }, [
     payrollRecords,
@@ -393,7 +460,8 @@ export function ProducerStatementPreview({
               </div>
 
               <div className="flex flex-wrap gap-2">
-                {activeProducerSummaries.map(({ name, mixCount, total, producerObj }) => {
+                {activeProducerSummaries.map(
+                  ({ name, mixCount, voiceoverCount, total, producerObj }) => {
                   const isSelected =
                     currentProducerToView.toUpperCase() === name.toUpperCase();
                   const dotColor = producerObj?.color || "#94a3b8";
@@ -417,7 +485,8 @@ export function ProducerStatementPreview({
                       />
                       <span className="font-semibold text-brand-ink">{name}</span>
                       <span className="rounded bg-black/5 px-1.5 py-0.5 text-[11px] font-bold tabular-nums text-brand-ink-secondary">
-                        {mixCount} mixes · {formatPrice(total)}
+                        {formatMixAndVoSummary(mixCount, voiceoverCount)} ·{" "}
+                        {formatPrice(total)}
                       </span>
                     </button>
                   );
@@ -464,7 +533,8 @@ export function ProducerStatementPreview({
 
       <div className="min-h-0 space-y-4">
         {embedded && sendLayout === "together" ? (
-          activeProducerSummaries.map(({ name, mixCount, total, producerObj, rows }, index) => {
+          activeProducerSummaries.map(
+            ({ name, mixCount, voiceoverCount, total, producerObj, rows }, index) => {
             const isCollapsed = collapsedProducers.has(name);
 
             return (
@@ -496,7 +566,8 @@ export function ProducerStatementPreview({
                         {name}
                       </h3>
                       <p className="text-[12px] text-brand-ink-secondary">
-                        {mixCount} mix{mixCount === 1 ? "" : "es"} · {formatPrice(total)}
+                        {formatMixAndVoSummary(mixCount, voiceoverCount)} ·{" "}
+                        {formatPrice(total)}
                       </p>
                     </div>
                   </div>
@@ -516,7 +587,8 @@ export function ProducerStatementPreview({
                 ) : null}
               </section>
             );
-          })
+          }
+          )
         ) : (
           <>
             <div className="dashboard-panel flex items-center justify-between gap-4 rounded-2xl border border-brand-line/70 bg-brand-surface/90 px-4 py-3">
@@ -531,8 +603,12 @@ export function ProducerStatementPreview({
                     {currentProducerToView}
                   </h3>
                   <p className="text-[12px] text-brand-ink-secondary">
-                    {currentRows.length} mix{currentRows.length === 1 ? "" : "es"} ·{" "}
-                    {formatPrice(currentProducerTotal)}
+                    {formatMixAndVoSummary(
+                      currentRows.filter((r) => !isVoiceoverStatementRow(r))
+                        .length,
+                      currentRows.filter(isVoiceoverStatementRow).length
+                    )}{" "}
+                    · {formatPrice(currentProducerTotal)}
                   </p>
                 </div>
               </div>

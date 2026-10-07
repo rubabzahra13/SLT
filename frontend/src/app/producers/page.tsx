@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Eye, Mail, Music, Pencil, Plus, Trash2 } from "lucide-react";
+import { CalendarClock, Eye, Mail, Music, Pencil, Plus, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import {
   DeleteProducerModal,
@@ -10,6 +10,7 @@ import {
 import { ProducerAvailabilityModal } from "@/components/producers/ProducerAvailabilityModal";
 import { ProducerFormModal } from "@/components/producers/ProducerFormModal";
 import { Avatar } from "@/components/ui/Avatar";
+import { HoverTip } from "@/components/ui/HoverTip";
 import { patchForReassignProducerRemoved } from "@/lib/order-reassign";
 import {
   collectAssignedMixesForProducer,
@@ -21,10 +22,26 @@ import type { MTDRecord, Producer, Weekday } from "@/types";
 import { useAppState } from "@/context/AppStateContext";
 
 function getProducerHeaderLabel(categories: string[]): string {
-  if (categories.length === 0) return "Producer";
+  if (categories.length === 0) return "No categories";
   if (categories.length === 1) return categories[0];
   if (categories.length === 2) return `${categories[0]} · ${categories[1]}`;
   return `${categories.length} categories`;
+}
+
+function formatProducerAddedAt(value?: string | null): string | null {
+  if (!value?.trim()) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const day = date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+  const time = date.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  return `${day} · ${time}`;
 }
 
 export default function ProducersPage() {
@@ -156,6 +173,10 @@ export default function ProducersPage() {
       <div className="grid auto-rows-fr items-stretch gap-4 px-6 pb-6 pt-5 sm:grid-cols-2 lg:grid-cols-3 lg:px-8 xl:grid-cols-4">
         {uniqueProducers.map((producer) => {
           const categories = getProducerCategories(producer);
+          const headerLabel = getProducerHeaderLabel(categories);
+          const categoryTip =
+            categories.length >= 2 ? categories.join("\n") : undefined;
+          const addedAtLabel = formatProducerAddedAt(producer.createdAt);
 
           return (
           <article
@@ -164,9 +185,21 @@ export default function ProducersPage() {
           >
             <div className="dashboard-panel-head dashboard-panel-head-accent flex shrink-0 items-center justify-between gap-2 px-4 py-3">
               <div className="flex min-w-0 flex-1 items-center gap-2">
-                <span className="dashboard-panel-title truncate">
-                  {getProducerHeaderLabel(categories)}
-                </span>
+                {categoryTip ? (
+                  <HoverTip
+                    label={categoryTip}
+                    placement="top"
+                    className="min-w-0 max-w-full"
+                  >
+                    <span className="dashboard-panel-title block truncate">
+                      {headerLabel}
+                    </span>
+                  </HoverTip>
+                ) : (
+                  <span className="dashboard-panel-title truncate">
+                    {headerLabel}
+                  </span>
+                )}
               </div>
               <div className="flex shrink-0 items-center">
                 <button
@@ -219,6 +252,15 @@ export default function ProducersPage() {
                   week
                 </span>
               </div>
+              {addedAtLabel ? (
+                <div className="flex items-center gap-2.5 text-[12px] text-brand-ink-secondary">
+                  <CalendarClock
+                    className="h-3.5 w-3.5 shrink-0 text-brand-ink-tertiary"
+                    strokeWidth={1.75}
+                  />
+                  <span className="truncate">Added {addedAtLabel}</span>
+                </div>
+              ) : null}
 
               <button
                 type="button"

@@ -232,6 +232,7 @@ export function PayrollSendPanel({
     emailTemplates.producer_payroll,
     allOrders,
     filterPeriod,
+    payrollAddons,
   ]);
 
   const missingEmailNames = useMemo(

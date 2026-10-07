@@ -1,12 +1,14 @@
 "use client";
 
 import { Fragment, useMemo } from "react";
+import Link from "next/link";
 import clsx from "clsx";
 import { Avatar } from "@/components/ui/Avatar";
 import { HoverTip } from "@/components/ui/HoverTip";
 import {
   buildMatrixMonthGroups,
   formatMatrixDateCell,
+  hrefForScheduleBooking,
   statusLabel,
   type CellBooking,
   type ColumnAggregate,
@@ -81,7 +83,7 @@ function scheduleStatusTooltipTone(status: ScheduleCell["status"]) {
   return "text-brand-signature";
 }
 
-function BookingTooltipContent({
+function BookingTooltipBody({
   cell,
   booking,
   index,
@@ -103,9 +105,55 @@ function BookingTooltipContent({
         {statusLabel(cell.status)}
         {total && total > 1 && index != null ? ` (#${index + 1})` : ""}
       </p>
-      <p className="mt-1 text-[12px] font-medium leading-snug text-brand-ink">{booking.work}</p>
-      <p className="mt-1.5 text-[11px] text-brand-ink-secondary">Until {booking.until}</p>
+      <p className="mt-1 text-[12px] font-medium leading-snug text-brand-ink">
+        {booking.work}
+      </p>
+      <p className="mt-1.5 text-[11px] text-brand-ink-secondary">
+        Until {booking.until}
+        {booking.mixId ? (
+          <span className="ml-1 text-brand-ink-tertiary">
+            · {booking.inMTD ? "MTD" : "Orders"}
+          </span>
+        ) : null}
+      </p>
     </>
+  );
+}
+
+function BookingTooltipCard({
+  cell,
+  booking,
+  index,
+  total,
+}: {
+  cell: ScheduleCell;
+  booking: CellBooking;
+  index?: number;
+  total?: number;
+}) {
+  const href = hrefForScheduleBooking(booking);
+  const body = (
+    <BookingTooltipBody
+      cell={cell}
+      booking={booking}
+      index={index}
+      total={total}
+    />
+  );
+  if (!href) {
+    return (
+      <div className="rounded-lg border border-brand-line/60 bg-brand-surface/80 px-2.5 py-2">
+        {body}
+      </div>
+    );
+  }
+  return (
+    <Link
+      href={href}
+      className="block rounded-lg border border-brand-line/60 bg-brand-surface/80 px-2.5 py-2 transition hover:border-brand-blue/45 hover:bg-brand-blue-soft/25"
+    >
+      {body}
+    </Link>
   );
 }
 
@@ -127,19 +175,15 @@ function MultiBookingTooltipContent({
         {statusLabel(cell.status)} · {bookings.length}{" "}
         {bookings.length === 1 ? "mix" : "mixes"}
       </p>
-      <div className="mt-2 max-h-48 space-y-2 overflow-y-auto pr-1">
+      <div className="mt-2 max-h-56 space-y-2 overflow-y-auto overscroll-contain pr-1">
         {bookings.map((booking, index) => (
-          <div
+          <BookingTooltipCard
             key={booking.mixId ?? `${cell.key}-${index}`}
-            className="rounded-lg border border-brand-line/60 bg-brand-surface/80 px-2.5 py-2"
-          >
-            <BookingTooltipContent
-              cell={cell}
-              booking={booking}
-              index={index}
-              total={bookings.length}
-            />
-          </div>
+            cell={cell}
+            booking={booking}
+            index={index}
+            total={bookings.length}
+          />
         ))}
       </div>
     </div>
@@ -259,8 +303,17 @@ function ScheduleCellButton({
   const booking = bookings[0] ?? cell.booking;
   const showCount = bookings.length >= 1 && cell.status !== "nonwork";
 
-  const wrapWithTooltip = (node: React.ReactNode, content: React.ReactNode) => (
-    <HoverTip className="w-full justify-center" placement="top" content={content}>
+  const wrapWithTooltip = (
+    node: React.ReactNode,
+    content: React.ReactNode,
+    interactive = false
+  ) => (
+    <HoverTip
+      className="w-full justify-center"
+      placement="top"
+      content={content}
+      interactive={interactive}
+    >
       {node}
     </HoverTip>
   );
@@ -300,7 +353,8 @@ function ScheduleCellButton({
   if (showCount) {
     return wrapWithTooltip(
       button,
-      <MultiBookingTooltipContent cell={cell} bookings={bookings} />
+      <MultiBookingTooltipContent cell={cell} bookings={bookings} />,
+      true
     );
   }
 
@@ -343,8 +397,9 @@ function ScheduleCellButton({
   return wrapWithTooltip(
     button,
     <div className="min-w-[160px]">
-      <BookingTooltipContent cell={cell} booking={booking} />
-    </div>
+      <BookingTooltipCard cell={cell} booking={booking} />
+    </div>,
+    Boolean(hrefForScheduleBooking(booking))
   );
 }
 
@@ -484,9 +539,9 @@ export function TeamScheduleMatrix({
             style={{ left: nonworkStickyLeft }}
           >
             <p className="text-[9px] font-bold uppercase leading-tight tracking-[0.06em] text-brand-ink-tertiary">
-              Non-work
+              Regular
               <br />
-              Days
+              Off Days
             </p>
           </div>
         </>
@@ -585,14 +640,7 @@ export function TeamScheduleMatrix({
                   style={{ left: freeStickyLeft }}
                 >
                   <p
-                    className={clsx(
-                      "w-full text-center text-[11px] font-medium tabular-nums leading-none",
-                      availableCount === columns.length
-                        ? "text-brand-signature"
-                        : availableCount === 0
-                          ? "text-brand-orange"
-                          : "text-brand-ink-secondary"
-                    )}
+                    className="w-full text-center text-[11px] font-medium tabular-nums leading-none text-cyan-600"
                     title={`${availableCount} free days in view`}
                   >
                     {availableCount}
@@ -607,7 +655,7 @@ export function TeamScheduleMatrix({
                   style={{ left: bookedStickyLeft }}
                 >
                   <p
-                    className="w-full text-center text-[11px] tabular-nums leading-none text-brand-signature"
+                    className="w-full text-center text-[11px] font-medium tabular-nums leading-none text-brand-signature"
                     title={`${bookingCount} booked days in view`}
                   >
                     {bookingCount}
@@ -622,7 +670,7 @@ export function TeamScheduleMatrix({
                   style={{ left: offStickyLeft }}
                 >
                   <p
-                    className="w-full text-center text-[11px] tabular-nums leading-none text-brand-orange-deep"
+                    className="w-full text-center text-[11px] font-medium tabular-nums leading-none text-brand-orange"
                     title={`${offCount} off days in view`}
                   >
                     {offCount}
@@ -637,8 +685,8 @@ export function TeamScheduleMatrix({
                   style={{ left: nonworkStickyLeft }}
                 >
                   <p
-                    className="w-full text-center text-[11px] tabular-nums leading-none text-brand-orange"
-                    title={`${nonworkCount} non-work days in view`}
+                    className="w-full text-center text-[11px] font-medium tabular-nums leading-none text-brand-orange-deep"
+                    title={`${nonworkCount} regular off days in view`}
                   >
                     {nonworkCount}
                   </p>

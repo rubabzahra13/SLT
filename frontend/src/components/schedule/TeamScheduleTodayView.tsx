@@ -103,7 +103,7 @@ export function TeamScheduleTodayView({
             }
             if (entry.cell.status === "capacity") {
               return (
-                <span className="text-[12px] font-semibold text-amber-700">Capacity Reached</span>
+                <span className="text-[12px] font-semibold text-amber-700">Reaching limit</span>
               );
             }
             return <span className="text-brand-ink-tertiary">—</span>;

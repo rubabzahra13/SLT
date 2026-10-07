@@ -153,7 +153,7 @@ export function SchedulePageToolbar({
               onClick={() => onViewChange("month")}
             />
             <FilterPill
-              label="90 Day"
+              label="3 Month"
               active={view === "90days"}
               variant="grouped"
               onClick={() => onViewChange("90days")}

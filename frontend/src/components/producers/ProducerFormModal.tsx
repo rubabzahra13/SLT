@@ -818,7 +818,7 @@ export function ProducerFormModal({
           {!isEdit ? (
             <section className="border-b border-black/[0.08] px-5 py-4">
               <p className="text-[13px] font-semibold text-brand-ink">
-                Days they work
+                Regular work days
               </p>
               <p className="mt-0.5 text-[12px] text-brand-ink-tertiary">
                 Set their regular week now. You can change this later in Schedule

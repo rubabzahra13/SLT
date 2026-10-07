@@ -40,18 +40,16 @@ import {
 import { suggestMixEndDate } from "@/lib/scheduling";
 import {
   checkProducerDailyLimits,
+  DAILY_LIMIT_WARNING_RATIO,
   dailyLimitCheckHasIssues,
-  extraDatesInRange,
-  formatCompactLeaveDaySpans,
-  formatLeaveDateLabel,
   isProducerAvailableForMixWindow,
   isProducerWorkableDay,
-  leaveApplicableDaysInRange,
   nextProducerWorkableDayIso,
   findMixWindowBlocker,
   describeMixWindowBlocker,
   listProducerCostContributorsInRange,
   listProducerDailyCostContributors,
+  listProducerDailyMixSlots,
   packageMixWorkingDays,
   type DailyCostContributor,
   type DailyLimitCheck,
@@ -84,11 +82,11 @@ import {
   formatDailyLimits,
   formatProducerWorkDaysShort,
   producerScheduleFingerprint,
+  summarizeMixWindowDays,
 } from "@/lib/assign-editor-calendar";
 import {
   CHEER_FORM_SUBTABS,
   DANCE_FORM_SUBTABS,
-  DEFAULT_WORK_DAYS,
   ORDER_FORM_TABS,
   type MTDRecord,
   type MTDRecordStatus,
@@ -779,32 +777,16 @@ export function AssignEditorModal({
   );
   const showProducerBooking = Boolean(mixStartIso || mixEndIso);
 
-  /** Same compact work-day spans as leave chips (skip non-work days). */
-  const producerBookingLabel = useMemo(() => {
-    if (!mixStartIso && !mixEndIso) return "Not set";
+  /** Work days in the mix window: commas/dashes, skip leave & non-work. */
+  const bookingDaySummary = useMemo(() => {
+    if (!mixStartIso && !mixEndIso) return null;
     const start = mixStartIso || mixEndIso || "";
     const end = mixEndIso || mixStartIso || start;
-    const workDays =
-      selectedProducer?.workDays && selectedProducer.workDays.length > 0
-        ? selectedProducer.workDays
-        : [...DEFAULT_WORK_DAYS];
-    if (!selectedProducer) {
-      return formatLeaveDateLabel(start, end, workDays);
-    }
-    const workIsos = leaveApplicableDaysInRange(start, end, workDays);
-    const extraIsos = extraDatesInRange(
-      selectedProducer.extraDays ?? [],
-      start,
-      end
-    );
-    const bookedIsos = [...new Set([...workIsos, ...extraIsos])].sort((a, b) =>
-      a.localeCompare(b)
-    );
-    if (bookedIsos.length === 0) {
-      return formatLeaveDateLabel(start, end, workDays);
-    }
-    return formatCompactLeaveDaySpans(bookedIsos);
+    return summarizeMixWindowDays(start, end, selectedProducer);
   }, [mixStartIso, mixEndIso, selectedProducer]);
+
+  const producerBookingLabel =
+    bookingDaySummary?.includedLabel?.trim() || "Not set";
 
   if (!record) return null;
   if (!isPage && !open) return null;
@@ -1163,6 +1145,28 @@ export function AssignEditorModal({
                           </div>
                         </div>
                       </div>
+                      {selectedEditor &&
+                      bookingDaySummary &&
+                      bookingDaySummary.includedLabel ? (
+                        <div className="mt-3 rounded-xl border border-brand-line/50 bg-brand-bg/40 px-3 py-2.5">
+                          <p className="text-[11px] font-medium text-brand-ink-tertiary">
+                            Booked days
+                            {bookingDaySummary.includedCount > 0
+                              ? ` · ${bookingDaySummary.includedCount}`
+                              : ""}
+                          </p>
+                          <p className="mt-1 text-[13px] font-semibold tabular-nums tracking-tight text-brand-ink">
+                            {bookingDaySummary.includedLabel}
+                          </p>
+                          {bookingDaySummary.excludedNotes.length > 0 ? (
+                            <div className="mt-1 space-y-0.5 text-[11px] leading-snug text-brand-ink-tertiary">
+                              {bookingDaySummary.excludedNotes.map((note) => (
+                                <p key={note}>{note}</p>
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null}
                       {windowMode && selectedEditor ? (
                         <button
                           type="button"
@@ -1235,7 +1239,10 @@ export function AssignEditorModal({
                         {selectedEditor}
                       </span>
                       {draftStartIso && draftEndIso
-                        ? ` · ${formatDisplayDate(draftStartIso)} – ${formatDisplayDate(draftEndIso)}`
+                        ? ` · ${
+                            bookingDaySummary?.includedLabel ||
+                            `${formatDisplayDate(draftStartIso)} – ${formatDisplayDate(draftEndIso)}`
+                          }`
                         : " · set mix dates to assign"}
                     </>
                   ) : (
@@ -1481,9 +1488,31 @@ type CostBarSegment = {
   pct: number;
   label: string;
   amount: number;
+  isManual?: boolean;
 };
 
 const LIMIT_METRIC_BAR_WIDTH = "w-3 sm:w-3.5";
+
+/** True when mix and/or cost load (incl. current mix) is ≥ 80% of either daily max. */
+function dayLoadReachingLimit(
+  bookedCost: number,
+  bookedMixes: number,
+  maxCost: number | null,
+  maxMixes: number | null,
+  thisMixDaily: number | null
+): boolean {
+  const thisDaily = thisMixDaily ?? 0;
+  if (maxCost != null && maxCost > 0) {
+    if ((bookedCost + thisDaily) / maxCost >= DAILY_LIMIT_WARNING_RATIO) {
+      return true;
+    }
+  }
+  if (maxMixes != null && maxMixes > 0) {
+    const mixes = bookedMixes + (thisDaily > 0 ? 1 : 0);
+    if (mixes / maxMixes >= DAILY_LIMIT_WARNING_RATIO) return true;
+  }
+  return false;
+}
 
 /** Cost bar: separate rounded blocks stacked by mix share (% of daily cost max). */
 function CostMetricBar({ segments }: { segments: CostBarSegment[] }) {
@@ -1514,7 +1543,13 @@ function CostMetricBar({ segments }: { segments: CostBarSegment[] }) {
           style={{ height: `${stackHeightPct}%` }}
         >
           {visible.map((seg, i) => {
-            const tip = `${seg.label}\n${formatLimitUsd(seg.amount)}/day`;
+            const tip = [
+              seg.label,
+              seg.isManual ? "Manual mix" : null,
+              `${formatLimitUsd(seg.amount)}/day`,
+            ]
+              .filter(Boolean)
+              .join("\n");
             return (
               <div
                 key={seg.key}
@@ -1547,12 +1582,12 @@ function CostMetricBar({ segments }: { segments: CostBarSegment[] }) {
 function MixMetricBar({
   bookedMixes,
   maxMixes,
-  mixLabels = [],
+  mixSegments = [],
 }: {
   bookedMixes: number;
   maxMixes: number;
-  /** Bottom-up labels for filled mix blocks (tooltips). */
-  mixLabels?: string[];
+  /** Bottom-up mix blocks for tooltips (program name + manual flag). */
+  mixSegments?: Pick<CostBarSegment, "label" | "isManual">[];
 }) {
   const slots = Math.max(1, Math.floor(maxMixes));
   const filled = Math.max(0, Math.min(slots, bookedMixes));
@@ -1568,9 +1603,14 @@ function MixMetricBar({
       <div className="absolute inset-0 flex flex-col-reverse gap-px">
         {Array.from({ length: slots }, (_, i) => {
           const isFilled = i < filled;
-          const label = mixLabels[i]?.trim();
+          const seg = mixSegments[i];
           const tip = isFilled
-            ? label || `Mix ${i + 1}`
+            ? [
+                seg?.label?.trim() || `Mix ${i + 1}`,
+                seg?.isManual ? "Manual mix" : null,
+              ]
+                .filter(Boolean)
+                .join("\n")
             : null;
           const block = (
             <div
@@ -1611,6 +1651,7 @@ function LimitDayBarGroup({
   bookedMixes,
   maxCost,
   costSegments,
+  mixSegments,
   thisMixDaily,
   selected,
   onSelect,
@@ -1620,6 +1661,7 @@ function LimitDayBarGroup({
   bookedMixes: number;
   maxCost: number | null;
   costSegments: CostBarSegment[];
+  mixSegments: Pick<CostBarSegment, "label" | "isManual">[];
   thisMixDaily: number | null;
   selected: boolean;
   onSelect: () => void;
@@ -1633,7 +1675,15 @@ function LimitDayBarGroup({
   const projectedCost = costSum + (thisMixDaily ?? 0);
   const projectedMixes =
     bookedMixes + (thisMixDaily != null && thisMixDaily > 0 ? 1 : 0);
+  const reachingLimit = dayLoadReachingLimit(
+    costSum,
+    bookedMixes,
+    maxCost,
+    maxMixes,
+    thisMixDaily
+  );
   const dayTipParts: string[] = [];
+  if (reachingLimit) dayTipParts.push("Reaching limit");
   if (showCost && costSum > 0) dayTipParts.push(formatLimitUsd(costSum));
   if (showMix) {
     dayTipParts.push(
@@ -1677,7 +1727,7 @@ function LimitDayBarGroup({
             <MixMetricBar
               bookedMixes={mixCount}
               maxMixes={maxMixes as number}
-              mixLabels={costSegments.map((seg) => seg.label)}
+              mixSegments={mixSegments}
             />
           ) : null}
         </div>
@@ -1694,6 +1744,7 @@ function DailyLimitBarChart({
   selectedIso,
   onSelect,
   dayCostSegments,
+  dayMixSegments,
 }: {
   days: DailyLimitCheck["workDays"];
   maxMixes: number | null;
@@ -1702,6 +1753,10 @@ function DailyLimitBarChart({
   selectedIso: string;
   onSelect: (iso: string) => void;
   dayCostSegments: Record<string, CostBarSegment[]>;
+  dayMixSegments: Record<
+    string,
+    Pick<CostBarSegment, "label" | "isManual">[]
+  >;
 }) {
   const yTicks = [0, 50, 100];
 
@@ -1830,6 +1885,7 @@ function DailyLimitBarChart({
                     bookedMixes={day.bookedMixes}
                     maxCost={maxCost}
                     costSegments={dayCostSegments[day.iso] ?? []}
+                    mixSegments={dayMixSegments[day.iso] ?? []}
                     thisMixDaily={thisMixDaily}
                     selected={day.iso === selectedIso}
                     onSelect={() => onSelect(day.iso)}
@@ -1844,10 +1900,13 @@ function DailyLimitBarChart({
             >
               {days.map((day) => {
                 const selected = day.iso === selectedIso;
-                const over =
-                  (maxCost != null &&
-                    day.bookedCost + (thisMixDaily ?? 0) > maxCost) ||
-                  (maxMixes != null && day.bookedMixes + 1 > maxMixes);
+                const reaching = dayLoadReachingLimit(
+                  day.bookedCost,
+                  day.bookedMixes,
+                  maxCost,
+                  maxMixes,
+                  thisMixDaily
+                );
                 return (
                   <button
                     key={`x-${day.iso}`}
@@ -1856,8 +1915,10 @@ function DailyLimitBarChart({
                     className={clsx(
                       "flex min-w-[40px] flex-1 flex-col items-center gap-0.5 outline-none",
                       selected
-                        ? "text-brand-ink"
-                        : over
+                        ? reaching
+                          ? "text-brand-warning"
+                          : "text-brand-ink"
+                        : reaching
                           ? "text-brand-warning"
                           : "text-brand-ink-tertiary"
                     )}
@@ -2095,6 +2156,7 @@ function SelectedMixLimitPanel({
         pct: (c.dayShare / maxCost) * 100,
         label: c.programName,
         amount: c.dayShare,
+        isManual: c.isManual,
       }));
     }
     return out;
@@ -2109,14 +2171,48 @@ function SelectedMixLimitPanel({
     matchFormType,
   ]);
 
-  if (!hasLimits || chartDays.length === 0) return null;
+  const dayMixSegments = useMemo(() => {
+    const out: Record<
+      string,
+      Pick<CostBarSegment, "label" | "isManual">[]
+    > = {};
+    if (!producer || maxMixes == null) return out;
+    for (const day of chartDays) {
+      const dayDate = parseFlexibleDate(day.iso);
+      if (!dayDate) continue;
+      const slots = listProducerDailyMixSlots(
+        producer,
+        dayDate,
+        mtdRecords,
+        excludeRecordId,
+        estimateCost,
+        categoryMatch
+      );
+      out[day.iso] = slots.map((c) => ({
+        label: c.programName,
+        isManual: c.isManual,
+      }));
+    }
+    return out;
+  }, [
+    producer,
+    maxMixes,
+    chartDays,
+    mtdRecords,
+    excludeRecordId,
+    estimateCost,
+    matchCategory,
+    matchFormType,
+  ]);
+
+  if (!hasLimits) return null;
 
   return (
     <div className="rounded-2xl border border-brand-line/60 bg-white p-4">
       <div className="space-y-3.5">
         <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
           <p className="min-w-0 text-[13px] font-semibold tracking-tight text-brand-ink">
-            Daily limits for {producerName}
+            Overlapping days where {producerName} is past 50% of daily limits
           </p>
           {windowLabel ? (
             <p className="shrink-0 text-[12px] tabular-nums text-brand-ink-tertiary">
@@ -2126,15 +2222,22 @@ function SelectedMixLimitPanel({
         </div>
 
         <div>
-          <DailyLimitBarChart
-            days={chartDays}
-            maxMixes={maxMixes}
-            maxCost={maxCost}
-            thisMixDaily={thisMixDaily}
-            selectedIso={inspectIso}
-            onSelect={setInspectIso}
-            dayCostSegments={dayCostSegments}
-          />
+          {chartDays.length > 0 ? (
+            <DailyLimitBarChart
+              days={chartDays}
+              maxMixes={maxMixes}
+              maxCost={maxCost}
+              thisMixDaily={thisMixDaily}
+              selectedIso={inspectIso}
+              onSelect={setInspectIso}
+              dayCostSegments={dayCostSegments}
+              dayMixSegments={dayMixSegments}
+            />
+          ) : (
+            <p className="text-[12px] text-brand-ink-tertiary">
+              No days over 50% of a daily limit in this range.
+            </p>
+          )}
           {rangeStartIso && contributors.length > 0 ? (
             <RangeMixBreakdown
               rangeStartIso={rangeStartIso}
@@ -2152,16 +2255,16 @@ function SelectedMixLimitPanel({
             <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-brand-warning">
               Disclaimer
             </p>
-            <div className="mt-1 space-y-0.5 text-[11px] leading-relaxed text-brand-ink-secondary">
+            <div className="mt-1 text-[11px] leading-relaxed text-brand-ink-secondary">
               <p>
                 {payoutDetail.extrasApplied
                   ? `Extras ${formatLimitUsd(
                       payoutDetail.rushFeePayout + payoutDetail.voiceoverPayout
                     )} on this order are not in the daily sum. `
                   : null}
-                Prices may change when edited.
+                Prices may change when edited. Completed and payroll mixes are
+                not included.
               </p>
-              <p>Completed and payroll mixes are not included.</p>
             </div>
           </div>
         ) : null}

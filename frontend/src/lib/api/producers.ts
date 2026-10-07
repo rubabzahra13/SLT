@@ -36,6 +36,7 @@ export interface BackendProducer {
   rate_overrides?: Record<string, number> | null;
   manual_input_fields?: ProducerManualInputField[] | null;
   notes?: string | null;
+  created_at?: string | null;
   updated_at?: string | null;
 }
 
@@ -74,6 +75,7 @@ export function transformProducer(bp: BackendProducer): Producer {
     rateOverrides: bp.rate_overrides ?? null,
     manualInputFields: bp.manual_input_fields ?? null,
     notes: bp.notes ?? null,
+    createdAt: bp.created_at ?? null,
     updatedAt: bp.updated_at ?? null,
   });
 }

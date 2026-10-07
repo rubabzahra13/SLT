@@ -3,11 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Check, Mic, Pencil, Trash2, Zap } from "lucide-react";
-import { AddVoiceoverModal } from "@/components/payroll/AddVoiceoverModal";
-import { AddRushFeeModal } from "@/components/payroll/AddRushFeeModal";
+import { Check, Trash2, Zap } from "lucide-react";
+import { VoiceoversPanel } from "@/components/payroll/VoiceoversPanel";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { MTDPageToolbar } from "@/components/mtd/MTDPageToolbar";
+import { OrderFormFilters } from "@/components/orders/OrderFormFilters";
 import { PayrollSendPanel } from "@/components/payroll/PayrollSendPanel";
 import { PayrollSendToolbar } from "@/components/payroll/PayrollSendToolbar";
 import {
@@ -53,10 +53,6 @@ import type {
   PayrollAddon,
 } from "@/types";
 
-import {
-  InlineDanceVoiceoverPills,
-  InlineCheerVoiceoverPills,
-} from "@/components/mtd/InlineFields";
 import { computeClientPayroll } from "@/lib/pricing-display";
 import {
   getPayrollSendProducerNames,
@@ -68,7 +64,7 @@ import {
 } from "@/lib/schedule-filters";
 
 const DEFAULT_FORM: OrderFormType = "school-all-star-cheer";
-type PayrollPageTab = "view" | "archive" | "send";
+type PayrollPageTab = "view" | "archive" | "voiceovers" | "send";
 const DEFAULT_CHEER_SUBTYPE: CheerFormSubtypeFilter = "all";
 const DEFAULT_DANCE_SUBTYPE: DanceFormSubtypeFilter = "all";
 
@@ -76,8 +72,6 @@ const addonAmountChipClass =
   "inline-flex h-7 items-center rounded-full bg-brand-success/10 px-2.5 text-[12px] font-semibold tabular-nums text-brand-success ring-1 ring-inset ring-brand-success/20";
 const addonAddBtnClass =
   "inline-flex h-7 items-center gap-1 rounded-full border border-dashed border-brand-line/70 bg-transparent px-2.5 text-[11px] font-medium text-brand-ink-tertiary transition hover:border-brand-signature/40 hover:bg-brand-signature/6 hover:text-brand-signature";
-const addonEditBtnClass =
-  "inline-flex h-7 w-7 items-center justify-center rounded-full text-brand-ink-tertiary transition hover:bg-brand-signature/10 hover:text-brand-signature";
 const addonRemoveBtnClass =
   "inline-flex h-7 w-7 items-center justify-center rounded-full text-brand-ink-tertiary transition hover:bg-brand-danger/10 hover:text-brand-danger";
 const paidBtnClass =
@@ -104,8 +98,6 @@ export default function PayrollPage() {
   const [pageTab, setPageTab] = useState<PayrollPageTab>("view");
   const [highlightId, setHighlightId] = useState<string | null>(focusParam);
   const [selectedSendEditor, setSelectedSendEditor] = useState("all");
-  const [voiceoverRecord, setVoiceoverRecord] = useState<MTDRecord | null>(null);
-  const [rushFeeRecord, setRushFeeRecord] = useState<MTDRecord | null>(null);
   const [addonDeleteId, setAddonDeleteId] = useState<string | null>(null);
   const [deleteForeverRecord, setDeleteForeverRecord] =
     useState<MTDRecord | null>(null);
@@ -382,6 +374,7 @@ export default function PayrollPage() {
   }, [tableFiltered, searchQuery]);
 
   const totalPayroll = useMemo(() => {
+    // Mix editors: package + rush only (VO paid separately to VO producers).
     const mixTotal = filtered.reduce((sum, rec) => {
       const order = orderById.get(rec.orderId || "");
       const producerObj = findProducerByAssignmentKey(rec.assignedProducer, producers);
@@ -395,8 +388,6 @@ export default function PayrollPage() {
         : rec.rushFeeOption === "single" || rec.isRushOrder === "yes" || rec.isRushOrder === true
         ? 1
         : 0;
-      // Prefer live producer rates after Producers-tab edits; keep only explicit
-      // admin overrides snapshotted on the mix/order.
       const rateIsManual =
         rec.rateSource === "manual_override" ||
         order?.rateSource === "manual_override";
@@ -415,11 +406,11 @@ export default function PayrollPage() {
         {
           rushFeeQuantity: rushQty,
           rushFeeCompensationRate: producerObj?.rushFeeRate ?? rec.rushFeeCompensationRate ?? 1.0,
-          danceVoiceover: rec.danceVoiceover,
-          hasTraditionalVoiceover: rec.hasTraditionalVoiceover,
-          hasThemedVoiceover: rec.hasThemedVoiceover,
-          cheerVoiceover20: rec.cheerVoiceover20,
-          cheerVoiceover40: rec.cheerVoiceover40,
+          danceVoiceover: null,
+          hasTraditionalVoiceover: false,
+          hasThemedVoiceover: false,
+          cheerVoiceover20: false,
+          cheerVoiceover40: false,
           formType: meta.formType,
         }
       );
@@ -427,9 +418,19 @@ export default function PayrollPage() {
       return sum + payout;
     }, 0);
 
-    const addonTotal = payrollAddons.reduce((sum, a) => sum + a.amount, 0);
-    return mixTotal + addonTotal;
+    const voTotal = payrollAddons
+      .filter((a) => a.addonType === "voiceover")
+      .reduce((sum, a) => sum + a.amount, 0);
+    const rushAddonTotal = payrollAddons
+      .filter((a) => a.addonType === "rush_fee")
+      .reduce((sum, a) => sum + a.amount, 0);
+    return mixTotal + voTotal + rushAddonTotal;
   }, [filtered, orderById, producers, payrollAddons]);
+
+  const voiceoverCount = useMemo(
+    () => payrollAddons.filter((a) => a.addonType === "voiceover").length,
+    [payrollAddons]
+  );
 
   const formCounts = useMemo(
     () => countMTDByForm(sourceRecords, orderById),
@@ -449,7 +450,7 @@ export default function PayrollPage() {
   const emptyMessage = useMemo(() => {
     if (pageTab === "archive") {
       if (archivedPayrollRecords.length === 0) {
-        return "No paid mixes in archive yet. Mark a mix as Paid on View Payroll to move it here.";
+        return "No paid mixes in archive yet. Mark a mix as Paid on Payroll to move it here.";
       }
       if (filtered.length === 0) {
         return "No archived mixes match the current category or filters.";
@@ -512,20 +513,86 @@ export default function PayrollPage() {
     [removePayrollAddon]
   );
 
-  const handleReplaceAddon = useCallback(
-    async (payload: Parameters<typeof addPayrollAddon>[0]) => {
-      const match = payrollAddons.find(
-        (a) =>
-          a.addonType === payload.addonType &&
-          ((payload.mtdId && a.mtdId === payload.mtdId) ||
-            (payload.orderId && a.orderId === payload.orderId))
+  const handleAddRushFee = useCallback(
+    async (rec: MTDRecord) => {
+      if (isViewOnly) return;
+      const producer = findProducerByAssignmentKey(
+        rec.assignedProducer,
+        producers
       );
-      if (match) {
-        await removePayrollAddon(match.id);
+      if (!producer && !rec.assignedProducer?.trim()) return;
+
+      const meta = resolveMTDFormMeta(rec, orderById);
+      const category =
+        meta.formType === "school-all-star-dance" ? "Dance" : "Cheer";
+
+      try {
+        const existing = payrollAddons.find(
+          (a) =>
+            (a.mtdId === rec.id || a.orderId === rec.orderId) &&
+            a.addonType === "rush_fee"
+        );
+        if (existing) {
+          await removePayrollAddon(existing.id);
+        }
+        await addPayrollAddon({
+          orderId: rec.orderId || rec.id,
+          mtdId: rec.id,
+          programName: rec.programName || "—",
+          teamName: (rec as { teamName?: string }).teamName || null,
+          contactName: rec.contactName || null,
+          category,
+          addonType: "rush_fee",
+          amount: 150,
+          rateSource: "predefined",
+          producerId: producer?.id || null,
+          producerInitials:
+            producer?.initials || rec.assignedProducer || null,
+        });
+        // Ensure mix-level rush is set so payout calc stays in sync
+        await updateMTD(rec.id, {
+          rushFeeQuantity: 1,
+          rushFeeOption: "single",
+          isRushOrder: "yes",
+        });
+      } catch (err) {
+        console.error("Failed to add rush fee:", err);
       }
-      return addPayrollAddon(payload);
     },
-    [payrollAddons, removePayrollAddon, addPayrollAddon]
+    [
+      isViewOnly,
+      producers,
+      orderById,
+      payrollAddons,
+      removePayrollAddon,
+      addPayrollAddon,
+      updateMTD,
+    ]
+  );
+
+  const handleRemoveRushFee = useCallback(
+    async (rec: MTDRecord) => {
+      if (isViewOnly) return;
+      const rushAddon = payrollAddons.find(
+        (a) =>
+          (a.mtdId === rec.id || a.orderId === rec.orderId) &&
+          a.addonType === "rush_fee"
+      );
+      try {
+        if (rushAddon) {
+          await removePayrollAddon(rushAddon.id);
+        }
+        // Also clear mix-level rush so the fee doesn't reappear after addon delete
+        await updateMTD(rec.id, {
+          rushFeeQuantity: 0,
+          rushFeeOption: "none",
+          isRushOrder: "no",
+        });
+      } catch (err) {
+        console.error("Failed to remove rush fee:", err);
+      }
+    },
+    [isViewOnly, payrollAddons, removePayrollAddon, updateMTD]
   );
 
   const categoryFilteredProducers = useMemo(
@@ -562,7 +629,8 @@ export default function PayrollPage() {
         form,
         cheerSubtype,
         danceSubtype,
-        sendPayPeriodBounds
+        sendPayPeriodBounds,
+        payrollAddons
       ),
     [
       sendPayrollRecords,
@@ -572,6 +640,7 @@ export default function PayrollPage() {
       cheerSubtype,
       danceSubtype,
       sendPayPeriodBounds,
+      payrollAddons,
     ]
   );
 
@@ -596,8 +665,6 @@ export default function PayrollPage() {
     if (!stillValid) setSelectedSendEditor("all");
   }, [sendEditorProducers, selectedSendEditor]);
 
-  const showCheerVoiceover = form === "school-all-star-cheer";
-  const showDanceVoiceover = form === "school-all-star-dance";
   const addonsLocked = isViewOnly || pageTab === "archive";
 
   const columns: Column<MTDRecord>[] = useMemo(
@@ -820,11 +887,12 @@ export default function PayrollPage() {
               rushFeeQuantity: rushQty,
               rushFeeCompensationRate:
                 producerObj?.rushFeeRate ?? rec.rushFeeCompensationRate ?? 1.0,
-              danceVoiceover: rec.danceVoiceover,
-              hasTraditionalVoiceover: rec.hasTraditionalVoiceover,
-              hasThemedVoiceover: rec.hasThemedVoiceover,
-              cheerVoiceover20: rec.cheerVoiceover20,
-              cheerVoiceover40: rec.cheerVoiceover40,
+              // VO paid on the Voiceovers tab to the VO producer, not mix editor.
+              danceVoiceover: null,
+              hasTraditionalVoiceover: false,
+              hasThemedVoiceover: false,
+              cheerVoiceover20: false,
+              cheerVoiceover40: false,
               formType: meta.formType,
             }
           );
@@ -913,77 +981,6 @@ export default function PayrollPage() {
         ),
       },
       {
-        key: "voiceover",
-        header: "Voiceover",
-        width: "150px",
-        align: "center",
-        cellClassName: "!px-2 !py-1.5",
-        headerClassName: "!px-2 !py-2",
-        render: (rec) => {
-          const voAddon = payrollAddons.find(
-            (a) =>
-              (a.mtdId === rec.id || a.orderId === rec.orderId) &&
-              a.addonType === "voiceover"
-          );
-          const voAmount = voAddon
-            ? voAddon.amount
-            : rec.cheerVoiceover40
-              ? 40
-              : rec.cheerVoiceover20
-                ? 20
-                : rec.danceVoiceover && !isNaN(parseFloat(rec.danceVoiceover))
-                  ? parseFloat(rec.danceVoiceover)
-                  : 0;
-          const hasVoiceover = voAmount > 0;
-
-          return (
-            <div
-              className="flex items-center justify-center gap-1 whitespace-nowrap"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {hasVoiceover ? (
-                <span className={addonAmountChipClass}>
-                  {formatPrice(voAmount)}
-                </span>
-              ) : null}
-              {!addonsLocked && !hasVoiceover ? (
-                <button
-                  type="button"
-                  onClick={() => setVoiceoverRecord(rec)}
-                  title="Add Voiceover"
-                  className={addonAddBtnClass}
-                >
-                  <Mic className="h-3 w-3" strokeWidth={2.25} />
-                  <span>Add</span>
-                </button>
-              ) : null}
-              {!addonsLocked && hasVoiceover ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setVoiceoverRecord(rec)}
-                    title="Edit Voiceover"
-                    className={addonEditBtnClass}
-                  >
-                    <Pencil className="h-3.5 w-3.5" strokeWidth={2} />
-                  </button>
-                  {voAddon ? (
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteAddon(voAddon.id)}
-                      title="Remove Voiceover"
-                      className={addonRemoveBtnClass}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" strokeWidth={2} />
-                    </button>
-                  ) : null}
-                </>
-              ) : null}
-            </div>
-          );
-        },
-      },
-      {
         key: "rushFee",
         header: "Rush Fee",
         width: "140px",
@@ -1021,8 +1018,8 @@ export default function PayrollPage() {
               {!addonsLocked && !hasRush ? (
                 <button
                   type="button"
-                  onClick={() => setRushFeeRecord(rec)}
-                  title="Add Rush Fee"
+                  onClick={() => void handleAddRushFee(rec)}
+                  title="Add Rush Fee for assigned producer"
                   className={addonAddBtnClass}
                 >
                   <Zap className="h-3 w-3" strokeWidth={2.25} />
@@ -1030,26 +1027,14 @@ export default function PayrollPage() {
                 </button>
               ) : null}
               {!addonsLocked && hasRush ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setRushFeeRecord(rec)}
-                    title="Edit Rush Fee"
-                    className={addonEditBtnClass}
-                  >
-                    <Pencil className="h-3.5 w-3.5" strokeWidth={2} />
-                  </button>
-                  {rushAddon ? (
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteAddon(rushAddon.id)}
-                      title="Remove Rush Fee"
-                      className={addonRemoveBtnClass}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" strokeWidth={2} />
-                    </button>
-                  ) : null}
-                </>
+                <button
+                  type="button"
+                  onClick={() => void handleRemoveRushFee(rec)}
+                  title="Remove Rush Fee"
+                  className={addonRemoveBtnClass}
+                >
+                  <Trash2 className="h-3.5 w-3.5" strokeWidth={2} />
+                </button>
               ) : null}
             </div>
           );
@@ -1140,7 +1125,8 @@ export default function PayrollPage() {
       isViewOnly,
       payrollAddons,
       orderById,
-      handleDeleteAddon,
+      handleAddRushFee,
+      handleRemoveRushFee,
       pageTab,
       markPaid,
     ]
@@ -1156,14 +1142,18 @@ export default function PayrollPage() {
             ? `${filtered.length} of ${payrollRecords.length} · ${formatPrice(totalPayroll)}`
             : pageTab === "archive"
               ? `${filtered.length} of ${archivedPayrollRecords.length}`
-              : undefined
+              : pageTab === "voiceovers" && voiceoverCount > 0
+                ? `${voiceoverCount}`
+                : undefined
         }
         subtitle={
           pageTab === "view"
             ? "Ready for payout"
             : pageTab === "archive"
               ? "Paid mixes · delete forever when done"
-              : "Filter producers, preview statements, and send via Gmail"
+              : pageTab === "voiceovers"
+                ? undefined
+                : "Filter producers, preview statements, and send via Gmail"
         }
         tabs={
           <Tabs
@@ -1171,11 +1161,20 @@ export default function PayrollPage() {
             value={pageTab}
             onChange={(value) => setPageTab(value as PayrollPageTab)}
             options={[
-              { value: "view", label: "View Payroll" },
+              {
+                value: "view",
+                label: "Payroll",
+                count: payrollRecords.length || undefined,
+              },
               {
                 value: "archive",
                 label: "Archive",
                 count: archivedPayrollRecords.length || undefined,
+              },
+              {
+                value: "voiceovers",
+                label: "Add Voiceover",
+                count: voiceoverCount || undefined,
               },
               {
                 value: "send",
@@ -1235,6 +1234,22 @@ export default function PayrollPage() {
               }
               onFiltersReset={() => setTableFilters(DEFAULT_MTD_TABLE_FILTERS)}
             />
+          ) : pageTab === "voiceovers" ? (
+            <div className="relative z-40 inline-flex flex-wrap items-center gap-0.5 rounded-xl bg-brand-elevated/80 p-0.5 ring-1 ring-inset ring-brand-line/40">
+              <OrderFormFilters
+                grouped
+                portalMenus
+                form={form}
+                cheerSubtype={cheerSubtype}
+                danceSubtype={danceSubtype}
+                onFormChange={switchForm}
+                onCheerSubtypeChange={setCheerSubtype}
+                onDanceSubtypeChange={setDanceSubtype}
+                formCounts={formCounts}
+                cheerCounts={cheerSubtypeCounts}
+                danceCounts={danceSubtypeCounts}
+              />
+            </div>
           ) : (
             <PayrollSendToolbar
               form={form}
@@ -1272,6 +1287,19 @@ export default function PayrollPage() {
               onClearHighlight={clearHighlight}
             />
           </div>
+        ) : pageTab === "voiceovers" ? (
+          <VoiceoversPanel
+            payrollAddons={payrollAddons}
+            producers={producers}
+            mtdRecords={mtdRecords}
+            allOrders={allOrders}
+            form={form}
+            cheerSubtype={cheerSubtype}
+            danceSubtype={danceSubtype}
+            readOnly={isViewOnly}
+            onAdd={addPayrollAddon}
+            onDelete={handleDeleteAddon}
+          />
         ) : (
           <PayrollSendPanel
             categoryLabel={exportCategoryLabel}
@@ -1286,24 +1314,6 @@ export default function PayrollPage() {
           />
         )}
       </div>
-
-      <AddVoiceoverModal
-        open={Boolean(voiceoverRecord)}
-        onClose={() => setVoiceoverRecord(null)}
-        record={voiceoverRecord}
-        allOrders={allOrders}
-        producers={producers}
-        onAdd={handleReplaceAddon}
-      />
-
-      <AddRushFeeModal
-        open={Boolean(rushFeeRecord)}
-        onClose={() => setRushFeeRecord(null)}
-        record={rushFeeRecord}
-        allOrders={allOrders}
-        producers={producers}
-        onAdd={handleReplaceAddon}
-      />
 
       {deleteForeverRecord && typeof document !== "undefined"
         ? createPortal(

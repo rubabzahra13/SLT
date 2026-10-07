@@ -81,7 +81,7 @@ const mockMtdRecords = [
 ] as unknown as MTDRecord[];
 
 describe("Row-Level Payroll Add-ons Workflow Tests", () => {
-  it("1. Row-level Voiceover add-on binds to specific payroll row, order ID, and producer", () => {
+  it("1. Voiceover add-on pays VO producer as a separate line (not folded into mix editor payout)", () => {
     const voAddon: PayrollAddon = {
       id: "addon-1",
       orderId: "ord-101",
@@ -107,13 +107,68 @@ describe("Row-Level Payroll Add-ons Workflow Tests", () => {
       [voAddon]
     );
 
+    // Mix row (no VO) + separate VO add-on row
+    assert.equal(caseyRows.length, 2);
+    const mixRow = caseyRows.find((r) => r.recId === "mtd-101");
+    const voRow = caseyRows.find((r) => r.recId === "addon-1");
+    assert.ok(mixRow);
+    assert.ok(voRow);
+    assert.equal(mixRow!.voiceoverPayout, "$0");
+    assert.equal(mixRow!.voiceoverAddon, "None");
+    assert.equal(mixRow!.rawTotalPayout, 400);
+    assert.equal(voRow!.voiceoverPayout, "$20");
+    assert.equal(voRow!.voiceoverAddon, "$20");
+    assert.equal(voRow!.rawTotalPayout, 20);
+    // Linked to same mix/order — package & time fill from the mix
+    assert.equal(voRow!.package, "GOLD 1:30");
+    assert.ok(voRow!.subtype.includes("Voiceover"));
+  });
+
+  it("1b. Mix-linked VO pays the VO producer, not the mix editor", () => {
+    const voAddon: PayrollAddon = {
+      id: "addon-vo-matt",
+      orderId: "ord-101",
+      mtdId: "mtd-101",
+      programName: "Apex Athletics",
+      teamName: "Junior Coed",
+      contactName: "Coach Sarah",
+      category: "Cheer",
+      addonType: "voiceover",
+      amount: 40,
+      rateSource: "predefined",
+      producerId: "prod-2",
+      producerInitials: "M",
+      createdAt: "2026-09-12T10:00:00Z",
+    };
+
+    const caseyRows = getProducerFacingPayrollRows(
+      mockMtdRecords,
+      mockOrders,
+      mockProducers,
+      "Casey Marlow",
+      undefined,
+      [voAddon]
+    );
+    const mattRows = getProducerFacingPayrollRows(
+      mockMtdRecords,
+      mockOrders,
+      mockProducers,
+      "Matt",
+      undefined,
+      [voAddon]
+    );
+
+    // Casey is mix editor — no VO on their mix line
     assert.equal(caseyRows.length, 1);
-    const row = caseyRows[0];
-    assert.equal(row.programName, "Apex Athletics");
-    assert.equal(row.voiceoverPayout, "$20");
-    assert.equal(row.voiceoverAddon, "$20");
-    assert.equal(row.rawTotalPayout, 420); // 400 base + 20 voiceover
-    assert.equal(row.totalPayout, "$420");
+    assert.equal(caseyRows[0].recId, "mtd-101");
+    assert.equal(caseyRows[0].voiceoverPayout, "$0");
+    assert.equal(caseyRows[0].rawTotalPayout, 400);
+
+    // Matt is VO producer — gets the VO add-on (plus their own mix)
+    const voRow = mattRows.find((r) => r.recId === "addon-vo-matt");
+    assert.ok(voRow);
+    assert.equal(voRow!.voiceoverPayout, "$40");
+    assert.equal(voRow!.rawTotalPayout, 40);
   });
 
   it("2. Row-level Rush Fee add-on binds to specific payroll row and assigned producer", () => {

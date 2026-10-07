@@ -14,8 +14,8 @@ export const SCHEDULE_LEGEND_ITEMS = [
   },
   {
     key: "capacity",
-    label: "Capacity Reached",
-    tip: "Daily mix or cost limit reached",
+    label: "Reaching limit",
+    tip: "Either or both daily limits (mixes / cost) are at least 80%",
     swatchClass: "bg-amber-400/85",
   },
   {
@@ -26,7 +26,7 @@ export const SCHEDULE_LEGEND_ITEMS = [
   },
   {
     key: "nonwork",
-    label: "Non-working",
+    label: "Regular off day",
     tip: "Outside regular work days, with no extra day",
     swatchClass:
       "ring-1 ring-inset ring-brand-orange shadow-[0_1px_2px_rgba(240,120,64,0.12)]",

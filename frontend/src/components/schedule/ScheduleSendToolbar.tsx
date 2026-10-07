@@ -132,7 +132,7 @@ export function ScheduleSendToolbar({
               onClick={() => onSendViewChange("month")}
             />
             <FilterPill
-              label="90 Day"
+              label="3 Month"
               active={sendView === "90days"}
               variant="grouped"
               onClick={() => onSendViewChange("90days")}

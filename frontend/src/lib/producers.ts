@@ -301,6 +301,7 @@ export function normalizeProducer(raw: Partial<Producer> & { id: string }): Prod
     rateOverrides: raw.rateOverrides ?? null,
     manualInputFields: raw.manualInputFields ?? null,
     notes: raw.notes ?? null,
+    createdAt: raw.createdAt ?? null,
     updatedAt: raw.updatedAt ?? null,
   };
 }

@@ -18,6 +18,7 @@ import {
   isProducerUnderDailyCapacity,
   isProducerUnderDailyCostCapacity,
   isProducerAtDailyCapacity,
+  isProducerReachingDailyLimit,
 } from "../producer-availability";
 import type { MTDRecord, Producer } from "../../types";
 
@@ -396,5 +397,52 @@ describe("isProducerAtDailyCapacity", () => {
     const p = makeProducer({ initials: "TP", maxMixesPerDay: 4, maxProducerCostPerDay: 2000 });
     const records = [makeRecord("r1", "TP", 400, "2026-09-10", "2026-09-10")];
     assert.equal(isProducerAtDailyCapacity(p, today, records), false);
+  });
+});
+
+describe("isProducerReachingDailyLimit", () => {
+  const today = new Date(2026, 8, 10);
+
+  it("returns false below 80% of mix limit", () => {
+    const p = makeProducer({ initials: "TP", maxMixesPerDay: 5, maxProducerCostPerDay: null });
+    // 3/5 = 60%
+    const records = [
+      makeRecord("r1", "TP", 100, "2026-09-10", "2026-09-10"),
+      makeRecord("r2", "TP", 100, "2026-09-10", "2026-09-10"),
+      makeRecord("r3", "TP", 100, "2026-09-10", "2026-09-10"),
+    ];
+    assert.equal(isProducerReachingDailyLimit(p, today, records), false);
+  });
+
+  it("returns true at 80% of mix limit", () => {
+    const p = makeProducer({ initials: "TP", maxMixesPerDay: 5, maxProducerCostPerDay: null });
+    // 4/5 = 80%
+    const records = [
+      makeRecord("r1", "TP", 100, "2026-09-10", "2026-09-10"),
+      makeRecord("r2", "TP", 100, "2026-09-10", "2026-09-10"),
+      makeRecord("r3", "TP", 100, "2026-09-10", "2026-09-10"),
+      makeRecord("r4", "TP", 100, "2026-09-10", "2026-09-10"),
+    ];
+    assert.equal(isProducerReachingDailyLimit(p, today, records), true);
+    assert.equal(isProducerAtDailyCapacity(p, today, records), false);
+  });
+
+  it("returns true at 80% of cost limit", () => {
+    const p = makeProducer({ initials: "TP", maxMixesPerDay: null, maxProducerCostPerDay: 1000 });
+    const records = [makeRecord("r1", "TP", 800, "2026-09-10", "2026-09-10")];
+    assert.equal(isProducerReachingDailyLimit(p, today, records), true);
+    assert.equal(isProducerAtDailyCapacity(p, today, records), false);
+  });
+
+  it("returns true when only one of two limits is ≥ 80%", () => {
+    const p = makeProducer({ initials: "TP", maxMixesPerDay: 5, maxProducerCostPerDay: 10000 });
+    // Mix 4/5 = 80%; cost $400 / $10000 = 4%
+    const records = [
+      makeRecord("r1", "TP", 100, "2026-09-10", "2026-09-10"),
+      makeRecord("r2", "TP", 100, "2026-09-10", "2026-09-10"),
+      makeRecord("r3", "TP", 100, "2026-09-10", "2026-09-10"),
+      makeRecord("r4", "TP", 100, "2026-09-10", "2026-09-10"),
+    ];
+    assert.equal(isProducerReachingDailyLimit(p, today, records), true);
   });
 });

@@ -62,9 +62,14 @@ export function SoftSelect({
   const selected = options.find((opt) => opt.value === value);
 
   const filteredOptions = searchable
-    ? options.filter((opt) =>
-        opt.label.toLowerCase().includes(query.trim().toLowerCase())
-      )
+    ? options.filter((opt) => {
+        const q = query.trim().toLowerCase();
+        if (!q) return true;
+        return (
+          opt.label.toLowerCase().includes(q) ||
+          opt.value.toLowerCase().includes(q)
+        );
+      })
     : options;
 
   const updateMenuPos = () => {
@@ -133,6 +138,7 @@ export function SoftSelect({
       setQuery("");
       return;
     }
+    setQuery("");
     if (searchable) {
       const id = window.setTimeout(() => searchRef.current?.focus(), 0);
       return () => window.clearTimeout(id);
@@ -242,7 +248,11 @@ export function SoftSelect({
               <div className="min-h-0 flex-1 overflow-y-auto p-1 scrollbar-hide">
                 {filteredOptions.length === 0 ? (
                   <p className="px-2.5 py-2 text-[12px] text-brand-ink-tertiary">
-                    No matches
+                    {options.length === 0
+                      ? "No options"
+                      : query.trim()
+                        ? "No matches"
+                        : "No options"}
                   </p>
                 ) : (
                   filteredOptions.map((opt) => {

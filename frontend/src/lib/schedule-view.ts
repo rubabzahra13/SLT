@@ -1,12 +1,13 @@
 import type { MTDRecord, Producer, ScheduleEntry } from "@/types";
 import { parseFlexibleDate } from "@/lib/dates";
 import {
-  isProducerAtDailyCapacity,
+  isProducerReachingDailyLimit,
   isProducerOnTimeOff,
   isProducerExtraDay,
   isProducerWorkDay,
 } from "@/lib/producer-availability";
 import { isEligibleProducerScheduleRecord } from "@/lib/export-csv";
+import { isMTDRecord } from "@/lib/mtd-filters";
 
 export type ScheduleViewRange = "today" | "week" | "month" | "90days" | "6months";
 
@@ -20,14 +21,23 @@ export type CellBooking = {
   until: string;
   mixId?: string;
   status?: string;
+  /** True when the mix currently lives on the MTD board (else Orders). */
+  inMTD?: boolean;
 };
+
+/** Orders or MTD focus URL for a schedule cell booking. */
+export function hrefForScheduleBooking(booking: CellBooking): string | null {
+  if (!booking.mixId) return null;
+  const focus = encodeURIComponent(booking.mixId);
+  return booking.inMTD ? `/mtd?focus=${focus}` : `/orders?focus=${focus}`;
+}
 
 export type ScheduleCell = {
   key: string;
   date: Date;
   dayLabel: string;
   dateLabel: string;
-  /** "capacity" = producer has reached their daily mix or cost limit.
+  /** "capacity" = either or both daily limits (mixes / cost) are ≥ 80% (Reaching limit).
    *  "nonwork" = outside regular workDays and not an extra day.
    *  "off" = time off on a regular work day. */
   status: "available" | "mix" | "off" | "capacity" | "nonwork";
@@ -224,6 +234,7 @@ function bookingsFromAssignments(date: Date, records: MTDRecord[]): CellBooking[
       until: formatDisplayDate(untilDate),
       mixId: pick.id,
       status: pick.status,
+      inMTD: isMTDRecord(pick),
     };
   });
 }
@@ -305,9 +316,10 @@ function buildDateRange(range: ScheduleViewRange, anchor: any): Date[] {
   }
 
   if (range === "90days") {
-    const end = new Date(today);
-    end.setDate(today.getDate() + 89);
-    return enumerateDays(today, end);
+    // Three full calendar months: current, next, and the one after.
+    const start = new Date(today.getFullYear(), today.getMonth(), 1);
+    const endMonth = new Date(today.getFullYear(), today.getMonth() + 3, 0);
+    return enumerateDays(start, endMonth);
   }
 
   // Six full calendar months starting with the current month (28–31 days each).
@@ -358,12 +370,12 @@ export function getScheduleCells(
     );
 
     if (coveringBookings.length > 0 && status === "available") {
-      status = isProducerAtDailyCapacity(producer, date, mtdRecords)
+      status = isProducerReachingDailyLimit(producer, date, mtdRecords)
         ? "capacity"
         : "mix";
     } else if (
       status === "available" &&
-      isProducerAtDailyCapacity(producer, date, mtdRecords)
+      isProducerReachingDailyLimit(producer, date, mtdRecords)
     ) {
       status = "capacity";
     }
@@ -464,7 +476,7 @@ export function rangeLabel(
     return `Week of ${MONTH_NAMES[start.getMonth()]} ${start.getDate()}–${MONTH_NAMES[end.getMonth()]} ${end.getDate()}`;
   }
   if (range === "month") return "This month";
-  if (range === "90days") return "Next 90 days";
+  if (range === "90days") return "This month + next 2";
   return "Next 6 months";
 }
 
@@ -695,8 +707,8 @@ export function cellSizeForRange(range: ScheduleViewRange): "sm" | "md" | "lg" {
 export function statusLabel(status: ScheduleCell["status"]): string {
   if (status === "mix") return "Assigned";
   if (status === "off") return "Off";
-  if (status === "nonwork") return "Non-working";
-  if (status === "capacity") return "Capacity Reached";
+  if (status === "nonwork") return "Regular off day";
+  if (status === "capacity") return "Reaching limit";
   return "Free slot";
 }
 
@@ -708,9 +720,9 @@ export const SCHEDULE_STATUS_FILTERS: {
 }[] = [
   { value: "all", label: "All" },
   { value: "mix", label: "Assigned" },
-  { value: "capacity", label: "Capacity Reached" },
+  { value: "capacity", label: "Reaching limit" },
   { value: "off", label: "Off" },
-  { value: "nonwork", label: "Non-working" },
+  { value: "nonwork", label: "Regular off day" },
   { value: "available", label: "Free slot" },
 ];
 

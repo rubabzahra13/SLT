@@ -505,13 +505,14 @@ export function buildMixDateCalendarRules(
     const limits = limitParts(iso);
 
     if (bookings.length > 0 && mixTip) {
-      const lines = [mixTip];
+      const lines: string[] = [];
       if (isExtra) lines.push("Extra day");
+      lines.push(mixTip);
       if (limits.length > 0) lines.push(limits.join(" · "));
       return {
         disabled: false,
         tone: "mix",
-        title: lines.join("\n"),
+        title: lines.join("\n\n"),
       };
     }
 
@@ -521,7 +522,7 @@ export function buildMixDateCalendarRules(
       return {
         disabled: false,
         tone: limits.length > 0 ? "limit" : "extra",
-        title: lines.join("\n"),
+        title: lines.join("\n\n"),
       };
     }
 

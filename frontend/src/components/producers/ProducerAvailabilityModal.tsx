@@ -1580,10 +1580,7 @@ export function ProducerAvailabilityModal({
           {activeTab === "schedule" ? (
             <>
           <p className="text-[13px] font-semibold text-brand-ink">
-            Days they work
-          </p>
-          <p className="mt-0.5 text-[12px] text-brand-ink-tertiary">
-            Regular weekly schedule. Mon–Fri by default.
+            Regular work days
           </p>
           <div className="mt-4 flex justify-between gap-1">
             {WEEKDAYS.map((day) => {
@@ -1625,8 +1622,9 @@ export function ProducerAvailabilityModal({
                   Extra days
                 </p>
                 <p className="mt-0.5 text-[12px] text-brand-ink-tertiary">
-                  Days outside their regular work week. Click the × on a date
-                  to cancel that extra day.
+                  Days outside their regular work week.
+                  <br />
+                  Click the × on a date to cancel that extra day.
                 </p>
               </div>
               <button
@@ -1690,10 +1688,6 @@ export function ProducerAvailabilityModal({
               <div>
                 <p className="text-[13px] font-semibold text-brand-ink">
                   Off days
-                </p>
-                <p className="mt-0.5 text-[12px] text-brand-ink-tertiary">
-                  Mark off days on scheduled work days and add a short reason.
-                  Booked mix days stay selectable and prompt for reassignment.
                 </p>
               </div>
               {!showTimeOffForm ? (

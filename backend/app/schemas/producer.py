@@ -52,6 +52,7 @@ class ProducerSchema(BaseModel):
     rate_overrides: Optional[Dict[str, float]] = None
     manual_input_fields: Optional[List[Dict[str, Any]]] = None
     notes: Optional[str] = None
+    created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)

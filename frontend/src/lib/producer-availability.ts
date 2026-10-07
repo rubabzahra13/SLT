@@ -725,13 +725,19 @@ export function describeProducerMixDayForLeave(
 ): string | null {
   if (bookings.length === 0) return null;
   const header =
-    bookings.length === 1 ? "Mix on this day" : `Mixes on this day (${bookings.length})`;
-  const lines = bookings.flatMap((b) => {
+    bookings.length === 1
+      ? "Mix on this day"
+      : `Mixes on this day (${bookings.length})`;
+  const blocks = bookings.map((b) => {
     const startLabel = formatIsoDayMonthYear(b.mixStartDate);
     const endLabel = formatIsoDayMonthYear(b.mixEndDate);
-    return [`• ${b.programName}`, `  ${startLabel} – ${endLabel}`];
+    const range =
+      startLabel === endLabel
+        ? startLabel
+        : `${startLabel} – ${endLabel}`;
+    return `• ${b.programName}\n  ${range}`;
   });
-  return [header, ...lines].join("\n");
+  return [header, ...blocks].join("\n\n");
 }
 
 /** ISO days in [fromIso, toIso] that have an assigned mix for this producer. */
@@ -887,6 +893,8 @@ export type DailyCostContributor = {
   workDays: number;
   mixStartDate: string;
   mixEndDate: string;
+  /** True when the mix was created via Add New Order / manual schedule. */
+  isManual: boolean;
 };
 
 function contributorFromRecord(
@@ -909,6 +917,7 @@ function contributorFromRecord(
     workDays: Math.max(workDays, 0),
     mixStartDate: startIso,
     mixEndDate: endIso,
+    isManual: Boolean(rec.isManualScheduleEntry),
   };
 }
 
@@ -927,6 +936,26 @@ export function listProducerDailyCostContributors(
     if (!recordMatchesAssignCategory(rec, categoryMatch)) continue;
     const row = contributorFromRecord(producer, rec, estimateCost);
     if (!row || row.dayShare <= 0) continue;
+    out.push(row);
+  }
+  return out.sort((a, b) => b.dayShare - a.dayShare);
+}
+
+/** Booked mixes filling mix-limit slots on a day (includes $0 cost mixes). */
+export function listProducerDailyMixSlots(
+  producer: Producer,
+  day: Date,
+  mtdRecords: MTDRecord[],
+  excludeRecordId?: string,
+  estimateCost?: RecordCostEstimator,
+  categoryMatch?: Pick<DailyCostOptions, "matchCategory" | "matchFormType"> | null
+): DailyCostContributor[] {
+  const out: DailyCostContributor[] = [];
+  for (const rec of mtdRecords) {
+    if (!isBookingForProducerOnDay(rec, producer, day, excludeRecordId)) continue;
+    if (!recordMatchesAssignCategory(rec, categoryMatch)) continue;
+    const row = contributorFromRecord(producer, rec, estimateCost);
+    if (!row) continue;
     out.push(row);
   }
   return out.sort((a, b) => b.dayShare - a.dayShare);
@@ -1117,6 +1146,50 @@ export function isProducerAtDailyCapacity(
     options
   );
   return mixCapacityReached || costCapacityReached;
+}
+
+/** Schedule warning band: amber when mix or cost load is at least this share of the daily max. */
+export const DAILY_LIMIT_WARNING_RATIO = 0.8;
+
+/**
+ * True when either or both configured daily limits (mix count, cost) are ≥ 80% used.
+ * Used for schedule coloring (“Reaching limit”); booking gates still use at-capacity checks.
+ */
+export function isProducerReachingDailyLimit(
+  producer: Producer,
+  day: Date,
+  mtdRecords: MTDRecord[],
+  excludeRecordId?: string,
+  options: DailyCostOptions = {}
+): boolean {
+  const maxMixes = producer.maxMixesPerDay;
+  if (maxMixes != null && maxMixes > 0) {
+    const booked = countProducerMixesOnDay(
+      producer,
+      day,
+      mtdRecords,
+      excludeRecordId,
+      options
+    );
+    if (booked / maxMixes >= DAILY_LIMIT_WARNING_RATIO) return true;
+  }
+
+  const maxCost = producer.maxProducerCostPerDay;
+  if (maxCost != null && maxCost > 0) {
+    const booked = countProducerDailyCost(
+      producer,
+      day,
+      mtdRecords,
+      excludeRecordId,
+      options.estimateCost,
+      options
+    );
+    const projected =
+      options.newMixCost != null ? booked + options.newMixCost : booked;
+    if (projected / maxCost >= DAILY_LIMIT_WARNING_RATIO) return true;
+  }
+
+  return false;
 }
 
 /** A day the producer actually works: scheduled (or extra day) and not on leave. */
