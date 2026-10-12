@@ -1,13 +1,25 @@
 "use client";
 
+import { OrderFlaggedToggle } from "@/components/orders/OrderFlaggedToggle";
 import { OrderFormFilters } from "@/components/orders/OrderFormFilters";
 import { OrderRangeToggle } from "@/components/orders/OrderRangeToggle";
+import { OrderSourceFilter } from "@/components/orders/OrderSourceFilter";
 import {
   MTDFilterChipsRow,
   MTDTableFilterPanel,
   type MTDTableFilterState,
 } from "@/components/mtd/MTDTableFilters";
-import type { MTDRecord, Order, OrderViewRangeFilter, Producer } from "@/types";
+import {
+  MTDViewOrderToggle,
+  type MTDViewOrder,
+} from "@/components/mtd/MTDViewOrderToggle";
+import type {
+  MTDRecord,
+  Order,
+  OrderSourceFilter as OrderSourceFilterId,
+  OrderViewRangeFilter,
+  Producer,
+} from "@/types";
 import type {
   CheerFormSubtypeFilter,
   DanceFormSubtypeFilter,
@@ -18,8 +30,14 @@ type MTDPageToolbarProps = {
   form: OrderFormType;
   cheerSubtype: CheerFormSubtypeFilter;
   danceSubtype: DanceFormSubtypeFilter;
+  sourceFilter?: OrderSourceFilterId;
+  onSourceFilterChange?: (filter: OrderSourceFilterId) => void;
+  /** Unfiltered-by-source pool used for Source menu counts. */
+  sourceCountRecords?: MTDRecord[];
   rangeFilter?: OrderViewRangeFilter;
   onRangeFilterChange?: (filter: OrderViewRangeFilter) => void;
+  viewOrder?: MTDViewOrder;
+  onViewOrderChange?: (value: MTDViewOrder) => void;
   allOrdersCount?: number;
   needToBeScheduledCount?: number;
   newOrdersCount?: number;
@@ -29,6 +47,8 @@ type MTDPageToolbarProps = {
   reassignRushOrdersCount?: number;
   reassignedOrdersCount?: number;
   waitingForDataCount?: number;
+  flaggedOrdersCount?: number;
+  onFlaggedToggle?: () => void;
   onFormChange: (form: OrderFormType) => void;
   onCheerSubtypeChange: (subtype: CheerFormSubtypeFilter) => void;
   onDanceSubtypeChange: (subtype: DanceFormSubtypeFilter) => void;
@@ -48,8 +68,13 @@ export function MTDPageToolbar({
   form,
   cheerSubtype,
   danceSubtype,
+  sourceFilter,
+  onSourceFilterChange,
+  sourceCountRecords,
   rangeFilter,
   onRangeFilterChange,
+  viewOrder,
+  onViewOrderChange,
   allOrdersCount,
   needToBeScheduledCount,
   newOrdersCount,
@@ -59,6 +84,8 @@ export function MTDPageToolbar({
   reassignRushOrdersCount,
   reassignedOrdersCount,
   waitingForDataCount,
+  flaggedOrdersCount,
+  onFlaggedToggle,
   onFormChange,
   onCheerSubtypeChange,
   onDanceSubtypeChange,
@@ -83,6 +110,21 @@ export function MTDPageToolbar({
           role="toolbar"
           aria-label="MTD filters"
         >
+          {onSourceFilterChange && sourceFilter ? (
+            <>
+              <OrderSourceFilter
+                grouped
+                value={sourceFilter}
+                onChange={onSourceFilterChange}
+                records={sourceCountRecords ?? records}
+                orderById={orderById}
+              />
+              <span
+                className="mx-0.5 hidden h-5 w-px shrink-0 bg-brand-line/45 sm:block"
+                aria-hidden
+              />
+            </>
+          ) : null}
           <OrderFormFilters
             grouped
             form={form}
@@ -112,10 +154,30 @@ export function MTDPageToolbar({
             cheerSubtype={cheerSubtype}
             danceSubtype={danceSubtype}
           />
+          {onFlaggedToggle && typeof flaggedOrdersCount === "number" ? (
+            <>
+              <span
+                className="mx-0.5 hidden h-5 w-px shrink-0 bg-brand-line/45 sm:block"
+                aria-hidden
+              />
+              <OrderFlaggedToggle
+                grouped
+                active={rangeFilter === "flagged"}
+                count={flaggedOrdersCount}
+                onClick={onFlaggedToggle}
+              />
+            </>
+          ) : null}
         </div>
 
-        {onRangeFilterChange && rangeFilter ? (
-          <div className="flex shrink-0 items-center">
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {onViewOrderChange && viewOrder ? (
+            <MTDViewOrderToggle
+              value={viewOrder}
+              onChange={onViewOrderChange}
+            />
+          ) : null}
+          {onRangeFilterChange && rangeFilter && rangeFilter !== "flagged" ? (
             <OrderRangeToggle
               value={rangeFilter}
               onChange={onRangeFilterChange}
@@ -131,8 +193,8 @@ export function MTDPageToolbar({
                 waitingForData: waitingForDataCount,
               }}
             />
-          </div>
-        ) : null}
+          ) : null}
+        </div>
       </div>
 
       <MTDFilterChipsRow

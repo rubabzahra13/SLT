@@ -1,10 +1,32 @@
 import { orderCategoryToProducerCategory } from "@/lib/producer-category";
 import { isPreMTDOrderRecord } from "@/lib/mtd-filters";
 import {
+  applyManualFormMerges,
+  isAbsorbedFormOrder,
+} from "@/lib/manual-form-merge";
+import {
   detectCompliance,
   getPriceForPackage,
 } from "@/lib/pricing";
 import type { MTDRecord, Order } from "@/types";
+
+/** HAVE/NEED CS only — form Yes/No send-intent must not populate eightCountSheet. */
+function collectionCsFromOrder(order: Order): string {
+  const raw = String(order.eightCountSheet || "").trim();
+  if (!raw) return "";
+  const upper = raw.toUpperCase();
+  if (
+    upper === "YES" ||
+    upper === "Y" ||
+    upper === "NO" ||
+    upper === "N" ||
+    upper.startsWith("YES") ||
+    upper.startsWith("NO")
+  ) {
+    return "";
+  }
+  return raw;
+}
 
 function orderEligibleForStaging(order: Order): boolean {
   if (order.status === "completed") return false;
@@ -72,18 +94,16 @@ export function stagingRecordFromOrder(
     invoice: "",
     mixStartDate: order.mixStartDate || "",
     mixEndDate: order.mixEndDate || "",
-    // Do not default to NEED * — that forces Missing data even when songs /
-    // CS are present on the order via songListSuggestions / sheets fields.
-    eightCountSheet:
-      order.eightCountSheet ||
-      order.sendingEightCountSheets ||
-      order.usingEightCountSheets ||
-      "",
+    // Collection status only — never seed from form Yes/No send-intent.
+    eightCountSheet: collectionCsFromOrder(order),
+    sendingEightCountSheets: order.sendingEightCountSheets || "",
+    usingEightCountSheets: order.usingEightCountSheets || "",
     haveSongs: order.haveSongs || (order as any).have_songs || "",
     needsAttention: order.needsAttention ?? true,
     status: order.needsAttention ? "needs_attention" : "active",
     inMTD: false,
     isReassigned: order.isReassigned,
+    isManualScheduleEntry: Boolean(order.isManualEntry),
     missingDataEmailSentAt: order.missingDataEmailSentAt,
     producerEmailSentAt: order.producerEmailSentAt,
     producerEmailSentTo: order.producerEmailSentTo,
@@ -132,11 +152,7 @@ export function mergeCollectionStateFromOrder(
       : recordStates;
 
   const orderHaveSongs = order.haveSongs || (order as { have_songs?: string }).have_songs || "";
-  const orderCs =
-    order.eightCountSheet ||
-    order.sendingEightCountSheets ||
-    order.usingEightCountSheets ||
-    "";
+  const orderCs = collectionCsFromOrder(order);
   const orderSongs =
     order.songListSuggestions ||
     (order as { song_list_suggestions?: string }).song_list_suggestions ||
@@ -184,6 +200,14 @@ export function mergeCollectionStateFromOrder(
     haveSongs: pickFilled(record.haveSongs, orderHaveSongs) || record.haveSongs,
     eightCountSheet:
       pickFilled(record.eightCountSheet, orderCs) || record.eightCountSheet,
+    sendingEightCountSheets: pickFilled(
+      record.sendingEightCountSheets,
+      order.sendingEightCountSheets
+    ),
+    usingEightCountSheets: pickFilled(
+      record.usingEightCountSheets,
+      order.usingEightCountSheets
+    ),
     songListSuggestions: pickFilled(record.songListSuggestions, orderSongs),
     timeLengthOfMix: pickFilled(record.timeLengthOfMix, orderMixLen),
     musicAffiliate: pickFilled(record.musicAffiliate, orderAffiliate),
@@ -199,6 +223,8 @@ export function mergeCollectionStateFromOrder(
       : {}),
     orderStatus: record.orderStatus || (order as { orderStatus?: string }).orderStatus,
     isReassigned: record.isReassigned ?? order.isReassigned,
+    isManualScheduleEntry:
+      record.isManualScheduleEntry ?? Boolean(order.isManualEntry),
   } as MTDRecord;
 }
 
@@ -208,25 +234,43 @@ export function listPreMtdOrderRecords(
   mtdRecords: MTDRecord[],
   packagePrices?: Record<string, number>
 ): MTDRecord[] {
+  // Form submissions that match a manual program (90–100%) fold into the manual row.
+  const mergedOrders = applyManualFormMerges(activeOrders);
+  const absorbedFormIds = new Set<string>();
+  for (const order of mergedOrders) {
+    if (!isAbsorbedFormOrder(order)) continue;
+    for (const key of [order.id, order.uuid, order.legacyId]) {
+      if (key) absorbedFormIds.add(key);
+    }
+  }
+
   const orderById = new Map<string, Order>();
-  for (const order of activeOrders) {
+  for (const order of mergedOrders) {
     for (const key of [order.id, order.uuid, order.legacyId]) {
       if (key) orderById.set(key, order);
     }
   }
 
-  const fromMtd = mtdRecords.filter(isPreMTDOrderRecord).map((rec) => {
-    const linked =
-      (rec.orderId && orderById.get(rec.orderId)) ||
-      orderById.get(rec.id) ||
-      (rec.uuid && orderById.get(rec.uuid)) ||
-      (rec.legacyId && orderById.get(rec.legacyId)) ||
-      null;
-    return mergeCollectionStateFromOrder(rec, linked);
-  });
+  const fromMtd = mtdRecords
+    .filter(isPreMTDOrderRecord)
+    .filter((rec) => {
+      // Hide MTD staging rows that belong only to an absorbed form order.
+      const ids = [rec.orderId, rec.id, rec.uuid, rec.legacyId].filter(Boolean);
+      return !ids.some((id) => absorbedFormIds.has(id as string));
+    })
+    .map((rec) => {
+      const linked =
+        (rec.orderId && orderById.get(rec.orderId)) ||
+        orderById.get(rec.id) ||
+        (rec.uuid && orderById.get(rec.uuid)) ||
+        (rec.legacyId && orderById.get(rec.legacyId)) ||
+        null;
+      return mergeCollectionStateFromOrder(rec, linked);
+    });
 
   const synthetic: MTDRecord[] = [];
-  for (const order of activeOrders) {
+  for (const order of mergedOrders) {
+    if (isAbsorbedFormOrder(order)) continue;
     if (!orderEligibleForStaging(order)) continue;
     if (mtdRecords.some((rec) => mtdRecordCoversOrder(rec, order))) continue;
     synthetic.push(stagingRecordFromOrder(order, packagePrices));

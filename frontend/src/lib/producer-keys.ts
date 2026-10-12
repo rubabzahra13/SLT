@@ -48,3 +48,10 @@ export function producerAssignmentKey(producer: Producer): string {
   if (initials) return initials;
   return producer.name.trim().toUpperCase();
 }
+
+/** Form-facing first name (matches the order-form requested-editor dropdown). */
+export function producerFirstName(producer: Producer): string {
+  const first = producer.name?.trim().split(/\s+/)[0] || "";
+  if (!first) return producer.initials?.trim() || "";
+  return first.charAt(0).toUpperCase() + first.slice(1).toLowerCase();
+}

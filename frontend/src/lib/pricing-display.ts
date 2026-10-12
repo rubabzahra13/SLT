@@ -5,9 +5,9 @@ import { orderCategoryToProducerCategory } from "./editor-assignment";
 export function getFormTypeLabel(formType?: string): string {
   switch (formType) {
     case "school-all-star-cheer":
-      return "School / All-Star Cheer";
+      return "School/All Star Cheer";
     case "school-all-star-dance":
-      return "School / All-Star Dance";
+      return "School/All Star Dance";
     case "marching-band":
       return "Marching Band";
     case "sports-entertainment":
@@ -82,6 +82,12 @@ export interface CalculatedPayroll {
 export type PayrollOptions = {
   rushFeeQuantity?: number;
   rushFeeCompensationRate?: number | null;
+  /**
+   * When false, rush qty still strips the customer rush charge from the
+   * package base before % is applied, but rush compensation is not added to
+   * producerPayout (carry rush to Payroll instead). Default true.
+   */
+  includeRushFeeInPayout?: boolean;
   danceVoiceover?: "25" | "75" | "100" | null;
   hasTraditionalVoiceover?: boolean;
   hasThemedVoiceover?: boolean;
@@ -202,12 +208,15 @@ export function computeClientPayroll(
     };
   }
 
-  // Calculate Rush Fee payout
+  // Calculate Rush Fee payout (optional in total — see includeRushFeeInPayout)
   const rushQty = options?.rushFeeQuantity ?? 0;
   const rushCustomerCharge = rushQty * 150;
   const rawRushRate = options?.rushFeeCompensationRate ?? producer.rushFeeRate ?? 1.0;
   const rushFeeRateUsed = rawRushRate > 1 ? rawRushRate / 100 : rawRushRate;
-  const rushFeePayout = Math.round(150 * rushQty * rushFeeRateUsed * 100) / 100;
+  const rushFeePayoutComputed =
+    Math.round(150 * rushQty * rushFeeRateUsed * 100) / 100;
+  const includeRushFeeInPayout = options?.includeRushFeeInPayout !== false;
+  const rushFeePayout = includeRushFeeInPayout ? rushFeePayoutComputed : 0;
 
   // Calculate Voiceover payout based on producer's specific VO rates
   let voiceoverPayout = 0;
@@ -277,7 +286,7 @@ export function computeClientPayroll(
         isCaseyAmbiguous: true,
         oldPricingPayout: oldPayout,
         newPricingPayout: newPayout,
-        rushFeePayout,
+        rushFeePayout: rushFeePayoutComputed,
         rushFeeQuantity: rushQty,
         rushFeeRateUsed,
         voiceoverPayout,
@@ -314,6 +323,7 @@ export function computeClientPayroll(
   const categoryPayout = Math.round(basePackagePayrollPrice * normalizedCategoryRate * 100) / 100;
   const payout = Math.round((categoryPayout + rushFeePayout + voiceoverPayout) * 100) / 100;
   const slt = Math.round((payrollBase - payout) * 100) / 100;
+  const addonsInPayout = rushFeePayout > 0 || voiceoverPayout > 0;
 
   return {
     status: "computed",
@@ -325,14 +335,13 @@ export function computeClientPayroll(
     oldPricingPayout: oldPayout,
     newPricingPayout: newPayout,
     categoryPayout,
-    rushFeePayout,
+    rushFeePayout: rushFeePayoutComputed,
     rushFeeQuantity: rushQty,
     rushFeeRateUsed,
     voiceoverPayout,
     voiceoverRateUsed,
-    message:
-      rushFeePayout || voiceoverPayout
-        ? `Payout: $${payout.toFixed(2)} (${Number((normalizedCategoryRate * 100).toFixed(4))}% base + addons)`
-        : `Payout: $${payout.toFixed(2)} (${Number((normalizedCategoryRate * 100).toFixed(4))}%)`,
+    message: addonsInPayout
+      ? `Payout: $${payout.toFixed(2)} (${Number((normalizedCategoryRate * 100).toFixed(4))}% base + addons)`
+      : `Payout: $${payout.toFixed(2)} (${Number((normalizedCategoryRate * 100).toFixed(4))}%)`,
   };
 }

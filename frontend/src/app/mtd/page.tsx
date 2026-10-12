@@ -40,6 +40,9 @@ import { MTDPageToolbar } from "@/components/mtd/MTDPageToolbar";
 import { useAppState } from "@/context/AppStateContext";
 import { formatPrice, titleCase } from "@/lib/data";
 import { parsePackage } from "@/lib/package";
+import { packageTypeDisplayValue } from "@/components/mtd/PackageTypeField";
+import { getProgramColumnHeader } from "@/lib/order-detail-sections";
+import type { MTDViewOrder } from "@/components/mtd/MTDViewOrderToggle";
 import {
   calculateCheerOrderPricing,
   calculateDanceOrderPricing,
@@ -78,6 +81,8 @@ import {
   matchesFormFilter,
   matchesMTDSearch,
   resolveMTDFormMeta,
+  sortMTDRecordsBySortKey,
+  sortMTDRecordsByViewOrder,
 } from "@/lib/mtd-filters";
 import {
   cycleEightCsItem,
@@ -104,7 +109,7 @@ import clsx from "clsx";
 
 const DEFAULT_FORM: OrderFormType = "school-all-star-cheer";
 const DEFAULT_CHEER_SUBTYPE: CheerFormSubtype = "all-star-cheer";
-const DEFAULT_DANCE_SUBTYPE: DanceFormSubtypeFilter = "all";
+const DEFAULT_DANCE_SUBTYPE: DanceFormSubtypeFilter = "pom";
 
 const actionButtonClass = (filled: boolean) =>
   clsx(
@@ -186,14 +191,12 @@ function MTDPageContent() {
       "school-anthem",
     ];
     const validCheerSubtypes: CheerFormSubtypeFilter[] = [
-      "all",
       "all-star-cheer",
       "school-cheer-viroc-yes",
       "school-cheer-viroc-no",
       "youth-rec-cheer",
     ];
     const validDanceSubtypes: DanceFormSubtypeFilter[] = [
-      "all",
       "pom",
       "hip-hop",
       "team-performance-variety",
@@ -242,6 +245,7 @@ function MTDPageContent() {
   }, [assignedParam, scheduleParam]);
 
   const [searchQuery, setSearchQuery] = useState("");
+  const [viewOrder, setViewOrder] = useState<MTDViewOrder>("sequence");
   const [assignRecordId, setAssignRecordId] = useState<string | null>(null);
   const assignRecord = useMemo(
     () =>
@@ -470,14 +474,18 @@ function MTDPageContent() {
   );
 
   const confirmCompleteToPayroll = useCallback(
-    (mtdPatch?: Partial<MTDRecord>, orderPatch?: Partial<Order>) => {
+    async (mtdPatch?: Partial<MTDRecord>, orderPatch?: Partial<Order>) => {
       if (!completeRecord) return;
       const basePatch = patchMoveToPayroll();
-      updateMTD(completeRecord.id, { ...basePatch, ...mtdPatch });
-      if (completeRecord.orderId && orderPatch) {
-        updateOrder(completeRecord.orderId, orderPatch);
-      }
+      const recordId = completeRecord.id;
+      const orderId = completeRecord.orderId;
       setCompleteRecord(null);
+      // Persist MTD payroll flags before order fan-out so SSE/order-linked
+      // MTD publishes cannot briefly clear inPayroll (row flicker on Payroll).
+      await updateMTD(recordId, { ...basePatch, ...mtdPatch });
+      if (orderId && orderPatch) {
+        await updateOrder(orderId, orderPatch);
+      }
     },
     [completeRecord, updateMTD, updateOrder]
   );
@@ -516,6 +524,16 @@ function MTDPageContent() {
     return tableFiltered.filter((rec) => matchesMTDSearch(rec, q));
   }, [tableFiltered, searchQuery]);
 
+  const displayedRecords = useMemo(() => {
+    const sorted = sortMTDRecordsBySortKey(
+      filtered,
+      tableFilters.sortBy ?? "none",
+      producers,
+      orderById
+    );
+    return sortMTDRecordsByViewOrder(sorted, viewOrder, producers);
+  }, [filtered, tableFilters.sortBy, viewOrder, producers, orderById]);
+
   const formCounts = useMemo(
     () => countMTDByForm(mtdBoardRecords, orderById),
     [mtdBoardRecords, orderById]
@@ -541,6 +559,7 @@ function MTDPageContent() {
     tableFilters.infoFilter,
     tableFilters.dateFilter.type,
     String(tableFilters.dateFilter.value),
+    tableFilters.sortBy,
     searchQuery,
   ].join("-");
 
@@ -549,13 +568,18 @@ function MTDPageContent() {
 
     const showYouthAddons =
       form === "school-all-star-cheer" &&
-      (cheerSubtype === "youth-rec-cheer" || cheerSubtype === "all");
+      cheerSubtype === "youth-rec-cheer";
 
     const showCheerVoiceover = false; // Removed from MTD per spec (Voiceover is strictly Payroll internal)
     const showDanceVoiceover = false; // Removed from MTD per spec (Voiceover is strictly Payroll internal)
     const showMusicAffiliate =
       form === "school-all-star-cheer" || form === "school-all-star-dance";
     const showMarchingAddons = form === "marching-band";
+    const programHeader = getProgramColumnHeader(
+      form,
+      cheerSubtype === "all" ? undefined : cheerSubtype,
+      danceSubtype === "all" ? undefined : danceSubtype
+    );
 
     const baseCols: Column<MTDRecord>[] = [
       {
@@ -587,12 +611,15 @@ function MTDPageContent() {
       },
       {
         key: "programD",
-        header: "Program",
-        width: "100px",
+        header: programHeader,
+        width: programHeader.length > 14 ? "150px" : "100px",
         align: "center" as const,
         nowrap: false,
-        cellClassName: clsx(compactCellClass, "max-w-[100px]"),
-        headerClassName: compactHeaderClass,
+        cellClassName: clsx(
+          compactCellClass,
+          programHeader.length > 14 ? "max-w-[150px]" : "max-w-[100px]"
+        ),
+        headerClassName: clsx(compactHeaderClass, "whitespace-normal leading-tight"),
         render: (rec) => (
           <TruncatedText
             text={titleCase(rec.programName)}
@@ -603,17 +630,21 @@ function MTDPageContent() {
       },
       {
         key: "packageE",
-        header: "Package",
+        header: "Package type",
         width: "100px",
         align: "center" as const,
         nowrap: false,
         cellClassName: clsx(compactCellClass, "max-w-[100px]"),
         headerClassName: compactHeaderClass,
         render: (rec) => {
-          const { tier } = parsePackage(rec.package);
+          const linked = findLinkedOrder(rec, allOrders);
+          const tier =
+            packageTypeDisplayValue(linked?.packageType || "") ||
+            packageTypeDisplayValue(linked?.package || "") ||
+            packageTypeDisplayValue(rec.package || "");
           return (
             <TruncatedText
-              text={titleCase(tier)}
+              text={tier ? titleCase(tier) : "—"}
               className={clsx("mx-auto w-full min-w-0 text-center font-medium", compactTextClass)}
               style={{ maxWidth: "100%" }}
             />
@@ -624,17 +655,26 @@ function MTDPageContent() {
         ? [
             {
               key: "limitE",
-              header: "Time limit",
+              header: "Mix Length",
               width: "100px",
               align: "center" as const,
               nowrap: false,
               cellClassName: clsx(compactCellClass, "max-w-[100px]"),
               headerClassName: compactHeaderClass,
               render: (rec: MTDRecord) => {
-                const { limit } = parsePackage(rec.package);
+                const linked = findLinkedOrder(rec, allOrders);
+                const fromOrder = (linked?.timeLengthOfMix || "").trim();
+                const fromPackage = parsePackage(
+                  packageTypeDisplayValue(rec.package)
+                    ? rec.package
+                    : linked?.package || ""
+                ).limit;
+                const limit =
+                  fromOrder ||
+                  (fromPackage && fromPackage !== "-" ? fromPackage : "");
                 return (
                   <span className={clsx("mx-auto block text-center tabular-nums", compactTextClass)}>
-                    {limit}
+                    {limit || "—"}
                   </span>
                 );
               },
@@ -703,11 +743,11 @@ function MTDPageContent() {
         : []),
       {
         key: "themeF",
-        header: "Music",
-        width: "100px",
+        header: "Form song list",
+        width: "120px",
         align: "center" as const,
         nowrap: false,
-        cellClassName: clsx(compactCellClass, "max-w-[100px]"),
+        cellClassName: clsx(compactCellClass, "max-w-[120px]"),
         headerClassName: compactHeaderClass,
         render: (rec) => (
           <TruncatedText
@@ -728,17 +768,17 @@ function MTDPageContent() {
         render: (rec) => {
           const linked = findLinkedOrder(rec, allOrders);
           const label = formatRequestedEditorLabel(rec, producers, linked);
-          const isFa = label === "FA";
+          const isFa = label === "First Available";
 
           return (
             <span
               className={clsx(
-                "font-medium uppercase tabular-nums",
+                "font-medium",
                 compactTextClass,
                 isFa ? "text-brand-info" : "text-brand-ink"
               )}
             >
-              {isFa ? "FA" : label}
+              {label}
             </span>
           );
         },
@@ -1303,6 +1343,7 @@ function MTDPageContent() {
   [
     form,
     cheerSubtype,
+    danceSubtype,
     updateMTD,
     handleMoveToOrders,
     allOrders,
@@ -1321,7 +1362,7 @@ function MTDPageContent() {
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <PageHeader
         title="Music To Do"
-        badge={`${filtered.length} of ${mtdBoardRecords.length}`}
+        badge={`${displayedRecords.length} of ${mtdBoardRecords.length}`}
         subtitle="Complete mixes, pricing, and invoicing"
         action={{
           label: "Pricing",
@@ -1331,7 +1372,7 @@ function MTDPageContent() {
         exportAction={{
           label: "CSV",
           onClick: () => {
-            const csv = generateMTDCsv(filtered, allOrders, producers);
+            const csv = generateMTDCsv(displayedRecords, allOrders, producers);
             triggerCsvDownload(`MTD_Export_${todayIso()}.csv`, csv);
           },
         }}
@@ -1360,6 +1401,8 @@ function MTDPageContent() {
             }
             onFiltersReset={() => setTableFilters(DEFAULT_MTD_TABLE_FILTERS)}
             onPricingClick={openPricingReference}
+            viewOrder={viewOrder}
+            onViewOrderChange={setViewOrder}
           />
         }
       />
@@ -1367,9 +1410,9 @@ function MTDPageContent() {
       <div className="min-h-0 flex-1 overflow-auto px-2 pb-6 pt-5 lg:px-3">
         <div className="dashboard-panel dashboard-panel-framed overflow-hidden">
           <DataTable
-            key={`${form}-${cheerSubtype}-${danceSubtype}-${tableFilterKey}`}
+            key={`${form}-${cheerSubtype}-${danceSubtype}-${tableFilterKey}-${viewOrder}`}
             columns={columns}
-            data={filtered}
+            data={displayedRecords}
             rowKey={(rec) => rec.id}
             emptyMessage="No MTD entries match this filter."
             pageSize={15}

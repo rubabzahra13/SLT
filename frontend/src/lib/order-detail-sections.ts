@@ -71,13 +71,14 @@ const ALL_STAR_CHEER_FIELDS: { title: string; fields: FieldDef[] }[] = [
     title: "Mix information",
     fields: [
       { key: "requestedEditor", label: "Requested producer", preserveCase: true },
-      { key: "packageType", label: "Package type", multiline: true },
+      { key: "packageType", label: "Package type" },
       { key: "timeLengthOfMix", label: "Length of mix", preserveCase: true },
       { key: "musicAffiliate", label: "Music affiliate" },
       {
         key: "sendingEightCountSheets",
         label: "Will you be sending 8 count sheets?",
       },
+
       {
         key: "songListSuggestions",
         label: "Song list/suggestions",
@@ -94,26 +95,26 @@ const ALL_STAR_CHEER_FIELDS: { title: string; fields: FieldDef[] }[] = [
       {
         key: "howDidYouFindOut",
         label: "How did you find out about Sounds Like That?",
-        multiline: true,
       },
     ],
   },
 ];
 
+/** Customer form fields for School Cheer · VIROC only (edit order form). */
 const SCHOOL_CHEER_VIROC_YES_FIELDS: { title: string; fields: FieldDef[] }[] = [
   {
-    title: "School",
+    title: "School Information",
     fields: [
       { key: "schoolName", label: "School Name" },
       { key: "schoolBillingAddress", label: "School Billing Address", multiline: true },
       { key: "city", label: "City" },
-      { key: "stateProvince", label: "School State/Province" },
+      { key: "stateProvince", label: "State/Province" },
       { key: "zipPostalCode", label: "ZIP/Postal Code", preserveCase: true },
       { key: "country", label: "Country" },
     ],
   },
   {
-    title: "Team information",
+    title: "Team Information",
     fields: [
       { key: "mascot", label: "Mascot" },
       {
@@ -121,8 +122,8 @@ const SCHOOL_CHEER_VIROC_YES_FIELDS: { title: string; fields: FieldDef[] }[] = [
         label: "Division that your team competes in",
         multiline: true,
       },
-      { key: "teamCoedAllGirl", label: "My team is (Coed/All Girl)" },
-      { key: "teamColors", label: "Team colors" },
+      { key: "teamCoedAllGirl", label: "My team is" },
+      { key: "teamColors", label: "Team Colors" },
       {
         key: "numberOfCopies",
         label:
@@ -132,65 +133,75 @@ const SCHOOL_CHEER_VIROC_YES_FIELDS: { title: string; fields: FieldDef[] }[] = [
     ],
   },
   {
-    title: "Contact & Choreographer information",
+    title: "Contact Information",
     fields: [
       { key: "coachName", label: "Coach (full name)" },
-      { key: "coachPhone", label: "Coach phone #", preserveCase: true },
-      { key: "coachEmail", label: "Coach email", preserveCase: true },
-      { key: "billingPersonName", label: "Billing person (full name)" },
-      { key: "billingPersonEmail", label: "Billing person email", preserveCase: true },
+      { key: "coachPhone", label: "Coach Phone #" },
+      { key: "coachEmail", label: "Coach Email", preserveCase: true },
+      { key: "billingPersonName", label: "Billing Person (full name)" },
+      { key: "billingPersonEmail", label: "Billing Person Email", preserveCase: true },
       { key: "virocChoreographerName", label: "V!ROC Choreographer (full name)" },
-      { key: "virocChoreographerEmail", label: "V!ROC Choreographer email", preserveCase: true },
+      {
+        key: "virocChoreographerEmail",
+        label: "V!ROC Choreographer Email",
+        preserveCase: true,
+      },
     ],
   },
   {
-    title: "Mix information",
+    title: "Mix Information",
     fields: [
-      { key: "requestedEditor", label: "Requested producer", preserveCase: true },
-      { key: "packageType", label: "Package type", multiline: true },
-      { key: "timeLengthOfMix", label: "Length of mix", preserveCase: true },
+      { key: "requestedEditor", label: "Requested Editor", preserveCase: true },
+      { key: "packageType", label: "Package Type" },
+      {
+        key: "timeLengthOfMix",
+        label:
+          "Length of Mix (only list the time length of music needed. Do not include your cheer into the time limit)",
+        preserveCase: true,
+        wide: true,
+      },
       { key: "splitOrNoSplit", label: "Split or No Split" },
-      { key: "musicAffiliate", label: "Music affiliate" },
+      { key: "musicAffiliate", label: "Music Affiliate" },
       {
         key: "sendingEightCountSheets",
-        label: "Will you be sending 8 count sheets?",
+        label: "Will you be sending 8-Count Sheets?",
       },
       {
         key: "songListSuggestions",
-        label: "Song list/suggestions",
+        label: "Song List/Suggestions",
         multiline: true,
         preserveCase: true,
       },
       {
         key: "routineNotes",
-        label: "Routine notes",
+        label: "Routine Notes",
         multiline: true,
         preserveCase: true,
       },
-      { key: "couponCode", label: "Coupon code", preserveCase: true },
+      { key: "couponCode", label: "Coupon Code", preserveCase: true },
       {
         key: "howDidYouFindOut",
         label: "How did you find out about Sounds Like That?",
-        multiline: true,
       },
     ],
   },
 ];
 
+/** Customer form fields for School Cheer (VIROC No) — edit + New Order only. */
 const SCHOOL_CHEER_VIROC_NO_FIELDS: { title: string; fields: FieldDef[] }[] = [
   {
-    title: "School",
+    title: "School Information",
     fields: [
       { key: "schoolName", label: "School Name" },
       { key: "schoolBillingAddress", label: "School Billing Address", multiline: true },
       { key: "city", label: "City" },
-      { key: "stateProvince", label: "School State/Province" },
+      { key: "stateProvince", label: "State/Province" },
       { key: "zipPostalCode", label: "ZIP/Postal Code", preserveCase: true },
       { key: "country", label: "Country" },
     ],
   },
   {
-    title: "Team information",
+    title: "Team Information",
     fields: [
       { key: "mascot", label: "Mascot" },
       {
@@ -198,8 +209,8 @@ const SCHOOL_CHEER_VIROC_NO_FIELDS: { title: string; fields: FieldDef[] }[] = [
         label: "Division that your team competes in",
         multiline: true,
       },
-      { key: "teamCoedAllGirl", label: "My team is (Coed/All Girl)" },
-      { key: "teamColors", label: "Team colors" },
+      { key: "teamCoedAllGirl", label: "My team is" },
+      { key: "teamColors", label: "Team Colors" },
       {
         key: "numberOfCopies",
         label:
@@ -209,63 +220,71 @@ const SCHOOL_CHEER_VIROC_NO_FIELDS: { title: string; fields: FieldDef[] }[] = [
     ],
   },
   {
-    title: "Contact & Choreographer information",
+    title: "Contact Information",
     fields: [
       { key: "coachName", label: "Coach (full name)" },
-      { key: "coachPhone", label: "Coach phone #", preserveCase: true },
-      { key: "coachEmail", label: "Coach email", preserveCase: true },
-      { key: "billingPersonName", label: "Billing person (full name)" },
-      { key: "billingPersonEmail", label: "Billing person email", preserveCase: true },
-      { key: "choreographerName", label: "Choreographer (full name)" },
-      { key: "choreographerEmail", label: "Choreographer email", preserveCase: true },
+      { key: "coachPhone", label: "Coach Phone #" },
+      { key: "coachEmail", label: "Coach Email", preserveCase: true },
+      { key: "billingPersonName", label: "Billing Person (full name)" },
+      { key: "billingPersonEmail", label: "Billing Person Email", preserveCase: true },
+      {
+        key: "choreographerName",
+        label: "Choreographer (full name) — if not relevant, put N/A",
+      },
+      {
+        key: "choreographerEmail",
+        label: "Choreographer Email — if not relevant, put N/A",
+        preserveCase: true,
+      },
     ],
   },
   {
-    title: "Mix information",
+    title: "Mix Information",
     fields: [
-      { key: "requestedEditor", label: "Requested producer", preserveCase: true },
-      { key: "packageType", label: "Package type", multiline: true },
-      { key: "timeLengthOfMix", label: "Length of mix", preserveCase: true },
+      { key: "requestedEditor", label: "Requested Editor", preserveCase: true },
+      { key: "packageType", label: "Package Type" },
+      {
+        key: "timeLengthOfMix",
+        label:
+          "Length of Mix (only list the time length of music needed. Do not include your cheer into the time limit)",
+        preserveCase: true,
+        wide: true,
+      },
       { key: "splitOrNoSplit", label: "Split or No Split" },
-      { key: "musicAffiliate", label: "Music affiliate" },
+      { key: "musicAffiliate", label: "Music Affiliate" },
       {
         key: "sendingEightCountSheets",
-        label: "Will you be sending 8 count sheets?",
+        label: "Will you be sending 8-Count Sheets?",
       },
       {
         key: "songListSuggestions",
-        label: "Song list/suggestions",
+        label: "Song List/Suggestions",
         multiline: true,
         preserveCase: true,
       },
       {
         key: "routineNotes",
-        label: "Routine notes",
+        label: "Routine Notes",
         multiline: true,
         preserveCase: true,
       },
-      { key: "couponCode", label: "Coupon code", preserveCase: true },
+      { key: "couponCode", label: "Coupon Code", preserveCase: true },
       {
         key: "howDidYouFindOut",
         label: "How did you find out about Sounds Like That?",
-        multiline: true,
       },
     ],
   },
 ];
 
+/** Customer form fields for Youth Rec Cheer — edit + New Order only. */
 const YOUTH_REC_CHEER_FIELDS: { title: string; fields: FieldDef[] }[] = [
   {
-    title: "Program & Team information",
+    title: "Program Information",
     fields: [
       { key: "programName", label: "Program Name" },
       { key: "teamName", label: "Team Name" },
       { key: "colors", label: "Colors" },
-    ],
-  },
-  {
-    title: "Billing Address",
-    fields: [
       { key: "billingAddress", label: "Billing Address", multiline: true },
       { key: "city", label: "City" },
       { key: "stateProvince", label: "State/Province" },
@@ -274,16 +293,20 @@ const YOUTH_REC_CHEER_FIELDS: { title: string; fields: FieldDef[] }[] = [
     ],
   },
   {
-    title: "Contact information",
+    title: "Contact Information",
     fields: [
-      { key: "coachContactFullName", label: "Coach Contact (full name)" },
-      { key: "coachEmailAddress", label: "Coach Email Address", preserveCase: true },
-      { key: "coachPhone", label: "Coach Phone #", preserveCase: true },
+      { key: "coachContactFullName", label: "Coach Contact Full Name" },
+      {
+        key: "coachEmailAddress",
+        label: "Coach Email Address",
+        preserveCase: true,
+      },
+      { key: "coachPhone", label: "Phone #" },
       { key: "emailAddress", label: "Email Address", preserveCase: true },
     ],
   },
   {
-    title: "Mix information",
+    title: "Mix Information",
     fields: [
       { key: "packageType", label: "Package" },
       { key: "timeLengthOfMix", label: "Mix Length", preserveCase: true },
@@ -296,33 +319,33 @@ const YOUTH_REC_CHEER_FIELDS: { title: string; fields: FieldDef[] }[] = [
       },
       {
         key: "usingEightCountSheets",
-        label: "Will you be using 8 count sheets?",
+        label: "Will you be using 8 Count Sheets?",
       },
       {
         key: "songListSuggestions",
-        label: "Song list/suggestions",
+        label: "Song List/Suggestions",
         multiline: true,
         preserveCase: true,
       },
       {
         key: "routineNotes",
-        label: "Routine notes",
+        label: "Routine Notes",
         multiline: true,
         preserveCase: true,
       },
-      { key: "couponCode", label: "Coupon code", preserveCase: true },
+      { key: "couponCode", label: "Coupon Code", preserveCase: true },
       {
         key: "howDidYouFindOut",
         label: "How did you find out about Sounds Like That?",
-        multiline: true,
       },
     ],
   },
 ];
 
+/** Customer form fields for POM — edit + New Order only. */
 const POM_DANCE_FIELDS: { title: string; fields: FieldDef[] }[] = [
   {
-    title: "School / Program information",
+    title: "School/Program Information",
     fields: [
       { key: "schoolProgramName", label: "School/Program Name" },
       { key: "schoolGymAddress", label: "School/Gym Address", multiline: true },
@@ -330,23 +353,38 @@ const POM_DANCE_FIELDS: { title: string; fields: FieldDef[] }[] = [
       { key: "stateProvince", label: "State/Province" },
       { key: "zipPostalCode", label: "ZIP/Postal Code", preserveCase: true },
       { key: "country", label: "Country" },
-      { key: "divisionOfTeam", label: "Division of Team", multiline: true },
+      { key: "divisionOfTeam", label: "Division of Team" },
     ],
   },
   {
-    title: "Contact & Choreographer information",
+    title: "Contact Information",
     fields: [
       { key: "coachName", label: "Coach (full name)" },
-      { key: "coachPhone", label: "Coach phone #", preserveCase: true },
-      { key: "coachEmail", label: "Coach email", preserveCase: true },
-      { key: "billingPersonName", label: "Billing person (full name)" },
-      { key: "billingPersonEmail", label: "Billing person email", preserveCase: true },
-      { key: "choreographerName", label: "Choreographer (full name)" },
-      { key: "choreographerEmail", label: "Choreographer email", preserveCase: true },
+      { key: "coachPhone", label: "Coach Phone #" },
+      { key: "coachEmail", label: "Coach Email", preserveCase: true },
+      { key: "billingPersonName", label: "Billing Person (full name)" },
+      {
+        key: "billingPersonEmail",
+        label: "Billing Person Email",
+        preserveCase: true,
+      },
+      {
+        key: "choreographerName",
+        label:
+          "Choreographer (full name) — if this is not relevant to your order, put N/A",
+        wide: true,
+      },
+      {
+        key: "choreographerEmail",
+        label:
+          "Choreographer Email — if this is not relevant to your order, put N/A",
+        preserveCase: true,
+        wide: true,
+      },
     ],
   },
   {
-    title: "Mix & Routine information",
+    title: "Mix Information",
     fields: [
       {
         key: "numberOfCopies",
@@ -354,37 +392,58 @@ const POM_DANCE_FIELDS: { title: string; fields: FieldDef[] }[] = [
           "How many copies of your music will you need to send out to your coaches and participants?",
         wide: true,
       },
-      { key: "packageType", label: "Package type", multiline: true },
-      { key: "requestedEditor", label: "Requested producer", preserveCase: true },
-      { key: "timeLengthOfMix", label: "Time length of mix", preserveCase: true },
-      { key: "musicAffiliate", label: "Music affiliate" },
+      { key: "packageType", label: "Package Type" },
+      { key: "requestedEditor", label: "Requested Editor", preserveCase: true },
       {
-        key: "routineNotes",
-        label: "Routine notes",
+        key: "timeLengthOfMix",
+        label: "Time Length of Mix",
+        preserveCase: true,
+      },
+      { key: "musicAffiliate", label: "Music Affiliate" },
+      {
+        key: "powerMusicCovers",
+        label: "Power Music Covers",
         multiline: true,
         preserveCase: true,
       },
-      { key: "customVoiceovers", label: "Custom Voiceovers for your mix?" },
+      {
+        key: "songListSuggestions",
+        label: "Unleash the Beats Covers",
+        multiline: true,
+        preserveCase: true,
+      },
+      {
+        key: "routineNotes",
+        label: "Routine Notes",
+        multiline: true,
+        preserveCase: true,
+      },
+      {
+        key: "customVoiceovers",
+        label: "Custom Voiceovers for your Mix?",
+      },
       {
         key: "voiceoverScript",
         label: "What do you want the voiceovers to say?",
-        multiline: true,
         preserveCase: true,
       },
       {
         key: "pronunciationGuidance",
-        label: "Pronunciation guidance",
+        label:
+          "Please include pronunciation guidance for any school/gym name, team color, mascot, or other voiceover wording that could be unclear. We will record exactly what you type—re-records due to pronunciation issues will be charged.",
         multiline: true,
         preserveCase: true,
+        wide: true,
       },
-      { key: "couponCode", label: "Coupon code", preserveCase: true },
+      { key: "couponCode", label: "Coupon Code", preserveCase: true },
     ],
   },
 ];
 
+/** Customer form fields for Hip Hop — edit + New Order only. */
 const HIP_HOP_DANCE_FIELDS: { title: string; fields: FieldDef[] }[] = [
   {
-    title: "School / Program information",
+    title: "School/Program Information",
     fields: [
       { key: "schoolProgramName", label: "School/Program Name" },
       { key: "schoolGymAddress", label: "School/Gym Address", multiline: true },
@@ -392,22 +451,38 @@ const HIP_HOP_DANCE_FIELDS: { title: string; fields: FieldDef[] }[] = [
       { key: "stateProvince", label: "State/Province" },
       { key: "zipPostalCode", label: "ZIP/Postal Code", preserveCase: true },
       { key: "country", label: "Country" },
+      { key: "divisionOfTeam", label: "Division of Team" },
     ],
   },
   {
-    title: "Contact & Choreographer information",
+    title: "Contact Information",
     fields: [
       { key: "coachName", label: "Coach (full name)" },
-      { key: "coachPhone", label: "Coach phone #", preserveCase: true },
-      { key: "coachEmail", label: "Coach email", preserveCase: true },
-      { key: "billingPersonName", label: "Billing person (full name)" },
-      { key: "billingPersonEmail", label: "Billing person email", preserveCase: true },
-      { key: "choreographerName", label: "Choreographer (full name)" },
-      { key: "choreographerEmail", label: "Choreographer email", preserveCase: true },
+      { key: "coachPhone", label: "Coach Phone #" },
+      { key: "coachEmail", label: "Coach Email", preserveCase: true },
+      { key: "billingPersonName", label: "Billing Person (full name)" },
+      {
+        key: "billingPersonEmail",
+        label: "Billing Person Email",
+        preserveCase: true,
+      },
+      {
+        key: "choreographerName",
+        label:
+          "Choreographer (full name) — if this is not relevant to your order, put N/A",
+        wide: true,
+      },
+      {
+        key: "choreographerEmail",
+        label:
+          "Choreographer Email — if this is not relevant to your order, put N/A",
+        preserveCase: true,
+        wide: true,
+      },
     ],
   },
   {
-    title: "Mix & Routine information",
+    title: "Mix Information",
     fields: [
       {
         key: "numberOfCopies",
@@ -415,37 +490,58 @@ const HIP_HOP_DANCE_FIELDS: { title: string; fields: FieldDef[] }[] = [
           "How many copies of your music will you need to send out to your coaches and participants?",
         wide: true,
       },
-      { key: "packageType", label: "Package type", multiline: true },
-      { key: "requestedEditor", label: "Requested producer", preserveCase: true },
-      { key: "timeLengthOfMix", label: "Time length of mix", preserveCase: true },
-      { key: "musicAffiliate", label: "Music affiliate" },
+      { key: "packageType", label: "Package Type" },
+      { key: "requestedEditor", label: "Requested Editor", preserveCase: true },
       {
-        key: "routineNotes",
-        label: "Routine notes",
+        key: "timeLengthOfMix",
+        label: "Time Length of Mix",
+        preserveCase: true,
+      },
+      { key: "musicAffiliate", label: "Music Affiliate" },
+      {
+        key: "powerMusicCovers",
+        label: "Power Music Covers",
         multiline: true,
         preserveCase: true,
       },
-      { key: "customVoiceovers", label: "Custom Voiceovers for your mix?" },
+      {
+        key: "songListSuggestions",
+        label: "Unleash the Beats Covers",
+        multiline: true,
+        preserveCase: true,
+      },
+      {
+        key: "routineNotes",
+        label: "Routine Notes",
+        multiline: true,
+        preserveCase: true,
+      },
+      {
+        key: "customVoiceovers",
+        label: "Custom Voiceovers for your Mix?",
+      },
       {
         key: "voiceoverScript",
         label: "What do you want the voiceovers to say?",
-        multiline: true,
         preserveCase: true,
       },
       {
         key: "pronunciationGuidance",
-        label: "Pronunciation guidance",
+        label:
+          "Please include pronunciation guidance for any school/gym name, team color, mascot, or other voiceover wording that could be unclear. We will record exactly what you type—re-records due to pronunciation issues will be charged.",
         multiline: true,
         preserveCase: true,
+        wide: true,
       },
-      { key: "couponCode", label: "Coupon code", preserveCase: true },
+      { key: "couponCode", label: "Coupon Code", preserveCase: true },
     ],
   },
 ];
 
+/** Customer form fields for Team Performance & Variety — edit + New Order only. */
 const TEAM_PERFORMANCE_VARIETY_DANCE_FIELDS: { title: string; fields: FieldDef[] }[] = [
   {
-    title: "School / Program information",
+    title: "School/Program Information",
     fields: [
       { key: "schoolProgramName", label: "School/Program Name" },
       { key: "schoolGymAddress", label: "School/Gym Address", multiline: true },
@@ -456,19 +552,34 @@ const TEAM_PERFORMANCE_VARIETY_DANCE_FIELDS: { title: string; fields: FieldDef[]
     ],
   },
   {
-    title: "Contact & Choreographer information",
+    title: "Contact Information",
     fields: [
       { key: "coachName", label: "Coach (full name)" },
-      { key: "coachPhone", label: "Coach phone #", preserveCase: true },
-      { key: "coachEmail", label: "Coach email", preserveCase: true },
-      { key: "billingPersonName", label: "Billing person (full name)" },
-      { key: "billingPersonEmail", label: "Billing person email", preserveCase: true },
-      { key: "choreographerName", label: "Choreographer (full name)" },
-      { key: "choreographerEmail", label: "Choreographer email", preserveCase: true },
+      { key: "coachPhone", label: "Coach Phone #" },
+      { key: "coachEmail", label: "Coach Email", preserveCase: true },
+      { key: "billingPersonName", label: "Billing Person (full name)" },
+      {
+        key: "billingPersonEmail",
+        label: "Billing Person Email",
+        preserveCase: true,
+      },
+      {
+        key: "choreographerName",
+        label:
+          "Choreographer (full name) — if this is not relevant to your order, put N/A",
+        wide: true,
+      },
+      {
+        key: "choreographerEmail",
+        label:
+          "Choreographer Email — if this is not relevant to your order, put N/A",
+        preserveCase: true,
+        wide: true,
+      },
     ],
   },
   {
-    title: "Mix & Routine information",
+    title: "Mix Information",
     fields: [
       {
         key: "numberOfCopies",
@@ -476,39 +587,62 @@ const TEAM_PERFORMANCE_VARIETY_DANCE_FIELDS: { title: string; fields: FieldDef[]
           "How many copies of your music will you need to send out to your coaches and participants?",
         wide: true,
       },
-      { key: "divisionOfTeam", label: "Division of Team", multiline: true },
+      { key: "divisionOfTeam", label: "Division of Team" },
       { key: "style", label: "Style" },
-      { key: "requestedEditor", label: "Requested producer", preserveCase: true },
-      { key: "packageType", label: "Package type", multiline: true },
-      { key: "timeLengthOfMix", label: "Time length of mix", preserveCase: true },
-      { key: "musicAffiliate", label: "Music affiliate" },
+      { key: "requestedEditor", label: "Requested Editor", preserveCase: true },
+      { key: "packageType", label: "Package Type" },
       {
-        key: "routineNotes",
-        label: "Routine notes",
+        key: "timeLengthOfMix",
+        label: "Time Length of Mix",
+        preserveCase: true,
+      },
+      { key: "musicAffiliate", label: "Music Affiliate" },
+      {
+        key: "powerMusicCovers",
+        label: "Power Music Covers",
         multiline: true,
         preserveCase: true,
       },
-      { key: "customVoiceovers", label: "Custom Voiceovers for your mix?" },
+      {
+        key: "songListSuggestions",
+        label: "Unleash the Beats Covers",
+        multiline: true,
+        preserveCase: true,
+      },
+      {
+        key: "routineNotes",
+        label:
+          "Routine Notes (please list the styles of dance required, the order in the mix desired, and the amount of time or number of 8 counts required per section)",
+        multiline: true,
+        preserveCase: true,
+        wide: true,
+      },
+      {
+        key: "customVoiceovers",
+        label: "Custom Voiceovers for your Mix?",
+      },
       {
         key: "voiceoverScript",
-        label: "What do you want the voiceovers to say?",
-        multiline: true,
+        label: "What do you want your custom voiceovers to say?",
         preserveCase: true,
       },
       {
         key: "pronunciationGuidance",
-        label: "Pronunciation guidance",
+        label:
+          "Please include pronunciation guidance for any school/gym name, team color, mascot, or other voiceover wording that could be unclear. We will record exactly what you type—re-records due to pronunciation issues will be charged.",
         multiline: true,
         preserveCase: true,
+        wide: true,
       },
-      { key: "couponCode", label: "Coupon code", preserveCase: true },
+      { key: "couponCode", label: "Coupon Code", preserveCase: true },
     ],
   },
 ];
 
+/** Customer form fields for Gameday — edit + New Order only. */
 const GAMEDAY_DANCE_FIELDS: { title: string; fields: FieldDef[] }[] = [
   {
-    title: "School / Program information",
+    title: "School/Program Information",
     fields: [
       { key: "schoolProgramName", label: "School/Program Name" },
       { key: "schoolGymAddress", label: "School/Gym Address", multiline: true },
@@ -519,19 +653,34 @@ const GAMEDAY_DANCE_FIELDS: { title: string; fields: FieldDef[] }[] = [
     ],
   },
   {
-    title: "Contact & Choreographer information",
+    title: "Contact Information",
     fields: [
       { key: "coachName", label: "Coach (full name)" },
-      { key: "coachPhone", label: "Coach phone #", preserveCase: true },
-      { key: "coachEmail", label: "Coach email", preserveCase: true },
-      { key: "billingPersonName", label: "Billing person (full name)" },
-      { key: "billingPersonEmail", label: "Billing person email", preserveCase: true },
-      { key: "choreographerName", label: "Choreographer (full name)" },
-      { key: "choreographerEmail", label: "Choreographer email", preserveCase: true },
+      { key: "coachPhone", label: "Coach Phone #" },
+      { key: "coachEmail", label: "Coach Email", preserveCase: true },
+      { key: "billingPersonName", label: "Billing Person (full name)" },
+      {
+        key: "billingPersonEmail",
+        label: "Billing Person Email",
+        preserveCase: true,
+      },
+      {
+        key: "choreographerName",
+        label:
+          "Choreographer (full name) — if this is not relevant to your order, put N/A",
+        wide: true,
+      },
+      {
+        key: "choreographerEmail",
+        label:
+          "Choreographer Email — if this is not relevant to your order, put N/A",
+        preserveCase: true,
+        wide: true,
+      },
     ],
   },
   {
-    title: "Mix & Routine information",
+    title: "Mix Information",
     fields: [
       {
         key: "numberOfCopies",
@@ -539,38 +688,59 @@ const GAMEDAY_DANCE_FIELDS: { title: string; fields: FieldDef[] }[] = [
           "How many copies of your music will you need to send out to your coaches and participants?",
         wide: true,
       },
-      { key: "packageType", label: "Package type", multiline: true },
+      { key: "packageType", label: "Package Type" },
       { key: "styleOfGamedayMix", label: "Style of Gameday Mix" },
-      { key: "timeLengthOfMix", label: "Time length of mix", preserveCase: true },
-      { key: "requestedEditor", label: "Requested producer", preserveCase: true },
-      { key: "musicAffiliate", label: "Music affiliate" },
       {
-        key: "routineNotes",
-        label: "Routine notes",
+        key: "timeLengthOfMix",
+        label: "Time Length of Mix",
+        preserveCase: true,
+      },
+      { key: "requestedEditor", label: "Requested Editor", preserveCase: true },
+      { key: "musicAffiliate", label: "Music Affiliate" },
+      {
+        key: "powerMusicCovers",
+        label: "Power Music Covers",
         multiline: true,
         preserveCase: true,
       },
-      { key: "customVoiceovers", label: "Custom Voiceovers for your mix?" },
+      {
+        key: "songListSuggestions",
+        label: "Unleash the Beats Covers",
+        multiline: true,
+        preserveCase: true,
+      },
+      {
+        key: "routineNotes",
+        label: "Routine Notes",
+        multiline: true,
+        preserveCase: true,
+      },
+      {
+        key: "customVoiceovers",
+        label: "Custom Voiceovers for your Mix?",
+      },
       {
         key: "voiceoverScript",
         label: "What do you want the voiceovers to say?",
-        multiline: true,
         preserveCase: true,
       },
       {
         key: "pronunciationGuidance",
-        label: "Pronunciation guidance",
+        label:
+          "Please include pronunciation guidance for any school/gym name, team color, mascot, or other voiceover wording that could be unclear. We will record exactly what you type—re-records due to pronunciation issues will be charged.",
         multiline: true,
         preserveCase: true,
+        wide: true,
       },
-      { key: "couponCode", label: "Coupon code", preserveCase: true },
+      { key: "couponCode", label: "Coupon Code", preserveCase: true },
     ],
   },
 ];
 
+/** Customer form fields for Jazz/Kick — edit + New Order only. */
 const JAZZ_KICK_DANCE_FIELDS: { title: string; fields: FieldDef[] }[] = [
   {
-    title: "School / Program information",
+    title: "School/Program Information",
     fields: [
       { key: "schoolProgramName", label: "School/Program Name" },
       { key: "schoolGymAddress", label: "School/Gym Address", multiline: true },
@@ -578,23 +748,37 @@ const JAZZ_KICK_DANCE_FIELDS: { title: string; fields: FieldDef[] }[] = [
       { key: "stateProvince", label: "State/Province" },
       { key: "zipPostalCode", label: "ZIP/Postal Code", preserveCase: true },
       { key: "country", label: "Country" },
-      { key: "divisionOfTeam", label: "Division of Team", multiline: true },
     ],
   },
   {
-    title: "Contact & Choreographer information",
+    title: "Contact Information",
     fields: [
       { key: "coachName", label: "Coach (full name)" },
-      { key: "coachPhone", label: "Coach phone #", preserveCase: true },
-      { key: "coachEmail", label: "Coach email", preserveCase: true },
-      { key: "billingPersonName", label: "Billing person (full name)" },
-      { key: "billingPersonEmail", label: "Billing person email", preserveCase: true },
-      { key: "choreographerName", label: "Choreographer (full name)" },
-      { key: "choreographerEmail", label: "Choreographer email", preserveCase: true },
+      { key: "coachPhone", label: "Coach Phone #" },
+      { key: "coachEmail", label: "Coach Email", preserveCase: true },
+      { key: "billingPersonName", label: "Billing Person (full name)" },
+      {
+        key: "billingPersonEmail",
+        label: "Billing Person Email",
+        preserveCase: true,
+      },
+      {
+        key: "choreographerName",
+        label:
+          "Choreographer (full name) — if this is not relevant to your order, put N/A",
+        wide: true,
+      },
+      {
+        key: "choreographerEmail",
+        label:
+          "Choreographer Email — if this is not relevant to your order, put N/A",
+        preserveCase: true,
+        wide: true,
+      },
     ],
   },
   {
-    title: "Mix & Routine information",
+    title: "Mix Information",
     fields: [
       {
         key: "numberOfCopies",
@@ -602,43 +786,66 @@ const JAZZ_KICK_DANCE_FIELDS: { title: string; fields: FieldDef[] }[] = [
           "How many copies of your music will you need to send out to your coaches and participants?",
         wide: true,
       },
+      { key: "divisionOfTeam", label: "Division of Team" },
       { key: "style", label: "Style" },
-      { key: "requestedEditor", label: "Requested producer", preserveCase: true },
-      { key: "packageType", label: "Package type", multiline: true },
-      { key: "timeLengthOfMix", label: "Time length of mix", preserveCase: true },
+      { key: "requestedEditor", label: "Requested Editor", preserveCase: true },
+      { key: "packageType", label: "Package Type" },
+      {
+        key: "timeLengthOfMix",
+        label: "Time Length of Mix",
+        preserveCase: true,
+      },
       {
         key: "licensingRequired",
-        label: "Do you attend any event where you are required to show proper licensing?",
+        label:
+          "Do you attend any event where you are required to show proper licensing?",
+        wide: true,
+      },
+      { key: "musicAffiliate", label: "Music Affiliate" },
+      {
+        key: "powerMusicCovers",
+        label: "Power Music Covers",
+        multiline: true,
         preserveCase: true,
       },
-      { key: "musicAffiliate", label: "Music affiliate" },
+      {
+        key: "songListSuggestions",
+        label: "Unleash the Beats Covers",
+        multiline: true,
+        preserveCase: true,
+      },
       {
         key: "routineNotes",
-        label: "Routine notes",
+        label: "Routine Notes",
         multiline: true,
         preserveCase: true,
       },
-      { key: "customVoiceovers", label: "Custom Voiceovers for your mix?" },
+      {
+        key: "customVoiceovers",
+        label: "Custom Voiceovers for your Mix?",
+      },
       {
         key: "voiceoverScript",
-        label: "What do you want the voiceovers to say?",
-        multiline: true,
+        label: "What do you want your custom voiceovers to say?",
         preserveCase: true,
       },
       {
         key: "pronunciationGuidance",
-        label: "Pronunciation guidance",
+        label:
+          "Please include pronunciation guidance for any school/gym name, team color, mascot, or other voiceover wording that could be unclear. We will record exactly what you type—re-records due to pronunciation issues will be charged.",
         multiline: true,
         preserveCase: true,
+        wide: true,
       },
-      { key: "couponCode", label: "Coupon code", preserveCase: true },
+      { key: "couponCode", label: "Coupon Code", preserveCase: true },
     ],
   },
 ];
 
+/** Customer form fields for Marching Band — edit + New Order only. */
 const MARCHING_BAND_FIELDS: { title: string; fields: FieldDef[] }[] = [
   {
-    title: "School / Program information",
+    title: "School/Program Information",
     fields: [
       { key: "schoolProgramName", label: "School/Program Name" },
       { key: "schoolGymAddress", label: "School/Gym Address", multiline: true },
@@ -649,42 +856,57 @@ const MARCHING_BAND_FIELDS: { title: string; fields: FieldDef[] }[] = [
     ],
   },
   {
-    title: "Contact & Billing information",
+    title: "Contact Information",
     fields: [
       { key: "coachName", label: "Coach (full name)" },
-      { key: "coachPhone", label: "Coach phone #", preserveCase: true },
-      { key: "coachEmail", label: "Coach email", preserveCase: true },
-      { key: "billingPersonName", label: "Billing person (full name)" },
-      { key: "billingPersonEmail", label: "Billing person email", preserveCase: true },
+      { key: "coachPhone", label: "Coach Phone #" },
+      { key: "coachEmail", label: "Coach Email", preserveCase: true },
+      { key: "billingPersonName", label: "Billing Person (full name)" },
+      {
+        key: "billingPersonEmail",
+        label: "Billing Person Email",
+        preserveCase: true,
+      },
     ],
   },
   {
-    title: "Package & Production information",
+    title: "Mix Information",
     fields: [
-      { key: "packageType", label: "Package type", multiline: true },
-      { key: "timeLengthOfMix", label: "Time length of mix", preserveCase: true },
+      { key: "packageType", label: "Package Type" },
+      {
+        key: "timeLengthOfMix",
+        label: "Time Length of Mix",
+        preserveCase: true,
+      },
       {
         key: "instrumentationNotes",
-        label: "Notes to producer regarding instrumentation",
+        label: "Notes to Producer Regarding Instrumentation",
         multiline: true,
         preserveCase: true,
+        wide: true,
       },
       {
         key: "lyricalNotes",
-        label: "Notes to producer regarding lyrics",
+        label: "Notes to Producer Regarding Lyrics",
         multiline: true,
         preserveCase: true,
+        wide: true,
       },
     ],
   },
 ];
 
+/** Customer form fields for Sports Entertainment — edit + New Order only. */
 const SPORTS_ENTERTAINMENT_FIELDS: { title: string; fields: FieldDef[] }[] = [
   {
-    title: "Organization information",
+    title: "Organization Information",
     fields: [
       { key: "organizationName", label: "Organization Name" },
-      { key: "billingAddress", label: "Organization's Billing Address", multiline: true },
+      {
+        key: "billingAddress",
+        label: "Organization's Billing Address",
+        multiline: true,
+      },
       { key: "city", label: "City" },
       { key: "stateProvince", label: "State/Province" },
       { key: "zipPostalCode", label: "ZIP/Postal Code", preserveCase: true },
@@ -692,30 +914,52 @@ const SPORTS_ENTERTAINMENT_FIELDS: { title: string; fields: FieldDef[] }[] = [
     ],
   },
   {
-    title: "Contact & Billing information",
+    title: "Contact Information",
     fields: [
       { key: "musicContactName", label: "Music Contact Name" },
-      { key: "musicContactPhone", label: "Music Contact Phone", preserveCase: true },
-      { key: "musicContactEmail", label: "Music Contact Email", preserveCase: true },
-      { key: "billingContactName", label: "Billing Contact Name" },
-      { key: "billingContactEmail", label: "Billing Contact Email", preserveCase: true },
+      { key: "musicContactPhone", label: "Music Contact Phone" },
+      {
+        key: "musicContactEmail",
+        label: "Music Contact Email",
+        preserveCase: true,
+      },
+      {
+        key: "billingContactName",
+        label: "Billing Contact Name (If different than Music Contact)",
+        wide: true,
+      },
+      {
+        key: "billingContactEmail",
+        label: "Billing Contact Email",
+        preserveCase: true,
+      },
     ],
   },
   {
-    title: "Package & Production information",
+    title: "Mix Information",
     fields: [
-      { key: "packageType", label: "Package type", multiline: true },
-      { key: "isRushOrder", label: "Do You Need A Rush Order?" },
-      { key: "timeLengthOfMix", label: "Time length of mix", preserveCase: true },
+      { key: "packageType", label: "Package Type" },
+      {
+        key: "mixEndDate",
+        label: "Please allow 14 days turn around for all Pro Team mixes.",
+        wide: true,
+      },
+      {
+        key: "isRushOrder",
+        label:
+          "Do you need a Rush Order? If you need your mix in under 7 days, there is a rush fee of $100.",
+        wide: true,
+      },
+      { key: "timeLengthOfMix", label: "Time Length", preserveCase: true },
       {
         key: "customerSongs",
-        label: "Customer-submitted song list",
+        label: "Songs",
         multiline: true,
         preserveCase: true,
       },
       {
         key: "additionalNotes",
-        label: "Additional notes",
+        label: "Additional Notes",
         multiline: true,
         preserveCase: true,
       },
@@ -723,12 +967,17 @@ const SPORTS_ENTERTAINMENT_FIELDS: { title: string; fields: FieldDef[] }[] = [
   },
 ];
 
+/** Customer form fields for School Anthem — edit + New Order only. */
 const SCHOOL_ANTHEMS_FIELDS: { title: string; fields: FieldDef[] }[] = [
   {
-    title: "School / Organization information",
+    title: "School/Organization Information",
     fields: [
       { key: "schoolOrganizationName", label: "School/Organization Name" },
-      { key: "schoolBillingAddress", label: "School Billing Address", multiline: true },
+      {
+        key: "schoolBillingAddress",
+        label: "School/Organization Billing Address",
+        multiline: true,
+      },
       { key: "city", label: "City" },
       { key: "stateProvince", label: "State/Province" },
       { key: "zipPostalCode", label: "ZIP/Postal Code", preserveCase: true },
@@ -736,30 +985,53 @@ const SCHOOL_ANTHEMS_FIELDS: { title: string; fields: FieldDef[] }[] = [
     ],
   },
   {
-    title: "Contact & Billing information",
+    title: "Contact Information",
     fields: [
       { key: "musicContactName", label: "Music Contact Name" },
-      { key: "musicContactPhone", label: "Music Contact Phone", preserveCase: true },
-      { key: "musicContactEmail", label: "Music Contact Email", preserveCase: true },
-      { key: "billingPersonName", label: "Billing person (full name)" },
-      { key: "billingPersonEmail", label: "Billing person email", preserveCase: true },
+      { key: "musicContactPhone", label: "Music Contact Phone" },
+      {
+        key: "musicContactEmail",
+        label: "Music Contact Email",
+        preserveCase: true,
+      },
+      { key: "billingPersonName", label: "Billing Person (full name)" },
+      {
+        key: "billingPersonEmail",
+        label: "Billing Person Email",
+        preserveCase: true,
+      },
     ],
   },
   {
-    title: "Anthem Preferences & Details",
+    title: "Team Information",
     fields: [
       { key: "mascot", label: "Mascot" },
       { key: "schoolProgramColors", label: "School/Program Colors" },
-      { key: "nicknames", label: "Nicknames / Terms / Sayings", multiline: true },
+      { key: "nicknames", label: "Nicknames", preserveCase: true },
+    ],
+  },
+  {
+    title: "Song Information",
+    fields: [
       { key: "vocalsPreference", label: "Vocals Preference" },
-      { key: "instrumentalStylePreference", label: "Instrumental Style Preference" },
+      {
+        key: "instrumentalStylePreference",
+        label: "Instrumental Style Preference",
+        wide: true,
+      },
       {
         key: "lyricalNotes",
-        label: "Lyrical Notes / Ideas",
+        label: "Lyrical Notes",
         multiline: true,
         preserveCase: true,
+        wide: true,
       },
-      { key: "couponCode", label: "Coupon code", preserveCase: true },
+    ],
+  },
+  {
+    title: "Coupon Code",
+    fields: [
+      { key: "couponCode", label: "Coupon Code", preserveCase: true },
     ],
   },
 ];
@@ -820,6 +1092,29 @@ export function getOrderFormBadge(order: Order): string | null {
   const title = getCheerFormTitle(order.cheerFormSubtype);
   if (!code || !title) return title;
   return `${code} · ${title.toUpperCase()}`;
+}
+
+/** True when any order-form section field differs between original and draft. */
+export function orderFormFieldsDirty(
+  original: Order,
+  draft: Order
+): boolean {
+  const sections = getOrderDetailSections(original);
+  for (const section of sections) {
+    for (const field of section.fields) {
+      const prev = rawFieldValue(original, field.key).trim();
+      const next = rawFieldValue(draft, field.key).trim();
+      if (field.key === "numberOfCopies") {
+        // UI defaults empty copies to "1"; don't treat that alone as dirty.
+        const prevNorm = prev || "1";
+        const nextNorm = next || "1";
+        if (prevNorm !== nextNorm) return true;
+        continue;
+      }
+      if (prev !== next) return true;
+    }
+  }
+  return false;
 }
 
 export function getOrderDetailSections(order: Order): OrderDetailSection[] {
@@ -887,9 +1182,9 @@ export function getOrderDetailSections(order: Order): OrderDetailSection[] {
 export function getFormTypeLabel(formType: OrderFormType): string {
   switch (formType) {
     case "school-all-star-cheer":
-      return "All Star Cheer";
+      return "School/All Star Cheer";
     case "school-all-star-dance":
-      return "All Star Dance";
+      return "School/All Star Dance";
     case "marching-band":
       return "Marching Band";
     case "sports-entertainment":
@@ -899,4 +1194,114 @@ export function getFormTypeLabel(formType: OrderFormType): string {
     default:
       return formType;
   }
+}
+
+function firstIdentityField(
+  sections: { title: string; fields: FieldDef[] }[]
+): { key: string; label: string } {
+  const field = sections[0]?.fields[0];
+  return {
+    key: field?.key || "programName",
+    label: field?.label || "Program",
+  };
+}
+
+function identityFieldForForm(
+  formType: OrderFormType | string | undefined,
+  cheerSubtype?: string | null,
+  danceSubtype?: string | null
+): { key: string; label: string } {
+  switch (formType) {
+    case "school-all-star-cheer":
+      switch (cheerSubtype) {
+        case "school-cheer-viroc-yes":
+          return firstIdentityField(SCHOOL_CHEER_VIROC_YES_FIELDS);
+        case "school-cheer-viroc-no":
+          return firstIdentityField(SCHOOL_CHEER_VIROC_NO_FIELDS);
+        case "youth-rec-cheer":
+          return firstIdentityField(YOUTH_REC_CHEER_FIELDS);
+        case "all-star-cheer":
+        default:
+          return firstIdentityField(ALL_STAR_CHEER_FIELDS);
+      }
+    case "school-all-star-dance":
+      switch (danceSubtype) {
+        case "hip-hop":
+          return firstIdentityField(HIP_HOP_DANCE_FIELDS);
+        case "team-performance":
+        case "team-performance-variety":
+          return firstIdentityField(TEAM_PERFORMANCE_VARIETY_DANCE_FIELDS);
+        case "gameday":
+          return firstIdentityField(GAMEDAY_DANCE_FIELDS);
+        case "jazz-kick":
+          return firstIdentityField(JAZZ_KICK_DANCE_FIELDS);
+        case "pom":
+        default:
+          return firstIdentityField(POM_DANCE_FIELDS);
+      }
+    case "marching-band":
+      return firstIdentityField(MARCHING_BAND_FIELDS);
+    case "sports-entertainment":
+      return firstIdentityField(SPORTS_ENTERTAINMENT_FIELDS);
+    case "school-anthem":
+      return firstIdentityField(SCHOOL_ANTHEMS_FIELDS);
+    default:
+      return { key: "programName", label: "Program" };
+  }
+}
+
+/**
+ * Orders/MTD "Program" column header — matches the first field label
+ * on that form's edit / New Order view.
+ */
+export function getProgramColumnHeader(
+  formType: OrderFormType | string | undefined,
+  cheerSubtype?: string | null,
+  danceSubtype?: string | null
+): string {
+  return identityFieldForForm(formType, cheerSubtype, danceSubtype).label;
+}
+
+/** Field key for the category/subtype identity name (first edit-form field). */
+export function getOrderIdentityFieldKey(
+  formType: OrderFormType | string | undefined,
+  cheerSubtype?: string | null,
+  danceSubtype?: string | null
+): string {
+  return identityFieldForForm(formType, cheerSubtype, danceSubtype).key;
+}
+
+/** Resolve cheer subtype for identity matching (incl. V!ROC flag fallback). */
+function resolveCheerSubtypeForIdentity(order: Order): string | null | undefined {
+  if (order.cheerFormSubtype) return order.cheerFormSubtype;
+  const viroc = String(order.varsityVirocCustomer || "").trim().toLowerCase();
+  if (viroc === "yes") return "school-cheer-viroc-yes";
+  if (viroc === "no") return "school-cheer-viroc-no";
+  return order.cheerFormSubtype;
+}
+
+/**
+ * Value used to match form ↔ manual orders for this category/subtype.
+ * Prefers the first edit-form field, then falls back to programName.
+ * V!ROC Yes/No both use School Name (same as the edit form / Program column).
+ */
+export function getOrderIdentityName(order: Order): string {
+  const cheerSubtype = resolveCheerSubtypeForIdentity(order);
+  const key = getOrderIdentityFieldKey(
+    order.formType,
+    cheerSubtype,
+    order.danceFormSubtype
+  );
+  const fromField = rawFieldValue(order, key).trim();
+  if (fromField) return fromField;
+  // V!ROC / school cheer: also accept schoolName aliases if primary getter empty.
+  if (
+    cheerSubtype === "school-cheer-viroc-yes" ||
+    cheerSubtype === "school-cheer-viroc-no"
+  ) {
+    const school =
+      order.schoolName || order.schoolProgramName || order.programName || "";
+    if (String(school).trim()) return String(school).trim();
+  }
+  return String(order.programName || "").trim();
 }

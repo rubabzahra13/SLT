@@ -2,8 +2,8 @@
 
 import { FilterMenu } from "@/components/ui/FilterMenu";
 import {
-  CHEER_FORM_SUBTABS_WITH_ALL,
-  DANCE_FORM_SUBTABS_WITH_ALL,
+  CHEER_FORM_SUBTABS,
+  DANCE_FORM_SUBTABS,
   ORDER_FORM_TABS,
   type CheerFormSubtypeFilter,
   type DanceFormSubtypeFilter,
@@ -63,7 +63,7 @@ export function OrderFormFilters({
           value={cheerSubtype}
           onChange={(v) => onCheerSubtypeChange(v as CheerFormSubtypeFilter)}
           accent="orange"
-          options={CHEER_FORM_SUBTABS_WITH_ALL.map(({ id, label }) => ({
+          options={CHEER_FORM_SUBTABS.map(({ id, label }) => ({
             value: id,
             label,
             count: cheerCounts[id] ?? 0,
@@ -80,7 +80,7 @@ export function OrderFormFilters({
           value={danceSubtype}
           onChange={(v) => onDanceSubtypeChange(v as DanceFormSubtypeFilter)}
           accent="orange"
-          options={DANCE_FORM_SUBTABS_WITH_ALL.map(({ id, label }) => ({
+          options={DANCE_FORM_SUBTABS.map(({ id, label }) => ({
             value: id,
             label,
             count: danceCounts[id] ?? 0,

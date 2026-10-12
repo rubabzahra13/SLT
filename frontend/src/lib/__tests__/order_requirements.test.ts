@@ -16,8 +16,9 @@ describe("SLT Implementation 2: Package-Specific Data Collection Rules", () => {
     const reqs = getOrderRequirements(order as Order);
     assert.strictEqual(reqs.allMet, true);
 
-    const ids = reqs.all.map((r) => r.id);
-    assert.deepStrictEqual(ids.sort(), ["compliancy", "songs", "time_of_mix"].sort());
+    const ids = reqs.all.filter((r) => r.isApplicable).map((r) => r.id);
+    assert.deepStrictEqual(ids.sort(), ["mix", "songs"].sort());
+    assert.strictEqual(reqs.compliancyMet, true);
 
     const songReq = reqs.songsArea.find((r) => r.id === "songs");
     assert.strictEqual(songReq?.label, "Songs");
@@ -33,14 +34,15 @@ describe("SLT Implementation 2: Package-Specific Data Collection Rules", () => {
     };
 
     const reqs = getOrderRequirements(order as Order);
-    const ids = reqs.all.map((r) => r.id);
-    assert.deepStrictEqual(ids.sort(), ["notes", "songs", "time_of_mix"].sort());
+    const ids = reqs.all.filter((r) => r.isApplicable).map((r) => r.id);
+    assert.deepStrictEqual(ids.sort(), ["mix", "notes", "songs"].sort());
+    assert.strictEqual(reqs.compliancyMet, true);
 
     const songReq = reqs.songsArea.find((r) => r.id === "songs");
     assert.strictEqual(songReq?.label, "Song");
   });
 
-  it("Cheer Titanium requires Notes, 8-count Sheets, Video (No Songs)", () => {
+  it("Cheer Titanium requires Notes, CS, Video (No Songs)", () => {
     const order: Partial<Order> = {
       category: "Cheer",
       package: "Titanium 2:30",
@@ -49,14 +51,14 @@ describe("SLT Implementation 2: Package-Specific Data Collection Rules", () => {
     };
 
     const reqs = getOrderRequirements(order as Order);
-    const ids = reqs.all.map((r) => r.id);
-    assert.deepStrictEqual(ids.sort(), ["eight_count", "notes", "video"].sort());
+    const applicable = reqs.all.filter((r) => r.isApplicable).map((r) => r.id);
+    assert.deepStrictEqual(applicable.sort(), ["cs", "notes", "video"].sort());
 
-    const songsPresent = reqs.all.some((r) => r.id === "songs");
-    assert.strictEqual(songsPresent, false);
+    const songsReq = reqs.all.find((r) => r.id === "songs");
+    assert.strictEqual(songsReq?.isApplicable, false);
   });
 
-  it("Cheer Platinum requires Songs, 8-count Sheets, Video", () => {
+  it("Cheer Platinum requires Songs, CS, Video", () => {
     const order: Partial<Order> = {
       category: "Cheer",
       package: "Platinum 2:30",
@@ -66,8 +68,42 @@ describe("SLT Implementation 2: Package-Specific Data Collection Rules", () => {
     };
 
     const reqs = getOrderRequirements(order as Order);
-    const ids = reqs.all.map((r) => r.id);
-    assert.deepStrictEqual(ids.sort(), ["eight_count", "songs", "video"].sort());
+    const applicable = reqs.all.filter((r) => r.isApplicable).map((r) => r.id);
+    assert.deepStrictEqual(applicable.sort(), ["cs", "songs", "video"].sort());
+  });
+
+  it("Form Yes makes CS red until admin marks HAVE CS; Form No is N/A", () => {
+    const goldYes: Partial<Order> = {
+      category: "Cheer",
+      package: "Gold 2:00",
+      songListSuggestions: "Have",
+      sendingEightCountSheets: "Yes",
+    };
+    const yesReqs = getOrderRequirements(goldYes as Order);
+    const yesCs = yesReqs.collections.find((r) => r.id === "cs");
+    assert.strictEqual(yesCs?.isApplicable, true);
+    assert.strictEqual(yesCs?.state, "red");
+
+    const goldYesHave: Partial<Order> = {
+      ...goldYes,
+      eightCountSheet: "HAVE CS",
+      collectionStates: { cs: true },
+    };
+    const haveReqs = getOrderRequirements(goldYesHave as Order);
+    const haveCs = haveReqs.collections.find((r) => r.id === "cs");
+    assert.strictEqual(haveCs?.state, "green");
+
+    const goldNo: Partial<Order> = {
+      category: "Cheer",
+      package: "Gold 2:00",
+      songListSuggestions: "Have",
+      sendingEightCountSheets: "No",
+      eightCountSheet: "NEED CS",
+    };
+    const noReqs = getOrderRequirements(goldNo as Order);
+    const noCs = noReqs.collections.find((r) => r.id === "cs");
+    assert.strictEqual(noCs?.isApplicable, false);
+    assert.strictEqual(noCs?.state, "white");
   });
 
   it("Marching Band Band Chant requires Song, Time of Mix", () => {
@@ -79,8 +115,8 @@ describe("SLT Implementation 2: Package-Specific Data Collection Rules", () => {
     };
 
     const reqs = getOrderRequirements(order as Order);
-    const ids = reqs.all.map((r) => r.id);
-    assert.deepStrictEqual(ids.sort(), ["songs", "time_of_mix"].sort());
+    const ids = reqs.all.filter((r) => r.isApplicable).map((r) => r.id);
+    assert.deepStrictEqual(ids.sort(), ["mix", "songs"].sort());
 
     const songReq = reqs.songsArea.find((r) => r.id === "songs");
     assert.strictEqual(songReq?.label, "Song");
@@ -96,8 +132,43 @@ describe("SLT Implementation 2: Package-Specific Data Collection Rules", () => {
     };
 
     const reqs = getOrderRequirements(order as Order);
-    const ids = reqs.all.map((r) => r.id);
-    assert.deepStrictEqual(ids.sort(), ["notes", "songs", "time_of_mix"].sort());
+    const ids = reqs.all.filter((r) => r.isApplicable).map((r) => r.id);
+    assert.deepStrictEqual(ids.sort(), ["mix", "notes", "songs"].sort());
+  });
+
+  it("manual orders include a Form collection pill; form orders do not", () => {
+    const formOrder: Partial<Order> = {
+      category: "Cheer",
+      package: "Platinum 2:30",
+      songListSuggestions: "Have",
+      sendingEightCountSheets: "Yes",
+      isManualEntry: false,
+    };
+    const formReqs = getOrderRequirements(formOrder as Order);
+    assert.ok(!formReqs.collections.some((r) => r.id === "form"));
+
+    const manualOrder: Partial<Order> = {
+      ...formOrder,
+      isManualEntry: true,
+    };
+    const manualReqs = getOrderRequirements(manualOrder as Order);
+    const formPill = manualReqs.collections.find((r) => r.id === "form");
+    assert.ok(formPill, "manual orders must show Form");
+    assert.strictEqual(formPill?.isApplicable, true);
+    assert.strictEqual(formPill?.state, "red");
+    assert.deepStrictEqual(
+      manualReqs.collections.map((r) => r.id),
+      ["mix", "cs", "video", "form"]
+    );
+
+    const collected = getOrderRequirements({
+      ...manualOrder,
+      collectionStates: { form: true },
+    } as Order);
+    assert.strictEqual(
+      collected.collections.find((r) => r.id === "form")?.state,
+      "green"
+    );
   });
 
   it("correctly identifies orders that are Waiting for Data (missing >= 1 requirement)", () => {

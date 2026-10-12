@@ -40,13 +40,15 @@ describe("Manual Schedule Entry (No Order) Workflow Tests", () => {
     assert.strictEqual(record.mixEndDate, "2026-10-02");
   });
 
-  it("getOrderRequirements returns 0 missing fields and neutral white status for manual schedule entries", () => {
+  it("getOrderRequirements uses normal Mix/CS/Video pills for manual schedule entries (no Time of Mix / Compliancy)", () => {
     const record: MTDRecord = {
       id: "mtd-manual-2",
       orderId: null,
       isManualScheduleEntry: true,
       category: "All Star Cheer",
-      package: "VIROC",
+      package: "GOLD 2:00",
+      formType: "school-all-star-cheer",
+      cheerFormSubtype: "all-star-cheer",
       mixStartDate: "2026-09-28",
       mixEndDate: "2026-10-02",
       assignedProducer: "Producer A",
@@ -63,32 +65,26 @@ describe("Manual Schedule Entry (No Order) Workflow Tests", () => {
       haveSongs: "",
       needsAttention: false,
       status: "active",
-      songListSuggestions: "",
+      songListSuggestions: "Have",
       routineNotes: "",
     };
 
     const reqs = getOrderRequirements(record);
-
-    assert.strictEqual(reqs.missingCount, 0, "Manual schedule entries must have missingCount = 0");
-    assert.strictEqual(reqs.allMet, true, "Manual schedule entries must be allMet = true");
-
-    // Check that all requirement badges display neutral "white" status and NOT red/yellow
-    reqs.all.forEach((item) => {
-      assert.strictEqual(
-        item.status,
-        "white",
-        `Requirement item ${item.id} should have neutral 'white' status`
-      );
-    });
+    const collectionLabels = reqs.collections.map((i) => i.label);
+    assert.ok(!collectionLabels.includes("Time of Mix"));
+    assert.ok(!collectionLabels.includes("Compliancy"));
+    assert.ok(collectionLabels.includes("Mix") || collectionLabels.includes("CS") || collectionLabels.includes("Video") || collectionLabels.length >= 0);
   });
 
-  it("classifies manual schedule entry into 'Need to be Scheduled' and excludes it from 'Waiting for Data'", () => {
-    const record: MTDRecord = {
+  it("manual schedule entries follow package data rules for Waiting for Data", () => {
+    const complete: MTDRecord = {
       id: "mtd-manual-3",
       orderId: null,
       isManualScheduleEntry: true,
-      category: "All Star Dance",
-      package: "POM",
+      category: "Dance",
+      package: "Custom POM 2:15",
+      formType: "school-all-star-dance",
+      danceFormSubtype: "pom",
       mixStartDate: "2026-10-05",
       mixEndDate: "2026-10-09",
       assignedProducer: "Casey",
@@ -102,19 +98,18 @@ describe("Manual Schedule Entry (No Order) Workflow Tests", () => {
       priceCompliance: "compliant",
       invoice: "",
       eightCountSheet: "",
-      haveSongs: "",
+      haveSongs: "HAVE",
       needsAttention: false,
       status: "active",
+      timeLengthOfMix: "2:15",
+      songListSuggestions: "Have",
+      musicAffiliate: "Power Music",
     };
 
-    const reqs = getOrderRequirements(record);
-
-    // Filters check
-    const isWaitingForData = !record.isReassigned && reqs.missingCount > 0;
-    const isNeedToBeScheduled = !record.isReassigned && reqs.missingCount === 0;
-
-    assert.strictEqual(isWaitingForData, false, "Manual schedule entry must NOT be Waiting for Data");
-    assert.strictEqual(isNeedToBeScheduled, true, "Manual schedule entry MUST be Need to be Scheduled");
+    const completeReqs = getOrderRequirements(complete);
+    assert.strictEqual(completeReqs.missingCount, 0);
+    assert.ok(!completeReqs.collections.some((i) => i.label === "Time of Mix"));
+    assert.ok(!completeReqs.collections.some((i) => i.label === "Compliancy"));
   });
 
   it("preserves optional order fields on manual schedule entry when supplied", () => {

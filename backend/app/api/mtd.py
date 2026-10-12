@@ -351,6 +351,7 @@ def create_manual_schedule_entry(
         order_status="Complete",
         status="new",
         price=0.0,
+        is_manual_entry=True,
         routine_notes=data.get("routine_notes"),
         music_affiliate=data.get("music_affiliate"),
         time_length_of_mix=data.get("time_length_of_mix"),

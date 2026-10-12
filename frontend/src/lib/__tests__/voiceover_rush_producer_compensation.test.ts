@@ -232,6 +232,24 @@ describe("Voiceover & Rush Fee Producer Compensation End-to-End Test Suite", () 
       // Verify Cassie's global settings remain 100%
       assert.equal(mockProducerCassie.rushFeeRate, 100);
     });
+
+    it("includeRushFeeInPayout false excludes rush from producerPayout but keeps rushFeePayout info", () => {
+      // Package 500 + Rush 150 = 650; % applies to package only; rush not added to payout
+      const computed = computeClientPayroll(
+        mockProducerCassie,
+        650,
+        { payroll_base_price: 650, customer_facing_price: 650 } as any,
+        80,
+        null,
+        "dance-jazz",
+        650,
+        { rushFeeQuantity: 1, includeRushFeeInPayout: false }
+      );
+
+      assert.equal(computed.rushFeePayout, 150);
+      // Base only: (650 - 150) * 80% = 400 — rush not folded in
+      assert.equal(computed.producerPayout, 400);
+    });
   });
 
   describe("Section 14 & 16: Data Persistence & Negative Checks", () => {

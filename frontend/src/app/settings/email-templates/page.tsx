@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   CalendarDays,
   Check,
+  Flag,
   MailWarning,
   Pencil,
   RefreshCw,
@@ -30,6 +31,7 @@ import {
 const TEMPLATE_NAV_ICON: Record<EmailTemplateId, LucideIcon> = {
   customer_missing_data: MailWarning,
   customer_incorrect_data: RefreshCw,
+  customer_affiliate_clarification: Flag,
   producer_order: Send,
   producer_payroll: Wallet,
   producer_schedule: CalendarDays,

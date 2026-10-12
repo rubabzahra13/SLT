@@ -535,6 +535,9 @@ type InlineInputProps = {
   onChange: (value: string) => void;
   placeholder?: string;
   type?: string;
+  min?: number | string;
+  max?: number | string;
+  step?: number | string;
   className?: string;
   readOnly?: boolean;
 };
@@ -544,6 +547,9 @@ export function InlineInput({
   onChange,
   placeholder,
   type = "text",
+  min,
+  max,
+  step,
   className,
   readOnly = false,
 }: InlineInputProps) {
@@ -551,6 +557,9 @@ export function InlineInput({
     <input
       type={type}
       value={value}
+      min={min}
+      max={max}
+      step={step}
       readOnly={readOnly}
       disabled={readOnly}
       placeholder={placeholder}

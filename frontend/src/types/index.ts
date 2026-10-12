@@ -9,7 +9,11 @@ export type OrderViewRangeFilter =
   | "reassign_leave"
   | "reassign_rush"
   | "reassigned"
-  | "waiting_for_data";
+  | "waiting_for_data"
+  | "flagged";
+
+/** Orders board source: customer form vs admin New Order. */
+export type OrderSourceFilter = "both" | "form" | "manual";
 
 export type EditorRequest = "FA" | "NA" | string;
 
@@ -36,6 +40,9 @@ export type MTDRecord = {
   /** What production is waiting on (in-progress board) */
   waitingOn?: string | null;
   eightCountSheet: string;
+  /** Form intent: will customer send 8-count sheets? (Yes/No) — not collection status. */
+  sendingEightCountSheets?: string;
+  usingEightCountSheets?: string;
   haveSongs: string;
   needsAttention: boolean;
   status: "active" | "outsourced" | "needs_attention" | "completed";
@@ -222,8 +229,8 @@ export type OrderFormType =
   | "school-anthem";
 
 export const ORDER_FORM_TABS: { id: OrderFormType; label: string }[] = [
-  { id: "school-all-star-cheer", label: "All Star Cheer" },
-  { id: "school-all-star-dance", label: "All Star Dance" },
+  { id: "school-all-star-cheer", label: "School/All Star Cheer" },
+  { id: "school-all-star-dance", label: "School/All Star Dance" },
   { id: "marching-band", label: "Marching Band" },
   { id: "sports-entertainment", label: "Sports Entertainment" },
   { id: "school-anthem", label: "School Anthem" },
@@ -245,7 +252,6 @@ export const CHEER_FORM_SUBTABS: { id: CheerFormSubtype; label: string }[] = [
 ];
 
 export const CHEER_FORM_SUBTABS_WITH_ALL: { id: CheerFormSubtypeFilter; label: string }[] = [
-  { id: "all", label: "All Cheer" },
   ...CHEER_FORM_SUBTABS,
 ];
 
@@ -267,7 +273,6 @@ export const DANCE_FORM_SUBTABS: { id: DanceFormSubtype; label: string }[] = [
 ];
 
 export const DANCE_FORM_SUBTABS_WITH_ALL: { id: DanceFormSubtypeFilter; label: string }[] = [
-  { id: "all", label: "All Dance" },
   ...DANCE_FORM_SUBTABS,
 ];
 
@@ -473,6 +478,9 @@ export type PomCustomerFields = {
   requestedEditor: string;
   timeLengthOfMix: string;
   musicAffiliate: string;
+  powerMusicCovers: string;
+  /** Unleash the Beats Covers song list (stored in songListSuggestions). */
+  songListSuggestions: string;
   routineNotes: string;
   customVoiceovers: "yes" | "no" | string;
   voiceoverScript: string;
@@ -480,7 +488,7 @@ export type PomCustomerFields = {
   couponCode: string;
 };
 
-/** Hip Hop (hip-hop) customer-submitted fields (no Division of Team) */
+/** Hip Hop (hip-hop) customer-submitted fields */
 export type HipHopCustomerFields = {
   schoolProgramName: string;
   schoolGymAddress: string;
@@ -488,6 +496,7 @@ export type HipHopCustomerFields = {
   stateProvince: string;
   zipPostalCode: string;
   country: string;
+  divisionOfTeam: string;
   coachName: string;
   coachPhone: string;
   coachEmail: string;
@@ -500,6 +509,9 @@ export type HipHopCustomerFields = {
   requestedEditor: string;
   timeLengthOfMix: string;
   musicAffiliate: string;
+  powerMusicCovers: string;
+  /** Unleash the Beats Covers song list (stored in songListSuggestions). */
+  songListSuggestions: string;
   routineNotes: string;
   customVoiceovers: "yes" | "no" | string;
   voiceoverScript: string;
@@ -529,6 +541,9 @@ export type TeamPerformanceVarietyCustomerFields = {
   packageType: string;
   timeLengthOfMix: string;
   musicAffiliate: string;
+  powerMusicCovers: string;
+  /** Unleash the Beats Covers song list (stored in songListSuggestions). */
+  songListSuggestions: string;
   routineNotes: string;
   customVoiceovers: "yes" | "no" | string;
   voiceoverScript: string;
@@ -557,6 +572,9 @@ export type GamedayCustomerFields = {
   timeLengthOfMix: string;
   requestedEditor: string;
   musicAffiliate: string;
+  powerMusicCovers: string;
+  /** Unleash the Beats Covers song list (stored in songListSuggestions). */
+  songListSuggestions: string;
   routineNotes: string;
   customVoiceovers: "yes" | "no" | string;
   voiceoverScript: string;
@@ -587,6 +605,9 @@ export type JazzKickCustomerFields = {
   timeLengthOfMix: string;
   licensingRequired: "yes" | "no" | string;
   musicAffiliate: string;
+  powerMusicCovers: string;
+  /** Unleash the Beats Covers song list (stored in songListSuggestions). */
+  songListSuggestions: string;
   routineNotes: string;
   customVoiceovers: "yes" | "no" | string;
   voiceoverScript: string;
@@ -867,6 +888,27 @@ export type Order = {
   payrollFinalized?: boolean;
   payrollBreakdown?: any;
   isReassigned?: boolean;
+  /** Admin New Order (not a customer form submission). */
+  isManualEntry?: boolean;
+  /** Manual order absorbed a matching form submission (form order id). */
+  mergedFormOrderId?: string | null;
+  /** Form order was merged into this manual order id (hidden from Orders board). */
+  mergedIntoManualOrderId?: string | null;
+  /**
+   * Manual field values overwritten by admin form-wins Merge.
+   * Restored on Split so overlapping manual data is not lost.
+   */
+  manualOverlapSnapshot?: Record<string, unknown> | null;
+  /** After admin Split — do not auto-absorb by program-name similarity. */
+  suppressManualFormMerge?: boolean;
+  /**
+   * Cheer form multi-affiliate checkbox accident:
+   * open = held on Flagged page; resolved = affiliate chosen, can move to Orders;
+   * released = normal Orders board.
+   */
+  affiliateFlagStatus?: "open" | "resolved" | "released" | null;
+  /** Original multi-select music affiliate string from the form. */
+  musicAffiliateSelections?: string | null;
   collectionStates?: Record<string, boolean>;
   orderStatus?: string;
   eightCountSheet?: string;

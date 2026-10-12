@@ -1,10 +1,14 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { useMemo } from "react";
 import clsx from "clsx";
+import { useAppState } from "@/context/AppStateContext";
+import { findLinkedOrder } from "@/lib/editor-assignment";
 import {
   getOrderAssignmentStatus,
   getOrderRequirements,
+  mergeOrderFormFieldsForRequirements,
   ORDER_ASSIGNMENT_STATUS_LABEL,
   ORDER_REASSIGN_STATUS,
   type OrderAssignmentStatus,
@@ -12,6 +16,14 @@ import {
 } from "@/lib/order-requirements";
 import { HoverTip } from "@/components/ui/HoverTip";
 import type { MTDRecord, Order } from "@/types";
+
+function useRequirementsRecord(record: Order | MTDRecord): Order | MTDRecord {
+  const { allOrders } = useAppState();
+  return useMemo(() => {
+    const linked = findLinkedOrder(record as MTDRecord, allOrders);
+    return mergeOrderFormFieldsForRequirements(record, linked);
+  }, [record, allOrders]);
+}
 
 const DATA_STATUS_LABEL: Record<OrderDataStatus, string> = {
   "Missing Data": "Missing data",
@@ -50,7 +62,7 @@ function requirementLabels(
   record: Order | MTDRecord,
   state: "red" | "green"
 ): string[] {
-  const reqs = getOrderRequirements(record);
+  const reqs = getOrderRequirements(record); // caller passes merged record
   const labels = [
     ...reqs.collections
       .filter((item) => item.isApplicable && item.state === state)
@@ -86,11 +98,12 @@ export function OrderDataStatusBadge({
 }: {
   record: Order | MTDRecord;
 }) {
-  const reqs = getOrderRequirements(record);
+  const requirementsRecord = useRequirementsRecord(record);
+  const reqs = getOrderRequirements(requirementsRecord);
   const status: OrderDataStatus =
     reqs.missingCount > 0 ? "Missing Data" : "Complete data";
   const label = DATA_STATUS_LABEL[status];
-  const tip = dataStatusTooltip(record, status);
+  const tip = dataStatusTooltip(requirementsRecord, status);
 
   return (
     <StatusCell>
@@ -123,8 +136,9 @@ export function OrderAssignmentStatusBadge({
 }: {
   record: Order | MTDRecord;
 }) {
-  const status = getOrderAssignmentStatus(record);
-  const reqs = getOrderRequirements(record);
+  const requirementsRecord = useRequirementsRecord(record);
+  const status = getOrderAssignmentStatus(requirementsRecord);
+  const reqs = getOrderRequirements(requirementsRecord);
   const label =
     reqs.needsReassign && reqs.reassignReason
       ? ORDER_REASSIGN_STATUS[reqs.reassignReason]

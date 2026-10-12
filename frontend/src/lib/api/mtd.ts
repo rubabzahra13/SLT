@@ -295,6 +295,12 @@ export interface CreateManualSchedulePayload {
   has_traditional_voiceover?: boolean;
   hasThemedVoiceover?: boolean;
   has_themed_voiceover?: boolean;
+  powerMusicCovers?: string | null;
+  power_music_covers?: string | null;
+  voiceoverScript?: string | null;
+  voiceover_script?: string | null;
+  pronunciationGuidance?: string | null;
+  pronunciation_guidance?: string | null;
 }
 
 export async function createManualScheduleEntryApi(

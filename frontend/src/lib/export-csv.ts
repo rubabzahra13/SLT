@@ -4,7 +4,7 @@ import { doDateRangesOverlap, toIsoDateString } from "./dates";
 import {
   findLinkedOrder,
   findProducerByAssignmentKey,
-  getRequestedEditorFromRecord,
+  formatRequestedEditorLabel,
 } from "./editor-assignment";
 import { isPreMTDOrderRecord, resolveMTDFormMeta } from "./mtd-filters";
 import { orderFromMTDRecord } from "./order-detail-fields";
@@ -176,7 +176,7 @@ export function generateMTDCsv(
     { key: "invoice", label: "Invoice #" },
     { key: "package", label: "Package" },
     { key: "packageTier", label: "Package Tier" },
-    { key: "timeLimit", label: "Time Limit" },
+    { key: "timeLimit", label: "Mix Length" },
     { key: "split", label: "Split / No Split" },
     { key: "price", label: "Customer Price" },
     { key: "priceCompliance", label: "Price Compliance" },
@@ -234,7 +234,7 @@ export function generateMTDCsv(
       price: formatPrice(rec.finalCustomerPrice ?? rec.price),
       priceCompliance: rec.priceCompliance || "Compliant",
       assignedProducer: rec.assignedProducer || "Unassigned",
-      requestedProducer: getRequestedEditorFromRecord(rec, producers, linked) || "FA",
+      requestedProducer: formatRequestedEditorLabel(rec, producers, linked),
       mixStartDate: toIsoDateString(rec.mixStartDate) || "",
       mixEndDate: toIsoDateString(rec.mixEndDate) || "",
       rushFee:
@@ -458,7 +458,7 @@ export const PRODUCER_STATEMENT_COLUMNS: { key: keyof ProducerFacingPayrollRow; 
   { key: "category", label: "Category" },
   { key: "subtype", label: "Subtype" },
   { key: "package", label: "Package" },
-  { key: "timeLimit", label: "Time Limit" },
+  { key: "timeLimit", label: "Mix Length" },
   { key: "voiceoverAddon", label: "Voiceover Add-on" },
   { key: "rushFee", label: "Rush Fee Option" },
   { key: "danceExtraSongs", label: "Dance Extra Songs" },
@@ -481,7 +481,7 @@ export const PRODUCER_VO_STATEMENT_COLUMNS: {
   { key: "category", label: "Category" },
   { key: "subtype", label: "Subtype" },
   { key: "package", label: "Package" },
-  { key: "timeLimit", label: "Time Limit" },
+  { key: "timeLimit", label: "Mix Length" },
   { key: "voiceoverAddon", label: "Voiceover Add-on" },
   { key: "totalPayout", label: "My Total Payout" },
 ];

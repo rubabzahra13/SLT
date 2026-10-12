@@ -1,18 +1,115 @@
 "use client";
 
-import type { DiscountCode, Order } from "@/types";
+import type { DiscountCode, Order, Producer } from "@/types";
 import { getOrderDetailSections } from "@/lib/order-detail-sections";
 import { rawFieldValue } from "@/lib/order-detail-fields";
+import type { FieldDataSource } from "@/lib/manual-form-merge";
+import { SourceTag } from "@/components/orders/ManualFormPairBar";
 import { CouponCodeField } from "@/components/mtd/CouponCodeField";
-import { DetailInput, DetailTextarea } from "@/components/mtd/InlineFields";
+import { CountryField } from "@/components/mtd/CountryField";
+import {
+  formatRequestedProducerDisplay,
+  RequestedProducerField,
+} from "@/components/mtd/RequestedProducerField";
+import {
+  isFormCategoryLabel,
+  packageTypeDisplayValue,
+  PackageTypeField,
+} from "@/components/mtd/PackageTypeField";
+import { MixLengthField } from "@/components/mtd/MixLengthField";
+import {
+  normalizeTeamCoedAllGirl,
+  TeamCoedField,
+} from "@/components/mtd/TeamCoedField";
+import { normalizeYesNo, YesNoField } from "@/components/mtd/YesNoField";
+import {
+  HowDidYouFindOutField,
+  normalizeHowDidYouFindOut,
+} from "@/components/mtd/HowDidYouFindOutField";
+import {
+  MusicAffiliateField,
+  normalizeMusicAffiliateOption,
+  musicAffiliateOptionsForOrder,
+} from "@/components/mtd/MusicAffiliateField";
+import {
+  DanceMusicAffiliateField,
+  formatDanceMusicAffiliates,
+  parseDanceMusicAffiliates,
+} from "@/components/mtd/DanceMusicAffiliateField";
+import {
+  CustomVoiceoversField,
+  normalizeCustomVoiceovers,
+} from "@/components/mtd/CustomVoiceoversField";
+import {
+  DanceStyleField,
+  normalizeDanceStyle,
+} from "@/components/mtd/DanceStyleField";
+import {
+  GamedayStyleField,
+  normalizeGamedayStyle,
+} from "@/components/mtd/GamedayStyleField";
+import {
+  normalizeVocalsPreference,
+  VocalsPreferenceField,
+} from "@/components/mtd/VocalsPreferenceField";
+import {
+  normalizeSplitOrNoSplit,
+  SplitOrNoSplitField,
+} from "@/components/mtd/SplitOrNoSplitField";
+import {
+  DetailInput,
+  DetailTextarea,
+  InlineDateInput,
+} from "@/components/mtd/InlineFields";
+import { parsePackage } from "@/lib/package";
+import { normalizeCountryName } from "@/lib/countries";
+import { isOrderFormFieldMissing } from "@/lib/order-form-missing";
 import clsx from "clsx";
 
 type MTDOrderDetailsProps = {
   order: Order;
+  /** Snapshot from before edits (API / original submission). */
+  originalOrder?: Order | null;
   discountCodes?: DiscountCode[];
+  producers?: Producer[];
   editable?: boolean;
   onFieldChange?: (key: string, value: string) => void;
+  /** Highlight empty form-only fields in red (default true). */
+  highlightMissing?: boolean;
+  /** Per-field Form / Manual source tags when a pair is present. */
+  fieldSources?: Record<string, FieldDataSource[]>;
 };
+
+function FieldLabel({
+  label,
+  missing,
+  sources,
+}: {
+  label: string;
+  missing?: boolean;
+  sources?: FieldDataSource[];
+}) {
+  return (
+    <div className="flex min-h-[28px] flex-wrap items-start gap-x-1.5 gap-y-1">
+      <p
+        className={clsx(
+          "text-[10px] font-bold uppercase leading-snug tracking-[0.06em]",
+          missing ? "text-red-600" : "text-brand-ink-tertiary"
+        )}
+      >
+        {label}
+        {missing ? (
+          <span className="ml-1 font-semibold normal-case tracking-normal">
+            (missing)
+          </span>
+        ) : null}
+      </p>
+      {sources?.length
+        ? sources.map((source) => <SourceTag key={source} source={source} />)
+        : null}
+    </div>
+  );
+}
 
 export function formatDetailDisplay(value: string): string {
   if (!value?.trim() || value === "—") return "";
@@ -20,25 +117,37 @@ export function formatDetailDisplay(value: string): string {
 }
 
 function fieldSpanClass(key: string, label: string): string {
+  if (key === "numberOfCopies") {
+    return "sm:col-span-2";
+  }
   const haystack = `${key} ${label}`;
   if (
-    /address|street|songList|suggestions|routineNotes|script|copies/i.test(
-      haystack
-    )
+    /address|street|songList|suggestions|routineNotes|script/i.test(haystack)
   ) {
     return "sm:col-span-2 lg:col-span-3";
   }
   if (/howDidYouFindOut|find out/i.test(haystack)) {
     return "sm:col-span-2";
   }
+  // Long School Cheer / VIROC mix-length labels only — short "Mix Length" stays compact.
+  if (/length of mix|only list the time length/i.test(label)) {
+    return "sm:col-span-2 lg:col-span-3";
+  }
+  if (/pronunciation|choreographer/i.test(haystack)) {
+    return "sm:col-span-2 lg:col-span-3";
+  }
   return "";
 }
 
 export function MTDOrderDetails({
   order,
+  originalOrder = null,
   discountCodes = [],
+  producers = [],
   editable = false,
   onFieldChange,
+  highlightMissing = true,
+  fieldSources,
 }: MTDOrderDetailsProps) {
   const sections = getOrderDetailSections(order);
 
@@ -68,6 +177,8 @@ export function MTDOrderDetails({
               const displayValue = formatDetailDisplay(field.value);
               const spanClass = fieldSpanClass(field.key, field.label);
               const useTextarea = Boolean(field.multiline);
+              const missing =
+                highlightMissing && isOrderFormFieldMissing(order, field.key);
 
               if (field.key === "couponCode") {
                 return (
@@ -86,14 +197,718 @@ export function MTDOrderDetails({
                 );
               }
 
+              if (field.key === "country") {
+                const countryDisplay =
+                  normalizeCountryName(rawValue) || displayValue;
+                return (
+                  <div
+                    key={field.key}
+                    className={clsx("flex min-w-0 flex-col", spanClass)}
+                  >
+                    <FieldLabel
+                      label={field.label}
+                      missing={missing}
+                      sources={fieldSources?.[field.key]}
+                    />
+                    <div className="mt-1">
+                      {editable && onFieldChange ? (
+                        <CountryField
+                          value={rawValue}
+                          onChange={(value) => onFieldChange(field.key, value)}
+                        />
+                      ) : countryDisplay ? (
+                        <p className="text-[13px] font-normal text-brand-ink">
+                          {countryDisplay}
+                        </p>
+                      ) : (
+                        <p className="text-[13px] text-brand-ink-tertiary">
+                          Not set
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              }
+
+              if (field.key === "teamCoedAllGirl") {
+                const teamDisplay =
+                  normalizeTeamCoedAllGirl(rawValue) || displayValue;
+                return (
+                  <div
+                    key={field.key}
+                    className={clsx("flex min-w-0 flex-col", spanClass)}
+                  >
+                    <FieldLabel
+                      label={field.label}
+                      missing={missing}
+                      sources={fieldSources?.[field.key]}
+                    />
+                    <div className="mt-1">
+                      {editable && onFieldChange ? (
+                        <TeamCoedField
+                          value={rawValue}
+                          onChange={(value) => onFieldChange(field.key, value)}
+                        />
+                      ) : teamDisplay ? (
+                        <p className="text-[13px] font-normal text-brand-ink">
+                          {teamDisplay}
+                        </p>
+                      ) : (
+                        <p className="text-[13px] text-brand-ink-tertiary">
+                          Not set
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              }
+
+              if (field.key === "splitOrNoSplit") {
+                const splitDisplay =
+                  normalizeSplitOrNoSplit(rawValue) || displayValue;
+                return (
+                  <div
+                    key={field.key}
+                    className={clsx("flex min-w-0 flex-col", spanClass)}
+                  >
+                    <FieldLabel
+                      label={field.label}
+                      missing={missing}
+                      sources={fieldSources?.[field.key]}
+                    />
+                    <div className="mt-1">
+                      {editable && onFieldChange ? (
+                        <SplitOrNoSplitField
+                          value={rawValue}
+                          aria-label={field.label}
+                          onChange={(value) => onFieldChange(field.key, value)}
+                        />
+                      ) : splitDisplay ? (
+                        <p className="text-[13px] font-normal text-brand-ink">
+                          {splitDisplay}
+                        </p>
+                      ) : (
+                        <p className="text-[13px] text-brand-ink-tertiary">
+                          Not set
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              }
+
+              // Dance (POM+) — customer-form affiliate checkboxes.
+              if (
+                field.key === "musicAffiliate" &&
+                order.formType === "school-all-star-dance"
+              ) {
+                const selected = parseDanceMusicAffiliates(rawValue);
+                const affiliateDisplay =
+                  formatDanceMusicAffiliates(selected) || displayValue;
+                return (
+                  <div
+                    key={field.key}
+                    className={clsx("flex min-w-0 flex-col", spanClass)}
+                  >
+                    <FieldLabel
+                      label={field.label}
+                      missing={missing}
+                      sources={fieldSources?.[field.key]}
+                    />
+                    <div className="mt-1">
+                      {editable && onFieldChange ? (
+                        <DanceMusicAffiliateField
+                          value={rawValue}
+                          aria-label={field.label}
+                          onChange={(value) => onFieldChange(field.key, value)}
+                        />
+                      ) : affiliateDisplay ? (
+                        <p className="text-[13px] font-normal text-brand-ink">
+                          {affiliateDisplay}
+                        </p>
+                      ) : (
+                        <p className="text-[13px] text-brand-ink-tertiary">
+                          Not set
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              }
+
+              // School Cheer / VIROC edit form — SoftSelect matches customer-form affiliates.
+              if (
+                field.key === "musicAffiliate" &&
+                (order.cheerFormSubtype === "school-cheer-viroc-yes" ||
+                  order.cheerFormSubtype === "school-cheer-viroc-no")
+              ) {
+                const affiliateOptions = musicAffiliateOptionsForOrder(order);
+                const affiliateDisplay =
+                  normalizeMusicAffiliateOption(rawValue, affiliateOptions) ||
+                  displayValue;
+                return (
+                  <div
+                    key={field.key}
+                    className={clsx("flex min-w-0 flex-col", spanClass)}
+                  >
+                    <FieldLabel
+                      label={field.label}
+                      missing={missing}
+                      sources={fieldSources?.[field.key]}
+                    />
+                    <div className="mt-1">
+                      {editable && onFieldChange ? (
+                        <MusicAffiliateField
+                          value={rawValue}
+                          formType={order.formType}
+                          cheerSubtype={order.cheerFormSubtype}
+                          aria-label={field.label}
+                          onChange={(value) => onFieldChange(field.key, value)}
+                        />
+                      ) : affiliateDisplay ? (
+                        <p className="text-[13px] font-normal text-brand-ink">
+                          {affiliateDisplay}
+                        </p>
+                      ) : (
+                        <p className="text-[13px] text-brand-ink-tertiary">
+                          Not set
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              }
+
+              if (field.key === "customVoiceovers") {
+                const voVariant =
+                  order.danceFormSubtype === "gameday" ||
+                  order.danceFormSubtype === "jazz-kick"
+                    ? "gameday"
+                    : "dance";
+                const voDisplay =
+                  normalizeCustomVoiceovers(rawValue, voVariant) ||
+                  displayValue;
+                return (
+                  <div
+                    key={field.key}
+                    className={clsx("flex min-w-0 flex-col", spanClass)}
+                  >
+                    <FieldLabel
+                      label={field.label}
+                      missing={missing}
+                      sources={fieldSources?.[field.key]}
+                    />
+                    <div className="mt-1">
+                      {editable && onFieldChange ? (
+                        <CustomVoiceoversField
+                          value={rawValue}
+                          variant={voVariant}
+                          aria-label={field.label}
+                          onChange={(value) => onFieldChange(field.key, value)}
+                        />
+                      ) : voDisplay ? (
+                        <p className="text-[13px] font-normal text-brand-ink">
+                          {voDisplay}
+                        </p>
+                      ) : (
+                        <p className="text-[13px] text-brand-ink-tertiary">
+                          Not set
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              }
+
+              if (field.key === "styleOfGamedayMix") {
+                const styleDisplay =
+                  normalizeGamedayStyle(rawValue) || displayValue;
+                return (
+                  <div
+                    key={field.key}
+                    className={clsx("flex min-w-0 flex-col", spanClass)}
+                  >
+                    <FieldLabel
+                      label={field.label}
+                      missing={missing}
+                      sources={fieldSources?.[field.key]}
+                    />
+                    <div className="mt-1">
+                      {editable && onFieldChange ? (
+                        <GamedayStyleField
+                          value={rawValue}
+                          aria-label={field.label}
+                          onChange={(value) => onFieldChange(field.key, value)}
+                        />
+                      ) : styleDisplay ? (
+                        <p className="text-[13px] font-normal text-brand-ink">
+                          {styleDisplay}
+                        </p>
+                      ) : (
+                        <p className="text-[13px] text-brand-ink-tertiary">
+                          Not set
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              }
+
+              if (field.key === "style") {
+                const styleVariant =
+                  order.danceFormSubtype === "jazz-kick"
+                    ? "jazz-kick"
+                    : "tpv";
+                const styleDisplay =
+                  normalizeDanceStyle(rawValue, styleVariant) || displayValue;
+                return (
+                  <div
+                    key={field.key}
+                    className={clsx("flex min-w-0 flex-col", spanClass)}
+                  >
+                    <FieldLabel
+                      label={field.label}
+                      missing={missing}
+                      sources={fieldSources?.[field.key]}
+                    />
+                    <div className="mt-1">
+                      {editable && onFieldChange ? (
+                        <DanceStyleField
+                          value={rawValue}
+                          variant={styleVariant}
+                          aria-label={field.label}
+                          onChange={(value) => onFieldChange(field.key, value)}
+                        />
+                      ) : styleDisplay ? (
+                        <p className="text-[13px] font-normal text-brand-ink">
+                          {styleDisplay}
+                        </p>
+                      ) : (
+                        <p className="text-[13px] text-brand-ink-tertiary">
+                          Not set
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              }
+
+              if (
+                field.key === "licensingRequired" ||
+                field.key === "isRushOrder"
+              ) {
+                const yesNoDisplay = normalizeYesNo(rawValue) || displayValue;
+                return (
+                  <div
+                    key={field.key}
+                    className={clsx("flex min-w-0 flex-col", spanClass)}
+                  >
+                    <FieldLabel
+                      label={field.label}
+                      missing={missing}
+                      sources={fieldSources?.[field.key]}
+                    />
+                    <div className="mt-1">
+                      {editable && onFieldChange ? (
+                        <YesNoField
+                          value={rawValue}
+                          aria-label={field.label}
+                          onChange={(value) => onFieldChange(field.key, value)}
+                        />
+                      ) : yesNoDisplay ? (
+                        <p className="text-[13px] font-normal text-brand-ink">
+                          {yesNoDisplay}
+                        </p>
+                      ) : (
+                        <p className="text-[13px] text-brand-ink-tertiary">
+                          Not set
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              }
+
+              if (field.key === "vocalsPreference") {
+                const vocalsDisplay =
+                  normalizeVocalsPreference(rawValue) || displayValue;
+                return (
+                  <div
+                    key={field.key}
+                    className={clsx("flex min-w-0 flex-col", spanClass)}
+                  >
+                    <FieldLabel
+                      label={field.label}
+                      missing={missing}
+                      sources={fieldSources?.[field.key]}
+                    />
+                    <div className="mt-1">
+                      {editable && onFieldChange ? (
+                        <VocalsPreferenceField
+                          value={rawValue}
+                          aria-label={field.label}
+                          onChange={(value) => onFieldChange(field.key, value)}
+                        />
+                      ) : vocalsDisplay ? (
+                        <p className="text-[13px] font-normal text-brand-ink">
+                          {vocalsDisplay}
+                        </p>
+                      ) : (
+                        <p className="text-[13px] text-brand-ink-tertiary">
+                          Not set
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              }
+
+              if (field.key === "mixEndDate") {
+                return (
+                  <div
+                    key={field.key}
+                    className={clsx("flex min-w-0 flex-col", spanClass)}
+                  >
+                    <FieldLabel
+                      label={field.label}
+                      missing={missing}
+                      sources={fieldSources?.[field.key]}
+                    />
+                    <div className="mt-1">
+                      {editable && onFieldChange ? (
+                        <InlineDateInput
+                          value={rawValue}
+                          onChange={(value) => onFieldChange(field.key, value)}
+                          placeholder="Select date"
+                          menuZIndex={110}
+                          className="w-full max-w-[280px]"
+                        />
+                      ) : displayValue ? (
+                        <p className="text-[13px] font-normal text-brand-ink">
+                          {displayValue}
+                        </p>
+                      ) : (
+                        <p className="text-[13px] text-brand-ink-tertiary">
+                          Not set
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              }
+
+              if (
+                field.key === "sendingEightCountSheets" ||
+                field.key === "usingEightCountSheets"
+              ) {
+                const yesNoDisplay =
+                  normalizeYesNo(rawValue) || displayValue;
+                return (
+                  <div
+                    key={field.key}
+                    className={clsx("flex min-w-0 flex-col", spanClass)}
+                  >
+                    <FieldLabel
+                      label={field.label}
+                      missing={missing}
+                      sources={fieldSources?.[field.key]}
+                    />
+                    <div className="mt-1">
+                      {editable && onFieldChange ? (
+                        <YesNoField
+                          value={rawValue}
+                          aria-label={field.label}
+                          onChange={(value) => onFieldChange(field.key, value)}
+                        />
+                      ) : yesNoDisplay ? (
+                        <p className="text-[13px] font-normal text-brand-ink">
+                          {yesNoDisplay}
+                        </p>
+                      ) : (
+                        <p className="text-[13px] text-brand-ink-tertiary">
+                          Not set
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              }
+
+              if (field.key === "howDidYouFindOut") {
+                const sourceDisplay =
+                  normalizeHowDidYouFindOut(rawValue) || displayValue;
+                return (
+                  <div
+                    key={field.key}
+                    className={clsx("flex min-w-0 flex-col", spanClass)}
+                  >
+                    <FieldLabel
+                      label={field.label}
+                      missing={missing}
+                      sources={fieldSources?.[field.key]}
+                    />
+                    <div className="mt-1">
+                      {editable && onFieldChange ? (
+                        <HowDidYouFindOutField
+                          value={rawValue}
+                          aria-label={field.label}
+                          onChange={(value) => onFieldChange(field.key, value)}
+                        />
+                      ) : sourceDisplay ? (
+                        <p className="text-[13px] font-normal text-brand-ink">
+                          {sourceDisplay}
+                        </p>
+                      ) : (
+                        <p className="text-[13px] text-brand-ink-tertiary">
+                          Not set
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              }
+
+              if (field.key === "requestedEditor") {
+                const producerDisplay = formatRequestedProducerDisplay(
+                  rawValue,
+                  producers
+                );
+                return (
+                  <div
+                    key={field.key}
+                    className={clsx("flex min-w-0 flex-col", spanClass)}
+                  >
+                    <FieldLabel
+                      label={field.label}
+                      missing={missing}
+                      sources={fieldSources?.[field.key]}
+                    />
+                    <div className="mt-1">
+                      {editable && onFieldChange ? (
+                        <RequestedProducerField
+                          value={rawValue}
+                          originalValue={
+                            originalOrder
+                              ? rawFieldValue(originalOrder, field.key)
+                              : rawValue
+                          }
+                          producers={producers}
+                          onChange={(value) => onFieldChange(field.key, value)}
+                        />
+                      ) : (
+                        <p
+                          className={clsx(
+                            "text-[13px] font-normal",
+                            producerDisplay === "First Available"
+                              ? "text-brand-info"
+                              : "text-brand-ink"
+                          )}
+                        >
+                          {producerDisplay}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              }
+
+              if (field.key === "packageType") {
+                const packageValue =
+                  packageTypeDisplayValue(rawValue) ||
+                  packageTypeDisplayValue(order.package || "") ||
+                  "";
+                const originalPackage =
+                  packageTypeDisplayValue(
+                    originalOrder
+                      ? rawFieldValue(originalOrder, field.key)
+                      : ""
+                  ) ||
+                  packageTypeDisplayValue(originalOrder?.package || "") ||
+                  packageValue;
+
+                return (
+                  <div
+                    key={field.key}
+                    className={clsx("flex min-w-0 flex-col", spanClass)}
+                  >
+                    <FieldLabel
+                      label={field.label}
+                      missing={missing}
+                      sources={fieldSources?.[field.key]}
+                    />
+                    <div className="mt-1">
+                      {editable && onFieldChange ? (
+                        <PackageTypeField
+                          value={packageValue}
+                          originalValue={originalPackage}
+                          formType={order.formType || "school-all-star-cheer"}
+                          cheerSubtype={order.cheerFormSubtype}
+                          danceSubtype={order.danceFormSubtype}
+                          onChange={(value) => onFieldChange(field.key, value)}
+                        />
+                      ) : packageValue ? (
+                        <p className="text-[13px] font-normal text-brand-ink">
+                          {packageValue}
+                        </p>
+                      ) : (
+                        <p className="text-[13px] text-brand-ink-tertiary">
+                          Not set
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              }
+
+              if (field.key === "timeLengthOfMix") {
+                // Non-cheer forms use free-text mix length (not rate-card SoftSelect).
+                if (order.formType !== "school-all-star-cheer") {
+                  const isGameday = order.danceFormSubtype === "gameday";
+                  return (
+                    <div
+                      key={field.key}
+                      className={clsx("flex min-w-0 flex-col", spanClass)}
+                    >
+                      <FieldLabel
+                      label={field.label}
+                      missing={missing}
+                      sources={fieldSources?.[field.key]}
+                    />
+                      <div className="mt-1">
+                        {editable && onFieldChange ? (
+                          <DetailInput
+                            value={rawValue}
+                            placeholder={
+                              isGameday
+                                ? "This mix can be max 1:00"
+                                : "1:50-1:55"
+                            }
+                            onChange={(value) =>
+                              onFieldChange(field.key, value)
+                            }
+                          />
+                        ) : displayValue ? (
+                          <p className="text-[13px] font-normal tabular-nums text-brand-ink">
+                            {displayValue}
+                          </p>
+                        ) : (
+                          <p className="text-[13px] text-brand-ink-tertiary">
+                            Not set
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                }
+
+                const fromPackage = parsePackage(
+                  order.package || order.packageType || ""
+                ).limit;
+                const mixLengthValue =
+                  rawValue.trim() ||
+                  (fromPackage && fromPackage !== "-" ? fromPackage : "") ||
+                  "";
+                const originalMixLength = originalOrder
+                  ? rawFieldValue(originalOrder, field.key).trim() ||
+                    (() => {
+                      const limit = parsePackage(
+                        originalOrder.package ||
+                          originalOrder.packageType ||
+                          ""
+                      ).limit;
+                      return limit && limit !== "-" ? limit : "";
+                    })() ||
+                    mixLengthValue
+                  : mixLengthValue;
+
+                return (
+                  <div
+                    key={field.key}
+                    className={clsx("flex min-w-0 flex-col", spanClass)}
+                  >
+                    <FieldLabel
+                      label={field.label}
+                      missing={missing}
+                      sources={fieldSources?.[field.key]}
+                    />
+                    <div className="mt-1">
+                      {editable && onFieldChange ? (
+                        <MixLengthField
+                          value={mixLengthValue}
+                          originalValue={originalMixLength}
+                          formType={order.formType || "school-all-star-cheer"}
+                          cheerSubtype={order.cheerFormSubtype}
+                          danceSubtype={order.danceFormSubtype}
+                          onChange={(value) => onFieldChange(field.key, value)}
+                        />
+                      ) : mixLengthValue ? (
+                        <p className="text-[13px] font-normal tabular-nums text-brand-ink">
+                          {mixLengthValue}
+                        </p>
+                      ) : (
+                        <p className="text-[13px] text-brand-ink-tertiary">
+                          Not set
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              }
+
+              if (field.key === "numberOfCopies") {
+                const copiesValue = rawValue.trim() || "1";
+                return (
+                  <div
+                    key={field.key}
+                    className={clsx("flex min-w-0 flex-col", spanClass)}
+                  >
+                    <FieldLabel
+                      label={field.label}
+                      missing={missing}
+                      sources={fieldSources?.[field.key]}
+                    />
+                    <div className="mt-1">
+                      {editable && onFieldChange ? (
+                        <DetailInput
+                          type="number"
+                          min={1}
+                          max={40}
+                          step={1}
+                          value={copiesValue}
+                          onChange={(value) => {
+                            const digits = value.replace(/[^\d]/g, "");
+                            if (!digits) {
+                              onFieldChange(field.key, "1");
+                              return;
+                            }
+                            const n = Math.min(
+                              40,
+                              Math.max(1, parseInt(digits, 10) || 1)
+                            );
+                            onFieldChange(field.key, String(n));
+                          }}
+                          className="w-full max-w-[220px]"
+                        />
+                      ) : (
+                        <p className="text-[13px] font-normal tabular-nums text-brand-ink">
+                          {copiesValue}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              }
+
               return (
                 <div
                   key={field.key}
                   className={clsx("flex min-w-0 flex-col", spanClass)}
                 >
-                  <p className="min-h-[28px] text-[10px] font-bold uppercase leading-snug tracking-[0.06em] text-brand-ink-tertiary">
-                    {field.label}
-                  </p>
+                  <FieldLabel
+                    label={field.label}
+                    missing={missing}
+                    sources={fieldSources?.[field.key]}
+                  />
                   <div className="mt-1">
                     {editable && onFieldChange ? (
                       useTextarea ? (

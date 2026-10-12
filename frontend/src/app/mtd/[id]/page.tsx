@@ -266,6 +266,10 @@ export default function MTDDetailPage({
       }
     }
 
+    if ((orderDraft.package || "") !== (order.package || "")) {
+      updateMTD(rec.id, { package: orderDraft.package || "" });
+    }
+
     setOrderDraft(null);
     setOrderFormEditing(false);
   }, [rec, order, orderDraft, linkedOrder, updateOrder, updateMTD]);
@@ -273,7 +277,7 @@ export default function MTDDetailPage({
   const handleOrderDraftChange = useCallback((key: string, value: string) => {
     setOrderDraft((prev) => {
       if (!prev) return prev;
-      return { ...prev, ...orderPatchFromOrderField(key, value) };
+      return { ...prev, ...orderPatchFromOrderField(key, value, prev) };
     });
   }, []);
 
@@ -651,7 +655,9 @@ export default function MTDDetailPage({
           </div>
           <MTDOrderDetails
             order={orderForm}
+            originalOrder={order}
             discountCodes={discountCodes}
+            producers={producers}
             editable={orderFormEditing && !isViewOnly}
             onFieldChange={handleOrderDraftChange}
           />

@@ -595,8 +595,11 @@ export function CompleteToPayrollModal({
     breakdown?.canonical_subtype_id,
     finalPayrollPriceNum,
     {
+      // Keep rush qty so package % excludes the customer rush charge, but do
+      // not fold rush compensation into this payout — that lands on Payroll.
       rushFeeQuantity: rushQty,
       rushFeeCompensationRate: record.rushFeeCompensationRate ?? assignedProducerObj?.rushFeeRate ?? 1.0,
+      includeRushFeeInPayout: false,
       formType: breakdown?.form_type,
     }
   );
@@ -764,7 +767,7 @@ export function CompleteToPayrollModal({
                 <p className="mt-0.5 text-[11px] font-medium text-brand-ink-tertiary">
                   {(() => {
                     const formLabel = getFormTypeLabel(breakdown?.form_type).replace(
-                      /^School \/ /,
+                      /^School\s*\/\s*/,
                       ""
                     );
                     const subLabel = getSubtypeLabel(breakdown?.canonical_subtype_id);
@@ -1064,29 +1067,18 @@ export function CompleteToPayrollModal({
                 </div>
               </div>
 
-              {/* Rush Fee Details in Step 2 */}
+              {/* Rush carried to Payroll — not applied to mix payout here */}
               {rushQty > 0 && (
-                <div className="rounded-xl border border-brand-line/70 bg-brand-bg/40 p-4 space-y-2">
+                <div className="rounded-xl border border-brand-line/70 bg-brand-bg/40 p-4 space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <p className="text-[13px] font-bold text-brand-ink">Rush Fee</p>
+                    <p className="text-[13px] font-bold text-brand-ink">Rush order</p>
                     <span className="rounded bg-brand-blue-soft px-2 py-0.5 text-[11px] font-semibold text-brand-blue">
                       Quantity: {rushQty}
                     </span>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 text-[12px] pt-1 border-t border-brand-line/40">
-                    <div>
-                      <span className="text-brand-ink-tertiary">Compensation Rate: </span>
-                      <span className="font-semibold text-brand-ink">
-                        {Math.round(((record.rushFeeCompensationRate ?? assignedProducerObj?.rushFeeRate ?? 1.0) <= 1 ? (record.rushFeeCompensationRate ?? assignedProducerObj?.rushFeeRate ?? 1.0) * 100 : (record.rushFeeCompensationRate ?? assignedProducerObj?.rushFeeRate ?? 1.0)))}%
-                      </span>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-brand-ink-tertiary">Editor Payout: </span>
-                      <span className="font-bold text-brand-success">
-                        {formatPrice(clientPayroll.rushFeePayout ?? 0)}
-                      </span>
-                    </div>
-                  </div>
+                  <p className="text-[12px] text-brand-ink-secondary">
+                    Rush fee is not included in this payout. It carries to the Payroll tab.
+                  </p>
                 </div>
               )}
 

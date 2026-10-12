@@ -63,8 +63,8 @@ export function VoiceoversPanel({
   mtdRecords,
   allOrders,
   form: pageForm = "school-all-star-cheer",
-  cheerSubtype: pageCheerSubtype = "all",
-  danceSubtype: pageDanceSubtype = "all",
+  cheerSubtype: pageCheerSubtype = "all-star-cheer",
+  danceSubtype: pageDanceSubtype = "pom",
   readOnly = false,
   onAdd,
   onDelete,
@@ -308,9 +308,9 @@ function VoiceoverEntryModal({
   const [programName, setProgramName] = useState("");
   const [form, setForm] = useState<OrderFormType>("school-all-star-cheer");
   const [cheerSubtype, setCheerSubtype] =
-    useState<CheerFormSubtypeFilter>("all");
+    useState<CheerFormSubtypeFilter>("all-star-cheer");
   const [danceSubtype, setDanceSubtype] =
-    useState<DanceFormSubtypeFilter>("all");
+    useState<DanceFormSubtypeFilter>("pom");
   const [rateIndex, setRateIndex] = useState(0);
   const [manualAmount, setManualAmount] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -388,8 +388,8 @@ function VoiceoverEntryModal({
 
   function switchForm(next: OrderFormType) {
     setForm(next);
-    if (next !== "school-all-star-cheer") setCheerSubtype("all");
-    if (next !== "school-all-star-dance") setDanceSubtype("all");
+    if (next !== "school-all-star-cheer") setCheerSubtype("all-star-cheer");
+    if (next !== "school-all-star-dance") setDanceSubtype("pom");
     setRateIndex(0);
     setManualAmount("");
     setProducerId("");
@@ -432,8 +432,20 @@ function VoiceoverEntryModal({
           ? "school-all-star-dance"
           : "school-all-star-cheer";
       setForm(nextForm);
-      setCheerSubtype("all");
-      setDanceSubtype("all");
+      setCheerSubtype(
+        nextForm === "school-all-star-cheer"
+          ? initialCheerSubtype === "all"
+            ? "all-star-cheer"
+            : initialCheerSubtype
+          : "all-star-cheer"
+      );
+      setDanceSubtype(
+        nextForm === "school-all-star-dance"
+          ? initialDanceSubtype === "all"
+            ? "pom"
+            : initialDanceSubtype
+          : "pom"
+      );
       const list = editing.category === "Dance" ? DANCE_RATES : CHEER_RATES;
       const idx = list.findIndex(
         (r) => r.source === "predefined" && r.value === editing.amount
@@ -449,8 +461,10 @@ function VoiceoverEntryModal({
       setProducerId("");
       setProgramName("");
       setForm(initialForm);
-      setCheerSubtype(initialCheerSubtype);
-      setDanceSubtype(initialDanceSubtype);
+      setCheerSubtype(
+        initialCheerSubtype === "all" ? "all-star-cheer" : initialCheerSubtype
+      );
+      setDanceSubtype(initialDanceSubtype === "all" ? "pom" : initialDanceSubtype);
       setRateIndex(0);
       setManualAmount("");
     }

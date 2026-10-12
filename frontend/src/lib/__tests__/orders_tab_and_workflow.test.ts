@@ -124,6 +124,29 @@ describe("Orders Tab & Workflow Separation", () => {
     assert.equal(isPreMTDOrderRecord(merged), true);
   });
 
+  it("Local inPayroll survives a stale backend/SSE payload missing payroll flags", () => {
+    const staleIncoming = makeRecord({
+      inPayroll: false,
+      status: "active",
+      completedAt: undefined,
+      producerPayout: undefined,
+    });
+    const localPayroll = makeRecord({
+      inPayroll: true,
+      status: "completed",
+      recordStatus: "Completed",
+      completedAt: "2026-10-13T00:00:00Z",
+      producerPayout: 808.5,
+      payrollFinalized: true,
+    });
+
+    const merged = mergeLocalMtdRecordFields(staleIncoming, localPayroll);
+    assert.equal(merged.inPayroll, true);
+    assert.equal(merged.producerPayout, 808.5);
+    assert.equal(merged.completedAt, "2026-10-13T00:00:00Z");
+    assert.equal(merged.payrollFinalized, true);
+  });
+
   it("Thin assigned MTD rows keep order songs/mix fields so Data stays Complete", () => {
     const order: Order = {
       id: "ord-assign-1",

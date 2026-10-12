@@ -38,9 +38,23 @@ class Order(Base):
     requested_editor = Column(String, nullable=True)
     time_length_of_mix = Column(String, nullable=True)
     music_affiliate = Column(String, nullable=True)
+    # Cheer form multi-checkbox accident: open | resolved | released
+    affiliate_flag_status = Column(String, nullable=True)
+    # Original multi-select affiliate string from the form
+    music_affiliate_selections = Column(Text, nullable=True)
     power_music_covers = Column(Text, nullable=True)
     routine_notes = Column(Text, nullable=True)
     custom_voiceovers = Column(Text, nullable=True)
+    voiceover_script = Column(Text, nullable=True)
+    pronunciation_guidance = Column(Text, nullable=True)
+    style = Column(String, nullable=True)
+    licensing_required = Column(String, nullable=True)
+    instrumentation_notes = Column(Text, nullable=True)
+    lyrical_notes = Column(Text, nullable=True)
+    is_rush_order = Column(String, nullable=True)
+    nicknames = Column(Text, nullable=True)
+    vocals_preference = Column(String, nullable=True)
+    instrumental_style_preference = Column(Text, nullable=True)
 
     # Form specific fields
     gym_name = Column(String, nullable=True)
@@ -98,6 +112,13 @@ class Order(Base):
     attention_reason = Column(Text, nullable=True)
     is_past_order = Column(Boolean, default=False, nullable=False)
     is_reassigned = Column(Boolean, default=False, nullable=False)
+    # Created via admin New Order (not a customer form submission).
+    is_manual_entry = Column(Boolean, default=False, nullable=False)
+    # Manual ↔ form pairing (admin merge / absorb).
+    merged_form_order_id = Column(String, nullable=True)
+    merged_into_manual_order_id = Column(String, nullable=True)
+    manual_overlap_snapshot = Column(JSON, nullable=True)
+    suppress_manual_form_merge = Column(Boolean, default=False, nullable=False)
     missing_data_email_sent_at = Column(DateTime(timezone=True), nullable=True)
     producer_email_sent_at = Column(DateTime(timezone=True), nullable=True)
     producer_email_sent_to = Column(String, nullable=True)

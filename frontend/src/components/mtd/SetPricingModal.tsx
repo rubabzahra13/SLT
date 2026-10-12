@@ -1054,7 +1054,7 @@ export function SetPricingModal({
                             Tier
                           </th>
                           <th className="sticky top-0 z-20 border border-neutral-300 px-3.5 py-2.5 bg-neutral-200 text-neutral-900">
-                            Time Limit
+                            Mix Length
                           </th>
                         </>
                       ) : (

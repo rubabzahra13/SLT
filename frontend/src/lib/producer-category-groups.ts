@@ -51,13 +51,13 @@ function uniqueSubcategories(
 
 const CHEER_GROUP: ProducerCategoryGroup = {
   id: "school-all-star-cheer",
-  label: "All Star Cheer",
+  label: "School/All Star Cheer",
   subcategories: uniqueSubcategories("school-all-star-cheer", CHEER_FORM_SUBTABS),
 };
 
 const DANCE_GROUP: ProducerCategoryGroup = {
   id: "school-all-star-dance",
-  label: "All Star Dance",
+  label: "School/All Star Dance",
   subcategories: uniqueSubcategories("school-all-star-dance", DANCE_FORM_SUBTABS),
 };
 

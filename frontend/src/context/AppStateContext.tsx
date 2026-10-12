@@ -34,6 +34,11 @@ import {
 } from "@/lib/email-templates";
 import { getData } from "@/lib/data";
 import { normalizeOrder, orderToMTDRecord } from "@/lib/order-form";
+import {
+  findMatchingManualOrder,
+  mergePatchFromForm,
+} from "@/lib/manual-form-merge";
+import { openAffiliateFlagPatch } from "@/lib/affiliate-flag";
 import { mergeCollectionStateFromOrder } from "@/lib/order-staging";
 import { useAuth } from "@/context/AuthContext";
 import {
@@ -63,6 +68,7 @@ import {
 import { countProducerMixesThisWeek } from "@/lib/producer-availability";
 import { normalizeDiscountCode } from "@/lib/discount-codes";
 import { isOutsourcedRecord } from "@/lib/mtd-filters";
+import { mergeLocalMtdRecordFields } from "@/lib/mtd-completion";
 import { inferMTDRecordStatus } from "@/lib/mtd-status";
 import { toIsoDateString } from "@/lib/dates";
 import { ApiClientError, formatApiClientError } from "@/lib/api/client";
@@ -592,8 +598,14 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       const combinedMtd = [...loadedMtdRecords, ...convertedOrders];
       // Don't clobber a newer optimistic Paid / board edit with a slower boot.
       if (fetchedAt >= mtdMutatedAtRef.current) {
-        setMtdRecords(combinedMtd);
-        writeTimedCache(CACHE_MTD_KEY, combinedMtd);
+        setMtdRecords((prev) => {
+          const next = combinedMtd.map((backend) => {
+            const local = prev.find((r) => mtdRecordsReferToSame(r, backend));
+            return mergeLocalMtdRecordFields(backend, local);
+          });
+          writeTimedCache(CACHE_MTD_KEY, next);
+          return next;
+        });
       }
 
       setDiscountCodes(boot.discountCodes);
@@ -1266,7 +1278,15 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
                 (apiPatch as MTDRecord).eightCountSheet ||
                 existing.eightCountSheet ||
                 linkedOrder?.eightCountSheet ||
+                "",
+              sendingEightCountSheets:
+                (apiPatch as MTDRecord).sendingEightCountSheets ||
+                existing.sendingEightCountSheets ||
                 linkedOrder?.sendingEightCountSheets ||
+                "",
+              usingEightCountSheets:
+                (apiPatch as MTDRecord).usingEightCountSheets ||
+                existing.usingEightCountSheets ||
                 linkedOrder?.usingEightCountSheets ||
                 "",
               orderStatus:
@@ -1572,23 +1592,86 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         status: order.status || "new",
       });
       const prevActive = activeOrders;
+
+      // Form API orders that match an existing manual program (90–100%) merge
+      // into that Manual orders row; form stays tagged/hidden from the board.
+      if (!incoming.isManualEntry) {
+        const manualMatch = findMatchingManualOrder(incoming, activeOrders);
+        if (manualMatch) {
+          const patch = mergePatchFromForm(manualMatch, incoming);
+          const mergedPreview = normalizeOrder({
+            ...manualMatch,
+            ...patch,
+            id: manualMatch.id,
+          });
+          const flagPatch = openAffiliateFlagPatch({
+            ...mergedPreview,
+            musicAffiliate:
+              incoming.musicAffiliate || mergedPreview.musicAffiliate,
+          });
+          const manualNext = flagPatch
+            ? normalizeOrder({ ...mergedPreview, ...flagPatch })
+            : mergedPreview;
+          const taggedForm = normalizeOrder({
+            ...incoming,
+            mergedIntoManualOrderId: manualMatch.id,
+          });
+
+          setActiveOrders((prev) => {
+            const withoutDup = prev.filter((o) => o.id !== taggedForm.id);
+            return [
+              taggedForm,
+              ...withoutDup.map((o) =>
+                o.id === manualMatch.id ? manualNext : o
+              ),
+            ];
+          });
+
+          void Promise.all([
+            createOrderApi(taggedForm),
+            updateOrderApi(manualMatch.id, {
+              ...patch,
+              ...(flagPatch || {}),
+            }),
+          ]).catch((err) => {
+            setActiveOrders(prevActive);
+            notifySaveError("Could not merge form order into manual", err);
+          });
+
+          addNotification({
+            type: "new_order",
+            title: flagPatch
+              ? "Form merged · flagged for affiliate"
+              : "Form order merged",
+            message: `${incoming.programName} matched manual order · kept as Manual`,
+            href: flagPatch ? "/orders?range=flagged" : "/orders",
+          });
+          return;
+        }
+      }
+
+      const flagPatch = openAffiliateFlagPatch(incoming);
+      const toStore = flagPatch
+        ? normalizeOrder({ ...incoming, ...flagPatch })
+        : incoming;
+
       setActiveOrders((prev) => {
-        if (prev.some((o) => o.id === incoming.id)) return prev;
-        return [incoming, ...prev];
+        if (prev.some((o) => o.id === toStore.id)) return prev;
+        return [toStore, ...prev];
       });
 
-      void createOrderApi(incoming).catch((err) => {
+      void createOrderApi(toStore).catch((err) => {
         setActiveOrders(prevActive);
         notifySaveError("Could not save new order", err);
       });
 
       addNotification({
         type: "new_order",
-        title: "New order received",
-        message: `${incoming.programName} · ${
-          incoming.contactName || incoming.customerName || "Customer"
+        title: flagPatch ? "Order flagged — multiple affiliates" : "New order received",
+        message: `${toStore.programName} · ${
+          toStore.contactName || toStore.customerName || "Customer"
         }`,
-        href: "/mtd",
+        href: flagPatch ? "/orders?range=flagged" : "/mtd",
       });
     },
     [addNotification, activeOrders, notifySaveError]
@@ -2385,8 +2468,10 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           const peerPaid = Boolean(peer.paidAt);
           const localPaid = Boolean(local.paidAt);
           if (localPaid && !peerPaid) return local;
+          const merged = mergeLocalMtdRecordFields(peer, local);
+          if (mtdLiveSyncKey(merged) === mtdLiveSyncKey(local)) return local;
           changed = true;
-          return { ...local, ...peer, id: local.id, uuid: local.uuid || peer.uuid };
+          return { ...merged, id: local.id, uuid: local.uuid || peer.uuid };
         });
         for (const peer of incoming) {
           if (next.some((r) => mtdRecordsReferToSame(r, peer))) continue;
@@ -2613,12 +2698,15 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       const peerPaid = Boolean(incoming.paidAt);
       const localPaid = Boolean(local.paidAt);
       if (localPaid && !peerPaid) return prev;
+      // Stale order→MTD fan-out can arrive with inPayroll still false while
+      // local already moved the row to Payroll — keep local payroll fields.
+      const merged = mergeLocalMtdRecordFields(incoming, local);
+      if (mtdLiveSyncKey(merged) === mtdLiveSyncKey(local)) return prev;
       applyingPeerMtdRef.current = true;
       mtdMutatedAtRef.current = Date.now();
       const next = [...prev];
       next[idx] = {
-        ...local,
-        ...incoming,
+        ...merged,
         id: local.id,
         uuid: local.uuid || incoming.uuid,
       };

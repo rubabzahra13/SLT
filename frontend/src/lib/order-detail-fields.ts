@@ -11,7 +11,8 @@ const FIELD_GETTERS: Record<string, (order: Order) => string | undefined> = {
   gymName: (o) => o.gymName || o.schoolProgramName,
   gymBillingAddress: (o) => o.gymBillingAddress || o.schoolAddress,
   schoolName: (o) => o.schoolName || o.schoolProgramName,
-  schoolBillingAddress: (o) => o.schoolBillingAddress || o.schoolAddress,
+  schoolBillingAddress: (o) =>
+    o.schoolBillingAddress || o.schoolAddress || o.billingAddress || "",
   billingAddress: (o) => o.billingAddress || o.schoolAddress,
   city: (o) => o.city,
   stateProvince: (o) => o.stateProvince,
@@ -55,30 +56,33 @@ const FIELD_GETTERS: Record<string, (order: Order) => string | undefined> = {
     o.schoolGymAddress || o.schoolAddress || o.gymBillingAddress || o.billingAddress,
   divisionOfTeam: (o) => o.divisionOfTeam || o.division,
   style: (o) => o.style,
-  styleOfGamedayMix: (o) => o.styleOfGamedayMix,
+  styleOfGamedayMix: (o) => o.styleOfGamedayMix || o.style || "",
   licensingRequired: (o) => o.licensingRequired,
   voiceoverScript: (o) => o.voiceoverScript,
   pronunciationGuidance: (o) => o.pronunciationGuidance,
-  organizationName: (o) => (o as any).organizationName || o.schoolProgramName,
-  schoolOrganizationName: (o) => (o as any).schoolOrganizationName || o.schoolProgramName,
-  musicContactName: (o) => (o as any).musicContactName || o.coachName,
-  musicContactPhone: (o) => (o as any).musicContactPhone || o.coachPhone,
-  musicContactEmail: (o) => (o as any).musicContactEmail || o.coachEmail,
-  billingContactName: (o) => (o as any).billingContactName || o.billingPersonName,
-  billingContactEmail: (o) => (o as any).billingContactEmail || o.billingPersonEmail,
+  organizationName: (o) => o.organizationName || o.schoolProgramName || "",
+  schoolOrganizationName: (o) =>
+    o.schoolOrganizationName || o.schoolProgramName || "",
+  musicContactName: (o) => o.musicContactName || o.coachName || "",
+  musicContactPhone: (o) => o.musicContactPhone || o.coachPhone || "",
+  musicContactEmail: (o) => o.musicContactEmail || o.coachEmail || "",
+  billingContactName: (o) => o.billingContactName || o.billingPersonName || "",
+  billingContactEmail: (o) =>
+    o.billingContactEmail || o.billingPersonEmail || "",
   isRushOrder: (o) => {
-    const val = (o as any).isRushOrder;
+    const val = o.isRushOrder;
     if (val === undefined || val === null) return "";
     return String(val);
   },
-  customerSongs: (o) => (o as any).customerSongs || o.songListSuggestions,
-  additionalNotes: (o) => (o as any).additionalNotes || o.routineNotes,
-  instrumentationNotes: (o) => (o as any).instrumentationNotes,
-  lyricalNotes: (o) => (o as any).lyricalNotes,
-  schoolProgramColors: (o) => (o as any).schoolProgramColors || o.colors,
-  nicknames: (o) => (o as any).nicknames,
-  vocalsPreference: (o) => (o as any).vocalsPreference,
-  instrumentalStylePreference: (o) => (o as any).instrumentalStylePreference,
+  mixEndDate: (o) => o.mixEndDate || "",
+  customerSongs: (o) => o.customerSongs || o.songListSuggestions || "",
+  additionalNotes: (o) => o.additionalNotes || o.routineNotes || "",
+  instrumentationNotes: (o) => o.instrumentationNotes || "",
+  lyricalNotes: (o) => o.lyricalNotes || "",
+  schoolProgramColors: (o) => o.schoolProgramColors || o.colors || o.teamColors || "",
+  nicknames: (o) => o.nicknames || "",
+  vocalsPreference: (o) => o.vocalsPreference || "",
+  instrumentalStylePreference: (o) => o.instrumentalStylePreference || "",
 };
 
 export function rawFieldValue(order: Order, key: string): string {
@@ -127,7 +131,6 @@ function enrichOrderFromMTD(rec: {
       rec.editorRequest === "FA" ? "First Available" : String(rec.editorRequest),
     songListSuggestions: rec.musicTheme,
     routineNotes: rec.musicTheme,
-    sendingEightCountSheets: rec.eightCountSheet || "",
     musicAffiliate: "Power Music Covers",
     division: rec.section || rec.category,
   };

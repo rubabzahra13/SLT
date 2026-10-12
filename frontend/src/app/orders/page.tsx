@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowRight, Mail, Pencil } from "lucide-react";
+import { ArrowRight, Flag, Mail, Pencil } from "lucide-react";
 import clsx from "clsx";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Avatar } from "@/components/ui/Avatar";
@@ -13,11 +13,18 @@ import { SetPricingModal } from "@/components/mtd/SetPricingModal";
 import { CompletionBlockedModal } from "@/components/mtd/CompletionBlockedModal";
 import { InlineTwoStateToggle } from "@/components/mtd/InlineFields";
 import { ForwardOrderMailModal } from "@/components/orders/ForwardOrderMailModal";
+import { ResolveAffiliateFlagModal } from "@/components/orders/ResolveAffiliateFlagModal";
 import { AddNewOrderModal } from "@/components/orders/AddNewOrderModal";
 import { OrderFormEditModal } from "@/components/orders/OrderFormEditModal";
 import { OrderRequirementsCell } from "@/components/orders/OrderRequirementsCell";
 import { OrderDataStatusBadge, OrderAssignmentStatusBadge } from "@/components/orders/OrderStatusDropdown";
 import { recordIsRushOrder } from "@/lib/forward-order-mail";
+import {
+  getAffiliateSelections,
+  isAffiliateFlagResolved,
+  recordHeldOnAffiliateFlag,
+  releaseAffiliateFlagPatch,
+} from "@/lib/affiliate-flag";
 import {
   DEFAULT_MTD_TABLE_FILTERS,
   type MTDTableFilterState,
@@ -31,6 +38,7 @@ import {
   getOrderStatus,
   ORDER_RESELECTION_REASON_LABEL,
 } from "@/lib/order-requirements";
+import { getProgramColumnHeader } from "@/lib/order-detail-sections";
 import {
   PRICING_REFERENCE_CHANGED_EVENT,
   resolveEngineCustomerPrice,
@@ -40,6 +48,7 @@ import { formatDisplayDate, formatMixBookedDaysLabel, toIsoDateString } from "@/
 import { todayIso } from "@/lib/date-filters";
 import { generateOrdersCsv, triggerCsvDownload } from "@/lib/export-csv";
 import { parsePackage } from "@/lib/package";
+import { packageTypeDisplayValue } from "@/components/mtd/PackageTypeField";
 import {
   findLinkedOrder,
   findProducerByAssignmentKey,
@@ -56,20 +65,26 @@ import {
   isOrderScheduledAndAssigned,
   matchesMTDSearch,
   resolveMTDFormMeta,
+  sortMTDRecordsBySortKey,
 } from "@/lib/mtd-filters";
 import { listPreMtdOrderRecords } from "@/lib/order-staging";
+import {
+  canAssignManualDespiteMissingData,
+  filterRecordsByOrderSource,
+} from "@/lib/order-source";
 import type {
   CheerFormSubtypeFilter,
   DanceFormSubtypeFilter,
   MTDRecord,
   Order,
   OrderFormType,
+  OrderSourceFilter,
   OrderViewRangeFilter,
 } from "@/types";
 
 const DEFAULT_FORM: OrderFormType = "school-all-star-cheer";
 const DEFAULT_CHEER_SUBTYPE: CheerFormSubtypeFilter = "all-star-cheer";
-const DEFAULT_DANCE_SUBTYPE: DanceFormSubtypeFilter = "all";
+const DEFAULT_DANCE_SUBTYPE: DanceFormSubtypeFilter = "pom";
 
 const actionButtonClass = (filled: boolean, disabled = false) =>
   clsx(
@@ -151,6 +166,7 @@ function OrdersPageContent() {
     "reassign_leave",
     "reassign_rush",
     "waiting_for_data",
+    "flagged",
   ];
   const initialRangeFilter: OrderViewRangeFilter = (() => {
     if (!rangeParam || !allowedRangeFilters.includes(rangeParam as OrderViewRangeFilter)) {
@@ -163,6 +179,8 @@ function OrdersPageContent() {
   })();
   const [rangeFilter, setRangeFilter] =
     useState<OrderViewRangeFilter>(initialRangeFilter);
+  const [sourceFilter, setSourceFilter] =
+    useState<OrderSourceFilter>("both");
 
   const [form, setForm] = [
     formState,
@@ -229,14 +247,12 @@ function OrdersPageContent() {
     const savedCheer = sessionStorage.getItem("slt_orders_cheer_subtype") as CheerFormSubtypeFilter | null;
     const savedDance = sessionStorage.getItem("slt_orders_dance_subtype") as DanceFormSubtypeFilter | null;
     const validCheerSubtypes: CheerFormSubtypeFilter[] = [
-      "all",
       "all-star-cheer",
       "school-cheer-viroc-yes",
       "school-cheer-viroc-no",
       "youth-rec-cheer",
     ];
     const validDanceSubtypes: DanceFormSubtypeFilter[] = [
-      "all",
       "pom",
       "hip-hop",
       "team-performance-variety",
@@ -276,62 +292,101 @@ function OrdersPageContent() {
   );
   const [addNewOrderOpen, setAddNewOrderOpen] = useState(false);
   const [orderFormRecord, setOrderFormRecord] = useState<MTDRecord | null>(null);
+  const [affiliateFlagRecord, setAffiliateFlagRecord] =
+    useState<MTDRecord | null>(null);
+  const [affiliateFlagMode, setAffiliateFlagMode] = useState<
+    "resolve" | "email"
+  >("resolve");
 
   const preMtdRecords = useMemo(
     () => listPreMtdOrderRecords(activeOrders, mtdRecords, packagePrices),
     [activeOrders, mtdRecords, packagePrices]
   );
 
-  const allOrdersCount = useMemo(
-    () => preMtdRecords.length,
-    [preMtdRecords]
+  const orderById = useMemo(() => {
+    const map = new Map<string, Order>();
+    for (const order of allOrders) {
+      if (order.id) map.set(order.id, order);
+      if (order.legacyId) map.set(order.legacyId, order);
+      if (order.uuid) map.set(order.uuid, order);
+    }
+    return map;
+  }, [allOrders]);
+
+  const sourceFilteredRecords = useMemo(
+    () => filterRecordsByOrderSource(preMtdRecords, sourceFilter, orderById),
+    [preMtdRecords, sourceFilter, orderById]
   );
+
+  const flaggedRecords = useMemo(
+    () =>
+      sourceFilteredRecords.filter((rec) =>
+        recordHeldOnAffiliateFlag(rec, orderById)
+      ),
+    [sourceFilteredRecords, orderById]
+  );
+
+  /** Normal Orders board — multi-affiliate cheer flags are held on Flagged until released. */
+  const boardRecords = useMemo(
+    () =>
+      sourceFilteredRecords.filter(
+        (rec) => !recordHeldOnAffiliateFlag(rec, orderById)
+      ),
+    [sourceFilteredRecords, orderById]
+  );
+
+  const allOrdersCount = useMemo(() => boardRecords.length, [boardRecords]);
 
   const needToBeScheduledCount = useMemo(
     () =>
-      preMtdRecords.filter((r) => {
+      boardRecords.filter((r) => {
         if (r.isReassigned) return false;
         if (getOrderRequirements(r).missingCount > 0) return false;
         // Complete data = ready to assign (no producer yet)
         return getOrderAssignmentStatus(r) !== "assigned";
       }).length,
-    [preMtdRecords]
+    [boardRecords]
   );
 
   const newOrdersCount = needToBeScheduledCount;
 
   const assignedOrdersCount = useMemo(
     () =>
-      preMtdRecords.filter((r) => getOrderAssignmentStatus(r) === "assigned")
+      boardRecords.filter((r) => getOrderAssignmentStatus(r) === "assigned")
         .length,
-    [preMtdRecords]
+    [boardRecords]
   );
 
   const notAssignedOrdersCount = useMemo(
     () =>
-      preMtdRecords.filter(
+      boardRecords.filter(
         (r) => getOrderAssignmentStatus(r) === "not_assigned"
       ).length,
-    [preMtdRecords]
+    [boardRecords]
   );
 
   const reassignedOrdersCount = useMemo(
     () =>
-      preMtdRecords.filter((r) => {
+      boardRecords.filter((r) => {
         const status = getOrderAssignmentStatus(r);
         return status === "reassign_leave" || status === "reassign_rush";
       }).length,
-    [preMtdRecords]
+    [boardRecords]
   );
 
   const waitingForDataCount = useMemo(
-    () => preMtdRecords.filter((r) => getOrderRequirements(r).missingCount > 0).length,
-    [preMtdRecords]
+    () =>
+      boardRecords.filter((r) => getOrderRequirements(r).missingCount > 0)
+        .length,
+    [boardRecords]
   );
 
+  const flaggedOrdersCount = flaggedRecords.length;
+
   const typeFilteredPreMtdRecords = useMemo(
-    () =>
-      preMtdRecords.filter((rec) => {
+    () => {
+      if (rangeFilter === "flagged") return flaggedRecords;
+      return boardRecords.filter((rec) => {
         if (rangeFilter === "all") return true;
         if (rangeFilter === "assigned")
           return getOrderAssignmentStatus(rec) === "assigned";
@@ -353,19 +408,10 @@ function OrdersPageContent() {
           getOrderRequirements(rec).missingCount === 0 &&
           getOrderAssignmentStatus(rec) !== "assigned"
         );
-      }),
-    [preMtdRecords, rangeFilter]
+      });
+    },
+    [boardRecords, flaggedRecords, rangeFilter]
   );
-
-  const orderById = useMemo(() => {
-    const map = new Map<string, Order>();
-    for (const order of allOrders) {
-      if (order.id) map.set(order.id, order);
-      if (order.legacyId) map.set(order.legacyId, order);
-      if (order.uuid) map.set(order.uuid, order);
-    }
-    return map;
-  }, [allOrders]);
 
   const switchForm = useCallback(
     (next: OrderFormType) => {
@@ -495,16 +541,22 @@ function OrdersPageContent() {
 
   const filtered = useMemo(() => {
     const q = searchQuery.trim();
-    const base = !q
+    const searched = !q
       ? tableFiltered
       : tableFiltered.filter((rec) => matchesMTDSearch(rec, q));
+    const sorted = sortMTDRecordsBySortKey(
+      searched,
+      tableFilters.sortBy ?? "none",
+      producers,
+      orderById
+    );
     // Moved-back (reassigned) orders pin to the top of the list.
-    return [...base].sort((a, b) => {
+    return [...sorted].sort((a, b) => {
       const aRe = a.isReassigned ? 1 : 0;
       const bRe = b.isReassigned ? 1 : 0;
       return bRe - aRe;
     });
-  }, [tableFiltered, searchQuery]);
+  }, [tableFiltered, searchQuery, tableFilters.sortBy, producers, orderById]);
 
   const formCounts = useMemo(
     () => countMTDByForm(typeFilteredPreMtdRecords, orderById),
@@ -522,6 +574,7 @@ function OrdersPageContent() {
   );
 
   const tableFilterKey = [
+    sourceFilter,
     rangeFilter,
     tableFilters.packageTier,
     tableFilters.timeLimit,
@@ -531,6 +584,7 @@ function OrdersPageContent() {
     tableFilters.scheduleFilter,
     tableFilters.infoFilter,
     tableFilters.dateFilter.type,
+    tableFilters.sortBy,
     String(tableFilters.dateFilter.value),
     searchQuery,
   ].join("-");
@@ -539,6 +593,11 @@ function OrdersPageContent() {
   const columns: Column<MTDRecord>[] = useMemo(() => {
     const showMusicAffiliate =
       form === "school-all-star-cheer" || form === "school-all-star-dance";
+    const programHeader = getProgramColumnHeader(
+      form,
+      cheerSubtype === "all" ? undefined : cheerSubtype,
+      danceSubtype === "all" ? undefined : danceSubtype
+    );
 
     const baseCols: Column<MTDRecord>[] = [
       {
@@ -568,12 +627,15 @@ function OrdersPageContent() {
       },
       {
         key: "program",
-        header: "Program",
-        width: "100px",
+        header: programHeader,
+        width: programHeader.length > 14 ? "150px" : "100px",
         align: "left" as const,
         nowrap: false,
-        cellClassName: clsx(compactCellClass, "max-w-[100px]"),
-        headerClassName: compactHeaderClass,
+        cellClassName: clsx(
+          compactCellClass,
+          programHeader.length > 14 ? "max-w-[150px]" : "max-w-[100px]"
+        ),
+        headerClassName: clsx(compactHeaderClass, "whitespace-normal leading-tight"),
         render: (rec) => (
           <TruncatedText
             text={titleCase(rec.programName)}
@@ -584,17 +646,21 @@ function OrdersPageContent() {
       },
       {
         key: "package",
-        header: "Package",
+        header: "Package type",
         width: "100px",
         align: "center" as const,
         nowrap: false,
         cellClassName: clsx(compactCellClass, "max-w-[100px]"),
         headerClassName: compactHeaderClass,
         render: (rec) => {
-          const { tier } = parsePackage(rec.package);
+          const linked = findLinkedOrder(rec, allOrders);
+          const tier =
+            packageTypeDisplayValue(linked?.packageType || "") ||
+            packageTypeDisplayValue(linked?.package || "") ||
+            packageTypeDisplayValue(rec.package || "");
           return (
             <TruncatedText
-              text={titleCase(tier)}
+              text={tier ? titleCase(tier) : "—"}
               className={clsx("mx-auto w-full min-w-0 text-center font-medium", compactTextClass)}
               style={{ maxWidth: "100%" }}
             />
@@ -605,17 +671,26 @@ function OrdersPageContent() {
         ? [
             {
               key: "limit",
-              header: "Time limit",
+              header: "Mix Length",
               width: "100px",
               align: "center" as const,
               nowrap: false,
               cellClassName: clsx(compactCellClass, "max-w-[100px]"),
               headerClassName: compactHeaderClass,
               render: (rec: MTDRecord) => {
-                const { limit } = parsePackage(rec.package);
+                const linked = findLinkedOrder(rec, allOrders);
+                const fromOrder = (linked?.timeLengthOfMix || "").trim();
+                const fromPackage = parsePackage(
+                  packageTypeDisplayValue(rec.package)
+                    ? rec.package
+                    : linked?.package || ""
+                ).limit;
+                const limit =
+                  fromOrder ||
+                  (fromPackage && fromPackage !== "-" ? fromPackage : "");
                 return (
                   <span className={clsx("mx-auto block text-center tabular-nums", compactTextClass)}>
-                    {limit}
+                    {limit || "—"}
                   </span>
                 );
               },
@@ -661,9 +736,12 @@ function OrdersPageContent() {
               cellClassName: clsx(compactCellClass, "max-w-[120px]"),
               headerClassName: compactHeaderClass,
               render: (rec: MTDRecord) => {
-                const linked = rec.orderId ? orderById.get(rec.orderId) : undefined;
-                const affiliate = linked?.musicAffiliate ?? (rec as MTDRecord & { musicAffiliate?: string }).musicAffiliate;
-                if (!affiliate) {
+                const linked = findLinkedOrder(rec, allOrders);
+                const selections = getAffiliateSelections(linked, rec);
+                const affiliate =
+                  linked?.musicAffiliate ??
+                  (rec as MTDRecord & { musicAffiliate?: string }).musicAffiliate;
+                if (!affiliate && selections.length === 0) {
                   return (
                     <span className={clsx("mx-auto block text-center text-brand-ink-tertiary", compactTextClass)}>
                       N/A
@@ -671,10 +749,19 @@ function OrdersPageContent() {
                   );
                 }
 
+                const display =
+                  selections.length >= 2
+                    ? selections.join(" · ")
+                    : titleCase(affiliate || selections[0] || "");
+
                 return (
                   <TruncatedText
-                    text={titleCase(affiliate)}
-                    className={clsx("mx-auto w-full min-w-0 text-center font-medium", compactTextClass)}
+                    text={display}
+                    className={clsx(
+                      "mx-auto w-full min-w-0 text-center font-medium",
+                      compactTextClass,
+                      selections.length >= 2 && "text-rose-600"
+                    )}
                     style={{ maxWidth: "100%" }}
                   />
                 );
@@ -684,11 +771,11 @@ function OrdersPageContent() {
         : []),
       {
         key: "music",
-        header: "Music",
-        width: "100px",
+        header: "Form song list",
+        width: "120px",
         align: "center" as const,
         nowrap: false,
-        cellClassName: clsx(compactCellClass, "max-w-[100px]"),
+        cellClassName: clsx(compactCellClass, "max-w-[120px]"),
         headerClassName: compactHeaderClass,
         render: (rec) => (
           <TruncatedText
@@ -814,17 +901,17 @@ function OrdersPageContent() {
         render: (rec) => {
           const linked = findLinkedOrder(rec, allOrders);
           const label = formatRequestedEditorLabel(rec, producers, linked);
-          const isFa = label === "FA";
+          const isFa = label === "First Available";
 
           return (
             <span
               className={clsx(
-                "font-medium uppercase tabular-nums",
+                "font-medium",
                 compactTextClass,
                 isFa ? "text-brand-info" : "text-brand-ink"
               )}
             >
-              {isFa ? "FA" : label}
+              {label}
             </span>
           );
         },
@@ -845,7 +932,14 @@ function OrdersPageContent() {
             : undefined;
           const { missingCount, needsReassign, reassignReason } =
             getOrderStatus(rec);
-          const assignBlockedByMissingData = missingCount > 0;
+          // Manual mixes: package filled unlocks Assign even with red collection pills.
+          const allowManualAssign = canAssignManualDespiteMissingData(
+            rec,
+            orderById
+          );
+          const assignBlockedByMissingData =
+            !allowManualAssign && missingCount > 0;
+          const blockAssignCell = !allowManualAssign && isMissingDataRow;
           const assignBlockedReason = assignBlockedByMissingData
             ? "Resolve missing data\nbefore assigning"
             : null;
@@ -862,18 +956,18 @@ function OrdersPageContent() {
               : null;
 
           return (
-            <div className={clsx("flex justify-center", isMissingDataRow && "opacity-40 pointer-events-none cursor-not-allowed")} onClick={(e) => e.stopPropagation()}>
+            <div className={clsx("flex justify-center", blockAssignCell && "opacity-40 pointer-events-none cursor-not-allowed")} onClick={(e) => e.stopPropagation()}>
               {assigned ? (
                 <button
                   type="button"
-                  disabled={isMissingDataRow}
+                  disabled={blockAssignCell}
                   onMouseDown={(e) => e.stopPropagation()}
                   onClick={(e) => {
-                    if (isMissingDataRow) return;
+                    if (blockAssignCell) return;
                     e.stopPropagation();
                     openAssignPage(rec.id);
                   }}
-                  title={isMissingDataRow ? "Scheduling disabled in Missing Data" : "Assign producer"}
+                  title={blockAssignCell ? "Scheduling disabled in Missing Data" : "Assign producer"}
                   aria-label={`Assign producer for ${assigned}`}
                   className={clsx(
                     clickableChipClass,
@@ -1070,6 +1164,40 @@ function OrdersPageContent() {
         cellClassName: compactCellClass,
         headerClassName: compactHeaderClass,
         render: (rec) => {
+          if (rangeFilter === "flagged") {
+            return (
+              <div
+                className="flex items-center justify-center gap-1"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <HoverTip
+                  label="Email customer to confirm which affiliate"
+                  placement="top"
+                >
+                  <button
+                    type="button"
+                    disabled={isViewOnly}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={() => {
+                      if (isViewOnly) return;
+                      setAffiliateFlagMode("email");
+                      setAffiliateFlagRecord(rec);
+                    }}
+                    className={
+                      isViewOnly
+                        ? ordersMailTextButtonDisabledClass
+                        : ordersMailCustomerButtonClass
+                    }
+                    aria-label="Email customer about affiliate"
+                  >
+                    <Mail className="h-3 w-3 shrink-0" strokeWidth={2.25} />
+                    <span>Customer</span>
+                  </button>
+                </HoverTip>
+              </div>
+            );
+          }
+
           const { needsReassign, missingCount } = getOrderStatus(rec);
           const blockedByMissingData = missingCount > 0;
           const assignedProducer =
@@ -1182,12 +1310,78 @@ function OrdersPageContent() {
       {
         key: "actions",
         header: "Actions",
-        width: "120px",
+        width: rangeFilter === "flagged" ? "200px" : "120px",
         align: "center" as const,
         nowrap: true,
         cellClassName: compactCellClass,
         headerClassName: compactHeaderClass,
         render: (rec) => {
+          if (rangeFilter === "flagged") {
+            const linked = findLinkedOrder(rec, allOrders);
+            const resolved = isAffiliateFlagResolved(linked);
+            const moveDisabled = !resolved || isViewOnly;
+            return (
+              <div
+                className="flex flex-wrap items-center justify-center gap-1"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <HoverTip label="Choose one music affiliate" placement="top">
+                  <button
+                    type="button"
+                    disabled={isViewOnly}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={() => {
+                      if (isViewOnly) return;
+                      setAffiliateFlagMode("resolve");
+                      setAffiliateFlagRecord(rec);
+                    }}
+                    className={
+                      isViewOnly
+                        ? ordersMailTextButtonDisabledClass
+                        : actionButtonClass(resolved)
+                    }
+                    aria-label="Resolve affiliate"
+                  >
+                    <Flag className="mr-0.5 inline h-3 w-3" strokeWidth={2.25} />
+                    {resolved ? "Resolved" : "Resolve"}
+                  </button>
+                </HoverTip>
+                <HoverTip
+                  label={
+                    resolved
+                      ? "Send to normal Orders board"
+                      : "Resolve affiliate before moving to Orders"
+                  }
+                  placement="top"
+                >
+                  <button
+                    type="button"
+                    disabled={moveDisabled}
+                    aria-disabled={moveDisabled}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={() => {
+                      if (moveDisabled || !linked) return;
+                      void updateOrder(
+                        linked.id,
+                        releaseAffiliateFlagPatch(),
+                        linked
+                      );
+                      setRangeFilter("all");
+                    }}
+                    className={clsx(
+                      ordersMtdButtonClass(resolved, moveDisabled),
+                      "whitespace-nowrap"
+                    )}
+                    aria-label="Move to Orders"
+                  >
+                    <span>Orders</span>
+                    <ArrowRight className="h-3 w-3 shrink-0" strokeWidth={2.25} />
+                  </button>
+                </HoverTip>
+              </div>
+            );
+          }
+
           const { needsReassign, missingCount } = getOrderStatus(rec);
           const blockedByMissingData = missingCount > 0;
           const assignedProducer =
@@ -1302,6 +1496,8 @@ function OrdersPageContent() {
     return baseCols;
   }, [
     form,
+    cheerSubtype,
+    danceSubtype,
     rangeFilter,
     producers,
     allOrders,
@@ -1321,7 +1517,11 @@ function OrdersPageContent() {
       <PageHeader
         title="Orders"
         badge={`${filtered.length} of ${typeFilteredPreMtdRecords.length}`}
-        subtitle="Assign orders to producers"
+        subtitle={
+          rangeFilter === "flagged"
+            ? "Resolve multi-affiliate cheer form selections"
+            : "Assign orders to producers"
+        }
         action={{
           label: "New Order",
           onClick: () => setAddNewOrderOpen(true),
@@ -1349,6 +1549,9 @@ function OrdersPageContent() {
             form={form}
             cheerSubtype={cheerSubtype}
             danceSubtype={danceSubtype}
+            sourceFilter={sourceFilter}
+            onSourceFilterChange={setSourceFilter}
+            sourceCountRecords={preMtdRecords}
             rangeFilter={rangeFilter}
             onRangeFilterChange={setRangeFilter}
             allOrdersCount={allOrdersCount}
@@ -1358,6 +1561,10 @@ function OrdersPageContent() {
             notAssignedOrdersCount={notAssignedOrdersCount}
             reassignedOrdersCount={reassignedOrdersCount}
             waitingForDataCount={waitingForDataCount}
+            flaggedOrdersCount={flaggedOrdersCount}
+            onFlaggedToggle={() =>
+              setRangeFilter((prev) => (prev === "flagged" ? "all" : "flagged"))
+            }
             onFormChange={switchForm}
             onCheerSubtypeChange={setCheerSubtype}
             onDanceSubtypeChange={setDanceSubtype}
@@ -1385,7 +1592,11 @@ function OrdersPageContent() {
             columns={columns}
             rowKey={(rec) => rec.id}
             emptyMessage={
-              isLoading ? "Loading orders…" : "No pending pre-MTD orders found."
+              isLoading
+                ? "Loading orders…"
+                : rangeFilter === "flagged"
+                  ? "No flagged multi-affiliate orders."
+                  : "No pending pre-MTD orders found."
             }
             pageSize={15}
             embedded
@@ -1441,6 +1652,14 @@ function OrdersPageContent() {
         record={orderFormRecord}
         allOrders={allOrders}
         onClose={() => setOrderFormRecord(null)}
+      />
+
+      <ResolveAffiliateFlagModal
+        open={Boolean(affiliateFlagRecord)}
+        record={affiliateFlagRecord}
+        allOrders={allOrders}
+        mode={affiliateFlagMode}
+        onClose={() => setAffiliateFlagRecord(null)}
       />
     </div>
   );

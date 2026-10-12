@@ -1,4 +1,9 @@
-import type { CheerFormSubtype, DanceFormSubtype, DiscountCode } from "../types";
+import type {
+  CheerFormSubtype,
+  DanceFormSubtype,
+  DiscountCode,
+  OrderFormType,
+} from "../types";
 import { parsePackage } from "./package";
 
 export type ComplianceStatus =
@@ -223,6 +228,69 @@ export function getDanceRateCardForSubtype(
     default:
       return POM_RATE_CARD;
   }
+}
+
+/** Canonical package labels for a form + subcategory (from rate cards). */
+export function packagesForOrderForm(
+  formType: OrderFormType,
+  cheerSubtype?: CheerFormSubtype | null,
+  danceSubtype?: DanceFormSubtype | null
+): string[] {
+  if (formType === "school-all-star-cheer") {
+    // Tier only — mix length is a separate field.
+    const seen = new Set<string>();
+    const tiers: string[] = [];
+    for (const row of getRateCardForSubtype(cheerSubtype || "all-star-cheer")) {
+      const tier = row.tier?.trim();
+      if (!tier) continue;
+      const key = tier.toUpperCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      tiers.push(tier);
+    }
+    return tiers;
+  }
+  if (formType === "school-all-star-dance") {
+    return getDanceRateCardForSubtype(danceSubtype || "pom").map(
+      (row) => row.package
+    );
+  }
+  if (formType === "marching-band") {
+    return MARCHING_BAND_RATE_CARD.map((row) => row.package);
+  }
+  if (formType === "sports-entertainment") {
+    return SPORTS_ENTERTAINMENT_RATE_CARD.map((row) => row.package);
+  }
+  if (formType === "school-anthem") {
+    return SCHOOL_ANTHEM_RATE_CARD.map((row) => row.package);
+  }
+  return [];
+}
+
+/** Mix length options for a form + subcategory (from rate-card time limits). */
+export function mixLengthsForOrderForm(
+  formType: OrderFormType,
+  cheerSubtype?: CheerFormSubtype | null,
+  _danceSubtype?: DanceFormSubtype | null
+): string[] {
+  if (formType === "school-all-star-cheer") {
+    const seen = new Set<string>();
+    const lengths: string[] = [];
+    for (const row of getRateCardForSubtype(cheerSubtype || "all-star-cheer")) {
+      const limit = row.limit?.trim();
+      if (!limit || limit === "-") continue;
+      if (seen.has(limit)) continue;
+      seen.add(limit);
+      lengths.push(limit);
+    }
+    // Youth Rec customer form offers "Other" when length isn't listed.
+    if (cheerSubtype === "youth-rec-cheer") {
+      lengths.push("Other");
+    }
+    return lengths;
+  }
+  // Cheer forms are the primary mix-length dropdown; fall back to common lengths.
+  return ["1:30", "2:00", "2:30"];
 }
 
 export function determineComplianceStatus(

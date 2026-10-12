@@ -26,9 +26,21 @@ export interface BackendOrder {
   requested_editor?: string | null;
   time_length_of_mix?: string | null;
   music_affiliate?: string | null;
+  affiliate_flag_status?: string | null;
+  music_affiliate_selections?: string | null;
   power_music_covers?: string | null;
   routine_notes?: string | null;
   custom_voiceovers?: string | null;
+  voiceover_script?: string | null;
+  pronunciation_guidance?: string | null;
+  style?: string | null;
+  licensing_required?: string | null;
+  instrumentation_notes?: string | null;
+  lyrical_notes?: string | null;
+  is_rush_order?: string | null;
+  nicknames?: string | null;
+  vocals_preference?: string | null;
+  instrumental_style_preference?: string | null;
   gym_name?: string | null;
   gym_billing_address?: string | null;
   team_name?: string | null;
@@ -53,6 +65,11 @@ export interface BackendOrder {
   collection_states?: any;
   order_status?: string | null;
   is_reassigned?: boolean;
+  is_manual_entry?: boolean;
+  merged_form_order_id?: string | null;
+  merged_into_manual_order_id?: string | null;
+  manual_overlap_snapshot?: Record<string, unknown> | null;
+  suppress_manual_form_merge?: boolean;
   assigned_producer?: string | null;
   mix_start_date?: string | null;
   mix_end_date?: string | null;
@@ -117,9 +134,26 @@ export function transformOrder(bo: BackendOrder): Order {
     requestedEditor: bo.requested_editor || "",
     timeLengthOfMix: bo.time_length_of_mix || "",
     musicAffiliate: bo.music_affiliate || "",
+    affiliateFlagStatus:
+      bo.affiliate_flag_status === "open" ||
+      bo.affiliate_flag_status === "resolved" ||
+      bo.affiliate_flag_status === "released"
+        ? bo.affiliate_flag_status
+        : null,
+    musicAffiliateSelections: bo.music_affiliate_selections || null,
     powerMusicCovers: bo.power_music_covers || "",
     routineNotes: bo.routine_notes || "",
     customVoiceovers: bo.custom_voiceovers || "",
+    voiceoverScript: bo.voiceover_script || "",
+    pronunciationGuidance: bo.pronunciation_guidance || "",
+    style: bo.style || "",
+    licensingRequired: bo.licensing_required || "",
+    instrumentationNotes: bo.instrumentation_notes || "",
+    lyricalNotes: bo.lyrical_notes || "",
+    isRushOrder: bo.is_rush_order || "",
+    nicknames: bo.nicknames || "",
+    vocalsPreference: bo.vocals_preference || "",
+    instrumentalStylePreference: bo.instrumental_style_preference || "",
     gymName: bo.gym_name || undefined,
     gymBillingAddress: bo.gym_billing_address || undefined,
     teamName: bo.team_name || undefined,
@@ -143,6 +177,11 @@ export function transformOrder(bo: BackendOrder): Order {
     howDidYouFindOut: bo.how_did_you_find_out || undefined,
     collectionStates: bo.collection_states || undefined,
     isReassigned: Boolean(bo.is_reassigned),
+    isManualEntry: Boolean(bo.is_manual_entry),
+    mergedFormOrderId: bo.merged_form_order_id || undefined,
+    mergedIntoManualOrderId: bo.merged_into_manual_order_id || undefined,
+    manualOverlapSnapshot: bo.manual_overlap_snapshot || undefined,
+    suppressManualFormMerge: Boolean(bo.suppress_manual_form_merge),
     orderStatus: bo.order_status || undefined,
 
     customerName: bo.customer_name || bo.program_name,
@@ -233,7 +272,131 @@ export async function updateOrderApi(
   if (patch.musicAffiliate !== undefined) {
     payload.music_affiliate = patch.musicAffiliate;
   }
+  if (patch.affiliateFlagStatus !== undefined) {
+    payload.affiliate_flag_status = patch.affiliateFlagStatus;
+  }
+  if (patch.musicAffiliateSelections !== undefined) {
+    payload.music_affiliate_selections = patch.musicAffiliateSelections;
+  }
   if (patch.routineNotes !== undefined) payload.routine_notes = patch.routineNotes;
+  if (patch.powerMusicCovers !== undefined) {
+    payload.power_music_covers = patch.powerMusicCovers;
+  }
+  if (patch.customVoiceovers !== undefined) {
+    payload.custom_voiceovers = patch.customVoiceovers;
+  }
+  if (patch.voiceoverScript !== undefined) {
+    payload.voiceover_script = patch.voiceoverScript;
+  }
+  if (patch.pronunciationGuidance !== undefined) {
+    payload.pronunciation_guidance = patch.pronunciationGuidance;
+  }
+  if (patch.style !== undefined) payload.style = patch.style;
+  if (patch.licensingRequired !== undefined) {
+    payload.licensing_required = patch.licensingRequired;
+  }
+  if (patch.instrumentationNotes !== undefined) {
+    payload.instrumentation_notes = patch.instrumentationNotes;
+  }
+  if (patch.lyricalNotes !== undefined) {
+    payload.lyrical_notes = patch.lyricalNotes;
+  }
+  if (patch.isRushOrder !== undefined) {
+    payload.is_rush_order = patch.isRushOrder;
+  }
+  if (patch.mergedFormOrderId !== undefined) {
+    payload.merged_form_order_id = patch.mergedFormOrderId;
+  }
+  if (patch.mergedIntoManualOrderId !== undefined) {
+    payload.merged_into_manual_order_id = patch.mergedIntoManualOrderId;
+  }
+  if (patch.manualOverlapSnapshot !== undefined) {
+    payload.manual_overlap_snapshot = patch.manualOverlapSnapshot;
+  }
+  if (patch.suppressManualFormMerge !== undefined) {
+    payload.suppress_manual_form_merge = patch.suppressManualFormMerge;
+  }
+  if (patch.isManualEntry !== undefined) {
+    payload.is_manual_entry = patch.isManualEntry;
+  }
+  if (patch.nicknames !== undefined) payload.nicknames = patch.nicknames;
+  if (patch.vocalsPreference !== undefined) {
+    payload.vocals_preference = patch.vocalsPreference;
+  }
+  if (patch.instrumentalStylePreference !== undefined) {
+    payload.instrumental_style_preference = patch.instrumentalStylePreference;
+  }
+  if (patch.mascot !== undefined) payload.mascot = patch.mascot;
+  if (patch.colors !== undefined) payload.colors = patch.colors;
+  if (patch.teamColors !== undefined) payload.team_colors = patch.teamColors;
+  if (patch.schoolProgramColors !== undefined) {
+    payload.colors = patch.schoolProgramColors;
+    payload.team_colors = patch.schoolProgramColors;
+  }
+  if (patch.schoolBillingAddress !== undefined) {
+    payload.school_billing_address = patch.schoolBillingAddress;
+  }
+  if (patch.schoolOrganizationName !== undefined) {
+    payload.school_program_name = patch.schoolOrganizationName;
+    payload.program_name = patch.schoolOrganizationName;
+  }
+  if (patch.musicContactName !== undefined) {
+    payload.coach_name = patch.musicContactName;
+  }
+  if (patch.musicContactPhone !== undefined) {
+    payload.coach_phone = patch.musicContactPhone;
+  }
+  if (patch.musicContactEmail !== undefined) {
+    payload.coach_email = patch.musicContactEmail;
+  }
+  if (patch.songListSuggestions !== undefined) {
+    payload.song_list_suggestions = patch.songListSuggestions;
+  }
+  if (patch.schoolProgramName !== undefined) {
+    payload.school_program_name = patch.schoolProgramName;
+  }
+  if (patch.schoolAddress !== undefined) {
+    payload.school_address = patch.schoolAddress;
+  }
+  if (patch.schoolGymAddress !== undefined) {
+    payload.school_address = patch.schoolGymAddress;
+  }
+  if (patch.city !== undefined) payload.city = patch.city;
+  if (patch.stateProvince !== undefined) {
+    payload.state_province = patch.stateProvince;
+  }
+  if (patch.zipPostalCode !== undefined) {
+    payload.zip_postal_code = patch.zipPostalCode;
+  }
+  if (patch.country !== undefined) payload.country = patch.country;
+  if (patch.division !== undefined) payload.division = patch.division;
+  if (patch.divisionOfTeam !== undefined) payload.division = patch.divisionOfTeam;
+  if (patch.coachName !== undefined) payload.coach_name = patch.coachName;
+  if (patch.coachPhone !== undefined) payload.coach_phone = patch.coachPhone;
+  if (patch.coachEmail !== undefined) payload.coach_email = patch.coachEmail;
+  if (patch.billingPersonName !== undefined) {
+    payload.billing_person_name = patch.billingPersonName;
+  }
+  if (patch.billingPersonEmail !== undefined) {
+    payload.billing_person_email = patch.billingPersonEmail;
+  }
+  if (patch.choreographerName !== undefined) {
+    payload.choreographer_name = patch.choreographerName;
+  }
+  if (patch.choreographerEmail !== undefined) {
+    payload.choreographer_email = patch.choreographerEmail;
+  }
+  if (patch.numberOfCopies !== undefined) {
+    payload.number_of_copies = patch.numberOfCopies;
+  }
+  if (patch.couponCode !== undefined) payload.coupon_code = patch.couponCode;
+  if (patch.formType !== undefined) payload.form_type = patch.formType;
+  if (patch.danceFormSubtype !== undefined) {
+    payload.dance_form_subtype = patch.danceFormSubtype;
+  }
+  if (patch.cheerFormSubtype !== undefined) {
+    payload.cheer_form_subtype = patch.cheerFormSubtype;
+  }
   if (patch.splitOrNoSplit !== undefined) {
     payload.split_or_no_split = patch.splitOrNoSplit;
   }

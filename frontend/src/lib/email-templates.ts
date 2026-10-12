@@ -1,6 +1,7 @@
 export type EmailTemplateId =
   | "customer_missing_data"
   | "customer_incorrect_data"
+  | "customer_affiliate_clarification"
   | "producer_order"
   | "producer_payroll"
   | "producer_schedule";
@@ -81,6 +82,29 @@ export const EMAIL_TEMPLATE_DEFINITIONS: EmailTemplateDefinition[] = [
       "{{programName}} Action Required - Please Resubmit Correct Materials by {{day}}",
     greeting: "Hi there!!!",
     intro: CUSTOMER_INCORRECT_INTRO,
+    footer: CUSTOMER_DEFAULT_FOOTER,
+    signature: CUSTOMER_DEFAULT_SIGNATURE,
+  },
+  {
+    id: "customer_affiliate_clarification",
+    label: "Customer · Affiliate clarification",
+    description:
+      "Flagged Orders email when a cheer form selected more than one music affiliate",
+    placeholders: [
+      "programName",
+      "contactName",
+      "selectedAffiliate",
+      "affiliateOptions",
+      "programLine",
+    ],
+    subject:
+      "{{programName}} - Please confirm your music affiliate",
+    greeting: "Hi there!!!",
+    intro: `Thank you for submitting your order for {{programName}}. It looks like more than one music affiliate was selected on the form (the affiliate question allows multiple checkboxes by mistake):
+
+{{affiliateOptions}}
+
+Could you confirm which affiliate you'd like us to use for this mix? If {{selectedAffiliate}} is the correct choice, just reply to confirm — otherwise let us know which option you prefer.`,
     footer: CUSTOMER_DEFAULT_FOOTER,
     signature: CUSTOMER_DEFAULT_SIGNATURE,
   },

@@ -233,15 +233,39 @@ function groupSelectedFields(selectedFields: ForwardMailField[]): ForwardMailSec
   return sections;
 }
 
-export function recordIsRushOrder(record: MTDRecord | null | undefined): boolean {
+/** True for yes / Yes / true (Orders tab + API casing variants). */
+export function isRushOrderFlag(value: unknown): boolean {
+  if (value === true) return true;
+  if (typeof value === "string" && value.trim().toLowerCase() === "yes") {
+    return true;
+  }
+  return false;
+}
+
+type RushOrderLike = {
+  isRushOrder?: unknown;
+  rushFeeQuantity?: number;
+  rushFeeOption?: string | null;
+};
+
+export function recordIsRushOrder(
+  record: RushOrderLike | null | undefined
+): boolean {
   if (!record) return false;
-  const flag = record.isRushOrder;
-  if (flag === true || flag === "yes" || flag === "Yes") return true;
+  if (isRushOrderFlag(record.isRushOrder)) return true;
   if (typeof record.rushFeeQuantity === "number" && record.rushFeeQuantity > 0) {
     return true;
   }
   const option = (record.rushFeeOption || "").toLowerCase();
   return option === "single" || option === "double";
+}
+
+/** Rush marked on the mix and/or linked order (Orders tab source of truth). */
+export function payrollRowIsRushOrder(
+  rec: RushOrderLike | null | undefined,
+  order?: RushOrderLike | null
+): boolean {
+  return recordIsRushOrder(rec) || recordIsRushOrder(order ?? null);
 }
 
 export function buildForwardMailDraft(
@@ -742,6 +766,44 @@ export async function loadEightCountSheetsAttachment(): Promise<{
     filename: EIGHT_COUNT_SHEETS_PDF_FILENAME,
     content_base64: arrayBufferToBase64(buffer),
     mime_type: "application/pdf",
+  };
+}
+
+/** Customer email asking which music affiliate to use (Flagged orders). */
+export function buildCustomerAffiliateClarificationDraft(
+  record: MTDRecord,
+  contact: CustomerMailContact | undefined,
+  selectedAffiliate: string,
+  affiliateOptions: string[],
+  template: EmailTemplateCopy = DEFAULT_EMAIL_TEMPLATES.customer_affiliate_clarification
+): ForwardMailDraft {
+  const programName = formatMailText(titleCase(record.programName));
+  const programLine = buildCustomerProgramLine(record);
+  const optionsList =
+    affiliateOptions.length > 0
+      ? affiliateOptions.map((s, i) => `${i + 1}. ${s}`).join("\n")
+      : "(see order form)";
+  const vars = {
+    programName,
+    programLine,
+    contactName: contact?.name ?? "",
+    selectedAffiliate: formatMailText(selectedAffiliate.trim() || "your preferred affiliate"),
+    affiliateOptions: optionsList,
+    ...musicResourceTemplateVars(),
+  };
+
+  return {
+    to: contact?.email ?? "",
+    toName: contact?.name ?? "",
+    subject: applyEmailTemplate(template.subject, vars),
+    programName,
+    programLine,
+    variant: "customer",
+    greeting: applyEmailTemplate(template.greeting, vars),
+    intro: applyEmailTemplate(template.intro, vars),
+    sections: [],
+    footer: formatMailText(applyEmailTemplate(template.footer, vars)),
+    signature: applyEmailTemplate(template.signature, vars),
   };
 }
 

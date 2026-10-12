@@ -156,12 +156,79 @@ function getOverrideState(order: Order | MTDRecord, itemId: string): boolean | u
   }
 
   if (itemId === "cs" || itemId === "eight_count") {
-    const val = (order as any).eightCountSheet || (order as any).sendingEightCountSheets || (order as any).eight_count_sheet;
-    if (val === "HAVE CS" || val === "CS CONFIRMED" || val === "HAVE" || val === "COLLECTED") return true;
-    if (val === "NEED CS" || val === "UNCOLLECTED" || val === "NEED") return false;
+    // Collection status only — not the form Yes/No "will you send" intent.
+    const val = (order as any).eightCountSheet || (order as any).eight_count_sheet;
+    const upper = String(val || "").trim().toUpperCase();
+    if (
+      upper === "HAVE CS" ||
+      upper === "CS CONFIRMED" ||
+      upper === "HAVE" ||
+      upper === "COLLECTED"
+    ) {
+      return true;
+    }
+    if (
+      upper === "NEED CS" ||
+      upper === "UNCOLLECTED" ||
+      upper === "NEED"
+    ) {
+      return false;
+    }
   }
 
   return undefined;
+}
+
+/** Form answer: will the customer send 8-count sheets? (Yes → CS applicable/red until received). */
+export function resolveSendingEightCountIntent(
+  order: Order | MTDRecord
+): "yes" | "no" | null {
+  const candidates = [
+    (order as Order).sendingEightCountSheets,
+    (order as Order).usingEightCountSheets,
+    (order as any).sending_eight_count_sheets,
+    (order as any).using_eight_count_sheets,
+  ];
+  for (const raw of candidates) {
+    const s = String(raw || "").trim().toUpperCase();
+    if (!s) continue;
+    if (s === "YES" || s === "Y" || s.startsWith("YES")) return "yes";
+    if (s === "NO" || s === "N" || s.startsWith("NO")) return "no";
+  }
+  // Legacy: MTD eightCountSheet sometimes held the form Yes/No directly.
+  const sheet = String(
+    (order as MTDRecord).eightCountSheet || (order as any).eight_count_sheet || ""
+  )
+    .trim()
+    .toUpperCase();
+  if (sheet === "YES" || sheet === "Y") return "yes";
+  if (sheet === "NO" || sheet === "N") return "no";
+  return null;
+}
+
+function isEightCountCollected(sheetVal: unknown): boolean {
+  const sheetStr = String(sheetVal || "").trim().toUpperCase();
+  if (!sheetStr) return false;
+  // Yes/No is send-intent, not collection.
+  if (
+    sheetStr === "YES" ||
+    sheetStr === "Y" ||
+    sheetStr === "NO" ||
+    sheetStr === "N" ||
+    sheetStr.startsWith("YES") ||
+    sheetStr.startsWith("NO")
+  ) {
+    return false;
+  }
+  return (
+    sheetStr.includes("HAVE CS") ||
+    sheetStr.includes("CS CONFIRMED") ||
+    sheetStr.includes("ATTACHED") ||
+    sheetStr.includes("RECEIVED") ||
+    sheetStr === "HAVE" ||
+    sheetStr === "COLLECTED" ||
+    (sheetStr.includes("HAVE") && !sheetStr.includes("NEED"))
+  );
 }
 
 /**
@@ -174,40 +241,8 @@ function getOverrideState(order: Order | MTDRecord, itemId: string): boolean | u
  * - WHITE: Not Applicable (Ignored for status progression)
  */
 export function getOrderRequirements(order: Order | MTDRecord): OrderRequirementsResult {
-  const isManualSchedule = Boolean(
-    (order as any).isManualScheduleEntry === true ||
-      (order as any).is_manual_schedule_entry === true ||
-      (order as any).orderId === null ||
-      (order as any).order_id === null
-  );
-
-  if (isManualSchedule) {
-    const neutralAll: OrderRequirementItem[] = [
-      { id: "time_of_mix", label: "Time of Mix", category: "collections", state: "white", isApplicable: false, provided: false, status: "white" },
-      { id: "cs", label: "CS", category: "collections", state: "white", isApplicable: false, provided: false, status: "white" },
-      { id: "video", label: "Video", category: "collections", state: "white", isApplicable: false, provided: false, status: "white" },
-      { id: "songs", label: "Songs", category: "songs", state: "white", isApplicable: false, provided: false, status: "white" },
-      { id: "notes", label: "Notes", category: "collections", state: "white", isApplicable: false, provided: false, status: "white" },
-      { id: "compliancy", label: "Compliancy", category: "collections", state: "white", isApplicable: false, provided: false, status: "white" },
-    ];
-    return {
-      collections: neutralAll.filter((i) => i.category === "collections"),
-      songsArea: neutralAll.filter((i) => i.category === "songs"),
-      all: neutralAll,
-      allMet: true,
-      missingCount: 0,
-      status: "Complete data",
-      needsReassign: Boolean(
-        (order as any).isReassigned ?? (order as any).is_reassigned
-      ),
-      reassignReason: parseReassignReason(
-        (order as any).orderStatus || (order as any).order_status,
-        Boolean((order as any).isReassigned ?? (order as any).is_reassigned)
-      ),
-      isWaitingForData: false,
-      compliancyMet: true,
-    };
-  }
+  // Manual / New Order rows use the same Mix·CS·Video / Songs·Notes pills as
+  // form orders (package rules). Do not invent Time of Mix / Compliancy pills.
 
   const requirements: OrderRequirementItem[] = [];
 
@@ -298,7 +333,13 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
   }
 
   // --- COLLECTIONS GROUP ---
-  // Form field removed from collections table per user request
+  // Form pill: form-submitted orders already have a customer form (hidden).
+  // Manual / New Order rows need an explicit Form collection toggle (appended
+  // after Mix/CS/Video so the existing package pills stay in place).
+  const isManualOrder =
+    Boolean((order as MTDRecord).isManualScheduleEntry) ||
+    Boolean((order as Order).isManualEntry) ||
+    (order as MTDRecord).orderId === null;
 
   // 1. MIX / TIME OF MIX
   {
@@ -329,22 +370,22 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
   }
 
   // 2. CS / 8-COUNT SHEETS
+  // Form Yes = customer will email sheets → CS applicable + RED until admin marks green.
+  // Form No = not applicable (white). Package rules are the fallback when form is blank.
   {
-    const override = getOverrideState(order, "cs") ?? getOverrideState(order, "eight_count");
+    const override =
+      getOverrideState(order, "cs") ?? getOverrideState(order, "eight_count");
+    const sendIntent = resolveSendingEightCountIntent(order);
     const sheetVal =
       (order as MTDRecord).eightCountSheet ||
-      (order as Order).sendingEightCountSheets ||
-      (order as Order).usingEightCountSheets ||
       (order as any).eight_count_sheet;
-    const sheetStr = String(sheetVal || "").toUpperCase();
-    const defaultProvided =
-      sheetStr.includes("YES") ||
-      sheetStr.includes("HAVE") ||
-      sheetStr.includes("ATTACHED") ||
-      sheetStr.includes("RECEIVED") ||
-      sheetStr.includes("TRUE") ||
-      sheetStr === "Y";
-    const isApplicable = needEightCount;
+    const defaultProvided = isEightCountCollected(sheetVal);
+    const isApplicable =
+      sendIntent === "yes"
+        ? true
+        : sendIntent === "no"
+          ? false
+          : needEightCount;
     let state: RequirementState = "white";
     if (isApplicable) {
       const isCollected = override !== undefined ? override : defaultProvided;
@@ -393,6 +434,22 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
       isApplicable,
       provided: state === "green",
       status: state === "green" ? "green" : state === "red" ? "red" : "white",
+    });
+  }
+
+  if (isManualOrder) {
+    const override = getOverrideState(order, "form");
+    const isApplicable = true;
+    const isCollected = override === true;
+    const state: RequirementState = isCollected ? "green" : "red";
+    requirements.push({
+      id: "form",
+      label: "Form",
+      category: "collections",
+      state,
+      isApplicable,
+      provided: state === "green",
+      status: state === "green" ? "green" : "red",
     });
   }
 
@@ -555,6 +612,29 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
     reassignReason,
     isWaitingForData,
     compliancyMet: effectiveCompliancyMet,
+  };
+}
+
+/** Merge linked order form fields (e.g. sending 8-count Yes/No) onto an MTD row. */
+export function mergeOrderFormFieldsForRequirements(
+  record: Order | MTDRecord,
+  linkedOrder?: Order | null
+): Order | MTDRecord {
+  if (!linkedOrder) return record;
+  return {
+    ...record,
+    sendingEightCountSheets:
+      linkedOrder.sendingEightCountSheets ||
+      (record as Order).sendingEightCountSheets,
+    usingEightCountSheets:
+      linkedOrder.usingEightCountSheets ||
+      (record as Order).usingEightCountSheets,
+    isManualEntry:
+      Boolean((record as Order).isManualEntry) ||
+      Boolean(linkedOrder.isManualEntry),
+    isManualScheduleEntry:
+      Boolean((record as MTDRecord).isManualScheduleEntry) ||
+      Boolean(linkedOrder.isManualEntry),
   };
 }
 

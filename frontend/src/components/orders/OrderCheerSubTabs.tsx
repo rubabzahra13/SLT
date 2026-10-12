@@ -4,7 +4,7 @@ import clsx from "clsx";
 import { DottedScroll } from "@/components/ui/DottedScroll";
 import type { CheerFormSubtype, CheerFormSubtypeFilter } from "@/types";
 
-export type CheerMainCategory = "all" | "all-star-cheer" | "school-cheer" | "youth-rec-cheer";
+export type CheerMainCategory = "all-star-cheer" | "school-cheer" | "youth-rec-cheer";
 
 type OrderCheerSubTabsProps = {
   subtype: CheerFormSubtypeFilter;
@@ -13,7 +13,6 @@ type OrderCheerSubTabsProps = {
 };
 
 function getCategory(subtype: CheerFormSubtypeFilter): CheerMainCategory {
-  if (subtype === "all") return "all";
   if (subtype === "school-cheer-viroc-yes" || subtype === "school-cheer-viroc-no") {
     return "school-cheer";
   }
@@ -22,7 +21,6 @@ function getCategory(subtype: CheerFormSubtypeFilter): CheerMainCategory {
 }
 
 const MAIN_CATEGORIES: { id: CheerMainCategory; label: string }[] = [
-  { id: "all", label: "All Cheer" },
   { id: "all-star-cheer", label: "All Star Cheer" },
   { id: "school-cheer", label: "School Cheer" },
   { id: "youth-rec-cheer", label: "Youth Rec Cheer" },
@@ -34,17 +32,12 @@ export function OrderCheerSubTabs({ subtype, onChange, counts }: OrderCheerSubTa
     (counts["school-cheer-viroc-yes"] ?? 0) + (counts["school-cheer-viroc-no"] ?? 0);
 
   function mainCount(id: CheerMainCategory): number {
-    if (id === "all") return counts["all"] ?? 0;
     if (id === "school-cheer") return schoolCheerTotal;
     if (id === "youth-rec-cheer") return counts["youth-rec-cheer"] ?? 0;
     return counts["all-star-cheer"] ?? 0;
   }
 
   function selectCategory(id: CheerMainCategory) {
-    if (id === "all") {
-      onChange("all");
-      return;
-    }
     if (id === "school-cheer") {
       onChange(
         subtype === "school-cheer-viroc-no" ? "school-cheer-viroc-no" : "school-cheer-viroc-yes"

@@ -1,13 +1,51 @@
 "use client";
 
+import { useMemo } from "react";
 import clsx from "clsx";
 import type { MTDRecord, Order } from "@/types";
 import { useAppState } from "@/context/AppStateContext";
+import { findLinkedOrder } from "@/lib/editor-assignment";
 import {
   getOrderRequirements,
+  mergeOrderFormFieldsForRequirements,
   type OrderRequirementItem,
   type RequirementCategory,
 } from "@/lib/order-requirements";
+import { HoverTip } from "@/components/ui/HoverTip";
+
+function requirementPillTip(
+  item: OrderRequirementItem,
+  opts: {
+    isGreen: boolean;
+    isWhite: boolean;
+    lockedGreen: boolean;
+    lockReason?: string | null;
+  }
+): string {
+  const { isGreen, isWhite, lockedGreen, lockReason } = opts;
+  if (item.label === "CS") {
+    if (isWhite) {
+      return "CS: Not applicable, client did not agree to send 8CS";
+    }
+    if (lockedGreen) {
+      return `CS: Client agreed to send 8CS, collected. ${lockReason}`;
+    }
+    if (isGreen) {
+      return "CS: Client agreed to send 8CS, collected";
+    }
+    return "CS: Client agreed to send 8CS, waiting for CS";
+  }
+  if (item.id === "songs") {
+    if (isWhite) return `${item.label}: Not applicable`;
+    if (lockedGreen) {
+      return `${item.label}: Have. ${lockReason}`;
+    }
+    return `${item.label}: ${isGreen ? "Have" : "Not have"}`;
+  }
+  if (isWhite) return `${item.label}: Not applicable`;
+  if (lockedGreen) return `${item.label}: Collected. ${lockReason}`;
+  return `${item.label}: ${isGreen ? "Collected" : "Missing"}`;
+}
 
 export function OrderRequirementPill({
   item,
@@ -37,34 +75,36 @@ export function OrderRequirementPill({
     }
   };
 
+  const tip = requirementPillTip(item, {
+    isGreen,
+    isWhite,
+    lockedGreen,
+    lockReason,
+  });
+
   return (
-    <button
-      type="button"
-      disabled={!isInteractive}
-      onClick={handleClick}
-      className={clsx(
-        "inline-flex items-center justify-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold leading-none transition shadow-2xs select-none focus:outline-none focus:ring-1 focus:ring-slate-400/40",
-        isGreen &&
-          "bg-[#c2e7d9] text-[#0f5236] border border-[#9edbb8]",
-        isGreen &&
-          isInteractive &&
-          "hover:brightness-95 active:scale-95 cursor-pointer",
-        isRed &&
-          "bg-[#f9d7d7] text-[#901313] border border-[#ebafaf] hover:brightness-95 active:scale-95 cursor-pointer",
-        isWhite &&
-          "bg-white text-slate-400 border border-slate-200/80 cursor-default opacity-85",
-        !isInteractive && "cursor-default"
-      )}
-      title={
-        isWhite
-          ? `${item.label}: Not applicable for this package`
-          : lockedGreen
-            ? `${item.label}: Collected — ${lockReason}`
-            : `${item.label}: ${isGreen ? "Collected (Click to set RED)" : "Missing (Click to set GREEN)"}`
-      }
-    >
-      <span>{item.label}</span>
-    </button>
+    <HoverTip label={tip} placement="top" zIndex={300}>
+      <button
+        type="button"
+        disabled={!isInteractive}
+        onClick={handleClick}
+        className={clsx(
+          "inline-flex items-center justify-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold leading-none transition shadow-2xs select-none focus:outline-none focus:ring-1 focus:ring-slate-400/40",
+          isGreen &&
+            "bg-[#c2e7d9] text-[#0f5236] border border-[#9edbb8]",
+          isGreen &&
+            isInteractive &&
+            "hover:brightness-95 active:scale-95 cursor-pointer",
+          isRed &&
+            "bg-[#f9d7d7] text-[#901313] border border-[#ebafaf] hover:brightness-95 active:scale-95 cursor-pointer",
+          isWhite &&
+            "bg-white text-slate-400 border border-slate-200/80 cursor-default opacity-85",
+          !isInteractive && "cursor-default"
+        )}
+      >
+        <span>{item.label}</span>
+      </button>
+    </HoverTip>
   );
 }
 
@@ -75,8 +115,12 @@ export function OrderRequirementsCell({
   record: Order | MTDRecord;
   category: RequirementCategory;
 }) {
-  const { updateMTD, addNotification, isViewOnly } = useAppState();
-  const reqs = getOrderRequirements(record);
+  const { updateMTD, addNotification, isViewOnly, allOrders } = useAppState();
+  const requirementsRecord = useMemo(() => {
+    const linked = findLinkedOrder(record as MTDRecord, allOrders);
+    return mergeOrderFormFieldsForRequirements(record, linked);
+  }, [record, allOrders]);
+  const reqs = getOrderRequirements(requirementsRecord);
   const items = category === "collections" ? reqs.collections : reqs.songsArea;
   const isReassign = reqs.needsReassign;
   const reassignLockReason = isReassign
@@ -114,9 +158,9 @@ export function OrderRequirementsCell({
       [item.id]: nextCollected,
     };
 
-    const oldStatus = getOrderRequirements(record).status;
+    const oldStatus = getOrderRequirements(requirementsRecord).status;
     const simulatedRecord = {
-      ...record,
+      ...requirementsRecord,
       collectionStates: updatedCollectionStates,
       collection_states: updatedCollectionStates,
       orderStatus: undefined,

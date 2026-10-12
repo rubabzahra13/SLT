@@ -139,7 +139,13 @@ function pomFormColumns(): Column<Order>[] {
       key: "requestedEditor",
       header: "Requested Editor",
       width: "120px",
-      render: (o) => textCell(o.requestedEditor),
+      render: (o) => {
+        const raw = o.requestedEditor?.trim() || "";
+        if (!raw || /^(fa|first available)$/i.test(raw)) {
+          return textCell("First Available");
+        }
+        return textCell(raw.split(/\s+/)[0]);
+      },
     },
     {
       key: "timeLengthOfMix",

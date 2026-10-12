@@ -13,9 +13,11 @@ import {
   buildRequestedProducerOptions,
   buildSplitOptions,
   buildTimeLimitOptions,
+  MTD_SORT_BY_OPTIONS,
   producersForFormCategory,
   type InfoFilter,
   type MixScheduleFilter,
+  type MTDSortBy,
   type SplitFilter,
 } from "@/lib/mtd-filters";
 import type {
@@ -36,6 +38,7 @@ export type MTDTableFilterState = {
   scheduleFilter: MixScheduleFilter;
   infoFilter: InfoFilter;
   dateFilter: DateFilterValue;
+  sortBy: MTDSortBy;
 };
 
 type MTDTableFilterPanelProps = {
@@ -66,7 +69,8 @@ export function hasActiveMTDFilters(
     filters.assignedProducer !== "All" ||
     filters.requestedProducer !== "All" ||
     (showDataFilter && (filters.infoFilter ?? "all") !== "all") ||
-    filters.dateFilter.type !== "all"
+    filters.dateFilter.type !== "all" ||
+    (filters.sortBy ?? "none") !== "none"
   );
 }
 
@@ -85,6 +89,7 @@ function countTableFilters(
   if (filters.requestedProducer !== "All") count += 1;
   if (showDataFilter && (filters.infoFilter ?? "all") !== "all") count += 1;
   if (filters.dateFilter.type !== "all") count += 1;
+  if ((filters.sortBy ?? "none") !== "none") count += 1;
   return count;
 }
 
@@ -206,6 +211,13 @@ export function MTDTableFilterPanel({
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <FilterMenu
+                label="Sort by"
+                value={filters.sortBy ?? "none"}
+                options={MTD_SORT_BY_OPTIONS}
+                onChange={(value) => onChange({ sortBy: value as MTDSortBy })}
+                alwaysActive={(filters.sortBy ?? "none") !== "none"}
+              />
+              <FilterMenu
                 label="Package"
                 value={filters.packageTier}
                 options={packageOptions}
@@ -215,7 +227,7 @@ export function MTDTableFilterPanel({
               {isCheer ? (
                 <>
                   <FilterMenu
-                    label="Time limit"
+                    label="Mix Length"
                     value={filters.timeLimit}
                     options={timeLimitOptions}
                     onChange={(value) => onChange({ timeLimit: value })}
@@ -361,7 +373,7 @@ export function useMTDFilterChips(
         filters.timeLimit;
       items.push({
         key: "timeLimit",
-        label: `Limit · ${label}`,
+        label: `Mix Length · ${label}`,
         onClear: () => onChange({ timeLimit: "All" }),
       });
     }
@@ -412,6 +424,16 @@ export function useMTDFilterChips(
         onClear: () => onChange({ dateFilter: { type: "all", value: null } }),
       });
     }
+    if ((filters.sortBy ?? "none") !== "none") {
+      const label =
+        MTD_SORT_BY_OPTIONS.find((o) => o.value === filters.sortBy)?.label ??
+        filters.sortBy;
+      items.push({
+        key: "sortBy",
+        label: `Sort · ${label}`,
+        onClear: () => onChange({ sortBy: "none" }),
+      });
+    }
 
     return items;
   }, [
@@ -438,6 +460,7 @@ export const DEFAULT_MTD_TABLE_FILTERS: MTDTableFilterState = {
   scheduleFilter: "all",
   infoFilter: "all",
   dateFilter: { type: "all", value: null },
+  sortBy: "none",
 };
 
 /** @deprecated Use MTDTableFilterPanel */

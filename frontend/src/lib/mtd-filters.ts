@@ -6,9 +6,12 @@ import { doDateRangesOverlap, toIsoDateString } from "./dates";
 import {
   findLinkedOrder,
   findProducerByAssignmentKey,
+  formatRequestedProducerDisplay,
   getRequestedEditorFromRecord,
+  mixWorkDaysForRecord,
   orderCategoryToProducerCategory,
   producerAssignmentKey,
+  producerFirstName,
   producerSupportsCategory,
 } from "./editor-assignment";
 import { producerKeysMatch } from "./producer-keys";
@@ -39,7 +42,7 @@ import {
 } from "../types";
 
 export const DEFAULT_CHEER_SUBTYPE: CheerFormSubtypeFilter = "all-star-cheer";
-export const DEFAULT_DANCE_SUBTYPE: DanceFormSubtypeFilter = "all";
+export const DEFAULT_DANCE_SUBTYPE: DanceFormSubtypeFilter = "pom";
 
 export type MTDFormMeta = {
   formType: OrderFormType;
@@ -565,7 +568,7 @@ export function buildRequestedProducerOptions(
     seen.add(key);
     editorOptions.push({
       value: key,
-      label: producer.name?.trim() || key,
+      label: producerFirstName(producer) || producer.name?.trim() || key,
       count: counts.get(key) ?? 0,
     });
   }
@@ -576,7 +579,7 @@ export function buildRequestedProducerOptions(
     seen.add(key);
     editorOptions.push({
       value: key,
-      label: name,
+      label: formatRequestedProducerDisplay(name, producers),
       count: counts.get(key) ?? 0,
     });
   }
@@ -585,14 +588,18 @@ export function buildRequestedProducerOptions(
     // "FA" may be a real producer (initials) — only skip duplicates already added.
     if (seen.has(key)) continue;
     seen.add(key);
-    editorOptions.push({ value: key, label: key, count });
+    editorOptions.push({
+      value: key,
+      label: formatRequestedProducerDisplay(key, producers),
+      count,
+    });
   }
 
   editorOptions.sort((a, b) => a.label.localeCompare(b.label));
 
   return [
     { value: "All", label: "All requests", count: records.length },
-    { value: "FA", label: "First available", count: fa },
+    { value: "FA", label: "First Available", count: fa },
     ...editorOptions,
   ];
 }
@@ -739,6 +746,213 @@ export function matchesMTDSearch(rec: MTDRecord, query: string): boolean {
   const id = (rec.id || "").toLowerCase();
 
   return contact.includes(q) || invoice.includes(q) || program.includes(q) || id.includes(q);
+}
+
+export type MTDViewOrderMode = "sequence" | "by_producer";
+
+export type MTDSortBy =
+  | "none"
+  | "name_az"
+  | "name_za"
+  | "oldest"
+  | "newest"
+  | "price_high"
+  | "price_low"
+  | "start_earliest"
+  | "start_oldest"
+  | "end_earliest"
+  | "end_oldest"
+  | "days_more"
+  | "days_less";
+
+export const MTD_SORT_BY_OPTIONS: { value: MTDSortBy; label: string }[] = [
+  { value: "none", label: "Default" },
+  { value: "name_az", label: "A–Z" },
+  { value: "name_za", label: "Z–A" },
+  { value: "oldest", label: "Oldest" },
+  { value: "newest", label: "Newest" },
+  { value: "price_high", label: "Package price · High" },
+  { value: "price_low", label: "Package price · Low" },
+  { value: "start_earliest", label: "Start date · Earliest" },
+  { value: "start_oldest", label: "Start date · Oldest" },
+  { value: "end_earliest", label: "End date · Earliest" },
+  { value: "end_oldest", label: "End date · Oldest" },
+  { value: "days_more", label: "Days booked · More" },
+  { value: "days_less", label: "Days booked · Less" },
+];
+
+function recordPackagePrice(rec: MTDRecord): number {
+  const final = rec.finalCustomerPrice;
+  if (typeof final === "number" && Number.isFinite(final)) return final;
+  const sys = rec.systemCalculatedCustomerPrice;
+  if (typeof sys === "number" && Number.isFinite(sys)) return sys;
+  return Number(rec.price) || 0;
+}
+
+function recordCreatedMs(
+  rec: MTDRecord,
+  orderById?: Map<string, Order> | null
+): number {
+  if (orderById) {
+    const linked =
+      (rec.orderId && orderById.get(rec.orderId)) ||
+      orderById.get(rec.id) ||
+      (rec.uuid && orderById.get(rec.uuid)) ||
+      (rec.legacyId && orderById.get(rec.legacyId)) ||
+      null;
+    const created = linked?.createdAt;
+    if (created) {
+      const ms = Date.parse(created);
+      if (!Number.isNaN(ms)) return ms;
+    }
+  }
+  const start = toIsoDateString(rec.mixStartDate || "");
+  if (start) {
+    const ms = Date.parse(start);
+    if (!Number.isNaN(ms)) return ms;
+  }
+  return 0;
+}
+
+function dateSortKey(isoLike: string | undefined | null): number {
+  const iso = toIsoDateString(isoLike || "");
+  if (!iso) return Number.POSITIVE_INFINITY;
+  const ms = Date.parse(iso);
+  return Number.isNaN(ms) ? Number.POSITIVE_INFINITY : ms;
+}
+
+function daysBookedSortKey(rec: MTDRecord, producers: Producer[]): number {
+  const working = mixWorkDaysForRecord(rec, producers);
+  if (typeof working === "number") return working;
+  const start = toIsoDateString(rec.mixStartDate || "");
+  const end = toIsoDateString(rec.mixEndDate || "");
+  if (!start || !end || end < start) return -1;
+  const a = Date.parse(start);
+  const b = Date.parse(end);
+  if (Number.isNaN(a) || Number.isNaN(b)) return -1;
+  return Math.floor((b - a) / 86400000) + 1;
+}
+
+/** Apply Filters → Sort by (stable). */
+export function sortMTDRecordsBySortKey(
+  records: MTDRecord[],
+  sortBy: MTDSortBy | string | undefined,
+  producers: Producer[] = [],
+  orderById?: Map<string, Order> | null
+): MTDRecord[] {
+  const mode = (sortBy || "none") as MTDSortBy;
+  if (mode === "none" || records.length < 2) return records;
+
+  return records
+    .map((rec, index) => ({ rec, index }))
+    .sort((a, b) => {
+      let cmp = 0;
+      switch (mode) {
+        case "name_az":
+          cmp = (a.rec.programName || "").localeCompare(
+            b.rec.programName || "",
+            undefined,
+            { sensitivity: "base" }
+          );
+          break;
+        case "name_za":
+          cmp = (b.rec.programName || "").localeCompare(
+            a.rec.programName || "",
+            undefined,
+            { sensitivity: "base" }
+          );
+          break;
+        case "oldest":
+          cmp =
+            recordCreatedMs(a.rec, orderById) -
+            recordCreatedMs(b.rec, orderById);
+          break;
+        case "newest":
+          cmp =
+            recordCreatedMs(b.rec, orderById) -
+            recordCreatedMs(a.rec, orderById);
+          break;
+        case "price_high":
+          cmp = recordPackagePrice(b.rec) - recordPackagePrice(a.rec);
+          break;
+        case "price_low":
+          cmp = recordPackagePrice(a.rec) - recordPackagePrice(b.rec);
+          break;
+        case "start_earliest":
+          cmp =
+            dateSortKey(a.rec.mixStartDate) - dateSortKey(b.rec.mixStartDate);
+          break;
+        case "start_oldest":
+          cmp =
+            dateSortKey(b.rec.mixStartDate) - dateSortKey(a.rec.mixStartDate);
+          break;
+        case "end_earliest":
+          cmp = dateSortKey(a.rec.mixEndDate) - dateSortKey(b.rec.mixEndDate);
+          break;
+        case "end_oldest":
+          cmp = dateSortKey(b.rec.mixEndDate) - dateSortKey(a.rec.mixEndDate);
+          break;
+        case "days_more":
+          cmp =
+            daysBookedSortKey(b.rec, producers) -
+            daysBookedSortKey(a.rec, producers);
+          break;
+        case "days_less":
+          cmp =
+            daysBookedSortKey(a.rec, producers) -
+            daysBookedSortKey(b.rec, producers);
+          break;
+        default:
+          cmp = 0;
+      }
+      if (cmp !== 0) return cmp;
+      return a.index - b.index;
+    })
+    .map(({ rec }) => rec);
+}
+
+/**
+ * Sequence = preserve input order.
+ * By producer = cluster same assigned producers together in first-seen order
+ * (unassigned last). Does not alphabetize — use Filters → Sort by for that.
+ */
+export function sortMTDRecordsByViewOrder(
+  records: MTDRecord[],
+  mode: MTDViewOrderMode,
+  producers: Producer[] = []
+): MTDRecord[] {
+  if (mode !== "by_producer" || records.length < 2) return records;
+
+  const groupKeyFor = (rec: MTDRecord): string => {
+    const raw = (rec.assignedProducer || "").trim();
+    if (!raw) return "";
+    const matched = findProducerByAssignmentKey(raw, producers);
+    return matched
+      ? producerAssignmentKey(matched)
+      : raw.toLowerCase();
+  };
+
+  const firstSeen = new Map<string, number>();
+  for (let i = 0; i < records.length; i++) {
+    const key = groupKeyFor(records[i]);
+    if (!key) continue;
+    if (!firstSeen.has(key)) firstSeen.set(key, i);
+  }
+
+  return records
+    .map((rec, index) => ({ rec, index, key: groupKeyFor(rec) }))
+    .sort((a, b) => {
+      const aUnassigned = !a.key;
+      const bUnassigned = !b.key;
+      if (aUnassigned !== bUnassigned) return aUnassigned ? 1 : -1;
+      if (!aUnassigned && !bUnassigned) {
+        const aOrd = firstSeen.get(a.key) ?? a.index;
+        const bOrd = firstSeen.get(b.key) ?? b.index;
+        if (aOrd !== bOrd) return aOrd - bOrd;
+      }
+      return a.index - b.index;
+    })
+    .map(({ rec }) => rec);
 }
 
 export function isOrderScheduledAndAssigned(rec: MTDRecord): boolean {

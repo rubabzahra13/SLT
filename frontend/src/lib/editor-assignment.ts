@@ -14,6 +14,7 @@ import { parseFlexibleDate, toIsoDateString } from "./dates";
 import {
   normalizeProducerKey,
   producerAssignmentKey,
+  producerFirstName,
   producerKeysMatch,
 } from "./producer-keys";
 import { orderCategoryToProducerCategory } from "./producer-category";
@@ -23,9 +24,12 @@ import { calculateProducerNextOpening } from "./producer-schedule-calc";
 export {
   normalizeProducerKey,
   producerAssignmentKey,
+  producerFirstName,
   producerKeysMatch,
 } from "./producer-keys";
 export { orderCategoryToProducerCategory } from "./producer-category";
+
+export const FIRST_AVAILABLE_LABEL = "First Available";
 
 export function isFirstAvailableRequest(
   value: string | null | undefined
@@ -147,14 +151,28 @@ export function getRequestedEditorFromRecord(
   return null;
 }
 
+/** Display label for requested/form producer: first name or "First Available". */
 export function formatRequestedEditorLabel(
   record: MTDRecord,
   producers: Producer[],
   linkedOrder?: Order | null
 ): string {
   const requested = getRequestedEditorFromRecord(record, producers, linkedOrder);
-  if (requested) return requested;
-  return "FA";
+  if (!requested) return FIRST_AVAILABLE_LABEL;
+  return formatRequestedProducerDisplay(requested, producers);
+}
+
+/** Normalize a stored requested-editor value for UI (first name / First Available). */
+export function formatRequestedProducerDisplay(
+  value: string | null | undefined,
+  producers: Producer[] = []
+): string {
+  if (isFirstAvailableRequest(value)) return FIRST_AVAILABLE_LABEL;
+  const matched = findProducerByAssignmentKey(value, producers);
+  if (matched) return producerFirstName(matched);
+  const token = value?.trim().split(/\s+/)[0] || "";
+  if (!token) return FIRST_AVAILABLE_LABEL;
+  return token.charAt(0).toUpperCase() + token.slice(1).toLowerCase();
 }
 
 export type EditorPickReason =

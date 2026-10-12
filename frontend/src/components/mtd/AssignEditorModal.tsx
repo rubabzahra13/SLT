@@ -22,6 +22,7 @@ import {
   getEditorNamesForCategory,
   getEditorWorkload,
   getEditorBookedUntilIso,
+  formatRequestedProducerDisplay,
   getRequestedEditorFromRecord,
   findProducerByAssignmentKey,
   getDisplayAssignedProducer,
@@ -545,8 +546,12 @@ export function AssignEditorModal({
     if (!requestedEditor) {
       return { kind: "first_available" as const };
     }
+    const displayName = formatRequestedProducerDisplay(
+      requestedEditor,
+      producers
+    );
     if (!requestedRow) {
-      return { kind: "unknown" as const, name: requestedEditor };
+      return { kind: "unknown" as const, name: displayName };
     }
     const available = windowMode
       ? requestedRow.availableForWindow
@@ -577,14 +582,14 @@ export function AssignEditorModal({
 
     return {
       kind: "specific" as const,
-      name: requestedEditor,
+      name: displayName,
       row: requestedRow,
       available,
       caution: available && caution,
       statusLabel,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [requestedEditor, requestedRow, windowMode]);
+  }, [requestedEditor, requestedRow, windowMode, producers]);
 
   const availableNames = useMemo(
     () => producerRows.filter(isRowCandidate).map((row) => row.name),
@@ -996,7 +1001,10 @@ export function AssignEditorModal({
                   <p className="mt-0.5 text-[11px] text-brand-ink-tertiary">
                     Requested:{" "}
                     <span className="font-semibold text-brand-ink">
-                      {requestedEditor || "First available"}
+                      {formatRequestedProducerDisplay(
+                        requestedEditor,
+                        producers
+                      )}
                     </span>
                   </p>
                   {displayAssigned ? (
@@ -1274,10 +1282,8 @@ export function AssignEditorModal({
 
   const requestedHeaderLabel =
     requestedInfo.kind === "first_available"
-      ? "First available"
-      : requestedInfo.kind === "unknown"
-        ? requestedInfo.name
-        : requestedInfo.name;
+      ? "First Available"
+      : requestedInfo.name;
 
   const requestedHeaderMeta = (
     <div className="inline-flex max-w-full items-center gap-2 rounded-full bg-brand-blue-soft/70 px-3 py-1.5 ring-1 ring-inset ring-brand-blue/25">

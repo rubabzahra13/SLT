@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Check, Trash2, Zap } from "lucide-react";
@@ -40,9 +40,11 @@ import {
   matchesFormFilter,
   matchesMTDSearch,
   resolveMTDFormMeta,
+  sortMTDRecordsBySortKey,
 } from "@/lib/mtd-filters";
 import { parsePackage } from "@/lib/package";
 import { findLinkedOrder, findProducerByAssignmentKey } from "@/lib/editor-assignment";
+import { payrollRowIsRushOrder } from "@/lib/forward-order-mail";
 import type {
   CheerFormSubtype,
   CheerFormSubtypeFilter,
@@ -65,8 +67,8 @@ import {
 
 const DEFAULT_FORM: OrderFormType = "school-all-star-cheer";
 type PayrollPageTab = "view" | "archive" | "voiceovers" | "send";
-const DEFAULT_CHEER_SUBTYPE: CheerFormSubtypeFilter = "all";
-const DEFAULT_DANCE_SUBTYPE: DanceFormSubtypeFilter = "all";
+const DEFAULT_CHEER_SUBTYPE: CheerFormSubtypeFilter = "all-star-cheer";
+const DEFAULT_DANCE_SUBTYPE: DanceFormSubtypeFilter = "pom";
 
 const addonAmountChipClass =
   "inline-flex h-7 items-center rounded-full bg-brand-success/10 px-2.5 text-[12px] font-semibold tabular-nums text-brand-success ring-1 ring-inset ring-brand-success/20";
@@ -92,6 +94,7 @@ export default function PayrollPage() {
     addPayrollAddon,
     removePayrollAddon,
     updateMTD,
+    updateOrder,
     removeMTDRecord,
     isViewOnly,
   } = useAppState();
@@ -179,14 +182,12 @@ export default function PayrollPage() {
       "school-anthem",
     ];
     const validCheerSubtypes: CheerFormSubtypeFilter[] = [
-      "all",
       "all-star-cheer",
       "school-cheer-viroc-yes",
       "school-cheer-viroc-no",
       "youth-rec-cheer",
     ];
     const validDanceSubtypes: DanceFormSubtypeFilter[] = [
-      "all",
       "pom",
       "hip-hop",
       "team-performance-variety",
@@ -201,7 +202,9 @@ export default function PayrollPage() {
     if (savedTableFilters) {
       try {
         const parsed = JSON.parse(savedTableFilters);
-        if (parsed && typeof parsed === "object") setTableFiltersState(parsed);
+        if (parsed && typeof parsed === "object") {
+          setTableFiltersState({ ...DEFAULT_MTD_TABLE_FILTERS, ...parsed });
+        }
       } catch {}
     }
   }, []);
@@ -307,10 +310,10 @@ export default function PayrollPage() {
     (next: OrderFormType) => {
       setForm(next);
       if (next !== "school-all-star-cheer") {
-        setCheerSubtype("all");
+        setCheerSubtype(DEFAULT_CHEER_SUBTYPE);
       }
       if (next !== "school-all-star-dance") {
-        setDanceSubtype("all");
+        setDanceSubtype(DEFAULT_DANCE_SUBTYPE);
       }
     },
     [setForm, setCheerSubtype, setDanceSubtype]
@@ -369,9 +372,16 @@ export default function PayrollPage() {
 
   const filtered = useMemo(() => {
     const q = searchQuery.trim();
-    if (!q) return tableFiltered;
-    return tableFiltered.filter((rec) => matchesMTDSearch(rec, q));
-  }, [tableFiltered, searchQuery]);
+    const searched = !q
+      ? tableFiltered
+      : tableFiltered.filter((rec) => matchesMTDSearch(rec, q));
+    return sortMTDRecordsBySortKey(
+      searched,
+      tableFilters.sortBy ?? "none",
+      producers,
+      orderById
+    );
+  }, [tableFiltered, searchQuery, tableFilters.sortBy, producers, orderById]);
 
   const totalPayroll = useMemo(() => {
     // Mix editors: package + rush only (VO paid separately to VO producers).
@@ -471,19 +481,6 @@ export default function PayrollPage() {
     filtered.length,
   ]);
 
-  const tableFilterKey = [
-    tableFilters.packageTier,
-    tableFilters.timeLimit,
-    tableFilters.split,
-    tableFilters.assignedProducer,
-    tableFilters.requestedProducer,
-    tableFilters.scheduleFilter,
-    tableFilters.infoFilter,
-    tableFilters.dateFilter.type,
-    String(tableFilters.dateFilter.value),
-    searchQuery,
-  ].join("-");
-
   // Build unique program options from allOrders for the add-on modals
   const programOptions = useMemo(() => {
     const seen = new Set<string>();
@@ -555,6 +552,9 @@ export default function PayrollPage() {
           rushFeeOption: "single",
           isRushOrder: "yes",
         });
+        if (rec.orderId) {
+          await updateOrder(rec.orderId, { isRushOrder: "yes" });
+        }
       } catch (err) {
         console.error("Failed to add rush fee:", err);
       }
@@ -567,6 +567,7 @@ export default function PayrollPage() {
       removePayrollAddon,
       addPayrollAddon,
       updateMTD,
+      updateOrder,
     ]
   );
 
@@ -582,18 +583,49 @@ export default function PayrollPage() {
         if (rushAddon) {
           await removePayrollAddon(rushAddon.id);
         }
-        // Also clear mix-level rush so the fee doesn't reappear after addon delete
+        // Clear mix + order rush so auto-add does not immediately reapply
         await updateMTD(rec.id, {
           rushFeeQuantity: 0,
           rushFeeOption: "none",
           isRushOrder: "no",
         });
+        if (rec.orderId) {
+          await updateOrder(rec.orderId, { isRushOrder: "no" });
+        }
       } catch (err) {
         console.error("Failed to remove rush fee:", err);
       }
     },
-    [isViewOnly, payrollAddons, removePayrollAddon, updateMTD]
+    [isViewOnly, payrollAddons, removePayrollAddon, updateMTD, updateOrder]
   );
+
+  // Orders-tab rush flag lives on the order — auto-create the Payroll rush
+  // fee addon when the mix arrives without one.
+  const autoRushAttemptedRef = useRef(new Set<string>());
+  useEffect(() => {
+    if (isViewOnly || pageTab !== "view") return;
+    for (const rec of payrollRecords) {
+      const key = rec.uuid || rec.id;
+      if (autoRushAttemptedRef.current.has(key)) continue;
+      const order = findLinkedOrder(rec, allOrders);
+      if (!payrollRowIsRushOrder(rec, order)) continue;
+      const hasAddon = payrollAddons.some(
+        (a) =>
+          (a.mtdId === rec.id || a.orderId === rec.orderId) &&
+          a.addonType === "rush_fee"
+      );
+      autoRushAttemptedRef.current.add(key);
+      if (hasAddon) continue;
+      void handleAddRushFee(rec);
+    }
+  }, [
+    isViewOnly,
+    pageTab,
+    payrollRecords,
+    payrollAddons,
+    allOrders,
+    handleAddRushFee,
+  ]);
 
   const categoryFilteredProducers = useMemo(
     () =>
@@ -768,7 +800,7 @@ export default function PayrollPage() {
       },
       {
         key: "package",
-        header: "Package",
+        header: "Package type",
         width: "88px",
         align: "center",
         cellClassName: "!px-2 !py-1.5",
@@ -786,7 +818,7 @@ export default function PayrollPage() {
         ? [
             {
               key: "timeLimit",
-              header: "Time limit",
+              header: "Mix Length",
               width: "80px",
               align: "center" as const,
               cellClassName: "!px-2 !py-1.5",
@@ -988,19 +1020,20 @@ export default function PayrollPage() {
         cellClassName: "!px-2 !py-1.5",
         headerClassName: "!px-2 !py-2",
         render: (rec) => {
+          const order = findLinkedOrder(rec, allOrders);
           const rushAddon = payrollAddons.find(
             (a) =>
               (a.mtdId === rec.id || a.orderId === rec.orderId) &&
               a.addonType === "rush_fee"
           );
+          const markedRush = payrollRowIsRushOrder(rec, order);
           const rushAmount = rushAddon
             ? rushAddon.amount
             : rec.rushFeeQuantity === 2 || rec.rushFeeOption === "double"
               ? 300
-              : rec.rushFeeQuantity === 1 ||
-                  rec.rushFeeOption === "single" ||
-                  rec.isRushOrder === "yes" ||
-                  rec.isRushOrder === true
+              : markedRush ||
+                  rec.rushFeeQuantity === 1 ||
+                  rec.rushFeeOption === "single"
                 ? 150
                 : 0;
           const hasRush = rushAmount > 0;
@@ -1275,7 +1308,7 @@ export default function PayrollPage() {
         {pageTab === "view" || pageTab === "archive" ? (
           <div className="dashboard-panel dashboard-panel-framed overflow-hidden">
             <DataTable
-              key={`${pageTab}-${form}-${cheerSubtype}-${danceSubtype}-${tableFilterKey}`}
+              key={pageTab}
               columns={columns}
               data={filtered}
               rowKey={(rec) => rec.id}

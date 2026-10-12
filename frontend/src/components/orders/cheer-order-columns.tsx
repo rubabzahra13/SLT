@@ -120,7 +120,16 @@ function mixInfoCols(options: {
 }): Column<Order>[] {
   const eightField = options.eightCountField || "sendingEightCountSheets";
   const cols: Column<Order>[] = [
-    textCol("requestedEditor", "Requested Editor", (o) => o.requestedEditor, "120px"),
+    textCol(
+      "requestedEditor",
+      "Requested Editor",
+      (o) => {
+        const raw = o.requestedEditor?.trim() || "";
+        if (!raw || /^(fa|first available)$/i.test(raw)) return "First Available";
+        return raw.split(/\s+/)[0];
+      },
+      "120px"
+    ),
     multiCol("packageType", "Package Type", (o) => o.packageType, "160px"),
     textCol("timeLengthOfMix", "Length of Mix", (o) => o.timeLengthOfMix, "100px"),
   ];

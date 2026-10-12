@@ -94,8 +94,8 @@ def seed_all_orders():
         for i, (sch, mascot, div, split_opt, pkg, time_len) in enumerate(viroc_schools, 1):
             o = Order(
                 form_type="school-all-star-cheer",
-                cheer_form_subtype="school-cheer",
-                varsity_viroc_customer="yes",
+                cheer_form_subtype="school-cheer-viroc-yes",
+                varsity_viroc_customer="Yes",
                 category="Cheer",
                 school_name=sch,
                 school_billing_address=f"{200 + i} School Road",
@@ -154,8 +154,8 @@ def seed_all_orders():
         for i, (sch, mascot, div, split_opt, pkg, time_len) in enumerate(school_cheer_no_viroc, 1):
             o = Order(
                 form_type="school-all-star-cheer",
-                cheer_form_subtype="school-cheer",
-                varsity_viroc_customer="no",
+                cheer_form_subtype="school-cheer-viroc-no",
+                varsity_viroc_customer="No",
                 category="Cheer",
                 school_name=sch,
                 school_billing_address=f"{300 + i} Valley Blvd",
