@@ -1,4 +1,5 @@
 import uuid
+from decimal import Decimal
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -7,7 +8,12 @@ from app.core.database import get_db
 from app.lib.producer_assignment import resolve_producer_by_assignment_key
 from app.models.payroll_addon import PayrollAddon
 from app.models.order import Order
-from app.schemas.payroll_addon import PayrollAddonCreate, PayrollAddonOut
+from app.schemas.payroll_addon import (
+    PayrollAddonCreate,
+    PayrollAddonOut,
+    PayrollAddonUpdate,
+)
+from app.services.rush_fee import RushFeeValidationError, apply_rush_fee_fields
 
 router = APIRouter()
 
@@ -38,6 +44,28 @@ def _resolve_order_id(raw_id: Optional[str], db: Session) -> Optional[uuid.UUID]
         .first()
     )
     return order.id if order else None
+
+
+def _decimal(value) -> Optional[Decimal]:
+    if value is None:
+        return None
+    return Decimal(str(value))
+
+
+def _apply_rush_fields(data: dict) -> dict:
+    try:
+        normalized = apply_rush_fee_fields(
+            addon_type=data["addon_type"],
+            amount=_decimal(data.get("amount")),
+            quantity=data.get("quantity"),
+            unit_amount=_decimal(data.get("unit_amount")),
+            compensation_rate=data.get("compensation_rate"),
+            compensation_overridden=bool(data.get("compensation_overridden")),
+        )
+    except RushFeeValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    data.update(normalized)
+    return data
 
 
 def _resolve_uuid(raw_id: Optional[str]) -> Optional[uuid.UUID]:
@@ -89,8 +117,64 @@ def create_payroll_addon(
         existing_notes = data.get("notes") or ""
         data["notes"] = f"{existing_notes} [{'; '.join(extra_notes)}]".strip()
 
+    _apply_rush_fields(data)
+
     addon = PayrollAddon(**data)
     db.add(addon)
+    db.commit()
+    db.refresh(addon)
+    return addon
+
+
+@router.patch("/payroll-addons/{addon_id}", response_model=PayrollAddonOut)
+def update_payroll_addon(
+    addon_id: uuid.UUID,
+    payload: PayrollAddonUpdate,
+    db: Session = Depends(get_db),
+):
+    """Update rush-fee quantity, unit amount, or the order-specific rate override."""
+    addon = db.query(PayrollAddon).filter(PayrollAddon.id == addon_id).first()
+    if not addon:
+        raise HTTPException(status_code=404, detail="Payroll add-on not found")
+
+    patch = payload.model_dump(exclude_unset=True)
+    if "producer_id" in patch:
+        addon.producer_id = _resolve_producer_id(patch.get("producer_id"), db)
+    if "producer_initials" in patch:
+        addon.producer_initials = patch.get("producer_initials")
+    if "notes" in patch:
+        addon.notes = patch.get("notes")
+
+    quantity = patch["quantity"] if "quantity" in patch else addon.quantity
+    unit_amount = (
+        patch["unit_amount"] if "unit_amount" in patch else addon.unit_amount
+    )
+    amount = patch["amount"] if "amount" in patch else addon.amount
+    if "compensation_overridden" in patch:
+        overridden = bool(patch["compensation_overridden"])
+    else:
+        overridden = bool(addon.compensation_overridden)
+    if "compensation_rate" in patch:
+        rate = patch.get("compensation_rate")
+    else:
+        rate = addon.compensation_rate
+
+    normalized = _apply_rush_fields(
+        {
+            "addon_type": addon.addon_type,
+            "amount": amount,
+            "quantity": quantity,
+            "unit_amount": unit_amount,
+            "compensation_rate": rate,
+            "compensation_overridden": overridden,
+        }
+    )
+    addon.amount = normalized["amount"]
+    addon.quantity = normalized["quantity"]
+    addon.unit_amount = normalized["unit_amount"]
+    addon.compensation_rate = normalized["compensation_rate"]
+    addon.compensation_overridden = normalized["compensation_overridden"]
+
     db.commit()
     db.refresh(addon)
     return addon

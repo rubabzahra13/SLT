@@ -6,12 +6,19 @@ Next.js admin dashboard for music order operations: orders, MTD spreadsheet, sch
 
 ```bash
 npm install --prefix frontend
+```
+
+Use **two terminals** (frontend alone cannot save payroll or rush fees):
+
+```bash
+# Terminal 1 — Next.js UI on port 3000
 npm run dev
-# in another terminal:
+
+# Terminal 2 — FastAPI on port 8001 (required for API calls)
 cd backend && ./venv/bin/uvicorn app.main:app --reload --port 8001
 ```
 
-Open [http://localhost:3000](http://localhost:3000). Root `npm run dev` proxies into `frontend/`.
+Open [http://localhost:3000](http://localhost:3000). The UI proxies `/api/*` to the backend in dev.
 
 ## Stack
 

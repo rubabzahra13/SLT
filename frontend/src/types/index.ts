@@ -1028,7 +1028,18 @@ export type PayrollAddon = {
   category: string;
   /** "voiceover" | "rush_fee" */
   addonType: "voiceover" | "rush_fee";
+  /** Customer amount. Rush fees: unitAmount × quantity. */
   amount: number;
+  /** Rush fee quantity. Null on voiceover rows and legacy rush rows. */
+  quantity?: number | null;
+  /** Rush fee charged per unit. Null when only `amount` was stored. */
+  unitAmount?: number | null;
+  /**
+   * Order-specific rush compensation override, as a fraction (0.93 = 93%).
+   * Null means the assigned producer's rush fee rate is the default.
+   */
+  compensationRate?: number | null;
+  compensationOverridden?: boolean;
   /** "predefined" | "manual" */
   rateSource: "predefined" | "manual";
   /** Required — which producer this payout goes to */

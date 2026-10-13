@@ -11,6 +11,12 @@ import { orderFromMTDRecord } from "./order-detail-fields";
 import { getOrderDetailSections, getFormTypeLabel } from "./order-detail-sections";
 import { parsePackage } from "./package";
 import { computeClientPayroll } from "./pricing-display";
+import { payrollRowIsRushOrder } from "./forward-order-mail";
+import {
+  finalizeMixPayout,
+  resolveRushFeeSelection,
+  rushFeeAddonForRecord,
+} from "./rush-fee";
 
 import { inferMTDRecordStatus } from "./mtd-status";
 
@@ -321,17 +327,15 @@ export function generatePayrollCsv(
 
     const custPrice = order?.finalCustomerPrice ?? rec.finalCustomerPrice ?? rec.price;
     const payrollPrice = rec.finalPayrollPrice ?? order?.finalPayrollPrice ?? rec.price;
-    const rushQty =
-      typeof rec.rushFeeQuantity === "number"
-        ? rec.rushFeeQuantity
-        : rec.rushFeeOption === "double"
-        ? 2
-        : rec.rushFeeOption === "single" || rec.isRushOrder === "yes" || rec.isRushOrder === true
-        ? 1
-        : 0;
+    const rush = resolveRushFeeSelection({
+      isRush: payrollRowIsRushOrder(rec, linked),
+      producerRate: producerObj?.rushFeeRate,
+      producerId: producerObj?.id,
+      addon: rushFeeAddonForRecord(rec.id, rec.orderId, payrollAddons),
+    });
 
-    // Mix editor CSV rows: package + rush only. VO addons are listed separately
-    // below so they attribute to the VO producer, not the mix editor.
+    // Mix editor CSV rows: package + rush compensation once. VO addons are
+    // listed separately so they attribute to the VO producer.
     const calc = computeClientPayroll(
       producerObj,
       custPrice,
@@ -341,9 +345,8 @@ export function generatePayrollCsv(
       meta.canonicalSubtypeId,
       payrollPrice,
       {
-        rushFeeQuantity: rushQty,
-        rushFeeCompensationRate:
-          rec.rushFeeCompensationRate ?? producerObj?.rushFeeRate ?? 1.0,
+        rushFeeQuantity: 0,
+        includeRushFeeInPayout: false,
         danceVoiceover: null,
         hasTraditionalVoiceover: false,
         hasThemedVoiceover: false,
@@ -354,14 +357,9 @@ export function generatePayrollCsv(
     );
 
     const isDance = meta.formType === "school-all-star-dance";
-    const rowRushAddon = payrollAddons?.find(
-      (a) => (a.mtdId === rec.id || a.orderId === rec.orderId) && a.addonType === "rush_fee"
-    );
-
     const basePayout = calc.producerPayout ?? rec.producerPayout ?? order?.producerPayout ?? 0;
-    const categoryBase = Math.max(0, basePayout - (calc.rushFeePayout ?? 0));
-    const rushPayout = rowRushAddon ? rowRushAddon.amount : (calc.rushFeePayout ?? 0);
-    const payoutTotal = categoryBase + rushPayout;
+    const rushPayout = rush.compensation;
+    const payoutTotal = finalizeMixPayout(basePayout, calc.status, rush) ?? basePayout;
 
     const row: Record<string, unknown> = {
       id: rec.id,
@@ -650,17 +648,18 @@ export function getProducerFacingPayrollRows(
 
     const custPrice = order?.finalCustomerPrice ?? rec.finalCustomerPrice ?? rec.price;
     const payrollPrice = rec.finalPayrollPrice ?? order?.finalPayrollPrice ?? rec.price;
-    const rushQty =
-      typeof rec.rushFeeQuantity === "number"
-        ? rec.rushFeeQuantity
-        : rec.rushFeeOption === "double"
-        ? 2
-        : rec.rushFeeOption === "single" || rec.isRushOrder === "yes" || rec.isRushOrder === true
-        ? 1
-        : 0;
+    const rowRushAddon = payrollAddons?.find((a) =>
+      matchAddonToRecord(a, rec, "rush_fee", producerObj)
+    );
+    const rush = resolveRushFeeSelection({
+      isRush: payrollRowIsRushOrder(rec, linked),
+      producerRate: producerObj?.rushFeeRate,
+      producerId: producerObj?.id,
+      addon: rowRushAddon,
+    });
 
-    // Mix editor rows: package + rush only. Voiceovers pay the VO producer
-    // separately (see addon append below) and never inflate mix-editor payout.
+    // Mix editor rows: package + rush compensation once. Voiceovers pay the
+    // VO producer separately and never inflate mix-editor payout.
     const calc = computeClientPayroll(
       producerObj,
       custPrice,
@@ -670,9 +669,8 @@ export function getProducerFacingPayrollRows(
       meta.canonicalSubtypeId,
       payrollPrice,
       {
-        rushFeeQuantity: rushQty,
-        rushFeeCompensationRate:
-          rec.rushFeeCompensationRate ?? producerObj?.rushFeeRate ?? 1.0,
+        rushFeeQuantity: 0,
+        includeRushFeeInPayout: false,
         danceVoiceover: null,
         hasTraditionalVoiceover: false,
         hasThemedVoiceover: false,
@@ -683,28 +681,15 @@ export function getProducerFacingPayrollRows(
     );
 
     const isDance = meta.formType === "school-all-star-dance";
-    const rowRushAddon = payrollAddons?.find((a) =>
-      matchAddonToRecord(a, rec, "rush_fee", producerObj)
-    );
 
-    if (rowRushAddon) usedAddonIds.add(rowRushAddon.id);
+    if (rowRushAddon && rush.quantity > 0) usedAddonIds.add(rowRushAddon.id);
 
     const basePayout = calc.producerPayout ?? rec.producerPayout ?? order?.producerPayout ?? 0;
-    const categoryBasePayout = Math.max(
-      0,
-      basePayout - (calc.rushFeePayout ?? 0)
-    );
+    const rushPayout = rush.compensation;
+    const payoutTotal = finalizeMixPayout(basePayout, calc.status, rush) ?? basePayout;
 
-    const rushPayout = rowRushAddon ? rowRushAddon.amount : (calc.rushFeePayout ?? 0);
-    const payoutTotal = categoryBasePayout + rushPayout;
-
-    const rushLabel = rowRushAddon
-      ? formatPrice(rowRushAddon.amount)
-      : rushQty === 2
-      ? "Double Rush ($300)"
-      : rushQty === 1
-      ? "Rush Fee ($150)"
-      : "None";
+    const rushLabel =
+      rush.quantity > 0 ? formatPrice(rush.total) : "None";
 
     const row: ProducerFacingPayrollRow = {
       completedDate:
@@ -814,6 +799,18 @@ export function getProducerFacingPayrollRows(
         ? resolveMTDFormMeta(linkedMix, orderById)
         : null;
       const parsedPkg = linkedMix ? parsePackage(linkedMix.package) : null;
+      const standaloneRush =
+        addon.addonType === "rush_fee"
+          ? resolveRushFeeSelection({
+              isRush: true,
+              producerRate: voProducer?.rushFeeRate,
+              producerId: voProducer?.id ?? addon.producerId,
+              addon,
+            })
+          : null;
+      const standaloneAmount = standaloneRush
+        ? standaloneRush.compensation
+        : addon.amount;
 
       const addonRow: ProducerFacingPayrollRow = {
         completedDate:
@@ -833,8 +830,7 @@ export function getProducerFacingPayrollRows(
         voiceoverAddon:
           addon.addonType === "voiceover" ? formatPrice(addon.amount) : "",
         // Rush is for mix editors only — leave blank on VO rows
-        rushFee:
-          addon.addonType === "rush_fee" ? formatPrice(addon.amount) : "",
+        rushFee: standaloneRush ? formatPrice(standaloneRush.total) : "",
         // Mix-editor fields — not used on VO statement columns
         danceExtraSongs: "",
         danceExtraSongTime: "",
@@ -843,17 +839,14 @@ export function getProducerFacingPayrollRows(
           addon.addonType === "voiceover"
             ? formatPrice(addon.amount)
             : "",
-        rushPayout:
-          addon.addonType === "rush_fee"
-            ? formatPrice(addon.amount)
-            : "",
+        rushPayout: standaloneRush ? formatPrice(standaloneRush.compensation) : "",
         danceExtraSongsPayout: "",
         danceExtraSongTimePayout: "",
-        totalPayout: formatPrice(addon.amount),
+        totalPayout: formatPrice(standaloneAmount),
         producerName:
           voProducer?.name ?? addon.producerInitials ?? targetProducerName,
         recId: addon.id,
-        rawTotalPayout: addon.amount,
+        rawTotalPayout: standaloneAmount,
       };
       preparedRows.push(addonRow);
     }

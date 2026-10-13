@@ -1,9 +1,14 @@
-export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL !== undefined
-    ? process.env.NEXT_PUBLIC_API_URL
-    : process.env.NODE_ENV === "production"
-      ? ""
-      : "http://localhost:8001";
+/** Dev browser calls use same-origin `/api` (Next rewrites to uvicorn). SSR uses 127.0.0.1:8001. */
+function resolveApiBaseUrl(): string {
+  if (process.env.NEXT_PUBLIC_API_URL !== undefined) {
+    return process.env.NEXT_PUBLIC_API_URL;
+  }
+  if (process.env.NODE_ENV === "production") return "";
+  if (typeof window !== "undefined") return "";
+  return "http://127.0.0.1:8001";
+}
+
+export const API_BASE_URL = resolveApiBaseUrl();
 
 /** Default request timeout — shorter than Vercel maxDuration so UI can recover. */
 export const API_TIMEOUT_MS = 20_000;
@@ -20,7 +25,10 @@ export class ApiClientError extends Error {
   }
 }
 
-const BACKEND_UNAVAILABLE_MESSAGE = `Backend unavailable at ${API_BASE_URL || "/api"}. Is the server running?`;
+function backendUnavailableMessage(): string {
+  const target = API_BASE_URL || "/api (proxied to port 8001)";
+  return `Backend unavailable at ${target}. Start the API in a second terminal: cd backend && ./venv/bin/uvicorn app.main:app --reload --port 8001`;
+}
 
 function isNetworkFetchFailure(err: unknown): boolean {
   if (!(err instanceof Error)) return false;
@@ -39,12 +47,12 @@ export function formatApiClientError(
 ): string {
   if (err instanceof ApiClientError) {
     if (err.status === 0 && isNetworkFetchFailure(err)) {
-      return BACKEND_UNAVAILABLE_MESSAGE;
+      return backendUnavailableMessage();
     }
     return err.message;
   }
   if (isNetworkFetchFailure(err)) {
-    return BACKEND_UNAVAILABLE_MESSAGE;
+    return backendUnavailableMessage();
   }
   return err instanceof Error ? err.message : fallback;
 }
@@ -134,7 +142,7 @@ async function requestOnce<T>(
     }
     throw new ApiClientError(
       isNetworkFetchFailure(err)
-        ? BACKEND_UNAVAILABLE_MESSAGE
+        ? backendUnavailableMessage()
         : err instanceof Error
           ? err.message
           : "Network error connecting to backend",

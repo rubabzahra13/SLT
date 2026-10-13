@@ -47,6 +47,11 @@ function mapPayrollAddon(raw: BackendPayrollAddon): PayrollAddon {
     category: raw.category,
     addonType: raw.addon_type,
     amount: Number(raw.amount),
+    quantity: raw.quantity ?? null,
+    unitAmount: raw.unit_amount != null ? Number(raw.unit_amount) : null,
+    compensationRate:
+      raw.compensation_rate != null ? Number(raw.compensation_rate) : null,
+    compensationOverridden: Boolean(raw.compensation_overridden),
     rateSource: raw.rate_source,
     producerId: raw.producer_id ?? null,
     producerInitials: raw.producer_initials ?? null,

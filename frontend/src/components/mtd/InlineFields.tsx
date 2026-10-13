@@ -377,16 +377,16 @@ type InlineTriStateCheckGroupProps = {
   readOnly?: boolean;
 };
 
-const inlinePillGroupClass =
+export const inlinePillGroupClass =
   "inline-flex max-w-full items-center gap-1 rounded-xl bg-brand-bg-subtle/90 p-1 ring-1 ring-inset ring-brand-line/40";
 
-const inlinePillBaseClass =
+export const inlinePillBaseClass =
   "relative whitespace-nowrap rounded-lg px-2 py-1 text-[12px] font-medium leading-none transition-all duration-150";
 
-const inlinePillInactiveClass =
+export const inlinePillInactiveClass =
   "bg-brand-elevated/90 text-brand-ink-tertiary ring-1 ring-inset ring-brand-line/45 hover:bg-brand-elevated hover:text-brand-ink hover:ring-brand-line-strong";
 
-const inlinePillActiveClass =
+export const inlinePillActiveClass =
   "bg-brand-success/22 text-emerald-800 ring-1 ring-inset ring-brand-success/35";
 
 const triStateClassName: Record<InlineTriState, string> = {

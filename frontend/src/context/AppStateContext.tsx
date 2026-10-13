@@ -91,7 +91,10 @@ import {
   deleteDiscountCodeApi,
   createPayrollAddonApi,
   deletePayrollAddonApi,
+  updatePayrollAddonApi,
+  mergePayrollAddonPatch,
   type CreatePayrollAddonPayload,
+  type UpdatePayrollAddonPayload,
   createManualScheduleEntryApi,
   type CreateManualSchedulePayload,
   createStudioPersonalReasonApi,
@@ -152,6 +155,10 @@ type AppStateContextValue = {
   updateDiscountCode: (id: string, patch: Partial<DiscountCode>) => Promise<DiscountCode>;
   removeDiscountCode: (id: string) => Promise<void>;
   addPayrollAddon: (payload: CreatePayrollAddonPayload) => Promise<PayrollAddon>;
+  updatePayrollAddon: (
+    id: string,
+    patch: UpdatePayrollAddonPayload
+  ) => Promise<PayrollAddon>;
   removePayrollAddon: (id: string) => Promise<void>;
   addManualScheduleEntry: (payload: CreateManualSchedulePayload) => Promise<Order>;
   addNotification: (notification: Omit<AppNotification, "id" | "read" | "createdAt">) => void;
@@ -2965,9 +2972,60 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const addPayrollAddon = useCallback(
     async (payload: CreatePayrollAddonPayload): Promise<PayrollAddon> => {
       if (isViewOnly) throw new Error("View-only accounts cannot add payroll items.");
-      const addon = await createPayrollAddonApi(payload);
-      setPayrollAddons((prev) => [addon, ...prev]);
-      return addon;
+      const tempId = `pending-addon-${crypto.randomUUID()}`;
+      const optimistic: PayrollAddon = {
+        id: tempId,
+        programName: payload.programName,
+        contactName: payload.contactName ?? null,
+        teamName: payload.teamName ?? null,
+        orderId: payload.orderId ?? null,
+        mtdId: payload.mtdId ?? null,
+        category: payload.category,
+        addonType: payload.addonType,
+        amount: payload.amount,
+        quantity: payload.quantity ?? null,
+        unitAmount: payload.unitAmount ?? null,
+        compensationRate: payload.compensationRate ?? null,
+        compensationOverridden: Boolean(payload.compensationOverridden),
+        rateSource: payload.rateSource,
+        producerId: payload.producerId ?? null,
+        producerInitials: payload.producerInitials ?? null,
+        notes: payload.notes ?? null,
+        createdAt: new Date().toISOString(),
+      };
+      setPayrollAddons((prev) => [optimistic, ...prev]);
+      try {
+        const addon = await createPayrollAddonApi(payload);
+        setPayrollAddons((prev) =>
+          prev.map((row) => (row.id === tempId ? addon : row))
+        );
+        return addon;
+      } catch (err) {
+        setPayrollAddons((prev) => prev.filter((row) => row.id !== tempId));
+        throw err;
+      }
+    },
+    [isViewOnly]
+  );
+
+  const updatePayrollAddon = useCallback(
+    async (
+      id: string,
+      patch: UpdatePayrollAddonPayload
+    ): Promise<PayrollAddon> => {
+      if (isViewOnly) {
+        throw new Error("View-only accounts cannot edit payroll items.");
+      }
+      setPayrollAddons((prev) =>
+        prev.map((addon) =>
+          addon.id === id ? mergePayrollAddonPatch(addon, patch) : addon
+        )
+      );
+      const updated = await updatePayrollAddonApi(id, patch);
+      setPayrollAddons((prev) =>
+        prev.map((addon) => (addon.id === id ? updated : addon))
+      );
+      return updated;
     },
     [isViewOnly]
   );
@@ -3101,6 +3159,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     updateDiscountCode,
     removeDiscountCode,
     addPayrollAddon,
+    updatePayrollAddon,
     removePayrollAddon,
     addManualScheduleEntry,
     addNotification,

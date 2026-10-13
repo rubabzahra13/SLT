@@ -188,10 +188,19 @@ describe("Row-Level Payroll Add-ons Workflow Tests", () => {
       createdAt: "2026-09-12T11:00:00Z",
     };
 
+    const rushRecords = mockMtdRecords.map((rec) =>
+      rec.id === "mtd-102" ? { ...rec, isRushOrder: "yes" as const } : rec
+    );
+    const producersWithRate = mockProducers.map((producer) =>
+      producer.id === "prod-2"
+        ? { ...producer, initials: "MS", rushFeeRate: 1 }
+        : producer
+    );
+
     const mattRows = getProducerFacingPayrollRows(
-      mockMtdRecords,
+      rushRecords,
       mockOrders,
-      mockProducers,
+      producersWithRate,
       "Matt",
       undefined,
       [rushAddon]
@@ -202,8 +211,53 @@ describe("Row-Level Payroll Add-ons Workflow Tests", () => {
     assert.equal(row.programName, "Starlet Dance");
     assert.equal(row.rushPayout, "$150");
     assert.equal(row.rushFee, "$150");
-    assert.equal(row.rawTotalPayout, 630); // 480 base + 150 rush fee
+    assert.equal(row.rawTotalPayout, 630); // 480 base + 150 × 100% rush compensation
     assert.equal(row.totalPayout, "$630");
+  });
+
+  it("2b. Rush compensation uses the assigned producer rate and leaves package payout intact", () => {
+    const rushAddon: PayrollAddon = {
+      id: "addon-rush-93",
+      orderId: "ord-102",
+      mtdId: "mtd-102",
+      programName: "Starlet Dance",
+      teamName: "Varsity Pom",
+      contactName: "Coach Emily",
+      category: "Dance",
+      addonType: "rush_fee",
+      amount: 300,
+      quantity: 2,
+      unitAmount: 150,
+      rateSource: "predefined",
+      producerId: "prod-2",
+      producerInitials: "M",
+      createdAt: "2026-09-12T11:00:00Z",
+    };
+    const rushRecords = mockMtdRecords.map((rec) =>
+      rec.id === "mtd-102"
+        ? { ...rec, isRushOrder: "yes" as const, producerPayout: 1023 }
+        : rec
+    );
+    const producersWithRate = mockProducers.map((producer) =>
+      producer.id === "prod-2"
+        ? { ...producer, initials: "MS", rushFeeRate: 0.93 }
+        : producer
+    );
+
+    const mattRows = getProducerFacingPayrollRows(
+      rushRecords,
+      mockOrders,
+      producersWithRate,
+      "Matt",
+      undefined,
+      [rushAddon]
+    );
+
+    const row = mattRows[0];
+    assert.equal(row.rushFee, "$300");
+    assert.equal(row.rushPayout, "$279");
+    assert.equal(row.rawTotalPayout, 1302);
+    assert.equal(row.totalPayout, "$1,302");
   });
 
   it("3. Scoping isolation: Producer A add-ons never leak into Producer B statement", () => {

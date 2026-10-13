@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, Numeric, DateTime, ForeignKey, func, Text
+from sqlalchemy import Boolean, Column, Integer, String, Numeric, DateTime, ForeignKey, func, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from app.core.database import Base
@@ -32,8 +32,19 @@ class PayrollAddon(Base):
     # "voiceover" or "rush_fee"
     addon_type = Column(String, nullable=False)
 
-    # Dollar amount
+    # Customer dollar amount (for rush fees: unit_amount × quantity)
     amount = Column(Numeric(10, 2), nullable=False)
+
+    # Rush fee inputs. Null on voiceover rows and on legacy rush rows
+    # that only stored `amount`. Compensation rate is the order-specific
+    # override (fraction, 0.93 = 93%). Null means use the assigned
+    # producer's rush_fee_rate.
+    quantity = Column(Integer, nullable=True)
+    unit_amount = Column(Numeric(10, 2), nullable=True)
+    compensation_rate = Column(Numeric(5, 4), nullable=True)
+    compensation_overridden = Column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
 
     # "predefined" or "manual"
     rate_source = Column(String, nullable=False, default="predefined")

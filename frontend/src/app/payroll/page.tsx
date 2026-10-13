@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Check, Trash2, Zap } from "lucide-react";
+import { Check, Trash2 } from "lucide-react";
+import { PayrollRushFeeControls } from "@/components/payroll/PayrollRushFeeControls";
 import { VoiceoversPanel } from "@/components/payroll/VoiceoversPanel";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { MTDPageToolbar } from "@/components/mtd/MTDPageToolbar";
@@ -57,6 +58,16 @@ import type {
 
 import { computeClientPayroll } from "@/lib/pricing-display";
 import {
+  compensationRatesEqual,
+  DEFAULT_RUSH_FEE_UNIT,
+  finalizeMixPayout,
+  normalizeCompensationFraction,
+  resolveRushFeeSelection,
+  rushCustomerTotal,
+  rushFeeAddonForRecord,
+  rushFeeAddonsForRecord,
+} from "@/lib/rush-fee";
+import {
   getPayrollSendProducerNames,
   resolvePayrollSendEditorProducers,
 } from "@/lib/payroll-send-filters";
@@ -65,17 +76,22 @@ import {
   scheduleFormFilterLabel,
 } from "@/lib/schedule-filters";
 
+/** Survives a dev remount so a rush row is not created twice for the same mix. */
+const rushCreateInflight = new Set<string>();
+
+const RUSH_SAVE_DEBOUNCE_MS = 200;
+
+type RushFeeOverlay = {
+  quantity: number;
+  compensationRate?: number | null;
+  compensationOverridden?: boolean;
+};
+
 const DEFAULT_FORM: OrderFormType = "school-all-star-cheer";
 type PayrollPageTab = "view" | "archive" | "voiceovers" | "send";
 const DEFAULT_CHEER_SUBTYPE: CheerFormSubtypeFilter = "all-star-cheer";
 const DEFAULT_DANCE_SUBTYPE: DanceFormSubtypeFilter = "pom";
 
-const addonAmountChipClass =
-  "inline-flex h-7 items-center rounded-full bg-brand-success/10 px-2.5 text-[12px] font-semibold tabular-nums text-brand-success ring-1 ring-inset ring-brand-success/20";
-const addonAddBtnClass =
-  "inline-flex h-7 items-center gap-1 rounded-full border border-dashed border-brand-line/70 bg-transparent px-2.5 text-[11px] font-medium text-brand-ink-tertiary transition hover:border-brand-signature/40 hover:bg-brand-signature/6 hover:text-brand-signature";
-const addonRemoveBtnClass =
-  "inline-flex h-7 w-7 items-center justify-center rounded-full text-brand-ink-tertiary transition hover:bg-brand-danger/10 hover:text-brand-danger";
 const paidBtnClass =
   "inline-flex h-7 items-center gap-1 rounded-md border border-brand-success/35 bg-brand-success/10 px-2.5 text-[11px] font-semibold text-brand-success transition hover:bg-brand-success/18";
 const deleteForeverBtnClass =
@@ -92,13 +108,15 @@ export default function PayrollPage() {
     producers,
     payrollAddons,
     addPayrollAddon,
+    updatePayrollAddon,
     removePayrollAddon,
     updateMTD,
-    updateOrder,
     removeMTDRecord,
     isViewOnly,
   } = useAppState();
   const [pageTab, setPageTab] = useState<PayrollPageTab>("view");
+  const [rushOverlay, setRushOverlay] = useState<Record<string, RushFeeOverlay>>({});
+  const rushOverlayRef = useRef<Record<string, RushFeeOverlay>>({});
   const [highlightId, setHighlightId] = useState<string | null>(focusParam);
   const [selectedSendEditor, setSelectedSendEditor] = useState("all");
   const [addonDeleteId, setAddonDeleteId] = useState<string | null>(null);
@@ -385,21 +403,53 @@ export default function PayrollPage() {
     );
   }, [tableFiltered, searchQuery, tableFilters.sortBy, producers, orderById]);
 
+  const rushStateForRecord = useCallback(
+    (rec: MTDRecord) => {
+      const order = findLinkedOrder(rec, allOrders);
+      const producerObj = findProducerByAssignmentKey(
+        rec.assignedProducer,
+        producers
+      );
+      const isRush = payrollRowIsRushOrder(rec, order);
+      const key = rec.uuid || rec.id;
+      const addonBase = rushFeeAddonForRecord(rec.id, rec.orderId, payrollAddons);
+      const overlay = rushOverlay[key];
+      const unit = addonBase?.unitAmount ?? DEFAULT_RUSH_FEE_UNIT;
+      const addon = overlay
+        ? {
+            ...(addonBase ?? {}),
+            amount: rushCustomerTotal(unit, overlay.quantity),
+            quantity: overlay.quantity,
+            unitAmount: unit,
+            compensationOverridden:
+              overlay.compensationOverridden ??
+              addonBase?.compensationOverridden ??
+              false,
+            compensationRate: overlay.compensationOverridden
+              ? overlay.compensationRate ?? null
+              : addonBase?.compensationRate ?? null,
+            producerId: addonBase?.producerId ?? producerObj?.id ?? null,
+          }
+        : addonBase;
+      const selection = resolveRushFeeSelection({
+        isRush,
+        producerRate: producerObj?.rushFeeRate,
+        producerId: producerObj?.id,
+        addon,
+      });
+      return { order, producerObj, isRush, addon, selection };
+    },
+    [allOrders, producers, payrollAddons, rushOverlay]
+  );
+
   const totalPayroll = useMemo(() => {
-    // Mix editors: package + rush only (VO paid separately to VO producers).
+    // Mix editors: package payout plus rush compensation once.
+    // Voiceovers are paid separately to VO producers.
     const mixTotal = filtered.reduce((sum, rec) => {
-      const order = orderById.get(rec.orderId || "");
-      const producerObj = findProducerByAssignmentKey(rec.assignedProducer, producers);
+      const { order, producerObj, selection } = rushStateForRecord(rec);
       const meta = resolveMTDFormMeta(rec, orderById);
       const custPrice = order?.finalCustomerPrice ?? rec.finalCustomerPrice ?? rec.price;
       const payrollPrice = rec.finalPayrollPrice ?? order?.finalPayrollPrice ?? rec.price;
-      const rushQty = typeof rec.rushFeeQuantity === "number"
-        ? rec.rushFeeQuantity
-        : rec.rushFeeOption === "double"
-        ? 2
-        : rec.rushFeeOption === "single" || rec.isRushOrder === "yes" || rec.isRushOrder === true
-        ? 1
-        : 0;
       const rateIsManual =
         rec.rateSource === "manual_override" ||
         order?.rateSource === "manual_override";
@@ -416,8 +466,9 @@ export default function PayrollPage() {
         meta.canonicalSubtypeId,
         payrollPrice,
         {
-          rushFeeQuantity: rushQty,
-          rushFeeCompensationRate: producerObj?.rushFeeRate ?? rec.rushFeeCompensationRate ?? 1.0,
+          // Package payout only. Rush compensation is added once below.
+          rushFeeQuantity: 0,
+          includeRushFeeInPayout: false,
           danceVoiceover: null,
           hasTraditionalVoiceover: false,
           hasThemedVoiceover: false,
@@ -426,18 +477,16 @@ export default function PayrollPage() {
           formType: meta.formType,
         }
       );
-      const payout = calc.producerPayout ?? rec.producerPayout ?? order?.producerPayout ?? 0;
+      const base = calc.producerPayout ?? rec.producerPayout ?? order?.producerPayout ?? 0;
+      const payout = finalizeMixPayout(base, calc.status, selection) ?? 0;
       return sum + payout;
     }, 0);
 
     const voTotal = payrollAddons
       .filter((a) => a.addonType === "voiceover")
       .reduce((sum, a) => sum + a.amount, 0);
-    const rushAddonTotal = payrollAddons
-      .filter((a) => a.addonType === "rush_fee")
-      .reduce((sum, a) => sum + a.amount, 0);
-    return mixTotal + voTotal + rushAddonTotal;
-  }, [filtered, orderById, producers, payrollAddons]);
+    return mixTotal + voTotal;
+  }, [filtered, orderById, payrollAddons, rushStateForRecord]);
 
   const voiceoverCount = useMemo(
     () => payrollAddons.filter((a) => a.addonType === "voiceover").length,
@@ -512,134 +561,220 @@ export default function PayrollPage() {
     [removePayrollAddon]
   );
 
-  const handleAddRushFee = useCallback(
+  const payrollAddonsRef = useRef(payrollAddons);
+  payrollAddonsRef.current = payrollAddons;
+  const knownRushAddonRef = useRef(new Map<string, PayrollAddon>());
+  const rushSaveTimerRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+
+  const clearRushOverlay = useCallback((key: string) => {
+    delete rushOverlayRef.current[key];
+    setRushOverlay({ ...rushOverlayRef.current });
+  }, []);
+
+  const flushRushFeeSave = useCallback(
     async (rec: MTDRecord) => {
-      if (isViewOnly) return;
+      const key = rec.uuid || rec.id;
+      const overlay = rushOverlayRef.current[key];
+      if (!overlay) return;
+
       const order = findLinkedOrder(rec, allOrders);
-      if (!payrollRowIsRushOrder(rec, order)) return;
+      if (!payrollRowIsRushOrder(rec, order)) {
+        clearRushOverlay(key);
+        return;
+      }
+
       const producer = findProducerByAssignmentKey(
         rec.assignedProducer,
         producers
       );
-      if (!producer && !rec.assignedProducer?.trim()) return;
-
-      const meta = resolveMTDFormMeta(rec, orderById);
-      const category =
-        meta.formType === "school-all-star-dance" ? "Dance" : "Cheer";
-
-      try {
-        const existing = payrollAddons.find(
-          (a) =>
-            (a.mtdId === rec.id || a.orderId === rec.orderId) &&
-            a.addonType === "rush_fee"
-        );
+      const existing =
+        rushFeeAddonForRecord(rec.id, rec.orderId, payrollAddonsRef.current) ||
+        knownRushAddonRef.current.get(key) ||
+        null;
+      const quantity = Math.max(0, Math.min(100, Math.round(overlay.quantity)));
+      if (quantity === 0) {
         if (existing) {
           await removePayrollAddon(existing.id);
+          knownRushAddonRef.current.delete(key);
         }
-        await addPayrollAddon({
-          orderId: rec.orderId || rec.id,
-          mtdId: rec.id,
-          programName: rec.programName || "—",
-          teamName: (rec as { teamName?: string }).teamName || null,
-          contactName: rec.contactName || null,
-          category,
-          addonType: "rush_fee",
-          amount: 150,
-          rateSource: "predefined",
-          producerId: producer?.id || null,
-          producerInitials:
-            producer?.initials || rec.assignedProducer || null,
-        });
-        // Ensure mix-level rush is set so payout calc stays in sync
-        await updateMTD(rec.id, {
-          rushFeeQuantity: 1,
-          rushFeeOption: "single",
-          isRushOrder: "yes",
-        });
-        if (rec.orderId) {
-          await updateOrder(rec.orderId, { isRushOrder: "yes" });
-        }
+        clearRushOverlay(key);
+        return;
+      }
+
+      const current = resolveRushFeeSelection({
+        isRush: true,
+        producerRate: producer?.rushFeeRate,
+        producerId: producer?.id,
+        addon: existing,
+      });
+      const unit = current.unitAmount > 0 ? current.unitAmount : DEFAULT_RUSH_FEE_UNIT;
+      const overridden = Boolean(overlay.compensationOverridden);
+      const compensationRate = overridden ? overlay.compensationRate ?? null : null;
+      const amount = rushCustomerTotal(unit, quantity);
+      const producerId = producer?.id || null;
+      const producerInitials =
+        producer?.initials || rec.assignedProducer || null;
+
+      try {
+        if (!existing && rushCreateInflight.has(key)) return;
+        if (!existing) rushCreateInflight.add(key);
+        const saved = existing
+          ? await updatePayrollAddon(existing.id, {
+              quantity,
+              unitAmount: unit,
+              amount,
+              compensationRate,
+              compensationOverridden: overridden,
+              producerId,
+              producerInitials,
+            })
+          : await addPayrollAddon({
+              orderId: rec.orderId || rec.id,
+              mtdId: rec.id,
+              programName: rec.programName || "—",
+              teamName: (rec as { teamName?: string }).teamName || null,
+              contactName: rec.contactName || null,
+              category:
+                resolveMTDFormMeta(rec, orderById).formType ===
+                "school-all-star-dance"
+                  ? "Dance"
+                  : "Cheer",
+              addonType: "rush_fee",
+              amount,
+              quantity,
+              unitAmount: unit,
+              compensationRate,
+              compensationOverridden: overridden,
+              rateSource: "predefined",
+              producerId,
+              producerInitials,
+            });
+        knownRushAddonRef.current.set(key, saved);
+        clearRushOverlay(key);
       } catch (err) {
-        console.error("Failed to add rush fee:", err);
+        console.error("Failed to save rush fee:", err);
+      } finally {
+        rushCreateInflight.delete(key);
       }
     },
     [
-      isViewOnly,
       allOrders,
       producers,
       orderById,
-      payrollAddons,
-      removePayrollAddon,
       addPayrollAddon,
-      updateMTD,
-      updateOrder,
+      updatePayrollAddon,
+      removePayrollAddon,
+      clearRushOverlay,
     ]
   );
 
-  const handleRemoveRushFee = useCallback(
-    async (rec: MTDRecord) => {
+  const persistRushFee = useCallback(
+    (rec: MTDRecord, next: { quantity: number; ratePercent?: number }) => {
       if (isViewOnly) return;
-      const rushAddon = payrollAddons.find(
-        (a) =>
-          (a.mtdId === rec.id || a.orderId === rec.orderId) &&
-          a.addonType === "rush_fee"
+      const key = rec.uuid || rec.id;
+      const producer = findProducerByAssignmentKey(
+        rec.assignedProducer,
+        producers
       );
-      try {
-        if (rushAddon) {
-          await removePayrollAddon(rushAddon.id);
-        }
-        // Clear mix + order rush so auto-add does not immediately reapply
-        await updateMTD(rec.id, {
-          rushFeeQuantity: 0,
-          rushFeeOption: "none",
-          isRushOrder: "no",
-        });
-        if (rec.orderId) {
-          await updateOrder(rec.orderId, { isRushOrder: "no" });
-        }
-      } catch (err) {
-        console.error("Failed to remove rush fee:", err);
+      const producerRate = normalizeCompensationFraction(producer?.rushFeeRate);
+      const quantity = Math.max(0, Math.min(100, Math.round(next.quantity)));
+      const prior = rushOverlayRef.current[key];
+      const existingAddon = rushFeeAddonForRecord(
+        rec.id,
+        rec.orderId,
+        payrollAddonsRef.current
+      );
+      let compensationOverridden =
+        prior?.compensationOverridden ?? existingAddon?.compensationOverridden;
+      let compensationRate =
+        prior?.compensationRate ?? existingAddon?.compensationRate ?? null;
+
+      if (next.ratePercent !== undefined) {
+        const selected = normalizeCompensationFraction(next.ratePercent);
+        if (selected == null) return;
+        compensationOverridden =
+          producerRate == null || !compensationRatesEqual(selected, producerRate);
+        compensationRate = compensationOverridden ? selected : null;
       }
+
+      rushOverlayRef.current = {
+        ...rushOverlayRef.current,
+        [key]: {
+          quantity,
+          compensationOverridden: compensationOverridden ?? false,
+          compensationRate: compensationOverridden ? compensationRate ?? null : null,
+        },
+      };
+      setRushOverlay({ ...rushOverlayRef.current });
+
+      const existingTimer = rushSaveTimerRef.current.get(key);
+      if (existingTimer) clearTimeout(existingTimer);
+      rushSaveTimerRef.current.set(
+        key,
+        setTimeout(() => {
+          rushSaveTimerRef.current.delete(key);
+          void flushRushFeeSave(rec);
+        }, RUSH_SAVE_DEBOUNCE_MS)
+      );
     },
-    [isViewOnly, payrollAddons, removePayrollAddon, updateMTD, updateOrder]
+    [isViewOnly, producers, flushRushFeeSave]
   );
 
-  // Orders-tab rush flag lives on the order — auto-create the Payroll rush
-  // fee addon when the mix arrives without one; drop orphan fees when No.
+  // Orders-tab rush flag stays the source of truth. Create the payroll
+  // rush-fee row when a rush mix arrives, drop orphan fees when it is No,
+  // and clear an override that belonged to a previous producer.
   const autoRushAttemptedRef = useRef(new Set<string>());
   const orphanRushCleanupRef = useRef(new Set<string>());
+  const overrideResetRef = useRef(new Set<string>());
+  const duplicateRushCleanupRef = useRef(new Set<string>());
   useEffect(() => {
     if (isViewOnly || pageTab !== "view") return;
     for (const rec of payrollRecords) {
       const key = rec.uuid || rec.id;
-      const order = findLinkedOrder(rec, allOrders);
-      const isRush = payrollRowIsRushOrder(rec, order);
-      const rushAddon = payrollAddons.find(
-        (a) =>
-          (a.mtdId === rec.id || a.orderId === rec.orderId) &&
-          a.addonType === "rush_fee"
-      );
+      const { isRush, addon, producerObj, selection } = rushStateForRecord(rec);
+      const matches = rushFeeAddonsForRecord(rec.id, rec.orderId, payrollAddonsRef.current);
 
       if (!isRush) {
-        if (rushAddon && !orphanRushCleanupRef.current.has(rushAddon.id)) {
-          orphanRushCleanupRef.current.add(rushAddon.id);
-          void removePayrollAddon(rushAddon.id);
+        for (const extra of matches) {
+          if (orphanRushCleanupRef.current.has(extra.id)) continue;
+          orphanRushCleanupRef.current.add(extra.id);
+          knownRushAddonRef.current.delete(key);
+          void removePayrollAddon(extra.id);
         }
         continue;
       }
 
+      for (const extra of matches) {
+        if (!addon || extra.id === addon.id) continue;
+        if (duplicateRushCleanupRef.current.has(extra.id)) continue;
+        duplicateRushCleanupRef.current.add(extra.id);
+        void removePayrollAddon(extra.id);
+      }
+
+      if (
+        addon?.compensationOverridden &&
+        addon.producerId &&
+        producerObj?.id &&
+        addon.producerId !== producerObj.id
+      ) {
+        const resetKey = `${addon.id}:${producerObj.id}`;
+        if (!overrideResetRef.current.has(resetKey)) {
+          overrideResetRef.current.add(resetKey);
+          void persistRushFee(rec, { quantity: Math.max(1, selection.quantity) });
+        }
+      }
+
+      if (addon || knownRushAddonRef.current.has(key) || rushCreateInflight.has(key)) continue;
       if (autoRushAttemptedRef.current.has(key)) continue;
       autoRushAttemptedRef.current.add(key);
-      if (rushAddon) continue;
-      void handleAddRushFee(rec);
+      void persistRushFee(rec, { quantity: 1 });
     }
   }, [
     isViewOnly,
     pageTab,
     payrollRecords,
-    payrollAddons,
-    allOrders,
-    handleAddRushFee,
+    rushStateForRecord,
+    persistRushFee,
     removePayrollAddon,
   ]);
 
@@ -899,22 +1034,11 @@ export default function PayrollPage() {
         cellClassName: "!px-2 !py-1.5",
         headerClassName: "!px-2 !py-2",
         render: (rec) => {
-          const order = findLinkedOrder(rec, allOrders);
-          const producerObj = findProducerByAssignmentKey(
-            rec.assignedProducer,
-            producers
-          );
+          const { order, producerObj, selection } = rushStateForRecord(rec);
           const model = producerObj?.compensationModel;
           const meta = resolveMTDFormMeta(rec, orderById);
           const custPrice = order?.finalCustomerPrice ?? rec.finalCustomerPrice ?? rec.price;
           const payrollPrice = rec.finalPayrollPrice ?? order?.finalPayrollPrice ?? rec.price;
-          const rushQty = typeof rec.rushFeeQuantity === "number"
-            ? rec.rushFeeQuantity
-            : rec.rushFeeOption === "double"
-            ? 2
-            : rec.rushFeeOption === "single" || rec.isRushOrder === "yes" || rec.isRushOrder === true
-            ? 1
-            : 0;
 
           const rateIsManual =
             rec.rateSource === "manual_override" ||
@@ -932,10 +1056,9 @@ export default function PayrollPage() {
             meta.canonicalSubtypeId,
             payrollPrice,
             {
-              rushFeeQuantity: rushQty,
-              rushFeeCompensationRate:
-                producerObj?.rushFeeRate ?? rec.rushFeeCompensationRate ?? 1.0,
-              // VO paid on the Voiceovers tab to the VO producer, not mix editor.
+              // Package payout only. Rush compensation is added once below.
+              rushFeeQuantity: 0,
+              includeRushFeeInPayout: false,
               danceVoiceover: null,
               hasTraditionalVoiceover: false,
               hasThemedVoiceover: false,
@@ -945,7 +1068,11 @@ export default function PayrollPage() {
             }
           );
 
-          const payout = calculated.producerPayout ?? rec.producerPayout ?? order?.producerPayout;
+          const payout = finalizeMixPayout(
+            calculated.producerPayout ?? rec.producerPayout ?? order?.producerPayout,
+            calculated.status,
+            selection
+          );
           const isRateOverridden =
             rec.rateSource === "manual_override" ||
             order?.rateSource === "manual_override";
@@ -1054,79 +1181,30 @@ export default function PayrollPage() {
       {
         key: "rushFee",
         header: "Rush Fee",
-        width: "140px",
+        width: "1px",
+        nowrap: false,
         align: "center",
-        cellClassName: "!px-2 !py-1.5",
-        headerClassName: "!px-2 !py-2",
+        cellClassName:
+          "!px-1 !py-1 !max-w-none w-px overflow-visible whitespace-normal",
+        headerClassName: "!px-1 !py-1.5 whitespace-nowrap",
         render: (rec) => {
-          const order = findLinkedOrder(rec, allOrders);
-          const rushAddon = payrollAddons.find(
-            (a) =>
-              (a.mtdId === rec.id || a.orderId === rec.orderId) &&
-              a.addonType === "rush_fee"
-          );
-          const markedRush = payrollRowIsRushOrder(rec, order);
-          // Fee only when Rush order is Yes — ignore orphaned addons when No.
-          const rushAmount = !markedRush
-            ? 0
-            : rushAddon
-              ? rushAddon.amount
-              : rec.rushFeeQuantity === 2 || rec.rushFeeOption === "double"
-                ? 300
-                : 150;
-          const rushQty = !markedRush
-            ? 0
-            : rec.rushFeeQuantity === 2 ||
-                rec.rushFeeOption === "double" ||
-                rushAmount >= 300
-              ? 2
-              : Math.max(1, Math.round(rushAmount / 150) || 1);
-          const hasRush = rushAmount > 0;
-          const canAddRush = markedRush;
-
+          const { isRush, selection, producerObj } = rushStateForRecord(rec);
           return (
-            <div
-              className="flex items-center justify-center gap-1 whitespace-nowrap"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {hasRush ? (
-                <span className={addonAmountChipClass}>
-                  {formatPrice(rushAmount)}
-                  <span className="ml-1 font-medium opacity-80">
-                    × {rushQty}
-                  </span>
-                </span>
-              ) : null}
-              {!addonsLocked && !hasRush ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!canAddRush) return;
-                    void handleAddRushFee(rec);
-                  }}
-                  disabled={!canAddRush}
-                  title={
-                    canAddRush
-                      ? "Add Rush Fee for assigned producer"
-                      : "Rush order is No — enable rush on the order first"
-                  }
-                  className={`${addonAddBtnClass} disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-brand-line/70 disabled:hover:bg-transparent disabled:hover:text-brand-ink-tertiary`}
-                >
-                  <Zap className="h-3 w-3" strokeWidth={2.25} />
-                  <span>Add</span>
-                </button>
-              ) : null}
-              {!addonsLocked && hasRush ? (
-                <button
-                  type="button"
-                  onClick={() => void handleRemoveRushFee(rec)}
-                  title="Remove Rush Fee"
-                  className={addonRemoveBtnClass}
-                >
-                  <Trash2 className="h-3.5 w-3.5" strokeWidth={2} />
-                </button>
-              ) : null}
-            </div>
+            <PayrollRushFeeControls
+              rushOrder={isRush}
+              selection={selection}
+              producerRate={producerObj?.rushFeeRate}
+              readOnly={addonsLocked}
+              onQuantity={(quantity) => {
+                void persistRushFee(rec, { quantity });
+              }}
+              onRate={(percent) => {
+                void persistRushFee(rec, {
+                  quantity: Math.max(1, selection.quantity || 1),
+                  ratePercent: percent,
+                });
+              }}
+            />
           );
         },
       }
@@ -1208,15 +1286,12 @@ export default function PayrollPage() {
       return baseCols;
     },
     [
-      allOrders,
-      producers,
       form,
       addonsLocked,
       isViewOnly,
-      payrollAddons,
       orderById,
-      handleAddRushFee,
-      handleRemoveRushFee,
+      rushStateForRecord,
+      persistRushFee,
       pageTab,
       markPaid,
     ]
