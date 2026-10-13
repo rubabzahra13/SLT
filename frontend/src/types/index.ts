@@ -929,9 +929,16 @@ export type ScheduleEntry = {
 
 /**
  * All possible statuses for a producer schedule cell.
- * "capacity" = either or both daily limits (mixes / cost) are ≥ 80% (Reaching limit).
+ * "capacity" = either or both daily limits (mixes / cost) are ≥ 80% and < 99% (Reaching limit).
+ * "limit_full" = at/over daily mix or cost cap, or ≥ 99% of either limit.
  */
-export type ScheduleCellStatus = "available" | "mix" | "off" | "capacity" | "nonwork";
+export type ScheduleCellStatus =
+  | "available"
+  | "mix"
+  | "off"
+  | "capacity"
+  | "limit_full"
+  | "nonwork";
 
 export type AppNotification = {
   id: string;

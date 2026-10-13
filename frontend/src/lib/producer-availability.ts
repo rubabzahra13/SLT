@@ -1151,9 +1151,97 @@ export function isProducerAtDailyCapacity(
 /** Schedule warning band: amber when mix or cost load is at least this share of the daily max. */
 export const DAILY_LIMIT_WARNING_RATIO = 0.8;
 
+/** Schedule “Limit full” band: red at ≥ 99% of mix/cost, or over the daily cap. */
+export const DAILY_LIMIT_FULL_RATIO = 0.99;
+
+function dailyMixLoadRatio(
+  producer: Producer,
+  day: Date,
+  mtdRecords: MTDRecord[],
+  excludeRecordId?: string,
+  options: DailyCostOptions = {}
+): number | null {
+  const maxMixes = producer.maxMixesPerDay;
+  if (maxMixes == null || maxMixes <= 0) return null;
+  const booked = countProducerMixesOnDay(
+    producer,
+    day,
+    mtdRecords,
+    excludeRecordId,
+    options
+  );
+  return booked / maxMixes;
+}
+
+function dailyCostLoadRatio(
+  producer: Producer,
+  day: Date,
+  mtdRecords: MTDRecord[],
+  excludeRecordId?: string,
+  options: DailyCostOptions = {}
+): number | null {
+  const maxCost = producer.maxProducerCostPerDay;
+  if (maxCost == null || maxCost <= 0) return null;
+  const booked = countProducerDailyCost(
+    producer,
+    day,
+    mtdRecords,
+    excludeRecordId,
+    options.estimateCost,
+    options
+  );
+  const projected =
+    options.newMixCost != null ? booked + options.newMixCost : booked;
+  return projected / maxCost;
+}
+
 /**
- * True when either or both configured daily limits (mix count, cost) are ≥ 80% used.
- * Used for schedule coloring (“Reaching limit”); booking gates still use at-capacity checks.
+ * True when mix and/or cost is at/over the daily cap, or ≥ 99% of either limit.
+ * Schedule coloring: red “Limit full”.
+ */
+export function isProducerDailyLimitFull(
+  producer: Producer,
+  day: Date,
+  mtdRecords: MTDRecord[],
+  excludeRecordId?: string,
+  options: DailyCostOptions = {}
+): boolean {
+  if (
+    isProducerAtDailyCapacity(
+      producer,
+      day,
+      mtdRecords,
+      excludeRecordId,
+      options
+    )
+  ) {
+    return true;
+  }
+
+  const mixRatio = dailyMixLoadRatio(
+    producer,
+    day,
+    mtdRecords,
+    excludeRecordId,
+    options
+  );
+  if (mixRatio != null && mixRatio >= DAILY_LIMIT_FULL_RATIO) return true;
+
+  const costRatio = dailyCostLoadRatio(
+    producer,
+    day,
+    mtdRecords,
+    excludeRecordId,
+    options
+  );
+  if (costRatio != null && costRatio >= DAILY_LIMIT_FULL_RATIO) return true;
+
+  return false;
+}
+
+/**
+ * True when either or both configured daily limits (mix count, cost) are ≥ 80% used
+ * but not yet “Limit full”. Schedule coloring: amber “Reaching limit”.
  */
 export function isProducerReachingDailyLimit(
   producer: Producer,
@@ -1162,32 +1250,35 @@ export function isProducerReachingDailyLimit(
   excludeRecordId?: string,
   options: DailyCostOptions = {}
 ): boolean {
-  const maxMixes = producer.maxMixesPerDay;
-  if (maxMixes != null && maxMixes > 0) {
-    const booked = countProducerMixesOnDay(
+  if (
+    isProducerDailyLimitFull(
       producer,
       day,
       mtdRecords,
       excludeRecordId,
       options
-    );
-    if (booked / maxMixes >= DAILY_LIMIT_WARNING_RATIO) return true;
+    )
+  ) {
+    return false;
   }
 
-  const maxCost = producer.maxProducerCostPerDay;
-  if (maxCost != null && maxCost > 0) {
-    const booked = countProducerDailyCost(
-      producer,
-      day,
-      mtdRecords,
-      excludeRecordId,
-      options.estimateCost,
-      options
-    );
-    const projected =
-      options.newMixCost != null ? booked + options.newMixCost : booked;
-    if (projected / maxCost >= DAILY_LIMIT_WARNING_RATIO) return true;
-  }
+  const mixRatio = dailyMixLoadRatio(
+    producer,
+    day,
+    mtdRecords,
+    excludeRecordId,
+    options
+  );
+  if (mixRatio != null && mixRatio >= DAILY_LIMIT_WARNING_RATIO) return true;
+
+  const costRatio = dailyCostLoadRatio(
+    producer,
+    day,
+    mtdRecords,
+    excludeRecordId,
+    options
+  );
+  if (costRatio != null && costRatio >= DAILY_LIMIT_WARNING_RATIO) return true;
 
   return false;
 }

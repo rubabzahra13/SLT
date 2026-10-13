@@ -18,6 +18,7 @@ import {
   isProducerUnderDailyCapacity,
   isProducerUnderDailyCostCapacity,
   isProducerAtDailyCapacity,
+  isProducerDailyLimitFull,
   isProducerReachingDailyLimit,
 } from "../producer-availability";
 import type { MTDRecord, Producer } from "../../types";
@@ -443,6 +444,55 @@ describe("isProducerReachingDailyLimit", () => {
       makeRecord("r3", "TP", 100, "2026-09-10", "2026-09-10"),
       makeRecord("r4", "TP", 100, "2026-09-10", "2026-09-10"),
     ];
+    assert.equal(isProducerReachingDailyLimit(p, today, records), true);
+  });
+
+  it("returns false at 100% mix limit (Limit full instead)", () => {
+    const p = makeProducer({
+      initials: "TP",
+      maxMixesPerDay: 5,
+      maxProducerCostPerDay: null,
+    });
+    const records = [
+      makeRecord("r1", "TP", 100, "2026-09-10", "2026-09-10"),
+      makeRecord("r2", "TP", 100, "2026-09-10", "2026-09-10"),
+      makeRecord("r3", "TP", 100, "2026-09-10", "2026-09-10"),
+      makeRecord("r4", "TP", 100, "2026-09-10", "2026-09-10"),
+      makeRecord("r5", "TP", 100, "2026-09-10", "2026-09-10"),
+    ];
+    assert.equal(isProducerReachingDailyLimit(p, today, records), false);
+    assert.equal(isProducerDailyLimitFull(p, today, records), true);
+    assert.equal(isProducerAtDailyCapacity(p, today, records), true);
+  });
+});
+
+describe("isProducerDailyLimitFull", () => {
+  const today = new Date(2026, 8, 10);
+
+  it("returns true at 99% of cost limit", () => {
+    const p = makeProducer({
+      initials: "TP",
+      maxMixesPerDay: null,
+      maxProducerCostPerDay: 1000,
+    });
+    const records = [makeRecord("r1", "TP", 990, "2026-09-10", "2026-09-10")];
+    assert.equal(isProducerDailyLimitFull(p, today, records), true);
+    assert.equal(isProducerReachingDailyLimit(p, today, records), false);
+  });
+
+  it("returns false at 80% of mix limit", () => {
+    const p = makeProducer({
+      initials: "TP",
+      maxMixesPerDay: 5,
+      maxProducerCostPerDay: null,
+    });
+    const records = [
+      makeRecord("r1", "TP", 100, "2026-09-10", "2026-09-10"),
+      makeRecord("r2", "TP", 100, "2026-09-10", "2026-09-10"),
+      makeRecord("r3", "TP", 100, "2026-09-10", "2026-09-10"),
+      makeRecord("r4", "TP", 100, "2026-09-10", "2026-09-10"),
+    ];
+    assert.equal(isProducerDailyLimitFull(p, today, records), false);
     assert.equal(isProducerReachingDailyLimit(p, today, records), true);
   });
 });

@@ -1,6 +1,7 @@
 import type { MTDRecord, Producer, ScheduleEntry } from "@/types";
 import { parseFlexibleDate } from "@/lib/dates";
 import {
+  isProducerDailyLimitFull,
   isProducerReachingDailyLimit,
   isProducerOnTimeOff,
   isProducerExtraDay,
@@ -37,10 +38,11 @@ export type ScheduleCell = {
   date: Date;
   dayLabel: string;
   dateLabel: string;
-  /** "capacity" = either or both daily limits (mixes / cost) are ≥ 80% (Reaching limit).
+  /** "capacity" = daily mix/cost ≥ 80% and < 99% (Reaching limit).
+   *  "limit_full" = at/over daily mix or cost, or ≥ 99% of either (Limit full).
    *  "nonwork" = outside regular workDays and not an extra day.
    *  "off" = time off on a regular work day. */
-  status: "available" | "mix" | "off" | "capacity" | "nonwork";
+  status: "available" | "mix" | "off" | "capacity" | "limit_full" | "nonwork";
   unavailable: boolean;
   booking?: CellBooking | null;
   bookings?: CellBooking[];
@@ -370,18 +372,21 @@ export function getScheduleCells(
     );
 
     if (coveringBookings.length > 0 && status === "available") {
-      status = isProducerReachingDailyLimit(producer, date, mtdRecords)
-        ? "capacity"
-        : "mix";
-    } else if (
-      status === "available" &&
-      isProducerReachingDailyLimit(producer, date, mtdRecords)
-    ) {
-      status = "capacity";
+      status = isProducerDailyLimitFull(producer, date, mtdRecords)
+        ? "limit_full"
+        : isProducerReachingDailyLimit(producer, date, mtdRecords)
+          ? "capacity"
+          : "mix";
+    } else if (status === "available") {
+      if (isProducerDailyLimitFull(producer, date, mtdRecords)) {
+        status = "limit_full";
+      } else if (isProducerReachingDailyLimit(producer, date, mtdRecords)) {
+        status = "capacity";
+      }
     }
 
     const bookings =
-      status === "mix" || status === "capacity"
+      status === "mix" || status === "capacity" || status === "limit_full"
         ? coveringBookings.length > 0
           ? coveringBookings
           : resolveBookings(producer, date, status, assignments)
@@ -392,6 +397,7 @@ export function getScheduleCells(
       status === "nonwork" ||
       status === "mix" ||
       status === "capacity" ||
+      status === "limit_full" ||
       bookings.length > 0;
     const isExtraDay =
       isProducerExtraDay(producer, date) && !isProducerWorkDay(producer, date);
@@ -708,6 +714,7 @@ export function statusLabel(status: ScheduleCell["status"]): string {
   if (status === "mix") return "Assigned";
   if (status === "off") return "Off";
   if (status === "nonwork") return "Regular off day";
+  if (status === "limit_full") return "Limit full";
   if (status === "capacity") return "Reaching limit";
   return "Free slot";
 }
@@ -721,6 +728,7 @@ export const SCHEDULE_STATUS_FILTERS: {
   { value: "all", label: "All" },
   { value: "mix", label: "Assigned" },
   { value: "capacity", label: "Reaching limit" },
+  { value: "limit_full", label: "Limit full" },
   { value: "off", label: "Off" },
   { value: "nonwork", label: "Regular off day" },
   { value: "available", label: "Free slot" },

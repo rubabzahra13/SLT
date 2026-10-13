@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 type HoverTipProps = {
@@ -16,6 +16,8 @@ type HoverTipProps = {
    * cursor is over the tip itself — needed for scrollable content.
    */
   interactive?: boolean;
+  /** Extra classes on the portaled tooltip (e.g. wider card). */
+  tooltipClassName?: string;
 };
 
 function MultilineLabelTip({ label }: { label: string }) {
@@ -49,9 +51,10 @@ export function HoverTip({
   placement = "bottom",
   zIndex = 200,
   interactive = false,
+  tooltipClassName = "",
 }: HoverTipProps) {
   const ref = useRef<HTMLSpanElement>(null);
-  const closeTimerRef = useRef<number | null>(null);
+  const tipRef = useRef<HTMLSpanElement>(null);
   const [open, setOpen] = useState(false);
   const [coords, setCoords] = useState({
     top: 0,
@@ -73,25 +76,9 @@ export function HoverTip({
     ) : null);
   const hasTip = Boolean(tip);
 
-  useEffect(() => {
-    return () => {
-      if (closeTimerRef.current != null) {
-        window.clearTimeout(closeTimerRef.current);
-      }
-    };
-  }, []);
-
-  const clearCloseTimer = () => {
-    if (closeTimerRef.current != null) {
-      window.clearTimeout(closeTimerRef.current);
-      closeTimerRef.current = null;
-    }
-  };
-
   const show = () => {
     const el = ref.current;
     if (!el || !hasTip) return;
-    clearCloseTimer();
     const rect = el.getBoundingClientRect();
 
     if (placement === "right") {
@@ -108,13 +95,13 @@ export function HoverTip({
       });
     } else if (placement === "top") {
       setCoords({
-        top: rect.top - 8,
+        top: rect.top - (interactive ? 2 : 8),
         left: rect.left + rect.width / 2,
         transform: "translate(-50%, -100%)",
       });
     } else {
       setCoords({
-        top: rect.bottom + 8,
+        top: rect.bottom + (interactive ? 2 : 8),
         left: rect.left + rect.width / 2,
         transform: "translateX(-50%)",
       });
@@ -122,16 +109,15 @@ export function HoverTip({
     setOpen(true);
   };
 
-  const hide = () => {
-    if (!interactive) {
-      setOpen(false);
-      return;
+  const hide = (e?: { relatedTarget?: EventTarget | null }) => {
+    if (interactive) {
+      const next = e?.relatedTarget;
+      if (next instanceof Node) {
+        if (tipRef.current?.contains(next)) return;
+        if (ref.current?.contains(next)) return;
+      }
     }
-    clearCloseTimer();
-    closeTimerRef.current = window.setTimeout(() => {
-      setOpen(false);
-      closeTimerRef.current = null;
-    }, 160);
+    setOpen(false);
   };
 
   const baseDisplay =
@@ -142,10 +128,10 @@ export function HoverTip({
   const tipClassName = content
     ? `${
         interactive ? "pointer-events-auto" : "pointer-events-none"
-      } fixed max-w-[240px] rounded-xl border border-brand-line/80 bg-brand-elevated px-3 py-2.5 text-left shadow-[var(--shadow-premium)]`
+      } fixed max-w-[240px] rounded-xl border border-brand-line/80 bg-brand-elevated px-3 py-2.5 text-left shadow-[var(--shadow-premium)] ${tooltipClassName}`.trim()
     : isMultilineLabel
-      ? "pointer-events-none fixed w-max max-w-[17rem] rounded-lg bg-brand-accent px-3.5 py-3 text-left text-[11px] leading-[1.45] tracking-tight text-white shadow-lg"
-      : "pointer-events-none fixed w-max max-w-[11.5rem] whitespace-pre-line rounded-md bg-brand-accent px-2.5 py-1.5 text-center text-[11px] font-semibold leading-snug text-white shadow-md";
+      ? `pointer-events-none fixed w-max max-w-[17rem] rounded-lg bg-brand-accent px-3.5 py-3 text-left text-[11px] leading-[1.45] tracking-tight text-white shadow-lg ${tooltipClassName}`.trim()
+      : `pointer-events-none fixed w-max max-w-[11.5rem] whitespace-pre-line rounded-md bg-brand-accent px-2.5 py-1.5 text-center text-[11px] font-semibold leading-snug text-white shadow-md ${tooltipClassName}`.trim();
 
   return (
     <span
@@ -160,6 +146,7 @@ export function HoverTip({
       {open && tip
         ? createPortal(
             <span
+              ref={tipRef}
               role="tooltip"
               className={tipClassName}
               style={{

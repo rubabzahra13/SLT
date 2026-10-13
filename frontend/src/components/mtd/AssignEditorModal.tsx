@@ -42,6 +42,7 @@ import {
 import { suggestMixEndDate } from "@/lib/scheduling";
 import {
   checkProducerDailyLimits,
+  DAILY_LIMIT_FULL_RATIO,
   DAILY_LIMIT_WARNING_RATIO,
   dailyLimitCheckHasIssues,
   isProducerAvailableForMixWindow,
@@ -1679,6 +1680,11 @@ function dayLoadReachingLimit(
   maxMixes: number | null,
   thisMixDaily: number | null
 ): boolean {
+  if (
+    dayLoadLimitFull(bookedCost, bookedMixes, maxCost, maxMixes, thisMixDaily)
+  ) {
+    return false;
+  }
   const thisDaily = thisMixDaily ?? 0;
   if (maxCost != null && maxCost > 0) {
     if ((bookedCost + thisDaily) / maxCost >= DAILY_LIMIT_WARNING_RATIO) {
@@ -1692,20 +1698,184 @@ function dayLoadReachingLimit(
   return false;
 }
 
-/** Cost bar: separate rounded blocks stacked by mix share (% of daily cost max). */
-function CostMetricBar({ segments }: { segments: CostBarSegment[] }) {
-  const visible = segments
-    .map((seg) => ({
-      ...seg,
-      pct: Math.max(0, Math.min(100, seg.pct)),
-    }))
-    .filter((seg) => seg.pct > 0);
-  const totalPct = Math.min(
-    100,
-    visible.reduce((sum, seg) => sum + seg.pct, 0)
+/** True when mix and/or cost load is ≥ 99% of either daily max (or over). */
+function dayLoadLimitFull(
+  bookedCost: number,
+  bookedMixes: number,
+  maxCost: number | null,
+  maxMixes: number | null,
+  thisMixDaily: number | null
+): boolean {
+  const thisDaily = thisMixDaily ?? 0;
+  if (maxCost != null && maxCost > 0) {
+    if ((bookedCost + thisDaily) / maxCost >= DAILY_LIMIT_FULL_RATIO) {
+      return true;
+    }
+  }
+  if (maxMixes != null && maxMixes > 0) {
+    const mixes = bookedMixes + (thisDaily > 0 ? 1 : 0);
+    if (mixes / maxMixes >= DAILY_LIMIT_FULL_RATIO) return true;
+  }
+  return false;
+}
+
+function costLimitFull(
+  bookedCost: number,
+  maxCost: number | null,
+  thisMixDaily: number | null
+): boolean {
+  if (maxCost == null || maxCost <= 0) return false;
+  return (bookedCost + (thisMixDaily ?? 0)) / maxCost >= DAILY_LIMIT_FULL_RATIO;
+}
+
+function mixLimitFull(
+  bookedMixes: number,
+  maxMixes: number | null,
+  thisMixDaily: number | null
+): boolean {
+  if (maxMixes == null || maxMixes <= 0) return false;
+  const mixes =
+    bookedMixes + (thisMixDaily != null && thisMixDaily > 0 ? 1 : 0);
+  return mixes / maxMixes >= DAILY_LIMIT_FULL_RATIO;
+}
+
+type DayMixListItem = {
+  key: string;
+  label: string;
+  isManual?: boolean;
+  amount?: number;
+};
+
+function uniqueDayMixItems(
+  costSegments: CostBarSegment[],
+  mixSegments: Pick<CostBarSegment, "label" | "isManual">[],
+  mixCount: number
+): DayMixListItem[] {
+  const items: DayMixListItem[] = [];
+  const seen = new Set<string>();
+
+  const push = (item: DayMixListItem) => {
+    const key = item.label.trim().toLowerCase() || item.key;
+    if (seen.has(key)) return;
+    seen.add(key);
+    items.push({ ...item, key });
+  };
+
+  for (const seg of costSegments) {
+    push({
+      key: seg.key,
+      label: seg.label?.trim() || "Mix",
+      isManual: seg.isManual,
+      amount: seg.amount,
+    });
+  }
+  for (const [i, seg] of mixSegments.entries()) {
+    push({
+      key: `mix-${i}`,
+      label: seg.label?.trim() || `Mix ${i + 1}`,
+      isManual: seg.isManual,
+    });
+  }
+  while (items.length < mixCount) {
+    const n = items.length + 1;
+    push({ key: `booked-${n}`, label: `Mix ${n}` });
+  }
+  return items;
+}
+
+function LimitDayMixTooltip({
+  iso,
+  statusLabel,
+  costLabel,
+  mixCount,
+  maxMixes,
+  mixes,
+}: {
+  iso: string;
+  statusLabel: string | null;
+  costLabel: string | null;
+  mixCount: number;
+  maxMixes: number | null;
+  mixes: DayMixListItem[];
+}) {
+  const mixCap =
+    maxMixes != null
+      ? `${mixCount} / ${maxMixes} ${maxMixes === 1 ? "mix" : "mixes"}`
+      : `${mixCount} ${mixCount === 1 ? "mix" : "mixes"}`;
+
+  return (
+    <div className="flex max-h-[220px] min-w-[196px] flex-col px-3 py-2.5">
+      <div className="shrink-0 border-b border-brand-line/50 pb-2">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-brand-ink-tertiary">
+          {shortMixLimitDay(iso)}
+        </p>
+        {statusLabel ? (
+          <p
+            className={clsx(
+              "mt-1 text-[12px] font-semibold",
+              statusLabel === "Limit full"
+                ? "text-red-600"
+                : statusLabel === "Reaching limit"
+                  ? "text-brand-warning"
+                  : "text-brand-ink"
+            )}
+          >
+            {statusLabel}
+          </p>
+        ) : null}
+        <p className="mt-0.5 text-[12px] tabular-nums text-brand-ink">
+          {[costLabel, mixCap].filter(Boolean).join(" · ")}
+        </p>
+      </div>
+      <p className="mt-2 shrink-0 text-[10px] font-semibold uppercase tracking-[0.06em] text-brand-ink-tertiary">
+        Mixes
+      </p>
+      {mixes.length === 0 ? (
+        <p className="mt-1 text-[12px] text-brand-ink-tertiary">None booked</p>
+      ) : (
+        <ul className="mt-1 max-h-[140px] min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain pr-0.5">
+          {mixes.map((mix) => (
+            <li
+              key={mix.key}
+              className="rounded-md bg-brand-bg/70 px-2 py-1.5 ring-1 ring-inset ring-brand-line/40"
+            >
+              <p className="truncate text-[12px] font-medium text-brand-ink">
+                {mix.label}
+                {mix.isManual ? (
+                  <span className="ml-1 text-[10px] font-normal text-brand-ink-tertiary">
+                    manual
+                  </span>
+                ) : null}
+              </p>
+              {mix.amount != null && mix.amount > 0 ? (
+                <p className="mt-0.5 text-[11px] tabular-nums text-brand-ink-secondary">
+                  {formatLimitUsd(mix.amount)}/day
+                </p>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
-  /** Keep block stack height true to %, then gap eats a little visual space inside. */
-  const stackHeightPct = Math.max(totalPct, visible.length > 0 ? 6 : 0);
+}
+
+/**
+ * One solid bar per metric (no mix divisions). Red when that limit is ≥ 99%;
+ * otherwise cost = blue, mixes = orange. Tooltip lists every mix on the day.
+ */
+function SolidLimitMetricBar({
+  heightPct,
+  full,
+  tone,
+}: {
+  heightPct: number;
+  full: boolean;
+  tone: "cost" | "mix";
+}) {
+  const pct = Math.max(0, Math.min(100, heightPct));
+  const fillPx =
+    pct > 0 ? Math.max(6, Math.round((LIMIT_BAR_HEIGHT * pct) / 100)) : 0;
 
   return (
     <div
@@ -1715,110 +1885,70 @@ function CostMetricBar({ segments }: { segments: CostBarSegment[] }) {
       )}
       style={{ height: LIMIT_BAR_HEIGHT }}
     >
-      {visible.length > 0 ? (
+      {fillPx > 0 ? (
         <div
-          className="absolute inset-x-0 bottom-0 flex flex-col-reverse gap-px"
-          style={{ height: `${stackHeightPct}%` }}
-        >
-          {visible.map((seg, i) => {
-            const tip = [
-              seg.label,
-              seg.isManual ? "Manual mix" : null,
-              `${formatLimitUsd(seg.amount)}/day`,
-            ]
-              .filter(Boolean)
-              .join("\n");
-            return (
-              <div
-                key={seg.key}
-                className="relative min-h-[5px] w-full"
-                style={{ flex: `${seg.pct} 1 0` }}
-              >
-                <HoverTip
-                  label={tip}
-                  placement="top"
-                  className="block h-full w-full"
-                  zIndex={260}
-                >
-                  <div
-                    className={clsx(
-                      "h-full w-full rounded-[3px] transition-[filter] hover:brightness-110",
-                      i % 2 === 1 ? "bg-brand-info/55" : "bg-brand-info/75"
-                    )}
-                  />
-                </HoverTip>
-              </div>
-            );
-          })}
-        </div>
+          className={clsx(
+            "absolute inset-x-0 bottom-0 rounded-t-[3px]",
+            full
+              ? "bg-red-500/90"
+              : tone === "cost"
+                ? "bg-brand-info/75"
+                : "bg-brand-warning"
+          )}
+          style={{ height: fillPx }}
+        />
       ) : null}
     </div>
   );
 }
 
-/** Mixes bar: equal slots up to max; filled slots are separate rounded mix blocks. */
+/** Cost: one solid bar = total booked cost % of daily max. */
+function CostMetricBar({
+  segments,
+  solidFull,
+  solidHeightPct,
+}: {
+  segments: CostBarSegment[];
+  solidFull?: boolean;
+  solidHeightPct?: number;
+}) {
+  const totalPct =
+    solidHeightPct ??
+    Math.min(
+      100,
+      segments.reduce((sum, seg) => sum + Math.max(0, seg.pct), 0)
+    );
+
+  return (
+    <SolidLimitMetricBar
+      heightPct={solidFull ? Math.max(totalPct, 99) : totalPct}
+      full={Boolean(solidFull)}
+      tone="cost"
+    />
+  );
+}
+
+/** Mixes: one solid bar = booked mixes % of daily max (no per-mix slots). */
 function MixMetricBar({
   bookedMixes,
   maxMixes,
   mixSegments = [],
+  solidFull,
 }: {
   bookedMixes: number;
   maxMixes: number;
-  /** Bottom-up mix blocks for tooltips (program name + manual flag). */
   mixSegments?: Pick<CostBarSegment, "label" | "isManual">[];
+  solidFull?: boolean;
 }) {
-  const slots = Math.max(1, Math.floor(maxMixes));
-  const filled = Math.max(0, Math.min(slots, bookedMixes));
+  const ratio =
+    maxMixes > 0 ? Math.min(100, (bookedMixes / maxMixes) * 100) : 0;
 
   return (
-    <div
-      className={clsx(
-        "relative rounded-t-md bg-brand-line/20",
-        LIMIT_METRIC_BAR_WIDTH
-      )}
-      style={{ height: LIMIT_BAR_HEIGHT }}
-    >
-      <div className="absolute inset-0 flex flex-col-reverse gap-px">
-        {Array.from({ length: slots }, (_, i) => {
-          const isFilled = i < filled;
-          const seg = mixSegments[i];
-          const tip = isFilled
-            ? [
-                seg?.label?.trim() || `Mix ${i + 1}`,
-                seg?.isManual ? "Manual mix" : null,
-              ]
-                .filter(Boolean)
-                .join("\n")
-            : null;
-          const block = (
-            <div
-              className={clsx(
-                "h-full w-full rounded-[3px] transition-[filter]",
-                isFilled
-                  ? "bg-brand-warning hover:brightness-110"
-                  : "bg-transparent"
-              )}
-            />
-          );
-          return (
-            <div key={i} className="relative min-h-[5px] w-full flex-1">
-              {tip ? (
-                <HoverTip
-                  label={tip}
-                  placement="top"
-                  className="block h-full w-full"
-                  zIndex={260}
-                >
-                  {block}
-                </HoverTip>
-              ) : (
-                block
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
+    <SolidLimitMetricBar
+      heightPct={solidFull ? Math.max(ratio, 99) : ratio}
+      full={Boolean(solidFull)}
+      tone="mix"
+    />
   );
 }
 
@@ -1848,11 +1978,29 @@ function LimitDayBarGroup({
   const showMix = maxMixes != null;
   // Bars = already-booked load only. Current mix is shown in the header label,
   // not stacked into the chart (that looked like the graph was "for itself").
-  const mixCount = bookedMixes;
+  // Prefer segment counts when they disagree with day.bookedMixes (same-day contributors).
+  const mixCount = Math.max(
+    bookedMixes,
+    mixSegments.length,
+    costSegments.length
+  );
   const costSum = costSegments.reduce((sum, seg) => sum + seg.amount, 0);
+  const costPctFromSegments = costSegments.reduce(
+    (sum, seg) => sum + Math.max(0, seg.pct),
+    0
+  );
   const projectedCost = costSum + (thisMixDaily ?? 0);
   const projectedMixes =
-    bookedMixes + (thisMixDaily != null && thisMixDaily > 0 ? 1 : 0);
+    mixCount + (thisMixDaily != null && thisMixDaily > 0 ? 1 : 0);
+  const costFull =
+    costLimitFull(costSum, maxCost, thisMixDaily) ||
+    (maxCost != null &&
+      maxCost > 0 &&
+      (costPctFromSegments +
+        ((thisMixDaily ?? 0) / maxCost) * 100) >=
+        DAILY_LIMIT_FULL_RATIO * 100);
+  const mixesFull = mixLimitFull(mixCount, maxMixes, thisMixDaily);
+  const limitFull = costFull || mixesFull;
   const reachingLimit = dayLoadReachingLimit(
     costSum,
     bookedMixes,
@@ -1860,57 +2008,75 @@ function LimitDayBarGroup({
     maxMixes,
     thisMixDaily
   );
-  const dayTipParts: string[] = [];
-  if (reachingLimit) dayTipParts.push("Reaching limit");
-  if (showCost && costSum > 0) dayTipParts.push(formatLimitUsd(costSum));
-  if (showMix) {
-    dayTipParts.push(
-      `${mixCount} ${mixCount === 1 ? "mix" : "mixes"} booked`
-    );
-  }
-  if (thisMixDaily != null && thisMixDaily > 0) {
-    dayTipParts.push(
-      `+ current → ${formatLimitUsd(projectedCost)} · ${projectedMixes} ${
-        projectedMixes === 1 ? "mix" : "mixes"
-      }`
-    );
-  }
-  const dayTip = dayTipParts.length > 0 ? dayTipParts.join(" · ") : null;
+  const mixItems = uniqueDayMixItems(costSegments, mixSegments, mixCount);
+  const statusLabel = limitFull
+    ? "Limit full"
+    : reachingLimit
+      ? "Reaching limit"
+      : null;
+  const costLabel = showCost && costSum > 0 ? formatLimitUsd(costSum) : null;
+  const ariaBits = [
+    shortMixLimitDay(iso),
+    statusLabel,
+    costLabel,
+    `${mixCount} ${mixCount === 1 ? "mix" : "mixes"}`,
+    ...mixItems.map((m) => m.label),
+  ].filter(Boolean);
 
   return (
-    <button
-      type="button"
-      onClick={onSelect}
-      aria-pressed={selected}
-      aria-label={`${shortMixLimitDay(iso)}${
-        dayTip ? ` · ${dayTip}` : ""
-      }`}
-      className={clsx(
-        "flex min-w-[40px] flex-1 flex-col items-center outline-none",
-        selected && "opacity-100"
-      )}
+    <HoverTip
+      content={
+        <LimitDayMixTooltip
+          iso={iso}
+          statusLabel={statusLabel}
+          costLabel={costLabel}
+          mixCount={mixCount}
+          maxMixes={maxMixes}
+          mixes={mixItems}
+        />
+      }
+      interactive
+      placement="top"
+      className="flex min-w-[40px] flex-1 flex-col items-center"
+      tooltipClassName="w-[240px] max-w-[240px] p-0 overflow-hidden"
+      zIndex={260}
     >
-      <HoverTip
-        label={dayTip ?? undefined}
-        placement="top"
-        className="flex w-full flex-col items-center"
-        zIndex={260}
+      <button
+        type="button"
+        onClick={onSelect}
+        aria-pressed={selected}
+        aria-label={ariaBits.join(" · ")}
+        className={clsx(
+          "flex w-full flex-col items-center outline-none",
+          selected && "opacity-100"
+        )}
       >
         <div
           className="flex items-end justify-center gap-[3px] px-0.5"
           style={{ height: LIMIT_BAR_HEIGHT }}
         >
-          {showCost ? <CostMetricBar segments={costSegments} /> : null}
+          {showCost ? (
+            <CostMetricBar
+              segments={costSegments}
+              solidFull={costFull}
+              solidHeightPct={
+                maxCost != null && maxCost > 0
+                  ? Math.min(100, (projectedCost / maxCost) * 100)
+                  : 100
+              }
+            />
+          ) : null}
           {showMix ? (
             <MixMetricBar
-              bookedMixes={mixCount}
+              bookedMixes={mixesFull ? projectedMixes : mixCount}
               maxMixes={maxMixes as number}
               mixSegments={mixSegments}
+              solidFull={mixesFull}
             />
           ) : null}
         </div>
-      </HoverTip>
-    </button>
+      </button>
+    </HoverTip>
   );
 }
 
@@ -2078,6 +2244,13 @@ function DailyLimitBarChart({
             >
               {days.map((day) => {
                 const selected = day.iso === selectedIso;
+                const full = dayLoadLimitFull(
+                  day.bookedCost,
+                  day.bookedMixes,
+                  maxCost,
+                  maxMixes,
+                  thisMixDaily
+                );
                 const reaching = dayLoadReachingLimit(
                   day.bookedCost,
                   day.bookedMixes,
@@ -2093,12 +2266,16 @@ function DailyLimitBarChart({
                     className={clsx(
                       "flex min-w-[40px] flex-1 flex-col items-center gap-0.5 outline-none",
                       selected
-                        ? reaching
-                          ? "text-brand-warning"
-                          : "text-brand-ink"
-                        : reaching
-                          ? "text-brand-warning"
-                          : "text-brand-ink-tertiary"
+                        ? full
+                          ? "text-red-600"
+                          : reaching
+                            ? "text-brand-warning"
+                            : "text-brand-ink"
+                        : full
+                          ? "text-red-600"
+                          : reaching
+                            ? "text-brand-warning"
+                            : "text-brand-ink-tertiary"
                     )}
                   >
                     <span

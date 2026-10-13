@@ -79,6 +79,7 @@ const LAYOUT = {
 function scheduleStatusTooltipTone(status: ScheduleCell["status"]) {
   if (status === "off") return "text-brand-orange";
   if (status === "nonwork") return "text-brand-orange";
+  if (status === "limit_full") return "text-red-600";
   if (status === "capacity") return "text-amber-600";
   return "text-brand-signature";
 }
@@ -260,11 +261,13 @@ function scheduleCellBarClass(
       ? "bg-brand-orange/80 shadow-[0_1px_2px_rgba(240,120,64,0.16)] hover:ring-brand-orange/30"
       : cell.status === "nonwork"
         ? "ring-1 ring-inset ring-brand-orange shadow-[0_1px_2px_rgba(240,120,64,0.12)] hover:ring-brand-orange"
-        : cell.status === "capacity"
-          ? "bg-amber-400/85 shadow-[0_1px_2px_rgba(245,158,11,0.20)] hover:ring-amber-400/40"
-          : cell.status === "mix"
-            ? "bg-gradient-to-b from-brand-blue to-brand-signature shadow-[0_1px_2px_rgba(15,30,45,0.18)] hover:ring-brand-blue/40"
-            : "bg-cyan-50/80 ring-1 ring-inset ring-cyan-400/60 shadow-[0_1px_2px_rgba(6,182,212,0.12)] hover:bg-cyan-100 hover:ring-cyan-500/70"
+        : cell.status === "limit_full"
+          ? "bg-red-500/90 shadow-[0_1px_2px_rgba(239,68,68,0.22)] hover:ring-red-500/40"
+          : cell.status === "capacity"
+            ? "bg-amber-400/85 shadow-[0_1px_2px_rgba(245,158,11,0.20)] hover:ring-amber-400/40"
+            : cell.status === "mix"
+              ? "bg-gradient-to-b from-brand-blue to-brand-signature shadow-[0_1px_2px_rgba(15,30,45,0.18)] hover:ring-brand-blue/40"
+              : "bg-cyan-50/80 ring-1 ring-inset ring-cyan-400/60 shadow-[0_1px_2px_rgba(6,182,212,0.12)] hover:bg-cyan-100 hover:ring-cyan-500/70"
   );
 }
 
@@ -282,7 +285,9 @@ function scheduleCellCountClass(
       ? "text-brand-signature"
       : status === "capacity"
         ? "text-amber-950"
-        : "text-white"
+        : status === "limit_full"
+          ? "text-white"
+          : "text-white"
   );
 }
 
@@ -430,7 +435,9 @@ export function TeamScheduleMatrix({
       bookingCount: row.cells.filter(
         (cell) =>
           !cell.filteredOut &&
-          (cell.status === "mix" || cell.status === "capacity")
+          (cell.status === "mix" ||
+            cell.status === "capacity" ||
+            cell.status === "limit_full")
       ).length,
       offCount: row.cells.filter(
         (cell) => !cell.filteredOut && cell.status === "off"

@@ -37,8 +37,9 @@ function buildTodayEntries(rows: TeamScheduleRow[]): ProducerDayEntry[] {
     available: 0,
     mix: 1,
     capacity: 2,
-    off: 3,
-    nonwork: 4,
+    limit_full: 3,
+    off: 4,
+    nonwork: 5,
   };
 
   for (const row of rows) {
@@ -99,6 +100,13 @@ export function TeamScheduleTodayView({
             if (entry.cell.status === "available") {
               return (
                 <span className="text-[12px] font-semibold text-brand-signature">Free slot</span>
+              );
+            }
+            if (entry.cell.status === "limit_full") {
+              return (
+                <span className="text-[12px] font-semibold text-red-700">
+                  Limit full
+                </span>
               );
             }
             if (entry.cell.status === "capacity") {

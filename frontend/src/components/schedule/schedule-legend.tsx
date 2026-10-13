@@ -15,8 +15,14 @@ export const SCHEDULE_LEGEND_ITEMS = [
   {
     key: "capacity",
     label: "Reaching limit",
-    tip: "Either or both daily limits (mixes / cost) are at least 80%",
+    tip: "Either or both daily limits (mixes / cost) are at least 80% but under 99%",
     swatchClass: "bg-amber-400/85",
+  },
+  {
+    key: "limit_full",
+    label: "Limit full",
+    tip: "At or over daily mix/cost limit, or at least 99% of either",
+    swatchClass: "bg-red-500/90",
   },
   {
     key: "off",
@@ -134,6 +140,7 @@ function scheduleStatusTooltipTone(status: ScheduleCell["status"]) {
   if (status === "nonwork") return "text-brand-orange";
   if (status === "capacity") return "text-amber-600";
   return "text-brand-signature";
+  if (status === "limit_full") return "text-red-600";
 }
 
 function ScheduleStatusTooltip({
@@ -195,6 +202,7 @@ export function ScheduleStatusTile({ status, cell, className }: ScheduleStatusTi
   const isOff = status === "off";
   const isNonwork = status === "nonwork";
   const isCapacity = status === "capacity";
+  const isLimitFull = status === "limit_full";
   const isBooked = status === "mix";
 
   const tile = (
@@ -206,6 +214,7 @@ export function ScheduleStatusTile({ status, cell, className }: ScheduleStatusTi
         isOff && "bg-brand-orange/80 shadow-[0_1px_2px_rgba(240,120,64,0.16)]",
         isNonwork &&
           "ring-1 ring-inset ring-brand-orange shadow-[0_1px_2px_rgba(240,120,64,0.12)]",
+        isLimitFull && "bg-red-500/90 shadow-[0_1px_2px_rgba(239,68,68,0.22)]",
         isCapacity && "bg-amber-400/85 shadow-[0_1px_2px_rgba(245,158,11,0.20)]",
         isBooked &&
           "bg-gradient-to-b from-brand-blue to-brand-signature shadow-[0_1px_2px_rgba(15,30,45,0.18)]",
