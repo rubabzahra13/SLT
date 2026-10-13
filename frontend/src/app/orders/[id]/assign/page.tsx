@@ -49,6 +49,7 @@ function OrderAssignPageContent({ id }: { id: string }) {
         orderStatus: "",
         ...(result.mixStartDate ? { mixStartDate: result.mixStartDate } : {}),
         ...(result.mixEndDate ? { mixEndDate: result.mixEndDate } : {}),
+        ...(result.invoice !== undefined ? { invoice: result.invoice } : {}),
       });
     },
     [updateMTD]

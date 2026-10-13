@@ -42,6 +42,7 @@ import { formatPrice, titleCase } from "@/lib/data";
 import { parsePackage } from "@/lib/package";
 import { packageTypeDisplayValue } from "@/components/mtd/PackageTypeField";
 import { getProgramColumnHeader } from "@/lib/order-detail-sections";
+import { orderHasSplitField } from "@/lib/order-form-missing";
 import type { MTDViewOrder } from "@/components/mtd/MTDViewOrderToggle";
 import {
   calculateCheerOrderPricing,
@@ -103,8 +104,12 @@ import type {
   MTDRecordStatus,
   Order,
   OrderFormType,
+  OrderSourceFilter,
 } from "@/types";
 import { MTD_RECORD_STATUS_OPTIONS } from "@/types";
+import {
+  filterRecordsByOrderSource,
+} from "@/lib/order-source";
 import clsx from "clsx";
 
 const DEFAULT_FORM: OrderFormType = "school-all-star-cheer";
@@ -235,6 +240,8 @@ function MTDPageContent() {
   const [tableFilters, setTableFilters] = useState<MTDTableFilterState>(
     DEFAULT_MTD_TABLE_FILTERS
   );
+  const [sourceFilter, setSourceFilter] =
+    useState<OrderSourceFilter>("both");
 
   useEffect(() => {
     if (assignedParam) {
@@ -337,6 +344,7 @@ function MTDPageContent() {
         ...(result.mixEndDate !== undefined
           ? { mixEndDate: result.mixEndDate }
           : {}),
+        ...(result.invoice !== undefined ? { invoice: result.invoice } : {}),
         ...(result.recordStatus
           ? {
               recordStatus: result.recordStatus,
@@ -490,9 +498,14 @@ function MTDPageContent() {
     [completeRecord, updateMTD, updateOrder]
   );
 
+  const sourceFilteredBoard = useMemo(
+    () => filterRecordsByOrderSource(mtdBoardRecords, sourceFilter, orderById),
+    [mtdBoardRecords, sourceFilter, orderById]
+  );
+
   const tableFiltered = useMemo(
     () =>
-      filterMTDRecords(mtdBoardRecords, {
+      filterMTDRecords(sourceFilteredBoard, {
         packageTier: tableFilters.packageTier,
         timeLimit: tableFilters.timeLimit,
         split: tableFilters.split,
@@ -508,7 +521,7 @@ function MTDPageContent() {
         producers,
       }),
     [
-      mtdBoardRecords,
+      sourceFilteredBoard,
       tableFilters,
       form,
       cheerSubtype,
@@ -535,18 +548,18 @@ function MTDPageContent() {
   }, [filtered, tableFilters.sortBy, viewOrder, producers, orderById]);
 
   const formCounts = useMemo(
-    () => countMTDByForm(mtdBoardRecords, orderById),
-    [mtdBoardRecords, orderById]
+    () => countMTDByForm(sourceFilteredBoard, orderById),
+    [sourceFilteredBoard, orderById]
   );
 
   const cheerSubtypeCounts = useMemo(
-    () => countMTDByCheerSubtype(mtdBoardRecords, orderById),
-    [mtdBoardRecords, orderById]
+    () => countMTDByCheerSubtype(sourceFilteredBoard, orderById),
+    [sourceFilteredBoard, orderById]
   );
 
   const danceSubtypeCounts = useMemo(
-    () => countMTDByDanceSubtype(mtdBoardRecords, orderById),
-    [mtdBoardRecords, orderById]
+    () => countMTDByDanceSubtype(sourceFilteredBoard, orderById),
+    [sourceFilteredBoard, orderById]
   );
 
   const tableFilterKey = [
@@ -601,13 +614,20 @@ function MTDPageContent() {
         nowrap: false,
         cellClassName: clsx(compactCellClass, "max-w-[100px]"),
         headerClassName: compactHeaderClass,
-        render: (rec) => (
-          <TruncatedText
-            text={titleCase(rec.contactName)}
-            className={clsx("mx-auto w-full min-w-0 text-center", compactTextClass)}
-            style={{ maxWidth: "100%" }}
-          />
-        ),
+        render: (rec) => {
+          const name = titleCase(rec.contactName || "").trim();
+          return (
+            <TruncatedText
+              text={name || "No data"}
+              className={clsx(
+                "mx-auto w-full min-w-0 text-center",
+                compactTextClass,
+                !name && "text-brand-ink-tertiary"
+              )}
+              style={{ maxWidth: "100%" }}
+            />
+          );
+        },
       },
       {
         key: "programD",
@@ -620,13 +640,20 @@ function MTDPageContent() {
           programHeader.length > 14 ? "max-w-[150px]" : "max-w-[100px]"
         ),
         headerClassName: clsx(compactHeaderClass, "whitespace-normal leading-tight"),
-        render: (rec) => (
-          <TruncatedText
-            text={titleCase(rec.programName)}
-            className={clsx("mx-auto w-full min-w-0 text-center", compactTextClass)}
-            style={{ maxWidth: "100%" }}
-          />
-        ),
+        render: (rec) => {
+          const name = titleCase(rec.programName || "").trim();
+          return (
+            <TruncatedText
+              text={name || "No data"}
+              className={clsx(
+                "mx-auto w-full min-w-0 text-center",
+                compactTextClass,
+                !name && "text-brand-ink-tertiary"
+              )}
+              style={{ maxWidth: "100%" }}
+            />
+          );
+        },
       },
       {
         key: "packageE",
@@ -644,8 +671,12 @@ function MTDPageContent() {
             packageTypeDisplayValue(rec.package || "");
           return (
             <TruncatedText
-              text={tier ? titleCase(tier) : "—"}
-              className={clsx("mx-auto w-full min-w-0 text-center font-medium", compactTextClass)}
+              text={tier ? titleCase(tier) : "No data"}
+              className={clsx(
+                "mx-auto w-full min-w-0 text-center font-medium",
+                compactTextClass,
+                !tier && "text-brand-ink-tertiary"
+              )}
               style={{ maxWidth: "100%" }}
             />
           );
@@ -673,12 +704,24 @@ function MTDPageContent() {
                   fromOrder ||
                   (fromPackage && fromPackage !== "-" ? fromPackage : "");
                 return (
-                  <span className={clsx("mx-auto block text-center tabular-nums", compactTextClass)}>
-                    {limit || "—"}
+                  <span
+                    className={clsx(
+                      "mx-auto block text-center tabular-nums",
+                      compactTextClass,
+                      !limit && "text-brand-ink-tertiary"
+                    )}
+                  >
+                    {limit || "No data"}
                   </span>
                 );
               },
             },
+          ]
+        : []),
+      // Split/No Split is on VIROC, School Cheer, and Youth Rec — not All Star Cheer.
+      ...(form === "school-all-star-cheer" &&
+      cheerSubtype !== "all-star-cheer"
+        ? [
             {
               key: "splitE",
               header: "Split",
@@ -689,19 +732,32 @@ function MTDPageContent() {
               headerClassName: compactHeaderClass,
               render: (rec: MTDRecord) => {
                 const meta = resolveMTDFormMeta(rec, orderById);
-                if (meta.cheerFormSubtype === "all-star-cheer") {
+                // All Star Cheer has no Split field — do not treat as missing data.
+                if (!orderHasSplitField(meta)) {
                   return (
-                    <span className={clsx("mx-auto block text-center text-brand-ink-tertiary", compactTextClass)}>
-                      N/A
+                    <span
+                      className={clsx(
+                        "mx-auto block text-center text-brand-ink-tertiary",
+                        compactTextClass
+                      )}
+                    >
+                      —
                     </span>
                   );
                 }
-                const linked = rec.orderId ? orderById.get(rec.orderId) : undefined;
-                const splitVal = linked?.splitOrNoSplit || parsePackage(rec.package).split;
+                const linked = rec.orderId
+                  ? orderById.get(rec.orderId)
+                  : undefined;
+                const splitVal =
+                  linked?.splitOrNoSplit || parsePackage(rec.package).split;
                 return (
                   <TruncatedText
-                    text={splitVal || "N/A"}
-                    className={clsx("mx-auto w-full min-w-0 text-center", compactTextClass)}
+                    text={splitVal || "No data"}
+                    className={clsx(
+                      "mx-auto w-full min-w-0 text-center",
+                      compactTextClass,
+                      !splitVal && "text-brand-ink-tertiary"
+                    )}
                     style={{ maxWidth: "100%" }}
                   />
                 );
@@ -725,7 +781,7 @@ function MTDPageContent() {
                 if (!affiliate) {
                   return (
                     <span className={clsx("mx-auto block text-center text-brand-ink-tertiary", compactTextClass)}>
-                      N/A
+                      No data
                     </span>
                   );
                 }
@@ -749,13 +805,20 @@ function MTDPageContent() {
         nowrap: false,
         cellClassName: clsx(compactCellClass, "max-w-[120px]"),
         headerClassName: compactHeaderClass,
-        render: (rec) => (
-          <TruncatedText
-            text={titleCase((rec.musicTheme || "").replace(/\s+/g, " ").trim())}
-            className={clsx("mx-auto w-full min-w-0 text-center", compactTextClass)}
-            style={{ maxWidth: "100%" }}
-          />
-        ),
+        render: (rec) => {
+          const theme = titleCase((rec.musicTheme || "").replace(/\s+/g, " ").trim());
+          return (
+            <TruncatedText
+              text={theme || "No data"}
+              className={clsx(
+                "mx-auto w-full min-w-0 text-center",
+                compactTextClass,
+                !theme && "text-brand-ink-tertiary"
+              )}
+              style={{ maxWidth: "100%" }}
+            />
+          );
+        },
       },
       {
         key: "chosenInitialsF",
@@ -769,16 +832,21 @@ function MTDPageContent() {
           const linked = findLinkedOrder(rec, allOrders);
           const label = formatRequestedEditorLabel(rec, producers, linked);
           const isFa = label === "First Available";
+          const empty = !label.trim();
 
           return (
             <span
               className={clsx(
                 "font-medium",
                 compactTextClass,
-                isFa ? "text-brand-info" : "text-brand-ink"
+                empty
+                  ? "text-brand-ink-tertiary"
+                  : isFa
+                    ? "text-brand-info"
+                    : "text-brand-ink"
               )}
             >
-              {label}
+              {empty ? "No data" : label}
             </span>
           );
         },
@@ -1362,7 +1430,7 @@ function MTDPageContent() {
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <PageHeader
         title="Music To Do"
-        badge={`${displayedRecords.length} of ${mtdBoardRecords.length}`}
+        badge={`${displayedRecords.length} of ${sourceFilteredBoard.length}`}
         subtitle="Complete mixes, pricing, and invoicing"
         action={{
           label: "Pricing",
@@ -1386,13 +1454,16 @@ function MTDPageContent() {
             form={form}
             cheerSubtype={cheerSubtype}
             danceSubtype={danceSubtype}
+            sourceFilter={sourceFilter}
+            onSourceFilterChange={setSourceFilter}
+            sourceCountRecords={mtdBoardRecords}
             onFormChange={switchForm}
             onCheerSubtypeChange={setCheerSubtype}
             onDanceSubtypeChange={setDanceSubtype}
             formCounts={formCounts}
             cheerCounts={cheerSubtypeCounts}
             danceCounts={danceSubtypeCounts}
-            records={mtdBoardRecords}
+            records={sourceFilteredBoard}
             producers={producers}
             orderById={orderById}
             filters={tableFilters}

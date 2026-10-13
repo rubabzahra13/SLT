@@ -40,6 +40,11 @@ import {
 } from "@/lib/order-requirements";
 import { getProgramColumnHeader } from "@/lib/order-detail-sections";
 import {
+  formatOrderFormMtdBlockReason,
+  getOrderFormFieldsBlockingMtd,
+  orderHasSplitField,
+} from "@/lib/order-form-missing";
+import {
   PRICING_REFERENCE_CHANGED_EVENT,
   resolveEngineCustomerPrice,
   resolveOrderPackageDisplayPrice,
@@ -446,6 +451,15 @@ function OrdersPageContent() {
 
       if (isViewOnly) return;
 
+      const linkedOrder = findLinkedOrder(rec, allOrders);
+      if (
+        linkedOrder &&
+        getOrderFormFieldsBlockingMtd(linkedOrder).length > 0
+      ) {
+        setValidationModalRecord(rec);
+        return;
+      }
+
       if (
         !isOrderScheduledAndAssigned(rec) ||
         getOrderStatus(rec).missingCount > 0
@@ -480,7 +494,7 @@ function OrdersPageContent() {
       // Jump to the MTD tab and highlight the row we just moved.
       router.push(`/mtd?focus=${encodeURIComponent(rec.id)}`);
     },
-    [isViewOnly, router, updateMTD]
+    [isViewOnly, router, updateMTD, allOrders]
   );
 
   useEffect(() => {
@@ -617,13 +631,20 @@ function OrdersPageContent() {
         nowrap: false,
         cellClassName: clsx(compactCellClass, "max-w-[100px]"),
         headerClassName: compactHeaderClass,
-        render: (rec) => (
-          <TruncatedText
-            text={titleCase(rec.contactName || rec.editorInitials)}
-            className={clsx("w-full min-w-0 text-left", compactTextClass)}
-            style={{ maxWidth: "100%" }}
-          />
-        ),
+        render: (rec) => {
+          const name = titleCase(rec.contactName || rec.editorInitials || "").trim();
+          return (
+            <TruncatedText
+              text={name || "No data"}
+              className={clsx(
+                "w-full min-w-0 text-left",
+                compactTextClass,
+                !name && "text-brand-ink-tertiary"
+              )}
+              style={{ maxWidth: "100%" }}
+            />
+          );
+        },
       },
       {
         key: "program",
@@ -636,13 +657,20 @@ function OrdersPageContent() {
           programHeader.length > 14 ? "max-w-[150px]" : "max-w-[100px]"
         ),
         headerClassName: clsx(compactHeaderClass, "whitespace-normal leading-tight"),
-        render: (rec) => (
-          <TruncatedText
-            text={titleCase(rec.programName)}
-            className={clsx("w-full min-w-0 text-left", compactTextClass)}
-            style={{ maxWidth: "100%" }}
-          />
-        ),
+        render: (rec) => {
+          const name = titleCase(rec.programName || "").trim();
+          return (
+            <TruncatedText
+              text={name || "No data"}
+              className={clsx(
+                "w-full min-w-0 text-left",
+                compactTextClass,
+                !name && "text-brand-ink-tertiary"
+              )}
+              style={{ maxWidth: "100%" }}
+            />
+          );
+        },
       },
       {
         key: "package",
@@ -660,8 +688,12 @@ function OrdersPageContent() {
             packageTypeDisplayValue(rec.package || "");
           return (
             <TruncatedText
-              text={tier ? titleCase(tier) : "—"}
-              className={clsx("mx-auto w-full min-w-0 text-center font-medium", compactTextClass)}
+              text={tier ? titleCase(tier) : "No data"}
+              className={clsx(
+                "mx-auto w-full min-w-0 text-center font-medium",
+                compactTextClass,
+                !tier && "text-brand-ink-tertiary"
+              )}
               style={{ maxWidth: "100%" }}
             />
           );
@@ -689,12 +721,24 @@ function OrdersPageContent() {
                   fromOrder ||
                   (fromPackage && fromPackage !== "-" ? fromPackage : "");
                 return (
-                  <span className={clsx("mx-auto block text-center tabular-nums", compactTextClass)}>
-                    {limit || "—"}
+                  <span
+                    className={clsx(
+                      "mx-auto block text-center tabular-nums",
+                      compactTextClass,
+                      !limit && "text-brand-ink-tertiary"
+                    )}
+                  >
+                    {limit || "No data"}
                   </span>
                 );
               },
             },
+          ]
+        : []),
+      // Split/No Split is on VIROC, School Cheer, and Youth Rec — not All Star Cheer.
+      ...(form === "school-all-star-cheer" &&
+      cheerSubtype !== "all-star-cheer"
+        ? [
             {
               key: "split",
               header: "Split",
@@ -705,19 +749,32 @@ function OrdersPageContent() {
               headerClassName: compactHeaderClass,
               render: (rec: MTDRecord) => {
                 const meta = resolveMTDFormMeta(rec, orderById);
-                if (meta.cheerFormSubtype === "all-star-cheer") {
+                // All Star Cheer has no Split field — do not treat as missing data.
+                if (!orderHasSplitField(meta)) {
                   return (
-                    <span className={clsx("mx-auto block text-center text-brand-ink-tertiary", compactTextClass)}>
-                      N/A
+                    <span
+                      className={clsx(
+                        "mx-auto block text-center text-brand-ink-tertiary",
+                        compactTextClass
+                      )}
+                    >
+                      —
                     </span>
                   );
                 }
-                const linked = rec.orderId ? orderById.get(rec.orderId) : undefined;
-                const splitVal = linked?.splitOrNoSplit || parsePackage(rec.package).split;
+                const linked = rec.orderId
+                  ? orderById.get(rec.orderId)
+                  : undefined;
+                const splitVal =
+                  linked?.splitOrNoSplit || parsePackage(rec.package).split;
                 return (
                   <TruncatedText
-                    text={splitVal || "N/A"}
-                    className={clsx("mx-auto w-full min-w-0 text-center", compactTextClass)}
+                    text={splitVal || "No data"}
+                    className={clsx(
+                      "mx-auto w-full min-w-0 text-center",
+                      compactTextClass,
+                      !splitVal && "text-brand-ink-tertiary"
+                    )}
                     style={{ maxWidth: "100%" }}
                   />
                 );
@@ -744,7 +801,7 @@ function OrdersPageContent() {
                 if (!affiliate && selections.length === 0) {
                   return (
                     <span className={clsx("mx-auto block text-center text-brand-ink-tertiary", compactTextClass)}>
-                      N/A
+                      No data
                     </span>
                   );
                 }
@@ -777,13 +834,20 @@ function OrdersPageContent() {
         nowrap: false,
         cellClassName: clsx(compactCellClass, "max-w-[120px]"),
         headerClassName: compactHeaderClass,
-        render: (rec) => (
-          <TruncatedText
-            text={titleCase((rec.musicTheme || "").replace(/\s+/g, " ").trim())}
-            className={clsx("mx-auto w-full min-w-0 text-center", compactTextClass)}
-            style={{ maxWidth: "100%" }}
-          />
-        ),
+        render: (rec) => {
+          const theme = titleCase((rec.musicTheme || "").replace(/\s+/g, " ").trim());
+          return (
+            <TruncatedText
+              text={theme || "No data"}
+              className={clsx(
+                "mx-auto w-full min-w-0 text-center",
+                compactTextClass,
+                !theme && "text-brand-ink-tertiary"
+              )}
+              style={{ maxWidth: "100%" }}
+            />
+          );
+        },
       },
       {
         key: "packagePrice",
@@ -1384,6 +1448,11 @@ function OrdersPageContent() {
 
           const { needsReassign, missingCount } = getOrderStatus(rec);
           const blockedByMissingData = missingCount > 0;
+          const linkedForForm = findLinkedOrder(rec, allOrders);
+          const formMtdGaps = linkedForForm
+            ? getOrderFormFieldsBlockingMtd(linkedForForm)
+            : [];
+          const blockedByFormGaps = formMtdGaps.length > 0;
           const assignedProducer =
             getDisplayAssignedProducer(rec) ||
             rec.assignedProducer?.trim() ||
@@ -1403,18 +1472,25 @@ function OrdersPageContent() {
             isAssigned && Boolean(producerSentAt) && sameProducerAsLastSend;
           const producerMailIsResend =
             !blockedByMissingData &&
+            !blockedByFormGaps &&
             isAssigned &&
             !producerSentAt &&
             sameProducerAsLastSend &&
             (needsReassign || Boolean(rec.isReassigned));
           const awaitingProducerMail =
-            isAssigned && !blockedByMissingData && !producerMailSatisfied;
+            isAssigned &&
+            !blockedByMissingData &&
+            !blockedByFormGaps &&
+            !producerMailSatisfied;
           const ready =
             isAssigned &&
             isScheduled &&
             !blockedByMissingData &&
+            !blockedByFormGaps &&
             producerMailSatisfied;
-          const mtdBlockedReason = blockedByMissingData
+          const mtdBlockedReason = blockedByFormGaps
+            ? formatOrderFormMtdBlockReason(formMtdGaps)
+            : blockedByMissingData
             ? "Resolve missing data\nbefore moving to MTD"
             : !isAssigned && !isScheduled
               ? "Assign a producer and set\nschedule dates before moving to MTD"

@@ -194,7 +194,12 @@ export function mergeLocalMtdRecordFields(
       editorRequest: localRecord.editorRequest ?? merged.editorRequest,
       mixStartDate: localRecord.mixStartDate || merged.mixStartDate,
       mixEndDate: localRecord.mixEndDate || merged.mixEndDate,
-      invoice: localRecord.invoice || merged.invoice,
+      // Prefer whichever side has a real invoice — never let empty SSE wipe local.
+      invoice:
+        (localRecord.invoice || "").trim() ||
+        (merged.invoice || "").trim() ||
+        localRecord.invoice ||
+        merged.invoice,
       status: localRecord.status ?? merged.status,
       recordStatus: localRecord.recordStatus ?? merged.recordStatus,
     };

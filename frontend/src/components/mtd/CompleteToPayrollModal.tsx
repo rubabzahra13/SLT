@@ -42,7 +42,18 @@ import {
 } from "@/lib/api/pricing";
 import type { MTDRecord, Order, Producer } from "@/types";
 import { SetPricingModal } from "@/components/mtd/SetPricingModal";
+import { payrollRowIsRushOrder } from "@/lib/forward-order-mail";
 import clsx from "clsx";
+
+/** Pricing engines bake rush into payroll base — strip for Complete-to-Payroll. */
+function withoutRushPricingFlags<T extends Record<string, unknown>>(rec: T): T {
+  return {
+    ...rec,
+    isRushOrder: "no",
+    rushFeeOption: "none",
+    rushFeeQuantity: 0,
+  };
+}
 
 type CompleteToPayrollModalProps = {
   open: boolean;
@@ -151,13 +162,19 @@ export function CompleteToPayrollModal({
         let baseCust: number | null = 0;
         let basePay: number | null = 0;
 
+        // Rush is a yes/no tag only here — never bake $ into payroll price.
+        const pricingRec = withoutRushPricingFlags(currentRec as Record<string, unknown>);
+        const pricingOrder = order
+          ? withoutRushPricingFlags(order as unknown as Record<string, unknown>)
+          : undefined;
+
         if (meta.formType === "school-all-star-dance") {
           canonicalSubtypeId = danceSubtype;
           const danceResult = calculateDanceOrderPricing({
             danceFormSubtype: danceSubtype,
             packageType: pkgName,
             musicAffiliate: affiliate,
-            ...currentRec,
+            ...pricingRec,
           });
 
           enginePricing = {
@@ -241,23 +258,11 @@ export function CompleteToPayrollModal({
 
         } else if (meta.formType === "sports-entertainment") {
           canonicalSubtypeId = "sports-entertainment";
-          const isRush = currentRec.isRushOrder ?? (order as any)?.isRushOrder;
 
           const seResult = calculateSportsEntertainmentOrderPricing({
             packageType: pkgName,
-            isRushOrder: isRush,
+            isRushOrder: false,
           });
-
-          if (seResult.hasRushFee) {
-            addons.push({
-              addon_id: "rush_order",
-              label: "Rush Order Add-On (2-day turnaround)",
-              customer_amount: 100,
-              payroll_amount: 100,
-              quantity: 1,
-              note: "Rush fee (Sports Entertainment)",
-            });
-          }
 
           if (seResult.isUnpriced) {
             complianceReason = "OTHER package (mixes > 2:30) requires a manual price quote before completion.";
@@ -312,7 +317,7 @@ export function CompleteToPayrollModal({
             packageType: pkgName,
             timeLengthOfMix: mixLen,
             musicAffiliate: affiliate,
-            ...currentRec,
+            ...pricingRec,
           });
 
           if (cheerSubtype === "youth-rec-cheer") {
@@ -333,8 +338,9 @@ export function CompleteToPayrollModal({
             : currentRec.price;
         }
 
-        const miscAddonResult = calculateMiscellaneousPayrollAddons(currentRec);
+        const miscAddonResult = calculateMiscellaneousPayrollAddons(pricingRec);
         for (const addOn of miscAddonResult.items) {
+          if (addOn.id === "rush_fee" || addOn.id === "rush_order") continue;
           if (!addons.some((a) => a.addon_id === addOn.id)) {
             addons.push({
               addon_id: addOn.id,
@@ -392,15 +398,16 @@ export function CompleteToPayrollModal({
         let initialPayStr = "";
 
         // Package + payroll from live rate card (affiliate → compliant/non-compliant).
+        // Use rush-stripped records so payroll price stays package-only.
         const live = resolveLiveOrderPricing(
-          currentRec,
-          order,
+          pricingRec as unknown as MTDRecord,
+          pricingOrder as Order | undefined,
           meta,
           orderById
         );
         const packageDisplay = resolveOrderPackageDisplayPrice(
-          currentRec,
-          order,
+          pricingRec as unknown as MTDRecord,
+          pricingOrder as Order | undefined,
           meta,
           orderById
         );
@@ -487,10 +494,23 @@ export function CompleteToPayrollModal({
       if (o.uuid) orderById.set(o.uuid, o);
     }
     const meta = resolveMTDFormMeta(record, orderById);
-    const live = resolveLiveOrderPricing(record, order, meta, orderById);
+    const pricingRec = withoutRushPricingFlags(
+      record as unknown as Record<string, unknown>
+    ) as unknown as MTDRecord;
+    const pricingOrder = order
+      ? (withoutRushPricingFlags(
+          order as unknown as Record<string, unknown>
+        ) as unknown as Order)
+      : undefined;
+    const live = resolveLiveOrderPricing(
+      pricingRec,
+      pricingOrder,
+      meta,
+      orderById
+    );
     const packageDisplay = resolveOrderPackageDisplayPrice(
-      record,
-      order,
+      pricingRec,
+      pricingOrder,
       meta,
       orderById
     );
@@ -578,11 +598,12 @@ export function CompleteToPayrollModal({
 
   const activeManualPayoutNum = manualPayoutInput !== "" ? parseFloat(manualPayoutInput) : null;
 
+  const isRushOrderTag = payrollRowIsRushOrder(record, linkedOrder);
   const rushQty = typeof record.rushFeeQuantity === "number"
     ? record.rushFeeQuantity
     : record.rushFeeOption === "double"
     ? 2
-    : record.rushFeeOption === "single" || record.isRushOrder === "yes" || record.isRushOrder === true
+    : record.rushFeeOption === "single" || isRushOrderTag
     ? 1
     : 0;
 
@@ -912,8 +933,14 @@ export function CompleteToPayrollModal({
                     </div>
                   </div>
 
-                  {/* Add-on items */}
-                  {breakdown?.addons.map((addon) => {
+                  {/* Add-on items — rush is tag-only, never a $ line here */}
+                  {breakdown?.addons
+                    .filter(
+                      (addon) =>
+                        addon.addon_id !== "rush_fee" &&
+                        addon.addon_id !== "rush_order"
+                    )
+                    .map((addon) => {
                     const rawAmt = addon.payroll_amount !== 0 ? addon.payroll_amount : addon.customer_amount;
                     const isDeduction = rawAmt < 0;
                     const addonLabel = isDeduction
@@ -1067,20 +1094,20 @@ export function CompleteToPayrollModal({
                 </div>
               </div>
 
-              {/* Rush carried to Payroll — not applied to mix payout here */}
-              {rushQty > 0 && (
-                <div className="rounded-xl border border-brand-line/70 bg-brand-bg/40 p-4 space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <p className="text-[13px] font-bold text-brand-ink">Rush order</p>
-                    <span className="rounded bg-brand-blue-soft px-2 py-0.5 text-[11px] font-semibold text-brand-blue">
-                      Quantity: {rushQty}
-                    </span>
-                  </div>
-                  <p className="text-[12px] text-brand-ink-secondary">
-                    Rush fee is not included in this payout. It carries to the Payroll tab.
-                  </p>
-                </div>
-              )}
+              {/* Rush is a yes/no tag only — fee is handled on Payroll */}
+              <div className="rounded-xl border border-brand-line/70 bg-brand-bg/40 px-4 py-3 flex items-center justify-between gap-3">
+                <p className="text-[13px] font-bold text-brand-ink">Rush order</p>
+                <span
+                  className={clsx(
+                    "rounded-full px-2.5 py-0.5 text-[11px] font-semibold",
+                    isRushOrderTag
+                      ? "bg-brand-orange-soft text-brand-orange-deep"
+                      : "bg-brand-bg text-brand-ink-tertiary ring-1 ring-inset ring-brand-line/50"
+                  )}
+                >
+                  {isRushOrderTag ? "Yes" : "No"}
+                </span>
+              </div>
 
               {/* Special Compensation Model Warnings */}
               {clientPayroll.status === "not_paid_for_mixing" && (

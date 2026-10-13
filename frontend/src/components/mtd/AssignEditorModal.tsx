@@ -7,6 +7,7 @@ import {
   Check,
   ChevronDown,
   Lock,
+  Pencil,
   X,
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -96,12 +97,15 @@ import {
   type ScheduleEntry,
 } from "@/types";
 import { useAppState } from "@/context/AppStateContext";
+import { isManualOrderRecord } from "@/lib/order-source";
 
 export type EditorAssignmentResult = {
   editorRequest: string;
   assignedProducer: string | null;
   mixStartDate?: string;
   mixEndDate?: string;
+  /** Manual orders only — written to MTD invoice column. */
+  invoice?: string;
   recordStatus?: MTDRecordStatus;
   status?: MTDRecord["status"];
 };
@@ -259,6 +263,10 @@ export function AssignEditorModal({
   const [selectedEditor, setSelectedEditor] = useState<string>("");
   const [draftMixStartDate, setDraftMixStartDate] = useState("");
   const [draftMixEndDate, setDraftMixEndDate] = useState("");
+  const [draftInvoice, setDraftInvoice] = useState("");
+  const [invoiceEditing, setInvoiceEditing] = useState(false);
+  const [invoiceSaving, setInvoiceSaving] = useState(false);
+  const invoiceRecordKeyRef = useRef<string | null>(null);
   const [limitConfirmOpen, setLimitConfirmOpen] = useState(false);
   const [deleteProducerConfirmOpen, setDeleteProducerConfirmOpen] =
     useState(false);
@@ -294,6 +302,11 @@ export function AssignEditorModal({
 
   const linkedOrder = useMemo(
     () => (record ? findLinkedOrder(record, allOrders) : undefined),
+    [record, allOrders]
+  );
+
+  const isManualAssign = useMemo(
+    () => (record ? isManualOrderRecord(record, allOrders) : false),
     [record, allOrders]
   );
 
@@ -674,7 +687,7 @@ export function AssignEditorModal({
   ]);
 
   // Fresh open / switch to a different unassigned record — leave dates empty
-  // until a producer is selected.
+  // until a producer is selected. Do not touch invoice here (separate sync).
   useEffect(() => {
     if (!record) return;
     if (!isPage && !open) return;
@@ -684,6 +697,35 @@ export function AssignEditorModal({
     setDraftMixStartDate("");
     setDraftMixEndDate("");
   }, [open, isPage, record?.id]);
+
+  // Invoice draft ↔ record. Never clobber while the user is editing/saving,
+  // and never wipe a non-empty draft with an empty prop (SSE/merge races).
+  useEffect(() => {
+    if (!record) return;
+    if (!isPage && !open) return;
+    if (invoiceEditing || invoiceSaving) return;
+
+    const fromRecord = (record.invoice || "").trim();
+    const recordKey = record.uuid || record.id || record.orderId || "";
+    const switched = invoiceRecordKeyRef.current !== recordKey;
+    invoiceRecordKeyRef.current = recordKey;
+
+    if (switched) {
+      setDraftInvoice(fromRecord);
+      return;
+    }
+    // Same row: only adopt non-empty invoice from props (avoid SSE empty wipe).
+    if (fromRecord) setDraftInvoice(fromRecord);
+  }, [
+    open,
+    isPage,
+    record?.id,
+    record?.uuid,
+    record?.orderId,
+    record?.invoice,
+    invoiceEditing,
+    invoiceSaving,
+  ]);
 
   const selectedProducer = useMemo(
     () =>
@@ -797,6 +839,9 @@ export function AssignEditorModal({
   if (!isPage && !open) return null;
 
   const activeRecord = record;
+  const displayInvoice = (
+    (activeRecord?.invoice || "").trim() || draftInvoice.trim()
+  );
   const isViewOnly = readOnly;
   const showCompactAssigned = isViewOnly || isAssignmentLocked;
   const genreLabel =
@@ -900,6 +945,9 @@ export function AssignEditorModal({
       assignedProducer: selectedEditor,
       mixStartDate: draftStartIso,
       mixEndDate: draftEndIso,
+      ...(isManualAssign
+        ? { invoice: draftInvoice.trim() || displayInvoice }
+        : {}),
     });
 
     if (toDelete) {
@@ -1064,6 +1112,107 @@ export function AssignEditorModal({
                     </p>
                   </div>
                 ) : null}
+
+                {isManualAssign ? (
+                  <div>
+                    <p className="text-label">Invoice #</p>
+                    {invoiceEditing && !isViewOnly ? (
+                      <div className="mt-1.5 flex items-center gap-2">
+                        <input
+                          id="assign-manual-invoice-locked"
+                          type="text"
+                          value={draftInvoice}
+                          autoFocus
+                          onChange={(e) => setDraftInvoice(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Escape") {
+                              setDraftInvoice(displayInvoice);
+                              setInvoiceEditing(false);
+                            }
+                          }}
+                          placeholder="Add invoice #"
+                          className="min-w-0 flex-1 rounded-xl border border-brand-line/70 bg-white px-3 py-2.5 text-[13px] font-medium tabular-nums text-brand-ink placeholder:text-brand-ink-tertiary focus:border-brand-signature focus:outline-none focus:ring-2 focus:ring-brand-signature/20"
+                        />
+                        <button
+                          type="button"
+                          disabled={invoiceSaving}
+                          title="Save invoice"
+                          aria-label="Save invoice"
+                          onClick={() => {
+                            if (!activeRecord || invoiceSaving) return;
+                            const next = draftInvoice.trim();
+                            const prev = (
+                              activeRecord.invoice ||
+                              displayInvoice ||
+                              ""
+                            ).trim();
+                            if (next === prev) {
+                              setDraftInvoice(next);
+                              setInvoiceEditing(false);
+                              return;
+                            }
+                            const mtdId =
+                              activeRecord.uuid ||
+                              activeRecord.id ||
+                              activeRecord.orderId;
+                            if (!mtdId) return;
+                            setInvoiceSaving(true);
+                            setDraftInvoice(next);
+                            void live
+                              .updateMTD(mtdId, { invoice: next })
+                              .then(() => setInvoiceEditing(false))
+                              .catch(() => {
+                                // Keep editor open with the typed value on failure.
+                              })
+                              .finally(() => setInvoiceSaving(false));
+                          }}
+                          className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl bg-brand-signature px-3 text-[12px] font-semibold text-white transition hover:opacity-90 disabled:opacity-60"
+                        >
+                          <Check className="h-3.5 w-3.5" strokeWidth={2.5} />
+                          Save
+                        </button>
+                        <button
+                          type="button"
+                          title="Cancel"
+                          aria-label="Cancel invoice edit"
+                          onClick={() => {
+                            setDraftInvoice(
+                              (activeRecord.invoice || "").trim()
+                            );
+                            setInvoiceEditing(false);
+                          }}
+                          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-brand-line/70 bg-white text-brand-ink-tertiary transition hover:bg-brand-bg hover:text-brand-ink"
+                        >
+                          <X className="h-3.5 w-3.5" strokeWidth={2.25} />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="mt-1.5 flex items-center gap-2 rounded-xl border border-brand-line/70 bg-brand-bg/50 px-3 py-2.5">
+                        <p className="min-w-0 flex-1 truncate text-[13px] font-medium tabular-nums text-brand-ink">
+                          {displayInvoice || (
+                            <span className="font-normal text-brand-ink-tertiary">
+                              No invoice #
+                            </span>
+                          )}
+                        </p>
+                        {!isViewOnly ? (
+                          <button
+                            type="button"
+                            title="Edit invoice"
+                            aria-label="Edit invoice"
+                            onClick={() => {
+                              setDraftInvoice(displayInvoice);
+                              setInvoiceEditing(true);
+                            }}
+                            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-brand-ink-tertiary transition hover:bg-brand-elevated hover:text-brand-signature"
+                          >
+                            <Pencil className="h-3.5 w-3.5" strokeWidth={2.25} />
+                          </button>
+                        ) : null}
+                      </div>
+                    )}
+                  </div>
+                ) : null}
               </div>
             </div>
           ) : (
@@ -1152,8 +1301,31 @@ export function AssignEditorModal({
                             />
                           </div>
                         </div>
+                        {isManualAssign && selectedEditor ? (
+                          <div className="sm:col-span-2">
+                            <label
+                              htmlFor="assign-manual-invoice"
+                              className="text-[11px] font-medium text-brand-ink-tertiary"
+                            >
+                              Invoice #
+                            </label>
+                            <input
+                              id="assign-manual-invoice"
+                              type="text"
+                              value={draftInvoice}
+                              onChange={(e) => setDraftInvoice(e.target.value)}
+                              placeholder="Add invoice #"
+                              className="mt-1 w-full rounded-xl border border-brand-line/70 bg-white px-3 py-2 text-[13px] font-medium tabular-nums text-brand-ink placeholder:text-brand-ink-tertiary focus:border-brand-signature focus:outline-none focus:ring-2 focus:ring-brand-signature/20"
+                            />
+                            <p className="mt-1 text-[11px] text-brand-ink-tertiary">
+                              Saved to the MTD invoice column when you assign.
+                            </p>
+                          </div>
+                        ) : null}
                       </div>
                       {selectedEditor &&
+                      draftStartIso &&
+                      draftEndIso &&
                       bookingDaySummary &&
                       bookingDaySummary.includedLabel ? (
                         <div className="mt-3 rounded-xl border border-brand-line/50 bg-brand-bg/40 px-3 py-2.5">
@@ -2211,7 +2383,8 @@ function SelectedMixLimitPanel({
     matchFormType,
   ]);
 
-  if (!hasLimits) return null;
+  // Panel is only for days past 50% — don't show an empty shell + disclaimer.
+  if (!hasLimits || chartDays.length === 0) return null;
 
   return (
     <div className="rounded-2xl border border-brand-line/60 bg-white p-4">
@@ -2228,22 +2401,16 @@ function SelectedMixLimitPanel({
         </div>
 
         <div>
-          {chartDays.length > 0 ? (
-            <DailyLimitBarChart
-              days={chartDays}
-              maxMixes={maxMixes}
-              maxCost={maxCost}
-              thisMixDaily={thisMixDaily}
-              selectedIso={inspectIso}
-              onSelect={setInspectIso}
-              dayCostSegments={dayCostSegments}
-              dayMixSegments={dayMixSegments}
-            />
-          ) : (
-            <p className="text-[12px] text-brand-ink-tertiary">
-              No days over 50% of a daily limit in this range.
-            </p>
-          )}
+          <DailyLimitBarChart
+            days={chartDays}
+            maxMixes={maxMixes}
+            maxCost={maxCost}
+            thisMixDaily={thisMixDaily}
+            selectedIso={inspectIso}
+            onSelect={setInspectIso}
+            dayCostSegments={dayCostSegments}
+            dayMixSegments={dayMixSegments}
+          />
           {rangeStartIso && contributors.length > 0 ? (
             <RangeMixBreakdown
               rangeStartIso={rangeStartIso}
@@ -2263,13 +2430,8 @@ function SelectedMixLimitPanel({
             </p>
             <div className="mt-1 text-[11px] leading-relaxed text-brand-ink-secondary">
               <p>
-                {payoutDetail.extrasApplied
-                  ? `Extras ${formatLimitUsd(
-                      payoutDetail.rushFeePayout + payoutDetail.voiceoverPayout
-                    )} on this order are not in the daily sum. `
-                  : null}
-                Prices may change when edited. Completed and payroll mixes are
-                not included.
+                Extras are not included in the daily sum. Prices may change when
+                edited. Completed and payroll mixes are not included.
               </p>
             </div>
           </div>

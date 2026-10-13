@@ -227,6 +227,13 @@ export default function PayrollPage() {
     [mtdRecords]
   );
 
+  const orderById = useMemo(
+    () => new Map(allOrders.map((order) => [order.id, order])),
+    [allOrders]
+  );
+
+  // No Source filter here — manuals are merged/split on Orders/MTD before
+  // completion, so Payroll rows are effectively form-sourced.
   const sourceRecords =
     pageTab === "archive" ? archivedPayrollRecords : payrollRecords;
 
@@ -277,11 +284,6 @@ export default function PayrollPage() {
       setDeletingForever(false);
     }
   }, [isViewOnly, deleteForeverRecord, deletingForever, removeMTDRecord]);
-
-  const orderById = useMemo(
-    () => new Map(allOrders.map((order) => [order.id, order])),
-    [allOrders]
-  );
 
   useEffect(() => {
     if (!focusParam) return;
@@ -513,6 +515,8 @@ export default function PayrollPage() {
   const handleAddRushFee = useCallback(
     async (rec: MTDRecord) => {
       if (isViewOnly) return;
+      const order = findLinkedOrder(rec, allOrders);
+      if (!payrollRowIsRushOrder(rec, order)) return;
       const producer = findProducerByAssignmentKey(
         rec.assignedProducer,
         producers
@@ -561,6 +565,7 @@ export default function PayrollPage() {
     },
     [
       isViewOnly,
+      allOrders,
       producers,
       orderById,
       payrollAddons,
@@ -600,22 +605,32 @@ export default function PayrollPage() {
   );
 
   // Orders-tab rush flag lives on the order — auto-create the Payroll rush
-  // fee addon when the mix arrives without one.
+  // fee addon when the mix arrives without one; drop orphan fees when No.
   const autoRushAttemptedRef = useRef(new Set<string>());
+  const orphanRushCleanupRef = useRef(new Set<string>());
   useEffect(() => {
     if (isViewOnly || pageTab !== "view") return;
     for (const rec of payrollRecords) {
       const key = rec.uuid || rec.id;
-      if (autoRushAttemptedRef.current.has(key)) continue;
       const order = findLinkedOrder(rec, allOrders);
-      if (!payrollRowIsRushOrder(rec, order)) continue;
-      const hasAddon = payrollAddons.some(
+      const isRush = payrollRowIsRushOrder(rec, order);
+      const rushAddon = payrollAddons.find(
         (a) =>
           (a.mtdId === rec.id || a.orderId === rec.orderId) &&
           a.addonType === "rush_fee"
       );
+
+      if (!isRush) {
+        if (rushAddon && !orphanRushCleanupRef.current.has(rushAddon.id)) {
+          orphanRushCleanupRef.current.add(rushAddon.id);
+          void removePayrollAddon(rushAddon.id);
+        }
+        continue;
+      }
+
+      if (autoRushAttemptedRef.current.has(key)) continue;
       autoRushAttemptedRef.current.add(key);
-      if (hasAddon) continue;
+      if (rushAddon) continue;
       void handleAddRushFee(rec);
     }
   }, [
@@ -625,6 +640,7 @@ export default function PayrollPage() {
     payrollAddons,
     allOrders,
     handleAddRushFee,
+    removePayrollAddon,
   ]);
 
   const categoryFilteredProducers = useMemo(
@@ -1013,6 +1029,29 @@ export default function PayrollPage() {
         ),
       },
       {
+        key: "rushOrder",
+        header: "Rush order",
+        width: "96px",
+        align: "center",
+        cellClassName: "!px-2 !py-1.5",
+        headerClassName: "!px-2 !py-2",
+        render: (rec) => {
+          const order = findLinkedOrder(rec, allOrders);
+          const isRush = payrollRowIsRushOrder(rec, order);
+          return (
+            <span
+              className={
+                isRush
+                  ? "inline-flex rounded-full bg-brand-orange-soft px-2 py-0.5 text-[11px] font-semibold text-brand-orange-deep"
+                  : "text-[12px] text-brand-ink-tertiary"
+              }
+            >
+              {isRush ? "Yes" : "No"}
+            </span>
+          );
+        },
+      },
+      {
         key: "rushFee",
         header: "Rush Fee",
         width: "140px",
@@ -1027,16 +1066,23 @@ export default function PayrollPage() {
               a.addonType === "rush_fee"
           );
           const markedRush = payrollRowIsRushOrder(rec, order);
-          const rushAmount = rushAddon
-            ? rushAddon.amount
-            : rec.rushFeeQuantity === 2 || rec.rushFeeOption === "double"
-              ? 300
-              : markedRush ||
-                  rec.rushFeeQuantity === 1 ||
-                  rec.rushFeeOption === "single"
-                ? 150
-                : 0;
+          // Fee only when Rush order is Yes — ignore orphaned addons when No.
+          const rushAmount = !markedRush
+            ? 0
+            : rushAddon
+              ? rushAddon.amount
+              : rec.rushFeeQuantity === 2 || rec.rushFeeOption === "double"
+                ? 300
+                : 150;
+          const rushQty = !markedRush
+            ? 0
+            : rec.rushFeeQuantity === 2 ||
+                rec.rushFeeOption === "double" ||
+                rushAmount >= 300
+              ? 2
+              : Math.max(1, Math.round(rushAmount / 150) || 1);
           const hasRush = rushAmount > 0;
+          const canAddRush = markedRush;
 
           return (
             <div
@@ -1046,14 +1092,25 @@ export default function PayrollPage() {
               {hasRush ? (
                 <span className={addonAmountChipClass}>
                   {formatPrice(rushAmount)}
+                  <span className="ml-1 font-medium opacity-80">
+                    × {rushQty}
+                  </span>
                 </span>
               ) : null}
               {!addonsLocked && !hasRush ? (
                 <button
                   type="button"
-                  onClick={() => void handleAddRushFee(rec)}
-                  title="Add Rush Fee for assigned producer"
-                  className={addonAddBtnClass}
+                  onClick={() => {
+                    if (!canAddRush) return;
+                    void handleAddRushFee(rec);
+                  }}
+                  disabled={!canAddRush}
+                  title={
+                    canAddRush
+                      ? "Add Rush Fee for assigned producer"
+                      : "Rush order is No — enable rush on the order first"
+                  }
+                  className={`${addonAddBtnClass} disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-brand-line/70 disabled:hover:bg-transparent disabled:hover:text-brand-ink-tertiary`}
                 >
                   <Zap className="h-3 w-3" strokeWidth={2.25} />
                   <span>Add</span>

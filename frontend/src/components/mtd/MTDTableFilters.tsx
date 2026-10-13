@@ -55,17 +55,28 @@ type MTDTableFilterPanelProps = {
   variant?: "mtd" | "orders";
 };
 
+/** Split/No Split applies to VIROC, School Cheer, Youth Rec — not All Star Cheer. */
+function showCheerSplitFilter(
+  form?: OrderFormType,
+  cheerSubtype?: CheerFormSubtypeFilter
+): boolean {
+  const isCheer = !form || form === "school-all-star-cheer";
+  return isCheer && cheerSubtype !== "all-star-cheer";
+}
+
 export function hasActiveMTDFilters(
   filters: MTDTableFilterState,
   form?: OrderFormType,
-  variant: "mtd" | "orders" = "mtd"
+  variant: "mtd" | "orders" = "mtd",
+  cheerSubtype?: CheerFormSubtypeFilter
 ): boolean {
   const isCheer = !form || form === "school-all-star-cheer";
+  const showSplit = showCheerSplitFilter(form, cheerSubtype);
   const showDataFilter = variant !== "orders";
   return (
     filters.packageTier !== "All" ||
     (isCheer && filters.timeLimit !== "All") ||
-    (isCheer && filters.split !== "all") ||
+    (showSplit && filters.split !== "all") ||
     filters.assignedProducer !== "All" ||
     filters.requestedProducer !== "All" ||
     (showDataFilter && (filters.infoFilter ?? "all") !== "all") ||
@@ -77,14 +88,16 @@ export function hasActiveMTDFilters(
 function countTableFilters(
   filters: MTDTableFilterState,
   form?: OrderFormType,
-  variant: "mtd" | "orders" = "mtd"
+  variant: "mtd" | "orders" = "mtd",
+  cheerSubtype?: CheerFormSubtypeFilter
 ): number {
   const isCheer = !form || form === "school-all-star-cheer";
+  const showSplit = showCheerSplitFilter(form, cheerSubtype);
   const showDataFilter = variant !== "orders";
   let count = 0;
   if (filters.packageTier !== "All") count += 1;
   if (isCheer && filters.timeLimit !== "All") count += 1;
-  if (isCheer && filters.split !== "all") count += 1;
+  if (showSplit && filters.split !== "all") count += 1;
   if (filters.assignedProducer !== "All") count += 1;
   if (filters.requestedProducer !== "All") count += 1;
   if (showDataFilter && (filters.infoFilter ?? "all") !== "all") count += 1;
@@ -143,7 +156,15 @@ export function MTDTableFilterPanel({
   const infoOptions = useMemo(() => buildInfoOptions(records), [records]);
 
   const isCheer = !form || form === "school-all-star-cheer";
-  const activeCount = countTableFilters(filters, form, variant);
+  const showSplit = showCheerSplitFilter(form, cheerSubtype);
+  const activeCount = countTableFilters(filters, form, variant, cheerSubtype);
+
+  // All Star Cheer has no Split field — drop a leftover Split filter.
+  useEffect(() => {
+    if (!showSplit && filters.split !== "all") {
+      onChange({ split: "all" });
+    }
+  }, [showSplit, filters.split, onChange]);
 
   useEffect(() => {
     if (!open) return;
@@ -232,12 +253,16 @@ export function MTDTableFilterPanel({
                     options={timeLimitOptions}
                     onChange={(value) => onChange({ timeLimit: value })}
                   />
-                  <FilterMenu
-                    label="Split"
-                    value={filters.split}
-                    options={splitOptions}
-                    onChange={(value) => onChange({ split: value as SplitFilter })}
-                  />
+                  {showSplit ? (
+                    <FilterMenu
+                      label="Split"
+                      value={filters.split}
+                      options={splitOptions}
+                      onChange={(value) =>
+                        onChange({ split: value as SplitFilter })
+                      }
+                    />
+                  ) : null}
                 </>
               ) : null}
               <FilterMenu
@@ -320,6 +345,7 @@ export function useMTDFilterChips(
     variant = "mtd",
   } = props;
   const isCheer = !form || form === "school-all-star-cheer";
+  const showSplit = showCheerSplitFilter(form, cheerSubtype);
   const showDataFilter = variant !== "orders";
   const editorFilterLabel = "Assigned editor";
 
@@ -377,7 +403,7 @@ export function useMTDFilterChips(
         onClear: () => onChange({ timeLimit: "All" }),
       });
     }
-    if (isCheer && filters.split !== "all") {
+    if (showSplit && filters.split !== "all") {
       const label =
         splitOptions.find((o) => o.value === filters.split)?.label ??
         filters.split;
@@ -446,6 +472,7 @@ export function useMTDFilterChips(
     infoOptions,
     onChange,
     isCheer,
+    showSplit,
     showDataFilter,
     editorFilterLabel,
   ]);

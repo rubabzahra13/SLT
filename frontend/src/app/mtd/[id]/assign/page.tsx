@@ -41,6 +41,7 @@ function MtdAssignPageContent({ id }: { id: string }) {
         assignedProducer: result.assignedProducer,
         ...(result.mixStartDate ? { mixStartDate: result.mixStartDate } : {}),
         ...(result.mixEndDate ? { mixEndDate: result.mixEndDate } : {}),
+        ...(result.invoice !== undefined ? { invoice: result.invoice } : {}),
         ...(result.recordStatus ? { recordStatus: result.recordStatus } : {}),
         ...(result.status ? { status: result.status } : {}),
       });
