@@ -33,12 +33,17 @@ import { MTDPageToolbar } from "@/components/mtd/MTDPageToolbar";
 import { useAppState } from "@/context/AppStateContext";
 import { formatPrice, titleCase } from "@/lib/data";
 import {
+  getFormSongListColumnText,
   getOrderAssignmentStatus,
   getOrderRequirements,
   getOrderStatus,
+  mergeOrderFormFieldsForRequirements,
   ORDER_RESELECTION_REASON_LABEL,
 } from "@/lib/order-requirements";
-import { getProgramColumnHeader } from "@/lib/order-detail-sections";
+import {
+  getContactColumnHeader,
+  getProgramColumnHeader,
+} from "@/lib/order-detail-sections";
 import {
   formatOrderFormMtdBlockReason,
   getOrderFormFieldsBlockingMtd,
@@ -612,6 +617,11 @@ function OrdersPageContent() {
       cheerSubtype === "all" ? undefined : cheerSubtype,
       danceSubtype === "all" ? undefined : danceSubtype
     );
+    const contactHeader = getContactColumnHeader(
+      form,
+      cheerSubtype === "all" ? undefined : cheerSubtype,
+      danceSubtype === "all" ? undefined : danceSubtype
+    );
 
     const baseCols: Column<MTDRecord>[] = [
       {
@@ -625,14 +635,29 @@ function OrdersPageContent() {
       },
       {
         key: "contact",
-        header: "Contact",
-        width: "100px",
+        header: contactHeader,
+        width: contactHeader.length > 14 ? "150px" : "100px",
         align: "left" as const,
         nowrap: false,
-        cellClassName: clsx(compactCellClass, "max-w-[100px]"),
-        headerClassName: compactHeaderClass,
+        cellClassName: clsx(
+          compactCellClass,
+          contactHeader.length > 14 ? "max-w-[150px]" : "max-w-[100px]"
+        ),
+        headerClassName: clsx(
+          compactHeaderClass,
+          contactHeader.length > 14 && "whitespace-normal leading-tight"
+        ),
         render: (rec) => {
-          const name = titleCase(rec.contactName || rec.editorInitials || "").trim();
+          const linked = findLinkedOrder(rec, allOrders);
+          const name = titleCase(
+            rec.contactName ||
+              linked?.coachName ||
+              linked?.coachContactFullName ||
+              linked?.musicContactName ||
+              linked?.contactName ||
+              rec.editorInitials ||
+              ""
+          ).trim();
           return (
             <TruncatedText
               text={name || "No data"}
@@ -703,12 +728,16 @@ function OrdersPageContent() {
         ? [
             {
               key: "limit",
-              header: "Mix Length",
+              // Matches client form field "Length of Mix" (API: time_length_of_mix).
+              header: "Length of Mix",
               width: "100px",
               align: "center" as const,
               nowrap: false,
               cellClassName: clsx(compactCellClass, "max-w-[100px]"),
-              headerClassName: compactHeaderClass,
+              headerClassName: clsx(
+                compactHeaderClass,
+                "whitespace-normal leading-tight"
+              ),
               render: (rec: MTDRecord) => {
                 const linked = findLinkedOrder(rec, allOrders);
                 const fromOrder = (linked?.timeLengthOfMix || "").trim();
@@ -835,14 +864,18 @@ function OrdersPageContent() {
         cellClassName: clsx(compactCellClass, "max-w-[120px]"),
         headerClassName: compactHeaderClass,
         render: (rec) => {
-          const theme = titleCase((rec.musicTheme || "").replace(/\s+/g, " ").trim());
+          const linked = findLinkedOrder(rec, allOrders);
+          const merged = mergeOrderFormFieldsForRequirements(rec, linked);
+          // Board column: form song list, else legacy musicTheme (never hide board data).
+          const songList = getFormSongListColumnText(merged);
+          const display = songList ? titleCase(songList) : "";
           return (
             <TruncatedText
-              text={theme || "No data"}
+              text={display || "No data"}
               className={clsx(
                 "mx-auto w-full min-w-0 text-center",
                 compactTextClass,
-                !theme && "text-brand-ink-tertiary"
+                !display && "text-brand-ink-tertiary"
               )}
               style={{ maxWidth: "100%" }}
             />
@@ -1618,7 +1651,11 @@ function OrdersPageContent() {
         search={{
           value: searchQuery,
           onChange: setSearchQuery,
-          placeholder: "Contact, program…",
+          placeholder: `${getContactColumnHeader(
+            form,
+            cheerSubtype === "all" ? undefined : cheerSubtype,
+            danceSubtype === "all" ? undefined : danceSubtype
+          )}, program…`,
         }}
         toolbar={
           <MTDPageToolbar

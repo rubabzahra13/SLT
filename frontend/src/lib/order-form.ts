@@ -195,8 +195,9 @@ export function normalizeOrder(
       : raw.package?.toUpperCase().includes("SPLIT")
         ? "Split"
         : "");
-  const songList =
-    raw.songListSuggestions?.trim() || powerMusicCovers || raw.musicTheme || "";
+  // Keep Song list/suggestions distinct from musicTheme / Power Music Covers.
+  // Dance Power Music lives in powerMusicCovers; cheer Songs pill reads this field only.
+  const songList = raw.songListSuggestions?.trim() || "";
 
   const normalized: Order = {
     ...raw,
@@ -315,8 +316,20 @@ export function orderToMTDRecord(order: Order): MTDRecord {
     assignedProducer: order.assignedProducer || null,
     category: order.category || "Cheer",
     editorRequest: (order.editorRequest as any) || "FA",
-    contactName: order.contactName || order.customerName || "Contact",
-    editorInitials: order.contactName || order.customerName || "Contact",
+    contactName:
+      order.contactName ||
+      order.coachName ||
+      order.coachContactFullName ||
+      order.musicContactName ||
+      order.customerName ||
+      "Contact",
+    editorInitials:
+      order.contactName ||
+      order.coachName ||
+      order.coachContactFullName ||
+      order.musicContactName ||
+      order.customerName ||
+      "Contact",
     programName: order.programName || "Program",
     package: order.package || "TBD",
     musicTheme: order.musicTheme || "",

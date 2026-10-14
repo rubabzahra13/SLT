@@ -122,7 +122,11 @@ export function transformOrder(bo: BackendOrder): Order {
     zipPostalCode: bo.zip_postal_code || "",
     country: bo.country || "United States",
     division: bo.division || "",
-    coachName: bo.coach_name || "",
+    coachName:
+      bo.coach_name ||
+      bo.coach_contact_full_name ||
+      bo.contact_name ||
+      "",
     coachPhone: bo.coach_phone || "",
     coachEmail: bo.coach_email || "",
     billingPersonName: bo.billing_person_name || "",
@@ -132,7 +136,15 @@ export function transformOrder(bo: BackendOrder): Order {
     numberOfCopies: bo.number_of_copies || "",
     packageType: bo.package_type || "",
     requestedEditor: bo.requested_editor || "",
-    timeLengthOfMix: bo.time_length_of_mix || "",
+    // Client form "Length of Mix" → time_length_of_mix; fall back to package limit.
+    timeLengthOfMix:
+      bo.time_length_of_mix ||
+      (() => {
+        const fromPkg = String(bo.package || bo.package_type || "").match(
+          /\d+:\d{2}/
+        );
+        return fromPkg ? fromPkg[0] : "";
+      })(),
     musicAffiliate: bo.music_affiliate || "",
     affiliateFlagStatus:
       bo.affiliate_flag_status === "open" ||
@@ -167,7 +179,10 @@ export function transformOrder(bo: BackendOrder): Order {
     virocChoreographerEmail: bo.viroc_choreographer_email || undefined,
     colors: bo.colors || undefined,
     billingAddress: bo.billing_address || undefined,
-    coachContactFullName: bo.coach_contact_full_name || undefined,
+    coachContactFullName:
+      bo.coach_contact_full_name || bo.coach_name || bo.contact_name || undefined,
+    musicContactName:
+      bo.coach_name || bo.contact_name || undefined,
     coachEmailAddress: bo.coach_email_address || undefined,
     emailAddress: bo.email_address || undefined,
     sendingEightCountSheets: bo.sending_eight_count_sheets || undefined,
@@ -184,8 +199,18 @@ export function transformOrder(bo: BackendOrder): Order {
     suppressManualFormMerge: Boolean(bo.suppress_manual_form_merge),
     orderStatus: bo.order_status || undefined,
 
-    customerName: bo.customer_name || bo.program_name,
-    contactName: bo.contact_name || bo.customer_name,
+    customerName:
+      bo.customer_name ||
+      bo.coach_name ||
+      bo.coach_contact_full_name ||
+      bo.contact_name ||
+      bo.program_name,
+    // Coach (full name) / Music Contact Name on the client form → Coach name column.
+    contactName:
+      bo.contact_name ||
+      bo.coach_name ||
+      bo.coach_contact_full_name ||
+      bo.customer_name,
     programName: bo.program_name,
     category: bo.category || "Cheer",
     package: bo.package || "TBD",
@@ -342,6 +367,8 @@ export async function updateOrderApi(
   }
   if (patch.musicContactName !== undefined) {
     payload.coach_name = patch.musicContactName;
+    payload.contact_name = patch.musicContactName;
+    payload.customer_name = patch.musicContactName;
   }
   if (patch.musicContactPhone !== undefined) {
     payload.coach_phone = patch.musicContactPhone;
@@ -371,7 +398,22 @@ export async function updateOrderApi(
   if (patch.country !== undefined) payload.country = patch.country;
   if (patch.division !== undefined) payload.division = patch.division;
   if (patch.divisionOfTeam !== undefined) payload.division = patch.divisionOfTeam;
-  if (patch.coachName !== undefined) payload.coach_name = patch.coachName;
+  if (patch.coachName !== undefined) {
+    payload.coach_name = patch.coachName;
+    // Keep board "Coach name" column in sync with form Coach (full name).
+    if (patch.contactName === undefined) payload.contact_name = patch.coachName;
+    if (patch.customerName === undefined) payload.customer_name = patch.coachName;
+  }
+  if (patch.coachContactFullName !== undefined) {
+    payload.coach_contact_full_name = patch.coachContactFullName;
+    if (patch.coachName === undefined) payload.coach_name = patch.coachContactFullName;
+    if (patch.contactName === undefined) {
+      payload.contact_name = patch.coachContactFullName;
+    }
+    if (patch.customerName === undefined) {
+      payload.customer_name = patch.coachContactFullName;
+    }
+  }
   if (patch.coachPhone !== undefined) payload.coach_phone = patch.coachPhone;
   if (patch.coachEmail !== undefined) payload.coach_email = patch.coachEmail;
   if (patch.billingPersonName !== undefined) {

@@ -96,7 +96,7 @@ export function MixLengthField({
 
   return (
     <SoftSelect
-      aria-label="Mix length"
+      aria-label="Length of Mix"
       size="md"
       placeholder="Select length…"
       placement="below"

@@ -75,21 +75,32 @@ export type MusicAffiliateOption = {
 export type CompliantAffiliateOption = MusicAffiliateOption;
 
 export const COMPLIANT_AFFILIATE_OPTIONS: MusicAffiliateOption[] = [
-  { id: "power-music", label: "Power Music" },
-  { id: "power-music-unleash", label: "Power Music + Unleash the Beats" },
-  { id: "unleash-the-beats", label: "Unleash the Beats" },
-  { id: "library-music", label: "Library Music" },
+  {
+    id: "power-music-unleash-covers",
+    label:
+      "Power Music & Unleash the Beats Covers (can not be used for a Titanium Package)",
+  },
   { id: "power-music-covers", label: "Power Music Covers", danceOnly: true },
   { id: "unleash-the-beats-covers", label: "Unleash the Beats Covers", danceOnly: true },
 ];
 
 export const NON_COMPLIANT_AFFILIATE_OPTIONS: MusicAffiliateOption[] = [
-  { id: "custom-music", label: "Custom Music / Client-Provided Track", alwaysNonCompliant: true },
-  { id: "sfc-editors-choice", label: "Songs for Cheer — Editor's Choice", alwaysNonCompliant: true },
-  { id: "sfc-casey-can-choose", label: "Songs for Cheer — Casey Can Choose", alwaysNonCompliant: true },
-  { id: "sfc-see-notes", label: "Songs for Cheer — See Notes", alwaysNonCompliant: true },
-  { id: "original-artist-track", label: "Original Artist Track (iTunes / Spotify)", alwaysNonCompliant: true },
+  { id: "songs-for-cheer", label: "Songs for Cheer", alwaysNonCompliant: true },
+  {
+    id: "original-custom-music-titanium",
+    label: "100% original custom music (titanium package only)",
+    alwaysNonCompliant: true,
+  },
+  { id: "non-compliant", label: "Non compliant", alwaysNonCompliant: true },
 ];
+
+/** All-Star Cheer form / pricing affiliate choices (order shown in UI). */
+export const ALL_STAR_CHEER_MUSIC_AFFILIATE_OPTIONS = [
+  "Power Music & Unleash the Beats Covers (can not be used for a Titanium Package)",
+  "Songs for Cheer",
+  "100% original custom music (titanium package only)",
+  "Non compliant",
+] as const;
 
 export const DEFAULT_COMPLIANT_AFFILIATE_IDS = COMPLIANT_AFFILIATE_OPTIONS.map(
   (option) => option.id

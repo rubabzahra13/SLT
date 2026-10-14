@@ -23,6 +23,7 @@ import {
   mtdPatchFromOrderField,
   orderPatchFromOrderField,
 } from "@/lib/mtd-order-sync";
+import { getFormSongListColumnText } from "@/lib/order-requirements";
 import type { MTDRecord, Order } from "@/types";
 
 type OrderFormEditModalProps = {
@@ -232,7 +233,14 @@ export function OrderFormEditModal({
       setOrderDraft(null);
       return;
     }
-    setOrderDraft({ ...displayOrder });
+    // Keep Song list/suggestions in sync with the board Form song list column.
+    const songList =
+      String(displayOrder.songListSuggestions || "").trim() ||
+      getFormSongListColumnText(displayOrder);
+    setOrderDraft({
+      ...displayOrder,
+      songListSuggestions: songList,
+    });
   }, [open, displayOrder]);
 
   useEffect(() => {
@@ -268,7 +276,32 @@ export function OrderFormEditModal({
         const prevValue = rawFieldValue(displayOrder, field.key);
         if (nextValue === prevValue) continue;
         const mtdPatch = mtdPatchFromOrderField(field.key, nextValue);
-        if (Object.keys(mtdPatch).length > 0) {
+        if (
+          field.key === "songListSuggestions" ||
+          field.key === "powerMusicCovers" ||
+          field.key === "customerSongs" ||
+          field.key === "routineNotes" ||
+          field.key === "additionalNotes"
+        ) {
+          const prevStates =
+            (record.collectionStates as Record<string, unknown> | undefined) ||
+            {};
+          const nextStates = { ...prevStates };
+          if (
+            field.key === "songListSuggestions" ||
+            field.key === "powerMusicCovers" ||
+            field.key === "customerSongs"
+          ) {
+            delete nextStates.songs;
+          }
+          if (field.key === "routineNotes" || field.key === "additionalNotes") {
+            delete nextStates.notes;
+          }
+          updateMTD(record.id, {
+            ...mtdPatch,
+            collectionStates: nextStates as MTDRecord["collectionStates"],
+          });
+        } else if (Object.keys(mtdPatch).length > 0) {
           updateMTD(record.id, mtdPatch);
         }
       }

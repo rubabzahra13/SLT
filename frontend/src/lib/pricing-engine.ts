@@ -120,6 +120,7 @@ export const JAZZ_KICK_RATE_CARD: DanceRateCardEntry[] = [
 ];
 
 export const COMPLIANT_MUSIC_AFFILIATES = [
+  "POWER MUSIC & UNLEASH THE BEATS COVERS (CAN NOT BE USED FOR A TITANIUM PACKAGE)",
   "POWER MUSIC",
   "POWER MUSIC + UNLEASH THE BEATS",
   "UNLEASH THE BEATS",
@@ -128,12 +129,13 @@ export const COMPLIANT_MUSIC_AFFILIATES = [
 
 /**
  * Normalization / Alias table for Music Affiliates.
- * INFERRED MAPPING pending confirmation from Megan:
- * treating "* Covers" variants as aliases for core compliant music affiliates.
+ * "* Covers" / combined Power+Unleash covers → compliant Power Music family.
  */
 export const MUSIC_AFFILIATE_ALIASES: Record<string, string> = {
   "POWER MUSIC COVERS": "POWER MUSIC",
   "UNLEASH THE BEATS COVERS": "UNLEASH THE BEATS",
+  "POWER MUSIC & UNLEASH THE BEATS COVERS (CAN NOT BE USED FOR A TITANIUM PACKAGE)":
+    "POWER MUSIC & UNLEASH THE BEATS COVERS (CAN NOT BE USED FOR A TITANIUM PACKAGE)",
 };
 
 /** Ignore case, spacing, and punctuation for free-text affiliate matching. */
@@ -143,6 +145,10 @@ export function affiliateCompactKey(value: string): string {
 
 /** Canonical compliant names as compact keys (text-field tolerant). */
 const COMPLIANT_AFFILIATE_COMPACT_KEYS = [
+  affiliateCompactKey(
+    "POWER MUSIC & UNLEASH THE BEATS COVERS (CAN NOT BE USED FOR A TITANIUM PACKAGE)"
+  ),
+  affiliateCompactKey("POWER MUSIC & UNLEASH THE BEATS COVERS"),
   affiliateCompactKey("POWER MUSIC"),
   affiliateCompactKey("POWER MUSIC + UNLEASH THE BEATS"),
   affiliateCompactKey("UNLEASH THE BEATS"),
@@ -159,6 +165,16 @@ export function isCompliantMusicAffiliateText(musicAffiliate: string): boolean {
   const compact = affiliateCompactKey(musicAffiliate);
   if (!compact) return false;
 
+  // Explicit non-compliant labels (All-Star Cheer list).
+  if (
+    compact === "NONCOMPLIANT" ||
+    compact === "SONGSFORCHEER" ||
+    compact.startsWith("100ORIGINALCUSTOMMUSIC") ||
+    compact.includes("TITANIUMPACKAGEONLY")
+  ) {
+    return false;
+  }
+
   // Covers variants collapse to core compliant names.
   const aliased =
     compact === "POWERMUSICCOVERS"
@@ -168,7 +184,9 @@ export function isCompliantMusicAffiliateText(musicAffiliate: string): boolean {
         : compact;
 
   return COMPLIANT_AFFILIATE_COMPACT_KEYS.some((key) => {
-    if (aliased === key || aliased.includes(key)) return true;
+    if (aliased === key || aliased.includes(key) || key.includes(aliased)) {
+      return true;
+    }
     // Short-but-unique forms from a text field, e.g. "unleash" / "PowerMusic".
     if (aliased.length >= 6 && key.startsWith(aliased)) return true;
     return false;

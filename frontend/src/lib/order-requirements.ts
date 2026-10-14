@@ -134,6 +134,163 @@ function isPresent(val: string | null | undefined): boolean {
   );
 }
 
+/** True when text is only an affiliate label like "(Power Music Covers)", not a song list. */
+function isAffiliateOnlySongText(val: string): boolean {
+  let cleaned = val
+    .replace(/[()]/g, " ")
+    .replace(/\s*[·|]\s*/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+  if (!cleaned) return true;
+  const affiliates = [
+    "power music & unleash the beats covers (can not be used for a titanium package)",
+    "power music & unleash the beats covers",
+    "100% original custom music (titanium package only)",
+    "power music + unleash the beats",
+    "unleash the beats covers",
+    "power music covers",
+    "songs for cheer",
+    "unleash the beats",
+    "power music",
+    "non-compliant",
+    "non compliant",
+  ].sort((a, b) => b.length - a.length);
+  // Peel off repeated affiliate labels until nothing remains.
+  let changed = true;
+  while (changed && cleaned) {
+    changed = false;
+    for (const a of affiliates) {
+      if (cleaned === a) return true;
+      if (cleaned.startsWith(`${a} `)) {
+        cleaned = cleaned.slice(a.length).trim();
+        changed = true;
+        break;
+      }
+    }
+  }
+  return cleaned === "";
+}
+
+/**
+ * Song-list text for the Songs pill — must match the edit-form field:
+ * Cheer / All Star → Song list/suggestions
+ * Dance → Power Music Covers (then song list)
+ * Sports / Anthem → customer songs / song list
+ * Never use musicTheme (often affiliate labels).
+ */
+export function getFormSongListText(order: Order | MTDRecord): string {
+  const o = order as Order & MTDRecord & Record<string, unknown>;
+  const formType = String(o.formType || o.form_type || "").toLowerCase();
+  const category = String(o.category || "").toLowerCase();
+  const isDance =
+    formType.includes("dance") ||
+    category.includes("dance") ||
+    category.includes("pom") ||
+    category.includes("hip");
+  const isSportsOrAnthem =
+    formType.includes("sports") ||
+    formType.includes("anthem") ||
+    category.includes("sports") ||
+    category.includes("anthem");
+
+  const pick = (...vals: unknown[]) => {
+    for (const raw of vals) {
+      const text = String(raw ?? "").trim();
+      if (!isPresent(text)) continue;
+      if (isAffiliateOnlySongText(text)) continue;
+      return text;
+    }
+    return "";
+  };
+
+  if (isDance) {
+    return pick(o.powerMusicCovers, o.power_music_covers, o.songListSuggestions, o.song_list_suggestions);
+  }
+  if (isSportsOrAnthem) {
+    return pick(
+      o.customerSongs,
+      o.customer_songs,
+      o.songListSuggestions,
+      o.song_list_suggestions
+    );
+  }
+  // Cheer / All Star Cheer / default → Song list/suggestions only.
+  return pick(o.songListSuggestions, o.song_list_suggestions);
+}
+
+/**
+ * Strip trailing affiliate labels from legacy musicTheme text.
+ * e.g. "Song A · (Power Music Covers)" → "Song A"
+ */
+function stripAffiliateLabelsFromTheme(val: string): string {
+  let cleaned = val.replace(/\s+/g, " ").trim();
+  if (!cleaned) return "";
+  // Peel " · (Affiliate)" / "(Affiliate)" suffixes repeatedly.
+  let changed = true;
+  while (changed && cleaned) {
+    changed = false;
+    const peeled = cleaned
+      .replace(/\s*[·|]\s*\([^)]*\)\s*$/g, "")
+      .replace(/\s*\([^)]*\)\s*$/g, "")
+      .trim();
+    if (peeled !== cleaned) {
+      cleaned = peeled;
+      changed = true;
+    }
+  }
+  // If what remains is only an affiliate name, treat as empty.
+  if (isAffiliateOnlySongText(cleaned) || isAffiliateOnlySongText(val)) {
+    return "";
+  }
+  return cleaned;
+}
+
+function normalizeSongCompare(val: string): string {
+  return val
+    .toLowerCase()
+    .replace(/[^\w\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Board "Form song list" column + Songs pill — MUST match edit-form
+ * Song list/suggestions (not Routine notes, not affiliate-only musicTheme).
+ *
+ * Legacy musicTheme is used only when it contains real song text that is not
+ * the same as Routine notes (old boards stored songs there).
+ */
+export function getFormSongListColumnText(order: Order | MTDRecord): string {
+  const fromForm = getFormSongListText(order).replace(/\s+/g, " ").trim();
+  if (fromForm) return fromForm;
+
+  const o = order as Order & MTDRecord & Record<string, unknown>;
+  const themeRaw = String(o.musicTheme || o.music_theme || "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!themeRaw) return "";
+
+  const themeSongs = stripAffiliateLabelsFromTheme(themeRaw);
+  if (!themeSongs) return "";
+
+  const notes = String(
+    o.routineNotes || o.routine_notes || o.additionalNotes || o.additional_notes || ""
+  )
+    .replace(/\s+/g, " ")
+    .trim();
+  // musicTheme often = routine notes + " · (Power Music Covers)" — that is Notes, not Songs.
+  if (notes && normalizeSongCompare(themeSongs) === normalizeSongCompare(notes)) {
+    return "";
+  }
+  return themeSongs;
+}
+
+/** True when Song list/suggestions (board Form song list) has real song text. */
+export function hasFormSongListData(order: Order | MTDRecord): boolean {
+  return isPresent(getFormSongListColumnText(order));
+}
+
 /**
  * Reads explicit manual toggle override from record if present.
  */
@@ -149,11 +306,8 @@ function getOverrideState(order: Order | MTDRecord, itemId: string): boolean | u
     if (itemId === "eight_count" && typeof overrides["cs"] === "boolean") return overrides["cs"];
   }
 
-  if (itemId === "songs" || itemId === "song") {
-    const val = (order as any).haveSongs || (order as any).have_songs;
-    if (val === "HAVE" || val === "YES" || val === "COLLECTED" || val === "SONGS READY") return true;
-    if (val === "NEED SONGS" || val === "NO" || val === "UNCOLLECTED" || val === "NEED") return false;
-  }
+  // Songs green/red defaults from form song-list content (see hasFormSongListData).
+  // Do not let stale haveSongs NEED/HAVE override that — only collectionStates.songs.
 
   if (itemId === "cs" || itemId === "eight_count") {
     // Collection status only — not the form Yes/No "will you send" intent.
@@ -279,27 +433,42 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
       needCompliancy = true;
     }
   } else if (isCheer) {
+    const cheerSubtype = String(
+      (order as Order).cheerFormSubtype ||
+        (order as { cheer_form_subtype?: string }).cheer_form_subtype ||
+        ""
+    ).toLowerCase();
+    // All Star Cheer form always has Song list + Routine notes → both pills.
+    const isAllStarCheer =
+      cheerSubtype === "all-star-cheer" ||
+      (!cheerSubtype && rawFormType.includes("school-all-star-cheer"));
+
     if (pkgStr.includes("TITANIUM")) {
       needNotes = true;
       needEightCount = true;
       needVideo = true;
-      needSongs = false;
+      // Form still has Song list/suggestions — keep Songs for All Star Cheer.
+      needSongs = isAllStarCheer;
+      songsLabel = "Songs";
       needTimeOfMix = false;
     } else if (pkgStr.includes("PLATINUM")) {
       needSongs = true;
       songsLabel = "Songs";
+      needNotes = isAllStarCheer;
       needEightCount = true;
       needVideo = true;
       needTimeOfMix = false;
     } else if (pkgStr.includes("GOLD") || pkgStr.includes("SILVER") || pkgStr.includes("BRONZE")) {
       needSongs = true;
       songsLabel = "Songs";
+      needNotes = isAllStarCheer;
       needEightCount = false;
       needVideo = false;
       needTimeOfMix = false;
     } else {
       needSongs = true;
       songsLabel = "Songs";
+      needNotes = isAllStarCheer;
       needEightCount = true;
     }
   } else if (isMarchingBand) {
@@ -455,28 +624,13 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
 
   // --- SONGS GROUP ---
 
-  // 4. SONGS
+  // 4. SONGS — green/red matches Form song list column (form field or musicTheme).
   {
-    const override = getOverrideState(order, "songs");
-    const songsVal =
-      (order as Order).songListSuggestions ||
-      (order as MTDRecord).haveSongs ||
-      (order as any).song_list_suggestions ||
-      (order as any).have_songs;
-    const songsStr = String(songsVal || "").toUpperCase();
-    const defaultProvided =
-      isPresent(songsVal) &&
-      !songsStr.includes("NEED") &&
-      !songsStr.includes("NO") &&
-      (songsStr.includes("HAVE") ||
-        songsStr.includes("READY") ||
-        songsStr.includes("YES") ||
-        songsStr.length > 3);
+    const defaultProvided = hasFormSongListData(order);
     const isApplicable = needSongs;
     let state: RequirementState = "white";
     if (isApplicable) {
-      const isCollected = override !== undefined ? override : defaultProvided;
-      state = isCollected ? "green" : "red";
+      state = defaultProvided ? "green" : "red";
     }
     requirements.push({
       id: "songs",
@@ -489,22 +643,20 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
     });
   }
 
-  // 5. NOTES
+  // 5. NOTES — green iff Routine notes has content (not musicTheme / song list).
+  // Ignore collectionStates — pill must match Routine notes field exactly.
   {
-    const override = getOverrideState(order, "notes");
     const notesVal =
       (order as Order).routineNotes ||
-      (order as Order).customVoiceovers ||
-      order.musicTheme ||
+      (order as Order).additionalNotes ||
       (order as any).routine_notes ||
-      (order as any).custom_voiceovers ||
-      (order as any).music_theme;
-    const defaultProvided = isPresent(notesVal);
+      (order as any).additional_notes ||
+      "";
+    const defaultProvided = isPresent(String(notesVal));
     const isApplicable = needNotes;
     let state: RequirementState = "white";
     if (isApplicable) {
-      const isCollected = override !== undefined ? override : defaultProvided;
-      state = isCollected ? "green" : "red";
+      state = defaultProvided ? "green" : "red";
     }
     requirements.push({
       id: "notes",
@@ -621,20 +773,35 @@ export function mergeOrderFormFieldsForRequirements(
   linkedOrder?: Order | null
 ): Order | MTDRecord {
   if (!linkedOrder) return record;
+  const rec = record as Order & MTDRecord;
   return {
     ...record,
+    formType: linkedOrder.formType || (rec as Order).formType,
+    cheerFormSubtype:
+      linkedOrder.cheerFormSubtype || (rec as Order).cheerFormSubtype,
+    danceFormSubtype:
+      linkedOrder.danceFormSubtype || (rec as Order).danceFormSubtype,
     sendingEightCountSheets:
-      linkedOrder.sendingEightCountSheets ||
-      (record as Order).sendingEightCountSheets,
+      linkedOrder.sendingEightCountSheets || rec.sendingEightCountSheets,
     usingEightCountSheets:
-      linkedOrder.usingEightCountSheets ||
-      (record as Order).usingEightCountSheets,
+      linkedOrder.usingEightCountSheets || rec.usingEightCountSheets,
+    // Prefer linked order form fields; empty string must win over MTD leftovers
+    // (e.g. musicTheme copied into songListSuggestions).
+    songListSuggestions:
+      linkedOrder.songListSuggestions ?? rec.songListSuggestions,
+    powerMusicCovers: linkedOrder.powerMusicCovers ?? rec.powerMusicCovers,
+    customerSongs: linkedOrder.customerSongs ?? (rec as Order).customerSongs,
+    // Legacy board column: keep whichever side still has musicTheme text.
+    musicTheme:
+      String(linkedOrder.musicTheme || "").trim() ||
+      String(rec.musicTheme || "").trim() ||
+      linkedOrder.musicTheme ||
+      rec.musicTheme,
+    routineNotes: linkedOrder.routineNotes ?? (rec as Order).routineNotes,
     isManualEntry:
-      Boolean((record as Order).isManualEntry) ||
-      Boolean(linkedOrder.isManualEntry),
+      Boolean(rec.isManualEntry) || Boolean(linkedOrder.isManualEntry),
     isManualScheduleEntry:
-      Boolean((record as MTDRecord).isManualScheduleEntry) ||
-      Boolean(linkedOrder.isManualEntry),
+      Boolean(rec.isManualScheduleEntry) || Boolean(linkedOrder.isManualEntry),
   };
 }
 

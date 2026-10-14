@@ -1344,7 +1344,9 @@ export function SetPricingModal({
                     <p className="mt-0.5 text-[12px] text-neutral-600">
                       {isEditingCompliant
                         ? "Check which affiliate values count as compliant for payroll pricing."
-                        : "Free-text affiliates matching Power Music / Unleash / Library (any spacing or capitalization) use the compliant column; any other text uses the non-compliant column."}
+                        : selectedCategory === "All-Star Cheer"
+                          ? "Compliant: Power Music & Unleash the Beats Covers. Non-compliant: Songs for Cheer, 100% original custom music (titanium only), and Non compliant."
+                          : "Free-text affiliates matching Power Music / Unleash / Library (any spacing or capitalization) use the compliant column; any other text uses the non-compliant column."}
                     </p>
                   </div>
                   {!isEditingCompliant ? (

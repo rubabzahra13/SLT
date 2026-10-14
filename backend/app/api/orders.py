@@ -151,6 +151,16 @@ def _mirror_shared_fields_to_mtd(db: Session, order: Order, changed: dict) -> No
             mtd.producer_email_sent_to = order.producer_email_sent_to
         if "contact_name" in shared:
             mtd.contact_name = order.contact_name or mtd.contact_name
+        # Client form "Coach (full name)" is coach_name; board column uses contact_name.
+        if "coach_name" in changed or "coach_contact_full_name" in changed:
+            coach = (
+                (order.coach_name or "").strip()
+                or (getattr(order, "coach_contact_full_name", None) or "").strip()
+            )
+            if coach:
+                if not (order.contact_name or "").strip():
+                    order.contact_name = coach
+                mtd.contact_name = coach
         if "program_name" in shared:
             mtd.program_name = order.program_name or mtd.program_name
         if "package" in shared:

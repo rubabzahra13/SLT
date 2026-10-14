@@ -1,6 +1,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { getOrderRequirements } from "../order-requirements";
+import {
+  getFormSongListColumnText,
+  getOrderRequirements,
+  mergeOrderFormFieldsForRequirements,
+} from "../order-requirements";
 import type { Order } from "../../types";
 
 describe("SLT Implementation 2: Package-Specific Data Collection Rules", () => {
@@ -42,20 +46,38 @@ describe("SLT Implementation 2: Package-Specific Data Collection Rules", () => {
     assert.strictEqual(songReq?.label, "Song");
   });
 
-  it("Cheer Titanium requires Notes, CS, Video (No Songs)", () => {
-    const order: Partial<Order> = {
+  it("Cheer Titanium requires Notes, CS, Video; All Star also keeps Songs", () => {
+    const schoolTitanium: Partial<Order> = {
       category: "Cheer",
+      formType: "school-all-star-cheer",
+      cheerFormSubtype: "school-cheer-viroc-no",
       package: "Titanium 2:30",
       routineNotes: "Routine video attached https://vimeo.com/demo",
       sendingEightCountSheets: "Yes",
     };
 
-    const reqs = getOrderRequirements(order as Order);
-    const applicable = reqs.all.filter((r) => r.isApplicable).map((r) => r.id);
-    assert.deepStrictEqual(applicable.sort(), ["cs", "notes", "video"].sort());
+    const schoolReqs = getOrderRequirements(schoolTitanium as Order);
+    const schoolApplicable = schoolReqs.all
+      .filter((r) => r.isApplicable)
+      .map((r) => r.id);
+    assert.deepStrictEqual(schoolApplicable.sort(), ["cs", "notes", "video"].sort());
+    assert.strictEqual(
+      schoolReqs.all.find((r) => r.id === "songs")?.isApplicable,
+      false
+    );
 
-    const songsReq = reqs.all.find((r) => r.id === "songs");
-    assert.strictEqual(songsReq?.isApplicable, false);
+    const allStarTitanium: Partial<Order> = {
+      ...schoolTitanium,
+      cheerFormSubtype: "all-star-cheer",
+      songListSuggestions: "",
+    };
+    const allStarReqs = getOrderRequirements(allStarTitanium as Order);
+    const songs = allStarReqs.songsArea.find((r) => r.id === "songs");
+    const notes = allStarReqs.songsArea.find((r) => r.id === "notes");
+    assert.strictEqual(songs?.isApplicable, true);
+    assert.strictEqual(songs?.state, "red"); // song list empty
+    assert.strictEqual(notes?.isApplicable, true);
+    assert.strictEqual(notes?.state, "green"); // routine notes filled
   });
 
   it("Cheer Platinum requires Songs, CS, Video", () => {
@@ -191,5 +213,146 @@ describe("SLT Implementation 2: Package-Specific Data Collection Rules", () => {
     assert.strictEqual(getOrderRequirements(completeOrder as Order).missingCount, 0);
     assert.strictEqual(getOrderRequirements(incompleteOrder as Order).missingCount, 1);
     assert.strictEqual(getOrderRequirements(incompleteOrder as Order).allMet, false);
+  });
+
+  it("All Star Cheer shows both Songs and Notes pills", () => {
+    const order: Partial<Order> = {
+      category: "Cheer",
+      formType: "school-all-star-cheer",
+      cheerFormSubtype: "all-star-cheer",
+      package: "Gold 2:00",
+      songListSuggestions: "Track list",
+      routineNotes: "Routine notes",
+    };
+    const reqs = getOrderRequirements(order as Order);
+    const songs = reqs.songsArea.find((r) => r.id === "songs");
+    const notes = reqs.songsArea.find((r) => r.id === "notes");
+    assert.strictEqual(songs?.isApplicable, true);
+    assert.strictEqual(songs?.state, "green");
+    assert.strictEqual(notes?.isApplicable, true);
+    assert.strictEqual(notes?.state, "green");
+  });
+
+  it("All Star Cheer Notes is red when Routine notes empty (ignores musicTheme)", () => {
+    const order: Partial<Order> = {
+      category: "Cheer",
+      formType: "school-all-star-cheer",
+      cheerFormSubtype: "all-star-cheer",
+      package: "Gold 2:00",
+      songListSuggestions: "Song A",
+      routineNotes: "",
+      musicTheme: "(Power Music & Unleash the Beats Covers)",
+    };
+    const notes = getOrderRequirements(order as Order).songsArea.find(
+      (r) => r.id === "notes"
+    );
+    assert.strictEqual(notes?.isApplicable, true);
+    assert.strictEqual(notes?.state, "red");
+  });
+
+  it("Songs pill matches Form song list / Song list/suggestions field", () => {
+    const empty: Partial<Order> = {
+      category: "Dance",
+      package: "Custom POM 2:15",
+      timeLengthOfMix: "2:15",
+      musicAffiliate: "Power Music Covers",
+      musicTheme: "(Power Music Covers) · (Power Music Covers)",
+      songListSuggestions: "",
+      powerMusicCovers: "",
+      haveSongs: "NEED SONGS",
+    };
+    // Affiliate-only musicTheme is not a song list.
+    assert.strictEqual(getFormSongListColumnText(empty as Order), "");
+    const emptySongs = getOrderRequirements(empty as Order).songsArea.find(
+      (r) => r.id === "songs"
+    );
+    assert.strictEqual(emptySongs?.state, "red");
+
+    const filled: Partial<Order> = {
+      ...empty,
+      powerMusicCovers: "Song A, Song B",
+      haveSongs: "NEED SONGS",
+    };
+    const filledSongs = getOrderRequirements(filled as Order).songsArea.find(
+      (r) => r.id === "songs"
+    );
+    assert.strictEqual(filledSongs?.state, "green");
+  });
+
+  it("Form song list ignores musicTheme that is just Routine notes + affiliate", () => {
+    const order: Partial<Order> = {
+      category: "Cheer",
+      formType: "school-all-star-cheer",
+      cheerFormSubtype: "all-star-cheer",
+      package: "Gold 2:00",
+      songListSuggestions: "",
+      routineNotes: "Customer submitted form with fast-paced routine notes.",
+      musicTheme:
+        "Customer submitted form with fast-paced routine notes. · (Power Music Covers)",
+    };
+    assert.strictEqual(getFormSongListColumnText(order as Order), "");
+    const songs = getOrderRequirements(order as Order).songsArea.find(
+      (r) => r.id === "songs"
+    );
+    assert.strictEqual(songs?.state, "red");
+    const notes = getOrderRequirements(order as Order).songsArea.find(
+      (r) => r.id === "notes"
+    );
+    assert.strictEqual(notes?.state, "green");
+  });
+
+  it("Form song list keeps legacy musicTheme when it is real song text", () => {
+    const order: Partial<Order> = {
+      category: "Cheer",
+      formType: "school-all-star-cheer",
+      cheerFormSubtype: "all-star-cheer",
+      package: "Gold 2:00",
+      songListSuggestions: "",
+      routineNotes: "Coach will send counts later",
+      musicTheme: "Song A, Song B, Fight Song · (Power Music Covers)",
+    };
+    assert.ok(getFormSongListColumnText(order as Order).includes("Song A"));
+    const songs = getOrderRequirements(order as Order).songsArea.find(
+      (r) => r.id === "songs"
+    );
+    assert.strictEqual(songs?.state, "green");
+  });
+
+  it("mergeOrderFormFieldsForRequirements keeps empty linked Song list", () => {
+    const mtd = {
+      id: "mtd-1",
+      songListSuggestions: "(Power Music Covers)",
+      musicTheme: "(Power Music Covers)",
+      routineNotes: "stale",
+    } as Order;
+    const linked = {
+      id: "ord-1",
+      songListSuggestions: "",
+      routineNotes: "",
+      formType: "school-all-star-cheer",
+    } as Order;
+    const merged = mergeOrderFormFieldsForRequirements(mtd, linked);
+    assert.strictEqual(merged.songListSuggestions, "");
+    assert.strictEqual((merged as Order).routineNotes, "");
+  });
+
+  it("merge keeps MTD musicTheme when linked order musicTheme is empty", () => {
+    const mtd = {
+      id: "mtd-1",
+      musicTheme: "Review Required: Level check · (Power Music Covers)",
+      songListSuggestions: "",
+      routineNotes: "",
+    } as Order;
+    const linked = {
+      id: "ord-1",
+      musicTheme: "",
+      songListSuggestions: "",
+      routineNotes: "",
+      formType: "school-all-star-cheer",
+    } as Order;
+    const merged = mergeOrderFormFieldsForRequirements(mtd, linked);
+    assert.ok(String(merged.musicTheme || "").includes("Review Required"));
+    // Review notes in musicTheme (no routineNotes duplicate) still surface as song-list legacy text.
+    assert.ok(getFormSongListColumnText(merged).includes("Review Required"));
   });
 });

@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { SoftSelect } from "@/components/ui/SoftSelect";
 import type { CheerFormSubtype, OrderFormType } from "@/types";
 import {
+  ALL_STAR_CHEER_MUSIC_AFFILIATE_OPTIONS,
   COMPLIANT_AFFILIATE_OPTIONS,
   NON_COMPLIANT_AFFILIATE_OPTIONS,
 } from "@/lib/pricing-reference";
@@ -28,6 +29,8 @@ export const SCHOOL_CHEER_MUSIC_AFFILIATE_OPTIONS = [
 /** @deprecated Use SCHOOL_CHEER_MUSIC_AFFILIATE_OPTIONS */
 export const VIROC_MUSIC_AFFILIATE_OPTIONS = SCHOOL_CHEER_MUSIC_AFFILIATE_OPTIONS;
 
+export { ALL_STAR_CHEER_MUSIC_AFFILIATE_OPTIONS };
+
 function defaultCheerAffiliateOptions(): string[] {
   return [
     ...COMPLIANT_AFFILIATE_OPTIONS.filter((o) => !o.danceOnly).map((o) => o.label),
@@ -39,12 +42,21 @@ export function musicAffiliateOptionsForOrder(order: {
   formType?: OrderFormType;
   cheerFormSubtype?: CheerFormSubtype | null;
 }): string[] {
-  if (
-    order.formType === "school-all-star-cheer" &&
-    (order.cheerFormSubtype === "school-cheer-viroc-yes" ||
-      order.cheerFormSubtype === "school-cheer-viroc-no")
-  ) {
-    return [...SCHOOL_CHEER_MUSIC_AFFILIATE_OPTIONS];
+  if (order.formType === "school-all-star-cheer") {
+    if (
+      order.cheerFormSubtype === "school-cheer-viroc-yes" ||
+      order.cheerFormSubtype === "school-cheer-viroc-no"
+    ) {
+      return [...SCHOOL_CHEER_MUSIC_AFFILIATE_OPTIONS];
+    }
+    // All Star Cheer (and cheer "all" / default) — real affiliate list.
+    if (
+      !order.cheerFormSubtype ||
+      order.cheerFormSubtype === "all-star-cheer" ||
+      String(order.cheerFormSubtype) === "all"
+    ) {
+      return [...ALL_STAR_CHEER_MUSIC_AFFILIATE_OPTIONS];
+    }
   }
   return defaultCheerAffiliateOptions();
 }

@@ -2,6 +2,7 @@ import { getOrderFormColumns } from "@/components/orders/order-columns";
 import { displayMultiline, displayText, normalizeOrder } from "@/lib/order-form";
 import { parsePackage } from "@/lib/package";
 import { resolveMTDFormMeta } from "@/lib/mtd-filters";
+import { getFormSongListColumnText } from "@/lib/order-requirements";
 import type { MTDRecord, Order } from "@/types";
 import type { OrderDetailField } from "@/lib/order-detail-sections";
 
@@ -46,8 +47,8 @@ const FIELD_GETTERS: Record<string, (order: Order) => string | undefined> = {
   musicAffiliate: (o) => o.musicAffiliate,
   sendingEightCountSheets: (o) => o.sendingEightCountSheets || "",
   usingEightCountSheets: (o) => o.usingEightCountSheets || "",
-  songListSuggestions: (o) =>
-    o.songListSuggestions || o.powerMusicCovers || o.musicTheme,
+  // Same source as board "Form song list" / Songs pill.
+  songListSuggestions: (o) => getFormSongListColumnText(o) || "",
   powerMusicCovers: (o) => o.powerMusicCovers,
   routineNotes: (o) => o.routineNotes,
   couponCode: (o) => o.couponCode || "",
@@ -129,8 +130,7 @@ function enrichOrderFromMTD(rec: {
     gymName: rec.programName.split(" — ")[0]?.trim() || rec.programName,
     requestedEditor:
       rec.editorRequest === "FA" ? "First Available" : String(rec.editorRequest),
-    songListSuggestions: rec.musicTheme,
-    routineNotes: rec.musicTheme,
+    musicTheme: rec.musicTheme,
     musicAffiliate: "Power Music Covers",
     division: rec.section || rec.category,
   };

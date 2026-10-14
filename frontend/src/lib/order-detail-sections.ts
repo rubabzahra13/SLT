@@ -72,7 +72,7 @@ const ALL_STAR_CHEER_FIELDS: { title: string; fields: FieldDef[] }[] = [
     fields: [
       { key: "requestedEditor", label: "Requested producer", preserveCase: true },
       { key: "packageType", label: "Package type" },
-      { key: "timeLengthOfMix", label: "Length of mix", preserveCase: true },
+      { key: "timeLengthOfMix", label: "Length of Mix", preserveCase: true },
       { key: "musicAffiliate", label: "Music affiliate" },
       {
         key: "sendingEightCountSheets",
@@ -295,7 +295,7 @@ const YOUTH_REC_CHEER_FIELDS: { title: string; fields: FieldDef[] }[] = [
   {
     title: "Contact Information",
     fields: [
-      { key: "coachContactFullName", label: "Coach Contact Full Name" },
+      { key: "coachContactFullName", label: "Coach (full name)" },
       {
         key: "coachEmailAddress",
         label: "Coach Email Address",
@@ -1260,6 +1260,31 @@ export function getProgramColumnHeader(
   danceSubtype?: string | null
 ): string {
   return identityFieldForForm(formType, cheerSubtype, danceSubtype).label;
+}
+
+/**
+ * Orders/MTD person-name column header — matches the contact name field
+ * on that form's edit / New Order view.
+ */
+export function getContactColumnHeader(
+  formType: OrderFormType | string | undefined,
+  _cheerSubtype?: string | null,
+  _danceSubtype?: string | null
+): string {
+  if (
+    formType === "school-all-star-cheer" ||
+    formType === "school-all-star-dance" ||
+    formType === "marching-band"
+  ) {
+    return "Coach name";
+  }
+  if (
+    formType === "sports-entertainment" ||
+    formType === "school-anthem"
+  ) {
+    return "Music Contact Name";
+  }
+  return "Contact";
 }
 
 /** Field key for the category/subtype identity name (first edit-form field). */

@@ -41,7 +41,10 @@ import { useAppState } from "@/context/AppStateContext";
 import { formatPrice, titleCase } from "@/lib/data";
 import { parsePackage } from "@/lib/package";
 import { packageTypeDisplayValue } from "@/components/mtd/PackageTypeField";
-import { getProgramColumnHeader } from "@/lib/order-detail-sections";
+import {
+  getContactColumnHeader,
+  getProgramColumnHeader,
+} from "@/lib/order-detail-sections";
 import { orderHasSplitField } from "@/lib/order-form-missing";
 import type { MTDViewOrder } from "@/components/mtd/MTDViewOrderToggle";
 import {
@@ -85,6 +88,10 @@ import {
   sortMTDRecordsBySortKey,
   sortMTDRecordsByViewOrder,
 } from "@/lib/mtd-filters";
+import {
+  getFormSongListColumnText,
+  mergeOrderFormFieldsForRequirements,
+} from "@/lib/order-requirements";
 import {
   cycleEightCsItem,
   cycleSongsItem,
@@ -593,6 +600,11 @@ function MTDPageContent() {
       cheerSubtype === "all" ? undefined : cheerSubtype,
       danceSubtype === "all" ? undefined : danceSubtype
     );
+    const contactHeader = getContactColumnHeader(
+      form,
+      cheerSubtype === "all" ? undefined : cheerSubtype,
+      danceSubtype === "all" ? undefined : danceSubtype
+    );
 
     const baseCols: Column<MTDRecord>[] = [
       {
@@ -608,14 +620,28 @@ function MTDPageContent() {
       },
       {
         key: "contactC",
-        header: "Contact",
-        width: "100px",
+        header: contactHeader,
+        width: contactHeader.length > 14 ? "150px" : "100px",
         align: "center" as const,
         nowrap: false,
-        cellClassName: clsx(compactCellClass, "max-w-[100px]"),
-        headerClassName: compactHeaderClass,
+        cellClassName: clsx(
+          compactCellClass,
+          contactHeader.length > 14 ? "max-w-[150px]" : "max-w-[100px]"
+        ),
+        headerClassName: clsx(
+          compactHeaderClass,
+          contactHeader.length > 14 && "whitespace-normal leading-tight"
+        ),
         render: (rec) => {
-          const name = titleCase(rec.contactName || "").trim();
+          const linked = findLinkedOrder(rec, allOrders);
+          const name = titleCase(
+            rec.contactName ||
+              linked?.coachName ||
+              linked?.coachContactFullName ||
+              linked?.musicContactName ||
+              linked?.contactName ||
+              ""
+          ).trim();
           return (
             <TruncatedText
               text={name || "No data"}
@@ -686,12 +712,16 @@ function MTDPageContent() {
         ? [
             {
               key: "limitE",
-              header: "Mix Length",
+              // Matches client form field "Length of Mix" (API: time_length_of_mix).
+              header: "Length of Mix",
               width: "100px",
               align: "center" as const,
               nowrap: false,
               cellClassName: clsx(compactCellClass, "max-w-[100px]"),
-              headerClassName: compactHeaderClass,
+              headerClassName: clsx(
+                compactHeaderClass,
+                "whitespace-normal leading-tight"
+              ),
               render: (rec: MTDRecord) => {
                 const linked = findLinkedOrder(rec, allOrders);
                 const fromOrder = (linked?.timeLengthOfMix || "").trim();
@@ -806,14 +836,18 @@ function MTDPageContent() {
         cellClassName: clsx(compactCellClass, "max-w-[120px]"),
         headerClassName: compactHeaderClass,
         render: (rec) => {
-          const theme = titleCase((rec.musicTheme || "").replace(/\s+/g, " ").trim());
+          const linked = findLinkedOrder(rec, allOrders);
+          const merged = mergeOrderFormFieldsForRequirements(rec, linked);
+          // Board column: form song list, else legacy musicTheme (never hide board data).
+          const songList = getFormSongListColumnText(merged);
+          const display = songList ? titleCase(songList) : "";
           return (
             <TruncatedText
-              text={theme || "No data"}
+              text={display || "No data"}
               className={clsx(
                 "mx-auto w-full min-w-0 text-center",
                 compactTextClass,
-                !theme && "text-brand-ink-tertiary"
+                !display && "text-brand-ink-tertiary"
               )}
               style={{ maxWidth: "100%" }}
             />
@@ -1447,7 +1481,11 @@ function MTDPageContent() {
         search={{
           value: searchQuery,
           onChange: setSearchQuery,
-          placeholder: "Contact, invoice…",
+          placeholder: `${getContactColumnHeader(
+            form,
+            cheerSubtype === "all" ? undefined : cheerSubtype,
+            danceSubtype === "all" ? undefined : danceSubtype
+          )}, invoice…`,
         }}
         toolbar={
           <MTDPageToolbar

@@ -37,10 +37,13 @@ function requirementPillTip(
   }
   if (item.id === "songs") {
     if (isWhite) return `${item.label}: Not applicable`;
-    if (lockedGreen) {
-      return `${item.label}: Have. ${lockReason}`;
-    }
     return `${item.label}: ${isGreen ? "Have" : "Not have"}`;
+  }
+  if (item.id === "notes") {
+    if (isWhite) return `${item.label}: Not applicable`;
+    return `${item.label}: ${
+      isGreen ? "Have (from Routine notes)" : "Not have — add Routine notes in the form"
+    }`;
   }
   if (isWhite) return `${item.label}: Not applicable`;
   if (lockedGreen) return `${item.label}: Collected. ${lockReason}`;
@@ -121,7 +124,9 @@ export function OrderRequirementsCell({
     return mergeOrderFormFieldsForRequirements(record, linked);
   }, [record, allOrders]);
   const reqs = getOrderRequirements(requirementsRecord);
-  const items = category === "collections" ? reqs.collections : reqs.songsArea;
+  const items = (
+    category === "collections" ? reqs.collections : reqs.songsArea
+  ).filter((item) => item.isApplicable && item.state !== "white");
   const isReassign = reqs.needsReassign;
   const reassignLockReason = isReassign
     ? "Can't mark missing on Reassign off day/rush orders"
@@ -133,6 +138,8 @@ export function OrderRequirementsCell({
 
   const handleToggle = (item: OrderRequirementItem) => {
     if (isViewOnly) return;
+    // Songs / Notes follow form fields only — not manual pill toggles.
+    if (item.id === "songs" || item.id === "notes") return;
     // Reassign leave/rush: collected (green) data stays collected.
     if (isReassign && item.state === "green") return;
     if (item.state === "white") return;
@@ -177,9 +184,6 @@ export function OrderRequirementsCell({
     // Data completeness is derived from collection pills — never write
     // Missing/Complete into orderStatus (that field holds Reassign leave/rush).
 
-    if (item.id === "songs") {
-      patch.haveSongs = nextCollected ? "HAVE SONGS" : "NEED SONGS";
-    }
     if (item.id === "cs" || item.id === "eight_count") {
       patch.eightCountSheet = nextCollected ? "HAVE CS" : "NEED CS";
     }
@@ -204,7 +208,9 @@ export function OrderRequirementsCell({
         <OrderRequirementPill
           key={item.id}
           item={item}
-          onToggle={handleToggle}
+          onToggle={
+            item.id === "songs" || item.id === "notes" ? undefined : handleToggle
+          }
           disabled={isViewOnly}
           lockReason={reassignLockReason}
         />

@@ -208,10 +208,17 @@ export function mergeCollectionStateFromOrder(
       record.usingEightCountSheets,
       order.usingEightCountSheets
     ),
-    songListSuggestions: pickFilled(record.songListSuggestions, orderSongs),
+    // Order form fields win, including empty string (clears MTD musicTheme leftovers).
+    songListSuggestions:
+      order.songListSuggestions !== undefined && order.songListSuggestions !== null
+        ? order.songListSuggestions
+        : pickFilled(record.songListSuggestions, orderSongs),
     timeLengthOfMix: pickFilled(record.timeLengthOfMix, orderMixLen),
     musicAffiliate: pickFilled(record.musicAffiliate, orderAffiliate),
-    routineNotes: pickFilled(record.routineNotes, orderNotes),
+    routineNotes:
+      order.routineNotes !== undefined && order.routineNotes !== null
+        ? order.routineNotes
+        : pickFilled(record.routineNotes, orderNotes),
     customVoiceovers: pickFilled(record.customVoiceovers, orderVoiceovers),
     ...(pickFilled((record as { videoUrl?: string }).videoUrl, orderVideo)
       ? {

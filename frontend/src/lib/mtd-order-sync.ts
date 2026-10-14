@@ -23,8 +23,15 @@ export function mtdPatchFromOrderField(
     case "timeLengthOfMix":
       return {};
     case "songListSuggestions":
-    case "routineNotes":
     case "powerMusicCovers":
+    case "customerSongs": {
+      const filled = Boolean(String(value || "").trim());
+      return {
+        musicTheme: value,
+        haveSongs: filled ? "HAVE SONGS" : "NEED SONGS",
+      };
+    }
+    case "routineNotes":
     case "musicTheme":
       return { musicTheme: value };
     case "sendingEightCountSheets":
@@ -66,10 +73,9 @@ export function orderPatchFromMTD(
     orderPatch.packageType = patch.package;
   }
   if (patch.musicTheme !== undefined) {
+    // Keep musicTheme on the legacy column only — do not copy into Song list /
+    // Routine notes / Power Music Covers (Songs & Notes pills read those fields).
     orderPatch.musicTheme = patch.musicTheme;
-    orderPatch.songListSuggestions = patch.musicTheme;
-    orderPatch.routineNotes = patch.musicTheme;
-    orderPatch.powerMusicCovers = patch.musicTheme;
   }
   if (patch.price !== undefined) {
     orderPatch.price = patch.price;
@@ -169,6 +175,29 @@ export function orderPatchFromOrderField(
     if (current?.formType !== "school-all-star-dance") {
       patch.musicTheme = value;
     }
+  }
+  // Songs / Notes pills follow form fields: clear manual overrides when edited.
+  if (
+    key === "songListSuggestions" ||
+    key === "powerMusicCovers" ||
+    key === "customerSongs"
+  ) {
+    const filled = Boolean(String(value || "").trim());
+    patch.haveSongs = filled ? "HAVE SONGS" : "NEED SONGS";
+    const prevStates =
+      ((current?.collectionStates as Record<string, unknown> | null) ||
+        {}) as Record<string, unknown>;
+    const nextStates = { ...prevStates };
+    delete nextStates.songs;
+    patch.collectionStates = nextStates as Order["collectionStates"];
+  }
+  if (key === "routineNotes" || key === "additionalNotes") {
+    const prevStates =
+      ((current?.collectionStates as Record<string, unknown> | null) ||
+        {}) as Record<string, unknown>;
+    const nextStates = { ...prevStates };
+    delete nextStates.notes;
+    patch.collectionStates = nextStates as Order["collectionStates"];
   }
   if (key === "styleOfGamedayMix") {
     // Persist gameday style on the shared `style` column.

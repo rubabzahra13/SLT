@@ -139,7 +139,7 @@ function mixInfoCols(options: {
   cols.push(
     textCol("musicAffiliate", "Music Affiliate", (o) => o.musicAffiliate, "140px"),
     textCol(eightField, options.eightCountLabel || "8-Count Sheets", (o) => o[eightField] || "", "120px"),
-    multiCol("songListSuggestions", "Song List/Suggestions", (o) => o.songListSuggestions || o.powerMusicCovers || o.musicTheme, "220px"),
+    multiCol("songListSuggestions", "Song List/Suggestions", (o) => o.songListSuggestions || "", "220px"),
     multiCol("routineNotes", "Routine Notes", (o) => o.routineNotes, "220px"),
     textCol("couponCode", "Coupon Code", (o) => o.couponCode || "", "100px"),
     textCol("howDidYouFindOut", "How Did You Find Out", (o) => o.howDidYouFindOut || "", "140px")
