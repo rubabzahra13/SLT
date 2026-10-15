@@ -776,6 +776,17 @@
               },
               "compliance_sensitive": false,
               "note": "This package uses a non-compliant song with only cuts for time by definition; price to payroll always stays the same regardless of the music-affiliate compliance flag."
+            },
+            {
+              "id": "non_compliant_for_dtu",
+              "name": "NON-COMPLIANT (FOR DTU)",
+              "customer_facing_price": null,
+              "payroll_base_price": {
+                "compliant": null,
+                "non_compliant": null
+              },
+              "compliance_sensitive": false,
+              "note": "Price TBD — awaiting client confirmation. Offered as a selectable package option only until priced."
             }
           ],
           "line_item_addons": [

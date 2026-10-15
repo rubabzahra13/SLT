@@ -19,7 +19,7 @@ import {
 import {
   affiliateIdsEqual,
   applyDbPricingRules,
-  categoryKeyToFormType,
+  categoryKeyToDbPricingTarget,
   DB_BACKED_PRICING_CATEGORIES,
   flatRowsToPricingRulePackages,
   getCategoryPricingSnapshot,
@@ -633,13 +633,17 @@ export function SetPricingModal({
       addOns: draftSnapshot.addOns,
     });
 
-    // SE + SA: persist to pricing_rules, then refresh in-memory rate cards.
-    const formType = categoryKeyToFormType(selectedCategory);
-    if (formType && DB_BACKED_PRICING_CATEGORIES.has(selectedCategory)) {
+    // DB-backed categories: persist to pricing_rules, then refresh rate cards.
+    const dbTarget = categoryKeyToDbPricingTarget(selectedCategory);
+    if (dbTarget && DB_BACKED_PRICING_CATEGORIES.has(selectedCategory)) {
       setIsSavingPricing(true);
       try {
         const packages = flatRowsToPricingRulePackages(draftSnapshot.rows);
-        const saved = await savePricingRulesApi(formType, packages);
+        const saved = await savePricingRulesApi(
+          dbTarget.formType,
+          packages,
+          dbTarget.subtypeId
+        );
         const hydrated = applyDbPricingRules(saved, next);
         setReferenceStore(hydrated);
         setDraftSnapshot(null);

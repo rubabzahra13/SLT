@@ -26,7 +26,10 @@ class MTDRecord(Base):
     mix_start_date = Column(Date, nullable=True)
     mix_end_date = Column(Date, nullable=True)
     waiting_on = Column(String, nullable=True)
-    eight_count_sheet = Column(String, default="", nullable=False)
+    # DB column renamed in dedup; keep Python/API name eight_count_sheet
+    eight_count_sheet = Column(
+        "received_eight_count_sheet", String, default="", nullable=False
+    )
     have_songs = Column(String, default="", nullable=False)
     collection_states = Column(JSON, nullable=True)
     order_status = Column(String, nullable=True)

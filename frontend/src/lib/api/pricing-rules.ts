@@ -25,14 +25,17 @@ export type PricingRulePackageUpdate = {
 export type DbBackedFormType =
   | "marching-band"
   | "sports-entertainment"
-  | "school-anthem";
+  | "school-anthem"
+  | "school-all-star-dance";
 
 export async function fetchPricingRulesApi(
-  formType?: DbBackedFormType
+  formType?: DbBackedFormType,
+  subtypeId?: string | null
 ): Promise<BackendPricingRule[]> {
-  const qs = formType
-    ? `?form_type=${encodeURIComponent(formType)}`
-    : "";
+  const params = new URLSearchParams();
+  if (formType) params.set("form_type", formType);
+  if (subtypeId) params.set("subtype_id", subtypeId);
+  const qs = params.toString() ? `?${params.toString()}` : "";
   const rows = await apiClient.get<BackendPricingRule[]>(
     `/api/pricing-rules${qs}`
   );
@@ -41,11 +44,21 @@ export async function fetchPricingRulesApi(
 
 export async function savePricingRulesApi(
   formType: DbBackedFormType,
-  packages: PricingRulePackageUpdate[]
+  packages: PricingRulePackageUpdate[],
+  subtypeId?: string | null
 ): Promise<BackendPricingRule[]> {
-  const rows = await apiClient.put<BackendPricingRule[]>("/api/pricing-rules", {
+  const body: {
+    form_type: DbBackedFormType;
+    packages: PricingRulePackageUpdate[];
+    subtype_id?: string;
+  } = {
     form_type: formType,
     packages,
-  });
+  };
+  if (subtypeId) body.subtype_id = subtypeId;
+  const rows = await apiClient.put<BackendPricingRule[]>(
+    "/api/pricing-rules",
+    body
+  );
   return Array.isArray(rows) ? rows : [];
 }

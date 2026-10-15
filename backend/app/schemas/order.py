@@ -7,8 +7,17 @@ from datetime import datetime
 def _orm_to_aliased_dict(obj: TypingAny) -> dict:
     """Map unified school_gym_* columns onto legacy API field names."""
     data: dict = {}
-    for col in obj.__table__.columns:
-        data[col.name] = getattr(obj, col.name, None)
+    # Use mapper attribute keys so renamed DB columns (e.g. received_* →
+    # eight_count_sheet) still populate the API field names.
+    try:
+        from sqlalchemy import inspect as sa_inspect
+
+        mapper = sa_inspect(type(obj))
+        for attr in mapper.column_attrs:
+            data[attr.key] = getattr(obj, attr.key, None)
+    except Exception:
+        for col in obj.__table__.columns:
+            data[col.name] = getattr(obj, col.name, None)
 
     name = data.get("school_gym_name")
     billing = data.get("school_gym_billing_address")
@@ -33,6 +42,8 @@ def _orm_to_aliased_dict(obj: TypingAny) -> dict:
     data["requested_producer"] = data.get("assigned_producer")
     # using_* was merged into sending_*
     data["using_eight_count_sheets"] = data.get("sending_eight_count_sheets")
+    # received_* is the DB name; API keeps eight_count_sheet
+    data["received_eight_count_sheet"] = data.get("eight_count_sheet")
     data["legacy_id"] = str(data.get("id")) if data.get("id") is not None else None
     data["category"] = None
     return data

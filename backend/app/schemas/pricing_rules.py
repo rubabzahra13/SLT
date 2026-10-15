@@ -31,10 +31,11 @@ class PricingRulePackageUpdate(BaseModel):
 
 
 class PricingRulesReplaceSchema(BaseModel):
-    """Upsert package prices for one form type (no subtype forms)."""
+    """Upsert package prices for one form type (and optional subtype)."""
 
     form_type: str = Field(
         ...,
-        pattern="^(marching-band|sports-entertainment|school-anthem)$",
+        pattern="^(marching-band|sports-entertainment|school-anthem|school-all-star-dance)$",
     )
+    subtype_id: Optional[str] = None
     packages: List[PricingRulePackageUpdate]

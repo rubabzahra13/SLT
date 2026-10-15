@@ -78,7 +78,10 @@ class Order(Base):
     )
     mix_start_date = Column(String, nullable=True)
     mix_end_date = Column(String, nullable=True)
-    eight_count_sheet = Column(String, nullable=True)
+    # DB column renamed in dedup; keep Python/API name eight_count_sheet
+    eight_count_sheet = Column(
+        "received_eight_count_sheet", String, nullable=True
+    )
     have_songs = Column(String, nullable=True)
     editor_initials = Column(String, nullable=True)
     client_requested_mix_due_date = Column(String, nullable=True)

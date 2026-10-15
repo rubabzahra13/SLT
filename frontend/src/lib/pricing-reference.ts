@@ -1,13 +1,14 @@
 import {
   ALL_STAR_CHEER_RATE_CARD,
   GAMEDAY_RATE_CARD,
+  getDanceRateCardForSubtype,
   getMarchingBandRateCard,
   getSchoolAnthemRateCard,
   getSportsEntertainmentRateCard,
   HIP_HOP_RATE_CARD,
-  JAZZ_KICK_RATE_CARD,
   POM_RATE_CARD,
   SCHOOL_CHEER_RATE_CARD,
+  setJazzKickRateCardFromDb,
   setMarchingBandRateCardFromDb,
   setSchoolAnthemRateCardFromDb,
   setSportsEntertainmentRateCardFromDb,
@@ -15,6 +16,7 @@ import {
   YOUTH_REC_CHEER_RATE_CARD,
 } from "@/lib/pricing-engine";
 import type { BackendPricingRule } from "@/lib/api/pricing-rules";
+import type { DbBackedFormType } from "@/lib/api/pricing-rules";
 import { parsePackage } from "@/lib/package";
 
 export type CategoryKey =
@@ -320,14 +322,16 @@ export function buildDefaultCategorySnapshot(
       }));
       break;
     case "Jazz/Kick":
-      rows = JAZZ_KICK_RATE_CARD.map((row) => ({
+      rows = getDanceRateCardForSubtype("jazz-kick").map((row) => ({
         kind: "flat-package",
         package: row.package,
-        customer: row.customer as number | null,
-        compliant: row.compliant as number | null,
-        nonCompliant: row.nonCompliant as number | null,
+        customer: row.isUnpriced ? null : (row.customer as number | null),
+        compliant: row.isUnpriced ? null : (row.compliant as number | null),
+        nonCompliant: row.isUnpriced
+          ? null
+          : (row.nonCompliant as number | null),
         alwaysFixedPayroll: Boolean(row.alwaysFixedPayroll),
-        isUnpriced: false,
+        isUnpriced: Boolean(row.isUnpriced),
       }));
       break;
     case "Marching Band":
@@ -609,26 +613,48 @@ export const DB_BACKED_PRICING_CATEGORIES = new Set<CategoryKey>([
   "Marching Band",
   "Sports Entertainment",
   "School Anthems",
+  "Jazz/Kick",
 ]);
 
-export type DbBackedFormType =
-  | "marching-band"
-  | "sports-entertainment"
-  | "school-anthem";
+export type DbPricingTarget = {
+  formType: DbBackedFormType;
+  subtypeId?: string | null;
+};
 
 export function categoryKeyToFormType(
   category: CategoryKey
 ): DbBackedFormType | null {
-  if (category === "Marching Band") return "marching-band";
-  if (category === "Sports Entertainment") return "sports-entertainment";
-  if (category === "School Anthems") return "school-anthem";
+  return categoryKeyToDbPricingTarget(category)?.formType ?? null;
+}
+
+export function categoryKeyToDbPricingTarget(
+  category: CategoryKey
+): DbPricingTarget | null {
+  if (category === "Marching Band") {
+    return { formType: "marching-band" };
+  }
+  if (category === "Sports Entertainment") {
+    return { formType: "sports-entertainment" };
+  }
+  if (category === "School Anthems") {
+    return { formType: "school-anthem" };
+  }
+  if (category === "Jazz/Kick") {
+    return { formType: "school-all-star-dance", subtypeId: "jazz-kick" };
+  }
   return null;
 }
 
-export function formTypeToCategoryKey(formType: string): CategoryKey | null {
+export function formTypeToCategoryKey(
+  formType: string,
+  subtypeId?: string | null
+): CategoryKey | null {
   if (formType === "marching-band") return "Marching Band";
   if (formType === "sports-entertainment") return "Sports Entertainment";
   if (formType === "school-anthem") return "School Anthems";
+  if (formType === "school-all-star-dance" && subtypeId === "jazz-kick") {
+    return "Jazz/Kick";
+  }
   return null;
 }
 
@@ -648,20 +674,31 @@ function isMarchingBandAddonRule(rule: BackendPricingRule): boolean {
 
 function rulesToFlatRows(
   rules: BackendPricingRule[],
-  formType: string
+  formType: string,
+  subtypeId?: string | null
 ): FlatPackagePricingRow[] {
   const flatAlways =
     formType === "school-anthem" || formType === "marching-band";
   return rules.map((rule) => {
     const customer = rule.customer_facing_price;
-    const isUnpriced = customer === null || customer === undefined;
+    const isUnpriced =
+      customer === null ||
+      customer === undefined ||
+      (formType === "school-all-star-dance" &&
+        subtypeId === "jazz-kick" &&
+        /DTU/i.test(rule.package_name || ""));
+    const alwaysFixed =
+      flatAlways ||
+      (formType === "school-all-star-dance" &&
+        subtypeId === "jazz-kick" &&
+        /SIMPLE CUT/i.test(rule.package_name || ""));
     return {
       kind: "flat-package" as const,
       package: rule.package_name,
       customer: customer ?? null,
       compliant: rule.payroll_base_compliant ?? customer ?? null,
       nonCompliant: rule.payroll_base_non_compliant ?? customer ?? null,
-      alwaysFixedPayroll: flatAlways,
+      alwaysFixedPayroll: alwaysFixed,
       isUnpriced,
     };
   });
@@ -693,23 +730,26 @@ function expandMarchingBandDbRows(
 
 /**
  * Apply pricing_rules rows onto in-memory rate cards + local reference store
- * for Marching Band / Sports Entertainment / School Anthems.
+ * for Marching Band / Sports Entertainment / School Anthems / Jazz/Kick.
  */
 export function applyDbPricingRules(
   rules: BackendPricingRule[],
   store?: PricingReferenceStore
 ): PricingReferenceStore {
   const next = store ?? loadPricingReferenceStore();
-  const byForm = new Map<string, BackendPricingRule[]>();
+  const byKey = new Map<string, BackendPricingRule[]>();
   for (const rule of rules) {
-    const list = byForm.get(rule.form_type) || [];
+    const key = `${rule.form_type}::${rule.subtype_id || ""}`;
+    const list = byKey.get(key) || [];
     list.push(rule);
-    byForm.set(rule.form_type, list);
+    byKey.set(key, list);
   }
 
   let updated = next;
-  for (const [formType, formRules] of byForm) {
-    const category = formTypeToCategoryKey(formType);
+  for (const [key, formRules] of byKey) {
+    const [formType, subtypeIdRaw] = key.split("::");
+    const subtypeId = subtypeIdRaw || null;
+    const category = formTypeToCategoryKey(formType, subtypeId);
     if (!category) continue;
 
     const packageRules =
@@ -717,7 +757,7 @@ export function applyDbPricingRules(
         ? formRules.filter((r) => !isMarchingBandAddonRule(r))
         : formRules;
 
-    let rows = rulesToFlatRows(packageRules, formType);
+    let rows = rulesToFlatRows(packageRules, formType, subtypeId);
     if (formType === "marching-band") {
       rows = expandMarchingBandDbRows(rows);
       setMarchingBandRateCardFromDb(
@@ -751,6 +791,20 @@ export function applyDbPricingRules(
           compliant: (r.compliant ?? r.customer ?? 1250) as number,
           nonCompliant: (r.nonCompliant ?? r.customer ?? 1250) as number,
         }))
+      );
+    }
+    if (formType === "school-all-star-dance" && subtypeId === "jazz-kick") {
+      setJazzKickRateCardFromDb(
+        rows
+          .filter((r): r is FlatPackagePricingRow => r.kind === "flat-package")
+          .map((r) => ({
+            package: r.package,
+            customer: Number(r.customer ?? 0),
+            compliant: Number(r.compliant ?? r.customer ?? 0),
+            nonCompliant: Number(r.nonCompliant ?? r.customer ?? 0),
+            alwaysFixedPayroll: Boolean(r.alwaysFixedPayroll),
+            isUnpriced: Boolean(r.isUnpriced),
+          }))
       );
     }
     updated = updateCategoryPricingSnapshot(updated, category, { rows });

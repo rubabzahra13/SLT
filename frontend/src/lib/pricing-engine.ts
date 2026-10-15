@@ -78,6 +78,8 @@ export type DanceRateCardEntry = {
   compliant: number;
   nonCompliant: number;
   alwaysFixedPayroll?: boolean;
+  /** Manual-quote / TBD packages (e.g. Non-Compliant for DTU). */
+  isUnpriced?: boolean;
 };
 
 /** POM Rate Card */
@@ -117,7 +119,20 @@ export const JAZZ_KICK_RATE_CARD: DanceRateCardEntry[] = [
     nonCompliant: 100,
     alwaysFixedPayroll: true,
   },
+  {
+    package: "NON-COMPLIANT (FOR DTU)",
+    customer: 0,
+    compliant: 0,
+    nonCompliant: 0,
+    isUnpriced: true,
+  },
 ];
+
+let jazzKickRateCardOverride: DanceRateCardEntry[] | null = null;
+
+export function setJazzKickRateCardFromDb(entries: DanceRateCardEntry[]): void {
+  jazzKickRateCardOverride = entries.map((e) => ({ ...e }));
+}
 
 export const COMPLIANT_MUSIC_AFFILIATES = [
   "POWER MUSIC & UNLEASH THE BEATS COVERS (CAN NOT BE USED FOR A TITANIUM PACKAGE)",
@@ -242,7 +257,7 @@ export function getDanceRateCardForSubtype(
     case "gameday":
       return GAMEDAY_RATE_CARD;
     case "jazz-kick":
-      return JAZZ_KICK_RATE_CARD;
+      return jazzKickRateCardOverride ?? JAZZ_KICK_RATE_CARD;
     default:
       return POM_RATE_CARD;
   }
@@ -694,6 +709,19 @@ export function calculateDanceOrderPricing(
       alwaysFixedPayroll: false,
       matchedEntry: null,
       packageName: input.packageType,
+    };
+  }
+
+  if (matchedEntry.isUnpriced) {
+    return {
+      customerFacingPrice: 0,
+      payrollBasePrice: 0,
+      compliantPayrollBasePrice: 0,
+      nonCompliantPayrollBasePrice: 0,
+      complianceStatus,
+      alwaysFixedPayroll: Boolean(matchedEntry.alwaysFixedPayroll),
+      matchedEntry,
+      packageName: matchedEntry.package,
     };
   }
 

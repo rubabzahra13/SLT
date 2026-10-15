@@ -76,6 +76,7 @@ _ORDER_WRITE_DROP_KEYS = {
     "team_colors",
     "email_address",
     "using_eight_count_sheets",  # merged into sending_eight_count_sheets
+    "received_eight_count_sheet",  # DB name; ORM attr is eight_count_sheet
     *_UNIFIED_NAME_KEYS[1:],  # keep school_gym_name
     *_UNIFIED_BILLING_KEYS[1:],  # keep school_gym_billing_address
 }
@@ -139,6 +140,11 @@ def _coalesce_unified_order_fields(data: dict) -> dict:
         using = out.get("using_eight_count_sheets")
         if using is not None and out.get("sending_eight_count_sheets") is None:
             out["sending_eight_count_sheets"] = using
+
+    if "received_eight_count_sheet" in out:
+        received = out.get("received_eight_count_sheet")
+        if received is not None and out.get("eight_count_sheet") is None:
+            out["eight_count_sheet"] = received
 
     for key in list(out.keys()):
         if key in _ORDER_WRITE_DROP_KEYS:

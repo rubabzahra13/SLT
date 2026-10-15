@@ -107,6 +107,7 @@ const DANCE_PACKAGE_LABELS: Record<string, string> = {
   "PERFORMANCE EXTREME": "PERFORMANCE EXTREME $200",
   "JAZZ/KICK MIX": "Jazz/Kick Mix (up to 2 songs) $200",
   "JAZZ SIMPLE CUT": "Jazz Simple Cut $100",
+  "NON-COMPLIANT (FOR DTU)": "Non-Compliant (for DTU)",
 };
 
 /** Customer-facing SoftSelect labels for Marching Band packages. */
