@@ -10,7 +10,7 @@ from app.api.auth import require_full_access
 router = APIRouter()
 
 def get_discount_code_by_id_or_code(db: Session, code_id: str) -> Optional[DiscountCode]:
-    # 1. Try UUID lookup if code_id is a valid UUID format
+    # 1. UUID primary key
     try:
         val = uuid.UUID(code_id)
         dc = db.query(DiscountCode).filter(DiscountCode.id == val).first()
@@ -19,10 +19,12 @@ def get_discount_code_by_id_or_code(db: Session, code_id: str) -> Optional[Disco
     except ValueError:
         pass
 
-    # 2. Fallback to legacy_id or code lookup
-    return db.query(DiscountCode).filter(
-        (DiscountCode.legacy_id == code_id) | (DiscountCode.code == code_id.upper())
-    ).first()
+    # 2. Lookup by unique discount code string
+    return (
+        db.query(DiscountCode)
+        .filter(DiscountCode.code == code_id.strip().upper())
+        .first()
+    )
 
 @router.get("/discount-codes", response_model=List[DiscountCodeSchema])
 def get_discount_codes(db: Session = Depends(get_db)):

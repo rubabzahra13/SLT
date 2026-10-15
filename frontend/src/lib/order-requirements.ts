@@ -175,8 +175,9 @@ function isAffiliateOnlySongText(val: string): boolean {
 /**
  * Song-list text for the Songs pill — must match the edit-form field:
  * Cheer / All Star → Song list/suggestions
- * Dance → Power Music Covers (then song list)
- * Sports / Anthem → customer songs / song list
+ * Dance → Power Music Covers / Unleash the Beats Covers
+ * Sports → customer songs / song list
+ * School Anthem → Instrumental Style Preference (instrumentation_notes)
  * Marching Band → Notes to Producer Regarding Instrumentation
  * Never use musicTheme (often affiliate labels).
  */
@@ -190,11 +191,10 @@ export function getFormSongListText(order: Order | MTDRecord): string {
     category.includes("dance") ||
     category.includes("pom") ||
     category.includes("hip");
-  const isSportsOrAnthem =
-    formType.includes("sports") ||
-    formType.includes("anthem") ||
-    category.includes("sports") ||
-    category.includes("anthem");
+  const isAnthem =
+    formType.includes("anthem") || category.includes("anthem");
+  const isSports =
+    formType.includes("sports") || category.includes("sports");
   const isMarchingBand =
     formType.includes("band") ||
     category.includes("band") ||
@@ -213,9 +213,18 @@ export function getFormSongListText(order: Order | MTDRecord): string {
   };
 
   if (isDance) {
-    return pick(o.powerMusicCovers, o.power_music_covers, o.songListSuggestions, o.song_list_suggestions);
+    return pick(
+      o.powerMusicCovers,
+      o.power_music_covers,
+      o.unleashTheBeatsCovers,
+      o.unleash_the_beats_covers
+    );
   }
-  if (isSportsOrAnthem) {
+  if (isAnthem) {
+    // Magento "Instrumental Style Preference" → instrumentation_notes.
+    return pick(o.instrumentationNotes, o.instrumentation_notes);
+  }
+  if (isSports) {
     return pick(
       o.customerSongs,
       o.customer_songs,
@@ -232,73 +241,61 @@ export function getFormSongListText(order: Order | MTDRecord): string {
 }
 
 /**
- * Strip trailing affiliate labels from legacy musicTheme text.
- * e.g. "Song A · (Power Music Covers)" → "Song A"
- */
-function stripAffiliateLabelsFromTheme(val: string): string {
-  let cleaned = val.replace(/\s+/g, " ").trim();
-  if (!cleaned) return "";
-  // Peel " · (Affiliate)" / "(Affiliate)" suffixes repeatedly.
-  let changed = true;
-  while (changed && cleaned) {
-    changed = false;
-    const peeled = cleaned
-      .replace(/\s*[·|]\s*\([^)]*\)\s*$/g, "")
-      .replace(/\s*\([^)]*\)\s*$/g, "")
-      .trim();
-    if (peeled !== cleaned) {
-      cleaned = peeled;
-      changed = true;
-    }
-  }
-  // If what remains is only an affiliate name, treat as empty.
-  if (isAffiliateOnlySongText(cleaned) || isAffiliateOnlySongText(val)) {
-    return "";
-  }
-  return cleaned;
-}
-
-function normalizeSongCompare(val: string): string {
-  return val
-    .toLowerCase()
-    .replace(/[^\w\s]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-/**
- * Board "Form song list" column + Songs pill — MUST match edit-form
- * Song list/suggestions (not Routine notes, not affiliate-only musicTheme).
+ * Board "Form song list" column + Songs pill.
  *
- * Legacy musicTheme is used only when it contains real song text that is not
- * the same as Routine notes (old boards stored songs there).
+ * Prefer real form Song list / Power Music / customer songs. Always fall back
+ * to legacy `musicTheme` — that is where most historical board song text lives.
+ * Do not filter notes/affiliate out here or the column goes empty in production.
+ * School Anthem / Marching Band: no musicTheme fallback (instrumentation only).
  */
 export function getFormSongListColumnText(order: Order | MTDRecord): string {
   const fromForm = getFormSongListText(order).replace(/\s+/g, " ").trim();
   if (fromForm) return fromForm;
-
   const o = order as Order & MTDRecord & Record<string, unknown>;
-  const themeRaw = String(o.musicTheme || o.music_theme || "")
-    .replace(/\s+/g, " ")
-    .trim();
-  if (!themeRaw) return "";
-
-  const themeSongs = stripAffiliateLabelsFromTheme(themeRaw);
-  if (!themeSongs) return "";
-
-  const notes = String(
-    o.routineNotes || o.routine_notes || o.additionalNotes || o.additional_notes || ""
-  )
-    .replace(/\s+/g, " ")
-    .trim();
-  // musicTheme often = routine notes + " · (Power Music Covers)" — that is Notes, not Songs.
-  if (notes && normalizeSongCompare(themeSongs) === normalizeSongCompare(notes)) {
+  const formType = String(o.formType || o.form_type || "").toLowerCase();
+  const category = String(o.category || "").toLowerCase();
+  if (
+    formType.includes("anthem") ||
+    category.includes("anthem") ||
+    formType.includes("band") ||
+    category.includes("band") ||
+    category.includes("marching")
+  ) {
     return "";
   }
-  return themeSongs;
+  return String(o.musicTheme || o.music_theme || "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
-/** True when Song list/suggestions (board Form song list) has real song text. */
+/** Notes pill text — form Notes field for this order type. */
+export function getFormNotesText(order: Order | MTDRecord): string {
+  const o = order as Order & MTDRecord & Record<string, unknown>;
+  const formType = String(o.formType || o.form_type || "").toLowerCase();
+  const category = String(o.category || "").toLowerCase();
+  const pkg = String(o.package || o.packageType || o.package_type || "").toUpperCase();
+  const isMarchingBand =
+    formType.includes("band") ||
+    category.includes("band") ||
+    category.includes("marching") ||
+    pkg.includes("CHANT") ||
+    pkg.includes("CADENCE");
+  const isAnthem =
+    formType.includes("anthem") || category.includes("anthem");
+
+  if (isAnthem) {
+    // Magento "Lyrical Notes" → lyrical_notes.
+    return String(o.lyricalNotes || o.lyrical_notes || "").trim();
+  }
+  if (isMarchingBand) {
+    return String(o.instrumentationNotes || o.instrumentation_notes || "").trim();
+  }
+  return String(
+    o.routineNotes || o.additionalNotes || o.routine_notes || o.additional_notes || ""
+  ).trim();
+}
+
+/** True when Form song list column has display text (Songs pill = green). */
 export function hasFormSongListData(order: Order | MTDRecord): boolean {
   return isPresent(getFormSongListColumnText(order));
 }
@@ -323,7 +320,9 @@ function getOverrideState(order: Order | MTDRecord, itemId: string): boolean | u
 
   if (itemId === "cs" || itemId === "eight_count") {
     // Collection status only — not the form Yes/No "will you send" intent.
-    const val = (order as any).eightCountSheet || (order as any).eight_count_sheet;
+    const val =
+      (order as any).eightCountSheet ||
+      (order as any).received_eight_count_sheet;
     const upper = String(val || "").trim().toUpperCase();
     if (
       upper === "HAVE CS" ||
@@ -361,9 +360,11 @@ export function resolveSendingEightCountIntent(
     if (s === "YES" || s === "Y" || s.startsWith("YES")) return "yes";
     if (s === "NO" || s === "N" || s.startsWith("NO")) return "no";
   }
-  // Legacy: MTD eightCountSheet sometimes held the form Yes/No directly.
+  // Legacy: received CS field sometimes held the form Yes/No directly.
   const sheet = String(
-    (order as MTDRecord).eightCountSheet || (order as any).eight_count_sheet || ""
+    (order as MTDRecord).eightCountSheet ||
+      (order as any).received_eight_count_sheet ||
+      ""
   )
     .trim()
     .toUpperCase();
@@ -504,23 +505,30 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
     needNotes = true;
     needTimeOfMix = true;
   } else if (isAnthem) {
+    // Magento School Anthem has no mix-length / CS / video collections.
     needSongs = true;
     songsLabel = "Song";
     needNotes = true;
-    needTimeOfMix = true;
+    needTimeOfMix = false;
   } else {
     needSongs = true;
     needTimeOfMix = true;
   }
 
   // --- COLLECTIONS GROUP ---
-  // Form pill: form-submitted orders already have a customer form (hidden).
-  // Manual / New Order rows need an explicit Form collection toggle (appended
-  // after Mix/CS/Video so the existing package pills stay in place).
+  // Form pill: unmatched Manual / New Order rows only. Once Magento matches,
+  // the row is treated as a Form order (no Form pill).
+  const hasMatchedMagentoForm = Boolean(
+    (order as Order).mergedFormOrderId ||
+      ((order as Order).manualOverlapSnapshot &&
+        Object.keys((order as Order).manualOverlapSnapshot || {}).length > 0) ||
+      (order as { merged_form_order_id?: string }).merged_form_order_id
+  );
   const isManualOrder =
-    Boolean((order as MTDRecord).isManualScheduleEntry) ||
-    Boolean((order as Order).isManualEntry) ||
-    (order as MTDRecord).orderId === null;
+    !hasMatchedMagentoForm &&
+    (Boolean((order as MTDRecord).isManualScheduleEntry) ||
+      Boolean((order as Order).isManualEntry) ||
+      (order as MTDRecord).orderId === null);
 
   // 1. MIX / TIME OF MIX
   {
@@ -540,7 +548,7 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
     }
     requirements.push({
       id: "mix",
-      label: "Mix",
+      label: "Mix Time",
       category: "collections",
       state,
       isApplicable,
@@ -559,7 +567,7 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
     const sendIntent = resolveSendingEightCountIntent(order);
     const sheetVal =
       (order as MTDRecord).eightCountSheet ||
-      (order as any).eight_count_sheet;
+      (order as any).received_eight_count_sheet;
     const defaultProvided = isEightCountCollected(sheetVal);
     const isApplicable =
       sendIntent === "yes"
@@ -619,18 +627,15 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
   }
 
   if (isManualOrder) {
-    const override = getOverrideState(order, "form");
-    const isApplicable = true;
-    const isCollected = override === true;
-    const state: RequirementState = isCollected ? "green" : "red";
+    // Form pill: automatic red until Magento matches (then row becomes Form order).
     requirements.push({
       id: "form",
       label: "Form",
       category: "collections",
-      state,
-      isApplicable,
-      provided: state === "green",
-      status: state === "green" ? "green" : "red",
+      state: "red",
+      isApplicable: true,
+      provided: false,
+      status: "red",
     });
   }
 
@@ -656,19 +661,12 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
   }
 
   // 5. NOTES — green iff the form Notes field has content.
+  // School Anthem → lyricalNotes (Magento Lyrical Notes).
   // Marching Band → instrumentationNotes (same source as Band Chant Songs).
   // Other forms → routineNotes / additionalNotes.
   // Ignore collectionStates — pill must match the form field exactly.
   {
-    const notesVal = isMarchingBand
-      ? (order as Order).instrumentationNotes ||
-        (order as any).instrumentation_notes ||
-        ""
-      : (order as Order).routineNotes ||
-        (order as Order).additionalNotes ||
-        (order as any).routine_notes ||
-        (order as any).additional_notes ||
-        "";
+    const notesVal = getFormNotesText(order);
     const defaultProvided = isPresent(String(notesVal));
     const isApplicable = needNotes;
     let state: RequirementState = "white";
@@ -799,26 +797,36 @@ export function mergeOrderFormFieldsForRequirements(
     danceFormSubtype:
       linkedOrder.danceFormSubtype || (rec as Order).danceFormSubtype,
     sendingEightCountSheets:
-      linkedOrder.sendingEightCountSheets || rec.sendingEightCountSheets,
+      linkedOrder.sendingEightCountSheets ||
+      linkedOrder.usingEightCountSheets ||
+      rec.sendingEightCountSheets ||
+      rec.usingEightCountSheets,
     usingEightCountSheets:
-      linkedOrder.usingEightCountSheets || rec.usingEightCountSheets,
+      linkedOrder.sendingEightCountSheets ||
+      linkedOrder.usingEightCountSheets ||
+      rec.sendingEightCountSheets ||
+      rec.usingEightCountSheets,
     // Prefer linked order form fields; empty string must win over MTD leftovers
     // (e.g. musicTheme copied into songListSuggestions).
     songListSuggestions:
       linkedOrder.songListSuggestions ?? rec.songListSuggestions,
     powerMusicCovers: linkedOrder.powerMusicCovers ?? rec.powerMusicCovers,
     customerSongs: linkedOrder.customerSongs ?? (rec as Order).customerSongs,
-    // Legacy board column: keep whichever side still has musicTheme text.
-    musicTheme:
-      String(linkedOrder.musicTheme || "").trim() ||
-      String(rec.musicTheme || "").trim() ||
-      linkedOrder.musicTheme ||
-      rec.musicTheme,
+    instrumentationNotes:
+      linkedOrder.instrumentationNotes ?? (rec as Order).instrumentationNotes,
+    lyricalNotes: linkedOrder.lyricalNotes ?? (rec as Order).lyricalNotes,
+    // Prefer linked order musicTheme, including explicit "" after Songs remove.
+    // Do not use || — empty string must win over stale MTD theme text.
+    musicTheme: linkedOrder.musicTheme ?? rec.musicTheme,
     routineNotes: linkedOrder.routineNotes ?? (rec as Order).routineNotes,
     isManualEntry:
       Boolean(rec.isManualEntry) || Boolean(linkedOrder.isManualEntry),
     isManualScheduleEntry:
       Boolean(rec.isManualScheduleEntry) || Boolean(linkedOrder.isManualEntry),
+    mergedFormOrderId:
+      linkedOrder.mergedFormOrderId ||
+      (rec as Order).mergedFormOrderId ||
+      undefined,
   };
 }
 

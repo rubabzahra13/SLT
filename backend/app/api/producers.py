@@ -162,8 +162,7 @@ def _cascade_assignment_key_change(
         .filter(
             (Order.assigned_producer_id == producer.id)
             | (func.upper(Order.assigned_producer) == old_norm)
-            | (func.upper(Order.editor_request) == old_norm)
-            | (func.upper(Order.requested_producer) == old_norm)
+            | (func.upper(Order.editor_initials) == old_norm)
             | (func.upper(Order.requested_editor) == old_norm)
         )
         .all()
@@ -179,11 +178,8 @@ def _cascade_assignment_key_change(
             if order.assigned_producer_id != producer.id:
                 order.assigned_producer_id = producer.id
                 changed = True
-        if normalize_producer_key(order.editor_request) == old_norm:
-            order.editor_request = canonical
-            changed = True
-        if normalize_producer_key(order.requested_producer) == old_norm:
-            order.requested_producer = canonical
+        if normalize_producer_key(order.editor_initials) == old_norm:
+            order.editor_initials = canonical
             changed = True
         if normalize_producer_key(order.requested_editor) == old_norm:
             order.requested_editor = canonical

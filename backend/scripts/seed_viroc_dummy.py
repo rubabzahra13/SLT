@@ -6,6 +6,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from app.core.database import SessionLocal
 from app.models.order import Order
+from app.seed.ids import seed_uuid
 
 VIROC_DEMO = [
     {
@@ -95,19 +96,19 @@ def main() -> None:
     try:
         for i, row in enumerate(VIROC_DEMO, 1):
             legacy = row["legacy_id"]
-            existing = db.query(Order).filter(Order.legacy_id == legacy).first()
+            order_pk = seed_uuid("order", legacy)
+            existing = db.query(Order).filter(Order.id == order_pk).first()
             if existing:
                 print(f"skip {legacy} (exists)")
                 continue
 
             order = Order(
-                legacy_id=legacy,
+                id=order_pk,
                 form_type="school-all-star-cheer",
                 cheer_form_subtype="school-cheer-viroc-yes",
                 varsity_viroc_customer="Yes",
-                category="Cheer",
-                school_name=row["school_name"],
-                school_billing_address=f"{200 + i} School Road",
+                school_gym_name=row["school_name"],
+                school_gym_billing_address=f"{200 + i} School Road",
                 city="Austin",
                 state_province="TX",
                 zip_postal_code="78701",
@@ -115,15 +116,15 @@ def main() -> None:
                 mascot=row["mascot"],
                 division=row["division"],
                 team_coed_all_girl=row["team_coed_all_girl"],
-                team_colors=row["team_colors"],
+                colors=row["team_colors"],
                 number_of_copies="1",
                 coach_name=f"Coach Mark {i}",
                 coach_phone=f"555-020{i}",
                 coach_email=f"mark.viroc{i}@example.com",
                 billing_person_name=f"School Admin {i}",
                 billing_person_email=f"admin.viroc{i}@school.edu",
-                viroc_choreographer_name=f"Choreographer VIROC {i}",
-                viroc_choreographer_email=f"viroc.choreo{i}@varsity.com",
+                choreographer_name=f"Choreographer VIROC {i}",
+                choreographer_email=f"viroc.choreo{i}@varsity.com",
                 package_type=row["package_type"],
                 time_length_of_mix=row["time_length_of_mix"],
                 split_or_no_split=row["split_or_no_split"],
@@ -137,11 +138,9 @@ def main() -> None:
                 how_did_you_find_out=row["how_did_you_find_out"],
                 customer_name=f"Coach Mark {i} ({row['school_name']})",
                 contact_name=f"Coach Mark {i}",
-                program_name=row["school_name"],
                 package=row["package"],
-                editor_request="FA",
+                editor_initials="FA",
                 requested_editor="First Available",
-                requested_producer="FA",
                 status="new",
                 price=600.0 + (i * 15),
                 price_compliance="compliant",

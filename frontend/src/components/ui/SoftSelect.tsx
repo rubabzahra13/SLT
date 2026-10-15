@@ -24,6 +24,15 @@ type SoftSelectProps = {
   /** Show a search field at the top of the menu. */
   searchable?: boolean;
   searchPlaceholder?: string;
+  /** Custom search matcher (default: case-insensitive substring). */
+  filterOption?: (option: SoftSelectOption, query: string) => boolean;
+  /**
+   * Allow committing the search box as a value (Enter).
+   * Used for free-text fields that still fuzzy-resolve to catalog options.
+   */
+  allowCustomValue?: boolean;
+  /** Map typed custom text before onChange (e.g. fuzzy normalize). */
+  resolveCustomValue?: (typed: string) => string;
   /** Larger trigger for forms (default compact pill). */
   size?: "sm" | "md";
 };
@@ -51,6 +60,9 @@ export function SoftSelect({
   placement = "auto",
   searchable = false,
   searchPlaceholder = "Search…",
+  filterOption,
+  allowCustomValue = false,
+  resolveCustomValue,
   size = "sm",
 }: SoftSelectProps) {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -63,14 +75,29 @@ export function SoftSelect({
 
   const filteredOptions = searchable
     ? options.filter((opt) => {
-        const q = query.trim().toLowerCase();
+        const q = query.trim();
         if (!q) return true;
+        if (filterOption) return filterOption(opt, q);
+        const lower = q.toLowerCase();
         return (
-          opt.label.toLowerCase().includes(q) ||
-          opt.value.toLowerCase().includes(q)
+          opt.label.toLowerCase().includes(lower) ||
+          opt.value.toLowerCase().includes(lower)
         );
       })
     : options;
+
+  const commitCustomValue = () => {
+    if (!allowCustomValue) return;
+    const typed = query.trim();
+    if (!typed) return;
+    const resolved = resolveCustomValue
+      ? resolveCustomValue(typed)
+      : typed;
+    if (!resolved) return;
+    onChange(resolved);
+    onOpenChange(false);
+    setQuery("");
+  };
 
   const updateMenuPos = () => {
     const trigger = triggerRef.current;
@@ -191,9 +218,9 @@ export function SoftSelect({
           e.stopPropagation();
         }}
         className={clsx(
-          "inline-flex w-full min-w-0 cursor-pointer items-center justify-between gap-1.5 text-left font-medium text-brand-ink outline-none transition",
+          "inline-flex w-full min-w-0 cursor-pointer items-center justify-between gap-1.5 text-left outline-none transition",
           size === "md"
-            ? "h-10 rounded-xl border border-brand-line/60 bg-brand-bg px-3 text-[13px] hover:border-brand-line-strong focus-visible:ring-2 focus-visible:ring-brand-blue/15"
+            ? "h-10 rounded-xl border border-brand-line/60 bg-white px-3 text-[13px] hover:border-brand-line-strong focus-visible:ring-2 focus-visible:ring-brand-blue/15"
             : "h-8 rounded-full bg-brand-bg px-3 text-[13px] hover:bg-brand-bg-subtle focus-visible:ring-2 focus-visible:ring-brand-blue/20",
           open &&
             (size === "md"
@@ -201,7 +228,14 @@ export function SoftSelect({
               : "bg-brand-blue-soft/70 font-semibold text-brand-signature ring-1 ring-inset ring-brand-blue/25")
         )}
       >
-        <span className="min-w-0 truncate">
+        <span
+          className={clsx(
+            "min-w-0 truncate",
+            selected
+              ? "font-semibold text-brand-ink"
+              : "font-medium text-brand-ink-tertiary"
+          )}
+        >
           {selected?.label ?? placeholder}
         </span>
         <ChevronDown
@@ -239,6 +273,18 @@ export function SoftSelect({
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     onMouseDown={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && allowCustomValue) {
+                        e.preventDefault();
+                        if (filteredOptions.length === 1) {
+                          onChange(filteredOptions[0].value);
+                          onOpenChange(false);
+                          setQuery("");
+                          return;
+                        }
+                        commitCustomValue();
+                      }
+                    }}
                     placeholder={searchPlaceholder}
                     aria-label={searchPlaceholder}
                     className="h-8 w-full rounded-lg border border-brand-line/50 bg-brand-bg px-2.5 text-[12px] font-medium text-brand-ink outline-none placeholder:text-brand-ink-tertiary focus:border-brand-blue/45 focus:ring-2 focus:ring-brand-blue/15"
@@ -247,6 +293,19 @@ export function SoftSelect({
               ) : null}
               <div className="min-h-0 flex-1 overflow-y-auto p-1 scrollbar-hide">
                 {filteredOptions.length === 0 ? (
+                  allowCustomValue && query.trim() ? (
+                    <button
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        commitCustomValue();
+                      }}
+                      className="flex w-full items-center rounded-lg px-2.5 py-1.5 text-left text-[12px] font-medium text-brand-ink-secondary hover:bg-brand-bg-subtle hover:text-brand-ink"
+                    >
+                      Use “{query.trim()}”
+                    </button>
+                  ) : (
                   <p className="px-2.5 py-2 text-[12px] text-brand-ink-tertiary">
                     {options.length === 0
                       ? "No options"
@@ -254,6 +313,7 @@ export function SoftSelect({
                         ? "No matches"
                         : "No options"}
                   </p>
+                  )
                 ) : (
                   filteredOptions.map((opt) => {
                     const isSelected = opt.value === value;

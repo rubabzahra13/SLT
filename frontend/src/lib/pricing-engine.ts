@@ -144,26 +144,127 @@ export function setJazzKickRateCardFromDb(entries: DanceRateCardEntry[]): void {
 
 export const COMPLIANT_MUSIC_AFFILIATES = [
   "POWER MUSIC & UNLEASH THE BEATS COVERS (CAN NOT BE USED FOR A TITANIUM PACKAGE)",
+  "POWER MUSIC COVERS",
+  "UNLEASH THE BEATS COVERS",
   "POWER MUSIC",
   "POWER MUSIC + UNLEASH THE BEATS",
   "UNLEASH THE BEATS",
   "LIBRARY MUSIC",
+  "SONGS FOR CHEER",
+  "100% ORIGINAL CUSTOM MUSIC (TITANIUM PACKAGE ONLY)",
 ] as const;
 
 /**
  * Normalization / Alias table for Music Affiliates.
- * "* Covers" / combined Power+Unleash covers → compliant Power Music family.
+ * Combined Power+Unleash covers stays its own compliant option.
  */
 export const MUSIC_AFFILIATE_ALIASES: Record<string, string> = {
-  "POWER MUSIC COVERS": "POWER MUSIC",
-  "UNLEASH THE BEATS COVERS": "UNLEASH THE BEATS",
+  "POWER MUSIC COVERS": "POWER MUSIC COVERS",
+  "UNLEASH THE BEATS COVERS": "UNLEASH THE BEATS COVERS",
   "POWER MUSIC & UNLEASH THE BEATS COVERS (CAN NOT BE USED FOR A TITANIUM PACKAGE)":
     "POWER MUSIC & UNLEASH THE BEATS COVERS (CAN NOT BE USED FOR A TITANIUM PACKAGE)",
+  "SONGS FOR CHEER": "SONGS FOR CHEER",
+  "100% ORIGINAL CUSTOM MUSIC (TITANIUM PACKAGE ONLY)":
+    "100% ORIGINAL CUSTOM MUSIC (TITANIUM PACKAGE ONLY)",
 };
 
 /** Ignore case, spacing, and punctuation for free-text affiliate matching. */
 export function affiliateCompactKey(value: string): string {
   return value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
+/** Word tokens for near-match ("almost same words"). */
+export function affiliateWordTokens(value: string): string[] {
+  return String(value || "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, " ")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
+function levenshteinDistance(a: string, b: string): number {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  const prev = new Array<number>(b.length + 1);
+  const curr = new Array<number>(b.length + 1);
+  for (let j = 0; j <= b.length; j++) prev[j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    curr[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      curr[j] = Math.min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost);
+    }
+    for (let j = 0; j <= b.length; j++) prev[j] = curr[j];
+  }
+  return prev[b.length];
+}
+
+/**
+ * Similarity in [0, 1] ignoring case / spacing / punctuation.
+ * Used for manual Add Order free text vs catalog / Edit Affiliates labels.
+ */
+export function affiliateTextSimilarity(a: string, b: string): number {
+  const left = affiliateCompactKey(a);
+  const right = affiliateCompactKey(b);
+  if (!left || !right) return 0;
+  if (left === right) return 1;
+  if (left.includes(right) || right.includes(left)) {
+    const shorter = Math.min(left.length, right.length);
+    const longer = Math.max(left.length, right.length);
+    return shorter / longer;
+  }
+  const maxLen = Math.max(left.length, right.length);
+  const compactScore = 1 - levenshteinDistance(left, right) / maxLen;
+
+  // Token path: "power musik covers" ≈ "Power Music Covers"
+  const leftTokens = affiliateWordTokens(a);
+  const rightTokens = affiliateWordTokens(b);
+  if (leftTokens.length && rightTokens.length) {
+    const [shorter, longer] =
+      leftTokens.length <= rightTokens.length
+        ? [leftTokens, rightTokens]
+        : [rightTokens, leftTokens];
+    let matched = 0;
+    const used = new Set<number>();
+    for (const token of shorter) {
+      let best = -1;
+      let bestScore = 0;
+      for (let i = 0; i < longer.length; i++) {
+        if (used.has(i)) continue;
+        const other = longer[i];
+        if (token === other) {
+          best = i;
+          bestScore = 1;
+          break;
+        }
+        const len = Math.max(token.length, other.length);
+        if (len === 0) continue;
+        const score = 1 - levenshteinDistance(token, other) / len;
+        if (score > bestScore) {
+          bestScore = score;
+          best = i;
+        }
+      }
+      if (best >= 0 && bestScore >= 0.75) {
+        used.add(best);
+        matched += bestScore;
+      }
+    }
+    const tokenScore = matched / Math.max(longer.length, shorter.length);
+    return Math.max(compactScore, tokenScore);
+  }
+  return compactScore;
+}
+
+/** True when free text is the same affiliate ignoring spacing/caps/near typos. */
+export function affiliateTextsFuzzyMatch(
+  a: string,
+  b: string,
+  threshold = 0.82
+): boolean {
+  return affiliateTextSimilarity(a, b) >= threshold;
 }
 
 /** Canonical compliant names as compact keys (text-field tolerant). */
@@ -172,48 +273,127 @@ const COMPLIANT_AFFILIATE_COMPACT_KEYS = [
     "POWER MUSIC & UNLEASH THE BEATS COVERS (CAN NOT BE USED FOR A TITANIUM PACKAGE)"
   ),
   affiliateCompactKey("POWER MUSIC & UNLEASH THE BEATS COVERS"),
+  affiliateCompactKey("POWER MUSIC COVERS"),
+  affiliateCompactKey("UNLEASH THE BEATS COVERS"),
   affiliateCompactKey("POWER MUSIC"),
   affiliateCompactKey("POWER MUSIC + UNLEASH THE BEATS"),
   affiliateCompactKey("UNLEASH THE BEATS"),
   affiliateCompactKey("LIBRARY MUSIC"),
-  affiliateCompactKey("POWER MUSIC COVERS"),
-  affiliateCompactKey("UNLEASH THE BEATS COVERS"),
+  affiliateCompactKey("SONGS FOR CHEER"),
+  affiliateCompactKey("100% ORIGINAL CUSTOM MUSIC (TITANIUM PACKAGE ONLY)"),
+  affiliateCompactKey("100% ORIGINAL CUSTOM MUSIC"),
 ] as const;
 
 /**
- * True when free-text affiliate matches a compliant name closely enough
- * (case / spacing / punctuation ignored). Anything else is non-compliant.
+ * Runtime compliant labels by pricing category (from Edit Affiliates / local store).
+ * When empty for a category, falls back to COMPLIANT_AFFILIATE_COMPACT_KEYS.
  */
-export function isCompliantMusicAffiliateText(musicAffiliate: string): boolean {
+let runtimeCompliantLabelsByCategory: Record<string, string[]> = {};
+
+/** Push Edit Affiliates selections into the compliance matcher (avoids circular imports). */
+export function setRuntimeCompliantAffiliateLabelsByCategory(
+  map: Record<string, string[]>
+): void {
+  runtimeCompliantLabelsByCategory = { ...map };
+}
+
+export function getRuntimeCompliantAffiliateLabels(
+  categoryKey: string
+): string[] {
+  return runtimeCompliantLabelsByCategory[categoryKey] || [];
+}
+
+/** Map cheer / dance subtype (or form slug) → pricing CategoryKey string. */
+export function complianceCategoryKeyForSubtype(
+  subType: string | null | undefined
+): string {
+  const s = String(subType || "").toLowerCase();
+  if (s === "all-star-cheer") return "All-Star Cheer";
+  if (s === "school-cheer-viroc-yes" || s === "school-cheer-viroc-no") {
+    return "School Cheer";
+  }
+  if (s === "youth-rec-cheer") return "Youth Rec Cheer";
+  if (s === "pom") return "Pom";
+  if (s === "hip-hop") return "Hip Hop";
+  if (s === "team-performance-variety") return "Team Performance & Variety";
+  if (s === "gameday") return "Gameday";
+  if (s === "jazz-kick") return "Jazz/Kick";
+  if (s === "marching-band" || s.includes("band")) return "Marching Band";
+  if (s === "sports-entertainment" || s.includes("sports")) {
+    return "Sports Entertainment";
+  }
+  if (s === "school-anthem" || s.includes("anthem")) return "School Anthems";
+  return "All-Star Cheer";
+}
+
+function compliantCompactKeysForLabels(labels: string[]): string[] {
+  const keys: string[] = [];
+  const seen = new Set<string>();
+  for (const label of labels) {
+    const key = affiliateCompactKey(label);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    keys.push(key);
+  }
+  return keys;
+}
+
+function matchAffiliateAgainstCompactKeys(
+  compact: string,
+  keys: readonly string[],
+  rawText?: string
+): boolean {
+  return keys.some((key) => {
+    if (compact === key || compact.includes(key) || key.includes(compact)) {
+      return true;
+    }
+    if (compact.length >= 6 && key.startsWith(compact)) return true;
+    // Almost-same wording (manual Add Order typos / spacing variants).
+    if (rawText && affiliateTextsFuzzyMatch(rawText, key, 0.82)) {
+      return true;
+    }
+    if (affiliateTextsFuzzyMatch(compact, key, 0.88)) {
+      return true;
+    }
+    return false;
+  });
+}
+
+/**
+ * True when free-text affiliate matches a compliant name closely enough
+ * (case / spacing / punctuation ignored).
+ * Prefers Edit Affiliates labels for `categoryKey` when synced; otherwise defaults.
+ * Unknown free text (and unchecked options) are non-compliant.
+ */
+export function isCompliantMusicAffiliateText(
+  musicAffiliate: string,
+  categoryKeyOrLabels?: string | string[] | null
+): boolean {
   const compact = affiliateCompactKey(musicAffiliate);
   if (!compact) return false;
 
-  // Explicit non-compliant labels (All-Star Cheer list).
+  let keys: readonly string[] = COMPLIANT_AFFILIATE_COMPACT_KEYS;
+  if (Array.isArray(categoryKeyOrLabels)) {
+    if (categoryKeyOrLabels.length > 0) {
+      keys = compliantCompactKeysForLabels(categoryKeyOrLabels);
+    }
+  } else if (categoryKeyOrLabels) {
+    const runtime = runtimeCompliantLabelsByCategory[categoryKeyOrLabels];
+    if (runtime?.length) {
+      keys = compliantCompactKeysForLabels(runtime);
+    }
+  }
+
+  // "Non compliant" is never compliant unless explicitly present in Edit Affiliates.
   if (
-    compact === "NONCOMPLIANT" ||
-    compact === "SONGSFORCHEER" ||
-    compact.startsWith("100ORIGINALCUSTOMMUSIC") ||
-    compact.includes("TITANIUMPACKAGEONLY")
+    (compact === "NONCOMPLIANT" ||
+      affiliateTextsFuzzyMatch(musicAffiliate, "Non compliant", 0.9)) &&
+    !keys.some((key) => affiliateCompactKey(key) === "NONCOMPLIANT")
   ) {
     return false;
   }
 
-  // Covers variants collapse to core compliant names.
-  const aliased =
-    compact === "POWERMUSICCOVERS"
-      ? "POWERMUSIC"
-      : compact === "UNLEASHTHEBEATSCOVERS"
-        ? "UNLEASHTHEBEATS"
-        : compact;
-
-  return COMPLIANT_AFFILIATE_COMPACT_KEYS.some((key) => {
-    if (aliased === key || aliased.includes(key) || key.includes(aliased)) {
-      return true;
-    }
-    // Short-but-unique forms from a text field, e.g. "unleash" / "PowerMusic".
-    if (aliased.length >= 6 && key.startsWith(aliased)) return true;
-    return false;
-  });
+  return matchAffiliateAgainstCompactKeys(compact, keys, musicAffiliate);
 }
 
 /**
@@ -228,8 +408,15 @@ export function normalizeMusicAffiliate(musicAffiliate?: string): string | undef
   const compact = affiliateCompactKey(trimmed);
   if (!compact) return undefined;
 
-  if (compact === "POWERMUSICCOVERS") return "POWER MUSIC";
-  if (compact === "UNLEASHTHEBEATSCOVERS") return "UNLEASH THE BEATS";
+  if (compact === "POWERMUSICCOVERS") return "POWER MUSIC COVERS";
+  if (compact === "UNLEASHTHEBEATSCOVERS") return "UNLEASH THE BEATS COVERS";
+  if (compact === "SONGSFORCHEER") return "SONGS FOR CHEER";
+  if (
+    compact.startsWith("100ORIGINALCUSTOMMUSIC") ||
+    compact.includes("TITANIUMPACKAGEONLY")
+  ) {
+    return "100% ORIGINAL CUSTOM MUSIC (TITANIUM PACKAGE ONLY)";
+  }
 
   const upper = trimmed.toUpperCase().replace(/\s+/g, " ").trim();
   if (MUSIC_AFFILIATE_ALIASES[upper]) {
@@ -375,7 +562,7 @@ export function mixLengthsForOrderForm(
 }
 
 export function determineComplianceStatus(
-  subType: CheerFormSubtype | DanceFormSubtype,
+  subType: CheerFormSubtype | DanceFormSubtype | string,
   musicAffiliate?: string
 ): ComplianceStatus {
   if (musicAffiliate === undefined || musicAffiliate === null) {
@@ -387,9 +574,12 @@ export function determineComplianceStatus(
     return "unknown-no-affiliate-field";
   }
 
-  // Compliant = free-text matches Power Music / Unleash / Library (spacing/case-tolerant).
-  // Non-compliant = any other non-empty text (not a fixed Custom Music / SFC list).
-  return isCompliantMusicAffiliateText(normalized) ? "compliant" : "non-compliant";
+  const categoryKey = complianceCategoryKeyForSubtype(subType);
+  // Compliant = matches Edit Affiliates checked options for this category
+  // (or built-in defaults when the store has not been synced yet).
+  return isCompliantMusicAffiliateText(normalized, categoryKey)
+    ? "compliant"
+    : "non-compliant";
 }
 
 export function lookupRateCardEntry(

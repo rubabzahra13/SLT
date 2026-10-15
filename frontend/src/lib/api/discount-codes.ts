@@ -3,7 +3,6 @@ import type { DiscountCode } from "@/types";
 
 export interface BackendDiscountCode {
   id: string;
-  legacy_id?: string | null;
   code: string;
   description?: string | null;
   discount_type?: "fixed" | "percentage" | null;
@@ -12,7 +11,7 @@ export interface BackendDiscountCode {
 
 export function transformDiscountCode(bd: BackendDiscountCode): DiscountCode {
   return {
-    id: bd.legacy_id || bd.id,
+    id: bd.id,
     code: bd.code,
     description: bd.description || "",
     discountType:

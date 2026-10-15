@@ -50,7 +50,7 @@ function addressCols(prefix: "gym" | "school" | "billing", includeName = true): 
       ? "gymBillingAddress"
       : prefix === "school"
         ? "schoolBillingAddress"
-        : "billingAddress";
+        : "youthRecBillingAddress";
   const nameHeader =
     prefix === "gym" ? "Gym Name" : prefix === "school" ? "School Name" : "Program Name";
 
@@ -86,7 +86,7 @@ function teamInfoCols(includeMascot = false): Column<Order>[] {
   cols.push(
     textCol("division", "Division", (o) => o.division, "160px", true),
     textCol("teamCoedAllGirl", "My Team Is", (o) => o.teamCoedAllGirl || "", "110px"),
-    textCol("teamColors", "Team Colors", (o) => o.teamColors || o.colors || "", "110px"),
+    textCol("teamColors", "Team Colors", (o) => o.teamColors || "", "110px"),
     {
       key: "numberOfCopies",
       header: "Copies",
@@ -116,29 +116,39 @@ function contactCols(): Column<Order>[] {
 function mixInfoCols(options: {
   split?: boolean;
   eightCountLabel?: string;
-  eightCountField?: "sendingEightCountSheets" | "usingEightCountSheets";
+  /** Youth Rec Magento form has no Requested Editor field. */
+  includeRequestedEditor?: boolean;
 }): Column<Order>[] {
-  const eightField = options.eightCountField || "sendingEightCountSheets";
-  const cols: Column<Order>[] = [
-    textCol(
-      "requestedEditor",
-      "Requested Editor",
-      (o) => {
-        const raw = o.requestedEditor?.trim() || "";
-        if (!raw || /^(fa|first available)$/i.test(raw)) return "First Available";
-        return raw.split(/\s+/)[0];
-      },
-      "120px"
-    ),
+  const cols: Column<Order>[] = [];
+  if (options.includeRequestedEditor !== false) {
+    cols.push(
+      textCol(
+        "requestedEditor",
+        "Requested Editor",
+        (o) => {
+          const raw = o.requestedEditor?.trim() || "";
+          if (!raw || /^(fa|first available)$/i.test(raw)) return "First Available";
+          return raw.split(/\s+/)[0];
+        },
+        "120px"
+      )
+    );
+  }
+  cols.push(
     multiCol("packageType", "Package Type", (o) => o.packageType, "160px"),
-    textCol("timeLengthOfMix", "Length of Mix", (o) => o.timeLengthOfMix, "100px"),
-  ];
+    textCol("timeLengthOfMix", "Length of Mix", (o) => o.timeLengthOfMix, "100px")
+  );
   if (options.split) {
     cols.push(textCol("splitOrNoSplit", "Split or No Split", (o) => o.splitOrNoSplit || "", "110px"));
   }
   cols.push(
     textCol("musicAffiliate", "Music Affiliate", (o) => o.musicAffiliate, "140px"),
-    textCol(eightField, options.eightCountLabel || "8-Count Sheets", (o) => o[eightField] || "", "120px"),
+    textCol(
+      "sendingEightCountSheets",
+      options.eightCountLabel || "8-Count Sheets",
+      (o) => o.sendingEightCountSheets || "",
+      "120px"
+    ),
     multiCol("songListSuggestions", "Song List/Suggestions", (o) => o.songListSuggestions || "", "220px"),
     multiCol("routineNotes", "Routine Notes", (o) => o.routineNotes, "220px"),
     textCol("couponCode", "Coupon Code", (o) => o.couponCode || "", "100px"),
@@ -165,8 +175,8 @@ function schoolCheerColumns(viroc: boolean): Column<Order>[] {
   ];
   if (viroc) {
     cols.push(
-      textCol("virocChoreographerName", "V!ROC Choreographer", (o) => o.virocChoreographerName || o.choreographerName, "140px"),
-      textCol("virocChoreographerEmail", "V!ROC Choreographer Email", (o) => o.virocChoreographerEmail || o.choreographerEmail, "180px")
+      textCol("virocChoreographerName", "V!ROC Choreographer", (o) => o.choreographerName || o.virocChoreographerName, "140px"),
+      textCol("virocChoreographerEmail", "V!ROC Choreographer Email", (o) => o.choreographerEmail || o.virocChoreographerEmail, "180px")
     );
   } else {
     cols.push(
@@ -180,9 +190,20 @@ function schoolCheerColumns(viroc: boolean): Column<Order>[] {
 
 function youthRecCheerColumns(): Column<Order>[] {
   return [
-    textCol("programName", "Program Name", (o) => o.programName, "160px", true),
-    textCol("teamName", "Team Name", (o) => o.teamName || o.programName, "140px"),
-    textCol("colors", "Colors", (o) => o.colors || o.teamColors || "", "100px"),
+    textCol(
+      "schoolName",
+      "Program Name",
+      (o) => o.schoolName || o.schoolProgramName || o.programName || "",
+      "160px",
+      true
+    ),
+    textCol(
+      "teamName",
+      "Team Name",
+      (o) => o.teamName || "",
+      "140px"
+    ),
+    textCol("youthRecColors", "Colors", (o) => o.youthRecColors || "", "100px"),
     ...addressCols("billing", false),
     textCol("coachContactFullName", "Coach Contact", (o) => o.coachContactFullName || o.coachName, "120px"),
     textCol("coachEmailAddress", "Coach Email", (o) => o.coachEmailAddress || o.coachEmail, "180px"),
@@ -192,11 +213,16 @@ function youthRecCheerColumns(): Column<Order>[] {
       width: "110px",
       render: (o) => <span className="tabular-nums">{o.coachPhone || "—"}</span>,
     },
-    textCol("emailAddress", "Email Address", (o) => o.emailAddress || o.billingPersonEmail, "180px"),
+    textCol(
+      "youthRecExtraEmailAddress",
+      "Email Address",
+      (o) => o.youthRecExtraEmailAddress || o.emailAddress || "",
+      "180px"
+    ),
     ...mixInfoCols({
       split: true,
-      eightCountField: "usingEightCountSheets",
       eightCountLabel: "Using 8 Count Sheets?",
+      includeRequestedEditor: false,
     }),
   ];
 }

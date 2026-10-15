@@ -5,10 +5,9 @@ from datetime import datetime
 
 
 def _orm_to_aliased_dict(obj: TypingAny) -> dict:
-    """Map unified school_gym_* columns onto legacy API field names."""
+    """Expose SoT DB column names plus legacy Magento/API aliases."""
     data: dict = {}
-    # Use mapper attribute keys so renamed DB columns (e.g. received_* →
-    # eight_count_sheet) still populate the API field names.
+    # Mapper attr keys == DB column names (received_eight_count_sheet, etc.).
     try:
         from sqlalchemy import inspect as sa_inspect
 
@@ -31,19 +30,22 @@ def _orm_to_aliased_dict(obj: TypingAny) -> dict:
     data["school_billing_address"] = billing
     data["billing_address"] = billing
     data["gym_billing_address"] = billing
+    data["youth_rec_billing_address"] = billing
+    data["organization_billing_address"] = billing
     data["school_address"] = billing
     data["team_colors"] = colors
+    data["youth_rec_colors"] = colors
+    data["school_program_colors"] = colors
     data["email_address"] = youth_email
     data["coach_contact_full_name"] = data.get("coach_name")
     data["coach_email_address"] = data.get("coach_email")
     data["viroc_choreographer_name"] = data.get("choreographer_name")
     data["viroc_choreographer_email"] = data.get("choreographer_email")
     data["editor_request"] = data.get("editor_initials")
-    data["requested_producer"] = data.get("assigned_producer")
-    # using_* was merged into sending_*
+    data["requested_producer"] = data.get("requested_editor")
+    # using_* → sending_*; style preference → instrumentation_notes
     data["using_eight_count_sheets"] = data.get("sending_eight_count_sheets")
-    # received_* is the DB name; API keeps eight_count_sheet
-    data["received_eight_count_sheet"] = data.get("eight_count_sheet")
+    data["instrumental_style_preference"] = data.get("instrumentation_notes")
     data["legacy_id"] = str(data.get("id")) if data.get("id") is not None else None
     data["category"] = None
     return data
@@ -51,7 +53,6 @@ def _orm_to_aliased_dict(obj: TypingAny) -> dict:
 
 class OrderSchema(BaseModel):
     id: UUID
-    legacy_id: Optional[str] = None
     form_type: Optional[str] = "school-all-star-cheer"
     cheer_form_subtype: Optional[str] = None
     dance_form_subtype: Optional[str] = None
@@ -61,6 +62,7 @@ class OrderSchema(BaseModel):
     school_gym_billing_address: Optional[str] = None
     # Legacy aliases (filled from school_gym_* for FE compat)
     school_program_name: Optional[str] = None
+    school_gym_billing_address: Optional[str] = None
     school_address: Optional[str] = None
     city: Optional[str] = None
     state_province: Optional[str] = None
@@ -84,6 +86,7 @@ class OrderSchema(BaseModel):
     affiliate_flag_status: Optional[str] = None
     music_affiliate_selections: Optional[str] = None
     power_music_covers: Optional[str] = None
+    unleash_the_beats_covers: Optional[str] = None
     routine_notes: Optional[str] = None
     custom_voiceovers: Optional[str] = None
     voiceover_script: Optional[str] = None
@@ -93,29 +96,36 @@ class OrderSchema(BaseModel):
     instrumentation_notes: Optional[str] = None
     lyrical_notes: Optional[str] = None
     is_rush_order: Optional[str] = None
+    client_requested_rush_order: Optional[str] = None
     nicknames: Optional[str] = None
     vocals_preference: Optional[str] = None
-    instrumental_style_preference: Optional[str] = None
+    instrumental_style_preference: Optional[str] = None  # alias of instrumentation_notes
 
     gym_name: Optional[str] = None
     gym_billing_address: Optional[str] = None
     team_name: Optional[str] = None
     team_coed_all_girl: Optional[str] = None
+    colors: Optional[str] = None
     team_colors: Optional[str] = None
+    school_gym_name: Optional[str] = None
     school_name: Optional[str] = None
     school_billing_address: Optional[str] = None
     mascot: Optional[str] = None
     split_or_no_split: Optional[str] = None
-    viroc_choreographer_name: Optional[str] = None
-    viroc_choreographer_email: Optional[str] = None
-    colors: Optional[str] = None
-    billing_address: Optional[str] = None
+    viroc_choreographer_name: Optional[str] = None  # alias of choreographer_name
+    viroc_choreographer_email: Optional[str] = None  # alias of choreographer_email
+    youth_rec_colors: Optional[str] = None
+    school_program_colors: Optional[str] = None
+    youth_rec_billing_address: Optional[str] = None
+    organization_billing_address: Optional[str] = None
     coach_contact_full_name: Optional[str] = None
-    coach_email_address: Optional[str] = None
+    coach_youth_rec_extra_email_address: Optional[str] = None
+    email_address: Optional[str] = None
+    youth_rec_extra_email_address: Optional[str] = None
     email_address: Optional[str] = None
     youth_rec_extra_email_address: Optional[str] = None
     sending_eight_count_sheets: Optional[str] = None
-    using_eight_count_sheets: Optional[str] = None
+    using_eight_count_sheets: Optional[str] = None  # alias of sending_eight_count_sheets
     song_list_suggestions: Optional[str] = None
     coupon_code: Optional[str] = None
     how_did_you_find_out: Optional[str] = None
@@ -125,7 +135,8 @@ class OrderSchema(BaseModel):
     assigned_producer_id: Optional[UUID] = None
     mix_start_date: Optional[str] = None
     mix_end_date: Optional[str] = None
-    eight_count_sheet: Optional[str] = None
+    client_requested_mix_due_date: Optional[str] = None
+    received_eight_count_sheet: Optional[str] = None
     have_songs: Optional[str] = None
     editor_initials: Optional[str] = None
     client_requested_mix_due_date: Optional[str] = None
@@ -137,8 +148,9 @@ class OrderSchema(BaseModel):
     category: Optional[str] = None
     package: Optional[str] = None
     music_theme: Optional[str] = None
-    editor_request: Optional[str] = None
-    requested_producer: Optional[str] = None
+    editor_initials: Optional[str] = None
+    editor_request: Optional[str] = None  # alias of editor_initials
+    requested_producer: Optional[str] = None  # alias of requested_editor
     price: float = 0.0
     price_compliance: Optional[str] = None
     system_calculated_customer_price: Optional[float] = None
@@ -178,8 +190,9 @@ class OrderCreateSchema(BaseModel):
     package: Optional[str] = "Standard"
     price: float = 0.0
     music_theme: Optional[str] = None
-    editor_request: Optional[str] = "FA"
-    requested_producer: Optional[str] = None
+    editor_initials: Optional[str] = "FA"
+    editor_request: Optional[str] = "FA"  # alias of editor_initials
+    requested_producer: Optional[str] = None  # alias of requested_editor
     requested_editor: Optional[str] = "FA"
     form_type: Optional[str] = "school-all-star-cheer"
     cheer_form_subtype: Optional[str] = None
@@ -191,6 +204,7 @@ class OrderCreateSchema(BaseModel):
     school_gym_name: Optional[str] = None
     school_gym_billing_address: Optional[str] = None
     school_program_name: Optional[str] = None
+    school_gym_billing_address: Optional[str] = None
     school_address: Optional[str] = None
     city: Optional[str] = None
     state_province: Optional[str] = None
@@ -213,6 +227,7 @@ class OrderCreateSchema(BaseModel):
     affiliate_flag_status: Optional[str] = None
     music_affiliate_selections: Optional[str] = None
     power_music_covers: Optional[str] = None
+    unleash_the_beats_covers: Optional[str] = None
     routine_notes: Optional[str] = None
     custom_voiceovers: Optional[str] = None
     voiceover_script: Optional[str] = None
@@ -222,28 +237,35 @@ class OrderCreateSchema(BaseModel):
     instrumentation_notes: Optional[str] = None
     lyrical_notes: Optional[str] = None
     is_rush_order: Optional[str] = None
+    client_requested_rush_order: Optional[str] = None
     nicknames: Optional[str] = None
     vocals_preference: Optional[str] = None
-    instrumental_style_preference: Optional[str] = None
+    instrumental_style_preference: Optional[str] = None  # alias of instrumentation_notes
 
     gym_name: Optional[str] = None
     gym_billing_address: Optional[str] = None
     team_name: Optional[str] = None
     team_coed_all_girl: Optional[str] = None
+    colors: Optional[str] = None
     team_colors: Optional[str] = None
+    school_gym_name: Optional[str] = None
     school_name: Optional[str] = None
     school_billing_address: Optional[str] = None
     mascot: Optional[str] = None
     split_or_no_split: Optional[str] = None
-    viroc_choreographer_name: Optional[str] = None
-    viroc_choreographer_email: Optional[str] = None
-    colors: Optional[str] = None
-    billing_address: Optional[str] = None
+    viroc_choreographer_name: Optional[str] = None  # alias of choreographer_name
+    viroc_choreographer_email: Optional[str] = None  # alias of choreographer_email
+    youth_rec_colors: Optional[str] = None
+    school_program_colors: Optional[str] = None
+    youth_rec_billing_address: Optional[str] = None
+    organization_billing_address: Optional[str] = None
     coach_contact_full_name: Optional[str] = None
-    coach_email_address: Optional[str] = None
+    coach_youth_rec_extra_email_address: Optional[str] = None
+    email_address: Optional[str] = None
+    youth_rec_extra_email_address: Optional[str] = None
     email_address: Optional[str] = None
     sending_eight_count_sheets: Optional[str] = None
-    using_eight_count_sheets: Optional[str] = None
+    using_eight_count_sheets: Optional[str] = None  # alias of sending_eight_count_sheets
     song_list_suggestions: Optional[str] = None
     coupon_code: Optional[str] = None
     how_did_you_find_out: Optional[str] = None
@@ -251,7 +273,8 @@ class OrderCreateSchema(BaseModel):
     assigned_producer_id: Optional[UUID] = None
     mix_start_date: Optional[str] = None
     mix_end_date: Optional[str] = None
-    eight_count_sheet: Optional[str] = None
+    client_requested_mix_due_date: Optional[str] = None
+    received_eight_count_sheet: Optional[str] = None
     have_songs: Optional[str] = None
 
 
@@ -272,12 +295,14 @@ class OrderUpdateSchema(BaseModel):
     affiliate_flag_status: Optional[str] = None
     music_affiliate_selections: Optional[str] = None
     power_music_covers: Optional[str] = None
+    unleash_the_beats_covers: Optional[str] = None
     routine_notes: Optional[str] = None
     custom_voiceovers: Optional[str] = None
     song_list_suggestions: Optional[str] = None
     school_gym_name: Optional[str] = None
     school_gym_billing_address: Optional[str] = None
     school_program_name: Optional[str] = None
+    school_gym_billing_address: Optional[str] = None
     school_address: Optional[str] = None
     city: Optional[str] = None
     state_province: Optional[str] = None
@@ -298,8 +323,9 @@ class OrderUpdateSchema(BaseModel):
     dance_form_subtype: Optional[str] = None
     requested_editor: Optional[str] = None
     split_or_no_split: Optional[str] = None
-    editor_request: Optional[str] = None
-    requested_producer: Optional[str] = None
+    editor_initials: Optional[str] = None
+    editor_request: Optional[str] = None  # alias of editor_initials
+    requested_producer: Optional[str] = None  # alias of requested_editor
     varsity_viroc_customer: Optional[str] = None
     status: Optional[str] = None
     needs_attention: Optional[bool] = None
@@ -321,7 +347,8 @@ class OrderUpdateSchema(BaseModel):
     assigned_producer_id: Optional[UUID] = None
     mix_start_date: Optional[str] = None
     mix_end_date: Optional[str] = None
-    eight_count_sheet: Optional[str] = None
+    client_requested_mix_due_date: Optional[str] = None
+    received_eight_count_sheet: Optional[str] = None
     have_songs: Optional[str] = None
     voiceover_script: Optional[str] = None
     pronunciation_guidance: Optional[str] = None
@@ -330,22 +357,29 @@ class OrderUpdateSchema(BaseModel):
     instrumentation_notes: Optional[str] = None
     lyrical_notes: Optional[str] = None
     is_rush_order: Optional[str] = None
+    client_requested_rush_order: Optional[str] = None
     nicknames: Optional[str] = None
     vocals_preference: Optional[str] = None
-    instrumental_style_preference: Optional[str] = None
+    instrumental_style_preference: Optional[str] = None  # alias of instrumentation_notes
     gym_name: Optional[str] = None
     gym_billing_address: Optional[str] = None
     team_name: Optional[str] = None
     team_coed_all_girl: Optional[str] = None
+    colors: Optional[str] = None
     team_colors: Optional[str] = None
+    school_gym_name: Optional[str] = None
     school_name: Optional[str] = None
     school_billing_address: Optional[str] = None
     mascot: Optional[str] = None
-    colors: Optional[str] = None
-    billing_address: Optional[str] = None
+    youth_rec_colors: Optional[str] = None
+    school_program_colors: Optional[str] = None
+    youth_rec_billing_address: Optional[str] = None
+    organization_billing_address: Optional[str] = None
     coach_contact_full_name: Optional[str] = None
-    coach_email_address: Optional[str] = None
+    coach_youth_rec_extra_email_address: Optional[str] = None
+    email_address: Optional[str] = None
+    youth_rec_extra_email_address: Optional[str] = None
     email_address: Optional[str] = None
     sending_eight_count_sheets: Optional[str] = None
-    using_eight_count_sheets: Optional[str] = None
+    using_eight_count_sheets: Optional[str] = None  # alias of sending_eight_count_sheets
     how_did_you_find_out: Optional[str] = None

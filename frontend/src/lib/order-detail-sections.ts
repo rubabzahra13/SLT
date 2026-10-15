@@ -155,10 +155,8 @@ const SCHOOL_CHEER_VIROC_YES_FIELDS: { title: string; fields: FieldDef[] }[] = [
       { key: "packageType", label: "Package Type" },
       {
         key: "timeLengthOfMix",
-        label:
-          "Length of Mix (only list the time length of music needed. Do not include your cheer into the time limit)",
+        label: "Length of Mix",
         preserveCase: true,
-        wide: true,
       },
       { key: "splitOrNoSplit", label: "Split or No Split" },
       { key: "musicAffiliate", label: "Music Affiliate" },
@@ -245,10 +243,8 @@ const SCHOOL_CHEER_VIROC_NO_FIELDS: { title: string; fields: FieldDef[] }[] = [
       { key: "packageType", label: "Package Type" },
       {
         key: "timeLengthOfMix",
-        label:
-          "Length of Mix (only list the time length of music needed. Do not include your cheer into the time limit)",
+        label: "Length of Mix",
         preserveCase: true,
-        wide: true,
       },
       { key: "splitOrNoSplit", label: "Split or No Split" },
       { key: "musicAffiliate", label: "Music Affiliate" },
@@ -282,10 +278,14 @@ const YOUTH_REC_CHEER_FIELDS: { title: string; fields: FieldDef[] }[] = [
   {
     title: "Program Information",
     fields: [
-      { key: "programName", label: "Program Name" },
+      { key: "schoolProgramName", label: "Program Name" },
       { key: "teamName", label: "Team Name" },
-      { key: "colors", label: "Colors" },
-      { key: "billingAddress", label: "Billing Address", multiline: true },
+      { key: "youthRecColors", label: "Colors" },
+      {
+        key: "youthRecBillingAddress",
+        label: "Billing Address",
+        multiline: true,
+      },
       { key: "city", label: "City" },
       { key: "stateProvince", label: "State/Province" },
       { key: "zipPostalCode", label: "ZIP/Postal Code", preserveCase: true },
@@ -302,7 +302,11 @@ const YOUTH_REC_CHEER_FIELDS: { title: string; fields: FieldDef[] }[] = [
         preserveCase: true,
       },
       { key: "coachPhone", label: "Phone #" },
-      { key: "emailAddress", label: "Email Address", preserveCase: true },
+      {
+        key: "youthRecExtraEmailAddress",
+        label: "Email Address",
+        preserveCase: true,
+      },
     ],
   },
   {
@@ -318,7 +322,7 @@ const YOUTH_REC_CHEER_FIELDS: { title: string; fields: FieldDef[] }[] = [
         wide: true,
       },
       {
-        key: "usingEightCountSheets",
+        key: "sendingEightCountSheets",
         label: "Will you be using 8 Count Sheets?",
       },
       {
@@ -407,7 +411,7 @@ const POM_DANCE_FIELDS: { title: string; fields: FieldDef[] }[] = [
         preserveCase: true,
       },
       {
-        key: "songListSuggestions",
+        key: "unleashTheBeatsCovers",
         label: "Unleash the Beats Covers",
         multiline: true,
         preserveCase: true,
@@ -505,7 +509,7 @@ const HIP_HOP_DANCE_FIELDS: { title: string; fields: FieldDef[] }[] = [
         preserveCase: true,
       },
       {
-        key: "songListSuggestions",
+        key: "unleashTheBeatsCovers",
         label: "Unleash the Beats Covers",
         multiline: true,
         preserveCase: true,
@@ -604,7 +608,7 @@ const TEAM_PERFORMANCE_VARIETY_DANCE_FIELDS: { title: string; fields: FieldDef[]
         preserveCase: true,
       },
       {
-        key: "songListSuggestions",
+        key: "unleashTheBeatsCovers",
         label: "Unleash the Beats Covers",
         multiline: true,
         preserveCase: true,
@@ -704,7 +708,7 @@ const GAMEDAY_DANCE_FIELDS: { title: string; fields: FieldDef[] }[] = [
         preserveCase: true,
       },
       {
-        key: "songListSuggestions",
+        key: "unleashTheBeatsCovers",
         label: "Unleash the Beats Covers",
         multiline: true,
         preserveCase: true,
@@ -809,7 +813,7 @@ const JAZZ_KICK_DANCE_FIELDS: { title: string; fields: FieldDef[] }[] = [
         preserveCase: true,
       },
       {
-        key: "songListSuggestions",
+        key: "unleashTheBeatsCovers",
         label: "Unleash the Beats Covers",
         multiline: true,
         preserveCase: true,
@@ -903,7 +907,7 @@ const SPORTS_ENTERTAINMENT_FIELDS: { title: string; fields: FieldDef[] }[] = [
     fields: [
       { key: "organizationName", label: "Organization Name" },
       {
-        key: "billingAddress",
+        key: "organizationBillingAddress",
         label: "Organization's Billing Address",
         multiline: true,
       },
@@ -940,12 +944,12 @@ const SPORTS_ENTERTAINMENT_FIELDS: { title: string; fields: FieldDef[] }[] = [
     fields: [
       { key: "packageType", label: "Package Type" },
       {
-        key: "mixEndDate",
+        key: "clientRequestedMixDueDate",
         label: "Please allow 14 days turn around for all Pro Team mixes.",
         wide: true,
       },
       {
-        key: "isRushOrder",
+        key: "clientRequestedRushOrder",
         label:
           "Do you need a Rush Order? If you need your mix in under 7 days, there is a rush fee of $100.",
         wide: true,
@@ -1015,7 +1019,7 @@ const SCHOOL_ANTHEMS_FIELDS: { title: string; fields: FieldDef[] }[] = [
     fields: [
       { key: "vocalsPreference", label: "Vocals Preference" },
       {
-        key: "instrumentalStylePreference",
+        key: "instrumentationNotes",
         label: "Instrumental Style Preference",
         wide: true,
       },
@@ -1329,4 +1333,40 @@ export function getOrderIdentityName(order: Order): string {
     if (String(school).trim()) return String(school).trim();
   }
   return String(order.programName || "").trim();
+}
+
+/**
+ * Person name for Orders/MTD contact columns (Coach / Music Contact).
+ * Reads coach_name SoT aliases only — never school_gym_name identity.
+ */
+export function getOrderContactPersonName(
+  order?: Order | null,
+  recordContactName?: string | null,
+  recordProgramName?: string | null
+): string {
+  const identity = (
+    (order ? getOrderIdentityName(order) : "") ||
+    recordProgramName ||
+    ""
+  )
+    .trim()
+    .toLowerCase();
+
+  const candidates = [
+    order?.coachName,
+    order?.musicContactName,
+    order?.coachContactFullName,
+    order?.contactName,
+    recordContactName,
+    order?.customerName,
+  ];
+
+  for (const raw of candidates) {
+    const name = String(raw || "").trim();
+    if (!name) continue;
+    if (/^(contact|customer)$/i.test(name)) continue;
+    if (identity && name.toLowerCase() === identity) continue;
+    return name;
+  }
+  return "";
 }

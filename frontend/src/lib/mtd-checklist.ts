@@ -36,6 +36,11 @@ export function getCollectionControlIds(
   if (formType === "school-all-star-dance") {
     return ["form", "mix"];
   }
+  // Magento School Anthem has no mix/CS/video; Form only on manual New Order
+  // (handled by order-requirements). Checklist controls: none.
+  if (formType === "school-anthem") {
+    return [];
+  }
   return ["form"];
 }
 
@@ -48,7 +53,7 @@ export function getCollectionItemsForCategory(
     cs: "CS",
     video: "Video",
     form: "Form",
-    mix: "Mix",
+    mix: "Mix Time",
   };
   return ids.map((id) => ({
     id,

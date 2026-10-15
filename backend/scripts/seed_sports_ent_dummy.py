@@ -7,6 +7,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from app.core.database import SessionLocal
 from app.models.order import Order
+from app.seed.ids import seed_uuid
 
 SPORTS_ENT_DEMO = [
     {
@@ -48,7 +49,8 @@ def main() -> None:
     try:
         for i, row in enumerate(SPORTS_ENT_DEMO, 1):
             legacy = row["legacy_id"]
-            existing = db.query(Order).filter(Order.legacy_id == legacy).first()
+            order_pk = seed_uuid("order", legacy)
+            existing = db.query(Order).filter(Order.id == order_pk).first()
             if existing:
                 print(f"skip {legacy} (exists)")
                 continue
@@ -56,13 +58,10 @@ def main() -> None:
             due = (date.today() + timedelta(days=14 + i)).isoformat()
             is_tbd = "OTHER" in row["package_type"]
             order = Order(
-                legacy_id=legacy,
+                id=order_pk,
                 form_type="sports-entertainment",
-                category="Sports Entertainment",
-                school_program_name=row["school_program_name"],
-                program_name=row["school_program_name"],
-                school_address=f"{1200 + i} Arena Way",
-                billing_address=f"{1200 + i} Arena Way",
+                school_gym_name=row["school_program_name"],
+                school_gym_billing_address=f"{1200 + i} Arena Way",
                 city="Atlanta",
                 state_province="GA",
                 zip_postal_code="30301",
@@ -82,9 +81,8 @@ def main() -> None:
                 music_affiliate=None,
                 customer_name=f"Contact Avery {i} ({row['school_program_name']})",
                 contact_name=f"Contact Avery {i}",
-                editor_request="FA",
+                editor_initials="FA",
                 requested_editor="First Available",
-                requested_producer="FA",
                 status="new",
                 price=0.0 if is_tbd else (150.0 + (i * 50)),
                 price_compliance="needs_review" if is_tbd else "compliant",

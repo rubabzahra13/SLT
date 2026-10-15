@@ -1,6 +1,7 @@
 import type { CheerFormSubtype, DanceFormSubtype, MTDRecord, Order, OrderFormType } from "@/types";
 import { parsePackage } from "@/lib/package";
 import { titleCase } from "@/lib/data";
+import { resolveOrderPriceCompliance } from "@/lib/pricing";
 
 export const POM_FORM_COLUMN_LABELS = [
   "School / Program",
@@ -37,6 +38,10 @@ export function inferMusicAffiliate(musicTheme: string): string {
   return "Power Music Covers";
 }
 
+/** Magento School Anthem has no package field — flat rate card. */
+export const SCHOOL_ANTHEM_PACKAGE = "SCHOOL ANTHEMS";
+export const SCHOOL_ANTHEM_PRICE = 1250;
+
 export function buildLegacyPackage(packageType: string, timeLengthOfMix: string): string {
   const pkg = packageType.trim();
   const time = timeLengthOfMix.trim();
@@ -53,6 +58,25 @@ export function buildLegacyMusicTheme(order: Pick<Order, "routineNotes" | "power
     order.musicAffiliate ? `(${order.musicAffiliate})` : "",
   ].filter(Boolean);
   return parts.join(" · ") || "";
+}
+
+/** Board/MTD category label — always derived from form_type (single source of truth). */
+export function categoryFromFormType(
+  formType: OrderFormType | string | undefined
+): string {
+  switch (formType) {
+    case "school-all-star-dance":
+      return "Dance";
+    case "marching-band":
+      return "Marching Band";
+    case "sports-entertainment":
+      return "Sports Entertainment";
+    case "school-anthem":
+      return "School Anthem";
+    case "school-all-star-cheer":
+    default:
+      return "Cheer";
+  }
 }
 
 export function inferFormType(raw: Partial<Order>): OrderFormType {
@@ -153,18 +177,51 @@ export function normalizeOrder(
     danceFormSubtype?: DanceFormSubtype;
   }
 ): Order {
-  const hasForm = Boolean(raw.schoolProgramName?.trim());
+  const hasForm = Boolean(
+    raw.schoolName?.trim() || raw.schoolProgramName?.trim() || raw.gymName?.trim()
+  );
 
-  const programName = raw.programName || raw.schoolProgramName || "";
-  const contactName = raw.contactName || raw.customerName || raw.coachName || "";
+  // Identity SoT = school_gym_name (UI aliases only).
+  const programName =
+    raw.schoolName?.trim() ||
+    raw.gymName?.trim() ||
+    raw.schoolProgramName?.trim() ||
+    raw.schoolOrganizationName?.trim() ||
+    raw.organizationName?.trim() ||
+    raw.programName?.trim() ||
+    "";
+  // Person SoT = coach_name — never copy school/org identity into contact.
+  const coachPerson =
+    raw.coachName?.trim() ||
+    raw.coachContactFullName?.trim() ||
+    raw.musicContactName?.trim() ||
+    "";
+  const rawContact =
+    coachPerson ||
+    raw.contactName?.trim() ||
+    raw.customerName?.trim() ||
+    "";
+  const contactName =
+    programName &&
+    rawContact.toLowerCase() === programName.toLowerCase()
+      ? coachPerson
+      : /^(contact|customer)$/i.test(rawContact)
+        ? coachPerson
+        : rawContact;
   const { tier, limit } = parsePackage(raw.package || raw.packageType || "");
 
+  const formType = inferFormType(raw);
+  const cheerFormSubtype = inferCheerFormSubtype({ ...raw, formType });
+  const danceFormSubtype = inferDanceFormSubtype({ ...raw, formType });
+
   const packageType =
-    raw.packageType?.trim() ||
-    tier ||
-    raw.package?.split(/\d+:\d+/)[0]?.trim() ||
-    raw.package ||
-    "";
+    formType === "school-anthem"
+      ? SCHOOL_ANTHEM_PACKAGE
+      : raw.packageType?.trim() ||
+        tier ||
+        raw.package?.split(/\d+:\d+/)[0]?.trim() ||
+        raw.package ||
+        "";
 
   const timeLengthOfMix =
     raw.timeLengthOfMix?.trim() ||
@@ -175,7 +232,6 @@ export function normalizeOrder(
     raw.musicAffiliate?.trim() || inferMusicAffiliate(raw.musicTheme || raw.routineNotes || "");
 
   const routineNotes = raw.routineNotes?.trim() || raw.musicTheme || "";
-  const powerMusicCovers = raw.powerMusicCovers?.trim() || "";
 
   const requestedEditor =
     raw.requestedEditor?.trim() ||
@@ -183,11 +239,6 @@ export function normalizeOrder(
     raw.editorRequest ||
     "First Available";
 
-  const formType = inferFormType(raw);
-  const cheerFormSubtype = inferCheerFormSubtype({ ...raw, formType });
-  const danceFormSubtype = inferDanceFormSubtype({ ...raw, formType });
-
-  const program = raw.schoolProgramName?.trim() || programName;
   const splitOrNoSplit =
     raw.splitOrNoSplit?.trim() ||
     (raw.package?.toUpperCase().includes("NO SPLIT")
@@ -196,7 +247,9 @@ export function normalizeOrder(
         ? "Split"
         : "");
   // Keep Song list/suggestions distinct from musicTheme / Power Music Covers.
-  // Dance Power Music lives in powerMusicCovers; cheer Songs pill reads this field only.
+  // Dance Power Music / Unleash are their own columns; cheer Songs uses song list.
+  const powerMusicCovers = raw.powerMusicCovers?.trim() || "";
+  const unleashTheBeatsCovers = raw.unleashTheBeatsCovers?.trim() || "";
   const songList = raw.songListSuggestions?.trim() || "";
 
   const normalized: Order = {
@@ -204,69 +257,195 @@ export function normalizeOrder(
     formType,
     cheerFormSubtype,
     danceFormSubtype,
-    gymName: raw.gymName?.trim() || (cheerFormSubtype === "all-star-cheer" ? program : ""),
-    gymBillingAddress: raw.gymBillingAddress?.trim() || raw.schoolAddress?.trim() || "",
-    schoolName: raw.schoolName?.trim() || (cheerFormSubtype?.startsWith("school-cheer") ? program : ""),
-    schoolBillingAddress: raw.schoolBillingAddress?.trim() || raw.schoolAddress?.trim() || "",
-    teamName: raw.teamName?.trim() || program,
+    // Identity aliases → school_gym_name.
+    gymName: programName,
+    schoolName: programName,
+    schoolProgramName: programName,
+    schoolOrganizationName: programName,
+    organizationName: programName,
+    programName,
+    // Billing aliases → school_gym_billing_address.
+    ...(() => {
+      const billing =
+        raw.gymBillingAddress?.trim() ||
+        raw.schoolBillingAddress?.trim() ||
+        raw.youthRecBillingAddress?.trim() ||
+        raw.organizationBillingAddress?.trim() ||
+        raw.schoolGymAddress?.trim() ||
+        raw.schoolAddress?.trim() ||
+        (raw as { billingAddress?: string }).billingAddress?.trim() ||
+        "";
+      return {
+        gymBillingAddress: billing,
+        schoolBillingAddress: billing,
+        youthRecBillingAddress: billing,
+        organizationBillingAddress: billing,
+        schoolGymAddress: billing,
+        schoolAddress: billing,
+      };
+    })(),
+    teamName: raw.teamName?.trim() || "",
     mascot: raw.mascot?.trim() || "",
     teamCoedAllGirl: raw.teamCoedAllGirl?.trim() || "",
-    teamColors: raw.teamColors?.trim() || raw.colors?.trim() || "",
-    colors: raw.colors?.trim() || raw.teamColors?.trim() || "",
-    billingAddress: raw.billingAddress?.trim() || raw.schoolAddress?.trim() || "",
+    // Colors aliases → colors.
+    ...(() => {
+      const colors =
+        raw.teamColors?.trim() ||
+        raw.youthRecColors?.trim() ||
+        raw.schoolProgramColors?.trim() ||
+        (raw as { colors?: string }).colors?.trim() ||
+        "";
+      return {
+        teamColors: colors,
+        youthRecColors: colors,
+        schoolProgramColors: colors,
+      };
+    })(),
     splitOrNoSplit,
+    // Choreographer aliases → choreographer_name / email.
+    choreographerName:
+      raw.choreographerName?.trim() ||
+      raw.virocChoreographerName?.trim() ||
+      "",
+    choreographerEmail:
+      raw.choreographerEmail?.trim() ||
+      raw.virocChoreographerEmail?.trim() ||
+      "",
     virocChoreographerName:
       raw.virocChoreographerName?.trim() ||
-      (cheerFormSubtype === "school-cheer-viroc-yes" ? raw.choreographerName?.trim() : "") ||
+      raw.choreographerName?.trim() ||
       "",
     virocChoreographerEmail:
       raw.virocChoreographerEmail?.trim() ||
-      (cheerFormSubtype === "school-cheer-viroc-yes" ? raw.choreographerEmail?.trim() : "") ||
+      raw.choreographerEmail?.trim() ||
       "",
-    coachContactFullName: raw.coachContactFullName?.trim() || raw.coachName?.trim() || contactName,
-    coachEmailAddress: raw.coachEmailAddress?.trim() || raw.coachEmail?.trim() || "",
-    emailAddress: raw.emailAddress?.trim() || raw.billingPersonEmail?.trim() || "",
-    sendingEightCountSheets: raw.sendingEightCountSheets?.trim() || "",
-    usingEightCountSheets: raw.usingEightCountSheets?.trim() || raw.sendingEightCountSheets?.trim() || "",
+    // Coach / Music Contact aliases → coach_name.
+    coachName: contactName,
+    coachContactFullName: contactName,
+    musicContactName: contactName,
+    contactName,
+    customerName: contactName,
+    coachEmailAddress:
+      raw.coachEmailAddress?.trim() || raw.coachEmail?.trim() || "",
+    coachEmail: raw.coachEmail?.trim() || raw.coachEmailAddress?.trim() || "",
+    musicContactEmail:
+      raw.musicContactEmail?.trim() ||
+      raw.coachEmail?.trim() ||
+      raw.coachEmailAddress?.trim() ||
+      "",
+    musicContactPhone:
+      raw.musicContactPhone?.trim() || raw.coachPhone?.trim() || "",
+    // Youth Rec Magento second email — distinct from coach email.
+    youthRecExtraEmailAddress:
+      raw.youthRecExtraEmailAddress?.trim() ||
+      raw.emailAddress?.trim() ||
+      "",
+    emailAddress:
+      raw.youthRecExtraEmailAddress?.trim() ||
+      raw.emailAddress?.trim() ||
+      "",
+    sendingEightCountSheets:
+      raw.sendingEightCountSheets?.trim() ||
+      raw.usingEightCountSheets?.trim() ||
+      "",
+    usingEightCountSheets:
+      raw.sendingEightCountSheets?.trim() ||
+      raw.usingEightCountSheets?.trim() ||
+      "",
+    instrumentationNotes:
+      raw.instrumentationNotes?.trim() ||
+      raw.instrumentalStylePreference?.trim() ||
+      "",
+    instrumentalStylePreference:
+      raw.instrumentationNotes?.trim() ||
+      raw.instrumentalStylePreference?.trim() ||
+      "",
     songListSuggestions: songList,
     couponCode: raw.couponCode?.trim() || "",
     howDidYouFindOut: raw.howDidYouFindOut?.trim() || "",
-    schoolProgramName: program,
-    schoolAddress: raw.schoolAddress?.trim() || "",
     city: raw.city?.trim() || "",
     stateProvince: raw.stateProvince?.trim() || "",
     zipPostalCode: raw.zipPostalCode?.trim() || "",
     country: raw.country?.trim() || "United States",
-    division: raw.division?.trim() || raw.category || "",
-    coachName: raw.coachName?.trim() || contactName,
-    coachPhone: raw.coachPhone?.trim() || "",
-    coachEmail: raw.coachEmail?.trim() || "",
-    billingPersonName: raw.billingPersonName?.trim() || contactName,
-    billingPersonEmail: raw.billingPersonEmail?.trim() || "",
-    choreographerName: raw.choreographerName?.trim() || "N/A",
-    choreographerEmail: raw.choreographerEmail?.trim() || "N/A",
+    division: raw.division?.trim() || "",
+    coachPhone: raw.coachPhone?.trim() || raw.musicContactPhone?.trim() || "",
+    billingPersonName:
+      raw.billingPersonName?.trim() ||
+      raw.billingContactName?.trim() ||
+      "",
+    billingPersonEmail:
+      raw.billingPersonEmail?.trim() ||
+      raw.billingContactEmail?.trim() ||
+      "",
+    billingContactName:
+      raw.billingContactName?.trim() ||
+      raw.billingPersonName?.trim() ||
+      "",
+    billingContactEmail:
+      raw.billingContactEmail?.trim() ||
+      raw.billingPersonEmail?.trim() ||
+      "",
     numberOfCopies: raw.numberOfCopies?.trim() || "",
     packageType: hasForm ? packageType : packageType || raw.package || "",
+    package:
+      formType === "school-anthem"
+        ? SCHOOL_ANTHEM_PACKAGE
+        : buildLegacyPackage(packageType || raw.package || "", timeLengthOfMix),
+    price:
+      formType === "school-anthem"
+        ? SCHOOL_ANTHEM_PRICE
+        : typeof raw.price === "number"
+          ? raw.price
+          : Number(raw.price) || 0,
     requestedEditor,
     timeLengthOfMix,
     musicAffiliate,
-    powerMusicCovers: hasForm ? powerMusicCovers : powerMusicCovers || raw.musicTheme || "",
+    // Power Music Covers is a dance Magento field. Never backfill it from
+    // musicTheme — cheer Song list saves set musicTheme and would otherwise
+    // mirror into power_music_covers.
+    powerMusicCovers:
+      formType === "school-all-star-dance" ? powerMusicCovers : "",
+    unleashTheBeatsCovers:
+      formType === "school-all-star-dance" ? unleashTheBeatsCovers : "",
     routineNotes,
-    customVoiceovers: raw.customVoiceovers?.trim() || "No - None",
-    programName: raw.schoolProgramName?.trim() || programName,
-    contactName: raw.coachName?.trim() || contactName,
-    customerName: raw.coachName?.trim() || raw.customerName || contactName,
-    category: raw.category || (raw.division?.toLowerCase().includes("pom") ? "Dance" : "Cheer"),
-    package: buildLegacyPackage(packageType || raw.package || "", timeLengthOfMix),
+    additionalNotes:
+      raw.additionalNotes?.trim() ||
+      (formType === "sports-entertainment" ? routineNotes : "") ||
+      "",
+    // Custom voiceovers (+ script/guidance) are dance Magento fields only.
+    customVoiceovers:
+      formType === "school-all-star-dance"
+        ? raw.customVoiceovers?.trim() || "No - None"
+        : "",
+    voiceoverScript:
+      formType === "school-all-star-dance"
+        ? raw.voiceoverScript?.trim() || ""
+        : "",
+    pronunciationGuidance:
+      formType === "school-all-star-dance"
+        ? raw.pronunciationGuidance?.trim() || ""
+        : "",
+    category: categoryFromFormType(formType),
     musicTheme: buildLegacyMusicTheme({
       routineNotes,
-      powerMusicCovers: hasForm ? powerMusicCovers : raw.musicTheme || "",
+      powerMusicCovers:
+        formType === "school-all-star-dance" ? powerMusicCovers : "",
       musicAffiliate,
+    }),
+    // Same Edit Affiliates check for Magento form text and manual Add Order.
+    priceCompliance: resolveOrderPriceCompliance({
+      musicAffiliate,
+      musicTheme: raw.musicTheme,
+      formType,
+      cheerFormSubtype,
+      danceFormSubtype,
     }),
     requestedProducer: requestedEditor,
     editorRequest:
       raw.editorRequest ||
-      (requestedEditor.toLowerCase() === "first available" ? "FA" : requestedEditor),
+      (requestedEditor.toLowerCase() === "first available"
+        ? "FA"
+        : requestedEditor),
   };
 
   if (cheerFormSubtype === "youth-rec-cheer") {
@@ -303,7 +482,6 @@ export function orderToMTDRecord(order: Order): MTDRecord {
   const eightCountSheet =
     order.eightCountSheet ||
     order.sendingEightCountSheets ||
-    order.usingEightCountSheets ||
     "";
   const haveSongs = order.haveSongs || (order as any).have_songs || "";
 
@@ -334,7 +512,7 @@ export function orderToMTDRecord(order: Order): MTDRecord {
     package: order.package || "TBD",
     musicTheme: order.musicTheme || "",
     price: order.price ?? 0,
-    priceCompliance: (order.priceCompliance as any) || "compliant",
+    priceCompliance: resolveOrderPriceCompliance(order),
     invoice: "",
     mixStartDate: (order as any).mixStartDate || "",
     mixEndDate: (order as any).mixEndDate || undefined,

@@ -130,10 +130,15 @@ function pomFormColumns(): Column<Order>[] {
     },
     {
       key: "packageType",
-      header: "Package",
+      header: "Package Type",
       width: "160px",
       nowrap: false,
-      render: (o) => multilineCell(o.packageType),
+      render: (o) =>
+        multilineCell(
+          o.formType === "school-anthem"
+            ? "SCHOOL ANTHEMS"
+            : o.packageType || o.package
+        ),
     },
     {
       key: "requestedEditor",
@@ -165,6 +170,13 @@ function pomFormColumns(): Column<Order>[] {
       width: "220px",
       nowrap: false,
       render: (o) => multilineCell(o.powerMusicCovers),
+    },
+    {
+      key: "unleashTheBeatsCovers",
+      header: "Unleash the Beats Covers",
+      width: "220px",
+      nowrap: false,
+      render: (o) => multilineCell(o.unleashTheBeatsCovers),
     },
     {
       key: "routineNotes",

@@ -1,5 +1,9 @@
 import type { Order } from "@/types";
-import { getOrderIdentityName } from "@/lib/order-detail-sections";
+import { rawFieldValue } from "@/lib/order-detail-fields";
+import {
+  getOrderDetailSections,
+  getOrderIdentityName,
+} from "@/lib/order-detail-sections";
 import { programNameSimilarity, programNamesMatch } from "@/lib/program-similarity";
 
 function resolveCheerSubtype(order: Order): string {
@@ -44,6 +48,28 @@ export function sameOrderCategory(a: Order, b: Order): boolean {
   return true;
 }
 
+/** Magento / customer form submission (never an admin New Order). */
+export function isMagentoFormOrder(order: Order): boolean {
+  return !order.isManualEntry;
+}
+
+/**
+ * Only Magento forms may merge into a manual slot-holder, and only when
+ * category + subcategory match. Manual↔manual and cross-category never merge.
+ */
+export function canMergeMagentoFormIntoManual(
+  form: Order,
+  manual: Order
+): boolean {
+  if (!isMagentoFormOrder(form)) return false;
+  if (!manual.isManualEntry) return false;
+  if (form.suppressManualFormMerge || manual.suppressManualFormMerge) {
+    return false;
+  }
+  if (manual.status === "completed" || manual.status === "in_mtd") return false;
+  return sameOrderCategory(form, manual);
+}
+
 function identityNamesMatch(a: Order, b: Order, threshold = 0.9): boolean {
   return programNamesMatch(
     getOrderIdentityName(a),
@@ -77,6 +103,12 @@ const PROTECTED_ORDER_KEYS = new Set<string>([
   "mergedIntoManualOrderId",
   "manualOverlapSnapshot",
   "suppressManualFormMerge",
+  // Category taxonomy — never let a Magento form rewrite the manual's form type
+  // (cross-category merges were wiping School Anthem → Cheer).
+  "formType",
+  "cheerFormSubtype",
+  "danceFormSubtype",
+  "category",
   "finalCustomerPrice",
   "finalCustomerPriceOverridden",
   "finalPayrollPrice",
@@ -93,6 +125,16 @@ const PROTECTED_ORDER_KEYS = new Set<string>([
 
 export type FieldDataSource = "form" | "manual";
 
+/**
+ * Single-field provenance for the edit UI (one value shown; no duplicated fields).
+ * `shown` = which side the editor value comes from.
+ * `alsoHas` = other side only when its non-empty value differs.
+ */
+export type FieldProvenance = {
+  shown: FieldDataSource;
+  alsoHas?: { source: FieldDataSource; value: string };
+};
+
 export type ManualFormPair = {
   manual: Order;
   form: Order;
@@ -105,6 +147,18 @@ function isEmptyValue(value: unknown): boolean {
   if (typeof value === "boolean") return false;
   return false;
 }
+
+/** Reserved snapshot key listing fields that were empty on manual at match time. */
+const FORM_ONLY_KEYS_SNAP = "__formOnlyKeys";
+
+/** Keys that define the order category — never blanked on Split or form-wins. */
+const SPLIT_PRESERVE_KEYS = new Set<string>([
+  "formType",
+  "cheerFormSubtype",
+  "danceFormSubtype",
+  "category",
+  "programName",
+]);
 
 function orderKey(order: Order): string {
   return order.id || order.uuid || order.legacyId || "";
@@ -119,22 +173,19 @@ export function isAbsorbedFormOrder(order: Order): boolean {
   return Boolean(order.mergedIntoManualOrderId) && !order.isManualEntry;
 }
 
-/** Best manual order whose program matches the form order at ≥ threshold. */
+/** Best manual slot whose program matches this Magento form at ≥ threshold. */
 export function findMatchingManualOrder(
   formOrder: Order,
   orders: Order[],
   threshold = 0.9
 ): Order | null {
-  if (formOrder.isManualEntry) return null;
+  if (!isMagentoFormOrder(formOrder)) return null;
   if (formOrder.suppressManualFormMerge) return null;
 
   let best: Order | null = null;
   let bestScore = threshold;
   for (const candidate of orders) {
-    if (!candidate.isManualEntry) continue;
-    if (candidate.suppressManualFormMerge) continue;
-    if (candidate.status === "completed" || candidate.status === "in_mtd") continue;
-    if (!sameOrderCategory(formOrder, candidate)) continue;
+    if (!canMergeMagentoFormIntoManual(formOrder, candidate)) continue;
     const score = identityNameSimilarity(formOrder, candidate);
     if (score >= bestScore) {
       bestScore = score;
@@ -148,77 +199,98 @@ function findFormLinkedToManual(
   manual: Order,
   allOrders: Order[]
 ): Order | null {
+  if (!manual.isManualEntry) return null;
   const manualId = orderKey(manual);
+
+  // Only honor an existing Magento link — never invent a name match here.
+  // Fresh Magento→manual merges happen only in receiveOrder.
   if (manual.mergedFormOrderId) {
     const byId = allOrders.find(
-      (o) => !o.isManualEntry && ordersMatchId(o, manual.mergedFormOrderId)
+      (o) => isMagentoFormOrder(o) && ordersMatchId(o, manual.mergedFormOrderId)
     );
-    if (byId) return byId;
+    if (byId && canMergeMagentoFormIntoManual(byId, manual)) return byId;
   }
 
-  const byAbsorbed = allOrders.find(
-    (o) =>
-      !o.isManualEntry &&
-      (o.mergedIntoManualOrderId === manualId ||
-        o.mergedIntoManualOrderId === manual.id ||
-        o.mergedIntoManualOrderId === manual.uuid ||
-        o.mergedIntoManualOrderId === manual.legacyId)
-  );
-  if (byAbsorbed) return byAbsorbed;
+  const byAbsorbed = allOrders.find((o) => {
+    if (!isMagentoFormOrder(o) || !o.mergedIntoManualOrderId) return false;
+    return (
+      o.mergedIntoManualOrderId === manualId ||
+      (manual.id && o.mergedIntoManualOrderId === manual.id) ||
+      (manual.uuid && o.mergedIntoManualOrderId === manual.uuid) ||
+      (manual.legacyId && o.mergedIntoManualOrderId === manual.legacyId)
+    );
+  });
+  if (byAbsorbed && canMergeMagentoFormIntoManual(byAbsorbed, manual)) {
+    return byAbsorbed;
+  }
 
-  if (manual.suppressManualFormMerge) return null;
-
-  return (
-    allOrders.find(
-      (o) =>
-        !o.isManualEntry &&
-        !o.suppressManualFormMerge &&
-        o.status !== "completed" &&
-        sameOrderCategory(manual, o) &&
-        identityNamesMatch(o, manual)
-    ) || null
-  );
+  return null;
 }
 
 function findManualLinkedToForm(
   form: Order,
   allOrders: Order[]
 ): Order | null {
+  if (!isMagentoFormOrder(form)) return null;
+
+  // Link-only — name matching is exclusive to receiveOrder → findMatchingManualOrder.
   if (form.mergedIntoManualOrderId) {
     const byLink = allOrders.find(
       (o) =>
         o.isManualEntry && ordersMatchId(o, form.mergedIntoManualOrderId)
     );
-    if (byLink) return byLink;
+    if (byLink && canMergeMagentoFormIntoManual(form, byLink)) return byLink;
   }
 
   const byMergedForm = allOrders.find(
     (o) => o.isManualEntry && ordersMatchId(form, o.mergedFormOrderId)
   );
-  if (byMergedForm) return byMergedForm;
+  if (byMergedForm && canMergeMagentoFormIntoManual(form, byMergedForm)) {
+    return byMergedForm;
+  }
 
-  return findMatchingManualOrder(form, allOrders);
+  return null;
 }
 
-/** Resolve a manual↔form pair when both sides exist for this order. */
+/** Resolve a Magento-form ↔ manual pair (never manual↔manual). */
 export function resolveManualFormPair(
   order: Order,
   allOrders: Order[]
 ): ManualFormPair | null {
   if (order.isManualEntry) {
     const form = findFormLinkedToManual(order, allOrders);
-    if (!form) return null;
+    if (!form || !canMergeMagentoFormIntoManual(form, order)) return null;
     return { manual: order, form };
   }
 
+  if (!isMagentoFormOrder(order)) return null;
   const manual = findManualLinkedToForm(order, allOrders);
-  if (!manual) return null;
+  if (!manual || !canMergeMagentoFormIntoManual(order, manual)) return null;
   return { manual, form: order };
+}
+
+function fieldValueAsText(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+function fieldValuesEqual(a: unknown, b: unknown): boolean {
+  return (
+    fieldValueAsText(a).replace(/\s+/g, " ").toLowerCase() ===
+    fieldValueAsText(b).replace(/\s+/g, " ").toLowerCase()
+  );
 }
 
 /**
  * Which side(s) contributed a non-empty value for this field.
- * Used for Form / Manual tags on the edit view.
  */
 export function classifyFieldSources(
   key: string,
@@ -234,16 +306,168 @@ export function classifyFieldSources(
   return sources;
 }
 
-/** Map of detail-field key → Form/Manual tags for the edit UI. */
+function snapshotHasFieldValues(
+  snapshot: Record<string, unknown> | null | undefined
+): boolean {
+  if (!snapshot) return false;
+  return Object.keys(snapshot).some(
+    (k) => k !== FORM_ONLY_KEYS_SNAP && !isEmptyValue(snapshot[k])
+  );
+}
+
+/** Read a UI field key from a frozen snapshot (supports alias keys). */
+function snapshotValueForField(
+  snapshot: Record<string, unknown> | null | undefined,
+  key: string
+): unknown {
+  if (!snapshot) return undefined;
+  if (key !== FORM_ONLY_KEYS_SNAP && !isEmptyValue(snapshot[key])) {
+    return snapshot[key];
+  }
+  // Alias resolution — e.g. gymName snap for schoolProgramName field.
+  const viaRaw = rawFieldValue(snapshot as unknown as Order, key).trim();
+  return viaRaw || undefined;
+}
+
+/**
+ * Provenance for one field: which value is shown, and the other side when it differs.
+ * When form is SoT (matched Magento), show form and optionally the frozen
+ * pre-form manual snapshot under the field.
+ */
+export function classifyFieldProvenance(
+  key: string,
+  manual: Order,
+  form: Order,
+  preferFormOnOverlap = false,
+  frozenManualSnapshot?: Record<string, unknown> | null
+): FieldProvenance | null {
+  if (PROTECTED_ORDER_KEYS.has(key)) return null;
+  // Use the same alias coalescing as the edit UI (gymName ↔ schoolName, etc.).
+  const manualVal = rawFieldValue(manual, key);
+  const formVal = rawFieldValue(form, key);
+  const snapVal = snapshotValueForField(frozenManualSnapshot, key);
+  const hasSnap = !isEmptyValue(snapVal);
+  const hasManual = !isEmptyValue(manualVal);
+  const hasForm = !isEmptyValue(formVal);
+
+  // Form is client SoT after a match — prefer form + frozen prior manual slot.
+  if (preferFormOnOverlap) {
+    if (!hasForm && !hasManual && !hasSnap) return null;
+    // Frozen snapshot always surfaces under the field, even after later edits.
+    if (hasSnap) {
+      const shown: FieldDataSource = hasForm || hasManual ? "form" : "manual";
+      return {
+        shown,
+        alsoHas: { source: "manual", value: fieldValueAsText(snapVal) },
+      };
+    }
+    if (hasForm && hasManual && !fieldValuesEqual(manualVal, formVal)) {
+      return {
+        shown: "form",
+        alsoHas: { source: "manual", value: fieldValueAsText(manualVal) },
+      };
+    }
+    if (hasForm) return { shown: "form" };
+    if (hasManual) return { shown: "manual" };
+    return null;
+  }
+
+  if (!hasManual && !hasForm) return null;
+  if (hasManual && !hasForm) return { shown: "manual" };
+  if (!hasManual && hasForm) return { shown: "form" };
+
+  if (fieldValuesEqual(manualVal, formVal)) {
+    return { shown: "manual" };
+  }
+
+  return {
+    shown: "manual",
+    alsoHas: { source: "form", value: fieldValueAsText(formVal) },
+  };
+}
+
+/**
+ * Undo a bad Magento merge that rewrote the manual's formType (e.g. Anthem → Cheer).
+ * Restores stashed pre-merge values and clears the merge link.
+ */
+export function repairCorruptCrossCategoryFormMerge(order: Order): Order {
+  if (!order.isManualEntry) return order;
+  const snap = order.manualOverlapSnapshot;
+  if (!snap || typeof snap !== "object") return order;
+  const snapForm = snap.formType;
+  if (typeof snapForm !== "string" || !snapForm.trim()) return order;
+  if (snapForm === order.formType) return order;
+
+  const restored: Order = {
+    ...order,
+    isManualEntry: true,
+    mergedFormOrderId: undefined,
+    manualOverlapSnapshot: undefined,
+    suppressManualFormMerge: false,
+  };
+  for (const [key, value] of Object.entries(snap)) {
+    if (key === FORM_ONLY_KEYS_SNAP) continue;
+    (restored as Record<string, unknown>)[key] = value;
+  }
+  return restored;
+}
+
+/**
+ * Ensure a paired manual has a frozen pre-form snapshot (form-wins).
+ * Safe to call repeatedly — never rewrites an existing field snapshot.
+ */
+export function ensureManualFormSnapshot(manual: Order, form: Order): Order {
+  if (snapshotHasFieldValues(manual.manualOverlapSnapshot)) {
+    return manual;
+  }
+  // Already linked / snapshotted (even if only form-only fills, no overlaps).
+  if (
+    manual.mergedFormOrderId ||
+    (manual.manualOverlapSnapshot &&
+      Object.keys(manual.manualOverlapSnapshot).length > 0)
+  ) {
+    return manual;
+  }
+  return mergeFormWinsIntoManualOrder(manual, form);
+}
+
+/** Map of detail-field key → provenance for the edit UI. */
 export function buildFieldSourceMap(
   manual: Order,
   form: Order,
-  fieldKeys: string[]
-): Record<string, FieldDataSource[]> {
-  const map: Record<string, FieldDataSource[]> = {};
+  fieldKeys: string[],
+  options?: {
+    preferFormOnOverlap?: boolean;
+    /** Frozen pre-form manual values; edits must not change these cues. */
+    frozenManualSnapshot?: Record<string, unknown> | null;
+  }
+): Record<string, FieldProvenance> {
+  // Prefer an explicit snapshot; otherwise freeze from current manual vs form.
+  const ensured =
+    options?.frozenManualSnapshot != null
+      ? manual
+      : ensureManualFormSnapshot(manual, form);
+  const snapshot =
+    options?.frozenManualSnapshot ??
+    ensured.manualOverlapSnapshot ??
+    manual.manualOverlapSnapshot ??
+    null;
+  const preferFormOnOverlap =
+    options?.preferFormOnOverlap !== undefined
+      ? Boolean(options.preferFormOnOverlap)
+      : snapshotHasFieldValues(snapshot);
+  const map: Record<string, FieldProvenance> = {};
   for (const key of fieldKeys) {
-    const sources = classifyFieldSources(key, manual, form);
-    if (sources.length > 0) map[key] = sources;
+    const provenance = classifyFieldProvenance(
+      key,
+      // Compare against pre-ensure manual when we just froze, so alsoHas can
+      // still fall back to live manual values if snap missed a key.
+      manual,
+      form,
+      preferFormOnOverlap,
+      snapshot
+    );
+    if (provenance) map[key] = provenance;
   }
   return map;
 }
@@ -253,6 +477,10 @@ export function buildFieldSourceMap(
  * Result stays `isManualEntry: true` and records the absorbed form id.
  */
 export function mergeFormIntoManualOrder(manual: Order, form: Order): Order {
+  if (!canMergeMagentoFormIntoManual(form, manual)) {
+    return manual;
+  }
+
   const out: Order = {
     ...manual,
     isManualEntry: true,
@@ -261,20 +489,12 @@ export function mergeFormIntoManualOrder(manual: Order, form: Order): Order {
 
   for (const key of Object.keys(form) as (keyof Order)[]) {
     if (PROTECTED_ORDER_KEYS.has(key as string)) continue;
+    if (SPLIT_PRESERVE_KEYS.has(key as string)) continue;
     const manualVal = manual[key];
     const formVal = form[key];
     if (isEmptyValue(manualVal) && !isEmptyValue(formVal)) {
       (out as Record<string, unknown>)[key as string] = formVal;
     }
-  }
-
-  // Prefer form taxonomy when the manual row was created without a real form type.
-  if (!manual.formType && form.formType) out.formType = form.formType;
-  if (!manual.cheerFormSubtype && form.cheerFormSubtype) {
-    out.cheerFormSubtype = form.cheerFormSubtype;
-  }
-  if (!manual.danceFormSubtype && form.danceFormSubtype) {
-    out.danceFormSubtype = form.danceFormSubtype;
   }
 
   // Keep Missing data flow: if either side needed attention, stay flagged until filled.
@@ -288,13 +508,26 @@ export function mergeFormIntoManualOrder(manual: Order, form: Order): Order {
 }
 
 /**
- * Admin Merge: form wins on overlap; keep manual-only fields.
- * Stashes overwritten manual values so Split can restore them.
+ * Form is SoT on overlap; keep manual-only fields.
+ * Stashes overwritten manual values once (frozen) for UI + Split restore.
  */
 export function mergeFormWinsIntoManualOrder(manual: Order, form: Order): Order {
-  const snapshot: Record<string, unknown> = {
-    ...(manual.manualOverlapSnapshot || {}),
-  };
+  // Magento form → manual only; never cross category/subcategory or manual↔manual.
+  if (!canMergeMagentoFormIntoManual(form, manual)) {
+    return manual;
+  }
+
+  // Never rewrite an existing frozen snapshot — later edits must not change it.
+  const existingSnap = manual.manualOverlapSnapshot || null;
+  const hasFrozen = snapshotHasFieldValues(existingSnap);
+  const snapshot: Record<string, unknown> = hasFrozen
+    ? { ...existingSnap }
+    : {};
+  const formOnlyKeys = new Set<string>(
+    Array.isArray(snapshot[FORM_ONLY_KEYS_SNAP])
+      ? (snapshot[FORM_ONLY_KEYS_SNAP] as string[])
+      : []
+  );
   const out: Order = {
     ...manual,
     isManualEntry: true,
@@ -304,22 +537,28 @@ export function mergeFormWinsIntoManualOrder(manual: Order, form: Order): Order 
 
   for (const key of Object.keys(form) as (keyof Order)[]) {
     if (PROTECTED_ORDER_KEYS.has(key as string)) continue;
+    if (SPLIT_PRESERVE_KEYS.has(key as string)) continue;
     const manualVal = manual[key];
     const formVal = form[key];
     if (isEmptyValue(formVal)) continue;
 
-    if (!isEmptyValue(manualVal) && manualVal !== formVal) {
+    if (!hasFrozen && !isEmptyValue(manualVal) && manualVal !== formVal) {
       snapshot[key as string] = manualVal;
+    } else if (!hasFrozen && isEmptyValue(manualVal)) {
+      formOnlyKeys.add(key as string);
     }
     (out as Record<string, unknown>)[key as string] = formVal;
   }
 
-  if (form.formType) out.formType = form.formType;
-  if (form.cheerFormSubtype) out.cheerFormSubtype = form.cheerFormSubtype;
-  if (form.danceFormSubtype) out.danceFormSubtype = form.danceFormSubtype;
+  if (!hasFrozen && formOnlyKeys.size > 0) {
+    snapshot[FORM_ONLY_KEYS_SNAP] = [...formOnlyKeys];
+  }
 
-  out.manualOverlapSnapshot =
-    Object.keys(snapshot).length > 0 ? snapshot : undefined;
+  out.manualOverlapSnapshot = hasFrozen
+    ? existingSnap
+    : Object.keys(snapshot).length > 0
+      ? snapshot
+      : undefined;
 
   if (manual.needsAttention || form.needsAttention) {
     out.needsAttention = true;
@@ -380,7 +619,14 @@ export function splitManualFormPair(
   manual: Order,
   form: Order
 ): { manual: Order; form: Order } {
-  const snapshot = manual.manualOverlapSnapshot || {};
+  const snapshot = { ...(manual.manualOverlapSnapshot || {}) };
+  const formOnlyKeys = new Set<string>(
+    Array.isArray(snapshot[FORM_ONLY_KEYS_SNAP])
+      ? (snapshot[FORM_ONLY_KEYS_SNAP] as string[])
+      : []
+  );
+  delete snapshot[FORM_ONLY_KEYS_SNAP];
+
   const nextManual: Order = {
     ...manual,
     mergedFormOrderId: undefined,
@@ -391,17 +637,26 @@ export function splitManualFormPair(
 
   for (const key of Object.keys(form) as (keyof Order)[]) {
     if (PROTECTED_ORDER_KEYS.has(key as string)) continue;
+    if (SPLIT_PRESERVE_KEYS.has(key as string)) continue;
     const formVal = form[key];
     if (isEmptyValue(formVal)) continue;
 
     if (Object.prototype.hasOwnProperty.call(snapshot, key)) {
-      (nextManual as Record<string, unknown>)[key as string] = snapshot[key as string];
+      (nextManual as Record<string, unknown>)[key as string] =
+        snapshot[key as string];
       continue;
     }
 
-    // Form-only fill: clear from manual so each order stands alone.
+    // Form-only fill (empty on manual at match): clear so each order stands alone.
+    // Do not blank fields that already matched on both sides before the form arrived.
+    if (formOnlyKeys.has(key as string)) {
+      (nextManual as Record<string, unknown>)[key as string] = "";
+      continue;
+    }
+
+    // Legacy pairs without __formOnlyKeys: only clear when manual is empty.
     const manualVal = manual[key];
-    if (manualVal === formVal || isEmptyValue(manualVal)) {
+    if (isEmptyValue(manualVal)) {
       (nextManual as Record<string, unknown>)[key as string] = "";
     }
   }
@@ -414,6 +669,95 @@ export function splitManualFormPair(
   };
 
   return { manual: nextManual, form: nextForm };
+}
+
+export type SplitPreviewRow = {
+  key: string;
+  label: string;
+  manualValue: string;
+  formValue: string;
+  /** Manual value changes from the current combined order. */
+  manualRestored: boolean;
+};
+
+/** Field rows for the Split confirm modal (diff + restored values). */
+export function buildSplitPreviewRows(
+  manual: Order,
+  form: Order
+): { nextManual: Order; nextForm: Order; rows: SplitPreviewRow[] } {
+  const { manual: nextManual, form: nextForm } = splitManualFormPair(
+    manual,
+    form
+  );
+  const sections = getOrderDetailSections(nextManual);
+  const seen = new Set<string>();
+  const rows: SplitPreviewRow[] = [];
+
+  for (const section of sections) {
+    for (const field of section.fields) {
+      if (seen.has(field.key)) continue;
+      seen.add(field.key);
+
+      const beforeManual = rawFieldValue(manual, field.key).trim();
+      const afterManual = rawFieldValue(nextManual, field.key).trim();
+      const afterForm = rawFieldValue(nextForm, field.key).trim();
+      const manualRestored = beforeManual !== afterManual;
+      const sidesDiffer = afterManual !== afterForm;
+      if (!manualRestored && !sidesDiffer) continue;
+
+      rows.push({
+        key: field.key,
+        label: field.label,
+        manualValue: afterManual || "—",
+        formValue: afterForm || "—",
+        manualRestored,
+      });
+    }
+  }
+
+  return { nextManual, nextForm, rows };
+}
+
+/**
+ * Accept Magento form values and drop Manual/Form cues. Absorbed form stays hidden.
+ * Fields Magento left blank keep whatever value is already on the slot
+ * (e.g. Nicknames that only existed on the manual side).
+ */
+export function overwriteManualWithFormPatches(
+  manual: Order,
+  form: Order
+): { manualPatch: Partial<Order>; formPatch: Partial<Order> } {
+  // Form-wins fill: Magento values applied; blank Magento fields keep manual.
+  const merged = mergeFormWinsIntoManualOrder(manual, form);
+  const formId = form.id || form.uuid || form.legacyId || "";
+  const manualId = manual.id || manual.uuid || manual.legacyId || "";
+
+  const manualPatch: Partial<Order> = {
+    ...Object.fromEntries(
+      (Object.keys(merged) as (keyof Order)[])
+        .filter((key) => {
+          if (PROTECTED_ORDER_KEYS.has(key as string)) return false;
+          // Snapshot is cleared below — do not copy the frozen one from merge.
+          if (key === "manualOverlapSnapshot") return false;
+          if (key === "isManualEntry") return false;
+          return merged[key] !== manual[key];
+        })
+        .map((key) => [key, merged[key]])
+    ),
+    isManualEntry: false,
+    manualOverlapSnapshot: null,
+    mergedFormOrderId: formId || manual.mergedFormOrderId || null,
+    suppressManualFormMerge: false,
+  };
+  (manualPatch as Record<string, unknown>).manualOverlapSnapshot = null;
+  (manualPatch as Record<string, unknown>).isManualEntry = false;
+
+  const formPatch: Partial<Order> = {
+    mergedIntoManualOrderId: manualId || form.mergedIntoManualOrderId || null,
+    suppressManualFormMerge: false,
+  };
+
+  return { manualPatch, formPatch };
 }
 
 /** Patches to persist a split. */
@@ -446,54 +790,60 @@ export function splitManualFormPatches(
   return { manualPatch, formPatch };
 }
 
-type MergePair = { manualId: string; form: Order; score: number };
-
 /**
- * Enrich manuals with matching form data and tag absorbed form orders.
- * Each manual / form is paired at most once (highest similarity ≥ 0.9).
+ * Apply already-persisted Magento↔manual links for board display.
+ * Does NOT invent new name matches — that only happens when a Magento form
+ * arrives via receiveOrder → findMatchingManualOrder.
  */
 export function applyManualFormMerges(orders: Order[]): Order[] {
-  const manuals = orders.filter(
-    (o) => o.isManualEntry && !o.suppressManualFormMerge
-  );
-  const forms = orders.filter(
-    (o) =>
-      !o.isManualEntry &&
-      !o.mergedIntoManualOrderId &&
-      !o.suppressManualFormMerge
-  );
-
-  const pairs: MergePair[] = [];
-  for (const form of forms) {
-    for (const manual of manuals) {
-      if (!sameOrderCategory(form, manual)) continue;
-      const score = identityNameSimilarity(form, manual);
-      if (score >= 0.9) {
-        pairs.push({ manualId: orderKey(manual), form, score });
-      }
-    }
+  const byId = new Map<string, Order>();
+  for (const order of orders) {
+    const id = orderKey(order);
+    if (id) byId.set(id, order);
   }
-  pairs.sort((a, b) => b.score - a.score);
 
-  const usedManuals = new Set<string>();
-  const formToManual = new Map<string, string>();
   const manualToForm = new Map<string, Order>();
+  const formToManual = new Map<string, string>();
 
-  for (const pair of pairs) {
-    const formId = orderKey(pair.form);
-    if (!formId || !pair.manualId) continue;
-    if (usedManuals.has(pair.manualId) || formToManual.has(formId)) continue;
-    usedManuals.add(pair.manualId);
-    formToManual.set(formId, pair.manualId);
-    manualToForm.set(pair.manualId, pair.form);
+  for (const order of orders) {
+    if (!order.isManualEntry || !order.mergedFormOrderId) continue;
+    const form =
+      byId.get(order.mergedFormOrderId) ||
+      orders.find(
+        (o) =>
+          isMagentoFormOrder(o) && ordersMatchId(o, order.mergedFormOrderId)
+      );
+    if (!form || !canMergeMagentoFormIntoManual(form, order)) continue;
+    const manualId = orderKey(order);
+    const formId = orderKey(form);
+    if (!manualId || !formId) continue;
+    manualToForm.set(manualId, form);
+    formToManual.set(formId, manualId);
+  }
+
+  for (const order of orders) {
+    if (!isMagentoFormOrder(order) || !order.mergedIntoManualOrderId) continue;
+    const formId = orderKey(order);
+    if (!formId || formToManual.has(formId)) continue;
+    const manual =
+      byId.get(order.mergedIntoManualOrderId) ||
+      orders.find(
+        (o) =>
+          o.isManualEntry && ordersMatchId(o, order.mergedIntoManualOrderId)
+      );
+    if (!manual || !canMergeMagentoFormIntoManual(order, manual)) continue;
+    const manualId = orderKey(manual);
+    if (!manualId || manualToForm.has(manualId)) continue;
+    manualToForm.set(manualId, order);
+    formToManual.set(formId, manualId);
   }
 
   return orders.map((order) => {
     const id = orderKey(order);
     if (order.isManualEntry && manualToForm.has(id)) {
-      return mergeFormIntoManualOrder(order, manualToForm.get(id)!);
+      return mergeFormWinsIntoManualOrder(order, manualToForm.get(id)!);
     }
-    if (!order.isManualEntry && formToManual.has(id)) {
+    if (isMagentoFormOrder(order) && formToManual.has(id)) {
       return {
         ...order,
         mergedIntoManualOrderId: formToManual.get(id),
@@ -511,40 +861,43 @@ export function enrichOrderWithMatchingForm(
   if (!order.isManualEntry) return order;
   const pair = resolveManualFormPair(order, allOrders);
   if (!pair) return order;
-  // Form-wins Merge already wrote preferred values onto the manual row.
+  // Form already applied as SoT (snapshot frozen at match time).
   if (
     order.manualOverlapSnapshot &&
     Object.keys(order.manualOverlapSnapshot).length > 0
   ) {
     return order;
   }
-  return mergeFormIntoManualOrder(order, pair.form);
+  // Pair exists but not yet form-wins persisted — show form SoT in the editor.
+  return mergeFormWinsIntoManualOrder(order, pair.form);
 }
 
-/** Diff of fields the form filled on the manual (for updateOrder patches). */
+/**
+ * Magento form matched a manual slot-holder: form is SoT on overlaps.
+ * Stashes prior manual values once (frozen) for UI + Split restore.
+ */
 export function mergePatchFromForm(manual: Order, form: Order): Partial<Order> {
-  const merged = mergeFormIntoManualOrder(manual, form);
-  const patch: Partial<Order> = { mergedFormOrderId: merged.mergedFormOrderId };
-  for (const key of Object.keys(merged) as (keyof Order)[]) {
-    if (PROTECTED_ORDER_KEYS.has(key as string) && key !== "mergedFormOrderId") {
-      continue;
+  // Do not rewrite an existing frozen snapshot on later form refreshes.
+  if (
+    manual.manualOverlapSnapshot &&
+    Object.keys(manual.manualOverlapSnapshot).length > 0
+  ) {
+    const soft = mergeFormIntoManualOrder(manual, form);
+    const patch: Partial<Order> = {
+      mergedFormOrderId: soft.mergedFormOrderId,
+    };
+    for (const key of Object.keys(soft) as (keyof Order)[]) {
+      if (
+        PROTECTED_ORDER_KEYS.has(key as string) &&
+        key !== "mergedFormOrderId"
+      ) {
+        continue;
+      }
+      if (soft[key] !== manual[key]) {
+        (patch as Record<string, unknown>)[key as string] = soft[key];
+      }
     }
-    if (merged[key] !== manual[key]) {
-      (patch as Record<string, unknown>)[key as string] = merged[key];
-    }
+    return patch;
   }
-  if (merged.needsAttention !== manual.needsAttention) {
-    patch.needsAttention = merged.needsAttention;
-  }
-  if (merged.attentionReason !== manual.attentionReason) {
-    patch.attentionReason = merged.attentionReason;
-  }
-  if (merged.formType !== manual.formType) patch.formType = merged.formType;
-  if (merged.cheerFormSubtype !== manual.cheerFormSubtype) {
-    patch.cheerFormSubtype = merged.cheerFormSubtype;
-  }
-  if (merged.danceFormSubtype !== manual.danceFormSubtype) {
-    patch.danceFormSubtype = merged.danceFormSubtype;
-  }
-  return patch;
+  return mergeFormWinsPatches(manual, form).manualPatch;
 }

@@ -10,6 +10,7 @@ import { DataTable, type Column } from "@/components/ui/DataTable";
 import { HoverTip } from "@/components/ui/HoverTip";
 import { TruncatedText } from "@/components/ui/TruncatedText";
 import { SetPricingModal } from "@/components/mtd/SetPricingModal";
+import { SetRecordPricingModal } from "@/components/mtd/SetRecordPricingModal";
 import { CompletionBlockedModal } from "@/components/mtd/CompletionBlockedModal";
 import { InlineTwoStateToggle } from "@/components/mtd/InlineFields";
 import { ForwardOrderMailModal } from "@/components/orders/ForwardOrderMailModal";
@@ -33,7 +34,6 @@ import { MTDPageToolbar } from "@/components/mtd/MTDPageToolbar";
 import { useAppState } from "@/context/AppStateContext";
 import { formatPrice, titleCase } from "@/lib/data";
 import {
-  getFormSongListColumnText,
   getOrderAssignmentStatus,
   getOrderRequirements,
   getOrderStatus,
@@ -42,14 +42,18 @@ import {
 } from "@/lib/order-requirements";
 import {
   getContactColumnHeader,
+  getOrderContactPersonName,
+  getOrderIdentityName,
   getProgramColumnHeader,
 } from "@/lib/order-detail-sections";
+import { orderFromMTDRecord } from "@/lib/order-detail-fields";
 import {
   formatOrderFormMtdBlockReason,
   getOrderFormFieldsBlockingMtd,
   orderHasSplitField,
 } from "@/lib/order-form-missing";
 import {
+  buildRecordPriceSavePatch,
   PRICING_REFERENCE_CHANGED_EVENT,
   resolveEngineCustomerPrice,
   resolveOrderPackageDisplayPrice,
@@ -62,6 +66,7 @@ import { packageTypeDisplayValue } from "@/components/mtd/PackageTypeField";
 import {
   findLinkedOrder,
   findProducerByAssignmentKey,
+  formHasRequestedProducer,
   formatRequestedEditorLabel,
   getDisplayAssignedProducer,
   mixWorkDaysForRecord,
@@ -72,6 +77,7 @@ import {
   countMTDByDanceSubtype,
   countMTDByForm,
   filterMTDRecords,
+  getRecordMusicAffiliateInfo,
   isOrderScheduledAndAssigned,
   matchesMTDSearch,
   resolveMTDFormMeta,
@@ -90,6 +96,7 @@ import type {
   OrderFormType,
   OrderSourceFilter,
   OrderViewRangeFilter,
+  PriceCompliance,
 } from "@/types";
 
 const DEFAULT_FORM: OrderFormType = "school-all-star-cheer";
@@ -272,6 +279,7 @@ function OrdersPageContent() {
     if (savedDance && validDanceSubtypes.includes(savedDance)) setDanceSubtypeState(savedDance);
   }, [formParam]);
 
+  // Newest first so newly added / incoming orders get ID 1 (latest at top).
   const [tableFilters, setTableFilters] = useState<MTDTableFilterState>(
     DEFAULT_MTD_TABLE_FILTERS
   );
@@ -293,6 +301,8 @@ function OrdersPageContent() {
   const [pricingFocusRecord, setPricingFocusRecord] = useState<MTDRecord | null>(
     null
   );
+  const [recordPricingRecord, setRecordPricingRecord] =
+    useState<MTDRecord | null>(null);
   const [pricingRevision, setPricingRevision] = useState(0);
   const [mailRecord, setMailRecord] = useState<MTDRecord | null>(null);
   const [mailRecipient, setMailRecipient] = useState<"producer" | "customer">(
@@ -300,6 +310,7 @@ function OrdersPageContent() {
   );
   const [addNewOrderOpen, setAddNewOrderOpen] = useState(false);
   const [orderFormRecord, setOrderFormRecord] = useState<MTDRecord | null>(null);
+  const [orderFormRowId, setOrderFormRowId] = useState<number | null>(null);
   const [affiliateFlagRecord, setAffiliateFlagRecord] =
     useState<MTDRecord | null>(null);
   const [affiliateFlagMode, setAffiliateFlagMode] = useState<
@@ -455,6 +466,9 @@ function OrdersPageContent() {
       if (isViewOnly) return;
 
       const linkedOrder = findLinkedOrder(rec, allOrders);
+      const reqSource = linkedOrder
+        ? mergeOrderFormFieldsForRequirements(rec, linkedOrder)
+        : rec;
       if (
         linkedOrder &&
         getOrderFormFieldsBlockingMtd(linkedOrder).length > 0
@@ -465,7 +479,7 @@ function OrdersPageContent() {
 
       if (
         !isOrderScheduledAndAssigned(rec) ||
-        getOrderStatus(rec).missingCount > 0
+        getOrderStatus(reqSource).missingCount > 0
       ) {
         setValidationModalRecord(rec);
         return;
@@ -519,6 +533,55 @@ function OrdersPageContent() {
     setPricingOpen(true);
   }, []);
 
+  const openRecordPricingModal = useCallback(
+    (rec: MTDRecord, e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setRecordPricingRecord(rec);
+    },
+    []
+  );
+
+  const saveRecordPricing = useCallback(
+    async (
+      recordId: string,
+      patch: { price: number; priceCompliance: PriceCompliance }
+    ) => {
+      if (isViewOnly) return;
+      const rec =
+        recordPricingRecord?.id === recordId
+          ? recordPricingRecord
+          : preMtdRecords.find((r) => r.id === recordId) ??
+            mtdRecords.find((r) => r.id === recordId);
+      if (!rec) return;
+      const order = findLinkedOrder(rec, allOrders);
+      const meta = resolveMTDFormMeta(rec, orderById);
+      const fullPatch = buildRecordPriceSavePatch(
+        rec,
+        order,
+        patch.price,
+        patch.priceCompliance,
+        meta,
+        orderById
+      );
+      if (order) {
+        await updateOrder(order.id, fullPatch);
+      } else {
+        await updateMTD(rec.id, fullPatch);
+      }
+    },
+    [
+      isViewOnly,
+      recordPricingRecord,
+      preMtdRecords,
+      mtdRecords,
+      allOrders,
+      orderById,
+      updateOrder,
+      updateMTD,
+    ]
+  );
+
   const pricingFocusOrder = useMemo(
     () =>
       pricingFocusRecord
@@ -526,6 +589,24 @@ function OrdersPageContent() {
         : undefined,
     [pricingFocusRecord, allOrders]
   );
+
+  const recordPricingOrder = useMemo(
+    () =>
+      recordPricingRecord
+        ? findLinkedOrder(recordPricingRecord, allOrders)
+        : null,
+    [recordPricingRecord, allOrders]
+  );
+
+  const recordPricingInitialPrice = useMemo(() => {
+    if (!recordPricingRecord) return null;
+    return resolveOrderPackageDisplayPrice(
+      recordPricingRecord,
+      recordPricingOrder,
+      resolveMTDFormMeta(recordPricingRecord, orderById),
+      orderById
+    );
+  }, [recordPricingRecord, recordPricingOrder, orderById]);
 
   // Filtered dataset for table
   const tableFiltered = useMemo(
@@ -563,7 +644,7 @@ function OrdersPageContent() {
       : tableFiltered.filter((rec) => matchesMTDSearch(rec, q));
     const sorted = sortMTDRecordsBySortKey(
       searched,
-      tableFilters.sortBy ?? "none",
+      tableFilters.sortBy ?? "newest",
       producers,
       orderById
     );
@@ -610,6 +691,11 @@ function OrdersPageContent() {
   const columns: Column<MTDRecord>[] = useMemo(() => {
     const showMusicAffiliate =
       form === "school-all-star-cheer" || form === "school-all-star-dance";
+    // Magento / New Order: no Requested Editor on Anthem, Sports, Band, Youth Rec.
+    const showFormProducer = formHasRequestedProducer(
+      form,
+      cheerSubtype === "all" ? undefined : cheerSubtype
+    );
     const programHeader = getProgramColumnHeader(
       form,
       cheerSubtype === "all" ? undefined : cheerSubtype,
@@ -648,13 +734,11 @@ function OrdersPageContent() {
         render: (rec) => {
           const linked = findLinkedOrder(rec, allOrders);
           const name = titleCase(
-            rec.contactName ||
-              linked?.coachName ||
-              linked?.coachContactFullName ||
-              linked?.musicContactName ||
-              linked?.contactName ||
-              rec.editorInitials ||
-              ""
+            getOrderContactPersonName(
+              linked || orderFromMTDRecord(rec),
+              rec.contactName,
+              rec.programName
+            )
           ).trim();
           return (
             <TruncatedText
@@ -681,7 +765,10 @@ function OrdersPageContent() {
         ),
         headerClassName: clsx(compactHeaderClass, "whitespace-normal leading-tight"),
         render: (rec) => {
-          const name = titleCase(rec.programName || "").trim();
+          const linked = findLinkedOrder(rec, allOrders);
+          const identityOrder = linked || orderFromMTDRecord(rec);
+          // Same value as the edit-form identity field (Gym Name / School Name / …).
+          const name = getOrderIdentityName(identityOrder).trim();
           return (
             <TruncatedText
               text={name || "No data"}
@@ -853,33 +940,7 @@ function OrdersPageContent() {
             },
           ]
         : []),
-      {
-        key: "music",
-        header: "Form song list",
-        width: "120px",
-        align: "center" as const,
-        nowrap: false,
-        cellClassName: clsx(compactCellClass, "max-w-[120px]"),
-        headerClassName: compactHeaderClass,
-        render: (rec) => {
-          const linked = findLinkedOrder(rec, allOrders);
-          const merged = mergeOrderFormFieldsForRequirements(rec, linked);
-          // Board column: form song list, else legacy musicTheme (never hide board data).
-          const songList = getFormSongListColumnText(merged);
-          const display = songList ? titleCase(songList) : "";
-          return (
-            <TruncatedText
-              text={display || "No data"}
-              className={clsx(
-                "mx-auto w-full min-w-0 text-center",
-                compactTextClass,
-                !display && "text-brand-ink-tertiary"
-              )}
-              style={{ maxWidth: "100%" }}
-            />
-          );
-        },
-      },
+      // Form song list text is edit-modal / Songs pill only — not a board column.
       {
         key: "packagePrice",
         header: "Package Price",
@@ -897,33 +958,9 @@ function OrdersPageContent() {
             meta,
             orderById
           );
-          const isUnpriced =
+          const needsManualQuote =
             meta.formType === "sports-entertainment" &&
             (engineCustomerPrice == null || engineCustomerPrice <= 0);
-
-          if (isUnpriced) {
-            return (
-              <div
-                className="mx-auto flex w-full flex-col items-center"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <button
-                  type="button"
-                  onClick={(e) => openPricingModal(rec, e)}
-                  title="Open Pricing (Needs Quote)"
-                  aria-label="Open Pricing: Needs Quote"
-                  className={clsx(
-                    clickableChipClass,
-                    "flex w-full flex-col items-center rounded-lg px-2 py-1 text-center border-brand-warning/35 bg-brand-warning/10"
-                  )}
-                >
-                  <span className="text-[11px] font-semibold text-brand-warning whitespace-nowrap">
-                    Needs Quote
-                  </span>
-                </button>
-              </div>
-            );
-          }
 
           const displayPrice = resolveOrderPackageDisplayPrice(
             rec,
@@ -931,6 +968,49 @@ function OrdersPageContent() {
             meta,
             orderById
           );
+
+          // Unpriced Sports Entertainment packages get a per-order quote.
+          // Catalog-priced packages open the Pricing rate-card modal.
+          if (needsManualQuote) {
+            const showNeedsQuote = displayPrice <= 0;
+            return (
+              <div
+                className="mx-auto flex w-full flex-col items-center"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <button
+                  type="button"
+                  onClick={(e) => openRecordPricingModal(rec, e)}
+                  title={
+                    showNeedsQuote
+                      ? "Set package price for this order"
+                      : "Edit package price for this order"
+                  }
+                  aria-label={
+                    showNeedsQuote
+                      ? "Set package price: Needs Quote"
+                      : `Edit package price ${formatPrice(displayPrice)}`
+                  }
+                  className={clsx(
+                    clickableChipClass,
+                    "flex w-full flex-col items-center rounded-lg px-2 py-1 text-center",
+                    showNeedsQuote &&
+                      "border-brand-warning/35 bg-brand-warning/10"
+                  )}
+                >
+                  {showNeedsQuote ? (
+                    <span className="text-[11px] font-semibold text-brand-warning whitespace-nowrap">
+                      Needs Quote
+                    </span>
+                  ) : (
+                    <p className="font-semibold tabular-nums text-[12px] text-brand-ink hover:text-brand-orange">
+                      {formatPrice(displayPrice)}
+                    </p>
+                  )}
+                </button>
+              </div>
+            );
+          }
 
           return (
             <div
@@ -940,7 +1020,7 @@ function OrdersPageContent() {
               <button
                 type="button"
                 onClick={(e) => openPricingModal(rec, e)}
-                title="Open Pricing to edit customer package price"
+                title="Open Pricing rate card"
                 aria-label={`Open Pricing ${formatPrice(displayPrice)}`}
                 className={clsx(
                   clickableChipClass,
@@ -985,32 +1065,51 @@ function OrdersPageContent() {
         headerClassName: compactHeaderClass,
         render: (rec: MTDRecord) => <OrderDataStatusBadge record={rec} />,
       },
-      {
-        key: "requestedEditor",
-        header: "Form\nproducer",
-        width: "100px",
-        align: "center" as const,
-        nowrap: false,
-        cellClassName: clsx(compactCellClass, "max-w-[100px]"),
-        headerClassName: clsx(compactHeaderClass, "whitespace-pre-line leading-tight"),
-        render: (rec) => {
-          const linked = findLinkedOrder(rec, allOrders);
-          const label = formatRequestedEditorLabel(rec, producers, linked);
-          const isFa = label === "First Available";
+      ...(showFormProducer
+        ? [
+            {
+              key: "requestedEditor",
+              header: "Form\nproducer",
+              width: "100px",
+              align: "center" as const,
+              nowrap: false,
+              cellClassName: clsx(compactCellClass, "max-w-[100px]"),
+              headerClassName: clsx(
+                compactHeaderClass,
+                "whitespace-pre-line leading-tight"
+              ),
+              render: (rec: MTDRecord) => {
+                const linked = findLinkedOrder(rec, allOrders);
+                const label = formatRequestedEditorLabel(rec, producers, linked);
+                if (!label.trim()) {
+                  return (
+                    <span
+                      className={clsx(
+                        "font-medium text-brand-ink-tertiary",
+                        compactTextClass
+                      )}
+                    >
+                      —
+                    </span>
+                  );
+                }
+                const isFa = label === "First Available";
 
-          return (
-            <span
-              className={clsx(
-                "font-medium",
-                compactTextClass,
-                isFa ? "text-brand-info" : "text-brand-ink"
-              )}
-            >
-              {label}
-            </span>
-          );
-        },
-      },
+                return (
+                  <span
+                    className={clsx(
+                      "font-medium",
+                      compactTextClass,
+                      isFa ? "text-brand-info" : "text-brand-ink"
+                    )}
+                  >
+                    {label}
+                  </span>
+                );
+              },
+            } satisfies Column<MTDRecord>,
+          ]
+        : []),
       {
         key: "editor",
         header: "Assigned producer",
@@ -1410,7 +1509,7 @@ function OrdersPageContent() {
         nowrap: true,
         cellClassName: compactCellClass,
         headerClassName: compactHeaderClass,
-        render: (rec) => {
+        render: (rec, index) => {
           if (rangeFilter === "flagged") {
             const linked = findLinkedOrder(rec, allOrders);
             const resolved = isAffiliateFlagResolved(linked);
@@ -1477,9 +1576,12 @@ function OrdersPageContent() {
             );
           }
 
-          const { needsReassign, missingCount } = getOrderStatus(rec);
-          const blockedByMissingData = missingCount > 0;
           const linkedForForm = findLinkedOrder(rec, allOrders);
+          const reqSource = linkedForForm
+            ? mergeOrderFormFieldsForRequirements(rec, linkedForForm)
+            : rec;
+          const { needsReassign, missingCount } = getOrderStatus(reqSource);
+          const blockedByMissingData = missingCount > 0;
           const formMtdGaps = linkedForForm
             ? getOrderFormFieldsBlockingMtd(linkedForForm)
             : [];
@@ -1549,6 +1651,7 @@ function OrdersPageContent() {
                   onMouseDown={(e) => e.stopPropagation()}
                   onClick={(e) => {
                     e.stopPropagation();
+                    setOrderFormRowId(index + 1);
                     setOrderFormRecord(rec);
                   }}
                   className={clsx(ordersMailTextButtonClass, "!px-1.5")}
@@ -1566,7 +1669,7 @@ function OrdersPageContent() {
                   label={
                     mtdBlockedReason ?? "MTD"
                   }
-                  placement="top"
+                  placement="left"
                 >
                   <button
                     type="button"
@@ -1614,6 +1717,7 @@ function OrdersPageContent() {
     updateOrder,
     handleMoveToMTD,
     openPricingModal,
+    openRecordPricingModal,
     openAssignPage,
     isViewOnly,
     pricingRevision,
@@ -1689,7 +1793,12 @@ function OrdersPageContent() {
             onFiltersChange={(patch) =>
               setTableFilters((prev) => ({ ...prev, ...patch }))
             }
-            onFiltersReset={() => setTableFilters(DEFAULT_MTD_TABLE_FILTERS)}
+            onFiltersReset={() =>
+              setTableFilters((prev) => ({
+                ...DEFAULT_MTD_TABLE_FILTERS,
+                sortBy: prev.sortBy ?? "newest",
+              }))
+            }
             onPricingClick={openPricingReference}
           />
         }
@@ -1701,7 +1810,20 @@ function OrdersPageContent() {
             key={`${form}-${cheerSubtype}-${danceSubtype}-${tableFilterKey}`}
             data={filtered}
             columns={columns}
-            rowKey={(rec) => rec.id}
+            rowKey={(rec) => {
+              const linked =
+                (rec.orderId ? orderById.get(rec.orderId) : undefined) ||
+                orderById.get(rec.id) ||
+                (rec.uuid ? orderById.get(rec.uuid) : undefined) ||
+                (rec.legacyId ? orderById.get(rec.legacyId) : undefined);
+              return (
+                linked?.id ||
+                rec.orderId ||
+                rec.legacyId ||
+                rec.uuid ||
+                rec.id
+              );
+            }}
             emptyMessage={
               isLoading
                 ? "Loading orders…"
@@ -1718,7 +1840,7 @@ function OrdersPageContent() {
         </div>
       </div>
 
-      {/* Pricing Reference Modal — also opened from package-price cells */}
+      {/* Pricing rate card — header Pricing + catalog package-price cells */}
       <SetPricingModal
         open={pricingOpen}
         order={pricingFocusOrder}
@@ -1730,6 +1852,24 @@ function OrdersPageContent() {
           setPricingOpen(false);
           setPricingFocusRecord(null);
         }}
+      />
+
+      <SetRecordPricingModal
+        open={Boolean(recordPricingRecord)}
+        record={recordPricingRecord}
+        initialPrice={recordPricingInitialPrice}
+        musicAffiliateInfo={
+          recordPricingRecord
+            ? getRecordMusicAffiliateInfo(
+                recordPricingRecord,
+                orderById,
+                allOrders
+              )
+            : null
+        }
+        onClose={() => setRecordPricingRecord(null)}
+        onSave={saveRecordPricing}
+        readOnly={isViewOnly}
       />
 
       <CompletionBlockedModal
@@ -1762,7 +1902,11 @@ function OrdersPageContent() {
         open={Boolean(orderFormRecord)}
         record={orderFormRecord}
         allOrders={allOrders}
-        onClose={() => setOrderFormRecord(null)}
+        rowId={orderFormRowId}
+        onClose={() => {
+          setOrderFormRecord(null);
+          setOrderFormRowId(null);
+        }}
       />
 
       <ResolveAffiliateFlagModal

@@ -6,6 +6,7 @@ import { OrderRangeToggle } from "@/components/orders/OrderRangeToggle";
 import { OrderSourceFilter } from "@/components/orders/OrderSourceFilter";
 import {
   MTDFilterChipsRow,
+  MTDSortMenu,
   MTDTableFilterPanel,
   type MTDTableFilterState,
 } from "@/components/mtd/MTDTableFilters";
@@ -153,6 +154,15 @@ export function MTDPageToolbar({
             form={form}
             cheerSubtype={cheerSubtype}
             danceSubtype={danceSubtype}
+          />
+          <span
+            className="mx-0.5 hidden h-5 w-px shrink-0 bg-brand-line/45 sm:block"
+            aria-hidden
+          />
+          <MTDSortMenu
+            grouped
+            value={filters.sortBy ?? "newest"}
+            onChange={(sortBy) => onFiltersChange({ sortBy })}
           />
           {onFlaggedToggle && typeof flaggedOrdersCount === "number" ? (
             <>

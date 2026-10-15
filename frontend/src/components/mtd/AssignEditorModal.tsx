@@ -28,6 +28,7 @@ import {
   findProducerByAssignmentKey,
   getDisplayAssignedProducer,
   orderCategoryToProducerCategory,
+  recordHasRequestedProducer,
 } from "@/lib/editor-assignment";
 import { getOrderStatus } from "@/lib/order-requirements";
 import { parsePendingDeletedProducer } from "@/lib/order-reassign";
@@ -1457,7 +1458,14 @@ export function AssignEditorModal({
       ? "First Available"
       : requestedInfo.name;
 
-  const requestedHeaderMeta = (
+  // Forms without Magento Requested Editor (Anthem, Sports, Band, Youth Rec)
+  // must not show a fake "Requested · First Available" chip.
+  const showRequestedHeader =
+    Boolean(record) && recordHasRequestedProducer(record!, linkedOrder);
+
+  // Client request is a suggestion only — show who they asked for, not
+  // availability / auto-assign status.
+  const requestedHeaderMeta = showRequestedHeader ? (
     <div className="inline-flex max-w-full items-center gap-2 rounded-full bg-brand-blue-soft/70 px-3 py-1.5 ring-1 ring-inset ring-brand-blue/25">
       <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.05em] text-brand-signature/70">
         Requested
@@ -1466,24 +1474,13 @@ export function AssignEditorModal({
       <span className="min-w-0 truncate text-[12px] font-semibold text-brand-signature">
         {requestedHeaderLabel}
       </span>
-      {requestedInfo.kind === "specific" ? (
-        <span
-          className={clsx(
-            "shrink-0 text-[11px]",
-            !requestedInfo.available || requestedInfo.caution
-              ? "text-brand-warning"
-              : "text-brand-success"
-          )}
-        >
-          {requestedInfo.statusLabel}
-        </span>
-      ) : requestedInfo.kind === "unknown" ? (
+      {requestedInfo.kind === "unknown" ? (
         <span className="shrink-0 text-[11px] text-brand-ink-tertiary">
           Not on roster
         </span>
       ) : null}
     </div>
-  );
+  ) : null;
 
   if (isPage) {
     return (
@@ -1548,7 +1545,9 @@ export function AssignEditorModal({
                 </span>
               </p>
             </div>
-            <div className="shrink-0 pt-0.5">{requestedHeaderMeta}</div>
+            {requestedHeaderMeta ? (
+              <div className="shrink-0 pt-0.5">{requestedHeaderMeta}</div>
+            ) : null}
           </div>
           <button
             type="button"

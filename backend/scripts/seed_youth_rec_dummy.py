@@ -6,6 +6,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from app.core.database import SessionLocal
 from app.models.order import Order
+from app.seed.ids import seed_uuid
 
 YOUTH_REC_DEMO = [
     {
@@ -53,37 +54,33 @@ def main() -> None:
     try:
         for i, row in enumerate(YOUTH_REC_DEMO, 1):
             legacy = row["legacy_id"]
-            existing = db.query(Order).filter(Order.legacy_id == legacy).first()
+            order_pk = seed_uuid("order", legacy)
+            existing = db.query(Order).filter(Order.id == order_pk).first()
             if existing:
                 print(f"skip {legacy} (exists)")
                 continue
 
             order = Order(
-                legacy_id=legacy,
+                id=order_pk,
                 form_type="school-all-star-cheer",
                 cheer_form_subtype="youth-rec-cheer",
-                category="Cheer",
-                program_name=row["program_name"],
+                school_gym_name=row["program_name"],
                 team_name=row["team_name"],
                 colors=row["colors"],
-                team_colors=row["colors"],
-                billing_address=f"{500 + i} Rec Center Way",
+                school_gym_billing_address=f"{500 + i} Rec Center Way",
                 city="Los Angeles",
                 state_province="CA",
                 zip_postal_code="90012",
                 country="United States",
-                coach_contact_full_name=f"Coach Jordan {i}",
                 coach_name=f"Coach Jordan {i}",
-                coach_email_address=f"jordan.rec{i}@example.com",
                 coach_email=f"jordan.rec{i}@example.com",
                 coach_phone=f"555-040{i}",
-                email_address=f"parent.rec{i}@example.com",
+                youth_rec_extra_email_address=f"parent.rec{i}@example.com",
                 package_type=row["package_type"],
                 package=row["package"],
                 time_length_of_mix=row["time_length_of_mix"],
                 split_or_no_split=row["split_or_no_split"],
                 number_of_copies="1",
-                using_eight_count_sheets=row["using_eight_count_sheets"],
                 sending_eight_count_sheets=row["using_eight_count_sheets"],
                 song_list_suggestions="1) Power Music Trax hit\n2) Unleash the Beats track",
                 routine_notes="Youth-friendly energy. Keep transitions clean for young athletes.",
@@ -92,9 +89,8 @@ def main() -> None:
                 music_affiliate=None,
                 customer_name=f"Coach Jordan {i} ({row['program_name']})",
                 contact_name=f"Coach Jordan {i}",
-                editor_request="FA",
+                editor_initials="FA",
                 requested_editor="First Available",
-                requested_producer="FA",
                 status="new",
                 price=450.0 + (i * 20),
                 price_compliance="compliant",

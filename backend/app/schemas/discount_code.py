@@ -4,7 +4,6 @@ from uuid import UUID
 
 class DiscountCodeSchema(BaseModel):
     id: UUID
-    legacy_id: Optional[str] = None
     code: str
     description: Optional[str] = None
     discount_type: Optional[str] = None

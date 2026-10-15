@@ -68,17 +68,15 @@ describe("Category-Specific Collections & Songs Columns Requirements", () => {
       assert.ok(!itemIds.includes("mix"));
     });
 
-    test("School Anthem (school-anthem) includes ONLY Form under Collections", () => {
+    test("School Anthem (school-anthem) has no Mix/CS/Video checklist controls", () => {
+      // Magento SA collections show "None Applicable"; Form pill is only on manual
+      // New Order rows (order-requirements), not the MTD eight-count checklist.
       const ids = getCollectionControlIds("school-anthem");
-      assert.deepStrictEqual(ids, ["form"]);
+      assert.deepStrictEqual(ids, []);
 
       const state = parseEightCsState("");
       const items = getCollectionItemsForCategory("school-anthem", state);
-      const itemIds = items.map((i) => i.id);
-      assert.deepStrictEqual(itemIds, ["form"]);
-      assert.ok(!itemIds.includes("cs"));
-      assert.ok(!itemIds.includes("video"));
-      assert.ok(!itemIds.includes("mix"));
+      assert.deepStrictEqual(items, []);
     });
 
     test("Unknown or arbitrary non-Cheer category defaults to Form only under Collections", () => {

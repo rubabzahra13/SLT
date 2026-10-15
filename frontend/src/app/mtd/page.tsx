@@ -22,6 +22,7 @@ import {
   type EditorAssignmentResult,
 } from "@/components/mtd/AssignEditorModal";
 import { SetPricingModal } from "@/components/mtd/SetPricingModal";
+import { SetRecordPricingModal } from "@/components/mtd/SetRecordPricingModal";
 import { SetInvoicesModal } from "@/components/mtd/SetInvoicesModal";
 import { SetInvoiceModal } from "@/components/mtd/SetInvoiceModal";
 import { CompleteToPayrollModal } from "@/components/mtd/CompleteToPayrollModal";
@@ -43,8 +44,11 @@ import { parsePackage } from "@/lib/package";
 import { packageTypeDisplayValue } from "@/components/mtd/PackageTypeField";
 import {
   getContactColumnHeader,
+  getOrderContactPersonName,
+  getOrderIdentityName,
   getProgramColumnHeader,
 } from "@/lib/order-detail-sections";
+import { orderFromMTDRecord } from "@/lib/order-detail-fields";
 import { orderHasSplitField } from "@/lib/order-form-missing";
 import type { MTDViewOrder } from "@/components/mtd/MTDViewOrderToggle";
 import {
@@ -55,6 +59,7 @@ import {
   calculateSchoolAnthemOrderPricing,
 } from "@/lib/pricing-engine";
 import {
+  buildRecordPriceSavePatch,
   PRICING_REFERENCE_CHANGED_EVENT,
   resolveOrderPackageDisplayPrice,
 } from "@/lib/order-package-price";
@@ -71,6 +76,7 @@ import { generateMTDCsv, triggerCsvDownload } from "@/lib/export-csv";
 import {
   findLinkedOrder,
   findProducerByAssignmentKey,
+  formHasRequestedProducer,
   formatRequestedEditorLabel,
   getDisplayAssignedProducer,
   mixWorkDaysForRecord,
@@ -80,6 +86,7 @@ import {
   countMTDByDanceSubtype,
   countMTDByForm,
   filterMTDRecords,
+  getRecordMusicAffiliateInfo,
   isMTDRecord,
   matchesAssignedProducerFilter,
   matchesFormFilter,
@@ -88,10 +95,6 @@ import {
   sortMTDRecordsBySortKey,
   sortMTDRecordsByViewOrder,
 } from "@/lib/mtd-filters";
-import {
-  getFormSongListColumnText,
-  mergeOrderFormFieldsForRequirements,
-} from "@/lib/order-requirements";
 import {
   cycleEightCsItem,
   cycleSongsItem,
@@ -112,6 +115,7 @@ import type {
   Order,
   OrderFormType,
   OrderSourceFilter,
+  PriceCompliance,
 } from "@/types";
 import { MTD_RECORD_STATUS_OPTIONS } from "@/types";
 import {
@@ -272,12 +276,15 @@ function MTDPageContent() {
   const [pricingFocusRecord, setPricingFocusRecord] = useState<MTDRecord | null>(
     null
   );
+  const [recordPricingRecord, setRecordPricingRecord] =
+    useState<MTDRecord | null>(null);
   const [invoicesOpen, setInvoicesOpen] = useState(false);
   const [pricingOpen, setPricingOpen] = useState(false);
   const [pricingRevision, setPricingRevision] = useState(0);
   const [completeRecord, setCompleteRecord] = useState<MTDRecord | null>(null);
   const [blockedRecord, setBlockedRecord] = useState<MTDRecord | null>(null);
   const [orderFormRecord, setOrderFormRecord] = useState<MTDRecord | null>(null);
+  const [orderFormRowId, setOrderFormRowId] = useState<number | null>(null);
   const [moveToOrdersRecord, setMoveToOrdersRecord] = useState<MTDRecord | null>(
     null
   );
@@ -438,6 +445,52 @@ function MTDPageContent() {
     setPricingOpen(true);
   }, []);
 
+  const openRecordPricingModal = useCallback(
+    (rec: MTDRecord, e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setRecordPricingRecord(rec);
+    },
+    []
+  );
+
+  const saveRecordPricing = useCallback(
+    async (
+      recordId: string,
+      patch: { price: number; priceCompliance: PriceCompliance }
+    ) => {
+      if (isViewOnly) return;
+      const rec =
+        recordPricingRecord?.id === recordId
+          ? recordPricingRecord
+          : mtdRecords.find((r) => r.id === recordId);
+      if (!rec) return;
+      const order = findLinkedOrder(rec, allOrders);
+      const meta = resolveMTDFormMeta(rec, orderById);
+      const fullPatch = buildRecordPriceSavePatch(
+        rec,
+        order,
+        patch.price,
+        patch.priceCompliance,
+        meta,
+        orderById
+      );
+      await updateMTD(rec.id, fullPatch);
+      if (order) {
+        await updateOrder(order.id, fullPatch);
+      }
+    },
+    [
+      isViewOnly,
+      recordPricingRecord,
+      mtdRecords,
+      allOrders,
+      orderById,
+      updateMTD,
+      updateOrder,
+    ]
+  );
+
   const pricingFocusOrder = useMemo(
     () =>
       pricingFocusRecord
@@ -445,6 +498,24 @@ function MTDPageContent() {
         : undefined,
     [pricingFocusRecord, allOrders]
   );
+
+  const recordPricingOrder = useMemo(
+    () =>
+      recordPricingRecord
+        ? findLinkedOrder(recordPricingRecord, allOrders)
+        : null,
+    [recordPricingRecord, allOrders]
+  );
+
+  const recordPricingInitialPrice = useMemo(() => {
+    if (!recordPricingRecord) return null;
+    return resolveOrderPackageDisplayPrice(
+      recordPricingRecord,
+      recordPricingOrder,
+      resolveMTDFormMeta(recordPricingRecord, orderById),
+      orderById
+    );
+  }, [recordPricingRecord, recordPricingOrder, orderById]);
 
   const handleInvoiceSave = useCallback(
     (recordId: string, invoice: string) => {
@@ -547,7 +618,7 @@ function MTDPageContent() {
   const displayedRecords = useMemo(() => {
     const sorted = sortMTDRecordsBySortKey(
       filtered,
-      tableFilters.sortBy ?? "none",
+      tableFilters.sortBy ?? "newest",
       producers,
       orderById
     );
@@ -595,6 +666,10 @@ function MTDPageContent() {
     const showMusicAffiliate =
       form === "school-all-star-cheer" || form === "school-all-star-dance";
     const showMarchingAddons = form === "marching-band";
+    const showRequestedProducer = formHasRequestedProducer(
+      form,
+      cheerSubtype === "all" ? undefined : cheerSubtype
+    );
     const programHeader = getProgramColumnHeader(
       form,
       cheerSubtype === "all" ? undefined : cheerSubtype,
@@ -635,12 +710,11 @@ function MTDPageContent() {
         render: (rec) => {
           const linked = findLinkedOrder(rec, allOrders);
           const name = titleCase(
-            rec.contactName ||
-              linked?.coachName ||
-              linked?.coachContactFullName ||
-              linked?.musicContactName ||
-              linked?.contactName ||
-              ""
+            getOrderContactPersonName(
+              linked || orderFromMTDRecord(rec),
+              rec.contactName,
+              rec.programName
+            )
           ).trim();
           return (
             <TruncatedText
@@ -667,7 +741,9 @@ function MTDPageContent() {
         ),
         headerClassName: clsx(compactHeaderClass, "whitespace-normal leading-tight"),
         render: (rec) => {
-          const name = titleCase(rec.programName || "").trim();
+          const linked = findLinkedOrder(rec, allOrders);
+          const identityOrder = linked || orderFromMTDRecord(rec);
+          const name = getOrderIdentityName(identityOrder).trim();
           return (
             <TruncatedText
               text={name || "No data"}
@@ -827,64 +903,42 @@ function MTDPageContent() {
             },
           ]
         : []),
-      {
-        key: "themeF",
-        header: "Form song list",
-        width: "120px",
-        align: "center" as const,
-        nowrap: false,
-        cellClassName: clsx(compactCellClass, "max-w-[120px]"),
-        headerClassName: compactHeaderClass,
-        render: (rec) => {
-          const linked = findLinkedOrder(rec, allOrders);
-          const merged = mergeOrderFormFieldsForRequirements(rec, linked);
-          // Board column: form song list, else legacy musicTheme (never hide board data).
-          const songList = getFormSongListColumnText(merged);
-          const display = songList ? titleCase(songList) : "";
-          return (
-            <TruncatedText
-              text={display || "No data"}
-              className={clsx(
-                "mx-auto w-full min-w-0 text-center",
-                compactTextClass,
-                !display && "text-brand-ink-tertiary"
-              )}
-              style={{ maxWidth: "100%" }}
-            />
-          );
-        },
-      },
-      {
-        key: "chosenInitialsF",
-        header: "Requested producer",
-        width: "100px",
-        align: "center" as const,
-        nowrap: false,
-        cellClassName: clsx(compactCellClass, "max-w-[100px]"),
-        headerClassName: compactHeaderClass,
-        render: (rec) => {
-          const linked = findLinkedOrder(rec, allOrders);
-          const label = formatRequestedEditorLabel(rec, producers, linked);
-          const isFa = label === "First Available";
-          const empty = !label.trim();
+      // Form song list text is edit-modal / Songs pill only — not a board column.
+      ...(showRequestedProducer
+        ? [
+            {
+              key: "chosenInitialsF",
+              header: "Requested producer",
+              width: "100px",
+              align: "center" as const,
+              nowrap: false,
+              cellClassName: clsx(compactCellClass, "max-w-[100px]"),
+              headerClassName: compactHeaderClass,
+              render: (rec: MTDRecord) => {
+                const linked = findLinkedOrder(rec, allOrders);
+                const label = formatRequestedEditorLabel(rec, producers, linked);
+                const isFa = label === "First Available";
+                const empty = !label.trim();
 
-          return (
-            <span
-              className={clsx(
-                "font-medium",
-                compactTextClass,
-                empty
-                  ? "text-brand-ink-tertiary"
-                  : isFa
-                    ? "text-brand-info"
-                    : "text-brand-ink"
-              )}
-            >
-              {empty ? "No data" : label}
-            </span>
-          );
-        },
-      },
+                return (
+                  <span
+                    className={clsx(
+                      "font-medium",
+                      compactTextClass,
+                      empty
+                        ? "text-brand-ink-tertiary"
+                        : isFa
+                          ? "text-brand-info"
+                          : "text-brand-ink"
+                    )}
+                  >
+                    {empty ? "—" : label}
+                  </span>
+                );
+              },
+            } satisfies Column<MTDRecord>,
+          ]
+        : []),
       {
         key: "priceG",
         header: "Package Price",
@@ -941,7 +995,17 @@ function MTDPageContent() {
             engineCustomerPrice = enginePricing.customerFacingPrice;
           }
 
+          const displayPrice = resolveOrderPackageDisplayPrice(
+            rec,
+            order,
+            meta,
+            orderById
+          );
+
+          // Unpriced Sports Entertainment packages get a per-order quote.
+          // Catalog-priced packages open the Pricing rate-card modal.
           if (isUnpriced) {
+            const showNeedsQuote = displayPrice <= 0;
             return (
               <div
                 className="mx-auto flex w-full flex-col items-center"
@@ -949,28 +1013,37 @@ function MTDPageContent() {
               >
                 <button
                   type="button"
-                  onClick={(e) => openPricingModal(rec, e)}
-                  title="Open Pricing (Needs Quote)"
-                  aria-label="Open Pricing: Needs Quote"
+                  onClick={(e) => openRecordPricingModal(rec, e)}
+                  title={
+                    showNeedsQuote
+                      ? "Set package price for this order"
+                      : "Edit package price for this order"
+                  }
+                  aria-label={
+                    showNeedsQuote
+                      ? "Set package price: Needs Quote"
+                      : `Edit package price ${formatPrice(displayPrice)}`
+                  }
                   className={clsx(
                     clickableChipClass,
-                    "flex w-full flex-col items-center rounded-lg px-2 py-1 text-center border-brand-warning/35 bg-brand-warning/10"
+                    "flex w-full flex-col items-center rounded-lg px-2 py-1 text-center",
+                    showNeedsQuote &&
+                      "border-brand-warning/35 bg-brand-warning/10"
                   )}
                 >
-                  <span className="text-[11px] font-semibold text-brand-warning whitespace-nowrap">
-                    Needs Quote
-                  </span>
+                  {showNeedsQuote ? (
+                    <span className="text-[11px] font-semibold text-brand-warning whitespace-nowrap">
+                      Needs Quote
+                    </span>
+                  ) : (
+                    <p className="font-semibold tabular-nums text-[12px] text-brand-ink hover:text-brand-orange">
+                      {formatPrice(displayPrice)}
+                    </p>
+                  )}
                 </button>
               </div>
             );
           }
-
-          const displayPrice = resolveOrderPackageDisplayPrice(
-            rec,
-            order,
-            meta,
-            orderById
-          );
 
           return (
             <div
@@ -980,7 +1053,7 @@ function MTDPageContent() {
               <button
                 type="button"
                 onClick={(e) => openPricingModal(rec, e)}
-                title="Open Pricing to edit customer package price"
+                title="Open Pricing rate card"
                 aria-label={`Open Pricing ${formatPrice(displayPrice)}`}
                 className={clsx(
                   clickableChipClass,
@@ -1397,7 +1470,7 @@ function MTDPageContent() {
         nowrap: false,
         cellClassName: clsx(compactCellClass, "max-w-[120px]"),
         headerClassName: compactHeaderClass,
-        render: (rec) => (
+        render: (rec, index) => (
           <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
             {!isViewOnly ? (
               <HoverTip label="Move to Orders" placement="top">
@@ -1422,6 +1495,7 @@ function MTDPageContent() {
                 onMouseDown={(e) => e.stopPropagation()}
                 onClick={(e) => {
                   e.stopPropagation();
+                  setOrderFormRowId(index + 1);
                   setOrderFormRecord(rec);
                 }}
                 title={isViewOnly ? "View order form" : "Edit order form"}
@@ -1455,6 +1529,7 @@ function MTDPageContent() {
     openAssignModal,
     openInvoiceModal,
     openPricingModal,
+    openRecordPricingModal,
     pricingRevision,
     orderById,
   ]
@@ -1508,7 +1583,12 @@ function MTDPageContent() {
             onFiltersChange={(patch) =>
               setTableFilters((prev) => ({ ...prev, ...patch }))
             }
-            onFiltersReset={() => setTableFilters(DEFAULT_MTD_TABLE_FILTERS)}
+            onFiltersReset={() =>
+              setTableFilters((prev) => ({
+                ...DEFAULT_MTD_TABLE_FILTERS,
+                sortBy: prev.sortBy ?? "newest",
+              }))
+            }
             onPricingClick={openPricingReference}
             viewOrder={viewOrder}
             onViewOrderChange={setViewOrder}
@@ -1573,6 +1653,24 @@ function MTDPageContent() {
         }}
       />
 
+      <SetRecordPricingModal
+        open={Boolean(recordPricingRecord)}
+        record={recordPricingRecord}
+        initialPrice={recordPricingInitialPrice}
+        musicAffiliateInfo={
+          recordPricingRecord
+            ? getRecordMusicAffiliateInfo(
+                recordPricingRecord,
+                orderById,
+                allOrders
+              )
+            : null
+        }
+        onClose={() => setRecordPricingRecord(null)}
+        onSave={saveRecordPricing}
+        readOnly={isViewOnly}
+      />
+
       <CompleteToPayrollModal
         open={Boolean(completeRecord)}
         record={completeRecord}
@@ -1600,7 +1698,11 @@ function MTDPageContent() {
         open={Boolean(orderFormRecord)}
         record={orderFormRecord}
         allOrders={allOrders}
-        onClose={() => setOrderFormRecord(null)}
+        rowId={orderFormRowId}
+        onClose={() => {
+          setOrderFormRecord(null);
+          setOrderFormRowId(null);
+        }}
       />
     </div>
   );

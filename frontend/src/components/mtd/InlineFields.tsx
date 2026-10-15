@@ -535,6 +535,15 @@ type InlineInputProps = {
   onChange: (value: string) => void;
   placeholder?: string;
   type?: string;
+  inputMode?:
+    | "none"
+    | "text"
+    | "tel"
+    | "url"
+    | "email"
+    | "numeric"
+    | "decimal"
+    | "search";
   min?: number | string;
   max?: number | string;
   step?: number | string;
@@ -547,6 +556,7 @@ export function InlineInput({
   onChange,
   placeholder,
   type = "text",
+  inputMode,
   min,
   max,
   step,
@@ -556,6 +566,7 @@ export function InlineInput({
   return (
     <input
       type={type}
+      inputMode={inputMode}
       value={value}
       min={min}
       max={max}
@@ -572,7 +583,7 @@ export function InlineInput({
       className={clsx(
         inlineControlClass,
         "tabular-nums",
-        readOnly && "!cursor-default !bg-slate-50/50 text-brand-ink-secondary",
+        readOnly && "!cursor-default !bg-slate-50/50 font-semibold text-brand-ink",
         className
       )}
     />
@@ -610,8 +621,8 @@ export function InlineTextarea({
         onChange(e.target.value);
       }}
       className={clsx(
-        "w-full resize-y rounded-lg border border-brand-line/60 bg-white px-3 py-2 text-[13px] text-brand-ink shadow-[0_1px_1px_rgba(15,30,45,0.04)] outline-none transition-colors hover:border-brand-line-strong focus:border-brand-blue/50 focus:ring-2 focus:ring-brand-blue/15",
-        readOnly && "!cursor-default !bg-slate-50/50 text-brand-ink-secondary",
+        "w-full resize-y rounded-lg border border-brand-line/60 bg-white px-3 py-2 text-[13px] font-semibold text-brand-ink shadow-[0_1px_1px_rgba(15,30,45,0.04)] outline-none transition-colors placeholder:font-medium placeholder:text-brand-ink-tertiary hover:border-brand-line-strong focus:border-brand-blue/50 focus:ring-2 focus:ring-brand-blue/15",
+        readOnly && "!cursor-default !bg-slate-50/50 text-brand-ink",
         className
       )}
     />
@@ -619,7 +630,7 @@ export function InlineTextarea({
 }
 
 const detailInputClass =
-  "h-auto min-h-[36px] rounded-lg px-3 py-2 text-[13px]";
+  "h-auto min-h-[36px] rounded-lg bg-white px-3 py-2 text-[13px] font-semibold text-brand-ink placeholder:font-medium placeholder:text-brand-ink-tertiary";
 
 export function DetailInput({
   className,
@@ -628,8 +639,13 @@ export function DetailInput({
   return <InlineInput {...props} className={clsx(detailInputClass, className)} />;
 }
 
-export function DetailTextarea(props: Omit<InlineTextareaProps, "className">) {
-  return <InlineTextarea {...props} className={detailInputClass} />;
+export function DetailTextarea({
+  className,
+  ...props
+}: Omit<InlineTextareaProps, "className"> & { className?: string }) {
+  return (
+    <InlineTextarea {...props} className={clsx(detailInputClass, className)} />
+  );
 }
 
 type InlineDateInputProps = {

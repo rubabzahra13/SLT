@@ -5,7 +5,10 @@ import {
   determineComplianceStatus,
   lookupMarchingBandRateCardEntry,
   MARCHING_BAND_RATE_CARD,
+  setRuntimeCompliantAffiliateLabelsByCategory,
 } from "../pricing-engine";
+import { syncRuntimeCompliantAffiliateLabels } from "../pricing-reference";
+import { resolveOrderPriceCompliance } from "../pricing";
 
 describe("Prompt 5 — Marching Band Pricing Engine Unit Tests", () => {
   it("Rate Card completeness: Fight Song and Alma Mater are separate packages", () => {
@@ -64,7 +67,7 @@ describe("Prompt 5 — Marching Band Pricing Engine Unit Tests", () => {
   it("Any text that is not a compliant affiliate is non-compliant", () => {
     for (const affiliate of [
       "Custom Music / Client-Provided Track",
-      "Songs for Cheer — Editor's Choice",
+      "Non compliant",
       "whatever the client typed",
       "Spotify playlist",
     ]) {
@@ -74,6 +77,115 @@ describe("Prompt 5 — Marching Band Pricing Engine Unit Tests", () => {
         affiliate
       );
     }
+  });
+
+  it("Songs for Cheer and original custom music are compliant", () => {
+    for (const affiliate of [
+      "Songs for Cheer",
+      "Songs for Cheer — Editor's Choice",
+      "100% original custom music (titanium package only)",
+      "Power Music Covers",
+      "Unleash the Beats Covers",
+    ]) {
+      assert.equal(
+        determineComplianceStatus("pom", affiliate),
+        "compliant",
+        affiliate
+      );
+    }
+  });
+
+  it("Edit Affiliates runtime labels control compliance for incoming Magento text", () => {
+    setRuntimeCompliantAffiliateLabelsByCategory({
+      Pom: ["Power Music Covers", "Custom Renamed Affiliate"],
+    });
+    assert.equal(
+      determineComplianceStatus("pom", "Power Music Covers"),
+      "compliant"
+    );
+    assert.equal(
+      determineComplianceStatus("pom", "Custom Renamed Affiliate"),
+      "compliant"
+    );
+    assert.equal(
+      determineComplianceStatus("pom", "Songs for Cheer"),
+      "non-compliant"
+    );
+    assert.equal(
+      determineComplianceStatus("pom", "Non compliant"),
+      "non-compliant"
+    );
+
+    syncRuntimeCompliantAffiliateLabels({
+      categories: {
+        Pom: {
+          rows: [],
+          addOns: [],
+          compliantAffiliateIds: ["songs-for-cheer"],
+          compliantAffiliateLabels: {},
+          nonCompliantAffiliateLabels: {},
+        },
+      },
+    });
+    assert.equal(
+      determineComplianceStatus("pom", "Songs for Cheer"),
+      "compliant"
+    );
+    assert.equal(
+      determineComplianceStatus("pom", "Power Music Covers"),
+      "non-compliant"
+    );
+
+    // Restore built-in defaults for later tests in this file / process.
+    setRuntimeCompliantAffiliateLabelsByCategory({});
+  });
+
+  it("manual Add Order free text fuzzy-matches spacing, caps, and near wording", () => {
+    for (const affiliate of [
+      "power  music   covers",
+      "POWER MUSIC COVERS",
+      "PowerMusikCovers",
+      "power musik covers",
+      "songs for cheer editors choice",
+      "100% original custom music titanium package only",
+    ]) {
+      assert.equal(
+        determineComplianceStatus("all-star-cheer", affiliate),
+        "compliant",
+        affiliate
+      );
+    }
+    assert.equal(
+      determineComplianceStatus("all-star-cheer", "totally random bootleg"),
+      "non-compliant"
+    );
+  });
+
+  it("Add Order musicAffiliate text uses the same compliance check as Magento", () => {
+    assert.equal(
+      resolveOrderPriceCompliance({
+        formType: "school-all-star-cheer",
+        cheerFormSubtype: "all-star-cheer",
+        musicAffiliate: "Power Music Covers",
+      }),
+      "compliant"
+    );
+    assert.equal(
+      resolveOrderPriceCompliance({
+        formType: "school-all-star-cheer",
+        cheerFormSubtype: "all-star-cheer",
+        musicAffiliate: "Non compliant",
+      }),
+      "non-compliant"
+    );
+    assert.equal(
+      resolveOrderPriceCompliance({
+        formType: "school-all-star-cheer",
+        cheerFormSubtype: "school-cheer-viroc-yes",
+        musicAffiliate: "Custom Music / Client-Provided Track",
+      }),
+      "non-compliant"
+    );
   });
 
   it("DRUM CADENCE ORIGINAL is flat $350 (no music-affiliate split)", () => {

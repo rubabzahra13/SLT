@@ -3,8 +3,8 @@
 import type { DiscountCode, Order, Producer } from "@/types";
 import { getOrderDetailSections } from "@/lib/order-detail-sections";
 import { rawFieldValue } from "@/lib/order-detail-fields";
-import type { FieldDataSource } from "@/lib/manual-form-merge";
-import { SourceTag } from "@/components/orders/ManualFormPairBar";
+import type { FieldProvenance } from "@/lib/manual-form-merge";
+import { SourceCue } from "@/components/orders/ManualFormPairBar";
 import { CouponCodeField } from "@/components/mtd/CouponCodeField";
 import { CountryField } from "@/components/mtd/CountryField";
 import {
@@ -63,7 +63,10 @@ import {
 } from "@/components/mtd/InlineFields";
 import { parsePackage } from "@/lib/package";
 import { normalizeCountryName } from "@/lib/countries";
-import { isOrderFormFieldMissing } from "@/lib/order-form-missing";
+import {
+  isOptionalOrderFormField,
+  isOrderFormFieldMissing,
+} from "@/lib/order-form-missing";
 import clsx from "clsx";
 
 type MTDOrderDetailsProps = {
@@ -76,37 +79,78 @@ type MTDOrderDetailsProps = {
   onFieldChange?: (key: string, value: string) => void;
   /** Highlight empty form-only fields in red (default true). */
   highlightMissing?: boolean;
-  /** Per-field Form / Manual source tags when a pair is present. */
-  fieldSources?: Record<string, FieldDataSource[]>;
+  /**
+   * When set, only these keys can show as required/missing.
+   * Used by Add New Order (identity name only).
+   */
+  requiredFieldKeys?: ReadonlySet<string> | string[];
+  /** Per-field provenance when a Manual↔Form pair is present (single value, no dupes). */
+  fieldSources?: Record<string, FieldProvenance>;
 };
 
 function FieldLabel({
   label,
   missing,
-  sources,
+  optional,
+  requiredMark,
+  provenance,
 }: {
   label: string;
   missing?: boolean;
-  sources?: FieldDataSource[];
+  /** Soft cue that empty is OK (Google-style optional). */
+  optional?: boolean;
+  /** Always-on required cue (e.g. Add Order identity name) before save errors. */
+  requiredMark?: boolean;
+  provenance?: FieldProvenance;
 }) {
+  // Length of Mix Magento note — never show the parenthetical instruction.
+  const shown = /^length of mix\b/i.test(label) ? "Length of Mix" : label;
+  const also = provenance?.alsoHas;
   return (
-    <div className="flex min-h-[28px] flex-wrap items-start gap-x-1.5 gap-y-1">
-      <p
-        className={clsx(
-          "text-[10px] font-bold uppercase leading-snug tracking-[0.06em]",
-          missing ? "text-red-600" : "text-brand-ink-tertiary"
-        )}
-      >
-        {label}
-        {missing ? (
-          <span className="ml-1 font-semibold normal-case tracking-normal">
-            (missing)
-          </span>
+    <div className="min-h-[28px] space-y-1">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+        <p
+          className={clsx(
+            "text-[10px] font-bold uppercase leading-snug tracking-[0.06em]",
+            missing ? "text-red-600" : "text-brand-ink"
+          )}
+        >
+          {shown}
+          {requiredMark && !missing ? (
+            <span
+              className="ml-0.5 font-bold text-brand-orange"
+              aria-hidden
+            >
+              *
+            </span>
+          ) : null}
+          {optional && !missing && !requiredMark ? (
+            <span className="ml-1 font-medium normal-case tracking-normal text-brand-ink-tertiary">
+              (optional)
+            </span>
+          ) : null}
+          {missing ? (
+            <span className="ml-1 font-semibold normal-case tracking-normal">
+              — required
+            </span>
+          ) : null}
+        </p>
+        {provenance ? (
+          <SourceCue
+            source={provenance.shown}
+            tone={also ? "conflict" : "default"}
+          />
         ) : null}
-      </p>
-      {sources?.length
-        ? sources.map((source) => <SourceTag key={source} source={source} />)
-        : null}
+      </div>
+      {also ? (
+        <p className="px-0.5 text-[10px] leading-snug text-brand-ink-tertiary/80">
+          <span className="font-medium">
+            {also.source === "manual" ? "Manually added data" : "Form also has"}
+          </span>
+          {": "}
+          <span className="break-words font-normal">{also.value}</span>
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -129,10 +173,6 @@ function fieldSpanClass(key: string, label: string): string {
   if (/howDidYouFindOut|find out/i.test(haystack)) {
     return "sm:col-span-2";
   }
-  // Long School Cheer / VIROC mix-length labels only — short "Mix Length" stays compact.
-  if (/length of mix|only list the time length/i.test(label)) {
-    return "sm:col-span-2 lg:col-span-3";
-  }
   if (/pronunciation|choreographer/i.test(haystack)) {
     return "sm:col-span-2 lg:col-span-3";
   }
@@ -147,9 +187,15 @@ export function MTDOrderDetails({
   editable = false,
   onFieldChange,
   highlightMissing = true,
+  requiredFieldKeys,
   fieldSources,
 }: MTDOrderDetailsProps) {
   const sections = getOrderDetailSections(order);
+  const requiredKeys = requiredFieldKeys
+    ? requiredFieldKeys instanceof Set
+      ? requiredFieldKeys
+      : new Set(requiredFieldKeys)
+    : null;
 
   if (sections.length === 0) {
     return (
@@ -177,8 +223,20 @@ export function MTDOrderDetails({
               const displayValue = formatDetailDisplay(field.value);
               const spanClass = fieldSpanClass(field.key, field.label);
               const useTextarea = Boolean(field.multiline);
+              const inRequiredAllowlist =
+                !requiredKeys || requiredKeys.has(field.key);
               const missing =
-                highlightMissing && isOrderFormFieldMissing(order, field.key);
+                highlightMissing &&
+                inRequiredAllowlist &&
+                (requiredKeys
+                  ? !rawFieldValue(order, field.key).trim()
+                  : isOrderFormFieldMissing(order, field.key));
+              // Add Order allowlist: only identity is required; don't spam "(optional)".
+              const optional =
+                !requiredKeys && isOptionalOrderFormField(field.key, order);
+              const requiredMark = Boolean(
+                requiredKeys?.has(field.key)
+              );
 
               if (field.key === "couponCode") {
                 return (
@@ -207,8 +265,10 @@ export function MTDOrderDetails({
                   >
                     <FieldLabel
                       label={field.label}
+                      optional={optional}
+                      requiredMark={requiredMark}
                       missing={missing}
-                      sources={fieldSources?.[field.key]}
+                      provenance={fieldSources?.[field.key]}
                     />
                     <div className="mt-1">
                       {editable && onFieldChange ? (
@@ -240,8 +300,10 @@ export function MTDOrderDetails({
                   >
                     <FieldLabel
                       label={field.label}
+                      optional={optional}
+                      requiredMark={requiredMark}
                       missing={missing}
-                      sources={fieldSources?.[field.key]}
+                      provenance={fieldSources?.[field.key]}
                     />
                     <div className="mt-1">
                       {editable && onFieldChange ? (
@@ -273,8 +335,10 @@ export function MTDOrderDetails({
                   >
                     <FieldLabel
                       label={field.label}
+                      optional={optional}
+                      requiredMark={requiredMark}
                       missing={missing}
-                      sources={fieldSources?.[field.key]}
+                      provenance={fieldSources?.[field.key]}
                     />
                     <div className="mt-1">
                       {editable && onFieldChange ? (
@@ -312,8 +376,10 @@ export function MTDOrderDetails({
                   >
                     <FieldLabel
                       label={field.label}
+                      optional={optional}
+                      requiredMark={requiredMark}
                       missing={missing}
-                      sources={fieldSources?.[field.key]}
+                      provenance={fieldSources?.[field.key]}
                     />
                     <div className="mt-1">
                       {editable && onFieldChange ? (
@@ -336,11 +402,11 @@ export function MTDOrderDetails({
                 );
               }
 
-              // School Cheer / VIROC edit form — SoftSelect matches customer-form affiliates.
+              // Cheer Add Order / edit — SoftSelect with fuzzy spacing/caps/near-word match.
               if (
                 field.key === "musicAffiliate" &&
-                (order.cheerFormSubtype === "school-cheer-viroc-yes" ||
-                  order.cheerFormSubtype === "school-cheer-viroc-no")
+                order.formType === "school-all-star-cheer" &&
+                order.cheerFormSubtype !== "youth-rec-cheer"
               ) {
                 const affiliateOptions = musicAffiliateOptionsForOrder(order);
                 const affiliateDisplay =
@@ -353,8 +419,10 @@ export function MTDOrderDetails({
                   >
                     <FieldLabel
                       label={field.label}
+                      optional={optional}
+                      requiredMark={requiredMark}
                       missing={missing}
-                      sources={fieldSources?.[field.key]}
+                      provenance={fieldSources?.[field.key]}
                     />
                     <div className="mt-1">
                       {editable && onFieldChange ? (
@@ -395,8 +463,10 @@ export function MTDOrderDetails({
                   >
                     <FieldLabel
                       label={field.label}
+                      optional={optional}
+                      requiredMark={requiredMark}
                       missing={missing}
-                      sources={fieldSources?.[field.key]}
+                      provenance={fieldSources?.[field.key]}
                     />
                     <div className="mt-1">
                       {editable && onFieldChange ? (
@@ -430,8 +500,10 @@ export function MTDOrderDetails({
                   >
                     <FieldLabel
                       label={field.label}
+                      optional={optional}
+                      requiredMark={requiredMark}
                       missing={missing}
-                      sources={fieldSources?.[field.key]}
+                      provenance={fieldSources?.[field.key]}
                     />
                     <div className="mt-1">
                       {editable && onFieldChange ? (
@@ -468,8 +540,10 @@ export function MTDOrderDetails({
                   >
                     <FieldLabel
                       label={field.label}
+                      optional={optional}
+                      requiredMark={requiredMark}
                       missing={missing}
-                      sources={fieldSources?.[field.key]}
+                      provenance={fieldSources?.[field.key]}
                     />
                     <div className="mt-1">
                       {editable && onFieldChange ? (
@@ -495,7 +569,8 @@ export function MTDOrderDetails({
 
               if (
                 field.key === "licensingRequired" ||
-                field.key === "isRushOrder"
+                field.key === "isRushOrder" ||
+                field.key === "clientRequestedRushOrder"
               ) {
                 const yesNoDisplay = normalizeYesNo(rawValue) || displayValue;
                 return (
@@ -505,8 +580,10 @@ export function MTDOrderDetails({
                   >
                     <FieldLabel
                       label={field.label}
+                      optional={optional}
+                      requiredMark={requiredMark}
                       missing={missing}
-                      sources={fieldSources?.[field.key]}
+                      provenance={fieldSources?.[field.key]}
                     />
                     <div className="mt-1">
                       {editable && onFieldChange ? (
@@ -539,8 +616,10 @@ export function MTDOrderDetails({
                   >
                     <FieldLabel
                       label={field.label}
+                      optional={optional}
+                      requiredMark={requiredMark}
                       missing={missing}
-                      sources={fieldSources?.[field.key]}
+                      provenance={fieldSources?.[field.key]}
                     />
                     <div className="mt-1">
                       {editable && onFieldChange ? (
@@ -563,7 +642,10 @@ export function MTDOrderDetails({
                 );
               }
 
-              if (field.key === "mixEndDate") {
+              if (
+                field.key === "mixEndDate" ||
+                field.key === "clientRequestedMixDueDate"
+              ) {
                 return (
                   <div
                     key={field.key}
@@ -571,8 +653,10 @@ export function MTDOrderDetails({
                   >
                     <FieldLabel
                       label={field.label}
+                      optional={optional}
+                      requiredMark={requiredMark}
                       missing={missing}
-                      sources={fieldSources?.[field.key]}
+                      provenance={fieldSources?.[field.key]}
                     />
                     <div className="mt-1">
                       {editable && onFieldChange ? (
@@ -610,8 +694,10 @@ export function MTDOrderDetails({
                   >
                     <FieldLabel
                       label={field.label}
+                      optional={optional}
+                      requiredMark={requiredMark}
                       missing={missing}
-                      sources={fieldSources?.[field.key]}
+                      provenance={fieldSources?.[field.key]}
                     />
                     <div className="mt-1">
                       {editable && onFieldChange ? (
@@ -644,8 +730,10 @@ export function MTDOrderDetails({
                   >
                     <FieldLabel
                       label={field.label}
+                      optional={optional}
+                      requiredMark={requiredMark}
                       missing={missing}
-                      sources={fieldSources?.[field.key]}
+                      provenance={fieldSources?.[field.key]}
                     />
                     <div className="mt-1">
                       {editable && onFieldChange ? (
@@ -680,8 +768,10 @@ export function MTDOrderDetails({
                   >
                     <FieldLabel
                       label={field.label}
+                      optional={optional}
+                      requiredMark={requiredMark}
                       missing={missing}
-                      sources={fieldSources?.[field.key]}
+                      provenance={fieldSources?.[field.key]}
                     />
                     <div className="mt-1">
                       {editable && onFieldChange ? (
@@ -733,8 +823,10 @@ export function MTDOrderDetails({
                   >
                     <FieldLabel
                       label={field.label}
+                      optional={optional}
+                      requiredMark={requiredMark}
                       missing={missing}
-                      sources={fieldSources?.[field.key]}
+                      provenance={fieldSources?.[field.key]}
                     />
                     <div className="mt-1">
                       {editable && onFieldChange ? (
@@ -771,8 +863,10 @@ export function MTDOrderDetails({
                     >
                       <FieldLabel
                       label={field.label}
+                      optional={optional}
+                      requiredMark={requiredMark}
                       missing={missing}
-                      sources={fieldSources?.[field.key]}
+                      provenance={fieldSources?.[field.key]}
                     />
                       <div className="mt-1">
                         {editable && onFieldChange ? (
@@ -828,8 +922,10 @@ export function MTDOrderDetails({
                   >
                     <FieldLabel
                       label={field.label}
+                      optional={optional}
+                      requiredMark={requiredMark}
                       missing={missing}
-                      sources={fieldSources?.[field.key]}
+                      provenance={fieldSources?.[field.key]}
                     />
                     <div className="mt-1">
                       {editable && onFieldChange ? (
@@ -856,7 +952,7 @@ export function MTDOrderDetails({
               }
 
               if (field.key === "numberOfCopies") {
-                const copiesValue = rawValue.trim() || "1";
+                const copiesDisplay = rawValue.trim() || "1";
                 return (
                   <div
                     key={field.key}
@@ -864,34 +960,36 @@ export function MTDOrderDetails({
                   >
                     <FieldLabel
                       label={field.label}
+                      optional={optional}
+                      requiredMark={requiredMark}
                       missing={missing}
-                      sources={fieldSources?.[field.key]}
+                      provenance={fieldSources?.[field.key]}
                     />
                     <div className="mt-1">
                       {editable && onFieldChange ? (
                         <DetailInput
-                          type="number"
-                          min={1}
-                          max={40}
-                          step={1}
-                          value={copiesValue}
+                          type="text"
+                          inputMode="numeric"
+                          value={rawValue}
+                          placeholder="1"
                           onChange={(value) => {
+                            // Allow empty while typing; clamp only when digits present.
                             const digits = value.replace(/[^\d]/g, "");
                             if (!digits) {
-                              onFieldChange(field.key, "1");
+                              onFieldChange(field.key, "");
                               return;
                             }
-                            const n = Math.min(
-                              40,
-                              Math.max(1, parseInt(digits, 10) || 1)
+                            const n = Math.min(40, parseInt(digits, 10) || 0);
+                            onFieldChange(
+                              field.key,
+                              n < 1 ? digits : String(n)
                             );
-                            onFieldChange(field.key, String(n));
                           }}
                           className="w-full max-w-[220px]"
                         />
                       ) : (
                         <p className="text-[13px] font-normal tabular-nums text-brand-ink">
-                          {copiesValue}
+                          {copiesDisplay}
                         </p>
                       )}
                     </div>
@@ -906,8 +1004,10 @@ export function MTDOrderDetails({
                 >
                   <FieldLabel
                     label={field.label}
+                    optional={optional}
+                      requiredMark={requiredMark}
                     missing={missing}
-                    sources={fieldSources?.[field.key]}
+                    provenance={fieldSources?.[field.key]}
                   />
                   <div className="mt-1">
                     {editable && onFieldChange ? (
@@ -916,11 +1016,21 @@ export function MTDOrderDetails({
                           value={rawValue}
                           onChange={(value) => onFieldChange(field.key, value)}
                           rows={spanClass.includes("lg:col-span-3") ? 3 : 2}
+                          className={
+                            missing
+                              ? "border-red-400 focus:border-red-500 focus:ring-red-200"
+                              : undefined
+                          }
                         />
                       ) : (
                         <DetailInput
                           value={rawValue}
                           onChange={(value) => onFieldChange(field.key, value)}
+                          className={
+                            missing
+                              ? "border-red-400 focus:border-red-500 focus:ring-red-200"
+                              : undefined
+                          }
                         />
                       )
                     ) : displayValue ? (

@@ -39,9 +39,11 @@ export type MTDRecord = {
   mixEndDate?: string;
   /** What production is waiting on (in-progress board) */
   waitingOn?: string | null;
+  /** Admin CS status (HAVE CS / NEED CS) → received_eight_count_sheet. */
   eightCountSheet: string;
-  /** Form intent: will customer send 8-count sheets? (Yes/No) — not collection status. */
+  /** Form intent: will customer send/use 8-count sheets? (Yes/No) — not collection status. */
   sendingEightCountSheets?: string;
+  /** @deprecated alias of sendingEightCountSheets */
   usingEightCountSheets?: string;
   haveSongs: string;
   needsAttention: boolean;
@@ -66,6 +68,10 @@ export type MTDRecord = {
   routineNotes?: string;
   timeLengthOfMix?: string;
   songListSuggestions?: string;
+  /** School Anthem / Marching Band instrumentation text for Song/Notes pills. */
+  instrumentationNotes?: string;
+  /** School Anthem Magento Lyrical Notes. */
+  lyricalNotes?: string;
   customVoiceovers?: string;
   musicAffiliate?: string;
   completedAt?: string;
@@ -103,6 +109,9 @@ export type MTDRecord = {
   danceFormSubtype?: DanceFormSubtype;
   varsityVirocCustomer?: "Yes" | "No";
   isManualScheduleEntry?: boolean;
+  /** Copied from linked order for Source · Form classification. */
+  mergedFormOrderId?: string | null;
+  manualOverlapSnapshot?: Record<string, unknown> | null;
 };
 
 export type Weekday =
@@ -434,10 +443,10 @@ export type SchoolCheerVirocNoCustomerFields = {
 
 /** Youth Rec Cheer (youth-rec-cheer) customer-submitted fields */
 export type YouthRecCheerCustomerFields = {
-  programName: string;
+  schoolProgramName: string;
   teamName: string;
-  colors: string;
-  billingAddress: string;
+  youthRecColors: string;
+  youthRecBillingAddress: string;
   city: string;
   stateProvince: string;
   zipPostalCode: string;
@@ -445,11 +454,15 @@ export type YouthRecCheerCustomerFields = {
   coachContactFullName: string;
   coachEmailAddress: string;
   coachPhone: string;
+  youthRecExtraEmailAddress: string;
+  /** @deprecated alias of youthRecExtraEmailAddress */
   emailAddress: string;
   packageType: string;
   timeLengthOfMix: string;
   splitOrNoSplit: string;
   numberOfCopies: string;
+  sendingEightCountSheets: string;
+  /** @deprecated alias of sendingEightCountSheets */
   usingEightCountSheets: string;
   songListSuggestions: string;
   routineNotes: string;
@@ -479,8 +492,7 @@ export type PomCustomerFields = {
   timeLengthOfMix: string;
   musicAffiliate: string;
   powerMusicCovers: string;
-  /** Unleash the Beats Covers song list (stored in songListSuggestions). */
-  songListSuggestions: string;
+  unleashTheBeatsCovers: string;
   routineNotes: string;
   customVoiceovers: "yes" | "no" | string;
   voiceoverScript: string;
@@ -510,8 +522,7 @@ export type HipHopCustomerFields = {
   timeLengthOfMix: string;
   musicAffiliate: string;
   powerMusicCovers: string;
-  /** Unleash the Beats Covers song list (stored in songListSuggestions). */
-  songListSuggestions: string;
+  unleashTheBeatsCovers: string;
   routineNotes: string;
   customVoiceovers: "yes" | "no" | string;
   voiceoverScript: string;
@@ -542,8 +553,7 @@ export type TeamPerformanceVarietyCustomerFields = {
   timeLengthOfMix: string;
   musicAffiliate: string;
   powerMusicCovers: string;
-  /** Unleash the Beats Covers song list (stored in songListSuggestions). */
-  songListSuggestions: string;
+  unleashTheBeatsCovers: string;
   routineNotes: string;
   customVoiceovers: "yes" | "no" | string;
   voiceoverScript: string;
@@ -573,8 +583,7 @@ export type GamedayCustomerFields = {
   requestedEditor: string;
   musicAffiliate: string;
   powerMusicCovers: string;
-  /** Unleash the Beats Covers song list (stored in songListSuggestions). */
-  songListSuggestions: string;
+  unleashTheBeatsCovers: string;
   routineNotes: string;
   customVoiceovers: "yes" | "no" | string;
   voiceoverScript: string;
@@ -606,8 +615,7 @@ export type JazzKickCustomerFields = {
   licensingRequired: "yes" | "no" | string;
   musicAffiliate: string;
   powerMusicCovers: string;
-  /** Unleash the Beats Covers song list (stored in songListSuggestions). */
-  songListSuggestions: string;
+  unleashTheBeatsCovers: string;
   routineNotes: string;
   customVoiceovers: "yes" | "no" | string;
   voiceoverScript: string;
@@ -637,7 +645,7 @@ export type MarchingBandCustomerFields = {
 /** Sports Entertainment (sports-entertainment) customer-submitted fields (no subtype) */
 export type SportsEntertainmentCustomerFields = {
   organizationName: string;
-  billingAddress: string;
+  organizationBillingAddress: string;
   city: string;
   stateProvince: string;
   zipPostalCode: string;
@@ -648,7 +656,10 @@ export type SportsEntertainmentCustomerFields = {
   billingContactName: string;
   billingContactEmail: string;
   packageType: string;
-  isRushOrder: "yes" | "no" | boolean | string;
+  /** Magento client-requested due date — not admin mix_end_date. */
+  clientRequestedMixDueDate: string;
+  /** Magento client rush Yes/No — not admin is_rush_order. */
+  clientRequestedRushOrder: "yes" | "no" | boolean | string;
   timeLengthOfMix: string;
   customerSongs: string;
   additionalNotes: string;
@@ -671,7 +682,8 @@ export type SchoolAnthemCustomerFields = {
   schoolProgramColors: string;
   nicknames: string;
   vocalsPreference: string;
-  instrumentalStylePreference: string;
+  /** Magento "Instrumental Style Preference" — same DB col as marching band notes. */
+  instrumentationNotes: string;
   lyricalNotes: string;
   couponCode: string;
 };
@@ -800,6 +812,7 @@ export type Order = {
   schoolProgramColors?: string;
   nicknames?: string;
   vocalsPreference?: string;
+  /** Alias of instrumentationNotes (School Anthem Magento label). */
   instrumentalStylePreference?: string;
   /** POM order form — school / program */
   schoolProgramName?: string;
@@ -831,6 +844,7 @@ export type Order = {
   timeLengthOfMix?: string;
   musicAffiliate?: string;
   powerMusicCovers?: string;
+  unleashTheBeatsCovers?: string;
   routineNotes?: string;
   customVoiceovers?: string;
   /** All Star Cheer */
@@ -846,14 +860,20 @@ export type Order = {
   splitOrNoSplit?: string;
   virocChoreographerName?: string;
   virocChoreographerEmail?: string;
-  /** Youth Rec Cheer */
-  colors?: string;
-  billingAddress?: string;
+  /** Youth Rec Cheer ("Colors" Magento field) */
+  youthRecColors?: string;
+  /** Youth Rec Cheer "Billing Address" */
+  youthRecBillingAddress?: string;
+  /** Sports Entertainment "Organization's Billing Address" */
+  organizationBillingAddress?: string;
   coachContactFullName?: string;
   coachEmailAddress?: string;
+  youthRecExtraEmailAddress?: string;
+  /** @deprecated alias of youthRecExtraEmailAddress */
   emailAddress?: string;
   /** Shared cheer fields */
   sendingEightCountSheets?: string;
+  /** @deprecated alias of sendingEightCountSheets */
   usingEightCountSheets?: string;
   songListSuggestions?: string;
   couponCode?: string;
@@ -895,8 +915,8 @@ export type Order = {
   /** Form order was merged into this manual order id (hidden from Orders board). */
   mergedIntoManualOrderId?: string | null;
   /**
-   * Manual field values overwritten by admin form-wins Merge.
-   * Restored on Split so overlapping manual data is not lost.
+   * Frozen pre-form manual values when a Magento form matched this slot.
+   * Shown under fields as "Manually added data"; restored on Split. Never rewritten by later edits.
    */
   manualOverlapSnapshot?: Record<string, unknown> | null;
   /** After admin Split — do not auto-absorb by program-name similarity. */
@@ -915,6 +935,10 @@ export type Order = {
   haveSongs?: string;
   mixStartDate?: string;
   mixEndDate?: string;
+  /** Sports Ent Magento client-requested due date (DB: client_requested_mix_due_date). */
+  clientRequestedMixDueDate?: string;
+  /** Sports Ent Magento client rush answer (DB: client_requested_rush_order). */
+  clientRequestedRushOrder?: "yes" | "no" | boolean | string;
   missingDataEmailSentAt?: string | null;
   producerEmailSentAt?: string | null;
   producerEmailSentTo?: string | null;

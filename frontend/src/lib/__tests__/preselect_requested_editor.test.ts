@@ -34,40 +34,12 @@ function createMockTodayProducer(initials: string, name: string): Producer {
   });
 }
 
-describe("Preselect Requested Editor (BUG 3)", () => {
+describe("Requested editor is suggestion only (no auto-assign)", () => {
   const cm = createMockTodayProducer("CM", "Casey Marlow");
   const ns = createMockProducer({ initials: "NS", name: "Nabiha Shafiq", maxMixesPerDay: 1 });
   const producers = [cm, ns];
 
-  it("Default selection prioritizes specific requested editor NS even if NS is booked until a future date", () => {
-    // NS is booked on an active mix from Sep 21 to Sep 24
-    const activeMixes: MTDRecord[] = [
-      {
-        id: "rec-ns-1",
-        orderId: "ord-ns-1",
-        section: "CHEERLEADING MUSIC",
-        editorRequest: "NS",
-        musicTheme: "Pop",
-        programName: "Cheer Athletics",
-        category: "All-Star Cheer",
-        package: "Platinum",
-        assignedProducer: "NS",
-        mixStartDate: "2026-09-21",
-        mixEndDate: "2026-09-24",
-        status: "active",
-        recordStatus: "Ongoing",
-        eightCountSheet: "CS REC",
-        haveSongs: "SONGS REC",
-        needsAttention: false,
-        price: 1000,
-        priceCompliance: "compliant",
-        invoice: "INV-1",
-        editorInitials: "NS",
-        contactName: "Coach",
-      },
-    ];
-
-    // New unassigned record with requested editor NS
+  it("Does not auto-select a specific requested editor", () => {
     const newRecord: MTDRecord = {
       id: "rec-new-1",
       orderId: "ord-new-1",
@@ -92,12 +64,13 @@ describe("Preselect Requested Editor (BUG 3)", () => {
       contactName: "Coach",
     };
 
-    const pick = pickDefaultEditor(newRecord, producers, activeMixes, []);
-    assert.equal(pick.editor, "NS", "pickDefaultEditor must select requested editor NS by default");
-    assert.equal(pick.reason, "requested_busy");
+    const pick = pickDefaultEditor(newRecord, producers, [], []);
+    assert.equal(pick.editor, "");
+    assert.equal(pick.requestedEditor, "NS");
+    assert.equal(pick.reason, "first_available");
   });
 
-  it("Default selection uses first available editor (CM) when editorRequest is FA", () => {
+  it("Does not auto-select when editorRequest is FA", () => {
     const faRecord: MTDRecord = {
       id: "rec-fa-1",
       orderId: "ord-fa-1",
@@ -123,7 +96,37 @@ describe("Preselect Requested Editor (BUG 3)", () => {
     };
 
     const pick = pickDefaultEditor(faRecord, producers, [], []);
-    assert.equal(pick.editor, "CM", "pickDefaultEditor must return first available editor CM for FA request");
+    assert.equal(pick.editor, "");
     assert.equal(pick.reason, "first_available");
+  });
+
+  it("Keeps an already-assigned producer", () => {
+    const assigned: MTDRecord = {
+      id: "rec-a-1",
+      orderId: "ord-a-1",
+      section: "CHEERLEADING MUSIC",
+      editorRequest: "NS",
+      musicTheme: "Pop",
+      programName: "Varsity Spirit",
+      category: "All-Star Cheer",
+      package: "Platinum",
+      assignedProducer: "CM",
+      mixStartDate: "2026-09-21",
+      mixEndDate: "2026-09-28",
+      status: "active",
+      recordStatus: "Ongoing",
+      eightCountSheet: "CS REC",
+      haveSongs: "SONGS REC",
+      needsAttention: false,
+      price: 1000,
+      priceCompliance: "compliant",
+      invoice: "INV-4",
+      editorInitials: "CM",
+      contactName: "Coach",
+    };
+
+    const pick = pickDefaultEditor(assigned, producers, [], []);
+    assert.equal(pick.editor, "CM");
+    assert.equal(pick.reason, "assigned");
   });
 });

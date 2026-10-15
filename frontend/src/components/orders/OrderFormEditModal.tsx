@@ -9,7 +9,8 @@ import { findLinkedOrder } from "@/lib/editor-assignment";
 import {
   buildFieldSourceMap,
   enrichOrderWithMatchingForm,
-  mergeFormWinsPatches,
+  ensureManualFormSnapshot,
+  overwriteManualWithFormPatches,
   resolveManualFormPair,
   splitManualFormPatches,
 } from "@/lib/manual-form-merge";
@@ -17,19 +18,26 @@ import { ManualFormPairBar } from "@/components/orders/ManualFormPairBar";
 import { orderFromMTDRecord, rawFieldValue } from "@/lib/order-detail-fields";
 import {
   getOrderDetailSections,
+  getOrderIdentityFieldKey,
   orderFormFieldsDirty,
 } from "@/lib/order-detail-sections";
 import {
   mtdPatchFromOrderField,
   orderPatchFromOrderField,
 } from "@/lib/mtd-order-sync";
-import { getFormSongListColumnText } from "@/lib/order-requirements";
+import {
+  isPersistedMtdRecord,
+  mtdRecordCoversOrder,
+} from "@/lib/order-staging";
+import { resolveOrderFormDisplay } from "@/lib/order-form-display";
 import type { MTDRecord, Order } from "@/types";
 
 type OrderFormEditModalProps = {
   open: boolean;
   record: MTDRecord | null;
   allOrders: Order[];
+  /** 1-based Orders/MTD table ID column value for this row. */
+  rowId?: number | null;
   onClose: () => void;
 };
 
@@ -37,11 +45,13 @@ export function OrderFormEditModal({
   open,
   record,
   allOrders,
+  rowId = null,
   onClose,
 }: OrderFormEditModalProps) {
   const {
     updateMTD,
     updateOrder,
+    mtdRecords,
     discountCodes,
     producers,
     isViewOnly,
@@ -67,141 +77,24 @@ export function OrderFormEditModal({
 
   const fieldSources = useMemo(() => {
     if (!pair) return undefined;
-    const keys = getOrderDetailSections(pair.manual).flatMap((s) =>
+    const sectionOrder = resolveOrderFormDisplay(pair.manual, record);
+    const keys = getOrderDetailSections(sectionOrder).flatMap((s) =>
       s.fields.map((f) => f.key)
     );
-    return buildFieldSourceMap(pair.manual, pair.form, keys);
-  }, [pair]);
-
-  const isPairMerged = Boolean(
-    pair &&
-      (pair.manual.mergedFormOrderId ||
-        pair.form.mergedIntoManualOrderId ||
-        (pair.manual.manualOverlapSnapshot &&
-          Object.keys(pair.manual.manualOverlapSnapshot).length > 0))
-  );
+    // Freeze pre-form manual if not persisted yet, then show under fields.
+    const withSnap = ensureManualFormSnapshot(pair.manual, pair.form);
+    return buildFieldSourceMap(pair.manual, pair.form, keys, {
+      preferFormOnOverlap: true,
+      frozenManualSnapshot: withSnap.manualOverlapSnapshot,
+    });
+  }, [pair, record]);
 
   const displayOrder = useMemo(() => {
     if (!linkedBase) return null;
     const enriched = enrichOrderWithMatchingForm(linkedBase, allOrders);
-    const virocFlag = String(enriched.varsityVirocCustomer || "").toLowerCase();
-    const recSubtype = String(record?.cheerFormSubtype || "");
-
-    // Keep School Cheer / VIROC edit sections on the correct subtype form.
-    const virocYes =
-      enriched.cheerFormSubtype === "school-cheer-viroc-yes" ||
-      virocFlag === "yes" ||
-      recSubtype === "school-cheer-viroc-yes";
-    if (virocYes) {
-      return {
-        ...enriched,
-        formType: "school-all-star-cheer" as const,
-        cheerFormSubtype: "school-cheer-viroc-yes" as const,
-        varsityVirocCustomer: "Yes" as const,
-      };
-    }
-
-    const schoolCheerNo =
-      enriched.cheerFormSubtype === "school-cheer-viroc-no" ||
-      virocFlag === "no" ||
-      recSubtype === "school-cheer-viroc-no";
-    if (schoolCheerNo) {
-      return {
-        ...enriched,
-        formType: "school-all-star-cheer" as const,
-        cheerFormSubtype: "school-cheer-viroc-no" as const,
-        varsityVirocCustomer: "No" as const,
-      };
-    }
-
-    const youthRec =
-      enriched.cheerFormSubtype === "youth-rec-cheer" ||
-      recSubtype === "youth-rec-cheer";
-    if (youthRec) {
-      return {
-        ...enriched,
-        formType: "school-all-star-cheer" as const,
-        cheerFormSubtype: "youth-rec-cheer" as const,
-      };
-    }
-
-    const danceSubtypeRaw =
-      enriched.danceFormSubtype ||
-      (record as { danceFormSubtype?: string } | null)?.danceFormSubtype ||
-      "";
-    const danceSubtype =
-      danceSubtypeRaw === "team-performance" ||
-      danceSubtypeRaw.startsWith("team-performance")
-        ? "team-performance-variety"
-        : danceSubtypeRaw;
-    if (
-      enriched.formType === "school-all-star-dance" ||
-      danceSubtype === "pom" ||
-      danceSubtype === "hip-hop" ||
-      danceSubtype === "team-performance-variety" ||
-      danceSubtype === "gameday" ||
-      danceSubtype === "jazz-kick"
-    ) {
-      return {
-        ...enriched,
-        formType: "school-all-star-dance" as const,
-        danceFormSubtype: (danceSubtype ||
-          enriched.danceFormSubtype ||
-          "pom") as typeof enriched.danceFormSubtype,
-      };
-    }
-
-    if (enriched.formType === "marching-band") {
-      return {
-        ...enriched,
-        formType: "marching-band" as const,
-      };
-    }
-
-    if (enriched.formType === "sports-entertainment") {
-      return {
-        ...enriched,
-        formType: "sports-entertainment" as const,
-      };
-    }
-
-    if (enriched.formType === "school-anthem") {
-      return {
-        ...enriched,
-        formType: "school-anthem" as const,
-        packageType: enriched.packageType || "SCHOOL ANTHEMS",
-        package: enriched.package || "SCHOOL ANTHEMS",
-      };
-    }
-
-    return enriched;
+    // Same form sections as Add New Order — formType wins over stale subtypes.
+    return resolveOrderFormDisplay(enriched, record);
   }, [linkedBase, allOrders, record]);
-
-  const handleMergePair = useCallback(async () => {
-    if (!pair || isViewOnly) return;
-    const { manualPatch, formPatch } = mergeFormWinsPatches(
-      pair.manual,
-      pair.form
-    );
-    await updateOrder(pair.manual.id, manualPatch, pair.manual);
-    await updateOrder(pair.form.id, formPatch, pair.form);
-    setOrderDraft((prev) =>
-      prev
-        ? {
-            ...prev,
-            ...manualPatch,
-            manualOverlapSnapshot:
-              manualPatch.manualOverlapSnapshot ?? prev.manualOverlapSnapshot,
-          }
-        : prev
-    );
-    addNotification({
-      type: "mtd_move",
-      title: "Orders merged",
-      message:
-        "Form data kept on overlaps; manual-only fields preserved. Form row absorbed.",
-    });
-  }, [pair, isViewOnly, updateOrder, addNotification]);
 
   const handleSplitPair = useCallback(async () => {
     if (!pair || isViewOnly) return;
@@ -228,18 +121,42 @@ export function OrderFormEditModal({
     });
   }, [pair, isViewOnly, updateOrder, addNotification]);
 
+  const handleOverwriteData = useCallback(async () => {
+    if (!pair || isViewOnly) return;
+    const { manualPatch, formPatch } = overwriteManualWithFormPatches(
+      pair.manual,
+      pair.form
+    );
+    await updateOrder(pair.manual.id, manualPatch, pair.manual);
+    await updateOrder(pair.form.id, formPatch, pair.form);
+    setOrderDraft((prev) =>
+      prev
+        ? {
+            ...prev,
+            ...manualPatch,
+            isManualEntry: false,
+            manualOverlapSnapshot: undefined,
+          }
+        : prev
+    );
+    addNotification({
+      type: "mtd_move",
+      title: "Form data kept",
+      message: "Order now looks like a normal Magento form submission.",
+    });
+  }, [pair, isViewOnly, updateOrder, addNotification]);
+
   useEffect(() => {
     if (!open || !displayOrder) {
       setOrderDraft(null);
       return;
     }
-    // Keep Song list/suggestions in sync with the board Form song list column.
-    const songList =
-      String(displayOrder.songListSuggestions || "").trim() ||
-      getFormSongListColumnText(displayOrder);
+    // Same SoT columns as Add New — keep existing values; do not blank form-
+    // specific Magento fields (that would wipe power_music_covers / voiceovers
+    // on save when this form does not show those inputs).
     setOrderDraft({
       ...displayOrder,
-      songListSuggestions: songList,
+      songListSuggestions: String(displayOrder.songListSuggestions || "").trim(),
     });
   }, [open, displayOrder]);
 
@@ -267,48 +184,91 @@ export function OrderFormEditModal({
   const handleSave = useCallback(() => {
     if (!displayOrder || !orderDraft || !record || isViewOnly || !isDirty) return;
 
-    updateOrder(displayOrder.id, orderDraft, displayOrder);
+    // Order is source of truth for form fields. Same column mapping as Add New
+    // (updateOrder → updateOrderApi). Only patch a real mtd_records row when one
+    // already covers this order — never PATCH /api/mtd/{orderId} (synthetic
+    // staging rows use the order UUID as id → 404).
+    const editorInitials =
+      orderDraft.requestedEditor === "First Available" ||
+      !orderDraft.requestedEditor
+        ? "FA"
+        : orderDraft.editorRequest || orderDraft.requestedEditor;
+    updateOrder(
+      displayOrder.id,
+      {
+        ...orderDraft,
+        editorRequest: editorInitials,
+        requestedProducer: orderDraft.requestedEditor || "",
+        sendingEightCountSheets:
+          orderDraft.sendingEightCountSheets ||
+          orderDraft.usingEightCountSheets ||
+          "",
+        usingEightCountSheets:
+          orderDraft.sendingEightCountSheets ||
+          orderDraft.usingEightCountSheets ||
+          "",
+      },
+      displayOrder
+    );
 
-    const sections = getOrderDetailSections(displayOrder);
-    for (const section of sections) {
-      for (const field of section.fields) {
-        const nextValue = rawFieldValue(orderDraft, field.key);
-        const prevValue = rawFieldValue(displayOrder, field.key);
-        if (nextValue === prevValue) continue;
-        const mtdPatch = mtdPatchFromOrderField(field.key, nextValue);
-        if (
-          field.key === "songListSuggestions" ||
-          field.key === "powerMusicCovers" ||
-          field.key === "customerSongs" ||
-          field.key === "routineNotes" ||
-          field.key === "additionalNotes"
-        ) {
-          const prevStates =
-            (record.collectionStates as Record<string, unknown> | undefined) ||
-            {};
-          const nextStates = { ...prevStates };
+    const coveringMtd = mtdRecords.find(
+      (rec) =>
+        isPersistedMtdRecord(rec) && mtdRecordCoversOrder(rec, displayOrder)
+    );
+    const mtdTargetId = coveringMtd
+      ? coveringMtd.uuid || coveringMtd.id
+      : null;
+
+    if (mtdTargetId) {
+      const sections = getOrderDetailSections(displayOrder);
+      for (const section of sections) {
+        for (const field of section.fields) {
+          const nextValue = rawFieldValue(orderDraft, field.key);
+          const prevValue = rawFieldValue(displayOrder, field.key);
+          if (nextValue === prevValue) continue;
+          const mtdPatch = mtdPatchFromOrderField(field.key, nextValue);
           if (
             field.key === "songListSuggestions" ||
             field.key === "powerMusicCovers" ||
-            field.key === "customerSongs"
+            field.key === "unleashTheBeatsCovers" ||
+            field.key === "customerSongs" ||
+            field.key === "routineNotes" ||
+            field.key === "additionalNotes"
           ) {
-            delete nextStates.songs;
+            const prevStates =
+              (coveringMtd?.collectionStates as
+                | Record<string, unknown>
+                | undefined) ||
+              (record.collectionStates as Record<string, unknown> | undefined) ||
+              {};
+            const nextStates = { ...prevStates };
+            if (
+              field.key === "songListSuggestions" ||
+              field.key === "powerMusicCovers" ||
+              field.key === "unleashTheBeatsCovers" ||
+              field.key === "customerSongs"
+            ) {
+              delete nextStates.songs;
+            }
+            if (
+              field.key === "routineNotes" ||
+              field.key === "additionalNotes"
+            ) {
+              delete nextStates.notes;
+            }
+            void updateMTD(mtdTargetId, {
+              ...mtdPatch,
+              collectionStates: nextStates as MTDRecord["collectionStates"],
+            });
+          } else if (Object.keys(mtdPatch).length > 0) {
+            void updateMTD(mtdTargetId, mtdPatch);
           }
-          if (field.key === "routineNotes" || field.key === "additionalNotes") {
-            delete nextStates.notes;
-          }
-          updateMTD(record.id, {
-            ...mtdPatch,
-            collectionStates: nextStates as MTDRecord["collectionStates"],
-          });
-        } else if (Object.keys(mtdPatch).length > 0) {
-          updateMTD(record.id, mtdPatch);
         }
       }
-    }
 
-    if ((orderDraft.package || "") !== (displayOrder.package || "")) {
-      updateMTD(record.id, { package: orderDraft.package || "" });
+      if ((orderDraft.package || "") !== (displayOrder.package || "")) {
+        void updateMTD(mtdTargetId, { package: orderDraft.package || "" });
+      }
     }
 
     addNotification({
@@ -321,6 +281,7 @@ export function OrderFormEditModal({
     displayOrder,
     orderDraft,
     record,
+    mtdRecords,
     isViewOnly,
     isDirty,
     updateOrder,
@@ -341,6 +302,19 @@ export function OrderFormEditModal({
     displayOrder.customerName ||
     record.contactName ||
     "Customer";
+  // Prefer stable DB UUID — never imply the board row index is a PK.
+  const dbOrderId =
+    displayOrder.uuid ||
+    displayOrder.id ||
+    record.orderId ||
+    record.uuid ||
+    "";
+  const shortDbId =
+    dbOrderId.length > 12 ? `${dbOrderId.slice(0, 8)}…` : dbOrderId;
+  const idParts: string[] = [];
+  if (rowId != null && rowId > 0) idParts.push(`Row ${rowId}`);
+  if (shortDbId) idParts.push(`Order ${shortDbId}`);
+  const idLabel = idParts.length > 0 ? idParts.join(" · ") : null;
 
   return createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -365,6 +339,11 @@ export function OrderFormEditModal({
             <div className="min-w-0">
               <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-brand-ink-tertiary">
                 {isViewOnly ? "Order form" : "Edit order form"}
+                {idLabel ? (
+                  <span className="ml-2 font-semibold normal-case tracking-normal tabular-nums text-brand-ink-secondary">
+                    · {idLabel}
+                  </span>
+                ) : null}
               </p>
               <h2
                 id="order-form-edit-title"
@@ -390,11 +369,11 @@ export function OrderFormEditModal({
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-5">
           {pair ? (
             <ManualFormPairBar
-              pair={pair}
-              isMerged={isPairMerged}
               disabled={isViewOnly}
-              onMerge={() => void handleMergePair()}
-              onSplit={() => void handleSplitPair()}
+              manual={pair.manual}
+              form={pair.form}
+              onConfirmSplit={handleSplitPair}
+              onOverwriteData={handleOverwriteData}
             />
           ) : null}
           <MTDOrderDetails
@@ -405,6 +384,18 @@ export function OrderFormEditModal({
             editable={!isViewOnly}
             onFieldChange={handleFieldChange}
             fieldSources={fieldSources}
+            // Admin forms: only identity name is required; other empties stay quiet.
+            requiredFieldKeys={
+              orderDraft
+                ? [
+                    getOrderIdentityFieldKey(
+                      orderDraft.formType,
+                      orderDraft.cheerFormSubtype,
+                      orderDraft.danceFormSubtype
+                    ),
+                  ]
+                : []
+            }
           />
         </div>
 

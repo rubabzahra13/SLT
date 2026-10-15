@@ -1,5 +1,6 @@
 import type { MTDRecord, Order, OrderSourceFilter } from "@/types";
 import { findLinkedOrder } from "@/lib/editor-assignment";
+import { resolveManualFormPair } from "@/lib/manual-form-merge";
 
 function linkedOrderForRecord(
   record: MTDRecord,
@@ -17,14 +18,57 @@ function linkedOrderForRecord(
   return null;
 }
 
-/** True when the row came from admin New Order / manual schedule, not a form. */
+function ordersListFrom(
+  orders?: Order[] | Map<string, Order> | null
+): Order[] {
+  if (!orders) return [];
+  if (orders instanceof Map) {
+    const byId = new Map<string, Order>();
+    for (const order of orders.values()) {
+      const key = order.id || order.uuid || order.legacyId;
+      if (key) byId.set(key, order);
+    }
+    return [...byId.values()];
+  }
+  return orders;
+}
+
+/** Magento form matched this slot — treat as Form order (client SoT). */
+export function orderHasMatchedMagentoForm(
+  order:
+    | Pick<Order, "mergedFormOrderId" | "manualOverlapSnapshot">
+    | null
+    | undefined
+): boolean {
+  if (!order) return false;
+  if (order.mergedFormOrderId) return true;
+  const snap = order.manualOverlapSnapshot;
+  return Boolean(snap && Object.keys(snap).length > 0);
+}
+
+/** True when the row is still an unmatched admin New Order / manual schedule. */
 export function isManualOrderRecord(
   record: MTDRecord,
   orders?: Order[] | Map<string, Order> | null
 ): boolean {
-  if (record.isManualScheduleEntry) return true;
-
   const linked = linkedOrderForRecord(record, orders);
+  // Once a Magento form matches, it is a Form order in filters / counts.
+  if (orderHasMatchedMagentoForm(linked)) return false;
+  if (
+    orderHasMatchedMagentoForm(
+      record as MTDRecord &
+        Pick<Order, "mergedFormOrderId" | "manualOverlapSnapshot">
+    )
+  ) {
+    return false;
+  }
+
+  const list = ordersListFrom(orders);
+  if (linked?.isManualEntry && list.length > 0) {
+    if (resolveManualFormPair(linked, list)) return false;
+  }
+
+  if (record.isManualScheduleEntry) return true;
   if (linked?.isManualEntry) return true;
 
   // Legacy pure-manual MTD rows explicitly have orderId = null.

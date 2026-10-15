@@ -92,6 +92,7 @@ def _ensure_default_holidays(db: Session) -> List[StudioHoliday]:
     for index, (name, start, end) in enumerate(DEFAULT_HOLIDAYS):
         db.add(
             StudioHoliday(
+                id=seed_uuid("holiday", f"default-{index + 1}"),
                 name=name,
                 start_date=start,
                 end_date=end,
@@ -119,6 +120,7 @@ def _ensure_default_reasons(db: Session) -> List[StudioPersonalReason]:
     for index, name in enumerate(DEFAULT_PERSONAL_REASONS):
         db.add(
             StudioPersonalReason(
+                id=seed_uuid("personal-reason", f"default-{index + 1}"),
                 name=name,
                 enabled=True,
                 is_other=name.lower() == "other",

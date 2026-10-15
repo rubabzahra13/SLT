@@ -11,9 +11,15 @@ export function mtdPatchFromOrderField(
     case "contactName":
     case "customerName":
     case "coachContactFullName":
+    case "musicContactName":
       return { contactName: value };
-    case "teamName":
+    // MTD program column = gym/school/org identity — not Team Name.
+    case "gymName":
+    case "schoolName":
+    case "schoolProgramName":
     case "programName":
+    case "organizationName":
+    case "schoolOrganizationName":
       return { programName: value };
     case "package":
       return { package: value };
@@ -24,6 +30,7 @@ export function mtdPatchFromOrderField(
       return {};
     case "songListSuggestions":
     case "powerMusicCovers":
+    case "unleashTheBeatsCovers":
     case "customerSongs": {
       const filled = Boolean(String(value || "").trim());
       return {
@@ -58,15 +65,21 @@ export function orderPatchFromMTD(
   const orderPatch: Partial<Order> = {};
 
   if (patch.contactName !== undefined) {
+    // Board contact ↔ coach_name SoT (Music Contact / Coach form fields).
     orderPatch.contactName = patch.contactName;
     orderPatch.customerName = patch.contactName;
     orderPatch.coachName = patch.contactName;
     orderPatch.coachContactFullName = patch.contactName;
+    orderPatch.musicContactName = patch.contactName;
   }
   if (patch.programName !== undefined) {
+    // Identity only — school_gym_name; do not overwrite team_name.
     orderPatch.programName = patch.programName;
-    orderPatch.teamName = patch.programName;
+    orderPatch.schoolName = patch.programName;
     orderPatch.schoolProgramName = patch.programName;
+    orderPatch.gymName = patch.programName;
+    orderPatch.organizationName = patch.programName;
+    orderPatch.schoolOrganizationName = patch.programName;
   }
   if (patch.package !== undefined) {
     orderPatch.package = patch.package;
@@ -83,8 +96,8 @@ export function orderPatchFromMTD(
   if (patch.priceCompliance !== undefined) {
     orderPatch.priceCompliance = patch.priceCompliance;
   }
-  // eightCountSheet is collection status (HAVE CS / NEED CS). Do not copy onto
-  // sendingEightCountSheets — that field is the form Yes/No send-intent.
+  // eightCountSheet → received_eight_count_sheet (HAVE CS / NEED CS).
+  // Do not copy onto sendingEightCountSheets (Magento Yes/No send-intent).
   if (patch.section !== undefined) {
     orderPatch.division = patch.section;
   }
@@ -112,27 +125,63 @@ export function orderPatchFromOrderField(
 ): Partial<Order> {
   const patch: Partial<Order> = { [key]: value } as Partial<Order>;
 
-  if (key === "coachName" || key === "coachContactFullName") {
+  if (
+    key === "coachName" ||
+    key === "coachContactFullName" ||
+    key === "musicContactName"
+  ) {
+    // Single SoT: coach_name (Youth Rec / Music Contact Magento labels).
+    patch.coachName = value;
+    patch.coachContactFullName = value;
+    patch.musicContactName = value;
     patch.contactName = value;
     patch.customerName = value;
   }
-  if (key === "teamName") {
-    patch.programName = value;
-    patch.schoolProgramName = value;
+  if (key === "coachEmail" || key === "coachEmailAddress") {
+    // Single SoT: coach_email (Youth Rec Magento key is coachEmailAddress).
+    patch.coachEmail = value;
+    patch.coachEmailAddress = value;
   }
-  // Category identity fields (Program column / form↔manual match key).
+  if (key === "choreographerName" || key === "virocChoreographerName") {
+    // Single SoT: choreographer_name (V!ROC Magento key is virocChoreographerName).
+    patch.choreographerName = value;
+    patch.virocChoreographerName = value;
+  }
+  if (key === "choreographerEmail" || key === "virocChoreographerEmail") {
+    // Single SoT: choreographer_email (V!ROC Magento key is virocChoreographerEmail).
+    patch.choreographerEmail = value;
+    patch.virocChoreographerEmail = value;
+  }
+  if (key === "requestedEditor" || key === "requestedProducer") {
+    // Single SoT: requested_editor (legacy in-memory key is requestedProducer).
+    patch.requestedEditor = value;
+    patch.requestedProducer = value;
+  }
+  if (key === "youthRecExtraEmailAddress" || key === "emailAddress") {
+    patch.youthRecExtraEmailAddress = value;
+    patch.emailAddress = value;
+  }
+  if (key === "teamName") {
+    // Team Name is its own form field — do not also fill program_name.
+    patch.teamName = value;
+  }
+  // Identity fields map 1:1 to the UI/DB column for that form.
+  // All Star Cheer has Gym Name (not Program Name) — never write program_name from gym.
   if (
     key === "gymName" ||
     key === "schoolName" ||
     key === "schoolProgramName" ||
-    key === "programName"
+    key === "programName" ||
+    key === "organizationName" ||
+    key === "schoolOrganizationName"
   ) {
+    // Single SoT: school_gym_name (Gym / School / Program / Org labels).
+    patch.schoolName = value;
+    patch.gymName = value;
+    patch.schoolProgramName = value;
     patch.programName = value;
-    if (key === "gymName") patch.gymName = value;
-    if (key === "schoolName") patch.schoolName = value;
-    if (key === "schoolProgramName" || key === "gymName" || key === "schoolName") {
-      patch.schoolProgramName = value;
-    }
+    patch.organizationName = value;
+    patch.schoolOrganizationName = value;
   }
   if (key === "packageType") {
     const parsed = parsePackage(value);
@@ -171,7 +220,11 @@ export function orderPatchFromOrderField(
       patch.musicTheme = value;
     }
   }
-  if (key === "powerMusicCovers") {
+  if (key === "songListSuggestions" && current?.formType !== "school-all-star-dance") {
+    // Cheer/other: covers is unused — clear so song text is not mirrored there.
+    patch.powerMusicCovers = "";
+  }
+  if (key === "powerMusicCovers" || key === "unleashTheBeatsCovers") {
     if (current?.formType !== "school-all-star-dance") {
       patch.musicTheme = value;
     }
@@ -180,6 +233,7 @@ export function orderPatchFromOrderField(
   if (
     key === "songListSuggestions" ||
     key === "powerMusicCovers" ||
+    key === "unleashTheBeatsCovers" ||
     key === "customerSongs"
   ) {
     const filled = Boolean(String(value || "").trim());
@@ -204,26 +258,6 @@ export function orderPatchFromOrderField(
     patch.styleOfGamedayMix = value;
     patch.style = value;
   }
-  if (key === "organizationName") {
-    patch.organizationName = value;
-    patch.schoolOrganizationName = value;
-    patch.schoolProgramName = value;
-    patch.schoolName = value;
-    patch.gymName = value;
-    patch.programName = value;
-  }
-  if (key === "billingAddress") {
-    patch.billingAddress = value;
-    patch.schoolBillingAddress = value;
-    patch.schoolAddress = value;
-    patch.gymBillingAddress = value;
-  }
-  if (key === "musicContactName") {
-    patch.musicContactName = value;
-    patch.coachName = value;
-    patch.contactName = value;
-    patch.customerName = value;
-  }
   if (key === "musicContactPhone") {
     patch.musicContactPhone = value;
     patch.coachPhone = value;
@@ -231,6 +265,7 @@ export function orderPatchFromOrderField(
   if (key === "musicContactEmail") {
     patch.musicContactEmail = value;
     patch.coachEmail = value;
+    patch.coachEmailAddress = value;
   }
   if (key === "billingContactName") {
     patch.billingContactName = value;
@@ -248,6 +283,11 @@ export function orderPatchFromOrderField(
     patch.additionalNotes = value;
     patch.routineNotes = value;
   }
+  if (key === "instrumentationNotes" || key === "instrumentalStylePreference") {
+    // Single SoT: instrumentation_notes (School Anthem style + Band notes).
+    patch.instrumentationNotes = value;
+    patch.instrumentalStylePreference = value;
+  }
   if (key === "isRushOrder") {
     const intent = String(value || "").trim().toUpperCase();
     if (intent === "Y" || intent.startsWith("YES")) {
@@ -256,32 +296,57 @@ export function orderPatchFromOrderField(
       patch.isRushOrder = "No";
     }
   }
-  if (key === "schoolOrganizationName") {
-    patch.schoolOrganizationName = value;
-    patch.organizationName = value;
-    patch.schoolProgramName = value;
-    patch.schoolName = value;
-    patch.gymName = value;
-    patch.programName = value;
-  }
-  if (key === "schoolBillingAddress") {
-    patch.schoolBillingAddress = value;
-    patch.billingAddress = value;
-    patch.schoolAddress = value;
-    patch.gymBillingAddress = value;
-  }
-  if (key === "schoolProgramColors") {
-    patch.schoolProgramColors = value;
-    patch.colors = value;
-    patch.teamColors = value;
-  }
-  if (key === "sendingEightCountSheets" || key === "usingEightCountSheets") {
+  if (key === "clientRequestedRushOrder") {
     const intent = String(value || "").trim().toUpperCase();
     if (intent === "Y" || intent.startsWith("YES")) {
-      patch[key] = "Yes";
+      patch.clientRequestedRushOrder = "Yes";
     } else if (intent === "N" || intent.startsWith("NO")) {
-      patch[key] = "No";
+      patch.clientRequestedRushOrder = "No";
+    } else {
+      patch.clientRequestedRushOrder = value;
     }
+  }
+  if (
+    key === "gymBillingAddress" ||
+    key === "schoolBillingAddress" ||
+    key === "youthRecBillingAddress" ||
+    key === "organizationBillingAddress" ||
+    key === "schoolGymAddress" ||
+    key === "schoolAddress"
+  ) {
+    // Single SoT: school_gym_billing_address (form labels vary).
+    patch.gymBillingAddress = value;
+    patch.schoolBillingAddress = value;
+    patch.youthRecBillingAddress = value;
+    patch.organizationBillingAddress = value;
+    patch.schoolGymAddress = value;
+    patch.schoolAddress = value;
+  }
+  if (
+    key === "teamColors" ||
+    key === "youthRecColors" ||
+    key === "schoolProgramColors"
+  ) {
+    // Single SoT: colors (form labels vary).
+    patch.teamColors = value;
+    patch.youthRecColors = value;
+    patch.schoolProgramColors = value;
+  }
+  if (key === "sendingEightCountSheets" || key === "usingEightCountSheets") {
+    // Single SoT: sending_eight_count_sheets (using is Magento label alias).
+    const intent = String(value || "").trim().toUpperCase();
+    const normalized =
+      intent === "Y" || intent.startsWith("YES")
+        ? "Yes"
+        : intent === "N" || intent.startsWith("NO")
+          ? "No"
+          : value;
+    patch.sendingEightCountSheets = normalized;
+    patch.usingEightCountSheets = normalized;
+  }
+  if (key === "divisionOfTeam") {
+    patch.divisionOfTeam = value;
+    patch.division = value;
   }
 
   return patch;

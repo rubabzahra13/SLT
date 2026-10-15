@@ -11,10 +11,12 @@ describe("SLT Implementation 2: Package-Specific Data Collection Rules", () => {
   it("Dance Custom POM requires Songs, Time of Mix, Compliancy", () => {
     const order: Partial<Order> = {
       category: "Dance",
+      formType: "school-all-star-dance",
+      danceFormSubtype: "pom",
       package: "Custom POM 2:15",
       timeLengthOfMix: "2:15",
       musicAffiliate: "Power Music",
-      songListSuggestions: "Have",
+      powerMusicCovers: "Have",
     };
 
     const reqs = getOrderRequirements(order as Order);
@@ -231,6 +233,100 @@ describe("SLT Implementation 2: Package-Specific Data Collection Rules", () => {
     assert.deepStrictEqual(ids.sort(), ["mix", "notes", "songs"].sort());
   });
 
+  it("School Anthem Magento form has no Mix Time / CS / Video collections", () => {
+    const order: Partial<Order> = {
+      formType: "school-anthem",
+      category: "School Anthem",
+      package: "SCHOOL ANTHEMS",
+      isManualEntry: false,
+      instrumentationNotes: "style",
+      lyricalNotes: "lyrics",
+    };
+    const reqs = getOrderRequirements(order as Order);
+    assert.deepStrictEqual(
+      reqs.collections.filter((r) => r.isApplicable).map((r) => r.id),
+      [],
+      "Magento School Anthem collections must be empty (no Mix Time)"
+    );
+    assert.ok(!reqs.collections.some((r) => r.id === "form"));
+  });
+
+  it("School Anthem manual New Order shows Form red until Magento name-match", () => {
+    const manual: Partial<Order> = {
+      formType: "school-anthem",
+      category: "School Anthem",
+      package: "SCHOOL ANTHEMS",
+      isManualEntry: true,
+      instrumentationNotes: "",
+      lyricalNotes: "",
+    };
+    const waiting = getOrderRequirements(manual as Order);
+    assert.deepStrictEqual(
+      waiting.collections.filter((r) => r.isApplicable).map((r) => r.id),
+      ["form"]
+    );
+    assert.strictEqual(
+      waiting.collections.find((r) => r.id === "form")?.state,
+      "red"
+    );
+
+    const matched = getOrderRequirements({
+      ...manual,
+      mergedFormOrderId: "form-anthem-1",
+    } as Order);
+    assert.ok(
+      !matched.collections.some((r) => r.id === "form"),
+      "matched Magento form → Form order, no Form collection pill"
+    );
+  });
+
+  it("School Anthem Song from Instrumental Style Preference; Notes from Lyrical Notes", () => {
+    const empty: Partial<Order> = {
+      formType: "school-anthem",
+      category: "School Anthem",
+      package: "SCHOOL ANTHEMS",
+      packageType: "SCHOOL ANTHEMS",
+      timeLengthOfMix: "2:00",
+      songListSuggestions: "should not drive Song pill",
+      routineNotes: "should not drive Notes pill",
+      instrumentationNotes: "",
+      lyricalNotes: "",
+    };
+    const emptyReqs = getOrderRequirements(empty as Order);
+    assert.strictEqual(
+      emptyReqs.songsArea.find((r) => r.id === "songs")?.state,
+      "red"
+    );
+    assert.strictEqual(
+      emptyReqs.songsArea.find((r) => r.id === "notes")?.state,
+      "red"
+    );
+    assert.strictEqual(
+      getFormSongListColumnText(empty as Order),
+      "",
+      "song list / musicTheme must not green School Anthem Song"
+    );
+
+    const filled: Partial<Order> = {
+      ...empty,
+      instrumentationNotes: "Pop / Rock with marching energy",
+      lyricalNotes: "Hail to the Cavaliers",
+    };
+    const filledReqs = getOrderRequirements(filled as Order);
+    assert.strictEqual(
+      filledReqs.songsArea.find((r) => r.id === "songs")?.state,
+      "green"
+    );
+    assert.strictEqual(
+      filledReqs.songsArea.find((r) => r.id === "notes")?.state,
+      "green"
+    );
+    assert.strictEqual(
+      getFormSongListColumnText(filled as Order),
+      "Pop / Rock with marching energy"
+    );
+  });
+
   it("manual orders include a Form collection pill; form orders do not", () => {
     const formOrder: Partial<Order> = {
       category: "Cheer",
@@ -256,31 +352,46 @@ describe("SLT Implementation 2: Package-Specific Data Collection Rules", () => {
       ["mix", "cs", "video", "form"]
     );
 
-    const collected = getOrderRequirements({
+    // Form is automatic — collectionStates.form must not green it.
+    const toggled = getOrderRequirements({
       ...manualOrder,
       collectionStates: { form: true },
     } as Order);
     assert.strictEqual(
-      collected.collections.find((r) => r.id === "form")?.state,
-      "green"
+      toggled.collections.find((r) => r.id === "form")?.state,
+      "red",
+      "Form stays red until Magento name-match links mergedFormOrderId"
+    );
+
+    const matched = getOrderRequirements({
+      ...manualOrder,
+      mergedFormOrderId: "form-auto-1",
+    } as Order);
+    assert.ok(
+      !matched.collections.some((r) => r.id === "form"),
+      "matched Magento form → Form order, no Form collection pill"
     );
   });
 
   it("correctly identifies orders that are Waiting for Data (missing >= 1 requirement)", () => {
     const completeOrder: Partial<Order> = {
       category: "Dance",
+      formType: "school-all-star-dance",
+      danceFormSubtype: "pom",
       package: "Custom POM 2:15",
       timeLengthOfMix: "2:15",
       musicAffiliate: "Power Music",
-      songListSuggestions: "Have",
+      powerMusicCovers: "Have",
     };
 
     const incompleteOrder: Partial<Order> = {
       category: "Dance",
+      formType: "school-all-star-dance",
+      danceFormSubtype: "pom",
       package: "Custom POM 2:15",
       timeLengthOfMix: "", // Missing Time of Mix
       musicAffiliate: "Power Music",
-      songListSuggestions: "Have",
+      powerMusicCovers: "Have",
     };
 
     assert.strictEqual(getOrderRequirements(completeOrder as Order).missingCount, 0);
@@ -323,58 +434,48 @@ describe("SLT Implementation 2: Package-Specific Data Collection Rules", () => {
     assert.strictEqual(notes?.state, "red");
   });
 
-  it("Songs pill matches Form song list / Song list/suggestions field", () => {
+  it("Songs pill matches Form song list column including legacy musicTheme", () => {
     const empty: Partial<Order> = {
       category: "Dance",
       package: "Custom POM 2:15",
       timeLengthOfMix: "2:15",
       musicAffiliate: "Power Music Covers",
-      musicTheme: "(Power Music Covers) · (Power Music Covers)",
+      musicTheme: "",
       songListSuggestions: "",
       powerMusicCovers: "",
       haveSongs: "NEED SONGS",
     };
-    // Affiliate-only musicTheme is not a song list.
-    assert.strictEqual(getFormSongListColumnText(empty as Order), "");
-    const emptySongs = getOrderRequirements(empty as Order).songsArea.find(
-      (r) => r.id === "songs"
+    assert.strictEqual(
+      getOrderRequirements(empty as Order).songsArea.find((r) => r.id === "songs")
+        ?.state,
+      "red"
     );
-    assert.strictEqual(emptySongs?.state, "red");
+
+    const themeOnly: Partial<Order> = {
+      ...empty,
+      musicTheme: "(Power Music Covers) · (Power Music Covers)",
+    };
+    assert.ok(getFormSongListColumnText(themeOnly as Order).includes("Power Music"));
+    assert.strictEqual(
+      getOrderRequirements(themeOnly as Order).songsArea.find(
+        (r) => r.id === "songs"
+      )?.state,
+      "green"
+    );
 
     const filled: Partial<Order> = {
       ...empty,
       powerMusicCovers: "Song A, Song B",
       haveSongs: "NEED SONGS",
     };
-    const filledSongs = getOrderRequirements(filled as Order).songsArea.find(
-      (r) => r.id === "songs"
+    assert.strictEqual(
+      getOrderRequirements(filled as Order).songsArea.find((r) => r.id === "songs")
+        ?.state,
+      "green"
     );
-    assert.strictEqual(filledSongs?.state, "green");
   });
 
-  it("Form song list ignores musicTheme that is just Routine notes + affiliate", () => {
-    const order: Partial<Order> = {
-      category: "Cheer",
-      formType: "school-all-star-cheer",
-      cheerFormSubtype: "all-star-cheer",
-      package: "Gold 2:00",
-      songListSuggestions: "",
-      routineNotes: "Customer submitted form with fast-paced routine notes.",
-      musicTheme:
-        "Customer submitted form with fast-paced routine notes. · (Power Music Covers)",
-    };
-    assert.strictEqual(getFormSongListColumnText(order as Order), "");
-    const songs = getOrderRequirements(order as Order).songsArea.find(
-      (r) => r.id === "songs"
-    );
-    assert.strictEqual(songs?.state, "red");
-    const notes = getOrderRequirements(order as Order).songsArea.find(
-      (r) => r.id === "notes"
-    );
-    assert.strictEqual(notes?.state, "green");
-  });
-
-  it("Form song list keeps legacy musicTheme when it is real song text", () => {
+  it("Form song list keeps legacy musicTheme board text", () => {
     const order: Partial<Order> = {
       category: "Cheer",
       formType: "school-all-star-cheer",
@@ -385,10 +486,11 @@ describe("SLT Implementation 2: Package-Specific Data Collection Rules", () => {
       musicTheme: "Song A, Song B, Fight Song · (Power Music Covers)",
     };
     assert.ok(getFormSongListColumnText(order as Order).includes("Song A"));
-    const songs = getOrderRequirements(order as Order).songsArea.find(
-      (r) => r.id === "songs"
+    assert.strictEqual(
+      getOrderRequirements(order as Order).songsArea.find((r) => r.id === "songs")
+        ?.state,
+      "green"
     );
-    assert.strictEqual(songs?.state, "green");
   });
 
   it("mergeOrderFormFieldsForRequirements keeps empty linked Song list", () => {
@@ -409,23 +511,23 @@ describe("SLT Implementation 2: Package-Specific Data Collection Rules", () => {
     assert.strictEqual((merged as Order).routineNotes, "");
   });
 
-  it("merge keeps MTD musicTheme when linked order musicTheme is empty", () => {
+  it("merge keeps empty linked musicTheme after Songs remove (does not revive MTD theme)", () => {
     const mtd = {
       id: "mtd-1",
       musicTheme: "Review Required: Level check · (Power Music Covers)",
-      songListSuggestions: "",
+      songListSuggestions: "Old songs",
       routineNotes: "",
     } as Order;
     const linked = {
       id: "ord-1",
       musicTheme: "",
       songListSuggestions: "",
-      routineNotes: "",
+      routineNotes: "Keep my notes",
       formType: "school-all-star-cheer",
     } as Order;
     const merged = mergeOrderFormFieldsForRequirements(mtd, linked);
-    assert.ok(String(merged.musicTheme || "").includes("Review Required"));
-    // Review notes in musicTheme (no routineNotes duplicate) still surface as song-list legacy text.
-    assert.ok(getFormSongListColumnText(merged).includes("Review Required"));
+    assert.strictEqual(merged.musicTheme, "");
+    assert.strictEqual(merged.songListSuggestions, "");
+    assert.strictEqual(getFormSongListColumnText(merged), "");
   });
 });

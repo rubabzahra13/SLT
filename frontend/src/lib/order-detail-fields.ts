@@ -6,111 +6,227 @@ import { getFormSongListColumnText } from "@/lib/order-requirements";
 import type { MTDRecord, Order } from "@/types";
 import type { OrderDetailField } from "@/lib/order-detail-sections";
 
+/**
+ * First defined alias wins — including explicit "".
+ * Prevents cleared inputs from snapping back via sibling `||` fallbacks.
+ */
+export function coalesceFieldAliases(
+  ...vals: Array<string | null | undefined>
+): string {
+  for (const v of vals) {
+    if (v === undefined || v === null) continue;
+    return String(v);
+  }
+  return "";
+}
+
 const FIELD_GETTERS: Record<string, (order: Order) => string | undefined> = {
-  schoolProgramName: (o) => o.schoolProgramName,
-  schoolAddress: (o) => o.schoolAddress,
-  gymName: (o) => o.gymName || o.schoolProgramName,
-  gymBillingAddress: (o) => o.gymBillingAddress || o.schoolAddress,
-  schoolName: (o) => o.schoolName || o.schoolProgramName,
+  schoolProgramName: (o) =>
+    coalesceFieldAliases(
+      o.schoolProgramName,
+      o.schoolName,
+      o.gymName,
+      o.schoolOrganizationName,
+      o.organizationName,
+      o.programName
+    ),
+  schoolAddress: (o) =>
+    coalesceFieldAliases(
+      o.schoolAddress,
+      o.schoolGymAddress,
+      o.gymBillingAddress,
+      o.schoolBillingAddress,
+      o.youthRecBillingAddress,
+      o.organizationBillingAddress
+    ),
+  gymName: (o) =>
+    coalesceFieldAliases(
+      o.gymName,
+      o.schoolName,
+      o.schoolProgramName,
+      o.schoolOrganizationName,
+      o.organizationName,
+      o.programName
+    ),
+  gymBillingAddress: (o) =>
+    coalesceFieldAliases(
+      o.gymBillingAddress,
+      o.schoolBillingAddress,
+      o.schoolGymAddress,
+      o.schoolAddress
+    ),
+  schoolName: (o) =>
+    coalesceFieldAliases(
+      o.schoolName,
+      o.gymName,
+      o.schoolProgramName,
+      o.schoolOrganizationName,
+      o.organizationName,
+      o.programName
+    ),
   schoolBillingAddress: (o) =>
-    o.schoolBillingAddress ||
-    o.schoolAddress ||
-    o.billingAddress ||
-    o.gymBillingAddress ||
-    "",
-  billingAddress: (o) =>
-    o.billingAddress ||
-    o.schoolBillingAddress ||
-    o.schoolAddress ||
-    o.gymBillingAddress ||
-    "",
+    coalesceFieldAliases(
+      o.schoolBillingAddress,
+      o.gymBillingAddress,
+      o.schoolGymAddress,
+      o.schoolAddress
+    ),
+  youthRecBillingAddress: (o) =>
+    coalesceFieldAliases(
+      o.youthRecBillingAddress,
+      o.schoolBillingAddress,
+      o.gymBillingAddress,
+      o.schoolAddress
+    ),
+  organizationBillingAddress: (o) =>
+    coalesceFieldAliases(
+      o.organizationBillingAddress,
+      o.schoolBillingAddress,
+      o.gymBillingAddress,
+      o.schoolAddress
+    ),
   city: (o) => o.city,
   stateProvince: (o) => o.stateProvince,
   zipPostalCode: (o) => o.zipPostalCode,
   country: (o) => o.country,
-  teamName: (o) => o.teamName || o.programName,
-  programName: (o) => o.programName,
-  mascot: (o) => o.mascot || "",
+  // Team name is its own column — never fall back to gym/school identity.
+  teamName: (o) => coalesceFieldAliases(o.teamName),
+  programName: (o) =>
+    coalesceFieldAliases(
+      o.schoolName,
+      o.gymName,
+      o.schoolProgramName,
+      o.schoolOrganizationName,
+      o.organizationName,
+      o.programName
+    ),
+  mascot: (o) => coalesceFieldAliases(o.mascot),
   division: (o) => o.division,
-  teamCoedAllGirl: (o) => o.teamCoedAllGirl || "",
-  teamColors: (o) => o.teamColors || o.colors || "",
-  colors: (o) => o.colors || o.teamColors || "",
+  teamCoedAllGirl: (o) => coalesceFieldAliases(o.teamCoedAllGirl),
+  teamColors: (o) =>
+    coalesceFieldAliases(o.teamColors, o.youthRecColors, o.schoolProgramColors),
+  youthRecColors: (o) =>
+    coalesceFieldAliases(o.youthRecColors, o.teamColors, o.schoolProgramColors),
+  schoolProgramColors: (o) =>
+    coalesceFieldAliases(o.schoolProgramColors, o.teamColors, o.youthRecColors),
   numberOfCopies: (o) => o.numberOfCopies,
-  coachName: (o) => o.coachName || o.coachContactFullName || "",
-  coachContactFullName: (o) => o.coachContactFullName || o.coachName,
-  coachPhone: (o) => o.coachPhone,
-  coachEmail: (o) => o.coachEmail || o.coachEmailAddress || "",
-  coachEmailAddress: (o) => o.coachEmailAddress || o.coachEmail,
-  emailAddress: (o) => o.emailAddress || o.billingPersonEmail,
-  billingPersonName: (o) => o.billingPersonName,
-  billingPersonEmail: (o) => o.billingPersonEmail,
-  choreographerName: (o) => o.choreographerName,
-  choreographerEmail: (o) => o.choreographerEmail,
-  virocChoreographerName: (o) => o.virocChoreographerName || o.choreographerName,
+  coachName: (o) =>
+    coalesceFieldAliases(o.coachName, o.coachContactFullName, o.musicContactName),
+  coachContactFullName: (o) =>
+    coalesceFieldAliases(o.coachContactFullName, o.coachName, o.musicContactName),
+  coachPhone: (o) => coalesceFieldAliases(o.coachPhone, o.musicContactPhone),
+  coachEmail: (o) =>
+    coalesceFieldAliases(o.coachEmail, o.coachEmailAddress, o.musicContactEmail),
+  coachEmailAddress: (o) =>
+    coalesceFieldAliases(o.coachEmailAddress, o.coachEmail, o.musicContactEmail),
+  youthRecExtraEmailAddress: (o) =>
+    coalesceFieldAliases(o.youthRecExtraEmailAddress, o.emailAddress),
+  emailAddress: (o) =>
+    coalesceFieldAliases(o.emailAddress, o.youthRecExtraEmailAddress),
+  billingPersonName: (o) =>
+    coalesceFieldAliases(o.billingPersonName, o.billingContactName),
+  billingPersonEmail: (o) =>
+    coalesceFieldAliases(o.billingPersonEmail, o.billingContactEmail),
+  choreographerName: (o) =>
+    coalesceFieldAliases(o.choreographerName, o.virocChoreographerName),
+  choreographerEmail: (o) =>
+    coalesceFieldAliases(o.choreographerEmail, o.virocChoreographerEmail),
+  virocChoreographerName: (o) =>
+    coalesceFieldAliases(o.virocChoreographerName, o.choreographerName),
   virocChoreographerEmail: (o) =>
-    o.virocChoreographerEmail || o.choreographerEmail,
+    coalesceFieldAliases(o.virocChoreographerEmail, o.choreographerEmail),
   packageType: (o) => o.packageType,
-  requestedEditor: (o) => o.requestedEditor,
+  requestedEditor: (o) =>
+    coalesceFieldAliases(o.requestedEditor, o.requestedProducer),
   timeLengthOfMix: (o) => o.timeLengthOfMix,
-  splitOrNoSplit: (o) => o.splitOrNoSplit || "",
+  splitOrNoSplit: (o) => coalesceFieldAliases(o.splitOrNoSplit),
   musicAffiliate: (o) => o.musicAffiliate,
-  sendingEightCountSheets: (o) => o.sendingEightCountSheets || "",
-  usingEightCountSheets: (o) => o.usingEightCountSheets || "",
-  // Same source as board "Form song list" / Songs pill.
-  songListSuggestions: (o) => getFormSongListColumnText(o) || "",
+  sendingEightCountSheets: (o) =>
+    coalesceFieldAliases(o.sendingEightCountSheets, o.usingEightCountSheets),
+  usingEightCountSheets: (o) =>
+    coalesceFieldAliases(o.sendingEightCountSheets, o.usingEightCountSheets),
+  // Prefer own column so clear sticks; Magento helper only when unset.
+  songListSuggestions: (o) =>
+    coalesceFieldAliases(o.songListSuggestions, getFormSongListColumnText(o)),
   powerMusicCovers: (o) => o.powerMusicCovers,
+  unleashTheBeatsCovers: (o) => coalesceFieldAliases(o.unleashTheBeatsCovers),
   routineNotes: (o) => o.routineNotes,
-  couponCode: (o) => o.couponCode || "",
+  couponCode: (o) => coalesceFieldAliases(o.couponCode),
   customVoiceovers: (o) => o.customVoiceovers,
   schoolGymAddress: (o) =>
-    o.schoolGymAddress || o.schoolAddress || o.gymBillingAddress || o.billingAddress,
-  divisionOfTeam: (o) => o.divisionOfTeam || o.division,
+    coalesceFieldAliases(
+      o.schoolGymAddress,
+      o.schoolAddress,
+      o.gymBillingAddress,
+      o.schoolBillingAddress
+    ),
+  divisionOfTeam: (o) => coalesceFieldAliases(o.divisionOfTeam, o.division),
   style: (o) => o.style,
-  styleOfGamedayMix: (o) => o.styleOfGamedayMix || o.style || "",
+  styleOfGamedayMix: (o) => coalesceFieldAliases(o.styleOfGamedayMix, o.style),
   licensingRequired: (o) => o.licensingRequired,
   voiceoverScript: (o) => o.voiceoverScript,
   pronunciationGuidance: (o) => o.pronunciationGuidance,
   organizationName: (o) =>
-    o.organizationName ||
-    o.schoolOrganizationName ||
-    o.schoolProgramName ||
-    o.schoolName ||
-    o.gymName ||
-    o.programName ||
-    "",
+    coalesceFieldAliases(
+      o.organizationName,
+      o.schoolOrganizationName,
+      o.schoolName,
+      o.gymName,
+      o.schoolProgramName,
+      o.programName
+    ),
   schoolOrganizationName: (o) =>
-    o.schoolOrganizationName ||
-    o.organizationName ||
-    o.schoolProgramName ||
-    o.schoolName ||
-    o.gymName ||
-    o.programName ||
-    "",
-  musicContactName: (o) => o.musicContactName || o.coachName || "",
-  musicContactPhone: (o) => o.musicContactPhone || o.coachPhone || "",
-  musicContactEmail: (o) => o.musicContactEmail || o.coachEmail || "",
-  billingContactName: (o) => o.billingContactName || o.billingPersonName || "",
+    coalesceFieldAliases(
+      o.schoolOrganizationName,
+      o.organizationName,
+      o.schoolName,
+      o.gymName,
+      o.schoolProgramName,
+      o.programName
+    ),
+  musicContactName: (o) =>
+    coalesceFieldAliases(o.musicContactName, o.coachName, o.coachContactFullName),
+  musicContactPhone: (o) =>
+    coalesceFieldAliases(o.musicContactPhone, o.coachPhone),
+  musicContactEmail: (o) =>
+    coalesceFieldAliases(o.musicContactEmail, o.coachEmail, o.coachEmailAddress),
+  billingContactName: (o) =>
+    coalesceFieldAliases(o.billingContactName, o.billingPersonName),
   billingContactEmail: (o) =>
-    o.billingContactEmail || o.billingPersonEmail || "",
+    coalesceFieldAliases(o.billingContactEmail, o.billingPersonEmail),
   isRushOrder: (o) => {
     const val = o.isRushOrder;
     if (val === undefined || val === null) return "";
     return String(val);
   },
-  mixEndDate: (o) => o.mixEndDate || "",
-  customerSongs: (o) => o.customerSongs || o.songListSuggestions || "",
-  additionalNotes: (o) => o.additionalNotes || o.routineNotes || "",
-  instrumentationNotes: (o) => o.instrumentationNotes || "",
-  lyricalNotes: (o) => o.lyricalNotes || "",
-  schoolProgramColors: (o) => o.schoolProgramColors || o.colors || o.teamColors || "",
-  nicknames: (o) => o.nicknames || "",
-  vocalsPreference: (o) => o.vocalsPreference || "",
-  instrumentalStylePreference: (o) => o.instrumentalStylePreference || "",
+  clientRequestedRushOrder: (o) => {
+    const val = o.clientRequestedRushOrder;
+    if (val === undefined || val === null) return "";
+    return String(val);
+  },
+  mixEndDate: (o) => coalesceFieldAliases(o.mixEndDate),
+  clientRequestedMixDueDate: (o) =>
+    coalesceFieldAliases(o.clientRequestedMixDueDate),
+  customerSongs: (o) =>
+    coalesceFieldAliases(o.customerSongs, o.songListSuggestions),
+  additionalNotes: (o) =>
+    coalesceFieldAliases(o.additionalNotes, o.routineNotes),
+  instrumentationNotes: (o) =>
+    coalesceFieldAliases(o.instrumentationNotes, o.instrumentalStylePreference),
+  instrumentalStylePreference: (o) =>
+    coalesceFieldAliases(o.instrumentationNotes, o.instrumentalStylePreference),
+  lyricalNotes: (o) => coalesceFieldAliases(o.lyricalNotes),
+  nicknames: (o) => coalesceFieldAliases(o.nicknames),
+  vocalsPreference: (o) => coalesceFieldAliases(o.vocalsPreference),
 };
 
 export function rawFieldValue(order: Order, key: string): string {
   const getter = FIELD_GETTERS[key];
-  if (getter) return getter(order) || "";
+  if (getter) {
+    const value = getter(order);
+    if (value === undefined || value === null) return "";
+    return String(value);
+  }
   const direct = order[key as keyof Order];
   if (direct === null || direct === undefined) return "";
   return String(direct);

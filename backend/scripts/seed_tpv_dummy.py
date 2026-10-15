@@ -6,6 +6,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from app.core.database import SessionLocal
 from app.models.order import Order
+from app.seed.ids import seed_uuid
 
 TPV_DEMO = [
     {
@@ -56,18 +57,18 @@ def main() -> None:
     try:
         for i, row in enumerate(TPV_DEMO, 1):
             legacy = row["legacy_id"]
-            existing = db.query(Order).filter(Order.legacy_id == legacy).first()
+            order_pk = seed_uuid("order", legacy)
+            existing = db.query(Order).filter(Order.id == order_pk).first()
             if existing:
                 print(f"skip {legacy} (exists)")
                 continue
 
             order = Order(
-                legacy_id=legacy,
+                id=order_pk,
                 form_type="school-all-star-dance",
                 dance_form_subtype="team-performance-variety",
-                category="Dance",
-                school_program_name=row["school_program_name"],
-                school_address=f"{800 + i} Performance Way",
+                school_gym_name=row["school_program_name"],
+                school_gym_billing_address=f"{800 + i} Performance Way",
                 city="Seattle",
                 state_province="WA",
                 zip_postal_code="98101",
@@ -98,10 +99,8 @@ def main() -> None:
                 coupon_code="TPV2026" if i % 2 == 0 else None,
                 customer_name=f"Coach Morgan {i} ({row['school_program_name']})",
                 contact_name=f"Coach Morgan {i}",
-                program_name=row["school_program_name"],
-                editor_request="FA",
+                editor_initials="FA",
                 requested_editor="First Available",
-                requested_producer="FA",
                 status="new",
                 price=500.0 + (i * 25),
                 price_compliance="compliant" if "Non compliant" not in row["music_affiliate"] else "nonCompliant",

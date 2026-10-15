@@ -22,6 +22,7 @@ from app.services.board_events import board_event_hub
 
 router = APIRouter()
 
+
 def is_valid_uuid(val: str) -> bool:
     try:
         uuid.UUID(val)
@@ -30,20 +31,16 @@ def is_valid_uuid(val: str) -> bool:
         return False
 
 def _find_mtd(db: Session, mtd_id: str) -> MTDRecord | None:
-    if is_valid_uuid(mtd_id):
-        parsed_uuid = uuid.UUID(mtd_id)
-        mtd = (
-            db.query(MTDRecord)
-            .filter(
-                (MTDRecord.id == parsed_uuid)
-                | (MTDRecord.order_id == parsed_uuid)
-                | (MTDRecord.legacy_id == mtd_id)
-            )
-            .first()
+    if not is_valid_uuid(mtd_id):
+        return None
+    parsed_uuid = uuid.UUID(mtd_id)
+    return (
+        db.query(MTDRecord)
+        .filter(
+            (MTDRecord.id == parsed_uuid) | (MTDRecord.order_id == parsed_uuid)
         )
-        if mtd:
-            return mtd
-    return db.query(MTDRecord).filter(MTDRecord.legacy_id == mtd_id).first()
+        .first()
+    )
 
 @router.get("/mtd", response_model=List[MTDRecordSchema])
 def get_mtd_records(
@@ -204,7 +201,7 @@ def update_mtd_record(mtd_id: str, payload: MTDRecordUpdateSchema, db: Session =
                 linked_order.contact_name = mtd.contact_name
                 linked_order.customer_name = mtd.contact_name
             if "program_name" in unset:
-                linked_order.school_gym_name = mtd.program_name
+                linked_order.program_name = mtd.program_name
             if "package" in unset:
                 linked_order.package = mtd.package
             if "music_theme" in unset:
@@ -229,8 +226,10 @@ def update_mtd_record(mtd_id: str, payload: MTDRecordUpdateSchema, db: Session =
                 linked_order.collection_states = mtd.collection_states
             if "have_songs" in unset:
                 linked_order.have_songs = mtd.have_songs
-            if "eight_count_sheet" in unset:
-                linked_order.eight_count_sheet = mtd.eight_count_sheet
+            if "received_eight_count_sheet" in unset:
+                linked_order.received_eight_count_sheet = (
+                    mtd.received_eight_count_sheet or ""
+                )
             if "missing_data_email_sent_at" in unset:
                 linked_order.missing_data_email_sent_at = mtd.missing_data_email_sent_at
             if "producer_email_sent_at" in unset:
@@ -324,40 +323,74 @@ def create_manual_schedule_entry(
     data = payload.model_dump()
     assigned_prod_str = data.pop("assigned_producer", None)
 
+    category = data.get("category") or "Cheer"
     form_type = data.get("form_type") or "school-all-star-cheer"
-    cheer_form_subtype = data.get("cheer_form_subtype")
-    dance_form_subtype = data.get("dance_form_subtype")
+    # Subtype is exclusive by form family — never store dance subtype on cheer (or vice versa).
+    if form_type == "school-all-star-cheer":
+        cheer_form_subtype = data.get("cheer_form_subtype") or "all-star-cheer"
+        dance_form_subtype = None
+    elif form_type == "school-all-star-dance":
+        cheer_form_subtype = None
+        dance_form_subtype = data.get("dance_form_subtype") or "pom"
+    else:
+        cheer_form_subtype = None
+        dance_form_subtype = None
 
-    contact = data.get("contact_name")
-    program = (
+    contact = (data.get("contact_name") or data.get("coach_name") or "").strip() or None
+    program = data.get("program_name")
+    school_program = data.get("school_program_name")
+    identity = (
+        program
+        or school_program
+        or data.get("gym_name")
+        or data.get("school_gym_name") or data.get("school_name")
+        or ""
+    ).strip() or None
+    # customer_name / contact_name are people — never seed from school/org identity.
+
+    # One identity column: school_gym_name (Gym / School / Program / Org).
+    school_gym_name = (
         data.get("school_gym_name")
-        or data.get("program_name")
-        or data.get("school_program_name")
+        or data.get("school_name")
+        or data.get("gym_name")
+        or school_program
+        or identity
     )
-    cust_name = contact or program or "Customer"
+    team_name = data.get("team_name")
 
     order = Order(
         form_type=form_type,
         cheer_form_subtype=cheer_form_subtype,
         dance_form_subtype=dance_form_subtype,
-        customer_name=cust_name,
+        customer_name=contact,
         contact_name=contact,
-        school_gym_name=program,
-        youth_rec_extra_email_address=data.get("email"),
-        coach_email=data.get("coach_email"),
-        package=data.get("package") or "Standard",
+        school_gym_name=school_gym_name,
+        team_name=team_name,
+        coach_email=data.get("coach_email") or data.get("email"),
+        youth_rec_extra_email_address=(
+            data.get("youth_rec_extra_email_address")
+            or data.get("email_address")
+            if cheer_form_subtype == "youth-rec-cheer"
+            else None
+        ),
+        package=(
+            "SCHOOL ANTHEMS"
+            if form_type == "school-anthem"
+            else (data.get("package") or "Standard")
+        ),
+        package_type="SCHOOL ANTHEMS" if form_type == "school-anthem" else None,
         mix_start_date=data.get("mix_start_date"),
         mix_end_date=data.get("mix_end_date"),
         order_status="Complete",
         status="new",
-        price=0.0,
+        price=1250.0 if form_type == "school-anthem" else 0.0,
         is_manual_entry=True,
         routine_notes=data.get("routine_notes"),
         music_affiliate=data.get("music_affiliate"),
         time_length_of_mix=data.get("time_length_of_mix"),
         song_list_suggestions=data.get("song_list_suggestions"),
         custom_voiceovers=data.get("custom_voiceovers"),
-        eight_count_sheet=data.get("eight_count_sheet"),
+        received_eight_count_sheet=data.get("received_eight_count_sheet"),
         have_songs="HAVE SONGS" if data.get("song_list_suggestions") else "NEED SONGS",
     )
     if assigned_prod_str:

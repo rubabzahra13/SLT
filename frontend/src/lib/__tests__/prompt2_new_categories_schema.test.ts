@@ -86,7 +86,7 @@ describe("Prompt 2 — Schema Definition for Marching Band, Sports Entertainment
       // Sports Entertainment Customer-Submitted Fields (Exact list per spec)
       formType: "sports-entertainment",
       organizationName: "Austin Arena Events",
-      billingAddress: "500 Center Court Blvd",
+      organizationBillingAddress: "500 Center Court Blvd",
       city: "Austin",
       stateProvince: "TX",
       zipPostalCode: "78701",
@@ -97,7 +97,8 @@ describe("Prompt 2 — Schema Definition for Marching Band, Sports Entertainment
       billingContactName: "Linda McMahon",
       billingContactEmail: "finance@austinarena.com",
       packageType: "HALFTIME SHOW",
-      isRushOrder: "yes",
+      clientRequestedMixDueDate: "2026-10-20",
+      clientRequestedRushOrder: "yes",
       timeLengthOfMix: "2:00",
       customerSongs: "Eye of the Tiger, Welcome to the Jungle, Thunderstruck",
       additionalNotes: "Include stadium crowd hypes and buzzer sound effect at 1:45.",
@@ -110,7 +111,10 @@ describe("Prompt 2 — Schema Definition for Marching Band, Sports Entertainment
     assert.equal((sportsEntOrder as any).couponCode, undefined, "Sports Entertainment must NOT have couponCode");
 
     assert.equal(sportsEntOrder.organizationName, "Austin Arena Events");
-    assert.equal(sportsEntOrder.billingAddress, "500 Center Court Blvd");
+    assert.equal(
+      sportsEntOrder.organizationBillingAddress,
+      "500 Center Court Blvd"
+    );
     assert.equal(sportsEntOrder.city, "Austin");
     assert.equal(sportsEntOrder.stateProvince, "TX");
     assert.equal(sportsEntOrder.zipPostalCode, "78701");
@@ -161,7 +165,7 @@ describe("Prompt 2 — Schema Definition for Marching Band, Sports Entertainment
       schoolProgramColors: "Red, Black, and White",
       nicknames: "LT Cavs",
       vocalsPreference: "Full Choir + Soloist",
-      instrumentalStylePreference: "Orchestral Brass & Strings",
+      instrumentationNotes: "Orchestral Brass & Strings",
       lyricalNotes: "Hail to the Cavaliers, victorious and strong!",
       couponCode: "AUSTIN2026",
     };
@@ -186,7 +190,7 @@ describe("Prompt 2 — Schema Definition for Marching Band, Sports Entertainment
     assert.equal(anthemOrder.schoolProgramColors, "Red, Black, and White");
     assert.equal(anthemOrder.nicknames, "LT Cavs");
     assert.equal(anthemOrder.vocalsPreference, "Full Choir + Soloist");
-    assert.equal(anthemOrder.instrumentalStylePreference, "Orchestral Brass & Strings");
+    assert.equal(anthemOrder.instrumentationNotes, "Orchestral Brass & Strings");
     assert.equal(anthemOrder.lyricalNotes, "Hail to the Cavaliers, victorious and strong!");
     assert.equal(anthemOrder.couponCode, "AUSTIN2026");
   });

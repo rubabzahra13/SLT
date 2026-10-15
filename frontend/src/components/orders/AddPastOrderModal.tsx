@@ -61,7 +61,7 @@ export function AddPastOrderModal({
       musicAffiliate: "Power Music Covers",
       powerMusicCovers: form.musicTheme.toUpperCase() || "",
       routineNotes: form.musicTheme.toUpperCase() || "",
-      customVoiceovers: "No - None",
+      customVoiceovers: "",
       category: form.category,
       package: form.package.toUpperCase() || "TBD",
       musicTheme: form.musicTheme.toUpperCase() || "PM & UTB COVERS (CM)",

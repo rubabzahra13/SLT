@@ -1415,8 +1415,8 @@ export function SetPricingModal({
                       {isEditingCompliant
                         ? "Check which affiliate values count as compliant for payroll pricing."
                         : selectedCategory === "All-Star Cheer"
-                          ? "Compliant: Power Music & Unleash the Beats Covers. Non-compliant: Songs for Cheer, 100% original custom music (titanium only), and Non compliant."
-                          : "Free-text affiliates matching Power Music / Unleash / Library (any spacing or capitalization) use the compliant column; any other text uses the non-compliant column."}
+                          ? "Compliant: Power Music & Unleash Covers, Power Music Covers, Unleash the Beats Covers, Songs for Cheer, and 100% original custom music. Non-compliant: “Non compliant” or any other free text. Choosing more than one compliant option flags the order until resolved to one."
+                          : "Free-text affiliates matching a known compliant option (any spacing or capitalization) use the compliant column; “Non compliant” or any other text uses the non-compliant column. Multiple compliant selections flag the order until resolved to one."}
                     </p>
                   </div>
                   {!isEditingCompliant ? (

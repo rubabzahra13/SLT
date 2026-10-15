@@ -49,7 +49,8 @@ export function SetRecordPricingModal({
       typeof initialPrice === "number" && Number.isFinite(initialPrice)
         ? initialPrice
         : record.price;
-    setPriceDraft(String(seed));
+    // Needs Quote starts empty so the operator types the quote amount.
+    setPriceDraft(typeof seed === "number" && seed > 0 ? String(seed) : "");
     setSaving(false);
   }, [open, record, initialPrice]);
 
@@ -211,7 +212,7 @@ export function SetRecordPricingModal({
                 placeholder="0.00"
               />
             </div>
-            {priceChanged ? (
+            {priceChanged && seededPrice > 0 ? (
               <p className="mt-1.5 text-[12px] text-brand-ink-tertiary">
                 Previously {formatPrice(seededPrice)}
               </p>

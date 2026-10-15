@@ -5,7 +5,6 @@ from uuid import UUID
 
 class StudioHolidaySchema(BaseModel):
     id: UUID
-    legacy_id: Optional[str] = None
     name: str
     start_date: str
     end_date: str
@@ -17,7 +16,6 @@ class StudioHolidaySchema(BaseModel):
 
 
 class StudioHolidayCreateSchema(BaseModel):
-    legacy_id: Optional[str] = None
     name: str
     start_date: str
     end_date: str
@@ -37,7 +35,6 @@ class StudioHolidayUpdateSchema(BaseModel):
 
 class StudioPersonalReasonSchema(BaseModel):
     id: UUID
-    legacy_id: Optional[str] = None
     name: str
     enabled: bool = True
     is_other: bool = False
@@ -47,7 +44,6 @@ class StudioPersonalReasonSchema(BaseModel):
 
 
 class StudioPersonalReasonCreateSchema(BaseModel):
-    legacy_id: Optional[str] = None
     name: str
     enabled: bool = True
     is_other: bool = False

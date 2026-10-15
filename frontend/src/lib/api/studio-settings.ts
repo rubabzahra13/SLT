@@ -9,7 +9,6 @@ import { normalizeEmailTemplates } from "@/lib/email-templates";
 
 export interface BackendStudioPersonalReason {
   id: string;
-  legacy_id?: string | null;
   name: string;
   enabled: boolean;
   is_other: boolean;
@@ -25,18 +24,11 @@ export interface BackendEmailTemplate {
   signature: string;
 }
 
-function isUuidLike(value: string | undefined): boolean {
-  if (!value) return false;
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-    value
-  );
-}
-
 export function transformStudioPersonalReason(
   row: BackendStudioPersonalReason
 ): StudioPersonalReason {
   return normalizeStudioPersonalReason({
-    id: row.legacy_id || row.id,
+    id: row.id,
     name: row.name,
     enabled: row.enabled,
     isOther: row.is_other,
@@ -61,7 +53,6 @@ export async function createStudioPersonalReasonApi(
   reason: StudioPersonalReason
 ): Promise<StudioPersonalReason> {
   const payload = {
-    legacy_id: isUuidLike(reason.id) ? undefined : reason.id,
     name: reason.name,
     enabled: reason.enabled,
     is_other: Boolean(reason.isOther),

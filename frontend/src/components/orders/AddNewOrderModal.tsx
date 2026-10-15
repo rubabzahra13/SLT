@@ -9,8 +9,15 @@ import { useAppState } from "@/context/AppStateContext";
 import type { CreateManualSchedulePayload } from "@/lib/api/mtd";
 import { orderPatchFromOrderField } from "@/lib/mtd-order-sync";
 import { packageTypeDisplayValue } from "@/components/mtd/PackageTypeField";
-import { getOrderIdentityName } from "@/lib/order-detail-sections";
+import {
+  getOrderIdentityFieldKey,
+  getOrderIdentityName,
+} from "@/lib/order-detail-sections";
 import { normalizeOrder } from "@/lib/order-form";
+import {
+  formatAddOrderSaveBlockReason,
+  getAddOrderRequiredGaps,
+} from "@/lib/order-form-missing";
 import { parsePackage } from "@/lib/package";
 import type {
   CheerFormSubtype,
@@ -129,23 +136,66 @@ function blankOrderDraft(
     division: "",
   } as Order);
 
-  // normalizeOrder infers affiliate/songs from empty theme — clear for a blank form.
+  // normalizeOrder may infer affiliate/songs — wipe for a true blank Google-style form.
   const cleared = {
     ...draft,
     musicAffiliate: "",
     songListSuggestions: "",
     musicTheme: "",
     routineNotes: "",
+    additionalNotes: "",
     division: "",
     package: "",
     packageType: "",
     timeLengthOfMix: "",
+    // Identity / contact aliases empty so clearable coalesced getters stay blank.
+    schoolOrganizationName: "",
+    organizationName: "",
+    schoolName: "",
+    gymName: "",
+    schoolProgramName: "",
+    programName: "",
+    teamName: "",
+    schoolBillingAddress: "",
+    gymBillingAddress: "",
+    schoolAddress: "",
+    schoolGymAddress: "",
+    youthRecBillingAddress: "",
+    organizationBillingAddress: "",
+    city: "",
+    stateProvince: "",
+    zipPostalCode: "",
+    musicContactName: "",
+    musicContactPhone: "",
+    musicContactEmail: "",
+    coachName: "",
+    coachContactFullName: "",
+    coachPhone: "",
+    coachEmail: "",
+    coachEmailAddress: "",
+    contactName: "",
+    customerName: "",
+    billingPersonName: "",
+    billingPersonEmail: "",
+    billingContactName: "",
+    billingContactEmail: "",
+    mascot: "",
+    nicknames: "",
+    schoolProgramColors: "",
+    teamColors: "",
+    vocalsPreference: "",
+    instrumentationNotes: "",
+    instrumentalStylePreference: "",
+    lyricalNotes: "",
+    couponCode: "",
   };
   if (formType === "school-anthem") {
     return {
       ...cleared,
       packageType: "SCHOOL ANTHEMS",
       package: "SCHOOL ANTHEMS",
+      price: 1250,
+      country: cleared.country || "United States",
     };
   }
   return cleared;
@@ -177,6 +227,8 @@ export function AddNewOrderModal({
   const [orderDraft, setOrderDraft] = useState<Order | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  /** Google-style: only highlight required empties after Save is attempted. */
+  const [showValidation, setShowValidation] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -187,6 +239,7 @@ export function AddNewOrderModal({
       setOrderDraft(null);
       setError(null);
       setSaving(false);
+      setShowValidation(false);
       return;
     }
 
@@ -270,11 +323,21 @@ export function AddNewOrderModal({
       if (!prev) return prev;
       return { ...prev, ...orderPatchFromOrderField(key, value, prev) };
     });
+    setError(null);
   }, []);
 
   const handleSave = async () => {
     if (!orderDraft) return;
     setError(null);
+
+    // Admin Add Order: only identity name (Gym / School / Org) is required.
+    const gaps = getAddOrderRequiredGaps(orderDraft);
+    if (gaps.length > 0) {
+      setShowValidation(true);
+      setError(formatAddOrderSaveBlockReason(gaps));
+      return;
+    }
+
     setSaving(true);
 
     const { category, subcategory } = categoryLabelsForForm(
@@ -321,19 +384,28 @@ export function AddNewOrderModal({
         assigned_producer: null,
         contact_name: contact.trim() || null,
         email:
-          orderDraft.emailAddress ||
           orderDraft.coachEmail ||
           orderDraft.coachEmailAddress ||
           null,
         coach_email:
           orderDraft.coachEmail || orderDraft.coachEmailAddress || null,
-        program_name: program.trim() || null,
-        school_program_name:
-          orderDraft.schoolProgramName ||
-          orderDraft.schoolName ||
-          orderDraft.gymName ||
+        youth_rec_extra_email_address:
+          cheerSubtype === "youth-rec-cheer"
+            ? orderDraft.youthRecExtraEmailAddress?.trim() ||
+              orderDraft.emailAddress?.trim() ||
+              null
+            : null,
+        // Identity SoT is school_gym_name (Gym / School / Program / Org).
+        program_name: null,
+        school_gym_name:
+          orderDraft.schoolName?.trim() ||
+          orderDraft.gymName?.trim() ||
+          orderDraft.schoolProgramName?.trim() ||
+          program.trim() ||
           null,
-        package: selectedPkg,
+        team_name: orderDraft.teamName?.trim() || null,
+        package:
+          formType === "school-anthem" ? "SCHOOL ANTHEMS" : selectedPkg,
         time_length_of_mix: mixLength || null,
         song_list_suggestions: orderDraft.songListSuggestions || null,
         power_music_covers: orderDraft.powerMusicCovers || null,
@@ -341,7 +413,7 @@ export function AddNewOrderModal({
         custom_voiceovers: orderDraft.customVoiceovers || null,
         voiceover_script: orderDraft.voiceoverScript || null,
         pronunciation_guidance: orderDraft.pronunciationGuidance || null,
-        eight_count_sheet: undefined,
+        received_eight_count_sheet: undefined,
         video_url: null,
         music_affiliate: orderDraft.musicAffiliate || undefined,
       });
@@ -353,12 +425,24 @@ export function AddNewOrderModal({
           ...orderDraft,
           id: created.id,
           category,
-          package: selectedPkg,
-          packageType: tier || orderDraft.packageType,
+          package:
+            formType === "school-anthem" ? "SCHOOL ANTHEMS" : selectedPkg,
+          packageType:
+            formType === "school-anthem"
+              ? "SCHOOL ANTHEMS"
+              : tier || orderDraft.packageType,
+          price: formType === "school-anthem" ? 1250 : orderDraft.price,
           timeLengthOfMix: mixLength,
           contactName: contact,
           customerName: contact,
           programName: program,
+          gymName:
+            orderDraft.gymName?.trim() ||
+            (cheerSubtype === "all-star-cheer" ? program : ""),
+          schoolName:
+            orderDraft.schoolName?.trim() ||
+            orderDraft.gymName?.trim() ||
+            program,
           formType,
           cheerFormSubtype:
             formType === "school-all-star-cheer" ? cheerSubtype : undefined,
@@ -520,6 +604,10 @@ export function AddNewOrderModal({
             discountCodes={discountCodes}
             producers={producers}
             editable
+            highlightMissing={showValidation}
+            requiredFieldKeys={[
+              getOrderIdentityFieldKey(formType, cheerSubtype, danceSubtype),
+            ]}
             onFieldChange={handleFieldChange}
           />
         </div>

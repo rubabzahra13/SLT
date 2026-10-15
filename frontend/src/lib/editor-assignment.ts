@@ -31,6 +31,63 @@ export { orderCategoryToProducerCategory } from "./producer-category";
 
 export const FIRST_AVAILABLE_LABEL = "First Available";
 
+/**
+ * Magento / New Order forms that collect a Requested Editor / Form producer.
+ * School Anthem, Sports Entertainment, Marching Band, and Youth Rec do not.
+ */
+export function formHasRequestedProducer(
+  formType?: string | null,
+  cheerFormSubtype?: string | null
+): boolean {
+  const ft = String(formType || "")
+    .trim()
+    .toLowerCase();
+  const sub = String(cheerFormSubtype || "")
+    .trim()
+    .toLowerCase();
+
+  if (
+    ft === "school-anthem" ||
+    ft === "sports-entertainment" ||
+    ft === "marching-band" ||
+    ft.includes("anthem") ||
+    (ft.includes("sports") && ft.includes("entertain")) ||
+    ft === "band" ||
+    ft.includes("marching")
+  ) {
+    return false;
+  }
+
+  if (sub === "youth-rec-cheer" || sub.includes("youth-rec")) {
+    return false;
+  }
+
+  // All Star / School Cheer + Dance Magento forms include Requested Editor.
+  if (ft === "school-all-star-cheer" || ft.includes("cheer")) return true;
+  if (ft === "school-all-star-dance" || ft.includes("dance")) return true;
+
+  return false;
+}
+
+export function recordHasRequestedProducer(
+  record: Pick<MTDRecord, "formType" | "category" | "cheerFormSubtype"> & {
+    form_type?: string;
+    cheer_form_subtype?: string;
+  },
+  linkedOrder?: Order | null
+): boolean {
+  const formType =
+    linkedOrder?.formType ||
+    record.formType ||
+    record.form_type ||
+    (typeof record.category === "string" ? record.category : "");
+  const cheerSubtype =
+    linkedOrder?.cheerFormSubtype ||
+    record.cheerFormSubtype ||
+    record.cheer_form_subtype;
+  return formHasRequestedProducer(formType, cheerSubtype);
+}
+
 export function isFirstAvailableRequest(
   value: string | null | undefined
 ): boolean {
@@ -157,6 +214,8 @@ export function formatRequestedEditorLabel(
   producers: Producer[],
   linkedOrder?: Order | null
 ): string {
+  // Forms without a Magento Requested Editor must not imply First Available.
+  if (!recordHasRequestedProducer(record, linkedOrder)) return "";
   const requested = getRequestedEditorFromRecord(record, producers, linkedOrder);
   if (!requested) return FIRST_AVAILABLE_LABEL;
   return formatRequestedProducerDisplay(requested, producers);
@@ -212,20 +271,11 @@ function isProducerOverDailyLimitsForRecord(
 export function pickDefaultEditor(
   record: MTDRecord,
   producers: Producer[],
-  mtdRecords: MTDRecord[],
-  schedule: ScheduleEntry[],
+  _mtdRecords: MTDRecord[],
+  _schedule: ScheduleEntry[],
   linkedOrder?: Order | null
 ): EditorPick {
-  const category = record.category;
-  const eligible = getEditorNamesForCategory(producers, category);
-  const available = getSuggestedEditors(
-    mtdRecords,
-    producers,
-    schedule,
-    category,
-    record.id,
-    record
-  ).map((suggestion) => suggestion.name);
+  const eligible = getEditorNamesForCategory(producers, record.category);
   const requestedEditor = getRequestedEditorFromRecord(
     record,
     producers,
@@ -243,28 +293,9 @@ export function pickDefaultEditor(
     };
   }
 
-  if (requestedEditor) {
-    const matchedKey = eligible.find((name) =>
-      producerKeysMatch(name, requestedEditor)
-    );
-    if (matchedKey) {
-      const requestedProducer = findProducerByAssignmentKey(matchedKey, producers);
-      const isAvailable =
-        available.some((name) => producerKeysMatch(name, requestedEditor)) &&
-        !(
-          requestedProducer &&
-          isProducerOverDailyLimitsForRecord(requestedProducer, record, mtdRecords)
-        );
-      return {
-        editor: matchedKey,
-        requestedEditor,
-        reason: isAvailable ? "requested_available" : "requested_busy",
-      };
-    }
-  }
-
+  // Client request is a suggestion only — never auto-select / auto-assign.
   return {
-    editor: available[0] || "",
+    editor: "",
     requestedEditor,
     reason: "first_available",
   };
@@ -358,18 +389,16 @@ export function resolveAssignedProducerForPatch(
   return trimmed ? trimmed.toUpperCase() : null;
 }
 
-/** Assigned producer shown in MTD / Orders tables. */
+/** Assigned producer shown in MTD / Orders tables.
+ * Client request (editorRequest / Form producer) is a suggestion only —
+ * never treat it as an assignment.
+ */
 export function getDisplayAssignedProducer(
   rec: MTDRecord | null | undefined
 ): string | null {
   if (!rec) return null;
   const assigned = rec.assignedProducer?.trim();
-  if (assigned) return assigned;
-
-  const request = rec.editorRequest?.trim();
-  if (request && request !== "FA" && request !== "NA") return request;
-
-  return null;
+  return assigned || null;
 }
 
 /**

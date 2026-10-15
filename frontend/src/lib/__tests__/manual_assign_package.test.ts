@@ -104,6 +104,20 @@ describe("manual Assign unlock when package filled", () => {
     );
   });
 
+  it("treats Magento-matched manual slots as Form orders for Assign unlock", () => {
+    const rec = baseRecord({
+      isManualScheduleEntry: true,
+      package: "SCHOOL ANTHEMS",
+    });
+    const matched = baseOrder({
+      isManualEntry: true,
+      package: "SCHOOL ANTHEMS",
+      packageType: "SCHOOL ANTHEMS",
+      mergedFormOrderId: "form-1",
+    });
+    assert.equal(canAssignManualDespiteMissingData(rec, [matched]), false);
+  });
+
   it("keeps Assign locked for manual rows until package is set", () => {
     assert.equal(
       canAssignManualDespiteMissingData(baseRecord({ package: "" }), [

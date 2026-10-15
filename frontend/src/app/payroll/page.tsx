@@ -397,7 +397,7 @@ export default function PayrollPage() {
       : tableFiltered.filter((rec) => matchesMTDSearch(rec, q));
     return sortMTDRecordsBySortKey(
       searched,
-      tableFilters.sortBy ?? "none",
+      tableFilters.sortBy ?? "newest",
       producers,
       orderById
     );
@@ -1397,7 +1397,12 @@ export default function PayrollPage() {
               onFiltersChange={(patch) =>
                 setTableFilters((prev) => ({ ...prev, ...patch }))
               }
-              onFiltersReset={() => setTableFilters(DEFAULT_MTD_TABLE_FILTERS)}
+              onFiltersReset={() =>
+                setTableFilters((prev) => ({
+                  ...DEFAULT_MTD_TABLE_FILTERS,
+                  sortBy: prev.sortBy ?? "newest",
+                }))
+              }
             />
           ) : pageTab === "voiceovers" ? (
             <div className="relative z-40 inline-flex flex-wrap items-center gap-0.5 rounded-xl bg-brand-elevated/80 p-0.5 ring-1 ring-inset ring-brand-line/40">

@@ -33,7 +33,10 @@ import { useAppState } from "@/context/AppStateContext";
 import { toIsoDateString } from "@/lib/dates";
 import { formatPrice } from "@/lib/data";
 import { orderFromMTDRecord, rawFieldValue } from "@/lib/order-detail-fields";
-import { getOrderDetailSections } from "@/lib/order-detail-sections";
+import {
+  getOrderDetailSections,
+  getOrderIdentityFieldKey,
+} from "@/lib/order-detail-sections";
 import { findLinkedOrder, findProducerByAssignmentKey } from "@/lib/editor-assignment";
 import {
   cycleEightCsItem,
@@ -661,6 +664,13 @@ export default function MTDDetailPage({
             producers={producers}
             editable={orderFormEditing && !isViewOnly}
             onFieldChange={handleOrderDraftChange}
+            requiredFieldKeys={[
+              getOrderIdentityFieldKey(
+                orderForm.formType,
+                orderForm.cheerFormSubtype,
+                orderForm.danceFormSubtype
+              ),
+            ]}
           />
         </section>
       </div>

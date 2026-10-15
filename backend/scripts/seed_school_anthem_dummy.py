@@ -6,6 +6,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from app.core.database import SessionLocal
 from app.models.order import Order
+from app.seed.ids import seed_uuid
 
 SCHOOL_ANTHEM_DEMO = [
     {
@@ -15,7 +16,7 @@ SCHOOL_ANTHEM_DEMO = [
         "colors": "Red, White and Blue",
         "nicknames": "MHS, 'Stangs'",
         "vocals_preference": "Male vocals",
-        "instrumental_style_preference": "Pop / Rock with marching energy",
+        "instrumentation_notes": "Pop / Rock with marching energy",
         "lyrical_notes": (
             "Include Go Mustangs, Home of the Stangs, and ASB pride chants. "
             "Mention football, basketball, and student section."
@@ -28,7 +29,7 @@ SCHOOL_ANTHEM_DEMO = [
         "colors": "Red, Black, and White",
         "nicknames": "LT Cavs",
         "vocals_preference": "Mixed vocals",
-        "instrumental_style_preference": "Orchestral Brass & Strings",
+        "instrumentation_notes": "Orchestral Brass & Strings",
         "lyrical_notes": "Hail to the Cavaliers, victorious and strong!",
     },
     {
@@ -38,7 +39,7 @@ SCHOOL_ANTHEM_DEMO = [
         "colors": "Green & Black",
         "nicknames": "Horizon Hawks",
         "vocals_preference": "Choir / Group vocals",
-        "instrumental_style_preference": "Cinematic anthem with choir pads",
+        "instrumentation_notes": "Cinematic anthem with choir pads",
         "lyrical_notes": (
             "Keywords: Rise Up Hawks, Horizon Pride, Clubs & ASB. "
             "Brainstorm with student council mottos."
@@ -53,29 +54,26 @@ def main() -> None:
     try:
         for i, row in enumerate(SCHOOL_ANTHEM_DEMO, 1):
             legacy = row["legacy_id"]
-            existing = db.query(Order).filter(Order.legacy_id == legacy).first()
+            order_pk = seed_uuid("order", legacy)
+            existing = db.query(Order).filter(Order.id == order_pk).first()
             if existing:
                 print(f"skip {legacy} (exists)")
                 continue
 
             order = Order(
-                legacy_id=legacy,
+                id=order_pk,
                 form_type="school-anthem",
-                category="School Anthems",
-                school_program_name=row["school_program_name"],
-                program_name=row["school_program_name"],
-                school_address=f"{300 + i} Campus Drive",
-                school_billing_address=f"{300 + i} Campus Drive",
+                school_gym_name=row["school_program_name"],
+                school_gym_billing_address=f"{300 + i} Campus Drive",
                 city="Austin",
                 state_province="TX",
                 zip_postal_code="78701",
                 country="United States",
                 mascot=row["mascot"],
                 colors=row["colors"],
-                team_colors=row["colors"],
                 nicknames=row["nicknames"],
                 vocals_preference=row["vocals_preference"],
-                instrumental_style_preference=row["instrumental_style_preference"],
+                instrumentation_notes=row["instrumentation_notes"],
                 lyrical_notes=row["lyrical_notes"],
                 coach_name=f"Music Contact Alex {i}",
                 coach_phone=f"555-340{i}",
@@ -88,11 +86,10 @@ def main() -> None:
                 music_affiliate=None,
                 customer_name=f"Music Contact Alex {i} ({row['school_program_name']})",
                 contact_name=f"Music Contact Alex {i}",
-                editor_request="FA",
+                editor_initials="FA",
                 requested_editor="First Available",
-                requested_producer="FA",
                 status="new",
-                price=800.0 + (i * 40),
+                price=1250.0,
                 price_compliance="compliant",
                 needs_attention=False,
                 is_past_order=False,

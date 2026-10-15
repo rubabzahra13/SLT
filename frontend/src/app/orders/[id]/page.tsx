@@ -10,12 +10,16 @@ import { SetPricingModal } from "@/components/mtd/SetPricingModal";
 import { useAppState } from "@/context/AppStateContext";
 import { orderFromMTDRecord, rawFieldValue } from "@/lib/order-detail-fields";
 import { orderToMTDRecord } from "@/lib/order-form";
-import { getOrderDetailSections } from "@/lib/order-detail-sections";
+import {
+  getOrderDetailSections,
+  getOrderIdentityFieldKey,
+} from "@/lib/order-detail-sections";
 import { findLinkedOrder } from "@/lib/editor-assignment";
 import {
   buildFieldSourceMap,
   enrichOrderWithMatchingForm,
-  mergeFormWinsPatches,
+  ensureManualFormSnapshot,
+  overwriteManualWithFormPatches,
   resolveManualFormPair,
   splitManualFormPatches,
 } from "@/lib/manual-form-merge";
@@ -24,6 +28,7 @@ import {
   mtdPatchFromOrderField,
   orderPatchFromOrderField,
 } from "@/lib/mtd-order-sync";
+import { resolveOrderFormDisplay } from "@/lib/order-form-display";
 import type { Order } from "@/types";
 
 export default function OrderDetailPage({
@@ -78,45 +83,16 @@ export default function OrderDetailPage({
 
   const fieldSources = useMemo(() => {
     if (!pair) return undefined;
-    const keys = getOrderDetailSections(pair.manual).flatMap((s) =>
+    const sectionOrder = resolveOrderFormDisplay(pair.manual, record);
+    const keys = getOrderDetailSections(sectionOrder).flatMap((s) =>
       s.fields.map((f) => f.key)
     );
-    return buildFieldSourceMap(pair.manual, pair.form, keys);
-  }, [pair]);
-
-  const isPairMerged = Boolean(
-    pair &&
-      (pair.manual.mergedFormOrderId ||
-        pair.form.mergedIntoManualOrderId ||
-        (pair.manual.manualOverlapSnapshot &&
-          Object.keys(pair.manual.manualOverlapSnapshot).length > 0))
-  );
-
-  const handleMergePair = useCallback(async () => {
-    if (!pair || isViewOnly) return;
-    const { manualPatch, formPatch } = mergeFormWinsPatches(
-      pair.manual,
-      pair.form
-    );
-    await updateOrder(pair.manual.id, manualPatch, pair.manual);
-    await updateOrder(pair.form.id, formPatch, pair.form);
-    setOrderDraft((prev) =>
-      prev
-        ? {
-            ...prev,
-            ...manualPatch,
-            manualOverlapSnapshot:
-              manualPatch.manualOverlapSnapshot ?? prev.manualOverlapSnapshot,
-          }
-        : prev
-    );
-    addNotification({
-      type: "mtd_move",
-      title: "Orders merged",
-      message:
-        "Form data kept on overlaps; manual-only fields preserved. Form row absorbed.",
+    const withSnap = ensureManualFormSnapshot(pair.manual, pair.form);
+    return buildFieldSourceMap(pair.manual, pair.form, keys, {
+      preferFormOnOverlap: true,
+      frozenManualSnapshot: withSnap.manualOverlapSnapshot,
     });
-  }, [pair, isViewOnly, updateOrder, addNotification]);
+  }, [pair, record]);
 
   const handleSplitPair = useCallback(async () => {
     if (!pair || isViewOnly) return;
@@ -143,100 +119,36 @@ export default function OrderDetailPage({
     });
   }, [pair, isViewOnly, updateOrder, addNotification]);
 
+  const handleOverwriteData = useCallback(async () => {
+    if (!pair || isViewOnly) return;
+    const { manualPatch, formPatch } = overwriteManualWithFormPatches(
+      pair.manual,
+      pair.form
+    );
+    await updateOrder(pair.manual.id, manualPatch, pair.manual);
+    await updateOrder(pair.form.id, formPatch, pair.form);
+    setOrderDraft((prev) =>
+      prev
+        ? {
+            ...prev,
+            ...manualPatch,
+            isManualEntry: false,
+            manualOverlapSnapshot: undefined,
+          }
+        : prev
+    );
+    addNotification({
+      type: "mtd_move",
+      title: "Form data kept",
+      message: "Order now looks like a normal Magento form submission.",
+    });
+  }, [pair, isViewOnly, updateOrder, addNotification]);
+
   const displayOrder: Order | null = useMemo(() => {
     const base = pairBase;
     if (!base) return null;
     const enriched = enrichOrderWithMatchingForm(base, allOrders);
-    const virocFlag = String(enriched.varsityVirocCustomer || "").toLowerCase();
-    const recSubtype = String(record?.cheerFormSubtype || "");
-
-    const virocYes =
-      enriched.cheerFormSubtype === "school-cheer-viroc-yes" ||
-      virocFlag === "yes" ||
-      recSubtype === "school-cheer-viroc-yes";
-    if (virocYes) {
-      return {
-        ...enriched,
-        formType: "school-all-star-cheer" as const,
-        cheerFormSubtype: "school-cheer-viroc-yes" as const,
-        varsityVirocCustomer: "Yes" as const,
-      };
-    }
-
-    const schoolCheerNo =
-      enriched.cheerFormSubtype === "school-cheer-viroc-no" ||
-      virocFlag === "no" ||
-      recSubtype === "school-cheer-viroc-no";
-    if (schoolCheerNo) {
-      return {
-        ...enriched,
-        formType: "school-all-star-cheer" as const,
-        cheerFormSubtype: "school-cheer-viroc-no" as const,
-        varsityVirocCustomer: "No" as const,
-      };
-    }
-
-    const youthRec =
-      enriched.cheerFormSubtype === "youth-rec-cheer" ||
-      recSubtype === "youth-rec-cheer";
-    if (youthRec) {
-      return {
-        ...enriched,
-        formType: "school-all-star-cheer" as const,
-        cheerFormSubtype: "youth-rec-cheer" as const,
-      };
-    }
-
-    const danceSubtypeRaw =
-      enriched.danceFormSubtype ||
-      (record as { danceFormSubtype?: string } | null)?.danceFormSubtype ||
-      "";
-    const danceSubtype =
-      danceSubtypeRaw === "team-performance" ||
-      danceSubtypeRaw.startsWith("team-performance")
-        ? "team-performance-variety"
-        : danceSubtypeRaw;
-    if (
-      enriched.formType === "school-all-star-dance" ||
-      danceSubtype === "pom" ||
-      danceSubtype === "hip-hop" ||
-      danceSubtype === "team-performance-variety" ||
-      danceSubtype === "gameday" ||
-      danceSubtype === "jazz-kick"
-    ) {
-      return {
-        ...enriched,
-        formType: "school-all-star-dance" as const,
-        danceFormSubtype: (danceSubtype ||
-          enriched.danceFormSubtype ||
-          "pom") as typeof enriched.danceFormSubtype,
-      };
-    }
-
-    if (enriched.formType === "marching-band") {
-      return {
-        ...enriched,
-        formType: "marching-band" as const,
-      };
-    }
-
-    if (enriched.formType === "sports-entertainment") {
-      return {
-        ...enriched,
-        formType: "sports-entertainment" as const,
-      };
-    }
-
-    if (enriched.formType === "school-anthem") {
-      return {
-        ...enriched,
-        formType: "school-anthem" as const,
-        packageType: enriched.packageType || "SCHOOL ANTHEMS",
-        package: enriched.package || "SCHOOL ANTHEMS",
-      };
-    }
-
-    return enriched;
+    return resolveOrderFormDisplay(enriched, record);
   }, [pairBase, record, allOrders]);
 
   const startOrderFormEdit = useCallback(() => {
@@ -348,11 +260,11 @@ export default function OrderDetailPage({
           </div>
           {pair ? (
             <ManualFormPairBar
-              pair={pair}
-              isMerged={isPairMerged}
               disabled={isViewOnly}
-              onMerge={() => void handleMergePair()}
-              onSplit={() => void handleSplitPair()}
+              manual={pair.manual}
+              form={pair.form}
+              onConfirmSplit={handleSplitPair}
+              onOverwriteData={handleOverwriteData}
             />
           ) : null}
           <MTDOrderDetails
@@ -363,6 +275,13 @@ export default function OrderDetailPage({
             editable={orderFormEditing && !isViewOnly}
             onFieldChange={handleOrderDraftChange}
             fieldSources={fieldSources}
+            requiredFieldKeys={[
+              getOrderIdentityFieldKey(
+                (orderDraft ?? displayOrder).formType,
+                (orderDraft ?? displayOrder).cheerFormSubtype,
+                (orderDraft ?? displayOrder).danceFormSubtype
+              ),
+            ]}
           />
         </section>
       </div>

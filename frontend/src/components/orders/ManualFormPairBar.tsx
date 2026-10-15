@@ -1,88 +1,115 @@
 "use client";
 
-import { GitMerge, SplitSquareVertical } from "lucide-react";
-import type { FieldDataSource, ManualFormPair } from "@/lib/manual-form-merge";
+import { useState } from "react";
+import { Eraser, SplitSquareVertical } from "lucide-react";
+import type { FieldDataSource } from "@/lib/manual-form-merge";
+import { OverwriteDataConfirmModal } from "@/components/orders/OverwriteDataConfirmModal";
+import { SplitManualFormConfirmModal } from "@/components/orders/SplitManualFormConfirmModal";
+import type { Order } from "@/types";
+import clsx from "clsx";
 
 type ManualFormPairBarProps = {
-  pair: ManualFormPair;
-  /** True after admin form-wins merge (form absorbed into manual). */
-  isMerged: boolean;
   disabled?: boolean;
-  onMerge: () => void;
-  onSplit: () => void;
+  manual: Order;
+  form: Order;
+  onConfirmSplit: () => void | Promise<void>;
+  /** Accept Magento form as sole SoT — removes Form/Manual cues. */
+  onOverwriteData?: () => void | Promise<void>;
 };
 
-export function SourceTag({ source }: { source: FieldDataSource }) {
+/** Compact source cue — used on field labels, not stacked MANUAL+FORM chips. */
+export function SourceCue({
+  source,
+}: {
+  source: FieldDataSource;
+  /** @deprecated Kept for call sites; color is source-only (Form=sky, Manual=amber). */
+  tone?: "default" | "conflict";
+}) {
   const isForm = source === "form";
   return (
     <span
-      className={
-        isForm
-          ? "inline-flex items-center rounded-md bg-sky-50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.04em] text-sky-700 ring-1 ring-inset ring-sky-200/80"
-          : "inline-flex items-center rounded-md bg-amber-50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.04em] text-amber-800 ring-1 ring-inset ring-amber-200/80"
-      }
+      className={clsx(
+        "inline-flex items-center gap-1 text-[10px] font-semibold tracking-wide",
+        isForm ? "text-sky-700" : "text-amber-800"
+      )}
     >
+      <span
+        className={clsx(
+          "h-1.5 w-1.5 shrink-0 rounded-full",
+          isForm ? "bg-sky-500" : "bg-amber-500"
+        )}
+        aria-hidden
+      />
       {isForm ? "Form" : "Manual"}
     </span>
   );
 }
 
+/** Shown when a Magento form order is linked to this manual order. */
 export function ManualFormPairBar({
-  pair,
-  isMerged,
   disabled = false,
-  onMerge,
-  onSplit,
+  manual,
+  form,
+  onConfirmSplit,
+  onOverwriteData,
 }: ManualFormPairBarProps) {
+  const [splitConfirmOpen, setSplitConfirmOpen] = useState(false);
+  const [overwriteConfirmOpen, setOverwriteConfirmOpen] = useState(false);
+
   return (
-    <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brand-line/50 bg-brand-bg-subtle/50 px-3 py-2.5">
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <SourceTag source="manual" />
-          <SourceTag source="form" />
-          {isMerged ? (
-            <span className="inline-flex items-center rounded-md bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.04em] text-emerald-800 ring-1 ring-inset ring-emerald-200/80">
-              Merged
-            </span>
-          ) : (
-            <span className="inline-flex items-center rounded-md bg-violet-50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.04em] text-violet-800 ring-1 ring-inset ring-violet-200/80">
-              Paired
-            </span>
-          )}
+    <>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-brand-line/40 pb-3">
+        <p className="min-w-0 flex-1 text-[13px] font-semibold text-brand-ink">
+          Form received
+        </p>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {onOverwriteData ? (
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => setOverwriteConfirmOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-brand-line/70 bg-white px-3 py-1.5 text-[12px] font-semibold text-brand-ink shadow-sm transition hover:bg-brand-bg disabled:cursor-not-allowed disabled:opacity-40"
+              title="Keep Magento form values only — remove Manual/Form field cues"
+            >
+              <Eraser className="h-3.5 w-3.5" strokeWidth={2.25} />
+              Overwrite data
+            </button>
+          ) : null}
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => setSplitConfirmOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-brand-line/70 bg-white px-3 py-1.5 text-[12px] font-semibold text-brand-ink shadow-sm transition hover:bg-brand-bg disabled:cursor-not-allowed disabled:opacity-40"
+            title="Restore Manual and Form as two separate orders"
+          >
+            <SplitSquareVertical className="h-3.5 w-3.5" strokeWidth={2.25} />
+            Split
+          </button>
         </div>
-        <p className="mt-1 text-[11px] leading-snug text-brand-ink-secondary">
-          {isMerged
-            ? "Form data is primary on overlaps. Split to restore separate Manual and Form orders."
-            : "Both Manual and Form data found. Merge keeps form values on overlaps; Split keeps two orders."}
-        </p>
-        <p className="mt-0.5 truncate text-[10px] text-brand-ink-tertiary">
-          Manual {pair.manual.id}
-          {" · "}
-          Form {pair.form.id}
-        </p>
       </div>
-      <div className="flex shrink-0 flex-wrap items-center gap-2">
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={onMerge}
-          className="inline-flex items-center gap-1.5 rounded-xl border border-brand-line/70 bg-white px-3 py-1.5 text-[12px] font-semibold text-brand-ink shadow-sm transition hover:bg-brand-bg disabled:cursor-not-allowed disabled:opacity-40"
-          title="Form wins on overlaps; keep manual-only fields"
-        >
-          <GitMerge className="h-3.5 w-3.5" strokeWidth={2.25} />
-          Merge order
-        </button>
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={onSplit}
-          className="inline-flex items-center gap-1.5 rounded-xl border border-brand-line/70 bg-white px-3 py-1.5 text-[12px] font-semibold text-brand-ink shadow-sm transition hover:bg-brand-bg disabled:cursor-not-allowed disabled:opacity-40"
-          title="Restore as separate Manual and Form orders"
-        >
-          <SplitSquareVertical className="h-3.5 w-3.5" strokeWidth={2.25} />
-          Split order
-        </button>
-      </div>
-    </div>
+
+      <OverwriteDataConfirmModal
+        open={overwriteConfirmOpen}
+        manual={manual}
+        form={form}
+        onClose={() => setOverwriteConfirmOpen(false)}
+        onConfirm={async () => {
+          if (!onOverwriteData) return;
+          await onOverwriteData();
+          setOverwriteConfirmOpen(false);
+        }}
+      />
+
+      <SplitManualFormConfirmModal
+        open={splitConfirmOpen}
+        manual={manual}
+        form={form}
+        onClose={() => setSplitConfirmOpen(false)}
+        onConfirm={async () => {
+          await onConfirmSplit();
+          setSplitConfirmOpen(false);
+        }}
+      />
+    </>
   );
 }

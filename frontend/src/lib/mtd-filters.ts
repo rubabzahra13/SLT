@@ -68,8 +68,10 @@ export function resolveMTDFormMeta(
 
   if (linked) {
     formType = linked.formType || (rec as any).formType || "school-all-star-cheer";
-    cheerFormSubtype = linked.cheerFormSubtype || (rec as any).cheerFormSubtype || "all-star-cheer";
-    danceFormSubtype = linked.danceFormSubtype || (rec as any).danceFormSubtype || "pom";
+    cheerFormSubtype =
+      linked.cheerFormSubtype || (rec as any).cheerFormSubtype || "all-star-cheer";
+    danceFormSubtype =
+      linked.danceFormSubtype || (rec as any).danceFormSubtype || "pom";
   } else if ((rec as any).cheerFormSubtype || (rec as any).formType) {
     formType = (rec as any).formType || "school-all-star-cheer";
     cheerFormSubtype = (rec as any).cheerFormSubtype || "all-star-cheer";
@@ -92,12 +94,21 @@ export function resolveMTDFormMeta(
       "pom";
   }
 
+  // Only expose subtypes that belong to this form — avoid "pom" leaking onto
+  // School Anthem / MB rows and hijacking the edit modal into Dance.
+  if (formType !== "school-all-star-cheer") {
+    cheerFormSubtype = "all-star-cheer";
+  }
+  if (formType !== "school-all-star-dance") {
+    danceFormSubtype = "pom";
+  }
+
   const canonicalSubtypeId =
     formType === "school-all-star-cheer"
       ? cheerFormSubtype
       : formType === "school-all-star-dance"
-      ? danceFormSubtype
-      : formType;
+        ? danceFormSubtype
+        : formType;
 
   return {
     formType,
@@ -766,11 +777,10 @@ export type MTDSortBy =
   | "days_less";
 
 export const MTD_SORT_BY_OPTIONS: { value: MTDSortBy; label: string }[] = [
-  { value: "none", label: "Default" },
+  { value: "newest", label: "Newest" },
+  { value: "oldest", label: "Oldest" },
   { value: "name_az", label: "A–Z" },
   { value: "name_za", label: "Z–A" },
-  { value: "oldest", label: "Oldest" },
-  { value: "newest", label: "Newest" },
   { value: "price_high", label: "Package price · High" },
   { value: "price_low", label: "Package price · Low" },
   { value: "start_earliest", label: "Start date · Earliest" },
@@ -840,7 +850,8 @@ export function sortMTDRecordsBySortKey(
   producers: Producer[] = [],
   orderById?: Map<string, Order> | null
 ): MTDRecord[] {
-  const mode = (sortBy || "none") as MTDSortBy;
+  const mode = (sortBy || "newest") as MTDSortBy;
+  // Legacy "none" keeps caller order; default sort is newest.
   if (mode === "none" || records.length < 2) return records;
 
   return records

@@ -6,6 +6,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from app.core.database import SessionLocal
 from app.models.order import Order
+from app.seed.ids import seed_uuid
 
 MARCHING_BAND_DEMO = [
     {
@@ -44,17 +45,17 @@ def main() -> None:
     try:
         for i, row in enumerate(MARCHING_BAND_DEMO, 1):
             legacy = row["legacy_id"]
-            existing = db.query(Order).filter(Order.legacy_id == legacy).first()
+            order_pk = seed_uuid("order", legacy)
+            existing = db.query(Order).filter(Order.id == order_pk).first()
             if existing:
                 print(f"skip {legacy} (exists)")
                 continue
 
             order = Order(
-                legacy_id=legacy,
+                id=order_pk,
                 form_type="marching-band",
-                category="Marching Band",
-                school_program_name=row["school_program_name"],
-                school_address=f"{1100 + i} Band Field Rd",
+                school_gym_name=row["school_program_name"],
+                school_gym_billing_address=f"{1100 + i} Band Field Rd",
                 city="Indianapolis",
                 state_province="IN",
                 zip_postal_code="46201",
@@ -72,10 +73,8 @@ def main() -> None:
                 music_affiliate=None,
                 customer_name=f"Director Morgan {i} ({row['school_program_name']})",
                 contact_name=f"Director Morgan {i}",
-                program_name=row["school_program_name"],
-                editor_request="FA",
+                editor_initials="FA",
                 requested_editor="First Available",
-                requested_producer="FA",
                 status="new",
                 price=350.0 + (i * 50),
                 price_compliance="compliant",

@@ -1,4 +1,9 @@
-import { getOrderDetailSections } from "@/lib/order-detail-sections";
+import {
+  getOrderDetailSections,
+  getOrderIdentityFieldKey,
+  getOrderIdentityName,
+  getProgramColumnHeader,
+} from "@/lib/order-detail-sections";
 import { rawFieldValue } from "@/lib/order-detail-fields";
 import type { Order } from "@/types";
 
@@ -24,31 +29,69 @@ const TABLE_COVERED_FIELD_KEYS = new Set([
   "songListSuggestions",
   "musicTheme",
   "powerMusicCovers",
+  "unleashTheBeatsCovers",
   "requestedEditor",
   "requestedProducer",
   "sendingEightCountSheets",
-  "usingEightCountSheets",
   "routineNotes",
   "haveSongs",
   "eightCountSheet",
 ]);
 
-/** Optional — empty is fine, never mark red / never block Move to MTD. */
-const OPTIONAL_FORM_FIELD_KEYS = new Set([
+/** Always optional — empty is fine on every form (never red / never block MTD). */
+const ALWAYS_OPTIONAL_FORM_FIELD_KEYS = new Set([
   "couponCode",
   "howDidYouFindOut",
   "invoice",
   "invoiceNumber",
   "numberOfCopies",
   // Youth Rec form: secondary contact email is not required.
+  "youthRecExtraEmailAddress",
   "emailAddress",
-  // Marching Band producer notes are optional on the customer form.
-  "instrumentationNotes",
-  "lyricalNotes",
   // Sports Entertainment: billing contact only if different from music contact.
   "billingContactName",
   "billingContactEmail",
 ]);
+
+/**
+ * Optional on most forms, but required on School Anthem (Magento SoT).
+ * Coupon stays always-optional — Magento does not require it.
+ */
+const OPTIONAL_EXCEPT_SCHOOL_ANTHEM = new Set([
+  // Marching Band producer notes are optional; School Anthem Song/Notes are required.
+  "instrumentationNotes",
+  "instrumentalStylePreference",
+  "lyricalNotes",
+  "nicknames",
+  "mascot",
+  "schoolProgramColors",
+  "teamColors",
+  "youthRecColors",
+  "billingPersonName",
+  "billingPersonEmail",
+]);
+
+function isSchoolAnthemOrder(
+  order?: Pick<Order, "formType"> | null
+): boolean {
+  return String(order?.formType || "").trim() === "school-anthem";
+}
+
+/** True when this form field is optional (never blocks save / MTD). */
+export function isOptionalOrderFormField(
+  key: string,
+  order?: Pick<Order, "formType"> | null
+): boolean {
+  if (ALWAYS_OPTIONAL_FORM_FIELD_KEYS.has(key)) return true;
+  if (isSchoolAnthemOrder(order)) return false;
+  return OPTIONAL_EXCEPT_SCHOOL_ANTHEM.has(key);
+}
+
+function orderHasMatchedMagentoForm(order: Order): boolean {
+  if (order.mergedFormOrderId) return true;
+  const snap = order.manualOverlapSnapshot;
+  return Boolean(snap && Object.keys(snap).length > 0);
+}
 
 /** Split/No Split exists on VIROC, School Cheer, Youth Rec — not All Star Cheer. */
 export const CHEER_SUBTYPES_WITH_SPLIT = new Set([
@@ -76,7 +119,7 @@ function fieldHasConditionalPass(order: Order, key: string): boolean {
     if (!affiliate.includes("power music")) return true;
   }
   if (
-    key === "songListSuggestions" &&
+    key === "unleashTheBeatsCovers" &&
     order.formType === "school-all-star-dance"
   ) {
     const affiliate = rawFieldValue(order, "musicAffiliate").toLowerCase();
@@ -93,13 +136,19 @@ function fieldHasConditionalPass(order: Order, key: string): boolean {
 }
 
 function isEmptyFormValue(order: Order, key: string): boolean {
-  if (OPTIONAL_FORM_FIELD_KEYS.has(key)) return false;
+  if (isOptionalOrderFormField(key, order)) return false;
   if (fieldHasConditionalPass(order, key)) return false;
   const raw = rawFieldValue(order, key).trim();
   if (!raw) return true;
   // Placeholder selects in the edit UI
   const lower = raw.toLowerCase();
-  if (lower === "select…" || lower === "select..." || lower === "select") {
+  if (
+    lower === "select…" ||
+    lower === "select..." ||
+    lower === "select" ||
+    lower === "please choose one…" ||
+    lower === "please choose one..."
+  ) {
     return true;
   }
   return false;
@@ -107,7 +156,7 @@ function isEmptyFormValue(order: Order, key: string): boolean {
 
 /** Red (missing) in the order form editor — skips table-covered columns. */
 export function isOrderFormFieldMissing(order: Order, key: string): boolean {
-  if (OPTIONAL_FORM_FIELD_KEYS.has(key)) return false;
+  if (isOptionalOrderFormField(key, order)) return false;
   if (TABLE_COVERED_FIELD_KEYS.has(key)) return false;
   return isEmptyFormValue(order, key);
 }
@@ -120,13 +169,28 @@ export type OrderFormMtdGap = {
 /**
  * Empty form / table fields that should block Move to MTD.
  * Coupon, how-did-you-find-out, and invoice may stay empty.
+ * Manual School Anthem stays blocked until a Magento form is matched.
  */
 export function getOrderFormFieldsBlockingMtd(
   order: Order
 ): OrderFormMtdGap[] {
-  const sections = getOrderDetailSections(order);
   const gaps: OrderFormMtdGap[] = [];
   const seen = new Set<string>();
+
+  // Manual School Anthem: wait for Magento match before MTD (form is SoT).
+  if (
+    isSchoolAnthemOrder(order) &&
+    order.isManualEntry &&
+    !orderHasMatchedMagentoForm(order)
+  ) {
+    gaps.push({
+      key: "mergedFormOrderId",
+      label: "Magento form match",
+    });
+    return gaps;
+  }
+
+  const sections = getOrderDetailSections(order);
 
   for (const section of sections) {
     for (const field of section.fields) {
@@ -142,6 +206,9 @@ export function getOrderFormFieldsBlockingMtd(
 
 export function formatOrderFormMtdBlockReason(gaps: OrderFormMtdGap[]): string {
   if (gaps.length === 0) return "";
+  if (gaps.length === 1 && gaps[0]?.key === "mergedFormOrderId") {
+    return "Wait for Magento form\nmatch before MTD";
+  }
   const labels = gaps.map((g) => g.label);
   const shown = labels.slice(0, 6);
   const extra = labels.length - shown.length;
@@ -149,4 +216,29 @@ export function formatOrderFormMtdBlockReason(gaps: OrderFormMtdGap[]): string {
     "Fill missing data before moving to MTD:",
     shown.join(", ") + (extra > 0 ? ` (+${extra} more)` : ""),
   ].join("\n");
+}
+
+/**
+ * Add New Order (admin): only the category identity name is required to save.
+ * Admins often lack full Magento-form details — everything else is optional.
+ */
+export function getAddOrderRequiredGaps(order: Order): OrderFormMtdGap[] {
+  const key = getOrderIdentityFieldKey(
+    order.formType,
+    order.cheerFormSubtype,
+    order.danceFormSubtype
+  );
+  const label = getProgramColumnHeader(
+    order.formType,
+    order.cheerFormSubtype,
+    order.danceFormSubtype
+  );
+  if (getOrderIdentityName(order).trim()) return [];
+  return [{ key, label }];
+}
+
+export function formatAddOrderSaveBlockReason(gaps: OrderFormMtdGap[]): string {
+  if (gaps.length === 0) return "";
+  const label = gaps[0]?.label || "Name";
+  return `Enter ${label} before saving.`;
 }

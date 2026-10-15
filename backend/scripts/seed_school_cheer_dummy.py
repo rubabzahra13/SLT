@@ -6,6 +6,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from app.core.database import SessionLocal
 from app.models.order import Order
+from app.seed.ids import seed_uuid
 
 SCHOOL_CHEER_DEMO = [
     {
@@ -65,19 +66,19 @@ def main() -> None:
     try:
         for i, row in enumerate(SCHOOL_CHEER_DEMO, 1):
             legacy = row["legacy_id"]
-            existing = db.query(Order).filter(Order.legacy_id == legacy).first()
+            order_pk = seed_uuid("order", legacy)
+            existing = db.query(Order).filter(Order.id == order_pk).first()
             if existing:
                 print(f"skip {legacy} (exists)")
                 continue
 
             order = Order(
-                legacy_id=legacy,
+                id=order_pk,
                 form_type="school-all-star-cheer",
                 cheer_form_subtype="school-cheer-viroc-no",
                 varsity_viroc_customer="No",
-                category="Cheer",
-                school_name=row["school_name"],
-                school_billing_address=f"{300 + i} Valley Blvd",
+                school_gym_name=row["school_name"],
+                school_gym_billing_address=f"{300 + i} Valley Blvd",
                 city="Denver",
                 state_province="CO",
                 zip_postal_code="80201",
@@ -85,7 +86,7 @@ def main() -> None:
                 mascot=row["mascot"],
                 division=row["division"],
                 team_coed_all_girl=row["team_coed_all_girl"],
-                team_colors=row["team_colors"],
+                colors=row["team_colors"],
                 number_of_copies="1",
                 coach_name=f"Coach Jennifer {i}",
                 coach_phone=f"555-030{i}",
@@ -108,11 +109,9 @@ def main() -> None:
                 how_did_you_find_out="Return Customer",
                 customer_name=f"Coach Jennifer {i} ({row['school_name']})",
                 contact_name=f"Coach Jennifer {i}",
-                program_name=row["school_name"],
                 package=row["package"],
-                editor_request="FA",
+                editor_initials="FA",
                 requested_editor="First Available",
-                requested_producer="FA",
                 status="new",
                 price=500.0 + (i * 12),
                 price_compliance="compliant",

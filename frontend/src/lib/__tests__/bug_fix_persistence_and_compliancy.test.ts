@@ -18,7 +18,6 @@ describe("Bug Fix Verification: Persistence & Compliancy Collection Logic", () =
     test("collectionStates and orderStatus transform correctly from backend to frontend Order", () => {
       const backendOrder: BackendOrder = {
         id: "order-uuid-1",
-        legacy_id: "order-1",
         customer_name: "Test Customer",
         contact_name: "Test Contact",
         program_name: "Test Program",

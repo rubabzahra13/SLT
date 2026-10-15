@@ -73,7 +73,7 @@ describe("Manual Schedule Entry (No Order) Workflow Tests", () => {
     const collectionLabels = reqs.collections.map((i) => i.label);
     assert.ok(!collectionLabels.includes("Time of Mix"));
     assert.ok(!collectionLabels.includes("Compliancy"));
-    assert.ok(collectionLabels.includes("Mix") || collectionLabels.includes("CS") || collectionLabels.includes("Video") || collectionLabels.length >= 0);
+    assert.ok(collectionLabels.includes("Mix Time") || collectionLabels.includes("CS") || collectionLabels.includes("Video") || collectionLabels.length >= 0);
   });
 
   it("manual schedule entries follow package data rules for Waiting for Data", () => {

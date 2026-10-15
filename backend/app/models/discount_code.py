@@ -7,7 +7,6 @@ class DiscountCode(Base):
     __tablename__ = "discount_codes"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    legacy_id = Column(String, nullable=True, index=True)
     code = Column(String, nullable=False, unique=True, index=True)
     description = Column(Text, nullable=True)
     discount_type = Column(String, nullable=True)

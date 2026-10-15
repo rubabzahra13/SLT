@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 type HoverTipProps = {
@@ -19,6 +19,8 @@ type HoverTipProps = {
   /** Extra classes on the portaled tooltip (e.g. wider card). */
   tooltipClassName?: string;
 };
+
+const VIEWPORT_MARGIN = 8;
 
 function MultilineLabelTip({ label }: { label: string }) {
   const blocks = label.split("\n\n");
@@ -108,6 +110,32 @@ export function HoverTip({
     }
     setOpen(true);
   };
+
+  // Keep portaled tips fully on-screen (Actions / MTD sit at the table’s right edge).
+  useLayoutEffect(() => {
+    if (!open || !tipRef.current) return;
+    const tipRect = tipRef.current.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    let dx = 0;
+    let dy = 0;
+    if (tipRect.right > vw - VIEWPORT_MARGIN) {
+      dx = vw - VIEWPORT_MARGIN - tipRect.right;
+    } else if (tipRect.left < VIEWPORT_MARGIN) {
+      dx = VIEWPORT_MARGIN - tipRect.left;
+    }
+    if (tipRect.bottom > vh - VIEWPORT_MARGIN) {
+      dy = vh - VIEWPORT_MARGIN - tipRect.bottom;
+    } else if (tipRect.top < VIEWPORT_MARGIN) {
+      dy = VIEWPORT_MARGIN - tipRect.top;
+    }
+    if (dx === 0 && dy === 0) return;
+    setCoords((prev) => ({
+      ...prev,
+      left: prev.left + dx,
+      top: prev.top + dy,
+    }));
+  }, [open, tip, placement]);
 
   const hide = (e?: { relatedTarget?: EventTarget | null }) => {
     if (interactive) {

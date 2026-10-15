@@ -33,17 +33,23 @@ import {
   type EmailTemplatesState,
 } from "@/lib/email-templates";
 import { getData } from "@/lib/data";
-import { normalizeOrder, orderToMTDRecord } from "@/lib/order-form";
+import { normalizeOrder } from "@/lib/order-form";
 import {
   findMatchingManualOrder,
   mergePatchFromForm,
+  repairCorruptCrossCategoryFormMerge,
 } from "@/lib/manual-form-merge";
 import { openAffiliateFlagPatch } from "@/lib/affiliate-flag";
-import { mergeCollectionStateFromOrder } from "@/lib/order-staging";
+import {
+  collapsePreMtdClonesForOrder,
+  isPersistedMtdRecord,
+  mergeCollectionStateFromOrder,
+  mtdRecordCoversOrder,
+} from "@/lib/order-staging";
 import { useAuth } from "@/context/AuthContext";
 import {
-  detectCompliance,
   getDefaultSecretMenuPricing,
+  resolveOrderPriceCompliance,
   type SecretMenuPricing,
 } from "@/lib/pricing";
 import {
@@ -116,7 +122,10 @@ import {
   fetchPricingRulesApi,
   type BootstrapPayload,
 } from "@/lib/api";
-import { applyDbPricingRules } from "@/lib/pricing-reference";
+import {
+  applyDbPricingRules,
+  loadPricingReferenceStore,
+} from "@/lib/pricing-reference";
 
 type AppStateContextValue = {
   activeOrders: Order[];
@@ -181,7 +190,9 @@ type AppStateContextValue = {
 const AppStateContext = createContext<AppStateContextValue | null>(null);
 
 function normalizeOrders(orders: Order[]): Order[] {
-  return orders.map((o) => normalizeOrder(o));
+  return orders.map((o) =>
+    normalizeOrder(repairCorruptCrossCategoryFormMerge(o))
+  );
 }
 
 function normalizeMTD(records: MTDRecord[]): MTDRecord[] {
@@ -204,7 +215,7 @@ function normalizeMTD(records: MTDRecord[]): MTDRecord[] {
       ...r,
       editorRequest: r.editorRequest || "FA",
       contactName: r.contactName || r.editorInitials,
-      priceCompliance: r.priceCompliance || detectCompliance(r.musicTheme),
+      priceCompliance: resolveOrderPriceCompliance(r),
       mixStartDate,
       recordStatus: inferMTDRecordStatus(r),
       inPayroll: Boolean(r.inPayroll),
@@ -382,6 +393,9 @@ function ordersReferToSame(a: Order, b: Order): boolean {
 }
 
 function orderLiveSyncKey(o: Order): string {
+  const snap = o.manualOverlapSnapshot;
+  const snapKey =
+    snap && typeof snap === "object" ? Object.keys(snap).sort().join(",") : "";
   return [
     o.status || "",
     o.price ?? "",
@@ -392,6 +406,12 @@ function orderLiveSyncKey(o: Order): string {
     o.assignedProducer || "",
     o.mixStartDate || "",
     o.mixEndDate || "",
+    // Magento↔manual link — must invalidate live sync or Form filter stays stale.
+    o.mergedFormOrderId || "",
+    o.mergedIntoManualOrderId || "",
+    o.isManualEntry ? "1" : "0",
+    snapKey,
+    (o as Order & { updatedAt?: string }).updatedAt || "",
   ].join("|");
 }
 
@@ -549,6 +569,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let isMounted = true;
     let loadGen = 0;
+    // Sync Edit Affiliates → pricing-engine compliance matchers for Magento text.
+    loadPricingReferenceStore();
 
     function applyBoot(boot: BootstrapPayload, fetchedAt: number) {
       // Don't clobber a newer optimistic availability edit with a slower boot.
@@ -589,17 +611,10 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           null;
         return mergeCollectionStateFromOrder(rec, linked);
       });
-      const existingMtdOrderIds = new Set(
-        loadedMtdRecords.map((r) => r.orderId).filter(Boolean)
-      );
-      const convertedOrders: MTDRecord[] = [];
-      for (const order of loadedActiveOrders) {
-        const oid = order.id || order.uuid || order.legacyId;
-        if (oid && !existingMtdOrderIds.has(oid)) {
-          convertedOrders.push(orderToMTDRecord(order));
-        }
-      }
-      const combinedMtd = [...loadedMtdRecords, ...convertedOrders];
+      // Do NOT inject orderToMTDRecord fakes into mtdRecords — those reuse the
+      // order UUID as id and cause PATCH /api/mtd/{orderId} → 404. Orders-tab
+      // synthetics come from listPreMtdOrderRecords(activeOrders, mtdRecords).
+      const combinedMtd = loadedMtdRecords.filter(isPersistedMtdRecord);
       // Don't clobber a newer optimistic Paid / board edit with a slower boot.
       if (fetchedAt >= mtdMutatedAtRef.current) {
         setMtdRecords((prev) => {
@@ -795,7 +810,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       const order = activeOrders.find((o) => o.id === orderId);
       if (!order || isInMTD(orderId)) return null;
 
-      const compliance = order.priceCompliance || detectCompliance(order.musicTheme);
+      const compliance = resolveOrderPriceCompliance(order);
       const price = resolveStoredOrEngineCustomerPrice(order);
 
       const draftId = `mtd-${Date.now()}`;
@@ -815,8 +830,18 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         assignedProducer: null,
         category: order.category,
         editorRequest: order.editorRequest,
-        contactName: order.contactName || order.customerName,
-        editorInitials: order.contactName || order.customerName,
+        contactName:
+          order.musicContactName ||
+          order.coachName ||
+          order.coachContactFullName ||
+          order.contactName ||
+          "",
+        editorInitials:
+          order.musicContactName ||
+          order.coachName ||
+          order.coachContactFullName ||
+          order.contactName ||
+          "",
         programName: order.programName,
         package: order.package,
         musicTheme: order.musicTheme,
@@ -835,33 +860,11 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         danceFormSubtype: order.danceFormSubtype,
       };
 
-      const pick = pickDefaultEditor(
-        draftRecord,
-        producers,
-        mtdRecords,
-        schedule,
-        order
-      );
-      const availableNames = getSuggestedEditors(
-        mtdRecords,
-        producers,
-        schedule,
-        order.category,
-        draftId,
-        draftRecord
-      ).map((suggestion) => suggestion.name);
-      const assignedProducer = pick.editor || null;
-      const editorRequest = assignedProducer
-        ? editorRequestForAssignment(
-            pick.editor,
-            pick.requestedEditor,
-            availableNames
-          )
-        : order.editorRequest;
+      // Client requested producer is a suggestion only — never auto-assign.
       const newRecord: MTDRecord = {
         ...draftRecord,
-        assignedProducer,
-        editorRequest,
+        assignedProducer: null,
+        editorRequest: order.editorRequest || "FA",
         inMTD: true,
       };
 
@@ -911,18 +914,10 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         }
       })();
 
-      const slotMsg = assignedProducer
-        ? ` Next slot: ${formatSlot(assignedProducer, producers, schedule)}.`
-        : "";
-      const busyFallback =
-        pick.reason === "requested_busy"
-          ? ` ${pick.requestedEditor} was booked — assigned ${assignedProducer} (FA).`
-          : "";
-
       addNotification({
         type: "mtd_move",
         title: "Moved to MTD",
-        message: `${order.programName} is now in Music To Do.${busyFallback}${slotMsg}`,
+        message: `${order.programName} is now in Music To Do.`,
         href: `/mtd/${newRecord.id}`,
       });
 
@@ -932,8 +927,6 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       activeOrders,
       isInMTD,
       mtdRecords,
-      producers,
-      schedule,
       addNotification,
       notifySaveError,
       isViewOnly,
@@ -1044,10 +1037,23 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           }
         }
 
-        if (patch.package || patch.priceCompliance || patch.musicTheme) {
+        if (
+          patch.package ||
+          patch.priceCompliance ||
+          patch.musicTheme ||
+          patch.musicAffiliate !== undefined
+        ) {
           const compliance =
             patch.priceCompliance ||
-            detectCompliance(patch.musicTheme ?? r.musicTheme);
+            resolveOrderPriceCompliance({
+              ...updated,
+              musicTheme: patch.musicTheme ?? updated.musicTheme,
+              musicAffiliate:
+                patch.musicAffiliate !== undefined
+                  ? patch.musicAffiliate
+                  : (updated as MTDRecord & { musicAffiliate?: string })
+                      .musicAffiliate,
+            });
           updated.priceCompliance = compliance;
           if (patch.price === undefined) {
             const linkedOrder =
@@ -1234,85 +1240,66 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       } else {
         const isRealMtdRecord = Boolean(
           existing &&
+            isPersistedMtdRecord(existing) &&
             (existing.inMTD === true ||
               existing.isManualScheduleEntry === true ||
               !linkedOrder)
         );
-        if (isRealMtdRecord) {
-          await updateMTDRecordApi(apiId, apiPatch);
+        if (isRealMtdRecord && existing && isPersistedMtdRecord(existing)) {
+          const realApiId = existing.uuid || existing.id;
+          await updateMTDRecordApi(realApiId, apiPatch);
         } else if (existing && Object.keys(apiPatch).length > 0) {
           // Orders-board virtual row: create a real MTD row so MTD-only
           // fields (payroll, invoice, etc.) survive hard refresh.
-          try {
-            const seeded: MTDRecord = {
-              ...existing,
-              ...apiPatch,
-              collectionStates:
-                (apiPatch as MTDRecord).collectionStates ??
-                existing.collectionStates ??
-                linkedOrder?.collectionStates,
-              haveSongs:
-                (apiPatch as MTDRecord).haveSongs ||
-                existing.haveSongs ||
-                linkedOrder?.haveSongs ||
-                "",
-              eightCountSheet:
-                (apiPatch as MTDRecord).eightCountSheet ||
-                existing.eightCountSheet ||
-                linkedOrder?.eightCountSheet ||
-                "",
-              sendingEightCountSheets:
-                (apiPatch as MTDRecord).sendingEightCountSheets ||
-                existing.sendingEightCountSheets ||
-                linkedOrder?.sendingEightCountSheets ||
-                "",
-              usingEightCountSheets:
-                (apiPatch as MTDRecord).usingEightCountSheets ||
-                existing.usingEightCountSheets ||
-                linkedOrder?.usingEightCountSheets ||
-                "",
-              orderStatus:
-                (apiPatch as { orderStatus?: string }).orderStatus ||
-                existing.orderStatus ||
-                linkedOrder?.orderStatus,
-              isReassigned:
-                (apiPatch as MTDRecord).isReassigned ??
-                existing.isReassigned ??
-                linkedOrder?.isReassigned,
-            };
-            const saved = await createMTDRecordApi(seeded);
+          // Never create a second staging row for the same order.
+          const alreadyLinked =
+            linkedOrder &&
+            mtdRecords.find(
+              (r) =>
+                isPersistedMtdRecord(r) && mtdRecordCoversOrder(r, linkedOrder)
+            );
+          if (alreadyLinked && isPersistedMtdRecord(alreadyLinked)) {
+            const linkedApiId = alreadyLinked.uuid || alreadyLinked.id;
+            await updateMTDRecordApi(linkedApiId, apiPatch);
             setMtdRecords((prev) =>
               prev.map((r) =>
-                r.id === id ||
-                r.orderId === id ||
-                r.uuid === id ||
-                r.legacyId === id
-                  ? {
-                      ...r,
-                      ...apiPatch,
-                      id: saved.id,
-                      uuid: saved.uuid,
-                      legacyId: saved.legacyId,
-                      collectionStates:
-                        saved.collectionStates ??
-                        seeded.collectionStates ??
-                        r.collectionStates,
-                      haveSongs:
-                        saved.haveSongs || seeded.haveSongs || r.haveSongs,
-                      eightCountSheet:
-                        saved.eightCountSheet ||
-                        seeded.eightCountSheet ||
-                        r.eightCountSheet,
-                      orderStatus:
-                        saved.orderStatus ||
-                        seeded.orderStatus ||
-                        r.orderStatus,
-                    }
+                r.id === alreadyLinked.id ||
+                r.uuid === alreadyLinked.uuid ||
+                (alreadyLinked.orderId && r.orderId === alreadyLinked.orderId)
+                  ? { ...r, ...apiPatch }
                   : r
               )
             );
-          } catch {
-            await updateMTDRecordApi(apiId, apiPatch);
+          } else if (linkedOrder) {
+            // No persisted mtd_records row yet — order PATCH is enough for
+            // form fields. Skip createMTD here to avoid clones; assign/move
+            // flows create the board row when needed.
+          } else {
+            const seeded: MTDRecord = {
+              ...existing,
+              ...apiPatch,
+              orderId: existing.orderId || existing.id,
+              collectionStates:
+                (apiPatch as MTDRecord).collectionStates ??
+                existing.collectionStates,
+              haveSongs:
+                (apiPatch as MTDRecord).haveSongs || existing.haveSongs || "",
+              eightCountSheet:
+                (apiPatch as MTDRecord).eightCountSheet ||
+                existing.eightCountSheet ||
+                "",
+            };
+            const saved = await createMTDRecordApi(seeded);
+            const mergedSaved: MTDRecord = {
+              ...seeded,
+              ...apiPatch,
+              id: saved.id,
+              uuid: saved.uuid,
+              orderId: saved.orderId || seeded.orderId,
+            };
+            setMtdRecords((prev) =>
+              collapsePreMtdClonesForOrder(prev, mergedSaved, null)
+            );
           }
         }
       }
@@ -1420,7 +1407,66 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const updateOrder = useCallback(
     async (id: string, patch: Partial<Order>, seed?: Order) => {
       if (isViewOnly) return;
-      const merge = (order: Order) => normalizeOrder({ ...order, ...patch, id });
+      // normalizeOrder rebuilds musicTheme from notes/covers/affiliate. When the
+      // caller explicitly clears song fields / musicTheme (Songs pill remove),
+      // re-apply those patch values so clears actually stick.
+      const merge = (order: Order) => {
+        const normalized = normalizeOrder({ ...order, ...patch, id });
+        if (patch.musicTheme !== undefined) {
+          normalized.musicTheme = patch.musicTheme;
+        }
+        if (patch.songListSuggestions !== undefined) {
+          normalized.songListSuggestions = patch.songListSuggestions;
+        }
+        if (patch.powerMusicCovers !== undefined) {
+          normalized.powerMusicCovers = patch.powerMusicCovers;
+        }
+        if (patch.unleashTheBeatsCovers !== undefined) {
+          normalized.unleashTheBeatsCovers = patch.unleashTheBeatsCovers;
+        }
+        if (patch.customerSongs !== undefined) {
+          normalized.customerSongs = patch.customerSongs;
+        }
+        if (patch.routineNotes !== undefined) {
+          normalized.routineNotes = patch.routineNotes;
+        }
+        if (patch.additionalNotes !== undefined) {
+          normalized.additionalNotes = patch.additionalNotes;
+        }
+        if (patch.instrumentationNotes !== undefined) {
+          normalized.instrumentationNotes = patch.instrumentationNotes;
+        }
+        if (patch.instrumentalStylePreference !== undefined) {
+          normalized.instrumentalStylePreference =
+            patch.instrumentalStylePreference;
+          if (patch.instrumentationNotes === undefined) {
+            normalized.instrumentationNotes =
+              patch.instrumentalStylePreference;
+          }
+        }
+        if (patch.lyricalNotes !== undefined) {
+          normalized.lyricalNotes = patch.lyricalNotes;
+        }
+        if (patch.haveSongs !== undefined) {
+          normalized.haveSongs = patch.haveSongs;
+        }
+        if (patch.collectionStates !== undefined) {
+          normalized.collectionStates = patch.collectionStates;
+        }
+        // Manual Add Order + Magento: affiliate free text drives compliance.
+        if (patch.priceCompliance !== undefined) {
+          normalized.priceCompliance = patch.priceCompliance;
+        } else if (
+          patch.musicAffiliate !== undefined ||
+          patch.musicTheme !== undefined ||
+          normalized.musicAffiliate?.trim() ||
+          normalized.musicTheme?.trim()
+        ) {
+          normalized.priceCompliance =
+            resolveOrderPriceCompliance(normalized);
+        }
+        return normalized;
+      };
       const prevActive = activeOrders;
       const prevPast = pastOrders;
       const prevMtd = mtdRecords;
@@ -1474,6 +1520,17 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         mtdPatch.eightCountSheet = patch.eightCountSheet;
       }
       if (patch.orderStatus !== undefined) mtdPatch.orderStatus = patch.orderStatus;
+      if (patch.musicTheme !== undefined) mtdPatch.musicTheme = patch.musicTheme;
+      if (patch.songListSuggestions !== undefined) {
+        mtdPatch.songListSuggestions = patch.songListSuggestions;
+      }
+      if (patch.routineNotes !== undefined) {
+        mtdPatch.routineNotes = patch.routineNotes;
+      }
+      if (patch.powerMusicCovers !== undefined) {
+        (mtdPatch as { powerMusicCovers?: string }).powerMusicCovers =
+          patch.powerMusicCovers;
+      }
 
       const linkedMtd = mtdRecords.find(
         (r) =>
@@ -1500,6 +1557,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         await updateOrderApi(id, patch);
         if (
           linkedMtd &&
+          isPersistedMtdRecord(linkedMtd) &&
           (linkedMtd.inMTD || linkedMtd.isManualScheduleEntry) &&
           Object.keys(mtdPatch).length > 0
         ) {
@@ -1574,8 +1632,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       });
       const prevActive = activeOrders;
 
-      // Form API orders that match an existing manual program (90–100%) merge
-      // into that Manual orders row; form stays tagged/hidden from the board.
+      // Magento form only → same category/subcategory manual slot (never
+      // manual↔manual or cross-category). Form is SoT; manual row stays.
       if (!incoming.isManualEntry) {
         const manualMatch = findMatchingManualOrder(incoming, activeOrders);
         if (manualMatch) {
@@ -1622,9 +1680,9 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           addNotification({
             type: "new_order",
             title: flagPatch
-              ? "Form merged · flagged for affiliate"
-              : "Form order merged",
-            message: `${incoming.programName} matched manual order · kept as Manual`,
+              ? "Form received · flagged for affiliate"
+              : "Form received",
+            message: `${incoming.programName} matched manual slot · form is source of truth`,
             href: flagPatch ? "/orders?range=flagged" : "/orders",
           });
           return;
@@ -1635,13 +1693,17 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       const toStore = flagPatch
         ? normalizeOrder({ ...incoming, ...flagPatch })
         : incoming;
+      const stamped: Order = {
+        ...toStore,
+        createdAt: toStore.createdAt || new Date().toISOString(),
+      };
 
       setActiveOrders((prev) => {
-        if (prev.some((o) => o.id === toStore.id)) return prev;
-        return [toStore, ...prev];
+        if (prev.some((o) => o.id === stamped.id)) return prev;
+        return [stamped, ...prev];
       });
 
-      void createOrderApi(toStore).catch((err) => {
+      void createOrderApi(stamped).catch((err) => {
         setActiveOrders(prevActive);
         notifySaveError("Could not save new order", err);
       });
@@ -1649,8 +1711,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       addNotification({
         type: "new_order",
         title: flagPatch ? "Order flagged — multiple affiliates" : "New order received",
-        message: `${toStore.programName} · ${
-          toStore.contactName || toStore.customerName || "Customer"
+        message: `${stamped.programName || stamped.gymName || "Order"} · ${
+          stamped.contactName || stamped.customerName || "Customer"
         }`,
         href: flagPatch ? "/orders?range=flagged" : "/mtd",
       });
@@ -2610,7 +2672,69 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const applyIncomingOrder = useCallback((incoming: Order) => {
     const mergeList = (prev: Order[]) => {
       const idx = prev.findIndex((o) => ordersReferToSame(o, incoming));
-      if (idx === -1) return prev;
+      if (idx === -1) {
+        // Brand-new Magento form from API/stream — match into a manual slot.
+        if (!incoming.isManualEntry) {
+          const manualMatch = findMatchingManualOrder(incoming, prev);
+          if (manualMatch && !manualMatch.mergedFormOrderId) {
+            const patch = mergePatchFromForm(manualMatch, incoming);
+            const flagPatch = openAffiliateFlagPatch({
+              ...manualMatch,
+              ...patch,
+              musicAffiliate:
+                incoming.musicAffiliate ||
+                patch.musicAffiliate ||
+                manualMatch.musicAffiliate,
+            });
+            const manualNext = normalizeOrder({
+              ...manualMatch,
+              ...patch,
+              ...(flagPatch || {}),
+              id: manualMatch.id,
+            });
+            const taggedForm = normalizeOrder({
+              ...incoming,
+              mergedIntoManualOrderId: manualMatch.id,
+            });
+            applyingPeerOrdersRef.current = true;
+            ordersMutatedAtRef.current = Date.now();
+            void Promise.all([
+              updateOrderApi(manualMatch.id, {
+                ...patch,
+                ...(flagPatch || {}),
+                mergedFormOrderId: taggedForm.id,
+              }),
+              updateOrderApi(taggedForm.id, {
+                mergedIntoManualOrderId: manualMatch.id,
+              }),
+            ]).catch((err) => {
+              notifySaveError("Could not merge Magento form into manual", err);
+            });
+            addNotification({
+              type: "new_order",
+              title: flagPatch
+                ? "Form received · flagged for affiliate"
+                : "Form received",
+              message: `${
+                incoming.programName ||
+                incoming.schoolOrganizationName ||
+                incoming.gymName ||
+                "Order"
+              } matched manual slot · form is source of truth`,
+              href: flagPatch ? "/orders?range=flagged" : "/orders",
+            });
+            return [
+              taggedForm,
+              ...prev.map((o) =>
+                o.id === manualMatch.id ? manualNext : o
+              ),
+            ];
+          }
+        }
+        applyingPeerOrdersRef.current = true;
+        ordersMutatedAtRef.current = Date.now();
+        return [normalizeOrder(incoming), ...prev];
+      }
       const local = prev[idx];
       if (orderLiveSyncKey(local) === orderLiveSyncKey(incoming)) return prev;
       applyingPeerOrdersRef.current = true;
@@ -2662,7 +2786,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       writeTimedCache(CACHE_MTD_KEY, next);
       return next;
     });
-  }, []);
+  }, [addNotification, notifySaveError]);
 
   const applyIncomingMtd = useCallback((incoming: MTDRecord) => {
     setMtdRecords((prev) => {
@@ -3017,8 +3141,13 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     async (payload: CreateManualSchedulePayload): Promise<Order> => {
       if (isViewOnly) throw new Error("View-only accounts cannot create manual schedule entries.");
       const created = await createManualScheduleEntryApi(payload);
-      setActiveOrders((prev) => [created, ...prev]);
-      return created;
+      // Stamp createdAt so Orders "newest" sort places this row at ID 1.
+      const withCreatedAt: Order = {
+        ...created,
+        createdAt: created.createdAt || new Date().toISOString(),
+      };
+      setActiveOrders((prev) => [withCreatedAt, ...prev]);
+      return withCreatedAt;
     },
     [isViewOnly]
   );
@@ -3156,15 +3285,3 @@ export function useAppState() {
   return ctx;
 }
 
-function formatSlot(
-  initials: string,
-  producers: Producer[],
-  schedule: ScheduleEntry[]
-): string {
-  const producer = producers.find((p) => p.initials === initials);
-  const availableEntry = schedule.find(
-    (s) => s.producer === initials && s.status === "available"
-  );
-  if (availableEntry) return availableEntry.day;
-  return producer?.nextAvailable ?? "TBD";
-}

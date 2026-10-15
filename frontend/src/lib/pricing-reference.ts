@@ -12,6 +12,7 @@ import {
   setCheerRateCardFromDb,
   setDanceRateCardFromDb,
   setMarchingBandRateCardFromDb,
+  setRuntimeCompliantAffiliateLabelsByCategory,
   setSchoolAnthemRateCardFromDb,
   setSportsEntertainmentRateCardFromDb,
   TEAM_PERFORMANCE_VARIETY_RATE_CARD,
@@ -32,6 +33,20 @@ export type CategoryKey =
   | "Marching Band"
   | "Sports Entertainment"
   | "School Anthems";
+
+export const PRICING_CATEGORY_KEYS: CategoryKey[] = [
+  "All-Star Cheer",
+  "School Cheer",
+  "Youth Rec Cheer",
+  "Pom",
+  "Hip Hop",
+  "Team Performance & Variety",
+  "Gameday",
+  "Jazz/Kick",
+  "Marching Band",
+  "Sports Entertainment",
+  "School Anthems",
+];
 
 export type PricingReferenceAddOn = {
   name: string;
@@ -88,23 +103,25 @@ export const COMPLIANT_AFFILIATE_OPTIONS: MusicAffiliateOption[] = [
     label:
       "Power Music & Unleash the Beats Covers (can not be used for a Titanium Package)",
   },
-  { id: "power-music-covers", label: "Power Music Covers", danceOnly: true },
-  { id: "unleash-the-beats-covers", label: "Unleash the Beats Covers", danceOnly: true },
-];
-
-export const NON_COMPLIANT_AFFILIATE_OPTIONS: MusicAffiliateOption[] = [
-  { id: "songs-for-cheer", label: "Songs for Cheer", alwaysNonCompliant: true },
+  { id: "power-music-covers", label: "Power Music Covers" },
+  { id: "unleash-the-beats-covers", label: "Unleash the Beats Covers" },
+  { id: "songs-for-cheer", label: "Songs for Cheer" },
   {
     id: "original-custom-music-titanium",
     label: "100% original custom music (titanium package only)",
-    alwaysNonCompliant: true,
   },
+];
+
+/** Explicit non-compliant choice — any other free text is also non-compliant. */
+export const NON_COMPLIANT_AFFILIATE_OPTIONS: MusicAffiliateOption[] = [
   { id: "non-compliant", label: "Non compliant", alwaysNonCompliant: true },
 ];
 
 /** All-Star Cheer form / pricing affiliate choices (order shown in UI). */
 export const ALL_STAR_CHEER_MUSIC_AFFILIATE_OPTIONS = [
   "Power Music & Unleash the Beats Covers (can not be used for a Titanium Package)",
+  "Power Music Covers",
+  "Unleash the Beats Covers",
   "Songs for Cheer",
   "100% original custom music (titanium package only)",
   "Non compliant",
@@ -126,7 +143,7 @@ export type PricingReferenceStore = {
   categories: Partial<Record<CategoryKey, CategoryPricingSnapshot>>;
 };
 
-const STORAGE_KEY = "slt-pricing-reference-v1";
+const STORAGE_KEY = "slt-pricing-reference-v2";
 
 export function isDanceCategory(category: CategoryKey): boolean {
   return DANCE_CATEGORIES.has(category);
@@ -516,12 +533,22 @@ export function getCategoryPricingSnapshot(
 }
 
 export function loadPricingReferenceStore(): PricingReferenceStore {
-  if (typeof window === "undefined") return { categories: {} };
+  if (typeof window === "undefined") {
+    return { categories: {} };
+  }
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { categories: {} };
+    if (!raw) {
+      const empty: PricingReferenceStore = { categories: {} };
+      syncRuntimeCompliantAffiliateLabels(empty);
+      return empty;
+    }
     const parsed = JSON.parse(raw) as PricingReferenceStore;
-    if (!parsed?.categories) return { categories: {} };
+    if (!parsed?.categories) {
+      const empty: PricingReferenceStore = { categories: {} };
+      syncRuntimeCompliantAffiliateLabels(empty);
+      return empty;
+    }
 
     let categories = parsed.categories;
     let changed = false;
@@ -568,18 +595,69 @@ export function loadPricingReferenceStore(): PricingReferenceStore {
     if (changed) {
       const migrated: PricingReferenceStore = { categories };
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
+      syncRuntimeCompliantAffiliateLabels(migrated);
       return migrated;
     }
 
+    syncRuntimeCompliantAffiliateLabels({ categories });
     return { categories };
   } catch {
-    return { categories: {} };
+    const empty: PricingReferenceStore = { categories: {} };
+    syncRuntimeCompliantAffiliateLabels(empty);
+    return empty;
   }
+}
+
+/**
+ * Resolved compliant affiliate labels for a category (Edit Affiliates checked IDs
+ * + optional label overrides). Used when matching incoming Magento free text.
+ */
+export function getCompliantAffiliateLabelsForCategory(
+  category: CategoryKey,
+  store?: PricingReferenceStore
+): string[] {
+  const snapshot = getCategoryPricingSnapshot(category, store);
+  const labels: string[] = [];
+  for (const id of snapshot.compliantAffiliateIds) {
+    labels.push(
+      resolveCompliantAffiliateLabel(
+        id,
+        snapshot.compliantAffiliateLabels,
+        snapshot.nonCompliantAffiliateLabels
+      )
+    );
+  }
+  // Magento short forms that map to the Power / Unleash family.
+  if (
+    snapshot.compliantAffiliateIds.includes("power-music-covers") ||
+    snapshot.compliantAffiliateIds.includes("power-music-unleash-covers")
+  ) {
+    labels.push("Power Music", "Power Music + Unleash the Beats");
+  }
+  if (
+    snapshot.compliantAffiliateIds.includes("unleash-the-beats-covers") ||
+    snapshot.compliantAffiliateIds.includes("power-music-unleash-covers")
+  ) {
+    labels.push("Unleash the Beats", "Library Music");
+  }
+  return labels;
+}
+
+/** Push current Edit Affiliates selections into pricing-engine compliance checks. */
+export function syncRuntimeCompliantAffiliateLabels(
+  store: PricingReferenceStore = { categories: {} }
+): void {
+  const map: Record<string, string[]> = {};
+  for (const category of PRICING_CATEGORY_KEYS) {
+    map[category] = getCompliantAffiliateLabelsForCategory(category, store);
+  }
+  setRuntimeCompliantAffiliateLabelsByCategory(map);
 }
 
 export function savePricingReferenceStore(store: PricingReferenceStore): void {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+  syncRuntimeCompliantAffiliateLabels(store);
   // Assign daily-cost / Orders chips re-read reference prices on this event.
   window.dispatchEvent(new CustomEvent("slt-pricing-reference-changed"));
 }

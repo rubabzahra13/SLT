@@ -1,3 +1,5 @@
+import { determineComplianceStatus } from "@/lib/pricing-engine";
+
 export type SecretMenuExtraSongTier = {
   extraSongs: number;
   extraCost: number;
@@ -80,12 +82,39 @@ export function applySecretMenuPerSongRates(
   };
 }
 
-export function detectCompliance(musicTheme: string): "compliant" | "non-compliant" {
-  const upper = musicTheme.toUpperCase();
-  if (upper.includes("NON COMPLIANT") || upper.includes("NON-COMPLIANT")) {
-    return "non-compliant";
-  }
-  return "compliant";
+/**
+ * Check affiliate / theme free text against Edit Affiliates (same rules as Magento).
+ * Blank text stays compliant so empty drafts do not force a surcharge.
+ */
+export function detectCompliance(
+  musicText: string,
+  subType?: string | null
+): "compliant" | "non-compliant" {
+  const status = determineComplianceStatus(
+    subType || "all-star-cheer",
+    musicText
+  );
+  if (status === "unknown-no-affiliate-field") return "compliant";
+  return status;
+}
+
+/** Prefer musicAffiliate (Add Order / Magento); fall back to musicTheme for legacy rows. */
+export function resolveOrderPriceCompliance(order: {
+  priceCompliance?: "compliant" | "non-compliant" | null;
+  musicAffiliate?: string | null;
+  musicTheme?: string | null;
+  cheerFormSubtype?: string | null;
+  danceFormSubtype?: string | null;
+  formType?: string | null;
+}): "compliant" | "non-compliant" {
+  const text =
+    String(order.musicAffiliate || "").trim() ||
+    String(order.musicTheme || "").trim();
+  const subType =
+    order.formType === "school-all-star-dance"
+      ? order.danceFormSubtype
+      : order.cheerFormSubtype;
+  return detectCompliance(text, subType);
 }
 
 export function complianceLabel(compliance: "compliant" | "non-compliant"): string {

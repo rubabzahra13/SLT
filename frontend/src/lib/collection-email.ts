@@ -96,7 +96,6 @@ export function resolveCoachEmail(
   if (linkedOrder) {
     if (linkedOrder.coachEmail?.trim()) return linkedOrder.coachEmail.trim();
     if (linkedOrder.coachEmailAddress?.trim()) return linkedOrder.coachEmailAddress.trim();
-    if ((linkedOrder as any).emailAddress?.trim()) return (linkedOrder as any).emailAddress.trim();
   }
   return null;
 }

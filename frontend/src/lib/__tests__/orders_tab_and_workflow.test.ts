@@ -228,6 +228,164 @@ describe("Orders Tab & Workflow Separation", () => {
     assert.equal(isPreMTDOrderRecord(rows[0]), true);
   });
 
+  it("listPreMtdOrderRecords collapses duplicate MTD staging clones for one order", () => {
+    const order: Order = {
+      id: "ord-dup-1",
+      customerName: "Coach",
+      contactName: "Coach",
+      programName: "Clone Team",
+      category: "Cheer",
+      package: "Gold 1:00",
+      musicTheme: "Power Music Covers",
+      editorRequest: "FA",
+      requestedProducer: "",
+      assignedProducer: null,
+      price: 0,
+      priceCompliance: "compliant",
+      status: "new",
+      createdAt: "2026-01-01",
+      needsAttention: true,
+      attentionReason: null,
+      formType: "school-all-star-cheer",
+      cheerFormSubtype: "all-star-cheer",
+      songListSuggestions: "",
+      routineNotes: "Keep notes",
+    };
+    const clones: MTDRecord[] = [1, 2, 3, 4, 5].map((n) =>
+      makeRecord({
+        id: `mtd-clone-${n}`,
+        uuid: `uuid-clone-${n}`,
+        orderId: order.id,
+        programName: order.programName,
+        package: order.package,
+        musicTheme: n === 3 ? "Keep theme" : "",
+        assignedProducer: null,
+        mixStartDate: "",
+        mixEndDate: "",
+        inMTD: false,
+        songListSuggestions: "",
+        routineNotes: order.routineNotes,
+      })
+    );
+    const rows = listPreMtdOrderRecords([order], clones);
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].orderId, order.id);
+    assert.equal(rows[0].musicTheme, "Keep theme");
+  });
+
+  it("listPreMtdOrderRecords collapses clones that use uuid vs legacy order_id", () => {
+    const order: Order = {
+      id: "ord-alias-1",
+      uuid: "uuid-alias-1",
+      legacyId: "legacy-alias-1",
+      customerName: "Coach",
+      contactName: "Contact",
+      programName: "Alias Team",
+      category: "Cheer",
+      package: "Gold 1:00",
+      musicTheme: "",
+      editorRequest: "FA",
+      requestedProducer: "",
+      assignedProducer: null,
+      price: 0,
+      priceCompliance: "compliant",
+      status: "new",
+      createdAt: "2026-01-01",
+      needsAttention: true,
+      attentionReason: null,
+      formType: "school-all-star-cheer",
+      cheerFormSubtype: "all-star-cheer",
+      songListSuggestions: "Song A",
+      routineNotes: "",
+    };
+    const clones: MTDRecord[] = [
+      makeRecord({
+        id: "mtd-a",
+        uuid: "mtd-uuid-a",
+        orderId: order.uuid,
+        contactName: "Contact",
+        programName: order.programName,
+        package: order.package,
+        assignedProducer: null,
+        mixStartDate: "",
+        mixEndDate: "",
+        inMTD: false,
+        songListSuggestions: "",
+      }),
+      makeRecord({
+        id: "mtd-b",
+        uuid: "mtd-uuid-b",
+        orderId: order.legacyId,
+        contactName: "Contact",
+        programName: order.programName,
+        package: order.package,
+        assignedProducer: null,
+        mixStartDate: "",
+        mixEndDate: "",
+        inMTD: false,
+        songListSuggestions: "Song A",
+      }),
+      makeRecord({
+        id: "mtd-c",
+        uuid: "mtd-uuid-c",
+        orderId: order.id,
+        contactName: "Contact",
+        programName: order.programName,
+        package: order.package,
+        assignedProducer: null,
+        mixStartDate: "",
+        mixEndDate: "",
+        inMTD: false,
+        songListSuggestions: "",
+      }),
+    ];
+    const rows = listPreMtdOrderRecords([order], clones);
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].songListSuggestions, "Song A");
+  });
+
+  it("listPreMtdOrderRecords collapses orphan Contact clones without order_id", () => {
+    const order: Order = {
+      id: "ord-orphan-1",
+      customerName: "Coach",
+      contactName: "",
+      programName: "Orphan Team",
+      category: "Cheer",
+      package: "Silver 1:30",
+      musicTheme: "",
+      editorRequest: "FA",
+      requestedProducer: "",
+      assignedProducer: null,
+      price: 0,
+      priceCompliance: "compliant",
+      status: "new",
+      createdAt: "2026-01-01",
+      needsAttention: true,
+      attentionReason: null,
+      formType: "school-all-star-cheer",
+      cheerFormSubtype: "all-star-cheer",
+    };
+    const clones: MTDRecord[] = [1, 2, 3].map((n) =>
+      makeRecord({
+        id: `mtd-orphan-${n}`,
+        uuid: `uuid-orphan-${n}`,
+        orderId: undefined,
+        contactName: "Contact",
+        programName: order.programName,
+        package: order.package,
+        assignedProducer: null,
+        mixStartDate: "",
+        mixEndDate: "",
+        inMTD: false,
+        songListSuggestions: n === 2 ? "Keep songs" : "",
+      })
+    );
+    const rows = listPreMtdOrderRecords([order], clones);
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].songListSuggestions, "Keep songs");
+    assert.equal(rows[0].orderId, order.id);
+  });
+
   it("Outsourced mixes belong on the MTD tab even without full scheduling", () => {
     const outsourced = makeRecord({
       section: "OUTSOURCED MIXES",
@@ -298,15 +456,15 @@ describe("Orders Tab & Workflow Separation", () => {
       getOrderAssignmentStatus(reassignWithRequested),
       "reassign_leave"
     );
-    assert.equal(getDisplayAssignedProducer(reassignWithRequested), "CP");
+    assert.equal(getDisplayAssignedProducer(reassignWithRequested), null);
 
     const requestedOnly = makeRecord({
       assignedProducer: null,
       editorRequest: "CP",
     });
     assert.equal(getOrderAssignmentStatus(requestedOnly), "not_assigned");
-    // Display may show the request; assignment status still Not assigned.
-    assert.equal(getDisplayAssignedProducer(requestedOnly), "CP");
+    // Requested producer is a suggestion only — Assigned stays empty.
+    assert.equal(getDisplayAssignedProducer(requestedOnly), null);
 
     const assigned = makeRecord({
       assignedProducer: "CP",

@@ -1,17 +1,26 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import clsx from "clsx";
 import type { MTDRecord, Order } from "@/types";
 import { useAppState } from "@/context/AppStateContext";
 import { findLinkedOrder } from "@/lib/editor-assignment";
 import {
+  getFormNotesText,
+  getFormSongListColumnText,
   getOrderRequirements,
   mergeOrderFormFieldsForRequirements,
   type OrderRequirementItem,
   type RequirementCategory,
 } from "@/lib/order-requirements";
+import { buildLegacyMusicTheme } from "@/lib/order-form";
+import { mtdRecordCoversOrder } from "@/lib/order-staging";
 import { HoverTip } from "@/components/ui/HoverTip";
+import {
+  SongsNotesToggleModal,
+  type SongsNotesToggleDirection,
+  type SongsNotesToggleKind,
+} from "@/components/orders/SongsNotesToggleModal";
 
 function requirementPillTip(
   item: OrderRequirementItem,
@@ -37,13 +46,18 @@ function requirementPillTip(
   }
   if (item.id === "songs") {
     if (isWhite) return `${item.label}: Not applicable`;
-    return `${item.label}: ${isGreen ? "Have" : "Not have"}`;
+    return `${item.label}: ${isGreen ? "Have — click to remove" : "Not have — click to add"}`;
   }
   if (item.id === "notes") {
     if (isWhite) return `${item.label}: Not applicable`;
     return `${item.label}: ${
-      isGreen ? "Have (from Routine notes)" : "Not have — add Routine notes in the form"
+      isGreen ? "Have — click to remove" : "Not have — click to add"
     }`;
+  }
+  if (item.id === "form") {
+    return isGreen
+      ? "Form: Matched Magento form (automatic)"
+      : "Form: Waiting for Magento form name match (automatic)";
   }
   if (isWhite) return `${item.label}: Not applicable`;
   if (lockedGreen) return `${item.label}: Collected. ${lockReason}`;
@@ -68,7 +82,7 @@ export function OrderRequirementPill({
   const lockedGreen = Boolean(lockReason) && isGreen;
 
   const isInteractive =
-    !disabled && !lockedGreen && (isGreen || isRed);
+    !disabled && !lockedGreen && (isGreen || isRed) && Boolean(onToggle);
 
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -95,20 +109,193 @@ export function OrderRequirementPill({
           "inline-flex items-center justify-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold leading-none transition shadow-2xs select-none focus:outline-none focus:ring-1 focus:ring-slate-400/40",
           isGreen &&
             "bg-[#c2e7d9] text-[#0f5236] border border-[#9edbb8]",
-          isGreen &&
-            isInteractive &&
-            "hover:brightness-95 active:scale-95 cursor-pointer",
-          isRed &&
-            "bg-[#f9d7d7] text-[#901313] border border-[#ebafaf] hover:brightness-95 active:scale-95 cursor-pointer",
+          isRed && "bg-[#f9d7d7] text-[#901313] border border-[#ebafaf]",
           isWhite &&
-            "bg-white text-slate-400 border border-slate-200/80 cursor-default opacity-85",
-          !isInteractive && "cursor-default"
+            "bg-white text-slate-400 border border-slate-200/80 opacity-85",
+          isInteractive
+            ? "cursor-pointer hover:brightness-95 active:scale-95"
+            : "cursor-default"
         )}
       >
         <span>{item.label}</span>
       </button>
     </HoverTip>
   );
+}
+
+function isDanceOrder(order: Order | MTDRecord): boolean {
+  const formType = String(
+    (order as Order).formType || (order as { form_type?: string }).form_type || ""
+  ).toLowerCase();
+  const category = String(order.category || "").toLowerCase();
+  return (
+    formType.includes("dance") ||
+    category.includes("dance") ||
+    category.includes("pom") ||
+    category.includes("hip")
+  );
+}
+
+function isSportsOrder(order: Order | MTDRecord): boolean {
+  const formType = String(
+    (order as Order).formType || (order as { form_type?: string }).form_type || ""
+  ).toLowerCase();
+  const category = String(order.category || "").toLowerCase();
+  return formType.includes("sports") || category.includes("sports");
+}
+
+function isAnthemOrder(order: Order | MTDRecord): boolean {
+  const formType = String(
+    (order as Order).formType || (order as { form_type?: string }).form_type || ""
+  ).toLowerCase();
+  const category = String(order.category || "").toLowerCase();
+  const pkg = String(
+    (order as Order).packageType ||
+      order.package ||
+      (order as { package_type?: string }).package_type ||
+      ""
+  ).toUpperCase();
+  return (
+    formType.includes("anthem") ||
+    category.includes("anthem") ||
+    pkg.includes("SCHOOL ANTHEM")
+  );
+}
+
+function buildSongsNotesPatches(
+  order: Order | MTDRecord,
+  kind: SongsNotesToggleKind,
+  text: string
+): { orderPatch: Partial<Order>; mtdPatch: Partial<MTDRecord> } {
+  const filled = Boolean(text.trim());
+  const existingOverrides =
+    (order as MTDRecord).collectionStates ||
+    (order as { collection_states?: Record<string, boolean> }).collection_states ||
+    {};
+  const parsedOverrides =
+    typeof existingOverrides === "string"
+      ? (() => {
+          try {
+            return JSON.parse(existingOverrides) as Record<string, boolean>;
+          } catch {
+            return {};
+          }
+        })()
+      : { ...existingOverrides };
+
+  if (kind === "songs") {
+    const nextStates = { ...parsedOverrides };
+    delete nextStates.songs;
+    const existingNotes = String(
+      (order as Order).routineNotes ||
+        (order as { routine_notes?: string }).routine_notes ||
+        ""
+    ).trim();
+    const affiliate = String(
+      (order as Order).musicAffiliate ||
+        (order as { music_affiliate?: string }).music_affiliate ||
+        ""
+    ).trim();
+    const dance = isDanceOrder(order);
+    const sports = isSportsOrder(order);
+    const anthem = isAnthemOrder(order);
+    // On clear: wipe musicTheme completely. Do not leave affiliate/notes in theme —
+    // Form song list / Songs pill fall back to musicTheme and would stay green.
+    // Cheer → songListSuggestions only. Dance Songs pill → Power Music Covers
+    // (Unleash the Beats Covers is its own column — preserve, do not mirror).
+    // School Anthem Song pill → instrumentationNotes (Instrumental Style Preference).
+    const existingUnleash = String(
+      (order as Order).unleashTheBeatsCovers ||
+        (order as { unleash_the_beats_covers?: string })
+          .unleash_the_beats_covers ||
+        ""
+    ).trim();
+    const nextTheme = filled
+      ? dance
+        ? buildLegacyMusicTheme({
+            routineNotes: existingNotes,
+            powerMusicCovers: text,
+            musicAffiliate: affiliate || undefined,
+          })
+        : anthem
+          ? ""
+          : text
+      : "";
+    const orderPatch: Partial<Order> = {
+      songListSuggestions: dance || anthem ? "" : text,
+      powerMusicCovers: dance ? (filled ? text : "") : "",
+      unleashTheBeatsCovers: dance ? existingUnleash : "",
+      // Keep notes explicit so normalizeOrder does not refill them from musicTheme.
+      routineNotes: existingNotes,
+      haveSongs: filled ? "HAVE SONGS" : "NEED SONGS",
+      collectionStates: nextStates as Order["collectionStates"],
+      musicTheme: nextTheme,
+    };
+    if (sports) {
+      orderPatch.customerSongs = filled ? text : "";
+    }
+    if (anthem) {
+      // Song pill ↔ Instrumental Style Preference (instrumentation_notes).
+      orderPatch.instrumentationNotes = text;
+      orderPatch.instrumentalStylePreference = text;
+    }
+    const mtdPatch: Partial<MTDRecord> & {
+      powerMusicCovers?: string;
+      instrumentationNotes?: string;
+    } = {
+      songListSuggestions: orderPatch.songListSuggestions,
+      haveSongs: filled ? "HAVE SONGS" : "NEED SONGS",
+      collectionStates: nextStates as MTDRecord["collectionStates"],
+      musicTheme: nextTheme,
+      powerMusicCovers: orderPatch.powerMusicCovers,
+    };
+    if (anthem) {
+      mtdPatch.instrumentationNotes = text;
+    }
+    return { orderPatch, mtdPatch };
+  }
+
+  const nextStates = { ...parsedOverrides };
+  delete nextStates.notes;
+  const anthem = isAnthemOrder(order);
+  const affiliate = String(
+    (order as Order).musicAffiliate ||
+      (order as { music_affiliate?: string }).music_affiliate ||
+      ""
+  ).trim();
+  const danceCovers = isDanceOrder(order)
+    ? String((order as Order).powerMusicCovers || "").trim()
+    : "";
+  const nextTheme = anthem
+    ? ""
+    : buildLegacyMusicTheme({
+        routineNotes: text,
+        powerMusicCovers: danceCovers,
+        musicAffiliate: affiliate || undefined,
+      });
+  // School Anthem Notes pill → lyricalNotes (Magento Lyrical Notes).
+  const orderPatch: Partial<Order> = anthem
+    ? {
+        lyricalNotes: text,
+        collectionStates: nextStates as Order["collectionStates"],
+      }
+    : {
+        routineNotes: text,
+        additionalNotes: text,
+        collectionStates: nextStates as Order["collectionStates"],
+        musicTheme: nextTheme,
+      };
+  const mtdPatch: Partial<MTDRecord> & { lyricalNotes?: string } = anthem
+    ? {
+        lyricalNotes: text,
+        collectionStates: nextStates as MTDRecord["collectionStates"],
+      }
+    : {
+        routineNotes: text,
+        collectionStates: nextStates as MTDRecord["collectionStates"],
+        musicTheme: nextTheme,
+      };
+  return { orderPatch, mtdPatch };
 }
 
 export function OrderRequirementsCell({
@@ -118,11 +305,22 @@ export function OrderRequirementsCell({
   record: Order | MTDRecord;
   category: RequirementCategory;
 }) {
-  const { updateMTD, addNotification, isViewOnly, allOrders } = useAppState();
+  const {
+    updateMTD,
+    updateOrder,
+    addNotification,
+    isViewOnly,
+    allOrders,
+    mtdRecords,
+  } = useAppState();
   const requirementsRecord = useMemo(() => {
     const linked = findLinkedOrder(record as MTDRecord, allOrders);
     return mergeOrderFormFieldsForRequirements(record, linked);
   }, [record, allOrders]);
+  const linkedOrder = useMemo(
+    () => findLinkedOrder(record as MTDRecord, allOrders),
+    [record, allOrders]
+  );
   const reqs = getOrderRequirements(requirementsRecord);
   const items = (
     category === "collections" ? reqs.collections : reqs.songsArea
@@ -132,23 +330,24 @@ export function OrderRequirementsCell({
     ? "Can't mark missing on Reassign off day/rush orders"
     : null;
 
+  const [confirm, setConfirm] = useState<{
+    kind: SongsNotesToggleKind;
+    direction: SongsNotesToggleDirection;
+    currentText: string;
+  } | null>(null);
+
   if (!items || items.length === 0) {
-    return <span className="text-[11px] text-brand-ink-tertiary">—</span>;
+    return (
+      <span className="text-[11px] text-brand-ink-tertiary">None Applicable</span>
+    );
   }
 
-  const handleToggle = (item: OrderRequirementItem) => {
-    if (isViewOnly) return;
-    // Songs / Notes follow form fields only — not manual pill toggles.
-    if (item.id === "songs" || item.id === "notes") return;
-    // Reassign leave/rush: collected (green) data stays collected.
-    if (isReassign && item.state === "green") return;
-    if (item.state === "white") return;
-
+  const applyCollectionToggle = (item: OrderRequirementItem) => {
     const nextCollected = item.state === "red";
 
     const existingOverrides =
-      (record as any).collectionStates ||
-      (record as any).collection_states ||
+      (record as MTDRecord).collectionStates ||
+      (record as { collection_states?: Record<string, boolean> }).collection_states ||
       {};
     const parsedOverrides =
       typeof existingOverrides === "string"
@@ -176,19 +375,16 @@ export function OrderRequirementsCell({
     const newStatus = getOrderRequirements(simulatedRecord).status;
     const statusChanged = oldStatus !== newStatus;
 
-    const patch: Record<string, any> = {
+    const patch: Record<string, unknown> = {
       collectionStates: updatedCollectionStates,
       collection_states: updatedCollectionStates,
     };
-
-    // Data completeness is derived from collection pills — never write
-    // Missing/Complete into orderStatus (that field holds Reassign leave/rush).
 
     if (item.id === "cs" || item.id === "eight_count") {
       patch.eightCountSheet = nextCollected ? "HAVE CS" : "NEED CS";
     }
 
-    updateMTD(record.id, patch as Partial<MTDRecord>);
+    void updateMTD(record.id, patch as Partial<MTDRecord>);
 
     if (statusChanged) {
       addNotification({
@@ -199,22 +395,129 @@ export function OrderRequirementsCell({
     }
   };
 
+  const handleToggle = (item: OrderRequirementItem) => {
+    if (isViewOnly) return;
+    if (isReassign && item.state === "green") return;
+    if (item.state === "white") return;
+    // Form is automatic from Magento name-match — not manually toggleable.
+    if (item.id === "form") return;
+
+    if (item.id === "songs" || item.id === "notes") {
+      const direction: SongsNotesToggleDirection =
+        item.state === "green" ? "to_red" : "to_green";
+      const currentText =
+        item.id === "songs"
+          ? getFormSongListColumnText(requirementsRecord)
+          : getFormNotesText(requirementsRecord);
+      setConfirm({
+        kind: item.id,
+        direction,
+        currentText,
+      });
+      return;
+    }
+
+    applyCollectionToggle(item);
+  };
+
+  const handleSongsNotesConfirm = (text: string) => {
+    if (!confirm) return;
+    const { kind, direction } = confirm;
+    const nextText = direction === "to_red" ? "" : text.trim();
+    if (direction === "to_green" && !nextText) return;
+
+    const { orderPatch, mtdPatch } = buildSongsNotesPatches(
+      requirementsRecord,
+      kind,
+      nextText
+    );
+
+    const orderId =
+      linkedOrder?.id ||
+      (record as MTDRecord).orderId ||
+      (record.id.startsWith("ord-") || record.id.includes("-")
+        ? record.id
+        : null);
+
+    // Order is source of truth for song list / notes. Only patch an existing MTD
+    // staging row — never createMTD via updateMTD (that cloned Orders rows).
+    if (orderId) {
+      void updateOrder(orderId, orderPatch, linkedOrder || undefined);
+    }
+    const coveringMtd =
+      (linkedOrder &&
+        mtdRecords.find((rec) => mtdRecordCoversOrder(rec, linkedOrder))) ||
+      mtdRecords.find(
+        (rec) =>
+          rec.id === record.id ||
+          rec.orderId === record.id ||
+          rec.uuid === record.id ||
+          rec.legacyId === record.id ||
+          (orderId &&
+            (rec.orderId === orderId ||
+              rec.id === orderId ||
+              rec.legacyId === orderId))
+      );
+    if (coveringMtd?.id) {
+      void updateMTD(coveringMtd.id, mtdPatch);
+    }
+
+    const anthem = isAnthemOrder(requirementsRecord);
+    addNotification({
+      type: "mtd_move",
+      title: kind === "songs" ? "Songs updated" : "Notes updated",
+      message:
+        direction === "to_red"
+          ? kind === "songs"
+            ? anthem
+              ? "Instrumental style preference cleared. Song marked as not have."
+              : "Song list cleared. Songs marked as not have."
+            : anthem
+              ? "Lyrical notes cleared. Notes marked as not have."
+              : "Routine notes cleared. Notes marked as not have."
+          : kind === "songs"
+            ? anthem
+              ? "Instrumental style preference saved. Song marked as have."
+              : "Song list saved. Songs marked as have."
+            : anthem
+              ? "Lyrical notes saved. Notes marked as have."
+              : "Routine notes saved. Notes marked as have.",
+    });
+    setConfirm(null);
+  };
+
   return (
-    <div
-      className="inline-flex items-center justify-center gap-1 rounded-full bg-[#f0f3f6] border border-[#e2e8f0] p-1 shadow-inner max-w-fit mx-auto"
-      onClick={(e) => e.stopPropagation()}
-    >
-      {items.map((item) => (
-        <OrderRequirementPill
-          key={item.id}
-          item={item}
-          onToggle={
-            item.id === "songs" || item.id === "notes" ? undefined : handleToggle
-          }
-          disabled={isViewOnly}
-          lockReason={reassignLockReason}
-        />
-      ))}
-    </div>
+    <>
+      <div
+        className="inline-flex items-center justify-center gap-1 rounded-full bg-[#f0f3f6] border border-[#e2e8f0] p-1 shadow-inner max-w-fit mx-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {items.map((item) => (
+          <OrderRequirementPill
+            key={item.id}
+            item={item}
+            onToggle={item.id === "form" ? undefined : handleToggle}
+            disabled={isViewOnly || item.id === "form"}
+            lockReason={reassignLockReason}
+          />
+        ))}
+      </div>
+
+      <SongsNotesToggleModal
+        open={Boolean(confirm)}
+        kind={confirm?.kind || "songs"}
+        direction={confirm?.direction || "to_red"}
+        currentText={confirm?.currentText || ""}
+        fieldLabel={
+          isAnthemOrder(requirementsRecord)
+            ? confirm?.kind === "notes"
+              ? "Lyrical Notes"
+              : "Instrumental Style Preference"
+            : undefined
+        }
+        onClose={() => setConfirm(null)}
+        onConfirm={handleSongsNotesConfirm}
+      />
+    </>
   );
 }

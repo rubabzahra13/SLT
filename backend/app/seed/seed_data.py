@@ -182,8 +182,11 @@ def seed_all(db: Session):
         code_str = dc.get("code", "").strip().upper()
         existing_dc = db.query(DiscountCode).filter(DiscountCode.code == code_str).first()
         if not existing_dc:
+            from app.seed.ids import seed_uuid
+
+            seed_key = str(dc.get("id") or code_str).strip()
             db.add(DiscountCode(
-                legacy_id=dc.get("id"),
+                id=seed_uuid("discount", seed_key),
                 code=code_str,
                 description=dc.get("description", ""),
             ))
@@ -198,71 +201,87 @@ def seed_all(db: Session):
     order_legacy_map: Dict[str, Order] = {}
 
     def seed_order_list(order_list: list, is_past: bool):
+        from app.seed.ids import seed_uuid
+
         for o in order_list:
             legacy_id = o.get("id", "").strip()
-            existing_order = db.query(Order).filter(Order.legacy_id == legacy_id).first()
+            order_pk = seed_uuid("order", legacy_id)
+            existing_order = db.query(Order).filter(Order.id == order_pk).first()
 
             created_dt = parse_datetime(o.get("createdAt")) or datetime.utcnow()
             completed_dt = parse_datetime(o.get("completedAt"))
 
             if not existing_order:
                 order_obj = Order(
-                    legacy_id=legacy_id,
+                    id=order_pk,
                     form_type=o.get("formType", "school-all-star-cheer"),
                     cheer_form_subtype=o.get("cheerFormSubtype"),
                     dance_form_subtype=o.get("danceFormSubtype"),
                     varsity_viroc_customer=o.get("varsityVirocCustomer"),
-                    school_program_name=o.get("schoolProgramName"),
-                    school_address=o.get("schoolAddress"),
+                    school_gym_name=o.get("schoolName")
+                    or o.get("schoolProgramName")
+                    or o.get("gymName"),
+                    school_gym_billing_address=(
+                        o.get("schoolGymBillingAddress")
+                        or o.get("gymBillingAddress")
+                        or o.get("schoolBillingAddress")
+                        or o.get("youthRecBillingAddress")
+                        or o.get("organizationBillingAddress")
+                        or o.get("schoolGymAddress")
+                        or o.get("schoolAddress")
+                        or o.get("billingAddress")
+                    ),
                     city=o.get("city"),
                     state_province=o.get("stateProvince"),
                     zip_postal_code=o.get("zipPostalCode"),
                     country=o.get("country", "United States"),
                     division=o.get("division"),
-                    coach_name=o.get("coachName"),
+                    coach_name=o.get("coachName") or o.get("coachContactFullName"),
                     coach_phone=o.get("coachPhone"),
-                    coach_email=o.get("coachEmail"),
+                    coach_email=o.get("coachEmail") or o.get("coachEmailAddress"),
                     billing_person_name=o.get("billingPersonName"),
                     billing_person_email=o.get("billingPersonEmail"),
-                    choreographer_name=o.get("choreographerName"),
-                    choreographer_email=o.get("choreographerEmail"),
+                    choreographer_name=(
+                        o.get("choreographerName") or o.get("virocChoreographerName")
+                    ),
+                    choreographer_email=(
+                        o.get("choreographerEmail") or o.get("virocChoreographerEmail")
+                    ),
                     number_of_copies=o.get("numberOfCopies"),
                     package_type=o.get("packageType"),
-                    requested_editor=o.get("requestedEditor"),
+                    requested_editor=(
+                        o.get("requestedEditor") or o.get("requestedProducer")
+                    ),
                     time_length_of_mix=o.get("timeLengthOfMix"),
                     music_affiliate=o.get("musicAffiliate"),
                     power_music_covers=o.get("powerMusicCovers"),
                     routine_notes=o.get("routineNotes"),
                     custom_voiceovers=o.get("customVoiceovers"),
-                    gym_name=o.get("gymName"),
-                    gym_billing_address=o.get("gymBillingAddress"),
                     team_name=o.get("teamName"),
                     team_coed_all_girl=o.get("teamCoedAllGirl"),
-                    team_colors=o.get("teamColors"),
-                    school_name=o.get("schoolName"),
-                    school_billing_address=o.get("schoolBillingAddress"),
+                    colors=(
+                        o.get("colors")
+                        or o.get("teamColors")
+                        or o.get("youthRecColors")
+                        or o.get("schoolProgramColors")
+                    ),
                     mascot=o.get("mascot"),
                     split_or_no_split=o.get("splitOrNoSplit"),
-                    viroc_choreographer_name=o.get("virocChoreographerName"),
-                    viroc_choreographer_email=o.get("virocChoreographerEmail"),
-                    colors=o.get("colors"),
-                    billing_address=o.get("billingAddress"),
-                    coach_contact_full_name=o.get("coachContactFullName"),
-                    coach_email_address=o.get("coachEmailAddress"),
-                    email_address=o.get("emailAddress"),
-                    sending_eight_count_sheets=o.get("sendingEightCountSheets"),
-                    using_eight_count_sheets=o.get("usingEightCountSheets"),
+                    youth_rec_extra_email_address=(
+                        o.get("youthRecExtraEmailAddress") or o.get("emailAddress")
+                    ),
+                    sending_eight_count_sheets=(
+                        o.get("sendingEightCountSheets")
+                        or o.get("usingEightCountSheets")
+                    ),
                     song_list_suggestions=o.get("songListSuggestions"),
                     coupon_code=o.get("couponCode"),
                     how_did_you_find_out=o.get("howDidYouFindOut"),
                     customer_name=o.get("customerName") or o.get("programName") or "Unknown Customer",
                     contact_name=o.get("contactName") or o.get("customerName") or "Unknown Contact",
-                    program_name=o.get("programName") or "Unknown Program",
-                    category=o.get("category", "Cheer"),
                     package=o.get("package", "TBD"),
                     music_theme=o.get("musicTheme"),
-                    editor_request=o.get("editorRequest"),
-                    requested_producer=o.get("requestedProducer"),
+                    editor_initials=o.get("editorRequest"),
                     price=float(o.get("price", 0)),
                     price_compliance=o.get("priceCompliance"),
                     status=o.get("status", "completed" if is_past else "new"),
@@ -278,7 +297,11 @@ def seed_all(db: Session):
             else:
                 existing_order.time_length_of_mix = o.get("timeLengthOfMix", existing_order.time_length_of_mix)
                 existing_order.music_affiliate = o.get("musicAffiliate", existing_order.music_affiliate)
-                existing_order.sending_eight_count_sheets = o.get("sendingEightCountSheets", existing_order.sending_eight_count_sheets)
+                existing_order.sending_eight_count_sheets = (
+                    o.get("sendingEightCountSheets")
+                    or o.get("usingEightCountSheets")
+                    or existing_order.sending_eight_count_sheets
+                )
                 existing_order.song_list_suggestions = o.get("songListSuggestions", existing_order.song_list_suggestions)
                 existing_order.routine_notes = o.get("routineNotes", existing_order.routine_notes)
                 existing_order.package = o.get("package", existing_order.package)
@@ -296,9 +319,12 @@ def seed_all(db: Session):
     # 4. Seed MTD Records
     raw_mtd = mock_data.get("mtdRecords", [])
     print(f"Seeding {len(raw_mtd)} MTD records...")
+    from app.seed.ids import seed_uuid
+
     for m in raw_mtd:
         legacy_id = m.get("id", "").strip()
-        existing_mtd = db.query(MTDRecord).filter(MTDRecord.legacy_id == legacy_id).first()
+        mtd_pk = seed_uuid("mtd", legacy_id)
+        existing_mtd = db.query(MTDRecord).filter(MTDRecord.id == mtd_pk).first()
 
         # Resolve assigned producer UUID
         assigned_prod_str = m.get("assignedProducer")
@@ -324,15 +350,15 @@ def seed_all(db: Session):
 
         if not existing_mtd:
             mtd_obj = MTDRecord(
-                legacy_id=legacy_id,
+                id=mtd_pk,
                 order_id=linked_order_id,
                 section=m.get("section", "CHEERLEADING MUSIC"),
                 assigned_producer_id=assigned_producer_id,
                 category=m.get("category", "Cheer"),
                 editor_request=m.get("editorRequest"),
                 contact_name=m.get("contactName", ""),
-                editor_initials=m.get("editorInitials") or assigned_prod_str,
                 program_name=m.get("programName", ""),
+                editor_initials=m.get("editorInitials") or assigned_prod_str,
                 package=m.get("package", ""),
                 music_theme=m.get("musicTheme"),
                 price=float(m.get("price", 0)),
@@ -341,7 +367,9 @@ def seed_all(db: Session):
                 mix_start_date=mix_start,
                 mix_end_date=mix_end,
                 waiting_on=m.get("waitingOn"),
-                eight_count_sheet=m.get("eightCountSheet", ""),
+                received_eight_count_sheet=m.get("eightCountSheet", "")
+                or m.get("receivedEightCountSheet", "")
+                or "",
                 have_songs=m.get("haveSongs", ""),
                 needs_attention=bool(m.get("needsAttention", False)),
                 status=m.get("status", "active"),

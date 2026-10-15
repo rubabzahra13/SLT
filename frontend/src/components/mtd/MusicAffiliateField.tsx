@@ -8,6 +8,11 @@ import {
   COMPLIANT_AFFILIATE_OPTIONS,
   NON_COMPLIANT_AFFILIATE_OPTIONS,
 } from "@/lib/pricing-reference";
+import {
+  affiliateCompactKey,
+  affiliateTextSimilarity,
+  affiliateTextsFuzzyMatch,
+} from "@/lib/pricing-engine";
 
 /**
  * School Cheer / VIROC customer-form affiliate choices
@@ -61,6 +66,10 @@ export function musicAffiliateOptionsForOrder(order: {
   return defaultCheerAffiliateOptions();
 }
 
+/**
+ * Resolve free text (manual Add Order) to a catalog option.
+ * Matches ignoring spacing / capitalization / near-identical wording.
+ */
 export function normalizeMusicAffiliateOption(
   value: string,
   options: readonly string[]
@@ -72,7 +81,48 @@ export function normalizeMusicAffiliateOption(
   const lower = raw.toLowerCase();
   const loose = options.find((opt) => opt.toLowerCase() === lower);
   if (loose) return loose;
+
+  const compact = affiliateCompactKey(raw);
+  const compactHit = options.find(
+    (opt) => affiliateCompactKey(opt) === compact
+  );
+  if (compactHit) return compactHit;
+
+  const compactContains = options.find((opt) => {
+    const key = affiliateCompactKey(opt);
+    if (!key || !compact) return false;
+    return (
+      compact === key ||
+      (compact.length >= 6 && (compact.includes(key) || key.includes(compact)))
+    );
+  });
+  if (compactContains) return compactContains;
+
+  let best: string | null = null;
+  let bestScore = 0;
+  for (const opt of options) {
+    const score = affiliateTextSimilarity(raw, opt);
+    if (score > bestScore) {
+      bestScore = score;
+      best = opt;
+    }
+  }
+  if (best && bestScore >= 0.82) return best;
   return raw;
+}
+
+/** SoftSelect search: spacing/caps-insensitive + near-word fuzzy. */
+export function musicAffiliateOptionMatchesQuery(
+  optionLabel: string,
+  query: string
+): boolean {
+  const q = query.trim();
+  if (!q) return true;
+  if (optionLabel.toLowerCase().includes(q.toLowerCase())) return true;
+  if (affiliateCompactKey(optionLabel).includes(affiliateCompactKey(q))) {
+    return true;
+  }
+  return affiliateTextsFuzzyMatch(optionLabel, q, 0.55);
 }
 
 type MusicAffiliateFieldProps = {
@@ -116,6 +166,13 @@ export function MusicAffiliateField({
       placement="below"
       searchable
       searchPlaceholder="Search affiliates…"
+      filterOption={(opt, query) =>
+        musicAffiliateOptionMatchesQuery(opt.label, query)
+      }
+      allowCustomValue
+      resolveCustomValue={(typed) =>
+        normalizeMusicAffiliateOption(typed, catalog) || typed.trim()
+      }
       value={normalized || value}
       options={options}
       open={open}

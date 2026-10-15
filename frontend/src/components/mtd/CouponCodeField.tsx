@@ -169,7 +169,7 @@ export function CouponCodeField({
 
   return (
     <div className="flex min-w-0 flex-col">
-      <span className="min-h-[28px] text-[10px] font-bold uppercase leading-snug tracking-[0.06em] text-brand-ink-tertiary">
+      <span className="min-h-[28px] text-[10px] font-bold uppercase leading-snug tracking-[0.06em] text-brand-ink">
         Coupon code
       </span>
       {editable && onChange ? (
@@ -189,7 +189,7 @@ export function CouponCodeField({
           />
         </div>
       ) : trimmed ? (
-        <p className="mt-1.5 text-[13px] font-normal uppercase tracking-wide text-brand-ink">
+        <p className="mt-1.5 text-[13px] font-semibold uppercase tracking-wide text-brand-ink">
           {trimmed}
         </p>
       ) : (

@@ -23,6 +23,24 @@ from app.services.board_events import board_event_hub
 
 router = APIRouter()
 
+# Magento School Anthem has no package-type field — always flat rate card.
+SCHOOL_ANTHEM_PACKAGE = "SCHOOL ANTHEMS"
+SCHOOL_ANTHEM_PRICE = 1250.0
+
+
+def _apply_school_anthem_defaults(data: dict, form_type: str | None = None) -> None:
+    """Force package + $1,250 whenever form_type is school-anthem.
+
+    Magento School Anthem has no package-type field — one flat rate card.
+    """
+    ft = form_type if form_type is not None else data.get("form_type")
+    if ft != "school-anthem":
+        return
+    data["package_type"] = SCHOOL_ANTHEM_PACKAGE
+    data["package"] = SCHOOL_ANTHEM_PACKAGE
+    data["price"] = SCHOOL_ANTHEM_PRICE
+
+
 # Shared business fields that must stay aligned between orders and mtd_records.
 ORDER_MTD_SHARED_KEYS = (
     "assigned_producer",
@@ -32,54 +50,24 @@ ORDER_MTD_SHARED_KEYS = (
     "price",
     "final_customer_price",
     "final_customer_price_overridden",
-    "editor_request",
+    "editor_initials",
     "collection_states",
     "order_status",
     "have_songs",
-    "eight_count_sheet",
+    "received_eight_count_sheet",
     "is_reassigned",
     "missing_data_email_sent_at",
     "producer_email_sent_at",
     "producer_email_sent_to",
     "contact_name",
-    "program_name",
+    "gym_name",
     "school_gym_name",
     "package",
     "music_theme",
     "price_compliance",
+    "form_type",
+    "cheer_form_subtype",
 )
-
-_UNIFIED_NAME_KEYS = (
-    "school_gym_name",
-    "school_program_name",
-    "program_name",
-    "school_name",
-    "gym_name",
-)
-_UNIFIED_BILLING_KEYS = (
-    "school_gym_billing_address",
-    "school_billing_address",
-    "billing_address",
-    "gym_billing_address",
-    "school_address",
-)
-# Payload keys that are API aliases / removed columns — never setattr onto Order.
-_ORDER_WRITE_DROP_KEYS = {
-    "legacy_id",
-    "category",
-    "editor_request",
-    "requested_producer",
-    "coach_contact_full_name",
-    "coach_email_address",
-    "viroc_choreographer_name",
-    "viroc_choreographer_email",
-    "team_colors",
-    "email_address",
-    "using_eight_count_sheets",  # merged into sending_eight_count_sheets
-    "received_eight_count_sheet",  # DB name; ORM attr is eight_count_sheet
-    *_UNIFIED_NAME_KEYS[1:],  # keep school_gym_name
-    *_UNIFIED_BILLING_KEYS[1:],  # keep school_gym_billing_address
-}
 
 
 def is_valid_uuid(val: str) -> bool:
@@ -90,73 +78,140 @@ def is_valid_uuid(val: str) -> bool:
         return False
 
 
-def _coalesce_unified_order_fields(data: dict) -> dict:
-    """Map legacy name/billing keys onto school_gym_* columns."""
-    out = dict(data)
+_BILLING_ALIASES = (
+    "gym_billing_address",
+    "school_billing_address",
+    "youth_rec_billing_address",
+    "organization_billing_address",
+    "school_address",
+)
 
-    name_set = False
-    name_val = None
-    for key in _UNIFIED_NAME_KEYS:
-        if key in out:
-            name_set = True
-            if out[key] is not None:
-                name_val = out[key]
-    if name_set:
-        out["school_gym_name"] = name_val
+_COLOR_ALIASES = (
+    "team_colors",
+    "youth_rec_colors",
+    "school_program_colors",
+)
 
-    billing_set = False
-    billing_val = None
-    for key in _UNIFIED_BILLING_KEYS:
-        if key in out:
-            billing_set = True
-            if out[key] is not None:
-                billing_val = out[key]
-    if billing_set:
-        out["school_gym_billing_address"] = billing_val
+_COACH_NAME_ALIASES = ("coach_contact_full_name",)
+_COACH_EMAIL_ALIASES = ("coach_email_address",)
+_YOUTH_REC_EMAIL_ALIASES = ("email_address",)
+_CHOREOGRAPHER_NAME_ALIASES = ("viroc_choreographer_name",)
+_CHOREOGRAPHER_EMAIL_ALIASES = ("viroc_choreographer_email",)
+_REQUESTED_EDITOR_ALIASES = ("requested_producer",)
+_EDITOR_INITIALS_ALIASES = ("editor_request",)
+_EIGHT_COUNT_SHEETS_ALIASES = ("using_eight_count_sheets",)
+_INSTRUMENTATION_NOTES_ALIASES = ("instrumental_style_preference",)
 
-    if "team_colors" in out:
-        tc = out.get("team_colors")
-        if out.get("colors") is None and tc is not None:
-            out["colors"] = tc
 
-    if "email_address" in out:
-        email = out.get("email_address")
-        if email is not None:
-            out["youth_rec_extra_email_address"] = email
+def _coerce_alias_column(
+    data: dict,
+    target: str,
+    aliases: tuple[str, ...],
+    unset_ok: bool = False,
+) -> None:
+    """Fold legacy aliases into a single target column."""
+    if data.get(target):
+        for key in aliases:
+            data.pop(key, None)
+        return
+    picked = None
+    any_defined = target in data
+    for key in aliases:
+        if key not in data:
+            continue
+        any_defined = True
+        val = data.pop(key)
+        if picked is None and val is not None and str(val).strip():
+            picked = val
+        elif picked is None and val is not None and not unset_ok:
+            picked = val
+    if not any_defined:
+        return
+    if target not in data:
+        data[target] = picked
+    elif picked is not None and not (
+        data.get(target) and str(data.get(target)).strip()
+    ):
+        # Create payloads include target=None; still fold a filled alias in.
+        data[target] = picked
 
-    if "editor_request" in out and out.get("editor_request") is not None:
-        out["editor_initials"] = out["editor_request"]
 
-    if "coach_contact_full_name" in out and out.get("coach_name") is None:
-        out["coach_name"] = out.get("coach_contact_full_name")
-    if "coach_email_address" in out and out.get("coach_email") is None:
-        out["coach_email"] = out.get("coach_email_address")
-    if "viroc_choreographer_name" in out and out.get("choreographer_name") is None:
-        out["choreographer_name"] = out.get("viroc_choreographer_name")
-    if "viroc_choreographer_email" in out and out.get("choreographer_email") is None:
-        out["choreographer_email"] = out.get("viroc_choreographer_email")
+def _coerce_billing_address(data: dict, unset_ok: bool = False) -> None:
+    """Fold legacy billing/address aliases into school_gym_billing_address."""
+    _coerce_alias_column(
+        data, "school_gym_billing_address", _BILLING_ALIASES, unset_ok=unset_ok
+    )
 
-    if "using_eight_count_sheets" in out:
-        using = out.get("using_eight_count_sheets")
-        if using is not None and out.get("sending_eight_count_sheets") is None:
-            out["sending_eight_count_sheets"] = using
 
-    if "received_eight_count_sheet" in out:
-        received = out.get("received_eight_count_sheet")
-        if received is not None and out.get("eight_count_sheet") is None:
-            out["eight_count_sheet"] = received
+def _coerce_colors(data: dict, unset_ok: bool = False) -> None:
+    """Fold team/youth_rec/school_program color aliases into colors."""
+    _coerce_alias_column(data, "colors", _COLOR_ALIASES, unset_ok=unset_ok)
 
-    for key in list(out.keys()):
-        if key in _ORDER_WRITE_DROP_KEYS:
-            out.pop(key, None)
 
-    return out
+def _coerce_coach_fields(data: dict, unset_ok: bool = False) -> None:
+    """Fold Magento coach aliases into coach_name / coach_email."""
+    _coerce_alias_column(
+        data, "coach_name", _COACH_NAME_ALIASES, unset_ok=unset_ok
+    )
+    _coerce_alias_column(
+        data, "coach_email", _COACH_EMAIL_ALIASES, unset_ok=unset_ok
+    )
+    _coerce_alias_column(
+        data,
+        "youth_rec_extra_email_address",
+        _YOUTH_REC_EMAIL_ALIASES,
+        unset_ok=unset_ok,
+    )
+
+
+def _coerce_choreographer_fields(data: dict, unset_ok: bool = False) -> None:
+    """Fold V!ROC Magento choreographer aliases into name/email SoT columns."""
+    _coerce_alias_column(
+        data, "choreographer_name", _CHOREOGRAPHER_NAME_ALIASES, unset_ok=unset_ok
+    )
+    _coerce_alias_column(
+        data, "choreographer_email", _CHOREOGRAPHER_EMAIL_ALIASES, unset_ok=unset_ok
+    )
+
+
+def _coerce_requested_editor_fields(data: dict, unset_ok: bool = False) -> None:
+    """Fold legacy requested_producer into Magento requested_editor."""
+    _coerce_alias_column(
+        data, "requested_editor", _REQUESTED_EDITOR_ALIASES, unset_ok=unset_ok
+    )
+
+
+def _coerce_editor_initials_fields(data: dict, unset_ok: bool = False) -> None:
+    """Fold legacy editor_request into editor_initials."""
+    _coerce_alias_column(
+        data, "editor_initials", _EDITOR_INITIALS_ALIASES, unset_ok=unset_ok
+    )
+
+
+def _coerce_eight_count_sheets_fields(data: dict, unset_ok: bool = False) -> None:
+    """Fold Magento using/sending 8-count labels into sending_eight_count_sheets."""
+    _coerce_alias_column(
+        data,
+        "sending_eight_count_sheets",
+        _EIGHT_COUNT_SHEETS_ALIASES,
+        unset_ok=unset_ok,
+    )
+
+
+def _coerce_instrumentation_notes_fields(data: dict, unset_ok: bool = False) -> None:
+    """Fold School Anthem style preference into instrumentation_notes."""
+    _coerce_alias_column(
+        data,
+        "instrumentation_notes",
+        _INSTRUMENTATION_NOTES_ALIASES,
+        unset_ok=unset_ok,
+    )
 
 
 def _find_order(db: Session, order_id: str) -> Order | None:
-    if is_valid_uuid(order_id):
-        return db.query(Order).filter(Order.id == uuid.UUID(order_id)).first()
-    return None
+    if not is_valid_uuid(order_id):
+        return None
+    return db.query(Order).filter(Order.id == uuid.UUID(order_id)).first()
 
 
 def _apply_producer_assignment(db: Session, order: Order, update_data: dict) -> None:
@@ -225,20 +280,19 @@ def _mirror_shared_fields_to_mtd(db: Session, order: Order, changed: dict) -> No
             )
         if "price_compliance" in shared:
             mtd.price_compliance = order.price_compliance
-        if "editor_request" in shared or "editor_initials" in changed:
-            initials = getattr(order, "editor_initials", None) or order.assigned_producer
-            if initials and hasattr(mtd, "editor_request"):
-                mtd.editor_request = initials
-            if initials and hasattr(mtd, "editor_initials"):
-                mtd.editor_initials = initials
+        if "editor_initials" in shared:
+            # Order short code → MTD.editor_request (MTD column name unchanged).
+            mtd.editor_request = order.editor_initials
         if "collection_states" in shared:
             mtd.collection_states = order.collection_states
         if "order_status" in shared:
             mtd.order_status = order.order_status
         if "have_songs" in shared:
             mtd.have_songs = order.have_songs or ""
-        if "eight_count_sheet" in shared:
-            mtd.eight_count_sheet = order.eight_count_sheet or ""
+        if "received_eight_count_sheet" in shared:
+            mtd.received_eight_count_sheet = (
+                order.received_eight_count_sheet or ""
+            )
         if "is_reassigned" in shared:
             mtd.is_reassigned = bool(order.is_reassigned)
         if "missing_data_email_sent_at" in shared:
@@ -251,15 +305,29 @@ def _mirror_shared_fields_to_mtd(db: Session, order: Order, changed: dict) -> No
             mtd.contact_name = order.contact_name or mtd.contact_name
         # Client form "Coach (full name)" is coach_name; board column uses contact_name.
         if "coach_name" in changed or "coach_contact_full_name" in changed:
-            coach = (order.coach_name or "").strip()
+            coach = (
+                (order.coach_name or "").strip()
+                or (getattr(order, "coach_contact_full_name", None) or "").strip()
+            )
             if coach:
                 if not (order.contact_name or "").strip():
                     order.contact_name = coach
                 mtd.contact_name = coach
-        if "program_name" in shared or "school_gym_name" in shared or "school_gym_name" in changed:
-            program = (order.school_gym_name or "").strip()
-            if program:
-                mtd.program_name = program
+        if (
+            "gym_name" in shared
+            or "school_gym_name" in shared
+            or "form_type" in shared
+            or "cheer_form_subtype" in shared
+        ):
+            from app.order_identity import (
+                category_from_form_type,
+                order_identity_name,
+            )
+
+            identity = order_identity_name(order)
+            if identity:
+                mtd.program_name = identity
+            mtd.category = category_from_form_type(order.form_type)
         if "package" in shared:
             mtd.package = order.package or mtd.package
         if "music_theme" in shared:
@@ -285,7 +353,25 @@ def get_orders(
         query = query.filter(Order.cheer_form_subtype == cheer_form_subtype)
     elif form_type:
         query = query.filter(Order.form_type == form_type)
-    # category column removed from orders — ignore filter (use form_type instead)
+    if category and category != "All":
+        # category is derived from form_type (no stored column).
+        from app.order_identity import category_from_form_type
+
+        form_types = [
+            ft
+            for ft in (
+                "school-all-star-cheer",
+                "school-all-star-dance",
+                "marching-band",
+                "sports-entertainment",
+                "school-anthem",
+            )
+            if category_from_form_type(ft) == category
+        ]
+        if form_types:
+            query = query.filter(Order.form_type.in_(form_types))
+        else:
+            query = query.filter(False)
     if status:
         query = query.filter(Order.status == status)
     return query.all()
@@ -364,8 +450,59 @@ def create_order(
     db: Session = Depends(get_db),
     _: None = Depends(require_full_access),
 ):
-    data = _coalesce_unified_order_fields(payload.model_dump())
-    order = Order(**{k: v for k, v in data.items() if k not in ("assigned_producer", "assigned_producer_id")})
+    data = payload.model_dump()
+    # category + program_name are derived; aliases → school_name / school_gym_billing_address.
+    data.pop("category", None)
+    data.pop("program_name", None)
+    for alias_key in ("school_program_name", "gym_name", "school_name"):
+        alias = data.pop(alias_key, None)
+        if alias and not data.get("school_gym_name"):
+            data["school_gym_name"] = alias
+    _coerce_billing_address(data)
+    _coerce_colors(data)
+    _coerce_coach_fields(data)
+    _coerce_choreographer_fields(data)
+    _coerce_requested_editor_fields(data)
+    _coerce_editor_initials_fields(data)
+    _coerce_eight_count_sheets_fields(data)
+    _coerce_instrumentation_notes_fields(data)
+    _apply_school_anthem_defaults(data)
+    # Response/API aliases only — never constructor kwargs on Order.
+    for alias_only in (
+        "coach_youth_rec_extra_email_address",
+        "coach_contact_full_name",
+        "coach_email_address",
+        "email_address",
+        "viroc_choreographer_name",
+        "viroc_choreographer_email",
+        "editor_request",
+        "requested_producer",
+        "using_eight_count_sheets",
+        "instrumental_style_preference",
+        "school_program_name",
+        "program_name",
+        "school_name",
+        "gym_name",
+        "school_billing_address",
+        "billing_address",
+        "gym_billing_address",
+        "youth_rec_billing_address",
+        "organization_billing_address",
+        "school_address",
+        "team_colors",
+        "youth_rec_colors",
+        "school_program_colors",
+        "legacy_id",
+        "category",
+    ):
+        data.pop(alias_only, None)
+    order = Order(
+        **{
+            k: v
+            for k, v in data.items()
+            if k not in ("assigned_producer", "assigned_producer_id")
+        }
+    )
     _apply_producer_assignment(db, order, data)
     db.add(order)
     db.commit()
@@ -385,17 +522,35 @@ def update_order(
     if not order:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
 
-    update_data = _coalesce_unified_order_fields(
-        payload.model_dump(exclude_unset=True)
+    update_data = payload.model_dump(exclude_unset=True)
+    update_data.pop("category", None)
+    legacy_program = update_data.pop("program_name", None)
+    for alias_key in ("school_program_name", "gym_name", "school_name"):
+        alias = update_data.pop(alias_key, None)
+        if alias is not None and "school_gym_name" not in update_data:
+            update_data["school_gym_name"] = alias
+    if legacy_program is not None and "school_gym_name" not in update_data:
+        update_data["school_gym_name"] = legacy_program or None
+    _coerce_billing_address(update_data, unset_ok=True)
+    _coerce_colors(update_data, unset_ok=True)
+    _coerce_coach_fields(update_data, unset_ok=True)
+    _coerce_choreographer_fields(update_data, unset_ok=True)
+    _coerce_requested_editor_fields(update_data, unset_ok=True)
+    _coerce_editor_initials_fields(update_data, unset_ok=True)
+    _coerce_eight_count_sheets_fields(update_data, unset_ok=True)
+    _coerce_instrumentation_notes_fields(update_data, unset_ok=True)
+    _apply_school_anthem_defaults(
+        update_data,
+        form_type=update_data.get("form_type", order.form_type),
     )
+
     _apply_producer_assignment(db, order, update_data)
 
     for key, value in update_data.items():
-        if hasattr(order, key):
-            setattr(order, key, value)
+        setattr(order, key, value)
 
     # Canonical sync: order first, then mirror shared fields onto linked MTD rows.
-    changed = dict(update_data)
+    changed = {k: v for k, v in update_data.items()}
     _mirror_shared_fields_to_mtd(db, order, changed)
 
     db.commit()

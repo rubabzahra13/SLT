@@ -6,7 +6,6 @@ import json
 
 class MTDRecordSchema(BaseModel):
     id: UUID
-    legacy_id: Optional[str] = None
     order_id: Optional[UUID] = None
     section: str
     assigned_producer_id: Optional[UUID] = None
@@ -24,7 +23,7 @@ class MTDRecordSchema(BaseModel):
     mix_start_date: Optional[date] = None
     mix_end_date: Optional[date] = None
     waiting_on: Optional[str] = None
-    eight_count_sheet: str = ""
+    received_eight_count_sheet: str = ""
     have_songs: str = ""
     collection_states: Optional[Any] = None
     order_status: Optional[str] = None
@@ -89,7 +88,7 @@ class MTDRecordSchema(BaseModel):
         return self
 
 class MTDRecordCreateSchema(BaseModel):
-    # Accept UUID or legacy_id string; resolved to UUID in the API layer.
+    # Accept order UUID; resolved in the API layer.
     order_id: Optional[Any] = None
     section: Optional[str] = "CHEERLEADING MUSIC"
     category: str
@@ -101,7 +100,7 @@ class MTDRecordCreateSchema(BaseModel):
     editor_request: Optional[str] = "FA"
     assigned_producer: Optional[str] = None
     invoice: Optional[str] = ""
-    eight_count_sheet: Optional[str] = "NEED CS"
+    received_eight_count_sheet: Optional[str] = "NEED CS"
     have_songs: Optional[str] = "NEED SONGS"
     collection_states: Optional[Any] = None
     order_status: Optional[str] = None
@@ -132,7 +131,7 @@ class MTDRecordUpdateSchema(BaseModel):
     mix_start_date: Optional[date] = None
     mix_end_date: Optional[date] = None
     waiting_on: Optional[str] = None
-    eight_count_sheet: Optional[str] = None
+    received_eight_count_sheet: Optional[str] = None
     have_songs: Optional[str] = None
     collection_states: Optional[Any] = None
     order_status: Optional[str] = None
@@ -166,14 +165,18 @@ class MTDRecordUpdateSchema(BaseModel):
 class ManualScheduleCreateSchema(BaseModel):
     category: str
     form_type: Optional[str] = "school-all-star-cheer"
-    cheer_form_subtype: Optional[str] = "all-star-cheer"
-    dance_form_subtype: Optional[str] = "pom"
+    # Only one family applies per form_type — never default the other to "pom".
+    cheer_form_subtype: Optional[str] = None
+    dance_form_subtype: Optional[str] = None
     # Scheduling is done from the Orders table after the row is created.
     mix_start_date: Optional[str] = None
     mix_end_date: Optional[str] = None
     assigned_producer: Optional[str] = None
     program_name: Optional[str] = None
     school_program_name: Optional[str] = None
+    gym_name: Optional[str] = None
+    school_name: Optional[str] = None
+    team_name: Optional[str] = None
     contact_name: Optional[str] = None
     email: Optional[str] = None
     coach_email: Optional[str] = None
@@ -183,7 +186,7 @@ class ManualScheduleCreateSchema(BaseModel):
     time_length_of_mix: Optional[str] = None
     song_list_suggestions: Optional[str] = None
     custom_voiceovers: Optional[str] = None
-    eight_count_sheet: Optional[str] = None
+    received_eight_count_sheet: Optional[str] = None
     video_url: Optional[str] = None
     has_rally_mix: Optional[bool] = False
     has_extend_8ct_addon: Optional[bool] = False

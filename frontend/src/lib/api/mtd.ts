@@ -4,7 +4,6 @@ import { transformOrder, type BackendOrder } from "./orders";
 
 export interface BackendMTDRecord {
   id: string;
-  legacy_id?: string | null;
   order_id?: string | null;
   section: string;
   assigned_producer_id?: string | null;
@@ -22,7 +21,7 @@ export interface BackendMTDRecord {
   mix_start_date?: string | null;
   mix_end_date?: string | null;
   waiting_on?: string | null;
-  eight_count_sheet: string;
+  received_eight_count_sheet: string;
   have_songs: string;
   needs_attention: boolean;
   status: "active" | "outsourced" | "needs_attention" | "completed";
@@ -59,8 +58,8 @@ export interface BackendMTDRecord {
 
 export function transformMTDRecord(bm: BackendMTDRecord): MTDRecord {
   return {
-    id: bm.legacy_id || bm.id,
-    legacyId: bm.legacy_id || undefined,
+    // Always use the DB UUID — legacy_id is retired.
+    id: bm.id,
     uuid: bm.id,
     orderId: bm.order_id || undefined,
     section: bm.section || "CHEERLEADING MUSIC",
@@ -82,7 +81,7 @@ export function transformMTDRecord(bm: BackendMTDRecord): MTDRecord {
     mixStartDate: bm.mix_start_date || "",
     mixEndDate: bm.mix_end_date || undefined,
     waitingOn: bm.waiting_on || null,
-    eightCountSheet: bm.eight_count_sheet || "",
+    eightCountSheet: bm.received_eight_count_sheet || "",
     haveSongs: bm.have_songs || "",
     needsAttention: Boolean(bm.needs_attention),
     status: bm.status || "active",
@@ -131,7 +130,7 @@ export async function fetchMTDRecordsApi(): Promise<MTDRecord[]> {
 }
 
 export async function createMTDRecordApi(record: Partial<MTDRecord>): Promise<MTDRecord> {
-  // Prefer UUID; backend also resolves legacy_id strings.
+  // Prefer UUID.
   const orderRef =
     (record as { orderUuid?: string }).orderUuid || record.orderId || null;
 
@@ -151,7 +150,7 @@ export async function createMTDRecordApi(record: Partial<MTDRecord>): Promise<MT
     mix_end_date: record.mixEndDate || null,
     record_status: record.recordStatus || (record.assignedProducer ? "Ongoing" : null),
     // Keep caller values (including empty) — do not force NEED_* and wipe collected data.
-    eight_count_sheet: record.eightCountSheet ?? "",
+    received_eight_count_sheet: record.eightCountSheet ?? "",
     have_songs: record.haveSongs ?? "",
     collection_states: record.collectionStates ?? null,
     order_status: record.orderStatus ?? null,
@@ -187,7 +186,9 @@ export async function updateMTDRecordApi(
   if (patch.mixStartDate !== undefined) payload.mix_start_date = patch.mixStartDate || null;
   if (patch.mixEndDate !== undefined) payload.mix_end_date = patch.mixEndDate || null;
   if (patch.waitingOn !== undefined) payload.waiting_on = patch.waitingOn;
-  if (patch.eightCountSheet !== undefined) payload.eight_count_sheet = patch.eightCountSheet;
+  if (patch.eightCountSheet !== undefined) {
+    payload.received_eight_count_sheet = patch.eightCountSheet;
+  }
   if (patch.haveSongs !== undefined) payload.have_songs = patch.haveSongs;
   if (patch.needsAttention !== undefined) payload.needs_attention = patch.needsAttention;
   if (patch.status !== undefined) payload.status = patch.status;
@@ -265,9 +266,21 @@ export interface CreateManualSchedulePayload {
   contact_name?: string | null;
   schoolProgramName?: string | null;
   school_program_name?: string | null;
+  gymName?: string | null;
+  gym_name?: string | null;
+  schoolName?: string | null;
+  school_name?: string | null;
+  schoolGymName?: string | null;
+  school_gym_name?: string | null;
+  teamName?: string | null;
+  team_name?: string | null;
   email?: string | null;
   coachEmail?: string | null;
   coach_email?: string | null;
+  youthRecExtraEmailAddress?: string | null;
+  youth_rec_extra_email_address?: string | null;
+  emailAddress?: string | null;
+  email_address?: string | null;
   package?: string | null;
   routineNotes?: string | null;
   routine_notes?: string | null;
@@ -280,7 +293,7 @@ export interface CreateManualSchedulePayload {
   customVoiceovers?: string | null;
   custom_voiceovers?: string | null;
   eightCountSheet?: string | null;
-  eight_count_sheet?: string | null;
+  received_eight_count_sheet?: string | null;
   videoUrl?: string | null;
   video_url?: string | null;
   danceVoiceover?: string | null;
@@ -321,18 +334,43 @@ export async function createManualScheduleEntryApi(
     mix_start_date: startDate || null,
     mix_end_date: endDate || null,
     assigned_producer: producer || null,
-    program_name: program || null,
-    school_program_name: schoolProgram || null,
+    program_name: null,
+    school_gym_name:
+      payload.schoolGymName ||
+      payload.school_gym_name ||
+      payload.schoolName ||
+      payload.school_name ||
+      payload.gymName ||
+      payload.gym_name ||
+      schoolProgram ||
+      program ||
+      null,
+    team_name: payload.teamName || payload.team_name || null,
     contact_name: contact || null,
     email: payload.email || null,
     coach_email: payload.coachEmail || payload.coach_email || null,
+    youth_rec_extra_email_address:
+      payload.youthRecExtraEmailAddress ||
+      payload.youth_rec_extra_email_address ||
+      payload.emailAddress ||
+      payload.email_address ||
+      null,
+    email_address:
+      payload.youthRecExtraEmailAddress ||
+      payload.youth_rec_extra_email_address ||
+      payload.emailAddress ||
+      payload.email_address ||
+      null,
     package: payload.package || null,
     routine_notes: payload.routineNotes || payload.routine_notes || null,
     music_affiliate: payload.musicAffiliate || payload.music_affiliate || null,
     time_length_of_mix: payload.timeLengthOfMix || payload.time_length_of_mix || null,
     song_list_suggestions: payload.songListSuggestions || payload.song_list_suggestions || null,
     custom_voiceovers: payload.customVoiceovers || payload.custom_voiceovers || null,
-    eight_count_sheet: payload.eightCountSheet || payload.eight_count_sheet || null,
+    received_eight_count_sheet:
+      payload.eightCountSheet ||
+      payload.received_eight_count_sheet ||
+      null,
     video_url: payload.videoUrl || payload.video_url || null,
   };
   try {

@@ -3,13 +3,14 @@ import type { Order, OrderFormType, CheerFormSubtype, DanceFormSubtype } from "@
 
 export interface BackendOrder {
   id: string;
-  legacy_id?: string | null;
   form_type?: string;
   cheer_form_subtype?: string | null;
   dance_form_subtype?: string | null;
+  /** @deprecated alias of school_gym_name — kept for older payloads */
+  school_program_name?: string | null;
   school_gym_name?: string | null;
   school_gym_billing_address?: string | null;
-  school_program_name?: string | null;
+  /** @deprecated alias of school_gym_billing_address */
   school_address?: string | null;
   city?: string | null;
   state_province?: string | null;
@@ -31,6 +32,7 @@ export interface BackendOrder {
   affiliate_flag_status?: string | null;
   music_affiliate_selections?: string | null;
   power_music_covers?: string | null;
+  unleash_the_beats_covers?: string | null;
   routine_notes?: string | null;
   custom_voiceovers?: string | null;
   voiceover_script?: string | null;
@@ -40,24 +42,42 @@ export interface BackendOrder {
   instrumentation_notes?: string | null;
   lyrical_notes?: string | null;
   is_rush_order?: string | null;
+  client_requested_rush_order?: string | null;
   nicknames?: string | null;
   vocals_preference?: string | null;
   instrumental_style_preference?: string | null;
   gym_name?: string | null;
+  /** @deprecated alias of school_gym_billing_address */
   gym_billing_address?: string | null;
   team_name?: string | null;
   team_coed_all_girl?: string | null;
+  colors?: string | null;
+  /** @deprecated alias of colors */
   team_colors?: string | null;
+  /** @deprecated alias of school_gym_name */
   school_name?: string | null;
+  /** @deprecated alias of school_gym_billing_address */
   school_billing_address?: string | null;
   mascot?: string | null;
   split_or_no_split?: string | null;
+  /** @deprecated alias of choreographer_name */
   viroc_choreographer_name?: string | null;
+  /** @deprecated alias of choreographer_email */
   viroc_choreographer_email?: string | null;
-  colors?: string | null;
-  billing_address?: string | null;
+  /** @deprecated alias of colors */
+  youth_rec_colors?: string | null;
+  /** @deprecated alias of colors */
+  school_program_colors?: string | null;
+  /** @deprecated alias of school_gym_billing_address */
+  youth_rec_billing_address?: string | null;
+  /** @deprecated alias of school_gym_billing_address */
+  organization_billing_address?: string | null;
+  /** @deprecated alias of coach_name */
   coach_contact_full_name?: string | null;
+  /** @deprecated alias of coach_email */
   coach_email_address?: string | null;
+  youth_rec_extra_email_address?: string | null;
+  /** @deprecated alias of youth_rec_extra_email_address */
   email_address?: string | null;
   sending_eight_count_sheets?: string | null;
   using_eight_count_sheets?: string | null;
@@ -75,16 +95,20 @@ export interface BackendOrder {
   assigned_producer?: string | null;
   mix_start_date?: string | null;
   mix_end_date?: string | null;
-  eight_count_sheet?: string | null;
+  client_requested_mix_due_date?: string | null;
+  received_eight_count_sheet?: string | null;
   have_songs?: string | null;
 
   customer_name: string;
   contact_name: string;
-  program_name: string;
-  category: string;
+  program_name?: string | null;
+  category?: string | null;
   package: string;
   music_theme?: string | null;
+  editor_initials?: string | null;
+  /** @deprecated alias of editor_initials */
   editor_request?: string | null;
+  /** @deprecated alias of requested_editor */
   requested_producer?: string | null;
   price: number;
   price_compliance?: string | null;
@@ -110,45 +134,99 @@ export interface BackendOrder {
 }
 
 export function transformOrder(bo: BackendOrder): Order {
+  const formType = (bo.form_type as OrderFormType) || "school-all-star-cheer";
+  const cheerFormSubtype = bo.cheer_form_subtype as CheerFormSubtype | undefined;
+  const isAllStar =
+    cheerFormSubtype === "all-star-cheer" ||
+    (formType === "school-all-star-cheer" && !cheerFormSubtype);
+  // SoT columns (UI aliases below mirror these — do not cross-leak identity ↔ contact).
+  const schoolName = String(bo.school_gym_name || "").trim();
+  const billing = String(bo.school_gym_billing_address || "").trim();
+  const colors = String(bo.colors || "").trim();
+  const coach = String(bo.coach_name || "").trim();
+  const coachEmail = String(bo.coach_email || "").trim();
+  const choreographer = String(bo.choreographer_name || "").trim();
+  const choreographerEmail = String(bo.choreographer_email || "").trim();
+  const sendingEight = String(bo.sending_eight_count_sheets || "").trim();
+  const instrumentation = String(bo.instrumentation_notes || "").trim();
+  const requestedEditor = String(bo.requested_editor || "").trim();
+  const youthRecExtraEmail = String(
+    bo.youth_rec_extra_email_address || ""
+  ).trim();
+
+  const personNotIdentity = (value: string | null | undefined) => {
+    const v = String(value || "").trim();
+    if (!v) return "";
+    if (/^(contact|customer)$/i.test(v)) return "";
+    if (schoolName && v.toLowerCase() === schoolName.toLowerCase()) return "";
+    return v;
+  };
+
+  // Board contact / Magento Coach / Music Contact → coach_name SoT.
+  const personName =
+    personNotIdentity(coach) ||
+    personNotIdentity(bo.contact_name) ||
+    personNotIdentity(bo.customer_name);
+
+  const category =
+    formType === "school-all-star-dance"
+      ? "Dance"
+      : formType === "marching-band"
+        ? "Marching Band"
+        : formType === "sports-entertainment"
+          ? "Sports Entertainment"
+          : formType === "school-anthem"
+            ? "School Anthem"
+            : "Cheer";
+
   return {
-    id: bo.legacy_id || bo.id,
-    legacyId: bo.legacy_id || undefined,
+    // Always use the DB UUID — legacy_id is retired.
+    id: bo.id,
     uuid: bo.id,
-    formType: (bo.form_type as OrderFormType) || "school-all-star-cheer",
-    cheerFormSubtype: bo.cheer_form_subtype as CheerFormSubtype | undefined,
+    formType,
+    cheerFormSubtype,
     danceFormSubtype: bo.dance_form_subtype as DanceFormSubtype | undefined,
-    schoolProgramName:
-      bo.school_gym_name ||
-      bo.school_program_name ||
-      bo.program_name ||
-      bo.school_name ||
-      bo.gym_name ||
-      "",
-    schoolAddress:
-      bo.school_gym_billing_address ||
-      bo.school_address ||
-      bo.school_billing_address ||
-      bo.billing_address ||
-      "",
+    // Identity aliases → school_gym_name.
+    schoolProgramName: schoolName,
+    schoolName: schoolName || undefined,
+    organizationName: schoolName || undefined,
+    schoolOrganizationName: schoolName || undefined,
+    gymName: isAllStar ? schoolName || undefined : schoolName || undefined,
+    // Billing aliases → school_gym_billing_address.
+    schoolAddress: billing,
+    schoolGymAddress: billing || undefined,
+    gymBillingAddress: billing || undefined,
+    schoolBillingAddress: billing || undefined,
+    youthRecBillingAddress: billing || undefined,
+    organizationBillingAddress: billing || undefined,
     city: bo.city || "",
     stateProvince: bo.state_province || "",
     zipPostalCode: bo.zip_postal_code || "",
     country: bo.country || "United States",
     division: bo.division || "",
-    coachName:
-      bo.coach_name ||
-      bo.coach_contact_full_name ||
-      bo.contact_name ||
-      "",
+    divisionOfTeam: bo.division || "",
+    // Coach / Music Contact aliases → coach_name (never school identity).
+    coachName: personName,
+    coachContactFullName: personName || undefined,
+    musicContactName: personName || undefined,
     coachPhone: bo.coach_phone || "",
-    coachEmail: bo.coach_email || "",
+    coachEmail,
+    coachEmailAddress: coachEmail || undefined,
     billingPersonName: bo.billing_person_name || "",
     billingPersonEmail: bo.billing_person_email || "",
-    choreographerName: bo.choreographer_name || "",
-    choreographerEmail: bo.choreographer_email || "",
+    billingContactName: bo.billing_person_name || "",
+    billingContactEmail: bo.billing_person_email || "",
+    // Choreographer aliases → choreographer_name / email.
+    choreographerName: choreographer,
+    choreographerEmail,
+    virocChoreographerName: choreographer || undefined,
+    virocChoreographerEmail: choreographerEmail || undefined,
     numberOfCopies: bo.number_of_copies || "",
-    packageType: bo.package_type || "",
-    requestedEditor: bo.requested_editor || "",
+    packageType:
+      formType === "school-anthem"
+        ? "SCHOOL ANTHEMS"
+        : bo.package_type || "",
+    requestedEditor,
     // Client form "Length of Mix" → time_length_of_mix; fall back to package limit.
     timeLengthOfMix:
       bo.time_length_of_mix ||
@@ -167,54 +245,36 @@ export function transformOrder(bo: BackendOrder): Order {
         : null,
     musicAffiliateSelections: bo.music_affiliate_selections || null,
     powerMusicCovers: bo.power_music_covers || "",
+    unleashTheBeatsCovers: bo.unleash_the_beats_covers || "",
     routineNotes: bo.routine_notes || "",
+    additionalNotes: bo.routine_notes || "",
+    songListSuggestions: bo.song_list_suggestions || undefined,
+    customerSongs: bo.song_list_suggestions || "",
     customVoiceovers: bo.custom_voiceovers || "",
     voiceoverScript: bo.voiceover_script || "",
     pronunciationGuidance: bo.pronunciation_guidance || "",
     style: bo.style || "",
+    styleOfGamedayMix: bo.style || "",
     licensingRequired: bo.licensing_required || "",
-    instrumentationNotes: bo.instrumentation_notes || "",
+    instrumentationNotes: instrumentation,
+    instrumentalStylePreference: instrumentation || "",
     lyricalNotes: bo.lyrical_notes || "",
     isRushOrder: bo.is_rush_order || "",
+    clientRequestedRushOrder: bo.client_requested_rush_order || "",
     nicknames: bo.nicknames || "",
     vocalsPreference: bo.vocals_preference || "",
-    instrumentalStylePreference: bo.instrumental_style_preference || "",
-    gymName: bo.school_gym_name || bo.gym_name || undefined,
-    gymBillingAddress:
-      bo.school_gym_billing_address || bo.gym_billing_address || undefined,
     teamName: bo.team_name || undefined,
     teamCoedAllGirl: bo.team_coed_all_girl || undefined,
-    teamColors: bo.colors || bo.team_colors || undefined,
-    schoolName: bo.school_gym_name || bo.school_name || undefined,
-    schoolBillingAddress:
-      bo.school_gym_billing_address ||
-      bo.school_billing_address ||
-      undefined,
-    schoolOrganizationName: bo.school_gym_name || bo.school_program_name || undefined,
-    organizationName: bo.school_gym_name || bo.school_program_name || undefined,
+    // Colors aliases → colors.
+    teamColors: colors || undefined,
+    youthRecColors: colors || undefined,
+    schoolProgramColors: colors || undefined,
     mascot: bo.mascot || undefined,
     splitOrNoSplit: bo.split_or_no_split || undefined,
-    virocChoreographerName: bo.viroc_choreographer_name || undefined,
-    virocChoreographerEmail: bo.viroc_choreographer_email || undefined,
-    colors: bo.colors || undefined,
-    schoolProgramColors: bo.colors || bo.team_colors || undefined,
-    billingAddress:
-      bo.school_gym_billing_address ||
-      bo.billing_address ||
-      bo.school_billing_address ||
-      undefined,
-    coachContactFullName:
-      bo.coach_contact_full_name || bo.coach_name || bo.contact_name || undefined,
-    musicContactName:
-      bo.coach_name || bo.contact_name || undefined,
-    coachEmailAddress: bo.coach_email_address || bo.coach_email || undefined,
-    emailAddress: bo.email_address || undefined,
-    sendingEightCountSheets: bo.sending_eight_count_sheets || undefined,
-    usingEightCountSheets:
-      bo.using_eight_count_sheets ||
-      bo.sending_eight_count_sheets ||
-      undefined,
-    songListSuggestions: bo.song_list_suggestions || undefined,
+    youthRecExtraEmailAddress: youthRecExtraEmail || undefined,
+    emailAddress: youthRecExtraEmail || undefined,
+    sendingEightCountSheets: sendingEight || undefined,
+    usingEightCountSheets: sendingEight || undefined,
     couponCode: bo.coupon_code || undefined,
     howDidYouFindOut: bo.how_did_you_find_out || undefined,
     collectionStates: bo.collection_states || undefined,
@@ -226,35 +286,27 @@ export function transformOrder(bo: BackendOrder): Order {
     suppressManualFormMerge: Boolean(bo.suppress_manual_form_merge),
     orderStatus: bo.order_status || undefined,
 
-    customerName:
-      bo.customer_name ||
-      bo.coach_name ||
-      bo.coach_contact_full_name ||
-      bo.contact_name ||
-      bo.school_gym_name ||
-      bo.program_name,
-    // Coach (full name) / Music Contact Name on the client form → Coach name column.
-    contactName:
-      bo.contact_name ||
-      bo.coach_name ||
-      bo.coach_contact_full_name ||
-      bo.customer_name,
-    programName:
-      bo.school_gym_name ||
-      bo.program_name ||
-      bo.school_program_name ||
-      "",
-    category: bo.category || "Cheer",
-    package: bo.package || "TBD",
+    // Person columns only — never school_gym_name.
+    customerName: personNotIdentity(bo.customer_name) || personName,
+    contactName: personName,
+    programName: schoolName,
+    category,
+    package:
+      formType === "school-anthem"
+        ? "SCHOOL ANTHEMS"
+        : bo.package || "TBD",
     musicTheme: bo.music_theme || "",
-    editorRequest: bo.editor_request || "FA",
-    requestedProducer: bo.requested_producer || "",
+    // editor_initials = FA / short code; requested_editor = Magento producer name.
+    editorRequest: bo.editor_initials || "FA",
+    requestedProducer: requestedEditor,
     assignedProducer: bo.assigned_producer || null,
     mixStartDate: bo.mix_start_date || undefined,
     mixEndDate: bo.mix_end_date || undefined,
-    eightCountSheet: (bo.eight_count_sheet as any) || undefined,
+    clientRequestedMixDueDate:
+      bo.client_requested_mix_due_date || undefined,
+    eightCountSheet: bo.received_eight_count_sheet || undefined,
     haveSongs: (bo.have_songs as any) || undefined,
-    price: bo.price ?? 0,
+    price: formType === "school-anthem" ? 1250 : bo.price ?? 0,
     priceCompliance: (bo.price_compliance as any) || "compliant",
     status: bo.status || "new",
     createdAt: bo.created_at || new Date().toISOString(),
@@ -295,21 +347,54 @@ export async function fetchOrdersApi(): Promise<{ activeOrders: Order[]; pastOrd
 }
 
 export async function createOrderApi(order: Partial<Order>): Promise<Order> {
-  const program =
-    order.programName ||
-    order.schoolProgramName ||
-    order.organizationName ||
-    order.schoolOrganizationName ||
-    "Program";
+  const formType = order.formType || "school-all-star-cheer";
+  // Contact / customer are people — do not seed them from school/org identity.
+  const personName =
+    order.musicContactName ||
+    order.coachName ||
+    order.coachContactFullName ||
+    order.contactName ||
+    order.customerName ||
+    "";
   const payload = {
-    customer_name: order.customerName || program || "Customer",
-    contact_name: order.contactName || order.customerName || "Contact",
-    school_gym_name: program,
-    program_name: program,
-    package: order.package || "TBD",
-    price: order.price ?? 0,
+    customer_name: personName || null,
+    contact_name: personName || null,
+    // Derived on the server from form_type; keep payload fields for older APIs.
+    program_name: null,
+    category:
+      formType === "school-all-star-dance"
+        ? "Dance"
+        : formType === "marching-band"
+          ? "Marching Band"
+          : formType === "sports-entertainment"
+            ? "Sports Entertainment"
+            : formType === "school-anthem"
+              ? "School Anthem"
+              : "Cheer",
+    school_gym_name:
+      order.schoolName ||
+      order.gymName ||
+      order.schoolProgramName ||
+      order.organizationName ||
+      order.schoolOrganizationName ||
+      order.programName ||
+      null,
+    package:
+      formType === "school-anthem"
+        ? "SCHOOL ANTHEMS"
+        : order.package || "TBD",
+    package_type:
+      formType === "school-anthem"
+        ? "SCHOOL ANTHEMS"
+        : order.packageType || null,
+    price: formType === "school-anthem" ? 1250 : order.price ?? 0,
     music_theme: order.musicTheme || null,
-    form_type: order.formType || "school-all-star-cheer",
+    editor_initials: order.editorRequest || "FA",
+    requested_editor:
+      order.requestedEditor || order.requestedProducer || null,
+    form_type: formType,
+    cheer_form_subtype: order.cheerFormSubtype || null,
+    dance_form_subtype: order.danceFormSubtype || null,
     status: order.status || "new",
   };
   const res = await apiClient.post<BackendOrder>("/api/orders", payload);
@@ -323,16 +408,63 @@ export async function updateOrderApi(
   const payload: Record<string, unknown> = {};
   if (patch.customerName !== undefined) payload.customer_name = patch.customerName;
   if (patch.contactName !== undefined) payload.contact_name = patch.contactName;
-  if (patch.programName !== undefined) {
-    payload.school_gym_name = patch.programName;
-    payload.program_name = patch.programName;
+  const cheerSubtype = patch.cheerFormSubtype;
+  const formType = patch.formType;
+  const isAllStarCheer =
+    formType === "school-all-star-cheer" &&
+    (!cheerSubtype || cheerSubtype === "all-star-cheer");
+  const isSchoolCheer =
+    cheerSubtype === "school-cheer-viroc-yes" ||
+    cheerSubtype === "school-cheer-viroc-no";
+
+  // Identity SoT: school_gym_name for every form (Gym / School / Program / Org).
+  payload.program_name = null;
+  if (patch.category !== undefined || patch.formType !== undefined) {
+    const ft = formType || "school-all-star-cheer";
+    payload.category =
+      ft === "school-all-star-dance"
+        ? "Dance"
+        : ft === "marching-band"
+          ? "Marching Band"
+          : ft === "sports-entertainment"
+            ? "Sports Entertainment"
+            : ft === "school-anthem"
+              ? "School Anthem"
+              : "Cheer";
   }
-  if (patch.organizationName !== undefined) {
-    payload.school_gym_name = patch.organizationName;
-    payload.program_name = patch.organizationName;
+
+  // Prefer first non-empty alias so blank exclusivity fields do not wipe identity.
+  const identityAliases = [
+    patch.schoolName,
+    patch.gymName,
+    patch.schoolProgramName,
+    patch.organizationName,
+    patch.schoolOrganizationName,
+    patch.programName,
+  ];
+  if (identityAliases.some((v) => v !== undefined)) {
+    payload.school_gym_name =
+      identityAliases.find((v) => v !== undefined && String(v).trim() !== "") ??
+      "";
   }
-  if (patch.billingAddress !== undefined) {
-    payload.school_gym_billing_address = patch.billingAddress;
+  const billingAliases = [
+    patch.gymBillingAddress,
+    patch.schoolBillingAddress,
+    patch.youthRecBillingAddress,
+    patch.organizationBillingAddress,
+    patch.schoolGymAddress,
+    patch.schoolAddress,
+  ];
+  if (billingAliases.some((v) => v !== undefined)) {
+    payload.school_gym_billing_address =
+      billingAliases.find((v) => v !== undefined && String(v).trim() !== "") ??
+      "";
+  }
+  if (patch.teamName !== undefined) {
+    payload.team_name = patch.teamName;
+  }
+  if (patch.teamCoedAllGirl !== undefined) {
+    payload.team_coed_all_girl = patch.teamCoedAllGirl;
   }
   if (patch.package !== undefined) payload.package = patch.package;
   if (patch.packageType !== undefined) payload.package_type = patch.packageType;
@@ -348,9 +480,14 @@ export async function updateOrderApi(
   if (patch.musicAffiliateSelections !== undefined) {
     payload.music_affiliate_selections = patch.musicAffiliateSelections;
   }
-  if (patch.routineNotes !== undefined) payload.routine_notes = patch.routineNotes;
+  if (patch.routineNotes !== undefined || patch.additionalNotes !== undefined) {
+    payload.routine_notes = patch.routineNotes ?? patch.additionalNotes ?? null;
+  }
   if (patch.powerMusicCovers !== undefined) {
     payload.power_music_covers = patch.powerMusicCovers;
+  }
+  if (patch.unleashTheBeatsCovers !== undefined) {
+    payload.unleash_the_beats_covers = patch.unleashTheBeatsCovers;
   }
   if (patch.customVoiceovers !== undefined) {
     payload.custom_voiceovers = patch.customVoiceovers;
@@ -361,18 +498,27 @@ export async function updateOrderApi(
   if (patch.pronunciationGuidance !== undefined) {
     payload.pronunciation_guidance = patch.pronunciationGuidance;
   }
-  if (patch.style !== undefined) payload.style = patch.style;
+  if (patch.style !== undefined || patch.styleOfGamedayMix !== undefined) {
+    payload.style = patch.style ?? patch.styleOfGamedayMix ?? null;
+  }
   if (patch.licensingRequired !== undefined) {
     payload.licensing_required = patch.licensingRequired;
   }
-  if (patch.instrumentationNotes !== undefined) {
-    payload.instrumentation_notes = patch.instrumentationNotes;
+  if (
+    patch.instrumentationNotes !== undefined ||
+    patch.instrumentalStylePreference !== undefined
+  ) {
+    payload.instrumentation_notes =
+      patch.instrumentationNotes ?? patch.instrumentalStylePreference ?? null;
   }
   if (patch.lyricalNotes !== undefined) {
     payload.lyrical_notes = patch.lyricalNotes;
   }
   if (patch.isRushOrder !== undefined) {
     payload.is_rush_order = patch.isRushOrder;
+  }
+  if (patch.clientRequestedRushOrder !== undefined) {
+    payload.client_requested_rush_order = patch.clientRequestedRushOrder;
   }
   if (patch.mergedFormOrderId !== undefined) {
     payload.merged_form_order_id = patch.mergedFormOrderId;
@@ -393,26 +539,15 @@ export async function updateOrderApi(
   if (patch.vocalsPreference !== undefined) {
     payload.vocals_preference = patch.vocalsPreference;
   }
-  if (patch.instrumentalStylePreference !== undefined) {
-    payload.instrumental_style_preference = patch.instrumentalStylePreference;
-  }
   if (patch.mascot !== undefined) payload.mascot = patch.mascot;
-  if (patch.colors !== undefined) payload.colors = patch.colors;
-  if (patch.teamColors !== undefined) payload.colors = patch.teamColors;
-  if (patch.schoolProgramColors !== undefined) {
-    payload.colors = patch.schoolProgramColors;
-  }
-  if (patch.schoolBillingAddress !== undefined) {
-    payload.school_gym_billing_address = patch.schoolBillingAddress;
-  }
-  if (patch.schoolOrganizationName !== undefined) {
-    payload.school_gym_name = patch.schoolOrganizationName;
-    payload.program_name = patch.schoolOrganizationName;
-  }
-  if (patch.musicContactName !== undefined) {
-    payload.coach_name = patch.musicContactName;
-    payload.contact_name = patch.musicContactName;
-    payload.customer_name = patch.musicContactName;
+  const colorAliases = [
+    patch.teamColors,
+    patch.youthRecColors,
+    patch.schoolProgramColors,
+  ];
+  if (colorAliases.some((v) => v !== undefined)) {
+    payload.colors =
+      colorAliases.find((v) => v !== undefined && String(v).trim() !== "") ?? "";
   }
   if (patch.musicContactPhone !== undefined) {
     payload.coach_phone = patch.musicContactPhone;
@@ -420,29 +555,12 @@ export async function updateOrderApi(
   if (patch.musicContactEmail !== undefined) {
     payload.coach_email = patch.musicContactEmail;
   }
-  if (patch.songListSuggestions !== undefined) {
-    payload.song_list_suggestions = patch.songListSuggestions;
-  }
-  if (patch.schoolProgramName !== undefined) {
-    payload.school_gym_name = patch.schoolProgramName;
-    payload.program_name = patch.schoolProgramName;
-  }
-  if (patch.schoolAddress !== undefined) {
-    payload.school_gym_billing_address = patch.schoolAddress;
-  }
-  if (patch.schoolGymAddress !== undefined) {
-    payload.school_gym_billing_address = patch.schoolGymAddress;
-  }
-  if (patch.gymName !== undefined) {
-    payload.school_gym_name = patch.gymName;
-    payload.program_name = patch.gymName;
-  }
-  if (patch.gymBillingAddress !== undefined) {
-    payload.school_gym_billing_address = patch.gymBillingAddress;
-  }
-  if (patch.schoolName !== undefined) {
-    payload.school_gym_name = patch.schoolName;
-    payload.program_name = patch.schoolName;
+  if (
+    patch.songListSuggestions !== undefined ||
+    patch.customerSongs !== undefined
+  ) {
+    payload.song_list_suggestions =
+      patch.songListSuggestions ?? patch.customerSongs ?? null;
   }
   if (patch.city !== undefined) payload.city = patch.city;
   if (patch.stateProvince !== undefined) {
@@ -454,35 +572,79 @@ export async function updateOrderApi(
   if (patch.country !== undefined) payload.country = patch.country;
   if (patch.division !== undefined) payload.division = patch.division;
   if (patch.divisionOfTeam !== undefined) payload.division = patch.divisionOfTeam;
-  if (patch.coachName !== undefined) {
-    payload.coach_name = patch.coachName;
-    // Keep board "Coach name" column in sync with form Coach (full name).
-    if (patch.contactName === undefined) payload.contact_name = patch.coachName;
-    if (patch.customerName === undefined) payload.customer_name = patch.coachName;
-  }
-  if (patch.coachContactFullName !== undefined) {
-    payload.coach_contact_full_name = patch.coachContactFullName;
-    if (patch.coachName === undefined) payload.coach_name = patch.coachContactFullName;
-    if (patch.contactName === undefined) {
-      payload.contact_name = patch.coachContactFullName;
-    }
-    if (patch.customerName === undefined) {
-      payload.customer_name = patch.coachContactFullName;
-    }
+  // Coach / Music Contact Magento labels → coach_name SoT (+ board contact mirror).
+  const coachNameAliases = [
+    patch.coachName,
+    patch.coachContactFullName,
+    patch.musicContactName,
+  ];
+  if (coachNameAliases.some((v) => v !== undefined)) {
+    const coach =
+      coachNameAliases.find((v) => v !== undefined && String(v).trim() !== "") ??
+      "";
+    payload.coach_name = coach;
+    if (patch.contactName === undefined) payload.contact_name = coach;
+    if (patch.customerName === undefined) payload.customer_name = coach;
   }
   if (patch.coachPhone !== undefined) payload.coach_phone = patch.coachPhone;
-  if (patch.coachEmail !== undefined) payload.coach_email = patch.coachEmail;
-  if (patch.billingPersonName !== undefined) {
-    payload.billing_person_name = patch.billingPersonName;
+  const coachEmailAliases = [patch.coachEmail, patch.coachEmailAddress];
+  if (coachEmailAliases.some((v) => v !== undefined)) {
+    payload.coach_email =
+      coachEmailAliases.find((v) => v !== undefined && String(v).trim() !== "") ??
+      "";
   }
-  if (patch.billingPersonEmail !== undefined) {
-    payload.billing_person_email = patch.billingPersonEmail;
+  const youthRecEmailAliases = [
+    patch.youthRecExtraEmailAddress,
+    patch.emailAddress,
+  ];
+  if (youthRecEmailAliases.some((v) => v !== undefined)) {
+    payload.youth_rec_extra_email_address =
+      youthRecEmailAliases.find(
+        (v) => v !== undefined && String(v).trim() !== ""
+      ) ?? "";
   }
-  if (patch.choreographerName !== undefined) {
-    payload.choreographer_name = patch.choreographerName;
+  const billingNameAliases = [
+    patch.billingPersonName,
+    patch.billingContactName,
+  ];
+  if (billingNameAliases.some((v) => v !== undefined)) {
+    payload.billing_person_name =
+      billingNameAliases.find((v) => v !== undefined && String(v).trim() !== "") ??
+      "";
   }
-  if (patch.choreographerEmail !== undefined) {
-    payload.choreographer_email = patch.choreographerEmail;
+  const billingEmailAliases = [
+    patch.billingPersonEmail,
+    patch.billingContactEmail,
+  ];
+  if (billingEmailAliases.some((v) => v !== undefined)) {
+    payload.billing_person_email =
+      billingEmailAliases.find(
+        (v) => v !== undefined && String(v).trim() !== ""
+      ) ?? "";
+  }
+  const choreographerNameAliases = [
+    patch.choreographerName,
+    patch.virocChoreographerName,
+  ];
+  if (choreographerNameAliases.some((v) => v !== undefined)) {
+    payload.choreographer_name =
+      choreographerNameAliases.find(
+        (v) => v !== undefined && String(v).trim() !== ""
+      ) ??
+      choreographerNameAliases.find((v) => v !== undefined) ??
+      "";
+  }
+  const choreographerEmailAliases = [
+    patch.choreographerEmail,
+    patch.virocChoreographerEmail,
+  ];
+  if (choreographerEmailAliases.some((v) => v !== undefined)) {
+    payload.choreographer_email =
+      choreographerEmailAliases.find(
+        (v) => v !== undefined && String(v).trim() !== ""
+      ) ??
+      choreographerEmailAliases.find((v) => v !== undefined) ??
+      "";
   }
   if (patch.numberOfCopies !== undefined) {
     payload.number_of_copies = patch.numberOfCopies;
@@ -509,9 +671,21 @@ export async function updateOrderApi(
     payload.price_compliance = patch.priceCompliance;
   }
   if (patch.musicTheme !== undefined) payload.music_theme = patch.musicTheme;
-  if (patch.editorRequest !== undefined) payload.editor_request = patch.editorRequest;
-  if (patch.requestedProducer !== undefined) payload.requested_producer = patch.requestedProducer;
-  if (patch.requestedEditor !== undefined) payload.requested_editor = patch.requestedEditor;
+  if (patch.editorRequest !== undefined) {
+    payload.editor_initials = patch.editorRequest;
+  }
+  const requestedEditorAliases = [
+    patch.requestedEditor,
+    patch.requestedProducer,
+  ];
+  if (requestedEditorAliases.some((v) => v !== undefined)) {
+    payload.requested_editor =
+      requestedEditorAliases.find(
+        (v) => v !== undefined && String(v).trim() !== ""
+      ) ??
+      requestedEditorAliases.find((v) => v !== undefined) ??
+      "";
+  }
   if (patch.status !== undefined) payload.status = patch.status;
   if (patch.needsAttention !== undefined) payload.needs_attention = patch.needsAttention;
   if (patch.attentionReason !== undefined) payload.attention_reason = patch.attentionReason;
@@ -544,10 +718,29 @@ export async function updateOrderApi(
   if ((patch as any).mix_end_date !== undefined) {
     payload.mix_end_date = (patch as any).mix_end_date || null;
   }
+  if (patch.clientRequestedMixDueDate !== undefined) {
+    payload.client_requested_mix_due_date =
+      patch.clientRequestedMixDueDate || null;
+  }
   if (patch.haveSongs !== undefined) payload.have_songs = patch.haveSongs;
   if ((patch as any).have_songs !== undefined) payload.have_songs = (patch as any).have_songs;
-  if (patch.eightCountSheet !== undefined) payload.eight_count_sheet = patch.eightCountSheet;
-  if ((patch as any).eight_count_sheet !== undefined) payload.eight_count_sheet = (patch as any).eight_count_sheet;
+  if (patch.eightCountSheet !== undefined) {
+    payload.received_eight_count_sheet = patch.eightCountSheet;
+  }
+  if ((patch as any).received_eight_count_sheet !== undefined) {
+    payload.received_eight_count_sheet = (patch as any).received_eight_count_sheet;
+  }
+  // Magento sending/using 8-count sheets → one SoT column.
+  if (
+    patch.sendingEightCountSheets !== undefined ||
+    patch.usingEightCountSheets !== undefined
+  ) {
+    payload.sending_eight_count_sheets =
+      patch.sendingEightCountSheets ?? patch.usingEightCountSheets ?? null;
+  }
+  if (patch.howDidYouFindOut !== undefined) {
+    payload.how_did_you_find_out = patch.howDidYouFindOut;
+  }
 
   try {
     const res = await apiClient.patch<BackendOrder>(`/api/orders/${id}`, payload);

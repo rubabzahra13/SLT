@@ -8,7 +8,6 @@ class MTDRecord(Base):
     __tablename__ = "mtd_records"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    legacy_id = Column(String, nullable=True, index=True)
     order_id = Column(UUID(as_uuid=True), ForeignKey("orders.id", ondelete="SET NULL"), nullable=True, index=True)
     section = Column(String, nullable=False, default="CHEERLEADING MUSIC")
     assigned_producer_id = Column(UUID(as_uuid=True), ForeignKey("producers.id", ondelete="SET NULL"), nullable=True, index=True)
@@ -26,10 +25,8 @@ class MTDRecord(Base):
     mix_start_date = Column(Date, nullable=True)
     mix_end_date = Column(Date, nullable=True)
     waiting_on = Column(String, nullable=True)
-    # DB column renamed in dedup; keep Python/API name eight_count_sheet
-    eight_count_sheet = Column(
-        "received_eight_count_sheet", String, default="", nullable=False
-    )
+    # Admin collection status (HAVE CS / NEED CS).
+    received_eight_count_sheet = Column(String, default="", nullable=False)
     have_songs = Column(String, default="", nullable=False)
     collection_states = Column(JSON, nullable=True)
     order_status = Column(String, nullable=True)
