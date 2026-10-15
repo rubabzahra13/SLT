@@ -7,8 +7,8 @@ import { SoftSelect } from "@/components/ui/SoftSelect";
 export const VOCALS_PREFERENCE_OPTIONS = [
   "Male vocals",
   "Female vocals",
-  "Mixed vocals",
-  "Choir / Group vocals",
+  "Male and Female vocals (50/50)",
+  "Male vocals version and Female vocals version (2 versions)",
 ] as const;
 
 export function normalizeVocalsPreference(value: string): string {
@@ -18,13 +18,32 @@ export function normalizeVocalsPreference(value: string): string {
     (opt) => opt.toLowerCase() === raw.toLowerCase().replace(/\.$/, "")
   );
   if (exact) return exact;
+
   const lower = raw.toLowerCase();
-  if (lower.includes("male") && !lower.includes("female")) return "Male vocals";
-  if (lower.includes("female")) return "Female vocals";
-  if (lower.includes("mixed") || lower.includes("both")) return "Mixed vocals";
-  if (lower.includes("choir") || lower.includes("group")) {
-    return "Choir / Group vocals";
+  // Two separate versions ($250) — check before generic male+female
+  if (
+    lower.includes("2 version") ||
+    lower.includes("two version") ||
+    (lower.includes("version") &&
+      lower.includes("male") &&
+      lower.includes("female"))
+  ) {
+    return "Male vocals version and Female vocals version (2 versions)";
   }
+  // 50/50 mixed ($150)
+  if (
+    lower.includes("50/50") ||
+    lower.includes("mixed") ||
+    lower.includes("both") ||
+    (lower.includes("male") && lower.includes("female"))
+  ) {
+    return "Male and Female vocals (50/50)";
+  }
+  if (lower.includes("male") && !lower.includes("female")) return "Male vocals";
+  if (lower.includes("female") && !lower.includes("male")) {
+    return "Female vocals";
+  }
+  // Unknown legacy values (e.g. choir/group) — keep as-is for SoftSelect one-off
   return raw.replace(/\.$/, "");
 }
 
