@@ -887,7 +887,7 @@ const MARCHING_BAND_FIELDS: { title: string; fields: FieldDef[] }[] = [
       },
       {
         key: "lyricalNotes",
-        label: "Notes to Producer Regarding Lyrics",
+        label: "Notes to Producer Regarding Lyrics / Mix",
         multiline: true,
         preserveCase: true,
         wide: true,

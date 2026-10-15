@@ -128,12 +128,15 @@ describe("SLT Implementation 2: Package-Specific Data Collection Rules", () => {
     assert.strictEqual(noCs?.state, "white");
   });
 
-  it("Marching Band Band Chant requires Song, Time of Mix", () => {
+  it("Marching Band Band Chant: Song from instrumentation notes + Mix; Notes N/A", () => {
     const order: Partial<Order> = {
       category: "Marching Band",
-      package: "Band Chant",
+      formType: "marching-band",
+      package: "BAND CHANT",
+      packageType: "BAND CHANT",
       timeLengthOfMix: "1:30",
-      songListSuggestions: "Fight Song Track",
+      instrumentationNotes: "Cover in marching band style: Seven Nation Army",
+      lyricalNotes: "ignored for Band Chant Notes pill",
     };
 
     const reqs = getOrderRequirements(order as Order);
@@ -142,6 +145,76 @@ describe("SLT Implementation 2: Package-Specific Data Collection Rules", () => {
 
     const songReq = reqs.songsArea.find((r) => r.id === "songs");
     assert.strictEqual(songReq?.label, "Song");
+    assert.strictEqual(songReq?.state, "green");
+    assert.strictEqual(reqs.songsArea.find((r) => r.id === "notes")?.state, "white");
+    assert.strictEqual(reqs.collections.find((r) => r.id === "mix")?.state, "green");
+
+    const missingSong = getOrderRequirements({
+      ...order,
+      instrumentationNotes: "",
+    } as Order);
+    assert.strictEqual(
+      missingSong.songsArea.find((r) => r.id === "songs")?.state,
+      "red"
+    );
+  });
+
+  it("Marching Band Fight Song / Alma Mater / Drum Cadence: Mix + Notes from instrumentation; Songs N/A", () => {
+    for (const packageType of [
+      "FIGHT SONG ORIGINAL",
+      "FIGHT SONG PLUS",
+      "ALMA MATER ORIGINAL",
+      "ALMA MATER PLUS",
+      "DRUM CADENCE ORIGINAL",
+    ]) {
+      const order: Partial<Order> = {
+        category: "Marching Band",
+        formType: "marching-band",
+        package: packageType,
+        packageType,
+        timeLengthOfMix: "2:00",
+        instrumentationNotes: "Full brass & percussion",
+        lyricalNotes: "optional — must not drive Notes pill",
+      };
+      const reqs = getOrderRequirements(order as Order);
+      const ids = reqs.all.filter((r) => r.isApplicable).map((r) => r.id);
+      assert.deepStrictEqual(
+        ids.sort(),
+        ["mix", "notes"].sort(),
+        packageType
+      );
+      assert.strictEqual(
+        reqs.songsArea.find((r) => r.id === "songs")?.state,
+        "white",
+        packageType
+      );
+      assert.strictEqual(
+        reqs.songsArea.find((r) => r.id === "notes")?.state,
+        "green",
+        packageType
+      );
+
+      const missingNotes = getOrderRequirements({
+        ...order,
+        instrumentationNotes: "",
+      } as Order);
+      assert.strictEqual(
+        missingNotes.songsArea.find((r) => r.id === "notes")?.state,
+        "red",
+        packageType
+      );
+      // Lyrics alone must not green the Notes pill.
+      const lyricsOnly = getOrderRequirements({
+        ...order,
+        instrumentationNotes: "",
+        lyricalNotes: "only lyrics",
+      } as Order);
+      assert.strictEqual(
+        lyricsOnly.songsArea.find((r) => r.id === "notes")?.state,
+        "red",
+        packageType
+      );
+    }
   });
 
   it("Sports Entertainment requires Songs, Notes, Time of Mix", () => {

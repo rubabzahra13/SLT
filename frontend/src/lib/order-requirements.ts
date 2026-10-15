@@ -177,12 +177,14 @@ function isAffiliateOnlySongText(val: string): boolean {
  * Cheer / All Star → Song list/suggestions
  * Dance → Power Music Covers (then song list)
  * Sports / Anthem → customer songs / song list
+ * Marching Band → Notes to Producer Regarding Instrumentation
  * Never use musicTheme (often affiliate labels).
  */
 export function getFormSongListText(order: Order | MTDRecord): string {
   const o = order as Order & MTDRecord & Record<string, unknown>;
   const formType = String(o.formType || o.form_type || "").toLowerCase();
   const category = String(o.category || "").toLowerCase();
+  const pkg = String(o.package || o.packageType || o.package_type || "").toUpperCase();
   const isDance =
     formType.includes("dance") ||
     category.includes("dance") ||
@@ -193,6 +195,12 @@ export function getFormSongListText(order: Order | MTDRecord): string {
     formType.includes("anthem") ||
     category.includes("sports") ||
     category.includes("anthem");
+  const isMarchingBand =
+    formType.includes("band") ||
+    category.includes("band") ||
+    category.includes("marching") ||
+    pkg.includes("CHANT") ||
+    pkg.includes("CADENCE");
 
   const pick = (...vals: unknown[]) => {
     for (const raw of vals) {
@@ -214,6 +222,10 @@ export function getFormSongListText(order: Order | MTDRecord): string {
       o.songListSuggestions,
       o.song_list_suggestions
     );
+  }
+  if (isMarchingBand) {
+    // Band Chant Songs pill — instrumentation notes only (never lyrics notes).
+    return pick(o.instrumentationNotes, o.instrumentation_notes);
   }
   // Cheer / All Star Cheer / default → Song list/suggestions only.
   return pick(o.songListSuggestions, o.song_list_suggestions);
@@ -472,19 +484,19 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
       needEightCount = true;
     }
   } else if (isMarchingBand) {
+    // Instrumentation notes drive Song (Band Chant) or Notes (other packages).
+    // Lyrics / Mix notes are optional and never drive collection pills.
+    // Band Chant: Song + Mix. Notes N/A.
+    // Drum Cadence / Fight Song* / Alma Mater*: Mix + Notes. Songs N/A.
     if (pkgStr.includes("BAND CHANT")) {
       needSongs = true;
       songsLabel = "Song";
       needTimeOfMix = true;
       needNotes = false;
-    } else if (pkgStr.includes("DRUM CADENCE") || pkgStr.includes("BOTH FIGHT SONG") || pkgStr.includes("ALMA MATER")) {
+    } else {
       needSongs = false;
       needTimeOfMix = true;
       needNotes = true;
-    } else {
-      needSongs = true;
-      songsLabel = "Song";
-      needTimeOfMix = true;
     }
   } else if (isSports) {
     needSongs = true;
@@ -643,15 +655,20 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
     });
   }
 
-  // 5. NOTES — green iff Routine notes has content (not musicTheme / song list).
-  // Ignore collectionStates — pill must match Routine notes field exactly.
+  // 5. NOTES — green iff the form Notes field has content.
+  // Marching Band → instrumentationNotes (same source as Band Chant Songs).
+  // Other forms → routineNotes / additionalNotes.
+  // Ignore collectionStates — pill must match the form field exactly.
   {
-    const notesVal =
-      (order as Order).routineNotes ||
-      (order as Order).additionalNotes ||
-      (order as any).routine_notes ||
-      (order as any).additional_notes ||
-      "";
+    const notesVal = isMarchingBand
+      ? (order as Order).instrumentationNotes ||
+        (order as any).instrumentation_notes ||
+        ""
+      : (order as Order).routineNotes ||
+        (order as Order).additionalNotes ||
+        (order as any).routine_notes ||
+        (order as any).additional_notes ||
+        "";
     const defaultProvided = isPresent(String(notesVal));
     const isApplicable = needNotes;
     let state: RequirementState = "white";
