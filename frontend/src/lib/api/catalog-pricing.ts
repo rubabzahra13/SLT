@@ -1,18 +1,8 @@
 import { apiClient } from "./client";
 import {
-  PACKAGE_CATALOG,
-  getDefaultPackagePrices,
   getDefaultSecretMenuPricing,
   type SecretMenuPricing,
 } from "@/lib/pricing";
-
-export type BackendPackagePrice = {
-  id: string;
-  package_key: string;
-  name: string;
-  category: string;
-  price: number | string;
-};
 
 export type BackendSecretMenuPricing = {
   id?: string;
@@ -21,18 +11,6 @@ export type BackendSecretMenuPricing = {
   basePrice: number;
   extraSongTiers: SecretMenuPricing["extraSongTiers"];
 };
-
-export function packagePricesFromRows(
-  rows: BackendPackagePrice[]
-): Record<string, number> {
-  const base = getDefaultPackagePrices();
-  for (const row of rows) {
-    const key = String(row.package_key || "").toUpperCase().trim();
-    if (!key) continue;
-    base[key] = Number(row.price) || 0;
-  }
-  return base;
-}
 
 export function secretMenuFromBackend(
   raw: BackendSecretMenuPricing | null | undefined
@@ -50,29 +28,6 @@ export function secretMenuFromBackend(
         Number((t as any).editingMinutes ?? (t as any).editing_minutes) || 0,
     })),
   };
-}
-
-export async function fetchPackagePricesApi(): Promise<Record<string, number>> {
-  const rows = await apiClient.get<BackendPackagePrice[]>("/api/package-prices");
-  return packagePricesFromRows(rows || []);
-}
-
-export async function savePackagePricesApi(
-  prices: Record<string, number>
-): Promise<Record<string, number>> {
-  const payload = {
-    prices: PACKAGE_CATALOG.map((entry) => ({
-      package_key: entry.key,
-      name: entry.name,
-      category: entry.category,
-      price: Number(prices[entry.key] ?? 0),
-    })),
-  };
-  const rows = await apiClient.put<BackendPackagePrice[]>(
-    "/api/package-prices",
-    payload
-  );
-  return packagePricesFromRows(rows || []);
 }
 
 export async function fetchSecretMenuPricingApi(): Promise<SecretMenuPricing> {

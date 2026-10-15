@@ -288,6 +288,40 @@ export function resolveEngineCustomerPrice(
 }
 
 /**
+ * Customer package price for staging / MTD seed: prefer a positive stored
+ * order/MTD price, else Pricing Reference / rate-card engine (pricing_rules).
+ */
+export function resolveStoredOrEngineCustomerPrice(
+  order: Order,
+  rec?: MTDRecord | null
+): number {
+  const stored =
+    (typeof order.price === "number" && order.price > 0 ? order.price : null) ??
+    (typeof rec?.price === "number" && rec.price > 0 ? rec.price : null);
+  if (stored != null) return stored;
+
+  const stub: MTDRecord = rec ?? {
+    id: order.id,
+    orderId: order.id,
+    package: order.package || order.packageType || "",
+    category: order.category || "",
+    formType: order.formType,
+    cheerFormSubtype: order.cheerFormSubtype,
+    danceFormSubtype: order.danceFormSubtype,
+    price: 0,
+    priceCompliance:
+      order.priceCompliance ||
+      ("compliant" as PriceCompliance),
+  } as MTDRecord;
+
+  const live = resolveLiveOrderPricing(stub, order);
+  if (live.engineCustomerPrice != null && live.engineCustomerPrice > 0) {
+    return live.engineCustomerPrice;
+  }
+  return live.customerPrice > 0 ? live.customerPrice : 0;
+}
+
+/**
  * Package amount the Orders/MTD price chip shows — same as Pricing modal
  * PACKAGE PRICE for the package/tier (live rate card). Per-order overrides
  * are ignored so the board stays in sync with Pricing edits.

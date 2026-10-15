@@ -1,4 +1,4 @@
-"""CRUD for pricing_rules — MB/SE/SA + Jazz/Kick (school-all-star-dance)."""
+"""CRUD for pricing_rules — all Pricing Reference categories/subtypes."""
 from __future__ import annotations
 
 from decimal import Decimal
@@ -23,11 +23,26 @@ SUPPORTED_FORM_TYPES = frozenset(
         "sports-entertainment",
         "school-anthem",
         "school-all-star-dance",
+        "school-all-star-cheer",
     }
 )
 
-# Dance subtypes editable via Pricing Reference today.
-SUPPORTED_DANCE_SUBTYPES = frozenset({"jazz-kick"})
+SUPPORTED_CHEER_SUBTYPES = frozenset(
+    {"all-star-cheer", "school-cheer", "youth-rec-cheer"}
+)
+
+SUPPORTED_DANCE_SUBTYPES = frozenset(
+    {
+        "pom",
+        "hip-hop",
+        "team-performance-variety",
+        "gameday",
+        "jazz-kick",
+    }
+)
+
+# Marching Band add-ons are not edited via the package table PUT.
+_MB_ADDON_PACKAGE_IDS = frozenset({"sheet_music_add", "add_vocals"})
 
 
 def _to_float(value) -> Optional[float]:
@@ -67,12 +82,7 @@ def _slug_package_id(name: str) -> str:
     return "".join(out).strip("_") or "package"
 
 
-# Marching Band add-ons are not edited via the package table PUT.
-_MB_ADDON_PACKAGE_IDS = frozenset({"sheet_music_add", "add_vocals"})
-
-
 def _canonicalize_mb_package(name: str, package_id: str | None) -> tuple[str, str]:
-    """Collapse renamed variants (e.g. BAND CHANT 3) onto one canonical row."""
     cleaned = " ".join((name or "").strip().split())
     upper = cleaned.upper()
     pid = (package_id or "").strip() or _slug_package_id(cleaned)
@@ -108,13 +118,39 @@ def _canonicalize_jazz_kick_package(
     return cleaned, pid
 
 
+def _validate_subtype(form_type: str, subtype_id: Optional[str]) -> Optional[str]:
+    if form_type in {"school-all-star-dance", "school-all-star-cheer"}:
+        if not subtype_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"form_type '{form_type}' requires subtype_id",
+            )
+        allowed = (
+            SUPPORTED_DANCE_SUBTYPES
+            if form_type == "school-all-star-dance"
+            else SUPPORTED_CHEER_SUBTYPES
+        )
+        if subtype_id not in allowed:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"subtype_id must be one of: {sorted(allowed)}",
+            )
+        return subtype_id
+    if subtype_id is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"form_type '{form_type}' does not use subtype_id",
+        )
+    return None
+
+
 @router.get("/pricing-rules", response_model=List[PricingRuleSchema])
 def list_pricing_rules(
     form_type: Optional[str] = Query(None),
     subtype_id: Optional[str] = Query(None),
     db: Session = Depends(get_db),
 ):
-    """List DB-backed pricing rules (MB/SE/SA + Jazz/Kick)."""
+    """List pricing rules for all Pricing Reference categories."""
     query = db.query(PricingRule).filter(
         PricingRule.form_type.in_(SUPPORTED_FORM_TYPES)
     )
@@ -127,15 +163,7 @@ def list_pricing_rules(
         query = query.filter(PricingRule.form_type == form_type)
     if subtype_id is not None:
         query = query.filter(PricingRule.subtype_id == subtype_id)
-    # Default list: no-subtype forms + Jazz/Kick (other dance subtypes stay seed-only for now).
-    if form_type is None and subtype_id is None:
-        query = query.filter(
-            (PricingRule.subtype_id.is_(None))
-            | (
-                (PricingRule.form_type == "school-all-star-dance")
-                & (PricingRule.subtype_id.in_(SUPPORTED_DANCE_SUBTYPES))
-            )
-        )
+
     rows = query.order_by(
         PricingRule.form_type.asc(),
         PricingRule.subtype_id.asc().nullsfirst(),
@@ -150,10 +178,7 @@ def upsert_pricing_rules(
     db: Session = Depends(get_db),
     _: None = Depends(require_full_access),
 ):
-    """
-    Upsert package prices for a supported form type.
-    For school-all-star-dance, subtype_id is required (currently jazz-kick).
-    """
+    """Upsert package prices for one form type (+ subtype when required)."""
     form_type = payload.form_type
     if form_type not in SUPPORTED_FORM_TYPES:
         raise HTTPException(
@@ -161,21 +186,9 @@ def upsert_pricing_rules(
             detail=f"form_type must be one of: {sorted(SUPPORTED_FORM_TYPES)}",
         )
 
-    subtype_id = (payload.subtype_id or "").strip() or None
-    if form_type == "school-all-star-dance":
-        if subtype_id not in SUPPORTED_DANCE_SUBTYPES:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=(
-                    "school-all-star-dance requires subtype_id "
-                    f"in {sorted(SUPPORTED_DANCE_SUBTYPES)}"
-                ),
-            )
-    elif subtype_id is not None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"form_type '{form_type}' does not use subtype_id",
-        )
+    subtype_id = _validate_subtype(
+        form_type, (payload.subtype_id or "").strip() or None
+    )
 
     existing_q = db.query(PricingRule).filter(PricingRule.form_type == form_type)
     if subtype_id is None:
@@ -216,12 +229,19 @@ def upsert_pricing_rules(
             else compliant
         )
 
+        # Youth Rec: no affiliate — keep payroll columns = package price.
+        if subtype_id == "youth-rec-cheer" and customer is not None:
+            compliant = customer
+            non_compliant = customer
+
         if row:
             row.package_id = package_id
             row.package_name = name
             row.customer_facing_price = customer
             row.payroll_base_compliant = compliant
             row.payroll_base_non_compliant = non_compliant
+            if subtype_id == "youth-rec-cheer":
+                row.compliance_sensitive = False
             if pkg.note is not None:
                 row.note = pkg.note
         else:
@@ -233,8 +253,11 @@ def upsert_pricing_rules(
                 customer_facing_price=customer,
                 payroll_base_compliant=compliant,
                 payroll_base_non_compliant=non_compliant,
-                compliance_sensitive=subtype_id == "jazz-kick"
-                and package_id == "jazz_kick_mix",
+                compliance_sensitive=(
+                    False
+                    if subtype_id == "youth-rec-cheer"
+                    else (subtype_id == "jazz-kick" and package_id == "jazz_kick_mix")
+                ),
                 note=pkg.note,
             )
             db.add(row)
@@ -242,7 +265,6 @@ def upsert_pricing_rules(
         by_name[name.upper()] = row
         written_ids.add(package_id)
 
-    # Drop renamed duplicates after canonical upsert.
     if form_type == "marching-band" and written_ids:
         for row in (
             db.query(PricingRule)
@@ -254,7 +276,7 @@ def upsert_pricing_rules(
         ):
             if row.package_id in _MB_ADDON_PACKAGE_IDS:
                 continue
-            canon_name, canon_id = _canonicalize_mb_package(
+            _canon_name, canon_id = _canonicalize_mb_package(
                 row.package_name, row.package_id
             )
             if canon_id in written_ids and row.package_id != canon_id:
@@ -269,7 +291,7 @@ def upsert_pricing_rules(
             )
             .all()
         ):
-            canon_name, canon_id = _canonicalize_jazz_kick_package(
+            _canon_name, canon_id = _canonicalize_jazz_kick_package(
                 row.package_name, row.package_id
             )
             if canon_id in written_ids and row.package_id != canon_id:

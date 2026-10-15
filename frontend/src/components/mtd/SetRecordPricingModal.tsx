@@ -12,7 +12,6 @@ import type { MTDRecord, PriceCompliance } from "@/types";
 type SetRecordPricingModalProps = {
   open: boolean;
   record: MTDRecord | null;
-  packagePrices: Record<string, number>;
   /**
    * Amount shown in the Orders/MTD price chip (engine or overridden).
    * When set, the input seeds from this instead of stale record.price.

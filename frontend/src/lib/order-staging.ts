@@ -4,10 +4,8 @@ import {
   applyManualFormMerges,
   isAbsorbedFormOrder,
 } from "@/lib/manual-form-merge";
-import {
-  detectCompliance,
-  getPriceForPackage,
-} from "@/lib/pricing";
+import { detectCompliance } from "@/lib/pricing";
+import { resolveStoredOrEngineCustomerPrice } from "@/lib/order-package-price";
 import type { MTDRecord, Order } from "@/types";
 
 /** HAVE/NEED CS only — form Yes/No send-intent must not populate eightCountSheet. */
@@ -45,20 +43,10 @@ export function mtdRecordCoversOrder(rec: MTDRecord, order: Order): boolean {
   return recIds.some((value) => orderIds.includes(value as string));
 }
 
-export function stagingRecordFromOrder(
-  order: Order,
-  packagePrices?: Record<string, number>
-): MTDRecord {
+export function stagingRecordFromOrder(order: Order): MTDRecord {
   const compliance =
     order.priceCompliance || detectCompliance(order.musicTheme || "");
-  const price =
-    order.price ||
-    getPriceForPackage(
-      order.package,
-      compliance,
-      order.price,
-      packagePrices
-    );
+  const price = resolveStoredOrEngineCustomerPrice(order);
   const subtype = order.danceFormSubtype || order.cheerFormSubtype;
   const producerCategory =
     orderCategoryToProducerCategory(
@@ -238,8 +226,7 @@ export function mergeCollectionStateFromOrder(
 /** Orders-tab rows: persisted pre-MTD mtd_records plus open orders without a row yet. */
 export function listPreMtdOrderRecords(
   activeOrders: Order[],
-  mtdRecords: MTDRecord[],
-  packagePrices?: Record<string, number>
+  mtdRecords: MTDRecord[]
 ): MTDRecord[] {
   // Form submissions that match a manual program (90–100%) fold into the manual row.
   const mergedOrders = applyManualFormMerges(activeOrders);
@@ -280,7 +267,7 @@ export function listPreMtdOrderRecords(
     if (isAbsorbedFormOrder(order)) continue;
     if (!orderEligibleForStaging(order)) continue;
     if (mtdRecords.some((rec) => mtdRecordCoversOrder(rec, order))) continue;
-    synthetic.push(stagingRecordFromOrder(order, packagePrices));
+    synthetic.push(stagingRecordFromOrder(order));
   }
 
   return [...fromMtd, ...synthetic];

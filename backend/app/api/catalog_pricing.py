@@ -1,49 +1,21 @@
-"""Catalog pricing — package_prices + secret_menu_pricing.
+"""Catalog pricing — secret_menu_pricing (reference-only).
 
-These tables existed but had no API; the admin UI kept prices in React memory only.
+Package rate cards live in pricing_rules; this module only serves Secret Menu.
 """
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.api.auth import require_full_access
 from app.core.database import get_db
-from app.models.package_price import PackagePrice
 from app.models.secret_menu_pricing import SecretMenuPricing
-from app.schemas.catalog_pricing import (
-    PackagePriceSchema,
-    PackagePricesReplaceSchema,
-    SecretMenuPricingSchema,
-    SecretMenuPricingUpdateSchema,
-)
+from app.schemas.catalog_pricing import SecretMenuPricingUpdateSchema
 
 router = APIRouter()
-
-# Mirrors src/lib/pricing.ts defaults so an empty DB seeds correctly.
-_DEFAULT_PACKAGE_PRICES: List[Dict[str, Any]] = [
-    {"package_key": "BRONZE 1:30 NO SPLIT", "name": "Bronze 1:30 No Split", "category": "Cheer", "price": 350},
-    {"package_key": "SILVER 1:30 NO SPLIT", "name": "Silver 1:30 No Split", "category": "Cheer", "price": 470},
-    {"package_key": "GOLD 1:30 NO SPLIT", "name": "Gold 1:30 No Split", "category": "Cheer", "price": 600},
-    {"package_key": "GOLD 1:30 TBD", "name": "Gold 1:30 TBD", "category": "Cheer", "price": 600},
-    {"package_key": "GOLD 1:45 NO SPLIT", "name": "Gold 1:45 No Split", "category": "Cheer", "price": 750},
-    {"package_key": "GOLD 1:45 SPLIT", "name": "Gold 1:45 Split", "category": "Cheer", "price": 800},
-    {"package_key": "GOLD 2:00 NO SPLIT", "name": "Gold 2:00 No Split", "category": "Cheer", "price": 850},
-    {"package_key": "GOLD 2:30 NO SPLIT", "name": "Gold 2:30 No Split", "category": "Cheer", "price": 1000},
-    {"package_key": "PLATINUM 1:30 NO SPLIT", "name": "Platinum 1:30 No Split", "category": "Cheer", "price": 850},
-    {"package_key": "PLATINUM 1:30 TBD", "name": "Platinum 1:30 TBD", "category": "Cheer", "price": 850},
-    {"package_key": "PLATINUM 1:45 NO SPLIT", "name": "Platinum 1:45 No Split", "category": "Cheer", "price": 1000},
-    {"package_key": "PLATINUM 1:45 SPLIT", "name": "Platinum 1:45 Split", "category": "Cheer", "price": 1000},
-    {"package_key": "PLATINUM 1:45 TBD", "name": "Platinum 1:45 TBD", "category": "Cheer", "price": 1000},
-    {"package_key": "PLATINUM 2:00 NO SPLIT", "name": "Platinum 2:00 No Split", "category": "Cheer", "price": 1150},
-    {"package_key": "PLATINUM 2:30 NO SPLIT", "name": "Platinum 2:30 No Split", "category": "Cheer", "price": 1400},
-    {"package_key": "TITANIUM 2:30 NO SPLIT", "name": "Titanium 2:30 No Split", "category": "Cheer", "price": 1400},
-    {"package_key": "HOMECOMING MIX TBD", "name": "Homecoming Mix TBD", "category": "School", "price": 450},
-    {"package_key": "BAND CHANT :30", "name": "Band Chant :30", "category": "Marching Band", "price": 200},
-]
 
 _DEFAULT_SECRET_MENU: Dict[str, Any] = {
     "package_name": "Semi-Custom Plus Package",
@@ -58,23 +30,6 @@ _DEFAULT_SECRET_MENU: Dict[str, Any] = {
         {"extraSongs": 6, "extraCost": 90, "editingMinutes": 180},
     ],
 }
-
-
-def ensure_default_package_prices(db: Session) -> List[PackagePrice]:
-    rows = db.query(PackagePrice).order_by(PackagePrice.package_key.asc()).all()
-    if rows:
-        return rows
-    for item in _DEFAULT_PACKAGE_PRICES:
-        db.add(
-            PackagePrice(
-                package_key=item["package_key"],
-                name=item["name"],
-                category=item["category"],
-                price=Decimal(str(item["price"])),
-            )
-        )
-    db.commit()
-    return db.query(PackagePrice).order_by(PackagePrice.package_key.asc()).all()
 
 
 def ensure_default_secret_menu(db: Session) -> SecretMenuPricing:
@@ -101,41 +56,6 @@ def secret_menu_to_schema(row: SecretMenuPricing) -> Dict[str, Any]:
         "basePrice": float(row.base_price),
         "extraSongTiers": row.extra_song_tiers or [],
     }
-
-
-@router.get("/package-prices", response_model=List[PackagePriceSchema])
-def get_package_prices(db: Session = Depends(get_db)):
-    return ensure_default_package_prices(db)
-
-
-@router.put("/package-prices", response_model=List[PackagePriceSchema])
-def replace_package_prices(
-    payload: PackagePricesReplaceSchema,
-    db: Session = Depends(get_db),
-    _: None = Depends(require_full_access),
-):
-    """Upsert the full catalog. Keys not in the payload are left alone."""
-    existing = {
-        row.package_key: row for row in db.query(PackagePrice).all()
-    }
-    for item in payload.prices:
-        key = item.package_key.strip().upper()
-        row = existing.get(key)
-        if row:
-            row.name = item.name
-            row.category = item.category
-            row.price = Decimal(str(item.price))
-        else:
-            db.add(
-                PackagePrice(
-                    package_key=key,
-                    name=item.name,
-                    category=item.category,
-                    price=Decimal(str(item.price)),
-                )
-            )
-    db.commit()
-    return ensure_default_package_prices(db)
 
 
 @router.get("/secret-menu-pricing")

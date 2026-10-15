@@ -69,8 +69,8 @@ describe("Add-On Pricing Invariant Tests — Package Price Must Not Change", () 
       hasExtend8ctAddon: true,
       hasProcessing8ctSheetsAddon: true,
     });
-    assert.equal(res.customerFacingPrice, 450); // Base package price
-    assert.equal(res.payrollBasePrice, 425); // $350 + $25 + $50
+    assert.equal(res.customerFacingPrice, 450); // Base package price (flat)
+    assert.equal(res.payrollBasePrice, 525); // $450 + $25 + $50
   });
 
   it("Test 6 — Dance & Marching Band Add-Ons: Base Package Prices remain immutable", () => {

@@ -9,7 +9,6 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.api.studio_settings import _ensure_default_holidays, _ensure_default_reasons
 from app.api.catalog_pricing import (
-    ensure_default_package_prices,
     ensure_default_secret_menu,
     secret_menu_to_schema,
 )
@@ -20,7 +19,6 @@ from app.models.order import Order
 from app.models.payroll_addon import PayrollAddon
 from app.models.producer import Producer
 from app.models.studio_settings import EmailTemplate
-from app.schemas.catalog_pricing import PackagePriceSchema
 from app.schemas.discount_code import DiscountCodeSchema
 from app.schemas.mtd_record import MTDRecordSchema
 from app.schemas.order import OrderSchema
@@ -51,7 +49,6 @@ def bootstrap(db: Session = Depends(get_db)) -> Dict[str, Any]:
     holidays = _ensure_default_holidays(db)
     reasons = _ensure_default_reasons(db)
     templates = db.query(EmailTemplate).order_by(EmailTemplate.id.asc()).all()
-    package_prices = ensure_default_package_prices(db)
     secret_menu = ensure_default_secret_menu(db)
 
     return {
@@ -75,10 +72,6 @@ def bootstrap(db: Session = Depends(get_db)) -> Dict[str, Any]:
         ],
         "email_templates": [
             EmailTemplateSchema.model_validate(t).model_dump(mode="json") for t in templates
-        ],
-        "package_prices": [
-            PackagePriceSchema.model_validate(p).model_dump(mode="json")
-            for p in package_prices
         ],
         "secret_menu_pricing": secret_menu_to_schema(secret_menu),
     }

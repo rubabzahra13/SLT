@@ -3,27 +3,6 @@ from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 
-class PackagePriceSchema(BaseModel):
-    id: UUID
-    package_key: str
-    name: str
-    category: str
-    price: float
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class PackagePriceUpsertItem(BaseModel):
-    package_key: str
-    name: str
-    category: str
-    price: float
-
-
-class PackagePricesReplaceSchema(BaseModel):
-    prices: List[PackagePriceUpsertItem]
-
-
 class SecretMenuTierSchema(BaseModel):
     extra_songs: int = Field(alias="extraSongs")
     extra_cost: float = Field(alias="extraCost")

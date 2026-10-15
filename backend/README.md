@@ -51,7 +51,6 @@ backend/
 │   │   ├── mtd_record.py      # Music To Do (MTD) workflow model
 │   │   ├── schedule_entry.py  # Producer schedule availability model
 │   │   ├── discount_code.py   # Discount promo code model
-│   │   ├── package_price.py   # Package catalog pricing model
 │   │   └── secret_menu_pricing.py # Secret menu extra song tiers model
 │   ├── schemas/
 │   │   ├── __init__.py        # Exported Pydantic response schemas
@@ -180,5 +179,5 @@ uvicorn app.main:app --reload --port 8001
 * **`mtd_records`**: Operational Music To Do board entries linked to `orders.id` (`order_id` FK) and `producers.id` (`assigned_producer_id` FK).
 * **`schedule_entries`**: Removed — schedule capacity is derived from producer assignments and mix dates, not a separate matrix table.
 * **`discount_codes`**: Promo codes and usage rules.
-* **`package_prices`**: Standard package pricing catalog.
-* **`secret_menu_pricing`**: Semi-Custom Plus package extra song tiers.
+* **`pricing_rules`**: Package rate cards (customer / compliant / non-compliant) for Pricing Reference.
+* **`secret_menu_pricing`**: Semi-Custom Plus package extra song tiers (reference-only).

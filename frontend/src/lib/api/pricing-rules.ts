@@ -26,7 +26,8 @@ export type DbBackedFormType =
   | "marching-band"
   | "sports-entertainment"
   | "school-anthem"
-  | "school-all-star-dance";
+  | "school-all-star-dance"
+  | "school-all-star-cheer";
 
 export async function fetchPricingRulesApi(
   formType?: DbBackedFormType,

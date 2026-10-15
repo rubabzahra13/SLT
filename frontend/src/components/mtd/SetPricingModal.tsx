@@ -398,9 +398,7 @@ export function SetPricingModal({
   initialSubtype,
 }: SetPricingModalProps) {
   const {
-    packagePrices,
     secretMenuPrices: secretMenuPricesState,
-    setPackagePrices,
     setSecretMenuPrices,
     isViewOnly,
   } = useAppState();
@@ -633,36 +631,32 @@ export function SetPricingModal({
       addOns: draftSnapshot.addOns,
     });
 
-    // DB-backed categories: persist to pricing_rules, then refresh rate cards.
+    // Persist package pricing to pricing_rules (DB) — never browser-only.
     const dbTarget = categoryKeyToDbPricingTarget(selectedCategory);
-    if (dbTarget && DB_BACKED_PRICING_CATEGORIES.has(selectedCategory)) {
-      setIsSavingPricing(true);
-      try {
-        const packages = flatRowsToPricingRulePackages(draftSnapshot.rows);
-        const saved = await savePricingRulesApi(
-          dbTarget.formType,
-          packages,
-          dbTarget.subtypeId
-        );
-        const hydrated = applyDbPricingRules(saved, next);
-        setReferenceStore(hydrated);
-        setDraftSnapshot(null);
-        setIsEditingPricing(false);
-      } catch (err) {
-        setPricingSaveError(
-          err instanceof Error ? err.message : "Could not save pricing to database"
-        );
-      } finally {
-        setIsSavingPricing(false);
-      }
+    if (!dbTarget || !DB_BACKED_PRICING_CATEGORIES.has(selectedCategory)) {
+      setPricingSaveError("This category cannot be saved to the database");
       return;
     }
 
-    // Other categories: local reference store only (unchanged for now).
-    savePricingReferenceStore(next);
-    setReferenceStore(next);
-    setDraftSnapshot(null);
-    setIsEditingPricing(false);
+    setIsSavingPricing(true);
+    try {
+      const packages = flatRowsToPricingRulePackages(draftSnapshot.rows);
+      const saved = await savePricingRulesApi(
+        dbTarget.formType,
+        packages,
+        dbTarget.subtypeId
+      );
+      const hydrated = applyDbPricingRules(saved, next);
+      setReferenceStore(hydrated);
+      setDraftSnapshot(null);
+      setIsEditingPricing(false);
+    } catch (err) {
+      setPricingSaveError(
+        err instanceof Error ? err.message : "Could not save pricing to database"
+      );
+    } finally {
+      setIsSavingPricing(false);
+    }
   }, [draftSnapshot, referenceStore, selectedCategory]);
 
   const saveCompliantAffiliates = useCallback(() => {
@@ -1170,14 +1164,30 @@ export function SetPricingModal({
                                 <PriceCell
                                   editing={isEditingPricing}
                                   value={tierRow.customer}
-                                  onChange={(next) =>
-                                    updateDraftRow(idx, {
-                                      customer: next ?? tierRow.customer,
-                                    })
-                                  }
+                                  onChange={(next) => {
+                                    const price = next ?? tierRow.customer;
+                                    const flatAlways =
+                                      selectedCategory === "Youth Rec Cheer" ||
+                                      isTitanium ||
+                                      tierRow.alwaysFixedPayroll ||
+                                      tierRow.compliant === tierRow.nonCompliant;
+                                    updateDraftRow(
+                                      idx,
+                                      flatAlways
+                                        ? {
+                                            customer: price,
+                                            compliant: price,
+                                            nonCompliant: price,
+                                          }
+                                        : { customer: price }
+                                    );
+                                  }}
                                 />
                               </td>
-                              {isTitanium || tierRow.compliant === tierRow.nonCompliant ? (
+                              {isTitanium ||
+                              tierRow.alwaysFixedPayroll ||
+                              tierRow.compliant === tierRow.nonCompliant ||
+                              selectedCategory === "Youth Rec Cheer" ? (
                                 <td
                                   colSpan={2}
                                   className="border border-neutral-300 bg-blue-50/40 px-3.5 py-2 text-center font-bold tabular-nums text-neutral-900"
@@ -1187,12 +1197,15 @@ export function SetPricingModal({
                                     <PriceCell
                                       editing={isEditingPricing}
                                       value={tierRow.compliant}
-                                      onChange={(next) =>
+                                      onChange={(next) => {
+                                        const price =
+                                          next ?? tierRow.compliant;
                                         updateDraftRow(idx, {
-                                          compliant: next ?? tierRow.compliant,
-                                          nonCompliant: next ?? tierRow.nonCompliant,
-                                        })
-                                      }
+                                          customer: price,
+                                          compliant: price,
+                                          nonCompliant: price,
+                                        });
+                                      }}
                                     />
                                     {!isEditingPricing ? (
                                       <span className="text-[11px] font-normal text-neutral-600">

@@ -62,15 +62,23 @@ export const SCHOOL_CHEER_RATE_CARD: RateCardEntry[] = [
   { tier: "RALLY MIX", limit: "-", customer: 350, compliant: 350, nonCompliant: 350, isTitanium: false },
 ];
 
-/** Youth Rec Cheer Pricing Table */
+/**
+ * Youth Rec Cheer Pricing Table.
+ * No music-affiliate field on this form — package price is flat for customer
+ * and payroll (compliant === nonCompliant === customer).
+ */
 export const YOUTH_REC_CHEER_RATE_CARD: RateCardEntry[] = [
-  { tier: "BRONZE", limit: "1:00", customer: 450, compliant: 350, nonCompliant: 450, isTitanium: false },
-  { tier: "BRONZE", limit: "1:30", customer: 570, compliant: 470, nonCompliant: 570, isTitanium: false },
-  { tier: "BRONZE", limit: "1:45", customer: 650, compliant: 550, nonCompliant: 650, isTitanium: false },
-  { tier: "BRONZE", limit: "2:00", customer: 750, compliant: 650, nonCompliant: 750, isTitanium: false },
-  { tier: "BRONZE", limit: "2:15", customer: 900, compliant: 800, nonCompliant: 900, isTitanium: false },
-  { tier: "BRONZE", limit: "2:30", customer: 900, compliant: 800, nonCompliant: 900, isTitanium: false },
+  { tier: "BRONZE", limit: "1:00", customer: 450, compliant: 450, nonCompliant: 450, isTitanium: false },
+  { tier: "BRONZE", limit: "1:30", customer: 570, compliant: 570, nonCompliant: 570, isTitanium: false },
+  { tier: "BRONZE", limit: "1:45", customer: 650, compliant: 650, nonCompliant: 650, isTitanium: false },
+  { tier: "BRONZE", limit: "2:00", customer: 750, compliant: 750, nonCompliant: 750, isTitanium: false },
+  { tier: "BRONZE", limit: "2:15", customer: 900, compliant: 900, nonCompliant: 900, isTitanium: false },
+  { tier: "BRONZE", limit: "2:30", customer: 900, compliant: 900, nonCompliant: 900, isTitanium: false },
 ];
+
+/** In-memory rate-card overrides hydrated from pricing_rules (DB). */
+const cheerRateCardOverrides = new Map<string, RateCardEntry[]>();
+const danceRateCardOverrides = new Map<string, DanceRateCardEntry[]>();
 
 export type DanceRateCardEntry = {
   package: string;
@@ -230,7 +238,21 @@ export function normalizeMusicAffiliate(musicAffiliate?: string): string | undef
   return trimmed;
 }
 
+function cheerOverrideKey(cheerFormSubtype: CheerFormSubtype): string {
+  if (
+    cheerFormSubtype === "school-cheer-viroc-yes" ||
+    cheerFormSubtype === "school-cheer-viroc-no"
+  ) {
+    return "school-cheer";
+  }
+  return cheerFormSubtype;
+}
+
 export function getRateCardForSubtype(cheerFormSubtype: CheerFormSubtype): RateCardEntry[] {
+  const key = cheerOverrideKey(cheerFormSubtype);
+  const override = cheerRateCardOverrides.get(key);
+  if (override) return override;
+
   switch (cheerFormSubtype) {
     case "all-star-cheer":
       return ALL_STAR_CHEER_RATE_CARD;
@@ -244,9 +266,22 @@ export function getRateCardForSubtype(cheerFormSubtype: CheerFormSubtype): RateC
   }
 }
 
+export function setCheerRateCardFromDb(
+  subtypeId: string,
+  entries: RateCardEntry[]
+): void {
+  cheerRateCardOverrides.set(
+    subtypeId,
+    entries.map((e) => ({ ...e }))
+  );
+}
+
 export function getDanceRateCardForSubtype(
   danceFormSubtype: DanceFormSubtype
 ): DanceRateCardEntry[] {
+  const override = danceRateCardOverrides.get(danceFormSubtype);
+  if (override) return override;
+
   switch (danceFormSubtype) {
     case "pom":
       return POM_RATE_CARD;
@@ -260,6 +295,19 @@ export function getDanceRateCardForSubtype(
       return jazzKickRateCardOverride ?? JAZZ_KICK_RATE_CARD;
     default:
       return POM_RATE_CARD;
+  }
+}
+
+export function setDanceRateCardFromDb(
+  subtypeId: string,
+  entries: DanceRateCardEntry[]
+): void {
+  danceRateCardOverrides.set(
+    subtypeId,
+    entries.map((e) => ({ ...e }))
+  );
+  if (subtypeId === "jazz-kick") {
+    setJazzKickRateCardFromDb(entries);
   }
 }
 
@@ -620,12 +668,21 @@ export function calculateCheerOrderPricing(
   const compliantPayrollBasePrice = matchedEntry.compliant + addOnTotal;
   const nonCompliantPayrollBasePrice = matchedEntry.nonCompliant + addOnTotal;
 
+  // Youth Rec has no music-affiliate field — always pull the flat package price.
+  const youthRecFlat = input.cheerFormSubtype === "youth-rec-cheer";
+
   let preDiscountPayrollBasePrice = compliantPayrollBasePrice;
-  if (matchedEntry.isTitanium) {
-    preDiscountPayrollBasePrice = compliantPayrollBasePrice;
+  if (youthRecFlat || matchedEntry.isTitanium) {
+    // Flat / titanium: payroll follows package price (+ add-ons).
+    preDiscountPayrollBasePrice =
+      (youthRecFlat ? matchedEntry.customer : matchedEntry.compliant) +
+      addOnTotal;
   } else if (complianceStatus === "non-compliant") {
     preDiscountPayrollBasePrice = nonCompliantPayrollBasePrice;
-  } else if (complianceStatus === "compliant" || complianceStatus === "unknown-no-affiliate-field") {
+  } else if (
+    complianceStatus === "compliant" ||
+    complianceStatus === "unknown-no-affiliate-field"
+  ) {
     preDiscountPayrollBasePrice = compliantPayrollBasePrice;
   }
 

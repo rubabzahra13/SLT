@@ -136,9 +136,7 @@ function OrdersPageContent() {
     addManualScheduleEntry,
     producers,
     schedule,
-    packagePrices,
     secretMenuPrices,
-    setPackagePrices,
     setSecretMenuPrices,
     isLoading,
   } = useAppState();
@@ -309,8 +307,8 @@ function OrdersPageContent() {
   >("resolve");
 
   const preMtdRecords = useMemo(
-    () => listPreMtdOrderRecords(activeOrders, mtdRecords, packagePrices),
-    [activeOrders, mtdRecords, packagePrices]
+    () => listPreMtdOrderRecords(activeOrders, mtdRecords),
+    [activeOrders, mtdRecords]
   );
 
   const orderById = useMemo(() => {

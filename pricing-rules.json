@@ -409,60 +409,66 @@
               "name": "BRONZE 1:00",
               "customer_facing_price": 450,
               "payroll_base_price": {
-                "compliant": 350,
+                "compliant": 450,
                 "non_compliant": 450
               },
-              "compliance_sensitive": true
+              "compliance_sensitive": false,
+              "note": "Youth Rec has no music-affiliate field \u2014 package price is flat for customer and payroll."
             },
             {
               "id": "bronze_1_30",
               "name": "BRONZE 1:30",
               "customer_facing_price": 570,
               "payroll_base_price": {
-                "compliant": 470,
+                "compliant": 570,
                 "non_compliant": 570
               },
-              "compliance_sensitive": true
+              "compliance_sensitive": false,
+              "note": "Youth Rec has no music-affiliate field \u2014 package price is flat for customer and payroll."
             },
             {
               "id": "bronze_1_45",
               "name": "BRONZE 1:45",
               "customer_facing_price": 650,
               "payroll_base_price": {
-                "compliant": 550,
+                "compliant": 650,
                 "non_compliant": 650
               },
-              "compliance_sensitive": true
+              "compliance_sensitive": false,
+              "note": "Youth Rec has no music-affiliate field \u2014 package price is flat for customer and payroll."
             },
             {
               "id": "bronze_2_00",
               "name": "BRONZE 2:00",
               "customer_facing_price": 750,
               "payroll_base_price": {
-                "compliant": 650,
+                "compliant": 750,
                 "non_compliant": 750
               },
-              "compliance_sensitive": true
+              "compliance_sensitive": false,
+              "note": "Youth Rec has no music-affiliate field \u2014 package price is flat for customer and payroll."
             },
             {
               "id": "bronze_2_15",
               "name": "BRONZE 2:15",
               "customer_facing_price": 900,
               "payroll_base_price": {
-                "compliant": 800,
+                "compliant": 900,
                 "non_compliant": 900
               },
-              "compliance_sensitive": true
+              "compliance_sensitive": false,
+              "note": "Youth Rec has no music-affiliate field \u2014 package price is flat for customer and payroll."
             },
             {
               "id": "bronze_2_30",
               "name": "BRONZE 2:30",
               "customer_facing_price": 900,
               "payroll_base_price": {
-                "compliant": 800,
+                "compliant": 900,
                 "non_compliant": 900
               },
-              "compliance_sensitive": true
+              "compliance_sensitive": false,
+              "note": "Youth Rec has no music-affiliate field \u2014 package price is flat for customer and payroll."
             }
           ],
           "line_item_addons": [
@@ -786,7 +792,7 @@
                 "non_compliant": null
               },
               "compliance_sensitive": false,
-              "note": "Price TBD — awaiting client confirmation. Offered as a selectable package option only until priced."
+              "note": "Price TBD \u2014 awaiting client confirmation. Offered as a selectable package option only until priced."
             }
           ],
           "line_item_addons": [
@@ -836,7 +842,7 @@
             "non_compliant": 600
           },
           "compliance_sensitive": false,
-          "note": "Marching Band customer form has no music-affiliate field — package price is flat ($600) for customer and payroll."
+          "note": "Marching Band customer form has no music-affiliate field \u2014 package price is flat ($600) for customer and payroll."
         },
         {
           "id": "drum_cadence_original",
@@ -847,7 +853,7 @@
             "non_compliant": 350
           },
           "compliance_sensitive": false,
-          "note": "Marching Band customer form has no music-affiliate field — package price is flat ($350) for customer and payroll."
+          "note": "Marching Band customer form has no music-affiliate field \u2014 package price is flat ($350) for customer and payroll."
         },
         {
           "id": "sheet_music_add",

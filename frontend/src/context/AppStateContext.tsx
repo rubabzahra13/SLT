@@ -43,11 +43,13 @@ import { mergeCollectionStateFromOrder } from "@/lib/order-staging";
 import { useAuth } from "@/context/AuthContext";
 import {
   detectCompliance,
-  getDefaultPackagePrices,
   getDefaultSecretMenuPricing,
-  getPriceForPackage,
   type SecretMenuPricing,
 } from "@/lib/pricing";
+import {
+  resolveLiveOrderPricing,
+  resolveStoredOrEngineCustomerPrice,
+} from "@/lib/order-package-price";
 import {
   editorRequestForAssignment,
   getSuggestedEditors,
@@ -109,9 +111,7 @@ import {
   fetchPayrollAddonsApi,
   fetchStudioPersonalReasonsApi,
   fetchEmailTemplatesApi,
-  savePackagePricesApi,
   saveSecretMenuPricingApi,
-  fetchPackagePricesApi,
   fetchSecretMenuPricingApi,
   fetchPricingRulesApi,
   type BootstrapPayload,
@@ -123,7 +123,6 @@ type AppStateContextValue = {
   pastOrders: Order[];
   allOrders: Order[];
   mtdRecords: MTDRecord[];
-  packagePrices: Record<string, number>;
   secretMenuPrices: SecretMenuPricing;
   producers: Producer[];
   discountCodes: DiscountCode[];
@@ -144,7 +143,6 @@ type AppStateContextValue = {
     patch: Partial<Order>,
     seed?: Order
   ) => Promise<void>;
-  setPackagePrices: (prices: Record<string, number>) => void;
   setSecretMenuPrices: (pricing: SecretMenuPricing) => void;
   markComplete: (orderId: string) => void;
   addPastOrder: (order: Order) => void;
@@ -504,9 +502,6 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   );
   const [mtdRecords, setMtdRecords] = useState<MTDRecord[]>(() => cachedMtd ?? []);
 
-  const [packagePrices, setPackagePricesState] = useState<Record<string, number>>(
-    () => getDefaultPackagePrices()
-  );
   const [secretMenuPrices, setSecretMenuPricesState] = useState<SecretMenuPricing>(
     () => getDefaultSecretMenuPricing()
   );
@@ -626,9 +621,6 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       if (boot.emailTemplates) {
         setEmailTemplates(normalizeEmailTemplates(boot.emailTemplates));
       }
-      if (boot.packagePrices) {
-        setPackagePricesState(boot.packagePrices);
-      }
       if (boot.secretMenuPricing) {
         setSecretMenuPricesState(boot.secretMenuPricing);
       }
@@ -646,7 +638,6 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         payrollAddons,
         personalReasons,
         emailTemplates,
-        packagePrices,
         secretMenuPricing,
       ] = await Promise.all([
         fetchProducersApi().catch(() => [] as Producer[]),
@@ -661,7 +652,6 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           () => [] as StudioPersonalReason[]
         ),
         fetchEmailTemplatesApi().catch(() => null),
-        fetchPackagePricesApi().catch(() => null),
         fetchSecretMenuPricingApi().catch(() => null),
       ]);
 
@@ -683,7 +673,6 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         payrollAddons,
         personalReasons,
         emailTemplates,
-        packagePrices,
         secretMenuPricing,
       };
     }
@@ -807,9 +796,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       if (!order || isInMTD(orderId)) return null;
 
       const compliance = order.priceCompliance || detectCompliance(order.musicTheme);
-      const price =
-        order.price ||
-        getPriceForPackage(order.package, compliance, order.price, packagePrices);
+      const price = resolveStoredOrEngineCustomerPrice(order);
 
       const draftId = `mtd-${Date.now()}`;
 
@@ -949,41 +936,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       schedule,
       addNotification,
       notifySaveError,
-      packagePrices,
       isViewOnly,
     ]
-  );
-
-  const setPackagePrices = useCallback(
-    (prices: Record<string, number>) => {
-      if (isViewOnly) return;
-      const prevPrices = packagePrices;
-      const prevMtd = mtdRecords;
-      setPackagePricesState(prices);
-      setMtdRecords((prev) =>
-        prev.map((record) => {
-          const compliance =
-            record.priceCompliance || detectCompliance(record.musicTheme);
-          return {
-            ...record,
-            price: getPriceForPackage(
-              record.package,
-              compliance,
-              record.price,
-              prices
-            ),
-          };
-        })
-      );
-      void savePackagePricesApi(prices)
-        .then((saved) => setPackagePricesState(saved))
-        .catch((err) => {
-          setPackagePricesState(prevPrices);
-          setMtdRecords(prevMtd);
-          notifySaveError("Could not save package prices", err);
-        });
-    },
-    [isViewOnly, packagePrices, mtdRecords, notifySaveError]
   );
 
   const setSecretMenuPrices = useCallback(
@@ -1096,12 +1050,22 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
             detectCompliance(patch.musicTheme ?? r.musicTheme);
           updated.priceCompliance = compliance;
           if (patch.price === undefined) {
-            updated.price = getPriceForPackage(
-              patch.package ?? r.package,
-              compliance,
-              r.price,
-              packagePrices
-            );
+            const linkedOrder =
+              activeOrders.find(
+                (o) =>
+                  o.id === r.orderId ||
+                  o.id === r.id ||
+                  o.uuid === r.orderId ||
+                  o.uuid === r.uuid ||
+                  o.legacyId === r.legacyId
+              ) ?? null;
+            const live = resolveLiveOrderPricing(updated, linkedOrder);
+            updated.price =
+              live.engineCustomerPrice != null && live.engineCustomerPrice > 0
+                ? live.engineCustomerPrice
+                : live.customerPrice > 0
+                  ? live.customerPrice
+                  : r.price;
           }
         }
 
@@ -1367,7 +1331,6 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     addNotification,
     notifySaveError,
     mtdRecords,
-    packagePrices,
     producers,
     schedule,
     isViewOnly,
@@ -3141,7 +3104,6 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     pastOrders,
     allOrders,
     mtdRecords,
-    packagePrices,
     secretMenuPrices,
     producers,
     discountCodes,
@@ -3158,7 +3120,6 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     updateMTD,
     removeMTDRecord,
     updateOrder,
-    setPackagePrices,
     setSecretMenuPrices,
     markComplete,
     addPastOrder,

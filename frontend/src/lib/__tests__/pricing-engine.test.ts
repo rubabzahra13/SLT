@@ -75,7 +75,7 @@ describe("Central Pricing Engine — Core Rules Unit Tests (Prompt 8)", () => {
     assert.equal(result.complianceStatus, "non-compliant");
   });
 
-  it("Youth Rec Cheer BRONZE 1:30 with Power Music Covers (compliant affiliate)", () => {
+  it("Youth Rec Cheer BRONZE 1:30 is flat package price (no affiliate split)", () => {
     const result = calculateCheerOrderPricing({
       cheerFormSubtype: "youth-rec-cheer",
       packageType: "BRONZE 1:30",
@@ -83,11 +83,12 @@ describe("Central Pricing Engine — Core Rules Unit Tests (Prompt 8)", () => {
     });
 
     assert.equal(result.customerFacingPrice, 570);
-    assert.equal(result.payrollBasePrice, 470);
-    assert.equal(result.complianceStatus, "compliant");
+    assert.equal(result.payrollBasePrice, 570);
+    assert.equal(result.compliantPayrollBasePrice, 570);
+    assert.equal(result.nonCompliantPayrollBasePrice, 570);
   });
 
-  it("Youth Rec Cheer BRONZE 2:00 with no musicAffiliate field present", () => {
+  it("Youth Rec Cheer BRONZE 2:00 with no musicAffiliate stays at package price", () => {
     const result = calculateCheerOrderPricing({
       cheerFormSubtype: "youth-rec-cheer",
       packageType: "BRONZE 2:00",
@@ -95,9 +96,8 @@ describe("Central Pricing Engine — Core Rules Unit Tests (Prompt 8)", () => {
     });
 
     assert.equal(result.customerFacingPrice, 750);
+    assert.equal(result.payrollBasePrice, 750);
     assert.equal(result.complianceStatus, "unknown-no-affiliate-field");
-    assert.notEqual(result.complianceStatus, "compliant");
-    assert.notEqual(result.complianceStatus, "non-compliant");
   });
 
   it("Invalid / Unrecognized package name returns explicit invalid flag and zero price", () => {
@@ -150,16 +150,16 @@ describe("Central Pricing Engine — Core Rules Unit Tests (Prompt 8)", () => {
         packageType: "BRONZE 2:00",
         hasExtend8ctAddon: true,
       });
-      assert.equal(extendOnly.customerFacingPrice, 750); // 750 base
-      assert.equal(extendOnly.payrollBasePrice, 675); // 650 + 25
+      assert.equal(extendOnly.customerFacingPrice, 750); // 750 flat package
+      assert.equal(extendOnly.payrollBasePrice, 775); // 750 + 25
 
       const processOnly = calculateCheerOrderPricing({
         cheerFormSubtype: "youth-rec-cheer",
         packageType: "BRONZE 2:00",
         hasProcessing8ctSheetsAddon: true,
       });
-      assert.equal(processOnly.customerFacingPrice, 750); // 750 base
-      assert.equal(processOnly.payrollBasePrice, 700); // 650 + 50
+      assert.equal(processOnly.customerFacingPrice, 750);
+      assert.equal(processOnly.payrollBasePrice, 800); // 750 + 50
 
       const bothAddons = calculateCheerOrderPricing({
         cheerFormSubtype: "youth-rec-cheer",
@@ -167,8 +167,8 @@ describe("Central Pricing Engine — Core Rules Unit Tests (Prompt 8)", () => {
         hasExtend8ctAddon: true,
         hasProcessing8ctSheetsAddon: true,
       });
-      assert.equal(bothAddons.customerFacingPrice, 750); // 750 base
-      assert.equal(bothAddons.payrollBasePrice, 725); // 650 + 25 + 50
+      assert.equal(bothAddons.customerFacingPrice, 750);
+      assert.equal(bothAddons.payrollBasePrice, 825); // 750 + 25 + 50
     });
 
     it("Youth Rec Cheer add-ons are ignored on School Cheer and All-Star Cheer", () => {

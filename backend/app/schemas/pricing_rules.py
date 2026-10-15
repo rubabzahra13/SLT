@@ -35,7 +35,10 @@ class PricingRulesReplaceSchema(BaseModel):
 
     form_type: str = Field(
         ...,
-        pattern="^(marching-band|sports-entertainment|school-anthem|school-all-star-dance)$",
+        pattern=(
+            "^(marching-band|sports-entertainment|school-anthem|"
+            "school-all-star-dance|school-all-star-cheer)$"
+        ),
     )
     subtype_id: Optional[str] = None
     packages: List[PricingRulePackageUpdate]

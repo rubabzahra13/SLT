@@ -400,7 +400,6 @@ export function AssignEditorModal({
       pricingReferenceRevision,
       producerRatesRevision,
       orderPriceRevision,
-      live.packagePrices,
       live.secretMenuPrices,
     ]
   );

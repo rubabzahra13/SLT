@@ -3,17 +3,18 @@ import {
   GAMEDAY_RATE_CARD,
   getDanceRateCardForSubtype,
   getMarchingBandRateCard,
+  getRateCardForSubtype,
   getSchoolAnthemRateCard,
   getSportsEntertainmentRateCard,
   HIP_HOP_RATE_CARD,
   POM_RATE_CARD,
   SCHOOL_CHEER_RATE_CARD,
-  setJazzKickRateCardFromDb,
+  setCheerRateCardFromDb,
+  setDanceRateCardFromDb,
   setMarchingBandRateCardFromDb,
   setSchoolAnthemRateCardFromDb,
   setSportsEntertainmentRateCardFromDb,
   TEAM_PERFORMANCE_VARIETY_RATE_CARD,
-  YOUTH_REC_CHEER_RATE_CARD,
 } from "@/lib/pricing-engine";
 import type { BackendPricingRule } from "@/lib/api/pricing-rules";
 import type { DbBackedFormType } from "@/lib/api/pricing-rules";
@@ -49,6 +50,7 @@ export type TierTimePricingRow = {
   compliant: number;
   nonCompliant: number;
   isTitanium?: boolean;
+  alwaysFixedPayroll?: boolean;
 };
 
 export type FlatPackagePricingRow = {
@@ -266,15 +268,16 @@ export function buildDefaultCategorySnapshot(
       }));
       break;
     case "Youth Rec Cheer":
-      // Same Tier + Time Limit shape as All-Star / School Cheer.
-      rows = YOUTH_REC_CHEER_RATE_CARD.map((row) => ({
+      // Flat package price (no music affiliate) — compliant === nonCompliant.
+      rows = getRateCardForSubtype("youth-rec-cheer").map((row) => ({
         kind: "tier-time" as const,
         tier: row.tier,
         limit: row.limit,
         customer: row.customer,
-        compliant: row.compliant,
-        nonCompliant: row.nonCompliant,
+        compliant: row.customer,
+        nonCompliant: row.customer,
         isTitanium: row.isTitanium,
+        alwaysFixedPayroll: true,
       }));
       break;
     case "Pom":
@@ -608,12 +611,19 @@ export function updateCategoryPricingSnapshot(
   };
 }
 
-/** Categories whose rate cards persist to pricing_rules (DB). */
+/** Every Pricing Reference category persists to pricing_rules (DB). */
 export const DB_BACKED_PRICING_CATEGORIES = new Set<CategoryKey>([
+  "All-Star Cheer",
+  "School Cheer",
+  "Youth Rec Cheer",
+  "Pom",
+  "Hip Hop",
+  "Team Performance & Variety",
+  "Gameday",
+  "Jazz/Kick",
   "Marching Band",
   "Sports Entertainment",
   "School Anthems",
-  "Jazz/Kick",
 ]);
 
 export type DbPricingTarget = {
@@ -630,19 +640,35 @@ export function categoryKeyToFormType(
 export function categoryKeyToDbPricingTarget(
   category: CategoryKey
 ): DbPricingTarget | null {
-  if (category === "Marching Band") {
-    return { formType: "marching-band" };
+  switch (category) {
+    case "All-Star Cheer":
+      return { formType: "school-all-star-cheer", subtypeId: "all-star-cheer" };
+    case "School Cheer":
+      return { formType: "school-all-star-cheer", subtypeId: "school-cheer" };
+    case "Youth Rec Cheer":
+      return { formType: "school-all-star-cheer", subtypeId: "youth-rec-cheer" };
+    case "Pom":
+      return { formType: "school-all-star-dance", subtypeId: "pom" };
+    case "Hip Hop":
+      return { formType: "school-all-star-dance", subtypeId: "hip-hop" };
+    case "Team Performance & Variety":
+      return {
+        formType: "school-all-star-dance",
+        subtypeId: "team-performance-variety",
+      };
+    case "Gameday":
+      return { formType: "school-all-star-dance", subtypeId: "gameday" };
+    case "Jazz/Kick":
+      return { formType: "school-all-star-dance", subtypeId: "jazz-kick" };
+    case "Marching Band":
+      return { formType: "marching-band" };
+    case "Sports Entertainment":
+      return { formType: "sports-entertainment" };
+    case "School Anthems":
+      return { formType: "school-anthem" };
+    default:
+      return null;
   }
-  if (category === "Sports Entertainment") {
-    return { formType: "sports-entertainment" };
-  }
-  if (category === "School Anthems") {
-    return { formType: "school-anthem" };
-  }
-  if (category === "Jazz/Kick") {
-    return { formType: "school-all-star-dance", subtypeId: "jazz-kick" };
-  }
-  return null;
 }
 
 export function formTypeToCategoryKey(
@@ -652,8 +678,19 @@ export function formTypeToCategoryKey(
   if (formType === "marching-band") return "Marching Band";
   if (formType === "sports-entertainment") return "Sports Entertainment";
   if (formType === "school-anthem") return "School Anthems";
-  if (formType === "school-all-star-dance" && subtypeId === "jazz-kick") {
-    return "Jazz/Kick";
+  if (formType === "school-all-star-cheer") {
+    if (subtypeId === "all-star-cheer") return "All-Star Cheer";
+    if (subtypeId === "school-cheer") return "School Cheer";
+    if (subtypeId === "youth-rec-cheer") return "Youth Rec Cheer";
+  }
+  if (formType === "school-all-star-dance") {
+    if (subtypeId === "pom") return "Pom";
+    if (subtypeId === "hip-hop") return "Hip Hop";
+    if (subtypeId === "team-performance-variety") {
+      return "Team Performance & Variety";
+    }
+    if (subtypeId === "gameday") return "Gameday";
+    if (subtypeId === "jazz-kick") return "Jazz/Kick";
   }
   return null;
 }
@@ -728,9 +765,48 @@ function expandMarchingBandDbRows(
   });
 }
 
+function rulesToTierTimeRows(
+  rules: BackendPricingRule[],
+  subtypeId?: string | null
+): TierTimePricingRow[] {
+  const youthFlat = subtypeId === "youth-rec-cheer";
+  return rules.map((rule) => {
+    const parsed = parsePackage(rule.package_name || "");
+    const tier =
+      parsed.tier && parsed.tier !== "-"
+        ? parsed.tier
+        : (rule.package_name || "").trim();
+    const limit =
+      parsed.limit && parsed.limit !== "-"
+        ? parsed.limit
+        : /:\d{2}/.test(rule.package_name || "")
+          ? parsed.limit
+          : "-";
+    const customer = rule.customer_facing_price ?? 0;
+    const compliant = youthFlat
+      ? customer
+      : (rule.payroll_base_compliant ?? customer);
+    const nonCompliant = youthFlat
+      ? customer
+      : (rule.payroll_base_non_compliant ?? customer);
+    return {
+      kind: "tier-time" as const,
+      tier,
+      limit,
+      customer,
+      compliant,
+      nonCompliant,
+      isTitanium: tier.toUpperCase() === "TITANIUM",
+      alwaysFixedPayroll:
+        youthFlat ||
+        (compliant === nonCompliant && compliant === customer),
+    };
+  });
+}
+
 /**
- * Apply pricing_rules rows onto in-memory rate cards + local reference store
- * for Marching Band / Sports Entertainment / School Anthems / Jazz/Kick.
+ * Apply pricing_rules rows onto in-memory rate cards + reference store
+ * for every Pricing Reference category.
  */
 export function applyDbPricingRules(
   rules: BackendPricingRule[],
@@ -757,47 +833,62 @@ export function applyDbPricingRules(
         ? formRules.filter((r) => !isMarchingBandAddonRule(r))
         : formRules;
 
-    let rows = rulesToFlatRows(packageRules, formType, subtypeId);
-    if (formType === "marching-band") {
-      rows = expandMarchingBandDbRows(rows);
-      setMarchingBandRateCardFromDb(
+    let rows: PricingReferenceRow[];
+
+    if (formType === "school-all-star-cheer" && subtypeId) {
+      rows = rulesToTierTimeRows(packageRules, subtypeId);
+      setCheerRateCardFromDb(
+        subtypeId,
         rows
-          .filter((r): r is FlatPackagePricingRow => r.kind === "flat-package")
+          .filter((r): r is TierTimePricingRow => r.kind === "tier-time")
           .map((r) => ({
+            tier: r.tier,
+            limit: r.limit,
+            customer: Number(r.customer ?? 0),
+            compliant: Number(r.compliant ?? r.customer ?? 0),
+            nonCompliant: Number(r.nonCompliant ?? r.customer ?? 0),
+            isTitanium: Boolean(r.isTitanium),
+          }))
+      );
+    } else {
+      let flatRows = rulesToFlatRows(packageRules, formType, subtypeId);
+      if (formType === "marching-band") {
+        flatRows = expandMarchingBandDbRows(flatRows);
+        setMarchingBandRateCardFromDb(
+          flatRows.map((r) => ({
             package: r.package,
             customer: Number(r.customer ?? 0),
             compliant: Number(r.compliant ?? r.customer ?? 0),
             nonCompliant: Number(r.nonCompliant ?? r.customer ?? 0),
             alwaysFixedPayroll: true,
           }))
-      );
-    }
-    if (formType === "sports-entertainment") {
-      setSportsEntertainmentRateCardFromDb(
-        rows.map((r) => ({
-          package: r.package,
-          customer: r.customer,
-          compliant: r.compliant,
-          nonCompliant: r.nonCompliant,
-          isUnpriced: r.isUnpriced,
-        }))
-      );
-    }
-    if (formType === "school-anthem") {
-      setSchoolAnthemRateCardFromDb(
-        rows.map((r) => ({
-          package: r.package,
-          customer: (r.customer ?? 1250) as number,
-          compliant: (r.compliant ?? r.customer ?? 1250) as number,
-          nonCompliant: (r.nonCompliant ?? r.customer ?? 1250) as number,
-        }))
-      );
-    }
-    if (formType === "school-all-star-dance" && subtypeId === "jazz-kick") {
-      setJazzKickRateCardFromDb(
-        rows
-          .filter((r): r is FlatPackagePricingRow => r.kind === "flat-package")
-          .map((r) => ({
+        );
+      }
+      if (formType === "sports-entertainment") {
+        setSportsEntertainmentRateCardFromDb(
+          flatRows.map((r) => ({
+            package: r.package,
+            customer: r.customer,
+            compliant: r.compliant,
+            nonCompliant: r.nonCompliant,
+            isUnpriced: r.isUnpriced,
+          }))
+        );
+      }
+      if (formType === "school-anthem") {
+        setSchoolAnthemRateCardFromDb(
+          flatRows.map((r) => ({
+            package: r.package,
+            customer: (r.customer ?? 1250) as number,
+            compliant: (r.compliant ?? r.customer ?? 1250) as number,
+            nonCompliant: (r.nonCompliant ?? r.customer ?? 1250) as number,
+          }))
+        );
+      }
+      if (formType === "school-all-star-dance" && subtypeId) {
+        setDanceRateCardFromDb(
+          subtypeId,
+          flatRows.map((r) => ({
             package: r.package,
             customer: Number(r.customer ?? 0),
             compliant: Number(r.compliant ?? r.customer ?? 0),
@@ -805,8 +896,11 @@ export function applyDbPricingRules(
             alwaysFixedPayroll: Boolean(r.alwaysFixedPayroll),
             isUnpriced: Boolean(r.isUnpriced),
           }))
-      );
+        );
+      }
+      rows = flatRows;
     }
+
     updated = updateCategoryPricingSnapshot(updated, category, { rows });
   }
 
@@ -814,7 +908,7 @@ export function applyDbPricingRules(
   return updated;
 }
 
-/** Build PUT payload packages from a category snapshot's flat rows. */
+/** Build PUT payload packages from flat or tier-time snapshot rows. */
 export function flatRowsToPricingRulePackages(
   rows: PricingReferenceRow[]
 ): {
@@ -823,12 +917,43 @@ export function flatRowsToPricingRulePackages(
   payroll_base_compliant: number | null;
   payroll_base_non_compliant: number | null;
 }[] {
-  return rows
-    .filter((r): r is FlatPackagePricingRow => r.kind === "flat-package")
-    .map((r) => ({
-      package_name: r.package,
-      customer_facing_price: r.isUnpriced ? null : r.customer,
-      payroll_base_compliant: r.isUnpriced ? null : r.compliant,
-      payroll_base_non_compliant: r.isUnpriced ? null : r.nonCompliant,
-    }));
+  const out: {
+    package_name: string;
+    customer_facing_price: number | null;
+    payroll_base_compliant: number | null;
+    payroll_base_non_compliant: number | null;
+  }[] = [];
+
+  for (const row of rows) {
+    if (row.kind === "flat-package") {
+      out.push({
+        package_name: row.package,
+        customer_facing_price: row.isUnpriced ? null : row.customer,
+        payroll_base_compliant: row.isUnpriced ? null : row.compliant,
+        payroll_base_non_compliant: row.isUnpriced ? null : row.nonCompliant,
+      });
+      continue;
+    }
+    if (row.kind === "tier-time") {
+      const name =
+        !row.limit || row.limit === "-"
+          ? row.tier
+          : `${row.tier} ${row.limit}`;
+      // Flat / always rows: keep customer + payroll columns aligned.
+      const flat =
+        row.alwaysFixedPayroll ||
+        (row.compliant === row.nonCompliant &&
+          row.compliant === row.customer);
+      const price = flat
+        ? Number(row.customer ?? row.compliant ?? 0)
+        : null;
+      out.push({
+        package_name: name,
+        customer_facing_price: flat ? price : row.customer,
+        payroll_base_compliant: flat ? price : row.compliant,
+        payroll_base_non_compliant: flat ? price : row.nonCompliant,
+      });
+    }
+  }
+  return out;
 }

@@ -16,9 +16,7 @@ import {
   type BackendEmailTemplate,
 } from "./studio-settings";
 import {
-  packagePricesFromRows,
   secretMenuFromBackend,
-  type BackendPackagePrice,
   type BackendSecretMenuPricing,
 } from "./catalog-pricing";
 import { normalizeEmailTemplates } from "@/lib/email-templates";
@@ -69,7 +67,6 @@ export type BootstrapPayload = {
   payrollAddons: PayrollAddon[];
   personalReasons: StudioPersonalReason[];
   emailTemplates: EmailTemplatesState | null;
-  packagePrices: Record<string, number> | null;
   secretMenuPricing: SecretMenuPricing | null;
 };
 
@@ -81,7 +78,6 @@ type RawBootstrap = {
   payroll_addons?: BackendPayrollAddon[];
   studio_personal_reasons?: BackendStudioPersonalReason[];
   email_templates?: BackendEmailTemplate[];
-  package_prices?: BackendPackagePrice[];
   secret_menu_pricing?: BackendSecretMenuPricing;
 };
 
@@ -136,9 +132,6 @@ export async function fetchBootstrapApi(): Promise<BootstrapPayload> {
       (raw.studio_personal_reasons || []).map(transformStudioPersonalReason)
     ),
     emailTemplates,
-    packagePrices: raw.package_prices?.length
-      ? packagePricesFromRows(raw.package_prices)
-      : null,
     secretMenuPricing: raw.secret_menu_pricing
       ? secretMenuFromBackend(raw.secret_menu_pricing)
       : null,

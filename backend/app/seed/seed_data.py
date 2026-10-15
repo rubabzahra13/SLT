@@ -11,8 +11,6 @@ from app.models import (
     Order,
     MTDRecord,
     DiscountCode,
-    PackagePrice,
-    SecretMenuPricing,
     User,
 )
 
