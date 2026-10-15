@@ -206,8 +206,17 @@ export function orderPatchFromOrderField(
   }
   if (key === "organizationName") {
     patch.organizationName = value;
+    patch.schoolOrganizationName = value;
     patch.schoolProgramName = value;
+    patch.schoolName = value;
+    patch.gymName = value;
     patch.programName = value;
+  }
+  if (key === "billingAddress") {
+    patch.billingAddress = value;
+    patch.schoolBillingAddress = value;
+    patch.schoolAddress = value;
+    patch.gymBillingAddress = value;
   }
   if (key === "musicContactName") {
     patch.musicContactName = value;
@@ -249,12 +258,17 @@ export function orderPatchFromOrderField(
   }
   if (key === "schoolOrganizationName") {
     patch.schoolOrganizationName = value;
+    patch.organizationName = value;
     patch.schoolProgramName = value;
+    patch.schoolName = value;
+    patch.gymName = value;
     patch.programName = value;
   }
   if (key === "schoolBillingAddress") {
     patch.schoolBillingAddress = value;
+    patch.billingAddress = value;
     patch.schoolAddress = value;
+    patch.gymBillingAddress = value;
   }
   if (key === "schoolProgramColors") {
     patch.schoolProgramColors = value;

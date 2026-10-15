@@ -18,6 +18,10 @@ import {
 } from "@/lib/pricing";
 import {
   affiliateIdsEqual,
+  applyDbPricingRules,
+  categoryKeyToFormType,
+  DB_BACKED_PRICING_CATEGORIES,
+  flatRowsToPricingRulePackages,
   getCategoryPricingSnapshot,
   getVisibleMusicAffiliateOptions,
   loadPricingReferenceStore,
@@ -33,6 +37,10 @@ import {
   type PricingReferenceRow,
   type TierTimePricingRow,
 } from "@/lib/pricing-reference";
+import {
+  fetchPricingRulesApi,
+  savePricingRulesApi,
+} from "@/lib/api/pricing-rules";
 import type { MTDRecord, Order } from "@/types";
 import {
   CHEER_FORM_SUBTABS,
@@ -459,6 +467,21 @@ export function SetPricingModal({
     setActiveViewTab("reference");
     setIsEditingSecretMenu(false);
     setSecretDraft(secretMenuDraftFromPricing(secretMenuPrices));
+
+    // Hydrate Sports Entertainment + School Anthem from pricing_rules (DB).
+    let cancelled = false;
+    void fetchPricingRulesApi()
+      .then((rules) => {
+        if (cancelled || !rules.length) return;
+        const next = applyDbPricingRules(rules, loadPricingReferenceStore());
+        setReferenceStore(next);
+      })
+      .catch(() => {
+        /* keep local/defaults if API unavailable */
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [open, secretMenuPrices]);
 
   const selectedCategory = useMemo(
@@ -599,12 +622,39 @@ export function SetPricingModal({
     setIsEditingCompliant(false);
   }, [savedCompliantIds]);
 
-  const savePricingEdits = useCallback(() => {
+  const [pricingSaveError, setPricingSaveError] = useState<string | null>(null);
+  const [isSavingPricing, setIsSavingPricing] = useState(false);
+
+  const savePricingEdits = useCallback(async () => {
     if (!draftSnapshot) return;
+    setPricingSaveError(null);
     const next = updateCategoryPricingSnapshot(referenceStore, selectedCategory, {
       rows: draftSnapshot.rows,
       addOns: draftSnapshot.addOns,
     });
+
+    // SE + SA: persist to pricing_rules, then refresh in-memory rate cards.
+    const formType = categoryKeyToFormType(selectedCategory);
+    if (formType && DB_BACKED_PRICING_CATEGORIES.has(selectedCategory)) {
+      setIsSavingPricing(true);
+      try {
+        const packages = flatRowsToPricingRulePackages(draftSnapshot.rows);
+        const saved = await savePricingRulesApi(formType, packages);
+        const hydrated = applyDbPricingRules(saved, next);
+        setReferenceStore(hydrated);
+        setDraftSnapshot(null);
+        setIsEditingPricing(false);
+      } catch (err) {
+        setPricingSaveError(
+          err instanceof Error ? err.message : "Could not save pricing to database"
+        );
+      } finally {
+        setIsSavingPricing(false);
+      }
+      return;
+    }
+
+    // Other categories: local reference store only (unchanged for now).
     savePricingReferenceStore(next);
     setReferenceStore(next);
     setDraftSnapshot(null);
@@ -1192,7 +1242,10 @@ export function SetPricingModal({
                               className="even:bg-neutral-50/80 hover:bg-blue-50/40 transition-colors"
                             >
                               <td className="border border-neutral-300 px-3.5 py-2 font-bold text-neutral-900">
-                                {isEditingPricing ? (
+                                {isEditingPricing &&
+                                !DB_BACKED_PRICING_CATEGORIES.has(
+                                  selectedCategory
+                                ) ? (
                                   <input
                                     type="text"
                                     value={packageRow.package}
@@ -1487,19 +1540,26 @@ export function SetPricingModal({
             ) : null}
             {isEditingPricing ? (
               <>
+                {pricingSaveError ? (
+                  <p className="mr-auto max-w-sm text-[12px] font-medium text-red-600">
+                    {pricingSaveError}
+                  </p>
+                ) : null}
                 <button
                   type="button"
                   onClick={cancelEditing}
-                  className="rounded-xl border border-neutral-300 bg-white px-4 py-2 text-[13px] font-semibold text-neutral-700 transition hover:bg-neutral-50"
+                  disabled={isSavingPricing}
+                  className="rounded-xl border border-neutral-300 bg-white px-4 py-2 text-[13px] font-semibold text-neutral-700 transition hover:bg-neutral-50 disabled:opacity-60"
                 >
                   Cancel edits
                 </button>
                 <button
                   type="button"
-                  onClick={savePricingEdits}
-                  className="rounded-xl bg-brand-blue px-5 py-2 text-[13px] font-bold text-white shadow-sm transition hover:bg-brand-blue-hover"
+                  onClick={() => void savePricingEdits()}
+                  disabled={isSavingPricing}
+                  className="rounded-xl bg-brand-blue px-5 py-2 text-[13px] font-bold text-white shadow-sm transition hover:bg-brand-blue-hover disabled:cursor-not-allowed disabled:bg-neutral-300"
                 >
-                  Save pricing
+                  {isSavingPricing ? "Saving…" : "Save pricing"}
                 </button>
               </>
             ) : null}

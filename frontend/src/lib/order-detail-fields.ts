@@ -13,8 +13,17 @@ const FIELD_GETTERS: Record<string, (order: Order) => string | undefined> = {
   gymBillingAddress: (o) => o.gymBillingAddress || o.schoolAddress,
   schoolName: (o) => o.schoolName || o.schoolProgramName,
   schoolBillingAddress: (o) =>
-    o.schoolBillingAddress || o.schoolAddress || o.billingAddress || "",
-  billingAddress: (o) => o.billingAddress || o.schoolAddress,
+    o.schoolBillingAddress ||
+    o.schoolAddress ||
+    o.billingAddress ||
+    o.gymBillingAddress ||
+    "",
+  billingAddress: (o) =>
+    o.billingAddress ||
+    o.schoolBillingAddress ||
+    o.schoolAddress ||
+    o.gymBillingAddress ||
+    "",
   city: (o) => o.city,
   stateProvince: (o) => o.stateProvince,
   zipPostalCode: (o) => o.zipPostalCode,
@@ -61,9 +70,22 @@ const FIELD_GETTERS: Record<string, (order: Order) => string | undefined> = {
   licensingRequired: (o) => o.licensingRequired,
   voiceoverScript: (o) => o.voiceoverScript,
   pronunciationGuidance: (o) => o.pronunciationGuidance,
-  organizationName: (o) => o.organizationName || o.schoolProgramName || "",
+  organizationName: (o) =>
+    o.organizationName ||
+    o.schoolOrganizationName ||
+    o.schoolProgramName ||
+    o.schoolName ||
+    o.gymName ||
+    o.programName ||
+    "",
   schoolOrganizationName: (o) =>
-    o.schoolOrganizationName || o.schoolProgramName || "",
+    o.schoolOrganizationName ||
+    o.organizationName ||
+    o.schoolProgramName ||
+    o.schoolName ||
+    o.gymName ||
+    o.programName ||
+    "",
   musicContactName: (o) => o.musicContactName || o.coachName || "",
   musicContactPhone: (o) => o.musicContactPhone || o.coachPhone || "",
   musicContactEmail: (o) => o.musicContactEmail || o.coachEmail || "",

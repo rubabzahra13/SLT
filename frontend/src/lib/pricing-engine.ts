@@ -274,13 +274,13 @@ export function packagesForOrderForm(
     );
   }
   if (formType === "marching-band") {
-    return MARCHING_BAND_RATE_CARD.map((row) => row.package);
+    return getMarchingBandRateCard().map((row) => row.package);
   }
   if (formType === "sports-entertainment") {
-    return SPORTS_ENTERTAINMENT_RATE_CARD.map((row) => row.package);
+    return getSportsEntertainmentRateCard().map((row) => row.package);
   }
   if (formType === "school-anthem") {
-    return SCHOOL_ANTHEM_RATE_CARD.map((row) => row.package);
+    return getSchoolAnthemRateCard().map((row) => row.package);
   }
   return [];
 }
@@ -735,10 +735,26 @@ export type MarchingBandRateCardEntry = {
   alwaysFixedPayroll?: boolean;
 };
 
-/** Marching Band Pricing Table */
+/**
+ * Marching Band Pricing Table.
+ * No customer music-affiliate field on this form — compliant / non-compliant
+ * match package price (flat). Overridable from pricing_rules DB.
+ */
 export const MARCHING_BAND_RATE_CARD: MarchingBandRateCardEntry[] = [
-  { package: "BAND CHANT", customer: 600, compliant: 300, nonCompliant: 600 },
-  { package: "DRUM CADENCE ORIGINAL", customer: 350, compliant: 150, nonCompliant: 350 },
+  {
+    package: "BAND CHANT",
+    customer: 600,
+    compliant: 600,
+    nonCompliant: 600,
+    alwaysFixedPayroll: true,
+  },
+  {
+    package: "DRUM CADENCE ORIGINAL",
+    customer: 350,
+    compliant: 350,
+    nonCompliant: 350,
+    alwaysFixedPayroll: true,
+  },
   {
     package: "FIGHT SONG ORIGINAL",
     customer: 1100,
@@ -768,6 +784,18 @@ export const MARCHING_BAND_RATE_CARD: MarchingBandRateCardEntry[] = [
     alwaysFixedPayroll: true,
   },
 ];
+
+let marchingBandRateCardOverride: MarchingBandRateCardEntry[] | null = null;
+
+export function getMarchingBandRateCard(): MarchingBandRateCardEntry[] {
+  return marchingBandRateCardOverride ?? MARCHING_BAND_RATE_CARD;
+}
+
+export function setMarchingBandRateCardFromDb(
+  entries: MarchingBandRateCardEntry[]
+): void {
+  marchingBandRateCardOverride = entries.map((e) => ({ ...e }));
+}
 
 /** Normalize dropdown / legacy labels for exact Marching Band matching. */
 function normalizeMarchingBandPackageLabel(packageType: string): string {
@@ -804,7 +832,7 @@ export function lookupMarchingBandRateCardEntry(
   target = MARCHING_BAND_PACKAGE_ALIASES[target] ?? target;
 
   return (
-    MARCHING_BAND_RATE_CARD.find(
+    getMarchingBandRateCard().find(
       (entry) => entry.package.toUpperCase() === target
     ) ?? null
   );
@@ -859,17 +887,11 @@ export function calculateMarchingBandOrderPricing(
   const nonCompliantPayrollBasePrice = matchedEntry.nonCompliant + addOnTotal;
   const alwaysFixedPayroll = Boolean(matchedEntry.alwaysFixedPayroll);
 
+  // No music-affiliate field on the Marching Band customer form — payroll
+  // follows the flat package / compliant column (compliant === nonCompliant).
   let payrollBasePrice = compliantPayrollBasePrice;
-  if (alwaysFixedPayroll) {
-    // Fight Song / Alma Mater Original & Plus: flat payroll regardless of music affiliate.
-    payrollBasePrice = compliantPayrollBasePrice;
-  } else if (complianceStatus === "non-compliant") {
-    // Band Chant / Drum Cadence + non-compliant affiliate (e.g. Custom Music).
+  if (!alwaysFixedPayroll && complianceStatus === "non-compliant") {
     payrollBasePrice = nonCompliantPayrollBasePrice;
-  } else {
-    // Band Chant / Drum Cadence + compliant affiliate (Power Music, Unleash, …),
-    // or no affiliate on file → compliant column.
-    payrollBasePrice = compliantPayrollBasePrice;
   }
 
   return {
@@ -892,7 +914,7 @@ export type SportsEntertainmentRateCardEntry = {
   isUnpriced?: boolean;
 };
 
-/** Sports Entertainment Pricing Table */
+/** Sports Entertainment Pricing Table (defaults; overridable from pricing_rules DB). */
 export const SPORTS_ENTERTAINMENT_RATE_CARD: SportsEntertainmentRateCardEntry[] = [
   { package: "QUARTER BREAK / TIMEOUT REMIXED", customer: 150, compliant: 150, nonCompliant: 150 },
   { package: "PRE-GAME / HALFTIME REMIXED", customer: 250, compliant: 250, nonCompliant: 250 },
@@ -905,20 +927,34 @@ export const SPORTS_ENTERTAINMENT_RATE_CARD: SportsEntertainmentRateCardEntry[] 
   },
 ];
 
+let sportsEntertainmentRateCardOverride: SportsEntertainmentRateCardEntry[] | null =
+  null;
+
+export function getSportsEntertainmentRateCard(): SportsEntertainmentRateCardEntry[] {
+  return sportsEntertainmentRateCardOverride ?? SPORTS_ENTERTAINMENT_RATE_CARD;
+}
+
+export function setSportsEntertainmentRateCardFromDb(
+  entries: SportsEntertainmentRateCardEntry[]
+): void {
+  sportsEntertainmentRateCardOverride = entries.map((e) => ({ ...e }));
+}
+
 export function lookupSportsEntertainmentRateCardEntry(
   packageType?: string
 ): SportsEntertainmentRateCardEntry | null {
   if (!packageType || !packageType.trim()) return null;
   const target = packageType.toUpperCase().trim();
+  const card = getSportsEntertainmentRateCard();
 
   // Direct exact match first
-  let matched = SPORTS_ENTERTAINMENT_RATE_CARD.find(
+  let matched = card.find(
     (entry) => entry.package.toUpperCase() === target
   );
   if (matched) return matched;
 
   // Substring or prefix match
-  const sorted = [...SPORTS_ENTERTAINMENT_RATE_CARD].sort(
+  const sorted = [...card].sort(
     (a, b) => b.package.length - a.package.length
   );
 
@@ -1028,16 +1064,28 @@ export type SchoolAnthemRateCardEntry = {
   nonCompliant: number;
 };
 
-/** School Anthems Pricing Table (Single package: $1,250 flat) */
+/** School Anthems Pricing Table (defaults; overridable from pricing_rules DB). */
 export const SCHOOL_ANTHEM_RATE_CARD: SchoolAnthemRateCardEntry[] = [
   { package: "SCHOOL ANTHEMS", customer: 1250, compliant: 1250, nonCompliant: 1250 },
 ];
 
+let schoolAnthemRateCardOverride: SchoolAnthemRateCardEntry[] | null = null;
+
+export function getSchoolAnthemRateCard(): SchoolAnthemRateCardEntry[] {
+  return schoolAnthemRateCardOverride ?? SCHOOL_ANTHEM_RATE_CARD;
+}
+
+export function setSchoolAnthemRateCardFromDb(
+  entries: SchoolAnthemRateCardEntry[]
+): void {
+  schoolAnthemRateCardOverride = entries.map((e) => ({ ...e }));
+}
+
 export function lookupSchoolAnthemRateCardEntry(
   _packageType?: string
 ): SchoolAnthemRateCardEntry {
-  // Always returns the single SCHOOL ANTHEMS package ($1,250)
-  return SCHOOL_ANTHEM_RATE_CARD[0];
+  const card = getSchoolAnthemRateCard();
+  return card[0] ?? SCHOOL_ANTHEM_RATE_CARD[0];
 }
 
 export type SchoolAnthemPricingEngineInput = {

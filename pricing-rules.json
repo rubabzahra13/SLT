@@ -821,20 +821,22 @@
           "name": "BAND CHANT",
           "customer_facing_price": 600,
           "payroll_base_price": {
-            "compliant": 300,
+            "compliant": 600,
             "non_compliant": 600
           },
-          "compliance_sensitive": true
+          "compliance_sensitive": false,
+          "note": "Marching Band customer form has no music-affiliate field — package price is flat ($600) for customer and payroll."
         },
         {
           "id": "drum_cadence_original",
           "name": "DRUM CADENCE ORIGINAL",
           "customer_facing_price": 350,
           "payroll_base_price": {
-            "compliant": 150,
+            "compliant": 350,
             "non_compliant": 350
           },
-          "compliance_sensitive": true
+          "compliance_sensitive": false,
+          "note": "Marching Band customer form has no music-affiliate field — package price is flat ($350) for customer and payroll."
         },
         {
           "id": "sheet_music_add",

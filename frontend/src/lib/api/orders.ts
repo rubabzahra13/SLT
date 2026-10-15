@@ -7,6 +7,8 @@ export interface BackendOrder {
   form_type?: string;
   cheer_form_subtype?: string | null;
   dance_form_subtype?: string | null;
+  school_gym_name?: string | null;
+  school_gym_billing_address?: string | null;
   school_program_name?: string | null;
   school_address?: string | null;
   city?: string | null;
@@ -115,8 +117,19 @@ export function transformOrder(bo: BackendOrder): Order {
     formType: (bo.form_type as OrderFormType) || "school-all-star-cheer",
     cheerFormSubtype: bo.cheer_form_subtype as CheerFormSubtype | undefined,
     danceFormSubtype: bo.dance_form_subtype as DanceFormSubtype | undefined,
-    schoolProgramName: bo.school_program_name || "",
-    schoolAddress: bo.school_address || "",
+    schoolProgramName:
+      bo.school_gym_name ||
+      bo.school_program_name ||
+      bo.program_name ||
+      bo.school_name ||
+      bo.gym_name ||
+      "",
+    schoolAddress:
+      bo.school_gym_billing_address ||
+      bo.school_address ||
+      bo.school_billing_address ||
+      bo.billing_address ||
+      "",
     city: bo.city || "",
     stateProvince: bo.state_province || "",
     zipPostalCode: bo.zip_postal_code || "",
@@ -166,27 +179,41 @@ export function transformOrder(bo: BackendOrder): Order {
     nicknames: bo.nicknames || "",
     vocalsPreference: bo.vocals_preference || "",
     instrumentalStylePreference: bo.instrumental_style_preference || "",
-    gymName: bo.gym_name || undefined,
-    gymBillingAddress: bo.gym_billing_address || undefined,
+    gymName: bo.school_gym_name || bo.gym_name || undefined,
+    gymBillingAddress:
+      bo.school_gym_billing_address || bo.gym_billing_address || undefined,
     teamName: bo.team_name || undefined,
     teamCoedAllGirl: bo.team_coed_all_girl || undefined,
-    teamColors: bo.team_colors || undefined,
-    schoolName: bo.school_name || undefined,
-    schoolBillingAddress: bo.school_billing_address || undefined,
+    teamColors: bo.colors || bo.team_colors || undefined,
+    schoolName: bo.school_gym_name || bo.school_name || undefined,
+    schoolBillingAddress:
+      bo.school_gym_billing_address ||
+      bo.school_billing_address ||
+      undefined,
+    schoolOrganizationName: bo.school_gym_name || bo.school_program_name || undefined,
+    organizationName: bo.school_gym_name || bo.school_program_name || undefined,
     mascot: bo.mascot || undefined,
     splitOrNoSplit: bo.split_or_no_split || undefined,
     virocChoreographerName: bo.viroc_choreographer_name || undefined,
     virocChoreographerEmail: bo.viroc_choreographer_email || undefined,
     colors: bo.colors || undefined,
-    billingAddress: bo.billing_address || undefined,
+    schoolProgramColors: bo.colors || bo.team_colors || undefined,
+    billingAddress:
+      bo.school_gym_billing_address ||
+      bo.billing_address ||
+      bo.school_billing_address ||
+      undefined,
     coachContactFullName:
       bo.coach_contact_full_name || bo.coach_name || bo.contact_name || undefined,
     musicContactName:
       bo.coach_name || bo.contact_name || undefined,
-    coachEmailAddress: bo.coach_email_address || undefined,
+    coachEmailAddress: bo.coach_email_address || bo.coach_email || undefined,
     emailAddress: bo.email_address || undefined,
     sendingEightCountSheets: bo.sending_eight_count_sheets || undefined,
-    usingEightCountSheets: bo.using_eight_count_sheets || undefined,
+    usingEightCountSheets:
+      bo.using_eight_count_sheets ||
+      bo.sending_eight_count_sheets ||
+      undefined,
     songListSuggestions: bo.song_list_suggestions || undefined,
     couponCode: bo.coupon_code || undefined,
     howDidYouFindOut: bo.how_did_you_find_out || undefined,
@@ -204,6 +231,7 @@ export function transformOrder(bo: BackendOrder): Order {
       bo.coach_name ||
       bo.coach_contact_full_name ||
       bo.contact_name ||
+      bo.school_gym_name ||
       bo.program_name,
     // Coach (full name) / Music Contact Name on the client form → Coach name column.
     contactName:
@@ -211,7 +239,11 @@ export function transformOrder(bo: BackendOrder): Order {
       bo.coach_name ||
       bo.coach_contact_full_name ||
       bo.customer_name,
-    programName: bo.program_name,
+    programName:
+      bo.school_gym_name ||
+      bo.program_name ||
+      bo.school_program_name ||
+      "",
     category: bo.category || "Cheer",
     package: bo.package || "TBD",
     musicTheme: bo.music_theme || "",
@@ -263,16 +295,20 @@ export async function fetchOrdersApi(): Promise<{ activeOrders: Order[]; pastOrd
 }
 
 export async function createOrderApi(order: Partial<Order>): Promise<Order> {
+  const program =
+    order.programName ||
+    order.schoolProgramName ||
+    order.organizationName ||
+    order.schoolOrganizationName ||
+    "Program";
   const payload = {
-    customer_name: order.customerName || order.programName || "Customer",
+    customer_name: order.customerName || program || "Customer",
     contact_name: order.contactName || order.customerName || "Contact",
-    program_name: order.programName || "Program",
-    category: order.category || "Cheer",
+    school_gym_name: program,
+    program_name: program,
     package: order.package || "TBD",
     price: order.price ?? 0,
     music_theme: order.musicTheme || null,
-    editor_request: order.editorRequest || "FA",
-    requested_producer: order.requestedProducer || null,
     form_type: order.formType || "school-all-star-cheer",
     status: order.status || "new",
   };
@@ -287,8 +323,17 @@ export async function updateOrderApi(
   const payload: Record<string, unknown> = {};
   if (patch.customerName !== undefined) payload.customer_name = patch.customerName;
   if (patch.contactName !== undefined) payload.contact_name = patch.contactName;
-  if (patch.programName !== undefined) payload.program_name = patch.programName;
-  if (patch.category !== undefined) payload.category = patch.category;
+  if (patch.programName !== undefined) {
+    payload.school_gym_name = patch.programName;
+    payload.program_name = patch.programName;
+  }
+  if (patch.organizationName !== undefined) {
+    payload.school_gym_name = patch.organizationName;
+    payload.program_name = patch.organizationName;
+  }
+  if (patch.billingAddress !== undefined) {
+    payload.school_gym_billing_address = patch.billingAddress;
+  }
   if (patch.package !== undefined) payload.package = patch.package;
   if (patch.packageType !== undefined) payload.package_type = patch.packageType;
   if (patch.timeLengthOfMix !== undefined) {
@@ -353,16 +398,15 @@ export async function updateOrderApi(
   }
   if (patch.mascot !== undefined) payload.mascot = patch.mascot;
   if (patch.colors !== undefined) payload.colors = patch.colors;
-  if (patch.teamColors !== undefined) payload.team_colors = patch.teamColors;
+  if (patch.teamColors !== undefined) payload.colors = patch.teamColors;
   if (patch.schoolProgramColors !== undefined) {
     payload.colors = patch.schoolProgramColors;
-    payload.team_colors = patch.schoolProgramColors;
   }
   if (patch.schoolBillingAddress !== undefined) {
-    payload.school_billing_address = patch.schoolBillingAddress;
+    payload.school_gym_billing_address = patch.schoolBillingAddress;
   }
   if (patch.schoolOrganizationName !== undefined) {
-    payload.school_program_name = patch.schoolOrganizationName;
+    payload.school_gym_name = patch.schoolOrganizationName;
     payload.program_name = patch.schoolOrganizationName;
   }
   if (patch.musicContactName !== undefined) {
@@ -380,13 +424,25 @@ export async function updateOrderApi(
     payload.song_list_suggestions = patch.songListSuggestions;
   }
   if (patch.schoolProgramName !== undefined) {
-    payload.school_program_name = patch.schoolProgramName;
+    payload.school_gym_name = patch.schoolProgramName;
+    payload.program_name = patch.schoolProgramName;
   }
   if (patch.schoolAddress !== undefined) {
-    payload.school_address = patch.schoolAddress;
+    payload.school_gym_billing_address = patch.schoolAddress;
   }
   if (patch.schoolGymAddress !== undefined) {
-    payload.school_address = patch.schoolGymAddress;
+    payload.school_gym_billing_address = patch.schoolGymAddress;
+  }
+  if (patch.gymName !== undefined) {
+    payload.school_gym_name = patch.gymName;
+    payload.program_name = patch.gymName;
+  }
+  if (patch.gymBillingAddress !== undefined) {
+    payload.school_gym_billing_address = patch.gymBillingAddress;
+  }
+  if (patch.schoolName !== undefined) {
+    payload.school_gym_name = patch.schoolName;
+    payload.program_name = patch.schoolName;
   }
   if (patch.city !== undefined) payload.city = patch.city;
   if (patch.stateProvince !== undefined) {

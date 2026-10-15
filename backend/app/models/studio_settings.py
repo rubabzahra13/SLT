@@ -8,7 +8,6 @@ class StudioHoliday(Base):
     __tablename__ = "studio_holidays"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    legacy_id = Column(String, nullable=True, index=True)
     name = Column(String, nullable=False)
     # Annual MM-DD (year applied when expanding for calendars)
     start_date = Column(String, nullable=False)
@@ -26,7 +25,6 @@ class StudioPersonalReason(Base):
     __tablename__ = "studio_personal_reasons"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    legacy_id = Column(String, nullable=True, index=True)
     name = Column(String, nullable=False)
     enabled = Column(Boolean, default=True, nullable=False)
     is_other = Column(Boolean, default=False, nullable=False)

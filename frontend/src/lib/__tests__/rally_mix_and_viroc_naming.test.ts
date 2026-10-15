@@ -114,7 +114,7 @@ describe("Rally Mix Package Pricing, Subtype Renaming & Add-On Matrix Tests", ()
 
     it("3. Marching Band Orders ignore Extra Songs & Extra Song Time in payroll calculations", () => {
       const mbRes = calculateMarchingBandOrderPricing({
-        packageType: "BAND CHANT", // Base compliant: $300
+        packageType: "BAND CHANT", // Flat package: $600
         musicAffiliate: "Power Music",
         // @ts-ignore
         extraSongsQuantity: 5,
@@ -122,7 +122,7 @@ describe("Rally Mix Package Pricing, Subtype Renaming & Add-On Matrix Tests", ()
       });
 
       assert.equal(mbRes.customerFacingPrice, 600);
-      assert.equal(mbRes.payrollBasePrice, 300); // Extra songs ignored
+      assert.equal(mbRes.payrollBasePrice, 600); // Extra songs ignored
     });
   });
 });

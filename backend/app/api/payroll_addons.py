@@ -38,12 +38,7 @@ def _resolve_order_id(raw_id: Optional[str], db: Session) -> Optional[uuid.UUID]
         return uuid.UUID(raw_str)
     except ValueError:
         pass
-    order = (
-        db.query(Order)
-        .filter(Order.legacy_id == raw_str)
-        .first()
-    )
-    return order.id if order else None
+    return None
 
 
 def _decimal(value) -> Optional[Decimal]:

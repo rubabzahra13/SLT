@@ -23,15 +23,23 @@ describe("Prompt 5 — Marching Band Pricing Engine Unit Tests", () => {
     );
   });
 
-  it("BAND CHANT + Power Music (compliant affiliate) → $300 payroll", () => {
-    const res = calculateMarchingBandOrderPricing({
+  it("BAND CHANT is flat $600 (no music-affiliate split on this form)", () => {
+    const withAff = calculateMarchingBandOrderPricing({
       packageType: "BAND CHANT",
       musicAffiliate: "Power Music",
     });
-    assert.equal(res.complianceStatus, "compliant");
-    assert.equal(res.customerFacingPrice, 600);
-    assert.equal(res.payrollBasePrice, 300);
-    assert.equal(res.alwaysFixedPayroll, false);
+    const noAff = calculateMarchingBandOrderPricing({
+      packageType: "BAND CHANT",
+    });
+    const custom = calculateMarchingBandOrderPricing({
+      packageType: "BAND CHANT",
+      musicAffiliate: "Custom Music / Client-Provided Track",
+    });
+    assert.equal(withAff.customerFacingPrice, 600);
+    assert.equal(withAff.payrollBasePrice, 600);
+    assert.equal(withAff.alwaysFixedPayroll, true);
+    assert.equal(noAff.payrollBasePrice, 600);
+    assert.equal(custom.payrollBasePrice, 600);
   });
 
   it("Compliant affiliate text field matches ignoring spacing and capitalization", () => {
@@ -68,43 +76,22 @@ describe("Prompt 5 — Marching Band Pricing Engine Unit Tests", () => {
     }
   });
 
-  it("BAND CHANT + Custom Music (non-compliant affiliate) → $600 payroll", () => {
-    const res = calculateMarchingBandOrderPricing({
-      packageType: "BAND CHANT",
-      musicAffiliate: "Custom Music / Client-Provided Track",
-    });
-    assert.equal(res.complianceStatus, "non-compliant");
-    assert.equal(res.payrollBasePrice, 600);
-  });
-
-  it("DRUM CADENCE + Unleash the Beats (compliant) → $150 payroll", () => {
-    const res = calculateMarchingBandOrderPricing({
+  it("DRUM CADENCE ORIGINAL is flat $350 (no music-affiliate split)", () => {
+    const withAff = calculateMarchingBandOrderPricing({
       packageType: "DRUM CADENCE ORIGINAL",
       musicAffiliate: "Unleash the Beats",
     });
-    assert.equal(res.complianceStatus, "compliant");
-    assert.equal(res.customerFacingPrice, 350);
-    assert.equal(res.payrollBasePrice, 150);
-  });
-
-  it("DRUM CADENCE + Songs for Cheer Editor's Choice (non-compliant) → $350 payroll", () => {
-    const res = calculateMarchingBandOrderPricing({
+    const custom = calculateMarchingBandOrderPricing({
       packageType: "Drum Cadence",
       musicAffiliate: "Songs for Cheer — Editor's Choice",
     });
-    assert.equal(res.complianceStatus, "non-compliant");
-    assert.equal(res.payrollBasePrice, 350);
+    assert.equal(withAff.customerFacingPrice, 350);
+    assert.equal(withAff.payrollBasePrice, 350);
+    assert.equal(withAff.alwaysFixedPayroll, true);
+    assert.equal(custom.payrollBasePrice, 350);
   });
 
-  it("BAND CHANT with no affiliate falls back to compliant payroll column", () => {
-    const res = calculateMarchingBandOrderPricing({
-      packageType: "BAND CHANT",
-    });
-    assert.equal(res.complianceStatus, "unknown-no-affiliate-field");
-    assert.equal(res.payrollBasePrice, 300);
-  });
-
-  it("BAND CHANT + add-ons with compliant affiliate: payroll = $300 + $50 + $75", () => {
+  it("BAND CHANT + add-ons: payroll = $600 + $50 + $75", () => {
     const res = calculateMarchingBandOrderPricing({
       packageType: "BAND CHANT",
       musicAffiliate: "Power Music + Unleash the Beats",
@@ -112,8 +99,7 @@ describe("Prompt 5 — Marching Band Pricing Engine Unit Tests", () => {
       hasAddVocals: true,
     });
     assert.equal(res.customerFacingPrice, 600);
-    assert.equal(res.payrollBasePrice, 425);
-    assert.equal(res.complianceStatus, "compliant");
+    assert.equal(res.payrollBasePrice, 725);
   });
 
   it("Fight Song Plus must not match cheaper Fight Song Original", () => {

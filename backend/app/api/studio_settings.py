@@ -62,25 +62,21 @@ def _is_uuid(val: str) -> bool:
 
 
 def _find_holiday(db: Session, holiday_id: str) -> Optional[StudioHoliday]:
-    if _is_uuid(holiday_id):
-        row = db.query(StudioHoliday).filter(StudioHoliday.id == uuid.UUID(holiday_id)).first()
-        if row:
-            return row
-    return db.query(StudioHoliday).filter(StudioHoliday.legacy_id == holiday_id).first()
+    if not _is_uuid(holiday_id):
+        return None
+    return (
+        db.query(StudioHoliday)
+        .filter(StudioHoliday.id == uuid.UUID(holiday_id))
+        .first()
+    )
 
 
 def _find_reason(db: Session, reason_id: str) -> Optional[StudioPersonalReason]:
-    if _is_uuid(reason_id):
-        row = (
-            db.query(StudioPersonalReason)
-            .filter(StudioPersonalReason.id == uuid.UUID(reason_id))
-            .first()
-        )
-        if row:
-            return row
+    if not _is_uuid(reason_id):
+        return None
     return (
         db.query(StudioPersonalReason)
-        .filter(StudioPersonalReason.legacy_id == reason_id)
+        .filter(StudioPersonalReason.id == uuid.UUID(reason_id))
         .first()
     )
 
@@ -96,7 +92,6 @@ def _ensure_default_holidays(db: Session) -> List[StudioHoliday]:
     for index, (name, start, end) in enumerate(DEFAULT_HOLIDAYS):
         db.add(
             StudioHoliday(
-                legacy_id=f"holiday-default-{index + 1}",
                 name=name,
                 start_date=start,
                 end_date=end,
@@ -124,7 +119,6 @@ def _ensure_default_reasons(db: Session) -> List[StudioPersonalReason]:
     for index, name in enumerate(DEFAULT_PERSONAL_REASONS):
         db.add(
             StudioPersonalReason(
-                legacy_id=f"personal-default-{index + 1}",
                 name=name,
                 enabled=True,
                 is_other=name.lower() == "other",
@@ -158,7 +152,6 @@ def create_studio_holiday(
     _: None = Depends(require_full_access),
 ):
     row = StudioHoliday(
-        legacy_id=payload.legacy_id,
         name=payload.name.strip(),
         start_date=payload.start_date.strip(),
         end_date=payload.end_date.strip(),
@@ -223,7 +216,6 @@ def create_studio_personal_reason(
     _: None = Depends(require_full_access),
 ):
     row = StudioPersonalReason(
-        legacy_id=payload.legacy_id,
         name=payload.name.strip(),
         enabled=payload.enabled,
         is_other=payload.is_other,

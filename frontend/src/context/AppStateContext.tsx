@@ -113,8 +113,10 @@ import {
   saveSecretMenuPricingApi,
   fetchPackagePricesApi,
   fetchSecretMenuPricingApi,
+  fetchPricingRulesApi,
   type BootstrapPayload,
 } from "@/lib/api";
+import { applyDbPricingRules } from "@/lib/pricing-reference";
 
 type AppStateContextValue = {
   activeOrders: Order[];
@@ -702,6 +704,15 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         }
         if (!isMounted || gen !== loadGen) return;
         applyBoot(boot, fetchedAt);
+        // SE + SA package prices from pricing_rules (DB) → in-memory rate cards.
+        void fetchPricingRulesApi()
+          .then((rules) => {
+            if (!isMounted || gen !== loadGen || !rules.length) return;
+            applyDbPricingRules(rules);
+          })
+          .catch(() => {
+            /* keep hardcoded defaults */
+          });
       } catch (err) {
         if (!isMounted) return;
         // Keep previous cache visible but mark disconnected so UI can retry.

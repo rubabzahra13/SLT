@@ -40,10 +40,8 @@ def is_valid_uuid(val: str) -> bool:
 
 def _find_order(db: Session, order_id: str) -> Optional[Order]:
     if is_valid_uuid(order_id):
-        return db.query(Order).filter(
-            (Order.id == uuid.UUID(order_id)) | (Order.legacy_id == order_id)
-        ).first()
-    return db.query(Order).filter(Order.legacy_id == order_id).first()
+        return db.query(Order).filter(Order.id == uuid.UUID(order_id)).first()
+    return None
 
 
 def _breakdown_to_response(bd: PricingBreakdown) -> PricingBreakdownResponse:

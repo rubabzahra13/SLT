@@ -204,7 +204,7 @@ def update_mtd_record(mtd_id: str, payload: MTDRecordUpdateSchema, db: Session =
                 linked_order.contact_name = mtd.contact_name
                 linked_order.customer_name = mtd.contact_name
             if "program_name" in unset:
-                linked_order.program_name = mtd.program_name
+                linked_order.school_gym_name = mtd.program_name
             if "package" in unset:
                 linked_order.package = mtd.package
             if "music_theme" in unset:
@@ -220,7 +220,7 @@ def update_mtd_record(mtd_id: str, payload: MTDRecordUpdateSchema, db: Session =
             if "price_compliance" in unset:
                 linked_order.price_compliance = mtd.price_compliance
             if "editor_request" in unset:
-                linked_order.editor_request = mtd.editor_request
+                linked_order.editor_initials = mtd.editor_request
             if "is_reassigned" in unset:
                 linked_order.is_reassigned = mtd.is_reassigned
             if "order_status" in unset:
@@ -324,26 +324,26 @@ def create_manual_schedule_entry(
     data = payload.model_dump()
     assigned_prod_str = data.pop("assigned_producer", None)
 
-    category = data.get("category") or "Cheer"
     form_type = data.get("form_type") or "school-all-star-cheer"
     cheer_form_subtype = data.get("cheer_form_subtype")
     dance_form_subtype = data.get("dance_form_subtype")
 
     contact = data.get("contact_name")
-    program = data.get("program_name")
-    school_program = data.get("school_program_name")
-    cust_name = contact or program or school_program or "Customer"
+    program = (
+        data.get("school_gym_name")
+        or data.get("program_name")
+        or data.get("school_program_name")
+    )
+    cust_name = contact or program or "Customer"
 
     order = Order(
-        category=category,
         form_type=form_type,
         cheer_form_subtype=cheer_form_subtype,
         dance_form_subtype=dance_form_subtype,
         customer_name=cust_name,
         contact_name=contact,
-        program_name=program,
-        school_program_name=school_program,
-        email_address=data.get("email"),
+        school_gym_name=program,
+        youth_rec_extra_email_address=data.get("email"),
         coach_email=data.get("coach_email"),
         package=data.get("package") or "Standard",
         mix_start_date=data.get("mix_start_date"),

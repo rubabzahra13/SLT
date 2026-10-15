@@ -9,4 +9,5 @@ export * from "./payroll-addons";
 export * from "./studio-settings";
 export * from "./bootstrap";
 export * from "./catalog-pricing";
+export * from "./pricing-rules";
 

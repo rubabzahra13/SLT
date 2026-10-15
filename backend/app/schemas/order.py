@@ -1,7 +1,42 @@
-from pydantic import BaseModel, ConfigDict
-from typing import Optional, Any
+from pydantic import BaseModel, ConfigDict, model_validator
+from typing import Optional, Any, Any as TypingAny
 from uuid import UUID
 from datetime import datetime
+
+
+def _orm_to_aliased_dict(obj: TypingAny) -> dict:
+    """Map unified school_gym_* columns onto legacy API field names."""
+    data: dict = {}
+    for col in obj.__table__.columns:
+        data[col.name] = getattr(obj, col.name, None)
+
+    name = data.get("school_gym_name")
+    billing = data.get("school_gym_billing_address")
+    colors = data.get("colors")
+    youth_email = data.get("youth_rec_extra_email_address")
+
+    data["school_program_name"] = name
+    data["program_name"] = name
+    data["school_name"] = name
+    data["gym_name"] = name
+    data["school_billing_address"] = billing
+    data["billing_address"] = billing
+    data["gym_billing_address"] = billing
+    data["school_address"] = billing
+    data["team_colors"] = colors
+    data["email_address"] = youth_email
+    data["coach_contact_full_name"] = data.get("coach_name")
+    data["coach_email_address"] = data.get("coach_email")
+    data["viroc_choreographer_name"] = data.get("choreographer_name")
+    data["viroc_choreographer_email"] = data.get("choreographer_email")
+    data["editor_request"] = data.get("editor_initials")
+    data["requested_producer"] = data.get("assigned_producer")
+    # using_* was merged into sending_*
+    data["using_eight_count_sheets"] = data.get("sending_eight_count_sheets")
+    data["legacy_id"] = str(data.get("id")) if data.get("id") is not None else None
+    data["category"] = None
+    return data
+
 
 class OrderSchema(BaseModel):
     id: UUID
@@ -11,6 +46,9 @@ class OrderSchema(BaseModel):
     dance_form_subtype: Optional[str] = None
     varsity_viroc_customer: Optional[str] = None
 
+    school_gym_name: Optional[str] = None
+    school_gym_billing_address: Optional[str] = None
+    # Legacy aliases (filled from school_gym_* for FE compat)
     school_program_name: Optional[str] = None
     school_address: Optional[str] = None
     city: Optional[str] = None
@@ -64,6 +102,7 @@ class OrderSchema(BaseModel):
     coach_contact_full_name: Optional[str] = None
     coach_email_address: Optional[str] = None
     email_address: Optional[str] = None
+    youth_rec_extra_email_address: Optional[str] = None
     sending_eight_count_sheets: Optional[str] = None
     using_eight_count_sheets: Optional[str] = None
     song_list_suggestions: Optional[str] = None
@@ -77,8 +116,10 @@ class OrderSchema(BaseModel):
     mix_end_date: Optional[str] = None
     eight_count_sheet: Optional[str] = None
     have_songs: Optional[str] = None
+    editor_initials: Optional[str] = None
+    client_requested_mix_due_date: Optional[str] = None
+    client_requested_rush_order: Optional[str] = None
 
-    # Legacy rows may have nulls; optional so list endpoints don't 500.
     customer_name: Optional[str] = None
     contact_name: Optional[str] = None
     program_name: Optional[str] = None
@@ -110,6 +151,14 @@ class OrderSchema(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+    @model_validator(mode="before")
+    @classmethod
+    def _expand_unified_columns(cls, data: Any) -> Any:
+        if hasattr(data, "__table__"):
+            return _orm_to_aliased_dict(data)
+        return data
+
+
 class OrderCreateSchema(BaseModel):
     customer_name: Optional[str] = None
     contact_name: Optional[str] = None
@@ -128,6 +177,8 @@ class OrderCreateSchema(BaseModel):
     status: Optional[str] = "new"
     is_reassigned: Optional[bool] = False
 
+    school_gym_name: Optional[str] = None
+    school_gym_billing_address: Optional[str] = None
     school_program_name: Optional[str] = None
     school_address: Optional[str] = None
     city: Optional[str] = None
@@ -192,6 +243,7 @@ class OrderCreateSchema(BaseModel):
     eight_count_sheet: Optional[str] = None
     have_songs: Optional[str] = None
 
+
 class OrderUpdateSchema(BaseModel):
     customer_name: Optional[str] = None
     contact_name: Optional[str] = None
@@ -212,6 +264,8 @@ class OrderUpdateSchema(BaseModel):
     routine_notes: Optional[str] = None
     custom_voiceovers: Optional[str] = None
     song_list_suggestions: Optional[str] = None
+    school_gym_name: Optional[str] = None
+    school_gym_billing_address: Optional[str] = None
     school_program_name: Optional[str] = None
     school_address: Optional[str] = None
     city: Optional[str] = None
