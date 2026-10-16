@@ -75,6 +75,43 @@ describe("Central Pricing Engine — Core Rules Unit Tests (Prompt 8)", () => {
     assert.equal(result.complianceStatus, "non-compliant");
   });
 
+  it("School Cheer / VIROC 2:00 prices by package tier + mix length", () => {
+    const silver = calculateCheerOrderPricing({
+      cheerFormSubtype: "school-cheer-viroc-yes",
+      packageType: "SILVER",
+      timeLengthOfMix: "2:00",
+      musicAffiliate: "Power Music",
+    });
+    assert.equal(silver.customerFacingPrice, 750);
+    assert.equal(silver.payrollBasePrice, 650);
+
+    const gold = calculateCheerOrderPricing({
+      cheerFormSubtype: "school-cheer-viroc-no",
+      packageType: "GOLD 2:00",
+      musicAffiliate: "Songs for Cheer",
+    });
+    assert.equal(gold.customerFacingPrice, 950);
+    assert.equal(gold.payrollBasePrice, 850);
+
+    const platinum = calculateCheerOrderPricing({
+      cheerFormSubtype: "school-cheer-viroc-yes",
+      packageType: "PLATINUM",
+      timeLengthOfMix: "2:00",
+      musicAffiliate: "Bootleg Track",
+    });
+    assert.equal(platinum.customerFacingPrice, 1350);
+    assert.equal(platinum.payrollBasePrice, 1350); // non-compliant column
+
+    const titanium = calculateCheerOrderPricing({
+      cheerFormSubtype: "school-cheer-viroc-yes",
+      packageType: "TITANIUM 2:00",
+      musicAffiliate: "100% original custom music (titanium package only)",
+    });
+    assert.equal(titanium.customerFacingPrice, 2300);
+    assert.equal(titanium.payrollBasePrice, 2300);
+    assert.equal(titanium.isTitanium, true);
+  });
+
   it("Youth Rec Cheer BRONZE 1:30 is flat package price (no affiliate split)", () => {
     const result = calculateCheerOrderPricing({
       cheerFormSubtype: "youth-rec-cheer",

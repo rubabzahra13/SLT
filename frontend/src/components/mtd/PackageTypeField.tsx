@@ -174,20 +174,22 @@ export const SCHOOL_CHEER_MAGENTO_PACKAGE_ORDER = [
   "RALLY MIX",
 ] as const;
 
-/** Magento School Cheer / VIROC SoftSelect Length of Mix (no 2:00). */
+/** Magento School Cheer / VIROC SoftSelect Length of Mix. */
 export const SCHOOL_CHEER_MAGENTO_MIX_ORDER = [
   "1:00",
   "1:30",
   "1:45",
+  "2:00",
   "2:15",
   "2:30",
 ] as const;
 
-/** Pricing Time Limit column — same Magento SoftSelect lengths (+ Rally Mix "-" + Other). */
+/** Pricing Time Limit column — same SoftSelect lengths (+ Rally Mix "-" + Other). */
 const SCHOOL_CHEER_PRICING_MIX_ORDER = [
   "1:00",
   "1:30",
   "1:45",
+  "2:00",
   "2:15",
   "2:30",
   "-",
@@ -651,12 +653,7 @@ export function sortSchoolCheerPricingRows<
   const mixRank = new Map(
     SCHOOL_CHEER_PRICING_MIX_ORDER.map((limit, i) => [limit, i])
   );
-  // Drop legacy 2:00 rows — Magento SoftSelect Length of Mix has no 2:00.
-  const filtered = rows.filter((row) => {
-    if (row.kind && row.kind !== "tier-time") return true;
-    return String(row.limit || "").trim() !== "2:00";
-  });
-  return [...filtered].sort((a, b) => {
+  return [...rows].sort((a, b) => {
     if (a.kind && a.kind !== "tier-time") return 0;
     if (b.kind && b.kind !== "tier-time") return 0;
     // SoftSelect "Other" (any package → needs quote) always last after Rally Mix.

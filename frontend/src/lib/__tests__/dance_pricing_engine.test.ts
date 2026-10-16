@@ -101,4 +101,44 @@ describe("Prompt 6 — Dance Pricing Engine Unit Tests", () => {
     assert.equal(res.payrollBasePrice, 0);
     assert.equal(res.matchedEntry, null);
   });
+
+  it("8. Empty package or subtype label 'POM' must not price as CUSTOM POM ($850)", () => {
+    const empty = calculateDanceOrderPricing({
+      danceFormSubtype: "pom",
+      packageType: "",
+      musicAffiliate: "Power Music Covers",
+    });
+    assert.equal(empty.customerFacingPrice, 0);
+    assert.equal(empty.matchedEntry, null);
+
+    const subtypeLabel = calculateDanceOrderPricing({
+      danceFormSubtype: "pom",
+      packageType: "POM",
+      musicAffiliate: "Power Music Covers",
+    });
+    assert.equal(subtypeLabel.customerFacingPrice, 0);
+    assert.equal(subtypeLabel.matchedEntry, null);
+
+    // Backend/create placeholders must also stay unpriced.
+    for (const placeholder of ["Standard", "TBD", "Dance", "All Star Dance"]) {
+      const res = calculateDanceOrderPricing({
+        danceFormSubtype: "pom",
+        packageType: placeholder,
+        musicAffiliate: "Power Music Covers",
+      });
+      assert.equal(
+        res.customerFacingPrice,
+        0,
+        `expected $0 for package ${JSON.stringify(placeholder)}`
+      );
+      assert.equal(res.matchedEntry, null);
+    }
+
+    const custom = calculateDanceOrderPricing({
+      danceFormSubtype: "pom",
+      packageType: "CUSTOM POM",
+      musicAffiliate: "Power Music Covers",
+    });
+    assert.equal(custom.customerFacingPrice, 850);
+  });
 });

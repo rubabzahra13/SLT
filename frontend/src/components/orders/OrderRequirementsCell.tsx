@@ -6,14 +6,22 @@ import type { MTDRecord, Order } from "@/types";
 import { useAppState } from "@/context/AppStateContext";
 import { findLinkedOrder } from "@/lib/editor-assignment";
 import {
+  getDanceSongsConfirmText,
   getFormNotesText,
   getFormSongListColumnText,
   getOrderRequirements,
+  isAllStarDanceOrder,
+  isMarchingBandOrder,
   mergeOrderFormFieldsForRequirements,
+  resolveMarchingBandPackageKind,
   type OrderRequirementItem,
   type RequirementCategory,
 } from "@/lib/order-requirements";
 import { buildLegacyMusicTheme } from "@/lib/order-form";
+import {
+  mtdPatchFromOrderField,
+  orderPatchFromOrderField,
+} from "@/lib/mtd-order-sync";
 import { mtdRecordCoversOrder } from "@/lib/order-staging";
 import { HoverTip } from "@/components/ui/HoverTip";
 import {
@@ -52,6 +60,12 @@ function requirementPillTip(
     if (isWhite) return `${item.label}: Not applicable`;
     return `${item.label}: ${
       isGreen ? "Have — click to remove" : "Not have — click to add"
+    }`;
+  }
+  if (item.id === "mix" || item.id === "time_of_mix") {
+    if (isWhite) return `${item.label}: Not applicable`;
+    return `${item.label}: ${
+      isGreen ? "Collected — click to remove" : "Missing — click to mark collected"
     }`;
   }
   if (item.id === "form") {
@@ -123,19 +137,6 @@ export function OrderRequirementPill({
   );
 }
 
-function isDanceOrder(order: Order | MTDRecord): boolean {
-  const formType = String(
-    (order as Order).formType || (order as { form_type?: string }).form_type || ""
-  ).toLowerCase();
-  const category = String(order.category || "").toLowerCase();
-  return (
-    formType.includes("dance") ||
-    category.includes("dance") ||
-    category.includes("pom") ||
-    category.includes("hip")
-  );
-}
-
 function isSportsOrder(order: Order | MTDRecord): boolean {
   const formType = String(
     (order as Order).formType || (order as { form_type?: string }).form_type || ""
@@ -160,6 +161,37 @@ function isAnthemOrder(order: Order | MTDRecord): boolean {
     category.includes("anthem") ||
     pkg.includes("SCHOOL ANTHEM")
   );
+}
+
+/** Magento / form field label shown in the green→red clear confirmation. */
+function confirmClearFieldLabel(
+  order: Order | MTDRecord,
+  kind: SongsNotesToggleKind
+): string | undefined {
+  if (kind === "mix") return "Time Length of Mix";
+  if (isAnthemOrder(order)) {
+    return kind === "notes"
+      ? "Lyrical Notes"
+      : "Instrumental Style Preference";
+  }
+  if (isMarchingBandOrder(order)) {
+    if (kind === "notes") {
+      return resolveMarchingBandPackageKind(order) === "fight_alma"
+        ? "Notes to Producer Regarding Lyrics / Mix"
+        : "Notes to Producer Regarding Instrumentation";
+    }
+    // Band Chant Song pill
+    return "Notes to Producer Regarding Instrumentation";
+  }
+  if (isAllStarDanceOrder(order)) {
+    return kind === "notes"
+      ? "Routine Notes"
+      : "Power Music Covers / Unleash the Beats Covers";
+  }
+  if (isSportsOrder(order)) {
+    return kind === "notes" ? "Additional Notes" : "Songs";
+  }
+  return undefined;
 }
 
 function buildSongsNotesPatches(
@@ -196,14 +228,17 @@ function buildSongsNotesPatches(
         (order as { music_affiliate?: string }).music_affiliate ||
         ""
     ).trim();
-    const dance = isDanceOrder(order);
+    const dance = isAllStarDanceOrder(order);
     const sports = isSportsOrder(order);
     const anthem = isAnthemOrder(order);
+    const marchingBand = isMarchingBandOrder(order);
     // On clear: wipe musicTheme completely. Do not leave affiliate/notes in theme —
     // Form song list / Songs pill fall back to musicTheme and would stay green.
     // Cheer → songListSuggestions only. Dance Songs pill → Power Music Covers
     // (Unleash the Beats Covers is its own column — preserve, do not mirror).
-    // School Anthem Song pill → instrumentationNotes (Instrumental Style Preference).
+    // School Anthem / MB Band Chant Song → instrumentationNotes.
+    // Dance Songs = Power Music OR Unleash. Clear must wipe both boxes so the
+    // pill cannot stay green from the untouched cover field.
     const existingUnleash = String(
       (order as Order).unleashTheBeatsCovers ||
         (order as { unleash_the_beats_covers?: string })
@@ -217,14 +252,16 @@ function buildSongsNotesPatches(
             powerMusicCovers: text,
             musicAffiliate: affiliate || undefined,
           })
-        : anthem
+        : anthem || marchingBand
           ? ""
           : text
       : "";
     const orderPatch: Partial<Order> = {
-      songListSuggestions: dance || anthem ? "" : text,
+      songListSuggestions: dance || anthem || marchingBand ? "" : text,
       powerMusicCovers: dance ? (filled ? text : "") : "",
-      unleashTheBeatsCovers: dance ? existingUnleash : "",
+      // Clear: empty both. Fill via pill: write Power Music; leave Unleash as-is
+      // only when adding (filled) — never preserve Unleash on remove.
+      unleashTheBeatsCovers: dance ? (filled ? existingUnleash : "") : "",
       // Keep notes explicit so normalizeOrder does not refill them from musicTheme.
       routineNotes: existingNotes,
       haveSongs: filled ? "HAVE SONGS" : "NEED SONGS",
@@ -234,13 +271,16 @@ function buildSongsNotesPatches(
     if (sports) {
       orderPatch.customerSongs = filled ? text : "";
     }
-    if (anthem) {
-      // Song pill ↔ Instrumental Style Preference (instrumentation_notes).
+    if (anthem || marchingBand) {
+      // Song pill ↔ instrumentation notes (Anthem style / MB Band Chant).
       orderPatch.instrumentationNotes = text;
-      orderPatch.instrumentalStylePreference = text;
+      if (anthem) {
+        orderPatch.instrumentalStylePreference = text;
+      }
     }
     const mtdPatch: Partial<MTDRecord> & {
       powerMusicCovers?: string;
+      unleashTheBeatsCovers?: string;
       instrumentationNotes?: string;
     } = {
       songListSuggestions: orderPatch.songListSuggestions,
@@ -248,8 +288,9 @@ function buildSongsNotesPatches(
       collectionStates: nextStates as MTDRecord["collectionStates"],
       musicTheme: nextTheme,
       powerMusicCovers: orderPatch.powerMusicCovers,
+      unleashTheBeatsCovers: orderPatch.unleashTheBeatsCovers,
     };
-    if (anthem) {
+    if (anthem || marchingBand) {
       mtdPatch.instrumentationNotes = text;
     }
     return { orderPatch, mtdPatch };
@@ -258,43 +299,71 @@ function buildSongsNotesPatches(
   const nextStates = { ...parsedOverrides };
   delete nextStates.notes;
   const anthem = isAnthemOrder(order);
+  const marchingBand = isMarchingBandOrder(order);
+  const mbKind = resolveMarchingBandPackageKind(order);
   const affiliate = String(
     (order as Order).musicAffiliate ||
       (order as { music_affiliate?: string }).music_affiliate ||
       ""
   ).trim();
-  const danceCovers = isDanceOrder(order)
+  const danceCovers = isAllStarDanceOrder(order)
     ? String((order as Order).powerMusicCovers || "").trim()
     : "";
-  const nextTheme = anthem
-    ? ""
-    : buildLegacyMusicTheme({
-        routineNotes: text,
-        powerMusicCovers: danceCovers,
-        musicAffiliate: affiliate || undefined,
-      });
-  // School Anthem Notes pill → lyricalNotes (Magento Lyrical Notes).
-  const orderPatch: Partial<Order> = anthem
-    ? {
-        lyricalNotes: text,
-        collectionStates: nextStates as Order["collectionStates"],
-      }
-    : {
-        routineNotes: text,
-        additionalNotes: text,
-        collectionStates: nextStates as Order["collectionStates"],
-        musicTheme: nextTheme,
-      };
-  const mtdPatch: Partial<MTDRecord> & { lyricalNotes?: string } = anthem
-    ? {
-        lyricalNotes: text,
-        collectionStates: nextStates as MTDRecord["collectionStates"],
-      }
-    : {
-        routineNotes: text,
-        collectionStates: nextStates as MTDRecord["collectionStates"],
-        musicTheme: nextTheme,
-      };
+  const nextTheme =
+    anthem || marchingBand
+      ? ""
+      : buildLegacyMusicTheme({
+          routineNotes: text,
+          powerMusicCovers: danceCovers,
+          musicAffiliate: affiliate || undefined,
+        });
+  // School Anthem Notes → lyricalNotes.
+  // MB Fight/Alma Notes → lyricalNotes; MB Drum Cadence Notes → instrumentation.
+  let orderPatch: Partial<Order>;
+  let mtdPatch: Partial<MTDRecord> & {
+    lyricalNotes?: string;
+    instrumentationNotes?: string;
+  };
+  if (anthem) {
+    orderPatch = {
+      lyricalNotes: text,
+      collectionStates: nextStates as Order["collectionStates"],
+    };
+    mtdPatch = {
+      lyricalNotes: text,
+      collectionStates: nextStates as MTDRecord["collectionStates"],
+    };
+  } else if (marchingBand && mbKind === "fight_alma") {
+    orderPatch = {
+      lyricalNotes: text,
+      collectionStates: nextStates as Order["collectionStates"],
+    };
+    mtdPatch = {
+      lyricalNotes: text,
+      collectionStates: nextStates as MTDRecord["collectionStates"],
+    };
+  } else if (marchingBand) {
+    orderPatch = {
+      instrumentationNotes: text,
+      collectionStates: nextStates as Order["collectionStates"],
+    };
+    mtdPatch = {
+      instrumentationNotes: text,
+      collectionStates: nextStates as MTDRecord["collectionStates"],
+    };
+  } else {
+    orderPatch = {
+      routineNotes: text,
+      additionalNotes: text,
+      collectionStates: nextStates as Order["collectionStates"],
+      musicTheme: nextTheme,
+    };
+    mtdPatch = {
+      routineNotes: text,
+      collectionStates: nextStates as MTDRecord["collectionStates"],
+      musicTheme: nextTheme,
+    };
+  }
   return { orderPatch, mtdPatch };
 }
 
@@ -407,7 +476,9 @@ export function OrderRequirementsCell({
         item.state === "green" ? "to_red" : "to_green";
       const currentText =
         item.id === "songs"
-          ? getFormSongListColumnText(requirementsRecord)
+          ? isAllStarDanceOrder(requirementsRecord)
+            ? getDanceSongsConfirmText(requirementsRecord)
+            : getFormSongListColumnText(requirementsRecord)
           : getFormNotesText(requirementsRecord);
       setConfirm({
         kind: item.id,
@@ -417,20 +488,50 @@ export function OrderRequirementsCell({
       return;
     }
 
+    // Mix Time: green → red always confirms (clears Time Length when present).
+    // Red → green is a plain collection toggle (no prompt).
+    if (item.id === "mix" || item.id === "time_of_mix") {
+      if (item.state === "green") {
+        const currentText = String(
+          (requirementsRecord as Order).timeLengthOfMix ||
+            (requirementsRecord as { time_length_of_mix?: string })
+              .time_length_of_mix ||
+            ""
+        ).trim();
+        setConfirm({
+          kind: "mix",
+          direction: "to_red",
+          currentText,
+        });
+        return;
+      }
+      applyCollectionToggle(item);
+      return;
+    }
+
     applyCollectionToggle(item);
   };
+
+  const resolveCoveringMtd = (orderId: string | null) =>
+    (linkedOrder &&
+      mtdRecords.find((rec) => mtdRecordCoversOrder(rec, linkedOrder))) ||
+    mtdRecords.find(
+      (rec) =>
+        rec.id === record.id ||
+        rec.orderId === record.id ||
+        rec.uuid === record.id ||
+        rec.legacyId === record.id ||
+        (orderId &&
+          (rec.orderId === orderId ||
+            rec.id === orderId ||
+            rec.legacyId === orderId))
+    );
 
   const handleSongsNotesConfirm = (text: string) => {
     if (!confirm) return;
     const { kind, direction } = confirm;
     const nextText = direction === "to_red" ? "" : text.trim();
     if (direction === "to_green" && !nextText) return;
-
-    const { orderPatch, mtdPatch } = buildSongsNotesPatches(
-      requirementsRecord,
-      kind,
-      nextText
-    );
 
     const orderId =
       linkedOrder?.id ||
@@ -439,49 +540,94 @@ export function OrderRequirementsCell({
         ? record.id
         : null);
 
+    if (kind === "mix") {
+      // Clear Time Length so Mix stays red after refresh (same SoT as form edit).
+      const orderSource = (linkedOrder || requirementsRecord) as Order;
+      const orderPatch = orderPatchFromOrderField(
+        "timeLengthOfMix",
+        "",
+        orderSource
+      );
+      const mtdFieldPatch = mtdPatchFromOrderField("timeLengthOfMix", "");
+      const mtdPatch: Partial<MTDRecord> = {
+        ...mtdFieldPatch,
+        collectionStates: orderPatch.collectionStates as MTDRecord["collectionStates"],
+        ...(typeof orderPatch.package === "string"
+          ? { package: orderPatch.package }
+          : {}),
+      };
+
+      if (orderId) {
+        void updateOrder(orderId, orderPatch, linkedOrder || undefined);
+      }
+      const coveringMtd = resolveCoveringMtd(orderId);
+      if (coveringMtd?.id) {
+        void updateMTD(coveringMtd.id, mtdPatch);
+      }
+
+      addNotification({
+        type: "mtd_move",
+        title: "Mix Time updated",
+        message: "Time Length of Mix cleared. Mix Time marked as missing.",
+      });
+      setConfirm(null);
+      return;
+    }
+
+    const { orderPatch, mtdPatch } = buildSongsNotesPatches(
+      requirementsRecord,
+      kind,
+      nextText
+    );
+
     // Order is source of truth for song list / notes. Only patch an existing MTD
     // staging row — never createMTD via updateMTD (that cloned Orders rows).
     if (orderId) {
       void updateOrder(orderId, orderPatch, linkedOrder || undefined);
     }
-    const coveringMtd =
-      (linkedOrder &&
-        mtdRecords.find((rec) => mtdRecordCoversOrder(rec, linkedOrder))) ||
-      mtdRecords.find(
-        (rec) =>
-          rec.id === record.id ||
-          rec.orderId === record.id ||
-          rec.uuid === record.id ||
-          rec.legacyId === record.id ||
-          (orderId &&
-            (rec.orderId === orderId ||
-              rec.id === orderId ||
-              rec.legacyId === orderId))
-      );
+    const coveringMtd = resolveCoveringMtd(orderId);
     if (coveringMtd?.id) {
       void updateMTD(coveringMtd.id, mtdPatch);
     }
 
     const anthem = isAnthemOrder(requirementsRecord);
+    const marchingBand = isMarchingBandOrder(requirementsRecord);
+    const mbKind = resolveMarchingBandPackageKind(requirementsRecord);
+    const songsClearMsg = anthem
+      ? "Instrumental style preference cleared. Song marked as not have."
+      : marchingBand
+        ? "Instrumentation notes cleared. Song marked as not have."
+        : "Song list cleared. Songs marked as not have.";
+    const songsSaveMsg = anthem
+      ? "Instrumental style preference saved. Song marked as have."
+      : marchingBand
+        ? "Instrumentation notes saved. Song marked as have."
+        : "Song list saved. Songs marked as have.";
+    const notesClearMsg = anthem
+      ? "Lyrical notes cleared. Notes marked as not have."
+      : marchingBand && mbKind === "fight_alma"
+        ? "Lyrics / mix notes cleared. Notes marked as not have."
+        : marchingBand
+          ? "Instrumentation notes cleared. Notes marked as not have."
+          : "Routine notes cleared. Notes marked as not have.";
+    const notesSaveMsg = anthem
+      ? "Lyrical notes saved. Notes marked as have."
+      : marchingBand && mbKind === "fight_alma"
+        ? "Lyrics / mix notes saved. Notes marked as have."
+        : marchingBand
+          ? "Instrumentation notes saved. Notes marked as have."
+          : "Routine notes saved. Notes marked as have.";
     addNotification({
       type: "mtd_move",
       title: kind === "songs" ? "Songs updated" : "Notes updated",
       message:
         direction === "to_red"
           ? kind === "songs"
-            ? anthem
-              ? "Instrumental style preference cleared. Song marked as not have."
-              : "Song list cleared. Songs marked as not have."
-            : anthem
-              ? "Lyrical notes cleared. Notes marked as not have."
-              : "Routine notes cleared. Notes marked as not have."
+            ? songsClearMsg
+            : notesClearMsg
           : kind === "songs"
-            ? anthem
-              ? "Instrumental style preference saved. Song marked as have."
-              : "Song list saved. Songs marked as have."
-            : anthem
-              ? "Lyrical notes saved. Notes marked as have."
-              : "Routine notes saved. Notes marked as have.",
+            ? songsSaveMsg
+            : notesSaveMsg,
     });
     setConfirm(null);
   };
@@ -509,10 +655,8 @@ export function OrderRequirementsCell({
         direction={confirm?.direction || "to_red"}
         currentText={confirm?.currentText || ""}
         fieldLabel={
-          isAnthemOrder(requirementsRecord)
-            ? confirm?.kind === "notes"
-              ? "Lyrical Notes"
-              : "Instrumental Style Preference"
+          confirm
+            ? confirmClearFieldLabel(requirementsRecord, confirm.kind)
             : undefined
         }
         onClose={() => setConfirm(null)}

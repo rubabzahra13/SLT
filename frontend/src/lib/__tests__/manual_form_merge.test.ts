@@ -10,6 +10,7 @@ import {
   buildSplitPreviewRows,
   mergeFormIntoManualOrder,
   mergeFormWinsIntoManualOrder,
+  reconcileUnlinkedManualFormPairs,
   repairCorruptCrossCategoryFormMerge,
   resolveManualFormPair,
   splitManualFormPair,
@@ -166,6 +167,32 @@ describe("manual ↔ form merge", () => {
     assert.equal(mergedManual.isManualEntry, true);
     assert.equal(isAbsorbedFormOrder(absorbed), true);
     assert.equal(absorbed.mergedIntoManualOrderId, "manual-1");
+  });
+
+  it("applyManualFormMerges keeps snapshotted manual edits (soft merge, not hard form-wins)", () => {
+    const manual = baseOrder({
+      id: "manual-1",
+      isManualEntry: true,
+      programName: "Spirit Athletics",
+      gymName: "Spirit Athletics",
+      city: "Edited City",
+      mergedFormOrderId: "form-1",
+      manualOverlapSnapshot: { city: "" },
+    });
+    const form = baseOrder({
+      id: "form-1",
+      isManualEntry: false,
+      programName: "Spirit Athletics",
+      gymName: "Spirit Athletics",
+      city: "Austin",
+      mergedIntoManualOrderId: "manual-1",
+    });
+    const result = applyManualFormMerges([manual, form]);
+    assert.equal(
+      result.find((o) => o.id === "manual-1")!.city,
+      "Edited City",
+      "persisted manual edit must survive board reload after snapshot"
+    );
   });
 
   it("listPreMtdOrderRecords keeps manual + Magento form as two rows until receive merges", () => {
@@ -589,5 +616,99 @@ describe("manual ↔ form merge", () => {
       gymName: "",
     });
     assert.equal(findMatchingManualOrder(hipHopForm, [pomManual]), null);
+  });
+
+  it("reconcileUnlinkedManualFormPairs links Sports Entertainment by organization name", () => {
+    const manual = baseOrder({
+      id: "m-se",
+      isManualEntry: true,
+      formType: "sports-entertainment",
+      cheerFormSubtype: undefined,
+      programName: "ABC Org",
+      organizationName: "ABC Org",
+      gymName: "",
+      city: "Islamabad",
+      package: "PRE-GAME / HALFTIME REMIXED",
+    });
+    const form = baseOrder({
+      id: "f-se",
+      isManualEntry: false,
+      formType: "sports-entertainment",
+      cheerFormSubtype: undefined,
+      programName: "ABC Org",
+      organizationName: "ABC Org",
+      gymName: "",
+      city: "Islamabad",
+      stateProvince: "ICT",
+      timeLengthOfMix: "2:00",
+      package: "PRE-GAME / HALFTIME REMIXED",
+      createdAt: "2026-10-16T04:30:00.000Z",
+    });
+
+    assert.equal(getOrderIdentityName(manual), "ABC Org");
+    assert.equal(getOrderIdentityName(form), "ABC Org");
+
+    const { orders, merges } = reconcileUnlinkedManualFormPairs([manual, form]);
+    assert.equal(merges.length, 1);
+    assert.equal(merges[0].manualId, "m-se");
+    assert.equal(merges[0].formId, "f-se");
+
+    const linkedManual = orders.find((o) => o.id === "m-se")!;
+    const linkedForm = orders.find((o) => o.id === "f-se")!;
+    assert.equal(linkedManual.mergedFormOrderId, "f-se");
+    assert.equal(linkedForm.mergedIntoManualOrderId, "m-se");
+    assert.equal(linkedManual.isManualEntry, true);
+    assert.equal(linkedManual.timeLengthOfMix, "2:00");
+
+    // Pair resolves for Overwrite / Split UI.
+    const pair = resolveManualFormPair(linkedManual, orders);
+    assert.ok(pair);
+    assert.equal(pair!.form.id, "f-se");
+  });
+
+  it("reconcileUnlinkedManualFormPairs is idempotent for already-linked pairs", () => {
+    const manual = baseOrder({
+      id: "m1",
+      isManualEntry: true,
+      programName: "Thunder Elite",
+      gymName: "Thunder Elite",
+      mergedFormOrderId: "f1",
+    });
+    const form = baseOrder({
+      id: "f1",
+      isManualEntry: false,
+      programName: "Thunder Elite",
+      gymName: "Thunder Elite",
+      mergedIntoManualOrderId: "m1",
+      city: "Dallas",
+    });
+    const { merges } = reconcileUnlinkedManualFormPairs([manual, form]);
+    assert.equal(merges.length, 0);
+  });
+
+  it("reconcileUnlinkedManualFormPairs claims one form per manual", () => {
+    const manual = baseOrder({
+      id: "m1",
+      isManualEntry: true,
+      programName: "Thunder Elite",
+      gymName: "Thunder Elite",
+    });
+    const formA = baseOrder({
+      id: "f-a",
+      isManualEntry: false,
+      programName: "Thunder Elite",
+      gymName: "Thunder Elite",
+      createdAt: "2026-10-01",
+    });
+    const formB = baseOrder({
+      id: "f-b",
+      isManualEntry: false,
+      programName: "Thunder Elite",
+      gymName: "Thunder Elite",
+      createdAt: "2026-10-02",
+    });
+    const { merges } = reconcileUnlinkedManualFormPairs([manual, formA, formB]);
+    assert.equal(merges.length, 1);
+    assert.equal(merges[0].formId, "f-a");
   });
 });

@@ -18,6 +18,7 @@ import {
 } from "@/lib/pricing";
 import {
   affiliateIdsEqual,
+  applyDbMusicAffiliates,
   applyDbPricingRules,
   categoryKeyToDbPricingTarget,
   DB_BACKED_PRICING_CATEGORIES,
@@ -28,6 +29,7 @@ import {
   savePricingReferenceStore,
   updateCategoryPricingSnapshot,
   type CategoryKey,
+  type CategoryMusicAffiliateEntry,
   type CategoryPricingSnapshot,
   type FlatPackagePricingRow,
   normalizeCompliantAffiliateLabelOverride,
@@ -41,6 +43,7 @@ import {
   fetchPricingRulesApi,
   savePricingRulesApi,
 } from "@/lib/api/pricing-rules";
+import { saveMusicAffiliatesApi } from "@/lib/api/music-affiliates";
 import {
   magentoPricingPackageLabel,
   sortMarchingBandPricingRows,
@@ -72,6 +75,12 @@ function cloneCategorySnapshot(snapshot: CategoryPricingSnapshot): CategoryPrici
     compliantAffiliateLabels: snapshot.compliantAffiliateLabels
       ? { ...snapshot.compliantAffiliateLabels }
       : {},
+    nonCompliantAffiliateLabels: snapshot.nonCompliantAffiliateLabels
+      ? { ...snapshot.nonCompliantAffiliateLabels }
+      : {},
+    musicAffiliateCatalog: snapshot.musicAffiliateCatalog
+      ? snapshot.musicAffiliateCatalog.map((entry) => ({ ...entry }))
+      : undefined,
     addOns: snapshot.addOns.map((addon) => ({ ...addon })),
     rows: snapshot.rows.map((row) => ({ ...row })),
   };
@@ -558,34 +567,56 @@ export function SetPricingModal({
     selectedCategory === "School Cheer" ||
     selectedCategory === "Youth Rec Cheer" ||
     activeSnapshot.rows[0]?.kind === "tier-time";
-  const affiliateOptions = useMemo(
-    () => getVisibleMusicAffiliateOptions(selectedCategory),
-    [selectedCategory]
-  );
-  const compliantLabelsDirty = useMemo(
-    () =>
-      affiliateOptions.some((option) => {
-        const saved = resolveCompliantAffiliateLabel(
+  const catalogForCategory = useMemo(() => {
+    return (
+      getCategoryPricingSnapshot(selectedCategory, referenceStore)
+        .musicAffiliateCatalog || []
+    );
+  }, [referenceStore, selectedCategory]);
+
+  // Edit mode: full master list so removed options can be re-added.
+  // View mode: only the DB SoftSelect catalog for this category.
+  const affiliateOptions = useMemo(() => {
+    if (!isEditingCompliant && catalogForCategory.length > 0) {
+      return catalogForCategory.map((entry) => ({
+        id: entry.id,
+        label: entry.label,
+        alwaysNonCompliant: !entry.isCompliant,
+        danceOnly: undefined as boolean | undefined,
+      }));
+    }
+    return getVisibleMusicAffiliateOptions(selectedCategory);
+  }, [catalogForCategory, isEditingCompliant, selectedCategory]);
+  const compliantLabelsDirty = useMemo(() => {
+    if (!isEditingCompliant) return false;
+    const master = getVisibleMusicAffiliateOptions(selectedCategory);
+    const catalogIds = new Set(catalogForCategory.map((entry) => entry.id));
+    return master.some((option) => {
+      const draft = (compliantLabelDraft[option.id] ?? "").trim();
+      const fromCatalog = catalogForCategory.find(
+        (entry) => entry.id === option.id
+      );
+      if (catalogForCategory.length && !catalogIds.has(option.id)) {
+        // Removed option stays clean while label remains empty.
+        return draft !== "";
+      }
+      const saved =
+        fromCatalog?.label ??
+        resolveCompliantAffiliateLabel(
           option.id,
           savedCompliantLabels,
           savedNonCompliantLabels
         );
-        const draft =
-          compliantLabelDraft[option.id] ??
-          resolveCompliantAffiliateLabel(
-            option.id,
-            savedCompliantLabels,
-            savedNonCompliantLabels
-          );
-        return saved !== draft.trim();
-      }),
-    [
-      affiliateOptions,
-      compliantLabelDraft,
-      savedCompliantLabels,
-      savedNonCompliantLabels,
-    ]
-  );
+      return saved !== draft;
+    });
+  }, [
+    catalogForCategory,
+    compliantLabelDraft,
+    isEditingCompliant,
+    savedCompliantLabels,
+    savedNonCompliantLabels,
+    selectedCategory,
+  ]);
   const compliantDirty =
     !affiliateIdsEqual(compliantDraft, savedCompliantIds) || compliantLabelsDirty;
   const compliantSelections = useMemo(
@@ -636,21 +667,43 @@ export function SetPricingModal({
   const startEditingCompliant = useCallback(() => {
     setIsEditingPricing(false);
     setDraftSnapshot(null);
-    setCompliantDraft([...savedCompliantIds]);
+    setAffiliateSaveError(null);
+    const catalog = getCategoryPricingSnapshot(
+      selectedCategory,
+      referenceStore
+    ).musicAffiliateCatalog;
+    const catalogById = new Map(
+      (catalog || []).map((entry) => [entry.id, entry])
+    );
+    // Prefer catalog compliant ids when DB-hydrated.
+    setCompliantDraft(
+      catalog?.length
+        ? catalog.filter((entry) => entry.isCompliant).map((entry) => entry.id)
+        : [...savedCompliantIds]
+    );
     setCompliantLabelDraft(
       Object.fromEntries(
-        getVisibleMusicAffiliateOptions(selectedCategory).map((option) => [
-          option.id,
-          resolveCompliantAffiliateLabel(
+        getVisibleMusicAffiliateOptions(selectedCategory).map((option) => {
+          const fromCatalog = catalogById.get(option.id);
+          if (catalog?.length && !fromCatalog) {
+            // Previously removed from SoftSelect — keep empty until re-typed.
+            return [option.id, ""];
+          }
+          return [
             option.id,
-            savedCompliantLabels,
-            savedNonCompliantLabels
-          ),
-        ])
+            fromCatalog?.label ??
+              resolveCompliantAffiliateLabel(
+                option.id,
+                savedCompliantLabels,
+                savedNonCompliantLabels
+              ),
+          ];
+        })
       )
     );
     setIsEditingCompliant(true);
   }, [
+    referenceStore,
     savedCompliantIds,
     savedCompliantLabels,
     savedNonCompliantLabels,
@@ -702,45 +755,99 @@ export function SetPricingModal({
     }
   }, [draftSnapshot, referenceStore, selectedCategory]);
 
-  const saveCompliantAffiliates = useCallback(() => {
-    const visibleIds = new Set(affiliateOptions.map((option) => option.id));
-    const nextIds = compliantDraft.filter((id) => visibleIds.has(id));
+  const [affiliateSaveError, setAffiliateSaveError] = useState<string | null>(
+    null
+  );
+  const [isSavingAffiliates, setIsSavingAffiliates] = useState(false);
+
+  const saveCompliantAffiliates = useCallback(async () => {
+    setAffiliateSaveError(null);
+    const masterOptions = getVisibleMusicAffiliateOptions(selectedCategory);
+    const catalog: CategoryMusicAffiliateEntry[] = [];
+    const nextIds: string[] = [];
     const nextLabels: Partial<Record<string, string>> = {};
     const nextNonCompliantLabels: Partial<Record<string, string>> = {};
-    for (const option of affiliateOptions) {
-      const draftLabel =
+
+    for (const option of masterOptions) {
+      const draftLabel = (
         compliantLabelDraft[option.id] ??
         resolveCompliantAffiliateLabel(
           option.id,
           savedCompliantLabels,
           savedNonCompliantLabels
-        );
+        )
+      ).trim();
+      // Empty label removes the option from SoftSelect + DB catalog.
+      if (!draftLabel) continue;
+
+      const checked = compliantDraft.includes(option.id);
+      const isCompliant = checked && !option.alwaysNonCompliant;
+      catalog.push({
+        id: option.id,
+        label: draftLabel,
+        isCompliant,
+      });
+      if (isCompliant) nextIds.push(option.id);
+
       const override = normalizeCompliantAffiliateLabelOverride(
         option.id,
         draftLabel
       );
-      if (!override) continue;
-      if (option.alwaysNonCompliant) {
-        nextNonCompliantLabels[option.id] = override;
-      } else {
-        nextLabels[option.id] = override;
+      if (override) {
+        if (option.alwaysNonCompliant || !isCompliant) {
+          nextNonCompliantLabels[option.id] = override;
+        } else {
+          nextLabels[option.id] = override;
+        }
       }
     }
-    const next = updateCategoryPricingSnapshot(referenceStore, selectedCategory, {
-      compliantAffiliateIds: nextIds,
-      compliantAffiliateLabels: nextLabels,
-      nonCompliantAffiliateLabels: nextNonCompliantLabels,
-    });
-    savePricingReferenceStore(next);
-    setReferenceStore(next);
-    setCompliantDraft(nextIds);
-    setSavedCompliantIds(nextIds);
-    setSavedCompliantLabels(nextLabels);
-    setSavedNonCompliantLabels(nextNonCompliantLabels);
-    setCompliantLabelDraft({});
-    setIsEditingCompliant(false);
+
+    const dbTarget = categoryKeyToDbPricingTarget(selectedCategory);
+    if (!dbTarget || !DB_BACKED_PRICING_CATEGORIES.has(selectedCategory)) {
+      setAffiliateSaveError("This category cannot be saved to the database");
+      return;
+    }
+
+    setIsSavingAffiliates(true);
+    try {
+      const saved = await saveMusicAffiliatesApi(
+        dbTarget.formType,
+        catalog.map((entry, sortOrder) => ({
+          option_key: entry.id,
+          label: entry.label,
+          is_compliant: entry.isCompliant,
+          enabled: true,
+          sort_order: sortOrder,
+        })),
+        dbTarget.subtypeId
+      );
+      const hydrated = applyDbMusicAffiliates(saved, referenceStore);
+      // Ensure this category reflects the just-saved catalog even if API
+      // returns only this subtype (applyDbMusicAffiliates already does).
+      const next = updateCategoryPricingSnapshot(hydrated, selectedCategory, {
+        musicAffiliateCatalog: catalog,
+        compliantAffiliateIds: nextIds,
+        compliantAffiliateLabels: nextLabels,
+        nonCompliantAffiliateLabels: nextNonCompliantLabels,
+      });
+      savePricingReferenceStore(next);
+      setReferenceStore(next);
+      setCompliantDraft(nextIds);
+      setSavedCompliantIds(nextIds);
+      setSavedCompliantLabels(nextLabels);
+      setSavedNonCompliantLabels(nextNonCompliantLabels);
+      setCompliantLabelDraft({});
+      setIsEditingCompliant(false);
+    } catch (err) {
+      setAffiliateSaveError(
+        err instanceof Error
+          ? err.message
+          : "Could not save affiliates to database"
+      );
+    } finally {
+      setIsSavingAffiliates(false);
+    }
   }, [
-    affiliateOptions,
     compliantDraft,
     compliantLabelDraft,
     referenceStore,
@@ -1456,9 +1563,7 @@ export function SetPricingModal({
                     <p className="mt-0.5 text-[12px] text-neutral-600">
                       {isEditingCompliant
                         ? "Check which affiliate values count as compliant for payroll pricing."
-                        : selectedCategory === "All-Star Cheer"
-                          ? "Compliant: Power Music & Unleash Covers, Power Music Covers, Unleash the Beats Covers, Songs for Cheer, and 100% original custom music. Non-compliant: “Non compliant” or any other free text. Choosing more than one compliant option flags the order until resolved to one."
-                          : "Free-text affiliates matching a known compliant option (any spacing or capitalization) use the compliant column; “Non compliant” or any other text uses the non-compliant column. Multiple compliant selections flag the order until resolved to one."}
+                        : "Checked = compliant payroll. Clear a label and Save to remove that option from SoftSelect for this category. Changes persist to the database and drive new-order options + intake matching."}
                     </p>
                   </div>
                   {!isEditingCompliant ? (
@@ -1580,20 +1685,26 @@ export function SetPricingModal({
             ) : null}
             {isEditingCompliant ? (
               <>
+                {affiliateSaveError ? (
+                  <p className="mr-auto max-w-sm text-[12px] font-medium text-red-600">
+                    {affiliateSaveError}
+                  </p>
+                ) : null}
                 <button
                   type="button"
                   onClick={cancelEditingCompliant}
-                  className="rounded-xl border border-neutral-300 bg-white px-4 py-2 text-[13px] font-semibold text-neutral-700 transition hover:bg-neutral-50"
+                  disabled={isSavingAffiliates}
+                  className="rounded-xl border border-neutral-300 bg-white px-4 py-2 text-[13px] font-semibold text-neutral-700 transition hover:bg-neutral-50 disabled:opacity-60"
                 >
                   Cancel edits
                 </button>
                 <button
                   type="button"
-                  onClick={saveCompliantAffiliates}
-                  disabled={!compliantDirty}
+                  onClick={() => void saveCompliantAffiliates()}
+                  disabled={!compliantDirty || isSavingAffiliates}
                   className="rounded-xl bg-brand-blue px-5 py-2 text-[13px] font-bold text-white shadow-sm transition hover:bg-brand-blue-hover disabled:cursor-not-allowed disabled:bg-neutral-300"
                 >
-                  Save compliance
+                  {isSavingAffiliates ? "Saving…" : "Save affiliates"}
                 </button>
               </>
             ) : null}

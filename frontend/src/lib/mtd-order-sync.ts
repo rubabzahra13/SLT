@@ -1,5 +1,7 @@
 import type { MTDRecord, Order } from "@/types";
 import { parsePackage } from "@/lib/package";
+import { rawFieldValue } from "@/lib/order-detail-fields";
+import { getOrderDetailSections } from "@/lib/order-detail-sections";
 
 /** MTD patches when an order form field changes. */
 export function mtdPatchFromOrderField(
@@ -27,7 +29,7 @@ export function mtdPatchFromOrderField(
       // packageType is tier-only; MTD package label is composed separately.
       return {};
     case "timeLengthOfMix":
-      return {};
+      return { timeLengthOfMix: value };
     case "songListSuggestions":
     case "powerMusicCovers":
     case "unleashTheBeatsCovers":
@@ -199,7 +201,7 @@ export function orderPatchFromOrderField(
     }
   }
   if (key === "timeLengthOfMix") {
-    // Only cheer mix length rewrites the composed package label.
+    // Cheer mix length rewrites the composed package label (GOLD 2:00).
     if (current?.formType === "school-all-star-cheer") {
       const packageSource = current?.packageType || current?.package || "";
       if (packageSource.trim()) {
@@ -211,7 +213,31 @@ export function orderPatchFromOrderField(
         patch.packageType = tier;
         patch.package = composePackageLabel(tier, value);
       }
+    } else if (current?.formType && current.formType !== "school-anthem") {
+      // SE / Dance / Band: keep Magento PACKAGE TYPE flat. Strip any legacy
+      // " … 2:00" so clearing Time Length cannot be revived from package.
+      const flat =
+        String(current.packageType || "").trim() ||
+        (() => {
+          const tier = parsePackage(current.package || "").tier;
+          return tier && tier !== "-" ? tier : "";
+        })() ||
+        String(current.package || "")
+          .replace(/\s+\d+:\d{2}\b/g, "")
+          .trim();
+      if (flat) {
+        patch.packageType = flat;
+        patch.package = flat;
+      }
     }
+    // Clear manual Mix pill override so green/red follows Time Length again.
+    const prevStates =
+      ((current?.collectionStates as Record<string, unknown> | null) ||
+        {}) as Record<string, unknown>;
+    const nextStates = { ...prevStates };
+    delete nextStates.mix;
+    delete nextStates.time_of_mix;
+    patch.collectionStates = nextStates as Order["collectionStates"];
   }
   if (key === "songListSuggestions" || key === "routineNotes") {
     // Cheer song list / notes feed the legacy musicTheme column.
@@ -300,8 +326,11 @@ export function orderPatchFromOrderField(
     const intent = String(value || "").trim().toUpperCase();
     if (intent === "Y" || intent.startsWith("YES")) {
       patch.clientRequestedRushOrder = "Yes";
+      // Keep admin/payroll is_rush_order aligned with Magento SE answer.
+      patch.isRushOrder = "Yes";
     } else if (intent === "N" || intent.startsWith("NO")) {
       patch.clientRequestedRushOrder = "No";
+      patch.isRushOrder = "No";
     } else {
       patch.clientRequestedRushOrder = value;
     }
@@ -349,5 +378,37 @@ export function orderPatchFromOrderField(
     patch.division = value;
   }
 
+  return patch;
+}
+
+/**
+ * Magento form-field patch for a linked form row when the paired manual is saved.
+ * Form is SoT after match — without this, reload form-wins revive stale form values.
+ */
+export function buildLinkedFormSyncPatch(draft: Order): Partial<Order> {
+  const patch: Partial<Order> = {};
+  for (const section of getOrderDetailSections(draft)) {
+    for (const field of section.fields) {
+      Object.assign(
+        patch,
+        orderPatchFromOrderField(
+          field.key,
+          rawFieldValue(draft, field.key),
+          draft
+        )
+      );
+    }
+  }
+  // Never rewrite merge / admin identity on the absorbed form row.
+  delete patch.isManualEntry;
+  delete patch.mergedFormOrderId;
+  delete patch.mergedIntoManualOrderId;
+  delete patch.manualOverlapSnapshot;
+  delete patch.suppressManualFormMerge;
+  delete patch.assignedProducer;
+  delete patch.mixStartDate;
+  delete patch.mixEndDate;
+  delete patch.status;
+  delete patch.orderStatus;
   return patch;
 }

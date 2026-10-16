@@ -51,10 +51,6 @@ function normalizeMixLength(
   }
   const match = trimmed.match(/\d+:\d{2}/);
   if (match) {
-    // Magento SoftSelect has no 2:00 — map legacy School Cheer / VIROC → 2:15.
-    if (isSchoolCheerSubtype(cheerSubtype) && match[0] === "2:00") {
-      return "2:15";
-    }
     // Magento SoftSelect has no 2:15 — map legacy Youth Rec 2:15 → 2:30.
     if (cheerSubtype === "youth-rec-cheer" && match[0] === "2:15") {
       return "2:30";

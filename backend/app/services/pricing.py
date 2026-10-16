@@ -173,7 +173,12 @@ def calculate_pricing(
     )
 
     # --- 2. Compliance -----------------------------------------------------
-    compliance: ComplianceResult = resolve_compliance(db, music_affiliate)
+    compliance: ComplianceResult = resolve_compliance(
+        db,
+        music_affiliate,
+        form_type=form_type,
+        subtype_id=cheer_subtype or dance_subtype,
+    )
 
     # --- 3. Early-exit if needs manual pricing ----------------------------
     if classification.status == "needs_manual_pricing":

@@ -352,12 +352,14 @@ export function AddNewOrderModal({
       packageTypeDisplayValue(orderDraft.packageType || "") ||
       packageTypeDisplayValue(orderDraft.package || "");
     const mixLength = (orderDraft.timeLengthOfMix || "").trim();
+    // Never fall back to subcategory/category labels (e.g. "POM") as the package —
+    // those are not Magento packages and used to substring-match CUSTOM POM ($850).
+    // Empty SoftSelect → empty package → $0 until a real package is chosen.
     const selectedPkg =
       formType === "school-all-star-cheer"
-        ? composePackageLabel(tier, mixLength) || subcategory || category
-        : (orderDraft.packageType || orderDraft.package || "").trim() ||
-          subcategory ||
-          category;
+        ? composePackageLabel(tier, mixLength)
+        : tier ||
+          (orderDraft.packageType || orderDraft.package || "").trim();
 
     const contact =
       orderDraft.coachName ||

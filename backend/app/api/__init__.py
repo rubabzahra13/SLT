@@ -12,6 +12,7 @@ from app.api.studio_settings import router as studio_settings_router
 from app.api.bootstrap import router as bootstrap_router
 from app.api.catalog_pricing import router as catalog_pricing_router
 from app.api.pricing_rules import router as pricing_rules_router
+from app.api.music_affiliates import router as music_affiliates_router
 
 api_router = APIRouter()
 api_router.include_router(health_router, tags=["health"])
@@ -25,6 +26,7 @@ api_router.include_router(discount_codes_router, prefix="/api", tags=["discount_
 api_router.include_router(pricing_router, prefix="/api", tags=["pricing"])
 api_router.include_router(catalog_pricing_router, prefix="/api", tags=["catalog_pricing"])
 api_router.include_router(pricing_rules_router, prefix="/api", tags=["pricing_rules"])
+api_router.include_router(music_affiliates_router, prefix="/api", tags=["music_affiliates"])
 api_router.include_router(gmail_router, prefix="/api", tags=["gmail"])
 api_router.include_router(payroll_addons_router, prefix="/api", tags=["payroll_addons"])
 api_router.include_router(studio_settings_router, prefix="/api", tags=["studio_settings"])

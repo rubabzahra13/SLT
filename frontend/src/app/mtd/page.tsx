@@ -822,14 +822,6 @@ function MTDPageContent() {
                 let limit =
                   fromOrder ||
                   (fromPackage && fromPackage !== "-" ? fromPackage : "");
-                // Magento SoftSelect Length of Mix has no 2:00 for School Cheer / VIROC.
-                if (
-                  (meta.cheerFormSubtype === "school-cheer-viroc-yes" ||
-                    meta.cheerFormSubtype === "school-cheer-viroc-no") &&
-                  limit === "2:00"
-                ) {
-                  limit = "2:15";
-                }
                 // Magento SoftSelect Mix Length has no 2:15 for Youth Rec.
                 if (
                   meta.cheerFormSubtype === "youth-rec-cheer" &&

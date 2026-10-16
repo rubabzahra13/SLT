@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowRight, Flag, Mail, Pencil } from "lucide-react";
+import { ArrowRight, Flag, Mail, Pencil, TriangleAlert } from "lucide-react";
 import clsx from "clsx";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Avatar } from "@/components/ui/Avatar";
@@ -47,6 +47,7 @@ import {
   getProgramColumnHeader,
 } from "@/lib/order-detail-sections";
 import { orderFromMTDRecord } from "@/lib/order-detail-fields";
+import { resolveManualFormPair } from "@/lib/manual-form-merge";
 import {
   formatOrderFormMtdBlockReason,
   getOrderFormFieldsBlockingMtd,
@@ -847,14 +848,6 @@ function OrdersPageContent() {
                 let limit =
                   fromOrder ||
                   (fromPackage && fromPackage !== "-" ? fromPackage : "");
-                // Magento SoftSelect Length of Mix has no 2:00 for School Cheer / VIROC.
-                if (
-                  (meta.cheerFormSubtype === "school-cheer-viroc-yes" ||
-                    meta.cheerFormSubtype === "school-cheer-viroc-no") &&
-                  limit === "2:00"
-                ) {
-                  limit = "2:15";
-                }
                 // Magento SoftSelect Mix Length has no 2:15 for Youth Rec.
                 if (
                   meta.cheerFormSubtype === "youth-rec-cheer" &&
@@ -1356,7 +1349,16 @@ function OrdersPageContent() {
         cellClassName: compactCellClass,
         headerClassName: clsx(compactHeaderClass, "whitespace-pre-line leading-tight"),
         render: (rec: MTDRecord) => {
-          const isRush = recordIsRushOrder(rec);
+          const linked = findLinkedOrder(rec, allOrders);
+          const rushSource = linked
+            ? { ...rec, ...linked, formType: linked.formType || rec.formType }
+            : rec;
+          const isRush = recordIsRushOrder(rushSource);
+          const isSportsEnt =
+            String(rushSource.formType || "").toLowerCase().includes("sports") ||
+            String(rushSource.category || "")
+              .toLowerCase()
+              .includes("sports");
           return (
             <div
               className="flex justify-center"
@@ -1368,9 +1370,20 @@ function OrdersPageContent() {
                 readOnly={isViewOnly}
                 onToggle={() => {
                   const next = isRush ? "no" : "yes";
-                  updateMTD(rec.id, { isRushOrder: next });
+                  const nextLabel = next === "yes" ? "Yes" : "No";
+                  updateMTD(rec.id, {
+                    isRushOrder: next,
+                    ...(isSportsEnt
+                      ? { clientRequestedRushOrder: nextLabel }
+                      : {}),
+                  } as Partial<MTDRecord>);
                   if (rec.orderId) {
-                    updateOrder(rec.orderId, { isRushOrder: next });
+                    updateOrder(rec.orderId, {
+                      isRushOrder: nextLabel,
+                      ...(isSportsEnt
+                        ? { clientRequestedRushOrder: nextLabel }
+                        : {}),
+                    });
                   }
                 }}
               />
@@ -1606,6 +1619,10 @@ function OrdersPageContent() {
           }
 
           const linkedForForm = findLinkedOrder(rec, allOrders);
+          const pairBase = linkedForForm ?? orderFromMTDRecord(rec);
+          const hasFormOverride = Boolean(
+            resolveManualFormPair(pairBase, allOrders)
+          );
           const reqSource = linkedForForm
             ? mergeOrderFormFieldsForRequirements(rec, linkedForForm)
             : rec;
@@ -1693,6 +1710,26 @@ function OrdersPageContent() {
                   <Pencil className="h-3.5 w-3.5 shrink-0" strokeWidth={2.25} />
                 </button>
               </HoverTip>
+              {hasFormOverride ? (
+                <HoverTip label="Override found" placement="top">
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setOrderFormRowId(index + 1);
+                      setOrderFormRecord(rec);
+                    }}
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-brand-warning/40 bg-brand-warning/10 text-brand-warning shadow-sm transition hover:border-brand-warning/55 hover:bg-brand-warning/18 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-warning/25"
+                    aria-label={`Override found: ${rec.programName || "order"}`}
+                  >
+                    <TriangleAlert
+                      className="h-3.5 w-3.5 shrink-0"
+                      strokeWidth={2.25}
+                    />
+                  </button>
+                </HoverTip>
+              ) : null}
               {!isViewOnly ? (
                 <HoverTip
                   label={

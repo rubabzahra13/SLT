@@ -143,6 +143,9 @@ export function stagingRecordFromOrder(order: Order): MTDRecord {
     // School Anthem Song/Notes pills (and Marching Band instrumentation).
     instrumentationNotes: order.instrumentationNotes,
     lyricalNotes: order.lyricalNotes,
+    // Rush column: SE customer answer + admin board flag.
+    isRushOrder: order.isRushOrder,
+    clientRequestedRushOrder: order.clientRequestedRushOrder,
   };
 }
 
@@ -174,11 +177,24 @@ export function mergeCollectionStateFromOrder(
   const orderStates =
     order.collectionStates || (order as { collection_states?: Record<string, boolean> }).collection_states;
   const recordStates = record.collectionStates;
-  const nextStates = hasCollectionStates(recordStates)
+  let nextStates = hasCollectionStates(recordStates)
     ? recordStates
     : hasCollectionStates(orderStates)
       ? orderStates
       : recordStates;
+  // Cleared Time Length must drop stale Mix green overrides on staging/MTD rows.
+  if (
+    order.timeLengthOfMix !== undefined &&
+    order.timeLengthOfMix !== null &&
+    !String(order.timeLengthOfMix).trim() &&
+    nextStates &&
+    (typeof nextStates.mix === "boolean" ||
+      typeof nextStates.time_of_mix === "boolean")
+  ) {
+    nextStates = { ...nextStates };
+    delete nextStates.mix;
+    delete nextStates.time_of_mix;
+  }
 
   const orderHaveSongs = order.haveSongs || (order as { have_songs?: string }).have_songs || "";
   const orderCs = collectionCsFromOrder(order);
@@ -242,12 +258,25 @@ export function mergeCollectionStateFromOrder(
       order.songListSuggestions !== undefined && order.songListSuggestions !== null
         ? order.songListSuggestions
         : pickFilled(record.songListSuggestions, orderSongs),
-    timeLengthOfMix: pickFilled(record.timeLengthOfMix, orderMixLen),
+    // Cleared Time Length must win over stale staging/MTD mix length.
+    timeLengthOfMix:
+      order.timeLengthOfMix !== undefined && order.timeLengthOfMix !== null
+        ? order.timeLengthOfMix
+        : pickFilled(record.timeLengthOfMix, orderMixLen),
     musicAffiliate: pickFilled(record.musicAffiliate, orderAffiliate),
     routineNotes:
       order.routineNotes !== undefined && order.routineNotes !== null
         ? order.routineNotes
         : pickFilled(record.routineNotes, orderNotes),
+    isRushOrder:
+      order.isRushOrder !== undefined && order.isRushOrder !== null
+        ? order.isRushOrder
+        : record.isRushOrder,
+    clientRequestedRushOrder:
+      order.clientRequestedRushOrder !== undefined &&
+      order.clientRequestedRushOrder !== null
+        ? order.clientRequestedRushOrder
+        : record.clientRequestedRushOrder,
     instrumentationNotes:
       order.instrumentationNotes !== undefined &&
       order.instrumentationNotes !== null

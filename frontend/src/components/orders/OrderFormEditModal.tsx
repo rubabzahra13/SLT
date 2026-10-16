@@ -22,6 +22,7 @@ import {
   orderFormFieldsDirty,
 } from "@/lib/order-detail-sections";
 import {
+  buildLinkedFormSyncPatch,
   mtdPatchFromOrderField,
   orderPatchFromOrderField,
 } from "@/lib/mtd-order-sync";
@@ -36,7 +37,7 @@ type OrderFormEditModalProps = {
   open: boolean;
   record: MTDRecord | null;
   allOrders: Order[];
-  /** 1-based Orders/MTD table ID column value for this row. */
+  /** Optional board row index — unused in the header (no IDs in UI). */
   rowId?: number | null;
   onClose: () => void;
 };
@@ -45,7 +46,6 @@ export function OrderFormEditModal({
   open,
   record,
   allOrders,
-  rowId = null,
   onClose,
 }: OrderFormEditModalProps) {
   const {
@@ -181,7 +181,7 @@ export function OrderFormEditModal({
     });
   }, []);
 
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback(async () => {
     if (!displayOrder || !orderDraft || !record || isViewOnly || !isDirty) return;
 
     // Order is source of truth for form fields. Same column mapping as Add New
@@ -193,23 +193,36 @@ export function OrderFormEditModal({
       !orderDraft.requestedEditor
         ? "FA"
         : orderDraft.editorRequest || orderDraft.requestedEditor;
-    updateOrder(
-      displayOrder.id,
-      {
-        ...orderDraft,
-        editorRequest: editorInitials,
-        requestedProducer: orderDraft.requestedEditor || "",
-        sendingEightCountSheets:
-          orderDraft.sendingEightCountSheets ||
-          orderDraft.usingEightCountSheets ||
-          "",
-        usingEightCountSheets:
-          orderDraft.sendingEightCountSheets ||
-          orderDraft.usingEightCountSheets ||
-          "",
-      },
-      displayOrder
-    );
+    const savePatch: Partial<Order> = {
+      ...orderDraft,
+      editorRequest: editorInitials,
+      requestedProducer: orderDraft.requestedEditor || "",
+      sendingEightCountSheets:
+        orderDraft.sendingEightCountSheets ||
+        orderDraft.usingEightCountSheets ||
+        "",
+      usingEightCountSheets:
+        orderDraft.sendingEightCountSheets ||
+        orderDraft.usingEightCountSheets ||
+        "",
+    };
+
+    try {
+      await updateOrder(displayOrder.id, savePatch, displayOrder);
+
+      // Paired Magento form is SoT on reload (form-wins). Keep it in sync so
+      // edits on the manual slot are not revived from the stale form row.
+      if (pair?.form?.id && pair.form.id !== displayOrder.id) {
+        await updateOrder(
+          pair.form.id,
+          buildLinkedFormSyncPatch(orderDraft),
+          pair.form
+        );
+      }
+    } catch {
+      // updateOrder already notifies on failure.
+      return;
+    }
 
     const coveringMtd = mtdRecords.find(
       (rec) =>
@@ -233,7 +246,8 @@ export function OrderFormEditModal({
             field.key === "unleashTheBeatsCovers" ||
             field.key === "customerSongs" ||
             field.key === "routineNotes" ||
-            field.key === "additionalNotes"
+            field.key === "additionalNotes" ||
+            field.key === "timeLengthOfMix"
           ) {
             const prevStates =
               (coveringMtd?.collectionStates as
@@ -255,6 +269,10 @@ export function OrderFormEditModal({
               field.key === "additionalNotes"
             ) {
               delete nextStates.notes;
+            }
+            if (field.key === "timeLengthOfMix") {
+              delete nextStates.mix;
+              delete nextStates.time_of_mix;
             }
             void updateMTD(mtdTargetId, {
               ...mtdPatch,
@@ -281,6 +299,7 @@ export function OrderFormEditModal({
     displayOrder,
     orderDraft,
     record,
+    pair,
     mtdRecords,
     isViewOnly,
     isDirty,
@@ -302,19 +321,6 @@ export function OrderFormEditModal({
     displayOrder.customerName ||
     record.contactName ||
     "Customer";
-  // Prefer stable DB UUID — never imply the board row index is a PK.
-  const dbOrderId =
-    displayOrder.uuid ||
-    displayOrder.id ||
-    record.orderId ||
-    record.uuid ||
-    "";
-  const shortDbId =
-    dbOrderId.length > 12 ? `${dbOrderId.slice(0, 8)}…` : dbOrderId;
-  const idParts: string[] = [];
-  if (rowId != null && rowId > 0) idParts.push(`Row ${rowId}`);
-  if (shortDbId) idParts.push(`Order ${shortDbId}`);
-  const idLabel = idParts.length > 0 ? idParts.join(" · ") : null;
 
   return createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -339,11 +345,6 @@ export function OrderFormEditModal({
             <div className="min-w-0">
               <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-brand-ink-tertiary">
                 {isViewOnly ? "Order form" : "Edit order form"}
-                {idLabel ? (
-                  <span className="ml-2 font-semibold normal-case tracking-normal tabular-nums text-brand-ink-secondary">
-                    · {idLabel}
-                  </span>
-                ) : null}
               </p>
               <h2
                 id="order-form-edit-title"

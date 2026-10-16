@@ -19,6 +19,7 @@ import {
 } from "@/lib/pricing-engine";
 import type { BackendPricingRule } from "@/lib/api/pricing-rules";
 import type { DbBackedFormType } from "@/lib/api/pricing-rules";
+import type { BackendMusicAffiliateOption } from "@/lib/api/music-affiliates";
 import { parsePackage } from "@/lib/package";
 
 export type CategoryKey =
@@ -82,12 +83,21 @@ export type FlatPackagePricingRow = {
 
 export type PricingReferenceRow = TierTimePricingRow | FlatPackagePricingRow;
 
+/** SoftSelect row persisted from Pricing Reference / DB catalog. */
+export type CategoryMusicAffiliateEntry = {
+  id: string;
+  label: string;
+  isCompliant: boolean;
+};
+
 export type CategoryPricingSnapshot = {
   rows: PricingReferenceRow[];
   addOns: PricingReferenceAddOn[];
   compliantAffiliateIds: string[];
   compliantAffiliateLabels?: Partial<Record<string, string>>;
   nonCompliantAffiliateLabels?: Partial<Record<string, string>>;
+  /** Enabled SoftSelect options for this category (DB-backed when hydrated). */
+  musicAffiliateCatalog?: CategoryMusicAffiliateEntry[];
 };
 
 export type MusicAffiliateOption = {
@@ -105,8 +115,13 @@ export const COMPLIANT_AFFILIATE_OPTIONS: MusicAffiliateOption[] = [
     label:
       "Power Music & Unleash the Beats Covers (can not be used for a Titanium Package)",
   },
-  { id: "power-music-covers", label: "Power Music Covers" },
-  { id: "unleash-the-beats-covers", label: "Unleash the Beats Covers" },
+  /** Dance Magento checkboxes — not All-Star Cheer form options. */
+  { id: "power-music-covers", label: "Power Music Covers", danceOnly: true },
+  {
+    id: "unleash-the-beats-covers",
+    label: "Unleash the Beats Covers",
+    danceOnly: true,
+  },
   { id: "songs-for-cheer", label: "Songs for Cheer" },
   {
     id: "original-custom-music-titanium",
@@ -119,15 +134,154 @@ export const NON_COMPLIANT_AFFILIATE_OPTIONS: MusicAffiliateOption[] = [
   { id: "non-compliant", label: "Non compliant", alwaysNonCompliant: true },
 ];
 
-/** All-Star Cheer form / pricing affiliate choices (order shown in UI). */
+const CHEER_NON_TITANIUM_ONLY_AFFILIATE =
+  "Power Music & Unleash the Beats Covers (can not be used for a Titanium Package)";
+const CHEER_TITANIUM_ONLY_AFFILIATE =
+  "100% original custom music (titanium package only)";
+
+/**
+ * All-Star Cheer SoftSelect Magento set (exactly 4 options, incl. Songs for Cheer).
+ */
 export const ALL_STAR_CHEER_MUSIC_AFFILIATE_OPTIONS = [
-  "Power Music & Unleash the Beats Covers (can not be used for a Titanium Package)",
-  "Power Music Covers",
-  "Unleash the Beats Covers",
+  CHEER_NON_TITANIUM_ONLY_AFFILIATE,
   "Songs for Cheer",
-  "100% original custom music (titanium package only)",
+  CHEER_TITANIUM_ONLY_AFFILIATE,
   "Non compliant",
 ] as const;
+
+/**
+ * School Cheer / V!ROC SoftSelect Magento set (exactly 3 options — no Songs for Cheer).
+ */
+export const SCHOOL_CHEER_VIROC_MUSIC_AFFILIATE_OPTIONS = [
+  CHEER_NON_TITANIUM_ONLY_AFFILIATE,
+  CHEER_TITANIUM_ONLY_AFFILIATE,
+  "Non compliant",
+] as const;
+
+/** True when package tier is Titanium (All-Star / School Cheer). */
+export function isTitaniumCheerPackage(
+  packageTypeOrName?: string | null
+): boolean {
+  const raw = String(packageTypeOrName || "").toUpperCase();
+  return /\bTITANIUM\b/.test(raw);
+}
+
+function filterCheerAffiliatesByTitaniumPackage(
+  catalog: readonly string[],
+  packageTypeOrName?: string | null
+): string[] {
+  const titanium = isTitaniumCheerPackage(packageTypeOrName);
+  return catalog.filter((label) => {
+    if (label === CHEER_NON_TITANIUM_ONLY_AFFILIATE) return !titanium;
+    if (label === CHEER_TITANIUM_ONLY_AFFILIATE) return titanium;
+    return true;
+  });
+}
+
+/**
+ * All-Star Cheer SoftSelect filtered by package tier:
+ * - Power Music & Unleash… cannot be used on Titanium
+ * - 100% original custom music is Titanium-only
+ * - Songs for Cheer available on both
+ */
+export function allStarCheerMusicAffiliateOptionsForPackage(
+  packageTypeOrName?: string | null
+): string[] {
+  return filterCheerAffiliatesByTitaniumPackage(
+    ALL_STAR_CHEER_MUSIC_AFFILIATE_OPTIONS,
+    packageTypeOrName
+  );
+}
+
+/**
+ * School Cheer / V!ROC SoftSelect filtered by package tier (3 Magento options).
+ */
+export function schoolCheerVirocMusicAffiliateOptionsForPackage(
+  packageTypeOrName?: string | null
+): string[] {
+  return filterCheerAffiliatesByTitaniumPackage(
+    SCHOOL_CHEER_VIROC_MUSIC_AFFILIATE_OPTIONS,
+    packageTypeOrName
+  );
+}
+
+function normalizeCheerAffiliateAgainstCatalog(
+  value: string | null | undefined,
+  catalog: readonly string[],
+  options?: { mapLegacyShortForms?: boolean; mapSongsForCheer?: boolean }
+): string {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+
+  const exact = catalog.find((opt) => opt === raw);
+  if (exact) return exact;
+  const lower = raw.toLowerCase();
+  const loose = catalog.find((opt) => opt.toLowerCase() === lower);
+  if (loose) return loose;
+
+  const compact = raw.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (compact === "NONCOMPLIANT" || compact.includes("NONCOMPLIANT")) {
+    return "Non compliant";
+  }
+  if (
+    compact.includes("100ORIGINAL") ||
+    compact.includes("ORIGINALCUSTOMMUSIC")
+  ) {
+    return CHEER_TITANIUM_ONLY_AFFILIATE;
+  }
+  if (options?.mapSongsForCheer && compact.includes("SONGSFORCHEER")) {
+    return "Songs for Cheer";
+  }
+  if (
+    options?.mapLegacyShortForms &&
+    (compact === "POWERMUSIC" ||
+      compact === "UNLEASHTHEBEATS" ||
+      compact === "POWERMUSICUNLEASHTHEBEATS" ||
+      (compact.includes("POWERMUSIC") && compact.includes("UNLEASH")) ||
+      compact.includes("POWERMUSICCOVERS") ||
+      compact.includes("UNLEASHTHEBEATSCOVERS"))
+  ) {
+    return CHEER_NON_TITANIUM_ONLY_AFFILIATE;
+  }
+  if (
+    !options?.mapLegacyShortForms &&
+    compact.includes("POWERMUSIC") &&
+    compact.includes("UNLEASH")
+  ) {
+    return CHEER_NON_TITANIUM_ONLY_AFFILIATE;
+  }
+  return raw;
+}
+
+/**
+ * Map Magento / free-text All-Star affiliate onto the 4 canonical SoftSelect labels.
+ */
+export function normalizeAllStarCheerMusicAffiliateLabel(
+  value: string | null | undefined,
+  packageTypeOrName?: string | null
+): string {
+  void packageTypeOrName;
+  return normalizeCheerAffiliateAgainstCatalog(
+    value,
+    ALL_STAR_CHEER_MUSIC_AFFILIATE_OPTIONS,
+    { mapSongsForCheer: true }
+  );
+}
+
+/**
+ * Map Magento / free-text School Cheer / V!ROC affiliate onto the 3 SoftSelect labels.
+ */
+export function normalizeSchoolCheerVirocMusicAffiliateLabel(
+  value: string | null | undefined,
+  packageTypeOrName?: string | null
+): string {
+  void packageTypeOrName;
+  return normalizeCheerAffiliateAgainstCatalog(
+    value,
+    SCHOOL_CHEER_VIROC_MUSIC_AFFILIATE_OPTIONS,
+    { mapLegacyShortForms: true }
+  );
+}
 
 export const DEFAULT_COMPLIANT_AFFILIATE_IDS = COMPLIANT_AFFILIATE_OPTIONS.map(
   (option) => option.id
@@ -253,9 +407,38 @@ function cloneSnapshot(snapshot: CategoryPricingSnapshot): CategoryPricingSnapsh
     nonCompliantAffiliateLabels: snapshot.nonCompliantAffiliateLabels
       ? { ...snapshot.nonCompliantAffiliateLabels }
       : undefined,
+    musicAffiliateCatalog: snapshot.musicAffiliateCatalog
+      ? snapshot.musicAffiliateCatalog.map((entry) => ({ ...entry }))
+      : undefined,
     addOns: snapshot.addOns.map((addon) => ({ ...addon })),
     rows: snapshot.rows.map((row) => ({ ...row })),
   };
+}
+
+function defaultMusicAffiliateCatalog(
+  category: CategoryKey
+): CategoryMusicAffiliateEntry[] {
+  const idForLabel = (label: string): string => {
+    if (label === "Songs for Cheer") return "songs-for-cheer";
+    if (label === "Non compliant") return "non-compliant";
+    if (label.startsWith("100%")) return "original-custom-music-titanium";
+    return "power-music-unleash-covers";
+  };
+  if (category === "All-Star Cheer") {
+    return ALL_STAR_CHEER_MUSIC_AFFILIATE_OPTIONS.map((label) => ({
+      id: idForLabel(label),
+      label,
+      isCompliant: label !== "Non compliant",
+    }));
+  }
+  if (category === "School Cheer" || category === "Youth Rec Cheer") {
+    return SCHOOL_CHEER_VIROC_MUSIC_AFFILIATE_OPTIONS.map((label) => ({
+      id: idForLabel(label),
+      label,
+      isCompliant: label !== "Non compliant",
+    }));
+  }
+  return [];
 }
 
 export function buildDefaultCategorySnapshot(
@@ -396,11 +579,21 @@ export function buildDefaultCategorySnapshot(
       rows = [];
   }
 
+  const musicAffiliateCatalog = defaultMusicAffiliateCatalog(category);
+  const catalogCompliantIds = musicAffiliateCatalog
+    .filter((entry) => entry.isCompliant)
+    .map((entry) => entry.id);
+
   return {
     rows,
     addOns: DEFAULT_CATEGORY_ADDONS[category].map((addon) => ({ ...addon })),
-    compliantAffiliateIds: [...DEFAULT_COMPLIANT_AFFILIATE_IDS],
+    compliantAffiliateIds:
+      catalogCompliantIds.length > 0
+        ? catalogCompliantIds
+        : [...DEFAULT_COMPLIANT_AFFILIATE_IDS],
     compliantAffiliateLabels: {},
+    musicAffiliateCatalog:
+      musicAffiliateCatalog.length > 0 ? musicAffiliateCatalog : undefined,
     nonCompliantAffiliateLabels: {},
   };
 }
@@ -524,16 +717,24 @@ export function getCategoryPricingSnapshot(
     addOns: saved.addOns?.length
       ? saved.addOns.map((addon) => ({ ...addon }))
       : defaults.addOns,
-    compliantAffiliateIds: normalizeCompliantAffiliateIds(
-      saved.compliantAffiliateIds ??
-        (savedSnapshot.notes ? DEFAULT_COMPLIANT_AFFILIATE_IDS : undefined)
-    ),
+    compliantAffiliateIds: saved.musicAffiliateCatalog?.length
+      ? // DB SoftSelect catalog is source of truth — allow empty compliant set.
+        (saved.compliantAffiliateIds || []).filter((id) =>
+          DEFAULT_COMPLIANT_AFFILIATE_IDS.includes(id)
+        )
+      : normalizeCompliantAffiliateIds(
+          saved.compliantAffiliateIds ??
+            (savedSnapshot.notes ? DEFAULT_COMPLIANT_AFFILIATE_IDS : undefined)
+        ),
     compliantAffiliateLabels: saved.compliantAffiliateLabels
       ? { ...saved.compliantAffiliateLabels }
       : {},
     nonCompliantAffiliateLabels: saved.nonCompliantAffiliateLabels
       ? { ...saved.nonCompliantAffiliateLabels }
       : {},
+    musicAffiliateCatalog: saved.musicAffiliateCatalog?.length
+      ? saved.musicAffiliateCatalog.map((entry) => ({ ...entry }))
+      : defaults.musicAffiliateCatalog,
   };
 }
 
@@ -623,29 +824,76 @@ export function getCompliantAffiliateLabelsForCategory(
 ): string[] {
   const snapshot = getCategoryPricingSnapshot(category, store);
   const labels: string[] = [];
-  for (const id of snapshot.compliantAffiliateIds) {
-    labels.push(
-      resolveCompliantAffiliateLabel(
-        id,
-        snapshot.compliantAffiliateLabels,
-        snapshot.nonCompliantAffiliateLabels
-      )
-    );
+
+  // DB SoftSelect catalog is authoritative when present.
+  if (snapshot.musicAffiliateCatalog?.length) {
+    for (const entry of snapshot.musicAffiliateCatalog) {
+      if (entry.isCompliant && entry.label.trim()) {
+        labels.push(entry.label.trim());
+      }
+    }
+  } else {
+    for (const id of snapshot.compliantAffiliateIds) {
+      labels.push(
+        resolveCompliantAffiliateLabel(
+          id,
+          snapshot.compliantAffiliateLabels,
+          snapshot.nonCompliantAffiliateLabels
+        )
+      );
+    }
   }
+
   // Magento short forms that map to the Power / Unleash family.
+  const compliantIds = snapshot.musicAffiliateCatalog?.length
+    ? snapshot.musicAffiliateCatalog
+        .filter((entry) => entry.isCompliant)
+        .map((entry) => entry.id)
+    : snapshot.compliantAffiliateIds;
   if (
-    snapshot.compliantAffiliateIds.includes("power-music-covers") ||
-    snapshot.compliantAffiliateIds.includes("power-music-unleash-covers")
+    compliantIds.includes("power-music-covers") ||
+    compliantIds.includes("power-music-unleash-covers")
   ) {
     labels.push("Power Music", "Power Music + Unleash the Beats");
   }
   if (
-    snapshot.compliantAffiliateIds.includes("unleash-the-beats-covers") ||
-    snapshot.compliantAffiliateIds.includes("power-music-unleash-covers")
+    compliantIds.includes("unleash-the-beats-covers") ||
+    compliantIds.includes("power-music-unleash-covers")
   ) {
     labels.push("Unleash the Beats", "Library Music");
   }
   return labels;
+}
+
+/** SoftSelect labels by category (from DB music_affiliate_options). */
+let runtimeSoftSelectLabelsByCategory: Record<string, string[]> = {};
+
+export function setRuntimeMusicAffiliateSoftSelectByCategory(
+  map: Record<string, string[]>
+): void {
+  runtimeSoftSelectLabelsByCategory = { ...map };
+}
+
+/** Enabled SoftSelect labels for a Pricing Reference category, if hydrated. */
+export function getRuntimeMusicAffiliateSoftSelect(
+  category: CategoryKey
+): string[] | null {
+  const labels = runtimeSoftSelectLabelsByCategory[category];
+  return labels && labels.length > 0 ? [...labels] : null;
+}
+
+function syncRuntimeSoftSelectFromStore(
+  store: PricingReferenceStore = { categories: {} }
+): void {
+  const map: Record<string, string[]> = {};
+  for (const category of PRICING_CATEGORY_KEYS) {
+    const catalog =
+      getCategoryPricingSnapshot(category, store).musicAffiliateCatalog || [];
+    if (catalog.length) {
+      map[category] = catalog.map((entry) => entry.label);
+    }
+  }
+  setRuntimeMusicAffiliateSoftSelectByCategory(map);
 }
 
 /** Push current Edit Affiliates selections into pricing-engine compliance checks. */
@@ -657,12 +905,95 @@ export function syncRuntimeCompliantAffiliateLabels(
     map[category] = getCompliantAffiliateLabelsForCategory(category, store);
   }
   setRuntimeCompliantAffiliateLabelsByCategory(map);
+  syncRuntimeSoftSelectFromStore(store);
+}
+
+function dbTargetToCategoryKey(
+  formType: string,
+  subtypeId: string | null | undefined
+): CategoryKey | null {
+  const subtype = String(subtypeId || "");
+  if (formType === "school-all-star-cheer") {
+    if (subtype === "all-star-cheer") return "All-Star Cheer";
+    if (subtype === "school-cheer") return "School Cheer";
+    if (subtype === "youth-rec-cheer") return "Youth Rec Cheer";
+  }
+  if (formType === "school-all-star-dance") {
+    if (subtype === "pom") return "Pom";
+    if (subtype === "hip-hop") return "Hip Hop";
+    if (subtype === "team-performance-variety") {
+      return "Team Performance & Variety";
+    }
+    if (subtype === "gameday") return "Gameday";
+    if (subtype === "jazz-kick") return "Jazz/Kick";
+  }
+  if (formType === "marching-band") return "Marching Band";
+  if (formType === "sports-entertainment") return "Sports Entertainment";
+  if (formType === "school-anthem") return "School Anthems";
+  return null;
+}
+
+/**
+ * Hydrate Pricing Reference affiliate catalogs + SoftSelect/compliance runtime
+ * from music_affiliate_options rows.
+ */
+export function applyDbMusicAffiliates(
+  rows: BackendMusicAffiliateOption[],
+  store?: PricingReferenceStore
+): PricingReferenceStore {
+  const next = store ?? loadPricingReferenceStore();
+  const byCategory = new Map<CategoryKey, BackendMusicAffiliateOption[]>();
+
+  for (const row of rows) {
+    const category = dbTargetToCategoryKey(row.form_type, row.subtype_id);
+    if (!category) continue;
+    const list = byCategory.get(category) || [];
+    list.push(row);
+    byCategory.set(category, list);
+  }
+
+  let updated = next;
+  for (const [category, options] of byCategory) {
+    const enabled = [...options]
+      .filter((opt) => opt.enabled)
+      .sort((a, b) => a.sort_order - b.sort_order || a.label.localeCompare(b.label));
+
+    const catalog: CategoryMusicAffiliateEntry[] = enabled.map((opt) => ({
+      id: opt.option_key,
+      label: opt.label,
+      isCompliant: Boolean(opt.is_compliant) && opt.option_key !== "non-compliant",
+    }));
+
+    const compliantIds = catalog
+      .filter((entry) => entry.isCompliant)
+      .map((entry) => entry.id);
+    const compliantLabels: Partial<Record<string, string>> = {};
+    const nonCompliantLabels: Partial<Record<string, string>> = {};
+    for (const entry of catalog) {
+      const defaults = findMusicAffiliateOption(entry.id);
+      if (defaults && defaults.label === entry.label) continue;
+      if (entry.isCompliant) compliantLabels[entry.id] = entry.label;
+      else nonCompliantLabels[entry.id] = entry.label;
+    }
+
+    updated = updateCategoryPricingSnapshot(updated, category, {
+      musicAffiliateCatalog: catalog,
+      // Empty is valid (all SoftSelect options marked non-compliant).
+      compliantAffiliateIds: compliantIds,
+      compliantAffiliateLabels: compliantLabels,
+      nonCompliantAffiliateLabels: nonCompliantLabels,
+    });
+  }
+
+  savePricingReferenceStore(updated);
+  return updated;
 }
 
 export function savePricingReferenceStore(store: PricingReferenceStore): void {
+  // Always sync SoftSelect + compliance matchers (works in node tests too).
+  syncRuntimeCompliantAffiliateLabels(store);
   if (typeof window === "undefined") return;
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
-  syncRuntimeCompliantAffiliateLabels(store);
   // Assign daily-cost / Orders chips re-read reference prices on this event.
   window.dispatchEvent(new CustomEvent("slt-pricing-reference-changed"));
 }
@@ -684,6 +1015,8 @@ export function updateCategoryPricingSnapshot(
       patch.compliantAffiliateLabels ?? current.compliantAffiliateLabels,
     nonCompliantAffiliateLabels:
       patch.nonCompliantAffiliateLabels ?? current.nonCompliantAffiliateLabels,
+    musicAffiliateCatalog:
+      patch.musicAffiliateCatalog ?? current.musicAffiliateCatalog,
   });
 
   return {
@@ -969,13 +1302,8 @@ export function applyDbPricingRules(
 
     if (formType === "school-all-star-cheer" && subtypeId) {
       rows = rulesToTierTimeRows(packageRules, subtypeId);
-      // School Cheer / VIROC Magento SoftSelect has no 2:00 Length of Mix.
+      // School Cheer / VIROC: keep SoftSelect "Other" → Needs Quote row.
       if (subtypeId === "school-cheer" || subtypeId.startsWith("school-cheer")) {
-        rows = rows.filter(
-          (r) =>
-            r.kind !== "tier-time" || String(r.limit || "").trim() !== "2:00"
-        );
-        // Always keep SoftSelect "Other" → Needs Quote documentation row.
         const hasOther = rows.some(
           (r) =>
             r.kind === "tier-time" &&

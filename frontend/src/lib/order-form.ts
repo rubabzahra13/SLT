@@ -2,6 +2,10 @@ import type { CheerFormSubtype, DanceFormSubtype, MTDRecord, Order, OrderFormTyp
 import { parsePackage } from "@/lib/package";
 import { titleCase } from "@/lib/data";
 import { resolveOrderPriceCompliance } from "@/lib/pricing";
+import {
+  normalizeAllStarCheerMusicAffiliateLabel,
+  normalizeSchoolCheerVirocMusicAffiliateLabel,
+} from "@/lib/pricing-reference";
 
 export const POM_FORM_COLUMN_LABELS = [
   "School / Program",
@@ -28,14 +32,15 @@ export const POM_FORM_COLUMN_LABELS = [
   "Voiceovers",
 ] as const;
 
+/**
+ * Legacy fallback when musicAffiliate is empty but musicTheme still carries
+ * an affiliate hint. Never invent a default — empty theme → "".
+ * Prefer All-Star Cheer catalog labels (not dance-only cover checkboxes).
+ */
 export function inferMusicAffiliate(musicTheme: string): string {
-  const upper = musicTheme.toUpperCase();
-  if (upper.includes("NON COMPLIANT") || upper.includes("NON-COMPLIANT")) {
-    return "Non-compliant";
-  }
-  if (upper.includes("UNLEASH")) return "Unleash the Beats Covers";
-  if (upper.includes("PM") || upper.includes("POWER")) return "Power Music Covers";
-  return "Power Music Covers";
+  const raw = String(musicTheme || "").trim();
+  if (!raw) return "";
+  return normalizeAllStarCheerMusicAffiliateLabel(raw);
 }
 
 /** Magento School Anthem has no package field — flat rate card. */
@@ -223,13 +228,40 @@ export function normalizeOrder(
         raw.package ||
         "";
 
-  const timeLengthOfMix =
-    raw.timeLengthOfMix?.trim() ||
-    (limit !== "-" ? limit : "") ||
-    "";
+  // Cheer packages encode mix length in the label (e.g. GOLD 2:00). Other forms
+  // keep Magento package labels flat — never refill Time Length from package, or
+  // clearing the field "comes back" after save/normalize.
+  const isCheerForm = formType === "school-all-star-cheer";
+  const timeLengthOfMix = isCheerForm
+    ? raw.timeLengthOfMix?.trim() || (limit !== "-" ? limit : "") || ""
+    : raw.timeLengthOfMix?.trim() || "";
 
-  const musicAffiliate =
-    raw.musicAffiliate?.trim() || inferMusicAffiliate(raw.musicTheme || raw.routineNotes || "");
+  const musicAffiliateRaw =
+    raw.musicAffiliate?.trim() ||
+    inferMusicAffiliate(raw.musicTheme || "");
+  const pkgForAffiliate = raw.packageType || raw.package;
+  let musicAffiliate = musicAffiliateRaw;
+  if (formType === "school-all-star-cheer") {
+    if (
+      cheerFormSubtype === "school-cheer-viroc-yes" ||
+      cheerFormSubtype === "school-cheer-viroc-no"
+    ) {
+      musicAffiliate = normalizeSchoolCheerVirocMusicAffiliateLabel(
+        musicAffiliateRaw,
+        pkgForAffiliate
+      );
+    } else if (
+      cheerFormSubtype !== "youth-rec-cheer" &&
+      (cheerFormSubtype === "all-star-cheer" ||
+        !cheerFormSubtype ||
+        String(cheerFormSubtype) === "all")
+    ) {
+      musicAffiliate = normalizeAllStarCheerMusicAffiliateLabel(
+        musicAffiliateRaw,
+        pkgForAffiliate
+      );
+    }
+  }
 
   const routineNotes = raw.routineNotes?.trim() || raw.musicTheme || "";
 
@@ -390,7 +422,12 @@ export function normalizeOrder(
     package:
       formType === "school-anthem"
         ? SCHOOL_ANTHEM_PACKAGE
-        : buildLegacyPackage(packageType || raw.package || "", timeLengthOfMix),
+        : isCheerForm
+          ? buildLegacyPackage(packageType || raw.package || "", timeLengthOfMix)
+          : // SE / Dance / Band: persist flat Magento PACKAGE TYPE (strip any
+            // legacy " … 2:00" that older normalize runs appended).
+            (packageType || raw.packageType || raw.package || "").trim() ||
+            "TBD",
     price:
       formType === "school-anthem"
         ? SCHOOL_ANTHEM_PRICE

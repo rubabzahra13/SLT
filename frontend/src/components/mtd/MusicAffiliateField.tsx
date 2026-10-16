@@ -1,12 +1,21 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { SoftSelect } from "@/components/ui/SoftSelect";
 import type { CheerFormSubtype, OrderFormType } from "@/types";
+import { PRICING_REFERENCE_CHANGED_EVENT } from "@/lib/order-package-price";
 import {
   ALL_STAR_CHEER_MUSIC_AFFILIATE_OPTIONS,
+  allStarCheerMusicAffiliateOptionsForPackage,
   COMPLIANT_AFFILIATE_OPTIONS,
+  getCategoryPricingSnapshot,
+  getRuntimeMusicAffiliateSoftSelect,
+  isTitaniumCheerPackage,
+  loadPricingReferenceStore,
   NON_COMPLIANT_AFFILIATE_OPTIONS,
+  SCHOOL_CHEER_VIROC_MUSIC_AFFILIATE_OPTIONS,
+  schoolCheerVirocMusicAffiliateOptionsForPackage,
+  type CategoryKey,
 } from "@/lib/pricing-reference";
 import {
   affiliateCompactKey,
@@ -14,22 +23,9 @@ import {
   affiliateTextsFuzzyMatch,
 } from "@/lib/pricing-engine";
 
-/**
- * School Cheer / VIROC customer-form affiliate choices
- * (checkbox source on the public form — multi-select can flag).
- */
-export const SCHOOL_CHEER_MUSIC_AFFILIATE_OPTIONS = [
-  "Power Music",
-  "Unleash the Beats",
-  "Power Music + Unleash the Beats",
-  "Power Music & Unleash the Beats Covers (can not be used for a Titanium Package)",
-  "Library Music",
-  "Custom Music / Client-Provided Track",
-  "Songs for Cheer — Editor's Choice",
-  "Songs for Cheer — Casey Can Choose",
-  "Songs for Cheer — See Notes",
-  "Original Artist Track (iTunes / Spotify)",
-] as const;
+/** School Cheer / V!ROC SoftSelect catalog (3 Magento options — no Songs for Cheer). */
+export const SCHOOL_CHEER_MUSIC_AFFILIATE_OPTIONS =
+  SCHOOL_CHEER_VIROC_MUSIC_AFFILIATE_OPTIONS;
 
 /** @deprecated Use SCHOOL_CHEER_MUSIC_AFFILIATE_OPTIONS */
 export const VIROC_MUSIC_AFFILIATE_OPTIONS = SCHOOL_CHEER_MUSIC_AFFILIATE_OPTIONS;
@@ -43,24 +39,86 @@ function defaultCheerAffiliateOptions(): string[] {
   ];
 }
 
+function filterSoftSelectByTitaniumPackage(
+  labels: string[],
+  packageTypeOrName?: string | null
+): string[] {
+  const pkg = String(packageTypeOrName || "").trim();
+  // Until a package is chosen, show the full Pricing Reference SoftSelect set.
+  if (!pkg) return [...labels];
+  const titanium = isTitaniumCheerPackage(pkg);
+  const nonTitaniumOnly =
+    "Power Music & Unleash the Beats Covers (can not be used for a Titanium Package)";
+  const titaniumOnly =
+    "100% original custom music (titanium package only)";
+  return labels.filter((label) => {
+    if (label === nonTitaniumOnly) return !titanium;
+    if (label === titaniumOnly) return titanium;
+    return true;
+  });
+}
+
+/** SoftSelect labels from DB runtime, then Pricing Reference store, else null. */
+function softSelectLabelsForCategory(category: CategoryKey): string[] | null {
+  const runtime = getRuntimeMusicAffiliateSoftSelect(category);
+  if (runtime?.length) return runtime;
+  const catalog =
+    getCategoryPricingSnapshot(category, loadPricingReferenceStore())
+      .musicAffiliateCatalog || [];
+  if (catalog.length) return catalog.map((entry) => entry.label);
+  return null;
+}
+
+function cheerCategoryForSubtype(
+  cheerFormSubtype?: CheerFormSubtype | null
+): CategoryKey | null {
+  if (
+    cheerFormSubtype === "school-cheer-viroc-yes" ||
+    cheerFormSubtype === "school-cheer-viroc-no"
+  ) {
+    return "School Cheer";
+  }
+  if (
+    !cheerFormSubtype ||
+    cheerFormSubtype === "all-star-cheer" ||
+    String(cheerFormSubtype) === "all"
+  ) {
+    return "All-Star Cheer";
+  }
+  if (cheerFormSubtype === "youth-rec-cheer") return "Youth Rec Cheer";
+  return null;
+}
+
 export function musicAffiliateOptionsForOrder(order: {
   formType?: OrderFormType;
   cheerFormSubtype?: CheerFormSubtype | null;
+  package?: string | null;
+  packageType?: string | null;
 }): string[] {
   if (order.formType === "school-all-star-cheer") {
+    const category = cheerCategoryForSubtype(order.cheerFormSubtype);
+    const pkg = order.packageType || order.package;
+    // Prefer DB / Pricing Reference SoftSelect catalog when hydrated.
+    if (category) {
+      const labels = softSelectLabelsForCategory(category);
+      if (labels?.length) {
+        return filterSoftSelectByTitaniumPackage(labels, pkg);
+      }
+    }
+    // V!ROC + School Cheer Magento set: 3 options (no Songs for Cheer).
     if (
       order.cheerFormSubtype === "school-cheer-viroc-yes" ||
       order.cheerFormSubtype === "school-cheer-viroc-no"
     ) {
-      return [...SCHOOL_CHEER_MUSIC_AFFILIATE_OPTIONS];
+      return schoolCheerVirocMusicAffiliateOptionsForPackage(pkg);
     }
-    // All Star Cheer (and cheer "all" / default) — real affiliate list.
+    // All-Star Cheer Magento set: 4 options (includes Songs for Cheer).
     if (
       !order.cheerFormSubtype ||
       order.cheerFormSubtype === "all-star-cheer" ||
       String(order.cheerFormSubtype) === "all"
     ) {
-      return [...ALL_STAR_CHEER_MUSIC_AFFILIATE_OPTIONS];
+      return allStarCheerMusicAffiliateOptionsForPackage(pkg);
     }
   }
   return defaultCheerAffiliateOptions();
@@ -130,6 +188,8 @@ type MusicAffiliateFieldProps = {
   onChange: (value: string) => void;
   formType?: OrderFormType;
   cheerSubtype?: CheerFormSubtype | null;
+  /** Package name/type — used to enforce Titanium affiliate rules. */
+  packageType?: string | null;
   "aria-label"?: string;
 };
 
@@ -138,16 +198,33 @@ export function MusicAffiliateField({
   onChange,
   formType,
   cheerSubtype,
+  packageType,
   "aria-label": ariaLabel = "Music Affiliate",
 }: MusicAffiliateFieldProps) {
   const [open, setOpen] = useState(false);
+  // Re-read SoftSelect when Pricing Reference / DB affiliate catalog hydrates.
+  const [catalogRevision, setCatalogRevision] = useState(0);
+  useEffect(() => {
+    // Ensure local store defaults sync SoftSelect before/without DB hydrate.
+    loadPricingReferenceStore();
+    if (typeof window === "undefined") return;
+    const onChangeCatalog = () => setCatalogRevision((n) => n + 1);
+    window.addEventListener(PRICING_REFERENCE_CHANGED_EVENT, onChangeCatalog);
+    return () =>
+      window.removeEventListener(
+        PRICING_REFERENCE_CHANGED_EVENT,
+        onChangeCatalog
+      );
+  }, []);
   const catalog = useMemo(
     () =>
       musicAffiliateOptionsForOrder({
         formType,
         cheerFormSubtype: cheerSubtype,
+        packageType,
+        package: packageType,
       }),
-    [formType, cheerSubtype]
+    [formType, cheerSubtype, packageType, catalogRevision]
   );
   const normalized = normalizeMusicAffiliateOption(value, catalog);
   const options = useMemo(() => {

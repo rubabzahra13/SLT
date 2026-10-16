@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { Music2, StickyNote } from "lucide-react";
+import { Clock3, Music2, StickyNote } from "lucide-react";
 
-export type SongsNotesToggleKind = "songs" | "notes";
+export type SongsNotesToggleKind = "songs" | "notes" | "mix";
 export type SongsNotesToggleDirection = "to_red" | "to_green";
 
 type SongsNotesToggleModalProps = {
@@ -49,35 +49,51 @@ export function SongsNotesToggleModal({
   if (!mounted || !open) return null;
 
   const isSongs = kind === "songs";
+  const isMix = kind === "mix";
   const fieldLabel =
     fieldLabelProp ||
-    (isSongs ? "Song list/suggestions" : "Routine notes");
+    (isMix
+      ? "Time Length of Mix"
+      : isSongs
+        ? "Song list/suggestions"
+        : "Routine notes");
   const removing = direction === "to_red";
   const canConfirmGreen = draft.trim().length > 0;
 
   const title = removing
-    ? isSongs
-      ? "Remove songs?"
-      : "Remove notes?"
-    : isSongs
-      ? "Add songs?"
-      : "Add notes?";
+    ? isMix
+      ? "Remove mix time?"
+      : isSongs
+        ? "Remove songs?"
+        : "Remove notes?"
+    : isMix
+      ? "Add mix time?"
+      : isSongs
+        ? "Add songs?"
+        : "Add notes?";
 
+  const pillName = isMix ? "Mix Time" : isSongs ? "Songs" : "Notes";
   const body = removing
-    ? isSongs
-      ? `Current text will be removed from ${fieldLabel}. The Songs pill will turn red.`
-      : `Current text will be removed from ${fieldLabel}. The Notes pill will turn red.`
-    : isSongs
-      ? `Enter ${fieldLabel} to mark Songs as have. This updates the form field and turns the pill green.`
-      : `Enter ${fieldLabel} to mark Notes as have. This updates the form field and turns the pill green.`;
+    ? currentText.trim()
+      ? `The text below is currently stored in ${fieldLabel}. Confirm to remove it and mark ${pillName} as missing (red).`
+      : `Confirm to clear ${fieldLabel} and mark ${pillName} as missing (red).`
+    : isMix
+      ? `Enter ${fieldLabel} to mark Mix Time as collected. This updates the form field and turns the pill green.`
+      : isSongs
+        ? `Enter ${fieldLabel} to mark Songs as have. This updates the form field and turns the pill green.`
+        : `Enter ${fieldLabel} to mark Notes as have. This updates the form field and turns the pill green.`;
 
   const confirmLabel = removing
-    ? isSongs
-      ? "Remove songs"
-      : "Remove notes"
-    : isSongs
-      ? "Save songs"
-      : "Save notes";
+    ? isMix
+      ? "Remove mix time"
+      : isSongs
+        ? "Remove songs"
+        : "Remove notes"
+    : isMix
+      ? "Save mix time"
+      : isSongs
+        ? "Save songs"
+        : "Save notes";
 
   return createPortal(
     <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
@@ -102,7 +118,9 @@ export function SongsNotesToggleModal({
                 : "mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#c2e7d9] text-[#0f5236] ring-1 ring-inset ring-[#9edbb8]"
             }
           >
-            {isSongs ? (
+            {isMix ? (
+              <Clock3 className="h-6 w-6" strokeWidth={1.75} />
+            ) : isSongs ? (
               <Music2 className="h-6 w-6" strokeWidth={1.75} />
             ) : (
               <StickyNote className="h-6 w-6" strokeWidth={1.75} />

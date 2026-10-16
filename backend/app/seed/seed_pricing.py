@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.models.pricing_rule import PricingRule
 from app.models.addon_rule import AddonRule
 from app.models.compliant_affiliate import CompliantAffiliate
+from app.models.music_affiliate_option import MusicAffiliateOption
 
 PRICING_RULES_PATH = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "../../../pricing-rules.json")
@@ -286,5 +287,100 @@ def seed_pricing(db: Session) -> None:
     db.flush()
     print(f"  Seeded {len(canonical_names)} compliant affiliates.")
 
+    # -----------------------------------------------------------------------
+    # 4. Seed music_affiliate_options (SoftSelect + compliance catalogs)
+    # -----------------------------------------------------------------------
+    seed_music_affiliate_options(db)
+
     db.commit()
     print("Pricing rules seeding completed.")
+
+
+_POWER_UNLEASH = (
+    "Power Music & Unleash the Beats Covers "
+    "(can not be used for a Titanium Package)"
+)
+_ORIGINAL_CUSTOM = "100% original custom music (titanium package only)"
+_NON_COMPLIANT = "Non compliant"
+
+
+def _affiliate_seed_rows() -> list[dict]:
+    """Default Magento SoftSelect catalogs per Pricing Reference subtype."""
+    all_star = [
+        ("power-music-unleash-covers", _POWER_UNLEASH, True, 0),
+        ("songs-for-cheer", "Songs for Cheer", True, 1),
+        ("original-custom-music-titanium", _ORIGINAL_CUSTOM, True, 2),
+        ("non-compliant", _NON_COMPLIANT, False, 3),
+    ]
+    school_cheer = [
+        ("power-music-unleash-covers", _POWER_UNLEASH, True, 0),
+        ("original-custom-music-titanium", _ORIGINAL_CUSTOM, True, 1),
+        ("non-compliant", _NON_COMPLIANT, False, 2),
+    ]
+    dance = [
+        ("power-music-unleash-covers", _POWER_UNLEASH, True, 0),
+        ("power-music-covers", "Power Music Covers", True, 1),
+        ("unleash-the-beats-covers", "Unleash the Beats Covers", True, 2),
+        ("songs-for-cheer", "Songs for Cheer", True, 3),
+        ("original-custom-music-titanium", _ORIGINAL_CUSTOM, True, 4),
+        ("non-compliant", _NON_COMPLIANT, False, 5),
+    ]
+    flat = [
+        ("power-music", "Power Music", True, 0),
+        ("power-music-unleash", "Power Music + Unleash the Beats", True, 1),
+        ("unleash-the-beats", "Unleash the Beats", True, 2),
+        ("library-music", "Library Music", True, 3),
+        ("non-compliant", _NON_COMPLIANT, False, 4),
+    ]
+
+    rows: list[dict] = []
+    for form_type, subtype, catalog in [
+        ("school-all-star-cheer", "all-star-cheer", all_star),
+        ("school-all-star-cheer", "school-cheer", school_cheer),
+        ("school-all-star-cheer", "youth-rec-cheer", school_cheer),
+        ("school-all-star-dance", "pom", dance),
+        ("school-all-star-dance", "hip-hop", dance),
+        ("school-all-star-dance", "team-performance-variety", dance),
+        ("school-all-star-dance", "gameday", dance),
+        ("school-all-star-dance", "jazz-kick", dance),
+        ("marching-band", "", flat),
+        ("sports-entertainment", "", flat),
+        ("school-anthem", "", flat),
+    ]:
+        for option_key, label, is_compliant, sort_order in catalog:
+            rows.append(
+                {
+                    "form_type": form_type,
+                    "subtype_id": subtype,
+                    "option_key": option_key,
+                    "label": label,
+                    "is_compliant": is_compliant,
+                    "enabled": True,
+                    "sort_order": sort_order,
+                }
+            )
+    return rows
+
+
+def seed_music_affiliate_options(db: Session) -> None:
+    """
+    Idempotent upsert of SoftSelect catalogs. Does not delete admin removals
+    for existing subtype catalogs — only inserts missing defaults.
+    """
+    seeded = 0
+    for row in _affiliate_seed_rows():
+        existing = (
+            db.query(MusicAffiliateOption)
+            .filter(
+                MusicAffiliateOption.form_type == row["form_type"],
+                MusicAffiliateOption.subtype_id == row["subtype_id"],
+                MusicAffiliateOption.option_key == row["option_key"],
+            )
+            .first()
+        )
+        if existing:
+            continue
+        db.add(MusicAffiliateOption(**row))
+        seeded += 1
+    db.flush()
+    print(f"  Seeded {seeded} music affiliate options (skipped existing).")

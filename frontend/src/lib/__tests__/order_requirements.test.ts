@@ -205,9 +205,60 @@ describe("SLT Implementation 2: Package-Specific Data Collection Rules", () => {
     }
   });
 
-  it("Marching Band Drum Cadence / Fight Song / Alma Mater: Mix + Notes; Songs N/A (Magento + manual)", () => {
+  it("Marching Band Drum Cadence: Mix + Notes from instrumentation (Magento + manual)", () => {
+    for (const isManualEntry of [false, true]) {
+      const order: Partial<Order> = {
+        category: "Marching Band",
+        formType: "marching-band",
+        package: "DRUM CADENCE ORIGINAL",
+        packageType: "DRUM CADENCE ORIGINAL",
+        timeLengthOfMix: "2:00",
+        instrumentationNotes: "Full brass & percussion",
+        lyricalNotes: "optional — must not drive Drum Cadence Notes",
+        isManualEntry,
+      };
+      const reqs = getOrderRequirements(order as Order);
+      const ids = reqs.all
+        .filter((r) => r.isApplicable && r.id !== "form")
+        .map((r) => r.id);
+      assert.deepStrictEqual(ids.sort(), ["mix", "notes"].sort());
+      assert.strictEqual(
+        reqs.songsArea.find((r) => r.id === "songs")?.state,
+        "white"
+      );
+      assert.strictEqual(
+        reqs.songsArea.find((r) => r.id === "notes")?.state,
+        "green"
+      );
+      if (isManualEntry) {
+        assert.ok(
+          reqs.collections.some((r) => r.id === "form" && r.state === "red")
+        );
+      }
+
+      const missingNotes = getOrderRequirements({
+        ...order,
+        instrumentationNotes: "",
+      } as Order);
+      assert.strictEqual(
+        missingNotes.songsArea.find((r) => r.id === "notes")?.state,
+        "red"
+      );
+      // Lyrics alone must not green Drum Cadence Notes.
+      const lyricsOnly = getOrderRequirements({
+        ...order,
+        instrumentationNotes: "",
+        lyricalNotes: "only lyrics",
+      } as Order);
+      assert.strictEqual(
+        lyricsOnly.songsArea.find((r) => r.id === "notes")?.state,
+        "red"
+      );
+    }
+  });
+
+  it("Marching Band Fight Song / Alma Mater: Mix + Notes from lyrics (Magento + manual)", () => {
     for (const packageType of [
-      "DRUM CADENCE ORIGINAL",
       "FIGHT SONG ORIGINAL",
       "FIGHT SONG PLUS",
       "ALMA MATER ORIGINAL",
@@ -220,8 +271,8 @@ describe("SLT Implementation 2: Package-Specific Data Collection Rules", () => {
           package: packageType,
           packageType,
           timeLengthOfMix: "2:00",
-          instrumentationNotes: "Full brass & percussion",
-          lyricalNotes: "optional — must not drive Notes pill",
+          instrumentationNotes: "brass — must not drive Fight/Alma Notes",
+          lyricalNotes: "Written lyrics for alma/fight",
           isManualEntry,
         };
         const reqs = getOrderRequirements(order as Order);
@@ -232,11 +283,6 @@ describe("SLT Implementation 2: Package-Specific Data Collection Rules", () => {
           ids.sort(),
           ["mix", "notes"].sort(),
           `${packageType} manual=${isManualEntry}`
-        );
-        assert.strictEqual(
-          reqs.songsArea.find((r) => r.id === "songs")?.state,
-          "white",
-          packageType
         );
         assert.strictEqual(
           reqs.songsArea.find((r) => r.id === "notes")?.state,
@@ -250,23 +296,23 @@ describe("SLT Implementation 2: Package-Specific Data Collection Rules", () => {
           );
         }
 
-        const missingNotes = getOrderRequirements({
+        const missingLyrics = getOrderRequirements({
           ...order,
-          instrumentationNotes: "",
+          lyricalNotes: "",
         } as Order);
         assert.strictEqual(
-          missingNotes.songsArea.find((r) => r.id === "notes")?.state,
+          missingLyrics.songsArea.find((r) => r.id === "notes")?.state,
           "red",
           packageType
         );
-        // Lyrics alone must not green the Notes pill.
-        const lyricsOnly = getOrderRequirements({
+        // Instrumentation alone must not green Fight/Alma Notes.
+        const instrumentationOnly = getOrderRequirements({
           ...order,
-          instrumentationNotes: "",
-          lyricalNotes: "only lyrics",
+          lyricalNotes: "",
+          instrumentationNotes: "only instrumentation",
         } as Order);
         assert.strictEqual(
-          lyricsOnly.songsArea.find((r) => r.id === "notes")?.state,
+          instrumentationOnly.songsArea.find((r) => r.id === "notes")?.state,
           "red",
           packageType
         );
@@ -308,6 +354,53 @@ describe("SLT Implementation 2: Package-Specific Data Collection Rules", () => {
         }
       }
     }
+  });
+
+  it("Sports Entertainment Songs stays red when only Notes + Mix are filled (ignores musicTheme)", () => {
+    // normalizeOrder packs routineNotes into musicTheme; Songs must not follow that.
+    const emptySongs: Partial<Order> = {
+      category: "Sports Entertainment",
+      formType: "sports-entertainment",
+      package: "PRE-GAME / HALFTIME REMIXED",
+      packageType: "PRE-GAME / HALFTIME REMIXED",
+      timeLengthOfMix: "2:00",
+      routineNotes: "Stadium walkout and halftime bed - dummy SE notes.",
+      additionalNotes: "Stadium walkout and halftime bed - dummy SE notes.",
+      songListSuggestions: "",
+      customerSongs: "",
+      musicTheme:
+        "Stadium walkout and halftime bed - dummy SE notes.",
+      haveSongs: "NEED SONGS",
+    };
+    const emptyReqs = getOrderRequirements(emptySongs as Order);
+    assert.strictEqual(
+      emptyReqs.collections.find((r) => r.id === "mix")?.state,
+      "green"
+    );
+    assert.strictEqual(
+      emptyReqs.songsArea.find((r) => r.id === "notes")?.state,
+      "green"
+    );
+    assert.strictEqual(
+      emptyReqs.songsArea.find((r) => r.id === "songs")?.state,
+      "red",
+      "Songs must be red when customerSongs / songListSuggestions are empty"
+    );
+    assert.strictEqual(getFormSongListColumnText(emptySongs as Order), "");
+
+    const withSongs: Partial<Order> = {
+      ...emptySongs,
+      customerSongs: "Eye of the Tiger",
+      songListSuggestions: "Eye of the Tiger",
+    };
+    const filledReqs = getOrderRequirements(withSongs as Order);
+    assert.strictEqual(
+      filledReqs.songsArea.find((r) => r.id === "songs")?.state,
+      "green"
+    );
+    assert.ok(
+      getFormSongListColumnText(withSongs as Order).includes("Eye of the Tiger")
+    );
   });
 
   it("School Anthem Magento form has no Mix Time / CS / Video collections", () => {
@@ -595,43 +688,47 @@ describe("SLT Implementation 2: Package-Specific Data Collection Rules", () => {
     );
   });
 
-  it("Songs pill matches Form song list column including legacy musicTheme", () => {
+  it("Dance/POM Songs uses Power Music OR Unleash covers (not musicTheme)", () => {
     const empty: Partial<Order> = {
       category: "Dance",
+      formType: "school-all-star-dance",
+      danceFormSubtype: "pom",
       package: "Custom POM 2:15",
       timeLengthOfMix: "2:15",
       musicAffiliate: "Power Music Covers",
-      musicTheme: "",
+      musicTheme: "(Power Music Covers) · leftover theme",
       songListSuggestions: "",
       powerMusicCovers: "",
+      unleashTheBeatsCovers: "",
       haveSongs: "NEED SONGS",
     };
     assert.strictEqual(
       getOrderRequirements(empty as Order).songsArea.find((r) => r.id === "songs")
         ?.state,
-      "red"
+      "red",
+      "musicTheme alone must not green Dance Songs"
     );
+    assert.strictEqual(getFormSongListColumnText(empty as Order), "");
 
-    const themeOnly: Partial<Order> = {
+    const powerOnly: Partial<Order> = {
       ...empty,
-      musicTheme: "(Power Music Covers) · (Power Music Covers)",
+      powerMusicCovers: "Song A, Song B",
     };
-    assert.ok(getFormSongListColumnText(themeOnly as Order).includes("Power Music"));
     assert.strictEqual(
-      getOrderRequirements(themeOnly as Order).songsArea.find(
+      getOrderRequirements(powerOnly as Order).songsArea.find(
         (r) => r.id === "songs"
       )?.state,
       "green"
     );
 
-    const filled: Partial<Order> = {
+    const unleashOnly: Partial<Order> = {
       ...empty,
-      powerMusicCovers: "Song A, Song B",
-      haveSongs: "NEED SONGS",
+      unleashTheBeatsCovers: "Unleash track list",
     };
     assert.strictEqual(
-      getOrderRequirements(filled as Order).songsArea.find((r) => r.id === "songs")
-        ?.state,
+      getOrderRequirements(unleashOnly as Order).songsArea.find(
+        (r) => r.id === "songs"
+      )?.state,
       "green"
     );
   });

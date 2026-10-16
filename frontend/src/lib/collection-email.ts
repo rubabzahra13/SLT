@@ -6,7 +6,10 @@
  * GREEN and WHITE items are excluded.
  */
 
-import { getOrderRequirements } from "@/lib/order-requirements";
+import {
+  getOrderRequirements,
+  mergeOrderFormFieldsForRequirements,
+} from "@/lib/order-requirements";
 import type { MTDRecord, Order } from "@/types";
 
 // ---------------------------------------------------------------------------
@@ -58,6 +61,8 @@ export function formatDeadline(date: Date): string {
  * Key = requirement ID from getOrderRequirements().
  */
 const ITEM_WORDING: Record<string, string> = {
+  // Only emitted when Form is a red collection item (unmatched Manual / New Order).
+  form: `COMPLETED ORDER FORM – Please submit the completed order form (songs, notes, and voiceovers) so we have everything needed to produce this mix.`,
   songs: `A LIST OF SONGS – Please provide a list of songs for the mix. You can list more songs than we need to use so the editor has options when building the mix.`,
   mix: `TIME OF MIX – Please provide the desired time length of the mix.`,
   cs: `8 COUNT SHEETS – Please use the 8 count sheets attached to this email and make sure to have the section names listed on the left column.`,
@@ -117,8 +122,10 @@ export function buildCollectionEmailDraft(
   const deadlineLabel = formatDeadline(deadline);
   const subject = `Your Mix is Scheduled for Next Week – Action Required by ${deadlineLabel}`;
 
-  // Use the same requirements engine as the UI — single source of truth
-  const reqs = getOrderRequirements(record);
+  // Same requirements engine as the UI — Form only for unmatched manuals.
+  const reqs = getOrderRequirements(
+    mergeOrderFormFieldsForRequirements(record, linkedOrder)
+  );
 
   const missingIds: string[] = [];
 

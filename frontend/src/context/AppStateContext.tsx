@@ -37,6 +37,7 @@ import { normalizeOrder } from "@/lib/order-form";
 import {
   findMatchingManualOrder,
   mergePatchFromForm,
+  reconcileUnlinkedManualFormPairs,
   repairCorruptCrossCategoryFormMerge,
 } from "@/lib/manual-form-merge";
 import { openAffiliateFlagPatch } from "@/lib/affiliate-flag";
@@ -49,9 +50,9 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import {
   getDefaultSecretMenuPricing,
-  resolveOrderPriceCompliance,
   type SecretMenuPricing,
 } from "@/lib/pricing";
+import { resolveOrderPriceCompliance as resolveOrderCompliance } from "@/lib/pricing";
 import {
   resolveLiveOrderPricing,
   resolveStoredOrEngineCustomerPrice,
@@ -120,9 +121,11 @@ import {
   saveSecretMenuPricingApi,
   fetchSecretMenuPricingApi,
   fetchPricingRulesApi,
+  fetchMusicAffiliatesApi,
   type BootstrapPayload,
 } from "@/lib/api";
 import {
+  applyDbMusicAffiliates,
   applyDbPricingRules,
   loadPricingReferenceStore,
 } from "@/lib/pricing-reference";
@@ -215,7 +218,7 @@ function normalizeMTD(records: MTDRecord[]): MTDRecord[] {
       ...r,
       editorRequest: r.editorRequest || "FA",
       contactName: r.contactName || r.editorInitials,
-      priceCompliance: resolveOrderPriceCompliance(r),
+      priceCompliance: resolveOrderCompliance(r),
       mixStartDate,
       recordStatus: inferMTDRecordStatus(r),
       inPayroll: Boolean(r.inPayroll),
@@ -708,7 +711,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         }
         if (!isMounted || gen !== loadGen) return;
         applyBoot(boot, fetchedAt);
-        // SE + SA package prices from pricing_rules (DB) → in-memory rate cards.
+        // Package prices + SoftSelect affiliate catalogs from DB.
         void fetchPricingRulesApi()
           .then((rules) => {
             if (!isMounted || gen !== loadGen || !rules.length) return;
@@ -716,6 +719,22 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           })
           .catch(() => {
             /* keep hardcoded defaults */
+          });
+        void fetchMusicAffiliatesApi()
+          .then((affiliates) => {
+            if (!isMounted || gen !== loadGen || !affiliates.length) return;
+            applyDbMusicAffiliates(affiliates);
+            // Recompute compliance now that per-subtype SoftSelect catalogs
+            // are loaded — bootstrap normalized orders before this hydrate.
+            const refreshCompliance = (order: Order): Order => ({
+              ...order,
+              priceCompliance: resolveOrderCompliance(order),
+            });
+            setActiveOrders((prev) => prev.map(refreshCompliance));
+            setPastOrders((prev) => prev.map(refreshCompliance));
+          })
+          .catch(() => {
+            /* keep hardcoded SoftSelect defaults */
           });
       } catch (err) {
         if (!isMounted) return;
@@ -804,13 +823,116 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     // Fallback if rendered outside AuthProvider
   }
 
+  // CSV/DB-seeded Magento forms never pass through receiveOrder. Reconcile
+  // unlinked form↔manual name matches after bootstrap so Overwrite/Split works.
+  const bootstrapMergeInFlightRef = useRef(false);
+  const attemptedBootstrapMergesRef = useRef(new Set<string>());
+  useEffect(() => {
+    if (!isBackendConnected || isViewOnly || isLoading) return;
+    if (bootstrapMergeInFlightRef.current) return;
+
+    const hasUnlinkedForm = activeOrders.some(
+      (o) =>
+        !o.isManualEntry &&
+        !o.mergedIntoManualOrderId &&
+        !o.suppressManualFormMerge
+    );
+    const hasUnlinkedManual = activeOrders.some(
+      (o) =>
+        o.isManualEntry &&
+        !o.mergedFormOrderId &&
+        !o.suppressManualFormMerge &&
+        o.status !== "completed" &&
+        o.status !== "in_mtd"
+    );
+    if (!hasUnlinkedForm || !hasUnlinkedManual) return;
+
+    const { orders: reconciled, merges } =
+      reconcileUnlinkedManualFormPairs(activeOrders);
+    const freshMerges = merges.filter((m) => {
+      const key = `${m.manualId}:${m.formId}`;
+      return !attemptedBootstrapMergesRef.current.has(key);
+    });
+    if (freshMerges.length === 0) return;
+
+    for (const m of freshMerges) {
+      attemptedBootstrapMergesRef.current.add(`${m.manualId}:${m.formId}`);
+    }
+
+    const withFlags = reconciled.map((order) => {
+      const merge = freshMerges.find((m) => m.manualId === order.id);
+      if (!merge || !order.isManualEntry) return order;
+      const flagPatch = openAffiliateFlagPatch(order);
+      return flagPatch ? normalizeOrder({ ...order, ...flagPatch }) : order;
+    });
+
+    bootstrapMergeInFlightRef.current = true;
+    ordersMutatedAtRef.current = Date.now();
+    setActiveOrders(withFlags);
+    writeTimedCache(CACHE_ORDERS_KEY, {
+      active: withFlags,
+      past: pastOrders,
+    });
+
+    void Promise.all(
+      freshMerges.map((merge) => {
+        const manual = withFlags.find((o) => o.id === merge.manualId);
+        const flagPatch = manual ? openAffiliateFlagPatch(manual) : null;
+        return Promise.all([
+          updateOrderApi(merge.manualId, {
+            ...merge.manualPatch,
+            ...(flagPatch || {}),
+          }),
+          updateOrderApi(merge.formId, merge.formPatch),
+        ]);
+      })
+    )
+      .catch((err) => {
+        notifySaveError("Could not merge form order into manual", err);
+      })
+      .finally(() => {
+        bootstrapMergeInFlightRef.current = false;
+      });
+
+    if (freshMerges.length === 1) {
+      const form = withFlags.find((o) => o.id === freshMerges[0].formId);
+      const label =
+        form?.programName ||
+        form?.organizationName ||
+        form?.schoolOrganizationName ||
+        form?.gymName ||
+        "Order";
+      addNotification({
+        type: "new_order",
+        title: "Form matched manual slot",
+        message: `${label} · form is source of truth`,
+        href: "/orders",
+      });
+    } else {
+      addNotification({
+        type: "new_order",
+        title: "Forms matched to manual slots",
+        message: `${freshMerges.length} Magento forms linked to matching manual orders`,
+        href: "/orders",
+      });
+    }
+  }, [
+    activeOrders,
+    pastOrders,
+    isBackendConnected,
+    isViewOnly,
+    isLoading,
+    addNotification,
+    notifySaveError,
+  ]);
+
   const moveOrderToMTD = useCallback(
     (orderId: string): MTDRecord | null => {
       if (isViewOnly) return null;
       const order = activeOrders.find((o) => o.id === orderId);
       if (!order || isInMTD(orderId)) return null;
 
-      const compliance = resolveOrderPriceCompliance(order);
+      const compliance = resolveOrderCompliance(order);
       const price = resolveStoredOrEngineCustomerPrice(order);
 
       const draftId = `mtd-${Date.now()}`;
@@ -1045,7 +1167,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         ) {
           const compliance =
             patch.priceCompliance ||
-            resolveOrderPriceCompliance({
+            resolveOrderCompliance({
               ...updated,
               musicTheme: patch.musicTheme ?? updated.musicTheme,
               musicAffiliate:
@@ -1463,7 +1585,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           normalized.musicTheme?.trim()
         ) {
           normalized.priceCompliance =
-            resolveOrderPriceCompliance(normalized);
+            resolveOrderCompliance(normalized);
         }
         return normalized;
       };

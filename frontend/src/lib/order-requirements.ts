@@ -173,6 +173,50 @@ function isAffiliateOnlySongText(val: string): boolean {
 }
 
 /**
+ * All-Star Dance (every subcategory: POM / Hip Hop / Team Performance /
+ * Gameday / Jazz-Kick). Shared Songs SoT = Power Music OR Unleash covers;
+ * collections = Songs + Mix Time (Jazz Simple Cut also Notes).
+ */
+export function isAllStarDanceOrder(order: Order | MTDRecord): boolean {
+  const o = order as Order & MTDRecord & Record<string, unknown>;
+  const formType = String(o.formType || o.form_type || "").toLowerCase();
+  if (formType.includes("dance")) return true;
+  if (String(o.danceFormSubtype || o.dance_form_subtype || "").trim()) {
+    return true;
+  }
+  const category = String(o.category || "").toLowerCase();
+  if (
+    category.includes("dance") ||
+    category.includes("pom") ||
+    category.includes("hip") ||
+    category.includes("gameday") ||
+    category.includes("jazz") ||
+    category.includes("team performance")
+  ) {
+    return true;
+  }
+  const pkg = String(
+    o.package || o.packageType || o.package_type || ""
+  ).toUpperCase();
+  // Dance-only Magento packages (do not use bare RALLY MIX — Cheer shares it).
+  return (
+    pkg.includes("DANCE MIX") ||
+    pkg.includes("DANCE PLUS") ||
+    pkg.includes("CUSTOM POM") ||
+    pkg.includes("CUSTOM HIP") ||
+    pkg.includes("TP MIX") ||
+    pkg.includes("TP PLUS") ||
+    pkg.includes("PERFORMANCE MIX") ||
+    pkg.includes("PERFORMANCE PLUS") ||
+    pkg.includes("PERFORMANCE EXTREME") ||
+    pkg.includes("JAZZ SIMPLE CUT") ||
+    pkg.includes("JAZZ/KICK") ||
+    pkg.includes("JAZZ KICK") ||
+    pkg.includes("NON-COMPLIANT (FOR DTU)")
+  );
+}
+
+/**
  * Song-list text for the Songs pill — must match the edit-form field:
  * Cheer / All Star → Song list/suggestions
  * Dance → Power Music Covers / Unleash the Beats Covers
@@ -186,11 +230,7 @@ export function getFormSongListText(order: Order | MTDRecord): string {
   const formType = String(o.formType || o.form_type || "").toLowerCase();
   const category = String(o.category || "").toLowerCase();
   const pkg = String(o.package || o.packageType || o.package_type || "").toUpperCase();
-  const isDance =
-    formType.includes("dance") ||
-    category.includes("dance") ||
-    category.includes("pom") ||
-    category.includes("hip");
+  const isDance = isAllStarDanceOrder(order);
   const isAnthem =
     formType.includes("anthem") || category.includes("anthem");
   const isSports =
@@ -245,10 +285,11 @@ export function getFormSongListText(order: Order | MTDRecord): string {
 /**
  * Board "Form song list" column + Songs pill.
  *
- * Prefer real form Song list / Power Music / customer songs. Always fall back
- * to legacy `musicTheme` — that is where most historical board song text lives.
- * Do not filter notes/affiliate out here or the column goes empty in production.
- * School Anthem / Marching Band: no musicTheme fallback (instrumentation only).
+ * Prefer real form Song list / Power Music / Unleash / customer songs.
+ * Fall back to legacy `musicTheme` for Cheer historical board text only.
+ * Dance / School Anthem / Marching Band / Sports Entertainment: no musicTheme
+ * fallback — Dance Songs must be Power Music OR Unleash covers only; other
+ * forms pack notes into musicTheme and would wrongly green Songs.
  */
 export function getFormSongListColumnText(order: Order | MTDRecord): string {
   const fromForm = getFormSongListText(order).replace(/\s+/g, " ").trim();
@@ -257,11 +298,14 @@ export function getFormSongListColumnText(order: Order | MTDRecord): string {
   const formType = String(o.formType || o.form_type || "").toLowerCase();
   const category = String(o.category || "").toLowerCase();
   if (
+    isAllStarDanceOrder(order) ||
     formType.includes("anthem") ||
     category.includes("anthem") ||
     formType.includes("band") ||
     category.includes("band") ||
-    category.includes("marching")
+    category.includes("marching") ||
+    formType.includes("sports") ||
+    category.includes("sports")
   ) {
     return "";
   }
@@ -270,20 +314,77 @@ export function getFormSongListColumnText(order: Order | MTDRecord): string {
     .trim();
 }
 
+/**
+ * Dance Songs confirm preview — show both cover boxes when either is filled
+ * (Songs is green if Power Music OR Unleash has text).
+ */
+export function getDanceSongsConfirmText(order: Order | MTDRecord): string {
+  const o = order as Order & MTDRecord & Record<string, unknown>;
+  const power = String(o.powerMusicCovers || o.power_music_covers || "").trim();
+  const unleash = String(
+    o.unleashTheBeatsCovers || o.unleash_the_beats_covers || ""
+  ).trim();
+  if (power && unleash) {
+    return `Power Music Covers:\n${power}\n\nUnleash the Beats Covers:\n${unleash}`;
+  }
+  return power || unleash;
+}
+
+/**
+ * Marching Band package family for Songs/Notes SoT.
+ * - band_chant → Song from instrumentation notes
+ * - drum_cadence → Notes from instrumentation notes
+ * - fight_alma → Notes from lyrical notes (Fight Song / Alma Mater Original + Plus)
+ */
+export type MarchingBandPackageKind =
+  | "band_chant"
+  | "drum_cadence"
+  | "fight_alma"
+  | "other";
+
+export function resolveMarchingBandPackageKind(
+  order: Order | MTDRecord | null | undefined
+): MarchingBandPackageKind {
+  const pkg = String(
+    (order as Order)?.package ||
+      (order as Order)?.packageType ||
+      (order as { package_type?: string })?.package_type ||
+      ""
+  ).toUpperCase();
+  if (pkg.includes("BAND CHANT")) return "band_chant";
+  if (pkg.includes("DRUM CADENCE") || pkg.includes("CADENCE")) {
+    return "drum_cadence";
+  }
+  if (pkg.includes("FIGHT SONG") || pkg.includes("ALMA MATER")) {
+    return "fight_alma";
+  }
+  return "other";
+}
+
+export function isMarchingBandOrder(
+  order: Order | MTDRecord | null | undefined
+): boolean {
+  if (!order) return false;
+  const formType = String(
+    (order as Order).formType ||
+      (order as { form_type?: string }).form_type ||
+      ""
+  ).toLowerCase();
+  const category = String(order.category || "").toLowerCase();
+  const kind = resolveMarchingBandPackageKind(order);
+  return (
+    formType.includes("band") ||
+    category.includes("band") ||
+    category.includes("marching") ||
+    kind !== "other"
+  );
+}
+
 /** Notes pill text — form Notes field for this order type. */
 export function getFormNotesText(order: Order | MTDRecord): string {
   const o = order as Order & MTDRecord & Record<string, unknown>;
   const formType = String(o.formType || o.form_type || "").toLowerCase();
   const category = String(o.category || "").toLowerCase();
-  const pkg = String(o.package || o.packageType || o.package_type || "").toUpperCase();
-  const isMarchingBand =
-    formType.includes("band") ||
-    category.includes("band") ||
-    category.includes("marching") ||
-    pkg.includes("BAND CHANT") ||
-    pkg.includes("CADENCE") ||
-    pkg.includes("FIGHT SONG") ||
-    pkg.includes("ALMA MATER");
   const isAnthem =
     formType.includes("anthem") || category.includes("anthem");
 
@@ -291,7 +392,12 @@ export function getFormNotesText(order: Order | MTDRecord): string {
     // Magento "Lyrical Notes" → lyrical_notes.
     return String(o.lyricalNotes || o.lyrical_notes || "").trim();
   }
-  if (isMarchingBand) {
+  if (isMarchingBandOrder(order)) {
+    const kind = resolveMarchingBandPackageKind(order);
+    // Fight Song / Alma Mater Notes → lyrics. Drum Cadence (and unknown) → instrumentation.
+    if (kind === "fight_alma") {
+      return String(o.lyricalNotes || o.lyrical_notes || "").trim();
+    }
     return String(o.instrumentationNotes || o.instrumentation_notes || "").trim();
   }
   return String(
@@ -429,7 +535,7 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
     pkgStr.includes("CADENCE") ||
     pkgStr.includes("FIGHT SONG") ||
     pkgStr.includes("ALMA MATER");
-  const isDance = category.includes("dance") || rawFormType.includes("dance") || pkgStr.includes("POM") || pkgStr.includes("GAMEDAY PERFORMANCE");
+  const isDance = isAllStarDanceOrder(order);
   const isCheer =
     category.includes("cheer") ||
     rawFormType.includes("cheer") ||
@@ -451,9 +557,11 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
   let needVideo = false;
 
   if (isDance) {
-    // Magento + manual share the same package matrix (manual also gets Form):
-    //   DANCE MIX / DANCE PLUS / CUSTOM POM / RALLY MIX / CUSTOM HIP HOP /
-    //   GAMEDAY PERFORMANCE* → Songs + Mix Time
+    // All All-Star Dance subcategories (POM / Hip Hop / Team Performance /
+    // Gameday / Jazz-Kick) share Songs SoT = Power Music OR Unleash covers.
+    // Magento + manual package matrix (manual also gets Form):
+    //   DANCE MIX / DANCE PLUS / CUSTOM POM / RALLY MIX / CUSTOM HIP-HOP /
+    //   TP MIX / TP PLUS / PERFORMANCE* → Songs + Mix Time
     //   JAZZ/KICK MIX → Song(s) + Mix Time
     //   JAZZ SIMPLE CUT → Song + Mix Time + Notes
     // Compliancy is not a Collections/Songs board pill for Dance.
@@ -522,25 +630,20 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
     }
   } else if (isMarchingBand) {
     // Magento + manual share the same package matrix (manual also gets Form):
-    //   BAND CHANT → Song + Mix Time
-    //   DRUM CADENCE* → Mix Time + Notes
-    //   FIGHT SONG* / ALMA MATER* (Original + Plus) → Mix Time + Notes
-    // Instrumentation drives Song (Band Chant) or Notes (others). Lyrics N/A.
-    if (pkgStr.includes("BAND CHANT")) {
+    //   BAND CHANT → Song (instrumentation) + Mix Time
+    //   DRUM CADENCE* → Mix Time + Notes (instrumentation)
+    //   FIGHT SONG* / ALMA MATER* (Original + Plus) → Mix Time + Notes (lyrics)
+    const mbKind = resolveMarchingBandPackageKind(order);
+    if (mbKind === "band_chant") {
       needSongs = true;
       songsLabel = "Song";
       needTimeOfMix = true;
       needNotes = false;
     } else if (
-      pkgStr.includes("DRUM CADENCE") ||
-      pkgStr.includes("FIGHT SONG") ||
-      pkgStr.includes("ALMA MATER")
+      mbKind === "drum_cadence" ||
+      mbKind === "fight_alma" ||
+      mbKind === "other"
     ) {
-      needSongs = false;
-      needTimeOfMix = true;
-      needNotes = true;
-    } else {
-      // Unknown MB package — same as Drum Cadence / Fight / Alma.
       needSongs = false;
       needTimeOfMix = true;
       needNotes = true;
@@ -584,9 +687,16 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
     const hasOrderTimeProp =
       (order as Order).timeLengthOfMix !== undefined ||
       (order as any).time_length_of_mix !== undefined;
+    // Cheer may encode mix length in the package label (GOLD 2:00). SE / Dance /
+    // Band / Anthem keep Magento package labels flat — never treat package time
+    // as Mix collected when Time Length was cleared.
+    const packageTimeFallback =
+      isCheer && !isSports && !isDance && !isMarchingBand && !isAnthem
+        ? parsedPkg.limit
+        : "-";
     const rawTime = hasOrderTimeProp
       ? (order as Order).timeLengthOfMix || (order as any).time_length_of_mix
-      : parsedPkg.limit;
+      : packageTimeFallback;
     const defaultProvided = isPresent(rawTime) && rawTime !== "-";
     const isApplicable = needTimeOfMix;
     let state: RequirementState = "white";
@@ -710,7 +820,8 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
 
   // 5. NOTES — green iff the form Notes field has content.
   // School Anthem → lyricalNotes (Magento Lyrical Notes).
-  // Marching Band → instrumentationNotes (same source as Band Chant Songs).
+  // Marching Band → instrumentationNotes (Drum Cadence) or lyricalNotes
+  // (Fight Song / Alma Mater). Band Chant Notes is N/A.
   // Other forms → routineNotes / additionalNotes.
   // Ignore collectionStates — pill must match the form field exactly.
   {
@@ -867,6 +978,9 @@ export function mergeOrderFormFieldsForRequirements(
     songListSuggestions:
       linkedOrder.songListSuggestions ?? rec.songListSuggestions,
     powerMusicCovers: linkedOrder.powerMusicCovers ?? rec.powerMusicCovers,
+    unleashTheBeatsCovers:
+      linkedOrder.unleashTheBeatsCovers ??
+      (rec as Order).unleashTheBeatsCovers,
     customerSongs: linkedOrder.customerSongs ?? (rec as Order).customerSongs,
     instrumentationNotes:
       linkedOrder.instrumentationNotes ?? (rec as Order).instrumentationNotes,
@@ -875,6 +989,13 @@ export function mergeOrderFormFieldsForRequirements(
     // Do not use || — empty string must win over stale MTD theme text.
     musicTheme: linkedOrder.musicTheme ?? rec.musicTheme,
     routineNotes: linkedOrder.routineNotes ?? (rec as Order).routineNotes,
+    // Cleared Time Length must turn Mix red — do not keep stale staging values.
+    timeLengthOfMix:
+      linkedOrder.timeLengthOfMix ?? (rec as Order).timeLengthOfMix,
+    clientRequestedRushOrder:
+      linkedOrder.clientRequestedRushOrder ??
+      (rec as Order).clientRequestedRushOrder,
+    isRushOrder: linkedOrder.isRushOrder ?? (rec as Order).isRushOrder,
     isManualEntry:
       Boolean(rec.isManualEntry) || Boolean(linkedOrder.isManualEntry),
     isManualScheduleEntry:

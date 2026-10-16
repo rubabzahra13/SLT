@@ -93,6 +93,7 @@ function normalizeFlatPackageQuery(value: string): string {
 }
 
 function flatPackageCompatible(query: string, pkg: string): boolean {
+  if (!query || !pkg) return false;
   if (query === pkg) return true;
   // Prevent Fight Song Plus from matching Fight Song / Fight Song Original.
   const queryPlus = /\bPLUS\b/.test(query);
@@ -102,7 +103,12 @@ function flatPackageCompatible(query: string, pkg: string): boolean {
   const pkgOriginal = /\bORIGINAL\b/.test(pkg);
   if (queryPlus && pkgOriginal) return false;
   if (pkgPlus && queryOriginal) return false;
-  return query.includes(pkg) || pkg.includes(query);
+  // Substring only when the shorter label is a real package phrase (≥ 8 chars).
+  // Blocks subtype labels like "POM" from matching "CUSTOM POM" ($850).
+  const shorter = query.length <= pkg.length ? query : pkg;
+  const longer = query.length <= pkg.length ? pkg : query;
+  if (shorter.length < 8) return false;
+  return longer.includes(shorter);
 }
 
 function findReferenceRow(

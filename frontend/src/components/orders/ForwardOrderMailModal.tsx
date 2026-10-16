@@ -309,7 +309,7 @@ export function ForwardOrderMailModal({
   const fieldGroups = useMemo(() => {
     if (!record) return [];
     if (isCustomer) {
-      const groups = buildMissingDataMailFieldGroups(record);
+      const groups = buildMissingDataMailFieldGroups(record, linkedOrder);
       if (!isCustomerResend) return groups;
       return groups.map((group) => ({
         ...group,

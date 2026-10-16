@@ -168,6 +168,16 @@
               "compliance_sensitive": true
             },
             {
+              "id": "silver_2_00",
+              "name": "SILVER 2:00",
+              "customer_facing_price": 750,
+              "payroll_base_price": {
+                "compliant": 650,
+                "non_compliant": 750
+              },
+              "compliance_sensitive": true
+            },
+            {
               "id": "silver_2_15",
               "name": "SILVER 2:15",
               "customer_facing_price": 900,
@@ -214,6 +224,16 @@
               "payroll_base_price": {
                 "compliant": 700,
                 "non_compliant": 800
+              },
+              "compliance_sensitive": true
+            },
+            {
+              "id": "gold_2_00",
+              "name": "GOLD 2:00",
+              "customer_facing_price": 950,
+              "payroll_base_price": {
+                "compliant": 850,
+                "non_compliant": 950
               },
               "compliance_sensitive": true
             },
@@ -268,6 +288,16 @@
               "compliance_sensitive": true
             },
             {
+              "id": "platinum_2_00",
+              "name": "PLATINUM 2:00",
+              "customer_facing_price": 1350,
+              "payroll_base_price": {
+                "compliant": 1150,
+                "non_compliant": 1350
+              },
+              "compliance_sensitive": true
+            },
+            {
               "id": "platinum_2_15",
               "name": "PLATINUM 2:15",
               "customer_facing_price": 1600,
@@ -316,6 +346,17 @@
               "payroll_base_price": {
                 "compliant": 2000,
                 "non_compliant": 2000
+              },
+              "compliance_sensitive": false,
+              "note": "Titanium: price to payroll always full amount regardless of compliance."
+            },
+            {
+              "id": "titanium_2_00",
+              "name": "TITANIUM 2:00",
+              "customer_facing_price": 2300,
+              "payroll_base_price": {
+                "compliant": 2300,
+                "non_compliant": 2300
               },
               "compliance_sensitive": false,
               "note": "Titanium: price to payroll always full amount regardless of compliance."

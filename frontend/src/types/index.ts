@@ -91,6 +91,8 @@ export type MTDRecord = {
   hasSheetMusicAdd?: boolean;
   hasAddVocals?: boolean;
   isRushOrder?: "yes" | "no" | boolean | string;
+  /** Sports Ent Magento client rush answer (synced onto staging/MTD rows). */
+  clientRequestedRushOrder?: "yes" | "no" | boolean | string;
   couponCode?: string;
   systemCalculatedCustomerPrice?: number | null;
   finalCustomerPrice?: number | null;

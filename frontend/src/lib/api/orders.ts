@@ -228,15 +228,19 @@ export function transformOrder(bo: BackendOrder): Order {
         ? "SCHOOL ANTHEMS"
         : bo.package_type || "",
     requestedEditor,
-    // Client form "Length of Mix" → time_length_of_mix; fall back to package limit.
+    // Client form "Length of Mix" → time_length_of_mix.
+    // Cheer may fall back to time encoded in package (GOLD 2:00); other forms
+    // must not — package-time refill makes a cleared SE Time Length reappear.
     timeLengthOfMix:
       bo.time_length_of_mix ||
-      (() => {
-        const fromPkg = String(bo.package || bo.package_type || "").match(
-          /\d+:\d{2}/
-        );
-        return fromPkg ? fromPkg[0] : "";
-      })(),
+      (formType === "school-all-star-cheer"
+        ? (() => {
+            const fromPkg = String(bo.package || bo.package_type || "").match(
+              /\d+:\d{2}/
+            );
+            return fromPkg ? fromPkg[0] : "";
+          })()
+        : ""),
     musicAffiliate: bo.music_affiliate || "",
     affiliateFlagStatus:
       bo.affiliate_flag_status === "open" ||

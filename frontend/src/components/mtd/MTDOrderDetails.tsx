@@ -430,6 +430,9 @@ export function MTDOrderDetails({
                           value={rawValue}
                           formType={order.formType}
                           cheerSubtype={order.cheerFormSubtype}
+                          packageType={
+                            order.packageType || order.package || null
+                          }
                           aria-label={field.label}
                           onChange={(value) => onFieldChange(field.key, value)}
                         />

@@ -7,7 +7,10 @@ import {
 } from "@/lib/editor-assignment";
 import { orderFromMTDRecord } from "@/lib/order-detail-fields";
 import { getOrderDetailSections } from "@/lib/order-detail-sections";
-import { getOrderRequirements } from "@/lib/order-requirements";
+import {
+  getOrderRequirements,
+  mergeOrderFormFieldsForRequirements,
+} from "@/lib/order-requirements";
 import { parsePackage } from "@/lib/package";
 import {
   applyEmailTemplate,
@@ -244,14 +247,33 @@ export function isRushOrderFlag(value: unknown): boolean {
 
 type RushOrderLike = {
   isRushOrder?: unknown;
+  clientRequestedRushOrder?: unknown;
+  formType?: string | null;
+  category?: string | null;
   rushFeeQuantity?: number;
   rushFeeOption?: string | null;
 };
+
+function isSportsEntertainmentRecord(
+  record: RushOrderLike | null | undefined
+): boolean {
+  if (!record) return false;
+  const form = String(record.formType || "").toLowerCase();
+  const category = String(record.category || "").toLowerCase();
+  return form.includes("sports") || category.includes("sports");
+}
 
 export function recordIsRushOrder(
   record: RushOrderLike | null | undefined
 ): boolean {
   if (!record) return false;
+  // Sports Entertainment Magento SoT: client rush Yes/No on the order form.
+  if (isSportsEntertainmentRecord(record)) {
+    const client = record.clientRequestedRushOrder;
+    if (client !== undefined && client !== null && String(client).trim() !== "") {
+      return isRushOrderFlag(client);
+    }
+  }
   if (isRushOrderFlag(record.isRushOrder)) return true;
   if (typeof record.rushFeeQuantity === "number" && record.rushFeeQuantity > 0) {
     return true;
@@ -684,9 +706,13 @@ ${formatSongResourceLinksPlain()}`,
 }
 
 export function buildMissingDataMailFieldGroups(
-  record: MTDRecord
+  record: MTDRecord,
+  linkedOrder?: Order | null
 ): ForwardMailFieldGroup[] {
-  const reqs = getOrderRequirements(record);
+  // Same Form / Mix / Songs SoT as the Orders collections pills.
+  const reqs = getOrderRequirements(
+    mergeOrderFormFieldsForRequirements(record, linkedOrder)
+  );
   const missing = reqs.all.filter((item) => item.isApplicable && item.state === "red");
   const missingIds = new Set(missing.map((item) => item.id));
   const fields: ForwardMailField[] = [];
@@ -705,22 +731,14 @@ export function buildMissingDataMailFieldGroups(
     });
   };
 
-  // Client template leads with the order form when production materials are incomplete.
-  if (
-    missingIds.has("songs") ||
-    missingIds.has("notes") ||
-    missingIds.has("mix") ||
-    missingIds.size > 0
-  ) {
+  // COMPLETED ORDER FORM only for unmatched Manual / New Order rows (Form pill
+  // red). Magento form, matched, and overwritten orders must not ask for a form.
+  if (missingIds.has("form")) {
     pushCopy("form");
   }
 
   for (const item of missing) {
     pushCopy(item.id);
-  }
-
-  if (fields.length === 0 && reqs.isWaitingForData) {
-    pushCopy("form");
   }
 
   if (fields.length === 0) return [];

@@ -181,11 +181,15 @@ export function findMatchingManualOrder(
 ): Order | null {
   if (!isMagentoFormOrder(formOrder)) return null;
   if (formOrder.suppressManualFormMerge) return null;
+  // Already absorbed into a manual — do not re-match.
+  if (formOrder.mergedIntoManualOrderId) return null;
 
   let best: Order | null = null;
   let bestScore = threshold;
   for (const candidate of orders) {
     if (!canMergeMagentoFormIntoManual(formOrder, candidate)) continue;
+    // Already paired with a Magento form — one form per manual slot.
+    if (candidate.mergedFormOrderId) continue;
     const score = identityNameSimilarity(formOrder, candidate);
     if (score >= bestScore) {
       bestScore = score;
@@ -193,6 +197,111 @@ export function findMatchingManualOrder(
     }
   }
   return best;
+}
+
+export type ManualFormReconcileMerge = {
+  manualId: string;
+  formId: string;
+  manualPatch: Partial<Order>;
+  formPatch: Partial<Order>;
+};
+
+/**
+ * Name-match unlinked Magento forms into unlinked manual slots.
+ * Used on bootstrap so CSV/DB-seeded forms get the same merge as receiveOrder.
+ * Idempotent: already-linked pairs are left alone; each manual absorbs at most one form.
+ */
+export function reconcileUnlinkedManualFormPairs(
+  orders: Order[],
+  threshold = 0.9
+): {
+  orders: Order[];
+  merges: ManualFormReconcileMerge[];
+} {
+  const claimedManualIds = new Set<string>();
+  const claimedFormIds = new Set<string>();
+
+  for (const order of orders) {
+    const id = orderKey(order);
+    if (!id) continue;
+    if (order.isManualEntry && order.mergedFormOrderId) {
+      claimedManualIds.add(id);
+    }
+    if (isMagentoFormOrder(order) && order.mergedIntoManualOrderId) {
+      claimedFormIds.add(id);
+      claimedManualIds.add(String(order.mergedIntoManualOrderId));
+    }
+  }
+
+  const forms = orders
+    .filter((o) => {
+      const id = orderKey(o);
+      return (
+        Boolean(id) &&
+        isMagentoFormOrder(o) &&
+        !o.mergedIntoManualOrderId &&
+        !o.suppressManualFormMerge &&
+        !claimedFormIds.has(id)
+      );
+    })
+    .slice()
+    .sort((a, b) =>
+      String(a.createdAt || "").localeCompare(String(b.createdAt || ""))
+    );
+
+  let working = orders.slice();
+  const merges: ManualFormReconcileMerge[] = [];
+
+  for (const form of forms) {
+    const formId = orderKey(form);
+    if (!formId || claimedFormIds.has(formId)) continue;
+
+    const candidates = working.filter((o) => {
+      const id = orderKey(o);
+      return Boolean(id) && !claimedManualIds.has(id);
+    });
+
+    const manual = findMatchingManualOrder(form, candidates, threshold);
+    if (!manual) continue;
+    const manualId = orderKey(manual);
+    if (!manualId || claimedManualIds.has(manualId)) continue;
+
+    const manualPatch: Partial<Order> = {
+      ...mergePatchFromForm(manual, form),
+      mergedFormOrderId: formId,
+      suppressManualFormMerge: false,
+    };
+    const formPatch: Partial<Order> = {
+      mergedIntoManualOrderId: manualId,
+      suppressManualFormMerge: false,
+    };
+
+    const manualNext: Order = {
+      ...manual,
+      ...manualPatch,
+      id: manual.id,
+      isManualEntry: true,
+    };
+    const formNext: Order = {
+      ...form,
+      ...formPatch,
+      id: form.id,
+      isManualEntry: false,
+    };
+
+    working = working.map((o) => {
+      const id = orderKey(o);
+      if (id === manualId) return manualNext;
+      if (id === formId) return formNext;
+      return o;
+    });
+
+    claimedManualIds.add(manualId);
+    claimedFormIds.add(formId);
+    merges.push({ manualId, formId, manualPatch, formPatch });
+  }
+
+  return { orders: working, merges };
 }
 
 function findFormLinkedToManual(
@@ -203,7 +312,7 @@ function findFormLinkedToManual(
   const manualId = orderKey(manual);
 
   // Only honor an existing Magento link — never invent a name match here.
-  // Fresh Magento→manual merges happen only in receiveOrder.
+  // Fresh name matches are created in receiveOrder / bootstrap reconcile, then persisted.
   if (manual.mergedFormOrderId) {
     const byId = allOrders.find(
       (o) => isMagentoFormOrder(o) && ordersMatchId(o, manual.mergedFormOrderId)
@@ -233,7 +342,7 @@ function findManualLinkedToForm(
 ): Order | null {
   if (!isMagentoFormOrder(form)) return null;
 
-  // Link-only — name matching is exclusive to receiveOrder → findMatchingManualOrder.
+  // Link-only — name matching is exclusive to receiveOrder / bootstrap reconcile.
   if (form.mergedIntoManualOrderId) {
     const byLink = allOrders.find(
       (o) =>
@@ -792,8 +901,8 @@ export function splitManualFormPatches(
 
 /**
  * Apply already-persisted Magento↔manual links for board display.
- * Does NOT invent new name matches — that only happens when a Magento form
- * arrives via receiveOrder → findMatchingManualOrder.
+ * Does NOT invent new name matches — those are created by receiveOrder or
+ * reconcileUnlinkedManualFormPairs (bootstrap) and then persisted as links.
  */
 export function applyManualFormMerges(orders: Order[]): Order[] {
   const byId = new Map<string, Order>();
@@ -841,7 +950,17 @@ export function applyManualFormMerges(orders: Order[]): Order[] {
   return orders.map((order) => {
     const id = orderKey(order);
     if (order.isManualEntry && manualToForm.has(id)) {
-      return mergeFormWinsIntoManualOrder(order, manualToForm.get(id)!);
+      const form = manualToForm.get(id)!;
+      // Initial match uses form-wins. Once a snapshot exists, keep persisted
+      // manual values (edit-modal saves) and only fill empties from the form —
+      // hard form-wins on every board load was wiping those edits.
+      if (
+        order.manualOverlapSnapshot &&
+        Object.keys(order.manualOverlapSnapshot).length > 0
+      ) {
+        return mergeFormIntoManualOrder(order, form);
+      }
+      return mergeFormWinsIntoManualOrder(order, form);
     }
     if (isMagentoFormOrder(order) && formToManual.has(id)) {
       return {
