@@ -3,8 +3,10 @@ import { parsePackage } from "@/lib/package";
 import { titleCase } from "@/lib/data";
 import { resolveOrderPriceCompliance } from "@/lib/pricing";
 import {
+  ALL_STAR_CHEER_MUSIC_AFFILIATE_OPTIONS,
   normalizeAllStarCheerMusicAffiliateLabel,
   normalizeSchoolCheerVirocMusicAffiliateLabel,
+  SCHOOL_CHEER_VIROC_MUSIC_AFFILIATE_OPTIONS,
 } from "@/lib/pricing-reference";
 
 export const POM_FORM_COLUMN_LABELS = [
@@ -34,13 +36,21 @@ export const POM_FORM_COLUMN_LABELS = [
 
 /**
  * Legacy fallback when musicAffiliate is empty but musicTheme still carries
- * an affiliate hint. Never invent a default — empty theme → "".
- * Prefer All-Star Cheer catalog labels (not dance-only cover checkboxes).
+ * an affiliate hint (buildLegacyMusicTheme appends "(Label)").
+ * Never treat free-text Song list / notes as an affiliate SoftSelect value.
  */
 export function inferMusicAffiliate(musicTheme: string): string {
   const raw = String(musicTheme || "").trim();
   if (!raw) return "";
-  return normalizeAllStarCheerMusicAffiliateLabel(raw);
+  const paren = raw.match(/\(([^)]+)\)\s*$/);
+  const candidate = (paren ? paren[1] : raw).trim();
+  if (!candidate) return "";
+  const normalized = normalizeAllStarCheerMusicAffiliateLabel(candidate);
+  const known = new Set<string>([
+    ...ALL_STAR_CHEER_MUSIC_AFFILIATE_OPTIONS,
+    ...SCHOOL_CHEER_VIROC_MUSIC_AFFILIATE_OPTIONS,
+  ]);
+  return known.has(normalized) ? normalized : "";
 }
 
 /** Magento School Anthem has no package field — flat rate card. */
@@ -236,6 +246,7 @@ export function normalizeOrder(
     ? raw.timeLengthOfMix?.trim() || (limit !== "-" ? limit : "") || ""
     : raw.timeLengthOfMix?.trim() || "";
 
+  const songListEarly = raw.songListSuggestions?.trim() || "";
   const musicAffiliateRaw =
     raw.musicAffiliate?.trim() ||
     inferMusicAffiliate(raw.musicTheme || "");
@@ -261,9 +272,25 @@ export function normalizeOrder(
         pkgForAffiliate
       );
     }
+    // Scrub bleed from older Song list → musicTheme → affiliate copies.
+    if (
+      songListEarly &&
+      musicAffiliate &&
+      musicAffiliate.trim().toLowerCase() === songListEarly.toLowerCase()
+    ) {
+      musicAffiliate = "";
+    }
   }
 
-  const routineNotes = raw.routineNotes?.trim() || raw.musicTheme || "";
+  // Cheer / Dance Magento forms have dedicated Notes fields. Never fall back
+  // musicTheme → routineNotes: Song list edits used to write musicTheme and
+  // would flood Routine Notes (and Music Affiliate via infer).
+  const hasSeparateNotesField =
+    formType === "school-all-star-cheer" ||
+    formType === "school-all-star-dance";
+  const routineNotes = hasSeparateNotesField
+    ? raw.routineNotes?.trim() || ""
+    : raw.routineNotes?.trim() || raw.musicTheme || "";
 
   const requestedEditor =
     raw.requestedEditor?.trim() ||
@@ -282,7 +309,7 @@ export function normalizeOrder(
   // Dance Power Music / Unleash are their own columns; cheer Songs uses song list.
   const powerMusicCovers = raw.powerMusicCovers?.trim() || "";
   const unleashTheBeatsCovers = raw.unleashTheBeatsCovers?.trim() || "";
-  const songList = raw.songListSuggestions?.trim() || "";
+  const songList = songListEarly;
 
   const normalized: Order = {
     ...raw,

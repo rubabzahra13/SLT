@@ -2,6 +2,7 @@ import type { MTDRecord, Order } from "@/types";
 import { parsePackage } from "@/lib/package";
 import { rawFieldValue } from "@/lib/order-detail-fields";
 import { getOrderDetailSections } from "@/lib/order-detail-sections";
+import { buildLegacyMusicTheme } from "@/lib/order-form";
 
 /** MTD patches when an order form field changes. */
 export function mtdPatchFromOrderField(
@@ -31,16 +32,24 @@ export function mtdPatchFromOrderField(
     case "timeLengthOfMix":
       return { timeLengthOfMix: value };
     case "songListSuggestions":
-    case "powerMusicCovers":
-    case "unleashTheBeatsCovers":
     case "customerSongs": {
+      // Cheer Song list / SE Songs — own columns. Do not write into musicTheme
+      // (that flooded Music Affiliate + Routine Notes on cheer edit/save).
       const filled = Boolean(String(value || "").trim());
       return {
-        musicTheme: value,
+        songListSuggestions: value,
+        haveSongs: filled ? "HAVE SONGS" : "NEED SONGS",
+      };
+    }
+    case "powerMusicCovers":
+    case "unleashTheBeatsCovers": {
+      const filled = Boolean(String(value || "").trim());
+      return {
         haveSongs: filled ? "HAVE SONGS" : "NEED SONGS",
       };
     }
     case "routineNotes":
+      return { routineNotes: value };
     case "musicTheme":
       return { musicTheme: value };
     case "sendingEightCountSheets":
@@ -239,20 +248,21 @@ export function orderPatchFromOrderField(
     delete nextStates.time_of_mix;
     patch.collectionStates = nextStates as Order["collectionStates"];
   }
-  if (key === "songListSuggestions" || key === "routineNotes") {
-    // Cheer song list / notes feed the legacy musicTheme column.
-    // Dance keeps Power Music Covers and Unleash boxes separate.
+  if (key === "songListSuggestions") {
+    // Cheer Song list is its own Magento column — never copy into musicTheme.
+    // (Legacy copy made normalizeOrder fill Music Affiliate + Routine Notes.)
     if (current?.formType !== "school-all-star-dance") {
-      patch.musicTheme = value;
+      patch.powerMusicCovers = "";
     }
   }
-  if (key === "songListSuggestions" && current?.formType !== "school-all-star-dance") {
-    // Cheer/other: covers is unused — clear so song text is not mirrored there.
-    patch.powerMusicCovers = "";
-  }
-  if (key === "powerMusicCovers" || key === "unleashTheBeatsCovers") {
+  if (key === "routineNotes") {
+    // Rebuild legacy musicTheme from notes + affiliate only (not Song list).
     if (current?.formType !== "school-all-star-dance") {
-      patch.musicTheme = value;
+      patch.musicTheme = buildLegacyMusicTheme({
+        routineNotes: value,
+        powerMusicCovers: "",
+        musicAffiliate: current?.musicAffiliate || "",
+      });
     }
   }
   // Songs / Notes pills follow form fields: clear manual overrides when edited.
