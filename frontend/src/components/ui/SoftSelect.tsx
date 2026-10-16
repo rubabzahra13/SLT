@@ -71,7 +71,11 @@ export function SoftSelect({
   const searchRef = useRef<HTMLInputElement>(null);
   const [menuPos, setMenuPos] = useState<MenuPos | null>(null);
   const [query, setQuery] = useState("");
-  const selected = options.find((opt) => opt.value === value);
+  const selected =
+    options.find((opt) => opt.value === value) ??
+    (value
+      ? ({ value, label: value } satisfies SoftSelectOption)
+      : undefined);
 
   const filteredOptions = searchable
     ? options.filter((opt) => {
