@@ -201,6 +201,25 @@ describe("Central Pricing Engine — Core Rules Unit Tests (Prompt 8)", () => {
         assert.equal(res.payrollBasePrice, 0);
       }
     });
+
+    it("Youth Rec SoftSelect Other or custom mix length → Needs Quote", () => {
+      const other = calculateCheerOrderPricing({
+        cheerFormSubtype: "youth-rec-cheer",
+        packageType: "BRONZE",
+        timeLengthOfMix: "Other",
+      });
+      assert.equal(other.isUnpriced, true);
+      assert.equal(other.customerFacingPrice, 0);
+
+      const custom = calculateCheerOrderPricing({
+        cheerFormSubtype: "youth-rec-cheer",
+        packageType: "BRONZE",
+        timeLengthOfMix: "2:45",
+      });
+      assert.equal(custom.isUnpriced, true);
+      assert.equal(custom.customerFacingPrice, 0);
+      assert.equal(custom.timeLengthOfMix, "2:45");
+    });
   });
 });
 

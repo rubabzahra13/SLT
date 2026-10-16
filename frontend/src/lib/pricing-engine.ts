@@ -95,6 +95,9 @@ export const YOUTH_REC_MAGENTO_MIX_LENGTHS = [
   "2:30",
 ] as const;
 
+/** SoftSelect "Other" — pick a custom mix length (not on rate card → Needs Quote). */
+export const YOUTH_REC_MIX_OTHER = "Other";
+
 /** In-memory rate-card overrides hydrated from pricing_rules (DB). */
 const cheerRateCardOverrides = new Map<string, RateCardEntry[]>();
 const danceRateCardOverrides = new Map<string, DanceRateCardEntry[]>();
@@ -607,12 +610,25 @@ export function isSchoolCheerOtherMixLength(
   return false;
 }
 
+export function isYouthRecOtherMixLength(raw?: string | null): boolean {
+  const trimmed = String(raw || "").trim();
+  if (!trimmed) return false;
+  if (trimmed === YOUTH_REC_MIX_OTHER) return true;
+  if (/^other\b/i.test(trimmed)) return true;
+  return false;
+}
+
 export function isSchoolCheerSubtype(
   subtype?: CheerFormSubtype | string | null
 ): boolean {
   return (
     subtype === "school-cheer-viroc-yes" || subtype === "school-cheer-viroc-no"
   );
+}
+
+/** SoftSelect "Other" mix label (School Cheer Magento text or Youth Rec "Other"). */
+export function isCheerOtherMixLength(raw?: string | null): boolean {
+  return isSchoolCheerOtherMixLength(raw) || isYouthRecOtherMixLength(raw);
 }
 
 /** Mix length options for a form + subcategory (from rate-card time limits). */
@@ -631,9 +647,9 @@ export function mixLengthsForOrderForm(
     ) {
       return [...SCHOOL_CHEER_MAGENTO_MIX_LENGTHS, SCHOOL_CHEER_MAGENTO_MIX_OTHER];
     }
-    // Youth Rec Magento SoftSelect: 1:00 / 1:30 / 1:45 / 2:00 / 2:30 (no 2:15).
+    // Youth Rec Magento SoftSelect + Other (type a custom limit → Needs Quote).
     if (subtype === "youth-rec-cheer") {
-      return [...YOUTH_REC_MAGENTO_MIX_LENGTHS];
+      return [...YOUTH_REC_MAGENTO_MIX_LENGTHS, YOUTH_REC_MIX_OTHER];
     }
     const seen = new Set<string>();
     const lengths: string[] = [];
@@ -700,6 +716,9 @@ export function lookupRateCardEntry(
   }
 
   const priced = rateCard.filter((entry) => !entry.isUnpriced);
+  const hasConcreteLimit = Boolean(
+    targetLimit && targetLimit !== "-" && !/^other\b/i.test(targetLimit)
+  );
 
   // Find exact match first
   let matched = priced.find(
@@ -709,7 +728,13 @@ export function lookupRateCardEntry(
 
   if (matched) return matched;
 
-  // Fallback: match by tier if limit isn't matched
+  // Concrete SoftSelect / custom mix length not on the rate card → no match
+  // (Needs Quote). Do not fall back to another length for the same tier.
+  if (hasConcreteLimit) {
+    return null;
+  }
+
+  // Fallback: match by tier when mix length is missing / Rally Mix "-".
   matched = priced.find((entry) => entry.tier.toUpperCase() === targetTier);
   if (matched) return matched;
 
@@ -970,11 +995,14 @@ export function calculateCheerOrderPricing(
     input.musicAffiliate
   );
 
-  // Magento SoftSelect "Other" Length of Mix + any package → needs quote.
+  // SoftSelect "Other" Length of Mix + any package → needs quote.
+  const otherMix =
+    isCheerOtherMixLength(input.timeLengthOfMix) ||
+    isCheerOtherMixLength(input.packageType);
   if (
-    isSchoolCheerSubtype(input.cheerFormSubtype) &&
-    (isSchoolCheerOtherMixLength(input.timeLengthOfMix) ||
-      isSchoolCheerOtherMixLength(input.packageType))
+    (isSchoolCheerSubtype(input.cheerFormSubtype) ||
+      input.cheerFormSubtype === "youth-rec-cheer") &&
+    otherMix
   ) {
     return {
       customerFacingPrice: 0,
@@ -985,7 +1013,9 @@ export function calculateCheerOrderPricing(
       isTitanium: false,
       matchedEntry: null,
       packageName: input.packageType,
-      timeLengthOfMix: SCHOOL_CHEER_MAGENTO_MIX_OTHER,
+      timeLengthOfMix: isSchoolCheerSubtype(input.cheerFormSubtype)
+        ? SCHOOL_CHEER_MAGENTO_MIX_OTHER
+        : YOUTH_REC_MIX_OTHER,
       discountAmount: 0,
       preDiscountPayrollBasePrice: 0,
       preDiscountCustomerFacingPrice: 0,
@@ -1000,6 +1030,13 @@ export function calculateCheerOrderPricing(
   );
 
   if (!matchedEntry) {
+    // Custom / unknown mix length (not on SoftSelect rate card) → Needs Quote.
+    const askedLimit = String(input.timeLengthOfMix || "").trim();
+    const needsQuoteForMissingLimit =
+      (isSchoolCheerSubtype(input.cheerFormSubtype) ||
+        input.cheerFormSubtype === "youth-rec-cheer") &&
+      Boolean(askedLimit) &&
+      askedLimit !== "-";
     return {
       customerFacingPrice: 0,
       payrollBasePrice: 0,
@@ -1013,6 +1050,7 @@ export function calculateCheerOrderPricing(
       discountAmount: 0,
       preDiscountPayrollBasePrice: 0,
       preDiscountCustomerFacingPrice: 0,
+      isUnpriced: needsQuoteForMissingLimit || undefined,
     };
   }
 

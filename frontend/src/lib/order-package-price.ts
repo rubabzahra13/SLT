@@ -4,7 +4,7 @@ import {
   calculateMarchingBandOrderPricing,
   calculateSchoolAnthemOrderPricing,
   calculateSportsEntertainmentOrderPricing,
-  isSchoolCheerOtherMixLength,
+  isCheerOtherMixLength,
   isSchoolCheerSubtype,
 } from "@/lib/pricing-engine";
 import { resolveMTDFormMeta, type MTDFormMeta } from "@/lib/mtd-filters";
@@ -28,7 +28,7 @@ type EnginePriceResult = {
   isUnpriced?: boolean;
 };
 
-/** Needs Quote chip: SE OTHER packages, or School Cheer SoftSelect "Other" mix. */
+/** Needs Quote chip: SE OTHER, SoftSelect Other mix, or mix length not on rate card. */
 export function orderNeedsManualPackageQuote(
   meta: MTDFormMeta | null | undefined,
   order: Order | null | undefined,
@@ -45,8 +45,9 @@ export function orderNeedsManualPackageQuote(
   }
   if (
     meta.formType === "school-all-star-cheer" &&
-    isSchoolCheerSubtype(meta.cheerFormSubtype) &&
-    isSchoolCheerOtherMixLength(order?.timeLengthOfMix)
+    (isSchoolCheerSubtype(meta.cheerFormSubtype) ||
+      meta.cheerFormSubtype === "youth-rec-cheer") &&
+    isCheerOtherMixLength(order?.timeLengthOfMix)
   ) {
     return true;
   }
@@ -240,11 +241,12 @@ export function resolveLiveOrderPricing(
           : null;
     }
 
-    // SoftSelect "Other" mix / unpriced engine → do not overlay rate-card prices.
+    // SoftSelect "Other" / custom mix / unpriced engine → do not overlay rate-card prices.
     if (
       engine?.isUnpriced ||
-      (isSchoolCheerSubtype(formMeta.cheerFormSubtype) &&
-        isSchoolCheerOtherMixLength(order?.timeLengthOfMix))
+      ((isSchoolCheerSubtype(formMeta.cheerFormSubtype) ||
+        formMeta.cheerFormSubtype === "youth-rec-cheer") &&
+        isCheerOtherMixLength(order?.timeLengthOfMix))
     ) {
       engineCustomer = null;
       enginePayroll = null;

@@ -6,6 +6,7 @@ import {
   isSchoolCheerSubtype,
   mixLengthsForOrderForm,
   SCHOOL_CHEER_MAGENTO_MIX_OTHER,
+  YOUTH_REC_MIX_OTHER,
 } from "@/lib/pricing-engine";
 import type {
   CheerFormSubtype,
@@ -42,19 +43,43 @@ function normalizeMixLength(
   ) {
     return SCHOOL_CHEER_MAGENTO_MIX_OTHER;
   }
+  if (
+    cheerSubtype === "youth-rec-cheer" &&
+    (trimmed === YOUTH_REC_MIX_OTHER || /^other\b/i.test(trimmed))
+  ) {
+    return YOUTH_REC_MIX_OTHER;
+  }
   const match = trimmed.match(/\d+:\d{2}/);
   if (match) {
     // Magento SoftSelect has no 2:00 — map legacy School Cheer / VIROC → 2:15.
     if (isSchoolCheerSubtype(cheerSubtype) && match[0] === "2:00") {
       return "2:15";
     }
-    // Magento SoftSelect has no 2:15 — map legacy Youth Rec → 2:30.
+    // Magento SoftSelect has no 2:15 — map legacy Youth Rec 2:15 → 2:30.
     if (cheerSubtype === "youth-rec-cheer" && match[0] === "2:15") {
       return "2:30";
     }
     return match[0];
   }
   if (/^tbd$/i.test(trimmed)) return "TBD";
+  return trimmed;
+}
+
+function resolveCustomMixLength(
+  typed: string,
+  cheerSubtype?: CheerFormSubtype | null
+): string {
+  const trimmed = typed.trim();
+  if (!trimmed) return "";
+  if (/^other\b/i.test(trimmed)) {
+    return cheerSubtype === "youth-rec-cheer"
+      ? YOUTH_REC_MIX_OTHER
+      : isSchoolCheerSubtype(cheerSubtype)
+        ? SCHOOL_CHEER_MAGENTO_MIX_OTHER
+        : trimmed;
+  }
+  const match = trimmed.match(/\d+:\d{2}/);
+  if (match) return match[0];
   return trimmed;
 }
 
@@ -80,6 +105,9 @@ export function MixLengthField({
     () => mixLengthsForOrderForm(formType, cheerSubtype, danceSubtype),
     [formType, cheerSubtype, danceSubtype]
   );
+
+  const allowCustom =
+    cheerSubtype === "youth-rec-cheer" || isSchoolCheerSubtype(cheerSubtype);
 
   const options = useMemo(() => {
     const seen = new Set<string>();
@@ -125,15 +153,24 @@ export function MixLengthField({
       size="md"
       placeholder="Select length…"
       placement="below"
+      searchable={allowCustom}
+      searchPlaceholder={
+        allowCustom ? "Search or type a custom limit…" : "Search…"
+      }
+      allowCustomValue={allowCustom}
+      resolveCustomValue={(typed) =>
+        resolveCustomMixLength(typed, cheerSubtype)
+      }
       value={selectValue}
       options={options}
       open={open}
       onOpenChange={setOpen}
       onChange={(next) => {
-        if (originalNormalized && sameOption(next, originalNormalized)) {
+        const resolved = normalizeMixLength(next, cheerSubtype) || next;
+        if (originalNormalized && sameOption(resolved, originalNormalized)) {
           onChange(originalNormalized);
         } else {
-          onChange(next);
+          onChange(resolved);
         }
         setOpen(false);
       }}
