@@ -1078,7 +1078,12 @@ export function calculateCheerOrderPricing(
     };
   }
 
-  if (matchedEntry.isUnpriced || matchedEntry.customer == null) {
+  if (
+    matchedEntry.isUnpriced ||
+    matchedEntry.customer == null ||
+    matchedEntry.compliant == null ||
+    matchedEntry.nonCompliant == null
+  ) {
     return {
       customerFacingPrice: 0,
       payrollBasePrice: 0,
@@ -1096,13 +1101,16 @@ export function calculateCheerOrderPricing(
     };
   }
 
+  const customerPrice = matchedEntry.customer;
+  const compliantPrice = matchedEntry.compliant;
+  const nonCompliantPrice = matchedEntry.nonCompliant;
+
   const miscAddons = calculateMiscellaneousPayrollAddons(input);
   const addOnTotal = miscAddons.totalPayrollAddOns;
 
-  const preDiscountCustomerFacingPrice = matchedEntry.customer ?? 0;
-  const compliantPayrollBasePrice = (matchedEntry.compliant ?? 0) + addOnTotal;
-  const nonCompliantPayrollBasePrice =
-    (matchedEntry.nonCompliant ?? 0) + addOnTotal;
+  const preDiscountCustomerFacingPrice = customerPrice;
+  const compliantPayrollBasePrice = compliantPrice + addOnTotal;
+  const nonCompliantPayrollBasePrice = nonCompliantPrice + addOnTotal;
 
   // Youth Rec has no music-affiliate field — always pull the flat package price.
   const youthRecFlat = input.cheerFormSubtype === "youth-rec-cheer";
@@ -1111,9 +1119,7 @@ export function calculateCheerOrderPricing(
   if (youthRecFlat || matchedEntry.isTitanium) {
     // Flat / titanium: payroll follows package price (+ add-ons).
     preDiscountPayrollBasePrice =
-      (youthRecFlat
-        ? matchedEntry.customer ?? 0
-        : matchedEntry.compliant ?? 0) + addOnTotal;
+      (youthRecFlat ? customerPrice : compliantPrice) + addOnTotal;
   } else if (complianceStatus === "non-compliant") {
     preDiscountPayrollBasePrice = nonCompliantPayrollBasePrice;
   } else if (
