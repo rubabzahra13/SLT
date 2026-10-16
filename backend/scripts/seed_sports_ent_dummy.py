@@ -40,6 +40,37 @@ SPORTS_ENT_DEMO = [
         "song_list_suggestions": "Custom long-form entrance package",
         "routine_notes": "Manual pricing required — mix longer than 2:30.",
     },
+    # Extra Magento coverage so each PACKAGE TYPE has a second demo row.
+    {
+        "legacy_id": "demo-se-4",
+        "school_program_name": "Coastal Tip-Off Crew",
+        "package_type": "QUARTER BREAK / TIMEOUT REMIXED",
+        "package": "QUARTER BREAK / TIMEOUT REMIXED",
+        "time_length_of_mix": "0:45",
+        "is_rush_order": "No",
+        "song_list_suggestions": "Timeout stinger + crowd clap track",
+        "routine_notes": "Keep under :50 for TV timeout.",
+    },
+    {
+        "legacy_id": "demo-se-5",
+        "school_program_name": "Summit Stadium Entertainment",
+        "package_type": "PRE-GAME / HALFTIME REMIXED",
+        "package": "PRE-GAME / HALFTIME REMIXED",
+        "time_length_of_mix": "2:15",
+        "is_rush_order": "No",
+        "song_list_suggestions": "Stadium walkout + halftime remix bed",
+        "routine_notes": "Prefers organ hits at section changes.",
+    },
+    {
+        "legacy_id": "demo-se-6",
+        "school_program_name": "Pacific Pro Showcase",
+        "package_type": "OTHER (mixes longer than 2:30)",
+        "package": "OTHER (mixes longer than 2:30)",
+        "time_length_of_mix": "4:00",
+        "is_rush_order": "Yes",
+        "song_list_suggestions": "Specify full song list in notes — custom length show open.",
+        "routine_notes": "Other package — quote via email. Need under 7 days.",
+    },
 ]
 
 

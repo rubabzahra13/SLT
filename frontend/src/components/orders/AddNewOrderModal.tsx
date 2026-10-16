@@ -6,6 +6,7 @@ import { X, Calendar, Loader2, AlertCircle } from "lucide-react";
 import { FilterMenu } from "@/components/ui/FilterMenu";
 import { MTDOrderDetails } from "@/components/mtd/MTDOrderDetails";
 import { useAppState } from "@/context/AppStateContext";
+import { formatApiClientError } from "@/lib/api/client";
 import type { CreateManualSchedulePayload } from "@/lib/api/mtd";
 import { orderPatchFromOrderField } from "@/lib/mtd-order-sync";
 import { packageTypeDisplayValue } from "@/components/mtd/PackageTypeField";
@@ -139,6 +140,7 @@ function blankOrderDraft(
   // normalizeOrder may infer affiliate/songs — wipe for a true blank Google-style form.
   const cleared = {
     ...draft,
+    isManualEntry: true,
     musicAffiliate: "",
     songListSuggestions: "",
     musicTheme: "",
@@ -424,6 +426,8 @@ export function AddNewOrderModal({
         {
           ...orderDraft,
           id: created.id,
+          // Keep manual flag so Collections shows Form for every form type.
+          isManualEntry: true,
           category,
           package:
             formType === "school-anthem" ? "SCHOOL ANTHEMS" : selectedPkg,
@@ -465,11 +469,9 @@ export function AddNewOrderModal({
 
       onClose();
     } catch (err: unknown) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : "Failed to create manual schedule entry.";
-      setError(message);
+      setError(
+        formatApiClientError(err, "Failed to create manual schedule entry.")
+      );
     } finally {
       setSaving(false);
     }

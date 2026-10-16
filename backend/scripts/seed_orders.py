@@ -77,15 +77,15 @@ def seed_all_orders():
         # 2. VIROC (School Cheer - VIROC Yes) (10 records)
         viroc_schools = [
             ("Lincoln High School", "Lions", "Super Varsity", "Split", "SILVER 1:30", "1:30"),
-            ("Oakridge Academy", "Eagles", "Medium Varsity", "No Split", "SILVER 2:00", "2:00"),
-            ("Westlake High", "Wolverines", "Large Varsity", "Split", "GOLD 2:00", "2:00"),
+            ("Oakridge Academy", "Eagles", "Medium Varsity", "No Split", "SILVER 2:15", "2:15"),
+            ("Westlake High", "Wolverines", "Large Varsity", "Split", "GOLD 2:15", "2:15"),
             ("Valley View High", "Panthers", "Small Varsity", "No Split", "GOLD 2:30", "2:30"),
-            ("Central High", "Bears", "Coed Varsity", "Split", "PLATINUM 2:00", "2:00"),
+            ("Central High", "Bears", "Coed Varsity", "Split", "PLATINUM 2:15", "2:15"),
             ("Ridgeview High", "Rams", "Junior Varsity", "No Split", "PLATINUM 2:30", "2:30"),
             ("Pine Creek High", "Falcons", "Super Varsity", "Split", "TITANIUM 2:30", "2:30"),
             ("Eastland High", "Cougars", "Medium Varsity", "No Split", "RALLY MIX", "1:00"),
-            ("Summit High School", "Skyhawks", "Small Varsity", "Split", "GOLD 2:00", "2:00"),
-            ("Heritage High", "Patriots", "Large Varsity", "No Split", "PLATINUM 2:00", "2:00"),
+            ("Summit High School", "Skyhawks", "Small Varsity", "Split", "GOLD 2:15", "2:15"),
+            ("Heritage High", "Patriots", "Large Varsity", "No Split", "PLATINUM 2:15", "2:15"),
         ]
 
         for i, (sch, mascot, div, split_opt, pkg, time_len) in enumerate(viroc_schools, 1):
@@ -134,15 +134,15 @@ def seed_all_orders():
         # 3. School Cheer (VIROC No) (10 records)
         school_cheer_no_viroc = [
             ("Northside High", "Mustangs", "Medium Varsity", "Split", "SILVER 1:30", "1:30"),
-            ("Southland High", "Spartans", "Small Varsity", "No Split", "SILVER 2:00", "2:00"),
-            ("Meadowbrook High", "Colts", "Large Varsity", "Split", "GOLD 2:00", "2:00"),
+            ("Southland High", "Spartans", "Small Varsity", "No Split", "SILVER 2:15", "2:15"),
+            ("Meadowbrook High", "Colts", "Large Varsity", "Split", "GOLD 2:15", "2:15"),
             ("Highland Prep", "Highlanders", "Coed Varsity", "No Split", "GOLD 2:30", "2:30"),
-            ("Timberline High", "Timberwolves", "Junior Varsity", "Split", "PLATINUM 2:00", "2:00"),
+            ("Timberline High", "Timberwolves", "Junior Varsity", "Split", "PLATINUM 2:15", "2:15"),
             ("Riverdale High", "Hawks", "Super Varsity", "No Split", "PLATINUM 2:30", "2:30"),
             ("Cedar Grove High", "Cardinals", "Medium Varsity", "Split", "TITANIUM 2:30", "2:30"),
             ("St. Clair Prep", "Saints", "Small Varsity", "No Split", "RALLY MIX", "1:00"),
-            ("Mountain View High", "Mountaineers", "Large Varsity", "Split", "GOLD 2:00", "2:00"),
-            ("Golden Valley High", "Grizzlies", "Coed Varsity", "No Split", "PLATINUM 2:00", "2:00"),
+            ("Mountain View High", "Mountaineers", "Large Varsity", "Split", "GOLD 2:15", "2:15"),
+            ("Golden Valley High", "Grizzlies", "Coed Varsity", "No Split", "PLATINUM 2:15", "2:15"),
         ]
 
         for i, (sch, mascot, div, split_opt, pkg, time_len) in enumerate(school_cheer_no_viroc, 1):
@@ -488,17 +488,18 @@ def seed_all_orders():
             seeded_orders.append(o)
 
         # 10. Marching Band (10 records - no music affiliate, no coupon code)
+        # Magento PACKAGE TYPE dropdown values (canonical rate-card keys).
         marching_band_programs = [
-            ("Lakeside Marching Band", "BAND CHANT", "1:30"),
-            ("Centennial Marching Band", "DRUM CADENCE ORIGINAL", "1:45"),
-            ("Pride of the Valley Band", "FIGHT SONG / ALMA MATER", "2:00"),
-            ("Highland Marching Panthers", "FIGHT SONG / ALMA MATER PLUS (Written & Recorded Lyrics)", "2:30"),
-            ("Royal Sound Band", "BAND CHANT", "1:30"),
-            ("Blue Devils Marching Band", "DRUM CADENCE ORIGINAL", "2:00"),
-            ("Sound of Spirit Band", "FIGHT SONG / ALMA MATER", "2:15"),
-            ("Patriot Marching Band", "FIGHT SONG / ALMA MATER PLUS (Written & Recorded Lyrics)", "2:30"),
-            ("Heritage Brass & Drum", "BAND CHANT", "1:45"),
-            ("Golden Marching Band", "DRUM CADENCE ORIGINAL", "2:00"),
+            ("Lakeside Marching Band", "DRUM CADENCE ORIGINAL", "1:00"),
+            ("Centennial Marching Band", "BAND CHANT", "1:30"),
+            ("Pride of the Valley Band", "FIGHT SONG ORIGINAL", "2:00"),
+            ("Highland Marching Panthers", "FIGHT SONG PLUS", "2:30"),
+            ("Royal Sound Band", "ALMA MATER ORIGINAL", "2:00"),
+            ("Blue Devils Marching Band", "ALMA MATER PLUS", "2:30"),
+            ("Sound of Spirit Band", "DRUM CADENCE ORIGINAL", "0:45"),
+            ("Patriot Marching Band", "BAND CHANT", "1:45"),
+            ("Heritage Brass & Drum", "FIGHT SONG ORIGINAL", "2:15"),
+            ("Golden Marching Band", "FIGHT SONG PLUS", "2:30"),
         ]
 
         for i, (prog, pkg, time_len) in enumerate(marching_band_programs, 1):

@@ -54,6 +54,7 @@ import {
 } from "@/lib/order-form-missing";
 import {
   buildRecordPriceSavePatch,
+  orderNeedsManualPackageQuote,
   PRICING_REFERENCE_CHANGED_EVENT,
   resolveEngineCustomerPrice,
   resolveOrderPackageDisplayPrice,
@@ -62,7 +63,10 @@ import { formatDisplayDate, formatMixBookedDaysLabel, toIsoDateString } from "@/
 import { todayIso } from "@/lib/date-filters";
 import { generateOrdersCsv, triggerCsvDownload } from "@/lib/export-csv";
 import { parsePackage } from "@/lib/package";
-import { packageTypeDisplayValue } from "@/components/mtd/PackageTypeField";
+import {
+  magentoPackageBoardLabel,
+  packageTypeDisplayValue,
+} from "@/components/mtd/PackageTypeField";
 import {
   findLinkedOrder,
   findProducerByAssignmentKey,
@@ -792,17 +796,24 @@ function OrdersPageContent() {
         headerClassName: compactHeaderClass,
         render: (rec) => {
           const linked = findLinkedOrder(rec, allOrders);
-          const tier =
-            packageTypeDisplayValue(linked?.packageType || "") ||
-            packageTypeDisplayValue(linked?.package || "") ||
-            packageTypeDisplayValue(rec.package || "");
+          const meta = resolveMTDFormMeta(rec, orderById);
+          const raw =
+            linked?.packageType ||
+            linked?.package ||
+            rec.package ||
+            "";
+          const label = magentoPackageBoardLabel(
+            meta.formType,
+            raw,
+            meta.danceFormSubtype
+          );
           return (
             <TruncatedText
-              text={tier ? titleCase(tier) : "No data"}
+              text={label || "No data"}
               className={clsx(
                 "mx-auto w-full min-w-0 text-center font-medium",
                 compactTextClass,
-                !tier && "text-brand-ink-tertiary"
+                !label && "text-brand-ink-tertiary"
               )}
               style={{ maxWidth: "100%" }}
             />
@@ -825,15 +836,24 @@ function OrdersPageContent() {
               ),
               render: (rec: MTDRecord) => {
                 const linked = findLinkedOrder(rec, allOrders);
+                const meta = resolveMTDFormMeta(rec, orderById);
                 const fromOrder = (linked?.timeLengthOfMix || "").trim();
                 const fromPackage = parsePackage(
                   packageTypeDisplayValue(rec.package)
                     ? rec.package
                     : linked?.package || ""
                 ).limit;
-                const limit =
+                let limit =
                   fromOrder ||
                   (fromPackage && fromPackage !== "-" ? fromPackage : "");
+                // Magento SoftSelect Length of Mix has no 2:00 for School Cheer / VIROC.
+                if (
+                  (meta.cheerFormSubtype === "school-cheer-viroc-yes" ||
+                    meta.cheerFormSubtype === "school-cheer-viroc-no") &&
+                  limit === "2:00"
+                ) {
+                  limit = "2:15";
+                }
                 return (
                   <span
                     className={clsx(
@@ -958,9 +978,10 @@ function OrdersPageContent() {
             meta,
             orderById
           );
-          const needsManualQuote =
-            meta.formType === "sports-entertainment" &&
-            (engineCustomerPrice == null || engineCustomerPrice <= 0);
+          const needsManualQuote = orderNeedsManualPackageQuote(meta, order, {
+            customerFacingPrice: engineCustomerPrice,
+            payrollBasePrice: null,
+          });
 
           const displayPrice = resolveOrderPackageDisplayPrice(
             rec,
@@ -969,8 +990,8 @@ function OrdersPageContent() {
             orderById
           );
 
-          // Unpriced Sports Entertainment packages get a per-order quote.
-          // Catalog-priced packages open the Pricing rate-card modal.
+          // Unpriced SoftSelect packages (SE OTHER / School Cheer Other mix)
+          // get a per-order quote. Catalog-priced packages open Pricing.
           if (needsManualQuote) {
             const showNeedsQuote = displayPrice <= 0;
             return (

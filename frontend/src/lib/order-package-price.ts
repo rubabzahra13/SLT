@@ -4,6 +4,8 @@ import {
   calculateMarchingBandOrderPricing,
   calculateSchoolAnthemOrderPricing,
   calculateSportsEntertainmentOrderPricing,
+  isSchoolCheerOtherMixLength,
+  isSchoolCheerSubtype,
 } from "@/lib/pricing-engine";
 import { resolveMTDFormMeta, type MTDFormMeta } from "@/lib/mtd-filters";
 import {
@@ -23,7 +25,33 @@ type EnginePriceResult = {
   customerFacingPrice: number | null;
   payrollBasePrice: number | null;
   complianceStatus?: string | null;
+  isUnpriced?: boolean;
 };
+
+/** Needs Quote chip: SE OTHER packages, or School Cheer SoftSelect "Other" mix. */
+export function orderNeedsManualPackageQuote(
+  meta: MTDFormMeta | null | undefined,
+  order: Order | null | undefined,
+  engine?: EnginePriceResult | null
+): boolean {
+  if (!meta) return false;
+  if (engine?.isUnpriced) return true;
+  if (meta.formType === "sports-entertainment") {
+    return (
+      engine?.customerFacingPrice == null ||
+      (typeof engine.customerFacingPrice === "number" &&
+        engine.customerFacingPrice <= 0)
+    );
+  }
+  if (
+    meta.formType === "school-all-star-cheer" &&
+    isSchoolCheerSubtype(meta.cheerFormSubtype) &&
+    isSchoolCheerOtherMixLength(order?.timeLengthOfMix)
+  ) {
+    return true;
+  }
+  return false;
+}
 
 function categoryKeyForMeta(meta: MTDFormMeta): CategoryKey {
   if (meta.formType === "school-all-star-dance") {
@@ -212,33 +240,43 @@ export function resolveLiveOrderPricing(
           : null;
     }
 
-    const store = referenceStore ?? loadPricingReferenceStore();
-    const snapshot = getCategoryPricingSnapshot(
-      categoryKeyForMeta(formMeta),
-      store
-    );
-    const row = findReferenceRow(
-      snapshot.rows,
-      order?.packageType || rec.package || "",
-      order?.timeLengthOfMix
-    );
-    if (row) {
-      if (row.kind === "tier-time") {
-        engineCustomer = row.customer;
-        const compliant =
-          engine?.complianceStatus === "non-compliant"
-            ? row.nonCompliant
-            : row.compliant;
-        enginePayroll = row.isTitanium ? row.customer : compliant;
-      } else if (row.customer != null) {
-        engineCustomer = row.customer;
-        // alwaysFixed (Fight Song / Alma Mater): both columns are the flat amount.
-        const useNonCompliant =
-          !row.alwaysFixedPayroll &&
-          engine?.complianceStatus === "non-compliant";
-        const payrollCol = useNonCompliant ? row.nonCompliant : row.compliant;
-        if (typeof payrollCol === "number") enginePayroll = payrollCol;
-        else enginePayroll = row.customer;
+    // SoftSelect "Other" mix / unpriced engine → do not overlay rate-card prices.
+    if (
+      engine?.isUnpriced ||
+      (isSchoolCheerSubtype(formMeta.cheerFormSubtype) &&
+        isSchoolCheerOtherMixLength(order?.timeLengthOfMix))
+    ) {
+      engineCustomer = null;
+      enginePayroll = null;
+    } else {
+      const store = referenceStore ?? loadPricingReferenceStore();
+      const snapshot = getCategoryPricingSnapshot(
+        categoryKeyForMeta(formMeta),
+        store
+      );
+      const row = findReferenceRow(
+        snapshot.rows,
+        order?.packageType || rec.package || "",
+        order?.timeLengthOfMix
+      );
+      if (row) {
+        if (row.kind === "tier-time" && !row.isUnpriced && row.customer != null) {
+          engineCustomer = row.customer;
+          const compliant =
+            engine?.complianceStatus === "non-compliant"
+              ? row.nonCompliant
+              : row.compliant;
+          enginePayroll = row.isTitanium ? row.customer : compliant;
+        } else if (row.kind === "flat-package" && row.customer != null) {
+          engineCustomer = row.customer;
+          // alwaysFixed (Fight Song / Alma Mater): both columns are the flat amount.
+          const useNonCompliant =
+            !row.alwaysFixedPayroll &&
+            engine?.complianceStatus === "non-compliant";
+          const payrollCol = useNonCompliant ? row.nonCompliant : row.compliant;
+          if (typeof payrollCol === "number") enginePayroll = payrollCol;
+          else enginePayroll = row.customer;
+        }
       }
     }
   }

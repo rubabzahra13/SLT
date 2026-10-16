@@ -199,8 +199,10 @@ export function getFormSongListText(order: Order | MTDRecord): string {
     formType.includes("band") ||
     category.includes("band") ||
     category.includes("marching") ||
-    pkg.includes("CHANT") ||
-    pkg.includes("CADENCE");
+    pkg.includes("BAND CHANT") ||
+    pkg.includes("CADENCE") ||
+    pkg.includes("FIGHT SONG") ||
+    pkg.includes("ALMA MATER");
 
   const pick = (...vals: unknown[]) => {
     for (const raw of vals) {
@@ -278,8 +280,10 @@ export function getFormNotesText(order: Order | MTDRecord): string {
     formType.includes("band") ||
     category.includes("band") ||
     category.includes("marching") ||
-    pkg.includes("CHANT") ||
-    pkg.includes("CADENCE");
+    pkg.includes("BAND CHANT") ||
+    pkg.includes("CADENCE") ||
+    pkg.includes("FIGHT SONG") ||
+    pkg.includes("ALMA MATER");
   const isAnthem =
     formType.includes("anthem") || category.includes("anthem");
 
@@ -418,9 +422,23 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
   const pkgStr = (order.package || (order as any).packageType || "").trim().toUpperCase();
   const parsedPkg = parsePackage(order.package || (order as any).packageType || "");
 
-  const isMarchingBand = category.includes("band") || rawFormType.includes("band") || pkgStr.includes("CHANT") || pkgStr.includes("CADENCE");
+  const isMarchingBand =
+    category.includes("band") ||
+    rawFormType.includes("band") ||
+    pkgStr.includes("BAND CHANT") ||
+    pkgStr.includes("CADENCE") ||
+    pkgStr.includes("FIGHT SONG") ||
+    pkgStr.includes("ALMA MATER");
   const isDance = category.includes("dance") || rawFormType.includes("dance") || pkgStr.includes("POM") || pkgStr.includes("GAMEDAY PERFORMANCE");
-  const isCheer = category.includes("cheer") || rawFormType.includes("cheer") || pkgStr.includes("BRONZE") || pkgStr.includes("SILVER") || pkgStr.includes("GOLD") || pkgStr.includes("PLATINUM") || pkgStr.includes("TITANIUM");
+  const isCheer =
+    category.includes("cheer") ||
+    rawFormType.includes("cheer") ||
+    pkgStr.includes("BRONZE") ||
+    pkgStr.includes("SILVER") ||
+    pkgStr.includes("GOLD") ||
+    pkgStr.includes("PLATINUM") ||
+    pkgStr.includes("TITANIUM") ||
+    pkgStr.includes("RALLY MIX");
   const isAnthem = category.includes("anthem") || rawFormType.includes("anthem");
   const isSports = category.includes("sports") || rawFormType.includes("sports");
 
@@ -433,73 +451,103 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
   let needVideo = false;
 
   if (isDance) {
+    // Magento + manual share the same package matrix (manual also gets Form):
+    //   DANCE MIX / DANCE PLUS / CUSTOM POM / RALLY MIX / CUSTOM HIP HOP /
+    //   GAMEDAY PERFORMANCE* → Songs + Mix Time
+    //   JAZZ/KICK MIX → Song(s) + Mix Time
+    //   JAZZ SIMPLE CUT → Song + Mix Time + Notes
+    // Compliancy is not a Collections/Songs board pill for Dance.
     if (pkgStr.includes("JAZZ SIMPLE CUT")) {
       needSongs = true;
       songsLabel = "Song";
       needTimeOfMix = true;
       needNotes = true;
-      needCompliancy = false;
+    } else if (pkgStr.includes("JAZZ/KICK") || pkgStr.includes("JAZZ KICK")) {
+      needSongs = true;
+      songsLabel = "Song(s)";
+      needTimeOfMix = true;
+      needNotes = false;
     } else {
       needSongs = true;
-      songsLabel = pkgStr.includes("JAZZ/KICK") ? "Song(s)" : "Songs";
+      songsLabel = "Songs";
       needTimeOfMix = true;
-      needCompliancy = true;
+      needNotes = false;
     }
+    needCompliancy = false;
   } else if (isCheer) {
-    const cheerSubtype = String(
-      (order as Order).cheerFormSubtype ||
-        (order as { cheer_form_subtype?: string }).cheer_form_subtype ||
-        ""
-    ).toLowerCase();
-    // All Star Cheer form always has Song list + Routine notes → both pills.
-    const isAllStarCheer =
-      cheerSubtype === "all-star-cheer" ||
-      (!cheerSubtype && rawFormType.includes("school-all-star-cheer"));
-
-    if (pkgStr.includes("TITANIUM")) {
+    // Magento + manual share the same package matrix (manual also gets Form):
+    //   BRONZE / SILVER / GOLD → Songs
+    //   PLATINUM → Songs + CS + Video
+    //   TITANIUM → Notes + CS + Video
+    //   RALLY MIX → Songs + CS (VIROC SoftSelect label still shows paren text)
+    if (pkgStr.includes("RALLY MIX")) {
+      needSongs = true;
+      songsLabel = "Songs";
+      needNotes = false;
+      needEightCount = true;
+      needVideo = false;
+      needTimeOfMix = false;
+    } else if (pkgStr.includes("TITANIUM")) {
+      needSongs = false;
       needNotes = true;
       needEightCount = true;
       needVideo = true;
-      // Form still has Song list/suggestions — keep Songs for All Star Cheer.
-      needSongs = isAllStarCheer;
-      songsLabel = "Songs";
       needTimeOfMix = false;
     } else if (pkgStr.includes("PLATINUM")) {
       needSongs = true;
       songsLabel = "Songs";
-      needNotes = isAllStarCheer;
+      needNotes = false;
       needEightCount = true;
       needVideo = true;
       needTimeOfMix = false;
-    } else if (pkgStr.includes("GOLD") || pkgStr.includes("SILVER") || pkgStr.includes("BRONZE")) {
+    } else if (
+      pkgStr.includes("GOLD") ||
+      pkgStr.includes("SILVER") ||
+      pkgStr.includes("BRONZE")
+    ) {
       needSongs = true;
       songsLabel = "Songs";
-      needNotes = isAllStarCheer;
+      needNotes = false;
       needEightCount = false;
       needVideo = false;
       needTimeOfMix = false;
     } else {
+      // Unknown cheer package — treat like Platinum (CS + Video + Songs).
       needSongs = true;
       songsLabel = "Songs";
-      needNotes = isAllStarCheer;
+      needNotes = false;
       needEightCount = true;
+      needVideo = true;
+      needTimeOfMix = false;
     }
   } else if (isMarchingBand) {
-    // Instrumentation notes drive Song (Band Chant) or Notes (other packages).
-    // Lyrics / Mix notes are optional and never drive collection pills.
-    // Band Chant: Song + Mix. Notes N/A.
-    // Drum Cadence / Fight Song* / Alma Mater*: Mix + Notes. Songs N/A.
+    // Magento + manual share the same package matrix (manual also gets Form):
+    //   BAND CHANT → Song + Mix Time
+    //   DRUM CADENCE* → Mix Time + Notes
+    //   FIGHT SONG* / ALMA MATER* (Original + Plus) → Mix Time + Notes
+    // Instrumentation drives Song (Band Chant) or Notes (others). Lyrics N/A.
     if (pkgStr.includes("BAND CHANT")) {
       needSongs = true;
       songsLabel = "Song";
       needTimeOfMix = true;
       needNotes = false;
+    } else if (
+      pkgStr.includes("DRUM CADENCE") ||
+      pkgStr.includes("FIGHT SONG") ||
+      pkgStr.includes("ALMA MATER")
+    ) {
+      needSongs = false;
+      needTimeOfMix = true;
+      needNotes = true;
     } else {
+      // Unknown MB package — same as Drum Cadence / Fight / Alma.
       needSongs = false;
       needTimeOfMix = true;
       needNotes = true;
     }
   } else if (isSports) {
+    // Magento + manual: every SE package → Songs + Notes + Mix Time
+    // (manual also gets Form).
     needSongs = true;
     songsLabel = "Songs";
     needNotes = true;
@@ -796,6 +844,14 @@ export function mergeOrderFormFieldsForRequirements(
       linkedOrder.cheerFormSubtype || (rec as Order).cheerFormSubtype,
     danceFormSubtype:
       linkedOrder.danceFormSubtype || (rec as Order).danceFormSubtype,
+    // Package column already prefers linked order — requirements must too
+    // (stale MTD "HALFTIME SHOW" must not override Band Chant → Song).
+    package: linkedOrder.package || rec.package,
+    packageType:
+      linkedOrder.packageType ||
+      linkedOrder.package ||
+      (rec as Order).packageType ||
+      rec.package,
     sendingEightCountSheets:
       linkedOrder.sendingEightCountSheets ||
       linkedOrder.usingEightCountSheets ||

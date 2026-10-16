@@ -16,11 +16,12 @@ describe("Prompt 5 — Marching Band Pricing Engine Unit Tests", () => {
     assert.deepEqual(
       MARCHING_BAND_RATE_CARD.map((e) => e.package),
       [
-        "BAND CHANT",
+        // Magento PACKAGE TYPE dropdown order
         "DRUM CADENCE ORIGINAL",
+        "BAND CHANT",
         "FIGHT SONG ORIGINAL",
-        "ALMA MATER ORIGINAL",
         "FIGHT SONG PLUS",
+        "ALMA MATER ORIGINAL",
         "ALMA MATER PLUS",
       ]
     );

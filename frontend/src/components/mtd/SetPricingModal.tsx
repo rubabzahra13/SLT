@@ -41,6 +41,17 @@ import {
   fetchPricingRulesApi,
   savePricingRulesApi,
 } from "@/lib/api/pricing-rules";
+import {
+  magentoPricingPackageLabel,
+  sortMarchingBandPricingRows,
+  sortGamedayDancePricingRows,
+  sortHipHopDancePricingRows,
+  sortJazzKickDancePricingRows,
+  sortPomDancePricingRows,
+  sortSchoolCheerPricingRows,
+  sortSportsEntertainmentPricingRows,
+  sortTpDancePricingRows,
+} from "@/components/mtd/PackageTypeField";
 import type { MTDRecord, Order } from "@/types";
 import {
   CHEER_FORM_SUBTABS,
@@ -506,8 +517,40 @@ export function SetPricingModal({
   }, [open, selectedCategory, referenceStore]);
 
   const activeSnapshot = useMemo(() => {
-    if (isEditingPricing && draftSnapshot) return draftSnapshot;
-    return getCategoryPricingSnapshot(selectedCategory, referenceStore);
+    const base =
+      isEditingPricing && draftSnapshot
+        ? draftSnapshot
+        : getCategoryPricingSnapshot(selectedCategory, referenceStore);
+    // Sort for display only — keep draft row indices stable while editing.
+    if (isEditingPricing) return base;
+    if (selectedCategory === "Marching Band") {
+      return { ...base, rows: sortMarchingBandPricingRows(base.rows) };
+    }
+    if (selectedCategory === "Sports Entertainment") {
+      return {
+        ...base,
+        rows: sortSportsEntertainmentPricingRows(base.rows),
+      };
+    }
+    if (selectedCategory === "Pom") {
+      return { ...base, rows: sortPomDancePricingRows(base.rows) };
+    }
+    if (selectedCategory === "Hip Hop") {
+      return { ...base, rows: sortHipHopDancePricingRows(base.rows) };
+    }
+    if (selectedCategory === "Team Performance & Variety") {
+      return { ...base, rows: sortTpDancePricingRows(base.rows) };
+    }
+    if (selectedCategory === "Gameday") {
+      return { ...base, rows: sortGamedayDancePricingRows(base.rows) };
+    }
+    if (selectedCategory === "Jazz/Kick") {
+      return { ...base, rows: sortJazzKickDancePricingRows(base.rows) };
+    }
+    if (selectedCategory === "School Cheer") {
+      return { ...base, rows: sortSchoolCheerPricingRows(base.rows) };
+    }
+    return base;
   }, [draftSnapshot, isEditingPricing, referenceStore, selectedCategory]);
 
   const isTierTime =
@@ -1127,13 +1170,16 @@ export function SetPricingModal({
                           if (row.kind !== "tier-time") return null;
                           const tierRow = row as TierTimePricingRow;
                           const isTitanium = tierRow.isTitanium;
+                          const isUnpriced =
+                            Boolean(tierRow.isUnpriced) ||
+                            tierRow.customer === null;
                           return (
                             <tr
                               key={`${tierRow.tier}-${tierRow.limit}-${idx}`}
                               className="even:bg-neutral-50/80 hover:bg-blue-50/40 transition-colors"
                             >
                               <td className="border border-neutral-300 px-3.5 py-2 font-bold text-neutral-900">
-                                {isEditingPricing ? (
+                                {isEditingPricing && !isUnpriced ? (
                                   <input
                                     type="text"
                                     value={tierRow.tier}
@@ -1143,11 +1189,14 @@ export function SetPricingModal({
                                     className={nameInputClassName}
                                   />
                                 ) : (
-                                  tierRow.tier
+                                  magentoPricingPackageLabel(
+                                    selectedCategory,
+                                    tierRow.tier
+                                  )
                                 )}
                               </td>
                               <td className="border border-neutral-300 px-3.5 py-2 font-semibold tabular-nums text-neutral-700">
-                                {isEditingPricing ? (
+                                {isEditingPricing && !isUnpriced ? (
                                   <input
                                     type="text"
                                     value={tierRow.limit}
@@ -1161,30 +1210,41 @@ export function SetPricingModal({
                                 )}
                               </td>
                               <td className="border border-neutral-300 px-3.5 py-2 text-center font-bold tabular-nums text-neutral-900">
-                                <PriceCell
-                                  editing={isEditingPricing}
-                                  value={tierRow.customer}
-                                  onChange={(next) => {
-                                    const price = next ?? tierRow.customer;
-                                    const flatAlways =
-                                      selectedCategory === "Youth Rec Cheer" ||
-                                      isTitanium ||
-                                      tierRow.alwaysFixedPayroll ||
-                                      tierRow.compliant === tierRow.nonCompliant;
-                                    updateDraftRow(
-                                      idx,
-                                      flatAlways
-                                        ? {
-                                            customer: price,
-                                            compliant: price,
-                                            nonCompliant: price,
-                                          }
-                                        : { customer: price }
-                                    );
-                                  }}
-                                />
+                                {isUnpriced && !isEditingPricing ? (
+                                  <ManualQuotePriceCell />
+                                ) : (
+                                  <PriceCell
+                                    editing={isEditingPricing}
+                                    value={tierRow.customer}
+                                    onChange={(next) => {
+                                      const price = next ?? tierRow.customer;
+                                      const flatAlways =
+                                        selectedCategory === "Youth Rec Cheer" ||
+                                        isTitanium ||
+                                        tierRow.alwaysFixedPayroll ||
+                                        tierRow.compliant === tierRow.nonCompliant;
+                                      updateDraftRow(
+                                        idx,
+                                        flatAlways
+                                          ? {
+                                              customer: price,
+                                              compliant: price,
+                                              nonCompliant: price,
+                                            }
+                                          : { customer: price }
+                                      );
+                                    }}
+                                  />
+                                )}
                               </td>
-                              {isTitanium ||
+                              {isUnpriced && !isEditingPricing ? (
+                                <td
+                                  colSpan={2}
+                                  className="border border-neutral-300 bg-amber-50/10 px-3.5 py-2 text-center text-[12px] font-medium text-neutral-500"
+                                >
+                                  N/A
+                                </td>
+                              ) : isTitanium ||
                               tierRow.alwaysFixedPayroll ||
                               tierRow.compliant === tierRow.nonCompliant ||
                               selectedCategory === "Youth Rec Cheer" ? (
@@ -1272,7 +1332,10 @@ export function SetPricingModal({
                                     className={nameInputClassName}
                                   />
                                 ) : (
-                                  packageRow.package
+                                  magentoPricingPackageLabel(
+                                    selectedCategory,
+                                    packageRow.package
+                                  )
                                 )}
                               </td>
                               <td className="border border-neutral-300 px-3.5 py-2 text-center font-bold tabular-nums text-neutral-900">

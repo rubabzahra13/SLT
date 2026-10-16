@@ -124,24 +124,24 @@ describe("Central Pricing Engine — Core Rules Unit Tests (Prompt 8)", () => {
       assert.equal(rallyResult.packageName, "RALLY MIX");
     });
 
-    it("School Cheer GOLD 2:00 with Rush Fee (Single) adds $150 to payroll base price", () => {
+    it("School Cheer GOLD 2:15 with Rush Fee (Single) adds $150 to payroll base price", () => {
       const baseResult = calculateCheerOrderPricing({
         cheerFormSubtype: "school-cheer-viroc-yes",
-        packageType: "GOLD 2:00",
+        packageType: "GOLD 2:15",
         musicAffiliate: "Power Music",
         rushFeeOption: "none",
       });
-      assert.equal(baseResult.customerFacingPrice, 950);
-      assert.equal(baseResult.payrollBasePrice, 850);
+      assert.equal(baseResult.customerFacingPrice, 1100);
+      assert.equal(baseResult.payrollBasePrice, 1000);
 
       const rushResult = calculateCheerOrderPricing({
         cheerFormSubtype: "school-cheer-viroc-yes",
-        packageType: "GOLD 2:00",
+        packageType: "GOLD 2:15",
         musicAffiliate: "Power Music",
         rushFeeOption: "single",
       });
-      assert.equal(rushResult.customerFacingPrice, 950);
-      assert.equal(rushResult.payrollBasePrice, 1000); // 850 + 150
+      assert.equal(rushResult.customerFacingPrice, 1100);
+      assert.equal(rushResult.payrollBasePrice, 1150); // 1000 + 150
     });
 
     it("Youth Rec Cheer BRONZE 2:00 with Extend-8ct ($25) and Processing-8ct-Sheets ($50)", () => {
@@ -174,11 +174,32 @@ describe("Central Pricing Engine — Core Rules Unit Tests (Prompt 8)", () => {
     it("Youth Rec Cheer add-ons are ignored on School Cheer and All-Star Cheer", () => {
       const schoolCheer = calculateCheerOrderPricing({
         cheerFormSubtype: "school-cheer-viroc-yes",
-        packageType: "GOLD 2:00",
+        packageType: "GOLD 2:15",
         hasExtend8ctAddon: true,
         hasProcessing8ctSheetsAddon: true,
       });
-      assert.equal(schoolCheer.customerFacingPrice, 950);
+      assert.equal(schoolCheer.customerFacingPrice, 1100);
+    });
+
+    it("School Cheer SoftSelect Other mix length → Needs Quote for any package", () => {
+      for (const packageType of [
+        "Silver Package",
+        "GOLD",
+        "Platinum Package",
+        "TITANIUM",
+        "Rally Mix (without 8 count sheets)",
+      ]) {
+        const res = calculateCheerOrderPricing({
+          cheerFormSubtype: "school-cheer-viroc-no",
+          packageType,
+          timeLengthOfMix:
+            "Other - please specify the time needed in your notes section",
+          musicAffiliate: "Power Music",
+        });
+        assert.equal(res.isUnpriced, true);
+        assert.equal(res.customerFacingPrice, 0);
+        assert.equal(res.payrollBasePrice, 0);
+      }
     });
   });
 });

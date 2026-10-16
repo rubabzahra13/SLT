@@ -117,25 +117,25 @@ describe("Discount Code Engine Unit Tests (Fixed & Percentage)", () => {
 
     const result = calculateCheerOrderPricing({
       cheerFormSubtype: "school-cheer-viroc-yes",
-      packageType: "GOLD 2:00", // Payroll base: $850
+      packageType: "GOLD 2:15", // Payroll base: $1000
       musicAffiliate: "Power Music",
       discountCodeObj: matched,
     });
 
     assert.equal(result.discountAmount, 0);
-    assert.equal(result.payrollBasePrice, 850);
+    assert.equal(result.payrollBasePrice, 1000);
   });
 
   it("Test 6 — No Coupon Code (no coupon provided)", () => {
     const result = calculateCheerOrderPricing({
       cheerFormSubtype: "school-cheer-viroc-yes",
-      packageType: "GOLD 2:00",
+      packageType: "GOLD 2:15",
       musicAffiliate: "Power Music",
       discountCodeObj: null,
     });
 
     assert.equal(result.discountAmount, 0);
-    assert.equal(result.payrollBasePrice, 850);
+    assert.equal(result.payrollBasePrice, 1000);
   });
 
   it("Test 7 — Existing Pricing Pipeline + Coupon (Package + Add-on + Coupon)", () => {
@@ -144,15 +144,15 @@ describe("Discount Code Engine Unit Tests (Fixed & Percentage)", () => {
 
     const result = calculateCheerOrderPricing({
       cheerFormSubtype: "school-cheer-viroc-yes",
-      packageType: "GOLD 2:00", // Compliant base: $850
+      packageType: "GOLD 2:15", // Compliant base: $1000
       musicAffiliate: "Power Music",
-      rushFeeOption: "double", // Rush Fee add-on: +$300 -> Pre-discount payroll base: $1150
+      rushFeeOption: "double", // Rush Fee add-on: +$300 -> Pre-discount payroll base: $1300
       discountCodeObj: matched, // -$200 fixed
     });
 
-    assert.equal(result.preDiscountPayrollBasePrice, 1150); // $850 + $300
+    assert.equal(result.preDiscountPayrollBasePrice, 1300); // $1000 + $300
     assert.equal(result.discountAmount, 200);
-    assert.equal(result.payrollBasePrice, 1150); // Coupon does not alter internal payroll base price
+    assert.equal(result.payrollBasePrice, 1300); // Coupon does not alter internal payroll base price
   });
 
   it("Test 8 — Price Floor Validation (Discount metadata calculation caps at base price)", () => {

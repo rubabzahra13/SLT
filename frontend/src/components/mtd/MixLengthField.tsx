@@ -2,7 +2,11 @@
 
 import { useMemo, useRef, useState } from "react";
 import { SoftSelect } from "@/components/ui/SoftSelect";
-import { mixLengthsForOrderForm } from "@/lib/pricing-engine";
+import {
+  isSchoolCheerSubtype,
+  mixLengthsForOrderForm,
+  SCHOOL_CHEER_MAGENTO_MIX_OTHER,
+} from "@/lib/pricing-engine";
 import type {
   CheerFormSubtype,
   DanceFormSubtype,
@@ -24,11 +28,28 @@ function sameOption(a: string, b: string): boolean {
   return a.trim().toLowerCase() === b.trim().toLowerCase();
 }
 
-function normalizeMixLength(raw: string): string {
+function normalizeMixLength(
+  raw: string,
+  cheerSubtype?: CheerFormSubtype | null
+): string {
   const trimmed = raw.trim();
   if (!trimmed) return "";
+  // Magento SoftSelect "Other…" — keep full label when already stored.
+  if (
+    isSchoolCheerSubtype(cheerSubtype) &&
+    (trimmed === SCHOOL_CHEER_MAGENTO_MIX_OTHER ||
+      /^other\b/i.test(trimmed))
+  ) {
+    return SCHOOL_CHEER_MAGENTO_MIX_OTHER;
+  }
   const match = trimmed.match(/\d+:\d{2}/);
-  if (match) return match[0];
+  if (match) {
+    // Magento SoftSelect has no 2:00 — map legacy School Cheer / VIROC → 2:15.
+    if (isSchoolCheerSubtype(cheerSubtype) && match[0] === "2:00") {
+      return "2:15";
+    }
+    return match[0];
+  }
   if (/^tbd$/i.test(trimmed)) return "TBD";
   return trimmed;
 }
@@ -48,8 +69,8 @@ export function MixLengthField({
     originalRawRef.current = (originalValue ?? value).trim();
   }
   const originalRaw = originalRawRef.current;
-  const originalNormalized = normalizeMixLength(originalRaw);
-  const currentNormalized = normalizeMixLength(value);
+  const originalNormalized = normalizeMixLength(originalRaw, cheerSubtype);
+  const currentNormalized = normalizeMixLength(value, cheerSubtype);
 
   const catalog = useMemo(
     () => mixLengthsForOrderForm(formType, cheerSubtype, danceSubtype),

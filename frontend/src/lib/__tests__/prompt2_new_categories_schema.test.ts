@@ -73,7 +73,7 @@ describe("Prompt 2 — Schema Definition for Marching Band, Sports Entertainment
       contactName: "Vince McMahon",
       programName: "Austin Arena Events",
       category: "Sports Entertainment",
-      package: "HALFTIME SHOW",
+      package: "PRE-GAME / HALFTIME REMIXED",
       musicTheme: "High Energy Entrance",
       editorRequest: "FA",
       requestedProducer: "Matt Stevens",
@@ -96,7 +96,7 @@ describe("Prompt 2 — Schema Definition for Marching Band, Sports Entertainment
       musicContactEmail: "vince@austinarena.com",
       billingContactName: "Linda McMahon",
       billingContactEmail: "finance@austinarena.com",
-      packageType: "HALFTIME SHOW",
+      packageType: "PRE-GAME / HALFTIME REMIXED",
       clientRequestedMixDueDate: "2026-10-20",
       clientRequestedRushOrder: "yes",
       timeLengthOfMix: "2:00",
@@ -124,7 +124,7 @@ describe("Prompt 2 — Schema Definition for Marching Band, Sports Entertainment
     assert.equal(sportsEntOrder.musicContactEmail, "vince@austinarena.com");
     assert.equal(sportsEntOrder.billingContactName, "Linda McMahon");
     assert.equal(sportsEntOrder.billingContactEmail, "finance@austinarena.com");
-    assert.equal(sportsEntOrder.packageType, "HALFTIME SHOW");
+    assert.equal(sportsEntOrder.packageType, "PRE-GAME / HALFTIME REMIXED");
     assert.equal(sportsEntOrder.isRushOrder, "yes");
     assert.equal(sportsEntOrder.timeLengthOfMix, "2:00");
     assert.equal(sportsEntOrder.customerSongs, "Eye of the Tiger, Welcome to the Jungle, Thunderstruck");

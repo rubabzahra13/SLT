@@ -132,21 +132,23 @@ export function matchesFormFilter(
     if (cheerSubtype === "all") return true;
     const targetId = rec.orderId || rec.id;
     const linked = targetId ? orderById.get(targetId) : undefined;
-    const viroc = linked?.varsityVirocCustomer || (rec as any).varsityVirocCustomer;
+    const viroc =
+      linked?.varsityVirocCustomer || (rec as any).varsityVirocCustomer;
+    const subtype = String(meta.cheerFormSubtype || "");
+    const isVirocYes =
+      subtype === "school-cheer-viroc-yes" ||
+      viroc === "yes" ||
+      viroc === "Yes" ||
+      viroc === true;
+    const isSchoolCheer =
+      subtype.startsWith("school-cheer") ||
+      subtype === "school-cheer-viroc-no";
 
     if (cheerSubtype === "school-cheer-viroc-yes") {
-      return (
-        (meta.cheerFormSubtype as string).startsWith("school-cheer") &&
-        (viroc === "yes" || viroc === "Yes" || viroc === true)
-      );
+      return isVirocYes;
     }
     if (cheerSubtype === "school-cheer-viroc-no") {
-      return (
-        (meta.cheerFormSubtype as string).startsWith("school-cheer") &&
-        viroc !== "yes" &&
-        viroc !== "Yes" &&
-        viroc !== true
-      );
+      return isSchoolCheer && !isVirocYes;
     }
     return meta.cheerFormSubtype === cheerSubtype;
   }
@@ -197,8 +199,15 @@ export function countMTDByCheerSubtype(
     if ((meta.cheerFormSubtype as string).startsWith("school-cheer")) {
       const targetId = rec.orderId || rec.id;
       const linked = targetId ? orderById.get(targetId) : undefined;
-      const viroc = linked?.varsityVirocCustomer || (rec as any).varsityVirocCustomer;
-      if (viroc === "yes" || viroc === "Yes" || viroc === true) {
+      const viroc =
+        linked?.varsityVirocCustomer || (rec as any).varsityVirocCustomer;
+      const subtype = String(meta.cheerFormSubtype || "");
+      if (
+        subtype === "school-cheer-viroc-yes" ||
+        viroc === "yes" ||
+        viroc === "Yes" ||
+        viroc === true
+      ) {
         counts["school-cheer-viroc-yes"] += 1;
       } else {
         counts["school-cheer-viroc-no"] += 1;

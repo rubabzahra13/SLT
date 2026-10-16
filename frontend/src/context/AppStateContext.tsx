@@ -587,12 +587,12 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       const loadedPastOrders = normalizeOrders(boot.pastOrders);
       // Don't clobber a newer optimistic price edit with a slower boot.
       if (fetchedAt >= ordersMutatedAtRef.current) {
-        setActiveOrders(loadedActiveOrders);
-        setPastOrders(loadedPastOrders);
-        writeTimedCache(CACHE_ORDERS_KEY, {
-          active: loadedActiveOrders,
-          past: loadedPastOrders,
-        });
+      setActiveOrders(loadedActiveOrders);
+      setPastOrders(loadedPastOrders);
+      writeTimedCache(CACHE_ORDERS_KEY, {
+        active: loadedActiveOrders,
+        past: loadedPastOrders,
+      });
       }
 
       const orderById = new Map<string, Order>();
@@ -1169,20 +1169,20 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     const prevMtd = mtdRecords;
 
     // Persist: order shared fields first (canonical), then MTD board row.
-    try {
-      if (linkedOrder && Object.keys(orderPatch).length > 0) {
-        await updateOrderApi(linkedOrder.id, orderPatch);
-      }
+      try {
+        if (linkedOrder && Object.keys(orderPatch).length > 0) {
+          await updateOrderApi(linkedOrder.id, orderPatch);
+        }
 
-      if (patch.inMTD === true) {
-        const targetRecord = mtdRecords.find(
-          (r) =>
-            r.id === id ||
-            r.orderId === id ||
-            r.uuid === id ||
-            r.legacyId === id
-        );
-        const updatedRecord = targetRecord
+        if (patch.inMTD === true) {
+          const targetRecord = mtdRecords.find(
+            (r) =>
+              r.id === id ||
+              r.orderId === id ||
+              r.uuid === id ||
+              r.legacyId === id
+          );
+          const updatedRecord = targetRecord
           ? {
               ...targetRecord,
               ...apiPatch,
@@ -1202,22 +1202,22 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
                 linkedOrder?.eightCountSheet ||
                 "",
             }
-          : { ...apiPatch, inMTD: true };
-        try {
-          const saved = await createMTDRecordApi(updatedRecord as MTDRecord);
-          setMtdRecords((prev) =>
-            prev.map((r) =>
-              r.id === id ||
-              r.orderId === id ||
-              r.uuid === id ||
-              r.legacyId === id
-                ? {
-                    ...r,
+            : { ...apiPatch, inMTD: true };
+          try {
+            const saved = await createMTDRecordApi(updatedRecord as MTDRecord);
+            setMtdRecords((prev) =>
+              prev.map((r) =>
+                r.id === id ||
+                r.orderId === id ||
+                r.uuid === id ||
+                r.legacyId === id
+                  ? {
+                      ...r,
                     ...apiPatch,
-                    id: saved.id,
-                    uuid: saved.uuid,
-                    legacyId: saved.legacyId,
-                    inMTD: true,
+                      id: saved.id,
+                      uuid: saved.uuid,
+                      legacyId: saved.legacyId,
+                      inMTD: true,
                     collectionStates:
                       saved.collectionStates ??
                       (updatedRecord as MTDRecord).collectionStates ??
@@ -1230,21 +1230,21 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
                       saved.eightCountSheet ||
                       (updatedRecord as MTDRecord).eightCountSheet ||
                       r.eightCountSheet,
-                  }
-                : r
-            )
-          );
-        } catch {
-          await updateMTDRecordApi(apiId, apiPatch);
-        }
-      } else {
-        const isRealMtdRecord = Boolean(
-          existing &&
+                    }
+                  : r
+              )
+            );
+          } catch {
+            await updateMTDRecordApi(apiId, apiPatch);
+          }
+        } else {
+          const isRealMtdRecord = Boolean(
+            existing &&
             isPersistedMtdRecord(existing) &&
-            (existing.inMTD === true ||
-              existing.isManualScheduleEntry === true ||
-              !linkedOrder)
-        );
+              (existing.inMTD === true ||
+                existing.isManualScheduleEntry === true ||
+                !linkedOrder)
+          );
         if (isRealMtdRecord && existing && isPersistedMtdRecord(existing)) {
           const realApiId = existing.uuid || existing.id;
           await updateMTDRecordApi(realApiId, apiPatch);
@@ -1301,14 +1301,14 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
               collapsePreMtdClonesForOrder(prev, mergedSaved, null)
             );
           }
+          }
         }
-      }
-    } catch (err) {
-      setActiveOrders(prevActive);
-      setMtdRecords(prevMtd);
-      notifySaveError("Could not save MTD changes", err);
+      } catch (err) {
+        setActiveOrders(prevActive);
+        setMtdRecords(prevMtd);
+        notifySaveError("Could not save MTD changes", err);
       throw err;
-    }
+      }
 
     if (payrollNotice) {
       addNotification(payrollNotice);
@@ -1552,25 +1552,25 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         );
       }
 
-      try {
-        // Order is canonical — write it first; backend mirrors to MTD.
-        await updateOrderApi(id, patch);
-        if (
-          linkedMtd &&
+        try {
+          // Order is canonical — write it first; backend mirrors to MTD.
+          await updateOrderApi(id, patch);
+          if (
+            linkedMtd &&
           isPersistedMtdRecord(linkedMtd) &&
-          (linkedMtd.inMTD || linkedMtd.isManualScheduleEntry) &&
-          Object.keys(mtdPatch).length > 0
-        ) {
-          const apiId = linkedMtd.uuid || linkedMtd.id;
-          await updateMTDRecordApi(apiId, mtdPatch);
-        }
-      } catch (err) {
-        setActiveOrders(prevActive);
-        setPastOrders(prevPast);
-        setMtdRecords(prevMtd);
-        notifySaveError("Could not save order", err);
+            (linkedMtd.inMTD || linkedMtd.isManualScheduleEntry) &&
+            Object.keys(mtdPatch).length > 0
+          ) {
+            const apiId = linkedMtd.uuid || linkedMtd.id;
+            await updateMTDRecordApi(apiId, mtdPatch);
+          }
+        } catch (err) {
+          setActiveOrders(prevActive);
+          setPastOrders(prevPast);
+          setMtdRecords(prevMtd);
+          notifySaveError("Could not save order", err);
         throw err;
-      }
+        }
     },
     [isViewOnly, mtdRecords, activeOrders, pastOrders, notifySaveError]
   );
@@ -1656,7 +1656,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
             mergedIntoManualOrderId: manualMatch.id,
           });
 
-          setActiveOrders((prev) => {
+      setActiveOrders((prev) => {
             const withoutDup = prev.filter((o) => o.id !== taggedForm.id);
             return [
               taggedForm,
@@ -3093,11 +3093,11 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       };
       setPayrollAddons((prev) => [optimistic, ...prev]);
       try {
-        const addon = await createPayrollAddonApi(payload);
+      const addon = await createPayrollAddonApi(payload);
         setPayrollAddons((prev) =>
           prev.map((row) => (row.id === tempId ? addon : row))
         );
-        return addon;
+      return addon;
       } catch (err) {
         setPayrollAddons((prev) => prev.filter((row) => row.id !== tempId));
         throw err;
@@ -3183,8 +3183,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
               })
             );
           }
-          notifySaveError("Could not save email template", err);
-        });
+        notifySaveError("Could not save email template", err);
+      });
     },
     [isViewOnly, notifySaveError]
   );
@@ -3203,12 +3203,12 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       });
       void upsertEmailTemplateApi(id, nextCopy).catch((err) => {
         if (previousCopy) {
-          setEmailTemplates((prev) =>
-            normalizeEmailTemplates({
-              ...prev,
+      setEmailTemplates((prev) =>
+        normalizeEmailTemplates({
+          ...prev,
               [id]: previousCopy!,
-            })
-          );
+        })
+      );
         }
         notifySaveError("Could not reset email template", err);
       });

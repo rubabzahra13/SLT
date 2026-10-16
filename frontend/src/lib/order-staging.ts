@@ -268,8 +268,9 @@ export function mergeCollectionStateFromOrder(
       : {}),
     orderStatus: record.orderStatus || (order as { orderStatus?: string }).orderStatus,
     isReassigned: record.isReassigned ?? order.isReassigned,
+    // Prefer true from either side — MTD default false must not hide Form pill.
     isManualScheduleEntry:
-      record.isManualScheduleEntry ?? Boolean(order.isManualEntry),
+      Boolean(record.isManualScheduleEntry) || Boolean(order.isManualEntry),
   } as MTDRecord;
 }
 

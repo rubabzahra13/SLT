@@ -45,6 +45,19 @@ POM_DEMO = [
         "power_music_covers": "",
         "song_list_suggestions": "",
     },
+    {
+        "legacy_id": "demo-pom-4",
+        "school_program_name": "Summit Rally Pom",
+        "division": "small varsity pom",
+        "package_type": "RALLY MIX",
+        "package": "RALLY MIX",
+        "time_length_of_mix": "1:00",
+        "music_affiliate": "Power Music Covers",
+        "custom_voiceovers": "No - None",
+        "power_music_covers": "1) Short pep-band hype cut",
+        "song_list_suggestions": "",
+        "price": 350.0,
+    },
 ]
 
 
@@ -95,7 +108,7 @@ def main() -> None:
                 editor_initials="FA",
                 requested_editor="First Available",
                 status="new",
-                price=475.0 + (i * 25),
+                price=float(row.get("price") or (475.0 + (i * 25))),
                 price_compliance="compliant" if "Non compliant" not in row["music_affiliate"] else "nonCompliant",
                 needs_attention=False,
                 is_past_order=False,

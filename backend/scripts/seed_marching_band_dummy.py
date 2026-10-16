@@ -8,13 +8,15 @@ from app.core.database import SessionLocal
 from app.models.order import Order
 from app.seed.ids import seed_uuid
 
+# One demo per Magento PACKAGE TYPE option (exact rate-card keys).
 MARCHING_BAND_DEMO = [
     {
         "legacy_id": "demo-mb-1",
         "school_program_name": "Lakeside Marching Band",
         "package_type": "DRUM CADENCE ORIGINAL",
         "package": "DRUM CADENCE ORIGINAL",
-        "time_length_of_mix": "1:45",
+        "time_length_of_mix": "0:55",
+        "price": 350.0,
         "instrumentation_notes": "Full brass & percussion. Emphasize snare cadence.",
         "lyrical_notes": "",
     },
@@ -24,6 +26,7 @@ MARCHING_BAND_DEMO = [
         "package_type": "BAND CHANT",
         "package": "BAND CHANT",
         "time_length_of_mix": "1:30",
+        "price": 600.0,
         "instrumentation_notes": "Cover in marching band style: Seven Nation Army — The White Stripes",
         "lyrical_notes": "",
     },
@@ -33,8 +36,39 @@ MARCHING_BAND_DEMO = [
         "package_type": "FIGHT SONG PLUS",
         "package": "FIGHT SONG PLUS",
         "time_length_of_mix": "2:30",
+        "price": 2250.0,
         "instrumentation_notes": "Prefer Ohio State fight song energy on YouTube references.",
         "lyrical_notes": "Colors: navy & gold. Mascot: Panthers. Keywords: Pride, Spirit, Honor.",
+    },
+    {
+        "legacy_id": "demo-mb-4",
+        "school_program_name": "Riverdale Collegiate Band",
+        "package_type": "FIGHT SONG ORIGINAL",
+        "package": "FIGHT SONG ORIGINAL",
+        "time_length_of_mix": "2:00",
+        "price": 1100.0,
+        "instrumentation_notes": "Traditional collegiate fight song — no lyrics package.",
+        "lyrical_notes": "",
+    },
+    {
+        "legacy_id": "demo-mb-5",
+        "school_program_name": "Summit High Alma Band",
+        "package_type": "ALMA MATER ORIGINAL",
+        "package": "ALMA MATER ORIGINAL",
+        "time_length_of_mix": "2:00",
+        "price": 1100.0,
+        "instrumentation_notes": "Classic alma mater arrangement for pep band.",
+        "lyrical_notes": "",
+    },
+    {
+        "legacy_id": "demo-mb-6",
+        "school_program_name": "Cedar Grove Spirit Band",
+        "package_type": "ALMA MATER PLUS",
+        "package": "ALMA MATER PLUS",
+        "time_length_of_mix": "2:30",
+        "price": 2250.0,
+        "instrumentation_notes": "Alma mater with written & recorded lyrics.",
+        "lyrical_notes": "School colors: crimson & silver. Mascot: Wolves. Keywords: Honor, Legacy, Home.",
     },
 ]
 
@@ -76,7 +110,7 @@ def main() -> None:
                 editor_initials="FA",
                 requested_editor="First Available",
                 status="new",
-                price=350.0 + (i * 50),
+                price=float(row.get("price") or (350.0 + (i * 50))),
                 price_compliance="compliant",
                 needs_attention=False,
                 is_past_order=False,

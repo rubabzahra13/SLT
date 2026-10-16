@@ -60,6 +60,7 @@ export interface BackendOrder {
   school_billing_address?: string | null;
   mascot?: string | null;
   split_or_no_split?: string | null;
+  varsity_viroc_customer?: string | null;
   /** @deprecated alias of choreographer_name */
   viroc_choreographer_name?: string | null;
   /** @deprecated alias of choreographer_email */
@@ -271,6 +272,15 @@ export function transformOrder(bo: BackendOrder): Order {
     schoolProgramColors: colors || undefined,
     mascot: bo.mascot || undefined,
     splitOrNoSplit: bo.split_or_no_split || undefined,
+    varsityVirocCustomer: (() => {
+      const raw = String(bo.varsity_viroc_customer || "").trim().toLowerCase();
+      if (raw === "yes" || raw === "y" || raw === "true") return "Yes";
+      if (raw === "no" || raw === "n" || raw === "false") return "No";
+      // Fall back from Magento subtype when the DB flag was never set.
+      if (cheerFormSubtype === "school-cheer-viroc-yes") return "Yes";
+      if (cheerFormSubtype === "school-cheer-viroc-no") return "No";
+      return undefined;
+    })(),
     youthRecExtraEmailAddress: youthRecExtraEmail || undefined,
     emailAddress: youthRecExtraEmail || undefined,
     sendingEightCountSheets: sendingEight || undefined,
@@ -395,6 +405,13 @@ export async function createOrderApi(order: Partial<Order>): Promise<Order> {
     form_type: formType,
     cheer_form_subtype: order.cheerFormSubtype || null,
     dance_form_subtype: order.danceFormSubtype || null,
+    varsity_viroc_customer:
+      order.varsityVirocCustomer ||
+      (order.cheerFormSubtype === "school-cheer-viroc-yes"
+        ? "Yes"
+        : order.cheerFormSubtype === "school-cheer-viroc-no"
+          ? "No"
+          : null),
     status: order.status || "new",
   };
   const res = await apiClient.post<BackendOrder>("/api/orders", payload);
@@ -656,6 +673,16 @@ export async function updateOrderApi(
   }
   if (patch.cheerFormSubtype !== undefined) {
     payload.cheer_form_subtype = patch.cheerFormSubtype;
+    if (patch.varsityVirocCustomer === undefined) {
+      if (patch.cheerFormSubtype === "school-cheer-viroc-yes") {
+        payload.varsity_viroc_customer = "Yes";
+      } else if (patch.cheerFormSubtype === "school-cheer-viroc-no") {
+        payload.varsity_viroc_customer = "No";
+      }
+    }
+  }
+  if (patch.varsityVirocCustomer !== undefined) {
+    payload.varsity_viroc_customer = patch.varsityVirocCustomer;
   }
   if (patch.splitOrNoSplit !== undefined) {
     payload.split_or_no_split = patch.splitOrNoSplit;

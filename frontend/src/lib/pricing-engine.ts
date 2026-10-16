@@ -14,10 +14,12 @@ export type ComplianceStatus =
 export type RateCardEntry = {
   tier: "BRONZE" | "SILVER" | "GOLD" | "PLATINUM" | "TITANIUM" | string;
   limit: string; // e.g. "1:00", "1:30", "1:45", "2:00", "2:15", "2:30"
-  customer: number;
-  compliant: number;
-  nonCompliant: number;
+  customer: number | null;
+  compliant: number | null;
+  nonCompliant: number | null;
   isTitanium: boolean;
+  /** Manual quote — e.g. School Cheer Magento SoftSelect "Other" mix length. */
+  isUnpriced?: boolean;
 };
 
 /** All-Star Cheer Pricing Table (Customer, Compliant, Non-Compliant) */
@@ -33,33 +35,42 @@ export const ALL_STAR_CHEER_RATE_CARD: RateCardEntry[] = [
   { tier: "TITANIUM", limit: "2:30", customer: 2800, compliant: 2800, nonCompliant: 2800, isTitanium: true },
 ];
 
-/** School Cheer Pricing Table (identical for VIROC Yes and VIROC No) */
+/**
+ * School Cheer / VIROC Pricing Table.
+ * Magento SoftSelect Length of Mix: 1:00 / 1:30 / 1:45 / 2:15 / 2:30 (no 2:00).
+ */
 export const SCHOOL_CHEER_RATE_CARD: RateCardEntry[] = [
   { tier: "SILVER", limit: "1:00", customer: 450, compliant: 350, nonCompliant: 450, isTitanium: false },
   { tier: "SILVER", limit: "1:30", customer: 570, compliant: 470, nonCompliant: 570, isTitanium: false },
   { tier: "SILVER", limit: "1:45", customer: 650, compliant: 550, nonCompliant: 650, isTitanium: false },
-  { tier: "SILVER", limit: "2:00", customer: 750, compliant: 650, nonCompliant: 750, isTitanium: false },
   { tier: "SILVER", limit: "2:15", customer: 900, compliant: 800, nonCompliant: 900, isTitanium: false },
   { tier: "SILVER", limit: "2:30", customer: 900, compliant: 800, nonCompliant: 900, isTitanium: false },
   { tier: "GOLD", limit: "1:00", customer: 570, compliant: 470, nonCompliant: 570, isTitanium: false },
   { tier: "GOLD", limit: "1:30", customer: 700, compliant: 600, nonCompliant: 700, isTitanium: false },
   { tier: "GOLD", limit: "1:45", customer: 800, compliant: 700, nonCompliant: 800, isTitanium: false },
-  { tier: "GOLD", limit: "2:00", customer: 950, compliant: 850, nonCompliant: 950, isTitanium: false },
   { tier: "GOLD", limit: "2:15", customer: 1100, compliant: 1000, nonCompliant: 1100, isTitanium: false },
   { tier: "GOLD", limit: "2:30", customer: 1100, compliant: 1000, nonCompliant: 1100, isTitanium: false },
   { tier: "PLATINUM", limit: "1:00", customer: 800, compliant: 700, nonCompliant: 800, isTitanium: false },
   { tier: "PLATINUM", limit: "1:30", customer: 1050, compliant: 850, nonCompliant: 1050, isTitanium: false },
   { tier: "PLATINUM", limit: "1:45", customer: 1200, compliant: 1000, nonCompliant: 1200, isTitanium: false },
-  { tier: "PLATINUM", limit: "2:00", customer: 1350, compliant: 1150, nonCompliant: 1350, isTitanium: false },
   { tier: "PLATINUM", limit: "2:15", customer: 1600, compliant: 1400, nonCompliant: 1600, isTitanium: false },
   { tier: "PLATINUM", limit: "2:30", customer: 1600, compliant: 1400, nonCompliant: 1600, isTitanium: false },
   { tier: "TITANIUM", limit: "1:00", customer: 1500, compliant: 1500, nonCompliant: 1500, isTitanium: true },
   { tier: "TITANIUM", limit: "1:30", customer: 1800, compliant: 1800, nonCompliant: 1800, isTitanium: true },
   { tier: "TITANIUM", limit: "1:45", customer: 2000, compliant: 2000, nonCompliant: 2000, isTitanium: true },
-  { tier: "TITANIUM", limit: "2:00", customer: 2300, compliant: 2300, nonCompliant: 2300, isTitanium: true },
   { tier: "TITANIUM", limit: "2:15", customer: 2800, compliant: 2800, nonCompliant: 2800, isTitanium: true },
   { tier: "TITANIUM", limit: "2:30", customer: 2800, compliant: 2800, nonCompliant: 2800, isTitanium: true },
   { tier: "RALLY MIX", limit: "-", customer: 350, compliant: 350, nonCompliant: 350, isTitanium: false },
+  // Magento SoftSelect "Other" Length of Mix — any package → manual quote.
+  {
+    tier: "ANY PACKAGE",
+    limit: "Other - please specify the time needed in your notes section",
+    customer: null,
+    compliant: null,
+    nonCompliant: null,
+    isTitanium: false,
+    isUnpriced: true,
+  },
 ];
 
 /**
@@ -90,18 +101,22 @@ export type DanceRateCardEntry = {
   isUnpriced?: boolean;
 };
 
-/** POM Rate Card */
+/** POM Rate Card — Magento order: Dance Mix → Dance Plus → Custom Pom → Rally Mix */
 export const POM_RATE_CARD: DanceRateCardEntry[] = [
   { package: "DANCE MIX", customer: 475, compliant: 375, nonCompliant: 475 },
   { package: "DANCE PLUS", customer: 575, compliant: 430, nonCompliant: 575 },
   { package: "CUSTOM POM", customer: 850, compliant: 730, nonCompliant: 850 },
+  { package: "RALLY MIX", customer: 350, compliant: 350, nonCompliant: 350 },
 ];
 
-/** Hip Hop Rate Card (identical to POM rate card per spec) */
+/**
+ * Hip Hop Magento SoftSelect (no Rally Mix):
+ * Dance Mix → Dance Plus → Custom Hip-Hop
+ */
 export const HIP_HOP_RATE_CARD: DanceRateCardEntry[] = [
   { package: "DANCE MIX", customer: 475, compliant: 375, nonCompliant: 475 },
   { package: "DANCE PLUS", customer: 575, compliant: 430, nonCompliant: 575 },
-  { package: "CUSTOM POM", customer: 850, compliant: 730, nonCompliant: 850 },
+  { package: "CUSTOM HIP-HOP", customer: 850, compliant: 730, nonCompliant: 850 },
 ];
 
 /** Team Performance & Variety Rate Card */
@@ -506,15 +521,39 @@ export function packagesForOrderForm(
 ): string[] {
   if (formType === "school-all-star-cheer") {
     // Tier only — mix length is a separate field.
+    const subtype = cheerSubtype || "all-star-cheer";
     const seen = new Set<string>();
     const tiers: string[] = [];
-    for (const row of getRateCardForSubtype(cheerSubtype || "all-star-cheer")) {
+    for (const row of getRateCardForSubtype(subtype)) {
+      if (row.isUnpriced) continue;
       const tier = row.tier?.trim();
-      if (!tier) continue;
+      if (!tier || tier.toUpperCase() === "ANY PACKAGE") continue;
       const key = tier.toUpperCase();
       if (seen.has(key)) continue;
       seen.add(key);
       tiers.push(tier);
+    }
+    // School Cheer Magento SoftSelect: Silver → Gold → Platinum → Titanium → Rally Mix.
+    if (
+      subtype === "school-cheer-viroc-yes" ||
+      subtype === "school-cheer-viroc-no"
+    ) {
+      const magentoOrder = [
+        "SILVER",
+        "GOLD",
+        "PLATINUM",
+        "TITANIUM",
+        "RALLY MIX",
+      ];
+      const rank = new Map(magentoOrder.map((pkg, i) => [pkg, i]));
+      return [...tiers].sort((a, b) => {
+        const aR = rank.get(a.toUpperCase());
+        const bR = rank.get(b.toUpperCase());
+        if (aR == null && bR == null) return 0;
+        if (aR == null) return 1;
+        if (bR == null) return -1;
+        return aR - bR;
+      });
     }
     return tiers;
   }
@@ -535,6 +574,39 @@ export function packagesForOrderForm(
   return [];
 }
 
+/** Magento School Cheer SoftSelect Length of Mix (no 2:00). */
+const SCHOOL_CHEER_MAGENTO_MIX_LENGTHS = [
+  "1:00",
+  "1:30",
+  "1:45",
+  "2:15",
+  "2:30",
+] as const;
+
+/** Exact Magento SoftSelect "Other" label for School Cheer / VIROC Length of Mix. */
+export const SCHOOL_CHEER_MAGENTO_MIX_OTHER =
+  "Other - please specify the time needed in your notes section";
+
+/** True when Length of Mix is Magento SoftSelect "Other…" (any package → needs quote). */
+export function isSchoolCheerOtherMixLength(
+  raw?: string | null
+): boolean {
+  const trimmed = String(raw || "").trim();
+  if (!trimmed) return false;
+  if (trimmed === SCHOOL_CHEER_MAGENTO_MIX_OTHER) return true;
+  // SoftSelect / stored shorthand or truncated label.
+  if (/^other\b/i.test(trimmed)) return true;
+  return false;
+}
+
+export function isSchoolCheerSubtype(
+  subtype?: CheerFormSubtype | string | null
+): boolean {
+  return (
+    subtype === "school-cheer-viroc-yes" || subtype === "school-cheer-viroc-no"
+  );
+}
+
 /** Mix length options for a form + subcategory (from rate-card time limits). */
 export function mixLengthsForOrderForm(
   formType: OrderFormType,
@@ -542,9 +614,18 @@ export function mixLengthsForOrderForm(
   _danceSubtype?: DanceFormSubtype | null
 ): string[] {
   if (formType === "school-all-star-cheer") {
+    const subtype = cheerSubtype || "all-star-cheer";
+    // School Cheer Magento SoftSelect: 1:00 / 1:30 / 1:45 / 2:15 / 2:30 (no 2:00)
+    // + "Other - please specify the time needed in your notes section".
+    if (
+      subtype === "school-cheer-viroc-yes" ||
+      subtype === "school-cheer-viroc-no"
+    ) {
+      return [...SCHOOL_CHEER_MAGENTO_MIX_LENGTHS, SCHOOL_CHEER_MAGENTO_MIX_OTHER];
+    }
     const seen = new Set<string>();
     const lengths: string[] = [];
-    for (const row of getRateCardForSubtype(cheerSubtype || "all-star-cheer")) {
+    for (const row of getRateCardForSubtype(subtype)) {
       const limit = row.limit?.trim();
       if (!limit || limit === "-") continue;
       if (seen.has(limit)) continue;
@@ -598,8 +679,18 @@ export function lookupRateCardEntry(
     targetLimit = timeLengthOfMix.trim();
   }
 
+  // Magento SoftSelect has no 2:00 — map legacy School Cheer / VIROC 2:00 → 2:15.
+  const isSchoolCheer =
+    cheerFormSubtype === "school-cheer-viroc-yes" ||
+    cheerFormSubtype === "school-cheer-viroc-no";
+  if (isSchoolCheer && targetLimit === "2:00") {
+    targetLimit = "2:15";
+  }
+
+  const priced = rateCard.filter((entry) => !entry.isUnpriced);
+
   // Find exact match first
-  let matched = rateCard.find(
+  let matched = priced.find(
     (entry) =>
       entry.tier.toUpperCase() === targetTier && entry.limit === targetLimit
   );
@@ -607,16 +698,39 @@ export function lookupRateCardEntry(
   if (matched) return matched;
 
   // Fallback: match by tier if limit isn't matched
-  matched = rateCard.find((entry) => entry.tier.toUpperCase() === targetTier);
+  matched = priced.find((entry) => entry.tier.toUpperCase() === targetTier);
   if (matched) return matched;
 
   // Fallback 2: substring match on raw packageType
   const upperPkg = fullPkg.toUpperCase();
-  matched = rateCard.find(
-    (entry) => upperPkg.includes(entry.tier) && upperPkg.includes(entry.limit)
+  matched = priced.find(
+    (entry) =>
+      upperPkg.includes(entry.tier) &&
+      entry.limit !== "-" &&
+      upperPkg.includes(entry.limit)
   );
 
   return matched ?? null;
+}
+
+/** Jazz Simple Cut SoftSelect only — match on first 3 words (ignore paren body). */
+function isJazzSimpleCutByFirstThreeWords(raw: string): boolean {
+  const words = String(raw || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[-_/]+/g, " ")
+    .replace(/[()$,]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 3);
+  return (
+    words.length === 3 &&
+    words[0] === "jazz" &&
+    words[1] === "simple" &&
+    words[2] === "cut"
+  );
 }
 
 export function lookupDanceRateCardEntry(
@@ -624,7 +738,21 @@ export function lookupDanceRateCardEntry(
   packageType: string
 ): DanceRateCardEntry | null {
   const rateCard = getDanceRateCardForSubtype(danceFormSubtype);
-  const target = packageType.toUpperCase().trim();
+  let target = packageType.toUpperCase().trim();
+  // Magento SoftSelect: Hip Hop "Custom Hip-Hop" vs Pom "Custom Pom".
+  if (danceFormSubtype === "hip-hop" && target === "CUSTOM POM") {
+    target = "CUSTOM HIP-HOP";
+  }
+  if (danceFormSubtype === "pom" && target === "CUSTOM HIP-HOP") {
+    target = "CUSTOM POM";
+  }
+  // Jazz Simple Cut: Magento SoftSelect paren text is long — first 3 words only.
+  if (
+    danceFormSubtype === "jazz-kick" &&
+    isJazzSimpleCutByFirstThreeWords(packageType)
+  ) {
+    target = "JAZZ SIMPLE CUT";
+  }
 
   let matched = rateCard.find(
     (entry) => entry.package.toUpperCase() === target
@@ -818,20 +946,45 @@ export type PricingEngineResult = {
   discountValue?: number;
   preDiscountPayrollBasePrice: number;
   preDiscountCustomerFacingPrice: number;
+  /** School Cheer Magento SoftSelect "Other" mix (any package) → Needs Quote. */
+  isUnpriced?: boolean;
 };
 
 export function calculateCheerOrderPricing(
   input: PricingEngineInput
 ): PricingEngineResult {
+  const complianceStatus = determineComplianceStatus(
+    input.cheerFormSubtype,
+    input.musicAffiliate
+  );
+
+  // Magento SoftSelect "Other" Length of Mix + any package → needs quote.
+  if (
+    isSchoolCheerSubtype(input.cheerFormSubtype) &&
+    (isSchoolCheerOtherMixLength(input.timeLengthOfMix) ||
+      isSchoolCheerOtherMixLength(input.packageType))
+  ) {
+    return {
+      customerFacingPrice: 0,
+      payrollBasePrice: 0,
+      compliantPayrollBasePrice: 0,
+      nonCompliantPayrollBasePrice: 0,
+      complianceStatus,
+      isTitanium: false,
+      matchedEntry: null,
+      packageName: input.packageType,
+      timeLengthOfMix: SCHOOL_CHEER_MAGENTO_MIX_OTHER,
+      discountAmount: 0,
+      preDiscountPayrollBasePrice: 0,
+      preDiscountCustomerFacingPrice: 0,
+      isUnpriced: true,
+    };
+  }
+
   const matchedEntry = lookupRateCardEntry(
     input.cheerFormSubtype,
     input.packageType,
     input.timeLengthOfMix
-  );
-
-  const complianceStatus = determineComplianceStatus(
-    input.cheerFormSubtype,
-    input.musicAffiliate
   );
 
   if (!matchedEntry) {
@@ -848,6 +1001,24 @@ export function calculateCheerOrderPricing(
       discountAmount: 0,
       preDiscountPayrollBasePrice: 0,
       preDiscountCustomerFacingPrice: 0,
+    };
+  }
+
+  if (matchedEntry.isUnpriced || matchedEntry.customer == null) {
+    return {
+      customerFacingPrice: 0,
+      payrollBasePrice: 0,
+      compliantPayrollBasePrice: 0,
+      nonCompliantPayrollBasePrice: 0,
+      complianceStatus,
+      isTitanium: Boolean(matchedEntry.isTitanium),
+      matchedEntry,
+      packageName: matchedEntry.tier,
+      timeLengthOfMix: matchedEntry.limit,
+      discountAmount: 0,
+      preDiscountPayrollBasePrice: 0,
+      preDiscountCustomerFacingPrice: 0,
+      isUnpriced: true,
     };
   }
 
@@ -1015,19 +1186,20 @@ export type MarchingBandRateCardEntry = {
  * No customer music-affiliate field on this form — compliant / non-compliant
  * match package price (flat). Overridable from pricing_rules DB.
  */
+/** Magento PACKAGE TYPE order (Sounds Like That Marching Band form). */
 export const MARCHING_BAND_RATE_CARD: MarchingBandRateCardEntry[] = [
-  {
-    package: "BAND CHANT",
-    customer: 600,
-    compliant: 600,
-    nonCompliant: 600,
-    alwaysFixedPayroll: true,
-  },
   {
     package: "DRUM CADENCE ORIGINAL",
     customer: 350,
     compliant: 350,
     nonCompliant: 350,
+    alwaysFixedPayroll: true,
+  },
+  {
+    package: "BAND CHANT",
+    customer: 600,
+    compliant: 600,
+    nonCompliant: 600,
     alwaysFixedPayroll: true,
   },
   {
@@ -1038,17 +1210,17 @@ export const MARCHING_BAND_RATE_CARD: MarchingBandRateCardEntry[] = [
     alwaysFixedPayroll: true,
   },
   {
-    package: "ALMA MATER ORIGINAL",
-    customer: 1100,
-    compliant: 1100,
-    nonCompliant: 1100,
-    alwaysFixedPayroll: true,
-  },
-  {
     package: "FIGHT SONG PLUS",
     customer: 2250,
     compliant: 2250,
     nonCompliant: 2250,
+    alwaysFixedPayroll: true,
+  },
+  {
+    package: "ALMA MATER ORIGINAL",
+    customer: 1100,
+    compliant: 1100,
+    nonCompliant: 1100,
     alwaysFixedPayroll: true,
   },
   {
@@ -1215,16 +1387,35 @@ export function setSportsEntertainmentRateCardFromDb(
   sportsEntertainmentRateCardOverride = entries.map((e) => ({ ...e }));
 }
 
+const SPORTS_ENTERTAINMENT_PACKAGE_ALIASES: Record<string, string> = {
+  // Magento dropdown labels → rate-card keys
+  "QUARTER BREAK/TIMEOUT REMIXED PACKAGE": "QUARTER BREAK / TIMEOUT REMIXED",
+  "PRE-GAME/HALFTIME REMIXED PACKAGE": "PRE-GAME / HALFTIME REMIXED",
+  "OTHER - SPECIFY IN NOTES SECTION OF THE ORDER FORM":
+    "OTHER (mixes longer than 2:30)",
+  // Legacy / bad demo
+  "TIMEOUT REMIX": "QUARTER BREAK / TIMEOUT REMIXED",
+  "TIMEOUT REMIXED": "QUARTER BREAK / TIMEOUT REMIXED",
+  "HALFTIME SHOW": "PRE-GAME / HALFTIME REMIXED",
+  "ARENA HYPE SUITE": "PRE-GAME / HALFTIME REMIXED",
+};
+
 export function lookupSportsEntertainmentRateCardEntry(
   packageType?: string
 ): SportsEntertainmentRateCardEntry | null {
   if (!packageType || !packageType.trim()) return null;
-  const target = packageType.toUpperCase().trim();
+  let target = packageType
+    .toUpperCase()
+    .replace(/\s+/g, " ")
+    .trim();
+  target = SPORTS_ENTERTAINMENT_PACKAGE_ALIASES[target] ?? target;
+  // Alias map may keep mixed-case rate-card key for OTHER
+  const targetUpper = target.toUpperCase();
   const card = getSportsEntertainmentRateCard();
 
   // Direct exact match first
   let matched = card.find(
-    (entry) => entry.package.toUpperCase() === target
+    (entry) => entry.package.toUpperCase() === targetUpper
   );
   if (matched) return matched;
 
@@ -1236,9 +1427,10 @@ export function lookupSportsEntertainmentRateCardEntry(
   matched = sorted.find((entry) => {
     const pkgUpper = entry.package.toUpperCase();
     return (
-      target.includes(pkgUpper) ||
-      pkgUpper.includes(target) ||
-      (entry.isUnpriced && (target.includes("OTHER") || target.includes("2:30")))
+      targetUpper.includes(pkgUpper) ||
+      pkgUpper.includes(targetUpper) ||
+      (entry.isUnpriced &&
+        (targetUpper.includes("OTHER") || targetUpper.includes("2:30")))
     );
   });
 

@@ -35,14 +35,14 @@ describe("Rally Mix Package Pricing, Subtype Renaming & Add-On Matrix Tests", ()
     it("3. Rally Mix does not stack as an add-on on top of another package", () => {
       const res = calculateCheerOrderPricing({
         cheerFormSubtype: "school-cheer-viroc-yes",
-        packageType: "GOLD 2:00",
+        packageType: "GOLD 2:15",
         musicAffiliate: "Power Music",
         // @ts-ignore - testing legacy prop if passed
         hasRallyMix: true,
       });
 
-      assert.equal(res.customerFacingPrice, 950);
-      assert.equal(res.payrollBasePrice, 850);
+      assert.equal(res.customerFacingPrice, 1100);
+      assert.equal(res.payrollBasePrice, 1000);
     });
 
     it("4. Pricing Reference Table includes Rally Mix as a standard package row under School Cheer", () => {

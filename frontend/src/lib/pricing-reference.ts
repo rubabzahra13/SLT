@@ -61,11 +61,13 @@ export type TierTimePricingRow = {
   kind: "tier-time";
   tier: string;
   limit: string;
-  customer: number;
-  compliant: number;
-  nonCompliant: number;
+  customer: number | null;
+  compliant: number | null;
+  nonCompliant: number | null;
   isTitanium?: boolean;
   alwaysFixedPayroll?: boolean;
+  /** Manual quote row (e.g. School Cheer SoftSelect "Other" mix length). */
+  isUnpriced?: boolean;
 };
 
 export type FlatPackagePricingRow = {
@@ -275,13 +277,16 @@ export function buildDefaultCategorySnapshot(
       break;
     case "School Cheer":
       rows = SCHOOL_CHEER_RATE_CARD.map((row) => ({
-        kind: "tier-time",
+        kind: "tier-time" as const,
         tier: row.tier,
         limit: row.limit,
-        customer: row.customer,
-        compliant: row.compliant,
-        nonCompliant: row.nonCompliant,
+        customer: row.isUnpriced ? null : (row.customer as number | null),
+        compliant: row.isUnpriced ? null : (row.compliant as number | null),
+        nonCompliant: row.isUnpriced
+          ? null
+          : (row.nonCompliant as number | null),
         isTitanium: row.isTitanium,
+        isUnpriced: Boolean(row.isUnpriced),
       }));
       break;
     case "Youth Rec Cheer":
@@ -820,6 +825,55 @@ function rulesToFlatRows(
 }
 
 /**
+ * Magento POM / Hip Hop SoftSelect includes Rally Mix — merge any packages
+ * present on the code rate card that are missing from older DB snapshots.
+ */
+function ensurePomHipHopMagentoPackages(
+  rows: FlatPackagePricingRow[],
+  subtypeId: string | null
+): FlatPackagePricingRow[] {
+  const defaults =
+    subtypeId === "hip-hop"
+      ? HIP_HOP_RATE_CARD
+      : subtypeId === "pom"
+        ? POM_RATE_CARD
+        : null;
+  if (!defaults?.length) return rows;
+
+  const byKey = new Map(
+    rows.map((row) => [String(row.package || "").trim().toUpperCase(), row])
+  );
+
+  // Hip Hop Magento SoftSelect has Custom Hip-Hop (not Custom Pom / Rally Mix).
+  if (subtypeId === "hip-hop") {
+    const legacyCustom = byKey.get("CUSTOM POM");
+    if (legacyCustom && !byKey.has("CUSTOM HIP-HOP")) {
+      byKey.set("CUSTOM HIP-HOP", {
+        ...legacyCustom,
+        package: "CUSTOM HIP-HOP",
+      });
+    }
+    byKey.delete("CUSTOM POM");
+    byKey.delete("RALLY MIX");
+  }
+
+  for (const entry of defaults) {
+    const key = entry.package.trim().toUpperCase();
+    if (byKey.has(key)) continue;
+    byKey.set(key, {
+      kind: "flat-package",
+      package: entry.package,
+      customer: entry.customer,
+      compliant: entry.compliant,
+      nonCompliant: entry.nonCompliant,
+      alwaysFixedPayroll: Boolean(entry.alwaysFixedPayroll),
+      isUnpriced: Boolean(entry.isUnpriced),
+    });
+  }
+  return Array.from(byKey.values());
+}
+
+/**
  * Expand legacy combined Marching Band DB names into the UI rate-card packages.
  */
 function expandMarchingBandDbRows(
@@ -915,6 +969,39 @@ export function applyDbPricingRules(
 
     if (formType === "school-all-star-cheer" && subtypeId) {
       rows = rulesToTierTimeRows(packageRules, subtypeId);
+      // School Cheer / VIROC Magento SoftSelect has no 2:00 Length of Mix.
+      if (subtypeId === "school-cheer" || subtypeId.startsWith("school-cheer")) {
+        rows = rows.filter(
+          (r) =>
+            r.kind !== "tier-time" || String(r.limit || "").trim() !== "2:00"
+        );
+        // Always keep SoftSelect "Other" → Needs Quote documentation row.
+        const hasOther = rows.some(
+          (r) =>
+            r.kind === "tier-time" &&
+            (Boolean(r.isUnpriced) ||
+              String(r.tier || "").toUpperCase() === "ANY PACKAGE" ||
+              /^other\b/i.test(String(r.limit || "").trim()))
+        );
+        if (!hasOther) {
+          const otherRow = SCHOOL_CHEER_RATE_CARD.find((r) => r.isUnpriced);
+          if (otherRow) {
+            rows = [
+              ...rows,
+              {
+                kind: "tier-time" as const,
+                tier: otherRow.tier,
+                limit: otherRow.limit,
+                customer: null,
+                compliant: null,
+                nonCompliant: null,
+                isTitanium: false,
+                isUnpriced: true,
+              },
+            ];
+          }
+        }
+      }
       setCheerRateCardFromDb(
         subtypeId,
         rows
@@ -922,10 +1009,13 @@ export function applyDbPricingRules(
           .map((r) => ({
             tier: r.tier,
             limit: r.limit,
-            customer: Number(r.customer ?? 0),
-            compliant: Number(r.compliant ?? r.customer ?? 0),
-            nonCompliant: Number(r.nonCompliant ?? r.customer ?? 0),
+            customer: r.isUnpriced ? null : Number(r.customer ?? 0),
+            compliant: r.isUnpriced ? null : Number(r.compliant ?? r.customer ?? 0),
+            nonCompliant: r.isUnpriced
+              ? null
+              : Number(r.nonCompliant ?? r.customer ?? 0),
             isTitanium: Boolean(r.isTitanium),
+            isUnpriced: Boolean(r.isUnpriced),
           }))
       );
     } else {
@@ -964,6 +1054,9 @@ export function applyDbPricingRules(
         );
       }
       if (formType === "school-all-star-dance" && subtypeId) {
+        if (subtypeId === "pom" || subtypeId === "hip-hop") {
+          flatRows = ensurePomHipHopMagentoPackages(flatRows, subtypeId);
+        }
         setDanceRateCardFromDb(
           subtypeId,
           flatRows.map((r) => ({

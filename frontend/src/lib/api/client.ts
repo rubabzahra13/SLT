@@ -13,6 +13,9 @@ export const API_BASE_URL = resolveApiBaseUrl();
 /** Default request timeout — shorter than Vercel maxDuration so UI can recover. */
 export const API_TIMEOUT_MS = 20_000;
 
+/** Creates / updates often wait on DB + uvicorn reload; give them more headroom. */
+export const API_MUTATION_TIMEOUT_MS = 45_000;
+
 export class ApiClientError extends Error {
   public status: number;
   public data: unknown;
@@ -48,6 +51,9 @@ export function formatApiClientError(
   if (err instanceof ApiClientError) {
     if (err.status === 0 && isNetworkFetchFailure(err)) {
       return backendUnavailableMessage();
+    }
+    if (err.status === 0 && /timed out/i.test(err.message)) {
+      return "The server took too long to respond. Please try again.";
     }
     return err.message;
   }
@@ -164,18 +170,25 @@ async function request<T>(
   endpoint: string,
   options: ApiRequestOptions = {}
 ): Promise<T> {
-  const { timeoutMs = API_TIMEOUT_MS, retry = true, ...init } = options;
+  const method = String(options.method || "GET").toUpperCase();
+  const isMutation = method !== "GET" && method !== "HEAD";
+  const {
+    timeoutMs = isMutation ? API_MUTATION_TIMEOUT_MS : API_TIMEOUT_MS,
+    retry = true,
+    ...init
+  } = options;
   try {
     return await requestOnce<T>(endpoint, init, timeoutMs);
   } catch (err) {
-    // One retry for cold-start / transient network failures only.
-    // Do not retry AbortError timeouts — that turns a 20s hang into 40s of
-    // "Loading orders…" with no benefit when the backend is down.
-    if (
-      retry &&
-      err instanceof ApiClientError &&
-      err.message.includes("timed out")
-    ) {
+    // One retry for cold-start / uvicorn reload / transient network failures.
+    // Mutations also retry once on timeout — Add Order is create+patch and often
+    // races a backend reload; a second attempt usually succeeds quickly.
+    const timedOut =
+      err instanceof ApiClientError && /timed out/i.test(err.message);
+    if (retry && timedOut && isMutation) {
+      return requestOnce<T>(endpoint, init, timeoutMs);
+    }
+    if (retry && timedOut) {
       throw err;
     }
     if (
