@@ -89,10 +89,29 @@ function cheerTierKey(raw: string): string {
     .toUpperCase();
 }
 
+/** Sports Entertainment Magento SoftSelect OTHER → rate-card package key. */
+function sportsEntertainmentOtherPackageKey(raw: string): string | null {
+  const upper = raw.trim().toUpperCase();
+  if (!upper) return null;
+  if (
+    upper === "OTHER (MIXES LONGER THAN 2:30)" ||
+    upper === "OTHER (MIXES LONGER THAN 2:30" ||
+    upper.startsWith("OTHER (MIXES LONGER") ||
+    upper.includes("SPECIFY IN NOTES SECTION OF THE ORDER FORM") ||
+    (upper.startsWith("OTHER") && upper.includes("MIXES LONGER"))
+  ) {
+    return "OTHER (mixes longer than 2:30)";
+  }
+  return null;
+}
+
 /** Strip mix length from cheer package strings → tier/package only. */
 export function packageTypeDisplayValue(raw: string): string {
   const trimmed = raw.trim();
   if (!trimmed || isFormCategoryLabel(trimmed)) return "";
+  // Do not let parsePackage treat "2:30" inside SE OTHER SoftSelect as mix length.
+  const seOther = sportsEntertainmentOtherPackageKey(trimmed);
+  if (seOther) return seOther;
   const parsed = parsePackage(trimmed);
   if (parsed.tier && parsed.tier !== "-") {
     // Magento SoftSelect: "Gold Package" / "Rally Mix (…)" → catalog key.
@@ -421,8 +440,14 @@ function marchingBandPackageLabel(pkg: string): string {
 }
 
 function sportsEntertainmentPackageLabel(pkg: string): string {
-  const key = pkg.trim().toUpperCase();
-  return SPORTS_ENTERTAINMENT_PACKAGE_LABELS[key] || pkg;
+  const canonical = sportsEntertainmentOtherPackageKey(pkg) || pkg;
+  const key = canonical.trim().toUpperCase();
+  return (
+    SPORTS_ENTERTAINMENT_PACKAGE_LABELS[key] ||
+    SPORTS_ENTERTAINMENT_BOARD_LABELS[key] ||
+    SPORTS_ENTERTAINMENT_BOARD_LABELS[canonical] ||
+    pkg
+  );
 }
 
 function cheerPackageLabel(
@@ -475,9 +500,8 @@ export function magentoPackageBoardLabel(
   }
   if (form === "sports-entertainment" || form.includes("sports")) {
     return (
-      SPORTS_ENTERTAINMENT_PACKAGE_LABELS[key] ||
-      SPORTS_ENTERTAINMENT_BOARD_LABELS[key] ||
-      SPORTS_ENTERTAINMENT_BOARD_LABELS[tier] ||
+      sportsEntertainmentPackageLabel(rawPackage) ||
+      sportsEntertainmentPackageLabel(tier) ||
       titleCasePackage(tier)
     );
   }
@@ -509,9 +533,8 @@ export function magentoPricingPackageLabel(
   }
   if (cat.includes("sports")) {
     return (
-      SPORTS_ENTERTAINMENT_PACKAGE_LABELS[key] ||
-      SPORTS_ENTERTAINMENT_BOARD_LABELS[key] ||
-      SPORTS_ENTERTAINMENT_BOARD_LABELS[rawPackage] ||
+      sportsEntertainmentPackageLabel(rawPackage) ||
+      sportsEntertainmentPackageLabel(key) ||
       titleCasePackage(rawPackage)
     );
   }
