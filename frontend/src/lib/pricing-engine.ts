@@ -75,17 +75,25 @@ export const SCHOOL_CHEER_RATE_CARD: RateCardEntry[] = [
 
 /**
  * Youth Rec Cheer Pricing Table.
- * No music-affiliate field on this form — package price is flat for customer
- * and payroll (compliant === nonCompliant === customer).
+ * Magento SoftSelect Mix Length: 1:00 / 1:30 / 1:45 / 2:00 / 2:30 (no 2:15).
+ * No music-affiliate field — package price is flat for customer and payroll.
  */
 export const YOUTH_REC_CHEER_RATE_CARD: RateCardEntry[] = [
   { tier: "BRONZE", limit: "1:00", customer: 450, compliant: 450, nonCompliant: 450, isTitanium: false },
   { tier: "BRONZE", limit: "1:30", customer: 570, compliant: 570, nonCompliant: 570, isTitanium: false },
   { tier: "BRONZE", limit: "1:45", customer: 650, compliant: 650, nonCompliant: 650, isTitanium: false },
   { tier: "BRONZE", limit: "2:00", customer: 750, compliant: 750, nonCompliant: 750, isTitanium: false },
-  { tier: "BRONZE", limit: "2:15", customer: 900, compliant: 900, nonCompliant: 900, isTitanium: false },
   { tier: "BRONZE", limit: "2:30", customer: 900, compliant: 900, nonCompliant: 900, isTitanium: false },
 ];
+
+/** Magento SoftSelect Mix Length for Youth Rec Cheer (no 2:15). */
+export const YOUTH_REC_MAGENTO_MIX_LENGTHS = [
+  "1:00",
+  "1:30",
+  "1:45",
+  "2:00",
+  "2:30",
+] as const;
 
 /** In-memory rate-card overrides hydrated from pricing_rules (DB). */
 const cheerRateCardOverrides = new Map<string, RateCardEntry[]>();
@@ -623,6 +631,10 @@ export function mixLengthsForOrderForm(
     ) {
       return [...SCHOOL_CHEER_MAGENTO_MIX_LENGTHS, SCHOOL_CHEER_MAGENTO_MIX_OTHER];
     }
+    // Youth Rec Magento SoftSelect: 1:00 / 1:30 / 1:45 / 2:00 / 2:30 (no 2:15).
+    if (subtype === "youth-rec-cheer") {
+      return [...YOUTH_REC_MAGENTO_MIX_LENGTHS];
+    }
     const seen = new Set<string>();
     const lengths: string[] = [];
     for (const row of getRateCardForSubtype(subtype)) {
@@ -631,10 +643,6 @@ export function mixLengthsForOrderForm(
       if (seen.has(limit)) continue;
       seen.add(limit);
       lengths.push(limit);
-    }
-    // Youth Rec customer form offers "Other" when length isn't listed.
-    if (cheerSubtype === "youth-rec-cheer") {
-      lengths.push("Other");
     }
     return lengths;
   }
@@ -685,6 +693,10 @@ export function lookupRateCardEntry(
     cheerFormSubtype === "school-cheer-viroc-no";
   if (isSchoolCheer && targetLimit === "2:00") {
     targetLimit = "2:15";
+  }
+  // Magento SoftSelect has no 2:15 — map legacy Youth Rec 2:15 → 2:30.
+  if (cheerFormSubtype === "youth-rec-cheer" && targetLimit === "2:15") {
+    targetLimit = "2:30";
   }
 
   const priced = rateCard.filter((entry) => !entry.isUnpriced);

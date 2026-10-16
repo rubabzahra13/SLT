@@ -408,17 +408,6 @@
               "note": "Youth Rec has no music-affiliate field \u2014 package price is flat for customer and payroll."
             },
             {
-              "id": "bronze_2_15",
-              "name": "BRONZE 2:15",
-              "customer_facing_price": 900,
-              "payroll_base_price": {
-                "compliant": 900,
-                "non_compliant": 900
-              },
-              "compliance_sensitive": false,
-              "note": "Youth Rec has no music-affiliate field \u2014 package price is flat for customer and payroll."
-            },
-            {
               "id": "bronze_2_30",
               "name": "BRONZE 2:30",
               "customer_facing_price": 900,

@@ -1002,6 +1002,13 @@ export function applyDbPricingRules(
           }
         }
       }
+      // Youth Rec Magento SoftSelect Mix Length has no 2:15.
+      if (subtypeId === "youth-rec-cheer") {
+        rows = rows.filter(
+          (r) =>
+            r.kind !== "tier-time" || String(r.limit || "").trim() !== "2:15"
+        );
+      }
       setCheerRateCardFromDb(
         subtypeId,
         rows

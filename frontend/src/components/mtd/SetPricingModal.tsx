@@ -1179,35 +1179,14 @@ export function SetPricingModal({
                               className="even:bg-neutral-50/80 hover:bg-blue-50/40 transition-colors"
                             >
                               <td className="border border-neutral-300 px-3.5 py-2 font-bold text-neutral-900">
-                                {isEditingPricing && !isUnpriced ? (
-                                  <input
-                                    type="text"
-                                    value={tierRow.tier}
-                                    onChange={(event) =>
-                                      updateDraftRow(idx, { tier: event.target.value })
-                                    }
-                                    className={nameInputClassName}
-                                  />
-                                ) : (
-                                  magentoPricingPackageLabel(
-                                    selectedCategory,
-                                    tierRow.tier
-                                  )
+                                {/* Cheer Magento SoftSelect tiers/limits are fixed — prices only. */}
+                                {magentoPricingPackageLabel(
+                                  selectedCategory,
+                                  tierRow.tier
                                 )}
                               </td>
                               <td className="border border-neutral-300 px-3.5 py-2 font-semibold tabular-nums text-neutral-700">
-                                {isEditingPricing && !isUnpriced ? (
-                                  <input
-                                    type="text"
-                                    value={tierRow.limit}
-                                    onChange={(event) =>
-                                      updateDraftRow(idx, { limit: event.target.value })
-                                    }
-                                    className={nameInputClassName}
-                                  />
-                                ) : (
-                                  tierRow.limit
-                                )}
+                                {tierRow.limit}
                               </td>
                               <td className="border border-neutral-300 px-3.5 py-2 text-center font-bold tabular-nums text-neutral-900">
                                 {isUnpriced && !isEditingPricing ? (

@@ -143,12 +143,9 @@ function isPreservablePackage(raw: string, catalog: string[]): boolean {
 }
 
 /**
- * Magento PACKAGE TYPE SoftSelect labels for cheer tiers.
- * All-Star Cheer Magento: Gold Package / Platinum Package / Titanium Package.
- */
-/**
  * Magento SoftSelect PACKAGE TYPE labels for cheer.
- * School Cheer Magento also: Rally Mix (without 8 count sheets).
+ * School Cheer / All-Star: "… Package". Youth Rec Magento: tier only ("Bronze").
+ * School Cheer also: Rally Mix (without 8 count sheets).
  */
 const CHEER_PACKAGE_LABELS: Record<string, string> = {
   BRONZE: "Bronze Package",
@@ -157,6 +154,15 @@ const CHEER_PACKAGE_LABELS: Record<string, string> = {
   PLATINUM: "Platinum Package",
   TITANIUM: "Titanium Package",
   "RALLY MIX": "Rally Mix (without 8 count sheets)",
+};
+
+/** Youth Rec Magento SoftSelect PACKAGE — no "Package" suffix. */
+const YOUTH_REC_PACKAGE_LABELS: Record<string, string> = {
+  BRONZE: "Bronze",
+  SILVER: "Silver",
+  GOLD: "Gold",
+  PLATINUM: "Platinum",
+  TITANIUM: "Titanium",
 };
 
 /** Magento School Cheer SoftSelect + Pricing package order. */
@@ -419,18 +425,25 @@ function sportsEntertainmentPackageLabel(pkg: string): string {
   return SPORTS_ENTERTAINMENT_PACKAGE_LABELS[key] || pkg;
 }
 
-function cheerPackageLabel(pkg: string): string {
+function cheerPackageLabel(
+  pkg: string,
+  cheerSubtype?: CheerFormSubtype | string | null
+): string {
   const key = cheerTierKey(pkg);
+  if (cheerSubtype === "youth-rec-cheer") {
+    return YOUTH_REC_PACKAGE_LABELS[key] || titleCasePackage(key || pkg);
+  }
   return CHEER_PACKAGE_LABELS[key] || titleCasePackage(pkg);
 }
 
 function packageOptionLabel(
   formType: OrderFormType,
   pkg: string,
-  danceSubtype?: DanceFormSubtype | null
+  danceSubtype?: DanceFormSubtype | null,
+  cheerSubtype?: CheerFormSubtype | null
 ): string {
   if (formType === "school-all-star-cheer") {
-    return cheerPackageLabel(pkg);
+    return cheerPackageLabel(pkg, cheerSubtype);
   }
   if (formType === "school-all-star-dance") {
     return dancePackageLabel(pkg, danceSubtype);
@@ -449,7 +462,8 @@ function packageOptionLabel(
 export function magentoPackageBoardLabel(
   formType: OrderFormType | string | null | undefined,
   rawPackage: string,
-  danceSubtype?: DanceFormSubtype | string | null
+  danceSubtype?: DanceFormSubtype | string | null,
+  cheerSubtype?: CheerFormSubtype | string | null
 ): string {
   const tier = packageTypeDisplayValue(rawPackage);
   if (!tier) return "";
@@ -475,7 +489,7 @@ export function magentoPackageBoardLabel(
     return dancePackageLabel(tier, danceSubtype);
   }
   if (form === "school-all-star-cheer" || form.includes("cheer")) {
-    return cheerPackageLabel(tier);
+    return cheerPackageLabel(tier, cheerSubtype);
   }
   return titleCasePackage(tier);
 }
@@ -718,7 +732,7 @@ export function PackageTypeField({
       seen.add(key);
       list.push({
         value: pkg,
-        label: packageOptionLabel(formType, pkg, danceSubtype),
+        label: packageOptionLabel(formType, pkg, danceSubtype, cheerSubtype),
       });
     };
 
@@ -735,7 +749,7 @@ export function PackageTypeField({
     }
 
     return list;
-  }, [catalog, originalTier, value, formType, danceSubtype]);
+  }, [catalog, originalTier, value, formType, danceSubtype, cheerSubtype]);
 
   const selectValue = (() => {
     const matched = matchPackageOption(value, catalog);

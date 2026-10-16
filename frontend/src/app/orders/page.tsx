@@ -805,7 +805,8 @@ function OrdersPageContent() {
           const label = magentoPackageBoardLabel(
             meta.formType,
             raw,
-            meta.danceFormSubtype
+            meta.danceFormSubtype,
+            meta.cheerFormSubtype
           );
           return (
             <TruncatedText
@@ -853,6 +854,13 @@ function OrdersPageContent() {
                   limit === "2:00"
                 ) {
                   limit = "2:15";
+                }
+                // Magento SoftSelect Mix Length has no 2:15 for Youth Rec.
+                if (
+                  meta.cheerFormSubtype === "youth-rec-cheer" &&
+                  limit === "2:15"
+                ) {
+                  limit = "2:30";
                 }
                 return (
                   <span

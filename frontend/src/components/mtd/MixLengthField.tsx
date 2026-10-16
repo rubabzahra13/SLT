@@ -48,6 +48,10 @@ function normalizeMixLength(
     if (isSchoolCheerSubtype(cheerSubtype) && match[0] === "2:00") {
       return "2:15";
     }
+    // Magento SoftSelect has no 2:15 — map legacy Youth Rec → 2:30.
+    if (cheerSubtype === "youth-rec-cheer" && match[0] === "2:15") {
+      return "2:30";
+    }
     return match[0];
   }
   if (/^tbd$/i.test(trimmed)) return "TBD";
