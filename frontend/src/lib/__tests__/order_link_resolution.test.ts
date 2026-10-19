@@ -77,7 +77,7 @@ describe("Order Resolution & Link Fix Unit Tests", () => {
       packageType: matched.packageType || record.package,
       timeLengthOfMix: matched.timeLengthOfMix,
       musicAffiliate: matched.musicAffiliate,
-      hasRallyMix: record.hasRallyMix,
+      hasRallyMix: matched.hasRallyMix,
     });
 
     assert.equal(pricing.customerFacingPrice, 2000); // $2000 base package price

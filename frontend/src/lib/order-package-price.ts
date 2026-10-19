@@ -210,7 +210,7 @@ function runEngine(
     packageType,
     timeLengthOfMix: order?.timeLengthOfMix,
     musicAffiliate: order?.musicAffiliate,
-    hasRallyMix: rec.hasRallyMix,
+    hasRallyMix: order?.hasRallyMix,
     hasExtend8ctAddon: rec.hasExtend8ctAddon,
     hasProcessing8ctSheetsAddon: rec.hasProcessing8ctSheetsAddon,
   });
