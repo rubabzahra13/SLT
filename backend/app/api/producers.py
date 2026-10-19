@@ -142,12 +142,14 @@ def _cascade_assignment_key_change(
     old_key: str,
     new_key: str,
 ) -> None:
-    """Keep Orders / MTD assignment strings aligned when initials change.
+    """Keep Order assignment strings aligned when initials change.
 
-    MTD serializes assigned_producer from the Producer relationship (FK), but
-    Orders store initials as a plain string. Without this cascade, other
-    browsers briefly resolve the old key to nobody and show Assign.
+    Phase 4: assignment SoT is Orders only. Linked MTD board rows are
+    re-published with Order-projected assignment after Orders update.
     """
+    from app.api.mtd import _serialize_mtd
+    from sqlalchemy.orm import selectinload
+
     old_norm = normalize_producer_key(old_key)
     new_norm = normalize_producer_key(new_key)
     if not old_norm or not new_norm or old_norm == new_norm:
@@ -155,7 +157,6 @@ def _cascade_assignment_key_change(
 
     canonical = canonical_producer_assignment_key(producer) or new_norm
     touched_orders: list[Order] = []
-    touched_mtd: list[MTDRecord] = []
 
     orders = (
         db.query(Order)
@@ -187,32 +188,6 @@ def _cascade_assignment_key_change(
         if changed:
             touched_orders.append(order)
 
-    mtd_rows = (
-        db.query(MTDRecord)
-        .filter(
-            (MTDRecord.assigned_producer_id == producer.id)
-            | (func.upper(MTDRecord.editor_initials) == old_norm)
-            | (func.upper(MTDRecord.editor_request) == old_norm)
-        )
-        .all()
-    )
-    for mtd in mtd_rows:
-        changed = False
-        if mtd.assigned_producer_id == producer.id or normalize_producer_key(
-            mtd.editor_initials
-        ) == old_norm:
-            if mtd.editor_initials != canonical:
-                mtd.editor_initials = canonical
-                changed = True
-            if mtd.assigned_producer_id != producer.id:
-                mtd.assigned_producer_id = producer.id
-                changed = True
-        if normalize_producer_key(mtd.editor_request) == old_norm:
-            mtd.editor_request = canonical
-            changed = True
-        if changed:
-            touched_mtd.append(mtd)
-
     for order in touched_orders:
         board_event_hub.publish(
             {
@@ -220,13 +195,21 @@ def _cascade_assignment_key_change(
                 "order": OrderSchema.model_validate(order).model_dump(mode="json"),
             }
         )
-    for mtd in touched_mtd:
-        board_event_hub.publish(
-            {
-                "type": "mtd.updated",
-                "mtd": MTDRecordSchema.model_validate(mtd).model_dump(mode="json"),
-            }
+        linked = (
+            db.query(MTDRecord)
+            .options(selectinload(MTDRecord.order))
+            .filter(MTDRecord.order_id == order.id)
+            .all()
         )
+        for mtd in linked:
+            # Ensure projection sees the updated order in-session.
+            mtd.order = order
+            board_event_hub.publish(
+                {
+                    "type": "mtd.updated",
+                    "mtd": _serialize_mtd(mtd).model_dump(mode="json"),
+                }
+            )
 
 
 def _publish_producer_deleted(producer_id: uuid.UUID) -> None:

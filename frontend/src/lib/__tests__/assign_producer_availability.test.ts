@@ -48,19 +48,28 @@ function createMockRecord(overrides: Partial<MTDRecord> = {}): MTDRecord {
   return {
     id: "mtd-1",
     orderId: "ord-1",
+    section: "ACTIVE MIXES",
+    contactName: "Coach",
+    editorInitials: "CM",
     programName: "Star Athletics",
     category: "All-Star Cheer",
     package: "Platinum",
+    musicTheme: "",
     editorRequest: "FA",
     assignedProducer: null,
     mixStartDate: "2026-09-14",
     mixEndDate: "2026-09-18",
+    eightCountSheet: "HAVE CS",
+    haveSongs: "HAVE",
+    needsAttention: false,
+    priceCompliance: "compliant",
+    invoice: "",
     status: "active",
     recordStatus: "Ongoing",
-    producerPayout: 500,
+    finalPayrollPrice: 500,
     price: 1000,
     ...overrides,
-  } as MTDRecord;
+  };
 }
 
 const dentistLeave: ProducerTimeOff = {
@@ -161,12 +170,14 @@ describe("Assign Producer Availability Logic", () => {
       assignedProducer: "Casey Marlow",
       mixStartDate: "2026-09-14",
       mixEndDate: "2026-09-15",
-      producerPayout: 500,
+      finalPayrollPrice: 500,
     });
+    const estimateCost = () => 500;
 
     // 500 across Mon–Tue = $250/day booked on Sep 15
     const within = checkProducerDailyLimits(producer, "2026-09-15", "2026-09-16", [existingMix], {
       newMixCost: 500, // full payout → $250/day over 2 work days
+      estimateCost,
     });
     assert.deepEqual(within.overCostDays, []);
     assert.equal(within.peakCostDay?.bookedCost, 250);
@@ -175,6 +186,7 @@ describe("Assign Producer Availability Logic", () => {
     // 1600 → $800/day; 250 + 800 > 1000 on Sep 15
     const over = checkProducerDailyLimits(producer, "2026-09-15", "2026-09-16", [existingMix], {
       newMixCost: 1600,
+      estimateCost,
     });
     assert.deepEqual(over.overCostDays, ["2026-09-15"]);
   });

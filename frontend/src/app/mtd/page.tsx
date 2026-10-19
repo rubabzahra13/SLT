@@ -85,6 +85,8 @@ import {
   getDisplayAssignedProducer,
   mixWorkDaysForRecord,
 } from "@/lib/editor-assignment";
+import { overlayMergedFormForDisplay } from "@/lib/manual-form-merge";
+import { mergeCollectionStateFromOrder } from "@/lib/order-staging";
 import {
   countMTDByCheerSubtype,
   countMTDByDanceSubtype,
@@ -295,11 +297,6 @@ function MTDPageContent() {
   const [blockedReason, setBlockedReason] =
     useState<StatusBlockReason>("completed");
 
-  const mtdBoardRecords = useMemo(
-    () => getMTDBoardRecords(mtdRecords).filter(isMTDRecord),
-    [mtdRecords]
-  );
-
   const orderById = useMemo(() => {
     const map = new Map<string, Order>();
     for (const order of allOrders) {
@@ -309,6 +306,21 @@ function MTDPageContent() {
     }
     return map;
   }, [allOrders]);
+
+  // Hydrate thin MTD rows from linked Orders (and linked Magento form identity)
+  // so table cells match the edit form.
+  const mtdBoardRecords = useMemo(
+    () =>
+      getMTDBoardRecords(mtdRecords)
+        .filter(isMTDRecord)
+        .map((rec) => {
+          const linked = findLinkedOrder(rec, allOrders);
+          if (!linked) return rec;
+          const enriched = overlayMergedFormForDisplay(linked, allOrders);
+          return mergeCollectionStateFromOrder(rec, enriched);
+        }),
+    [mtdRecords, allOrders]
+  );
 
   const switchForm = useCallback((next: OrderFormType) => {
     setForm(next);

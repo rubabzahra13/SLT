@@ -580,8 +580,12 @@ function bookedRecordCost(
   rec: MTDRecord,
   estimateCost?: RecordCostEstimator
 ): number {
-  // Live estimate first; stored payout lives on Orders (Phase 1/2 SoT).
-  return estimateCost?.(rec) ?? 0;
+  // Live estimate first; Orders is payout SoT. MTD finalPayrollPrice is the
+  // board display/capacity cache when no estimator is wired.
+  const live = estimateCost?.(rec);
+  if (live != null && Number.isFinite(live)) return live;
+  const cached = rec.finalPayrollPrice;
+  return cached != null && Number.isFinite(cached) ? cached : 0;
 }
 
 /** Records may be assigned by initials, legacy code, or full name. */

@@ -29,32 +29,27 @@ async def lifespan(app: FastAPI):
         from sqlalchemy import text
         with engine.begin() as conn:
             if engine.dialect.name == "sqlite":
-                for table in ["orders", "mtd_records"]:
-                    for stmt in (
-                        f"ALTER TABLE {table} ADD COLUMN is_reassigned BOOLEAN DEFAULT 0",
-                        f"ALTER TABLE {table} ADD COLUMN collection_states TEXT",
-                        f"ALTER TABLE {table} ADD COLUMN order_status VARCHAR",
-                        f"ALTER TABLE {table} ADD COLUMN missing_data_email_sent_at DATETIME",
-                        f"ALTER TABLE {table} ADD COLUMN producer_email_sent_at DATETIME",
-                        f"ALTER TABLE {table} ADD COLUMN producer_email_sent_to VARCHAR",
-                    ):
-                        try:
-                            conn.execute(text(stmt))
-                        except Exception:
-                            pass
+                # Phase 5: collection/email live on Orders only — do not re-add on mtd_records.
+                for stmt in (
+                    "ALTER TABLE orders ADD COLUMN is_reassigned BOOLEAN DEFAULT 0",
+                    "ALTER TABLE orders ADD COLUMN collection_states TEXT",
+                    "ALTER TABLE orders ADD COLUMN order_status VARCHAR",
+                    "ALTER TABLE orders ADD COLUMN missing_data_email_sent_at DATETIME",
+                    "ALTER TABLE orders ADD COLUMN producer_email_sent_at DATETIME",
+                    "ALTER TABLE orders ADD COLUMN producer_email_sent_to VARCHAR",
+                ):
+                    try:
+                        conn.execute(text(stmt))
+                    except Exception:
+                        pass
             else:
                 conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS is_reassigned BOOLEAN DEFAULT FALSE;"))
-                conn.execute(text("ALTER TABLE mtd_records ADD COLUMN IF NOT EXISTS is_reassigned BOOLEAN DEFAULT FALSE;"))
+                # Phase 4–5: assignment/collection live on Orders only — do not re-add on mtd_records.
                 conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS collection_states JSON;"))
-                conn.execute(text("ALTER TABLE mtd_records ADD COLUMN IF NOT EXISTS collection_states JSON;"))
                 conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS order_status VARCHAR;"))
-                conn.execute(text("ALTER TABLE mtd_records ADD COLUMN IF NOT EXISTS order_status VARCHAR;"))
                 conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS missing_data_email_sent_at TIMESTAMPTZ;"))
-                conn.execute(text("ALTER TABLE mtd_records ADD COLUMN IF NOT EXISTS missing_data_email_sent_at TIMESTAMPTZ;"))
                 conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS producer_email_sent_at TIMESTAMPTZ;"))
-                conn.execute(text("ALTER TABLE mtd_records ADD COLUMN IF NOT EXISTS producer_email_sent_at TIMESTAMPTZ;"))
                 conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS producer_email_sent_to VARCHAR;"))
-                conn.execute(text("ALTER TABLE mtd_records ADD COLUMN IF NOT EXISTS producer_email_sent_to VARCHAR;"))
                 conn.execute(text("ALTER TABLE producers ADD COLUMN IF NOT EXISTS max_producer_cost_per_day INTEGER;"))
                 conn.execute(text("ALTER TABLE producers ADD COLUMN IF NOT EXISTS next_available VARCHAR;"))
                 conn.execute(text("ALTER TABLE producers ADD COLUMN IF NOT EXISTS status VARCHAR DEFAULT 'available';"))

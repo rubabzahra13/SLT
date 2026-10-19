@@ -112,7 +112,7 @@ export type DanceRateCardEntry = {
   compliant: number;
   nonCompliant: number;
   alwaysFixedPayroll?: boolean;
-  /** Manual-quote / TBD packages (e.g. Non-Compliant for DTU). */
+  /** Manual-quote / TBD packages (customer price null in DB). */
   isUnpriced?: boolean;
 };
 
@@ -159,10 +159,9 @@ export const JAZZ_KICK_RATE_CARD: DanceRateCardEntry[] = [
   },
   {
     package: "NON-COMPLIANT (FOR DTU)",
-    customer: 0,
-    compliant: 0,
-    nonCompliant: 0,
-    isUnpriced: true,
+    customer: 200,
+    compliant: 150,
+    nonCompliant: 200,
   },
 ];
 

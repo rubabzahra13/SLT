@@ -57,6 +57,8 @@ describe("Orders Tab & Workflow Separation", () => {
       assignedProducer: "CM",
       mixStartDate: "2026-09-10",
       mixEndDate: "2026-09-17",
+      // Explicit board flag — scheduled alone must not put the row on MTD.
+      inMTD: false,
     });
     assert.equal(isOrderScheduledAndAssigned(readyOrder), true);
     assert.equal(isMTDRecord(readyOrder), false);

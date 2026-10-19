@@ -8,7 +8,6 @@ from app.models.mtd_record import MTDRecord
 from app.models.order import Order
 from app.lib.producer_assignment import (
     canonical_producer_assignment_key,
-    normalize_producer_key,
     resolve_producer_by_assignment_key,
 )
 from app.schemas.mtd_record import (
@@ -19,8 +18,30 @@ from app.schemas.mtd_record import (
 )
 from app.schemas.order import OrderSchema
 from app.services.board_events import board_event_hub
+from app.services.mtd_identity import (
+    ORDER_ASSIGNMENT_KEYS,
+    ORDER_COLLECTION_KEYS,
+    ORDER_IDENTITY_KEYS,
+    apply_assignment_writes_to_order,
+    apply_collection_writes_to_order,
+    apply_identity_writes_to_order,
+    ensure_mtd_section_from_order,
+    order_projection_for_mtd,
+    section_for_form_type,
+    strip_order_sot_from_mtd_payload,
+)
+from app.api.auth import require_full_access
 
 router = APIRouter()
+
+# form_type values that map to each board category filter.
+_CATEGORY_FORM_TYPES: dict[str, tuple[str, ...]] = {
+    "Cheer": ("school-all-star-cheer",),
+    "Dance": ("school-all-star-dance",),
+    "Marching Band": ("marching-band",),
+    "Sports Entertainment": ("sports-entertainment",),
+    "School Anthem": ("school-anthem",),
+}
 
 
 def is_valid_uuid(val: str) -> bool:
@@ -30,17 +51,50 @@ def is_valid_uuid(val: str) -> bool:
     except (ValueError, TypeError, AttributeError):
         return False
 
+
+def _mtd_load_options():
+    return (selectinload(MTDRecord.order),)
+
+
 def _find_mtd(db: Session, mtd_id: str) -> MTDRecord | None:
     if not is_valid_uuid(mtd_id):
         return None
     parsed_uuid = uuid.UUID(mtd_id)
     return (
         db.query(MTDRecord)
+        .options(*_mtd_load_options())
         .filter(
             (MTDRecord.id == parsed_uuid) | (MTDRecord.order_id == parsed_uuid)
         )
         .first()
     )
+
+
+def _serialize_mtd(mtd: MTDRecord) -> MTDRecordSchema:
+    """Project Order-SoT identity + assignment + collection onto MTD API shape."""
+    base = MTDRecordSchema.model_validate(mtd)
+    return base.model_copy(update=order_projection_for_mtd(mtd.order))
+
+
+def _pop_order_sot_updates(data: dict) -> tuple[dict, dict, dict]:
+    """Split payload into (identity, assignment, collection) Order-SoT updates."""
+    identity = {
+        k: data.pop(k)
+        for k in list(data.keys())
+        if k in ORDER_IDENTITY_KEYS
+    }
+    assignment = {
+        k: data.pop(k)
+        for k in list(data.keys())
+        if k in ORDER_ASSIGNMENT_KEYS
+    }
+    collection = {
+        k: data.pop(k)
+        for k in list(data.keys())
+        if k in ORDER_COLLECTION_KEYS
+    }
+    return identity, assignment, collection
+
 
 @router.get("/mtd", response_model=List[MTDRecordSchema])
 def get_mtd_records(
@@ -50,103 +104,122 @@ def get_mtd_records(
     status: str | None = None,
     db: Session = Depends(get_db)
 ):
-    # Eager-load the producer relationship so serializing assigned_producer for
-    # every row does NOT fire one query per record (N+1). This collapses ~248
-    # extra round-trips to Supabase into a single batched query.
-    query = db.query(MTDRecord).options(selectinload(MTDRecord.assigned_producer))
+    query = db.query(MTDRecord).options(*_mtd_load_options())
+    needs_order_join = bool(
+        (cheer_form_subtype and cheer_form_subtype != "all")
+        or form_type
+        or (category and category != "All")
+    )
+    if needs_order_join:
+        query = query.join(Order, MTDRecord.order_id == Order.id)
     if cheer_form_subtype and cheer_form_subtype != "all":
-        query = query.join(Order, MTDRecord.order_id == Order.id).filter(Order.cheer_form_subtype == cheer_form_subtype)
+        query = query.filter(Order.cheer_form_subtype == cheer_form_subtype)
     elif form_type:
-        query = query.join(Order, MTDRecord.order_id == Order.id).filter(Order.form_type == form_type)
+        query = query.filter(Order.form_type == form_type)
     if category and category != "All":
-        query = query.filter(MTDRecord.category == category)
+        form_types = _CATEGORY_FORM_TYPES.get(category)
+        if form_types:
+            query = query.filter(Order.form_type.in_(form_types))
+        else:
+            # Unknown label — empty result rather than scanning denorm column.
+            return []
     if status:
         query = query.filter(MTDRecord.status == status)
-    return query.all()
+    return [_serialize_mtd(row) for row in query.all()]
+
 
 @router.get("/mtd/{mtd_id}", response_model=MTDRecordSchema)
 def get_mtd_record(mtd_id: str, db: Session = Depends(get_db)):
     mtd = _find_mtd(db, mtd_id)
     if not mtd:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="MTD Record not found")
-    return mtd
+    return _serialize_mtd(mtd)
 
-from app.api.auth import require_full_access
 
 @router.post("/mtd", response_model=MTDRecordSchema, status_code=status.HTTP_201_CREATED)
 def create_mtd_record(payload: MTDRecordCreateSchema, db: Session = Depends(get_db), _: None = Depends(require_full_access)):
     data = payload.model_dump()
     order_id = data.get("order_id")
+    # Drop any Order-SoT keys from the insert payload (create must not write them).
+    _pop_order_sot_updates(data)
 
     # Resolve legacy order ids to the real UUID FK before insert.
+    linked_order = None
     if order_id is not None:
         from app.api.orders import _find_order
 
-        linked = _find_order(db, str(order_id))
-        if linked:
-            data["order_id"] = linked.id
-            order_id = linked.id
+        linked_order = _find_order(db, str(order_id))
+        if linked_order:
+            data["order_id"] = linked_order.id
+            order_id = linked_order.id
         elif not isinstance(order_id, uuid.UUID):
-            # Non-UUID that didn't resolve — omit FK rather than 422.
             data["order_id"] = None
             order_id = None
 
-    # 1:1 with orders when order_id is set (uq_mtd_records_order_id). Prefer update
-    # over insert so Move-to-MTD / retries never create a second row.
-    existing_mtd = None
-    if order_id:
-        existing_mtd = (
-            db.query(MTDRecord).filter(MTDRecord.order_id == order_id).first()
+    # Phase 4 rule: every MTD row must link to an order.
+    if not order_id or not linked_order:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="order_id is required — MTD rows cannot be unlinked",
         )
 
+    # Create only links the board row. Order already holds identity /
+    # assignment / collection SoT — applying empty create defaults here
+    # wiped producers, mix dates, and form fields on move-to-MTD.
+    # Intentional SoT edits go through PATCH /mtd or Orders APIs.
+    data = strip_order_sot_from_mtd_payload(data)
+
+    # 1:1 with orders when order_id is set (uq_mtd_records_order_id).
+    existing_mtd = (
+        db.query(MTDRecord)
+        .options(*_mtd_load_options())
+        .filter(MTDRecord.order_id == order_id)
+        .first()
+    )
+
     if existing_mtd:
-        assigned_prod_str = data.pop("assigned_producer", None)
-        if assigned_prod_str:
-            producer = resolve_producer_by_assignment_key(db, assigned_prod_str)
-            existing_mtd.assigned_producer_id = producer.id if producer else None
-            existing_mtd.editor_initials = (
-                canonical_producer_assignment_key(producer)
-                if producer
-                else assigned_prod_str.strip().upper()
-            )
         for field, value in data.items():
-            if value is not None:
+            if value is not None and hasattr(existing_mtd, field):
                 setattr(existing_mtd, field, value)
+        ensure_mtd_section_from_order(existing_mtd, linked_order)
         db.commit()
         db.refresh(existing_mtd)
-        return existing_mtd
+        return _serialize_mtd(_find_mtd(db, str(existing_mtd.id)) or existing_mtd)
 
-    assigned_prod_str = data.pop("assigned_producer", None)
-    assigned_producer_id = None
-    editor_initials = None
-    if assigned_prod_str:
-        producer = resolve_producer_by_assignment_key(db, assigned_prod_str)
-        if producer:
-            assigned_producer_id = producer.id
-            editor_initials = canonical_producer_assignment_key(producer)
-        else:
-            editor_initials = assigned_prod_str.strip().upper()
+    # Only pass columns that still exist on mtd_records.
+    mtd_kwargs = {
+        k: v
+        for k, v in data.items()
+        if v is not None and hasattr(MTDRecord, k) and k != "order_id"
+    }
+    if not mtd_kwargs.get("section"):
+        mtd_kwargs["section"] = section_for_form_type(linked_order.form_type)
+    if mtd_kwargs.get("price") is None:
+        mtd_kwargs["price"] = linked_order.price or 0
+    if linked_order.price_compliance:
+        mtd_kwargs.setdefault("price_compliance", linked_order.price_compliance)
 
     mtd = MTDRecord(
-        **data,
-        assigned_producer_id=assigned_producer_id,
-        editor_initials=editor_initials,
+        order_id=order_id,
+        **mtd_kwargs,
     )
     db.add(mtd)
     try:
         db.commit()
     except IntegrityError:
         db.rollback()
-        # Race on uq_mtd_records_order_id — return the winner row.
-        if order_id:
-            raced = (
-                db.query(MTDRecord).filter(MTDRecord.order_id == order_id).first()
-            )
-            if raced:
-                return raced
+        raced = (
+            db.query(MTDRecord)
+            .options(*_mtd_load_options())
+            .filter(MTDRecord.order_id == order_id)
+            .first()
+        )
+        if raced:
+            return _serialize_mtd(raced)
         raise
     db.refresh(mtd)
-    return mtd
+    return _serialize_mtd(_find_mtd(db, str(mtd.id)) or mtd)
+
 
 @router.patch("/mtd/{mtd_id}", response_model=MTDRecordSchema)
 def update_mtd_record(mtd_id: str, payload: MTDRecordUpdateSchema, db: Session = Depends(get_db), _: None = Depends(require_full_access)):
@@ -155,107 +228,52 @@ def update_mtd_record(mtd_id: str, payload: MTDRecordUpdateSchema, db: Session =
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="MTD Record not found")
 
     update_data = payload.model_dump(exclude_unset=True)
-
-    if "assigned_producer" in update_data:
-        assigned_prod_str = update_data.pop("assigned_producer")
-        previous_key = None
-        if mtd.assigned_producer:
-            previous_key = canonical_producer_assignment_key(mtd.assigned_producer)
-        elif mtd.editor_initials:
-            previous_key = mtd.editor_initials.strip().upper()
-
-        if assigned_prod_str:
-            producer = resolve_producer_by_assignment_key(db, assigned_prod_str)
-            if producer:
-                mtd.assigned_producer_id = producer.id
-                mtd.editor_initials = canonical_producer_assignment_key(producer)
-            else:
-                # Don't orphan the FK when a rename races ahead of producer
-                # persistence — keep the link and only refresh the display key.
-                mtd.editor_initials = assigned_prod_str.strip().upper()
-        else:
-            mtd.assigned_producer_id = None
-            if (
-                previous_key
-                and mtd.editor_initials
-                and normalize_producer_key(mtd.editor_initials) == normalize_producer_key(previous_key)
-            ):
-                mtd.editor_initials = None
+    identity_updates, assignment_updates, collection_updates = _pop_order_sot_updates(
+        update_data
+    )
 
     for key, value in update_data.items():
-        setattr(mtd, key, value)
+        if hasattr(mtd, key):
+            setattr(mtd, key, value)
 
-    # Canonical sync: mirror shared fields onto the linked Order (order is SoT).
+    linked_order = None
     if mtd.order_id:
         linked_order = db.query(Order).filter(Order.id == mtd.order_id).first()
-        if linked_order:
-            unset = payload.model_dump(exclude_unset=True)
-            if "assigned_producer" in unset:
-                linked_order.assigned_producer_id = mtd.assigned_producer_id
-                linked_order.assigned_producer = mtd.editor_initials
-            if "mix_start_date" in unset:
-                linked_order.mix_start_date = (
-                    mtd.mix_start_date.isoformat()
-                    if hasattr(mtd.mix_start_date, "isoformat") and mtd.mix_start_date
-                    else (str(mtd.mix_start_date) if mtd.mix_start_date else None)
-                )
-            if "mix_end_date" in unset:
-                linked_order.mix_end_date = (
-                    mtd.mix_end_date.isoformat()
-                    if hasattr(mtd.mix_end_date, "isoformat") and mtd.mix_end_date
-                    else (str(mtd.mix_end_date) if mtd.mix_end_date else None)
-                )
-            if "contact_name" in unset:
-                linked_order.contact_name = mtd.contact_name
-                linked_order.customer_name = mtd.contact_name
-            if "program_name" in unset:
-                linked_order.program_name = mtd.program_name
-            if "package" in unset:
-                linked_order.package = mtd.package
-            if "music_theme" in unset:
-                linked_order.music_theme = mtd.music_theme
-            # Phase 2: pricing/payout SoT is Orders. Do not mirror price /
-            # final_customer_price* / price_compliance / producer_payout / rate_*
-            # from MTD → Order (Order→MTD display cache only).
-            if "editor_request" in unset:
-                linked_order.editor_initials = mtd.editor_request
-            if "is_reassigned" in unset:
-                linked_order.is_reassigned = mtd.is_reassigned
-            if "order_status" in unset:
-                linked_order.order_status = mtd.order_status
-            if "collection_states" in unset:
-                linked_order.collection_states = mtd.collection_states
-            if "have_songs" in unset:
-                linked_order.have_songs = mtd.have_songs
-            if "received_eight_count_sheet" in unset:
-                linked_order.received_eight_count_sheet = (
-                    mtd.received_eight_count_sheet or ""
-                )
-            if "missing_data_email_sent_at" in unset:
-                linked_order.missing_data_email_sent_at = mtd.missing_data_email_sent_at
-            if "producer_email_sent_at" in unset:
-                linked_order.producer_email_sent_at = mtd.producer_email_sent_at
-            if "producer_email_sent_to" in unset:
-                linked_order.producer_email_sent_to = mtd.producer_email_sent_to
-            if "in_mtd" in unset:
-                if mtd.in_mtd:
-                    linked_order.status = "in_mtd"
-                elif linked_order.status == "in_mtd":
-                    linked_order.status = "active"
-            if "status" in unset and mtd.status == "completed":
-                linked_order.status = "completed"
+
+    if not linked_order:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="MTD row is missing linked order_id — cannot update",
+        )
+
+    # Phase 3–5: identity + assignment + collection writes → Orders only.
+    if identity_updates:
+        apply_identity_writes_to_order(linked_order, identity_updates)
+    if assignment_updates:
+        apply_assignment_writes_to_order(db, linked_order, assignment_updates)
+    if collection_updates:
+        apply_collection_writes_to_order(linked_order, collection_updates)
+
+    unset = payload.model_dump(exclude_unset=True)
+    if "in_mtd" in unset:
+        if mtd.in_mtd:
+            linked_order.status = "in_mtd"
+        elif linked_order.status == "in_mtd":
+            linked_order.status = "active"
+    if "status" in unset and mtd.status == "completed":
+        linked_order.status = "completed"
 
     db.commit()
-    db.refresh(mtd)
-    _publish_mtd_updated(mtd)
-    return mtd
+    refreshed = _find_mtd(db, str(mtd.id)) or mtd
+    _publish_mtd_updated(refreshed)
+    return _serialize_mtd(refreshed)
 
 
 def _publish_mtd_updated(mtd: MTDRecord) -> None:
     board_event_hub.publish(
         {
             "type": "mtd.updated",
-            "mtd": MTDRecordSchema.model_validate(mtd).model_dump(mode="json"),
+            "mtd": _serialize_mtd(mtd).model_dump(mode="json"),
         }
     )
 
@@ -292,8 +310,6 @@ def delete_mtd_record(
     db.commit()
     return None
 
-
-from app.schemas.order import OrderSchema
 
 @router.post("/mtd/manual-schedule", response_model=OrderSchema, status_code=status.HTTP_201_CREATED)
 def create_manual_schedule_entry(

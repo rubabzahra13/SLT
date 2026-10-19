@@ -1,10 +1,11 @@
 """CRUD for pricing_rules — all Pricing Reference categories/subtypes."""
 from __future__ import annotations
 
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.api.auth import require_full_access
@@ -201,103 +202,144 @@ def upsert_pricing_rules(
     by_name = {r.package_name.strip().upper(): r for r in existing}
     written_ids: set[str] = set()
 
-    for pkg in payload.packages:
-        name = (pkg.package_name or "").strip()
-        if not name:
-            continue
-        package_id = (pkg.package_id or "").strip() or _slug_package_id(name)
-        if form_type == "marching-band":
-            name, package_id = _canonicalize_mb_package(name, package_id)
-        elif form_type == "school-all-star-dance" and subtype_id == "jazz-kick":
-            name, package_id = _canonicalize_jazz_kick_package(name, package_id)
-
-        row = by_id.get(package_id) or by_name.get(name.upper())
-
-        customer = (
-            Decimal(str(pkg.customer_facing_price))
-            if pkg.customer_facing_price is not None
-            else None
-        )
-        compliant = (
-            Decimal(str(pkg.payroll_base_compliant))
-            if pkg.payroll_base_compliant is not None
-            else customer
-        )
-        non_compliant = (
-            Decimal(str(pkg.payroll_base_non_compliant))
-            if pkg.payroll_base_non_compliant is not None
-            else compliant
-        )
-
-        # Youth Rec: no affiliate — keep payroll columns = package price.
-        if subtype_id == "youth-rec-cheer" and customer is not None:
-            compliant = customer
-            non_compliant = customer
-
-        if row:
-            row.package_id = package_id
-            row.package_name = name
-            row.customer_facing_price = customer
-            row.payroll_base_compliant = compliant
-            row.payroll_base_non_compliant = non_compliant
-            if subtype_id == "youth-rec-cheer":
-                row.compliance_sensitive = False
-            if pkg.note is not None:
-                row.note = pkg.note
-        else:
-            row = PricingRule(
-                form_type=form_type,
-                subtype_id=subtype_id,
-                package_id=package_id,
-                package_name=name,
-                customer_facing_price=customer,
-                payroll_base_compliant=compliant,
-                payroll_base_non_compliant=non_compliant,
-                compliance_sensitive=(
-                    False
-                    if subtype_id == "youth-rec-cheer"
-                    else (subtype_id == "jazz-kick" and package_id == "jazz_kick_mix")
-                ),
-                note=pkg.note,
+    def _money(value) -> Optional[Decimal]:
+        if value is None:
+            return None
+        try:
+            amount = Decimal(str(value))
+        except (InvalidOperation, ValueError, TypeError) as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Invalid price value: {value!r}",
+            ) from exc
+        if not amount.is_finite():
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Invalid price value: {value!r}",
             )
-            db.add(row)
-        by_id[package_id] = row
-        by_name[name.upper()] = row
-        written_ids.add(package_id)
+        return amount
 
-    if form_type == "marching-band" and written_ids:
-        for row in (
-            db.query(PricingRule)
-            .filter(
-                PricingRule.form_type == form_type,
-                PricingRule.subtype_id.is_(None),
-            )
-            .all()
-        ):
-            if row.package_id in _MB_ADDON_PACKAGE_IDS:
+    try:
+        for pkg in payload.packages:
+            name = (pkg.package_name or "").strip()
+            if not name:
                 continue
-            _canon_name, canon_id = _canonicalize_mb_package(
-                row.package_name, row.package_id
-            )
-            if canon_id in written_ids and row.package_id != canon_id:
-                db.delete(row)
+            package_id = (pkg.package_id or "").strip() or _slug_package_id(name)
+            if form_type == "marching-band":
+                name, package_id = _canonicalize_mb_package(name, package_id)
+            elif form_type == "school-all-star-dance" and subtype_id == "jazz-kick":
+                name, package_id = _canonicalize_jazz_kick_package(name, package_id)
 
-    if form_type == "school-all-star-dance" and subtype_id == "jazz-kick" and written_ids:
-        for row in (
-            db.query(PricingRule)
-            .filter(
-                PricingRule.form_type == form_type,
-                PricingRule.subtype_id == subtype_id,
-            )
-            .all()
+            row = by_id.get(package_id) or by_name.get(name.upper())
+
+            customer = _money(pkg.customer_facing_price)
+            compliant = _money(pkg.payroll_base_compliant)
+            if compliant is None:
+                compliant = customer
+            non_compliant = _money(pkg.payroll_base_non_compliant)
+            if non_compliant is None:
+                non_compliant = compliant
+
+            # Youth Rec: no affiliate — keep payroll columns = package price.
+            if subtype_id == "youth-rec-cheer" and customer is not None:
+                compliant = customer
+                non_compliant = customer
+
+            compliance_sensitive = True
+            if subtype_id == "youth-rec-cheer":
+                compliance_sensitive = False
+            elif (
+                subtype_id == "jazz-kick"
+                and package_id == "jazz_simple_cut"
+            ):
+                compliance_sensitive = False
+            elif customer is not None and compliant == non_compliant == customer:
+                compliance_sensitive = False
+
+            note = pkg.note
+            # Clear stale TBD notes once a package is priced.
+            if customer is not None and note is None and row and row.note:
+                if "TBD" in (row.note or "").upper():
+                    note = ""
+
+            if row:
+                row.package_id = package_id
+                row.package_name = name
+                row.customer_facing_price = customer
+                row.payroll_base_compliant = compliant
+                row.payroll_base_non_compliant = non_compliant
+                row.compliance_sensitive = compliance_sensitive
+                if note is not None:
+                    row.note = note or None
+            else:
+                row = PricingRule(
+                    form_type=form_type,
+                    subtype_id=subtype_id,
+                    package_id=package_id,
+                    package_name=name,
+                    customer_facing_price=customer,
+                    payroll_base_compliant=compliant,
+                    payroll_base_non_compliant=non_compliant,
+                    compliance_sensitive=compliance_sensitive,
+                    note=note,
+                )
+                db.add(row)
+            by_id[package_id] = row
+            by_name[name.upper()] = row
+            written_ids.add(package_id)
+
+        if form_type == "marching-band" and written_ids:
+            for row in (
+                db.query(PricingRule)
+                .filter(
+                    PricingRule.form_type == form_type,
+                    PricingRule.subtype_id.is_(None),
+                )
+                .all()
+            ):
+                if row.package_id in _MB_ADDON_PACKAGE_IDS:
+                    continue
+                _canon_name, canon_id = _canonicalize_mb_package(
+                    row.package_name, row.package_id
+                )
+                if canon_id in written_ids and row.package_id != canon_id:
+                    db.delete(row)
+
+        if (
+            form_type == "school-all-star-dance"
+            and subtype_id == "jazz-kick"
+            and written_ids
         ):
-            _canon_name, canon_id = _canonicalize_jazz_kick_package(
-                row.package_name, row.package_id
-            )
-            if canon_id in written_ids and row.package_id != canon_id:
-                db.delete(row)
+            for row in (
+                db.query(PricingRule)
+                .filter(
+                    PricingRule.form_type == form_type,
+                    PricingRule.subtype_id == subtype_id,
+                )
+                .all()
+            ):
+                _canon_name, canon_id = _canonicalize_jazz_kick_package(
+                    row.package_name, row.package_id
+                )
+                if canon_id in written_ids and row.package_id != canon_id:
+                    db.delete(row)
 
-    db.commit()
+        db.commit()
+    except HTTPException:
+        db.rollback()
+        raise
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Could not save pricing rules: {exc.orig}",
+        ) from exc
+    except SQLAlchemyError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error while saving pricing rules: {exc}",
+        ) from exc
 
     rows_q = db.query(PricingRule).filter(PricingRule.form_type == form_type)
     if subtype_id is None:

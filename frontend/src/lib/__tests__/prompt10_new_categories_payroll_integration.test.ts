@@ -30,13 +30,8 @@ describe("Prompt 10 — New Categories Payroll Integration Unit Tests", () => {
     hasSheetMusicAdd: true,
     hasAddVocals: true,
     finalCustomerPrice: 675,
-    systemCalculatedCustomerPrice: 725,
     finalCustomerPriceOverridden: true,
-    producerPayout: 270,
-    sltPortion: 405,
-    rateUsed: 0.70,
-    rateSource: "rate_overrides[new_pricing]",
-    payrollFinalized: true,
+    finalPayrollPrice: 270,
   };
 
   const seOtherRecord: MTDRecord = {
@@ -62,13 +57,8 @@ describe("Prompt 10 — New Categories Payroll Integration Unit Tests", () => {
     inPayroll: true,
     completedAt: "2026-09-06T12:00:00.000Z",
     finalCustomerPrice: 450,
-    systemCalculatedCustomerPrice: 450,
     finalCustomerPriceOverridden: true,
-    producerPayout: 315,
-    sltPortion: 135,
-    rateUsed: 0.70,
-    rateSource: "default_rate",
-    payrollFinalized: true,
+    finalPayrollPrice: 315,
   };
 
   const saRecord: MTDRecord = {
@@ -94,13 +84,8 @@ describe("Prompt 10 — New Categories Payroll Integration Unit Tests", () => {
     inPayroll: true,
     completedAt: "2026-09-07T08:00:00.000Z",
     finalCustomerPrice: 1250,
-    systemCalculatedCustomerPrice: 1250,
     finalCustomerPriceOverridden: false,
-    producerPayout: 875,
-    sltPortion: 375,
-    rateUsed: 0.70,
-    rateSource: "rate_overrides[new_pricing]",
-    payrollFinalized: true,
+    finalPayrollPrice: 875,
   };
 
   const cheerRecord: MTDRecord = {
@@ -126,10 +111,7 @@ describe("Prompt 10 — New Categories Payroll Integration Unit Tests", () => {
     inPayroll: true,
     completedAt: "2026-09-04T15:00:00.000Z",
     finalCustomerPrice: 700,
-    systemCalculatedCustomerPrice: 700,
-    producerPayout: 490,
-    sltPortion: 210,
-    payrollFinalized: true,
+    finalPayrollPrice: 490,
   };
 
   const allRecords = [mbRecord, seOtherRecord, saRecord, cheerRecord];

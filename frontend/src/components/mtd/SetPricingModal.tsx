@@ -1432,7 +1432,19 @@ export function SetPricingModal({
                                     editing={isEditingPricing}
                                     value={packageRow.customer}
                                     onChange={(next) =>
-                                      updateDraftRow(idx, { customer: next })
+                                      updateDraftRow(idx, {
+                                        customer: next,
+                                        // Entering a price takes the row off TBD/N/A.
+                                        isUnpriced: next == null,
+                                        ...(next != null &&
+                                        packageRow.compliant == null
+                                          ? { compliant: next }
+                                          : {}),
+                                        ...(next != null &&
+                                        packageRow.nonCompliant == null
+                                          ? { nonCompliant: next }
+                                          : {}),
+                                      })
                                     }
                                   />
                                 )}

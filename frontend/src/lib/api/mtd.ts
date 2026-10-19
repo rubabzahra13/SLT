@@ -115,33 +115,23 @@ export async function createMTDRecordApi(record: Partial<MTDRecord>): Promise<MT
   const orderRef =
     (record as { orderUuid?: string }).orderUuid || record.orderId || null;
 
-  const payload = {
+  // Create links the board row only. Order identity/assignment/collection are
+  // already on Orders — sending empty SoT keys was wiping assigned producers,
+  // mix dates, and form fields on move-to-MTD.
+  const payload: Record<string, unknown> = {
     order_id: orderRef,
     section: record.section || "CHEERLEADING MUSIC",
-    category: record.category || "Cheer",
-    contact_name: record.contactName || "",
-    program_name: record.programName || "",
-    package: record.package || "",
     price: record.price ?? 0,
-    music_theme: record.musicTheme || null,
-    editor_request: record.editorRequest || "FA",
-    assigned_producer: record.assignedProducer || null,
     invoice: record.invoice || "",
-    mix_start_date: record.mixStartDate || null,
-    mix_end_date: record.mixEndDate || null,
-    record_status: record.recordStatus || (record.assignedProducer ? "Ongoing" : null),
-    // Keep caller values (including empty) — do not force NEED_* and wipe collected data.
-    received_eight_count_sheet: record.eightCountSheet ?? "",
-    have_songs: record.haveSongs ?? "",
-    collection_states: record.collectionStates ?? null,
-    order_status: record.orderStatus ?? null,
-    needs_attention: record.needsAttention ?? false,
     status: record.status || "active",
+    record_status: record.recordStatus || null,
     in_mtd: Boolean(record.inMTD),
-    is_reassigned: Boolean(record.isReassigned),
     has_extend_8ct_addon: Boolean(record.hasExtend8ctAddon),
     has_processing_8ct_sheets_addon: Boolean(record.hasProcessing8ctSheetsAddon),
   };
+  if (record.priceCompliance !== undefined) {
+    payload.price_compliance = record.priceCompliance;
+  }
   const res = await apiClient.post<BackendMTDRecord>("/api/mtd", payload);
   return transformMTDRecord(res);
 }

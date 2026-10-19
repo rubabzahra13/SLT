@@ -326,52 +326,71 @@ def seed_all(db: Session):
         mtd_pk = seed_uuid("mtd", legacy_id)
         existing_mtd = db.query(MTDRecord).filter(MTDRecord.id == mtd_pk).first()
 
-        # Resolve assigned producer UUID
+        # Phase 4: assignment / mix dates live on Orders — resolve linked order first.
         assigned_prod_str = m.get("assignedProducer")
         assigned_producer_id = None
+        assigned_key = None
         if assigned_prod_str:
             prod = resolve_producer_by_assignment_key(db, assigned_prod_str)
             if not prod:
                 prod = producer_initials_map.get(assigned_prod_str.strip())
             if prod:
                 assigned_producer_id = prod.id
+                from app.lib.producer_assignment import canonical_producer_assignment_key
+                assigned_key = canonical_producer_assignment_key(prod)
+            else:
+                assigned_key = assigned_prod_str.strip().upper()
 
-        # Resolve linked order UUID
         order_id_str = m.get("orderId")
+        linked_order = None
         linked_order_id = None
         if order_id_str:
-            order_ref = order_legacy_map.get(order_id_str.strip())
-            if order_ref:
-                linked_order_id = order_ref.id
+            linked_order = order_legacy_map.get(order_id_str.strip())
+            if linked_order:
+                linked_order_id = linked_order.id
 
         mix_start = parse_date(m.get("mixStartDate"))
         mix_end = parse_date(m.get("mixEndDate"))
         completed_dt = parse_datetime(m.get("completedAt"))
 
+        if linked_order:
+            if assigned_producer_id and not linked_order.assigned_producer_id:
+                linked_order.assigned_producer_id = assigned_producer_id
+                linked_order.assigned_producer = assigned_key
+            if mix_start and not linked_order.mix_start_date:
+                linked_order.mix_start_date = mix_start.isoformat()
+            if mix_end and not linked_order.mix_end_date:
+                linked_order.mix_end_date = mix_end.isoformat()
+            if m.get("isReassigned"):
+                linked_order.is_reassigned = True
+            # Phase 5: collection / attention live on Orders.
+            sheet = (
+                m.get("eightCountSheet")
+                or m.get("receivedEightCountSheet")
+                or ""
+            )
+            songs = m.get("haveSongs") or ""
+            if sheet and not (linked_order.received_eight_count_sheet or "").strip():
+                linked_order.received_eight_count_sheet = sheet
+            if songs and not (linked_order.have_songs or "").strip():
+                linked_order.have_songs = songs
+            if m.get("needsAttention"):
+                linked_order.needs_attention = True
+
+        if not linked_order_id:
+            print(f"  skip MTD {legacy_id}: no linked order_id (Phase 4 rule)")
+            continue
+
         if not existing_mtd:
+            # Phase 3–5: identity/assignment/collection on Orders — MTD lifecycle only.
             mtd_obj = MTDRecord(
                 id=mtd_pk,
                 order_id=linked_order_id,
                 section=m.get("section", "CHEERLEADING MUSIC"),
-                assigned_producer_id=assigned_producer_id,
-                category=m.get("category", "Cheer"),
-                editor_request=m.get("editorRequest"),
-                contact_name=m.get("contactName", ""),
-                program_name=m.get("programName", ""),
-                editor_initials=m.get("editorInitials") or assigned_prod_str,
-                package=m.get("package", ""),
-                music_theme=m.get("musicTheme"),
                 price=float(m.get("price", 0)),
                 price_compliance=m.get("priceCompliance", "compliant"),
                 invoice=m.get("invoice", ""),
-                mix_start_date=mix_start,
-                mix_end_date=mix_end,
                 waiting_on=m.get("waitingOn"),
-                received_eight_count_sheet=m.get("eightCountSheet", "")
-                or m.get("receivedEightCountSheet", "")
-                or "",
-                have_songs=m.get("haveSongs", ""),
-                needs_attention=bool(m.get("needsAttention", False)),
                 status=m.get("status", "active"),
                 record_status=m.get("recordStatus"),
                 in_mtd=bool(m.get("inMTD", False)),
@@ -380,7 +399,6 @@ def seed_all(db: Session):
             )
             db.add(mtd_obj)
         else:
-            existing_mtd.assigned_producer_id = assigned_producer_id or existing_mtd.assigned_producer_id
             existing_mtd.invoice = m.get("invoice", existing_mtd.invoice)
 
     db.commit()

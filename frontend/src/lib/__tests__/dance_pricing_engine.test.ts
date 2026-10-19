@@ -91,6 +91,25 @@ describe("Prompt 6 — Dance Pricing Engine Unit Tests", () => {
     assert.equal(nonCompliantRes.complianceStatus, "non-compliant");
   });
 
+  it("6b. Jazz/Kick NON-COMPLIANT (FOR DTU): package $200, compliant $150, non-compliant $200", () => {
+    const compliantRes = calculateDanceOrderPricing({
+      danceFormSubtype: "jazz-kick",
+      packageType: "NON-COMPLIANT (FOR DTU)",
+      musicAffiliate: "Power Music",
+    });
+    assert.equal(compliantRes.customerFacingPrice, 200);
+    assert.equal(compliantRes.payrollBasePrice, 150);
+    assert.equal(compliantRes.matchedEntry?.isUnpriced, undefined);
+
+    const nonCompliantRes = calculateDanceOrderPricing({
+      danceFormSubtype: "jazz-kick",
+      packageType: "NON-COMPLIANT (FOR DTU)",
+      musicAffiliate: "Unlicensed Artist Track",
+    });
+    assert.equal(nonCompliantRes.customerFacingPrice, 200);
+    assert.equal(nonCompliantRes.payrollBasePrice, 200);
+  });
+
   it("7. Invalid / Unrecognized package name (e.g. 'DANCE SUPREME' for POM) → returns 0 price and null entry", () => {
     const res = calculateDanceOrderPricing({
       danceFormSubtype: "pom",

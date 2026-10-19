@@ -42,31 +42,16 @@ def _apply_school_anthem_defaults(data: dict, form_type: str | None = None) -> N
 
 
 # Shared business fields that must stay aligned between orders and mtd_records.
+# Phase 3: identity (contact/program/package/music_theme/editor request/category)
+# is Orders-only — do not mirror onto mtd_records. Assignment + schedule +
+# collection + price display cache still sync to the board row.
+# Phase 3–5: identity / assignment / collection are Orders-only (projected
+# onto MTD responses). Mirror only customer-price display cache onto MTD.
 ORDER_MTD_SHARED_KEYS = (
-    "assigned_producer",
-    "assigned_producer_id",
-    "mix_start_date",
-    "mix_end_date",
     "price",
     "final_customer_price",
     "final_customer_price_overridden",
-    "editor_initials",
-    "collection_states",
-    "order_status",
-    "have_songs",
-    "received_eight_count_sheet",
-    "is_reassigned",
-    "missing_data_email_sent_at",
-    "producer_email_sent_at",
-    "producer_email_sent_to",
-    "contact_name",
-    "gym_name",
-    "school_gym_name",
-    "package",
-    "music_theme",
     "price_compliance",
-    "form_type",
-    "cheer_form_subtype",
 )
 
 
@@ -259,17 +244,6 @@ def _mirror_shared_fields_to_mtd(db: Session, order: Order, changed: dict) -> No
     if not linked:
         return
     for mtd in linked:
-        if "assigned_producer_id" in shared or "assigned_producer" in changed:
-            mtd.assigned_producer_id = order.assigned_producer_id
-            if order.assigned_producer:
-                mtd.editor_initials = order.assigned_producer
-        if "mix_start_date" in shared:
-            # Orders store dates as strings; MTD uses Date — never mirror "".
-            raw_start = order.mix_start_date
-            mtd.mix_start_date = raw_start if raw_start else None
-        if "mix_end_date" in shared:
-            raw_end = order.mix_end_date
-            mtd.mix_end_date = raw_end if raw_end else None
         if "price" in shared:
             mtd.price = order.price
         if "final_customer_price" in shared:
@@ -279,61 +253,15 @@ def _mirror_shared_fields_to_mtd(db: Session, order: Order, changed: dict) -> No
                 order.final_customer_price_overridden
             )
         if "price_compliance" in shared:
-            mtd.price_compliance = order.price_compliance
-        if "editor_initials" in shared:
-            # Order short code → MTD.editor_request (MTD column name unchanged).
-            mtd.editor_request = order.editor_initials
-        if "collection_states" in shared:
-            mtd.collection_states = order.collection_states
-        if "order_status" in shared:
-            mtd.order_status = order.order_status
-        if "have_songs" in shared:
-            mtd.have_songs = order.have_songs or ""
-        if "received_eight_count_sheet" in shared:
-            mtd.received_eight_count_sheet = (
-                order.received_eight_count_sheet or ""
-            )
-        if "is_reassigned" in shared:
-            mtd.is_reassigned = bool(order.is_reassigned)
-        if "missing_data_email_sent_at" in shared:
-            mtd.missing_data_email_sent_at = order.missing_data_email_sent_at
-        if "producer_email_sent_at" in shared:
-            mtd.producer_email_sent_at = order.producer_email_sent_at
-        if "producer_email_sent_to" in shared:
-            mtd.producer_email_sent_to = order.producer_email_sent_to
-        if "contact_name" in shared:
-            mtd.contact_name = order.contact_name or mtd.contact_name
-        # Client form "Coach (full name)" is coach_name; board column uses contact_name.
+            mtd.price_compliance = order.price_compliance or mtd.price_compliance
+        # Phase 3–5: identity + assignment + collection are Orders-only.
         if "coach_name" in changed or "coach_contact_full_name" in changed:
             coach = (
                 (order.coach_name or "").strip()
                 or (getattr(order, "coach_contact_full_name", None) or "").strip()
             )
-            if coach:
-                if not (order.contact_name or "").strip():
-                    order.contact_name = coach
-                mtd.contact_name = coach
-        if (
-            "gym_name" in shared
-            or "school_gym_name" in shared
-            or "form_type" in shared
-            or "cheer_form_subtype" in shared
-        ):
-            from app.order_identity import (
-                category_from_form_type,
-                order_identity_name,
-            )
-
-            identity = order_identity_name(order)
-            if identity:
-                mtd.program_name = identity
-            mtd.category = category_from_form_type(order.form_type)
-        if "package" in shared:
-            mtd.package = order.package or mtd.package
-        if "music_theme" in shared:
-            mtd.music_theme = order.music_theme
-        if "price_compliance" in shared:
-            mtd.price_compliance = order.price_compliance or mtd.price_compliance
+            if coach and not (order.contact_name or "").strip():
+                order.contact_name = coach
         if changed.get("status") == "in_mtd":
             mtd.in_mtd = True
         elif changed.get("status") == "active" and mtd.in_mtd:
@@ -391,6 +319,8 @@ def _publish_order_updated(order: Order) -> None:
 
 
 def _publish_linked_mtd_rows(db: Session, order: Order) -> None:
+    from app.api.mtd import _serialize_mtd
+
     linked = (
         db.query(MTDRecord)
         .filter(MTDRecord.order_id == order.id)
@@ -398,10 +328,11 @@ def _publish_linked_mtd_rows(db: Session, order: Order) -> None:
         .all()
     )
     for mtd in linked:
+        mtd.order = order
         board_event_hub.publish(
             {
                 "type": "mtd.updated",
-                "mtd": MTDRecordSchema.model_validate(mtd).model_dump(mode="json"),
+                "mtd": _serialize_mtd(mtd).model_dump(mode="json"),
             }
         )
 

@@ -969,23 +969,134 @@ export function applyManualFormMerges(orders: Order[]): Order[] {
   });
 }
 
+/**
+ * Find the Magento form linked to this booking row for display.
+ * Uses mergedFormOrderId / mergedIntoManualOrderId only — no name matching.
+ * Works for in_mtd rows and non-isManualEntry bookings that still carry a link.
+ */
+export function findLinkedFormOrderForDisplay(
+  order: Order,
+  allOrders: Order[]
+): Order | null {
+  if (!order || !allOrders?.length) return null;
+
+  if (order.mergedFormOrderId) {
+    const byId = allOrders.find(
+      (o) =>
+        o.id !== order.id &&
+        isMagentoFormOrder(o) &&
+        ordersMatchId(o, order.mergedFormOrderId)
+    );
+    if (byId) return byId;
+  }
+
+  const absorbed = allOrders.find((o) => {
+    if (!isMagentoFormOrder(o) || !o.mergedIntoManualOrderId) return false;
+    if (o.id === order.id) return false;
+    return ordersMatchId(order, o.mergedIntoManualOrderId);
+  });
+  return absorbed || null;
+}
+
+/**
+ * Fill empty identity / package / contact fields from the linked Magento form.
+ * Does not rewrite assignment dates (Orders SoT on the booking row) and does
+ * not require isManualEntry — MTD-linked bookings often omit that flag.
+ */
+export function overlayMergedFormForDisplay(
+  order: Order,
+  allOrders: Order[]
+): Order {
+  const form = findLinkedFormOrderForDisplay(order, allOrders);
+  if (!form) return order;
+
+  const out: Order = { ...order };
+  let changed = false;
+
+  const identity = getOrderIdentityName(order).trim();
+  const formIdentity = getOrderIdentityName(form).trim();
+  if (!identity && formIdentity) {
+    out.programName = formIdentity;
+    out.schoolProgramName = formIdentity;
+    out.schoolName = formIdentity;
+    out.gymName = formIdentity;
+    out.organizationName = formIdentity;
+    out.schoolOrganizationName = formIdentity;
+    changed = true;
+  }
+
+  const pkg =
+    String(order.packageType || "").trim() ||
+    String(order.package || "").trim();
+  const formPkg =
+    String(form.packageType || "").trim() ||
+    String(form.package || "").trim();
+  if ((!pkg || pkg.toUpperCase() === "TBD") && formPkg) {
+    out.packageType = form.packageType || form.package || formPkg;
+    if (!String(out.package || "").trim() || out.package === "TBD") {
+      out.package = form.package || form.packageType || formPkg;
+    }
+    changed = true;
+  }
+
+  const contact =
+    order.musicContactName ||
+    order.coachName ||
+    order.coachContactFullName ||
+    order.contactName ||
+    "";
+  const formContact =
+    form.musicContactName ||
+    form.coachName ||
+    form.coachContactFullName ||
+    form.contactName ||
+    "";
+  if (!String(contact).trim() && String(formContact).trim()) {
+    out.coachName = form.coachName || formContact;
+    out.musicContactName = form.musicContactName || formContact;
+    out.coachContactFullName = form.coachContactFullName || formContact;
+    out.contactName = form.contactName || formContact;
+    out.customerName = form.customerName || formContact;
+    changed = true;
+  }
+
+  // Preserve booking-row assignment; only fill when the booking row is empty.
+  if (!order.assignedProducer?.trim() && form.assignedProducer?.trim()) {
+    out.assignedProducer = form.assignedProducer;
+    changed = true;
+  }
+  if (!String(order.mixStartDate || "").trim() && form.mixStartDate) {
+    out.mixStartDate = form.mixStartDate;
+    changed = true;
+  }
+  if (!String(order.mixEndDate || "").trim() && form.mixEndDate) {
+    out.mixEndDate = form.mixEndDate;
+    changed = true;
+  }
+
+  return changed ? out : order;
+}
+
 /** Overlay matching form fields onto a linked order for the form modal. */
 export function enrichOrderWithMatchingForm(
   order: Order,
   allOrders: Order[]
 ): Order {
-  if (!order.isManualEntry) return order;
-  const pair = resolveManualFormPair(order, allOrders);
-  if (!pair) return order;
+  // Always apply linked-form display overlay first (covers in_mtd / non-manual).
+  const overlaid = overlayMergedFormForDisplay(order, allOrders);
+
+  if (!overlaid.isManualEntry) return overlaid;
+  const pair = resolveManualFormPair(overlaid, allOrders);
+  if (!pair) return overlaid;
   // Form already applied as SoT (snapshot frozen at match time).
   if (
-    order.manualOverlapSnapshot &&
-    Object.keys(order.manualOverlapSnapshot).length > 0
+    overlaid.manualOverlapSnapshot &&
+    Object.keys(overlaid.manualOverlapSnapshot).length > 0
   ) {
-    return order;
+    return overlaid;
   }
   // Pair exists but not yet form-wins persisted — show form SoT in the editor.
-  return mergeFormWinsIntoManualOrder(order, pair.form);
+  return mergeFormWinsIntoManualOrder(overlaid, pair.form);
 }
 
 /**

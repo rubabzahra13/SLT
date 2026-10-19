@@ -7,8 +7,8 @@ export type ParsedPackage = {
 };
 
 /** Split values like "PLATINUM 2:30 NO SPLIT" into tier, limit, and split. */
-export function parsePackage(packageStr: string): ParsedPackage {
-  const value = packageStr.trim();
+export function parsePackage(packageStr?: string | null): ParsedPackage {
+  const value = String(packageStr ?? "").trim();
   if (!value) return { tier: "-", limit: "-", split: "-" };
 
   const upper = value.toUpperCase();

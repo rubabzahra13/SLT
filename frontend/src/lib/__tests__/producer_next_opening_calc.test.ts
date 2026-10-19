@@ -243,17 +243,20 @@ describe("Producer Next Opening Calculation Engine", () => {
       id: "rec-1",
       mixStartDate: "2026-09-14",
       mixEndDate: "2026-09-15",
-      producerPayout: 700,
+      finalPayrollPrice: 700,
     });
+    const estimateCost = () => 700;
 
     // Existing mix $700 ÷ 2 work days = $350/day. newMixCost is a per-day share.
     const fits = calculateProducerNextOpening(costCapped, [rec], [], "2026-09-14", {
       newMixCost: 300, // 350 + 300 = 650 ≤ 1000
+      estimateCost,
     });
     assert.equal(fits.nextAvailable, "Today");
 
     const over = calculateProducerNextOpening(costCapped, [rec], [], "2026-09-14", {
       newMixCost: 700, // 350 + 700 > 1000 → skip to Sep 16
+      estimateCost,
     });
     assert.equal(over.nextAvailable, "Sep 16, 2026");
   });

@@ -4,7 +4,12 @@ import { rawFieldValue } from "@/lib/order-detail-fields";
 import { getOrderDetailSections } from "@/lib/order-detail-sections";
 import { buildLegacyMusicTheme } from "@/lib/order-form";
 
-/** MTD patches when an order form field changes. */
+/** MTD patches when an order form field changes.
+ *
+ * Phase 3–5: identity, assignment, and collection/ops live on Orders only —
+ * do not dual-write them onto MTD storage. Local display mirrors may still
+ * update haveSongs/eightCountSheet for board pills until refresh.
+ */
 export function mtdPatchFromOrderField(
   key: string,
   value: string
@@ -15,26 +20,32 @@ export function mtdPatchFromOrderField(
     case "customerName":
     case "coachContactFullName":
     case "musicContactName":
-      return { contactName: value };
-    // MTD program column = gym/school/org identity — not Team Name.
     case "gymName":
     case "schoolName":
     case "schoolProgramName":
     case "programName":
     case "organizationName":
     case "schoolOrganizationName":
-      return { programName: value };
     case "package":
-      return { package: value };
     case "packageType":
-      // packageType is tier-only; MTD package label is composed separately.
+    case "musicTheme":
+    case "assignedProducer":
+    case "mixStartDate":
+    case "mixEndDate":
+    case "isReassigned":
+    case "editorRequest":
+    case "eightCountSheet":
+    case "haveSongs":
+    case "collectionStates":
+    case "orderStatus":
+    case "needsAttention":
       return {};
     case "timeLengthOfMix":
       return { timeLengthOfMix: value };
     case "songListSuggestions":
     case "customerSongs": {
-      // Cheer Song list / SE Songs — own columns. Do not write into musicTheme
-      // (that flooded Music Affiliate + Routine Notes on cheer edit/save).
+      // Song list text is Order form data; haveSongs is Order SoT (Phase 5).
+      // Still mirror haveSongs locally for board pill display.
       const filled = Boolean(String(value || "").trim());
       return {
         songListSuggestions: value,
@@ -50,12 +61,10 @@ export function mtdPatchFromOrderField(
     }
     case "routineNotes":
       return { routineNotes: value };
-    case "musicTheme":
-      return { musicTheme: value };
     case "sendingEightCountSheets":
     case "usingEightCountSheets": {
-      // Form Yes/No is send-intent on the order (applicability). Do not treat
-      // Yes as collected. Clear MTD CS only when customer said No.
+      // Form Yes/No is send-intent on the order (applicability). Clear local
+      // CS display when customer said No; Orders SoT owns persistence.
       const intent = String(value || "").trim().toUpperCase();
       if (intent === "NO" || intent === "N" || intent.startsWith("NO")) {
         return { eightCountSheet: "" };

@@ -105,7 +105,8 @@ export function stagingRecordFromOrder(order: Order): MTDRecord {
       "",
     // Match Orders board identity column (Gym Name / School Name / …).
     programName: getOrderIdentityName(order) || order.programName,
-    package: order.package,
+    // Magento forms store the tier on packageType; package is often empty/TBD.
+    package: displayPackageFromOrder(order),
     musicTheme: order.musicTheme || "",
     price,
     priceCompliance: compliance,
@@ -149,6 +150,29 @@ export function stagingRecordFromOrder(order: Order): MTDRecord {
   };
 }
 
+/** Board package label source — packageType first (Magento), then package. */
+export function displayPackageFromOrder(order: Order | null | undefined): string {
+  if (!order) return "";
+  const fromType = String(order.packageType || "").trim();
+  if (fromType) return fromType;
+  const fromPackage = String(order.package || "").trim();
+  if (fromPackage && fromPackage.toUpperCase() !== "TBD") return fromPackage;
+  return fromPackage;
+}
+
+/** Person contact for board columns — coach/music contact, never school identity. */
+export function displayContactFromOrder(order: Order | null | undefined): string {
+  if (!order) return "";
+  return (
+    order.musicContactName ||
+    order.coachName ||
+    order.coachContactFullName ||
+    order.contactName ||
+    order.customerName ||
+    ""
+  ).trim();
+}
+
 function hasCollectionStates(
   states: Record<string, boolean> | null | undefined
 ): boolean {
@@ -165,9 +189,9 @@ function pickFilled(
 }
 
 /**
- * When an MTD board row is missing collection toggles / order content fields,
- * copy them from the linked order so Mix/CS/Video/Songs/Notes don't flip back
- * to Missing after assign creates a thin MTD row (order remains source of truth).
+ * Hydrate a thin MTD board row from the linked Order (SoT for identity,
+ * assignment, and collection). Edit modal already reads the Order via FK;
+ * the table must show the same values.
  */
 export function mergeCollectionStateFromOrder(
   record: MTDRecord,
@@ -223,25 +247,60 @@ export function mergeCollectionStateFromOrder(
     (order as { video_url?: string }).video_url ||
     "";
 
-  const formType = record.formType || order.formType;
-  const cheerFormSubtype = record.cheerFormSubtype || order.cheerFormSubtype;
-  const danceFormSubtype = record.danceFormSubtype || order.danceFormSubtype;
+  // Prefer Order formType/subtypes — MTD no longer stores them after Phase 3.
+  const formType = order.formType || record.formType;
+  const cheerFormSubtype = order.cheerFormSubtype || record.cheerFormSubtype;
+  const danceFormSubtype = order.danceFormSubtype || record.danceFormSubtype;
   const producerCategory =
     orderCategoryToProducerCategory(
       formType,
       danceFormSubtype || cheerFormSubtype,
-      record.category || order.category || undefined
+      order.category || record.category || undefined
     ) ||
-    record.category ||
-    order.category;
+    order.category ||
+    record.category;
+
+  const contact = displayContactFromOrder(order);
+  const program =
+    getOrderIdentityName(order) ||
+    String(order.programName || "").trim() ||
+    "";
+  const pkg = displayPackageFromOrder(order);
 
   return {
     ...record,
+    orderId: record.orderId || order.id || order.uuid,
     collectionStates: nextStates,
     formType,
     cheerFormSubtype,
     danceFormSubtype,
     category: producerCategory || record.category,
+    // --- Order SoT identity (Phases 3) ---
+    contactName: contact || record.contactName || "",
+    editorInitials: contact || record.editorInitials || "",
+    programName: program || record.programName || "",
+    package: pkg || record.package || "",
+    // Prefer a filled board value; fall back to Order SoT when the row is thin.
+    musicTheme:
+      pickFilled(record.musicTheme, order.musicTheme) ||
+      record.musicTheme ||
+      "",
+    editorRequest: order.editorRequest || record.editorRequest || "FA",
+    // --- Order SoT assignment (Phase 4) ---
+    assignedProducer:
+      order.assignedProducer !== undefined
+        ? order.assignedProducer
+        : record.assignedProducer,
+    mixStartDate:
+      order.mixStartDate !== undefined && order.mixStartDate !== null
+        ? order.mixStartDate || ""
+        : record.mixStartDate || "",
+    mixEndDate:
+      order.mixEndDate !== undefined && order.mixEndDate !== null
+        ? order.mixEndDate || undefined
+        : record.mixEndDate,
+    isReassigned: order.isReassigned ?? record.isReassigned,
+    // --- Order SoT collection (Phase 5) ---
     haveSongs: pickFilled(record.haveSongs, orderHaveSongs) || record.haveSongs,
     eightCountSheet:
       pickFilled(record.eightCountSheet, orderCs) || record.eightCountSheet,
@@ -295,8 +354,17 @@ export function mergeCollectionStateFromOrder(
           ),
         }
       : {}),
-    orderStatus: record.orderStatus || (order as { orderStatus?: string }).orderStatus,
-    isReassigned: record.isReassigned ?? order.isReassigned,
+    orderStatus:
+      order.orderStatus ||
+      (order as { orderStatus?: string }).orderStatus ||
+      record.orderStatus,
+    missingDataEmailSentAt:
+      order.missingDataEmailSentAt ?? record.missingDataEmailSentAt,
+    producerEmailSentAt:
+      order.producerEmailSentAt ?? record.producerEmailSentAt,
+    producerEmailSentTo:
+      order.producerEmailSentTo ?? record.producerEmailSentTo,
+    needsAttention: order.needsAttention ?? record.needsAttention,
     // Prefer true from either side — MTD default false must not hide Form pill.
     isManualScheduleEntry:
       Boolean(record.isManualScheduleEntry) || Boolean(order.isManualEntry),
@@ -429,6 +497,9 @@ export function listPreMtdOrderRecords(
   }
   const canonicalByAlias = buildCanonicalOrderAliasMap(mergedOrders);
 
+  // Soft-link + dedupe first (on raw richness), then hydrate from Order SoT.
+  // Merging before dedupe filled empty clones from Order and erased richness
+  // differences (e.g. musicTheme), so the wrong clone won.
   const fromMtd = dedupePreMtdOrderRecords(
     mtdRecords
       .filter(isPreMTDOrderRecord)
@@ -474,19 +545,26 @@ export function listPreMtdOrderRecords(
             }
           }
         }
-        const withOrderRef =
-          linked && !rec.orderId
-            ? {
-                ...rec,
-                orderId: linked.id || linked.uuid,
-                legacyId: rec.legacyId || linked.legacyId,
-                uuid: rec.uuid || linked.uuid,
-              }
-            : rec;
-        return mergeCollectionStateFromOrder(withOrderRef, linked);
+        if (linked && !rec.orderId) {
+          return {
+            ...rec,
+            orderId: linked.id || linked.uuid,
+            legacyId: rec.legacyId || linked.legacyId,
+            uuid: rec.uuid || linked.uuid,
+          };
+        }
+        return rec;
       }),
     canonicalByAlias
-  );
+  ).map((rec) => {
+    const linked =
+      (rec.orderId && orderById.get(rec.orderId)) ||
+      orderById.get(rec.id) ||
+      (rec.uuid && orderById.get(rec.uuid)) ||
+      (rec.legacyId && orderById.get(rec.legacyId)) ||
+      null;
+    return mergeCollectionStateFromOrder(rec, linked);
+  });
 
   const coveredKeys = new Set(
     fromMtd.map((rec) => preMtdOrderDedupeKey(rec, canonicalByAlias)).filter(Boolean)

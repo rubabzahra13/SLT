@@ -1134,12 +1134,8 @@ function rulesToFlatRows(
     formType === "school-anthem" || formType === "marching-band";
   return rules.map((rule) => {
     const customer = rule.customer_facing_price;
-    const isUnpriced =
-      customer === null ||
-      customer === undefined ||
-      (formType === "school-all-star-dance" &&
-        subtypeId === "jazz-kick" &&
-        /DTU/i.test(rule.package_name || ""));
+    // Unpriced only when the DB has no customer price — never pin DTU as TBD.
+    const isUnpriced = customer === null || customer === undefined;
     const alwaysFixed =
       flatAlways ||
       (formType === "school-all-star-dance" &&
@@ -1394,14 +1390,21 @@ export function applyDbPricingRules(
         }
         setDanceRateCardFromDb(
           subtypeId,
-          flatRows.map((r) => ({
-            package: r.package,
-            customer: Number(r.customer ?? 0),
-            compliant: Number(r.compliant ?? r.customer ?? 0),
-            nonCompliant: Number(r.nonCompliant ?? r.customer ?? 0),
-            alwaysFixedPayroll: Boolean(r.alwaysFixedPayroll),
-            isUnpriced: Boolean(r.isUnpriced),
-          }))
+          flatRows.map((r) => {
+            const unpriced = Boolean(r.isUnpriced) || r.customer == null;
+            return {
+              package: r.package,
+              customer: unpriced ? 0 : Number(r.customer),
+              compliant: unpriced
+                ? 0
+                : Number(r.compliant ?? r.customer ?? 0),
+              nonCompliant: unpriced
+                ? 0
+                : Number(r.nonCompliant ?? r.customer ?? 0),
+              alwaysFixedPayroll: Boolean(r.alwaysFixedPayroll),
+              isUnpriced: unpriced,
+            };
+          })
         );
       }
       rows = flatRows;
@@ -1432,11 +1435,23 @@ export function flatRowsToPricingRulePackages(
 
   for (const row of rows) {
     if (row.kind === "flat-package") {
+      // Persist whatever the admin entered. Do not force null from a stale
+      // isUnpriced flag (that was wiping Jazz/Kick DTU edits and causing
+      // the sheet to show N/A again after save).
+      const priced = row.customer != null && !Number.isNaN(Number(row.customer));
       out.push({
         package_name: row.package,
-        customer_facing_price: row.isUnpriced ? null : row.customer,
-        payroll_base_compliant: row.isUnpriced ? null : row.compliant,
-        payroll_base_non_compliant: row.isUnpriced ? null : row.nonCompliant,
+        customer_facing_price: priced ? Number(row.customer) : null,
+        payroll_base_compliant: priced
+          ? row.compliant != null
+            ? Number(row.compliant)
+            : Number(row.customer)
+          : null,
+        payroll_base_non_compliant: priced
+          ? row.nonCompliant != null
+            ? Number(row.nonCompliant)
+            : Number(row.customer)
+          : null,
       });
       continue;
     }

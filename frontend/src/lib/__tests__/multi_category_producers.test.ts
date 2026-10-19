@@ -80,7 +80,8 @@ function makeRecord(
     haveSongs: "HAVE",
     needsAttention: false,
     status: "active",
-    producerPayout,
+    // Payout SoT is Orders; board cache used for display / test fixtures.
+    finalPayrollPrice: producerPayout,
   };
 }
 

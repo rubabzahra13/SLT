@@ -47,6 +47,8 @@ import {
   mergeCollectionStateFromOrder,
   mtdRecordCoversOrder,
 } from "@/lib/order-staging";
+import { getOrderIdentityName } from "@/lib/order-detail-sections";
+import { overlayMergedFormForDisplay } from "@/lib/manual-form-merge";
 import { useAuth } from "@/context/AuthContext";
 import {
   getDefaultSecretMenuPricing,
@@ -78,6 +80,7 @@ import { countProducerMixesThisWeek } from "@/lib/producer-availability";
 import { normalizeDiscountCode } from "@/lib/discount-codes";
 import { isOutsourcedRecord } from "@/lib/mtd-filters";
 import { mergeLocalMtdRecordFields } from "@/lib/mtd-completion";
+import { orderPatchFromMTD } from "@/lib/mtd-order-sync";
 import { inferMTDRecordStatus } from "@/lib/mtd-status";
 import { toIsoDateString } from "@/lib/dates";
 import { ApiClientError, formatApiClientError } from "@/lib/api/client";
@@ -605,6 +608,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
+      const allBootOrders = [...loadedActiveOrders, ...loadedPastOrders];
       const loadedMtdRecords = normalizeMTD(boot.mtdRecords).map((rec) => {
         const linked =
           (rec.orderId && orderById.get(rec.orderId)) ||
@@ -612,7 +616,10 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           (rec.uuid && orderById.get(rec.uuid)) ||
           (rec.legacyId && orderById.get(rec.legacyId)) ||
           null;
-        return mergeCollectionStateFromOrder(rec, linked);
+        const enriched = linked
+          ? overlayMergedFormForDisplay(linked, allBootOrders)
+          : null;
+        return mergeCollectionStateFromOrder(rec, enriched);
       });
       // Do NOT inject orderToMTDRecord fakes into mtdRecords — those reuse the
       // order UUID as id and cause PATCH /api/mtd/{orderId} → 404. Orders-tab
@@ -945,48 +952,41 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         return "CHEERLEADING MUSIC";
       };
 
-      const draftRecord: MTDRecord = {
-        id: draftId,
-        orderId: order.uuid || order.id,
-        section: sectionForCategory(order.category),
-        assignedProducer: null,
-        category: order.category,
-        editorRequest: order.editorRequest,
-        contactName:
-          order.musicContactName ||
-          order.coachName ||
-          order.coachContactFullName ||
-          order.contactName ||
-          "",
-        editorInitials:
-          order.musicContactName ||
-          order.coachName ||
-          order.coachContactFullName ||
-          order.contactName ||
-          "",
-        programName: order.programName,
-        package: order.package,
-        musicTheme: order.musicTheme,
-        price,
-        priceCompliance: compliance,
-        invoice: "",
-        mixStartDate: (order as any).mixStartDate || "",
-        mixEndDate: (order as any).mixEndDate || undefined,
-        eightCountSheet: "NEED CS",
-        haveSongs: "NEED SONGS",
-        needsAttention: false,
-        status: "active",
-        recordStatus: "Ongoing",
-        formType: order.formType,
-        cheerFormSubtype: order.cheerFormSubtype,
-        danceFormSubtype: order.danceFormSubtype,
-      };
+      // Mirror Orders-tab staging display — Order remains SoT; do not null
+      // assignment/identity onto the create payload (that wiped Order fields).
+      const draftRecord: MTDRecord = mergeCollectionStateFromOrder(
+        {
+          id: draftId,
+          orderId: order.uuid || order.id,
+          section: sectionForCategory(order.category),
+          assignedProducer: order.assignedProducer ?? null,
+          category: order.category,
+          editorRequest: order.editorRequest || "FA",
+          contactName: "",
+          editorInitials: "",
+          programName: "",
+          package: "",
+          musicTheme: order.musicTheme || "",
+          price,
+          priceCompliance: compliance,
+          invoice: "",
+          mixStartDate: order.mixStartDate || "",
+          mixEndDate: order.mixEndDate || undefined,
+          eightCountSheet: order.eightCountSheet || "",
+          haveSongs: order.haveSongs || "",
+          needsAttention: Boolean(order.needsAttention),
+          status: "active",
+          recordStatus: "Ongoing",
+          formType: order.formType,
+          cheerFormSubtype: order.cheerFormSubtype,
+          danceFormSubtype: order.danceFormSubtype,
+          inMTD: true,
+        },
+        order
+      );
 
-      // Client requested producer is a suggestion only — never auto-assign.
       const newRecord: MTDRecord = {
         ...draftRecord,
-        assignedProducer: null,
-        editorRequest: order.editorRequest || "FA",
         inMTD: true,
       };
 
@@ -1001,28 +1001,32 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         )
       );
 
-      // Persist to Backend API and write real DB UUID back into state
-      // so that subsequent PATCH calls use the correct ID (avoids 404s).
+      // Persist board row only — Order SoT stays on the Order (no wipe on create).
       void (async () => {
         try {
           const saved = await createMTDRecordApi({
-            ...newRecord,
+            id: draftId,
             orderId: order.uuid || order.id,
+            section: newRecord.section,
+            price: newRecord.price,
+            priceCompliance: newRecord.priceCompliance,
+            invoice: newRecord.invoice || "",
+            status: newRecord.status,
+            recordStatus: newRecord.recordStatus,
+            inMTD: true,
+            hasExtend8ctAddon: newRecord.hasExtend8ctAddon,
+            hasProcessing8ctSheetsAddon: newRecord.hasProcessing8ctSheetsAddon,
           });
-          if (saved.uuid && saved.uuid !== draftId) {
-            setMtdRecords((prev) =>
-              prev.map((r) =>
-                r.id === draftId
-                  ? {
-                      ...r,
-                      id: saved.id,
-                      uuid: saved.uuid,
-                      legacyId: saved.legacyId,
-                    }
-                  : r
-              )
-            );
-          }
+          const hydrated = mergeCollectionStateFromOrder(
+            {
+              ...saved,
+              orderId: saved.orderId || order.uuid || order.id,
+            },
+            order
+          );
+          setMtdRecords((prev) =>
+            prev.map((r) => (r.id === draftId ? hydrated : r))
+          );
           await updateOrderApi(orderId, {
             status: "in_mtd",
             mtdId: saved.id || newRecord.id,
@@ -1036,10 +1040,15 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         }
       })();
 
+      const label =
+        getOrderIdentityName(order) ||
+        order.programName ||
+        order.contactName ||
+        "Order";
       addNotification({
         type: "mtd_move",
         title: "Moved to MTD",
-        message: `${order.programName} is now in Music To Do.`,
+        message: `${label} is now in Music To Do.`,
         href: `/mtd/${newRecord.id}`,
       });
 
@@ -1239,6 +1248,13 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       }
       // Phase 2: pricing/payout SoT is Orders — do not push price fields
       // from MTD patches onto the linked order.
+      // Phase 3: identity SoT is Orders — route board identity edits here.
+      {
+        const identityOrderPatch = orderPatchFromMTD(patch);
+        delete identityOrderPatch.price;
+        delete identityOrderPatch.priceCompliance;
+        Object.assign(orderPatch, identityOrderPatch);
+      }
       if (patch.editorRequest !== undefined) {
         orderPatch.editorRequest = patch.editorRequest;
       }
@@ -1275,6 +1291,30 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
+    // Never persist Order-SoT identity/assignment onto mtd_records (display only).
+    const mtdApiPatch: Partial<MTDRecord> = { ...apiPatch };
+    delete mtdApiPatch.contactName;
+    delete mtdApiPatch.programName;
+    delete mtdApiPatch.package;
+    delete mtdApiPatch.musicTheme;
+    delete mtdApiPatch.category;
+    delete mtdApiPatch.editorRequest;
+    delete mtdApiPatch.assignedProducer;
+    delete mtdApiPatch.editorInitials;
+    delete mtdApiPatch.mixStartDate;
+    delete mtdApiPatch.mixEndDate;
+    delete mtdApiPatch.isReassigned;
+    // Phase 5: collection / email / attention → Orders only.
+    delete mtdApiPatch.eightCountSheet;
+    delete mtdApiPatch.haveSongs;
+    delete mtdApiPatch.collectionStates;
+    delete mtdApiPatch.orderStatus;
+    delete mtdApiPatch.needsAttention;
+    delete mtdApiPatch.missingDataEmailSentAt;
+    delete mtdApiPatch.producerEmailSentAt;
+    delete mtdApiPatch.producerEmailSentTo;
+    apiPatch = mtdApiPatch;
+
     const prevActive = activeOrders;
     const prevMtd = mtdRecords;
 
@@ -1292,61 +1332,79 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
               r.uuid === id ||
               r.legacyId === id
           );
-          const updatedRecord = targetRecord
-          ? {
-              ...targetRecord,
-              ...apiPatch,
-              inMTD: true,
-              collectionStates:
-                (apiPatch as MTDRecord).collectionStates ??
-                targetRecord.collectionStates ??
-                linkedOrder?.collectionStates,
-              haveSongs:
-                (apiPatch as MTDRecord).haveSongs ||
-                targetRecord.haveSongs ||
-                linkedOrder?.haveSongs ||
-                "",
-              eightCountSheet:
-                (apiPatch as MTDRecord).eightCountSheet ||
-                targetRecord.eightCountSheet ||
-                linkedOrder?.eightCountSheet ||
-                "",
-            }
-            : { ...apiPatch, inMTD: true };
-          try {
-            const saved = await createMTDRecordApi(updatedRecord as MTDRecord);
-            setMtdRecords((prev) =>
-              prev.map((r) =>
-                r.id === id ||
-                r.orderId === id ||
-                r.uuid === id ||
-                r.legacyId === id
-                  ? {
-                      ...r,
-                    ...apiPatch,
-                      id: saved.id,
-                      uuid: saved.uuid,
-                      legacyId: saved.legacyId,
-                      inMTD: true,
-                    collectionStates:
-                      saved.collectionStates ??
-                      (updatedRecord as MTDRecord).collectionStates ??
-                      r.collectionStates,
-                    haveSongs:
-                      saved.haveSongs ||
-                      (updatedRecord as MTDRecord).haveSongs ||
-                      r.haveSongs,
-                    eightCountSheet:
-                      saved.eightCountSheet ||
-                      (updatedRecord as MTDRecord).eightCountSheet ||
-                      r.eightCountSheet,
-                    }
-                  : r
-              )
+          // Orders-tab rows are often synthetic (listPreMtdOrderRecords) and are
+          // NOT in mtdRecords state — always seed orderId from the linked Order.
+          const orderRef =
+            linkedOrder?.uuid ||
+            linkedOrder?.id ||
+            targetRecord?.orderId ||
+            (existing && !isPersistedMtdRecord(existing) ? existing.id : null) ||
+            null;
+          if (!orderRef) {
+            throw new Error(
+              "Cannot move to MTD without a linked order_id"
             );
-          } catch {
-            await updateMTDRecordApi(apiId, apiPatch);
           }
+          const updatedRecord: MTDRecord = {
+            ...(targetRecord || existing || ({} as MTDRecord)),
+            ...apiPatch,
+            orderId: orderRef,
+            inMTD: true,
+            collectionStates:
+              (apiPatch as MTDRecord).collectionStates ??
+              targetRecord?.collectionStates ??
+              linkedOrder?.collectionStates,
+            haveSongs:
+              (apiPatch as MTDRecord).haveSongs ||
+              targetRecord?.haveSongs ||
+              linkedOrder?.haveSongs ||
+              "",
+            eightCountSheet:
+              (apiPatch as MTDRecord).eightCountSheet ||
+              targetRecord?.eightCountSheet ||
+              linkedOrder?.eightCountSheet ||
+              "",
+            recordStatus:
+              (apiPatch as MTDRecord).recordStatus ||
+              targetRecord?.recordStatus ||
+              "Ongoing",
+            status: (apiPatch as MTDRecord).status || "active",
+          };
+          const saved = await createMTDRecordApi({
+            ...updatedRecord,
+            orderId: orderRef,
+            inMTD: true,
+          });
+          const nextRow = mergeCollectionStateFromOrder(
+            {
+              ...(targetRecord || existing || updatedRecord),
+              ...apiPatch,
+              ...saved,
+              id: saved.id,
+              uuid: saved.uuid,
+              legacyId: saved.legacyId,
+              orderId: saved.orderId || orderRef,
+              inMTD: true,
+              recordStatus:
+                saved.recordStatus ||
+                updatedRecord.recordStatus ||
+                "Ongoing",
+            },
+            linkedOrder
+          );
+          setMtdRecords((prev) => {
+            const match = (r: MTDRecord) =>
+              r.id === id ||
+              r.orderId === id ||
+              r.uuid === id ||
+              r.legacyId === id ||
+              r.orderId === orderRef ||
+              r.id === orderRef;
+            if (prev.some(match)) {
+              return prev.map((r) => (match(r) ? { ...r, ...nextRow } : r));
+            }
+            return [nextRow, ...prev];
+          });
         } else {
           const isRealMtdRecord = Boolean(
             existing &&
@@ -1619,9 +1677,24 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       if (patch.priceCompliance !== undefined) {
         mtdPatch.priceCompliance = patch.priceCompliance;
       }
+      // Phase 3: identity display cache on local MTD only (Orders is SoT).
       if (patch.editorRequest !== undefined) {
         mtdPatch.editorRequest = patch.editorRequest;
       }
+      if (patch.contactName !== undefined) mtdPatch.contactName = patch.contactName;
+      if (patch.coachName !== undefined && patch.contactName === undefined) {
+        mtdPatch.contactName = patch.coachName;
+      }
+      if (patch.programName !== undefined) mtdPatch.programName = patch.programName;
+      if (patch.gymName !== undefined && patch.programName === undefined) {
+        mtdPatch.programName = patch.gymName;
+      }
+      if (patch.schoolName !== undefined && patch.programName === undefined) {
+        mtdPatch.programName = patch.schoolName;
+      }
+      if (patch.package !== undefined) mtdPatch.package = patch.package;
+      if (patch.musicTheme !== undefined) mtdPatch.musicTheme = patch.musicTheme;
+      if (patch.category !== undefined) mtdPatch.category = patch.category;
       if (patch.isReassigned !== undefined) mtdPatch.isReassigned = patch.isReassigned;
       if (patch.collectionStates !== undefined) {
         mtdPatch.collectionStates = patch.collectionStates;
@@ -1631,7 +1704,6 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         mtdPatch.eightCountSheet = patch.eightCountSheet;
       }
       if (patch.orderStatus !== undefined) mtdPatch.orderStatus = patch.orderStatus;
-      if (patch.musicTheme !== undefined) mtdPatch.musicTheme = patch.musicTheme;
       if (patch.songListSuggestions !== undefined) {
         mtdPatch.songListSuggestions = patch.songListSuggestions;
       }
@@ -1664,16 +1736,37 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       }
 
         try {
-          // Order is canonical — write it first; backend mirrors to MTD.
+          // Order is canonical for identity + shared ops.
           await updateOrderApi(id, patch);
+          // Persist only MTD-owned fields (not Order identity/assignment SoT).
+          const mtdOwnedPatch: Partial<MTDRecord> = { ...mtdPatch };
+          delete mtdOwnedPatch.contactName;
+          delete mtdOwnedPatch.programName;
+          delete mtdOwnedPatch.package;
+          delete mtdOwnedPatch.musicTheme;
+          delete mtdOwnedPatch.category;
+          delete mtdOwnedPatch.editorRequest;
+          delete mtdOwnedPatch.assignedProducer;
+          delete mtdOwnedPatch.editorInitials;
+          delete mtdOwnedPatch.mixStartDate;
+          delete mtdOwnedPatch.mixEndDate;
+          delete mtdOwnedPatch.isReassigned;
+          delete mtdOwnedPatch.eightCountSheet;
+          delete mtdOwnedPatch.haveSongs;
+          delete mtdOwnedPatch.collectionStates;
+          delete mtdOwnedPatch.orderStatus;
+          delete mtdOwnedPatch.needsAttention;
+          delete mtdOwnedPatch.missingDataEmailSentAt;
+          delete mtdOwnedPatch.producerEmailSentAt;
+          delete mtdOwnedPatch.producerEmailSentTo;
           if (
             linkedMtd &&
-          isPersistedMtdRecord(linkedMtd) &&
+            isPersistedMtdRecord(linkedMtd) &&
             (linkedMtd.inMTD || linkedMtd.isManualScheduleEntry) &&
-            Object.keys(mtdPatch).length > 0
+            Object.keys(mtdOwnedPatch).length > 0
           ) {
             const apiId = linkedMtd.uuid || linkedMtd.id;
-            await updateMTDRecordApi(apiId, mtdPatch);
+            await updateMTDRecordApi(apiId, mtdOwnedPatch);
           }
         } catch (err) {
           setActiveOrders(prevActive);
@@ -1906,21 +1999,6 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       Boolean(oldAssignmentKey) &&
       Boolean(newAssignmentKey) &&
       oldAssignmentKey !== newAssignmentKey;
-    const mtdToSync = assignmentKeyChanged
-      ? mtdRecords
-          .filter(
-            (rec) =>
-              (rec.assignedProducer &&
-                producerKeysMatch(rec.assignedProducer, oldAssignmentKey)) ||
-              (rec.editorRequest &&
-                producerKeysMatch(rec.editorRequest, oldAssignmentKey))
-          )
-          .map((rec) => ({
-            id: rec.uuid || rec.id,
-            assignedProducer: rec.assignedProducer,
-            editorRequest: rec.editorRequest,
-          }))
-      : [];
     const ordersToSync = assignmentKeyChanged
       ? activeOrders
           .filter(
@@ -1961,30 +2039,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
     const persistRewrittenAssignmentKeys = async () => {
       if (!assignmentKeyChanged) return;
-      // Only after the producer initials exist in the DB — rewriting first
-      // cleared MTD assigned_producer_id when resolve(newKey) failed.
-      for (const rec of mtdToSync) {
-        const mtdPatch: Partial<MTDRecord> = {};
-        if (
-          rec.assignedProducer &&
-          producerKeysMatch(rec.assignedProducer, oldAssignmentKey)
-        ) {
-          mtdPatch.assignedProducer = newAssignmentKey;
-        }
-        if (
-          rec.editorRequest &&
-          producerKeysMatch(rec.editorRequest, oldAssignmentKey)
-        ) {
-          mtdPatch.editorRequest =
-            newAssignmentKey as MTDRecord["editorRequest"];
-        }
-        if (Object.keys(mtdPatch).length === 0) continue;
-        try {
-          await updateMTDRecordApi(rec.id, mtdPatch);
-        } catch {
-          /* best-effort; backend cascade is primary */
-        }
-      }
+      // Phase 4: assignment SoT is Orders — backend cascade updates Orders and
+      // re-publishes linked MTD projections. Local MTD state already rewritten.
       for (const order of ordersToSync) {
         const orderPatch: Partial<Order> = {};
         if (

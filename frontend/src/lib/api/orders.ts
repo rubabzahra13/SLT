@@ -305,7 +305,7 @@ export function transformOrder(bo: BackendOrder): Order {
     package:
       formType === "school-anthem"
         ? "SCHOOL ANTHEMS"
-        : bo.package || "TBD",
+        : bo.package || bo.package_type || "TBD",
     musicTheme: bo.music_theme || "",
     // editor_initials = FA / short code; requested_editor = Magento producer name.
     editorRequest: bo.editor_initials || "FA",
