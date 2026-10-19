@@ -33,16 +33,16 @@ describe("Prompt 6 — Sports Entertainment Pricing Engine Unit Tests", () => {
     assert.equal(res.rushFeeAmount, 0);
   });
 
-  it("QUARTER BREAK / TIMEOUT REMIXED with rush = yes: customerFacingPrice = 150 (base), payrollBasePrice = 300 ($150 + $150)", () => {
+  it("QUARTER BREAK / TIMEOUT REMIXED with rush = yes: customerFacingPrice = 150 (base), payrollBasePrice = 250 ($150 + $100 Magento rush)", () => {
     const res = calculateSportsEntertainmentOrderPricing({
       packageType: "QUARTER BREAK / TIMEOUT REMIXED",
       isRushOrder: "yes",
     });
 
     assert.equal(res.customerFacingPrice, 150);
-    assert.equal(res.payrollBasePrice, 300);
+    assert.equal(res.payrollBasePrice, 250);
     assert.equal(res.hasRushFee, true);
-    assert.equal(res.rushFeeAmount, 150);
+    assert.equal(res.rushFeeAmount, 100);
   });
 
   it("PRE-GAME / HALFTIME REMIXED with rush = no: customerFacingPrice = 250", () => {
@@ -56,16 +56,16 @@ describe("Prompt 6 — Sports Entertainment Pricing Engine Unit Tests", () => {
     assert.equal(res.hasRushFee, false);
   });
 
-  it("PRE-GAME / HALFTIME REMIXED with rush = yes: customerFacingPrice = 250 (base), payrollBasePrice = 400 ($250 + $150)", () => {
+  it("PRE-GAME / HALFTIME REMIXED with rush = yes: customerFacingPrice = 250 (base), payrollBasePrice = 350 ($250 + $100 Magento rush)", () => {
     const res = calculateSportsEntertainmentOrderPricing({
       packageType: "PRE-GAME / HALFTIME REMIXED",
       isRushOrder: "yes",
     });
 
     assert.equal(res.customerFacingPrice, 250);
-    assert.equal(res.payrollBasePrice, 400);
+    assert.equal(res.payrollBasePrice, 350);
     assert.equal(res.hasRushFee, true);
-    assert.equal(res.rushFeeAmount, 150);
+    assert.equal(res.rushFeeAmount, 100);
   });
 
   it("OTHER (mixes longer than 2:30): returns explicit unpriced state (customerFacingPrice = null)", () => {
@@ -91,13 +91,34 @@ describe("Prompt 6 — Sports Entertainment Pricing Engine Unit Tests", () => {
       isRushOrder: true,
     });
     assert.equal(resBool.customerFacingPrice, 250);
-    assert.equal(resBool.payrollBasePrice, 400);
+    assert.equal(resBool.payrollBasePrice, 350);
 
     const resUpper = calculateSportsEntertainmentOrderPricing({
       packageType: "PRE-GAME / HALFTIME REMIXED",
       isRushOrder: "YES",
     });
     assert.equal(resUpper.customerFacingPrice, 250);
-    assert.equal(resUpper.payrollBasePrice, 400);
+    assert.equal(resUpper.payrollBasePrice, 350);
+  });
+
+  it("clientRequestedRushOrder Yes is preferred Magento SoT over isRushOrder no", () => {
+    const res = calculateSportsEntertainmentOrderPricing({
+      packageType: "PRE-GAME / HALFTIME REMIXED",
+      clientRequestedRushOrder: "Yes",
+      isRushOrder: "no",
+    });
+    assert.equal(res.rushFeeAmount, 100);
+    assert.equal(res.payrollBasePrice, 350);
+  });
+
+  it("does not use Cheer/Dance $150 misc rush — SE customer rush is always $100", () => {
+    const res = calculateSportsEntertainmentOrderPricing({
+      packageType: "QUARTER BREAK / TIMEOUT REMIXED",
+      isRushOrder: "yes",
+      rushFeeQuantity: 2,
+      rushFeeOption: "double",
+    });
+    assert.equal(res.rushFeeAmount, 100);
+    assert.equal(res.payrollBasePrice, 250);
   });
 });

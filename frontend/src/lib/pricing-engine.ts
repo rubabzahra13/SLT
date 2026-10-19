@@ -1519,9 +1519,17 @@ export function lookupSportsEntertainmentRateCardEntry(
   return matched ?? null;
 }
 
+/**
+ * Magento Sports Entertainment customer rush fee ($100 when mix is needed
+ * in under 7 days). Distinct from Cheer/Dance admin rush add-ons ($150/$300).
+ */
+export const SPORTS_ENTERTAINMENT_CUSTOMER_RUSH_FEE = 100;
+
 export type SportsEntertainmentPricingEngineInput = {
   packageType?: string;
   isRushOrder?: "yes" | "no" | boolean | string;
+  /** Magento "Do you need a Rush Order?" — preferred SoT when present. */
+  clientRequestedRushOrder?: "yes" | "no" | boolean | string | null;
   rushFeeOption?: "none" | "single" | "double" | string | null;
   extraSongsQuantity?: number;
   extraSongEditingTimeQuantity?: number;
@@ -1542,19 +1550,32 @@ export type SportsEntertainmentPricingEngineResult = {
   rushFeeAmount: number;
 };
 
+function isSportsEntertainmentRushYes(
+  input: SportsEntertainmentPricingEngineInput | null | undefined
+): boolean {
+  if (!input) return false;
+  const client = input.clientRequestedRushOrder;
+  if (client !== undefined && client !== null && String(client).trim() !== "") {
+    const c = String(client).trim().toLowerCase();
+    return c === "yes" || client === true;
+  }
+  return (
+    input.isRushOrder === "yes" ||
+    input.isRushOrder === true ||
+    String(input.isRushOrder || "")
+      .trim()
+      .toLowerCase() === "yes"
+  );
+}
+
 export function calculateSportsEntertainmentOrderPricing(
   input: SportsEntertainmentPricingEngineInput
 ): SportsEntertainmentPricingEngineResult {
   const matchedEntry = lookupSportsEntertainmentRateCardEntry(input?.packageType ?? "");
 
-  const miscAddons = calculateMiscellaneousPayrollAddons(input);
-  const rushItem = miscAddons.items.find((i) => i.id === "rush_fee");
-  const rushFeeAmount = rushItem ? rushItem.payrollAmount : 0;
-  const isRush =
-    input?.isRushOrder === "yes" ||
-    input?.isRushOrder === true ||
-    String(input?.isRushOrder).toLowerCase() === "yes" ||
-    rushFeeAmount > 0;
+  // SE customer rush is a flat $100 — never the Cheer/Dance $150 misc rush_fee.
+  const isRush = isSportsEntertainmentRushYes(input);
+  const rushFeeAmount = isRush ? SPORTS_ENTERTAINMENT_CUSTOMER_RUSH_FEE : 0;
 
   if (!matchedEntry) {
     return {
@@ -1589,6 +1610,7 @@ export function calculateSportsEntertainmentOrderPricing(
   }
 
   const customerFacingPrice = matchedEntry.customer ?? 0;
+  // Package (customer) stays base; payroll base = package + $100 SE rush when Yes.
   const payrollBasePrice = customerFacingPrice + rushFeeAmount;
 
   return {

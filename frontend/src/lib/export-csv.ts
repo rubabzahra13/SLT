@@ -340,7 +340,7 @@ export function generatePayrollCsv(
       producerObj,
       custPrice,
       null,
-      rec.rateUsed ?? order?.rateUsed ?? null,
+      order?.rateUsed ?? null,
       rec.manualPayoutInput ?? null,
       meta.canonicalSubtypeId,
       payrollPrice,
@@ -357,7 +357,7 @@ export function generatePayrollCsv(
     );
 
     const isDance = meta.formType === "school-all-star-dance";
-    const basePayout = calc.producerPayout ?? rec.producerPayout ?? order?.producerPayout ?? 0;
+    const basePayout = calc.producerPayout ?? order?.producerPayout ?? 0;
     const rushPayout = rush.compensation;
     const payoutTotal = finalizeMixPayout(basePayout, calc.status, rush) ?? basePayout;
 
@@ -372,7 +372,7 @@ export function generatePayrollCsv(
       assignedProducer: rec.assignedProducer || "",
       customerPrice: formatPrice(custPrice),
       payrollBasePrice: formatPrice(payrollPrice),
-      producerRate: rec.rateUsed ?? order?.rateUsed ?? "Default",
+      producerRate: order?.rateUsed ?? "Default",
       voiceoverPayout: formatPrice(0),
       rushPayout: formatPrice(rushPayout),
       danceExtraSongsPayout: isDance
@@ -664,7 +664,7 @@ export function getProducerFacingPayrollRows(
       producerObj,
       custPrice,
       null,
-      rec.rateUsed ?? order?.rateUsed ?? null,
+      order?.rateUsed ?? null,
       rec.manualPayoutInput ?? null,
       meta.canonicalSubtypeId,
       payrollPrice,
@@ -684,7 +684,7 @@ export function getProducerFacingPayrollRows(
 
     if (rowRushAddon && rush.quantity > 0) usedAddonIds.add(rowRushAddon.id);
 
-    const basePayout = calc.producerPayout ?? rec.producerPayout ?? order?.producerPayout ?? 0;
+    const basePayout = calc.producerPayout ?? order?.producerPayout ?? 0;
     const rushPayout = rush.compensation;
     const payoutTotal = finalizeMixPayout(basePayout, calc.status, rush) ?? basePayout;
 
@@ -711,7 +711,7 @@ export function getProducerFacingPayrollRows(
           ? String((rec as any).danceExtraSongTime)
           : "0"
         : "",
-      producerRate: String(rec.rateUsed ?? order?.rateUsed ?? "Default"),
+      producerRate: String(order?.rateUsed ?? "Default"),
       voiceoverPayout: formatPrice(0),
       rushPayout: formatPrice(rushPayout),
       danceExtraSongsPayout: isDance

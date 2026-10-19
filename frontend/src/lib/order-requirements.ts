@@ -682,27 +682,28 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
       (order as MTDRecord).orderId === null);
 
   // 1. MIX / TIME OF MIX
+  // SoT = Time Length of Mix field only (every category). Empty → red, filled →
+  // green. Never stay green from collectionStates.mix / package label leftovers.
   {
-    const override = getOverrideState(order, "mix") ?? getOverrideState(order, "time_of_mix");
-    const hasOrderTimeProp =
-      (order as Order).timeLengthOfMix !== undefined ||
-      (order as any).time_length_of_mix !== undefined;
-    // Cheer may encode mix length in the package label (GOLD 2:00). SE / Dance /
-    // Band / Anthem keep Magento package labels flat — never treat package time
-    // as Mix collected when Time Length was cleared.
-    const packageTimeFallback =
+    const rawFieldTime = String(
+      (order as Order).timeLengthOfMix ??
+        (order as { time_length_of_mix?: string }).time_length_of_mix ??
+        ""
+    ).trim();
+    // Cheer Magento often encodes length in package (GOLD 2:00) when the SoftSelect
+    // column was never written — use that only if the dedicated field is absent.
+    const cheerPackageTime =
       isCheer && !isSports && !isDance && !isMarchingBand && !isAnthem
-        ? parsedPkg.limit
-        : "-";
-    const rawTime = hasOrderTimeProp
-      ? (order as Order).timeLengthOfMix || (order as any).time_length_of_mix
-      : packageTimeFallback;
+        ? String(parsedPkg.limit || "").trim()
+        : "";
+    const rawTime =
+      rawFieldTime ||
+      (cheerPackageTime && cheerPackageTime !== "-" ? cheerPackageTime : "");
     const defaultProvided = isPresent(rawTime) && rawTime !== "-";
     const isApplicable = needTimeOfMix;
     let state: RequirementState = "white";
     if (isApplicable) {
-      const isCollected = override !== undefined ? override : defaultProvided;
-      state = isCollected ? "green" : "red";
+      state = defaultProvided ? "green" : "red";
     }
     requirements.push({
       id: "mix",
@@ -711,7 +712,7 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
       state,
       isApplicable,
       provided: state === "green",
-      value: defaultProvided ? rawTime!.trim() : undefined,
+      value: defaultProvided ? rawTime : undefined,
       status: state === "green" ? "green" : state === "red" ? "red" : "white",
     });
   }
@@ -1004,6 +1005,24 @@ export function mergeOrderFormFieldsForRequirements(
       linkedOrder.mergedFormOrderId ||
       (rec as Order).mergedFormOrderId ||
       undefined,
+    // Drop stale Mix green overrides when Time Length is empty on the order.
+    collectionStates: (() => {
+      const linkedTime = String(linkedOrder.timeLengthOfMix ?? "").trim();
+      const states =
+        (rec.collectionStates as Record<string, unknown> | null | undefined) ||
+        {};
+      if (linkedTime) return rec.collectionStates;
+      if (
+        typeof states.mix !== "boolean" &&
+        typeof states.time_of_mix !== "boolean"
+      ) {
+        return rec.collectionStates;
+      }
+      const next = { ...states };
+      delete next.mix;
+      delete next.time_of_mix;
+      return next as Order["collectionStates"];
+    })(),
   };
 }
 

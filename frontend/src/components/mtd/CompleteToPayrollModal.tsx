@@ -31,6 +31,7 @@ import {
   calculateSportsEntertainmentOrderPricing,
   calculateSchoolAnthemOrderPricing,
   calculateMiscellaneousPayrollAddons,
+  SPORTS_ENTERTAINMENT_CUSTOMER_RUSH_FEE,
 } from "@/lib/pricing-engine";
 import { parsePackage } from "@/lib/package";
 import {
@@ -45,7 +46,10 @@ import { SetPricingModal } from "@/components/mtd/SetPricingModal";
 import { payrollRowIsRushOrder } from "@/lib/forward-order-mail";
 import clsx from "clsx";
 
-/** Pricing engines bake rush into payroll base — strip for Complete-to-Payroll. */
+/**
+ * Strip Cheer/Dance admin rush ($150/$300) from Complete-to-Payroll package math.
+ * Sports Entertainment Magento rush ($100) is applied separately and must stay.
+ */
 function withoutRushPricingFlags<T extends Record<string, unknown>>(rec: T): T {
   return {
     ...rec,
@@ -54,6 +58,8 @@ function withoutRushPricingFlags<T extends Record<string, unknown>>(rec: T): T {
     rushFeeQuantity: 0,
   };
 }
+
+const SE_RUSH_ADDON_ID = "sports_entertainment_rush";
 
 type CompleteToPayrollModalProps = {
   open: boolean;
@@ -259,9 +265,16 @@ export function CompleteToPayrollModal({
         } else if (meta.formType === "sports-entertainment") {
           canonicalSubtypeId = "sports-entertainment";
 
+          // Magento customer rush Yes/No → automatic $100 on payroll (not Cheer $150).
+          const seRushYes = payrollRowIsRushOrder(currentRec, order);
           const seResult = calculateSportsEntertainmentOrderPricing({
             packageType: pkgName,
-            isRushOrder: false,
+            isRushOrder: seRushYes ? "yes" : "no",
+            clientRequestedRushOrder:
+              (order as Order & { clientRequestedRushOrder?: unknown })
+                ?.clientRequestedRushOrder ??
+              (currentRec as MTDRecord & { clientRequestedRushOrder?: unknown })
+                .clientRequestedRushOrder,
           });
 
           if (seResult.isUnpriced) {
@@ -289,8 +302,20 @@ export function CompleteToPayrollModal({
 
             complianceReason = "Unknown / No Affiliate Field Required on Sports Entertainment customer form.";
 
-            baseCust = seResult.matchedEntry?.customer ?? currentRec.price;
-            basePay = seResult.matchedEntry?.compliant ?? currentRec.price;
+            baseCust = seResult.customerFacingPrice ?? currentRec.price;
+            // Payroll = package + $100 Magento rush when customer selected Yes.
+            basePay = seResult.payrollBasePrice ?? currentRec.price;
+
+            if (seResult.hasRushFee && seResult.rushFeeAmount > 0) {
+              addons.push({
+                addon_id: SE_RUSH_ADDON_ID,
+                label: "Rush Order Fee",
+                customer_amount: 0,
+                payroll_amount: seResult.rushFeeAmount,
+                quantity: 1,
+                note: `Customer Magento rush order — $${SPORTS_ENTERTAINMENT_CUSTOMER_RUSH_FEE} (Sports Entertainment)`,
+              });
+            }
           }
 
         } else if (meta.formType === "school-anthem") {
@@ -398,14 +423,24 @@ export function CompleteToPayrollModal({
         let initialPayStr = "";
 
         // Package + payroll from live rate card (affiliate → compliant/non-compliant).
-        // Use rush-stripped records so payroll price stays package-only.
+        // Cheer/Dance: rush-stripped (admin rush is Payroll-tab only).
+        // Sports Entertainment: keep Magento rush so payroll includes +$100.
+        const liveRec =
+          meta.formType === "sports-entertainment"
+            ? currentRec
+            : (pricingRec as unknown as MTDRecord);
+        const liveOrder =
+          meta.formType === "sports-entertainment"
+            ? order
+            : (pricingOrder as Order | undefined);
         const live = resolveLiveOrderPricing(
-          pricingRec as unknown as MTDRecord,
-          pricingOrder as Order | undefined,
+          liveRec,
+          liveOrder,
           meta,
           orderById
         );
         const packageDisplay = resolveOrderPackageDisplayPrice(
+          // Package chip stays base package — never include SE rush in customer $.
           pricingRec as unknown as MTDRecord,
           pricingOrder as Order | undefined,
           meta,
@@ -431,11 +466,15 @@ export function CompleteToPayrollModal({
                 ? enginePricing.customerFacingPrice
                 : currentRec.price;
           const payVal =
-            live.payrollPrice > 0
-              ? live.payrollPrice
-              : enginePricing.payrollBasePrice > 0
-                ? enginePricing.payrollBasePrice
-                : currentRec.price;
+            meta.formType === "sports-entertainment" &&
+            typeof enginePricing.payrollBasePrice === "number" &&
+            enginePricing.payrollBasePrice > 0
+              ? enginePricing.payrollBasePrice
+              : live.payrollPrice > 0
+                ? live.payrollPrice
+                : enginePricing.payrollBasePrice > 0
+                  ? enginePricing.payrollBasePrice
+                  : currentRec.price;
           initialCustStr = String(custVal);
           initialPayStr = String(payVal);
           setBreakdown((prev) =>
@@ -502,9 +541,14 @@ export function CompleteToPayrollModal({
           order as unknown as Record<string, unknown>
         ) as unknown as Order)
       : undefined;
+    // SE Magento rush must remain on live payroll; Cheer/Dance stay stripped.
+    const liveRec =
+      meta.formType === "sports-entertainment" ? record : pricingRec;
+    const liveOrder =
+      meta.formType === "sports-entertainment" ? order : pricingOrder;
     const live = resolveLiveOrderPricing(
-      pricingRec,
-      pricingOrder,
+      liveRec,
+      liveOrder,
       meta,
       orderById
     );
@@ -526,7 +570,14 @@ export function CompleteToPayrollModal({
         : live.customerPrice > 0
           ? live.customerPrice
           : record.price;
-    const payVal = live.payrollPrice > 0 ? live.payrollPrice : custVal;
+    const payVal =
+      meta.formType === "sports-entertainment" &&
+      live.enginePayrollPrice != null &&
+      live.enginePayrollPrice > 0
+        ? live.enginePayrollPrice
+        : live.payrollPrice > 0
+          ? live.payrollPrice
+          : custVal;
 
     setFinalCustomerPriceInput(String(custVal));
     setFinalPayrollPriceInput(String(payVal));
@@ -599,13 +650,21 @@ export function CompleteToPayrollModal({
   const activeManualPayoutNum = manualPayoutInput !== "" ? parseFloat(manualPayoutInput) : null;
 
   const isRushOrderTag = payrollRowIsRushOrder(record, linkedOrder);
-  const rushQty = typeof record.rushFeeQuantity === "number"
-    ? record.rushFeeQuantity
-    : record.rushFeeOption === "double"
-    ? 2
-    : record.rushFeeOption === "single" || isRushOrderTag
-    ? 1
-    : 0;
+  const isSportsEntertainmentComplete =
+    breakdown?.form_type === "sports-entertainment" ||
+    linkedOrder?.formType === "sports-entertainment" ||
+    String(record.category || "").toLowerCase().includes("sports");
+  // Cheer/Dance admin rush uses $150×qty. SE Magento rush ($100) is already
+  // inside payroll base — do not treat it as a $150 compensation quantity.
+  const rushQty = isSportsEntertainmentComplete
+    ? 0
+    : typeof record.rushFeeQuantity === "number"
+      ? record.rushFeeQuantity
+      : record.rushFeeOption === "double"
+        ? 2
+        : record.rushFeeOption === "single" || isRushOrderTag
+          ? 1
+          : 0;
 
   const clientPayroll = computeClientPayroll(
     assignedProducerObj,
@@ -682,28 +741,20 @@ export function CompleteToPayrollModal({
         });
       }
 
+      // Phase 2: pricing/payout fields go on Orders when linked; MTD only
+      // receives them when there is no order (orphan board row).
+      const pricingPatch = {
+        price: finalCustomerPriceNum,
+        finalCustomerPrice: finalCustomerPriceNum,
+        systemCalculatedCustomerPrice: systemPriceNum,
+        finalCustomerPriceOverridden: isCustomerPriceOverridden,
+        producerPayout: clientPayroll.producerPayout ?? undefined,
+        rateUsed: finalRate ?? undefined,
+        rateSource: clientPayroll.rateSource,
+      };
       onConfirm(
-        {
-          price: finalCustomerPriceNum,
-          finalCustomerPrice: finalCustomerPriceNum,
-          systemCalculatedCustomerPrice: systemPriceNum,
-          finalCustomerPriceOverridden: isCustomerPriceOverridden,
-          producerPayout: clientPayroll.producerPayout ?? undefined,
-          sltPortion: clientPayroll.sltPortion ?? undefined,
-          rateUsed: finalRate ?? undefined,
-          rateSource: clientPayroll.rateSource,
-          payrollFinalized: true,
-        },
-        linkedOrder ? {
-          finalCustomerPrice: finalCustomerPriceNum,
-          systemCalculatedCustomerPrice: systemPriceNum,
-          finalCustomerPriceOverridden: isCustomerPriceOverridden,
-          producerPayout: clientPayroll.producerPayout ?? undefined,
-          sltPortion: clientPayroll.sltPortion ?? undefined,
-          rateUsed: finalRate ?? undefined,
-          rateSource: clientPayroll.rateSource,
-          payrollFinalized: true,
-        } : undefined
+        linkedOrder ? undefined : pricingPatch,
+        linkedOrder ? pricingPatch : undefined
       );
       onClose();
     } catch (err: any) {
@@ -838,9 +889,24 @@ export function CompleteToPayrollModal({
                       "pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 font-semibold text-[14px] text-brand-ink";
 
                     // Delta between package (customer) and affiliate payroll column.
-                    const musicComplianceAmount = Math.round(
-                      (finalPayrollPriceNum - finalCustomerPriceNum) * 100
-                    ) / 100;
+                    // SE Magento rush ($100) is its own add-on line — exclude from
+                    // "Music compliance" so that row stays $0 for Sports Entertainment.
+                    const seRushInBreakdown =
+                      breakdown?.form_type === "sports-entertainment"
+                        ? (breakdown?.addons || []).reduce((sum, a) => {
+                            if (a.addon_id === SE_RUSH_ADDON_ID) {
+                              return sum + (a.payroll_amount || 0);
+                            }
+                            return sum;
+                          }, 0)
+                        : 0;
+                    const musicComplianceAmount =
+                      Math.round(
+                        (finalPayrollPriceNum -
+                          finalCustomerPriceNum -
+                          seRushInBreakdown) *
+                          100
+                      ) / 100;
 
                     const pricingFieldButtonClass = clsx(
                       breakdownAmountInputClass,
@@ -933,7 +999,8 @@ export function CompleteToPayrollModal({
                     </div>
                   </div>
 
-                  {/* Add-on items — rush is tag-only, never a $ line here */}
+                  {/* Add-on items — Cheer/Dance admin rush is tag-only.
+                      SE Magento rush ($100) shows as sports_entertainment_rush. */}
                   {breakdown?.addons
                     .filter(
                       (addon) =>

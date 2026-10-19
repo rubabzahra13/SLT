@@ -11,6 +11,11 @@ class Order(Base):
     """Orders table — columns grouped by form field family for easier auditing.
 
     Physical DB column order matches these groups (see migration n0o1p2q3r4s5).
+
+    Source of truth for customer-submitted / form intake data and for pricing /
+    producer-payout fields (Phase 2). Optional 1:1 ``mtd_record`` holds board +
+    payroll lifecycle flags; pricing values may be mirrored onto MTD for display
+    only (see MTDRecord).
     """
 
     __tablename__ = "orders"
@@ -152,9 +157,6 @@ class Order(Base):
     rate_used = Column(Numeric(5, 4), nullable=True)
     rate_source = Column(String, nullable=True)
     producer_payout = Column(Numeric(10, 2), nullable=True)
-    slt_portion = Column(Numeric(10, 2), nullable=True)
-    payroll_finalized = Column(Boolean, default=False, nullable=False)
-    payroll_breakdown = Column(JSON, nullable=True)
 
     mtd_record = relationship("MTDRecord", back_populates="order", uselist=False)
 

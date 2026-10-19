@@ -129,9 +129,6 @@ export interface BackendOrder {
   rate_used?: number | null;
   rate_source?: string | null;
   producer_payout?: number | null;
-  slt_portion?: number | null;
-  payroll_finalized?: boolean;
-  payroll_breakdown?: any;
 }
 
 export function transformOrder(bo: BackendOrder): Order {
@@ -337,9 +334,6 @@ export function transformOrder(bo: BackendOrder): Order {
     rateUsed: bo.rate_used ?? null,
     rateSource: bo.rate_source || null,
     producerPayout: bo.producer_payout ?? null,
-    sltPortion: bo.slt_portion ?? null,
-    payrollFinalized: Boolean(bo.payroll_finalized),
-    payrollBreakdown: bo.payroll_breakdown || null,
   };
 }
 

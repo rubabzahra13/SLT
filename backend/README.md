@@ -175,8 +175,8 @@ uvicorn app.main:app --reload --port 8001
 
 * **`producers`**: Producer profiles, initials, categories, work days, max daily mixes limit, and extra days.
 * **`producer_time_off`**: Vacation, holiday, and personal leave ranges for producers (`producer_id` FK).
-* **`orders`**: Form submissions and order intake details.
-* **`mtd_records`**: Operational Music To Do board entries linked to `orders.id` (`order_id` FK) and `producers.id` (`assigned_producer_id` FK).
+* **`orders`**: Form submissions and order intake details (SoT for customer/form fields **and** pricing/payout: `price`, `final_customer_price*`, `system_calculated_*`, `producer_payout`, `rate_*`, `pricing_breakdown`).
+* **`mtd_records`**: Music To Do board + payroll lifecycle (`in_mtd`, `record_status`, `in_payroll`, `paid_at`, `invoice`), linked 1:1 to `orders.id` via nullable unique `order_id` (`uq_mtd_records_order_id`) and to `producers.id` via `assigned_producer_id`. Board customer-price cache only: `price`, `final_customer_price*`, `price_compliance`. Payout/system/rate live on Orders (Phase 1+2).
 * **`schedule_entries`**: Removed — schedule capacity is derived from producer assignments and mix dates, not a separate matrix table.
 * **`discount_codes`**: Promo codes and usage rules.
 * **`pricing_rules`**: Package rate cards (customer / compliant / non-compliant) for Pricing Reference.

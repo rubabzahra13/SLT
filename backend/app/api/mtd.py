@@ -1,7 +1,7 @@
 import uuid
-import json
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 from app.core.database import get_db
 from app.models.mtd_record import MTDRecord
@@ -91,10 +91,13 @@ def create_mtd_record(payload: MTDRecordCreateSchema, db: Session = Depends(get_
             data["order_id"] = None
             order_id = None
 
-    # If an MTD record already exists for this order_id, update it instead of duplicating
+    # 1:1 with orders when order_id is set (uq_mtd_records_order_id). Prefer update
+    # over insert so Move-to-MTD / retries never create a second row.
     existing_mtd = None
     if order_id:
-        existing_mtd = _find_mtd(db, str(order_id))
+        existing_mtd = (
+            db.query(MTDRecord).filter(MTDRecord.order_id == order_id).first()
+        )
 
     if existing_mtd:
         assigned_prod_str = data.pop("assigned_producer", None)
@@ -130,7 +133,18 @@ def create_mtd_record(payload: MTDRecordCreateSchema, db: Session = Depends(get_
         editor_initials=editor_initials,
     )
     db.add(mtd)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        # Race on uq_mtd_records_order_id — return the winner row.
+        if order_id:
+            raced = (
+                db.query(MTDRecord).filter(MTDRecord.order_id == order_id).first()
+            )
+            if raced:
+                return raced
+        raise
     db.refresh(mtd)
     return mtd
 
@@ -169,12 +183,6 @@ def update_mtd_record(mtd_id: str, payload: MTDRecordUpdateSchema, db: Session =
                 mtd.editor_initials = None
 
     for key, value in update_data.items():
-        # Text columns that store JSON dicts must be serialised to string
-        if isinstance(value, (dict, list)) and key in (
-            "pricing_breakdown",
-            "payroll_breakdown",
-        ):
-            value = json.dumps(value)
         setattr(mtd, key, value)
 
     # Canonical sync: mirror shared fields onto the linked Order (order is SoT).
@@ -206,16 +214,9 @@ def update_mtd_record(mtd_id: str, payload: MTDRecordUpdateSchema, db: Session =
                 linked_order.package = mtd.package
             if "music_theme" in unset:
                 linked_order.music_theme = mtd.music_theme
-            if "price" in unset:
-                linked_order.price = mtd.price
-            if "final_customer_price" in unset:
-                linked_order.final_customer_price = mtd.final_customer_price
-            if "final_customer_price_overridden" in unset:
-                linked_order.final_customer_price_overridden = bool(
-                    mtd.final_customer_price_overridden
-                )
-            if "price_compliance" in unset:
-                linked_order.price_compliance = mtd.price_compliance
+            # Phase 2: pricing/payout SoT is Orders. Do not mirror price /
+            # final_customer_price* / price_compliance / producer_payout / rate_*
+            # from MTD → Order (Order→MTD display cache only).
             if "editor_request" in unset:
                 linked_order.editor_initials = mtd.editor_request
             if "is_reassigned" in unset:
@@ -244,29 +245,9 @@ def update_mtd_record(mtd_id: str, payload: MTDRecordUpdateSchema, db: Session =
             if "status" in unset and mtd.status == "completed":
                 linked_order.status = "completed"
 
-    unset = payload.model_dump(exclude_unset=True)
     db.commit()
     db.refresh(mtd)
     _publish_mtd_updated(mtd)
-    if mtd.order_id and any(
-        key in unset
-        for key in (
-            "price",
-            "final_customer_price",
-            "final_customer_price_overridden",
-            "price_compliance",
-        )
-    ):
-        linked_order = db.query(Order).filter(Order.id == mtd.order_id).first()
-        if linked_order:
-            board_event_hub.publish(
-                {
-                    "type": "order.updated",
-                    "order": OrderSchema.model_validate(linked_order).model_dump(
-                        mode="json"
-                    ),
-                }
-            )
     return mtd
 
 

@@ -6,7 +6,9 @@ import {
   calculateSportsEntertainmentOrderPricing,
   isCheerOtherMixLength,
   isSchoolCheerSubtype,
+  SPORTS_ENTERTAINMENT_CUSTOMER_RUSH_FEE,
 } from "@/lib/pricing-engine";
+import { recordIsRushOrder } from "@/lib/forward-order-mail";
 import { resolveMTDFormMeta, type MTDFormMeta } from "@/lib/mtd-filters";
 import {
   getCategoryPricingSnapshot,
@@ -179,11 +181,25 @@ function runEngine(
     });
   }
   if (meta.formType === "sports-entertainment") {
-    return calculateSportsEntertainmentOrderPricing({
-      packageType,
+    const rushSource = {
+      ...rec,
+      ...(order || {}),
+      formType: meta.formType,
+      category: order?.category || rec.category,
+      clientRequestedRushOrder:
+        (order as Order & { clientRequestedRushOrder?: unknown })
+          ?.clientRequestedRushOrder ??
+        (rec as MTDRecord & { clientRequestedRushOrder?: unknown })
+          .clientRequestedRushOrder,
       isRushOrder:
+        order?.isRushOrder ??
         rec.isRushOrder ??
         (order as Order & { isRushOrder?: boolean })?.isRushOrder,
+    };
+    return calculateSportsEntertainmentOrderPricing({
+      packageType,
+      isRushOrder: recordIsRushOrder(rushSource) ? "yes" : "no",
+      clientRequestedRushOrder: rushSource.clientRequestedRushOrder,
     });
   }
   if (meta.formType === "school-anthem") {
@@ -285,6 +301,30 @@ export function resolveLiveOrderPricing(
           if (typeof payrollCol === "number") enginePayroll = payrollCol;
           else enginePayroll = row.customer;
         }
+      }
+
+      // SE Magento rush ($100) is payroll-only. Pricing Reference overlay sets
+      // flat package amounts — re-apply customer rush on top of package payroll.
+      if (
+        formMeta.formType === "sports-entertainment" &&
+        engineCustomer != null &&
+        engineCustomer > 0
+      ) {
+        const rushYes = recordIsRushOrder({
+          ...rec,
+          ...(order || {}),
+          formType: formMeta.formType,
+          category: order?.category || rec.category,
+          clientRequestedRushOrder:
+            (order as Order & { clientRequestedRushOrder?: unknown })
+              ?.clientRequestedRushOrder ??
+            (rec as MTDRecord & { clientRequestedRushOrder?: unknown })
+              .clientRequestedRushOrder,
+          isRushOrder: order?.isRushOrder ?? rec.isRushOrder,
+        });
+        enginePayroll =
+          engineCustomer +
+          (rushYes ? SPORTS_ENTERTAINMENT_CUSTOMER_RUSH_FEE : 0);
       }
     }
   }

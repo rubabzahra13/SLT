@@ -44,6 +44,30 @@ def _find_order(db: Session, order_id: str) -> Optional[Order]:
     return None
 
 
+def _linked_mtd(db: Session, order: Order) -> Optional[MTDRecord]:
+    """Resolve the 1:1 MTD row for display-cache sync (Phase 2)."""
+    if order.mtd_record is not None:
+        return order.mtd_record
+    return (
+        db.query(MTDRecord).filter(MTDRecord.order_id == order.id).first()
+    )
+
+
+def _mirror_pricing_display_to_mtd(db: Session, order: Order) -> None:
+    """One-way Order → MTD customer-price display cache (board chips only)."""
+    mtd = _linked_mtd(db, order)
+    if not mtd:
+        return
+    if order.price is not None:
+        mtd.price = order.price
+    mtd.final_customer_price = order.final_customer_price
+    mtd.final_customer_price_overridden = bool(
+        order.final_customer_price_overridden
+    )
+    if order.price_compliance:
+        mtd.price_compliance = order.price_compliance
+
+
 def _breakdown_to_response(bd: PricingBreakdown) -> PricingBreakdownResponse:
     return PricingBreakdownResponse(
         form_type=bd.form_type,
@@ -151,13 +175,14 @@ def complete_pricing(
     order.system_calculated_customer_price = sys_price
     order.final_customer_price = final_price
     order.final_customer_price_overridden = is_overridden
+    # Keep package/board price aligned with the finalized customer amount.
+    if final_price is not None:
+        order.price = final_price
     order.price_compliance = breakdown.compliance_status if breakdown.compliance_status != "needs_manual_review" else order.price_compliance
     order.pricing_breakdown = breakdown.to_dict()
 
-    # Sync to linked MTD record
-    if order.mtd_record:
-        if breakdown.compliance_status in ("compliant", "non-compliant"):
-            order.mtd_record.price_compliance = breakdown.compliance_status
+    # Phase 2: Orders SoT — push display cache to linked MTD only.
+    _mirror_pricing_display_to_mtd(db, order)
 
     db.commit()
     db.refresh(order)
@@ -252,13 +277,13 @@ def finalize_payroll(
         overridden_rate=overridden_rate,
     )
 
-    # Persist — always preserve system vs override; never clobber
+    # Persist payout SoT on Orders only (Phase 1 dropped unused audit blobs).
     order.rate_used = comp.rate_used
     order.rate_source = comp.rate_source
     order.producer_payout = comp.producer_payout
-    order.slt_portion = comp.slt_portion
-    order.payroll_finalized = (comp.status == "computed" and comp.producer_payout is not None)
-    order.payroll_breakdown = comp.to_dict()
+
+    # Keep board customer-price cache in sync (not payout — that stays on Orders).
+    _mirror_pricing_display_to_mtd(db, order)
 
     db.commit()
     db.refresh(order)
@@ -273,7 +298,7 @@ def finalize_payroll(
         rate_used=float(order.rate_used) if order.rate_used is not None else None,
         rate_source=order.rate_source,
         producer_payout=float(order.producer_payout) if order.producer_payout is not None else None,
-        slt_portion=float(order.slt_portion) if order.slt_portion is not None else None,
-        payroll_finalized=order.payroll_finalized,
-        payroll_breakdown=order.payroll_breakdown,
+        slt_portion=float(comp.slt_portion) if comp.slt_portion is not None else None,
+        payroll_finalized=(comp.status == "computed" and comp.producer_payout is not None),
+        payroll_breakdown=comp.to_dict(),
     )

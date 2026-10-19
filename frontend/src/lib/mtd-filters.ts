@@ -800,11 +800,24 @@ export const MTD_SORT_BY_OPTIONS: { value: MTDSortBy; label: string }[] = [
   { value: "days_less", label: "Days booked · Less" },
 ];
 
-function recordPackagePrice(rec: MTDRecord): number {
+function recordPackagePrice(
+  rec: MTDRecord,
+  orderById?: Map<string, Order> | null
+): number {
+  const order =
+    (rec.orderId && orderById?.get(rec.orderId)) ||
+    orderById?.get(rec.id) ||
+    (rec.uuid && orderById?.get(rec.uuid)) ||
+    (rec.legacyId && orderById?.get(rec.legacyId)) ||
+    null;
+  // Orders SoT for stored customer price; MTD price is display fallback.
+  const fromOrder = order?.finalCustomerPrice ?? order?.systemCalculatedCustomerPrice;
+  if (typeof fromOrder === "number" && Number.isFinite(fromOrder)) return fromOrder;
+  if (order?.price != null && Number.isFinite(Number(order.price))) {
+    return Number(order.price);
+  }
   const final = rec.finalCustomerPrice;
   if (typeof final === "number" && Number.isFinite(final)) return final;
-  const sys = rec.systemCalculatedCustomerPrice;
-  if (typeof sys === "number" && Number.isFinite(sys)) return sys;
   return Number(rec.price) || 0;
 }
 
@@ -893,10 +906,14 @@ export function sortMTDRecordsBySortKey(
             recordCreatedMs(a.rec, orderById);
           break;
         case "price_high":
-          cmp = recordPackagePrice(b.rec) - recordPackagePrice(a.rec);
+          cmp =
+            recordPackagePrice(b.rec, orderById) -
+            recordPackagePrice(a.rec, orderById);
           break;
         case "price_low":
-          cmp = recordPackagePrice(a.rec) - recordPackagePrice(b.rec);
+          cmp =
+            recordPackagePrice(a.rec, orderById) -
+            recordPackagePrice(b.rec, orderById);
           break;
         case "start_earliest":
           cmp =

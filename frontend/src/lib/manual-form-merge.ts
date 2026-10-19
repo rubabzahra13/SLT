@@ -118,9 +118,6 @@ const PROTECTED_ORDER_KEYS = new Set<string>([
   "rateSource",
   "producerPayout",
   "manualPayoutInput",
-  "sltPortion",
-  "payrollFinalized",
-  "payrollBreakdown",
 ]);
 
 export type FieldDataSource = "form" | "manual";

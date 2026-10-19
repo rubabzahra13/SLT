@@ -479,9 +479,11 @@ function MTDPageContent() {
         meta,
         orderById
       );
-      await updateMTD(rec.id, fullPatch);
+      // Phase 2: Orders is pricing SoT; updateOrder mirrors display cache to MTD.
       if (order) {
         await updateOrder(order.id, fullPatch);
+      } else {
+        await updateMTD(rec.id, fullPatch);
       }
     },
     [
@@ -570,11 +572,15 @@ function MTDPageContent() {
       const recordId = completeRecord.id;
       const orderId = completeRecord.orderId;
       setCompleteRecord(null);
-      // Persist MTD payroll flags before order fan-out so SSE/order-linked
-      // MTD publishes cannot briefly clear inPayroll (row flicker on Payroll).
-      await updateMTD(recordId, { ...basePatch, ...mtdPatch });
-      if (orderId && orderPatch) {
-        await updateOrder(orderId, orderPatch);
+      // Phase 2: lifecycle flags stay on MTD; pricing/payout SoT is Orders.
+      // Persist inPayroll first so SSE cannot briefly clear Payroll membership.
+      if (orderId) {
+        await updateMTD(recordId, basePatch);
+        if (orderPatch) {
+          await updateOrder(orderId, orderPatch);
+        }
+      } else {
+        await updateMTD(recordId, { ...basePatch, ...mtdPatch });
       }
     },
     [completeRecord, updateMTD, updateOrder]

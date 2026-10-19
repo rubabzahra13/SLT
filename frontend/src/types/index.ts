@@ -75,7 +75,6 @@ export type MTDRecord = {
   customVoiceovers?: string;
   musicAffiliate?: string;
   completedAt?: string;
-  hasRallyMix?: boolean;
   hasExtend8ctAddon?: boolean;
   hasProcessing8ctSheetsAddon?: boolean;
   hasTraditionalVoiceover?: boolean;
@@ -94,18 +93,11 @@ export type MTDRecord = {
   /** Sports Ent Magento client rush answer (synced onto staging/MTD rows). */
   clientRequestedRushOrder?: "yes" | "no" | boolean | string;
   couponCode?: string;
-  systemCalculatedCustomerPrice?: number | null;
+  /** Board display cache — payout/system/rate SoT is Orders. */
   finalCustomerPrice?: number | null;
   finalPayrollPrice?: number | null;
   finalCustomerPriceOverridden?: boolean;
-  pricingBreakdown?: any;
-  rateUsed?: number | null;
-  rateSource?: string | null;
-  producerPayout?: number | null;
   manualPayoutInput?: number | null;
-  sltPortion?: number | null;
-  payrollFinalized?: boolean;
-  payrollBreakdown?: any;
   formType?: OrderFormType;
   cheerFormSubtype?: CheerFormSubtype;
   danceFormSubtype?: DanceFormSubtype;
@@ -343,9 +335,6 @@ export type BaseOrderAdminFields = {
   rateSource?: string | null;
   producerPayout?: number | null;
   manualPayoutInput?: number | null;
-  sltPortion?: number | null;
-  payrollFinalized?: boolean;
-  payrollBreakdown?: any;
 };
 
 /** All-Star Cheer (all-star-cheer) customer-submitted fields */
@@ -906,9 +895,6 @@ export type Order = {
   rateSource?: string | null;
   producerPayout?: number | null;
   manualPayoutInput?: number | null;
-  sltPortion?: number | null;
-  payrollFinalized?: boolean;
-  payrollBreakdown?: any;
   isReassigned?: boolean;
   /** Admin New Order (not a customer form submission). */
   isManualEntry?: boolean;

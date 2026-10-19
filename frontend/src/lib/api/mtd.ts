@@ -38,22 +38,12 @@ export interface BackendMTDRecord {
   completed_at?: string | null;
   paid_at?: string | null;
   is_manual_schedule_entry?: boolean;
-  has_rally_mix?: boolean;
   has_extend_8ct_addon?: boolean;
   has_processing_8ct_sheets_addon?: boolean;
-  hasRallyMix?: boolean;
   hasExtend8ctAddon?: boolean;
   hasProcessing8ctSheetsAddon?: boolean;
-  system_calculated_customer_price?: number | null;
   final_customer_price?: number | null;
   final_customer_price_overridden?: boolean;
-  pricing_breakdown?: any;
-  rate_used?: number | null;
-  rate_source?: string | null;
-  producer_payout?: number | null;
-  slt_portion?: number | null;
-  payroll_finalized?: boolean;
-  payroll_breakdown?: any;
 }
 
 export function transformMTDRecord(bm: BackendMTDRecord): MTDRecord {
@@ -108,19 +98,10 @@ export function transformMTDRecord(bm: BackendMTDRecord): MTDRecord {
     producerEmailSentAt: bm.producer_email_sent_at || null,
     producerEmailSentTo: bm.producer_email_sent_to || null,
     completedAt: bm.completed_at || undefined,
-    hasRallyMix: Boolean(bm.has_rally_mix ?? bm.hasRallyMix),
     hasExtend8ctAddon: Boolean(bm.has_extend_8ct_addon ?? bm.hasExtend8ctAddon),
     hasProcessing8ctSheetsAddon: Boolean(bm.has_processing_8ct_sheets_addon ?? bm.hasProcessing8ctSheetsAddon),
-    systemCalculatedCustomerPrice: bm.system_calculated_customer_price ?? null,
     finalCustomerPrice: bm.final_customer_price ?? null,
     finalCustomerPriceOverridden: Boolean(bm.final_customer_price_overridden),
-    pricingBreakdown: bm.pricing_breakdown || null,
-    rateUsed: bm.rate_used ?? null,
-    rateSource: bm.rate_source || null,
-    producerPayout: bm.producer_payout ?? null,
-    sltPortion: bm.slt_portion ?? null,
-    payrollFinalized: Boolean(bm.payroll_finalized),
-    payrollBreakdown: bm.payroll_breakdown || null,
   };
 }
 
@@ -158,7 +139,6 @@ export async function createMTDRecordApi(record: Partial<MTDRecord>): Promise<MT
     status: record.status || "active",
     in_mtd: Boolean(record.inMTD),
     is_reassigned: Boolean(record.isReassigned),
-    has_rally_mix: Boolean(record.hasRallyMix),
     has_extend_8ct_addon: Boolean(record.hasExtend8ctAddon),
     has_processing_8ct_sheets_addon: Boolean(record.hasProcessing8ctSheetsAddon),
   };
@@ -209,27 +189,13 @@ export async function updateMTDRecordApi(
   }
   if (patch.completedAt !== undefined) payload.completed_at = patch.completedAt;
   if (patch.paidAt !== undefined) payload.paid_at = patch.paidAt;
-  if (patch.hasRallyMix !== undefined) payload.has_rally_mix = patch.hasRallyMix;
   if (patch.hasExtend8ctAddon !== undefined) payload.has_extend_8ct_addon = patch.hasExtend8ctAddon;
   if (patch.hasProcessing8ctSheetsAddon !== undefined) payload.has_processing_8ct_sheets_addon = patch.hasProcessing8ctSheetsAddon;
-  if (patch.systemCalculatedCustomerPrice !== undefined) {
-    payload.system_calculated_customer_price = patch.systemCalculatedCustomerPrice;
-  }
   if (patch.finalCustomerPrice !== undefined) {
     payload.final_customer_price = patch.finalCustomerPrice;
   }
   if (patch.finalCustomerPriceOverridden !== undefined) {
     payload.final_customer_price_overridden = patch.finalCustomerPriceOverridden;
-  }
-  if (patch.rateUsed !== undefined) payload.rate_used = patch.rateUsed;
-  if (patch.rateSource !== undefined) payload.rate_source = patch.rateSource;
-  if (patch.producerPayout !== undefined) payload.producer_payout = patch.producerPayout;
-  if (patch.sltPortion !== undefined) payload.slt_portion = patch.sltPortion;
-  if (patch.payrollFinalized !== undefined) {
-    payload.payroll_finalized = patch.payrollFinalized;
-  }
-  if (patch.payrollBreakdown !== undefined) {
-    payload.payroll_breakdown = patch.payrollBreakdown;
   }
 
   try {

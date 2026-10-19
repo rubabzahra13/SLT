@@ -1237,20 +1237,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       if (patch.mixEndDate !== undefined) {
         orderPatch.mixEndDate = apiPatch.mixEndDate ?? patch.mixEndDate;
       }
-      if (patch.price !== undefined) orderPatch.price = patch.price;
-      if (patch.finalCustomerPrice !== undefined) {
-        orderPatch.finalCustomerPrice = patch.finalCustomerPrice;
-      }
-      if (patch.finalCustomerPriceOverridden !== undefined) {
-        orderPatch.finalCustomerPriceOverridden =
-          patch.finalCustomerPriceOverridden;
-      }
-      if (patch.finalPayrollPrice !== undefined) {
-        orderPatch.finalPayrollPrice = patch.finalPayrollPrice;
-      }
-      if (patch.priceCompliance !== undefined) {
-        orderPatch.priceCompliance = patch.priceCompliance;
-      }
+      // Phase 2: pricing/payout SoT is Orders — do not push price fields
+      // from MTD patches onto the linked order.
       if (patch.editorRequest !== undefined) {
         orderPatch.editorRequest = patch.editorRequest;
       }
@@ -1627,6 +1615,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       if (patch.finalPayrollPrice !== undefined) {
         mtdPatch.finalPayrollPrice = patch.finalPayrollPrice;
       }
+      // Payout / system calc / rates stay on Orders only — do not fan out to MTD.
       if (patch.priceCompliance !== undefined) {
         mtdPatch.priceCompliance = patch.priceCompliance;
       }

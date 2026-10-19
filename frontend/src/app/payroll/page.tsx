@@ -449,13 +449,9 @@ export default function PayrollPage() {
       const { order, producerObj, selection } = rushStateForRecord(rec);
       const meta = resolveMTDFormMeta(rec, orderById);
       const custPrice = order?.finalCustomerPrice ?? rec.finalCustomerPrice ?? rec.price;
-      const payrollPrice = rec.finalPayrollPrice ?? order?.finalPayrollPrice ?? rec.price;
-      const rateIsManual =
-        rec.rateSource === "manual_override" ||
-        order?.rateSource === "manual_override";
-      const selectedRate = rateIsManual
-        ? rec.rateUsed ?? order?.rateUsed ?? null
-        : null;
+      const payrollPrice = order?.finalPayrollPrice ?? rec.finalPayrollPrice ?? rec.price;
+      const rateIsManual = order?.rateSource === "manual_override";
+      const selectedRate = rateIsManual ? order?.rateUsed ?? null : null;
 
       const calc = computeClientPayroll(
         producerObj,
@@ -477,7 +473,7 @@ export default function PayrollPage() {
           formType: meta.formType,
         }
       );
-      const base = calc.producerPayout ?? rec.producerPayout ?? order?.producerPayout ?? 0;
+      const base = calc.producerPayout ?? order?.producerPayout ?? 0;
       const payout = finalizeMixPayout(base, calc.status, selection) ?? 0;
       return sum + payout;
     }, 0);
@@ -998,7 +994,6 @@ export default function PayrollPage() {
             order?.finalCustomerPrice ??
             order?.systemCalculatedCustomerPrice ??
             rec.finalCustomerPrice ??
-            rec.systemCalculatedCustomerPrice ??
             rec.price;
           const isOverridden = Boolean(
             order?.finalCustomerPriceOverridden ?? rec.finalCustomerPriceOverridden
@@ -1038,14 +1033,10 @@ export default function PayrollPage() {
           const model = producerObj?.compensationModel;
           const meta = resolveMTDFormMeta(rec, orderById);
           const custPrice = order?.finalCustomerPrice ?? rec.finalCustomerPrice ?? rec.price;
-          const payrollPrice = rec.finalPayrollPrice ?? order?.finalPayrollPrice ?? rec.price;
+          const payrollPrice = order?.finalPayrollPrice ?? rec.finalPayrollPrice ?? rec.price;
 
-          const rateIsManual =
-            rec.rateSource === "manual_override" ||
-            order?.rateSource === "manual_override";
-          const selectedRate = rateIsManual
-            ? rec.rateUsed ?? order?.rateUsed ?? null
-            : null;
+          const rateIsManual = order?.rateSource === "manual_override";
+          const selectedRate = rateIsManual ? order?.rateUsed ?? null : null;
 
           const calculated = computeClientPayroll(
             producerObj,
@@ -1069,15 +1060,13 @@ export default function PayrollPage() {
           );
 
           const payout = finalizeMixPayout(
-            calculated.producerPayout ?? rec.producerPayout ?? order?.producerPayout,
+            calculated.producerPayout ?? order?.producerPayout,
             calculated.status,
             selection
           );
-          const isRateOverridden =
-            rec.rateSource === "manual_override" ||
-            order?.rateSource === "manual_override";
+          const isRateOverridden = order?.rateSource === "manual_override";
           const isPriceOverridden = Boolean(
-            rec.finalCustomerPriceOverridden || order?.finalCustomerPriceOverridden
+            order?.finalCustomerPriceOverridden ?? rec.finalCustomerPriceOverridden
           );
 
           if (model === "not_paid_for_mixing") {

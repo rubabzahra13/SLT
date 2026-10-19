@@ -129,22 +129,20 @@ describe("Orders Tab & Workflow Separation", () => {
       inPayroll: false,
       status: "active",
       completedAt: undefined,
-      producerPayout: undefined,
+      finalCustomerPrice: undefined,
     });
     const localPayroll = makeRecord({
       inPayroll: true,
       status: "completed",
       recordStatus: "Completed",
       completedAt: "2026-10-13T00:00:00Z",
-      producerPayout: 808.5,
-      payrollFinalized: true,
+      finalCustomerPrice: 808.5,
     });
 
     const merged = mergeLocalMtdRecordFields(staleIncoming, localPayroll);
     assert.equal(merged.inPayroll, true);
-    assert.equal(merged.producerPayout, 808.5);
+    assert.equal(merged.finalCustomerPrice, 808.5);
     assert.equal(merged.completedAt, "2026-10-13T00:00:00Z");
-    assert.equal(merged.payrollFinalized, true);
   });
 
   it("Thin assigned MTD rows keep order songs/mix fields so Data stays Complete", () => {

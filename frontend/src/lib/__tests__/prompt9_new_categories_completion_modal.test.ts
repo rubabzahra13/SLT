@@ -49,7 +49,7 @@ describe("Prompt 9 — New Categories Completion Modal Pricing & Coupon Integrat
   });
 
   describe("Sports Entertainment Completion Pricing & OTHER TBD Handling", () => {
-    it("calculates Sports Entertainment itemized breakdown with Rush active", () => {
+    it("calculates Sports Entertainment itemized breakdown with Rush active ($100 Magento)", () => {
       const result = calculateSportsEntertainmentOrderPricing({
         packageType: "PRE-GAME / HALFTIME REMIXED",
         isRushOrder: "yes",
@@ -57,8 +57,9 @@ describe("Prompt 9 — New Categories Completion Modal Pricing & Coupon Integrat
 
       assert.equal(result.matchedEntry?.customer, 250);
       assert.equal(result.hasRushFee, true);
-      assert.equal(result.rushFeeAmount, 150);
+      assert.equal(result.rushFeeAmount, 100);
       assert.equal(result.customerFacingPrice, 250); // Base package price $250
+      assert.equal(result.payrollBasePrice, 350); // $250 + $100 Magento rush
       assert.equal(result.isUnpriced, false);
       assert.equal(result.needsManualQuote, false);
     });

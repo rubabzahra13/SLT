@@ -580,7 +580,8 @@ function bookedRecordCost(
   rec: MTDRecord,
   estimateCost?: RecordCostEstimator
 ): number {
-  return estimateCost?.(rec) ?? rec.producerPayout ?? 0;
+  // Live estimate first; stored payout lives on Orders (Phase 1/2 SoT).
+  return estimateCost?.(rec) ?? 0;
 }
 
 /** Records may be assigned by initials, legacy code, or full name. */

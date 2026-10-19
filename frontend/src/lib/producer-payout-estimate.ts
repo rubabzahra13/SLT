@@ -69,7 +69,7 @@ export function estimateRecordProducerPayoutDetail(
     producer,
     packagePrice ?? 0,
     null,
-    rec.rateUsed ?? order?.rateUsed ?? null,
+    order?.rateUsed ?? null,
     rec.manualPayoutInput ?? null,
     meta.canonicalSubtypeId,
     payrollPrice,
@@ -93,7 +93,6 @@ export function estimateRecordProducerPayoutDetail(
   const totalPayout =
     calc.producerPayout ??
     calc.newPricingPayout ??
-    rec.producerPayout ??
     order?.producerPayout ??
     null;
 

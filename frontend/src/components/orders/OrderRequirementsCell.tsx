@@ -488,24 +488,20 @@ export function OrderRequirementsCell({
       return;
     }
 
-    // Mix Time: green → red always confirms (clears Time Length when present).
-    // Red → green is a plain collection toggle (no prompt).
+    // Mix Time SoT = Time Length of Mix. Green↔red always goes through confirm
+    // (clear field / enter field) — never a toggle-only green with empty time.
     if (item.id === "mix" || item.id === "time_of_mix") {
-      if (item.state === "green") {
-        const currentText = String(
-          (requirementsRecord as Order).timeLengthOfMix ||
-            (requirementsRecord as { time_length_of_mix?: string })
-              .time_length_of_mix ||
-            ""
-        ).trim();
-        setConfirm({
-          kind: "mix",
-          direction: "to_red",
-          currentText,
-        });
-        return;
-      }
-      applyCollectionToggle(item);
+      const currentText = String(
+        (requirementsRecord as Order).timeLengthOfMix ||
+          (requirementsRecord as { time_length_of_mix?: string })
+            .time_length_of_mix ||
+          ""
+      ).trim();
+      setConfirm({
+        kind: "mix",
+        direction: item.state === "green" ? "to_red" : "to_green",
+        currentText,
+      });
       return;
     }
 
@@ -541,14 +537,13 @@ export function OrderRequirementsCell({
         : null);
 
     if (kind === "mix") {
-      // Clear Time Length so Mix stays red after refresh (same SoT as form edit).
       const orderSource = (linkedOrder || requirementsRecord) as Order;
       const orderPatch = orderPatchFromOrderField(
         "timeLengthOfMix",
-        "",
+        nextText,
         orderSource
       );
-      const mtdFieldPatch = mtdPatchFromOrderField("timeLengthOfMix", "");
+      const mtdFieldPatch = mtdPatchFromOrderField("timeLengthOfMix", nextText);
       const mtdPatch: Partial<MTDRecord> = {
         ...mtdFieldPatch,
         collectionStates: orderPatch.collectionStates as MTDRecord["collectionStates"],
@@ -568,7 +563,10 @@ export function OrderRequirementsCell({
       addNotification({
         type: "mtd_move",
         title: "Mix Time updated",
-        message: "Time Length of Mix cleared. Mix Time marked as missing.",
+        message:
+          direction === "to_red"
+            ? "Time Length of Mix cleared. Mix Time marked as missing."
+            : "Time Length of Mix saved. Mix Time marked as collected.",
       });
       setConfirm(null);
       return;
