@@ -18,6 +18,7 @@ import {
   type RequirementCategory,
 } from "@/lib/order-requirements";
 import { buildLegacyMusicTheme } from "@/lib/order-form";
+import { hasMeaningfulFieldValue } from "@/lib/empty-field-tokens";
 import {
   mtdPatchFromOrderField,
   orderPatchFromOrderField,
@@ -527,7 +528,8 @@ export function OrderRequirementsCell({
     if (!confirm) return;
     const { kind, direction } = confirm;
     const nextText = direction === "to_red" ? "" : text.trim();
-    if (direction === "to_green" && !nextText) return;
+    // Reject empty + sentinel placeholders (none, N/A, TBD, …).
+    if (direction === "to_green" && !hasMeaningfulFieldValue(nextText)) return;
 
     const orderId =
       linkedOrder?.id ||

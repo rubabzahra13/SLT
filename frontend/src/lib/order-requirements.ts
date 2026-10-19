@@ -1,5 +1,6 @@
 import type { MTDRecord, Order, OrderFormType } from "@/types";
 import { parsePackage } from "@/lib/package";
+import { hasMeaningfulFieldValue } from "@/lib/empty-field-tokens";
 export type RequirementCategory = "collections" | "songs";
 export type RequirementState = "green" | "red" | "white";
 
@@ -120,18 +121,11 @@ function parseReassignReason(
 
 /**
  * Determines whether a string value is present and non-empty.
+ * Placeholder sentinels (none, N/A, TBD, null, …) count as missing —
+ * see EMPTY_FIELD_TOKENS in empty-field-tokens.ts.
  */
 function isPresent(val: string | null | undefined): boolean {
-  if (!val) return false;
-  const cleaned = val.trim().toUpperCase();
-  return (
-    cleaned !== "" &&
-    cleaned !== "NONE" &&
-    cleaned !== "-" &&
-    cleaned !== "TBD" &&
-    cleaned !== "EMPTY" &&
-    cleaned !== "N/A"
-  );
+  return hasMeaningfulFieldValue(val);
 }
 
 /** True when text is only an affiliate label like "(Power Music Covers)", not a song list. */

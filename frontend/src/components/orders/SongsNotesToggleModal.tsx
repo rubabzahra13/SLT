@@ -3,6 +3,10 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Clock3, Music2, StickyNote } from "lucide-react";
+import {
+  describeEmptyFieldToken,
+  hasMeaningfulFieldValue,
+} from "@/lib/empty-field-tokens";
 
 export type SongsNotesToggleKind = "songs" | "notes" | "mix";
 export type SongsNotesToggleDirection = "to_red" | "to_green";
@@ -11,7 +15,7 @@ type SongsNotesToggleModalProps = {
   open: boolean;
   kind: SongsNotesToggleKind;
   direction: SongsNotesToggleDirection;
-  /** Current field text shown when removing (green → red). */
+  /** Current field text shown when removing (green → red) or as placeholder warning. */
   currentText?: string;
   /** Override Magento field label (e.g. School Anthem style / lyrical notes). */
   fieldLabel?: string;
@@ -58,7 +62,8 @@ export function SongsNotesToggleModal({
         ? "Song list/suggestions"
         : "Routine notes");
   const removing = direction === "to_red";
-  const canConfirmGreen = draft.trim().length > 0;
+  const canConfirmGreen = hasMeaningfulFieldValue(draft);
+  const placeholderStored = describeEmptyFieldToken(currentText);
 
   const title = removing
     ? isMix
@@ -77,11 +82,13 @@ export function SongsNotesToggleModal({
     ? currentText.trim()
       ? `The text below is currently stored in ${fieldLabel}. Confirm to remove it and mark ${pillName} as missing (red).`
       : `Confirm to clear ${fieldLabel} and mark ${pillName} as missing (red).`
-    : isMix
-      ? `Enter ${fieldLabel} to mark Mix Time as collected. This updates the form field and turns the pill green.`
-      : isSongs
-        ? `Enter ${fieldLabel} to mark Songs as have. This updates the form field and turns the pill green.`
-        : `Enter ${fieldLabel} to mark Notes as have. This updates the form field and turns the pill green.`;
+    : placeholderStored
+      ? `${fieldLabel} currently has a placeholder (“${placeholderStored}”), which does not count as collected. Enter real content to mark ${pillName} green.`
+      : isMix
+        ? `Enter ${fieldLabel} to mark Mix Time as collected. This updates the form field and turns the pill green.`
+        : isSongs
+          ? `Enter ${fieldLabel} to mark Songs as have. This updates the form field and turns the pill green.`
+          : `Enter ${fieldLabel} to mark Notes as have. This updates the form field and turns the pill green.`;
 
   const confirmLabel = removing
     ? isMix
@@ -147,6 +154,21 @@ export function SongsNotesToggleModal({
             </div>
           ) : null}
 
+          {!removing && placeholderStored ? (
+            <div className="mt-4 rounded-xl border border-amber-300/70 bg-amber-50 px-3.5 py-3 text-left">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-amber-800/80">
+                Placeholder on file (not collected)
+              </p>
+              <p className="mt-1 font-mono text-[13px] font-semibold text-amber-950">
+                {placeholderStored}
+              </p>
+              <p className="mt-1 text-[11px] leading-snug text-amber-900/80">
+                Values like none, N/A, TBD, or null do not satisfy this requirement.
+                Replace with real {fieldLabel.toLowerCase()} below.
+              </p>
+            </div>
+          ) : null}
+
           {!removing ? (
             <div className="mt-4 text-left">
               <label
@@ -164,6 +186,11 @@ export function SongsNotesToggleModal({
                 className="mt-1.5 w-full resize-y rounded-xl border border-brand-line/60 bg-white px-3 py-2.5 text-[13px] text-brand-ink shadow-[0_1px_1px_rgba(15,30,45,0.04)] outline-none transition-colors hover:border-brand-line-strong focus:border-brand-blue/50 focus:ring-2 focus:ring-brand-blue/15"
                 autoFocus
               />
+              {draft.trim() && !canConfirmGreen ? (
+                <p className="mt-1.5 text-[11px] text-[#901313]">
+                  “{draft.trim()}” is a placeholder. Enter real content to continue.
+                </p>
+              ) : null}
             </div>
           ) : null}
         </div>

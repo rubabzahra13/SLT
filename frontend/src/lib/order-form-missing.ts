@@ -5,6 +5,7 @@ import {
   getProgramColumnHeader,
 } from "@/lib/order-detail-sections";
 import { rawFieldValue } from "@/lib/order-detail-fields";
+import { hasMeaningfulFieldValue } from "@/lib/empty-field-tokens";
 import type { Order } from "@/types";
 
 /**
@@ -138,20 +139,10 @@ function fieldHasConditionalPass(order: Order, key: string): boolean {
 function isEmptyFormValue(order: Order, key: string): boolean {
   if (isOptionalOrderFormField(key, order)) return false;
   if (fieldHasConditionalPass(order, key)) return false;
-  const raw = rawFieldValue(order, key).trim();
-  if (!raw) return true;
-  // Placeholder selects in the edit UI
-  const lower = raw.toLowerCase();
-  if (
-    lower === "select…" ||
-    lower === "select..." ||
-    lower === "select" ||
-    lower === "please choose one…" ||
-    lower === "please choose one..."
-  ) {
-    return true;
-  }
-  return false;
+  const raw = rawFieldValue(order, key);
+  // Shared sentinel dictionary (none, N/A, TBD, null, select…, …).
+  // Choreographer fields may use N/A when Magento says "put N/A".
+  return !hasMeaningfulFieldValue(raw, { fieldKey: key });
 }
 
 /** Red (missing) in the order form editor — skips table-covered columns. */
