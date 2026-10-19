@@ -40,18 +40,32 @@ describe("Payroll rush fee compensation", () => {
     assert.equal(rushFeeCompensation(150, 2, 0.93), 279);
   });
 
-  it("does not invent 100% when the producer has no rush fee rate", () => {
+  it("does not invent a Rushby fee when Rush Order is Yes but no addon is saved", () => {
+    const selection = resolveRushFeeSelection({
+      isRush: true,
+      producerRate: 1,
+      producerId: "p1",
+      addon: null,
+    });
+    assert.equal(selection.quantity, 0);
+    assert.equal(selection.total, 0);
+    assert.equal(selection.rate, null);
+    assert.equal(selection.rateSource, "unset");
+    assert.equal(selection.compensation, 0);
+    assert.equal(finalizeMixPayout(1023, "computed", selection), 1023);
+  });
+
+  it("does not invent 100% compensation before an amount is chosen", () => {
     const selection = resolveRushFeeSelection({
       isRush: true,
       producerRate: null,
       producerId: "p1",
       addon: null,
     });
-    assert.equal(selection.quantity, 1);
+    assert.equal(selection.quantity, 0);
     assert.equal(selection.rate, null);
     assert.equal(selection.rateSource, "unset");
     assert.equal(selection.compensation, 0);
-    assert.equal(finalizeMixPayout(1023, "computed", selection), 1023);
   });
 
   it("keeps an order override without changing the producer default", () => {
@@ -139,6 +153,24 @@ describe("Payroll rush fee compensation", () => {
     assert.equal(custom.unitAmount, 200);
     assert.equal(custom.total, 200);
     assert.equal(custom.compensation, 100);
+  });
+
+  it("keeps a manually saved Rushby addon when Rush Order is Yes", () => {
+    const selection = resolveRushFeeSelection({
+      isRush: true,
+      producerRate: 1,
+      producerId: "p1",
+      addon: {
+        amount: 150,
+        quantity: 1,
+        unitAmount: 150,
+        producerId: "p1",
+      },
+    });
+    assert.equal(selection.quantity, 1);
+    assert.equal(selection.total, 150);
+    assert.equal(selection.rateSource, "producer");
+    assert.equal(selection.compensation, 150);
   });
 
   it("keeps the saved override when a newer default rush row also exists", () => {

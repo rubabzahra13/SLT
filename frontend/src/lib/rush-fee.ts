@@ -145,6 +145,8 @@ function overrideApplies(
 
 /**
  * Resolve the rush fee for one payroll row.
+ * Rush Order Yes only gates the controls — it does NOT invent a $150 fee.
+ * Quantity stays 0 until a saved addon exists or the admin picks 1x/2x/+.
  * The producer rate is the default. A saved override is used only while the
  * same producer is still assigned. Non-rush rows contribute nothing.
  */
@@ -166,19 +168,24 @@ export function resolveRushFeeSelection(input: {
     };
   }
 
-  let { quantity, unitAmount } = inferQuantityAndUnit(input.addon ?? null);
-  // Show the full control set (incl. rate dropdown) while the addon row is being created.
-  if (quantity < 1) quantity = 1;
+  const { quantity, unitAmount } = inferQuantityAndUnit(input.addon ?? null);
   const producerRate = normalizeCompensationFraction(input.producerRate);
   const overridden = overrideApplies(input.addon ?? null, input.producerId);
-  const rate = overridden
-    ? normalizeCompensationFraction(input.addon?.compensationRate)
-    : producerRate;
-  const rateSource: RushRateSource = overridden
-    ? "override"
-    : producerRate != null
-      ? "producer"
-      : "unset";
+  // Only expose a rate once an amount is chosen — avoids showing 100% on an unset fee.
+  const rate =
+    quantity < 1
+      ? null
+      : overridden
+        ? normalizeCompensationFraction(input.addon?.compensationRate)
+        : producerRate;
+  const rateSource: RushRateSource =
+    quantity < 1
+      ? "unset"
+      : overridden
+        ? "override"
+        : producerRate != null
+          ? "producer"
+          : "unset";
 
   return {
     quantity,
@@ -187,7 +194,7 @@ export function resolveRushFeeSelection(input: {
     rate,
     rateSource,
     compensation: rushFeeCompensation(unitAmount, quantity, rate),
-    overridden,
+    overridden: quantity >= 1 && overridden,
   };
 }
 

@@ -78,6 +78,8 @@ import {
 
 /** Survives a dev remount so a rush row is not created twice for the same mix. */
 const rushCreateInflight = new Set<string>();
+/** Clear requested while a create was still in flight — delete as soon as it lands. */
+const rushPendingClear = new Set<string>();
 
 const RUSH_SAVE_DEBOUNCE_MS = 200;
 
@@ -576,6 +578,7 @@ export default function PayrollPage() {
       const order = findLinkedOrder(rec, allOrders);
       if (!payrollRowIsRushOrder(rec, order)) {
         clearRushOverlay(key);
+        rushPendingClear.delete(key);
         return;
       }
 
@@ -587,15 +590,31 @@ export default function PayrollPage() {
         rushFeeAddonForRecord(rec.id, rec.orderId, payrollAddonsRef.current) ||
         knownRushAddonRef.current.get(key) ||
         null;
-      const quantity = Math.max(0, Math.min(100, Math.round(overlay.quantity)));
-      if (quantity === 0) {
+      const quantity = Math.max(0, Math.min(100, Math.round(overlay.quantity) || 0));
+
+      // Qty 0 = remove the add-on. Never PATCH quantity 0 (API 422).
+      if (quantity < 1) {
+        rushPendingClear.add(key);
+        if (rushCreateInflight.has(key) && !existing) {
+          // Create still running — delete in that path once it finishes.
+          clearRushOverlay(key);
+          return;
+        }
         if (existing) {
-          await removePayrollAddon(existing.id);
+          try {
+            await removePayrollAddon(existing.id);
+          } catch (err) {
+            console.error("Failed to remove rush fee:", err);
+            return;
+          }
           knownRushAddonRef.current.delete(key);
         }
+        rushPendingClear.delete(key);
         clearRushOverlay(key);
         return;
       }
+
+      rushPendingClear.delete(key);
 
       const current = resolveRushFeeSelection({
         isRush: true,
@@ -604,8 +623,12 @@ export default function PayrollPage() {
         addon: existing,
       });
       const unit = current.unitAmount > 0 ? current.unitAmount : DEFAULT_RUSH_FEE_UNIT;
-      const overridden = Boolean(overlay.compensationOverridden);
-      const compensationRate = overridden ? overlay.compensationRate ?? null : null;
+      const rawOverridden = Boolean(overlay.compensationOverridden);
+      const compensationRate = rawOverridden
+        ? normalizeCompensationFraction(overlay.compensationRate)
+        : null;
+      // Avoid 422: override flag with a missing rate is rejected by the API.
+      const overridden = rawOverridden && compensationRate != null;
       const amount = rushCustomerTotal(unit, quantity);
       const producerId = producer?.id || null;
       const producerInitials =
@@ -645,6 +668,20 @@ export default function PayrollPage() {
               producerId,
               producerInitials,
             });
+
+        // User cleared while create was in flight — drop the row now.
+        if (rushPendingClear.has(key) || (rushOverlayRef.current[key]?.quantity ?? 1) < 1) {
+          rushPendingClear.delete(key);
+          knownRushAddonRef.current.delete(key);
+          clearRushOverlay(key);
+          try {
+            await removePayrollAddon(saved.id);
+          } catch (err) {
+            console.error("Failed to remove rush fee after clear:", err);
+          }
+          return;
+        }
+
         knownRushAddonRef.current.set(key, saved);
         clearRushOverlay(key);
       } catch (err) {
@@ -673,7 +710,7 @@ export default function PayrollPage() {
         producers
       );
       const producerRate = normalizeCompensationFraction(producer?.rushFeeRate);
-      const quantity = Math.max(0, Math.min(100, Math.round(next.quantity)));
+      const quantity = Math.max(0, Math.min(100, Math.round(next.quantity) || 0));
       const prior = rushOverlayRef.current[key];
       const existingAddon = rushFeeAddonForRecord(
         rec.id,
@@ -693,6 +730,14 @@ export default function PayrollPage() {
         compensationRate = compensationOverridden ? selected : null;
       }
 
+      if (quantity < 1) {
+        rushPendingClear.add(key);
+        compensationOverridden = false;
+        compensationRate = null;
+      } else {
+        rushPendingClear.delete(key);
+      }
+
       rushOverlayRef.current = {
         ...rushOverlayRef.current,
         [key]: {
@@ -705,21 +750,23 @@ export default function PayrollPage() {
 
       const existingTimer = rushSaveTimerRef.current.get(key);
       if (existingTimer) clearTimeout(existingTimer);
+      // Clear immediately so a second click/double-click removes without waiting.
+      const delay = quantity < 1 ? 0 : RUSH_SAVE_DEBOUNCE_MS;
       rushSaveTimerRef.current.set(
         key,
         setTimeout(() => {
           rushSaveTimerRef.current.delete(key);
           void flushRushFeeSave(rec);
-        }, RUSH_SAVE_DEBOUNCE_MS)
+        }, delay)
       );
     },
     [isViewOnly, producers, flushRushFeeSave]
   );
 
-  // Orders-tab rush flag stays the source of truth. Create the payroll
-  // rush-fee row when a rush mix arrives, drop orphan fees when it is No,
-  // and clear an override that belonged to a previous producer.
-  const autoRushAttemptedRef = useRef(new Set<string>());
+  // Rush Order Yes/No is informational (and gates the Rush Fee controls).
+  // Never auto-create a Rushby payroll add-on — admin must add amount/qty
+  // explicitly. Drop orphan fees when Rush Order is No; de-dupe extras;
+  // clear an override that belonged to a previous producer.
   const orphanRushCleanupRef = useRef(new Set<string>());
   const overrideResetRef = useRef(new Set<string>());
   const duplicateRushCleanupRef = useRef(new Set<string>());
@@ -756,14 +803,11 @@ export default function PayrollPage() {
         const resetKey = `${addon.id}:${producerObj.id}`;
         if (!overrideResetRef.current.has(resetKey)) {
           overrideResetRef.current.add(resetKey);
-          void persistRushFee(rec, { quantity: Math.max(1, selection.quantity) });
+          void persistRushFee(rec, {
+            quantity: Math.max(1, selection.quantity || 1),
+          });
         }
       }
-
-      if (addon || knownRushAddonRef.current.has(key) || rushCreateInflight.has(key)) continue;
-      if (autoRushAttemptedRef.current.has(key)) continue;
-      autoRushAttemptedRef.current.add(key);
-      void persistRushFee(rec, { quantity: 1 });
     }
   }, [
     isViewOnly,
