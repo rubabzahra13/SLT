@@ -405,12 +405,15 @@ export function AddNewOrderModal({
           null,
         coach_email:
           orderDraft.coachEmail || orderDraft.coachEmailAddress || null,
-        youth_rec_extra_email_address:
+        billing_person_email:
           cheerSubtype === "youth-rec-cheer"
-            ? orderDraft.youthRecExtraEmailAddress?.trim() ||
+            ? orderDraft.billingPersonEmail?.trim() ||
+              orderDraft.youthRecExtraEmailAddress?.trim() ||
               orderDraft.emailAddress?.trim() ||
               null
-            : null,
+            : orderDraft.billingPersonEmail?.trim() ||
+              orderDraft.billingContactEmail?.trim() ||
+              null,
         // Identity SoT is school_gym_name (Gym / School / Program / Org).
         program_name: null,
         school_gym_name:

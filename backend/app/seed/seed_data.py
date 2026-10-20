@@ -17,6 +17,7 @@ from app.models import (
 from app.core.security import hash_password
 from app.lib.producer_assignment import resolve_producer_by_assignment_key
 from app.seed.seed_pricing import seed_pricing
+from app.services.dance_song_covers import pack_dance_song_covers
 
 MOCK_DATA_PATH = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "../../../frontend/src/data/mock-data.json")
@@ -240,7 +241,12 @@ def seed_all(db: Session):
                     coach_phone=o.get("coachPhone"),
                     coach_email=o.get("coachEmail") or o.get("coachEmailAddress"),
                     billing_person_name=o.get("billingPersonName"),
-                    billing_person_email=o.get("billingPersonEmail"),
+                    billing_person_email=(
+                        o.get("billingPersonEmail")
+                        or o.get("billingContactEmail")
+                        or o.get("youthRecExtraEmailAddress")
+                        or o.get("emailAddress")
+                    ),
                     choreographer_name=(
                         o.get("choreographerName") or o.get("virocChoreographerName")
                     ),
@@ -254,7 +260,6 @@ def seed_all(db: Session):
                     ),
                     time_length_of_mix=o.get("timeLengthOfMix"),
                     music_affiliate=o.get("musicAffiliate"),
-                    power_music_covers=o.get("powerMusicCovers"),
                     routine_notes=o.get("routineNotes"),
                     custom_voiceovers=o.get("customVoiceovers"),
                     team_name=o.get("teamName"),
@@ -267,14 +272,18 @@ def seed_all(db: Session):
                     ),
                     mascot=o.get("mascot"),
                     split_or_no_split=o.get("splitOrNoSplit"),
-                    youth_rec_extra_email_address=(
-                        o.get("youthRecExtraEmailAddress") or o.get("emailAddress")
-                    ),
                     sending_eight_count_sheets=(
                         o.get("sendingEightCountSheets")
                         or o.get("usingEightCountSheets")
                     ),
-                    song_list_suggestions=o.get("songListSuggestions"),
+                    song_list_suggestions=(
+                        o.get("songListSuggestions")
+                        or pack_dance_song_covers(
+                            o.get("powerMusicCovers"),
+                            o.get("unleashTheBeatsCovers"),
+                        )
+                        or None
+                    ),
                     coupon_code=o.get("couponCode"),
                     how_did_you_find_out=o.get("howDidYouFindOut"),
                     customer_name=o.get("customerName") or o.get("programName") or "Unknown Customer",

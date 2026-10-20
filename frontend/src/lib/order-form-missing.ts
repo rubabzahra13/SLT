@@ -46,12 +46,12 @@ const ALWAYS_OPTIONAL_FORM_FIELD_KEYS = new Set([
   "invoice",
   "invoiceNumber",
   "numberOfCopies",
-  // Youth Rec form: secondary contact email is not required.
-  "youthRecExtraEmailAddress",
-  "emailAddress",
   // Sports Entertainment: billing contact only if different from music contact.
   "billingContactName",
   "billingContactEmail",
+  // Youth Rec Magento "Email Address" → billing_person_email (optional).
+  "youthRecExtraEmailAddress",
+  "emailAddress",
 ]);
 
 /**
@@ -60,6 +60,7 @@ const ALWAYS_OPTIONAL_FORM_FIELD_KEYS = new Set([
  */
 const OPTIONAL_EXCEPT_SCHOOL_ANTHEM = new Set([
   // Marching Band producer notes are optional; School Anthem Song/Notes are required.
+  // (Aliases of song_list_suggestions / routine_notes — Anthem form keys.)
   "instrumentationNotes",
   "instrumentalStylePreference",
   "lyricalNotes",

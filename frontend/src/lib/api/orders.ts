@@ -1,4 +1,5 @@
 import { apiClient } from "./client";
+import { parseDanceSongCovers } from "@/lib/dance-song-covers";
 import type { Order, OrderFormType, CheerFormSubtype, DanceFormSubtype } from "@/types";
 
 export interface BackendOrder {
@@ -31,7 +32,9 @@ export interface BackendOrder {
   music_affiliate?: string | null;
   affiliate_flag_status?: string | null;
   music_affiliate_selections?: string | null;
+  /** @deprecated packed into song_list_suggestions */
   power_music_covers?: string | null;
+  /** @deprecated packed into song_list_suggestions */
   unleash_the_beats_covers?: string | null;
   routine_notes?: string | null;
   custom_voiceovers?: string | null;
@@ -77,8 +80,9 @@ export interface BackendOrder {
   coach_contact_full_name?: string | null;
   /** @deprecated alias of coach_email */
   coach_email_address?: string | null;
+  /** @deprecated alias of billing_person_email (Youth Rec Magento label). */
   youth_rec_extra_email_address?: string | null;
-  /** @deprecated alias of youth_rec_extra_email_address */
+  /** @deprecated alias of billing_person_email */
   email_address?: string | null;
   sending_eight_count_sheets?: string | null;
   using_eight_count_sheets?: string | null;
@@ -146,11 +150,17 @@ export function transformOrder(bo: BackendOrder): Order {
   const choreographer = String(bo.choreographer_name || "").trim();
   const choreographerEmail = String(bo.choreographer_email || "").trim();
   const sendingEight = String(bo.sending_eight_count_sheets || "").trim();
-  const instrumentation = String(bo.instrumentation_notes || "").trim();
+  const songList = String(bo.song_list_suggestions || "").trim();
+  const routineNotes = String(bo.routine_notes || "").trim();
   const requestedEditor = String(bo.requested_editor || "").trim();
-  const youthRecExtraEmail = String(
-    bo.youth_rec_extra_email_address || ""
-  ).trim();
+  // Youth Rec Magento "Email Address" shares billing_person_email SoT.
+  const billingPersonEmail = String(bo.billing_person_email || "").trim();
+  // Dance Magento cover boxes packed in song_list_suggestions.
+  const danceCovers = parseDanceSongCovers(songList);
+  const powerMusicCovers =
+    String(bo.power_music_covers || "").trim() || danceCovers.power;
+  const unleashTheBeatsCovers =
+    String(bo.unleash_the_beats_covers || "").trim() || danceCovers.unleash;
 
   const personNotIdentity = (value: string | null | undefined) => {
     const v = String(value || "").trim();
@@ -211,9 +221,12 @@ export function transformOrder(bo: BackendOrder): Order {
     coachEmail,
     coachEmailAddress: coachEmail || undefined,
     billingPersonName: bo.billing_person_name || "",
-    billingPersonEmail: bo.billing_person_email || "",
+    billingPersonEmail,
     billingContactName: bo.billing_person_name || "",
-    billingContactEmail: bo.billing_person_email || "",
+    billingContactEmail: billingPersonEmail,
+    // Deprecated Youth Rec aliases → billing_person_email.
+    youthRecExtraEmailAddress: billingPersonEmail || undefined,
+    emailAddress: billingPersonEmail || undefined,
     // Choreographer aliases → choreographer_name / email.
     choreographerName: choreographer,
     choreographerEmail,
@@ -246,21 +259,23 @@ export function transformOrder(bo: BackendOrder): Order {
         ? bo.affiliate_flag_status
         : null,
     musicAffiliateSelections: bo.music_affiliate_selections || null,
-    powerMusicCovers: bo.power_music_covers || "",
-    unleashTheBeatsCovers: bo.unleash_the_beats_covers || "",
-    routineNotes: bo.routine_notes || "",
-    additionalNotes: bo.routine_notes || "",
-    songListSuggestions: bo.song_list_suggestions || undefined,
-    customerSongs: bo.song_list_suggestions || "",
+    powerMusicCovers,
+    unleashTheBeatsCovers,
+    routineNotes,
+    additionalNotes: routineNotes,
+    // Anthem Lyrical Notes / MB fight-alma notes → routine_notes.
+    lyricalNotes: routineNotes,
+    songListSuggestions: songList || undefined,
+    customerSongs: songList,
+    // Anthem style preference / MB instrumentation → song_list_suggestions.
+    instrumentationNotes: songList,
+    instrumentalStylePreference: songList,
     customVoiceovers: bo.custom_voiceovers || "",
     voiceoverScript: bo.voiceover_script || "",
     pronunciationGuidance: bo.pronunciation_guidance || "",
     style: bo.style || "",
     styleOfGamedayMix: bo.style || "",
     licensingRequired: bo.licensing_required || "",
-    instrumentationNotes: instrumentation,
-    instrumentalStylePreference: instrumentation || "",
-    lyricalNotes: bo.lyrical_notes || "",
     isRushOrder: bo.is_rush_order || "",
     clientRequestedRushOrder: bo.client_requested_rush_order || "",
     nicknames: bo.nicknames || "",
@@ -282,8 +297,6 @@ export function transformOrder(bo: BackendOrder): Order {
       if (cheerFormSubtype === "school-cheer-viroc-no") return "No";
       return undefined;
     })(),
-    youthRecExtraEmailAddress: youthRecExtraEmail || undefined,
-    emailAddress: youthRecExtraEmail || undefined,
     sendingEightCountSheets: sendingEight || undefined,
     usingEightCountSheets: sendingEight || undefined,
     couponCode: bo.coupon_code || undefined,
@@ -495,9 +508,19 @@ export async function updateOrderApi(
   if (patch.musicAffiliateSelections !== undefined) {
     payload.music_affiliate_selections = patch.musicAffiliateSelections;
   }
-  if (patch.routineNotes !== undefined || patch.additionalNotes !== undefined) {
-    payload.routine_notes = patch.routineNotes ?? patch.additionalNotes ?? null;
+  if (
+    patch.routineNotes !== undefined ||
+    patch.additionalNotes !== undefined ||
+    patch.lyricalNotes !== undefined
+  ) {
+    // Anthem Lyrical Notes / MB fight-alma → routine_notes SoT.
+    payload.routine_notes =
+      patch.routineNotes ??
+      patch.additionalNotes ??
+      patch.lyricalNotes ??
+      null;
   }
+  // Dance covers → aliases; backend packs into song_list_suggestions.
   if (patch.powerMusicCovers !== undefined) {
     payload.power_music_covers = patch.powerMusicCovers;
   }
@@ -518,16 +541,6 @@ export async function updateOrderApi(
   }
   if (patch.licensingRequired !== undefined) {
     payload.licensing_required = patch.licensingRequired;
-  }
-  if (
-    patch.instrumentationNotes !== undefined ||
-    patch.instrumentalStylePreference !== undefined
-  ) {
-    payload.instrumentation_notes =
-      patch.instrumentationNotes ?? patch.instrumentalStylePreference ?? null;
-  }
-  if (patch.lyricalNotes !== undefined) {
-    payload.lyrical_notes = patch.lyricalNotes;
   }
   if (patch.isRushOrder !== undefined) {
     payload.is_rush_order = patch.isRushOrder;
@@ -572,10 +585,17 @@ export async function updateOrderApi(
   }
   if (
     patch.songListSuggestions !== undefined ||
-    patch.customerSongs !== undefined
+    patch.customerSongs !== undefined ||
+    patch.instrumentationNotes !== undefined ||
+    patch.instrumentalStylePreference !== undefined
   ) {
+    // Anthem style preference / MB instrumentation → song_list_suggestions SoT.
     payload.song_list_suggestions =
-      patch.songListSuggestions ?? patch.customerSongs ?? null;
+      patch.songListSuggestions ??
+      patch.customerSongs ??
+      patch.instrumentationNotes ??
+      patch.instrumentalStylePreference ??
+      null;
   }
   if (patch.city !== undefined) payload.city = patch.city;
   if (patch.stateProvince !== undefined) {
@@ -608,16 +628,6 @@ export async function updateOrderApi(
       coachEmailAliases.find((v) => v !== undefined && String(v).trim() !== "") ??
       "";
   }
-  const youthRecEmailAliases = [
-    patch.youthRecExtraEmailAddress,
-    patch.emailAddress,
-  ];
-  if (youthRecEmailAliases.some((v) => v !== undefined)) {
-    payload.youth_rec_extra_email_address =
-      youthRecEmailAliases.find(
-        (v) => v !== undefined && String(v).trim() !== ""
-      ) ?? "";
-  }
   const billingNameAliases = [
     patch.billingPersonName,
     patch.billingContactName,
@@ -630,6 +640,8 @@ export async function updateOrderApi(
   const billingEmailAliases = [
     patch.billingPersonEmail,
     patch.billingContactEmail,
+    patch.youthRecExtraEmailAddress,
+    patch.emailAddress,
   ];
   if (billingEmailAliases.some((v) => v !== undefined)) {
     payload.billing_person_email =

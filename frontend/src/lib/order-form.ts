@@ -3,6 +3,10 @@ import { parsePackage } from "@/lib/package";
 import { titleCase } from "@/lib/data";
 import { resolveOrderPriceCompliance } from "@/lib/pricing";
 import {
+  packDanceSongCovers,
+  parseDanceSongCovers,
+} from "@/lib/dance-song-covers";
+import {
   ALL_STAR_CHEER_MUSIC_AFFILIATE_OPTIONS,
   normalizeAllStarCheerMusicAffiliateLabel,
   normalizeSchoolCheerVirocMusicAffiliateLabel,
@@ -246,7 +250,12 @@ export function normalizeOrder(
     ? raw.timeLengthOfMix?.trim() || (limit !== "-" ? limit : "") || ""
     : raw.timeLengthOfMix?.trim() || "";
 
-  const songListEarly = raw.songListSuggestions?.trim() || "";
+  // Anthem style preference / MB instrumentation share song_list_suggestions.
+  const songListEarly =
+    raw.songListSuggestions?.trim() ||
+    raw.instrumentationNotes?.trim() ||
+    raw.instrumentalStylePreference?.trim() ||
+    "";
   const musicAffiliateRaw =
     raw.musicAffiliate?.trim() ||
     inferMusicAffiliate(raw.musicTheme || "");
@@ -288,9 +297,13 @@ export function normalizeOrder(
   const hasSeparateNotesField =
     formType === "school-all-star-cheer" ||
     formType === "school-all-star-dance";
+  // Anthem Lyrical Notes / MB fight-alma share routine_notes.
   const routineNotes = hasSeparateNotesField
-    ? raw.routineNotes?.trim() || ""
-    : raw.routineNotes?.trim() || raw.musicTheme || "";
+    ? raw.routineNotes?.trim() || raw.lyricalNotes?.trim() || ""
+    : raw.routineNotes?.trim() ||
+      raw.lyricalNotes?.trim() ||
+      raw.musicTheme ||
+      "";
 
   const requestedEditor =
     raw.requestedEditor?.trim() ||
@@ -305,11 +318,17 @@ export function normalizeOrder(
       : raw.package?.toUpperCase().includes("SPLIT")
         ? "Split"
         : "");
-  // Keep Song list/suggestions distinct from musicTheme / Power Music Covers.
-  // Dance Power Music / Unleash are their own columns; cheer Songs uses song list.
-  const powerMusicCovers = raw.powerMusicCovers?.trim() || "";
-  const unleashTheBeatsCovers = raw.unleashTheBeatsCovers?.trim() || "";
-  const songList = songListEarly;
+  // Dance Power/Unleash Magento boxes pack into song_list_suggestions SoT.
+  const dancePackedFromList = parseDanceSongCovers(songListEarly);
+  const powerMusicCovers =
+    raw.powerMusicCovers?.trim() || dancePackedFromList.power || "";
+  const unleashTheBeatsCovers =
+    raw.unleashTheBeatsCovers?.trim() || dancePackedFromList.unleash || "";
+  const songList =
+    formType === "school-all-star-dance"
+      ? packDanceSongCovers(powerMusicCovers, unleashTheBeatsCovers) ||
+        songListEarly
+      : songListEarly;
 
   const normalized: Order = {
     ...raw,
@@ -411,15 +430,12 @@ export function normalizeOrder(
       raw.sendingEightCountSheets?.trim() ||
       raw.usingEightCountSheets?.trim() ||
       "",
-    instrumentationNotes:
-      raw.instrumentationNotes?.trim() ||
-      raw.instrumentalStylePreference?.trim() ||
-      "",
-    instrumentalStylePreference:
-      raw.instrumentationNotes?.trim() ||
-      raw.instrumentalStylePreference?.trim() ||
-      "",
+    // Aliases of song_list_suggestions (Anthem style / MB instrumentation).
+    instrumentationNotes: songList,
+    instrumentalStylePreference: songList,
     songListSuggestions: songList,
+    // Alias of routine_notes (Anthem lyrical / MB fight-alma).
+    lyricalNotes: routineNotes,
     couponCode: raw.couponCode?.trim() || "",
     howDidYouFindOut: raw.howDidYouFindOut?.trim() || "",
     city: raw.city?.trim() || "",

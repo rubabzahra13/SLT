@@ -91,7 +91,16 @@ def main() -> None:
                 package=row["package"],
                 time_length_of_mix=row["time_length_of_mix"],
                 music_affiliate=row["music_affiliate"],
-                power_music_covers=row["power_music_covers"] or None,
+                song_list_suggestions=(
+                    ("Power Music Covers:
+" + (row["power_music_covers"] or "") +
+                     "
+
+Unleash the Beats Covers:
+" + (row.get("unleash_the_beats_covers") or ""))
+                    if (row.get("power_music_covers") or row.get("unleash_the_beats_covers"))
+                    else None
+                ),
                 song_list_suggestions=row["song_list_suggestions"] or None,
                 routine_notes="Clean turns and kick lines. Strong jazz accents.",
                 custom_voiceovers=row["custom_voiceovers"],

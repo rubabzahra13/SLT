@@ -214,9 +214,14 @@ function youthRecCheerColumns(): Column<Order>[] {
       render: (o) => <span className="tabular-nums">{o.coachPhone || "—"}</span>,
     },
     textCol(
-      "youthRecExtraEmailAddress",
+      "billingPersonEmail",
       "Email Address",
-      (o) => o.youthRecExtraEmailAddress || o.emailAddress || "",
+      (o) =>
+        o.billingPersonEmail ||
+        o.billingContactEmail ||
+        o.youthRecExtraEmailAddress ||
+        o.emailAddress ||
+        "",
       "180px"
     ),
     ...mixInfoCols({

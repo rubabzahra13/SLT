@@ -3,6 +3,10 @@ import { parsePackage } from "@/lib/package";
 import { rawFieldValue } from "@/lib/order-detail-fields";
 import { getOrderDetailSections } from "@/lib/order-detail-sections";
 import { buildLegacyMusicTheme } from "@/lib/order-form";
+import {
+  packDanceSongCovers,
+  parseDanceSongCovers,
+} from "@/lib/dance-song-covers";
 
 /** MTD patches when an order form field changes.
  *
@@ -177,7 +181,15 @@ export function orderPatchFromOrderField(
     patch.requestedEditor = value;
     patch.requestedProducer = value;
   }
-  if (key === "youthRecExtraEmailAddress" || key === "emailAddress") {
+  if (
+    key === "youthRecExtraEmailAddress" ||
+    key === "emailAddress" ||
+    key === "billingPersonEmail" ||
+    key === "billingContactEmail"
+  ) {
+    // Single SoT: billing_person_email (Youth Rec Magento label is Email Address).
+    patch.billingPersonEmail = value;
+    patch.billingContactEmail = value;
     patch.youthRecExtraEmailAddress = value;
     patch.emailAddress = value;
   }
@@ -260,9 +272,30 @@ export function orderPatchFromOrderField(
   if (key === "songListSuggestions") {
     // Cheer Song list is its own Magento column — never copy into musicTheme.
     // (Legacy copy made normalizeOrder fill Music Affiliate + Routine Notes.)
-    if (current?.formType !== "school-all-star-dance") {
+    if (current?.formType === "school-all-star-dance") {
+      const covers = parseDanceSongCovers(value);
+      patch.powerMusicCovers = covers.power;
+      patch.unleashTheBeatsCovers = covers.unleash;
+    } else {
       patch.powerMusicCovers = "";
+      patch.unleashTheBeatsCovers = "";
     }
+  }
+  if (key === "powerMusicCovers" || key === "unleashTheBeatsCovers") {
+    // Pack Dance Magento boxes into song_list_suggestions SoT.
+    const existing = parseDanceSongCovers(current?.songListSuggestions);
+    const power =
+      key === "powerMusicCovers"
+        ? value
+        : current?.powerMusicCovers ?? existing.power;
+    const unleash =
+      key === "unleashTheBeatsCovers"
+        ? value
+        : current?.unleashTheBeatsCovers ?? existing.unleash;
+    const packed = packDanceSongCovers(power, unleash);
+    patch.powerMusicCovers = String(power || "").trim();
+    patch.unleashTheBeatsCovers = String(unleash || "").trim();
+    patch.songListSuggestions = packed;
   }
   if (key === "routineNotes") {
     // Rebuild legacy musicTheme from notes + affiliate only (not Song list).
@@ -279,7 +312,9 @@ export function orderPatchFromOrderField(
     key === "songListSuggestions" ||
     key === "powerMusicCovers" ||
     key === "unleashTheBeatsCovers" ||
-    key === "customerSongs"
+    key === "customerSongs" ||
+    key === "instrumentationNotes" ||
+    key === "instrumentalStylePreference"
   ) {
     const filled = Boolean(String(value || "").trim());
     patch.haveSongs = filled ? "HAVE SONGS" : "NEED SONGS";
@@ -290,7 +325,11 @@ export function orderPatchFromOrderField(
     delete nextStates.songs;
     patch.collectionStates = nextStates as Order["collectionStates"];
   }
-  if (key === "routineNotes" || key === "additionalNotes") {
+  if (
+    key === "routineNotes" ||
+    key === "additionalNotes" ||
+    key === "lyricalNotes"
+  ) {
     const prevStates =
       ((current?.collectionStates as Record<string, unknown> | null) ||
         {}) as Record<string, unknown>;
@@ -328,10 +367,21 @@ export function orderPatchFromOrderField(
     patch.additionalNotes = value;
     patch.routineNotes = value;
   }
-  if (key === "instrumentationNotes" || key === "instrumentalStylePreference") {
-    // Single SoT: instrumentation_notes (School Anthem style + Band notes).
+  if (
+    key === "instrumentationNotes" ||
+    key === "instrumentalStylePreference" ||
+    key === "songListSuggestions"
+  ) {
+    // Single SoT: song_list_suggestions (Anthem style + MB instrumentation).
+    patch.songListSuggestions = value;
     patch.instrumentationNotes = value;
     patch.instrumentalStylePreference = value;
+  }
+  if (key === "lyricalNotes" || key === "routineNotes") {
+    // Single SoT: routine_notes (Anthem lyrical + MB fight/alma notes).
+    patch.routineNotes = value;
+    patch.lyricalNotes = value;
+    patch.additionalNotes = value;
   }
   if (key === "isRushOrder") {
     const intent = String(value || "").trim().toUpperCase();

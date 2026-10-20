@@ -120,13 +120,28 @@ const FIELD_GETTERS: Record<string, (order: Order) => string | undefined> = {
   coachEmailAddress: (o) =>
     coalesceFieldAliases(o.coachEmailAddress, o.coachEmail, o.musicContactEmail),
   youthRecExtraEmailAddress: (o) =>
-    coalesceFieldAliases(o.youthRecExtraEmailAddress, o.emailAddress),
+    coalesceFieldAliases(
+      o.youthRecExtraEmailAddress,
+      o.emailAddress,
+      o.billingPersonEmail,
+      o.billingContactEmail
+    ),
   emailAddress: (o) =>
-    coalesceFieldAliases(o.emailAddress, o.youthRecExtraEmailAddress),
+    coalesceFieldAliases(
+      o.emailAddress,
+      o.youthRecExtraEmailAddress,
+      o.billingPersonEmail,
+      o.billingContactEmail
+    ),
   billingPersonName: (o) =>
     coalesceFieldAliases(o.billingPersonName, o.billingContactName),
   billingPersonEmail: (o) =>
-    coalesceFieldAliases(o.billingPersonEmail, o.billingContactEmail),
+    coalesceFieldAliases(
+      o.billingPersonEmail,
+      o.billingContactEmail,
+      o.youthRecExtraEmailAddress,
+      o.emailAddress
+    ),
   choreographerName: (o) =>
     coalesceFieldAliases(o.choreographerName, o.virocChoreographerName),
   choreographerEmail: (o) =>
@@ -145,12 +160,35 @@ const FIELD_GETTERS: Record<string, (order: Order) => string | undefined> = {
     coalesceFieldAliases(o.sendingEightCountSheets, o.usingEightCountSheets),
   usingEightCountSheets: (o) =>
     coalesceFieldAliases(o.sendingEightCountSheets, o.usingEightCountSheets),
-  // Prefer own column so clear sticks; Magento helper only when unset.
+  // Prefer own column so clear sticks; Anthem/MB instrumentation aliases share SoT.
   songListSuggestions: (o) =>
-    coalesceFieldAliases(o.songListSuggestions, getFormSongListColumnText(o)),
-  powerMusicCovers: (o) => o.powerMusicCovers,
-  unleashTheBeatsCovers: (o) => coalesceFieldAliases(o.unleashTheBeatsCovers),
-  routineNotes: (o) => o.routineNotes,
+    coalesceFieldAliases(
+      o.songListSuggestions,
+      o.instrumentationNotes,
+      o.instrumentalStylePreference,
+      getFormSongListColumnText(o)
+    ),
+  powerMusicCovers: (o) => {
+    const direct = String(o.powerMusicCovers || "").trim();
+    if (direct) return direct;
+    // Lazy parse to avoid circular import with dance-song-covers at module init.
+    const packed = String(o.songListSuggestions || "").trim();
+    if (!/Power Music Covers:/i.test(packed)) return "";
+    const m = packed.match(
+      /Power Music Covers:\s*\n?([\s\S]*?)(?=\n\s*Unleash the Beats Covers:|$)/i
+    );
+    return (m?.[1] ?? "").trim();
+  },
+  unleashTheBeatsCovers: (o) => {
+    const direct = String(o.unleashTheBeatsCovers || "").trim();
+    if (direct) return direct;
+    const packed = String(o.songListSuggestions || "").trim();
+    if (!/Unleash the Beats Covers:/i.test(packed)) return "";
+    const m = packed.match(/Unleash the Beats Covers:\s*\n?([\s\S]*)$/i);
+    return (m?.[1] ?? "").trim();
+  },
+  routineNotes: (o) =>
+    coalesceFieldAliases(o.routineNotes, o.lyricalNotes, o.additionalNotes),
   couponCode: (o) => coalesceFieldAliases(o.couponCode),
   customVoiceovers: (o) => o.customVoiceovers,
   schoolGymAddress: (o) =>
@@ -212,10 +250,19 @@ const FIELD_GETTERS: Record<string, (order: Order) => string | undefined> = {
   additionalNotes: (o) =>
     coalesceFieldAliases(o.additionalNotes, o.routineNotes),
   instrumentationNotes: (o) =>
-    coalesceFieldAliases(o.instrumentationNotes, o.instrumentalStylePreference),
+    coalesceFieldAliases(
+      o.instrumentationNotes,
+      o.instrumentalStylePreference,
+      o.songListSuggestions
+    ),
   instrumentalStylePreference: (o) =>
-    coalesceFieldAliases(o.instrumentationNotes, o.instrumentalStylePreference),
-  lyricalNotes: (o) => coalesceFieldAliases(o.lyricalNotes),
+    coalesceFieldAliases(
+      o.instrumentalStylePreference,
+      o.instrumentationNotes,
+      o.songListSuggestions
+    ),
+  lyricalNotes: (o) =>
+    coalesceFieldAliases(o.lyricalNotes, o.routineNotes, o.additionalNotes),
   nicknames: (o) => coalesceFieldAliases(o.nicknames),
   vocalsPreference: (o) => coalesceFieldAliases(o.vocalsPreference),
 };

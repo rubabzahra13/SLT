@@ -364,11 +364,11 @@ def create_manual_schedule_entry(
         school_gym_name=school_gym_name,
         team_name=team_name,
         coach_email=data.get("coach_email") or data.get("email"),
-        youth_rec_extra_email_address=(
-            data.get("youth_rec_extra_email_address")
+        billing_person_email=(
+            data.get("billing_person_email")
+            or data.get("youth_rec_extra_email_address")
             or data.get("email_address")
-            if cheer_form_subtype == "youth-rec-cheer"
-            else None
+            or None
         ),
         package=(
             "SCHOOL ANTHEMS"

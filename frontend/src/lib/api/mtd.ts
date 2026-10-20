@@ -233,6 +233,8 @@ export interface CreateManualSchedulePayload {
   email?: string | null;
   coachEmail?: string | null;
   coach_email?: string | null;
+  billingPersonEmail?: string | null;
+  billing_person_email?: string | null;
   youthRecExtraEmailAddress?: string | null;
   youth_rec_extra_email_address?: string | null;
   emailAddress?: string | null;
@@ -305,13 +307,9 @@ export async function createManualScheduleEntryApi(
     contact_name: contact || null,
     email: payload.email || null,
     coach_email: payload.coachEmail || payload.coach_email || null,
-    youth_rec_extra_email_address:
-      payload.youthRecExtraEmailAddress ||
-      payload.youth_rec_extra_email_address ||
-      payload.emailAddress ||
-      payload.email_address ||
-      null,
-    email_address:
+    billing_person_email:
+      payload.billingPersonEmail ||
+      payload.billing_person_email ||
       payload.youthRecExtraEmailAddress ||
       payload.youth_rec_extra_email_address ||
       payload.emailAddress ||

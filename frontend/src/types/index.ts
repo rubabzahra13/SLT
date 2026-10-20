@@ -445,8 +445,9 @@ export type YouthRecCheerCustomerFields = {
   coachContactFullName: string;
   coachEmailAddress: string;
   coachPhone: string;
+  /** @deprecated alias of billingPersonEmail (Youth Rec Magento label). */
   youthRecExtraEmailAddress: string;
-  /** @deprecated alias of youthRecExtraEmailAddress */
+  /** @deprecated alias of billingPersonEmail */
   emailAddress: string;
   packageType: string;
   timeLengthOfMix: string;
@@ -859,8 +860,9 @@ export type Order = {
   organizationBillingAddress?: string;
   coachContactFullName?: string;
   coachEmailAddress?: string;
+  /** @deprecated alias of billingPersonEmail (Youth Rec Magento label). */
   youthRecExtraEmailAddress?: string;
-  /** @deprecated alias of youthRecExtraEmailAddress */
+  /** @deprecated alias of billingPersonEmail */
   emailAddress?: string;
   /** Shared cheer fields */
   sendingEightCountSheets?: string;

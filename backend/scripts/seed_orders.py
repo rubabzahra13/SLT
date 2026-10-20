@@ -215,7 +215,7 @@ def seed_all_orders():
                 country="United States",
                 coach_name=f"Coach Amanda {i}",
                 coach_email=f"amanda.rec{i}@example.com",
-                youth_rec_extra_email_address=f"amanda.rec{i}@example.com",
+                billing_person_email=f"amanda.rec{i}@example.com",
                 package_type=pkg,
                 package=pkg,
                 time_length_of_mix=time_len,

@@ -75,7 +75,7 @@ def main() -> None:
                 coach_name=f"Coach Jordan {i}",
                 coach_email=f"jordan.rec{i}@example.com",
                 coach_phone=f"555-040{i}",
-                youth_rec_extra_email_address=f"parent.rec{i}@example.com",
+                billing_person_email=f"parent.rec{i}@example.com",
                 package_type=row["package_type"],
                 package=row["package"],
                 time_length_of_mix=row["time_length_of_mix"],

@@ -1,6 +1,10 @@
 import type { MTDRecord, Order, OrderFormType } from "@/types";
 import { parsePackage } from "@/lib/package";
 import { hasMeaningfulFieldValue } from "@/lib/empty-field-tokens";
+import {
+  packDanceSongCovers,
+  parseDanceSongCovers,
+} from "@/lib/dance-song-covers";
 export type RequirementCategory = "collections" | "songs";
 export type RequirementState = "green" | "red" | "white";
 
@@ -258,16 +262,25 @@ export function getFormSongListText(
   };
 
   if (isDance) {
+    // Dance covers are packed in song_list_suggestions (Magento labels).
     return pick(
       o.powerMusicCovers,
       o.power_music_covers,
       o.unleashTheBeatsCovers,
-      o.unleash_the_beats_covers
+      o.unleash_the_beats_covers,
+      o.songListSuggestions,
+      o.song_list_suggestions
     );
   }
   if (isAnthem) {
-    // Magento "Instrumental Style Preference" → instrumentation_notes.
-    return pick(o.instrumentationNotes, o.instrumentation_notes);
+    // Magento "Instrumental Style Preference" → song_list_suggestions.
+    return pick(
+      o.songListSuggestions,
+      o.song_list_suggestions,
+      o.instrumentationNotes,
+      o.instrumentation_notes,
+      o.instrumentalStylePreference
+    );
   }
   if (isSports) {
     return pick(
@@ -278,8 +291,13 @@ export function getFormSongListText(
     );
   }
   if (isMarchingBand) {
-    // Band Chant Songs pill — instrumentation notes only (never lyrics notes).
-    return pick(o.instrumentationNotes, o.instrumentation_notes);
+    // Band Chant Songs pill — instrumentation → song_list_suggestions.
+    return pick(
+      o.songListSuggestions,
+      o.song_list_suggestions,
+      o.instrumentationNotes,
+      o.instrumentation_notes
+    );
   }
   // Cheer / All Star Cheer / default → Song list/suggestions only.
   return pick(o.songListSuggestions, o.song_list_suggestions);
@@ -333,21 +351,25 @@ export function getFormSongListColumnText(order: Order | MTDRecord): string {
  */
 export function getDanceSongsConfirmText(order: Order | MTDRecord): string {
   const o = order as Order & MTDRecord & Record<string, unknown>;
-  const power = String(o.powerMusicCovers || o.power_music_covers || "").trim();
-  const unleash = String(
+  let power = String(o.powerMusicCovers || o.power_music_covers || "").trim();
+  let unleash = String(
     o.unleashTheBeatsCovers || o.unleash_the_beats_covers || ""
   ).trim();
-  if (power && unleash) {
-    return `Power Music Covers:\n${power}\n\nUnleash the Beats Covers:\n${unleash}`;
+  if (!power && !unleash) {
+    const parsed = parseDanceSongCovers(
+      o.songListSuggestions || o.song_list_suggestions
+    );
+    power = parsed.power;
+    unleash = parsed.unleash;
   }
-  return power || unleash;
+  return packDanceSongCovers(power, unleash) || power || unleash;
 }
 
 /**
  * Marching Band package family for Songs/Notes SoT.
- * - band_chant → Song from instrumentation notes
- * - drum_cadence → Notes from instrumentation notes
- * - fight_alma → Notes from lyrical notes (Fight Song / Alma Mater Original + Plus)
+ * - band_chant → Song from song_list_suggestions (was instrumentation notes)
+ * - drum_cadence → Notes from song_list_suggestions (was instrumentation notes)
+ * - fight_alma → Notes from routine_notes (was lyrical notes)
  */
 export type MarchingBandPackageKind =
   | "band_chant"
@@ -402,16 +424,34 @@ export function getFormNotesText(order: Order | MTDRecord): string {
     formType.includes("anthem") || category.includes("anthem");
 
   if (isAnthem) {
-    // Magento "Lyrical Notes" → lyrical_notes.
-    return String(o.lyricalNotes || o.lyrical_notes || "").trim();
+    // Magento "Lyrical Notes" → routine_notes.
+    return String(
+      o.routineNotes ||
+        o.lyricalNotes ||
+        o.routine_notes ||
+        o.lyrical_notes ||
+        ""
+    ).trim();
   }
   if (isMarchingBandOrder(order)) {
     const kind = resolveMarchingBandPackageKind(order);
-    // Fight Song / Alma Mater Notes → lyrics. Drum Cadence (and unknown) → instrumentation.
+    // Fight Song / Alma Mater Notes → routine_notes. Drum Cadence → song_list.
     if (kind === "fight_alma") {
-      return String(o.lyricalNotes || o.lyrical_notes || "").trim();
+      return String(
+        o.routineNotes ||
+          o.lyricalNotes ||
+          o.routine_notes ||
+          o.lyrical_notes ||
+          ""
+      ).trim();
     }
-    return String(o.instrumentationNotes || o.instrumentation_notes || "").trim();
+    return String(
+      o.songListSuggestions ||
+        o.instrumentationNotes ||
+        o.song_list_suggestions ||
+        o.instrumentation_notes ||
+        ""
+    ).trim();
   }
   return String(
     o.routineNotes || o.additionalNotes || o.routine_notes || o.additional_notes || ""
@@ -833,8 +873,8 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
   }
 
   // 5. NOTES — green iff the form Notes field has content.
-  // School Anthem → lyricalNotes (Magento Lyrical Notes).
-  // Marching Band → instrumentationNotes (Drum Cadence) or lyricalNotes
+  // School Anthem → routine_notes (Magento Lyrical Notes).
+  // Marching Band → song_list (Drum Cadence) or routine_notes
   // (Fight Song / Alma Mater). Band Chant Notes is N/A.
   // Other forms → routineNotes / additionalNotes.
   // Ignore collectionStates — pill must match the form field exactly.

@@ -21,7 +21,7 @@ def _orm_to_aliased_dict(obj: TypingAny) -> dict:
     name = data.get("school_gym_name")
     billing = data.get("school_gym_billing_address")
     colors = data.get("colors")
-    youth_email = data.get("youth_rec_extra_email_address")
+    billing_email = data.get("billing_person_email")
 
     data["school_program_name"] = name
     data["program_name"] = name
@@ -36,16 +36,27 @@ def _orm_to_aliased_dict(obj: TypingAny) -> dict:
     data["team_colors"] = colors
     data["youth_rec_colors"] = colors
     data["school_program_colors"] = colors
-    data["email_address"] = youth_email
+    # Youth Rec Magento "Email Address" → billing_person_email SoT.
+    data["email_address"] = billing_email
+    data["youth_rec_extra_email_address"] = billing_email
     data["coach_contact_full_name"] = data.get("coach_name")
     data["coach_email_address"] = data.get("coach_email")
     data["viroc_choreographer_name"] = data.get("choreographer_name")
     data["viroc_choreographer_email"] = data.get("choreographer_email")
     data["editor_request"] = data.get("editor_initials")
     data["requested_producer"] = data.get("requested_editor")
-    # using_* → sending_*; style preference → instrumentation_notes
+    # using_* → sending_*; Anthem/MB/Dance notes aliases → song_list / routine
     data["using_eight_count_sheets"] = data.get("sending_eight_count_sheets")
-    data["instrumental_style_preference"] = data.get("instrumentation_notes")
+    song_list = data.get("song_list_suggestions")
+    routine = data.get("routine_notes")
+    data["instrumentation_notes"] = song_list
+    data["instrumental_style_preference"] = song_list
+    data["lyrical_notes"] = routine
+    from app.services.dance_song_covers import parse_dance_song_covers
+
+    power, unleash = parse_dance_song_covers(song_list)
+    data["power_music_covers"] = power or None
+    data["unleash_the_beats_covers"] = unleash or None
     data["legacy_id"] = str(data.get("id")) if data.get("id") is not None else None
     data["category"] = None
     return data

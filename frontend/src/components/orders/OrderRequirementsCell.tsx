@@ -18,6 +18,10 @@ import {
   type RequirementCategory,
 } from "@/lib/order-requirements";
 import { buildLegacyMusicTheme } from "@/lib/order-form";
+import {
+  packDanceSongCovers,
+  parseDanceSongCovers,
+} from "@/lib/dance-song-covers";
 import { hasMeaningfulFieldValue } from "@/lib/empty-field-tokens";
 import {
   mtdPatchFromOrderField,
@@ -235,22 +239,26 @@ function buildSongsNotesPatches(
     const marchingBand = isMarchingBandOrder(order);
     // On clear: wipe musicTheme completely. Do not leave affiliate/notes in theme —
     // Form song list / Songs pill fall back to musicTheme and would stay green.
-    // Cheer → songListSuggestions only. Dance Songs pill → Power Music Covers
-    // (Unleash the Beats Covers is its own column — preserve, do not mirror).
-    // School Anthem / MB Band Chant Song → instrumentationNotes.
-    // Dance Songs = Power Music OR Unleash. Clear must wipe both boxes so the
-    // pill cannot stay green from the untouched cover field.
-    const existingUnleash = String(
-      (order as Order).unleashTheBeatsCovers ||
-        (order as { unleash_the_beats_covers?: string })
-          .unleash_the_beats_covers ||
-        ""
-    ).trim();
+    // Cheer → songListSuggestions. Dance covers packed into song_list_suggestions.
+    // School Anthem / MB Band Chant Song → song_list_suggestions.
+    // Dance Songs = Power Music OR Unleash. Clear wipes both boxed covers.
+    let dancePower = "";
+    let danceUnleash = "";
+    let dancePacked = "";
+    if (dance) {
+      if (filled) {
+        const parsed = parseDanceSongCovers(text);
+        dancePower =
+          parsed.power || (!parsed.unleash ? text.trim() : "");
+        danceUnleash = parsed.unleash;
+        dancePacked = packDanceSongCovers(dancePower, danceUnleash);
+      }
+    }
     const nextTheme = filled
       ? dance
         ? buildLegacyMusicTheme({
             routineNotes: existingNotes,
-            powerMusicCovers: text,
+            powerMusicCovers: dancePower,
             musicAffiliate: affiliate || undefined,
           })
         : anthem || marchingBand
@@ -258,11 +266,13 @@ function buildSongsNotesPatches(
           : text
       : "";
     const orderPatch: Partial<Order> = {
-      songListSuggestions: dance || anthem || marchingBand ? "" : text,
-      powerMusicCovers: dance ? (filled ? text : "") : "",
-      // Clear: empty both. Fill via pill: write Power Music; leave Unleash as-is
-      // only when adding (filled) — never preserve Unleash on remove.
-      unleashTheBeatsCovers: dance ? (filled ? existingUnleash : "") : "",
+      songListSuggestions: dance
+        ? dancePacked
+        : anthem || marchingBand
+          ? ""
+          : text,
+      powerMusicCovers: dance ? dancePower : "",
+      unleashTheBeatsCovers: dance ? danceUnleash : "",
       // Keep notes explicit so normalizeOrder does not refill them from musicTheme.
       routineNotes: existingNotes,
       haveSongs: filled ? "HAVE SONGS" : "NEED SONGS",
@@ -273,7 +283,8 @@ function buildSongsNotesPatches(
       orderPatch.customerSongs = filled ? text : "";
     }
     if (anthem || marchingBand) {
-      // Song pill ↔ instrumentation notes (Anthem style / MB Band Chant).
+      // Song pill ↔ song_list_suggestions (Anthem style / MB Band Chant).
+      orderPatch.songListSuggestions = text;
       orderPatch.instrumentationNotes = text;
       if (anthem) {
         orderPatch.instrumentalStylePreference = text;
@@ -318,37 +329,44 @@ function buildSongsNotesPatches(
           powerMusicCovers: danceCovers,
           musicAffiliate: affiliate || undefined,
         });
-  // School Anthem Notes → lyricalNotes.
-  // MB Fight/Alma Notes → lyricalNotes; MB Drum Cadence Notes → instrumentation.
+  // School Anthem Notes → routine_notes (was lyricalNotes).
+  // MB Fight/Alma Notes → routine_notes; MB Drum Cadence Notes → song_list.
   let orderPatch: Partial<Order>;
   let mtdPatch: Partial<MTDRecord> & {
     lyricalNotes?: string;
     instrumentationNotes?: string;
+    songListSuggestions?: string;
   };
   if (anthem) {
     orderPatch = {
+      routineNotes: text,
       lyricalNotes: text,
       collectionStates: nextStates as Order["collectionStates"],
     };
     mtdPatch = {
+      routineNotes: text,
       lyricalNotes: text,
       collectionStates: nextStates as MTDRecord["collectionStates"],
     };
   } else if (marchingBand && mbKind === "fight_alma") {
     orderPatch = {
+      routineNotes: text,
       lyricalNotes: text,
       collectionStates: nextStates as Order["collectionStates"],
     };
     mtdPatch = {
+      routineNotes: text,
       lyricalNotes: text,
       collectionStates: nextStates as MTDRecord["collectionStates"],
     };
   } else if (marchingBand) {
     orderPatch = {
+      songListSuggestions: text,
       instrumentationNotes: text,
       collectionStates: nextStates as Order["collectionStates"],
     };
     mtdPatch = {
+      songListSuggestions: text,
       instrumentationNotes: text,
       collectionStates: nextStates as MTDRecord["collectionStates"],
     };

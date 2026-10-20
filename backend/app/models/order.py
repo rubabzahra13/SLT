@@ -58,9 +58,8 @@ class Order(Base):
     coach_name = Column(String, nullable=True)
     coach_phone = Column(String, nullable=True)
     coach_email = Column(String, nullable=True)
-    # Youth Rec Magento second email — distinct from coach_email.
-    youth_rec_extra_email_address = Column(String, nullable=True)
     billing_person_name = Column(String, nullable=True)
+    # Magento "Billing Person Email" / Youth Rec "Email Address" — one SoT.
     billing_person_email = Column(String, nullable=True)
     # choreographer_name / choreographer_email are SoT; Magento
     # "V!ROC Choreographer (full name/email)" are aliases.
@@ -77,10 +76,13 @@ class Order(Base):
     music_affiliate = Column(String, nullable=True)
     music_affiliate_selections = Column(Text, nullable=True)
     affiliate_flag_status = Column(String, nullable=True)
+    # Cheer Song List + Anthem style + MB instrumentation + Dance covers — one SoT.
+    # Dance Power/Unleash are packed with Magento labels in this column.
+    # instrumentation_notes / instrumental_style_preference /
+    # power_music_covers / unleash_the_beats_covers are API aliases.
     song_list_suggestions = Column(Text, nullable=True)
-    power_music_covers = Column(Text, nullable=True)
-    # Dance Magento "Unleash the Beats Covers" — not song_list_suggestions.
-    unleash_the_beats_covers = Column(Text, nullable=True)
+    # Routine Notes + Anthem Lyrical Notes + MB fight/alma notes — one SoT.
+    # lyrical_notes is a legacy API alias of the same value.
     routine_notes = Column(Text, nullable=True)
     music_theme = Column(Text, nullable=True)
     custom_voiceovers = Column(Text, nullable=True)
@@ -94,10 +96,6 @@ class Order(Base):
     have_songs = Column(String, nullable=True)
     style = Column(String, nullable=True)
     licensing_required = Column(String, nullable=True)
-    # Marching Band instrumentation notes / School Anthem style preference — one SoT.
-    # instrumental_style_preference is a legacy API alias of the same value.
-    instrumentation_notes = Column(Text, nullable=True)
-    lyrical_notes = Column(Text, nullable=True)
     is_rush_order = Column(String, nullable=True)
     # Sports Ent Magento client rush answer (not admin board Rush order).
     client_requested_rush_order = Column(String, nullable=True)
@@ -304,13 +302,67 @@ class Order(Base):
         self.sending_eight_count_sheets = value
 
     @property
+    def instrumentation_notes(self) -> Optional[str]:
+        """API alias — Anthem/MB instrumentation → song_list_suggestions."""
+        return self.song_list_suggestions
+
+    @instrumentation_notes.setter
+    def instrumentation_notes(self, value: Optional[str]) -> None:
+        self.song_list_suggestions = value
+
+    @property
     def instrumental_style_preference(self) -> Optional[str]:
-        """API alias — same stored value as instrumentation_notes."""
-        return self.instrumentation_notes
+        """API alias — School Anthem Magento label → song_list_suggestions."""
+        return self.song_list_suggestions
 
     @instrumental_style_preference.setter
     def instrumental_style_preference(self, value: Optional[str]) -> None:
-        self.instrumentation_notes = value
+        self.song_list_suggestions = value
+
+    @property
+    def power_music_covers(self) -> Optional[str]:
+        """API alias — Dance Magento box packed in song_list_suggestions."""
+        from app.services.dance_song_covers import parse_dance_song_covers
+
+        power, _ = parse_dance_song_covers(self.song_list_suggestions)
+        return power or None
+
+    @power_music_covers.setter
+    def power_music_covers(self, value: Optional[str]) -> None:
+        from app.services.dance_song_covers import (
+            pack_dance_song_covers,
+            parse_dance_song_covers,
+        )
+
+        _, unleash = parse_dance_song_covers(self.song_list_suggestions)
+        self.song_list_suggestions = pack_dance_song_covers(value, unleash) or None
+
+    @property
+    def unleash_the_beats_covers(self) -> Optional[str]:
+        """API alias — Dance Magento box packed in song_list_suggestions."""
+        from app.services.dance_song_covers import parse_dance_song_covers
+
+        _, unleash = parse_dance_song_covers(self.song_list_suggestions)
+        return unleash or None
+
+    @unleash_the_beats_covers.setter
+    def unleash_the_beats_covers(self, value: Optional[str]) -> None:
+        from app.services.dance_song_covers import (
+            pack_dance_song_covers,
+            parse_dance_song_covers,
+        )
+
+        power, _ = parse_dance_song_covers(self.song_list_suggestions)
+        self.song_list_suggestions = pack_dance_song_covers(power, value) or None
+
+    @property
+    def lyrical_notes(self) -> Optional[str]:
+        """API alias — Anthem/MB lyrical notes → routine_notes."""
+        return self.routine_notes
+
+    @lyrical_notes.setter
+    def lyrical_notes(self, value: Optional[str]) -> None:
+        self.routine_notes = value
 
     @property
     def requested_producer(self) -> Optional[str]:
@@ -340,9 +392,18 @@ class Order(Base):
 
     @property
     def email_address(self) -> Optional[str]:
-        """API alias — same stored value as youth_rec_extra_email_address."""
-        return self.youth_rec_extra_email_address
+        """API alias — Youth Rec Magento label; SoT is billing_person_email."""
+        return self.billing_person_email
 
     @email_address.setter
     def email_address(self, value: Optional[str]) -> None:
-        self.youth_rec_extra_email_address = value
+        self.billing_person_email = value
+
+    @property
+    def youth_rec_extra_email_address(self) -> Optional[str]:
+        """Deprecated API alias — same SoT as billing_person_email."""
+        return self.billing_person_email
+
+    @youth_rec_extra_email_address.setter
+    def youth_rec_extra_email_address(self, value: Optional[str]) -> None:
+        self.billing_person_email = value

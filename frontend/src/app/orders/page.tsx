@@ -1,7 +1,14 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { ArrowRight, Flag, Mail, Pencil, TriangleAlert } from "lucide-react";
 import clsx from "clsx";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -678,6 +685,65 @@ function OrdersPageContent() {
     () => countMTDByDanceSubtype(typeFilteredPreMtdRecords, orderById),
     [typeFilteredPreMtdRecords, orderById]
   );
+
+  // Default form is Cheer; demo/live boards often only have Dance/Anthem.
+  // Once per load (when URL doesn't pin ?form=), land on a form that has rows.
+  const didAutoSelectForm = useRef(false);
+  useEffect(() => {
+    if (didAutoSelectForm.current || isLoading) return;
+    if (formParam && validOrderForms.includes(formParam as OrderFormType)) {
+      didAutoSelectForm.current = true;
+      return;
+    }
+    if (typeFilteredPreMtdRecords.length === 0) return;
+    if ((formCounts[form] ?? 0) > 0) {
+      didAutoSelectForm.current = true;
+      return;
+    }
+    const nextForm = validOrderForms.find((id) => (formCounts[id] ?? 0) > 0);
+    if (!nextForm) {
+      didAutoSelectForm.current = true;
+      return;
+    }
+    switchForm(nextForm);
+    if (nextForm === "school-all-star-dance") {
+      const danceTabs: DanceFormSubtypeFilter[] = [
+        "pom",
+        "hip-hop",
+        "team-performance-variety",
+        "gameday",
+        "jazz-kick",
+      ];
+      const nextDance =
+        danceTabs.find((id) => (danceSubtypeCounts[id] ?? 0) > 0) ??
+        DEFAULT_DANCE_SUBTYPE;
+      setDanceSubtype(nextDance);
+    }
+    if (nextForm === "school-all-star-cheer") {
+      const cheerTabs: CheerFormSubtypeFilter[] = [
+        "all-star-cheer",
+        "school-cheer-viroc-yes",
+        "school-cheer-viroc-no",
+        "youth-rec-cheer",
+      ];
+      const nextCheer =
+        cheerTabs.find((id) => (cheerSubtypeCounts[id] ?? 0) > 0) ??
+        DEFAULT_CHEER_SUBTYPE;
+      setCheerSubtype(nextCheer);
+    }
+    didAutoSelectForm.current = true;
+  }, [
+    isLoading,
+    formParam,
+    typeFilteredPreMtdRecords.length,
+    formCounts,
+    form,
+    danceSubtypeCounts,
+    cheerSubtypeCounts,
+    switchForm,
+    setDanceSubtype,
+    setCheerSubtype,
+  ]);
 
   const tableFilterKey = [
     sourceFilter,

@@ -79,13 +79,23 @@ _COLOR_ALIASES = (
 
 _COACH_NAME_ALIASES = ("coach_contact_full_name",)
 _COACH_EMAIL_ALIASES = ("coach_email_address",)
-_YOUTH_REC_EMAIL_ALIASES = ("email_address",)
+# Youth Rec Magento "Email Address" → billing_person_email SoT.
+_BILLING_EMAIL_ALIASES = (
+    "email_address",
+    "youth_rec_extra_email_address",
+)
 _CHOREOGRAPHER_NAME_ALIASES = ("viroc_choreographer_name",)
 _CHOREOGRAPHER_EMAIL_ALIASES = ("viroc_choreographer_email",)
 _REQUESTED_EDITOR_ALIASES = ("requested_producer",)
 _EDITOR_INITIALS_ALIASES = ("editor_request",)
 _EIGHT_COUNT_SHEETS_ALIASES = ("using_eight_count_sheets",)
-_INSTRUMENTATION_NOTES_ALIASES = ("instrumental_style_preference",)
+# Anthem style / MB instrumentation → song_list_suggestions SoT.
+_SONG_LIST_ALIASES = (
+    "instrumentation_notes",
+    "instrumental_style_preference",
+)
+# Anthem lyrical / MB fight-alma notes → routine_notes SoT.
+_ROUTINE_NOTES_ALIASES = ("lyrical_notes",)
 
 
 def _coerce_alias_column(
@@ -141,10 +151,14 @@ def _coerce_coach_fields(data: dict, unset_ok: bool = False) -> None:
     _coerce_alias_column(
         data, "coach_email", _COACH_EMAIL_ALIASES, unset_ok=unset_ok
     )
+
+
+def _coerce_billing_person_email(data: dict, unset_ok: bool = False) -> None:
+    """Fold Youth Rec Email Address aliases into billing_person_email."""
     _coerce_alias_column(
         data,
-        "youth_rec_extra_email_address",
-        _YOUTH_REC_EMAIL_ALIASES,
+        "billing_person_email",
+        _BILLING_EMAIL_ALIASES,
         unset_ok=unset_ok,
     )
 
@@ -183,12 +197,55 @@ def _coerce_eight_count_sheets_fields(data: dict, unset_ok: bool = False) -> Non
     )
 
 
-def _coerce_instrumentation_notes_fields(data: dict, unset_ok: bool = False) -> None:
-    """Fold School Anthem style preference into instrumentation_notes."""
+def _coerce_song_list_fields(data: dict, unset_ok: bool = False) -> None:
+    """Fold Anthem/MB instrumentation aliases into song_list_suggestions."""
     _coerce_alias_column(
         data,
-        "instrumentation_notes",
-        _INSTRUMENTATION_NOTES_ALIASES,
+        "song_list_suggestions",
+        _SONG_LIST_ALIASES,
+        unset_ok=unset_ok,
+    )
+
+
+def _coerce_dance_cover_fields(data: dict, unset_ok: bool = False) -> None:
+    """Pack Dance Power/Unleash Magento boxes into song_list_suggestions."""
+    from app.services.dance_song_covers import (
+        pack_dance_song_covers,
+        parse_dance_song_covers,
+    )
+
+    power_defined = "power_music_covers" in data
+    unleash_defined = "unleash_the_beats_covers" in data
+    if not power_defined and not unleash_defined:
+        return
+
+    current_power, current_unleash = parse_dance_song_covers(
+        data.get("song_list_suggestions")
+    )
+    power = (
+        data.pop("power_music_covers")
+        if power_defined
+        else current_power
+    )
+    unleash = (
+        data.pop("unleash_the_beats_covers")
+        if unleash_defined
+        else current_unleash
+    )
+    # If song_list already has non-dance content and neither cover is set,
+    # leave it alone (cheer/anthem SoT).
+    packed = pack_dance_song_covers(power, unleash)
+    if packed or power_defined or unleash_defined:
+        if unset_ok or packed or power_defined or unleash_defined:
+            data["song_list_suggestions"] = packed or None
+
+
+def _coerce_routine_notes_fields(data: dict, unset_ok: bool = False) -> None:
+    """Fold Anthem/MB lyrical aliases into routine_notes."""
+    _coerce_alias_column(
+        data,
+        "routine_notes",
+        _ROUTINE_NOTES_ALIASES,
         unset_ok=unset_ok,
     )
 
@@ -392,11 +449,14 @@ def create_order(
     _coerce_billing_address(data)
     _coerce_colors(data)
     _coerce_coach_fields(data)
+    _coerce_billing_person_email(data)
     _coerce_choreographer_fields(data)
     _coerce_requested_editor_fields(data)
     _coerce_editor_initials_fields(data)
     _coerce_eight_count_sheets_fields(data)
-    _coerce_instrumentation_notes_fields(data)
+    _coerce_song_list_fields(data)
+    _coerce_dance_cover_fields(data)
+    _coerce_routine_notes_fields(data)
     _apply_school_anthem_defaults(data)
     # Response/API aliases only — never constructor kwargs on Order.
     for alias_only in (
@@ -404,12 +464,17 @@ def create_order(
         "coach_contact_full_name",
         "coach_email_address",
         "email_address",
+        "youth_rec_extra_email_address",
         "viroc_choreographer_name",
         "viroc_choreographer_email",
         "editor_request",
         "requested_producer",
         "using_eight_count_sheets",
         "instrumental_style_preference",
+        "instrumentation_notes",
+        "lyrical_notes",
+        "power_music_covers",
+        "unleash_the_beats_covers",
         "school_program_name",
         "program_name",
         "school_name",
@@ -465,11 +530,20 @@ def update_order(
     _coerce_billing_address(update_data, unset_ok=True)
     _coerce_colors(update_data, unset_ok=True)
     _coerce_coach_fields(update_data, unset_ok=True)
+    _coerce_billing_person_email(update_data, unset_ok=True)
     _coerce_choreographer_fields(update_data, unset_ok=True)
     _coerce_requested_editor_fields(update_data, unset_ok=True)
     _coerce_editor_initials_fields(update_data, unset_ok=True)
     _coerce_eight_count_sheets_fields(update_data, unset_ok=True)
-    _coerce_instrumentation_notes_fields(update_data, unset_ok=True)
+    _coerce_song_list_fields(update_data, unset_ok=True)
+    # Prefer existing packed covers when only one Dance box is patched.
+    if (
+        "power_music_covers" in update_data
+        or "unleash_the_beats_covers" in update_data
+    ) and "song_list_suggestions" not in update_data:
+        update_data["song_list_suggestions"] = order.song_list_suggestions
+    _coerce_dance_cover_fields(update_data, unset_ok=True)
+    _coerce_routine_notes_fields(update_data, unset_ok=True)
     _apply_school_anthem_defaults(
         update_data,
         form_type=update_data.get("form_type", order.form_type),

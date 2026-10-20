@@ -303,7 +303,8 @@ const YOUTH_REC_CHEER_FIELDS: { title: string; fields: FieldDef[] }[] = [
       },
       { key: "coachPhone", label: "Phone #" },
       {
-        key: "youthRecExtraEmailAddress",
+        // Magento label "Email Address" — SoT is billing_person_email.
+        key: "billingPersonEmail",
         label: "Email Address",
         preserveCase: true,
       },
@@ -883,14 +884,16 @@ const MARCHING_BAND_FIELDS: { title: string; fields: FieldDef[] }[] = [
         preserveCase: true,
       },
       {
-        key: "instrumentationNotes",
+        // Magento instrumentation notes → song_list_suggestions SoT.
+        key: "songListSuggestions",
         label: "Notes to Producer Regarding Instrumentation",
         multiline: true,
         preserveCase: true,
         wide: true,
       },
       {
-        key: "lyricalNotes",
+        // Magento lyrical notes → routine_notes SoT.
+        key: "routineNotes",
         label: "Notes to Producer Regarding Lyrics / Mix",
         multiline: true,
         preserveCase: true,
@@ -1019,12 +1022,14 @@ const SCHOOL_ANTHEMS_FIELDS: { title: string; fields: FieldDef[] }[] = [
     fields: [
       { key: "vocalsPreference", label: "Vocals Preference" },
       {
-        key: "instrumentationNotes",
+        // Magento "Instrumental Style Preference" → song_list_suggestions SoT.
+        key: "songListSuggestions",
         label: "Instrumental Style Preference",
         wide: true,
       },
       {
-        key: "lyricalNotes",
+        // Magento "Lyrical Notes" → routine_notes SoT.
+        key: "routineNotes",
         label: "Lyrical Notes",
         multiline: true,
         preserveCase: true,
