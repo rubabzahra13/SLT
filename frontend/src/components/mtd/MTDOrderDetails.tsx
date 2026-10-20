@@ -71,6 +71,10 @@ import {
   isAcceptableOrderEmailValue,
   isOrderEmailFieldKey,
 } from "@/lib/email-format";
+import {
+  isEmptyFieldToken,
+  placeholderFieldErrorMessage,
+} from "@/lib/empty-field-tokens";
 import clsx from "clsx";
 
 type MTDOrderDetailsProps = {
@@ -116,7 +120,7 @@ function FieldLabel({
         <p
           className={clsx(
             "text-[10px] font-bold uppercase leading-snug tracking-[0.06em]",
-            missing ? "text-red-600" : "text-brand-ink"
+            missing ? "text-[#901313]" : "text-brand-ink"
           )}
         >
           {shown}
@@ -135,7 +139,8 @@ function FieldLabel({
           ) : null}
           {missing ? (
             <span className="ml-1 font-semibold normal-case tracking-normal">
-              — required
+              {" "}
+              - required
             </span>
           ) : null}
         </p>
@@ -240,6 +245,11 @@ export function MTDOrderDetails({
                 isOrderEmailFieldKey(field.key) &&
                 Boolean(rawValue.trim()) &&
                 !isAcceptableOrderEmailValue(rawValue, field.key);
+              // Placeholder dictionary (none, N/A, TBD, …) — warn live, never block save.
+              const placeholderInvalid =
+                editable &&
+                Boolean(rawValue.trim()) &&
+                isEmptyFieldToken(rawValue, { fieldKey: field.key });
               // Add Order allowlist: only identity is required; don't spam "(optional)".
               const optional =
                 !requiredKeys && isOptionalOrderFormField(field.key, order);
@@ -874,12 +884,12 @@ export function MTDOrderDetails({
                       className={clsx("flex min-w-0 flex-col", spanClass)}
                     >
                       <FieldLabel
-                      label={field.label}
-                      optional={optional}
-                      requiredMark={requiredMark}
-                      missing={missing}
-                      provenance={fieldSources?.[field.key]}
-                    />
+                        label={field.label}
+                        optional={optional}
+                        requiredMark={requiredMark}
+                        missing={missing || placeholderInvalid}
+                        provenance={fieldSources?.[field.key]}
+                      />
                       <div className="mt-1">
                         {editable && onFieldChange ? (
                           <DetailInput
@@ -892,6 +902,11 @@ export function MTDOrderDetails({
                             onChange={(value) =>
                               onFieldChange(field.key, value)
                             }
+                            className={
+                              missing || placeholderInvalid
+                                ? "border-red-400 focus:border-red-500 focus:ring-red-200"
+                                : undefined
+                            }
                           />
                         ) : displayValue ? (
                           <p className="text-[13px] font-normal tabular-nums text-brand-ink">
@@ -902,6 +917,11 @@ export function MTDOrderDetails({
                             Not set
                           </p>
                         )}
+                        {editable && placeholderInvalid ? (
+                          <p className="mt-1 text-[11px] text-[#901313]">
+                            {placeholderFieldErrorMessage(rawValue)}
+                          </p>
+                        ) : null}
                       </div>
                     </div>
                   );
@@ -1010,7 +1030,8 @@ export function MTDOrderDetails({
               }
 
               const emailField = isOrderEmailFieldKey(field.key);
-              const inputInvalid = missing || emailInvalid;
+              const inputInvalid =
+                missing || emailInvalid || placeholderInvalid;
 
               return (
                 <div
@@ -1020,8 +1041,8 @@ export function MTDOrderDetails({
                   <FieldLabel
                     label={field.label}
                     optional={optional}
-                      requiredMark={requiredMark}
-                    missing={missing || emailInvalid}
+                    requiredMark={requiredMark}
+                    missing={missing || emailInvalid || placeholderInvalid}
                     provenance={fieldSources?.[field.key]}
                   />
                   <div className="mt-1">
@@ -1068,6 +1089,11 @@ export function MTDOrderDetails({
                     {editable && emailInvalid ? (
                       <p className="mt-1 text-[11px] text-[#901313]">
                         Enter a valid email
+                      </p>
+                    ) : null}
+                    {editable && !emailInvalid && placeholderInvalid ? (
+                      <p className="mt-1 text-[11px] text-[#901313]">
+                        {placeholderFieldErrorMessage(rawValue)}
                       </p>
                     ) : null}
                   </div>

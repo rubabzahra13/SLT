@@ -1280,10 +1280,6 @@ export function CompleteToPayrollModal({
                         </span>
                       )}
                     </label>
-
-                    <span className="text-[11px] text-brand-ink-tertiary">
-                      {clientPayroll.rateSource}
-                    </span>
                   </div>
 
                   <div className="flex items-center gap-2">

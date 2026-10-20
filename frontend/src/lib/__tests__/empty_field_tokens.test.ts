@@ -4,8 +4,12 @@ import {
   describeEmptyFieldToken,
   EMPTY_FIELD_TOKENS,
   hasMeaningfulFieldValue,
+  initialCollectionGreenDraft,
   isEmptyFieldToken,
+  placeholderFieldErrorMessage,
+  resolveCollectionPlaceholderOnFile,
 } from "../empty-field-tokens";
+import { getFormSongListStoredText } from "../order-requirements";
 import { getOrderRequirements } from "../order-requirements";
 import { getOrderFormFieldsBlockingMtd } from "../order-form-missing";
 import type { Order } from "@/types";
@@ -59,6 +63,45 @@ describe("empty-field-tokens", () => {
   it("describeEmptyFieldToken returns the raw placeholder for UI", () => {
     assert.equal(describeEmptyFieldToken("none"), "none");
     assert.equal(describeEmptyFieldToken("Real songs"), null);
+  });
+
+  it("placeholderFieldErrorMessage names the token", () => {
+    assert.match(placeholderFieldErrorMessage("none"), /none/);
+    assert.match(placeholderFieldErrorMessage("N/A"), /N\/A|placeholder/i);
+  });
+
+  it("initialCollectionGreenDraft never seeds placeholder text", () => {
+    assert.equal(initialCollectionGreenDraft("none"), "");
+    assert.equal(initialCollectionGreenDraft("N/A"), "");
+    assert.equal(initialCollectionGreenDraft("Real song list"), "");
+  });
+
+  it("resolveCollectionPlaceholderOnFile matches Songs/Notes/Mix confirm UI", () => {
+    assert.equal(resolveCollectionPlaceholderOnFile("none"), "none");
+    assert.equal(resolveCollectionPlaceholderOnFile("N/A"), "N/A");
+    assert.equal(resolveCollectionPlaceholderOnFile("Real lyrics"), null);
+    assert.equal(
+      resolveCollectionPlaceholderOnFile(
+        "Power Music Covers:\nnone\n\nUnleash the Beats Covers:\nnone"
+      ),
+      "none"
+    );
+    assert.equal(
+      resolveCollectionPlaceholderOnFile(
+        "Power Music Covers:\nFight Song\n\nUnleash the Beats Covers:\nnone"
+      ),
+      null
+    );
+  });
+
+  it("getFormSongListStoredText keeps School Anthem placeholder for Songs confirm", () => {
+    const order = {
+      formType: "school-anthem",
+      category: "School Anthem",
+      instrumentationNotes: "none",
+      lyricalNotes: "none",
+    } as Order;
+    assert.equal(getFormSongListStoredText(order), "none");
   });
 
   it("dictionary is non-empty and frozen-like", () => {

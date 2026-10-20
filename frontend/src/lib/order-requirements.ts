@@ -218,8 +218,15 @@ export function isAllStarDanceOrder(order: Order | MTDRecord): boolean {
  * School Anthem → Instrumental Style Preference (instrumentation_notes)
  * Marching Band → Notes to Producer Regarding Instrumentation
  * Never use musicTheme (often affiliate labels).
+ *
+ * @param opts.includePlaceholders When true, return sentinel tokens (none, N/A, …)
+ *   so the red→green collection modal can show the amber “placeholder on file” UI.
+ *   Default false — placeholders do not count as collected for the Songs pill.
  */
-export function getFormSongListText(order: Order | MTDRecord): string {
+export function getFormSongListText(
+  order: Order | MTDRecord,
+  opts?: { includePlaceholders?: boolean }
+): string {
   const o = order as Order & MTDRecord & Record<string, unknown>;
   const formType = String(o.formType || o.form_type || "").toLowerCase();
   const category = String(o.category || "").toLowerCase();
@@ -237,11 +244,13 @@ export function getFormSongListText(order: Order | MTDRecord): string {
     pkg.includes("CADENCE") ||
     pkg.includes("FIGHT SONG") ||
     pkg.includes("ALMA MATER");
+  const includePlaceholders = Boolean(opts?.includePlaceholders);
 
   const pick = (...vals: unknown[]) => {
     for (const raw of vals) {
       const text = String(raw ?? "").trim();
-      if (!isPresent(text)) continue;
+      if (!text) continue;
+      if (!includePlaceholders && !isPresent(text)) continue;
       if (isAffiliateOnlySongText(text)) continue;
       return text;
     }
@@ -274,6 +283,16 @@ export function getFormSongListText(order: Order | MTDRecord): string {
   }
   // Cheer / All Star Cheer / default → Song list/suggestions only.
   return pick(o.songListSuggestions, o.song_list_suggestions);
+}
+
+/**
+ * Songs SoT including placeholder tokens — for collection toggle confirm UI only.
+ * Does not green the Songs pill (use getFormSongListColumnText / isPresent for that).
+ */
+export function getFormSongListStoredText(order: Order | MTDRecord): string {
+  return getFormSongListText(order, { includePlaceholders: true })
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 /**

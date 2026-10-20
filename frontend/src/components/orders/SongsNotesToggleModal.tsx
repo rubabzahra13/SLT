@@ -4,8 +4,10 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Clock3, Music2, StickyNote } from "lucide-react";
 import {
-  describeEmptyFieldToken,
   hasMeaningfulFieldValue,
+  initialCollectionGreenDraft,
+  placeholderFieldErrorMessage,
+  resolveCollectionPlaceholderOnFile,
 } from "@/lib/empty-field-tokens";
 
 export type SongsNotesToggleKind = "songs" | "notes" | "mix";
@@ -42,7 +44,12 @@ export function SongsNotesToggleModal({
 
   useEffect(() => {
     if (!open) return;
-    setDraft(direction === "to_green" ? "" : currentText);
+    // Red→green: never prefill placeholder tokens (none, N/A, …) — blank draft.
+    setDraft(
+      direction === "to_green"
+        ? initialCollectionGreenDraft(currentText)
+        : currentText
+    );
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
@@ -63,7 +70,9 @@ export function SongsNotesToggleModal({
         : "Routine notes");
   const removing = direction === "to_red";
   const canConfirmGreen = hasMeaningfulFieldValue(draft);
-  const placeholderStored = describeEmptyFieldToken(currentText);
+  // Same amber UI for Songs / Notes / Mix on every category when a
+  // dictionary placeholder is on file (none, N/A, TBD, labeled Dance covers, …).
+  const placeholderStored = resolveCollectionPlaceholderOnFile(currentText);
 
   const title = removing
     ? isMix
@@ -188,7 +197,7 @@ export function SongsNotesToggleModal({
               />
               {draft.trim() && !canConfirmGreen ? (
                 <p className="mt-1.5 text-[11px] text-[#901313]">
-                  “{draft.trim()}” is a placeholder. Enter real content to continue.
+                  {placeholderFieldErrorMessage(draft)}
                 </p>
               ) : null}
             </div>

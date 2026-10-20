@@ -8,7 +8,7 @@ import { findLinkedOrder } from "@/lib/editor-assignment";
 import {
   getDanceSongsConfirmText,
   getFormNotesText,
-  getFormSongListColumnText,
+  getFormSongListStoredText,
   getOrderRequirements,
   isAllStarDanceOrder,
   isMarchingBandOrder,
@@ -475,11 +475,13 @@ export function OrderRequirementsCell({
     if (item.id === "songs" || item.id === "notes") {
       const direction: SongsNotesToggleDirection =
         item.state === "green" ? "to_red" : "to_green";
+      // Include placeholder tokens (none, N/A, …) so the amber
+      // “Placeholder on file” panel shows for Songs/Notes on every category.
       const currentText =
         item.id === "songs"
           ? isAllStarDanceOrder(requirementsRecord)
             ? getDanceSongsConfirmText(requirementsRecord)
-            : getFormSongListColumnText(requirementsRecord)
+            : getFormSongListStoredText(requirementsRecord)
           : getFormNotesText(requirementsRecord);
       setConfirm({
         kind: item.id,
