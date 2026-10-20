@@ -67,6 +67,7 @@ import {
   rushFeeAddonForRecord,
   rushFeeAddonsForRecord,
   sportsEntertainmentIncludedRushCompensation,
+  sportsEntertainmentIncludedRushFeeAmount,
 } from "@/lib/rush-fee";
 import { HoverTip } from "@/components/ui/HoverTip";
 import {
@@ -457,6 +458,16 @@ export default function PayrollPage() {
       const rateIsManual = order?.rateSource === "manual_override";
       const selectedRate = rateIsManual ? order?.rateUsed ?? null : null;
 
+      const seRushFee =
+        meta.formType === "sports-entertainment"
+          ? sportsEntertainmentIncludedRushFeeAmount({
+              isRush: payrollRowIsRushOrder(rec, order),
+              formType: meta.formType,
+              category: order?.category || rec.category,
+              finalCustomerPrice: custPrice,
+              finalPayrollPrice: payrollPrice,
+            })
+          : 0;
       const calc = computeClientPayroll(
         producerObj,
         custPrice,
@@ -466,15 +477,17 @@ export default function PayrollPage() {
         meta.canonicalSubtypeId,
         payrollPrice,
         {
-          // Package payout only. Rush compensation is added once below.
+          // Package (+ SE Magento rush × rushFeeRate). Cheer Rushby added below.
           rushFeeQuantity: 0,
           includeRushFeeInPayout: false,
+          sportsEntertainmentRushFee: seRushFee,
           danceVoiceover: null,
           hasTraditionalVoiceover: false,
           hasThemedVoiceover: false,
           cheerVoiceover20: false,
           cheerVoiceover40: false,
           formType: meta.formType,
+          rushFeeCompensationRate: producerObj?.rushFeeRate ?? 1.0,
         }
       );
       const base = calc.producerPayout ?? order?.producerPayout ?? 0;
@@ -1084,6 +1097,16 @@ export default function PayrollPage() {
           const rateIsManual = order?.rateSource === "manual_override";
           const selectedRate = rateIsManual ? order?.rateUsed ?? null : null;
 
+          const seRushFee =
+            meta.formType === "sports-entertainment"
+              ? sportsEntertainmentIncludedRushFeeAmount({
+                  isRush: payrollRowIsRushOrder(rec, order),
+                  formType: meta.formType,
+                  category: order?.category || rec.category,
+                  finalCustomerPrice: custPrice,
+                  finalPayrollPrice: payrollPrice,
+                })
+              : 0;
           const calculated = computeClientPayroll(
             producerObj,
             custPrice,
@@ -1093,9 +1116,11 @@ export default function PayrollPage() {
             meta.canonicalSubtypeId,
             payrollPrice,
             {
-              // Package payout only. Rush compensation is added once below.
+              // Package (+ SE Magento rush × rushFeeRate). Cheer Rushby below.
               rushFeeQuantity: 0,
               includeRushFeeInPayout: false,
+              sportsEntertainmentRushFee: seRushFee,
+              rushFeeCompensationRate: producerObj?.rushFeeRate ?? 1.0,
               danceVoiceover: null,
               hasTraditionalVoiceover: false,
               hasThemedVoiceover: false,
@@ -1209,31 +1234,13 @@ export default function PayrollPage() {
             rec.assignedProducer,
             producers
           );
-          const rateIsManual = order?.rateSource === "manual_override";
-          const selectedRate = rateIsManual ? order?.rateUsed ?? null : null;
-          const calculated = computeClientPayroll(
-            producerObj,
-            custPrice,
-            null,
-            selectedRate,
-            rec.manualPayoutInput ?? null,
-            meta.canonicalSubtypeId,
-            payrollPrice,
-            {
-              rushFeeQuantity: 0,
-              includeRushFeeInPayout: false,
-              formType: meta.formType,
-            }
-          );
-          const packageRate =
-            order?.rateUsed ?? calculated.rateUsed ?? producerObj?.defaultRate ?? null;
           const seIncluded = sportsEntertainmentIncludedRushCompensation({
             isRush,
             formType: meta.formType,
             category: order?.category || rec.category,
             finalCustomerPrice: custPrice,
             finalPayrollPrice: payrollPrice,
-            packageRate,
+            rushFeeRate: producerObj?.rushFeeRate ?? null,
           });
 
           if (!isRush) {

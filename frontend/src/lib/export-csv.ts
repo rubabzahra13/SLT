@@ -16,6 +16,7 @@ import {
   finalizeMixPayout,
   resolveRushFeeSelection,
   rushFeeAddonForRecord,
+  sportsEntertainmentIncludedRushFeeAmount,
 } from "./rush-fee";
 
 import { inferMTDRecordStatus } from "./mtd-status";
@@ -334,8 +335,18 @@ export function generatePayrollCsv(
       addon: rushFeeAddonForRecord(rec.id, rec.orderId, payrollAddons),
     });
 
-    // Mix editor CSV rows: package + rush compensation once. VO addons are
-    // listed separately so they attribute to the VO producer.
+    // Mix editor CSV rows: package (+ SE Magento rush × rushFeeRate). Cheer
+    // Rushby and VO addons are listed separately.
+    const seRushFee =
+      meta.formType === "sports-entertainment"
+        ? sportsEntertainmentIncludedRushFeeAmount({
+            isRush: payrollRowIsRushOrder(rec, linked),
+            formType: meta.formType,
+            category: linked?.category || rec.category,
+            finalCustomerPrice: custPrice,
+            finalPayrollPrice: payrollPrice,
+          })
+        : 0;
     const calc = computeClientPayroll(
       producerObj,
       custPrice,
@@ -347,6 +358,8 @@ export function generatePayrollCsv(
       {
         rushFeeQuantity: 0,
         includeRushFeeInPayout: false,
+        sportsEntertainmentRushFee: seRushFee,
+        rushFeeCompensationRate: producerObj?.rushFeeRate ?? 1.0,
         danceVoiceover: null,
         hasTraditionalVoiceover: false,
         hasThemedVoiceover: false,
@@ -658,8 +671,18 @@ export function getProducerFacingPayrollRows(
       addon: rowRushAddon,
     });
 
-    // Mix editor rows: package + rush compensation once. Voiceovers pay the
-    // VO producer separately and never inflate mix-editor payout.
+    // Mix editor rows: package (+ SE Magento rush × rushFeeRate). Cheer Rushby
+    // and VO pay separately.
+    const seRushFee =
+      meta.formType === "sports-entertainment"
+        ? sportsEntertainmentIncludedRushFeeAmount({
+            isRush: payrollRowIsRushOrder(rec, linked),
+            formType: meta.formType,
+            category: linked?.category || rec.category,
+            finalCustomerPrice: custPrice,
+            finalPayrollPrice: payrollPrice,
+          })
+        : 0;
     const calc = computeClientPayroll(
       producerObj,
       custPrice,
@@ -671,6 +694,8 @@ export function getProducerFacingPayrollRows(
       {
         rushFeeQuantity: 0,
         includeRushFeeInPayout: false,
+        sportsEntertainmentRushFee: seRushFee,
+        rushFeeCompensationRate: producerObj?.rushFeeRate ?? 1.0,
         danceVoiceover: null,
         hasTraditionalVoiceover: false,
         hasThemedVoiceover: false,

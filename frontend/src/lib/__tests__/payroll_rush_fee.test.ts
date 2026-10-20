@@ -234,15 +234,15 @@ describe("Sports Entertainment included Magento rush (Payroll display)", () => {
     );
   });
 
-  it("shows $55 when fee is $100 and package rate is 55%", () => {
+  it("shows $40 when fee is $100 and rush fee rate is 40% (not category %)", () => {
     const shown = sportsEntertainmentIncludedRushCompensation({
       isRush: true,
       formType: "sports-entertainment",
       finalCustomerPrice: 150,
       finalPayrollPrice: 250,
-      packageRate: 0.55,
+      rushFeeRate: 0.4,
     });
-    assert.deepEqual(shown, { feeAmount: 100, rate: 0.55, compensation: 55 });
+    assert.deepEqual(shown, { feeAmount: 100, rate: 0.4, compensation: 40 });
   });
 
   it("returns null when Rush Order is No or form is not Sports Entertainment", () => {
@@ -250,7 +250,7 @@ describe("Sports Entertainment included Magento rush (Payroll display)", () => {
       sportsEntertainmentIncludedRushCompensation({
         isRush: false,
         formType: "sports-entertainment",
-        packageRate: 0.55,
+        rushFeeRate: 0.4,
       }),
       null
     );
@@ -258,18 +258,18 @@ describe("Sports Entertainment included Magento rush (Payroll display)", () => {
       sportsEntertainmentIncludedRushCompensation({
         isRush: true,
         formType: "school-all-star-cheer",
-        packageRate: 0.55,
+        rushFeeRate: 0.4,
       }),
       null
     );
   });
 
-  it("returns null when package rate is unset (avoids fake $0 from missing rate)", () => {
+  it("returns null when rush fee rate is unset (avoids fake $0 from missing rate)", () => {
     assert.equal(
       sportsEntertainmentIncludedRushCompensation({
         isRush: true,
         formType: "sports-entertainment",
-        packageRate: null,
+        rushFeeRate: null,
       }),
       null
     );

@@ -44,6 +44,7 @@ import {
 import type { MTDRecord, Order, Producer } from "@/types";
 import { SetPricingModal } from "@/components/mtd/SetPricingModal";
 import { payrollRowIsRushOrder } from "@/lib/forward-order-mail";
+import { sportsEntertainmentIncludedRushFeeAmount } from "@/lib/rush-fee";
 import clsx from "clsx";
 
 /**
@@ -654,8 +655,8 @@ export function CompleteToPayrollModal({
     breakdown?.form_type === "sports-entertainment" ||
     linkedOrder?.formType === "sports-entertainment" ||
     String(record.category || "").toLowerCase().includes("sports");
-  // Cheer/Dance admin rush uses $150×qty. SE Magento rush ($100) is already
-  // inside payroll base — do not treat it as a $150 compensation quantity.
+  // Cheer/Dance admin rush uses $150×qty (Rushby on Payroll). SE Magento $100
+  // stays in payroll base and is paid at producer.rushFeeRate separately.
   const rushQty = isSportsEntertainmentComplete
     ? 0
     : typeof record.rushFeeQuantity === "number"
@@ -666,6 +667,15 @@ export function CompleteToPayrollModal({
           ? 1
           : 0;
 
+  const seRushFee = isSportsEntertainmentComplete
+    ? sportsEntertainmentIncludedRushFeeAmount({
+        isRush: isRushOrderTag,
+        formType: "sports-entertainment",
+        finalCustomerPrice: finalCustomerPriceNum,
+        finalPayrollPrice: finalPayrollPriceNum,
+      })
+    : 0;
+
   const clientPayroll = computeClientPayroll(
     assignedProducerObj,
     finalCustomerPriceNum,
@@ -675,11 +685,16 @@ export function CompleteToPayrollModal({
     breakdown?.canonical_subtype_id,
     finalPayrollPriceNum,
     {
-      // Keep rush qty so package % excludes the customer rush charge, but do
-      // not fold rush compensation into this payout — that lands on Payroll.
+      // Cheer Rushby qty: strip $150×qty from package base; compensation stays
+      // on Payroll (includeRushFeeInPayout false). SE Magento $100 uses
+      // sportsEntertainmentRushFee × rushFeeRate inside this payout.
       rushFeeQuantity: rushQty,
-      rushFeeCompensationRate: record.rushFeeCompensationRate ?? assignedProducerObj?.rushFeeRate ?? 1.0,
+      rushFeeCompensationRate:
+        record.rushFeeCompensationRate ??
+        assignedProducerObj?.rushFeeRate ??
+        1.0,
       includeRushFeeInPayout: false,
+      sportsEntertainmentRushFee: seRushFee,
       formType: breakdown?.form_type,
     }
   );

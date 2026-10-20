@@ -65,6 +65,12 @@ export function estimateRecordProducerPayoutDetail(
   const payrollPrice = live.payrollPrice;
   const dailyCostSettings = loadDailyCostSettings();
 
+  const isSportsEntertainment = meta.formType === "sports-entertainment";
+  const seRushYes =
+    isSportsEntertainment &&
+    (String(order?.clientRequestedRushOrder || "").toLowerCase() === "yes" ||
+      String(rec.isRushOrder || "").toLowerCase() === "yes" ||
+      rec.isRushOrder === true);
   const calc = computeClientPayroll(
     producer,
     packagePrice ?? 0,
@@ -74,9 +80,11 @@ export function estimateRecordProducerPayoutDetail(
     meta.canonicalSubtypeId,
     payrollPrice,
     {
-      rushFeeQuantity: rushFeeQuantity(rec),
+      // SE Magento rush is $100 × rushFeeRate — not Cheer $150×qty.
+      rushFeeQuantity: isSportsEntertainment ? 0 : rushFeeQuantity(rec),
       rushFeeCompensationRate:
         rec.rushFeeCompensationRate ?? producer?.rushFeeRate ?? 1.0,
+      sportsEntertainmentRushFee: seRushYes ? 100 : 0,
       danceVoiceover: rec.danceVoiceover,
       hasTraditionalVoiceover: rec.hasTraditionalVoiceover,
       hasThemedVoiceover: rec.hasThemedVoiceover,

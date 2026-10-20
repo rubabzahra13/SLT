@@ -83,11 +83,19 @@ export type PayrollOptions = {
   rushFeeQuantity?: number;
   rushFeeCompensationRate?: number | null;
   /**
-   * When false, rush qty still strips the customer rush charge from the
-   * package base before % is applied, but rush compensation is not added to
-   * producerPayout (carry rush to Payroll instead). Default true.
+   * When false, Cheer/Dance $150×qty rush still strips the customer rush
+   * charge from the package base before % is applied, but that rush
+   * compensation is not added to producerPayout (carry to Payroll Rushby).
+   * Default true.
    */
   includeRushFeeInPayout?: boolean;
+  /**
+   * Sports Entertainment Magento rush dollars already inside payroll base
+   * ($100 when Rush Order Yes). Subtracted before category %, then multiplied
+   * by producer.rushFeeRate and always included in producerPayout.
+   * Not the Cheer/Dance $150 Rushby add-on.
+   */
+  sportsEntertainmentRushFee?: number;
   danceVoiceover?: "25" | "75" | "100" | null;
   hasTraditionalVoiceover?: boolean;
   hasThemedVoiceover?: boolean;
@@ -208,15 +216,32 @@ export function computeClientPayroll(
     };
   }
 
-  // Calculate Rush Fee payout (optional in total — see includeRushFeeInPayout)
+  // Cheer/Dance admin Rushby: $150 × qty × rushFeeRate (optional in total).
   const rushQty = options?.rushFeeQuantity ?? 0;
   const rushCustomerCharge = rushQty * 150;
   const rawRushRate = options?.rushFeeCompensationRate ?? producer.rushFeeRate ?? 1.0;
   const rushFeeRateUsed = rawRushRate > 1 ? rawRushRate / 100 : rawRushRate;
-  const rushFeePayoutComputed =
+  const cheerRushFeePayoutComputed =
     Math.round(150 * rushQty * rushFeeRateUsed * 100) / 100;
   const includeRushFeeInPayout = options?.includeRushFeeInPayout !== false;
-  const rushFeePayout = includeRushFeeInPayout ? rushFeePayoutComputed : 0;
+  const cheerRushFeePayout = includeRushFeeInPayout
+    ? cheerRushFeePayoutComputed
+    : 0;
+
+  // Sports Entertainment Magento rush: flat $100 inside payroll base, paid at
+  // rushFeeRate — never Cheer $150 and never category % on the combined total.
+  const isSportsEntertainment =
+    options?.formType === "sports-entertainment";
+  const seRushFee = isSportsEntertainment
+    ? Math.max(0, Number(options?.sportsEntertainmentRushFee) || 0)
+    : 0;
+  const seRushFeePayout =
+    seRushFee > 0
+      ? Math.round(seRushFee * rushFeeRateUsed * 100) / 100
+      : 0;
+  const rushFeePayoutComputed =
+    seRushFee > 0 ? seRushFeePayout : cheerRushFeePayoutComputed;
+  const rushFeePayout = seRushFee > 0 ? seRushFeePayout : cheerRushFeePayout;
 
   // Calculate Voiceover payout based on producer's specific VO rates
   let voiceoverPayout = 0;
@@ -256,8 +281,12 @@ export function computeClientPayroll(
     voiceoverPayout = Math.round(voBase * voiceoverRateUsed * 100) / 100;
   }
 
-  // Base Package Payroll Amount (subtracting customer rush fee charge to avoid double counting)
-  const basePackagePayrollPrice = Math.max(0, payrollBase - rushCustomerCharge);
+  // Package payroll base excludes Cheer $150×qty and/or SE Magento $100 rush
+  // so category % applies only to the package component.
+  const basePackagePayrollPrice = Math.max(
+    0,
+    payrollBase - rushCustomerCharge - seRushFee
+  );
 
   // Determine initial category rate if none selected
   let defaultRate: number | null = selectedRate;

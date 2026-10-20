@@ -71,6 +71,27 @@ SPORTS_ENT_DEMO = [
         "song_list_suggestions": "Specify full song list in notes — custom length show open.",
         "routine_notes": "Other package — quote via email. Need under 7 days.",
     },
+    # Normal Magento form (not manual): OTHER package + Rush Yes.
+    {
+        "legacy_id": "demo-se-form-other-rush",
+        "school_program_name": "Metro Arena Sports Entertainment",
+        "package_type": "OTHER - SPECIFY IN NOTES SECTION OF THE ORDER FORM",
+        "package": "OTHER - SPECIFY IN NOTES SECTION OF THE ORDER FORM",
+        "time_length_of_mix": "3:15",
+        "is_rush_order": "Yes",
+        "client_requested_rush_order": "Yes",
+        "song_list_suggestions": (
+            "1) Walk-out anthem remix\n"
+            "2) Goal horn bed with crowd swell\n"
+            "3) Timeout stinger pack"
+        ),
+        "routine_notes": (
+            "OTHER package — specify in notes: need a custom 3:15 "
+            "arena entertainment suite (walk-out + timeout + goal cue). "
+            "Quote via email. Rush under 7 days."
+        ),
+        "is_manual_entry": False,
+    },
 ]
 
 
@@ -87,7 +108,9 @@ def main() -> None:
                 continue
 
             due = (date.today() + timedelta(days=14 + i)).isoformat()
-            is_tbd = "OTHER" in row["package_type"]
+            is_tbd = "OTHER" in row["package_type"].upper()
+            rush = row["is_rush_order"]
+            client_rush = row.get("client_requested_rush_order", rush)
             order = Order(
                 id=order_pk,
                 form_type="sports-entertainment",
@@ -106,7 +129,9 @@ def main() -> None:
                 package=row["package"],
                 time_length_of_mix=row["time_length_of_mix"],
                 mix_end_date=due,
-                is_rush_order=row["is_rush_order"],
+                client_requested_mix_due_date=due,
+                is_rush_order=rush,
+                client_requested_rush_order=client_rush,
                 song_list_suggestions=row["song_list_suggestions"],
                 routine_notes=row["routine_notes"],
                 music_affiliate=None,
@@ -120,6 +145,8 @@ def main() -> None:
                 needs_attention=is_tbd,
                 attention_reason="TBD / Manual Pricing Required" if is_tbd else None,
                 is_past_order=False,
+                # Default Magento form row (not admin Add Order).
+                is_manual_entry=bool(row.get("is_manual_entry", False)),
             )
             db.add(order)
             created += 1

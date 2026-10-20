@@ -318,8 +318,8 @@ export function sportsEntertainmentIncludedRushFeeAmount(input: {
 }
 
 /**
- * Informational SE rush compensation already inside producer payout
- * (package % × Magento $100). Not a Rushby add-on — do not add again.
+ * Informational SE Magento rush compensation already inside producer payout
+ * ($100 × producer rushFeeRate). Not a Rushby add-on — do not add again.
  */
 export function sportsEntertainmentIncludedRushCompensation(input: {
   isRush: boolean;
@@ -327,12 +327,19 @@ export function sportsEntertainmentIncludedRushCompensation(input: {
   category?: string | null;
   finalCustomerPrice?: number | null;
   finalPayrollPrice?: number | null;
-  /** Package compensation fraction or percent used for the mix payout. */
+  /**
+   * Producer rush fee compensation fraction or percent (producer.rushFeeRate).
+   * Not the Sports Entertainment category package rate.
+   */
+  rushFeeRate?: number | null;
+  /** @deprecated Use rushFeeRate — kept for older call sites. */
   packageRate?: number | null;
 }): SportsEntertainmentIncludedRush | null {
   const feeAmount = sportsEntertainmentIncludedRushFeeAmount(input);
   if (feeAmount <= 0) return null;
-  const rate = normalizeCompensationFraction(input.packageRate);
+  const rate = normalizeCompensationFraction(
+    input.rushFeeRate ?? input.packageRate
+  );
   if (rate == null) return null;
   return {
     feeAmount,
