@@ -19,8 +19,9 @@ import { LogOut } from "lucide-react";
 import { useSidebar } from "@/context/SidebarContext";
 import { useAppState } from "@/context/AppStateContext";
 import { useAuth } from "@/context/AuthContext";
-import { getInProgressCount, isMTDRecord, isPreMTDOrderRecord } from "@/lib/mtd-filters";
-import { getPayrollRecords } from "@/lib/mtd-completion";
+import { isMTDRecord } from "@/lib/mtd-filters";
+import { getMTDBoardRecords, getPayrollRecords } from "@/lib/mtd-completion";
+import { listPreMtdOrderRecords } from "@/lib/order-staging";
 import { BrandMonogram } from "@/components/layout/BrandMonogram";
 import { HoverTip } from "@/components/ui/HoverTip";
 import { DottedScroll } from "@/components/ui/DottedScroll";
@@ -46,7 +47,7 @@ const baseNavItems: NavItem[] = [
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { mtdRecords } = useAppState();
+  const { activeOrders, mtdRecords } = useAppState();
   const { user, logout } = useAuth();
   const { expanded, toggleExpanded, setExpanded, mobileOpen, setMobileOpen } =
     useSidebar();
@@ -57,19 +58,16 @@ export function Sidebar() {
     access_level: "Full Access",
   };
 
+  // Same universe as the Orders tab board (all categories, form + manual).
   const ordersCount = useMemo(
-    () => mtdRecords.filter(isPreMTDOrderRecord).length,
-    [mtdRecords]
+    () => listPreMtdOrderRecords(activeOrders, mtdRecords).length,
+    [activeOrders, mtdRecords]
   );
 
-  const mtdTabRecords = useMemo(
-    () => mtdRecords.filter(isMTDRecord),
+  // Same universe as the MTD tab board (all categories / statuses on MTD).
+  const mtdCount = useMemo(
+    () => getMTDBoardRecords(mtdRecords).filter(isMTDRecord).length,
     [mtdRecords]
-  );
-
-  const inProgressCount = useMemo(
-    () => getInProgressCount(mtdTabRecords),
-    [mtdTabRecords]
   );
 
   const payrollCount = useMemo(
@@ -89,7 +87,7 @@ export function Sidebar() {
         if (item.href === "/mtd") {
           return {
             ...item,
-            badge: inProgressCount > 0 ? inProgressCount : undefined,
+            badge: mtdCount > 0 ? mtdCount : undefined,
           };
         }
         if (item.href === "/payroll") {
@@ -100,7 +98,7 @@ export function Sidebar() {
         }
         return item;
       }),
-    [ordersCount, inProgressCount, payrollCount]
+    [ordersCount, mtdCount, payrollCount]
   );
 
   const showExpanded = expanded || mobileOpen;

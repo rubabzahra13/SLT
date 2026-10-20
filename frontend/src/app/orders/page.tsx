@@ -94,6 +94,7 @@ import {
   filterMTDRecords,
   getRecordMusicAffiliateInfo,
   isOrderScheduledAndAssigned,
+  matchesFormFilter,
   matchesMTDSearch,
   resolveMTDFormMeta,
   sortMTDRecordsBySortKey,
@@ -369,83 +370,120 @@ function OrdersPageContent() {
     [sourceFilteredRecords, orderById]
   );
 
-  const allOrdersCount = useMemo(() => boardRecords.length, [boardRecords]);
+  // Source → category → subcategory. Range toggles and the table share this pool.
+  const categoryFilteredBoard = useMemo(
+    () =>
+      boardRecords.filter((rec) =>
+        matchesFormFilter(rec, orderById, form, cheerSubtype, danceSubtype)
+      ),
+    [boardRecords, orderById, form, cheerSubtype, danceSubtype]
+  );
+
+  const categoryFilteredFlagged = useMemo(
+    () =>
+      flaggedRecords.filter((rec) =>
+        matchesFormFilter(rec, orderById, form, cheerSubtype, danceSubtype)
+      ),
+    [flaggedRecords, orderById, form, cheerSubtype, danceSubtype]
+  );
+
+  const allOrdersCount = useMemo(
+    () => categoryFilteredBoard.length,
+    [categoryFilteredBoard]
+  );
 
   const needToBeScheduledCount = useMemo(
     () =>
-      boardRecords.filter((r) => {
+      categoryFilteredBoard.filter((r) => {
         if (r.isReassigned) return false;
         if (getOrderRequirements(r).missingCount > 0) return false;
         // Complete data = ready to assign (no producer yet)
         return getOrderAssignmentStatus(r) !== "assigned";
       }).length,
-    [boardRecords]
+    [categoryFilteredBoard]
   );
 
   const newOrdersCount = needToBeScheduledCount;
 
   const assignedOrdersCount = useMemo(
     () =>
-      boardRecords.filter((r) => getOrderAssignmentStatus(r) === "assigned")
-        .length,
-    [boardRecords]
+      categoryFilteredBoard.filter(
+        (r) => getOrderAssignmentStatus(r) === "assigned"
+      ).length,
+    [categoryFilteredBoard]
   );
 
   const notAssignedOrdersCount = useMemo(
     () =>
-      boardRecords.filter(
+      categoryFilteredBoard.filter(
         (r) => getOrderAssignmentStatus(r) === "not_assigned"
       ).length,
-    [boardRecords]
+    [categoryFilteredBoard]
   );
 
   const reassignedOrdersCount = useMemo(
     () =>
-      boardRecords.filter((r) => {
+      categoryFilteredBoard.filter((r) => {
         const status = getOrderAssignmentStatus(r);
         return status === "reassign_leave" || status === "reassign_rush";
       }).length,
-    [boardRecords]
+    [categoryFilteredBoard]
   );
 
   const waitingForDataCount = useMemo(
     () =>
-      boardRecords.filter((r) => getOrderRequirements(r).missingCount > 0)
-        .length,
-    [boardRecords]
+      categoryFilteredBoard.filter(
+        (r) => getOrderRequirements(r).missingCount > 0
+      ).length,
+    [categoryFilteredBoard]
   );
 
-  const flaggedOrdersCount = flaggedRecords.length;
+  const flaggedOrdersCount = categoryFilteredFlagged.length;
 
-  const typeFilteredPreMtdRecords = useMemo(
-    () => {
-      if (rangeFilter === "flagged") return flaggedRecords;
-      return boardRecords.filter((rec) => {
-        if (rangeFilter === "all") return true;
-        if (rangeFilter === "assigned")
-          return getOrderAssignmentStatus(rec) === "assigned";
-        if (rangeFilter === "not_assigned")
-          return getOrderAssignmentStatus(rec) === "not_assigned";
-        if (
-          rangeFilter === "reassigned" ||
-          rangeFilter === "reassign_leave" ||
-          rangeFilter === "reassign_rush"
-        ) {
-          const status = getOrderAssignmentStatus(rec);
-          return status === "reassign_leave" || status === "reassign_rush";
-        }
-        if (rangeFilter === "waiting_for_data")
-          return getOrderRequirements(rec).missingCount > 0;
-        // Complete data: data complete and not yet assigned / reassigned
-        return (
-          !rec.isReassigned &&
-          getOrderRequirements(rec).missingCount === 0 &&
-          getOrderAssignmentStatus(rec) !== "assigned"
-        );
-      });
+  const matchesRangeFilter = useCallback(
+    (rec: MTDRecord) => {
+      if (rangeFilter === "all") return true;
+      if (rangeFilter === "assigned")
+        return getOrderAssignmentStatus(rec) === "assigned";
+      if (rangeFilter === "not_assigned")
+        return getOrderAssignmentStatus(rec) === "not_assigned";
+      if (
+        rangeFilter === "reassigned" ||
+        rangeFilter === "reassign_leave" ||
+        rangeFilter === "reassign_rush"
+      ) {
+        const status = getOrderAssignmentStatus(rec);
+        return status === "reassign_leave" || status === "reassign_rush";
+      }
+      if (rangeFilter === "waiting_for_data")
+        return getOrderRequirements(rec).missingCount > 0;
+      // Complete data: data complete and not yet assigned / reassigned
+      return (
+        !rec.isReassigned &&
+        getOrderRequirements(rec).missingCount === 0 &&
+        getOrderAssignmentStatus(rec) !== "assigned"
+      );
     },
-    [boardRecords, flaggedRecords, rangeFilter]
+    [rangeFilter]
   );
+
+  // Rows for the table: source + category/subcategory + range.
+  const typeFilteredPreMtdRecords = useMemo(() => {
+    if (rangeFilter === "flagged") return categoryFilteredFlagged;
+    return categoryFilteredBoard.filter(matchesRangeFilter);
+  }, [
+    categoryFilteredBoard,
+    categoryFilteredFlagged,
+    rangeFilter,
+    matchesRangeFilter,
+  ]);
+
+  // Form / subtype dropdown counts stay range-scoped but not category-scoped
+  // so admins can still see other categories while a form is selected.
+  const formCountRecords = useMemo(() => {
+    if (rangeFilter === "flagged") return flaggedRecords;
+    return boardRecords.filter(matchesRangeFilter);
+  }, [boardRecords, flaggedRecords, rangeFilter, matchesRangeFilter]);
 
   const switchForm = useCallback(
     (next: OrderFormType) => {
@@ -672,18 +710,18 @@ function OrdersPageContent() {
   }, [tableFiltered, searchQuery, tableFilters.sortBy, producers, orderById]);
 
   const formCounts = useMemo(
-    () => countMTDByForm(typeFilteredPreMtdRecords, orderById),
-    [typeFilteredPreMtdRecords, orderById]
+    () => countMTDByForm(formCountRecords, orderById),
+    [formCountRecords, orderById]
   );
 
   const cheerSubtypeCounts = useMemo(
-    () => countMTDByCheerSubtype(typeFilteredPreMtdRecords, orderById),
-    [typeFilteredPreMtdRecords, orderById]
+    () => countMTDByCheerSubtype(formCountRecords, orderById),
+    [formCountRecords, orderById]
   );
 
   const danceSubtypeCounts = useMemo(
-    () => countMTDByDanceSubtype(typeFilteredPreMtdRecords, orderById),
-    [typeFilteredPreMtdRecords, orderById]
+    () => countMTDByDanceSubtype(formCountRecords, orderById),
+    [formCountRecords, orderById]
   );
 
   // Default form is Cheer; demo/live boards often only have Dance/Anthem.
@@ -695,7 +733,7 @@ function OrdersPageContent() {
       didAutoSelectForm.current = true;
       return;
     }
-    if (typeFilteredPreMtdRecords.length === 0) return;
+    if (formCountRecords.length === 0) return;
     if ((formCounts[form] ?? 0) > 0) {
       didAutoSelectForm.current = true;
       return;
@@ -735,7 +773,7 @@ function OrdersPageContent() {
   }, [
     isLoading,
     formParam,
-    typeFilteredPreMtdRecords.length,
+    formCountRecords.length,
     formCounts,
     form,
     danceSubtypeCounts,
