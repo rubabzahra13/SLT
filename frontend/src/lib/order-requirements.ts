@@ -357,7 +357,7 @@ export function getDanceSongsConfirmText(order: Order | MTDRecord): string {
   ).trim();
   if (!power && !unleash) {
     const parsed = parseDanceSongCovers(
-      o.songListSuggestions || o.song_list_suggestions
+      String(o.songListSuggestions || o.song_list_suggestions || "")
     );
     power = parsed.power;
     unleash = parsed.unleash;
