@@ -67,6 +67,10 @@ import {
   isOptionalOrderFormField,
   isOrderFormFieldMissing,
 } from "@/lib/order-form-missing";
+import {
+  isAcceptableOrderEmailValue,
+  isOrderEmailFieldKey,
+} from "@/lib/email-format";
 import clsx from "clsx";
 
 type MTDOrderDetailsProps = {
@@ -231,6 +235,11 @@ export function MTDOrderDetails({
                 (requiredKeys
                   ? !rawFieldValue(order, field.key).trim()
                   : isOrderFormFieldMissing(order, field.key));
+              const emailInvalid =
+                editable &&
+                isOrderEmailFieldKey(field.key) &&
+                Boolean(rawValue.trim()) &&
+                !isAcceptableOrderEmailValue(rawValue, field.key);
               // Add Order allowlist: only identity is required; don't spam "(optional)".
               const optional =
                 !requiredKeys && isOptionalOrderFormField(field.key, order);
@@ -1000,6 +1009,9 @@ export function MTDOrderDetails({
                 );
               }
 
+              const emailField = isOrderEmailFieldKey(field.key);
+              const inputInvalid = missing || emailInvalid;
+
               return (
                 <div
                   key={field.key}
@@ -1009,7 +1021,7 @@ export function MTDOrderDetails({
                     label={field.label}
                     optional={optional}
                       requiredMark={requiredMark}
-                    missing={missing}
+                    missing={missing || emailInvalid}
                     provenance={fieldSources?.[field.key]}
                   />
                   <div className="mt-1">
@@ -1020,17 +1032,19 @@ export function MTDOrderDetails({
                           onChange={(value) => onFieldChange(field.key, value)}
                           rows={spanClass.includes("lg:col-span-3") ? 3 : 2}
                           className={
-                            missing
+                            inputInvalid
                               ? "border-red-400 focus:border-red-500 focus:ring-red-200"
                               : undefined
                           }
                         />
                       ) : (
                         <DetailInput
+                          type={emailField ? "email" : "text"}
+                          inputMode={emailField ? "email" : undefined}
                           value={rawValue}
                           onChange={(value) => onFieldChange(field.key, value)}
                           className={
-                            missing
+                            inputInvalid
                               ? "border-red-400 focus:border-red-500 focus:ring-red-200"
                               : undefined
                           }
@@ -1051,6 +1065,11 @@ export function MTDOrderDetails({
                         Not set
                       </p>
                     )}
+                    {editable && emailInvalid ? (
+                      <p className="mt-1 text-[11px] text-[#901313]">
+                        Enter a valid email
+                      </p>
+                    ) : null}
                   </div>
                 </div>
               );

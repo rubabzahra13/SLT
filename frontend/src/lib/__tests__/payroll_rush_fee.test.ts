@@ -9,7 +9,10 @@ import {
   rushCustomerTotal,
   rushFeeAddonForRecord,
   rushFeeCompensation,
+  sportsEntertainmentIncludedRushCompensation,
+  sportsEntertainmentIncludedRushFeeAmount,
 } from "../rush-fee";
+import { SPORTS_ENTERTAINMENT_CUSTOMER_RUSH_FEE } from "../pricing-engine";
 import type { PayrollAddon } from "@/types";
 
 describe("Payroll rush fee compensation", () => {
@@ -205,5 +208,82 @@ describe("Payroll rush fee compensation", () => {
     };
     const chosen = rushFeeAddonForRecord("mtd-1", "order-1", [raced, saved]);
     assert.equal(chosen?.id, "saved");
+  });
+});
+
+describe("Sports Entertainment included Magento rush (Payroll display)", () => {
+  it("uses the flat $100 Magento fee when Rush Order is Yes", () => {
+    assert.equal(
+      sportsEntertainmentIncludedRushFeeAmount({
+        isRush: true,
+        formType: "sports-entertainment",
+      }),
+      SPORTS_ENTERTAINMENT_CUSTOMER_RUSH_FEE
+    );
+  });
+
+  it("derives fee from finalized payroll − customer when both exist", () => {
+    assert.equal(
+      sportsEntertainmentIncludedRushFeeAmount({
+        isRush: true,
+        formType: "sports-entertainment",
+        finalCustomerPrice: 250,
+        finalPayrollPrice: 350,
+      }),
+      100
+    );
+  });
+
+  it("shows $55 when fee is $100 and package rate is 55%", () => {
+    const shown = sportsEntertainmentIncludedRushCompensation({
+      isRush: true,
+      formType: "sports-entertainment",
+      finalCustomerPrice: 150,
+      finalPayrollPrice: 250,
+      packageRate: 0.55,
+    });
+    assert.deepEqual(shown, { feeAmount: 100, rate: 0.55, compensation: 55 });
+  });
+
+  it("returns null when Rush Order is No or form is not Sports Entertainment", () => {
+    assert.equal(
+      sportsEntertainmentIncludedRushCompensation({
+        isRush: false,
+        formType: "sports-entertainment",
+        packageRate: 0.55,
+      }),
+      null
+    );
+    assert.equal(
+      sportsEntertainmentIncludedRushCompensation({
+        isRush: true,
+        formType: "school-all-star-cheer",
+        packageRate: 0.55,
+      }),
+      null
+    );
+  });
+
+  it("returns null when package rate is unset (avoids fake $0 from missing rate)", () => {
+    assert.equal(
+      sportsEntertainmentIncludedRushCompensation({
+        isRush: true,
+        formType: "sports-entertainment",
+        packageRate: null,
+      }),
+      null
+    );
+  });
+
+  it("does not invent Rushby compensation — finalizeMixPayout stays package-only without addon", () => {
+    const selection = resolveRushFeeSelection({
+      isRush: true,
+      producerRate: 1,
+      producerId: "p",
+      addon: null,
+    });
+    assert.equal(selection.quantity, 0);
+    assert.equal(selection.compensation, 0);
+    assert.equal(finalizeMixPayout(137.5, "computed", selection), 137.5);
   });
 });

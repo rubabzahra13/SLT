@@ -5,6 +5,11 @@ import {
 } from "@/lib/pricing-reference";
 import { affiliateCompactKey } from "@/lib/pricing-engine";
 import { findLinkedOrder } from "@/lib/editor-assignment";
+import {
+  formatDanceMusicAffiliates,
+  isAllowedAllStarDanceCoverPair,
+  parseDanceMusicAffiliates,
+} from "@/lib/dance-music-affiliate";
 
 export type AffiliateFlagStatus = "open" | "resolved" | "released";
 
@@ -17,6 +22,8 @@ export const CHEER_MUSIC_AFFILIATE_LABELS: string[] = [
 function compact(value: string): string {
   return affiliateCompactKey(value);
 }
+
+export { isAllowedAllStarDanceCoverPair };
 
 /**
  * Extract distinct known cheer affiliates from a raw musicAffiliate string.
@@ -106,13 +113,24 @@ export function isMultiAffiliateSelection(
   return parseSelectedMusicAffiliates(raw).length >= 2;
 }
 
-export function isCheerFormOrder(
-  order: Pick<Order, "formType" | "category"> | null | undefined
-): boolean {
+type FormMeta = {
+  formType?: Order["formType"] | null;
+  category?: string | null;
+};
+
+export function isCheerFormOrder(order: FormMeta | null | undefined): boolean {
   if (!order) return false;
   if (order.formType === "school-all-star-cheer") return true;
   const cat = String(order.category || "").toLowerCase();
   return cat.includes("cheer") && !cat.includes("dance");
+}
+
+/** All-Star Dance Magento form (POM / Hip Hop / TPV / Gameday / Jazz-Kick). */
+export function isDanceFormOrder(order: FormMeta | null | undefined): boolean {
+  if (!order) return false;
+  if (order.formType === "school-all-star-dance") return true;
+  const cat = String(order.category || "").toLowerCase();
+  return cat.includes("dance") && !cat.includes("cheer");
 }
 
 export function formatAffiliateSelectionsList(selections: string[]): string {
@@ -145,11 +163,46 @@ export function getAffiliateSelectionsRaw(
   );
 }
 
+function formMetaFromOrderOrRecord(
+  order: Order | null | undefined,
+  record?: MTDRecord | null
+): FormMeta | null {
+  if (order) return order;
+  if (!record) return null;
+  return {
+    formType: record.formType,
+    category: record.category,
+  };
+}
+
 export function getAffiliateSelections(
   order: Order | null | undefined,
   record?: MTDRecord | null
 ): string[] {
-  return parseSelectedMusicAffiliates(getAffiliateSelectionsRaw(order, record));
+  const raw = getAffiliateSelectionsRaw(order, record);
+  const meta = formMetaFromOrderOrRecord(order, record);
+  if (isDanceFormOrder(meta)) {
+    return parseDanceMusicAffiliates(raw);
+  }
+  return parseSelectedMusicAffiliates(raw);
+}
+
+/**
+ * True when multi-affiliate selections should open / hold an affiliate flag.
+ * All-Star Dance Power Music Covers + Unleash the Beats Covers is allowed.
+ */
+export function isInvalidMultiAffiliateSelection(
+  order: Order | null | undefined,
+  record?: MTDRecord | null
+): boolean {
+  if (!order && !record) return false;
+  const selections = getAffiliateSelections(order, record);
+  if (selections.length < 2) return false;
+  const meta = formMetaFromOrderOrRecord(order, record);
+  if (isDanceFormOrder(meta) && isAllowedAllStarDanceCoverPair(selections)) {
+    return false;
+  }
+  return true;
 }
 
 /**
@@ -164,10 +217,12 @@ export function isHeldOnAffiliateFlag(
   if (status === "released") return false;
   if (status === "open" || status === "resolved") return true;
 
-  // Auto-detect: cheer form with multiple affiliates, not yet released.
-  if (order && !isCheerFormOrder(order)) return false;
-  const selections = getAffiliateSelections(order, record);
-  return selections.length >= 2;
+  // Auto-detect: cheer or dance form with invalid multi affiliates.
+  const meta = formMetaFromOrderOrRecord(order, record);
+  if (meta && !isCheerFormOrder(meta) && !isDanceFormOrder(meta)) {
+    return false;
+  }
+  return isInvalidMultiAffiliateSelection(order, record);
 }
 
 export function isAffiliateFlagResolved(
@@ -194,19 +249,26 @@ export function recordHeldOnAffiliateFlag(
   return isHeldOnAffiliateFlag(linked, record);
 }
 
-/** Patch to open a flag when multi-affiliate cheer form arrives. */
+/** Patch to open a flag when invalid multi-affiliate form arrives. */
 export function openAffiliateFlagPatch(order: Order): Partial<Order> | null {
-  if (!isCheerFormOrder(order)) return null;
+  if (!isCheerFormOrder(order) && !isDanceFormOrder(order)) return null;
   if (getOrderAffiliateFlagStatus(order) === "released") return null;
   if (getOrderAffiliateFlagStatus(order) === "resolved") return null;
   if (getOrderAffiliateFlagStatus(order) === "open") return null;
 
-  const raw = order.musicAffiliateSelections?.trim() || order.musicAffiliate || "";
-  if (!isMultiAffiliateSelection(raw)) return null;
+  if (!isInvalidMultiAffiliateSelection(order)) return null;
+
+  const raw =
+    order.musicAffiliateSelections?.trim() || order.musicAffiliate || "";
+  const selections = getAffiliateSelections(order);
+  const stored =
+    isDanceFormOrder(order) && selections.length
+      ? formatDanceMusicAffiliates(selections)
+      : raw;
 
   return {
     affiliateFlagStatus: "open",
-    musicAffiliateSelections: raw,
+    musicAffiliateSelections: stored,
     needsAttention: true,
     attentionReason: order.attentionReason || "Multiple music affiliates selected",
   };
@@ -217,11 +279,15 @@ export function resolveAffiliateFlagPatch(
   chosenAffiliate: string
 ): Partial<Order> {
   const selections = getAffiliateSelections(order);
+  const joined = isDanceFormOrder(order)
+    ? formatDanceMusicAffiliates(selections)
+    : selections.length
+      ? selections.join(", ")
+      : order.musicAffiliate || "";
   return {
     musicAffiliate: chosenAffiliate.trim(),
     musicAffiliateSelections:
-      order.musicAffiliateSelections?.trim() ||
-      (selections.length ? selections.join(", ") : order.musicAffiliate || ""),
+      order.musicAffiliateSelections?.trim() || joined,
     affiliateFlagStatus: "resolved",
   };
 }

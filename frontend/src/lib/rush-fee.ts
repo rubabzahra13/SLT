@@ -1,4 +1,5 @@
 import type { PayrollAddon } from "@/types";
+import { SPORTS_ENTERTAINMENT_CUSTOMER_RUSH_FEE } from "@/lib/pricing-engine";
 
 /** Default customer rush fee when the row has no stored unit amount. */
 export const DEFAULT_RUSH_FEE_UNIT = 150;
@@ -258,4 +259,84 @@ export function finalizeMixPayout(
   if (payrollStatus === "not_paid_for_mixing") return basePayout;
   if (rush.quantity <= 0 || rush.compensation === 0) return basePayout;
   return roundMoney(basePayout + rush.compensation);
+}
+
+export type SportsEntertainmentIncludedRush = {
+  /** Customer Magento rush baked into payroll base ($100 when applied). */
+  feeAmount: number;
+  /** Producer share of that fee via package compensation % (informational). */
+  compensation: number;
+  /** Fraction used for compensation (e.g. 0.55). */
+  rate: number;
+};
+
+function isSportsEntertainmentForm(
+  formType?: string | null,
+  category?: string | null
+): boolean {
+  const form = String(formType || "").toLowerCase();
+  if (form === "sports-entertainment" || form.includes("sports")) return true;
+  return String(category || "").toLowerCase().includes("sports");
+}
+
+/**
+ * Derive the Magento SE rush dollars already inside finalized payroll price.
+ * Prefer payroll − customer when both exist and rush is Yes; else the flat $100.
+ * Never invent a fee when Rush Order is No or the form is not SE.
+ */
+export function sportsEntertainmentIncludedRushFeeAmount(input: {
+  isRush: boolean;
+  formType?: string | null;
+  category?: string | null;
+  finalCustomerPrice?: number | null;
+  finalPayrollPrice?: number | null;
+}): number {
+  if (!input.isRush) return 0;
+  if (!isSportsEntertainmentForm(input.formType, input.category)) return 0;
+
+  const cust = input.finalCustomerPrice;
+  const pay = input.finalPayrollPrice;
+  if (
+    typeof cust === "number" &&
+    !Number.isNaN(cust) &&
+    typeof pay === "number" &&
+    !Number.isNaN(pay) &&
+    pay > cust
+  ) {
+    const delta = roundMoney(pay - cust);
+    // SE engine only adds the flat Magento rush to payroll vs customer.
+    if (delta > 0 && delta <= SPORTS_ENTERTAINMENT_CUSTOMER_RUSH_FEE + 0.009) {
+      return delta;
+    }
+    // Admin raised payroll further — still attribute at most the Magento $100.
+    if (delta > SPORTS_ENTERTAINMENT_CUSTOMER_RUSH_FEE) {
+      return SPORTS_ENTERTAINMENT_CUSTOMER_RUSH_FEE;
+    }
+  }
+
+  return SPORTS_ENTERTAINMENT_CUSTOMER_RUSH_FEE;
+}
+
+/**
+ * Informational SE rush compensation already inside producer payout
+ * (package % × Magento $100). Not a Rushby add-on — do not add again.
+ */
+export function sportsEntertainmentIncludedRushCompensation(input: {
+  isRush: boolean;
+  formType?: string | null;
+  category?: string | null;
+  finalCustomerPrice?: number | null;
+  finalPayrollPrice?: number | null;
+  /** Package compensation fraction or percent used for the mix payout. */
+  packageRate?: number | null;
+}): SportsEntertainmentIncludedRush | null {
+  const feeAmount = sportsEntertainmentIncludedRushFeeAmount(input);
+  if (feeAmount <= 0) return null;
+  const rate = normalizeCompensationFraction(input.packageRate);
+  if (rate == null) return null;
+  return {
+    feeAmount,
+    rate,
+    compensation: roundMoney(feeAmount * rate),
+  };
 }

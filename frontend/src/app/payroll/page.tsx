@@ -66,7 +66,9 @@ import {
   rushCustomerTotal,
   rushFeeAddonForRecord,
   rushFeeAddonsForRecord,
+  sportsEntertainmentIncludedRushCompensation,
 } from "@/lib/rush-fee";
+import { HoverTip } from "@/components/ui/HoverTip";
 import {
   getPayrollSendProducerNames,
   resolvePayrollSendEditorProducers,
@@ -1191,23 +1193,75 @@ export default function PayrollPage() {
       {
         key: "rushOrder",
         header: "Rush order",
-        width: "96px",
+        width: "120px",
         align: "center",
         cellClassName: "!px-2 !py-1.5",
         headerClassName: "!px-2 !py-2",
         render: (rec) => {
           const order = findLinkedOrder(rec, allOrders);
           const isRush = payrollRowIsRushOrder(rec, order);
-          return (
-            <span
-              className={
-                isRush
-                  ? "inline-flex rounded-full bg-brand-orange-soft px-2 py-0.5 text-[11px] font-semibold text-brand-orange-deep"
-                  : "text-[12px] text-brand-ink-tertiary"
-              }
-            >
-              {isRush ? "Yes" : "No"}
+          const meta = resolveMTDFormMeta(rec, orderById);
+          const custPrice =
+            order?.finalCustomerPrice ?? rec.finalCustomerPrice ?? rec.price;
+          const payrollPrice =
+            order?.finalPayrollPrice ?? rec.finalPayrollPrice ?? rec.price;
+          const producerObj = findProducerByAssignmentKey(
+            rec.assignedProducer,
+            producers
+          );
+          const rateIsManual = order?.rateSource === "manual_override";
+          const selectedRate = rateIsManual ? order?.rateUsed ?? null : null;
+          const calculated = computeClientPayroll(
+            producerObj,
+            custPrice,
+            null,
+            selectedRate,
+            rec.manualPayoutInput ?? null,
+            meta.canonicalSubtypeId,
+            payrollPrice,
+            {
+              rushFeeQuantity: 0,
+              includeRushFeeInPayout: false,
+              formType: meta.formType,
+            }
+          );
+          const packageRate =
+            order?.rateUsed ?? calculated.rateUsed ?? producerObj?.defaultRate ?? null;
+          const seIncluded = sportsEntertainmentIncludedRushCompensation({
+            isRush,
+            formType: meta.formType,
+            category: order?.category || rec.category,
+            finalCustomerPrice: custPrice,
+            finalPayrollPrice: payrollPrice,
+            packageRate,
+          });
+
+          if (!isRush) {
+            return (
+              <span className="text-[12px] text-brand-ink-tertiary">No</span>
+            );
+          }
+
+          const badge = (
+            <span className="inline-flex items-center gap-1 rounded-full bg-brand-orange-soft px-2 py-0.5 text-[11px] font-semibold text-brand-orange-deep">
+              Yes
+              {seIncluded ? (
+                <span className="tabular-nums font-semibold">
+                  ({formatPrice(seIncluded.compensation)})
+                </span>
+              ) : null}
             </span>
+          );
+
+          if (!seIncluded) return badge;
+
+          return (
+            <HoverTip
+              placement="top"
+              label={`$${seIncluded.feeAmount} Sports Entertainment rush fee already applied in the producer payout.`}
+            >
+              {badge}
+            </HoverTip>
           );
         },
       },
@@ -1323,6 +1377,8 @@ export default function PayrollPage() {
       addonsLocked,
       isViewOnly,
       orderById,
+      allOrders,
+      producers,
       rushStateForRecord,
       persistRushFee,
       pageTab,

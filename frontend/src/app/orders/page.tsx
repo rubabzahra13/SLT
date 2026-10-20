@@ -23,9 +23,12 @@ import { recordIsRushOrder } from "@/lib/forward-order-mail";
 import {
   getAffiliateSelections,
   isAffiliateFlagResolved,
+  isDanceFormOrder,
+  isInvalidMultiAffiliateSelection,
   recordHeldOnAffiliateFlag,
   releaseAffiliateFlagPatch,
 } from "@/lib/affiliate-flag";
+import { formatDanceMusicAffiliates } from "@/lib/dance-music-affiliate";
 import {
   DEFAULT_MTD_TABLE_FILTERS,
   type MTDTableFilterState,
@@ -941,9 +944,17 @@ function OrdersPageContent() {
                   );
                 }
 
+                const invalidMulti = isInvalidMultiAffiliateSelection(
+                  linked,
+                  rec
+                );
+                const danceOrder =
+                  isDanceFormOrder(linked) || isDanceFormOrder(rec);
                 const display =
                   selections.length >= 2
-                    ? selections.join(" · ")
+                    ? danceOrder
+                      ? formatDanceMusicAffiliates(selections)
+                      : selections.join(" · ")
                     : titleCase(affiliate || selections[0] || "");
 
                 return (
@@ -952,7 +963,7 @@ function OrdersPageContent() {
                     className={clsx(
                       "mx-auto w-full min-w-0 text-center font-medium",
                       compactTextClass,
-                      selections.length >= 2 && "text-rose-600"
+                      invalidMulti && "text-rose-600"
                     )}
                     style={{ maxWidth: "100%" }}
                   />

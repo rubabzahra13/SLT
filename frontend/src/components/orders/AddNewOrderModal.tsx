@@ -19,6 +19,10 @@ import {
   formatAddOrderSaveBlockReason,
   getAddOrderRequiredGaps,
 } from "@/lib/order-form-missing";
+import {
+  formatOrderEmailFormatBlockReason,
+  getInvalidOrderEmailFields,
+} from "@/lib/email-format";
 import { parsePackage } from "@/lib/package";
 import type {
   CheerFormSubtype,
@@ -337,6 +341,14 @@ export function AddNewOrderModal({
     if (gaps.length > 0) {
       setShowValidation(true);
       setError(formatAddOrderSaveBlockReason(gaps));
+      return;
+    }
+
+    // Any filled email field must be a valid address (any domain).
+    const emailGaps = getInvalidOrderEmailFields(orderDraft);
+    if (emailGaps.length > 0) {
+      setShowValidation(true);
+      setError(formatOrderEmailFormatBlockReason(emailGaps));
       return;
     }
 
