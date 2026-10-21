@@ -51,6 +51,7 @@ import {
   ORDER_RESELECTION_REASON_LABEL,
 } from "@/lib/order-requirements";
 import {
+  formSupportsCouponCode,
   getContactColumnHeader,
   getOrderContactPersonName,
   getOrderIdentityName,
@@ -808,6 +809,7 @@ function OrdersPageContent() {
   const columns: Column<MTDRecord>[] = useMemo(() => {
     const showMusicAffiliate =
       form === "school-all-star-cheer" || form === "school-all-star-dance";
+    const showCouponCode = formSupportsCouponCode(form);
     // Magento / New Order: no Requested Editor on Anthem, Sports, Band, Youth Rec.
     const showFormProducer = formHasRequestedProducer(
       form,
@@ -1195,6 +1197,49 @@ function OrdersPageContent() {
           );
         },
       },
+      ...(showCouponCode
+        ? [
+            {
+              key: "couponCodeCol",
+              header: "Coupon Code",
+              width: "110px",
+              align: "center" as const,
+              nowrap: false,
+              cellClassName: clsx(compactCellClass, "max-w-[110px]"),
+              headerClassName: compactHeaderClass,
+              render: (rec: MTDRecord) => {
+                const linked = findLinkedOrder(rec, allOrders);
+                const coupon = (
+                  linked?.couponCode ||
+                  rec.couponCode ||
+                  ""
+                ).trim();
+                if (!coupon) {
+                  return (
+                    <span
+                      className={clsx(
+                        "mx-auto block text-center text-brand-ink-tertiary",
+                        compactTextClass
+                      )}
+                    >
+                      None
+                    </span>
+                  );
+                }
+                return (
+                  <span
+                    className={clsx(
+                      "mx-auto block text-center font-semibold uppercase tracking-wider text-brand-ink",
+                      compactTextClass
+                    )}
+                  >
+                    {coupon}
+                  </span>
+                );
+              },
+            },
+          ]
+        : []),
       {
         key: "collections",
         header: "Collections",

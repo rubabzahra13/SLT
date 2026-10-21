@@ -46,6 +46,7 @@ import {
   packageTypeDisplayValue,
 } from "@/components/mtd/PackageTypeField";
 import {
+  formSupportsCouponCode,
   getContactColumnHeader,
   getOrderContactPersonName,
   getOrderIdentityName,
@@ -693,6 +694,7 @@ function MTDPageContent() {
     const showMusicAffiliate =
       form === "school-all-star-cheer" || form === "school-all-star-dance";
     const showMarchingAddons = form === "marching-band";
+    const showCouponCode = formSupportsCouponCode(form);
     const showRequestedProducer = formHasRequestedProducer(
       form,
       cheerSubtype === "all" ? undefined : cheerSubtype
@@ -1137,31 +1139,49 @@ function MTDPageContent() {
           );
         },
       },
-      {
-        key: "couponCodeCol",
-        header: "Coupon Code",
-        width: "110px",
-        align: "center" as const,
-        nowrap: false,
-        cellClassName: clsx(compactCellClass, "max-w-[110px]"),
-        headerClassName: compactHeaderClass,
-        render: (rec: MTDRecord) => {
-          const linked = rec.orderId ? orderById.get(rec.orderId) : undefined;
-          const coupon = (linked?.couponCode || rec.couponCode || "").trim();
-          if (!coupon) {
-            return (
-              <span className={clsx("mx-auto block text-center text-brand-ink-tertiary", compactTextClass)}>
-                None
-              </span>
-            );
-          }
-          return (
-            <span className={clsx("mx-auto block text-center font-semibold uppercase tracking-wider text-brand-ink", compactTextClass)}>
-              {coupon}
-            </span>
-          );
-        },
-      },
+      ...(showCouponCode
+        ? [
+            {
+              key: "couponCodeCol",
+              header: "Coupon Code",
+              width: "110px",
+              align: "center" as const,
+              nowrap: false,
+              cellClassName: clsx(compactCellClass, "max-w-[110px]"),
+              headerClassName: compactHeaderClass,
+              render: (rec: MTDRecord) => {
+                const linked = findLinkedOrder(rec, allOrders);
+                const coupon = (
+                  linked?.couponCode ||
+                  rec.couponCode ||
+                  ""
+                ).trim();
+                if (!coupon) {
+                  return (
+                    <span
+                      className={clsx(
+                        "mx-auto block text-center text-brand-ink-tertiary",
+                        compactTextClass
+                      )}
+                    >
+                      None
+                    </span>
+                  );
+                }
+                return (
+                  <span
+                    className={clsx(
+                      "mx-auto block text-center font-semibold uppercase tracking-wider text-brand-ink",
+                      compactTextClass
+                    )}
+                  >
+                    {coupon}
+                  </span>
+                );
+              },
+            },
+          ]
+        : []),
       {
         key: "mixDateI",
         header: "Mix start date",

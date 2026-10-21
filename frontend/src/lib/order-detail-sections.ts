@@ -1205,6 +1205,21 @@ export function getFormTypeLabel(formType: OrderFormType): string {
   }
 }
 
+/**
+ * Customer Magento forms that collect a coupon code.
+ * Marching Band and Sports Entertainment do not.
+ * All Cheer subtypes, all Dance subtypes, and School Anthem do.
+ */
+export function formSupportsCouponCode(
+  formType?: OrderFormType | string | null
+): boolean {
+  return (
+    formType === "school-all-star-cheer" ||
+    formType === "school-all-star-dance" ||
+    formType === "school-anthem"
+  );
+}
+
 function firstIdentityField(
   sections: { title: string; fields: FieldDef[] }[]
 ): { key: string; label: string } {
