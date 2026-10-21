@@ -9,6 +9,7 @@ import { MarkPaidConfirmModal } from "@/components/payroll/MarkPaidConfirmModal"
 import { VoiceoversPanel } from "@/components/payroll/VoiceoversPanel";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { MTDPageToolbar } from "@/components/mtd/MTDPageToolbar";
+import type { MTDViewOrder } from "@/components/mtd/MTDViewOrderToggle";
 import { OrderFormFilters } from "@/components/orders/OrderFormFilters";
 import { PayrollSendPanel } from "@/components/payroll/PayrollSendPanel";
 import { PayrollSendToolbar } from "@/components/payroll/PayrollSendToolbar";
@@ -48,6 +49,7 @@ import {
   matchesMTDSearch,
   resolveMTDFormMeta,
   sortMTDRecordsBySortKey,
+  sortMTDRecordsByViewOrder,
 } from "@/lib/mtd-filters";
 import { parsePackage } from "@/lib/package";
 import { findLinkedOrder, findProducerByAssignmentKey } from "@/lib/editor-assignment";
@@ -135,7 +137,7 @@ export default function PayrollPage() {
     useState<MTDRecord | null>(null);
   const [deletingForever, setDeletingForever] = useState(false);
   const [markPaidRecord, setMarkPaidRecord] = useState<MTDRecord | null>(null);
-
+  const [viewOrder, setViewOrder] = useState<MTDViewOrder>("sequence");
 
   const [formState, setFormState] = useState<OrderFormType>(DEFAULT_FORM);
   const [cheerSubtypeState, setCheerSubtypeState] = useState<CheerFormSubtypeFilter>(
@@ -408,13 +410,21 @@ export default function PayrollPage() {
     const searched = !q
       ? tableFiltered
       : tableFiltered.filter((rec) => matchesMTDSearch(rec, q));
-    return sortMTDRecordsBySortKey(
+    const sorted = sortMTDRecordsBySortKey(
       searched,
       tableFilters.sortBy ?? "newest",
       producers,
       orderById
     );
-  }, [tableFiltered, searchQuery, tableFilters.sortBy, producers, orderById]);
+    return sortMTDRecordsByViewOrder(sorted, viewOrder, producers);
+  }, [
+    tableFiltered,
+    searchQuery,
+    tableFilters.sortBy,
+    viewOrder,
+    producers,
+    orderById,
+  ]);
 
   const rushStateForRecord = useCallback(
     (rec: MTDRecord) => {
@@ -1523,6 +1533,8 @@ export default function PayrollPage() {
                   sortBy: prev.sortBy ?? "newest",
                 }))
               }
+              viewOrder={viewOrder}
+              onViewOrderChange={setViewOrder}
             />
           ) : pageTab === "voiceovers" ? (
             <div className="relative z-40 inline-flex flex-wrap items-center gap-0.5 rounded-xl bg-brand-elevated/80 p-0.5 ring-1 ring-inset ring-brand-line/40">
@@ -1565,7 +1577,7 @@ export default function PayrollPage() {
         {pageTab === "view" || pageTab === "archive" ? (
           <div className="dashboard-panel dashboard-panel-framed overflow-hidden">
             <DataTable
-              key={pageTab}
+              key={`${pageTab}-${viewOrder}`}
               columns={columns}
               data={filtered}
               rowKey={(rec) => rec.id}
