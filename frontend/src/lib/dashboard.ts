@@ -518,7 +518,7 @@ export function buildRevenueStages(pulse: DashboardPulse): RevenueStage[] {
       label: "In production",
       value: pulse.inProductionValue,
       color: "#52c8ee",
-      href: "/outsourced",
+      href: "/mtd",
     },
     {
       label: "Payroll",
