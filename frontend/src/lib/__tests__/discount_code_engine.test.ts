@@ -1,194 +1,59 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { calculateCheerOrderPricing } from "../pricing-engine";
-import { normalizeDiscountCode, evaluateCouponCode } from "../discount-codes";
+import {
+  normalizeDiscountCode,
+  evaluateCouponCode,
+  isValidDiscountCode,
+  isDuplicateDiscountCode,
+} from "../discount-codes";
 import type { DiscountCode } from "../../types";
 
-describe("Discount Code Engine Unit Tests (Fixed & Percentage)", () => {
-  const mockDiscountCodes: DiscountCode[] = [
-    normalizeDiscountCode({
-      id: "disc-save200",
-      code: "SAVE200",
-      description: "Summer promotion",
-      discountType: "fixed",
-      discountValue: 200,
-    }),
-    normalizeDiscountCode({
-      id: "disc-save10",
-      code: "SAVE10",
-      description: "10 percent off promotion",
-      discountType: "percentage",
-      discountValue: 10,
-    }),
-    normalizeDiscountCode({
-      id: "disc-save20",
-      code: "SAVE20",
-      description: "20 percent off promotion",
-      discountType: "percentage",
-      discountValue: 20,
-    }),
-    normalizeDiscountCode({
-      id: "disc-test10",
-      code: "TEST10",
-      description: "", // Blank optional description
-      discountType: "percentage",
-      discountValue: 10,
-    }),
-    normalizeDiscountCode({
-      id: "disc-big500",
-      code: "BIG500",
-      description: "$500 off big discount",
-      discountType: "fixed",
-      discountValue: 500,
-    }),
+describe("Coupon code matching (case-insensitive, trim-only)", () => {
+  const configured: DiscountCode[] = [
+    normalizeDiscountCode({ id: "1", code: "A123" }),
+    normalizeDiscountCode({ id: "2", code: "SUMMER20" }),
   ];
 
-  it("Test 1 — Fixed Amount ($200 off $1,000)", () => {
-    const matched = lookupCode("SAVE200", mockDiscountCodes);
-    assert.ok(matched);
-
-    const result = calculateCheerOrderPricing({
-      cheerFormSubtype: "all-star-cheer",
-      packageType: "PLATINUM 1:30", // Base customer: $1050, compliant base: $850, non-compliant base: $1050
-      musicAffiliate: "Unapproved Affiliate", // Non-compliant -> pre-discount payroll base: $1050
-      discountCodeObj: matched,
-    });
-
-    assert.equal(result.preDiscountPayrollBasePrice, 1050);
-    assert.equal(result.discountAmount, 200);
-    assert.equal(result.payrollBasePrice, 1050); // Coupon does not alter internal payroll base price
+  it("matches identical codes", () => {
+    const res = evaluateCouponCode("A123", configured);
+    assert.equal(res.status, "matched");
+    assert.equal(res.match?.code, "A123");
   });
 
-  it("Test 2 — Percentage (10% off $1,000)", () => {
-    const matched = lookupCode("SAVE10", mockDiscountCodes);
-    assert.ok(matched);
-
-    const result = calculateCheerOrderPricing({
-      cheerFormSubtype: "all-star-cheer",
-      packageType: "GOLD 2:30", // Compliant payroll base: $1000
-      musicAffiliate: "Power Music", // Compliant -> pre-discount payroll base: $1000
-      discountCodeObj: matched,
-    });
-
-    assert.equal(result.preDiscountPayrollBasePrice, 1000);
-    assert.equal(result.discountAmount, 100); // 10% of $1000 = $100
-    assert.equal(result.payrollBasePrice, 1000); // Coupon does not alter internal payroll base price
+  it("matches case-insensitively without rewriting the submitted value", () => {
+    const submitted = "a123";
+    const res = evaluateCouponCode(submitted, configured);
+    assert.equal(res.status, "matched");
+    assert.equal(isValidDiscountCode(submitted, configured), true);
+    // Submitted casing is preserved by the caller; match returns configured code.
+    assert.equal(res.match?.code, "A123");
+    assert.equal(submitted, "a123");
   });
 
-  it("Test 3 — Percentage 20% (20% off $1,000)", () => {
-    const matched = lookupCode("SAVE20", mockDiscountCodes);
-    assert.ok(matched);
-
-    const result = calculateCheerOrderPricing({
-      cheerFormSubtype: "all-star-cheer",
-      packageType: "GOLD 2:30", // Compliant payroll base: $1000
-      musicAffiliate: "Power Music",
-      discountCodeObj: matched,
-    });
-
-    assert.equal(result.preDiscountPayrollBasePrice, 1000);
-    assert.equal(result.discountAmount, 200); // 20% of $1000 = $200
-    assert.equal(result.payrollBasePrice, 1000); // Coupon does not alter internal payroll base price
+  it("trims leading and trailing whitespace before matching", () => {
+    const res = evaluateCouponCode("  A123  ", configured);
+    assert.equal(res.status, "matched");
   });
 
-  it("Test 4 — Optional Description (blank description creates & matches successfully)", () => {
-    const matched = lookupCode("TEST10", mockDiscountCodes);
-    assert.ok(matched);
-    assert.equal(matched.description, "");
-
-    const result = calculateCheerOrderPricing({
-      cheerFormSubtype: "all-star-cheer",
-      packageType: "GOLD 1:30", // Compliant payroll base: $600
-      musicAffiliate: "Power Music",
-      discountCodeObj: matched,
-    });
-
-    assert.equal(result.preDiscountPayrollBasePrice, 600);
-    assert.equal(result.discountAmount, 60); // 10% of $600 = $60
-    assert.equal(result.payrollBasePrice, 600); // Coupon does not alter internal payroll base price
+  it("does not match unconfigured codes", () => {
+    const res = evaluateCouponCode("NOPE", configured);
+    assert.equal(res.status, "unmatched");
+    assert.equal(isValidDiscountCode("NOPE", configured), false);
   });
 
-  it("Test 5 — No Matching Code (unmatched code results in $0 discount)", () => {
-    const evalRes = evaluateCouponCode("DOESNOTEXIST", mockDiscountCodes);
-    assert.equal(evalRes.status, "invalid");
-
-    const matched = (evalRes as any).match ?? null;
-    assert.equal(matched, null);
-
-    const result = calculateCheerOrderPricing({
-      cheerFormSubtype: "school-cheer-viroc-yes",
-      packageType: "GOLD 2:15", // Payroll base: $1000
-      musicAffiliate: "Power Music",
-      discountCodeObj: matched,
-    });
-
-    assert.equal(result.discountAmount, 0);
-    assert.equal(result.payrollBasePrice, 1000);
+  it("returns empty when no coupon is provided", () => {
+    assert.equal(evaluateCouponCode("", configured).status, "empty");
+    assert.equal(evaluateCouponCode("   ", configured).status, "empty");
   });
 
-  it("Test 6 — No Coupon Code (no coupon provided)", () => {
-    const result = calculateCheerOrderPricing({
-      cheerFormSubtype: "school-cheer-viroc-yes",
-      packageType: "GOLD 2:15",
-      musicAffiliate: "Power Music",
-      discountCodeObj: null,
-    });
-
-    assert.equal(result.discountAmount, 0);
-    assert.equal(result.payrollBasePrice, 1000);
+  it("works when no coupon codes are configured", () => {
+    assert.equal(evaluateCouponCode("A123", []).status, "unmatched");
+    assert.equal(evaluateCouponCode("", []).status, "empty");
   });
 
-  it("Test 7 — Existing Pricing Pipeline + Coupon (Package + Add-on + Coupon)", () => {
-    const matched = lookupCode("SAVE200", mockDiscountCodes);
-    assert.ok(matched);
-
-    const result = calculateCheerOrderPricing({
-      cheerFormSubtype: "school-cheer-viroc-yes",
-      packageType: "GOLD 2:15", // Compliant base: $1000
-      musicAffiliate: "Power Music",
-      rushFeeOption: "double", // Rush Fee add-on: +$300 -> Pre-discount payroll base: $1300
-      discountCodeObj: matched, // -$200 fixed
-    });
-
-    assert.equal(result.preDiscountPayrollBasePrice, 1300); // $1000 + $300
-    assert.equal(result.discountAmount, 200);
-    assert.equal(result.payrollBasePrice, 1300); // Coupon does not alter internal payroll base price
-  });
-
-  it("Test 8 — Price Floor Validation (Discount metadata calculation caps at base price)", () => {
-    const matched = lookupCode("BIG500", mockDiscountCodes);
-    assert.ok(matched);
-
-    const result = calculateCheerOrderPricing({
-      cheerFormSubtype: "school-cheer-viroc-yes",
-      packageType: "SILVER 1:00", // Compliant base: $350
-      musicAffiliate: "Power Music",
-      discountCodeObj: matched, // -$500 fixed
-    });
-
-    assert.equal(result.preDiscountPayrollBasePrice, 350);
-    assert.equal(result.discountAmount, 350); // Capped at pre-discount price $350
-    assert.equal(result.payrollBasePrice, 350); // Internal payroll base stays full $350 amount
-  });
-
-  it("Test 9 — Near-match typo suggests saved dance promo for customer entry", () => {
-    const danceCodes: DiscountCode[] = [
-      normalizeDiscountCode({
-        id: "disc-dance",
-        code: "DACNE2025",
-        description: "Dance season 2025 promo",
-        discountType: "percentage",
-        discountValue: 10,
-      }),
-    ];
-
-    const evalRes = evaluateCouponCode("DANCE2026", danceCodes);
-    assert.equal(evalRes.status, "potential");
-    assert.equal(evalRes.suggestions?.[0]?.code.code, "DACNE2025");
+  it("detects duplicate configured codes case-insensitively", () => {
+    assert.equal(isDuplicateDiscountCode("a123", configured), true);
+    assert.equal(isDuplicateDiscountCode("NEW", configured), false);
+    assert.equal(isDuplicateDiscountCode("a123", configured, "1"), false);
   });
 });
-
-function lookupCode(code: string, list: DiscountCode[]): DiscountCode | null {
-  const res = evaluateCouponCode(code, list);
-  return res.status === "valid" ? res.match ?? null : null;
-}

@@ -2396,7 +2396,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const addDiscountCode = useCallback(
     async (discountCode: DiscountCode): Promise<DiscountCode> => {
       if (isViewOnly) {
-        throw new Error("View-only accounts cannot add discount codes.");
+        throw new Error("View-only accounts cannot add coupon codes.");
       }
       const normalized = normalizeDiscountCode(discountCode);
       const tempId = normalized.id;
@@ -2421,7 +2421,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       patch: Partial<DiscountCode>
     ): Promise<DiscountCode> => {
       if (isViewOnly) {
-        throw new Error("View-only accounts cannot edit discount codes.");
+        throw new Error("View-only accounts cannot edit coupon codes.");
       }
       let previous: DiscountCode | undefined;
       setDiscountCodes((prev) => {
@@ -2433,7 +2433,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         );
       });
       if (!previous) {
-        throw new Error("Discount code not found.");
+        throw new Error("Coupon code not found.");
       }
       try {
         const saved = await updateDiscountCodeApi(id, patch);
@@ -2454,7 +2454,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const removeDiscountCode = useCallback(
     async (id: string): Promise<void> => {
       if (isViewOnly) {
-        throw new Error("View-only accounts cannot delete discount codes.");
+        throw new Error("View-only accounts cannot delete coupon codes.");
       }
       let removed: DiscountCode | undefined;
       setDiscountCodes((prev) => {
@@ -2462,7 +2462,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         return prev.filter((entry) => entry.id !== id);
       });
       if (!removed) {
-        throw new Error("Discount code not found.");
+        throw new Error("Coupon code not found.");
       }
       try {
         await deleteDiscountCodeApi(id);

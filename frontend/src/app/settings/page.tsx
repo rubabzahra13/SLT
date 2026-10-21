@@ -41,12 +41,12 @@ const sections: SettingSection[] = [
   },
   {
     title: "Pricing rules",
-    description: "Rates, packages, and discounts",
+    description: "Rates, packages, and coupon codes",
     icon: Palette,
     items: [
       {
-        label: "Discount codes",
-        description: "Promo codes and usage rules",
+        label: "Coupon Code Settings",
+        description: "Configured codes used to flag matching order coupons",
         href: "/settings/discount-codes",
       },
     ],

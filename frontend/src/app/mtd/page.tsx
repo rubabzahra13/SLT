@@ -45,6 +45,7 @@ import {
   magentoPackageBoardLabel,
   packageTypeDisplayValue,
 } from "@/components/mtd/PackageTypeField";
+import { isValidDiscountCode } from "@/lib/discount-codes";
 import {
   formSupportsCouponCode,
   getContactColumnHeader,
@@ -172,6 +173,7 @@ function MTDPageContent() {
     updateOrder,
     producers,
     schedule,
+    discountCodes,
     isViewOnly,
   } = useAppState();
   const [formState, setFormState] = useState<OrderFormType>(DEFAULT_FORM);
@@ -1168,14 +1170,20 @@ function MTDPageContent() {
                     </span>
                   );
                 }
+                const matched = isValidDiscountCode(coupon, discountCodes);
                 return (
                   <span
                     className={clsx(
-                      "mx-auto block text-center font-semibold uppercase tracking-wider text-brand-ink",
+                      "mx-auto flex flex-col items-center gap-0.5 text-center font-semibold tracking-wide text-brand-ink",
                       compactTextClass
                     )}
                   >
-                    {coupon}
+                    <span>{coupon}</span>
+                    {matched ? (
+                      <span className="text-[9px] font-semibold uppercase tracking-wide text-brand-success">
+                        Match
+                      </span>
+                    ) : null}
                   </span>
                 );
               },
@@ -1615,6 +1623,7 @@ function MTDPageContent() {
     mtdRecords,
     producers,
     schedule,
+    discountCodes,
     openAssignModal,
     openInvoiceModal,
     openPricingModal,

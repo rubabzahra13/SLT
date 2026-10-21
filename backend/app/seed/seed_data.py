@@ -189,10 +189,8 @@ def seed_all(db: Session):
             db.add(DiscountCode(
                 id=seed_uuid("discount", seed_key),
                 code=code_str,
-                description=dc.get("description", ""),
             ))
-        else:
-            existing_dc.description = dc.get("description", existing_dc.description)
+        # Existing rows: code string is the only field that matters for matching.
 
     db.commit()
 

@@ -34,42 +34,10 @@ export default function DiscountCodesPage() {
     () => [
       {
         key: "code",
-        header: "Code",
-        width: "140px",
+        header: "Coupon Code",
         render: (entry) => (
           <span className="font-semibold tracking-[0.04em] text-brand-ink">
             {entry.code}
-          </span>
-        ),
-      },
-      {
-        key: "description",
-        header: "Description",
-        render: (entry) => (
-          <span className="text-brand-ink-secondary">
-            {entry.description || "—"}
-          </span>
-        ),
-      },
-      {
-        key: "discountType",
-        header: "Type",
-        width: "120px",
-        render: (entry) => (
-          <span className="inline-flex items-center rounded-md bg-brand-bg px-2 py-0.5 text-[12px] font-semibold text-brand-ink-secondary border border-black/[0.06]">
-            {entry.discountType === "percentage" ? "Percentage" : "Fixed"}
-          </span>
-        ),
-      },
-      {
-        key: "discountValue",
-        header: "Value",
-        width: "110px",
-        render: (entry) => (
-          <span className="font-semibold tabular-nums text-brand-ink">
-            {entry.discountType === "percentage"
-              ? `${entry.discountValue ?? 0}%`
-              : `$${(entry.discountValue ?? 0).toLocaleString()}`}
           </span>
         ),
       },
@@ -95,7 +63,9 @@ export default function DiscountCodesPage() {
                       setModalOpen(true);
                     }}
                     className="rounded-full p-2 text-brand-ink-tertiary transition hover:bg-brand-bg hover:text-brand-ink"
-                    aria-label={isViewOnly ? `View ${entry.code}` : `Edit ${entry.code}`}
+                    aria-label={
+                      isViewOnly ? `View ${entry.code}` : `Edit ${entry.code}`
+                    }
                     title={isViewOnly ? "View Code" : "Edit Code"}
                   >
                     {isViewOnly ? (
@@ -141,7 +111,7 @@ export default function DiscountCodesPage() {
         await addDiscountCode(entry);
       }
     } catch (err) {
-      console.error("Failed to save discount code:", err);
+      console.error("Failed to save coupon code:", err);
     }
   }
 
@@ -156,17 +126,19 @@ export default function DiscountCodesPage() {
     try {
       await removeDiscountCode(target.id);
     } catch (err) {
-      console.error("Failed to delete discount code:", err);
+      console.error("Failed to delete coupon code:", err);
     }
   }
 
   return (
     <>
       <PageHeader
-        title="Discount codes"
-        badge={`${sortedCodes.length} codes`}
-        subtitle="Manage promo codes and what each one is for"
-        action={isViewOnly ? undefined : { label: "Add code", onClick: openAdd }}
+        title="Coupon Code Settings"
+        badge={`${sortedCodes.length} code${sortedCodes.length === 1 ? "" : "s"}`}
+        subtitle="Configure codes used to flag matching coupons on orders"
+        action={
+          isViewOnly ? undefined : { label: "Add coupon code", onClick: openAdd }
+        }
       />
 
       <div className="p-6 lg:p-8">
@@ -183,7 +155,7 @@ export default function DiscountCodesPage() {
             columns={columns}
             data={sortedCodes}
             rowKey={(entry) => entry.id}
-            emptyMessage="No discount codes yet. Add one to get started."
+            emptyMessage="No coupon codes yet. Add one to get started."
             onRowClick={
               isViewOnly
                 ? undefined

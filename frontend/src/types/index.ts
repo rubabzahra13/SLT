@@ -964,15 +964,10 @@ export type AppNotification = {
   createdAt: string;
 };
 
-export type DiscountCodeType = "fixed" | "percentage";
-
 export type DiscountCode = {
   id: string;
-  /** Customer-facing promo code (stored uppercase) */
+  /** Configured coupon code (stored uppercase for matching) */
   code: string;
-  description?: string;
-  discountType?: DiscountCodeType;
-  discountValue?: number;
 };
 
 export type AppData = {

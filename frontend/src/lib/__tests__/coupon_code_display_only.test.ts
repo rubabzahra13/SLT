@@ -15,20 +15,8 @@ import type { DiscountCode, MTDRecord, Producer } from "../../types";
 
 describe("Coupon Code as Display-Only Customer Pricing Information Test Suite", () => {
   const discountCodes: DiscountCode[] = [
-    {
-      id: "code-austin",
-      code: "AUSTIN2026",
-      discountType: "percentage",
-      discountValue: 10,
-      description: "10% off for Austin event",
-    },
-    {
-      id: "code-save50",
-      code: "SAVE50",
-      discountType: "fixed",
-      discountValue: 50,
-      description: "$50 off total",
-    },
+    { id: "code-austin", code: "AUSTIN2026" },
+    { id: "code-save50", code: "SAVE50" },
   ];
 
   const mockProducer: Producer = normalizeProducer({
@@ -46,14 +34,14 @@ describe("Coupon Code as Display-Only Customer Pricing Information Test Suite", 
   });
 
   describe("Requirement 1: Coupon Code Settings & Evaluation Preserved", () => {
-    it("evaluates valid percentage and fixed discount codes accurately for display", () => {
-      const evalPct = evaluateCouponCode("AUSTIN2026", discountCodes);
-      assert.equal(evalPct.status, "valid");
-      assert.equal(evalPct.match?.discountValue, 10);
+    it("matches configured coupon codes case-insensitively", () => {
+      const evalPct = evaluateCouponCode("austin2026", discountCodes);
+      assert.equal(evalPct.status, "matched");
+      assert.equal(evalPct.match?.code, "AUSTIN2026");
 
       const evalFixed = evaluateCouponCode("SAVE50", discountCodes);
-      assert.equal(evalFixed.status, "valid");
-      assert.equal(evalFixed.match?.discountValue, 50);
+      assert.equal(evalFixed.status, "matched");
+      assert.equal(evalFixed.match?.code, "SAVE50");
     });
   });
 
@@ -76,7 +64,7 @@ describe("Coupon Code as Display-Only Customer Pricing Information Test Suite", 
       assert.equal(withCoupon.payrollBasePrice, noCoupon.payrollBasePrice);
       assert.equal(withCoupon.customerFacingPrice, 1100);
       assert.equal(withCoupon.payrollBasePrice, 1000);
-      assert.equal(withCoupon.discountAmount, 100); // Display-only discount amount
+      assert.equal(withCoupon.discountAmount, 0); // Coupons never change prices
     });
 
     it("Dance order: Package Price ($850) and Payroll Base ($730) remain unchanged with coupon", () => {

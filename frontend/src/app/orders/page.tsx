@@ -50,6 +50,7 @@ import {
   mergeOrderFormFieldsForRequirements,
   ORDER_RESELECTION_REASON_LABEL,
 } from "@/lib/order-requirements";
+import { isValidDiscountCode } from "@/lib/discount-codes";
 import {
   formSupportsCouponCode,
   getContactColumnHeader,
@@ -167,6 +168,7 @@ function OrdersPageContent() {
     schedule,
     secretMenuPrices,
     setSecretMenuPrices,
+    discountCodes,
     isLoading,
   } = useAppState();
 
@@ -1226,14 +1228,20 @@ function OrdersPageContent() {
                     </span>
                   );
                 }
+                const matched = isValidDiscountCode(coupon, discountCodes);
                 return (
                   <span
                     className={clsx(
-                      "mx-auto block text-center font-semibold uppercase tracking-wider text-brand-ink",
+                      "mx-auto flex flex-col items-center gap-0.5 text-center font-semibold tracking-wide text-brand-ink",
                       compactTextClass
                     )}
                   >
-                    {coupon}
+                    <span>{coupon}</span>
+                    {matched ? (
+                      <span className="text-[9px] font-semibold uppercase tracking-wide text-brand-success">
+                        Match
+                      </span>
+                    ) : null}
                   </span>
                 );
               },
@@ -1962,6 +1970,7 @@ function OrdersPageContent() {
     allOrders,
     mtdRecords,
     orderById,
+    discountCodes,
     updateMTD,
     updateOrder,
     handleMoveToMTD,

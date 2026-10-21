@@ -46,7 +46,7 @@ export function DeleteDiscountCodeModal({
       <div
         role="dialog"
         aria-modal="true"
-        aria-labelledby="delete-discount-code-title"
+        aria-labelledby="delete-coupon-code-title"
         className="relative w-full max-w-[340px] overflow-hidden rounded-[22px] bg-brand-elevated shadow-[0_24px_80px_rgba(0,0,0,0.28)]"
       >
         <div className="px-6 pb-5 pt-7 text-center">
@@ -54,17 +54,14 @@ export function DeleteDiscountCodeModal({
             {discountCode.code.slice(0, 4)}
           </div>
           <h2
-            id="delete-discount-code-title"
+            id="delete-coupon-code-title"
             className="mt-4 text-[18px] font-semibold tracking-[-0.02em] text-brand-ink"
           >
             Delete {discountCode.code}?
           </h2>
-          <p className="mt-2 text-[13px] leading-relaxed text-brand-ink-secondary">
-            {discountCode.description}
-          </p>
           <p className="mt-3 text-[12px] leading-relaxed text-brand-ink-tertiary">
-            This removes the code from your catalog. Existing orders that used
-            it will keep their coupon field.
+            This removes the code from Settings. Existing orders that used it
+            keep their coupon field.
           </p>
         </div>
 

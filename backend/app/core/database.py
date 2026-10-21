@@ -160,5 +160,21 @@ def get_db() -> Generator:
     db = _SessionLocal()
     try:
         yield db
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            logger.warning("DB rollback failed after request error", exc_info=True)
+        raise
     finally:
-        db.close()
+        # Supabase/pooler connections can die after a successful commit
+        # (SSL SYSCALL EOF). Swallow close failures so a finished mutation
+        # is not rewritten as a 500 for the client.
+        try:
+            db.close()
+        except Exception:
+            logger.warning("DB session close failed; discarding connection", exc_info=True)
+            try:
+                db.invalidate()
+            except Exception:
+                pass

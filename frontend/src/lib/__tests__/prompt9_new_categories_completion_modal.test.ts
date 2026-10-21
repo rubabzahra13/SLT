@@ -9,8 +9,8 @@ import { evaluateCouponCode } from "../discount-codes";
 import type { DiscountCode } from "../../types";
 
 const mockDiscountCodes: DiscountCode[] = [
-  { id: "1", code: "SAVE50", discountType: "fixed", discountValue: 50, description: "$50 Off" },
-  { id: "2", code: "PROMO10", discountType: "percentage", discountValue: 10, description: "10% Off" },
+  { id: "1", code: "SAVE50" },
+  { id: "2", code: "PROMO10" },
 ];
 
 describe("Prompt 9 — New Categories Completion Modal Pricing & Coupon Integration", () => {
@@ -28,15 +28,11 @@ describe("Prompt 9 — New Categories Completion Modal Pricing & Coupon Integrat
       assert.equal(result.customerFacingPrice, 600); // Base package price $600 (add-ons are separate)
       assert.equal(result.complianceStatus, "unknown-no-affiliate-field");
 
-      // Wire coupon code
+      // Coupon matching is informational only — prices stay unchanged.
       const couponEval = evaluateCouponCode("SAVE50", mockDiscountCodes);
-      assert.equal(couponEval.status, "valid");
-      assert.equal(couponEval.match?.discountValue, 50);
-
-      const discountAmount = couponEval.match?.discountValue || 0;
-      const displayCustomerPrice = Math.max(0, result.customerFacingPrice - discountAmount);
-      assert.equal(displayCustomerPrice, 550);
-      assert.equal(result.customerFacingPrice, 600); // Package Price remains $600
+      assert.equal(couponEval.status, "matched");
+      assert.equal(couponEval.match?.code, "SAVE50");
+      assert.equal(result.customerFacingPrice, 600);
     });
 
     it("surfaces explicit unknown-no-affiliate-field state for Band Chant and Drum Cadence", () => {
@@ -78,7 +74,7 @@ describe("Prompt 9 — New Categories Completion Modal Pricing & Coupon Integrat
   });
 
   describe("School Anthems Completion Pricing & Coupon", () => {
-    it("calculates School Anthems flat $1,250 price and applies coupon", () => {
+    it("calculates School Anthems flat $1,250 price; coupon match does not change it", () => {
       const result = calculateSchoolAnthemOrderPricing({
         packageType: "SCHOOL ANTHEMS",
       });
@@ -87,15 +83,9 @@ describe("Prompt 9 — New Categories Completion Modal Pricing & Coupon Integrat
       assert.equal(result.payrollBasePrice, 1250);
 
       const couponEval = evaluateCouponCode("PROMO10", mockDiscountCodes);
-      assert.equal(couponEval.status, "valid");
-
-      const discountPct = couponEval.match?.discountValue || 0;
-      const discountAmount = Math.round(result.payrollBasePrice * (discountPct / 100));
-      assert.equal(discountAmount, 125);
-
-      const displayCustomerPrice = result.customerFacingPrice - discountAmount;
-      assert.equal(displayCustomerPrice, 1125);
-      assert.equal(result.customerFacingPrice, 1250); // Package Price remains $1,250
+      assert.equal(couponEval.status, "matched");
+      assert.equal(couponEval.match?.code, "PROMO10");
+      assert.equal(result.customerFacingPrice, 1250);
     });
   });
 });

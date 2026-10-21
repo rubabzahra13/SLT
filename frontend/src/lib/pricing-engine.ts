@@ -988,6 +988,7 @@ export type PricingEngineInput = {
   extraSongsQuantity?: number;
   extraSongEditingTimeQuantity?: number;
   couponCode?: string;
+  /** @deprecated Unused — coupons are match-only and never affect price. */
   discountCodeObj?: DiscountCode | null;
 };
 
@@ -1001,9 +1002,8 @@ export type PricingEngineResult = {
   matchedEntry: RateCardEntry | null;
   packageName: string;
   timeLengthOfMix: string;
+  /** Always 0 — coupons are match-only. */
   discountAmount: number;
-  discountType?: "fixed" | "percentage";
-  discountValue?: number;
   preDiscountPayrollBasePrice: number;
   preDiscountCustomerFacingPrice: number;
   /** School Cheer Magento SoftSelect "Other" mix (any package) → Needs Quote. */
@@ -1128,18 +1128,7 @@ export function calculateCheerOrderPricing(
     preDiscountPayrollBasePrice = compliantPayrollBasePrice;
   }
 
-  // Calculate discount based on discountCodeObj
-  let discountAmount = 0;
-  const discObj = input.discountCodeObj;
-  if (discObj && discObj.discountType && typeof discObj.discountValue === "number" && discObj.discountValue > 0) {
-    if (discObj.discountType === "fixed") {
-      discountAmount = Math.min(preDiscountPayrollBasePrice, Math.max(0, discObj.discountValue));
-    } else if (discObj.discountType === "percentage") {
-      const percentage = Math.max(0, Math.min(100, discObj.discountValue));
-      discountAmount = Math.min(preDiscountPayrollBasePrice, Math.round(preDiscountPayrollBasePrice * (percentage / 100)));
-    }
-  }
-
+  // Coupon codes are match-only and never change prices.
   const payrollBasePrice = preDiscountPayrollBasePrice;
   const customerFacingPrice = preDiscountCustomerFacingPrice;
 
@@ -1153,9 +1142,7 @@ export function calculateCheerOrderPricing(
     matchedEntry,
     packageName: matchedEntry.tier,
     timeLengthOfMix: matchedEntry.limit,
-    discountAmount,
-    discountType: discObj?.discountType,
-    discountValue: discObj?.discountValue,
+    discountAmount: 0,
     preDiscountPayrollBasePrice,
     preDiscountCustomerFacingPrice,
   };
