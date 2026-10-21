@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional, Union
 from uuid import UUID
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class PayrollAddonOut(BaseModel):
@@ -34,9 +34,9 @@ class PayrollAddonCreate(BaseModel):
     team_name: Optional[str] = None
     order_id: Optional[Union[UUID, str]] = None
     mtd_id: Optional[Union[UUID, str]] = None
-    category: str = Field(..., pattern="^(Cheer|Dance)$")
-    addon_type: str = Field(..., pattern="^(voiceover|rush_fee)$")
-    amount: float = Field(..., gt=0)
+    category: str = Field(..., min_length=1)
+    addon_type: str = Field(..., pattern="^(voiceover|rush_fee|misc_adjustment)$")
+    amount: float
     quantity: Optional[int] = Field(None, ge=0, le=100)
     unit_amount: Optional[float] = Field(None, gt=0)
     compensation_rate: Optional[float] = None
@@ -46,9 +46,22 @@ class PayrollAddonCreate(BaseModel):
     producer_initials: Optional[str] = None
     notes: Optional[str] = None
 
+    @model_validator(mode="after")
+    def validate_amount_and_category(self):
+        if self.addon_type == "misc_adjustment":
+            if self.amount == 0:
+                raise ValueError("Miscellaneous adjustment amount cannot be zero.")
+            return self
+
+        if self.amount <= 0:
+            raise ValueError("Add-on amount must be greater than 0.")
+        if self.category not in ("Cheer", "Dance"):
+            raise ValueError("Category must be Cheer or Dance for voiceover/rush fee.")
+        return self
+
 
 class PayrollAddonUpdate(BaseModel):
-    amount: Optional[float] = Field(None, gt=0)
+    amount: Optional[float] = None
     quantity: Optional[int] = Field(None, ge=0, le=100)
     unit_amount: Optional[float] = Field(None, gt=0)
     compensation_rate: Optional[float] = None
@@ -57,4 +70,8 @@ class PayrollAddonUpdate(BaseModel):
     producer_initials: Optional[str] = None
     notes: Optional[str] = None
 
-
+    @model_validator(mode="after")
+    def validate_amount(self):
+        if self.amount is not None and self.amount == 0:
+            raise ValueError("Amount cannot be zero.")
+        return self

@@ -9,7 +9,7 @@ export interface BackendPayrollAddon {
   order_id?: string | null;
   mtd_id?: string | null;
   category: string;
-  addon_type: "voiceover" | "rush_fee";
+  addon_type: "voiceover" | "rush_fee" | "misc_adjustment";
   amount: number;
   quantity?: number | null;
   unit_amount?: number | null;
@@ -74,7 +74,7 @@ export interface CreatePayrollAddonPayload {
   orderId?: string | null;
   mtdId?: string | null;
   category: string;
-  addonType: "voiceover" | "rush_fee";
+  addonType: "voiceover" | "rush_fee" | "misc_adjustment";
   amount: number;
   quantity?: number | null;
   unitAmount?: number | null;

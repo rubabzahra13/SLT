@@ -6,7 +6,15 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Check, Trash2 } from "lucide-react";
 import { PayrollRushFeeControls } from "@/components/payroll/PayrollRushFeeControls";
 import { MarkPaidConfirmModal } from "@/components/payroll/MarkPaidConfirmModal";
+import { MiscAdjustmentModal } from "@/components/payroll/MiscAdjustmentModal";
 import { VoiceoversPanel } from "@/components/payroll/VoiceoversPanel";
+import type { CreatePayrollAddonPayload } from "@/lib/api/payroll-addons";
+import {
+  applyMiscAdjustmentToPayout,
+  formatSignedMiscAdjustment,
+  miscAdjustmentAddonForRecord,
+  miscAdjustmentAmount,
+} from "@/lib/misc-payroll-adjustment";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { MTDPageToolbar } from "@/components/mtd/MTDPageToolbar";
 import type { MTDViewOrder } from "@/components/mtd/MTDViewOrderToggle";
@@ -137,6 +145,8 @@ export default function PayrollPage() {
     useState<MTDRecord | null>(null);
   const [deletingForever, setDeletingForever] = useState(false);
   const [markPaidRecord, setMarkPaidRecord] = useState<MTDRecord | null>(null);
+  const [miscAdjustmentRecord, setMiscAdjustmentRecord] =
+    useState<MTDRecord | null>(null);
   const [viewOrder, setViewOrder] = useState<MTDViewOrder>("sequence");
 
   const [formState, setFormState] = useState<OrderFormType>(DEFAULT_FORM);
@@ -509,7 +519,9 @@ export default function PayrollPage() {
         }
       );
       const base = calc.producerPayout ?? order?.producerPayout ?? 0;
-      const payout = finalizeMixPayout(base, calc.status, selection) ?? 0;
+      const withRush = finalizeMixPayout(base, calc.status, selection) ?? 0;
+      const misc = miscAdjustmentAmount(rec.id, rec.orderId, payrollAddons);
+      const payout = applyMiscAdjustmentToPayout(withRush, misc) ?? withRush;
       return sum + payout;
     }, 0);
 
@@ -1165,21 +1177,29 @@ export default function PayrollPage() {
             }
           );
 
-          const payout = finalizeMixPayout(
+          const withRush = finalizeMixPayout(
             calculated.producerPayout ?? order?.producerPayout,
             calculated.status,
             selection
           );
+          const miscAdj = miscAdjustmentAmount(
+            rec.id,
+            rec.orderId,
+            payrollAddons
+          );
+          const payout = applyMiscAdjustmentToPayout(withRush, miscAdj);
           const isRateOverridden = order?.rateSource === "manual_override";
           const isPriceOverridden = Boolean(
             order?.finalCustomerPriceOverridden ?? rec.finalCustomerPriceOverridden
           );
 
           if (model === "not_paid_for_mixing") {
+            // Misc adjustments still apply when the mix itself is unpaid.
+            const unpaidTotal = applyMiscAdjustmentToPayout(0, miscAdj) ?? 0;
             return (
               <div className="flex flex-col items-center">
                 <span className="text-[12px] font-semibold tabular-nums text-brand-ink">
-                  $0.00
+                  {formatPrice(unpaidTotal)}
                 </span>
                 <span className="text-[10px] text-brand-ink-tertiary">
                   Not Paid for Mixing
@@ -1308,6 +1328,44 @@ export default function PayrollPage() {
         },
       },
       {
+        key: "miscAdjustment",
+        header: "Misc Adjustment",
+        width: "128px",
+        align: "center",
+        cellClassName: "!px-2 !py-1.5",
+        headerClassName: "!px-2 !py-2",
+        render: (rec) => {
+          const amount = miscAdjustmentAmount(
+            rec.id,
+            rec.orderId,
+            payrollAddons
+          );
+          const label =
+            amount !== 0 ? formatSignedMiscAdjustment(amount) : "Add";
+          return (
+            <div
+              className="flex items-center justify-center"
+              data-stop-row-nav
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                disabled={addonsLocked}
+                onClick={() => setMiscAdjustmentRecord(rec)}
+                title="Miscellaneous Adjustment"
+                className={
+                  amount !== 0
+                    ? "inline-flex h-7 items-center rounded-md border border-brand-orange/35 bg-brand-orange/10 px-2.5 text-[11px] font-semibold tabular-nums text-brand-orange transition hover:bg-brand-orange/18 disabled:cursor-not-allowed disabled:opacity-50"
+                    : "inline-flex h-7 items-center rounded-md border border-brand-line px-2.5 text-[11px] font-semibold text-brand-ink-secondary transition hover:border-brand-orange/40 hover:text-brand-ink disabled:cursor-not-allowed disabled:opacity-50"
+                }
+              >
+                {label}
+              </button>
+            </div>
+          );
+        },
+      },
+      {
         key: "rushFee",
         header: "Rush Fee",
         width: "1px",
@@ -1421,11 +1479,81 @@ export default function PayrollPage() {
       orderById,
       allOrders,
       producers,
+      payrollAddons,
       rushStateForRecord,
       persistRushFee,
       pageTab,
     ]
   );
+
+  const miscAdjustmentExisting = useMemo(
+    () =>
+      miscAdjustmentRecord
+        ? miscAdjustmentAddonForRecord(
+            miscAdjustmentRecord.id,
+            miscAdjustmentRecord.orderId,
+            payrollAddons
+          )
+        : null,
+    [miscAdjustmentRecord, payrollAddons]
+  );
+
+  const persistMiscAdjustment = useCallback(
+    async (payload: CreatePayrollAddonPayload) => {
+      const rec = miscAdjustmentRecord;
+      if (!rec) return;
+
+      // Always read the latest list — a stale closure after create would miss
+      // the row and POST a second misc_adjustment for the same mix.
+      const latest = payrollAddonsRef.current;
+      const matches = latest.filter((addon) => {
+        if (addon.addonType !== "misc_adjustment") return false;
+        const aMtd = addon.mtdId ? String(addon.mtdId).trim() : "";
+        const aOrd = addon.orderId ? String(addon.orderId).trim() : "";
+        const rId = String(rec.id).trim();
+        const rOrd = rec.orderId ? String(rec.orderId).trim() : "";
+        if (aMtd && (aMtd === rId || (rOrd && aMtd === rOrd))) return true;
+        if (aOrd && ((rOrd && aOrd === rOrd) || aOrd === rId)) return true;
+        return false;
+      });
+
+      const primary = matches[0] ?? null;
+      // Keep exactly one misc adjustment per order — drop duplicates.
+      for (const extra of matches.slice(1)) {
+        await removePayrollAddon(extra.id);
+      }
+
+      if (primary) {
+        await updatePayrollAddon(primary.id, { amount: payload.amount });
+        return;
+      }
+      await addPayrollAddon(payload);
+    },
+    [
+      miscAdjustmentRecord,
+      addPayrollAddon,
+      updatePayrollAddon,
+      removePayrollAddon,
+    ]
+  );
+
+  const clearMiscAdjustment = useCallback(async () => {
+    const rec = miscAdjustmentRecord;
+    if (!rec) return;
+    const matches = payrollAddonsRef.current.filter((addon) => {
+      if (addon.addonType !== "misc_adjustment") return false;
+      const aMtd = addon.mtdId ? String(addon.mtdId).trim() : "";
+      const aOrd = addon.orderId ? String(addon.orderId).trim() : "";
+      const rId = String(rec.id).trim();
+      const rOrd = rec.orderId ? String(rec.orderId).trim() : "";
+      if (aMtd && (aMtd === rId || (rOrd && aMtd === rOrd))) return true;
+      if (aOrd && ((rOrd && aOrd === rOrd) || aOrd === rId)) return true;
+      return false;
+    });
+    for (const addon of matches) {
+      await removePayrollAddon(addon.id);
+    }
+  }, [miscAdjustmentRecord, removePayrollAddon]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -1624,6 +1752,17 @@ export default function PayrollPage() {
         onConfirm={() => {
           if (markPaidRecord) markPaid(markPaidRecord);
         }}
+      />
+
+      <MiscAdjustmentModal
+        open={Boolean(miscAdjustmentRecord)}
+        record={miscAdjustmentRecord}
+        existing={miscAdjustmentExisting}
+        allOrders={allOrders}
+        producers={producers}
+        onClose={() => setMiscAdjustmentRecord(null)}
+        onSave={persistMiscAdjustment}
+        onClear={clearMiscAdjustment}
       />
 
       {deleteForeverRecord && typeof document !== "undefined"

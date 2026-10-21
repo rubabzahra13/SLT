@@ -86,7 +86,7 @@ def list_payroll_addons(db: Session = Depends(get_db)):
 def create_payroll_addon(
     payload: PayrollAddonCreate, db: Session = Depends(get_db)
 ):
-    """Create a new standalone or row-level payroll add-on (voiceover or rush fee)."""
+    """Create a standalone or row-level payroll add-on (voiceover, rush fee, or misc)."""
     data = payload.model_dump()
 
     raw_mtd_id = str(data.get("mtd_id")).strip() if data.get("mtd_id") else None

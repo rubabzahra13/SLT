@@ -82,6 +82,7 @@ import { isOutsourcedRecord } from "@/lib/mtd-filters";
 import { mergeLocalMtdRecordFields } from "@/lib/mtd-completion";
 import { orderPatchFromMTD } from "@/lib/mtd-order-sync";
 import { inferMTDRecordStatus } from "@/lib/mtd-status";
+import { dedupePayrollAddons } from "@/lib/misc-payroll-adjustment";
 import { toIsoDateString } from "@/lib/dates";
 import { ApiClientError, formatApiClientError } from "@/lib/api/client";
 import {
@@ -273,6 +274,7 @@ const CACHE_VERSION = "v2";
 const CACHE_ORDERS_KEY = `slt_cache_orders_${CACHE_VERSION}`;
 const CACHE_MTD_KEY = `slt_cache_mtd_${CACHE_VERSION}`;
 const CACHE_PRODUCERS_KEY = `slt_cache_producers_${CACHE_VERSION}`;
+const CACHE_PAYROLL_ADDONS_KEY = `slt_cache_payroll_addons_${CACHE_VERSION}`;
 /** Drop snapshots older than this — not used to block first paint under 7 days. */
 const CACHE_HARD_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -516,6 +518,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   );
   const cachedMtd = readCache<MTDRecord[]>(CACHE_MTD_KEY);
   const cachedProducers = readCache<Producer[]>(CACHE_PRODUCERS_KEY);
+  const cachedPayrollAddons = readCache<PayrollAddon[]>(CACHE_PAYROLL_ADDONS_KEY);
   const hasCachedData = Boolean(
     cachedOrders || cachedMtd || (cachedProducers && cachedProducers.length > 0)
   );
@@ -545,7 +548,11 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     return [];
   });
   const [discountCodes, setDiscountCodes] = useState<DiscountCode[]>([]);
-  const [payrollAddons, setPayrollAddons] = useState<PayrollAddon[]>([]);
+  // Same SWR paint buffer as MTD — otherwise cached payroll rows render with
+  // empty addons until bootstrap finishes (or forever if bootstrap fails once).
+  const [payrollAddons, setPayrollAddons] = useState<PayrollAddon[]>(
+    () => dedupePayrollAddons(cachedPayrollAddons ?? [])
+  );
   const [personalReasons, setPersonalReasons] = useState<StudioPersonalReason[]>(
     () => {
       const stored = getLocalItem<StudioPersonalReason[] | null>(
@@ -638,7 +645,9 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       }
 
       setDiscountCodes(boot.discountCodes);
-      setPayrollAddons(boot.payrollAddons);
+      const nextAddons = dedupePayrollAddons(boot.payrollAddons);
+      setPayrollAddons(nextAddons);
+      writeTimedCache(CACHE_PAYROLL_ADDONS_KEY, nextAddons);
 
       if (boot.personalReasons.length > 0) {
         setPersonalReasons(ensurePersonalReasonsList(boot.personalReasons));
@@ -718,6 +727,20 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         }
         if (!isMounted || gen !== loadGen) return;
         applyBoot(boot, fetchedAt);
+        // Bootstrap can race a backend restart and omit add-ons while MTD still
+        // paints from cache — re-fetch the dedicated list when the boot was empty.
+        if (boot.payrollAddons.length === 0) {
+          void fetchPayrollAddonsApi()
+            .then((addons) => {
+              if (!isMounted || gen !== loadGen || addons.length === 0) return;
+              const next = dedupePayrollAddons(addons);
+              setPayrollAddons(next);
+              writeTimedCache(CACHE_PAYROLL_ADDONS_KEY, next);
+            })
+            .catch(() => {
+              /* keep cache / empty */
+            });
+        }
         // Package prices + SoftSelect affiliate catalogs from DB.
         void fetchPricingRulesApi()
           .then((rules) => {
@@ -1533,13 +1556,15 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
             !(o.legacyId && orderIds.has(o.legacyId))
         )
       );
-      setPayrollAddons((prev) =>
-        prev.filter(
+      setPayrollAddons((prev) => {
+        const next = prev.filter(
           (a) =>
             a.mtdId !== removed!.id &&
             !(removed!.orderId && a.orderId === removed!.orderId)
-        )
-      );
+        );
+        writeTimedCache(CACHE_PAYROLL_ADDONS_KEY, next);
+        return next;
+      });
       try {
         await deleteMTDRecordApi(removed.uuid || removed.id);
         setMtdRecords((prev) => {
@@ -3253,15 +3278,25 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         notes: payload.notes ?? null,
         createdAt: new Date().toISOString(),
       };
-      setPayrollAddons((prev) => [optimistic, ...prev]);
+      setPayrollAddons((prev) => {
+        const next = [optimistic, ...prev];
+        writeTimedCache(CACHE_PAYROLL_ADDONS_KEY, next);
+        return next;
+      });
       try {
       const addon = await createPayrollAddonApi(payload);
-        setPayrollAddons((prev) =>
-          prev.map((row) => (row.id === tempId ? addon : row))
-        );
+        setPayrollAddons((prev) => {
+          const next = prev.map((row) => (row.id === tempId ? addon : row));
+          writeTimedCache(CACHE_PAYROLL_ADDONS_KEY, next);
+          return next;
+        });
       return addon;
       } catch (err) {
-        setPayrollAddons((prev) => prev.filter((row) => row.id !== tempId));
+        setPayrollAddons((prev) => {
+          const next = prev.filter((row) => row.id !== tempId);
+          writeTimedCache(CACHE_PAYROLL_ADDONS_KEY, next);
+          return next;
+        });
         throw err;
       }
     },
@@ -3276,15 +3311,19 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       if (isViewOnly) {
         throw new Error("View-only accounts cannot edit payroll items.");
       }
-      setPayrollAddons((prev) =>
-        prev.map((addon) =>
+      setPayrollAddons((prev) => {
+        const next = prev.map((addon) =>
           addon.id === id ? mergePayrollAddonPatch(addon, patch) : addon
-        )
-      );
+        );
+        writeTimedCache(CACHE_PAYROLL_ADDONS_KEY, next);
+        return next;
+      });
       const updated = await updatePayrollAddonApi(id, patch);
-      setPayrollAddons((prev) =>
-        prev.map((addon) => (addon.id === id ? updated : addon))
-      );
+      setPayrollAddons((prev) => {
+        const next = prev.map((addon) => (addon.id === id ? updated : addon));
+        writeTimedCache(CACHE_PAYROLL_ADDONS_KEY, next);
+        return next;
+      });
       return updated;
     },
     [isViewOnly]
@@ -3294,7 +3333,11 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     async (id: string): Promise<void> => {
       if (isViewOnly) throw new Error("View-only accounts cannot delete payroll items.");
       await deletePayrollAddonApi(id);
-      setPayrollAddons((prev) => prev.filter((a) => a.id !== id));
+      setPayrollAddons((prev) => {
+        const next = prev.filter((a) => a.id !== id);
+        writeTimedCache(CACHE_PAYROLL_ADDONS_KEY, next);
+        return next;
+      });
     },
     [isViewOnly]
   );

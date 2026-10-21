@@ -106,7 +106,20 @@ def apply_rush_fee_fields(
     compensation_rate: Optional[Decimal | float | str],
     compensation_overridden: bool,
 ) -> dict:
-    """Normalize persisted rush-fee inputs. Voiceover rows leave these blank."""
+    """Normalize persisted rush-fee inputs. Voiceover / misc rows leave rush blank."""
+    if addon_type == "misc_adjustment":
+        if amount is None or amount == 0:
+            raise RushFeeValidationError(
+                "Miscellaneous adjustment amount cannot be zero."
+            )
+        return {
+            "amount": _money(amount),
+            "quantity": None,
+            "unit_amount": None,
+            "compensation_rate": None,
+            "compensation_overridden": False,
+        }
+
     if addon_type != "rush_fee":
         if amount is None or amount <= 0:
             raise RushFeeValidationError("Add-on amount must be greater than 0.")

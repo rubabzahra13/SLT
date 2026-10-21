@@ -22,6 +22,11 @@ import {
   rushFeeAddonForRecord,
   sportsEntertainmentIncludedRushFeeAmount,
 } from "./rush-fee";
+import {
+  applyMiscAdjustmentToPayout,
+  formatSignedMiscAdjustment,
+  miscAdjustmentAmount,
+} from "./misc-payroll-adjustment";
 
 import { inferMTDRecordStatus } from "./mtd-status";
 
@@ -317,6 +322,7 @@ export function generatePayrollCsv(
     { key: "producerRate", label: "Producer Rate" },
     { key: "voiceoverPayout", label: "Voiceover Payout" },
     { key: "rushPayout", label: "Rush Fee Payout" },
+    { key: "miscellaneousAdjustment", label: "Miscellaneous Adjustment" },
     { key: "danceExtraSongsPayout", label: "Dance Extra Songs Payout" },
     { key: "danceExtraSongTimePayout", label: "Dance Extra Song Time Payout" },
     { key: "totalProducerPayout", label: "Total Producer Payout" },
@@ -385,7 +391,10 @@ export function generatePayrollCsv(
     const isDance = meta.formType === "school-all-star-dance";
     const basePayout = calc.producerPayout ?? order?.producerPayout ?? 0;
     const rushPayout = rush.compensation;
-    const payoutTotal = finalizeMixPayout(basePayout, calc.status, rush) ?? basePayout;
+    const withRush = finalizeMixPayout(basePayout, calc.status, rush) ?? basePayout;
+    const miscAdj = miscAdjustmentAmount(rec.id, rec.orderId, payrollAddons);
+    const payoutTotal =
+      applyMiscAdjustmentToPayout(withRush, miscAdj) ?? withRush;
 
     const row: Record<string, unknown> = {
       id: rec.id,
@@ -404,6 +413,8 @@ export function generatePayrollCsv(
       producerRate: order?.rateUsed ?? "Default",
       voiceoverPayout: formatPrice(0),
       rushPayout: formatPrice(rushPayout),
+      miscellaneousAdjustment:
+        miscAdj !== 0 ? formatSignedMiscAdjustment(miscAdj) : "",
       danceExtraSongsPayout: isDance
         ? formatPrice(((rec as any).danceExtraSongs || 0) * 15)
         : "",
@@ -442,6 +453,7 @@ export function generatePayrollCsv(
       producerRate: "—",
       voiceoverPayout: formatPrice(addon.amount),
       rushPayout: formatPrice(0),
+      miscellaneousAdjustment: "",
       danceExtraSongsPayout: "",
       danceExtraSongTimePayout: "",
       totalProducerPayout: formatPrice(addon.amount),
@@ -471,6 +483,7 @@ export type ProducerFacingPayrollRow = {
   producerRate: string;
   voiceoverPayout: string;
   rushPayout: string;
+  miscellaneousAdjustment: string;
   danceExtraSongsPayout: string;
   danceExtraSongTimePayout: string;
   totalPayout: string;
@@ -493,6 +506,7 @@ export const PRODUCER_STATEMENT_COLUMNS: { key: keyof ProducerFacingPayrollRow; 
   { key: "producerRate", label: "My Compensation Rate" },
   { key: "voiceoverPayout", label: "Voiceover Compensation" },
   { key: "rushPayout", label: "Rush Fee Compensation" },
+  { key: "miscellaneousAdjustment", label: "Miscellaneous Adjustment" },
   { key: "danceExtraSongsPayout", label: "Dance Extra Songs Compensation" },
   { key: "danceExtraSongTimePayout", label: "Dance Extra Song Time Compensation" },
   { key: "totalPayout", label: "My Total Payout" },
@@ -588,7 +602,7 @@ export function findMixForPayrollAddon(
 export function matchAddonToRecord(
   addon: PayrollAddon,
   rec: MTDRecord,
-  addonType: "voiceover" | "rush_fee",
+  addonType: "voiceover" | "rush_fee" | "misc_adjustment",
   producerObj?: Producer | null
 ): boolean {
   if (addon.addonType !== addonType) return false;
@@ -727,7 +741,14 @@ export function getProducerFacingPayrollRows(
 
     const basePayout = calc.producerPayout ?? order?.producerPayout ?? 0;
     const rushPayout = rush.compensation;
-    const payoutTotal = finalizeMixPayout(basePayout, calc.status, rush) ?? basePayout;
+    const withRush = finalizeMixPayout(basePayout, calc.status, rush) ?? basePayout;
+    const miscAdj = miscAdjustmentAmount(
+      rec.id,
+      rec.orderId,
+      payrollAddons ?? []
+    );
+    const payoutTotal =
+      applyMiscAdjustmentToPayout(withRush, miscAdj) ?? withRush;
 
     const rushLabel =
       rush.quantity > 0 ? formatPrice(rush.total) : "None";
@@ -755,6 +776,8 @@ export function getProducerFacingPayrollRows(
       producerRate: String(order?.rateUsed ?? "Default"),
       voiceoverPayout: formatPrice(0),
       rushPayout: formatPrice(rushPayout),
+      miscellaneousAdjustment:
+        miscAdj !== 0 ? formatSignedMiscAdjustment(miscAdj) : "",
       danceExtraSongsPayout: isDance
         ? formatPrice(((rec as any).danceExtraSongs || 0) * 15)
         : "",
@@ -822,6 +845,8 @@ export function getProducerFacingPayrollRows(
         }
       }
 
+      // Misc adjustments stay on the mix row — never emit a second line.
+      if (addon.addonType === "misc_adjustment") return false;
       if (addon.addonType === "voiceover") return true;
       // Rush: standalone only
       return !addon.mtdId && !addon.orderId;
@@ -881,6 +906,7 @@ export function getProducerFacingPayrollRows(
             ? formatPrice(addon.amount)
             : "",
         rushPayout: standaloneRush ? formatPrice(standaloneRush.compensation) : "",
+        miscellaneousAdjustment: "",
         danceExtraSongsPayout: "",
         danceExtraSongTimePayout: "",
         totalPayout: formatPrice(standaloneAmount),

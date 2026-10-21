@@ -89,3 +89,36 @@ def test_legacy_amount_only_rows_keep_their_unit():
     assert custom["quantity"] == 1
     assert custom["unit_amount"] == Decimal("200.00")
     assert custom["amount"] == Decimal("200.00")
+
+
+def test_misc_adjustment_allows_signed_amounts():
+    added = apply_rush_fee_fields(
+        addon_type="misc_adjustment",
+        amount=Decimal("20"),
+        quantity=None,
+        unit_amount=None,
+        compensation_rate=None,
+        compensation_overridden=False,
+    )
+    assert added["amount"] == Decimal("20.00")
+    assert added["quantity"] is None
+
+    deducted = apply_rush_fee_fields(
+        addon_type="misc_adjustment",
+        amount=Decimal("-10"),
+        quantity=None,
+        unit_amount=None,
+        compensation_rate=None,
+        compensation_overridden=False,
+    )
+    assert deducted["amount"] == Decimal("-10.00")
+
+    with pytest.raises(RushFeeValidationError):
+        apply_rush_fee_fields(
+            addon_type="misc_adjustment",
+            amount=Decimal("0"),
+            quantity=None,
+            unit_amount=None,
+            compensation_rate=None,
+            compensation_overridden=False,
+        )

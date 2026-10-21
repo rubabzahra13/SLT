@@ -1038,11 +1038,14 @@ export type PayrollAddon = {
   teamName?: string | null;
   orderId?: string | null;
   mtdId?: string | null;
-  /** "Cheer" | "Dance" */
+  /** "Cheer" | "Dance" | form label for misc_adjustment */
   category: string;
-  /** "voiceover" | "rush_fee" */
-  addonType: "voiceover" | "rush_fee";
-  /** Customer amount. Rush fees: unitAmount × quantity. */
+  /** "voiceover" | "rush_fee" | "misc_adjustment" */
+  addonType: "voiceover" | "rush_fee" | "misc_adjustment";
+  /**
+   * Dollar amount. Rush fees: unitAmount × quantity (customer).
+   * misc_adjustment: signed — positive adds to payroll, negative deducts.
+   */
   amount: number;
   /** Rush fee quantity. Null on voiceover rows and legacy rush rows. */
   quantity?: number | null;
