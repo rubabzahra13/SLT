@@ -13,7 +13,7 @@ const baseOrderProps = {
   attentionReason: null,
 };
 
-describe("Bug Fix Verification: Persistence & Compliancy Collection Logic", () => {
+describe("Bug Fix Verification: Persistence & Magento Collections", () => {
   describe("Bug 1: Toggle Persistence & Status Transitions", () => {
     test("collectionStates and orderStatus transform correctly from backend to frontend Order", () => {
       const backendOrder: BackendOrder = {
@@ -28,23 +28,23 @@ describe("Bug Fix Verification: Persistence & Compliancy Collection Logic", () =
         created_at: new Date().toISOString(),
         needs_attention: false,
         is_past_order: false,
-        collection_states: { video: false },
+        collection_states: { cs: false },
         order_status: "Waiting for Data",
       };
 
       const order = transformOrder(backendOrder);
-      assert.deepStrictEqual(order.collectionStates, { video: false });
+      assert.deepStrictEqual(order.collectionStates, { cs: false });
       assert.strictEqual(order.orderStatus, "Waiting for Data");
 
       const syntheticRecord = stagingRecordFromOrder(order);
-      assert.deepStrictEqual(syntheticRecord.collectionStates, { video: false });
+      assert.deepStrictEqual(syntheticRecord.collectionStates, { cs: false });
 
       const reqs = getOrderRequirements(order);
       assert.strictEqual(reqs.isWaitingForData, true);
-      assert.strictEqual(reqs.status, "Waiting for Data");
+      assert.strictEqual(reqs.status, "Missing Data");
     });
 
-    test("Toggling a field from GREEN to RED updates status to Waiting for Data", () => {
+    test("Toggling CS from GREEN to RED updates status to Missing Data", () => {
       const order: Order = {
         ...baseOrderProps,
         id: "order-2",
@@ -52,26 +52,31 @@ describe("Bug Fix Verification: Persistence & Compliancy Collection Logic", () =
         contactName: "Coach",
         programName: "Cheer Team",
         category: "Cheer",
-        package: "PLATINUM",
+        package: "PLATINUM 2:30",
         price: 800,
         status: "active",
         createdAt: new Date().toISOString(),
         needsAttention: false,
         formType: "school-all-star-cheer",
+        cheerFormSubtype: "all-star-cheer",
         songListSuggestions: "Song 1, Song 2",
         sendingEightCountSheets: "Yes",
-        routineNotes: "Video link attached: http://video.com",
-        collectionStates: { video: false }, // User toggled video to RED
+        routineNotes: "Routine notes",
+        collectionStates: { cs: false },
       };
 
       const reqs = getOrderRequirements(order);
-      const videoItem = reqs.collections.find((i) => i.id === "video");
-      assert.ok(videoItem, "Video requirement item must exist");
-      assert.strictEqual(videoItem.state, "red");
-      assert.strictEqual(reqs.status, "Waiting for Data");
+      const csItem = reqs.collections.find((i) => i.id === "cs");
+      assert.ok(csItem, "CS requirement item must exist when form says Yes");
+      assert.strictEqual(csItem.state, "red");
+      assert.strictEqual(reqs.status, "Missing Data");
+      assert.ok(
+        !reqs.collections.some((i) => i.id === "video" && i.isApplicable),
+        "Video is never a Magento board pill"
+      );
     });
 
-    test("Toggling all fields to GREEN updates status to Need to be Scheduled", () => {
+    test("All Magento fields filled updates status to Complete data", () => {
       const order: Order = {
         ...baseOrderProps,
         id: "order-3",
@@ -79,26 +84,29 @@ describe("Bug Fix Verification: Persistence & Compliancy Collection Logic", () =
         contactName: "Coach",
         programName: "Cheer Team",
         category: "Cheer",
-        package: "PLATINUM",
+        package: "PLATINUM 2:30",
         price: 800,
         status: "active",
         createdAt: new Date().toISOString(),
         needsAttention: false,
         formType: "school-all-star-cheer",
+        cheerFormSubtype: "all-star-cheer",
+        timeLengthOfMix: "2:30",
         songListSuggestions: "Song 1, Song 2",
         sendingEightCountSheets: "Yes",
-        routineNotes: "http://video.com",
-        collectionStates: { video: true, songs: true, cs: true },
+        routineNotes: "Routine notes",
+        eightCountSheet: "HAVE CS",
+        collectionStates: { cs: true },
       };
 
       const reqs = getOrderRequirements(order);
-      assert.strictEqual(reqs.status, "Need to be Scheduled");
+      assert.strictEqual(reqs.status, "Complete data");
       assert.strictEqual(reqs.missingCount, 0);
     });
   });
 
-  describe("Bug 2: Music Affiliate → Compliancy Collection Logic", () => {
-    test("When Music Affiliate is populated ('ASCAP'), Compliancy is NOT missing in email", () => {
+  describe("Bug 2: Music Affiliate is form data, not a Compliancy board pill", () => {
+    test("When Music Affiliate is populated, Compliancy is NOT in missing-data email", () => {
       const order: Order = {
         ...baseOrderProps,
         id: "order-dance-1",
@@ -112,9 +120,11 @@ describe("Bug Fix Verification: Persistence & Compliancy Collection Logic", () =
         createdAt: new Date().toISOString(),
         needsAttention: false,
         formType: "school-all-star-dance",
+        danceFormSubtype: "pom",
         musicAffiliate: "ASCAP",
         timeLengthOfMix: "2:00",
-        songListSuggestions: "Song A, Song B",
+        powerMusicCovers: "Song A, Song B",
+        routineNotes: "Notes",
         coachEmail: "coach@dancestudio.com",
       };
 
@@ -127,44 +137,11 @@ describe("Bug Fix Verification: Persistence & Compliancy Collection Logic", () =
       assert.strictEqual(
         hasCompliancyInEmail,
         false,
-        "Compliancy must NOT appear in email when Music Affiliate is populated with 'ASCAP'"
+        "Compliancy must NOT appear — Magento has no Compliancy board pill"
       );
     });
 
-    test("When Music Affiliate is populated ('BMI'), Compliancy is NOT missing in email", () => {
-      const order: Order = {
-        ...baseOrderProps,
-        id: "order-dance-2",
-        customerName: "Dance Studio 2",
-        contactName: "Coach Mary",
-        programName: "Dance Team 2",
-        category: "Dance",
-        package: "DANCE CUSTOM POM",
-        price: 600,
-        status: "active",
-        createdAt: new Date().toISOString(),
-        needsAttention: false,
-        formType: "school-all-star-dance",
-        musicAffiliate: "BMI",
-        timeLengthOfMix: "2:00",
-        songListSuggestions: "Song X, Song Y",
-        coachEmail: "coach2@dancestudio.com",
-      };
-
-      const record = stagingRecordFromOrder(order);
-      const draft = buildCollectionEmailDraft(record, order, "coach2@dancestudio.com");
-
-      const hasCompliancyInEmail = draft.missingItems.some((item) =>
-        item.includes("COMPLIANCY")
-      );
-      assert.strictEqual(
-        hasCompliancyInEmail,
-        false,
-        "Compliancy must NOT appear in email when Music Affiliate is populated with 'BMI'"
-      );
-    });
-
-    test("When Music Affiliate is empty (''), Compliancy IS requested in email", () => {
+    test("When Music Affiliate is empty, Compliancy still is NOT a board collection item", () => {
       const order: Order = {
         ...baseOrderProps,
         id: "order-dance-3",
@@ -178,9 +155,11 @@ describe("Bug Fix Verification: Persistence & Compliancy Collection Logic", () =
         createdAt: new Date().toISOString(),
         needsAttention: false,
         formType: "school-all-star-dance",
+        danceFormSubtype: "pom",
         musicAffiliate: "",
         timeLengthOfMix: "2:00",
-        songListSuggestions: "Song X, Song Y",
+        powerMusicCovers: "Song X, Song Y",
+        routineNotes: "Notes",
         coachEmail: "coach3@dancestudio.com",
       };
 
@@ -192,12 +171,12 @@ describe("Bug Fix Verification: Persistence & Compliancy Collection Logic", () =
       );
       assert.strictEqual(
         hasCompliancyInEmail,
-        true,
-        "Compliancy MUST appear in email when Music Affiliate is empty"
+        false,
+        "Empty Music Affiliate must not invent a Compliancy board pill"
       );
     });
 
-    test("When Music Affiliate is whitespace-only ('  '), Compliancy IS requested in email", () => {
+    test("When Music Affiliate is whitespace-only, Compliancy still is NOT requested", () => {
       const order: Order = {
         ...baseOrderProps,
         id: "order-dance-4",
@@ -211,9 +190,11 @@ describe("Bug Fix Verification: Persistence & Compliancy Collection Logic", () =
         createdAt: new Date().toISOString(),
         needsAttention: false,
         formType: "school-all-star-dance",
+        danceFormSubtype: "pom",
         musicAffiliate: "   ",
         timeLengthOfMix: "2:00",
-        songListSuggestions: "Song X, Song Y",
+        powerMusicCovers: "Song X, Song Y",
+        routineNotes: "Notes",
         coachEmail: "coach4@dancestudio.com",
       };
 
@@ -225,8 +206,8 @@ describe("Bug Fix Verification: Persistence & Compliancy Collection Logic", () =
       );
       assert.strictEqual(
         hasCompliancyInEmail,
-        true,
-        "Compliancy MUST appear in email when Music Affiliate is whitespace-only"
+        false,
+        "Whitespace Music Affiliate must not invent a Compliancy board pill"
       );
     });
   });

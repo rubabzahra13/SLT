@@ -29,6 +29,7 @@ import {
   orderPatchFromOrderField,
 } from "@/lib/mtd-order-sync";
 import { resolveOrderFormDisplay } from "@/lib/order-form-display";
+import { formatDisplayDateTime } from "@/lib/dates";
 import type { Order } from "@/types";
 
 export default function OrderDetailPage({
@@ -228,7 +229,15 @@ export default function OrderDetailPage({
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <PageHeader
         title={displayOrder.programName || displayOrder.teamName || record.programName || "Order Details"}
-        subtitle={displayOrder.contactName || displayOrder.customerName || record.contactName || "Customer"}
+        subtitle={(() => {
+          const contact =
+            displayOrder.contactName ||
+            displayOrder.customerName ||
+            record.contactName ||
+            "Customer";
+          const stamp = formatDisplayDateTime(displayOrder.createdAt);
+          return stamp !== "—" ? `${contact} · Timestamp ${stamp}` : contact;
+        })()}
         secondaryAction={{
           label: "Pricing",
           onClick: () => setPricingOpen(true),

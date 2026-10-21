@@ -1,6 +1,10 @@
 import type { MTDRecord, Order, Producer, PayrollAddon } from "@/types";
 import { formatPrice } from "./data";
-import { doDateRangesOverlap, toIsoDateString } from "./dates";
+import {
+  doDateRangesOverlap,
+  formatDisplayDateTime,
+  toIsoDateString,
+} from "./dates";
 import {
   findLinkedOrder,
   findProducerByAssignmentKey,
@@ -109,6 +113,7 @@ export function generateOrdersCsv(records: MTDRecord[], allOrders: Order[]): str
 
   const baseHeaders = [
     { key: "id", label: "Order ID" },
+    { key: "createdAt", label: "Timestamp" },
     { key: "formType", label: "Category" },
     { key: "subtype", label: "Subtype" },
     { key: "contactName", label: "Contact Name" },
@@ -136,6 +141,9 @@ export function generateOrdersCsv(records: MTDRecord[], allOrders: Order[]): str
 
     const row: Record<string, unknown> = {
       id: rec.orderId || rec.id,
+      createdAt: formatDisplayDateTime(
+        linked?.createdAt || order.createdAt || ""
+      ),
       formType: getFormTypeLabel(meta.formType),
       subtype: meta.canonicalSubtypeId,
       contactName: rec.contactName || order.contactName || "",
@@ -176,6 +184,7 @@ export function generateMTDCsv(
 
   const baseHeaders = [
     { key: "id", label: "Record ID" },
+    { key: "createdAt", label: "Timestamp" },
     { key: "formType", label: "Category" },
     { key: "subtype", label: "Subtype" },
     { key: "contactName", label: "Contact Name" },
@@ -229,6 +238,9 @@ export function generateMTDCsv(
 
     const row: Record<string, unknown> = {
       id: rec.id,
+      createdAt: formatDisplayDateTime(
+        linked?.createdAt || order.createdAt || ""
+      ),
       formType: getFormTypeLabel(meta.formType),
       subtype: meta.canonicalSubtypeId,
       contactName: rec.contactName,
@@ -293,6 +305,7 @@ export function generatePayrollCsv(
 
   const baseHeaders = [
     { key: "id", label: "Record ID" },
+    { key: "createdAt", label: "Timestamp" },
     { key: "completedDate", label: "Completed Date" },
     { key: "formType", label: "Category" },
     { key: "subtype", label: "Subtype" },
@@ -376,6 +389,9 @@ export function generatePayrollCsv(
 
     const row: Record<string, unknown> = {
       id: rec.id,
+      createdAt: formatDisplayDateTime(
+        linked?.createdAt || order.createdAt || ""
+      ),
       completedDate:
         toIsoDateString(rec.completedAt) || toIsoDateString(rec.mixEndDate) || "",
       formType: getFormTypeLabel(meta.formType),

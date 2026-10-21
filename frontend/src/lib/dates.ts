@@ -52,6 +52,27 @@ export function formatDisplayDate(value?: string | null): string {
   });
 }
 
+/** Date + time for order createdAt (keeps clock when ISO has time). */
+export function formatDisplayDateTime(value?: string | null): string {
+  const raw = String(value || "").trim();
+  if (!raw) return "—";
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) {
+    return formatDisplayDate(raw);
+  }
+  // Date-only strings (YYYY-MM-DD) have no useful clock — show date only.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return formatDisplayDate(raw);
+  }
+  return date.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 export function compareIsoDates(
   a?: string | null,
   b?: string | null

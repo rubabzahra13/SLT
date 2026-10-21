@@ -5,6 +5,7 @@ import {
   packDanceSongCovers,
   parseDanceSongCovers,
 } from "@/lib/dance-song-covers";
+import { getOrderDetailSections } from "@/lib/order-detail-sections";
 export type RequirementCategory = "collections" | "songs";
 export type RequirementState = "green" | "red" | "white";
 
@@ -415,47 +416,103 @@ export function isMarchingBandOrder(
   );
 }
 
-/** Notes pill text — form Notes field for this order type. */
+/** Notes pill text — Magento Notes field (routine_notes SoT). */
 export function getFormNotesText(order: Order | MTDRecord): string {
   const o = order as Order & MTDRecord & Record<string, unknown>;
-  const formType = String(o.formType || o.form_type || "").toLowerCase();
-  const category = String(o.category || "").toLowerCase();
-  const isAnthem =
-    formType.includes("anthem") || category.includes("anthem");
-
-  if (isAnthem) {
-    // Magento "Lyrical Notes" → routine_notes.
-    return String(
-      o.routineNotes ||
-        o.lyricalNotes ||
-        o.routine_notes ||
-        o.lyrical_notes ||
-        ""
-    ).trim();
-  }
-  if (isMarchingBandOrder(order)) {
-    const kind = resolveMarchingBandPackageKind(order);
-    // Fight Song / Alma Mater Notes → routine_notes. Drum Cadence → song_list.
-    if (kind === "fight_alma") {
-      return String(
-        o.routineNotes ||
-          o.lyricalNotes ||
-          o.routine_notes ||
-          o.lyrical_notes ||
-          ""
-      ).trim();
-    }
-    return String(
-      o.songListSuggestions ||
-        o.instrumentationNotes ||
-        o.song_list_suggestions ||
-        o.instrumentation_notes ||
-        ""
-    ).trim();
-  }
   return String(
-    o.routineNotes || o.additionalNotes || o.routine_notes || o.additional_notes || ""
+    o.routineNotes ||
+      o.additionalNotes ||
+      o.lyricalNotes ||
+      o.routine_notes ||
+      o.additional_notes ||
+      o.lyrical_notes ||
+      ""
   ).trim();
+}
+
+/** Magento form keys present on this order's category form (not package). */
+function magentoFormFieldKeys(order: Order | MTDRecord): Set<string> {
+  const o = order as Order;
+  const formType = (o.formType ||
+    (order as { form_type?: string }).form_type ||
+    "") as OrderFormType | "";
+  if (!formType) return new Set();
+  try {
+    const sections = getOrderDetailSections({
+      ...o,
+      formType: formType as OrderFormType,
+      cheerFormSubtype: o.cheerFormSubtype || "all-star-cheer",
+      danceFormSubtype: o.danceFormSubtype || "pom",
+    } as Order);
+    return new Set(sections.flatMap((s) => s.fields.map((f) => f.key)));
+  } catch {
+    return new Set();
+  }
+}
+
+/**
+ * Board Collections / Songs pills follow Magento form fields for this
+ * category — never package tier (Platinum/Titanium/Jazz Simple Cut, etc.).
+ */
+function magentoBoardPillFlags(order: Order | MTDRecord): {
+  needMix: boolean;
+  needCsField: boolean;
+  needSongs: boolean;
+  needNotes: boolean;
+  songsLabel: string;
+} {
+  const keys = magentoFormFieldKeys(order);
+  // Fallback when formType missing: infer from category helpers.
+  if (keys.size === 0) {
+    const isDance = isAllStarDanceOrder(order);
+    const isMB = isMarchingBandOrder(order);
+    const formType = String(
+      (order as Order).formType ||
+        (order as { form_type?: string }).form_type ||
+        ""
+    ).toLowerCase();
+    const category = String(order.category || "").toLowerCase();
+    const isAnthem =
+      formType.includes("anthem") || category.includes("anthem");
+    const isSports =
+      formType.includes("sports") || category.includes("sports");
+    const isCheer =
+      formType.includes("cheer") ||
+      category.includes("cheer") ||
+      (!isDance && !isMB && !isAnthem && !isSports);
+    return {
+      needMix: !isAnthem,
+      needCsField: isCheer,
+      needSongs: true,
+      needNotes: true,
+      songsLabel: isAnthem || isMB ? "Song" : "Songs",
+    };
+  }
+
+  const needMix = keys.has("timeLengthOfMix");
+  const needCsField =
+    keys.has("sendingEightCountSheets") || keys.has("usingEightCountSheets");
+  const needSongs =
+    keys.has("songListSuggestions") ||
+    keys.has("powerMusicCovers") ||
+    keys.has("unleashTheBeatsCovers") ||
+    keys.has("customerSongs");
+  const needNotes =
+    keys.has("routineNotes") ||
+    keys.has("additionalNotes") ||
+    keys.has("lyricalNotes");
+
+  const formType = String(
+    (order as Order).formType ||
+      (order as { form_type?: string }).form_type ||
+      ""
+  ).toLowerCase();
+  const songsLabel =
+    formType.includes("anthem") || formType.includes("band")
+      ? "Song"
+      : "Songs";
+
+  return { needMix, needCsField, needSongs, needNotes, songsLabel };
 }
 
 /** True when Form song list column has display text (Songs pill = green). */
@@ -563,7 +620,8 @@ function isEightCountCollected(sheetVal: unknown): boolean {
 
 /**
  * Canonical 3-State Requirements Engine:
- * Derives exact package-specific requirements based on Main Category -> Subcategory -> Package.
+ * Collections / Songs pills follow Magento form fields for the order's
+ * category (not package tier). Manual unmatched rows also get Form.
  *
  * Requirements evaluate to 3 distinct states:
  * - GREEN: Required + Collected
@@ -571,153 +629,37 @@ function isEightCountCollected(sheetVal: unknown): boolean {
  * - WHITE: Not Applicable (Ignored for status progression)
  */
 export function getOrderRequirements(order: Order | MTDRecord): OrderRequirementsResult {
-  // Manual / New Order rows use the same Mix·CS·Video / Songs·Notes pills as
-  // form orders (package rules). Do not invent Time of Mix / Compliancy pills.
-
   const requirements: OrderRequirementItem[] = [];
 
   const category = (order.category || "").trim().toLowerCase();
   const rawFormType = ((order as any).formType || "").trim().toLowerCase();
-  const pkgStr = (order.package || (order as any).packageType || "").trim().toUpperCase();
   const parsedPkg = parsePackage(order.package || (order as any).packageType || "");
 
-  const isMarchingBand =
-    category.includes("band") ||
-    rawFormType.includes("band") ||
-    pkgStr.includes("BAND CHANT") ||
-    pkgStr.includes("CADENCE") ||
-    pkgStr.includes("FIGHT SONG") ||
-    pkgStr.includes("ALMA MATER");
-  const isDance = isAllStarDanceOrder(order);
   const isCheer =
     category.includes("cheer") ||
     rawFormType.includes("cheer") ||
-    pkgStr.includes("BRONZE") ||
-    pkgStr.includes("SILVER") ||
-    pkgStr.includes("GOLD") ||
-    pkgStr.includes("PLATINUM") ||
-    pkgStr.includes("TITANIUM") ||
-    pkgStr.includes("RALLY MIX");
-  const isAnthem = category.includes("anthem") || rawFormType.includes("anthem");
+    (!isAllStarDanceOrder(order) &&
+      !isMarchingBandOrder(order) &&
+      !category.includes("anthem") &&
+      !rawFormType.includes("anthem") &&
+      !category.includes("sports") &&
+      !rawFormType.includes("sports"));
   const isSports = category.includes("sports") || rawFormType.includes("sports");
+  const isDance = isAllStarDanceOrder(order);
+  const isMarchingBand = isMarchingBandOrder(order);
+  const isAnthem =
+    category.includes("anthem") || rawFormType.includes("anthem");
 
-  let needSongs = false;
-  let songsLabel = "Songs";
-  let needNotes = false;
-  let needTimeOfMix = false;
-  let needCompliancy = false;
-  let needEightCount = false;
-  let needVideo = false;
-
-  if (isDance) {
-    // All All-Star Dance subcategories (POM / Hip Hop / Team Performance /
-    // Gameday / Jazz-Kick) share Songs SoT = Power Music OR Unleash covers.
-    // Magento + manual package matrix (manual also gets Form):
-    //   DANCE MIX / DANCE PLUS / CUSTOM POM / RALLY MIX / CUSTOM HIP-HOP /
-    //   TP MIX / TP PLUS / PERFORMANCE* → Songs + Mix Time
-    //   JAZZ/KICK MIX → Song(s) + Mix Time
-    //   JAZZ SIMPLE CUT → Song + Mix Time + Notes
-    // Compliancy is not a Collections/Songs board pill for Dance.
-    if (pkgStr.includes("JAZZ SIMPLE CUT")) {
-      needSongs = true;
-      songsLabel = "Song";
-      needTimeOfMix = true;
-      needNotes = true;
-    } else if (pkgStr.includes("JAZZ/KICK") || pkgStr.includes("JAZZ KICK")) {
-      needSongs = true;
-      songsLabel = "Song(s)";
-      needTimeOfMix = true;
-      needNotes = false;
-    } else {
-      needSongs = true;
-      songsLabel = "Songs";
-      needTimeOfMix = true;
-      needNotes = false;
-    }
-    needCompliancy = false;
-  } else if (isCheer) {
-    // Magento + manual share the same package matrix (manual also gets Form):
-    //   BRONZE / SILVER / GOLD → Songs
-    //   PLATINUM → Songs + CS + Video
-    //   TITANIUM → Notes + CS + Video
-    //   RALLY MIX → Songs + CS (VIROC SoftSelect label still shows paren text)
-    if (pkgStr.includes("RALLY MIX")) {
-      needSongs = true;
-      songsLabel = "Songs";
-      needNotes = false;
-      needEightCount = true;
-      needVideo = false;
-      needTimeOfMix = false;
-    } else if (pkgStr.includes("TITANIUM")) {
-      needSongs = false;
-      needNotes = true;
-      needEightCount = true;
-      needVideo = true;
-      needTimeOfMix = false;
-    } else if (pkgStr.includes("PLATINUM")) {
-      needSongs = true;
-      songsLabel = "Songs";
-      needNotes = false;
-      needEightCount = true;
-      needVideo = true;
-      needTimeOfMix = false;
-    } else if (
-      pkgStr.includes("GOLD") ||
-      pkgStr.includes("SILVER") ||
-      pkgStr.includes("BRONZE")
-    ) {
-      needSongs = true;
-      songsLabel = "Songs";
-      needNotes = false;
-      needEightCount = false;
-      needVideo = false;
-      needTimeOfMix = false;
-    } else {
-      // Unknown cheer package — treat like Platinum (CS + Video + Songs).
-      needSongs = true;
-      songsLabel = "Songs";
-      needNotes = false;
-      needEightCount = true;
-      needVideo = true;
-      needTimeOfMix = false;
-    }
-  } else if (isMarchingBand) {
-    // Magento + manual share the same package matrix (manual also gets Form):
-    //   BAND CHANT → Song (instrumentation) + Mix Time
-    //   DRUM CADENCE* → Mix Time + Notes (instrumentation)
-    //   FIGHT SONG* / ALMA MATER* (Original + Plus) → Mix Time + Notes (lyrics)
-    const mbKind = resolveMarchingBandPackageKind(order);
-    if (mbKind === "band_chant") {
-      needSongs = true;
-      songsLabel = "Song";
-      needTimeOfMix = true;
-      needNotes = false;
-    } else if (
-      mbKind === "drum_cadence" ||
-      mbKind === "fight_alma" ||
-      mbKind === "other"
-    ) {
-      needSongs = false;
-      needTimeOfMix = true;
-      needNotes = true;
-    }
-  } else if (isSports) {
-    // Magento + manual: every SE package → Songs + Notes + Mix Time
-    // (manual also gets Form).
-    needSongs = true;
-    songsLabel = "Songs";
-    needNotes = true;
-    needTimeOfMix = true;
-  } else if (isAnthem) {
-    // Magento School Anthem has no mix-length / CS / video collections.
-    needSongs = true;
-    songsLabel = "Song";
-    needNotes = true;
-    needTimeOfMix = false;
-  } else {
-    needSongs = true;
-    needTimeOfMix = true;
-  }
+  const pills = magentoBoardPillFlags(order);
+  const needSongs = pills.needSongs;
+  const songsLabel = pills.songsLabel;
+  const needNotes = pills.needNotes;
+  const needTimeOfMix = pills.needMix;
+  // CS only when Magento has the 8-count question; Yes/No still gates display.
+  const needEightCount = pills.needCsField;
+  // No Magento Video field on any current form — never a board pill.
+  const needVideo = false;
+  const needCompliancy = false;
 
   // --- COLLECTIONS GROUP ---
   // Form pill: unmatched Manual / New Order rows only. Once Magento matches,
@@ -872,11 +814,7 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
     });
   }
 
-  // 5. NOTES — green iff the form Notes field has content.
-  // School Anthem → routine_notes (Magento Lyrical Notes).
-  // Marching Band → song_list (Drum Cadence) or routine_notes
-  // (Fight Song / Alma Mater). Band Chant Notes is N/A.
-  // Other forms → routineNotes / additionalNotes.
+  // 5. NOTES — green iff Magento Notes field has content (routine_notes SoT).
   // Ignore collectionStates — pill must match the form field exactly.
   {
     const notesVal = getFormNotesText(order);

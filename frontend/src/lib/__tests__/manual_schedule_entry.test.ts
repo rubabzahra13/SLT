@@ -76,7 +76,7 @@ describe("Manual Schedule Entry (No Order) Workflow Tests", () => {
     assert.ok(collectionLabels.includes("Mix Time") || collectionLabels.includes("CS") || collectionLabels.includes("Video") || collectionLabels.length >= 0);
   });
 
-  it("manual schedule entries follow package data rules for Waiting for Data", () => {
+  it("manual schedule entries follow Magento form fields; Form stays red until match", () => {
     const complete: MTDRecord = {
       id: "mtd-manual-3",
       orderId: null,
@@ -103,11 +103,27 @@ describe("Manual Schedule Entry (No Order) Workflow Tests", () => {
       status: "active",
       timeLengthOfMix: "2:15",
       songListSuggestions: "Have",
+      routineNotes: "Routine notes",
       musicAffiliate: "Power Music",
     };
 
     const completeReqs = getOrderRequirements(complete);
-    assert.strictEqual(completeReqs.missingCount, 0);
+    // Magento Mix/Songs/Notes are filled; unmatched manual still has Form red.
+    assert.deepStrictEqual(
+      completeReqs.all
+        .filter((r) => r.isApplicable && r.id !== "form")
+        .map((r) => r.id)
+        .sort(),
+      ["mix", "notes", "songs"]
+    );
+    assert.ok(
+      completeReqs.all
+        .filter((r) => r.isApplicable && r.id !== "form")
+        .every((r) => r.state === "green")
+    );
+    assert.ok(
+      completeReqs.collections.some((r) => r.id === "form" && r.state === "red")
+    );
     assert.ok(!completeReqs.collections.some((i) => i.label === "Time of Mix"));
     assert.ok(!completeReqs.collections.some((i) => i.label === "Compliancy"));
   });
@@ -118,6 +134,8 @@ describe("Manual Schedule Entry (No Order) Workflow Tests", () => {
       orderId: null,
       isManualScheduleEntry: true,
       category: "All Star Dance",
+      formType: "school-all-star-dance",
+      danceFormSubtype: "hip-hop",
       package: "Hip Hop",
       mixStartDate: "2026-10-12",
       mixEndDate: "2026-10-16",
@@ -126,6 +144,7 @@ describe("Manual Schedule Entry (No Order) Workflow Tests", () => {
       programName: "Elite Dance Academy",
       routineNotes: "Include high energy intro",
       songListSuggestions: "Upbeat hip-hop track 1, Track 2",
+      timeLengthOfMix: "2:00",
       section: "All Star Dance",
       editorRequest: "NA",
       editorInitials: "",
@@ -140,7 +159,11 @@ describe("Manual Schedule Entry (No Order) Workflow Tests", () => {
     };
 
     const reqs = getOrderRequirements(recordWithOptionals);
-    assert.strictEqual(reqs.missingCount, 0);
+    assert.ok(
+      reqs.all
+        .filter((r) => r.isApplicable && r.id !== "form")
+        .every((r) => r.state === "green")
+    );
     assert.strictEqual(recordWithOptionals.contactName, "Megan Smith");
     assert.strictEqual(recordWithOptionals.programName, "Elite Dance Academy");
     assert.strictEqual(recordWithOptionals.routineNotes, "Include high energy intro");

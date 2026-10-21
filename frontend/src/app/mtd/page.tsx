@@ -74,7 +74,12 @@ import {
   getMTDBoardRecords,
   patchMoveToPayroll,
 } from "@/lib/mtd-completion";
-import { formatDisplayDate, formatMixBookedDaysLabel, toIsoDateString } from "@/lib/dates";
+import {
+  formatDisplayDate,
+  formatDisplayDateTime,
+  formatMixBookedDaysLabel,
+  toIsoDateString,
+} from "@/lib/dates";
 import { todayIso } from "@/lib/date-filters";
 import { generateMTDCsv, triggerCsvDownload } from "@/lib/export-csv";
 import {
@@ -714,6 +719,24 @@ function MTDPageContent() {
             {index + 1}
           </span>
         ),
+      },
+      {
+        key: "createdAt",
+        header: "Timestamp",
+        width: "128px",
+        align: "center" as const,
+        nowrap: true,
+        cellClassName: compactCellClass,
+        headerClassName: compactHeaderClass,
+        render: (rec) => {
+          const linked = findLinkedOrder(rec, allOrders);
+          const stamp = linked?.createdAt || "";
+          return (
+            <span className="tabular-nums text-[11px] text-brand-ink-secondary whitespace-nowrap">
+              {formatDisplayDateTime(stamp)}
+            </span>
+          );
+        },
       },
       {
         key: "contactC",

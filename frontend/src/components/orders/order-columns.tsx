@@ -4,6 +4,7 @@ import type { CheerFormSubtype, DanceFormSubtype, OrderFormType } from "@/types"
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { displayMultiline, displayText } from "@/lib/order-form";
 import { getCheerOrderColumns } from "@/components/orders/cheer-order-columns";
+import { formatDisplayDateTime } from "@/lib/dates";
 import { AlertCircle } from "lucide-react";
 
 type ColumnOptions = {
@@ -233,15 +234,17 @@ export function getOrderColumns(options: ColumnOptions): Column<Order>[] {
 
   columns.push({
     key: "date",
-    header: mode === "active" ? "Received" : "Completed",
-    width: "96px",
+    header: mode === "active" ? "Timestamp" : "Completed",
+    width: "128px",
     align: "right",
     nowrap: true,
     render: (order) => (
-      <span className="text-[12px] text-brand-ink-tertiary tabular-nums">
-        {mode === "past" || order.status === "completed"
-          ? order.completedAt || order.createdAt
-          : order.createdAt}
+      <span className="text-[11px] text-brand-ink-tertiary tabular-nums whitespace-nowrap">
+        {formatDisplayDateTime(
+          mode === "past" || order.status === "completed"
+            ? order.completedAt || order.createdAt
+            : order.createdAt
+        )}
       </span>
     ),
   });

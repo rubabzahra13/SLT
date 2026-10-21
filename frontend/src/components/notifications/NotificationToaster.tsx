@@ -16,7 +16,7 @@ import {
 import { useAppState } from "@/context/AppStateContext";
 import type { AppNotification } from "@/types";
 
-const AUTO_DISMISS_MS = 5600;
+const AUTO_DISMISS_MS = 4500;
 
 const toneByType: Record<
   AppNotification["type"],
@@ -24,38 +24,32 @@ const toneByType: Record<
     icon: typeof Bell;
     accent: string;
     soft: string;
-    bar: string;
   }
 > = {
   new_order: {
     icon: Bell,
-    accent: "text-[#d97706]",
-    soft: "bg-[#fff7ed]",
-    bar: "bg-[#f07840]",
+    accent: "text-brand-orange",
+    soft: "bg-brand-orange/10",
   },
   mtd_move: {
     icon: PackageCheck,
-    accent: "text-emerald-600",
+    accent: "text-emerald-700",
     soft: "bg-emerald-50",
-    bar: "bg-emerald-500",
   },
   schedule: {
     icon: CalendarClock,
     accent: "text-amber-700",
     soft: "bg-amber-50",
-    bar: "bg-amber-500",
   },
   payroll: {
     icon: Wallet,
     accent: "text-sky-700",
     soft: "bg-sky-50",
-    bar: "bg-sky-500",
   },
   error: {
     icon: AlertTriangle,
     accent: "text-rose-700",
     soft: "bg-rose-50",
-    bar: "bg-rose-500",
   },
 };
 
@@ -94,7 +88,7 @@ export function NotificationToaster() {
       className="pointer-events-none fixed inset-x-0 bottom-0 z-[200] flex justify-center px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4 sm:px-6"
       aria-live="polite"
     >
-      <div className="flex w-full max-w-[420px] flex-col-reverse gap-2.5">
+      <div className="flex w-full max-w-[380px] flex-col-reverse gap-2">
         {toasts.map((toast) => (
           <ToastCard
             key={toast.id}
@@ -133,18 +127,18 @@ function ToastCard({
 
   return (
     <div
-      className="animate-toast-in pointer-events-auto overflow-hidden rounded-[22px] border border-white/70 bg-white/90 shadow-[0_18px_50px_rgba(15,23,42,0.16),0_2px_8px_rgba(15,23,42,0.06)] backdrop-blur-xl"
+      className="pointer-events-auto rounded-xl border border-brand-line/70 bg-white shadow-[0_8px_24px_rgba(15,23,42,0.1)]"
       role="status"
     >
-      <div className="flex items-start gap-3 px-3.5 pb-3 pt-3.5">
+      <div className="flex items-start gap-2.5 px-3 py-2.5">
         <span
           className={clsx(
-            "mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl",
+            "mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg",
             tone.soft,
             tone.accent
           )}
         >
-          <Icon className="h-[18px] w-[18px]" strokeWidth={2.1} />
+          <Icon className="h-4 w-4" strokeWidth={2.1} />
         </span>
 
         <button
@@ -152,14 +146,14 @@ function ToastCard({
           onClick={onOpen}
           className="min-w-0 flex-1 text-left"
         >
-          <p className="text-[13px] font-semibold tracking-[-0.01em] text-slate-900">
+          <p className="text-[13px] font-semibold tracking-[-0.01em] text-brand-ink">
             {toast.title}
           </p>
-          <p className="mt-0.5 line-clamp-2 text-[12px] leading-snug text-slate-500">
+          <p className="mt-0.5 line-clamp-2 text-[12px] leading-snug text-brand-ink-secondary">
             {toast.message}
           </p>
           {toast.href ? (
-            <span className="mt-1.5 inline-flex items-center gap-0.5 text-[11px] font-semibold text-slate-800">
+            <span className="mt-1 inline-flex items-center gap-0.5 text-[11px] font-semibold text-brand-ink">
               Open
               <ArrowUpRight className="h-3 w-3" strokeWidth={2.25} />
             </span>
@@ -169,15 +163,11 @@ function ToastCard({
         <button
           type="button"
           onClick={onDismiss}
-          className="rounded-full p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+          className="rounded-md p-1 text-brand-ink-tertiary transition hover:bg-brand-bg hover:text-brand-ink"
           aria-label="Dismiss notification"
         >
           <X className="h-3.5 w-3.5" strokeWidth={2.25} />
         </button>
-      </div>
-
-      <div className="h-[3px] w-full bg-slate-100/90">
-        <div className={clsx("animate-toast-bar h-full rounded-full", tone.bar)} />
       </div>
     </div>
   );

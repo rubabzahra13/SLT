@@ -30,7 +30,7 @@ import { MTDOrderDetails, formatDetailDisplay } from "@/components/mtd/MTDOrderD
 import { SetPricingModal } from "@/components/mtd/SetPricingModal";
 import { useMixDateCalendarRules } from "@/components/mtd/useMixDateCalendarRules";
 import { useAppState } from "@/context/AppStateContext";
-import { toIsoDateString } from "@/lib/dates";
+import { formatDisplayDateTime, toIsoDateString } from "@/lib/dates";
 import { formatPrice } from "@/lib/data";
 import { orderFromMTDRecord, rawFieldValue } from "@/lib/order-detail-fields";
 import {
@@ -342,7 +342,13 @@ export default function MTDDetailPage({
     <>
       <PageHeader
         title={formatDetailDisplay(rec.programName) || rec.programName}
-        subtitle={rec.contactName || "Customer"}
+        subtitle={(() => {
+          const contact = rec.contactName || "Customer";
+          const stamp = formatDisplayDateTime(
+            linkedOrder?.createdAt || order?.createdAt
+          );
+          return stamp !== "—" ? `${contact} · Timestamp ${stamp}` : contact;
+        })()}
         badge={rec.invoice?.trim() ? `#${rec.invoice.trim()}` : undefined}
         secondaryAction={{
           label: "Pricing",

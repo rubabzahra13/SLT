@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Check, Trash2 } from "lucide-react";
 import { PayrollRushFeeControls } from "@/components/payroll/PayrollRushFeeControls";
+import { MarkPaidConfirmModal } from "@/components/payroll/MarkPaidConfirmModal";
 import { VoiceoversPanel } from "@/components/payroll/VoiceoversPanel";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { MTDPageToolbar } from "@/components/mtd/MTDPageToolbar";
@@ -19,7 +20,12 @@ import { DataTable, type Column } from "@/components/ui/DataTable";
 import { Avatar } from "@/components/ui/Avatar";
 import { Tabs } from "@/components/ui/Tabs";
 import { useAppState } from "@/context/AppStateContext";
-import { formatDisplayDate, toCanonicalIsoDate, toIsoDateString } from "@/lib/dates";
+import {
+  formatDisplayDate,
+  formatDisplayDateTime,
+  toCanonicalIsoDate,
+  toIsoDateString,
+} from "@/lib/dates";
 import {
   calculateDateBounds,
   payPeriodRangeToDateFilter,
@@ -128,6 +134,7 @@ export default function PayrollPage() {
   const [deleteForeverRecord, setDeleteForeverRecord] =
     useState<MTDRecord | null>(null);
   const [deletingForever, setDeletingForever] = useState(false);
+  const [markPaidRecord, setMarkPaidRecord] = useState<MTDRecord | null>(null);
 
 
   const [formState, setFormState] = useState<OrderFormType>(DEFAULT_FORM);
@@ -277,6 +284,7 @@ export default function PayrollPage() {
       }
       setHighlightId(rec.id);
       setPageTab("archive");
+      setMarkPaidRecord(null);
     },
     [isViewOnly, updateMTD, allOrders]
   );
@@ -922,6 +930,23 @@ export default function PayrollPage() {
         ),
       },
       {
+        key: "createdAt",
+        header: "Timestamp",
+        width: "128px",
+        align: "center",
+        nowrap: true,
+        cellClassName: "!px-2 !py-1.5",
+        headerClassName: "!px-2 !py-2",
+        render: (rec) => {
+          const linked = findLinkedOrder(rec, allOrders);
+          return (
+            <span className="whitespace-nowrap text-[11px] tabular-nums text-brand-ink-secondary">
+              {formatDisplayDateTime(linked?.createdAt || "")}
+            </span>
+          );
+        },
+      },
+      {
         key: "contact",
         header: "Contact",
         width: "96px",
@@ -1365,7 +1390,7 @@ export default function PayrollPage() {
             >
               <button
                 type="button"
-                onClick={() => markPaid(rec)}
+                onClick={() => setMarkPaidRecord(rec)}
                 className={paidBtnClass}
                 title="Mark paid and move to archive"
               >
@@ -1389,7 +1414,6 @@ export default function PayrollPage() {
       rushStateForRecord,
       persistRushFee,
       pageTab,
-      markPaid,
     ]
   );
 
@@ -1580,6 +1604,15 @@ export default function PayrollPage() {
           />
         )}
       </div>
+
+      <MarkPaidConfirmModal
+        open={Boolean(markPaidRecord)}
+        record={markPaidRecord}
+        onClose={() => setMarkPaidRecord(null)}
+        onConfirm={() => {
+          if (markPaidRecord) markPaid(markPaidRecord);
+        }}
+      />
 
       {deleteForeverRecord && typeof document !== "undefined"
         ? createPortal(

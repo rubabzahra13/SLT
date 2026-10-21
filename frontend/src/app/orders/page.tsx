@@ -70,7 +70,12 @@ import {
   resolveEngineCustomerPrice,
   resolveOrderPackageDisplayPrice,
 } from "@/lib/order-package-price";
-import { formatDisplayDate, formatMixBookedDaysLabel, toIsoDateString } from "@/lib/dates";
+import {
+  formatDisplayDate,
+  formatDisplayDateTime,
+  formatMixBookedDaysLabel,
+  toIsoDateString,
+} from "@/lib/dates";
 import { todayIso } from "@/lib/date-filters";
 import { generateOrdersCsv, triggerCsvDownload } from "@/lib/export-csv";
 import { parsePackage } from "@/lib/package";
@@ -830,6 +835,24 @@ function OrdersPageContent() {
         ),
       },
       {
+        key: "createdAt",
+        header: "Timestamp",
+        width: "128px",
+        align: "center" as const,
+        nowrap: true,
+        cellClassName: compactCellClass,
+        headerClassName: compactHeaderClass,
+        render: (rec) => {
+          const linked = findLinkedOrder(rec, allOrders);
+          const stamp = linked?.createdAt || "";
+          return (
+            <span className="tabular-nums text-[11px] text-brand-ink-secondary whitespace-nowrap">
+              {formatDisplayDateTime(stamp)}
+            </span>
+          );
+        },
+      },
+      {
         key: "contact",
         header: contactHeader,
         width: contactHeader.length > 14 ? "150px" : "100px",
@@ -1206,7 +1229,7 @@ function OrdersPageContent() {
         ? [
             {
               key: "requestedEditor",
-              header: "Form\nproducer",
+              header: "Requested\nproducer",
               width: "100px",
               align: "center" as const,
               nowrap: false,

@@ -7,8 +7,9 @@ import { DataTable, type Column } from "@/components/ui/DataTable";
 import { FilterPill } from "@/components/ui/FilterPill";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useAppState } from "@/context/AppStateContext";
-import { formatDisplayDate } from "@/lib/dates";
+import { formatDisplayDate, formatDisplayDateTime } from "@/lib/dates";
 import { formatPrice, titleCase } from "@/lib/data";
+import { findLinkedOrder } from "@/lib/editor-assignment";
 import {
   getInProgressRecords,
   getOngoingRecords,
@@ -33,7 +34,7 @@ function resolveWaitingOn(rec: MTDRecord): string {
 }
 
 export default function OutsourcedPage() {
-  const { mtdRecords, updateMTD } = useAppState();
+  const { mtdRecords, updateMTD, allOrders } = useAppState();
   const [filter, setFilter] = useState<ProgressFilter>("all");
 
   const outgoing = useMemo(() => getOngoingRecords(mtdRecords), [mtdRecords]);
@@ -52,6 +53,21 @@ export default function OutsourcedPage() {
 
   const columns: Column<MTDRecord>[] = useMemo(
     () => [
+      {
+        key: "createdAt",
+        header: "Timestamp",
+        width: "128px",
+        align: "center",
+        nowrap: true,
+        render: (rec) => {
+          const linked = findLinkedOrder(rec, allOrders);
+          return (
+            <span className="whitespace-nowrap text-[11px] tabular-nums text-brand-ink-secondary">
+              {formatDisplayDateTime(linked?.createdAt || "")}
+            </span>
+          );
+        },
+      },
       {
         key: "program",
         header: "Program",
@@ -146,7 +162,7 @@ export default function OutsourcedPage() {
         },
       },
     ],
-    [updateMTD]
+    [updateMTD, allOrders]
   );
 
   return (

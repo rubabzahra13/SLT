@@ -1081,8 +1081,6 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
   const updateMTD = useCallback(async (id: string, patch: Partial<MTDRecord>) => {
     if (isViewOnly) return;
-    let payrollNotice: Omit<AppNotification, "id" | "read" | "createdAt"> | null =
-      null;
     let apiPatch = patch;
 
     const existing = mtdRecords.find(
@@ -1092,21 +1090,22 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     mtdMutatedAtRef.current = Date.now();
     ordersMutatedAtRef.current = Date.now();
 
+    // Toast immediately on action — do not wait for the API round-trip.
+    if (patch.inPayroll === true && existing && !existing.inPayroll) {
+      const producer = existing.assignedProducer?.trim();
+      addNotification({
+        type: "payroll",
+        title: "Moved to payroll",
+        message: producer
+          ? `${existing.programName} · ${producer}`
+          : existing.programName,
+        href: "/payroll",
+      });
+    }
+
     setMtdRecords((prev) => {
       const next = prev.map((r) => {
         if (r.id !== id && r.orderId !== id && r.uuid !== id && r.legacyId !== id) return r;
-
-        if (patch.inPayroll === true && !r.inPayroll) {
-          const producer = r.assignedProducer?.trim();
-          payrollNotice = {
-            type: "payroll",
-            title: "Moved to payroll",
-            message: producer
-              ? `${r.programName} · ${producer}`
-              : r.programName,
-            href: "/payroll",
-          };
-        }
 
         const updated = { ...r, ...patch };
 
@@ -1477,10 +1476,6 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         notifySaveError("Could not save MTD changes", err);
       throw err;
       }
-
-    if (payrollNotice) {
-      addNotification(payrollNotice);
-    }
   }, [
     activeOrders,
     addNotification,

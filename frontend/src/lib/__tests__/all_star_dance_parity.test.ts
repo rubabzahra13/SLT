@@ -76,20 +76,21 @@ describe("All-Star Dance parity — every subcategory matches POM rules", () => 
         assert.equal(isAllStarDanceOrder(danceOrder(subtype)), true);
       });
 
-      it("applicable collections are Songs + Mix Time (Notes N/A)", () => {
+      it("applicable collections are Mix + Songs + Notes (Magento form fields)", () => {
         const order = danceOrder(subtype, {
           powerMusicCovers: "Track A",
           timeLengthOfMix: "2:15",
+          routineNotes: "Routine notes",
         });
         const ids = getOrderRequirements(order)
           .all.filter((r) => r.isApplicable && r.id !== "form")
           .map((r) => r.id)
           .sort();
-        assert.deepEqual(ids, ["mix", "songs"]);
+        assert.deepEqual(ids, ["mix", "notes", "songs"]);
         assert.equal(
           getOrderRequirements(order).songsArea.find((r) => r.id === "notes")
             ?.state,
-          "white"
+          "green"
         );
       });
 
@@ -236,18 +237,25 @@ describe("All-Star Dance parity — every subcategory matches POM rules", () => 
     });
   }
 
-  it("Jazz Simple Cut is the only dance package that also requires Notes", () => {
-    const jazzSimple = danceOrder("jazz-kick", {
-      packageType: "JAZZ SIMPLE CUT",
-      package: "JAZZ SIMPLE CUT",
-      powerMusicCovers: "Song",
-      timeLengthOfMix: "1:30",
-      routineNotes: "",
-    });
-    const ids = getOrderRequirements(jazzSimple)
-      .all.filter((r) => r.isApplicable && r.id !== "form")
-      .map((r) => r.id)
-      .sort();
-    assert.deepEqual(ids, ["mix", "notes", "songs"]);
+  it("every dance package requires Mix + Songs + Notes from Magento form", () => {
+    for (const packageType of [
+      "DANCE MIX",
+      "CUSTOM POM 2:15",
+      "JAZZ SIMPLE CUT",
+      "JAZZ/KICK MIX",
+    ]) {
+      const order = danceOrder("jazz-kick", {
+        packageType,
+        package: packageType,
+        powerMusicCovers: "Song",
+        timeLengthOfMix: "1:30",
+        routineNotes: "Notes",
+      });
+      const ids = getOrderRequirements(order)
+        .all.filter((r) => r.isApplicable && r.id !== "form")
+        .map((r) => r.id)
+        .sort();
+      assert.deepEqual(ids, ["mix", "notes", "songs"], packageType);
+    }
   });
 });

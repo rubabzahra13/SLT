@@ -31,6 +31,7 @@ import {
   mtdRecordCoversOrder,
 } from "@/lib/order-staging";
 import { resolveOrderFormDisplay } from "@/lib/order-form-display";
+import { formatDisplayDateTime } from "@/lib/dates";
 import type { MTDRecord, Order } from "@/types";
 
 type OrderFormEditModalProps = {
@@ -321,6 +322,7 @@ export function OrderFormEditModal({
     displayOrder.customerName ||
     record.contactName ||
     "Customer";
+  const createdLabel = formatDisplayDateTime(displayOrder.createdAt);
 
   return createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -355,6 +357,11 @@ export function OrderFormEditModal({
               <p className="mt-0.5 truncate text-[13px] text-brand-ink-secondary">
                 {subtitle}
               </p>
+              {createdLabel !== "—" ? (
+                <p className="mt-1 text-[12px] tabular-nums text-brand-ink-tertiary">
+                  Timestamp {createdLabel}
+                </p>
+              ) : null}
             </div>
           </div>
           <button

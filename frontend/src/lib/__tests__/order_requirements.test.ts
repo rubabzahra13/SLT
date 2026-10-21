@@ -7,46 +7,31 @@ import {
 } from "../order-requirements";
 import type { MTDRecord, Order } from "../../types";
 
-describe("SLT Implementation 2: Package-Specific Data Collection Rules", () => {
-  it("Dance package matrix: Songs + Mix (Jazz Simple Cut adds Notes; Jazz/Kick = Song(s))", () => {
-    const cases: Array<{ package: string; label: string; ids: string[] }> = [
-      { package: "DANCE MIX", label: "Songs", ids: ["mix", "songs"] },
-      { package: "DANCE PLUS", label: "Songs", ids: ["mix", "songs"] },
-      { package: "CUSTOM POM 2:15", label: "Songs", ids: ["mix", "songs"] },
-      { package: "RALLY MIX", label: "Songs", ids: ["mix", "songs"] },
-      { package: "CUSTOM HIP HOP 2:00", label: "Songs", ids: ["mix", "songs"] },
-      {
-        package: "GAMEDAY PERFORMANCE MIX",
-        label: "Songs",
-        ids: ["mix", "songs"],
-      },
-      {
-        package: "GAMEDAY PERFORMANCE PLUS",
-        label: "Songs",
-        ids: ["mix", "songs"],
-      },
-      {
-        package: "GAMEDAY PERFORMANCE EXTREME",
-        label: "Songs",
-        ids: ["mix", "songs"],
-      },
-      { package: "JAZZ/KICK MIX", label: "Song(s)", ids: ["mix", "songs"] },
-      {
-        package: "JAZZ SIMPLE CUT 1:45",
-        label: "Song",
-        ids: ["mix", "notes", "songs"],
-      },
+describe("SLT Implementation 2: Magento form-field Collections / Songs", () => {
+  it("Dance Magento form: Mix + Songs + Notes for every package (not package-gated)", () => {
+    const packages = [
+      "DANCE MIX",
+      "DANCE PLUS",
+      "CUSTOM POM 2:15",
+      "RALLY MIX",
+      "CUSTOM HIP HOP 2:00",
+      "GAMEDAY PERFORMANCE MIX",
+      "GAMEDAY PERFORMANCE PLUS",
+      "GAMEDAY PERFORMANCE EXTREME",
+      "JAZZ/KICK MIX",
+      "JAZZ SIMPLE CUT 1:45",
     ];
 
-    for (const c of cases) {
+    for (const packageName of packages) {
       for (const isManualEntry of [false, true]) {
         const order: Partial<Order> = {
           category: "Dance",
           formType: "school-all-star-dance",
-          package: c.package,
+          danceFormSubtype: "pom",
+          package: packageName,
           timeLengthOfMix: "2:00",
-          songListSuggestions: "Track A",
-          routineNotes: c.ids.includes("notes") ? "Cut notes" : "",
+          powerMusicCovers: "Track A",
+          routineNotes: "Cut notes",
           isManualEntry,
         };
         const reqs = getOrderRequirements(order as Order);
@@ -55,69 +40,85 @@ describe("SLT Implementation 2: Package-Specific Data Collection Rules", () => {
           .map((r) => r.id);
         assert.deepStrictEqual(
           ids.sort(),
-          c.ids.sort(),
-          `${c.package} manual=${isManualEntry}`
+          ["mix", "notes", "songs"].sort(),
+          `${packageName} manual=${isManualEntry}`
         );
         assert.strictEqual(
           reqs.songsArea.find((r) => r.id === "songs")?.label,
-          c.label,
-          c.package
+          "Songs",
+          packageName
         );
-        assert.strictEqual(reqs.compliancyMet, true, c.package);
+        assert.strictEqual(reqs.compliancyMet, true, packageName);
         if (isManualEntry) {
           assert.ok(
             reqs.collections.some((r) => r.id === "form" && r.state === "red"),
-            `${c.package} manual Form`
+            `${packageName} manual Form`
           );
         }
       }
     }
   });
 
-  it("Cheer package matrix: Bronze/Silver/Gold Songs; Platinum Songs+CS+Video; Titanium Notes+CS+Video; Rally Mix Songs+CS", () => {
-    const cases: Array<{ package: string; ids: string[]; subtype?: string }> = [
-      { package: "Bronze 1:30", ids: ["songs"] },
-      { package: "Silver 1:45", ids: ["songs"] },
-      { package: "Gold 2:00", ids: ["songs"] },
-      { package: "Platinum 2:30", ids: ["cs", "songs", "video"] },
-      { package: "Titanium 2:30", ids: ["cs", "notes", "video"] },
-      {
-        package: "RALLY MIX",
-        ids: ["cs", "songs"],
-        subtype: "school-cheer-viroc-yes",
-      },
-      {
-        package: "Rally Mix (without 8 count sheets)",
-        ids: ["cs", "songs"],
-        subtype: "school-cheer-viroc-yes",
-      },
+  it("Cheer Magento form: Mix + Songs + Notes; CS when Yes; never Video (not package-gated)", () => {
+    const packages = [
+      "Bronze 1:30",
+      "Silver 1:45",
+      "Gold 2:00",
+      "Platinum 2:30",
+      "Titanium 2:30",
+      "RALLY MIX",
+      "Rally Mix (without 8 count sheets)",
     ];
 
-    for (const c of cases) {
+    for (const packageName of packages) {
       for (const isManualEntry of [false, true]) {
-        const order: Partial<Order> = {
+        const subtype = packageName.toUpperCase().includes("RALLY")
+          ? ("school-cheer-viroc-yes" as Order["cheerFormSubtype"])
+          : ("all-star-cheer" as Order["cheerFormSubtype"]);
+        const base: Partial<Order> = {
           category: "Cheer",
           formType: "school-all-star-cheer",
-          cheerFormSubtype: (c.subtype as Order["cheerFormSubtype"]) || "all-star-cheer",
-          package: c.package,
-          songListSuggestions: c.ids.includes("songs") ? "Have" : "",
-          routineNotes: c.ids.includes("notes") ? "Routine notes" : "",
-          sendingEightCountSheets: c.ids.includes("cs") ? "Yes" : "No",
+          cheerFormSubtype: subtype,
+          package: packageName,
+          songListSuggestions: "Have",
+          routineNotes: "Routine notes",
           isManualEntry,
         };
-        const reqs = getOrderRequirements(order as Order);
-        const ids = reqs.all
-          .filter((r) => r.isApplicable && r.id !== "form")
-          .map((r) => r.id);
+
+        const noCs = getOrderRequirements({
+          ...base,
+          sendingEightCountSheets: "No",
+        } as Order);
         assert.deepStrictEqual(
-          ids.sort(),
-          c.ids.sort(),
-          `${c.package} manual=${isManualEntry}`
+          noCs.all
+            .filter((r) => r.isApplicable && r.id !== "form")
+            .map((r) => r.id)
+            .sort(),
+          ["mix", "notes", "songs"].sort(),
+          `${packageName} CS=No manual=${isManualEntry}`
         );
+        assert.ok(
+          !noCs.all.some((r) => r.id === "video" && r.isApplicable),
+          `${packageName} must never show Video`
+        );
+
+        const yesCs = getOrderRequirements({
+          ...base,
+          sendingEightCountSheets: "Yes",
+        } as Order);
+        assert.deepStrictEqual(
+          yesCs.all
+            .filter((r) => r.isApplicable && r.id !== "form")
+            .map((r) => r.id)
+            .sort(),
+          ["cs", "mix", "notes", "songs"].sort(),
+          `${packageName} CS=Yes manual=${isManualEntry}`
+        );
+
         if (isManualEntry) {
           assert.ok(
-            reqs.collections.some((r) => r.id === "form" && r.state === "red"),
-            `${c.package} manual Form`
+            noCs.collections.some((r) => r.id === "form" && r.state === "red"),
+            `${packageName} manual Form`
           );
         }
       }
@@ -158,107 +159,10 @@ describe("SLT Implementation 2: Package-Specific Data Collection Rules", () => {
     assert.strictEqual(noCs?.state, "white");
   });
 
-  it("Marching Band Band Chant: Song + Mix; Notes N/A (Magento + manual)", () => {
-    for (const isManualEntry of [false, true]) {
-      const order: Partial<Order> = {
-        category: "Marching Band",
-        formType: "marching-band",
-        package: "BAND CHANT",
-        packageType: "BAND CHANT",
-        timeLengthOfMix: "1:30",
-        instrumentationNotes: "Cover in marching band style: Seven Nation Army",
-        lyricalNotes: "ignored for Band Chant Notes pill",
-        isManualEntry,
-      };
-
-      const reqs = getOrderRequirements(order as Order);
-      const ids = reqs.all
-        .filter((r) => r.isApplicable && r.id !== "form")
-        .map((r) => r.id);
-      assert.deepStrictEqual(ids.sort(), ["mix", "songs"].sort());
-
-      const songReq = reqs.songsArea.find((r) => r.id === "songs");
-      assert.strictEqual(songReq?.label, "Song");
-      assert.strictEqual(songReq?.state, "green");
-      assert.strictEqual(
-        reqs.songsArea.find((r) => r.id === "notes")?.state,
-        "white"
-      );
-      assert.strictEqual(
-        reqs.collections.find((r) => r.id === "mix")?.state,
-        "green"
-      );
-      if (isManualEntry) {
-        assert.ok(
-          reqs.collections.some((r) => r.id === "form" && r.state === "red")
-        );
-      }
-
-      const missingSong = getOrderRequirements({
-        ...order,
-        instrumentationNotes: "",
-      } as Order);
-      assert.strictEqual(
-        missingSong.songsArea.find((r) => r.id === "songs")?.state,
-        "red"
-      );
-    }
-  });
-
-  it("Marching Band Drum Cadence: Mix + Notes from instrumentation (Magento + manual)", () => {
-    for (const isManualEntry of [false, true]) {
-      const order: Partial<Order> = {
-        category: "Marching Band",
-        formType: "marching-band",
-        package: "DRUM CADENCE ORIGINAL",
-        packageType: "DRUM CADENCE ORIGINAL",
-        timeLengthOfMix: "2:00",
-        instrumentationNotes: "Full brass & percussion",
-        lyricalNotes: "optional — must not drive Drum Cadence Notes",
-        isManualEntry,
-      };
-      const reqs = getOrderRequirements(order as Order);
-      const ids = reqs.all
-        .filter((r) => r.isApplicable && r.id !== "form")
-        .map((r) => r.id);
-      assert.deepStrictEqual(ids.sort(), ["mix", "notes"].sort());
-      assert.strictEqual(
-        reqs.songsArea.find((r) => r.id === "songs")?.state,
-        "white"
-      );
-      assert.strictEqual(
-        reqs.songsArea.find((r) => r.id === "notes")?.state,
-        "green"
-      );
-      if (isManualEntry) {
-        assert.ok(
-          reqs.collections.some((r) => r.id === "form" && r.state === "red")
-        );
-      }
-
-      const missingNotes = getOrderRequirements({
-        ...order,
-        instrumentationNotes: "",
-      } as Order);
-      assert.strictEqual(
-        missingNotes.songsArea.find((r) => r.id === "notes")?.state,
-        "red"
-      );
-      // Lyrics alone must not green Drum Cadence Notes.
-      const lyricsOnly = getOrderRequirements({
-        ...order,
-        instrumentationNotes: "",
-        lyricalNotes: "only lyrics",
-      } as Order);
-      assert.strictEqual(
-        lyricsOnly.songsArea.find((r) => r.id === "notes")?.state,
-        "red"
-      );
-    }
-  });
-
-  it("Marching Band Fight Song / Alma Mater: Mix + Notes from lyrics (Magento + manual)", () => {
+  it("Marching Band Magento form: Mix + Song + Notes for every package", () => {
     for (const packageType of [
+      "BAND CHANT",
+      "DRUM CADENCE ORIGINAL",
       "FIGHT SONG ORIGINAL",
       "FIGHT SONG PLUS",
       "ALMA MATER ORIGINAL",
@@ -271,8 +175,8 @@ describe("SLT Implementation 2: Package-Specific Data Collection Rules", () => {
           package: packageType,
           packageType,
           timeLengthOfMix: "2:00",
-          instrumentationNotes: "brass — must not drive Fight/Alma Notes",
-          lyricalNotes: "Written lyrics for alma/fight",
+          instrumentationNotes: "Instrumentation / song covers",
+          lyricalNotes: "Lyrics / mix notes",
           isManualEntry,
         };
         const reqs = getOrderRequirements(order as Order);
@@ -281,8 +185,18 @@ describe("SLT Implementation 2: Package-Specific Data Collection Rules", () => {
           .map((r) => r.id);
         assert.deepStrictEqual(
           ids.sort(),
-          ["mix", "notes"].sort(),
+          ["mix", "notes", "songs"].sort(),
           `${packageType} manual=${isManualEntry}`
+        );
+        assert.strictEqual(
+          reqs.songsArea.find((r) => r.id === "songs")?.label,
+          "Song",
+          packageType
+        );
+        assert.strictEqual(
+          reqs.songsArea.find((r) => r.id === "songs")?.state,
+          "green",
+          packageType
         );
         assert.strictEqual(
           reqs.songsArea.find((r) => r.id === "notes")?.state,
@@ -292,27 +206,27 @@ describe("SLT Implementation 2: Package-Specific Data Collection Rules", () => {
         if (isManualEntry) {
           assert.ok(
             reqs.collections.some((r) => r.id === "form" && r.state === "red"),
-            `${packageType} manual must also show Form`
+            `${packageType} manual Form`
           );
         }
 
-        const missingLyrics = getOrderRequirements({
+        const missingSong = getOrderRequirements({
           ...order,
-          lyricalNotes: "",
+          instrumentationNotes: "",
+          songListSuggestions: "",
         } as Order);
         assert.strictEqual(
-          missingLyrics.songsArea.find((r) => r.id === "notes")?.state,
+          missingSong.songsArea.find((r) => r.id === "songs")?.state,
           "red",
           packageType
         );
-        // Instrumentation alone must not green Fight/Alma Notes.
-        const instrumentationOnly = getOrderRequirements({
+        const missingNotes = getOrderRequirements({
           ...order,
           lyricalNotes: "",
-          instrumentationNotes: "only instrumentation",
+          routineNotes: "",
         } as Order);
         assert.strictEqual(
-          instrumentationOnly.songsArea.find((r) => r.id === "notes")?.state,
+          missingNotes.songsArea.find((r) => r.id === "notes")?.state,
           "red",
           packageType
         );
@@ -457,10 +371,11 @@ describe("SLT Implementation 2: Package-Specific Data Collection Rules", () => {
       package: "SCHOOL ANTHEMS",
       packageType: "SCHOOL ANTHEMS",
       timeLengthOfMix: "2:00",
-      songListSuggestions: "should not drive Song pill",
-      routineNotes: "should not drive Notes pill",
+      songListSuggestions: "",
+      routineNotes: "",
       instrumentationNotes: "",
       lyricalNotes: "",
+      musicTheme: "leftover board theme must not green Song",
     };
     const emptyReqs = getOrderRequirements(empty as Order);
     assert.strictEqual(
@@ -474,13 +389,13 @@ describe("SLT Implementation 2: Package-Specific Data Collection Rules", () => {
     assert.strictEqual(
       getFormSongListColumnText(empty as Order),
       "",
-      "song list / musicTheme must not green School Anthem Song"
+      "musicTheme must not green School Anthem Song"
     );
 
     const filled: Partial<Order> = {
       ...empty,
-      instrumentationNotes: "Pop / Rock with marching energy",
-      lyricalNotes: "Hail to the Cavaliers",
+      songListSuggestions: "Pop / Rock with marching energy",
+      routineNotes: "Hail to the Cavaliers",
     };
     const filledReqs = getOrderRequirements(filled as Order);
     assert.strictEqual(
@@ -554,8 +469,9 @@ describe("SLT Implementation 2: Package-Specific Data Collection Rules", () => {
         formType: "school-all-star-cheer",
         category: "Cheer",
         package: "Gold 2:00",
-        expectMix: false,
+        expectMix: true,
       },
+
       {
         formType: "school-all-star-dance",
         category: "Dance",
@@ -630,6 +546,8 @@ describe("SLT Implementation 2: Package-Specific Data Collection Rules", () => {
       timeLengthOfMix: "2:15",
       musicAffiliate: "Power Music",
       powerMusicCovers: "Have",
+      routineNotes: "Notes",
+      sendingEightCountSheets: "No",
     };
 
     const incompleteOrder: Partial<Order> = {
@@ -640,6 +558,8 @@ describe("SLT Implementation 2: Package-Specific Data Collection Rules", () => {
       timeLengthOfMix: "", // Missing Time of Mix
       musicAffiliate: "Power Music",
       powerMusicCovers: "Have",
+      routineNotes: "Notes",
+      sendingEightCountSheets: "No",
     };
 
     assert.strictEqual(getOrderRequirements(completeOrder as Order).missingCount, 0);
@@ -647,7 +567,7 @@ describe("SLT Implementation 2: Package-Specific Data Collection Rules", () => {
     assert.strictEqual(getOrderRequirements(incompleteOrder as Order).allMet, false);
   });
 
-  it("Cheer Gold is Songs only (Notes N/A even on All Star)", () => {
+  it("Cheer Magento form always includes Songs + Notes (not package-gated)", () => {
     const order: Partial<Order> = {
       category: "Cheer",
       formType: "school-all-star-cheer",
@@ -655,17 +575,18 @@ describe("SLT Implementation 2: Package-Specific Data Collection Rules", () => {
       package: "Gold 2:00",
       songListSuggestions: "Track list",
       routineNotes: "Routine notes",
+      sendingEightCountSheets: "No",
     };
     const reqs = getOrderRequirements(order as Order);
     const songs = reqs.songsArea.find((r) => r.id === "songs");
     const notes = reqs.songsArea.find((r) => r.id === "notes");
     assert.strictEqual(songs?.isApplicable, true);
     assert.strictEqual(songs?.state, "green");
-    assert.strictEqual(notes?.isApplicable, false);
-    assert.strictEqual(notes?.state, "white");
+    assert.strictEqual(notes?.isApplicable, true);
+    assert.strictEqual(notes?.state, "green");
   });
 
-  it("Cheer Titanium Notes is red when Routine notes empty (ignores musicTheme)", () => {
+  it("Cheer Notes is red when Routine notes empty (ignores musicTheme)", () => {
     const order: Partial<Order> = {
       category: "Cheer",
       formType: "school-all-star-cheer",
@@ -684,7 +605,7 @@ describe("SLT Implementation 2: Package-Specific Data Collection Rules", () => {
     assert.strictEqual(
       getOrderRequirements(order as Order).songsArea.find((r) => r.id === "songs")
         ?.isApplicable,
-      false
+      true
     );
   });
 
@@ -751,7 +672,7 @@ describe("SLT Implementation 2: Package-Specific Data Collection Rules", () => {
     );
   });
 
-  it("merge prefers linked Band Chant package so Songs shows Song not Notes", () => {
+  it("merge prefers linked Magento form so MB always shows Song + Notes", () => {
     const mtd = {
       id: "mtd-lincoln",
       orderId: "order-lincoln",
@@ -766,16 +687,16 @@ describe("SLT Implementation 2: Package-Specific Data Collection Rules", () => {
       package: "BAND CHANT",
       packageType: "BAND CHANT",
       instrumentationNotes: "",
+      lyricalNotes: "",
+      routineNotes: "",
     } as Order;
     const merged = mergeOrderFormFieldsForRequirements(mtd, linked);
     const reqs = getOrderRequirements(merged);
-    const songs = reqs.songsArea.filter(
-      (r) => r.isApplicable && r.state !== "white"
-    );
+    const songs = reqs.songsArea.filter((r) => r.isApplicable);
     assert.deepStrictEqual(
-      songs.map((r) => r.label),
-      ["Song"],
-      "stale MTD HALFTIME SHOW must not force Notes on Band Chant"
+      songs.map((r) => r.label).sort(),
+      ["Notes", "Song"].sort(),
+      "MB Magento form always has Song + Notes pills"
     );
   });
 

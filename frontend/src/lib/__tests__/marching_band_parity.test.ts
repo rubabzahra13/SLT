@@ -42,7 +42,7 @@ function applicableIds(order: Order): string[] {
     .sort();
 }
 
-describe("Marching Band parity — package matrix + field SoT", () => {
+describe("Marching Band parity — Magento form fields + SoT", () => {
   it("identity merge key is schoolProgramName", () => {
     assert.equal(getOrderIdentityFieldKey("marching-band"), "schoolProgramName");
   });
@@ -68,51 +68,10 @@ describe("Marching Band parity — package matrix + field SoT", () => {
     );
   });
 
-  it("Band Chant: Song from instrumentation + Mix; lyrics ignored for Song", () => {
-    const order = mbOrder({
-      package: "BAND CHANT",
-      packageType: "BAND CHANT",
-      instrumentationNotes: "Seven Nation Army cover",
-      lyricalNotes: "should not green Song",
-      timeLengthOfMix: "1:30",
-    });
-    assert.deepEqual(applicableIds(order), ["mix", "songs"]);
-    assert.equal(getFormSongListColumnText(order), "Seven Nation Army cover");
-    assert.equal(
-      getOrderRequirements(order).songsArea.find((r) => r.id === "songs")?.state,
-      "green"
-    );
-    assert.equal(
-      getOrderRequirements({
-        ...order,
-        instrumentationNotes: "",
-      } as Order).songsArea.find((r) => r.id === "songs")?.state,
-      "red"
-    );
-  });
-
-  it("Drum Cadence: Notes from instrumentation; lyrics ignored", () => {
-    const order = mbOrder({
-      package: "DRUM CADENCE ORIGINAL",
-      packageType: "DRUM CADENCE ORIGINAL",
-      instrumentationNotes: "Full brass",
-      lyricalNotes: "ignored",
-      timeLengthOfMix: "2:00",
-    });
-    assert.deepEqual(applicableIds(order), ["mix", "notes"]);
-    assert.equal(getFormNotesText(order), "Full brass");
-    assert.equal(
-      getFormNotesText({
-        ...order,
-        instrumentationNotes: "",
-        lyricalNotes: "only lyrics",
-      } as Order),
-      ""
-    );
-  });
-
-  it("Fight Song / Alma Mater: Notes from lyrics; instrumentation ignored", () => {
+  it("every MB package: Mix + Song (instrumentation) + Notes (lyrics)", () => {
     for (const packageType of [
+      "BAND CHANT",
+      "DRUM CADENCE ORIGINAL",
       "FIGHT SONG ORIGINAL",
       "FIGHT SONG PLUS",
       "ALMA MATER ORIGINAL",
@@ -121,17 +80,68 @@ describe("Marching Band parity — package matrix + field SoT", () => {
       const order = mbOrder({
         package: packageType,
         packageType,
-        instrumentationNotes: "brass only",
+        instrumentationNotes: "Seven Nation Army cover",
         lyricalNotes: "School fight lyrics",
-        timeLengthOfMix: "2:00",
+        timeLengthOfMix: "1:30",
       });
-      assert.deepEqual(applicableIds(order), ["mix", "notes"], packageType);
+      assert.deepEqual(
+        applicableIds(order),
+        ["mix", "notes", "songs"],
+        packageType
+      );
+      assert.equal(
+        getFormSongListColumnText(order),
+        "Seven Nation Army cover",
+        packageType
+      );
       assert.equal(getFormNotesText(order), "School fight lyrics", packageType);
+      assert.equal(
+        getOrderRequirements(order).songsArea.find((r) => r.id === "songs")
+          ?.state,
+        "green",
+        packageType
+      );
+      assert.equal(
+        getOrderRequirements(order).songsArea.find((r) => r.id === "notes")
+          ?.state,
+        "green",
+        packageType
+      );
+      assert.equal(
+        getOrderRequirements({
+          ...order,
+          instrumentationNotes: "",
+          songListSuggestions: "",
+        } as Order).songsArea.find((r) => r.id === "songs")?.state,
+        "red",
+        packageType
+      );
+      assert.equal(
+        getOrderRequirements({
+          ...order,
+          lyricalNotes: "",
+          routineNotes: "",
+        } as Order).songsArea.find((r) => r.id === "notes")?.state,
+        "red",
+        packageType
+      );
+      // Instrumentation must not green Notes; lyrics must not green Song.
       assert.equal(
         getFormNotesText({
           ...order,
           lyricalNotes: "",
+          routineNotes: "",
           instrumentationNotes: "brass only",
+        } as Order),
+        "",
+        packageType
+      );
+      assert.equal(
+        getFormSongListColumnText({
+          ...order,
+          instrumentationNotes: "",
+          songListSuggestions: "",
+          lyricalNotes: "only lyrics",
         } as Order),
         "",
         packageType

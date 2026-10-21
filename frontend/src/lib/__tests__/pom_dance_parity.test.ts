@@ -56,20 +56,21 @@ describe("POM Dance parity — Songs OR covers + Mix", () => {
     );
   });
 
-  it("applicable collections are Songs + Mix Time (Notes N/A)", () => {
+  it("applicable collections are Mix + Songs + Notes (Magento form fields)", () => {
     const order = pomOrder({
       powerMusicCovers: "Track A",
       timeLengthOfMix: "2:15",
+      routineNotes: "Routine notes",
     });
     const ids = getOrderRequirements(order)
       .all.filter((r) => r.isApplicable && r.id !== "form")
       .map((r) => r.id)
       .sort();
-    assert.deepEqual(ids, ["mix", "songs"]);
+    assert.deepEqual(ids, ["mix", "notes", "songs"]);
     assert.equal(
       getOrderRequirements(order).songsArea.find((r) => r.id === "notes")
         ?.state,
-      "white"
+      "green"
     );
   });
 

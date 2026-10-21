@@ -13,7 +13,6 @@ import {
   isAllStarDanceOrder,
   isMarchingBandOrder,
   mergeOrderFormFieldsForRequirements,
-  resolveMarchingBandPackageKind,
   type OrderRequirementItem,
   type RequirementCategory,
 } from "@/lib/order-requirements";
@@ -125,7 +124,7 @@ export function OrderRequirementPill({
         disabled={!isInteractive}
         onClick={handleClick}
         className={clsx(
-          "inline-flex items-center justify-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold leading-none transition shadow-2xs select-none focus:outline-none focus:ring-1 focus:ring-slate-400/40",
+          "inline-flex items-center justify-center whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-semibold leading-none transition shadow-2xs select-none focus:outline-none focus:ring-1 focus:ring-slate-400/40",
           isGreen &&
             "bg-[#c2e7d9] text-[#0f5236] border border-[#9edbb8]",
           isRed && "bg-[#f9d7d7] text-[#901313] border border-[#ebafaf]",
@@ -180,13 +179,10 @@ function confirmClearFieldLabel(
       : "Instrumental Style Preference";
   }
   if (isMarchingBandOrder(order)) {
-    if (kind === "notes") {
-      return resolveMarchingBandPackageKind(order) === "fight_alma"
-        ? "Notes to Producer Regarding Lyrics / Mix"
-        : "Notes to Producer Regarding Instrumentation";
-    }
-    // Band Chant Song pill
-    return "Notes to Producer Regarding Instrumentation";
+    // Magento MB form always has both fields (not package-gated).
+    return kind === "notes"
+      ? "Notes to Producer Regarding Lyrics / Mix"
+      : "Notes to Producer Regarding Instrumentation";
   }
   if (isAllStarDanceOrder(order)) {
     return kind === "notes"
@@ -312,7 +308,6 @@ function buildSongsNotesPatches(
   delete nextStates.notes;
   const anthem = isAnthemOrder(order);
   const marchingBand = isMarchingBandOrder(order);
-  const mbKind = resolveMarchingBandPackageKind(order);
   const affiliate = String(
     (order as Order).musicAffiliate ||
       (order as { music_affiliate?: string }).music_affiliate ||
@@ -329,60 +324,21 @@ function buildSongsNotesPatches(
           powerMusicCovers: danceCovers,
           musicAffiliate: affiliate || undefined,
         });
-  // School Anthem Notes → routine_notes (was lyricalNotes).
-  // MB Fight/Alma Notes → routine_notes; MB Drum Cadence Notes → song_list.
-  let orderPatch: Partial<Order>;
-  let mtdPatch: Partial<MTDRecord> & {
-    lyricalNotes?: string;
-    instrumentationNotes?: string;
-    songListSuggestions?: string;
+  // Magento Notes → routine_notes SoT (Anthem lyrical / MB lyrics / Dance-Cheer
+  // routine / SE additional). Not package-gated.
+  const orderPatch: Partial<Order> = {
+    routineNotes: text,
+    additionalNotes: text,
+    lyricalNotes: text,
+    collectionStates: nextStates as Order["collectionStates"],
+    musicTheme: anthem || marchingBand ? "" : nextTheme,
   };
-  if (anthem) {
-    orderPatch = {
-      routineNotes: text,
-      lyricalNotes: text,
-      collectionStates: nextStates as Order["collectionStates"],
-    };
-    mtdPatch = {
-      routineNotes: text,
-      lyricalNotes: text,
-      collectionStates: nextStates as MTDRecord["collectionStates"],
-    };
-  } else if (marchingBand && mbKind === "fight_alma") {
-    orderPatch = {
-      routineNotes: text,
-      lyricalNotes: text,
-      collectionStates: nextStates as Order["collectionStates"],
-    };
-    mtdPatch = {
-      routineNotes: text,
-      lyricalNotes: text,
-      collectionStates: nextStates as MTDRecord["collectionStates"],
-    };
-  } else if (marchingBand) {
-    orderPatch = {
-      songListSuggestions: text,
-      instrumentationNotes: text,
-      collectionStates: nextStates as Order["collectionStates"],
-    };
-    mtdPatch = {
-      songListSuggestions: text,
-      instrumentationNotes: text,
-      collectionStates: nextStates as MTDRecord["collectionStates"],
-    };
-  } else {
-    orderPatch = {
-      routineNotes: text,
-      additionalNotes: text,
-      collectionStates: nextStates as Order["collectionStates"],
-      musicTheme: nextTheme,
-    };
-    mtdPatch = {
-      routineNotes: text,
-      collectionStates: nextStates as MTDRecord["collectionStates"],
-      musicTheme: nextTheme,
-    };
-  }
+  const mtdPatch: Partial<MTDRecord> & { lyricalNotes?: string } = {
+    routineNotes: text,
+    lyricalNotes: text,
+    collectionStates: nextStates as MTDRecord["collectionStates"],
+    musicTheme: anthem || marchingBand ? "" : nextTheme,
+  };
   return { orderPatch, mtdPatch };
 }
 
@@ -612,7 +568,6 @@ export function OrderRequirementsCell({
 
     const anthem = isAnthemOrder(requirementsRecord);
     const marchingBand = isMarchingBandOrder(requirementsRecord);
-    const mbKind = resolveMarchingBandPackageKind(requirementsRecord);
     const songsClearMsg = anthem
       ? "Instrumental style preference cleared. Song marked as not have."
       : marchingBand
@@ -625,18 +580,14 @@ export function OrderRequirementsCell({
         : "Song list saved. Songs marked as have.";
     const notesClearMsg = anthem
       ? "Lyrical notes cleared. Notes marked as not have."
-      : marchingBand && mbKind === "fight_alma"
+      : marchingBand
         ? "Lyrics / mix notes cleared. Notes marked as not have."
-        : marchingBand
-          ? "Instrumentation notes cleared. Notes marked as not have."
-          : "Routine notes cleared. Notes marked as not have.";
+        : "Routine notes cleared. Notes marked as not have.";
     const notesSaveMsg = anthem
       ? "Lyrical notes saved. Notes marked as have."
-      : marchingBand && mbKind === "fight_alma"
+      : marchingBand
         ? "Lyrics / mix notes saved. Notes marked as have."
-        : marchingBand
-          ? "Instrumentation notes saved. Notes marked as have."
-          : "Routine notes saved. Notes marked as have.";
+        : "Routine notes saved. Notes marked as have.";
     addNotification({
       type: "mtd_move",
       title: kind === "songs" ? "Songs updated" : "Notes updated",
