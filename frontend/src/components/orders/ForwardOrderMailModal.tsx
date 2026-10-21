@@ -277,7 +277,7 @@ export function ForwardOrderMailModal({
   onClose,
 }: ForwardOrderMailModalProps) {
   const { token, isViewOnly } = useAuth();
-  const { emailTemplates, updateMTD, addNotification } = useAppState();
+  const { emailTemplates, updateMTD, addAlert } = useAppState();
   const [mounted, setMounted] = useState(false);
   const [step, setStep] = useState<ModalStep>("compose");
   const [editorId, setEditorId] = useState("");
@@ -546,8 +546,8 @@ export function ForwardOrderMailModal({
       }
       setSent(true);
       const toLabel = draft.toName?.trim() || draft.to;
-      addNotification({
-        type: "schedule",
+      addAlert({
+        tone: "info",
         title: "Email sent",
         message: toLabel
           ? `Sent to ${toLabel}${draft.to && draft.to !== toLabel ? ` (${draft.to})` : ""}.`

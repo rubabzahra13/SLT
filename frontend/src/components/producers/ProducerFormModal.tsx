@@ -201,7 +201,7 @@ export function ProducerFormModal({
   readOnly = false,
 }: ProducerFormModalProps) {
   const router = useRouter();
-  const { mtdRecords, activeOrders, updateMTD, updateOrder, addNotification } =
+  const { mtdRecords, activeOrders, updateMTD, updateOrder, addAlert } =
     useAppState();
   const [form, setForm] = useState<FormState>(emptyForm);
   const [initialsTouched, setInitialsTouched] = useState(false);
@@ -566,8 +566,8 @@ export function ProducerFormModal({
           reassign.labels.length === 1
             ? reassign.labels[0]
             : `${reassign.labels.length} categories`;
-        addNotification({
-          type: "schedule",
+        addAlert({
+          tone: "info",
           title: `${categoryLabel} removed`,
           message:
             reassign.mixCount === 1

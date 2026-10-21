@@ -7,7 +7,6 @@ import {
   isMultiAffiliateSelection,
   openAffiliateFlagPatch,
   parseSelectedMusicAffiliates,
-  releaseAffiliateFlagPatch,
   resolveAffiliateFlagPatch,
 } from "../affiliate-flag";
 import { isAllowedAllStarDanceCoverPair } from "../dance-music-affiliate";
@@ -91,7 +90,7 @@ describe("affiliate flag detection", () => {
     assert.equal(isMultiAffiliateSelection(raw), true);
   });
 
-  it("holds cheer multi-select on Flagged until released", () => {
+  it("holds cheer multi-select on Flagged until admin resolves", () => {
     const open = cheerOrder({
       musicAffiliate: "Power Music, Library Music",
       affiliateFlagStatus: "open",
@@ -100,17 +99,17 @@ describe("affiliate flag detection", () => {
     assert.equal(isHeldOnAffiliateFlag(open), true);
 
     const resolved = cheerOrder({
+      ...open,
       ...resolveAffiliateFlagPatch(open, "Power Music"),
-      musicAffiliate: "Power Music",
-      affiliateFlagStatus: "resolved",
-      musicAffiliateSelections: "Power Music, Library Music",
     });
-    assert.equal(isHeldOnAffiliateFlag(resolved), true);
     assert.equal(resolved.musicAffiliate, "Power Music");
+    assert.equal(resolved.affiliateFlagStatus, "released");
+    assert.equal(isHeldOnAffiliateFlag(resolved), false);
 
     const released = cheerOrder({
-      ...resolved,
-      ...releaseAffiliateFlagPatch(),
+      musicAffiliate: "Power Music",
+      affiliateFlagStatus: "released",
+      musicAffiliateSelections: "Power Music, Library Music",
     });
     assert.equal(isHeldOnAffiliateFlag(released), false);
   });

@@ -127,13 +127,9 @@ import type {
   MTDRecordStatus,
   Order,
   OrderFormType,
-  OrderSourceFilter,
   PriceCompliance,
 } from "@/types";
 import { MTD_RECORD_STATUS_OPTIONS } from "@/types";
-import {
-  filterRecordsByOrderSource,
-} from "@/lib/order-source";
 import clsx from "clsx";
 
 const DEFAULT_FORM: OrderFormType = "school-all-star-cheer";
@@ -265,8 +261,6 @@ function MTDPageContent() {
   const [tableFilters, setTableFilters] = useState<MTDTableFilterState>(
     DEFAULT_MTD_TABLE_FILTERS
   );
-  const [sourceFilter, setSourceFilter] =
-    useState<OrderSourceFilter>("both");
 
   useEffect(() => {
     if (assignedParam) {
@@ -606,14 +600,9 @@ function MTDPageContent() {
     [completeRecord, updateMTD, updateOrder]
   );
 
-  const sourceFilteredBoard = useMemo(
-    () => filterRecordsByOrderSource(mtdBoardRecords, sourceFilter, orderById),
-    [mtdBoardRecords, sourceFilter, orderById]
-  );
-
   const tableFiltered = useMemo(
     () =>
-      filterMTDRecords(sourceFilteredBoard, {
+      filterMTDRecords(mtdBoardRecords, {
         packageTier: tableFilters.packageTier,
         timeLimit: tableFilters.timeLimit,
         split: tableFilters.split,
@@ -629,7 +618,7 @@ function MTDPageContent() {
         producers,
       }),
     [
-      sourceFilteredBoard,
+      mtdBoardRecords,
       tableFilters,
       form,
       cheerSubtype,
@@ -656,18 +645,18 @@ function MTDPageContent() {
   }, [filtered, tableFilters.sortBy, viewOrder, producers, orderById]);
 
   const formCounts = useMemo(
-    () => countMTDByForm(sourceFilteredBoard, orderById),
-    [sourceFilteredBoard, orderById]
+    () => countMTDByForm(mtdBoardRecords, orderById),
+    [mtdBoardRecords, orderById]
   );
 
   const cheerSubtypeCounts = useMemo(
-    () => countMTDByCheerSubtype(sourceFilteredBoard, orderById),
-    [sourceFilteredBoard, orderById]
+    () => countMTDByCheerSubtype(mtdBoardRecords, orderById),
+    [mtdBoardRecords, orderById]
   );
 
   const danceSubtypeCounts = useMemo(
-    () => countMTDByDanceSubtype(sourceFilteredBoard, orderById),
-    [sourceFilteredBoard, orderById]
+    () => countMTDByDanceSubtype(mtdBoardRecords, orderById),
+    [mtdBoardRecords, orderById]
   );
 
   const tableFilterKey = [
@@ -1637,7 +1626,7 @@ function MTDPageContent() {
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <PageHeader
         title="Music To Do"
-        badge={`${displayedRecords.length} of ${sourceFilteredBoard.length}`}
+        badge={`${displayedRecords.length} of ${mtdBoardRecords.length}`}
         subtitle="Complete mixes, pricing, and invoicing"
         action={{
           label: "Pricing",
@@ -1665,16 +1654,13 @@ function MTDPageContent() {
             form={form}
             cheerSubtype={cheerSubtype}
             danceSubtype={danceSubtype}
-            sourceFilter={sourceFilter}
-            onSourceFilterChange={setSourceFilter}
-            sourceCountRecords={mtdBoardRecords}
             onFormChange={switchForm}
             onCheerSubtypeChange={setCheerSubtype}
             onDanceSubtypeChange={setDanceSubtype}
             formCounts={formCounts}
             cheerCounts={cheerSubtypeCounts}
             danceCounts={danceSubtypeCounts}
-            records={sourceFilteredBoard}
+            records={mtdBoardRecords}
             producers={producers}
             orderById={orderById}
             filters={tableFilters}

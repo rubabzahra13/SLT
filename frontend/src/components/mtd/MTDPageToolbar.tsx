@@ -1,6 +1,5 @@
 "use client";
 
-import { OrderFlaggedToggle } from "@/components/orders/OrderFlaggedToggle";
 import { OrderFormFilters } from "@/components/orders/OrderFormFilters";
 import { OrderRangeToggle } from "@/components/orders/OrderRangeToggle";
 import { OrderSourceFilter } from "@/components/orders/OrderSourceFilter";
@@ -48,8 +47,6 @@ type MTDPageToolbarProps = {
   reassignRushOrdersCount?: number;
   reassignedOrdersCount?: number;
   waitingForDataCount?: number;
-  flaggedOrdersCount?: number;
-  onFlaggedToggle?: () => void;
   onFormChange: (form: OrderFormType) => void;
   onCheerSubtypeChange: (subtype: CheerFormSubtypeFilter) => void;
   onDanceSubtypeChange: (subtype: DanceFormSubtypeFilter) => void;
@@ -85,8 +82,6 @@ export function MTDPageToolbar({
   reassignRushOrdersCount,
   reassignedOrdersCount,
   waitingForDataCount,
-  flaggedOrdersCount,
-  onFlaggedToggle,
   onFormChange,
   onCheerSubtypeChange,
   onDanceSubtypeChange,
@@ -164,20 +159,6 @@ export function MTDPageToolbar({
             value={filters.sortBy ?? "newest"}
             onChange={(sortBy) => onFiltersChange({ sortBy })}
           />
-          {onFlaggedToggle && typeof flaggedOrdersCount === "number" ? (
-            <>
-              <span
-                className="mx-0.5 hidden h-5 w-px shrink-0 bg-brand-line/45 sm:block"
-                aria-hidden
-              />
-              <OrderFlaggedToggle
-                grouped
-                active={rangeFilter === "flagged"}
-                count={flaggedOrdersCount}
-                onClick={onFlaggedToggle}
-              />
-            </>
-          ) : null}
         </div>
 
         <div className="flex shrink-0 flex-wrap items-center gap-2">

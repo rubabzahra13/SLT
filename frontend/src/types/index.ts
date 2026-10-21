@@ -954,13 +954,41 @@ export type ScheduleCellStatus =
   | "limit_full"
   | "nonwork";
 
+/**
+ * Bell inbox only — new Magento orders, flagged multi-affiliate holds,
+ * producer leave starting tomorrow, daily Limit full, and Gmail connect/disconnect.
+ * Transient UX feedback uses AppAlert (toast), not the bell.
+ */
+export type AppNotificationType =
+  | "new_order"
+  | "flagged_order"
+  | "leave_tomorrow"
+  | "limit_full"
+  | "assignment"
+  | "gmail_connected"
+  | "gmail_disconnected";
+
 export type AppNotification = {
   id: string;
-  type: "new_order" | "mtd_move" | "schedule" | "payroll" | "error";
+  type: AppNotificationType;
   title: string;
   message: string;
   href?: string;
   read: boolean;
+  createdAt: string;
+  /** Session dedupe key (leave / limit full). */
+  dedupeKey?: string;
+};
+
+export type AppAlertTone = "info" | "success" | "warning" | "error";
+
+/** Ephemeral toast — not stored in the notification bell. */
+export type AppAlert = {
+  id: string;
+  tone: AppAlertTone;
+  title: string;
+  message: string;
+  href?: string;
   createdAt: string;
 };
 

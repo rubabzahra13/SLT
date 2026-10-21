@@ -6,7 +6,7 @@ from typing import List, Optional
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.api.auth import get_current_user, get_optional_current_user, require_full_access
+from app.api.auth import require_full_access
 from app.models.user import User
 from app.services.gmail_service import GmailService
 
@@ -94,26 +94,32 @@ def google_oauth_callback(
 
 @router.get("/gmail/status")
 @router.get("/pilot2/inboxes/status")
-def get_gmail_connection_status(
-    db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_optional_current_user)
-):
+def get_gmail_connection_status(db: Session = Depends(get_db)):
     """Get connected Gmail account status (safe metadata only, no credentials)."""
-    conn = GmailService.get_active_connection(db)
-    if not conn or not conn.is_active:
+    try:
+        conn = GmailService.get_active_connection(db)
+        if not conn or not conn.is_active:
+            return {
+                "connected": False,
+                "email": None,
+                "provider": "google",
+                "updated_at": None,
+            }
+
+        return {
+            "connected": True,
+            "email": conn.email,
+            "provider": "google",
+            "updated_at": conn.updated_at.isoformat() if conn.updated_at else None,
+        }
+    except Exception:
+        # Missing table / pool blip — never 500 a status probe.
         return {
             "connected": False,
             "email": None,
             "provider": "google",
-            "updated_at": None
+            "updated_at": None,
         }
-
-    return {
-        "connected": True,
-        "email": conn.email,
-        "provider": "google",
-        "updated_at": conn.updated_at.isoformat() if conn.updated_at else None
-    }
 
 
 @router.post("/gmail/disconnect")

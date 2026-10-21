@@ -21,7 +21,6 @@ import { SetRecordPricingModal } from "@/components/mtd/SetRecordPricingModal";
 import { CompletionBlockedModal } from "@/components/mtd/CompletionBlockedModal";
 import { InlineTwoStateToggle } from "@/components/mtd/InlineFields";
 import { ForwardOrderMailModal } from "@/components/orders/ForwardOrderMailModal";
-import { ResolveAffiliateFlagModal } from "@/components/orders/ResolveAffiliateFlagModal";
 import { AddNewOrderModal } from "@/components/orders/AddNewOrderModal";
 import { OrderFormEditModal } from "@/components/orders/OrderFormEditModal";
 import { OrderRequirementsCell } from "@/components/orders/OrderRequirementsCell";
@@ -29,11 +28,9 @@ import { OrderDataStatusBadge, OrderAssignmentStatusBadge } from "@/components/o
 import { recordIsRushOrder } from "@/lib/forward-order-mail";
 import {
   getAffiliateSelections,
-  isAffiliateFlagResolved,
   isDanceFormOrder,
   isInvalidMultiAffiliateSelection,
   recordHeldOnAffiliateFlag,
-  releaseAffiliateFlagPatch,
 } from "@/lib/affiliate-flag";
 import { formatDanceMusicAffiliates } from "@/lib/dance-music-affiliate";
 import {
@@ -211,6 +208,7 @@ function OrdersPageContent() {
     if (!rangeParam || !allowedRangeFilters.includes(rangeParam as OrderViewRangeFilter)) {
       return "all";
     }
+    if (rangeParam === "flagged") return "all";
     if (rangeParam === "reassign_leave" || rangeParam === "reassign_rush") {
       return "reassigned";
     }
@@ -253,11 +251,20 @@ function OrdersPageContent() {
   }, [focusParam]);
 
   useEffect(() => {
+    // Old links / notifications used ?range=flagged — send them to the Flagged page.
+    if (rangeParam === "flagged") {
+      router.replace("/orders/flagged");
+      return;
+    }
     if (!rangeParam) return;
     if (allowedRangeFilters.includes(rangeParam as OrderViewRangeFilter)) {
-      setRangeFilter(rangeParam as OrderViewRangeFilter);
+      setRangeFilter(
+        rangeParam === "reassign_leave" || rangeParam === "reassign_rush"
+          ? "reassigned"
+          : (rangeParam as OrderViewRangeFilter)
+      );
     }
-  }, [rangeParam]);
+  }, [rangeParam, router]);
 
   useEffect(() => {
     if (!formParam) return;
@@ -335,11 +342,6 @@ function OrdersPageContent() {
   const [addNewOrderOpen, setAddNewOrderOpen] = useState(false);
   const [orderFormRecord, setOrderFormRecord] = useState<MTDRecord | null>(null);
   const [orderFormRowId, setOrderFormRowId] = useState<number | null>(null);
-  const [affiliateFlagRecord, setAffiliateFlagRecord] =
-    useState<MTDRecord | null>(null);
-  const [affiliateFlagMode, setAffiliateFlagMode] = useState<
-    "resolve" | "email"
-  >("resolve");
 
   const preMtdRecords = useMemo(
     () => listPreMtdOrderRecords(activeOrders, mtdRecords),
@@ -369,7 +371,7 @@ function OrdersPageContent() {
     [sourceFilteredRecords, orderById]
   );
 
-  /** Normal Orders board — multi-affiliate cheer flags are held on Flagged until released. */
+  /** Normal Orders board — multi-affiliate Magento holds stay on Flagged until Resolve. */
   const boardRecords = useMemo(
     () =>
       sourceFilteredRecords.filter(
@@ -385,14 +387,6 @@ function OrdersPageContent() {
         matchesFormFilter(rec, orderById, form, cheerSubtype, danceSubtype)
       ),
     [boardRecords, orderById, form, cheerSubtype, danceSubtype]
-  );
-
-  const categoryFilteredFlagged = useMemo(
-    () =>
-      flaggedRecords.filter((rec) =>
-        matchesFormFilter(rec, orderById, form, cheerSubtype, danceSubtype)
-      ),
-    [flaggedRecords, orderById, form, cheerSubtype, danceSubtype]
   );
 
   const allOrdersCount = useMemo(
@@ -446,7 +440,8 @@ function OrdersPageContent() {
     [categoryFilteredBoard]
   );
 
-  const flaggedOrdersCount = categoryFilteredFlagged.length;
+  /** Badge always reflects every flagged booking (not the active form only). */
+  const flaggedOrdersCount = flaggedRecords.length;
 
   const matchesRangeFilter = useCallback(
     (rec: MTDRecord) => {
@@ -465,6 +460,7 @@ function OrdersPageContent() {
       }
       if (rangeFilter === "waiting_for_data")
         return getOrderRequirements(rec).missingCount > 0;
+      if (rangeFilter === "flagged") return false;
       // Complete data: data complete and not yet assigned / reassigned
       return (
         !rec.isReassigned &&
@@ -477,21 +473,14 @@ function OrdersPageContent() {
 
   // Rows for the table: source + category/subcategory + range.
   const typeFilteredPreMtdRecords = useMemo(() => {
-    if (rangeFilter === "flagged") return categoryFilteredFlagged;
     return categoryFilteredBoard.filter(matchesRangeFilter);
-  }, [
-    categoryFilteredBoard,
-    categoryFilteredFlagged,
-    rangeFilter,
-    matchesRangeFilter,
-  ]);
+  }, [categoryFilteredBoard, matchesRangeFilter]);
 
   // Form / subtype dropdown counts stay range-scoped but not category-scoped
   // so admins can still see other categories while a form is selected.
   const formCountRecords = useMemo(() => {
-    if (rangeFilter === "flagged") return flaggedRecords;
     return boardRecords.filter(matchesRangeFilter);
-  }, [boardRecords, flaggedRecords, rangeFilter, matchesRangeFilter]);
+  }, [boardRecords, matchesRangeFilter]);
 
   const switchForm = useCallback(
     (next: OrderFormType) => {
@@ -505,6 +494,10 @@ function OrdersPageContent() {
     },
     [setForm, setCheerSubtype, setDanceSubtype]
   );
+
+  const goToFlaggedPage = useCallback(() => {
+    router.push("/orders/flagged");
+  }, [router]);
 
   const openAssignPage = useCallback(
     (recordId: string) => {
@@ -1591,40 +1584,6 @@ function OrdersPageContent() {
         cellClassName: compactCellClass,
         headerClassName: compactHeaderClass,
         render: (rec) => {
-          if (rangeFilter === "flagged") {
-            return (
-              <div
-                className="flex items-center justify-center gap-1"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <HoverTip
-                  label="Email customer to confirm which affiliate"
-                  placement="top"
-                >
-                  <button
-                    type="button"
-                    disabled={isViewOnly}
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onClick={() => {
-                      if (isViewOnly) return;
-                      setAffiliateFlagMode("email");
-                      setAffiliateFlagRecord(rec);
-                    }}
-                    className={
-                      isViewOnly
-                        ? ordersMailTextButtonDisabledClass
-                        : ordersMailCustomerButtonClass
-                    }
-                    aria-label="Email customer about affiliate"
-                  >
-                    <Mail className="h-3 w-3 shrink-0" strokeWidth={2.25} />
-                    <span>Customer</span>
-                  </button>
-                </HoverTip>
-              </div>
-            );
-          }
-
           const { needsReassign, missingCount } = getOrderStatus(rec);
           const blockedByMissingData = missingCount > 0;
           const assignedProducer =
@@ -1737,78 +1696,12 @@ function OrdersPageContent() {
       {
         key: "actions",
         header: "Actions",
-        width: rangeFilter === "flagged" ? "200px" : "120px",
+        width: "120px",
         align: "center" as const,
         nowrap: true,
         cellClassName: compactCellClass,
         headerClassName: compactHeaderClass,
         render: (rec, index) => {
-          if (rangeFilter === "flagged") {
-            const linked = findLinkedOrder(rec, allOrders);
-            const resolved = isAffiliateFlagResolved(linked);
-            const moveDisabled = !resolved || isViewOnly;
-            return (
-              <div
-                className="flex flex-wrap items-center justify-center gap-1"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <HoverTip label="Choose one music affiliate" placement="top">
-                  <button
-                    type="button"
-                    disabled={isViewOnly}
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onClick={() => {
-                      if (isViewOnly) return;
-                      setAffiliateFlagMode("resolve");
-                      setAffiliateFlagRecord(rec);
-                    }}
-                    className={
-                      isViewOnly
-                        ? ordersMailTextButtonDisabledClass
-                        : actionButtonClass(resolved)
-                    }
-                    aria-label="Resolve affiliate"
-                  >
-                    <Flag className="mr-0.5 inline h-3 w-3" strokeWidth={2.25} />
-                    {resolved ? "Resolved" : "Resolve"}
-                  </button>
-                </HoverTip>
-                <HoverTip
-                  label={
-                    resolved
-                      ? "Send to normal Orders board"
-                      : "Resolve affiliate before moving to Orders"
-                  }
-                  placement="top"
-                >
-                  <button
-                    type="button"
-                    disabled={moveDisabled}
-                    aria-disabled={moveDisabled}
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onClick={() => {
-                      if (moveDisabled || !linked) return;
-                      void updateOrder(
-                        linked.id,
-                        releaseAffiliateFlagPatch(),
-                        linked
-                      );
-                      setRangeFilter("all");
-                    }}
-                    className={clsx(
-                      ordersMtdButtonClass(resolved, moveDisabled),
-                      "whitespace-nowrap"
-                    )}
-                    aria-label="Move to Orders"
-                  >
-                    <span>Orders</span>
-                    <ArrowRight className="h-3 w-3 shrink-0" strokeWidth={2.25} />
-                  </button>
-                </HoverTip>
-              </div>
-            );
-          }
-
           const linkedForForm = findLinkedOrder(rec, allOrders);
           const pairBase = linkedForForm ?? orderFromMTDRecord(rec);
           const hasFormOverride = Boolean(
@@ -1986,11 +1879,7 @@ function OrdersPageContent() {
       <PageHeader
         title="Orders"
         badge={`${filtered.length} of ${typeFilteredPreMtdRecords.length}`}
-        subtitle={
-          rangeFilter === "flagged"
-            ? "Resolve multi-affiliate cheer form selections"
-            : "Assign orders to producers"
-        }
+        subtitle="Assign orders to producers"
         action={{
           label: "New Order",
           onClick: () => setAddNewOrderOpen(true),
@@ -2008,6 +1897,31 @@ function OrdersPageContent() {
             triggerCsvDownload(`Orders_Export_${todayIso()}.csv`, csv);
           },
         }}
+        headerActions={
+          <button
+            type="button"
+            onClick={goToFlaggedPage}
+            title={
+              flaggedOrdersCount > 0
+                ? `Open Flagged Orders (${flaggedOrdersCount})`
+                : "Open Flagged Orders"
+            }
+            aria-label={
+              flaggedOrdersCount > 0
+                ? `Open Flagged Orders, ${flaggedOrdersCount}`
+                : "Open Flagged Orders"
+            }
+            className="flex h-9 items-center gap-1.5 rounded-xl border border-brand-line/70 bg-white px-3 text-[13px] font-semibold text-brand-ink shadow-sm transition hover:border-brand-line hover:bg-brand-bg/60 hover:text-brand-orange focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange/20"
+          >
+            <Flag className="h-4 w-4 text-brand-ink-secondary" strokeWidth={2} />
+            <span className="hidden sm:inline">Flagged Orders</span>
+            {flaggedOrdersCount > 0 ? (
+              <span className="rounded-full bg-rose-50 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-rose-600">
+                {flaggedOrdersCount}
+              </span>
+            ) : null}
+          </button>
+        }
         search={{
           value: searchQuery,
           onChange: setSearchQuery,
@@ -2025,7 +1939,7 @@ function OrdersPageContent() {
             sourceFilter={sourceFilter}
             onSourceFilterChange={setSourceFilter}
             sourceCountRecords={preMtdRecords}
-            rangeFilter={rangeFilter}
+            rangeFilter={rangeFilter === "flagged" ? "all" : rangeFilter}
             onRangeFilterChange={setRangeFilter}
             allOrdersCount={allOrdersCount}
             needToBeScheduledCount={needToBeScheduledCount}
@@ -2034,10 +1948,6 @@ function OrdersPageContent() {
             notAssignedOrdersCount={notAssignedOrdersCount}
             reassignedOrdersCount={reassignedOrdersCount}
             waitingForDataCount={waitingForDataCount}
-            flaggedOrdersCount={flaggedOrdersCount}
-            onFlaggedToggle={() =>
-              setRangeFilter((prev) => (prev === "flagged" ? "all" : "flagged"))
-            }
             onFormChange={switchForm}
             onCheerSubtypeChange={setCheerSubtype}
             onDanceSubtypeChange={setDanceSubtype}
@@ -2085,9 +1995,7 @@ function OrdersPageContent() {
             emptyMessage={
               isLoading
                 ? "Loading orders…"
-                : rangeFilter === "flagged"
-                  ? "No flagged multi-affiliate orders."
-                  : "No pending pre-MTD orders found."
+                : "No pending pre-MTD orders found."
             }
             pageSize={15}
             embedded
@@ -2165,14 +2073,6 @@ function OrdersPageContent() {
           setOrderFormRecord(null);
           setOrderFormRowId(null);
         }}
-      />
-
-      <ResolveAffiliateFlagModal
-        open={Boolean(affiliateFlagRecord)}
-        record={affiliateFlagRecord}
-        allOrders={allOrders}
-        mode={affiliateFlagMode}
-        onClose={() => setAffiliateFlagRecord(null)}
       />
     </div>
   );

@@ -21,10 +21,13 @@ import { useAppState } from "@/context/AppStateContext";
 import { useAuth } from "@/context/AuthContext";
 import { isMTDRecord } from "@/lib/mtd-filters";
 import { getMTDBoardRecords, getPayrollRecords } from "@/lib/mtd-completion";
+import { recordHeldOnAffiliateFlag } from "@/lib/affiliate-flag";
 import { listPreMtdOrderRecords } from "@/lib/order-staging";
 import { BrandMonogram } from "@/components/layout/BrandMonogram";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { HoverTip } from "@/components/ui/HoverTip";
 import { DottedScroll } from "@/components/ui/DottedScroll";
+import type { Order } from "@/types";
 
 import type { LucideIcon } from "lucide-react";
 
@@ -58,11 +61,18 @@ export function Sidebar() {
     access_level: "Full Access",
   };
 
-  // Same universe as the Orders tab board (all categories, form + manual).
-  const ordersCount = useMemo(
-    () => listPreMtdOrderRecords(activeOrders, mtdRecords).length,
-    [activeOrders, mtdRecords]
-  );
+  // Same universe as the Orders tab board (excludes Flagged multi-affiliate holds).
+  const ordersCount = useMemo(() => {
+    const orderById = new Map<string, Order>();
+    for (const order of activeOrders) {
+      if (order.id) orderById.set(order.id, order);
+      if (order.legacyId) orderById.set(order.legacyId, order);
+      if (order.uuid) orderById.set(order.uuid, order);
+    }
+    return listPreMtdOrderRecords(activeOrders, mtdRecords).filter(
+      (rec) => !recordHeldOnAffiliateFlag(rec, orderById)
+    ).length;
+  }, [activeOrders, mtdRecords]);
 
   // Same universe as the MTD tab board (all categories / statuses on MTD).
   const mtdCount = useMemo(
@@ -232,13 +242,19 @@ export function Sidebar() {
         </nav>
       </DottedScroll>
 
-      {/* User & Sign Out */}
+      {/* User & Sign Out — bell above avatar only when collapsed */}
       <div
         className={clsx(
           "shrink-0 border-t border-brand-sidebar-border",
-          showExpanded ? "px-4 py-3" : "flex flex-col items-center p-2 gap-2"
+          showExpanded ? "px-4 py-3" : "flex flex-col items-center gap-2 p-2"
         )}
       >
+        {!showExpanded ? (
+          <HoverTip label="Notifications" placement="right">
+            <NotificationBell tone="dark" placement="sidebar" />
+          </HoverTip>
+        ) : null}
+
         <div
           className={clsx(
             "flex items-center rounded-xl text-left",
@@ -246,11 +262,15 @@ export function Sidebar() {
           )}
         >
           <HoverTip
-            label={showExpanded ? "" : `${currentUser.name} (${currentUser.access_level})`}
+            label={
+              showExpanded
+                ? ""
+                : `${currentUser.name} (${currentUser.access_level})`
+            }
             placement="right"
             className={showExpanded ? "min-w-0 flex-1" : ""}
           >
-            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+            <div className="flex min-w-0 flex-1 items-center gap-2.5">
               <div className="h-9 w-9 shrink-0 overflow-hidden rounded-full bg-brand-sidebar-elevated ring-1 ring-brand-sidebar-border">
                 <img
                   src={`https://api.dicebear.com/7.x/notionists/svg?seed=${encodeURIComponent(currentUser.name)}&backgroundColor=f5f5f3`}
@@ -260,15 +280,17 @@ export function Sidebar() {
               </div>
               {showExpanded ? (
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-[13px] font-semibold text-brand-sidebar-ink leading-tight">
+                  <p className="truncate text-[13px] font-semibold leading-tight text-brand-sidebar-ink">
                     {currentUser.name}
                   </p>
-                  <span className={clsx(
-                    "mt-0.5 inline-block truncate text-[10px] font-semibold leading-none",
-                    currentUser.access_level === "View Only"
-                      ? "text-brand-amber"
-                      : "text-brand-blue"
-                  )}>
+                  <span
+                    className={clsx(
+                      "mt-0.5 inline-block truncate text-[10px] font-semibold leading-none",
+                      currentUser.access_level === "View Only"
+                        ? "text-brand-amber"
+                        : "text-brand-blue"
+                    )}
+                  >
                     {currentUser.access_level}
                   </span>
                 </div>
@@ -277,15 +299,18 @@ export function Sidebar() {
           </HoverTip>
 
           {showExpanded ? (
-            <button
-              type="button"
-              onClick={logout}
-              className="shrink-0 rounded-lg p-1.5 text-brand-sidebar-text transition hover:bg-brand-sidebar-hover hover:text-brand-danger"
-              title="Sign out"
-              aria-label="Sign out"
-            >
-              <LogOut className="h-4 w-4" strokeWidth={1.75} />
-            </button>
+            <div className="flex shrink-0 items-center gap-1">
+              <NotificationBell tone="dark" placement="sidebar" />
+              <button
+                type="button"
+                onClick={logout}
+                className="shrink-0 rounded-lg p-1.5 text-brand-sidebar-text transition hover:bg-brand-sidebar-hover hover:text-brand-danger"
+                title="Sign out"
+                aria-label="Sign out"
+              >
+                <LogOut className="h-4 w-4" strokeWidth={1.75} />
+              </button>
+            </div>
           ) : null}
         </div>
 

@@ -206,7 +206,9 @@ export function isInvalidMultiAffiliateSelection(
 }
 
 /**
- * True when this booking should sit on the Flagged page (not normal Orders yet).
+ * True when this booking should sit on Flagged only (not the Orders board).
+ * Magento multi-affiliate forms stay here until an admin Resolves one affiliate.
+ * `resolved` / `released` both belong on Orders.
  */
 export function isHeldOnAffiliateFlag(
   order: Order | null | undefined,
@@ -214,10 +216,10 @@ export function isHeldOnAffiliateFlag(
 ): boolean {
   if (!order && !record) return false;
   const status = getOrderAffiliateFlagStatus(order);
-  if (status === "released") return false;
-  if (status === "open" || status === "resolved") return true;
+  if (status === "released" || status === "resolved") return false;
+  if (status === "open") return true;
 
-  // Auto-detect: cheer or dance form with invalid multi affiliates.
+  // Auto-detect: cheer or dance form with invalid multi affiliates (API / hydrate).
   const meta = formMetaFromOrderOrRecord(order, record);
   if (meta && !isCheerFormOrder(meta) && !isDanceFormOrder(meta)) {
     return false;
@@ -288,7 +290,9 @@ export function resolveAffiliateFlagPatch(
     musicAffiliate: chosenAffiliate.trim(),
     musicAffiliateSelections:
       order.musicAffiliateSelections?.trim() || joined,
-    affiliateFlagStatus: "resolved",
+    // Resolved = chosen; also release so the order joins the normal Orders board.
+    affiliateFlagStatus: "released",
+    needsAttention: false,
   };
 }
 

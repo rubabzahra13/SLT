@@ -642,8 +642,8 @@ export function AssignEditorModal({
     setSelectedEditor("");
     setDraftMixStartDate("");
     setDraftMixEndDate("");
-    live.addNotification({
-      type: "schedule",
+    live.addAlert({
+      tone: "info",
       title: "Producer category removed",
       message: `${displayName} no longer covers ${categoryLabel}. Choose another producer.`,
       href: record?.id ? `/orders/${record.id}/assign` : "/orders",
@@ -657,7 +657,7 @@ export function AssignEditorModal({
     producers,
     requiredProducerCategory,
     orderCategoryLabel,
-    live.addNotification,
+    live.addAlert,
     record?.id,
   ]);
 
@@ -956,13 +956,13 @@ export function AssignEditorModal({
         toDelete.name?.trim() || toDelete.initials?.trim() || "Producer";
       void live.removeProducer(toDelete.id).then(
         () => {
-          live.addNotification({
-            type: "schedule",
+          live.addAlert({
+            tone: "info",
             title: `${deletedName} deleted`,
             message: `${deletedName} was removed from the producer roster.`,
           });
-          live.addNotification({
-            type: "schedule",
+          live.addAlert({
+            tone: "info",
             title: "New producer assigned to mix",
             message: `${selectedEditor} assigned to ${programLabel}.`,
             href: `/orders/${activeRecord.id}`,
@@ -973,8 +973,8 @@ export function AssignEditorModal({
         }
       );
     } else if (pendingDeletedProducer) {
-      live.addNotification({
-        type: "schedule",
+      live.addAlert({
+        tone: "info",
         title: "New producer assigned to mix",
         message: `${selectedEditor} assigned to ${programLabel}.`,
         href: `/orders/${activeRecord.id}`,
@@ -982,9 +982,16 @@ export function AssignEditorModal({
     } else if (
       getOrderStatus(activeRecord).reassignReason === "category_removed"
     ) {
-      live.addNotification({
-        type: "schedule",
+      live.addAlert({
+        tone: "info",
         title: "Reassigned after category change",
+        message: `${selectedEditor} assigned to ${programLabel}.`,
+        href: `/orders/${activeRecord.id}`,
+      });
+    } else {
+      live.addAlert({
+        tone: "success",
+        title: "Producer assigned",
         message: `${selectedEditor} assigned to ${programLabel}.`,
         href: `/orders/${activeRecord.id}`,
       });

@@ -188,7 +188,7 @@ export function CollectionEmailModal({
   onClose,
 }: CollectionEmailModalProps) {
   const { token, isViewOnly } = useAuth();
-  const { addNotification } = useAppState();
+  const { addAlert } = useAppState();
   const [mounted, setMounted] = useState(false);
   const [copied, setCopied] = useState(false);
   const [gmailConnected, setGmailConnected] = useState(false);
@@ -332,8 +332,8 @@ export function CollectionEmailModal({
         token
       );
       setSent(true);
-      addNotification({
-        type: "schedule",
+      addAlert({
+        tone: "info",
         title: "Email sent",
         message: draft.to
           ? `Sent to ${draft.to}.`

@@ -7,44 +7,37 @@ import clsx from "clsx";
 import {
   AlertTriangle,
   ArrowUpRight,
-  Bell,
-  CalendarClock,
-  PackageCheck,
-  Wallet,
+  CheckCircle2,
+  Info,
   X,
 } from "lucide-react";
 import { useAppState } from "@/context/AppStateContext";
-import type { AppNotification } from "@/types";
+import type { AppAlert, AppAlertTone } from "@/types";
 
 const AUTO_DISMISS_MS = 4500;
 
-const toneByType: Record<
-  AppNotification["type"],
+const toneByAlert: Record<
+  AppAlertTone,
   {
-    icon: typeof Bell;
+    icon: typeof Info;
     accent: string;
     soft: string;
   }
 > = {
-  new_order: {
-    icon: Bell,
-    accent: "text-brand-orange",
-    soft: "bg-brand-orange/10",
+  info: {
+    icon: Info,
+    accent: "text-sky-700",
+    soft: "bg-sky-50",
   },
-  mtd_move: {
-    icon: PackageCheck,
+  success: {
+    icon: CheckCircle2,
     accent: "text-emerald-700",
     soft: "bg-emerald-50",
   },
-  schedule: {
-    icon: CalendarClock,
+  warning: {
+    icon: AlertTriangle,
     accent: "text-amber-700",
     soft: "bg-amber-50",
-  },
-  payroll: {
-    icon: Wallet,
-    accent: "text-sky-700",
-    soft: "bg-sky-50",
   },
   error: {
     icon: AlertTriangle,
@@ -54,9 +47,9 @@ const toneByType: Record<
 };
 
 export function NotificationToaster() {
-  const { notifications, markNotificationRead } = useAppState();
+  const { alerts } = useAppState();
   const router = useRouter();
-  const [toasts, setToasts] = useState<AppNotification[]>([]);
+  const [toasts, setToasts] = useState<AppAlert[]>([]);
   const [mounted, setMounted] = useState(false);
   const seenRef = useRef<Set<string> | null>(null);
 
@@ -67,15 +60,15 @@ export function NotificationToaster() {
   useEffect(() => {
     // First run: treat everything already present as seen (no toast on load).
     if (seenRef.current === null) {
-      seenRef.current = new Set(notifications.map((n) => n.id));
+      seenRef.current = new Set(alerts.map((a) => a.id));
       return;
     }
 
-    const fresh = notifications.filter((n) => !seenRef.current!.has(n.id));
+    const fresh = alerts.filter((a) => !seenRef.current!.has(a.id));
     if (fresh.length === 0) return;
-    fresh.forEach((n) => seenRef.current!.add(n.id));
+    fresh.forEach((a) => seenRef.current!.add(a.id));
     setToasts((prev) => [...fresh, ...prev].slice(0, 3));
-  }, [notifications]);
+  }, [alerts]);
 
   function dismiss(id: string) {
     setToasts((prev) => prev.filter((t) => t.id !== id));
@@ -95,7 +88,6 @@ export function NotificationToaster() {
             toast={toast}
             onDismiss={() => dismiss(toast.id)}
             onOpen={() => {
-              markNotificationRead(toast.id);
               dismiss(toast.id);
               if (toast.href) router.push(toast.href);
             }}
@@ -112,11 +104,11 @@ function ToastCard({
   onDismiss,
   onOpen,
 }: {
-  toast: AppNotification;
+  toast: AppAlert;
   onDismiss: () => void;
   onOpen: () => void;
 }) {
-  const tone = toneByType[toast.type] ?? toneByType.schedule;
+  const tone = toneByAlert[toast.tone] ?? toneByAlert.info;
   const Icon = tone.icon;
 
   useEffect(() => {
@@ -164,7 +156,7 @@ function ToastCard({
           type="button"
           onClick={onDismiss}
           className="rounded-md p-1 text-brand-ink-tertiary transition hover:bg-brand-bg hover:text-brand-ink"
-          aria-label="Dismiss notification"
+          aria-label="Dismiss alert"
         >
           <X className="h-3.5 w-3.5" strokeWidth={2.25} />
         </button>

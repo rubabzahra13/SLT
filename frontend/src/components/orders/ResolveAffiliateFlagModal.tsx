@@ -48,7 +48,7 @@ export function ResolveAffiliateFlagModal({
   onClose,
 }: ResolveAffiliateFlagModalProps) {
   const { token, isViewOnly } = useAuth();
-  const { emailTemplates, updateOrder, addNotification } = useAppState();
+  const { emailTemplates, updateOrder, addAlert } = useAppState();
   const [mounted, setMounted] = useState(false);
   const [selectedAffiliate, setSelectedAffiliate] = useState("");
   const [selectOpen, setSelectOpen] = useState(false);
@@ -159,10 +159,11 @@ export function ResolveAffiliateFlagModal({
     try {
       const patch = resolveAffiliateFlagPatch(linkedOrder, selectedAffiliate);
       await updateOrder(linkedOrder.id, patch, linkedOrder);
-      addNotification({
-        type: "mtd_move",
+      addAlert({
+        tone: "success",
         title: "Affiliate resolved",
-        message: `${titleCase(linkedOrder.programName)} → ${selectedAffiliate}. Move to Orders when ready.`,
+        message: `${titleCase(linkedOrder.programName)} → ${selectedAffiliate}. Now on Orders.`,
+        href: "/orders",
       });
       onClose();
     } catch (err) {
@@ -192,8 +193,8 @@ export function ResolveAffiliateFlagModal({
         token
       );
       setSent(true);
-      addNotification({
-        type: "schedule",
+      addAlert({
+        tone: "info",
         title: "Affiliate email sent",
         message: draft.toName
           ? `Sent to ${draft.toName} (${draft.to}).`
@@ -370,8 +371,8 @@ export function ResolveAffiliateFlagModal({
             </>
           ) : (
             <p className="text-[12px] leading-relaxed text-brand-ink-tertiary">
-              After you resolve, use <span className="font-medium text-brand-ink-secondary">Move to Orders</span> on
-              this row to put it on the normal Orders board.
+              Resolving chooses one music affiliate and moves this order onto the
+              normal Orders board.
             </p>
           )}
 

@@ -1,53 +1,71 @@
 "use client";
 
 import clsx from "clsx";
-import { DottedScroll } from "@/components/ui/DottedScroll";
 import { ORDER_FORM_TABS, type OrderFormType } from "@/types";
+
+/** Short labels so every form fits on one row. */
+const FORM_TAB_LABELS: Record<OrderFormType, string> = {
+  "school-all-star-cheer": "Cheer",
+  "school-all-star-dance": "Dance",
+  "marching-band": "Band",
+  "sports-entertainment": "Sports Ent.",
+  "school-anthem": "Anthem",
+};
 
 type OrderFormTabsProps = {
   form: OrderFormType;
-  onChange: (form: OrderFormType) => void;
-  counts: Record<OrderFormType, number>;
+  onFormChange: (form: OrderFormType) => void;
+  formCounts: Record<OrderFormType, number>;
 };
 
-export function OrderFormTabs({ form, onChange, counts }: OrderFormTabsProps) {
+/**
+ * Inline form pills with counts — distinct from subtype underline tabs.
+ */
+export function OrderFormTabs({
+  form,
+  onFormChange,
+  formCounts,
+}: OrderFormTabsProps) {
   return (
-    <DottedScroll
-      orientation="horizontal"
-      className="border-b border-brand-line bg-brand-bg/40"
-      scrollClassName="overflow-x-scroll scrollbar-hide"
-      indicatorPlacement="below"
-      contentClassName="flex w-max min-w-full gap-1 px-4 py-2"
+    <div
+      className="inline-flex max-w-full flex-wrap items-center gap-0.5 rounded-xl bg-brand-elevated/80 p-0.5 ring-1 ring-inset ring-brand-line/40"
+      role="tablist"
+      aria-label="Form"
     >
-      <nav className="flex gap-1" aria-label="Order form types">
-        {ORDER_FORM_TABS.map(({ id, label }) => {
-          const active = form === id;
-          const count = counts[id] ?? 0;
-          return (
-            <button
-              key={id}
-              type="button"
-              onClick={() => onChange(id)}
+      {ORDER_FORM_TABS.map(({ id, label }) => {
+        const active = form === id;
+        const count = formCounts[id] ?? 0;
+        return (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            title={label}
+            onClick={() => onFormChange(id)}
+            className={clsx(
+              "inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[12px] font-medium transition",
+              active
+                ? "bg-brand-blue-soft/70 font-semibold text-brand-ink ring-1 ring-inset ring-brand-blue/30"
+                : "text-brand-ink-secondary hover:bg-brand-bg hover:text-brand-ink"
+            )}
+          >
+            <span>{FORM_TAB_LABELS[id]}</span>
+            <span
               className={clsx(
-                "shrink-0 rounded-lg px-3 py-1.5 text-[12px] font-medium transition-colors",
+                "rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums",
                 active
-                  ? "bg-brand-accent text-white shadow-sm"
-                  : "text-brand-ink-secondary hover:bg-brand-surface hover:text-brand-ink"
+                  ? "bg-brand-blue-soft text-brand-signature"
+                  : count > 0
+                    ? "bg-brand-bg-subtle text-brand-ink-secondary"
+                    : "bg-brand-bg-subtle text-brand-ink-tertiary"
               )}
             >
-              {label}
-              <span
-                className={clsx(
-                  "ml-1.5 tabular-nums",
-                  active ? "text-white/80" : "text-brand-ink-tertiary"
-                )}
-              >
-                {count}
-              </span>
-            </button>
-          );
-        })}
-      </nav>
-    </DottedScroll>
+              {count}
+            </span>
+          </button>
+        );
+      })}
+    </div>
   );
 }

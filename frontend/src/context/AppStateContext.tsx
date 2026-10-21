@@ -10,6 +10,7 @@ import {
   useState,
 } from "react";
 import type {
+  AppAlert,
   AppNotification,
   DiscountCode,
   MTDRecord,
@@ -18,6 +19,12 @@ import type {
   Producer,
   ScheduleEntry,
 } from "@/types";
+import {
+  claimNotificationDedupeKey,
+  findLeavesStartingTomorrow,
+  findProducersAtLimitFull,
+} from "@/lib/admin-notifications";
+import { isNotificationTypeEnabled } from "@/lib/notification-preferences";
 import type { StudioPersonalReason } from "@/lib/producer-time-off";
 import {
   createDefaultPersonalReasons,
@@ -147,6 +154,8 @@ type AppStateContextValue = {
   emailTemplates: EmailTemplatesState;
   schedule: ScheduleEntry[];
   notifications: AppNotification[];
+  /** Ephemeral toasts — not the bell inbox. */
+  alerts: AppAlert[];
   unreadCount: number;
   isBackendConnected: boolean;
   isLoading: boolean;
@@ -177,7 +186,10 @@ type AppStateContextValue = {
   ) => Promise<PayrollAddon>;
   removePayrollAddon: (id: string) => Promise<void>;
   addManualScheduleEntry: (payload: CreateManualSchedulePayload) => Promise<Order>;
-  addNotification: (notification: Omit<AppNotification, "id" | "read" | "createdAt">) => void;
+  addNotification: (
+    notification: Omit<AppNotification, "id" | "read" | "createdAt">
+  ) => void;
+  addAlert: (alert: Omit<AppAlert, "id" | "createdAt">) => void;
   addPersonalReason: (reason: StudioPersonalReason) => void;
   updatePersonalReason: (
     id: string,
@@ -197,9 +209,11 @@ type AppStateContextValue = {
 const AppStateContext = createContext<AppStateContextValue | null>(null);
 
 function normalizeOrders(orders: Order[]): Order[] {
-  return orders.map((o) =>
-    normalizeOrder(repairCorruptCrossCategoryFormMerge(o))
-  );
+  return orders.map((o) => {
+    const base = normalizeOrder(repairCorruptCrossCategoryFormMerge(o));
+    const flagPatch = openAffiliateFlagPatch(base);
+    return flagPatch ? normalizeOrder({ ...base, ...flagPatch }) : base;
+  });
 }
 
 function normalizeMTD(records: MTDRecord[]): MTDRecord[] {
@@ -537,6 +551,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
   // Notifications start empty — populated when backend data loads or user actions occur.
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [alerts, setAlerts] = useState<AppAlert[]>([]);
 
   const [producers, setProducers] = useState<Producer[]>(() => {
     if (cachedProducers && cachedProducers.length > 0) {
@@ -606,6 +621,41 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         active: loadedActiveOrders,
         past: loadedPastOrders,
       });
+
+      // Persist affiliate flags opened on hydrate (Magento multi-select → Flagged).
+      const rawById = new Map(
+        boot.activeOrders.map((o) => [o.id, o] as const)
+      );
+      const newlyFlagged = loadedActiveOrders.filter((o) => {
+        if (o.affiliateFlagStatus !== "open") return false;
+        const raw = rawById.get(o.id);
+        return raw?.affiliateFlagStatus !== "open";
+      });
+      if (newlyFlagged.length > 0) {
+        void Promise.all(
+          newlyFlagged.map((o) =>
+            updateOrderApi(o.id, {
+              affiliateFlagStatus: "open",
+              musicAffiliateSelections: o.musicAffiliateSelections,
+              needsAttention: o.needsAttention,
+              attentionReason: o.attentionReason,
+            })
+          )
+        ).catch((err) => {
+          notifySaveError("Could not open affiliate flags", err);
+        });
+        for (const o of newlyFlagged) {
+          addNotification({
+            type: "flagged_order",
+            title: "Order flagged — multiple affiliates",
+            message: `${o.programName || o.gymName || "Order"} · ${
+              o.contactName || o.customerName || "Customer"
+            }`,
+            href: "/orders/flagged",
+            dedupeKey: `flagged_order:${o.id}`,
+          });
+        }
+      }
       }
 
       const orderById = new Map<string, Order>();
@@ -806,28 +856,55 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   // Orders / MTD / producers use localStorage only as an SWR paint buffer.
   // Supabase via the API remains the source of truth; bootstrap always revalidates.
 
+  const addAlert = useCallback((a: Omit<AppAlert, "id" | "createdAt">) => {
+    const alert: AppAlert = {
+      ...a,
+      id: `alert-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      createdAt: new Date().toISOString(),
+    };
+    setAlerts((prev) => [alert, ...prev].slice(0, 8));
+  }, []);
+
   const addNotification = useCallback(
     (n: Omit<AppNotification, "id" | "read" | "createdAt">) => {
+      if (!isNotificationTypeEnabled(n.type)) return;
+      if (n.dedupeKey && !claimNotificationDedupeKey(n.dedupeKey)) {
+        return;
+      }
+      // Also skip if an unread/read copy with the same dedupe key is already in the inbox.
+      if (n.dedupeKey) {
+        setNotifications((prev) => {
+          if (prev.some((x) => x.dedupeKey === n.dedupeKey)) return prev;
+          const notification: AppNotification = {
+            ...n,
+            id: `notif-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            read: false,
+            createdAt: new Date().toISOString(),
+          };
+          return [notification, ...prev].slice(0, 30);
+        });
+        return;
+      }
       const notification: AppNotification = {
         ...n,
         id: `notif-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         read: false,
         createdAt: new Date().toISOString(),
       };
-      setNotifications((prev) => [notification, ...prev].slice(0, 20));
+      setNotifications((prev) => [notification, ...prev].slice(0, 30));
     },
     []
   );
 
   const notifySaveError = useCallback(
     (title: string, err: unknown) => {
-      addNotification({
-        type: "error",
+      addAlert({
+        tone: "error",
         title,
         message: formatApiClientError(err, "Could not save. Please try again."),
       });
     },
-    [addNotification]
+    [addAlert]
   );
 
   const allOrders = useMemo(
@@ -926,21 +1003,31 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
     if (freshMerges.length === 1) {
       const form = withFlags.find((o) => o.id === freshMerges[0].formId);
+      const manual = withFlags.find((o) => o.id === freshMerges[0].manualId);
       const label =
         form?.programName ||
         form?.organizationName ||
         form?.schoolOrganizationName ||
         form?.gymName ||
         "Order";
-      addNotification({
-        type: "new_order",
-        title: "Form matched manual slot",
-        message: `${label} · form is source of truth`,
-        href: "/orders",
-      });
+      if (manual?.affiliateFlagStatus === "open") {
+        addNotification({
+          type: "flagged_order",
+          title: "Order flagged — multiple affiliates",
+          message: `${label} · choose one affiliate on Flagged`,
+          href: "/orders/flagged",
+        });
+      } else {
+        addAlert({
+          tone: "info",
+          title: "Form matched manual slot",
+          message: `${label} · form is source of truth`,
+          href: "/orders",
+        });
+      }
     } else {
-      addNotification({
-        type: "new_order",
+      addAlert({
+        tone: "info",
         title: "Forms matched to manual slots",
         message: `${freshMerges.length} Magento forms linked to matching manual orders`,
         href: "/orders",
@@ -953,6 +1040,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     isViewOnly,
     isLoading,
     addNotification,
+    addAlert,
     notifySaveError,
   ]);
 
@@ -1068,8 +1156,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         order.programName ||
         order.contactName ||
         "Order";
-      addNotification({
-        type: "mtd_move",
+      addAlert({
+        tone: "success",
         title: "Moved to MTD",
         message: `${label} is now in Music To Do.`,
         href: `/mtd/${newRecord.id}`,
@@ -1081,7 +1169,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       activeOrders,
       isInMTD,
       mtdRecords,
-      addNotification,
+      addAlert,
       notifySaveError,
       isViewOnly,
     ]
@@ -1116,8 +1204,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     // Toast immediately on action — do not wait for the API round-trip.
     if (patch.inPayroll === true && existing && !existing.inPayroll) {
       const producer = existing.assignedProducer?.trim();
-      addNotification({
-        type: "payroll",
+      addAlert({
+        tone: "success",
         title: "Moved to payroll",
         message: producer
           ? `${existing.programName} · ${producer}`
@@ -1501,7 +1589,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       }
   }, [
     activeOrders,
-    addNotification,
+    addAlert,
     notifySaveError,
     mtdRecords,
     producers,
@@ -1901,14 +1989,21 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
             notifySaveError("Could not merge form order into manual", err);
           });
 
-          addNotification({
-            type: "new_order",
-            title: flagPatch
-              ? "Form received · flagged for affiliate"
-              : "Form received",
-            message: `${incoming.programName} matched manual slot · form is source of truth`,
-            href: flagPatch ? "/orders?range=flagged" : "/orders",
-          });
+          if (flagPatch) {
+            addNotification({
+              type: "flagged_order",
+              title: "Order flagged — multiple affiliates",
+              message: `${incoming.programName} · choose one affiliate on Flagged`,
+              href: "/orders/flagged",
+            });
+          } else {
+            addNotification({
+              type: "new_order",
+              title: "New order received",
+              message: `${incoming.programName} matched manual slot · form is source of truth`,
+              href: "/orders",
+            });
+          }
           return;
         }
       }
@@ -1932,14 +2027,25 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         notifySaveError("Could not save new order", err);
       });
 
-      addNotification({
-        type: "new_order",
-        title: flagPatch ? "Order flagged — multiple affiliates" : "New order received",
-        message: `${stamped.programName || stamped.gymName || "Order"} · ${
-          stamped.contactName || stamped.customerName || "Customer"
-        }`,
-        href: flagPatch ? "/orders?range=flagged" : "/mtd",
-      });
+      if (flagPatch) {
+        addNotification({
+          type: "flagged_order",
+          title: "Order flagged — multiple affiliates",
+          message: `${stamped.programName || stamped.gymName || "Order"} · ${
+            stamped.contactName || stamped.customerName || "Customer"
+          }`,
+          href: "/orders/flagged",
+        });
+      } else {
+        addNotification({
+          type: "new_order",
+          title: "New order received",
+          message: `${stamped.programName || stamped.gymName || "Order"} · ${
+            stamped.contactName || stamped.customerName || "Customer"
+          }`,
+          href: "/orders",
+        });
+      }
     },
     [addNotification, activeOrders, notifySaveError]
   );
@@ -2300,8 +2406,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
                 writeTimedCache(CACHE_PRODUCERS_KEY, nextList);
                 return nextList;
               });
-              addNotification({
-                type: "schedule",
+              addAlert({
+                tone: "warning",
                 title: "Updated elsewhere — reloaded",
                 message: `${retryConflict.name}'s schedule changed in another session.`,
               });
@@ -2326,8 +2432,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           writeTimedCache(CACHE_PRODUCERS_KEY, nextList);
           return nextList;
         });
-        addNotification({
-          type: "schedule",
+        addAlert({
+          tone: "warning",
           title: "Updated elsewhere — reloaded",
           message: `${conflictProducer.name}'s schedule changed in another session.`,
         });
@@ -2355,7 +2461,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   }, [
     isViewOnly,
     notifySaveError,
-    addNotification,
+    addAlert,
     mtdRecords,
     activeOrders,
   ]);
@@ -2897,19 +3003,31 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
             ]).catch((err) => {
               notifySaveError("Could not merge Magento form into manual", err);
             });
-            addNotification({
-              type: "new_order",
-              title: flagPatch
-                ? "Form received · flagged for affiliate"
-                : "Form received",
-              message: `${
-                incoming.programName ||
-                incoming.schoolOrganizationName ||
-                incoming.gymName ||
-                "Order"
-              } matched manual slot · form is source of truth`,
-              href: flagPatch ? "/orders?range=flagged" : "/orders",
-            });
+            if (flagPatch) {
+              addNotification({
+                type: "flagged_order",
+                title: "Order flagged — multiple affiliates",
+                message: `${
+                  incoming.programName ||
+                  incoming.schoolOrganizationName ||
+                  incoming.gymName ||
+                  "Order"
+                } · choose one affiliate on Flagged`,
+                href: "/orders/flagged",
+              });
+            } else {
+              addNotification({
+                type: "new_order",
+                title: "New order received",
+                message: `${
+                  incoming.programName ||
+                  incoming.schoolOrganizationName ||
+                  incoming.gymName ||
+                  "Order"
+                } matched manual slot · form is source of truth`,
+                href: "/orders",
+              });
+            }
             return [
               taggedForm,
               ...prev.map((o) =>
@@ -2920,19 +3038,67 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         }
         applyingPeerOrdersRef.current = true;
         ordersMutatedAtRef.current = Date.now();
-        return [normalizeOrder(incoming), ...prev];
+        const flagPatch = openAffiliateFlagPatch(incoming);
+        const stamped = flagPatch
+          ? normalizeOrder({ ...incoming, ...flagPatch })
+          : normalizeOrder(incoming);
+        if (flagPatch) {
+          void updateOrderApi(stamped.id, flagPatch).catch((err) => {
+            notifySaveError("Could not open affiliate flag", err);
+          });
+          addNotification({
+            type: "flagged_order",
+            title: "Order flagged — multiple affiliates",
+            message: `${stamped.programName || stamped.gymName || "Order"} · ${
+              stamped.contactName || stamped.customerName || "Customer"
+            }`,
+            href: "/orders/flagged",
+          });
+        } else {
+          addNotification({
+            type: "new_order",
+            title: "New order received",
+            message: `${stamped.programName || stamped.gymName || "Order"} · ${
+              stamped.contactName || stamped.customerName || "Customer"
+            }`,
+            href: "/orders",
+          });
+        }
+        return [stamped, ...prev];
       }
       const local = prev[idx];
       if (orderLiveSyncKey(local) === orderLiveSyncKey(incoming)) return prev;
       applyingPeerOrdersRef.current = true;
       ordersMutatedAtRef.current = Date.now();
       const next = [...prev];
-      next[idx] = {
+      const keptFlag =
+        local.affiliateFlagStatus === "released" ||
+        local.affiliateFlagStatus === "resolved"
+          ? local.affiliateFlagStatus
+          : (incoming.affiliateFlagStatus ?? local.affiliateFlagStatus);
+      const merged = normalizeOrder({
         ...local,
         ...incoming,
         id: local.id,
         uuid: local.uuid || incoming.uuid,
-      };
+        affiliateFlagStatus: keptFlag,
+      });
+      const flagPatch = openAffiliateFlagPatch(merged);
+      if (flagPatch) {
+        const flagged = normalizeOrder({ ...merged, ...flagPatch });
+        next[idx] = flagged;
+        addNotification({
+          type: "flagged_order",
+          title: "Order flagged — multiple affiliates",
+          message: `${flagged.programName || flagged.gymName || "Order"} · ${
+            flagged.contactName || flagged.customerName || "Customer"
+          }`,
+          href: "/orders/flagged",
+          dedupeKey: `flagged_order:${flagged.id}`,
+        });
+      } else {
+        next[idx] = merged;
+      }
       return next;
     };
     setActiveOrders(mergeList);
@@ -3431,6 +3597,31 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
   }, []);
 
+  // Bell watchers: leave starting tomorrow + producers at Limit full today.
+  useEffect(() => {
+    if (isLoading || producers.length === 0) return;
+
+    for (const hit of findLeavesStartingTomorrow(producers)) {
+      addNotification({
+        type: "leave_tomorrow",
+        title: hit.title,
+        message: hit.message,
+        href: "/schedule",
+        dedupeKey: hit.dedupeKey,
+      });
+    }
+
+    for (const hit of findProducersAtLimitFull(producers, mtdRecords)) {
+      addNotification({
+        type: "limit_full",
+        title: hit.title,
+        message: hit.message,
+        href: "/schedule",
+        dedupeKey: hit.dedupeKey,
+      });
+    }
+  }, [isLoading, producers, mtdRecords, addNotification]);
+
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   const value: AppStateContextValue = {
@@ -3446,6 +3637,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     emailTemplates,
     schedule,
     notifications,
+    alerts,
     unreadCount,
     isBackendConnected,
     isLoading,
@@ -3469,6 +3661,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     removePayrollAddon,
     addManualScheduleEntry,
     addNotification,
+    addAlert,
     addPersonalReason,
     updatePersonalReason,
     removePersonalReason,

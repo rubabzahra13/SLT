@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { Bell, ChevronRight, Mail, Palette, Users } from "lucide-react";
+import { ChevronRight, Mail, Palette, Users } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 
 import { EmailSendingSettingsCard } from "@/components/settings/EmailSendingSettingsCard";
 import { DailyCostSettingsFields } from "@/components/settings/DailyCostSettingsCard";
+import { NotificationSettingsCard } from "@/components/settings/NotificationSettingsCard";
 
 type SettingItem = {
   label: string;
@@ -51,54 +52,32 @@ const sections: SettingSection[] = [
       },
     ],
   },
-  {
-    title: "Notifications",
-    description: "Alerts and assignment confirmations",
-    icon: Bell,
-    items: [
-      {
-        label: "Needs attention",
-        description: "Blocked items and missing materials",
-      },
-      {
-        label: "New orders",
-        description: "Incoming order alerts",
-      },
-      {
-        label: "Assignments",
-        description: "Producer assignment confirmations",
-      },
-    ],
-  },
 ];
 
 export default function SettingsPage() {
   return (
-    <>
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <PageHeader
         title="Settings"
-        badge={`${sections.length + 1} sections`}
+        badge={`${sections.length + 2} sections`}
         subtitle="Admin configuration and studio defaults"
       />
 
-      <div className="px-6 pb-6 pt-5 lg:px-8">
+      <div className="min-h-0 flex-1 overflow-auto px-6 pb-6 pt-5 lg:px-8">
         <div className="mx-auto flex max-w-2xl flex-col gap-4">
           <EmailSendingSettingsCard />
 
           {sections.map((section) => (
             <section key={section.title} className="dashboard-panel flex flex-col">
               <div className="flex shrink-0 items-center gap-3 border-b border-brand-line/30 px-4 py-3">
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand-bg-subtle/80 ring-1 ring-inset ring-brand-line/40">
-                  <section.icon
-                    className="h-3.5 w-3.5 text-brand-ink-tertiary"
-                    strokeWidth={2}
-                  />
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand-blue-soft/80 text-brand-signature ring-1 ring-inset ring-brand-signature/20">
+                  <section.icon className="h-3.5 w-3.5" strokeWidth={2} />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h2 className="truncate text-[10px] font-bold uppercase tracking-[0.06em] text-brand-ink-tertiary">
+                  <h2 className="truncate text-[10px] font-bold uppercase tracking-[0.06em] text-brand-ink">
                     {section.title}
                   </h2>
-                  <p className="mt-1 truncate text-[11px] font-medium text-brand-ink-tertiary">
+                  <p className="mt-1 truncate text-[11px] font-medium text-brand-ink-secondary">
                     {section.description}
                   </p>
                 </div>
@@ -119,9 +98,11 @@ export default function SettingsPage() {
               ) : null}
             </section>
           ))}
+
+          <NotificationSettingsCard />
         </div>
       </div>
-    </>
+    </div>
   );
 }
 

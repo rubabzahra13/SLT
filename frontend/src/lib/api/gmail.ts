@@ -20,6 +20,8 @@ function authHeaders(token?: string | null): Record<string, string> {
 export async function getGmailStatus(token?: string | null): Promise<GmailStatusResponse> {
   return apiClient.get<GmailStatusResponse>("/api/gmail/status", {
     headers: authHeaders(token),
+    // Status probes should fail fast — don’t leave Settings stuck on “Checking…”.
+    timeoutMs: 8000,
   });
 }
 

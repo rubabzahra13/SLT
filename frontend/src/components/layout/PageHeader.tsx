@@ -1,7 +1,6 @@
 "use client";
 
 import { Search, Plus, Download } from "lucide-react";
-import { NotificationBell } from "@/components/notifications/NotificationBell";
 
 type PageHeaderProps = {
   title: string;
@@ -101,8 +100,6 @@ export function PageHeader({
             ) : null}
 
             {headerActions}
-
-            <NotificationBell />
 
             {exportAction ? (
               <button

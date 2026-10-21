@@ -47,7 +47,7 @@ export default function OrderDetailPage({
     discountCodes,
     isViewOnly,
     isLoading,
-    addNotification,
+    addAlert,
   } = useAppState();
 
   const [pricingOpen, setPricingOpen] = useState(false);
@@ -113,12 +113,12 @@ export default function OrderDetailPage({
           }
         : prev
     );
-    addNotification({
-      type: "mtd_move",
+    addAlert({
+      tone: "success",
       title: "Orders split",
       message: "Restored as separate Manual and Form orders.",
     });
-  }, [pair, isViewOnly, updateOrder, addNotification]);
+  }, [pair, isViewOnly, updateOrder, addAlert]);
 
   const handleOverwriteData = useCallback(async () => {
     if (!pair || isViewOnly) return;
@@ -138,12 +138,12 @@ export default function OrderDetailPage({
           }
         : prev
     );
-    addNotification({
-      type: "mtd_move",
+    addAlert({
+      tone: "success",
       title: "Form data kept",
       message: "Order now looks like a normal Magento form submission.",
     });
-  }, [pair, isViewOnly, updateOrder, addNotification]);
+  }, [pair, isViewOnly, updateOrder, addAlert]);
 
   const displayOrder: Order | null = useMemo(() => {
     const base = pairBase;
@@ -187,15 +187,15 @@ export default function OrderDetailPage({
       }
     }
 
-    addNotification({
-      type: "mtd_move",
+    addAlert({
+      tone: "success",
       title: "Order details updated",
       message: "Order form changes saved successfully.",
     });
 
     setOrderDraft(null);
     setOrderFormEditing(false);
-  }, [displayOrder, orderDraft, record, updateOrder, updateMTD, addNotification]);
+  }, [displayOrder, orderDraft, record, updateOrder, updateMTD, addAlert]);
 
   const handleOrderDraftChange = useCallback((key: string, value: string) => {
     setOrderDraft((prev) => {

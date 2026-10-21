@@ -352,7 +352,7 @@ export function OrderRequirementsCell({
   const {
     updateMTD,
     updateOrder,
-    addNotification,
+    addAlert,
     isViewOnly,
     allOrders,
     mtdRecords,
@@ -431,8 +431,8 @@ export function OrderRequirementsCell({
     void updateMTD(record.id, patch as Partial<MTDRecord>);
 
     if (statusChanged) {
-      addNotification({
-        type: "mtd_move",
+      addAlert({
+        tone: "success",
         title: "Data status updated",
         message: `Order marked as ${newStatus}.`,
       });
@@ -538,8 +538,8 @@ export function OrderRequirementsCell({
         void updateMTD(coveringMtd.id, mtdPatch);
       }
 
-      addNotification({
-        type: "mtd_move",
+      addAlert({
+        tone: "success",
         title: "Mix Time updated",
         message:
           direction === "to_red"
@@ -588,8 +588,8 @@ export function OrderRequirementsCell({
       : marchingBand
         ? "Lyrics / mix notes saved. Notes marked as have."
         : "Routine notes saved. Notes marked as have.";
-    addNotification({
-      type: "mtd_move",
+    addAlert({
+      tone: "success",
       title: kind === "songs" ? "Songs updated" : "Notes updated",
       message:
         direction === "to_red"

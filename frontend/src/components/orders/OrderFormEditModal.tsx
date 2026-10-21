@@ -56,7 +56,7 @@ export function OrderFormEditModal({
     discountCodes,
     producers,
     isViewOnly,
-    addNotification,
+    addAlert,
   } = useAppState();
 
   const [mounted, setMounted] = useState(false);
@@ -115,12 +115,12 @@ export function OrderFormEditModal({
           }
         : prev
     );
-    addNotification({
-      type: "mtd_move",
+    addAlert({
+      tone: "success",
       title: "Orders split",
       message: "Restored as separate Manual and Form orders.",
     });
-  }, [pair, isViewOnly, updateOrder, addNotification]);
+  }, [pair, isViewOnly, updateOrder, addAlert]);
 
   const handleOverwriteData = useCallback(async () => {
     if (!pair || isViewOnly) return;
@@ -140,12 +140,12 @@ export function OrderFormEditModal({
           }
         : prev
     );
-    addNotification({
-      type: "mtd_move",
+    addAlert({
+      tone: "success",
       title: "Form data kept",
       message: "Order now looks like a normal Magento form submission.",
     });
-  }, [pair, isViewOnly, updateOrder, addNotification]);
+  }, [pair, isViewOnly, updateOrder, addAlert]);
 
   useEffect(() => {
     if (!open || !displayOrder) {
@@ -290,8 +290,8 @@ export function OrderFormEditModal({
       }
     }
 
-    addNotification({
-      type: "mtd_move",
+    addAlert({
+      tone: "success",
       title: "Order details updated",
       message: "Order form changes saved successfully.",
     });
@@ -306,7 +306,7 @@ export function OrderFormEditModal({
     isDirty,
     updateOrder,
     updateMTD,
-    addNotification,
+    addAlert,
     onClose,
   ]);
 
