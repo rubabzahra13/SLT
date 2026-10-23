@@ -16,9 +16,15 @@ import {
 } from "@/lib/order-detail-sections";
 import { normalizeOrder } from "@/lib/order-form";
 import {
-  formatAddOrderSaveBlockReason,
-  getAddOrderRequiredGaps,
-} from "@/lib/order-form-missing";
+  addOrderDraftHasContent,
+  applyMixFieldValues,
+  blankAddOrderPerMixValues,
+  getAddOrderMultiMixFieldKeys,
+  MAX_ADD_ORDER_MIXES,
+  orderWithoutMixFields,
+  pickMixFieldValues,
+  supportsAddOrderMultiMix,
+} from "@/lib/add-order-mixes";
 import {
   formatOrderEmailFormatBlockReason,
   getInvalidOrderEmailFields,
@@ -231,6 +237,8 @@ export function AddNewOrderModal({
   );
 
   const [orderDraft, setOrderDraft] = useState<Order | null>(null);
+  /** Mix Information copies — each becomes its own order on save (max 10). */
+  const [mixes, setMixes] = useState<Partial<Order>[]>([{}]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   /** Google-style: only highlight required empties after Save is attempted. */
@@ -243,6 +251,7 @@ export function AddNewOrderModal({
   useEffect(() => {
     if (!open) {
       setOrderDraft(null);
+      setMixes([{}]);
       setError(null);
       setSaving(false);
       setShowValidation(false);
@@ -262,7 +271,14 @@ export function AddNewOrderModal({
     setFormType(nextForm);
     setCheerSubtype(nextCheer);
     setDanceSubtype(nextDance);
-    setOrderDraft(blankOrderDraft(nextForm, nextCheer, nextDance));
+    const blank = blankOrderDraft(nextForm, nextCheer, nextDance);
+    setOrderDraft(blank);
+    const keys = getAddOrderMultiMixFieldKeys(blank);
+    setMixes(
+      keys.length > 0
+        ? [pickMixFieldValues(blank, keys)]
+        : [blankAddOrderPerMixValues()]
+    );
     setError(null);
     setSaving(false);
   }, [open, initialFormType, initialCheerSubtype, initialDanceSubtype]);
@@ -312,8 +328,28 @@ export function AddNewOrderModal({
           timeLengthOfMix: "",
         };
       });
+      // Reset per-mix slots when form/subtype changes.
+      const baseForMix = blankOrderDraft(nextForm, nextCheer, nextDance);
+      const keys = getAddOrderMultiMixFieldKeys(baseForMix);
+      setMixes(
+        keys.length > 0
+          ? [pickMixFieldValues(baseForMix, keys)]
+          : [blankAddOrderPerMixValues()]
+      );
     },
     []
+  );
+
+  const mixKeys = useMemo(
+    () => (orderDraft ? getAddOrderMultiMixFieldKeys(orderDraft) : []),
+    [
+      orderDraft?.formType,
+      orderDraft?.cheerFormSubtype,
+      orderDraft?.danceFormSubtype,
+    ]
+  );
+  const multiMixEnabled = Boolean(
+    orderDraft && supportsAddOrderMultiMix(orderDraft) && mixKeys.length > 0
   );
 
   const handleFormChange = (nextForm: OrderFormType) => {
@@ -324,10 +360,56 @@ export function AddNewOrderModal({
     );
   };
 
-  const handleFieldChange = useCallback((key: string, value: string) => {
-    setOrderDraft((prev) => {
-      if (!prev) return prev;
-      return { ...prev, ...orderPatchFromOrderField(key, value, prev) };
+  const handleFieldChange = useCallback(
+    (key: string, value: string) => {
+      setOrderDraft((prev) => {
+        if (!prev) return prev;
+        return { ...prev, ...orderPatchFromOrderField(key, value, prev) };
+      });
+      setError(null);
+    },
+    []
+  );
+
+  const handleMixFieldChange = useCallback(
+    (mixIndex: number, key: string, value: string) => {
+      setMixes((prev) => {
+        const next = prev.map((m) => ({ ...m }));
+        const base = orderDraft || ({} as Order);
+        const patched = orderPatchFromOrderField(
+          key,
+          value,
+          { ...base, ...next[mixIndex] } as Order
+        );
+        next[mixIndex] = { ...next[mixIndex], ...patched };
+        return next;
+      });
+      // Keep mix[0] mirrored onto the shared draft for identity helpers.
+      if (mixIndex === 0) {
+        setOrderDraft((prev) => {
+          if (!prev) return prev;
+          return { ...prev, ...orderPatchFromOrderField(key, value, prev) };
+        });
+      }
+      setError(null);
+    },
+    [orderDraft]
+  );
+
+  const handleDuplicateMix = useCallback(() => {
+    // Add another empty mix slot (team / package / length / producer only).
+    setMixes((prev) => {
+      if (prev.length >= MAX_ADD_ORDER_MIXES) return prev;
+      return [...prev, blankAddOrderPerMixValues()];
+    });
+    setError(null);
+  }, []);
+
+  const handleRemoveMix = useCallback((mixIndex: number) => {
+    setMixes((prev) => {
+      if (prev.length <= 1) return prev;
+      const next = prev.filter((_, i) => i !== mixIndex);
+      return next.length > 0 ? next : [{}];
     });
     setError(null);
   }, []);
@@ -336,20 +418,36 @@ export function AddNewOrderModal({
     if (!orderDraft) return;
     setError(null);
 
+    const keys = mixKeys;
+    const mixList =
+      multiMixEnabled && mixes.length > 0
+        ? mixes
+        : keys.length > 0
+          ? [pickMixFieldValues(orderDraft, keys)]
+          : [{}];
+
     // Admin Add Order: any field except coupon / how-did-you-find-out alone.
-    const gaps = getAddOrderRequiredGaps(orderDraft);
-    if (gaps.length > 0) {
+    if (!addOrderDraftHasContent(orderDraft, mixList, keys)) {
       setShowValidation(true);
-      setError(formatAddOrderSaveBlockReason(gaps));
+      setError(
+        "Fill at least one field to save (coupon and how-you-found-us alone don’t count)."
+      );
       return;
     }
 
+    const sharedBase = orderWithoutMixFields(orderDraft, keys);
+    const fullOrders = mixList.map((mix) =>
+      applyMixFieldValues(sharedBase, mix)
+    );
+
     // Any filled email field must be a valid address (any domain).
-    const emailGaps = getInvalidOrderEmailFields(orderDraft);
-    if (emailGaps.length > 0) {
-      setShowValidation(true);
-      setError(formatOrderEmailFormatBlockReason(emailGaps));
-      return;
+    for (const full of fullOrders) {
+      const emailGaps = getInvalidOrderEmailFields(full);
+      if (emailGaps.length > 0) {
+        setShowValidation(true);
+        setError(formatOrderEmailFormatBlockReason(emailGaps));
+        return;
+      }
     }
 
     setSaving(true);
@@ -360,129 +458,121 @@ export function AddNewOrderModal({
       danceSubtype
     );
 
-    const tier =
-      packageTypeDisplayValue(orderDraft.packageType || "") ||
-      packageTypeDisplayValue(orderDraft.package || "");
-    const mixLength = (orderDraft.timeLengthOfMix || "").trim();
-    // Never fall back to subcategory/category labels (e.g. "POM") as the package —
-    // those are not Magento packages and used to substring-match CUSTOM POM ($850).
-    // Empty SoftSelect → empty package → $0 until a real package is chosen.
-    const selectedPkg =
-      formType === "school-all-star-cheer"
-        ? composePackageLabel(tier, mixLength)
-        : tier ||
-          (orderDraft.packageType || orderDraft.package || "").trim();
-
-    const contact =
-      orderDraft.coachName ||
-      orderDraft.coachContactFullName ||
-      orderDraft.musicContactName ||
-      orderDraft.contactName ||
-      orderDraft.customerName ||
-      "";
-    const program =
-      getOrderIdentityName(orderDraft) ||
-      orderDraft.teamName ||
-      orderDraft.programName ||
-      "";
-
     try {
-      const created = await onAdd({
-        category,
-        subcategory,
-        form_type: formType,
-        cheer_form_subtype:
-          formType === "school-all-star-cheer" ? cheerSubtype : undefined,
-        dance_form_subtype:
-          formType === "school-all-star-dance" ? danceSubtype : undefined,
-        mix_start_date: null,
-        mix_end_date: null,
-        assigned_producer: null,
-        contact_name: contact.trim() || null,
-        email:
-          orderDraft.coachEmail ||
-          orderDraft.coachEmailAddress ||
-          null,
-        coach_email:
-          orderDraft.coachEmail || orderDraft.coachEmailAddress || null,
-        billing_person_email:
-          cheerSubtype === "youth-rec-cheer"
-            ? orderDraft.billingPersonEmail?.trim() ||
-              orderDraft.youthRecExtraEmailAddress?.trim() ||
-              orderDraft.emailAddress?.trim() ||
-              null
-            : orderDraft.billingPersonEmail?.trim() ||
-              orderDraft.billingContactEmail?.trim() ||
-              null,
-        // Identity SoT is school_gym_name (Gym / School / Program / Org).
-        program_name: null,
-        school_gym_name:
-          orderDraft.schoolName?.trim() ||
-          orderDraft.gymName?.trim() ||
-          orderDraft.schoolProgramName?.trim() ||
-          program.trim() ||
-          null,
-        team_name: orderDraft.teamName?.trim() || null,
-        package:
-          formType === "school-anthem" ? "SCHOOL ANTHEMS" : selectedPkg,
-        time_length_of_mix: mixLength || null,
-        song_list_suggestions: orderDraft.songListSuggestions || null,
-        power_music_covers: orderDraft.powerMusicCovers || null,
-        routine_notes: orderDraft.routineNotes || null,
-        custom_voiceovers: orderDraft.customVoiceovers || null,
-        voiceover_script: orderDraft.voiceoverScript || null,
-        pronunciation_guidance: orderDraft.pronunciationGuidance || null,
-        received_eight_count_sheet: undefined,
-        video_url: null,
-        music_affiliate: orderDraft.musicAffiliate || undefined,
-      });
+      for (const draft of fullOrders) {
+        const tier =
+          packageTypeDisplayValue(draft.packageType || "") ||
+          packageTypeDisplayValue(draft.package || "");
+        const mixLength = (draft.timeLengthOfMix || "").trim();
+        const selectedPkg =
+          formType === "school-all-star-cheer"
+            ? composePackageLabel(tier, mixLength)
+            : tier ||
+              (draft.packageType || draft.package || "").trim();
 
-      // Persist the full form draft onto the created order (same shape as edit).
-      await updateOrder(
-        created.id,
-        {
-          ...orderDraft,
-          id: created.id,
-          // Keep manual flag so Collections shows Form for every form type.
-          isManualEntry: true,
+        const contact =
+          draft.coachName ||
+          draft.coachContactFullName ||
+          draft.musicContactName ||
+          draft.contactName ||
+          draft.customerName ||
+          "";
+        const program =
+          getOrderIdentityName(draft) ||
+          draft.teamName ||
+          draft.programName ||
+          "";
+
+        const created = await onAdd({
           category,
+          subcategory,
+          form_type: formType,
+          cheer_form_subtype:
+            formType === "school-all-star-cheer" ? cheerSubtype : undefined,
+          dance_form_subtype:
+            formType === "school-all-star-dance" ? danceSubtype : undefined,
+          mix_start_date: null,
+          mix_end_date: null,
+          assigned_producer: null,
+          contact_name: contact.trim() || null,
+          email: draft.coachEmail || draft.coachEmailAddress || null,
+          coach_email: draft.coachEmail || draft.coachEmailAddress || null,
+          billing_person_email:
+            cheerSubtype === "youth-rec-cheer"
+              ? draft.billingPersonEmail?.trim() ||
+                draft.youthRecExtraEmailAddress?.trim() ||
+                draft.emailAddress?.trim() ||
+                null
+              : draft.billingPersonEmail?.trim() ||
+                draft.billingContactEmail?.trim() ||
+                null,
+          program_name: null,
+          school_gym_name:
+            draft.schoolName?.trim() ||
+            draft.gymName?.trim() ||
+            draft.schoolProgramName?.trim() ||
+            program.trim() ||
+            null,
+          team_name: draft.teamName?.trim() || null,
           package:
             formType === "school-anthem" ? "SCHOOL ANTHEMS" : selectedPkg,
-          packageType:
-            formType === "school-anthem"
-              ? "SCHOOL ANTHEMS"
-              : tier || orderDraft.packageType,
-          price: formType === "school-anthem" ? 1250 : orderDraft.price,
-          timeLengthOfMix: mixLength,
-          contactName: contact,
-          customerName: contact,
-          programName: program,
-          gymName:
-            orderDraft.gymName?.trim() ||
-            (cheerSubtype === "all-star-cheer" ? program : ""),
-          schoolName:
-            orderDraft.schoolName?.trim() ||
-            orderDraft.gymName?.trim() ||
-            program,
-          formType,
-          cheerFormSubtype:
-            formType === "school-all-star-cheer" ? cheerSubtype : undefined,
-          danceFormSubtype:
-            formType === "school-all-star-dance" ? danceSubtype : undefined,
-          editorRequest:
-            orderDraft.requestedEditor === "First Available" ||
-            !orderDraft.requestedEditor
-              ? "FA"
-              : orderDraft.requestedEditor,
-          requestedProducer: orderDraft.requestedEditor || "",
-          musicTheme:
-            orderDraft.songListSuggestions ||
-            orderDraft.routineNotes ||
-            orderDraft.musicTheme ||
-            "",
-        },
-        created
-      );
+          time_length_of_mix: mixLength || null,
+          song_list_suggestions: draft.songListSuggestions || null,
+          power_music_covers: draft.powerMusicCovers || null,
+          routine_notes: draft.routineNotes || null,
+          custom_voiceovers: draft.customVoiceovers || null,
+          voiceover_script: draft.voiceoverScript || null,
+          pronunciation_guidance: draft.pronunciationGuidance || null,
+          received_eight_count_sheet: undefined,
+          video_url: null,
+          music_affiliate: draft.musicAffiliate || undefined,
+        });
+
+        await updateOrder(
+          created.id,
+          {
+            ...draft,
+            id: created.id,
+            isManualEntry: true,
+            category,
+            package:
+              formType === "school-anthem" ? "SCHOOL ANTHEMS" : selectedPkg,
+            packageType:
+              formType === "school-anthem"
+                ? "SCHOOL ANTHEMS"
+                : tier || draft.packageType,
+            price: formType === "school-anthem" ? 1250 : draft.price,
+            timeLengthOfMix: mixLength,
+            contactName: contact,
+            customerName: contact,
+            programName: program,
+            gymName:
+              draft.gymName?.trim() ||
+              (cheerSubtype === "all-star-cheer" ? program : ""),
+            schoolName:
+              draft.schoolName?.trim() ||
+              draft.gymName?.trim() ||
+              program,
+            formType,
+            cheerFormSubtype:
+              formType === "school-all-star-cheer" ? cheerSubtype : undefined,
+            danceFormSubtype:
+              formType === "school-all-star-dance" ? danceSubtype : undefined,
+            editorRequest:
+              draft.requestedEditor === "First Available" ||
+              !draft.requestedEditor
+                ? "FA"
+                : draft.requestedEditor,
+            requestedProducer: draft.requestedEditor || "",
+            musicTheme:
+              draft.songListSuggestions ||
+              draft.routineNotes ||
+              draft.musicTheme ||
+              "",
+          },
+          created
+        );
+      }
 
       onClose();
     } catch (err: unknown) {
@@ -628,6 +718,17 @@ export function AddNewOrderModal({
               getOrderIdentityFieldKey(formType, cheerSubtype, danceSubtype),
             ]}
             onFieldChange={handleFieldChange}
+            multiMix={
+              multiMixEnabled
+                ? {
+                    mixes,
+                    onMixFieldChange: handleMixFieldChange,
+                    onDuplicateMix: handleDuplicateMix,
+                    onRemoveMix: handleRemoveMix,
+                    maxMixes: MAX_ADD_ORDER_MIXES,
+                  }
+                : undefined
+            }
           />
         </div>
 
@@ -651,6 +752,8 @@ export function AddNewOrderModal({
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Saving…
               </>
+            ) : multiMixEnabled && mixes.length > 1 ? (
+              `Save ${mixes.length} Orders`
             ) : (
               "Save Order"
             )}

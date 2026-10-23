@@ -1,10 +1,17 @@
 "use client";
 
 import type { DiscountCode, Order, Producer } from "@/types";
+import {
+  isAddOrderPerMixFieldKey,
+  isMixInformationSectionTitle,
+  MAX_ADD_ORDER_MIXES,
+} from "@/lib/add-order-mixes";
 import { getOrderDetailSections } from "@/lib/order-detail-sections";
 import { rawFieldValue } from "@/lib/order-detail-fields";
 import type { FieldProvenance } from "@/lib/manual-form-merge";
 import { SourceCue } from "@/components/orders/ManualFormPairBar";
+import { CheerPerMixFields } from "@/components/orders/CheerPerMixFields";
+import { CopyPlus, Trash2 } from "lucide-react";
 import { CouponCodeField } from "@/components/mtd/CouponCodeField";
 import { CountryField } from "@/components/mtd/CountryField";
 import {
@@ -94,6 +101,17 @@ type MTDOrderDetailsProps = {
   requiredFieldKeys?: ReadonlySet<string> | string[];
   /** Per-field provenance when a Manual↔Form pair is present (single value, no dupes). */
   fieldSources?: Record<string, FieldProvenance>;
+  /**
+   * Add New Order: duplicate Mix Information into multiple mixes (max 10).
+   * Each mix becomes its own order on save; shared sections stay single.
+   */
+  multiMix?: {
+    mixes: Partial<Order>[];
+    onMixFieldChange: (mixIndex: number, key: string, value: string) => void;
+    onDuplicateMix: () => void;
+    onRemoveMix: (mixIndex: number) => void;
+    maxMixes?: number;
+  };
 };
 
 function FieldLabel({
@@ -198,6 +216,7 @@ export function MTDOrderDetails({
   highlightMissing = true,
   requiredFieldKeys,
   fieldSources,
+  multiMix,
 }: MTDOrderDetailsProps) {
   const sections = getOrderDetailSections(order);
   const requiredKeys = requiredFieldKeys
@@ -205,6 +224,7 @@ export function MTDOrderDetails({
       ? requiredFieldKeys
       : new Set(requiredFieldKeys)
     : null;
+  const maxMixes = multiMix?.maxMixes ?? MAX_ADD_ORDER_MIXES;
 
   if (sections.length === 0) {
     return (
@@ -216,18 +236,94 @@ export function MTDOrderDetails({
 
   return (
     <div className="space-y-3">
-      {sections.map((section) => (
+      {sections.map((section) => {
+        const mixMode =
+          Boolean(multiMix) && isMixInformationSectionTitle(section.title);
+        // Per-mix cheer fields live in Mix slots — hide elsewhere (Team, etc.).
+        const sectionFields = multiMix
+          ? section.fields.filter((f) => !isAddOrderPerMixFieldKey(f.key))
+          : section.fields;
+        if (!mixMode && sectionFields.length === 0) return null;
+
+        return (
         <section
           key={section.title}
           className="overflow-hidden rounded-xl border border-brand-line/45 bg-white ring-1 ring-inset ring-brand-line/10"
         >
-          <div className="border-b border-brand-line/35 bg-brand-bg-subtle/60 px-3 py-2">
-            <h3 className="text-[11px] font-bold uppercase tracking-[0.08em] text-brand-ink-tertiary">
-              {section.title}
-            </h3>
+          <div className="flex items-center justify-between gap-2 border-b border-brand-line/35 bg-brand-bg-subtle/60 px-3 py-2">
+            <div className="min-w-0">
+              <h3 className="text-[11px] font-bold uppercase tracking-[0.08em] text-brand-ink-tertiary">
+                {section.title}
+              </h3>
+              {mixMode && multiMix && multiMix.mixes.length > 1 ? (
+                <p className="mt-0.5 text-[10px] font-medium text-brand-ink-secondary">
+                  One section · {multiMix.mixes.length} mixes (separate orders
+                  on save). Affiliate & notes below are shared.
+                </p>
+              ) : null}
+            </div>
+            {mixMode && multiMix && editable ? (
+              <div className="flex shrink-0 items-center gap-1">
+                {multiMix.mixes.length < maxMixes ? (
+                  <button
+                    type="button"
+                    onClick={() => multiMix.onDuplicateMix()}
+                    className="inline-flex h-7 items-center gap-1 rounded-lg border border-brand-line/60 bg-white px-2 text-[11px] font-semibold text-brand-ink-secondary transition hover:bg-brand-bg hover:text-brand-ink"
+                    title={`Add another mix (max ${maxMixes})`}
+                  >
+                    <CopyPlus className="h-3 w-3" strokeWidth={2.25} />
+                    Add mix
+                  </button>
+                ) : null}
+                <span className="pl-1 text-[10px] font-medium tabular-nums text-brand-ink-tertiary">
+                  {multiMix.mixes.length}/{maxMixes}
+                </span>
+              </div>
+            ) : null}
           </div>
-          <div className="grid grid-cols-1 gap-x-5 gap-y-4 p-4 sm:grid-cols-2 lg:grid-cols-3">
-            {section.fields.map((field) => {
+          <div className="space-y-4 p-4">
+            {mixMode && multiMix
+              ? multiMix.mixes.map((mix, mixIndex) => (
+                  <div
+                    key={`mix-slot-${mixIndex}`}
+                    className="rounded-xl border border-brand-line/50 bg-brand-bg/30 p-3"
+                  >
+                    <div className="mb-3 flex items-center justify-between gap-2">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-brand-ink">
+                        Mix {mixIndex + 1}
+                      </p>
+                      {multiMix.mixes.length > 1 && editable ? (
+                        <button
+                          type="button"
+                          onClick={() => multiMix.onRemoveMix(mixIndex)}
+                          className="inline-flex h-7 items-center gap-1 rounded-lg border border-brand-line/60 bg-white px-2 text-[11px] font-semibold text-brand-ink-secondary transition hover:bg-brand-bg hover:text-brand-ink"
+                          title="Remove this mix"
+                        >
+                          <Trash2 className="h-3 w-3" strokeWidth={2.25} />
+                          Remove
+                        </button>
+                      ) : null}
+                    </div>
+                    <CheerPerMixFields
+                      order={order}
+                      mix={mix}
+                      producers={producers}
+                      editable={editable}
+                      onChange={(key, value) =>
+                        multiMix.onMixFieldChange(mixIndex, key, value)
+                      }
+                    />
+                  </div>
+                ))
+              : null}
+            {mixMode && multiMix && sectionFields.length > 0 ? (
+              <p className="border-t border-brand-line/40 pt-3 text-[10px] font-bold uppercase tracking-[0.08em] text-brand-ink-tertiary">
+                Shared for all mixes
+              </p>
+            ) : null}
+            {sectionFields.length > 0 ? (
+            <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
+            {sectionFields.map((field) => {
               const rawValue = rawFieldValue(order, field.key);
               const displayValue = formatDetailDisplay(field.value);
               const spanClass = fieldSpanClass(field.key, field.label);
@@ -1101,8 +1197,11 @@ export function MTDOrderDetails({
               );
             })}
           </div>
+            ) : null}
+          </div>
         </section>
-      ))}
+        );
+      })}
     </div>
   );
 }
