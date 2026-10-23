@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert";
 import {
   applyManualFormMerges,
+  canSplitManualFormPair,
   classifyFieldProvenance,
   classifyFieldSources,
   enrichOrderWithMatchingForm,
@@ -195,7 +196,7 @@ describe("manual ↔ form merge", () => {
     );
   });
 
-  it("listPreMtdOrderRecords keeps manual + Magento form as two rows until receive merges", () => {
+  it("listPreMtdOrderRecords keeps manual + Magento form as two rows until admin Match links them", () => {
     const manual = baseOrder({
       id: "manual-1",
       isManualEntry: true,
@@ -441,13 +442,37 @@ describe("manual ↔ form merge", () => {
     assert.equal(splitForm.mergedIntoManualOrderId, undefined);
     assert.equal(splitForm.gymName, "Form Gym");
     assert.equal(splitForm.teamName, "Senior Black");
-    assert.equal(splitManual.suppressManualFormMerge, true);
-    assert.equal(splitForm.suppressManualFormMerge, true);
+    assert.equal(splitManual.suppressManualFormMerge, false);
+    assert.equal(splitForm.suppressManualFormMerge, false);
 
-    // Auto-merge must not re-absorb after an admin Split.
+    // No persisted link → soft merge does not re-absorb after Split.
     const reapplied = applyManualFormMerges([splitManual, splitForm]);
     assert.equal(isAbsorbedFormOrder(reapplied.find((o) => o.id === "form-1")!), false);
     assert.equal(reapplied.find((o) => o.id === "manual-1")!.mergedFormOrderId, undefined);
+  });
+
+  it("canSplitManualFormPair only while both sides stay on Orders", () => {
+    const manual = baseOrder({
+      id: "manual-1",
+      isManualEntry: true,
+      mergedFormOrderId: "form-1",
+      status: "new",
+    });
+    const form = baseOrder({
+      id: "form-1",
+      isManualEntry: false,
+      mergedIntoManualOrderId: "manual-1",
+      status: "new",
+    });
+    assert.equal(canSplitManualFormPair(manual, form), true);
+    assert.equal(
+      canSplitManualFormPair({ ...manual, status: "in_mtd" }, form),
+      false
+    );
+    assert.equal(
+      canSplitManualFormPair(manual, { ...form, status: "completed" }),
+      false
+    );
   });
 
   it("tags fields from form and/or manual sources", () => {

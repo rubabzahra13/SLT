@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   formatAddOrderSaveBlockReason,
   getAddOrderRequiredGaps,
+  orderHasAddOrderContent,
 } from "../order-form-missing";
 import { getOrderIdentityFieldKey } from "../order-detail-sections";
 import { orderPatchFromOrderField } from "../mtd-order-sync";
@@ -34,9 +35,9 @@ const CASES: Array<{
   },
 ];
 
-describe("Add Order — only identity name required", () => {
+describe("Add Order — any meaningful field (except coupon / how-found)", () => {
   for (const c of CASES) {
-    it(`${c.formType}${c.cheer ? `/${c.cheer}` : ""}${c.dance ? `/${c.dance}` : ""} requires ${c.expectedKey}`, () => {
+    it(`${c.formType}${c.cheer ? `/${c.cheer}` : ""}${c.dance ? `/${c.dance}` : ""}: empty blocked; identity unlocks`, () => {
       const key = getOrderIdentityFieldKey(c.formType, c.cheer, c.dance);
       assert.equal(key, c.expectedKey);
 
@@ -47,14 +48,52 @@ describe("Add Order — only identity name required", () => {
       } as Order;
       const gaps = getAddOrderRequiredGaps(empty);
       assert.equal(gaps.length, 1);
-      assert.equal(gaps[0].key, c.expectedKey);
-      assert.match(formatAddOrderSaveBlockReason(gaps), /before saving/i);
+      assert.equal(gaps[0].key, "_anyField");
+      assert.match(formatAddOrderSaveBlockReason(gaps), /at least one field/i);
 
       const filled = {
         ...empty,
         ...orderPatchFromOrderField(c.expectedKey, "Test Org", empty),
       } as Order;
       assert.deepEqual(getAddOrderRequiredGaps(filled), []);
+      assert.equal(orderHasAddOrderContent(filled), true);
     });
   }
+
+  it("coach phone alone unlocks save", () => {
+    const draft = {
+      formType: "school-all-star-cheer",
+      cheerFormSubtype: "all-star-cheer",
+      coachPhone: "512-555-0100",
+    } as Order;
+    assert.deepEqual(getAddOrderRequiredGaps(draft), []);
+  });
+
+  it("coupon alone does not unlock save", () => {
+    const draft = {
+      formType: "school-all-star-cheer",
+      cheerFormSubtype: "all-star-cheer",
+      couponCode: "SAVE10",
+    } as Order;
+    assert.equal(getAddOrderRequiredGaps(draft).length, 1);
+    assert.equal(orderHasAddOrderContent(draft), false);
+  });
+
+  it("howDidYouFindOut alone does not unlock save", () => {
+    const draft = {
+      formType: "school-all-star-cheer",
+      cheerFormSubtype: "all-star-cheer",
+      howDidYouFindOut: "Instagram",
+    } as Order;
+    assert.equal(getAddOrderRequiredGaps(draft).length, 1);
+  });
+
+  it("coupon + howDidYouFindOut still blocked", () => {
+    const draft = {
+      formType: "school-anthem",
+      couponCode: "X",
+      howDidYouFindOut: "Friend",
+    } as Order;
+    assert.equal(getAddOrderRequiredGaps(draft).length, 1);
+  });
 });

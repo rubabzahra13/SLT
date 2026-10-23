@@ -80,12 +80,13 @@ export function SplitManualFormConfirmModal({
             id="split-manual-form-title"
             className="mt-3 text-center text-[18px] font-semibold tracking-[-0.02em] text-brand-ink"
           >
-            Undo Magento match?
+            Undo Match?
           </h2>
           <p className="mt-2 text-center text-[13px] leading-relaxed text-brand-ink-secondary">
             <span className="font-medium text-brand-ink">{identity}</span> will
-            become two separate board rows again: one Manual, one Form. They
-            will not auto-match later.
+            become two separate Orders rows again: one Manual, one Magento form.
+            You can Match them again from Match Orders while they stay on
+            Orders.
           </p>
         </div>
 

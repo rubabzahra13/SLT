@@ -16,10 +16,8 @@ import {
 } from "@/lib/order-detail-sections";
 import { findLinkedOrder } from "@/lib/editor-assignment";
 import {
-  buildFieldSourceMap,
+  canSplitManualFormPair,
   enrichOrderWithMatchingForm,
-  ensureManualFormSnapshot,
-  overwriteManualWithFormPatches,
   resolveManualFormPair,
   splitManualFormPatches,
 } from "@/lib/manual-form-merge";
@@ -82,21 +80,9 @@ export default function OrderDetailPage({
     return resolveManualFormPair(pairBase, allOrders);
   }, [pairBase, allOrders]);
 
-  const fieldSources = useMemo(() => {
-    if (!pair) return undefined;
-    const sectionOrder = resolveOrderFormDisplay(pair.manual, record);
-    const keys = getOrderDetailSections(sectionOrder).flatMap((s) =>
-      s.fields.map((f) => f.key)
-    );
-    const withSnap = ensureManualFormSnapshot(pair.manual, pair.form);
-    return buildFieldSourceMap(pair.manual, pair.form, keys, {
-      preferFormOnOverlap: true,
-      frozenManualSnapshot: withSnap.manualOverlapSnapshot,
-    });
-  }, [pair, record]);
-
   const handleSplitPair = useCallback(async () => {
     if (!pair || isViewOnly) return;
+    if (!canSplitManualFormPair(pair.manual, pair.form)) return;
     const { manualPatch, formPatch } = splitManualFormPatches(
       pair.manual,
       pair.form
@@ -117,31 +103,6 @@ export default function OrderDetailPage({
       tone: "success",
       title: "Orders split",
       message: "Restored as separate Manual and Form orders.",
-    });
-  }, [pair, isViewOnly, updateOrder, addAlert]);
-
-  const handleOverwriteData = useCallback(async () => {
-    if (!pair || isViewOnly) return;
-    const { manualPatch, formPatch } = overwriteManualWithFormPatches(
-      pair.manual,
-      pair.form
-    );
-    await updateOrder(pair.manual.id, manualPatch, pair.manual);
-    await updateOrder(pair.form.id, formPatch, pair.form);
-    setOrderDraft((prev) =>
-      prev
-        ? {
-            ...prev,
-            ...manualPatch,
-            isManualEntry: false,
-            manualOverlapSnapshot: undefined,
-          }
-        : prev
-    );
-    addAlert({
-      tone: "success",
-      title: "Form data kept",
-      message: "Order now looks like a normal Magento form submission.",
     });
   }, [pair, isViewOnly, updateOrder, addAlert]);
 
@@ -273,7 +234,6 @@ export default function OrderDetailPage({
               manual={pair.manual}
               form={pair.form}
               onConfirmSplit={handleSplitPair}
-              onOverwriteData={handleOverwriteData}
             />
           ) : null}
           <MTDOrderDetails
@@ -283,7 +243,6 @@ export default function OrderDetailPage({
             producers={producers}
             editable={orderFormEditing && !isViewOnly}
             onFieldChange={handleOrderDraftChange}
-            fieldSources={fieldSources}
             requiredFieldKeys={[
               getOrderIdentityFieldKey(
                 (orderDraft ?? displayOrder).formType,

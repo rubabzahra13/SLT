@@ -717,9 +717,27 @@ export function mergeFormWinsPatches(
   return { manualPatch, formPatch };
 }
 
+/** Still on the Orders board (not forwarded to MTD / completed). */
+export function orderStillOnOrdersBoard(order: Order): boolean {
+  const status = String(order.status || "").trim();
+  if (status === "in_mtd" || status === "completed") return false;
+  return true;
+}
+
+/**
+ * Admin Split is Orders-only. Once either side is in MTD (or past), Split is off —
+ * rematch is not auto; use Match Orders again after a Split while still on Orders.
+ */
+export function canSplitManualFormPair(manual: Order, form: Order): boolean {
+  if (!manual?.isManualEntry || !isMagentoFormOrder(form)) return false;
+  if (!manual.mergedFormOrderId && !form.mergedIntoManualOrderId) return false;
+  return orderStillOnOrdersBoard(manual) && orderStillOnOrdersBoard(form);
+}
+
 /**
  * Split a paired manual+form back into two independent orders.
  * Restores stashed manual overlap values; clears form-only fills from manual.
+ * Does not suppress rematch — admin can Match again on Match Orders.
  */
 export function splitManualFormPair(
   manual: Order,
@@ -737,7 +755,7 @@ export function splitManualFormPair(
     ...manual,
     mergedFormOrderId: undefined,
     manualOverlapSnapshot: undefined,
-    suppressManualFormMerge: true,
+    suppressManualFormMerge: false,
     isManualEntry: true,
   };
 
@@ -770,7 +788,7 @@ export function splitManualFormPair(
   const nextForm: Order = {
     ...form,
     mergedIntoManualOrderId: undefined,
-    suppressManualFormMerge: true,
+    suppressManualFormMerge: false,
     isManualEntry: false,
   };
 
@@ -785,6 +803,52 @@ export type SplitPreviewRow = {
   /** Manual value changes from the current combined order. */
   manualRestored: boolean;
 };
+
+export type MatchDiffRow = {
+  key: string;
+  label: string;
+  manualValue: string;
+  formValue: string;
+  /** Both sides filled and disagree (conflict highlight). */
+  differs: boolean;
+  /** Magento has a value that will replace the manual on match. */
+  willOverwrite: boolean;
+};
+
+/**
+ * Every New Order / Magento form field for this category (and cheer/dance
+ * subtype) — Match UI compares Manual vs Magento side by side.
+ */
+export function buildMatchDiffRows(manual: Order, form: Order): MatchDiffRow[] {
+  // Magento form defines the expected field set for this category/subtype.
+  const sections = getOrderDetailSections(form);
+  const seen = new Set<string>();
+  const rows: MatchDiffRow[] = [];
+
+  for (const section of sections) {
+    for (const field of section.fields) {
+      if (seen.has(field.key)) continue;
+      seen.add(field.key);
+      const manualRaw = rawFieldValue(manual, field.key).trim();
+      const formRaw = rawFieldValue(form, field.key).trim();
+      // Conflict highlight: both sides filled and disagree.
+      const differs =
+        Boolean(manualRaw) && Boolean(formRaw) && manualRaw !== formRaw;
+      // Overwrite on match: Magento filled and not equal to current manual.
+      const willOverwrite = Boolean(formRaw) && formRaw !== manualRaw;
+      rows.push({
+        key: field.key,
+        label: field.label,
+        manualValue: manualRaw || "—",
+        formValue: formRaw || "—",
+        differs,
+        willOverwrite,
+      });
+    }
+  }
+
+  return rows;
+}
 
 /** Field rows for the Split confirm modal (diff + restored values). */
 export function buildSplitPreviewRows(
@@ -875,7 +939,7 @@ export function splitManualFormPatches(
   const manualPatch: Partial<Order> = {
     mergedFormOrderId: null as unknown as undefined,
     manualOverlapSnapshot: null,
-    suppressManualFormMerge: true,
+    suppressManualFormMerge: false,
   };
   for (const key of Object.keys(nextManual) as (keyof Order)[]) {
     if (PROTECTED_ORDER_KEYS.has(key as string)) continue;
@@ -888,7 +952,7 @@ export function splitManualFormPatches(
 
   const formPatch: Partial<Order> = {
     mergedIntoManualOrderId: null as unknown as undefined,
-    suppressManualFormMerge: true,
+    suppressManualFormMerge: false,
   };
   (formPatch as Record<string, unknown>).mergedIntoManualOrderId = null;
 

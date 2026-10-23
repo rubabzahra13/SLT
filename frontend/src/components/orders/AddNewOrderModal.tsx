@@ -336,7 +336,7 @@ export function AddNewOrderModal({
     if (!orderDraft) return;
     setError(null);
 
-    // Admin Add Order: only identity name (Gym / School / Org) is required.
+    // Admin Add Order: any field except coupon / how-did-you-find-out alone.
     const gaps = getAddOrderRequiredGaps(orderDraft);
     if (gaps.length > 0) {
       setShowValidation(true);

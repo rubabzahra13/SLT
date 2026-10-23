@@ -335,7 +335,7 @@ describe("SLT Implementation 2: Magento form-field Collections / Songs", () => {
     assert.ok(!reqs.collections.some((r) => r.id === "form"));
   });
 
-  it("School Anthem manual New Order shows Form red until Magento name-match", () => {
+  it("School Anthem manual New Order shows Form red until admin Match", () => {
     const manual: Partial<Order> = {
       formType: "school-anthem",
       category: "School Anthem",
@@ -445,7 +445,7 @@ describe("SLT Implementation 2: Magento form-field Collections / Songs", () => {
     assert.strictEqual(
       toggled.collections.find((r) => r.id === "form")?.state,
       "red",
-      "Form stays red until Magento name-match links mergedFormOrderId"
+      "Form stays red until admin Match links mergedFormOrderId"
     );
 
     const matched = getOrderRequirements({

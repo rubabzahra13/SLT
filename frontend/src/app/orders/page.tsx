@@ -9,7 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { ArrowRight, Flag, Mail, Pencil, TriangleAlert } from "lucide-react";
+import { ArrowRight, Flag, Link2, Mail, Pencil } from "lucide-react";
 import clsx from "clsx";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Avatar } from "@/components/ui/Avatar";
@@ -56,7 +56,7 @@ import {
   getProgramColumnHeader,
 } from "@/lib/order-detail-sections";
 import { orderFromMTDRecord } from "@/lib/order-detail-fields";
-import { resolveManualFormPair } from "@/lib/manual-form-merge";
+import { countMagentoFormsWithSuggestions } from "@/lib/manual-form-suggestions";
 import {
   formatOrderFormMtdBlockReason,
   getOrderFormFieldsBlockingMtd,
@@ -443,6 +443,12 @@ function OrdersPageContent() {
   /** Badge always reflects every flagged booking (not the active form only). */
   const flaggedOrdersCount = flaggedRecords.length;
 
+  /** Magento forms with ≥1 identity-similar unmatched manual. */
+  const matchOrdersCount = useMemo(
+    () => countMagentoFormsWithSuggestions(allOrders),
+    [allOrders]
+  );
+
   const matchesRangeFilter = useCallback(
     (rec: MTDRecord) => {
       if (rangeFilter === "all") return true;
@@ -497,6 +503,10 @@ function OrdersPageContent() {
 
   const goToFlaggedPage = useCallback(() => {
     router.push("/orders/flagged");
+  }, [router]);
+
+  const goToMatchPage = useCallback(() => {
+    router.push("/orders/match");
   }, [router]);
 
   const openAssignPage = useCallback(
@@ -1703,10 +1713,6 @@ function OrdersPageContent() {
         headerClassName: compactHeaderClass,
         render: (rec, index) => {
           const linkedForForm = findLinkedOrder(rec, allOrders);
-          const pairBase = linkedForForm ?? orderFromMTDRecord(rec);
-          const hasFormOverride = Boolean(
-            resolveManualFormPair(pairBase, allOrders)
-          );
           const reqSource = linkedForForm
             ? mergeOrderFormFieldsForRequirements(rec, linkedForForm)
             : rec;
@@ -1794,26 +1800,6 @@ function OrdersPageContent() {
                   <Pencil className="h-3.5 w-3.5 shrink-0" strokeWidth={2.25} />
                 </button>
               </HoverTip>
-              {hasFormOverride ? (
-                <HoverTip label="Override found" placement="top">
-                  <button
-                    type="button"
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setOrderFormRowId(index + 1);
-                      setOrderFormRecord(rec);
-                    }}
-                    className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-brand-warning/40 bg-brand-warning/10 text-brand-warning shadow-sm transition hover:border-brand-warning/55 hover:bg-brand-warning/18 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-warning/25"
-                    aria-label={`Override found: ${rec.programName || "order"}`}
-                  >
-                    <TriangleAlert
-                      className="h-3.5 w-3.5 shrink-0"
-                      strokeWidth={2.25}
-                    />
-                  </button>
-                </HoverTip>
-              ) : null}
               {!isViewOnly ? (
                 <HoverTip
                   label={
@@ -1898,29 +1884,60 @@ function OrdersPageContent() {
           },
         }}
         headerActions={
-          <button
-            type="button"
-            onClick={goToFlaggedPage}
-            title={
-              flaggedOrdersCount > 0
-                ? `Open Flagged Orders (${flaggedOrdersCount})`
-                : "Open Flagged Orders"
-            }
-            aria-label={
-              flaggedOrdersCount > 0
-                ? `Open Flagged Orders, ${flaggedOrdersCount}`
-                : "Open Flagged Orders"
-            }
-            className="flex h-9 items-center gap-1.5 rounded-xl border border-brand-line/70 bg-white px-3 text-[13px] font-semibold text-brand-ink shadow-sm transition hover:border-brand-line hover:bg-brand-bg/60 hover:text-brand-orange focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange/20"
-          >
-            <Flag className="h-4 w-4 text-brand-ink-secondary" strokeWidth={2} />
-            <span className="hidden sm:inline">Flagged Orders</span>
-            {flaggedOrdersCount > 0 ? (
-              <span className="rounded-full bg-rose-50 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-rose-600">
-                {flaggedOrdersCount}
-              </span>
-            ) : null}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={goToMatchPage}
+              title={
+                matchOrdersCount > 0
+                  ? `Open Match Orders (${matchOrdersCount})`
+                  : "Open Match Orders"
+              }
+              aria-label={
+                matchOrdersCount > 0
+                  ? `Open Match Orders, ${matchOrdersCount}`
+                  : "Open Match Orders"
+              }
+              className="flex h-9 items-center gap-1.5 rounded-xl border border-brand-line/70 bg-white px-3 text-[13px] font-semibold text-brand-ink shadow-sm transition hover:border-brand-line hover:bg-brand-bg/60 hover:text-brand-orange focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange/20"
+            >
+              <Link2
+                className="h-4 w-4 text-brand-ink-secondary"
+                strokeWidth={2}
+              />
+              <span className="hidden sm:inline">Match Orders</span>
+              {matchOrdersCount > 0 ? (
+                <span className="rounded-full bg-brand-orange/10 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-brand-orange">
+                  {matchOrdersCount}
+                </span>
+              ) : null}
+            </button>
+            <button
+              type="button"
+              onClick={goToFlaggedPage}
+              title={
+                flaggedOrdersCount > 0
+                  ? `Open Flagged Orders (${flaggedOrdersCount})`
+                  : "Open Flagged Orders"
+              }
+              aria-label={
+                flaggedOrdersCount > 0
+                  ? `Open Flagged Orders, ${flaggedOrdersCount}`
+                  : "Open Flagged Orders"
+              }
+              className="flex h-9 items-center gap-1.5 rounded-xl border border-brand-line/70 bg-white px-3 text-[13px] font-semibold text-brand-ink shadow-sm transition hover:border-brand-line hover:bg-brand-bg/60 hover:text-brand-orange focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange/20"
+            >
+              <Flag
+                className="h-4 w-4 text-brand-ink-secondary"
+                strokeWidth={2}
+              />
+              <span className="hidden sm:inline">Flagged Orders</span>
+              {flaggedOrdersCount > 0 ? (
+                <span className="rounded-full bg-rose-50 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-rose-600">
+                  {flaggedOrdersCount}
+                </span>
+              ) : null}
+            </button>
+          </div>
         }
         search={{
           value: searchQuery,

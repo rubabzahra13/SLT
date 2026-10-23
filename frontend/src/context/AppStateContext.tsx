@@ -42,9 +42,10 @@ import {
 import { getData } from "@/lib/data";
 import { normalizeOrder } from "@/lib/order-form";
 import {
-  findMatchingManualOrder,
+  canMergeMagentoFormIntoManual,
+  mergeFormWinsPatches,
   mergePatchFromForm,
-  reconcileUnlinkedManualFormPairs,
+  overwriteManualWithFormPatches,
   repairCorruptCrossCategoryFormMerge,
 } from "@/lib/manual-form-merge";
 import { openAffiliateFlagPatch } from "@/lib/affiliate-flag";
@@ -173,6 +174,15 @@ type AppStateContextValue = {
   addPastOrder: (order: Order) => void;
   /** Incoming customer order — adds to active list and notifies the bell. */
   receiveOrder: (order: Order) => void;
+  /**
+   * Admin Match Orders: link a Magento form into an unmatched manual slot
+   * (form SoT). Replaces the old automatic name-merge.
+   */
+  matchManualWithMagento: (
+    manualId: string,
+    formId: string,
+    options?: { overwrite?: boolean }
+  ) => Promise<void>;
   addProducer: (producer: Producer) => Promise<Producer>;
   updateProducer: (id: string, patch: Partial<Producer>) => Promise<Producer>;
   removeProducer: (id: string) => Promise<void>;
@@ -929,120 +939,6 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   } catch {
     // Fallback if rendered outside AuthProvider
   }
-
-  // CSV/DB-seeded Magento forms never pass through receiveOrder. Reconcile
-  // unlinked form↔manual name matches after bootstrap so Overwrite/Split works.
-  const bootstrapMergeInFlightRef = useRef(false);
-  const attemptedBootstrapMergesRef = useRef(new Set<string>());
-  useEffect(() => {
-    if (!isBackendConnected || isViewOnly || isLoading) return;
-    if (bootstrapMergeInFlightRef.current) return;
-
-    const hasUnlinkedForm = activeOrders.some(
-      (o) =>
-        !o.isManualEntry &&
-        !o.mergedIntoManualOrderId &&
-        !o.suppressManualFormMerge
-    );
-    const hasUnlinkedManual = activeOrders.some(
-      (o) =>
-        o.isManualEntry &&
-        !o.mergedFormOrderId &&
-        !o.suppressManualFormMerge &&
-        o.status !== "completed" &&
-        o.status !== "in_mtd"
-    );
-    if (!hasUnlinkedForm || !hasUnlinkedManual) return;
-
-    const { orders: reconciled, merges } =
-      reconcileUnlinkedManualFormPairs(activeOrders);
-    const freshMerges = merges.filter((m) => {
-      const key = `${m.manualId}:${m.formId}`;
-      return !attemptedBootstrapMergesRef.current.has(key);
-    });
-    if (freshMerges.length === 0) return;
-
-    for (const m of freshMerges) {
-      attemptedBootstrapMergesRef.current.add(`${m.manualId}:${m.formId}`);
-    }
-
-    const withFlags = reconciled.map((order) => {
-      const merge = freshMerges.find((m) => m.manualId === order.id);
-      if (!merge || !order.isManualEntry) return order;
-      const flagPatch = openAffiliateFlagPatch(order);
-      return flagPatch ? normalizeOrder({ ...order, ...flagPatch }) : order;
-    });
-
-    bootstrapMergeInFlightRef.current = true;
-    ordersMutatedAtRef.current = Date.now();
-    setActiveOrders(withFlags);
-    writeTimedCache(CACHE_ORDERS_KEY, {
-      active: withFlags,
-      past: pastOrders,
-    });
-
-    void Promise.all(
-      freshMerges.map((merge) => {
-        const manual = withFlags.find((o) => o.id === merge.manualId);
-        const flagPatch = manual ? openAffiliateFlagPatch(manual) : null;
-        return Promise.all([
-          updateOrderApi(merge.manualId, {
-            ...merge.manualPatch,
-            ...(flagPatch || {}),
-          }),
-          updateOrderApi(merge.formId, merge.formPatch),
-        ]);
-      })
-    )
-      .catch((err) => {
-        notifySaveError("Could not merge form order into manual", err);
-      })
-      .finally(() => {
-        bootstrapMergeInFlightRef.current = false;
-      });
-
-    if (freshMerges.length === 1) {
-      const form = withFlags.find((o) => o.id === freshMerges[0].formId);
-      const manual = withFlags.find((o) => o.id === freshMerges[0].manualId);
-      const label =
-        form?.programName ||
-        form?.organizationName ||
-        form?.schoolOrganizationName ||
-        form?.gymName ||
-        "Order";
-      if (manual?.affiliateFlagStatus === "open") {
-        addNotification({
-          type: "flagged_order",
-          title: "Order flagged — multiple affiliates",
-          message: `${label} · choose one affiliate on Flagged`,
-          href: "/orders/flagged",
-        });
-      } else {
-        addAlert({
-          tone: "info",
-          title: "Form matched manual slot",
-          message: `${label} · form is source of truth`,
-          href: "/orders",
-        });
-      }
-    } else {
-      addAlert({
-        tone: "info",
-        title: "Forms matched to manual slots",
-        message: `${freshMerges.length} Magento forms linked to matching manual orders`,
-        href: "/orders",
-      });
-    }
-  }, [
-    activeOrders,
-    pastOrders,
-    isBackendConnected,
-    isViewOnly,
-    isLoading,
-    addNotification,
-    addAlert,
-    notifySaveError,
-  ]);
 
   const moveOrderToMTD = useCallback(
     (orderId: string): MTDRecord | null => {
@@ -1944,70 +1840,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       });
       const prevActive = activeOrders;
 
-      // Magento form only → same category/subcategory manual slot (never
-      // manual↔manual or cross-category). Form is SoT; manual row stays.
-      if (!incoming.isManualEntry) {
-        const manualMatch = findMatchingManualOrder(incoming, activeOrders);
-        if (manualMatch) {
-          const patch = mergePatchFromForm(manualMatch, incoming);
-          const mergedPreview = normalizeOrder({
-            ...manualMatch,
-            ...patch,
-            id: manualMatch.id,
-          });
-          const flagPatch = openAffiliateFlagPatch({
-            ...mergedPreview,
-            musicAffiliate:
-              incoming.musicAffiliate || mergedPreview.musicAffiliate,
-          });
-          const manualNext = flagPatch
-            ? normalizeOrder({ ...mergedPreview, ...flagPatch })
-            : mergedPreview;
-          const taggedForm = normalizeOrder({
-            ...incoming,
-            mergedIntoManualOrderId: manualMatch.id,
-          });
-
-      setActiveOrders((prev) => {
-            const withoutDup = prev.filter((o) => o.id !== taggedForm.id);
-            return [
-              taggedForm,
-              ...withoutDup.map((o) =>
-                o.id === manualMatch.id ? manualNext : o
-              ),
-            ];
-          });
-
-          void Promise.all([
-            createOrderApi(taggedForm),
-            updateOrderApi(manualMatch.id, {
-              ...patch,
-              ...(flagPatch || {}),
-            }),
-          ]).catch((err) => {
-            setActiveOrders(prevActive);
-            notifySaveError("Could not merge form order into manual", err);
-          });
-
-          if (flagPatch) {
-            addNotification({
-              type: "flagged_order",
-              title: "Order flagged — multiple affiliates",
-              message: `${incoming.programName} · choose one affiliate on Flagged`,
-              href: "/orders/flagged",
-            });
-          } else {
-            addNotification({
-              type: "new_order",
-              title: "New order received",
-              message: `${incoming.programName} matched manual slot · form is source of truth`,
-              href: "/orders",
-            });
-          }
-          return;
-        }
-      }
-
+      // Magento forms stay unmatched until an admin links them on Match Orders.
       const flagPatch = openAffiliateFlagPatch(incoming);
       const toStore = flagPatch
         ? normalizeOrder({ ...incoming, ...flagPatch })
@@ -2043,11 +1876,152 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           message: `${stamped.programName || stamped.gymName || "Order"} · ${
             stamped.contactName || stamped.customerName || "Customer"
           }`,
-          href: "/orders",
+          href: stamped.isManualEntry ? "/orders" : "/orders/match",
         });
       }
     },
     [addNotification, activeOrders, notifySaveError]
+  );
+
+  const matchManualWithMagento = useCallback(
+    async (
+      manualId: string,
+      formId: string,
+      options?: { overwrite?: boolean }
+    ) => {
+      if (isViewOnly) {
+        throw new Error("View-only accounts cannot match orders.");
+      }
+      const manual = activeOrders.find(
+        (o) => o.id === manualId || o.uuid === manualId || o.legacyId === manualId
+      );
+      const form = activeOrders.find(
+        (o) => o.id === formId || o.uuid === formId || o.legacyId === formId
+      );
+      if (!manual || !form) {
+        throw new Error("Could not find both orders to match.");
+      }
+      if (!canMergeMagentoFormIntoManual(form, manual)) {
+        throw new Error(
+          "These orders cannot be matched (category/subtype mismatch or already linked)."
+        );
+      }
+      if (manual.mergedFormOrderId) {
+        throw new Error("This manual order is already matched to a Magento form.");
+      }
+      if (form.mergedIntoManualOrderId) {
+        throw new Error("This Magento form is already matched to a manual order.");
+      }
+
+      const { manualPatch, formPatch } = mergeFormWinsPatches(manual, form);
+      const softPatch = mergePatchFromForm(manual, form);
+      let combinedManualPatch: Partial<Order> = {
+        ...manualPatch,
+        ...softPatch,
+      };
+      let combinedFormPatch: Partial<Order> = { ...formPatch };
+      const linkedPreview = normalizeOrder({
+        ...manual,
+        ...combinedManualPatch,
+        id: manual.id,
+      });
+      const taggedFormPreview = normalizeOrder({
+        ...form,
+        ...combinedFormPatch,
+        mergedIntoManualOrderId: manual.id,
+      });
+
+      if (options?.overwrite) {
+        const ow = overwriteManualWithFormPatches(
+          linkedPreview,
+          taggedFormPreview
+        );
+        combinedManualPatch = { ...combinedManualPatch, ...ow.manualPatch };
+        combinedFormPatch = { ...combinedFormPatch, ...ow.formPatch };
+      }
+
+      const mergedPreview = normalizeOrder({
+        ...manual,
+        ...combinedManualPatch,
+        id: manual.id,
+      });
+      const flagPatch = openAffiliateFlagPatch({
+        ...mergedPreview,
+        musicAffiliate:
+          form.musicAffiliate || mergedPreview.musicAffiliate,
+      });
+      const manualNext = flagPatch
+        ? normalizeOrder({ ...mergedPreview, ...flagPatch })
+        : mergedPreview;
+      const taggedForm = normalizeOrder({
+        ...form,
+        ...combinedFormPatch,
+        mergedIntoManualOrderId: manual.id,
+      });
+
+      const prevActive = activeOrders;
+      setActiveOrders((prev) =>
+        prev.map((o) => {
+          if (o.id === manual.id) return manualNext;
+          if (o.id === form.id) return taggedForm;
+          return o;
+        })
+      );
+      ordersMutatedAtRef.current = Date.now();
+
+      try {
+        await Promise.all([
+          updateOrderApi(manual.id, {
+            ...combinedManualPatch,
+            ...(flagPatch || {}),
+          }),
+          updateOrderApi(form.id, combinedFormPatch),
+        ]);
+        if (flagPatch) {
+          addNotification({
+            type: "flagged_order",
+            title: "Order flagged — multiple affiliates",
+            message: `${
+              form.programName ||
+              form.schoolOrganizationName ||
+              form.gymName ||
+              "Order"
+            } · choose one affiliate on Flagged`,
+            href: "/orders/flagged",
+          });
+        } else {
+          addAlert({
+            tone: "success",
+            title: options?.overwrite
+              ? "Orders matched · form data kept"
+              : "Orders matched",
+            message: options?.overwrite
+              ? `${
+                  getOrderIdentityName(form) ||
+                  form.programName ||
+                  "Magento form"
+                } linked · Magento values kept, Form/Manual cues removed`
+              : `${
+                  getOrderIdentityName(form) ||
+                  form.programName ||
+                  "Magento form"
+                } linked · form is source of truth`,
+            href: "/orders",
+          });
+        }
+      } catch (err) {
+        setActiveOrders(prevActive);
+        notifySaveError("Could not match Magento form to manual order", err);
+        throw err;
+      }
+    },
+    [
+      activeOrders,
+      isViewOnly,
+      addNotification,
+      addAlert,
+      notifySaveError,
+    ]
   );
 
   const addProducer = useCallback(async (producer: Producer) => {
@@ -2966,76 +2940,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     const mergeList = (prev: Order[]) => {
       const idx = prev.findIndex((o) => ordersReferToSame(o, incoming));
       if (idx === -1) {
-        // Brand-new Magento form from API/stream — match into a manual slot.
-        if (!incoming.isManualEntry) {
-          const manualMatch = findMatchingManualOrder(incoming, prev);
-          if (manualMatch && !manualMatch.mergedFormOrderId) {
-            const patch = mergePatchFromForm(manualMatch, incoming);
-            const flagPatch = openAffiliateFlagPatch({
-              ...manualMatch,
-              ...patch,
-              musicAffiliate:
-                incoming.musicAffiliate ||
-                patch.musicAffiliate ||
-                manualMatch.musicAffiliate,
-            });
-            const manualNext = normalizeOrder({
-              ...manualMatch,
-              ...patch,
-              ...(flagPatch || {}),
-              id: manualMatch.id,
-            });
-            const taggedForm = normalizeOrder({
-              ...incoming,
-              mergedIntoManualOrderId: manualMatch.id,
-            });
-            applyingPeerOrdersRef.current = true;
-            ordersMutatedAtRef.current = Date.now();
-            void Promise.all([
-              updateOrderApi(manualMatch.id, {
-                ...patch,
-                ...(flagPatch || {}),
-                mergedFormOrderId: taggedForm.id,
-              }),
-              updateOrderApi(taggedForm.id, {
-                mergedIntoManualOrderId: manualMatch.id,
-              }),
-            ]).catch((err) => {
-              notifySaveError("Could not merge Magento form into manual", err);
-            });
-            if (flagPatch) {
-              addNotification({
-                type: "flagged_order",
-                title: "Order flagged — multiple affiliates",
-                message: `${
-                  incoming.programName ||
-                  incoming.schoolOrganizationName ||
-                  incoming.gymName ||
-                  "Order"
-                } · choose one affiliate on Flagged`,
-                href: "/orders/flagged",
-              });
-            } else {
-              addNotification({
-                type: "new_order",
-                title: "New order received",
-                message: `${
-                  incoming.programName ||
-                  incoming.schoolOrganizationName ||
-                  incoming.gymName ||
-                  "Order"
-                } matched manual slot · form is source of truth`,
-                href: "/orders",
-              });
-            }
-            return [
-              taggedForm,
-              ...prev.map((o) =>
-                o.id === manualMatch.id ? manualNext : o
-              ),
-            ];
-          }
-        }
+        // Brand-new Magento form from API/stream — stays unmatched until
+        // an admin links it on Match Orders (no automatic name-merge).
         applyingPeerOrdersRef.current = true;
         ordersMutatedAtRef.current = Date.now();
         const flagPatch = openAffiliateFlagPatch(incoming);
@@ -3061,7 +2967,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
             message: `${stamped.programName || stamped.gymName || "Order"} · ${
               stamped.contactName || stamped.customerName || "Customer"
             }`,
-            href: "/orders",
+            href: stamped.isManualEntry ? "/orders" : "/orders/match",
           });
         }
         return [stamped, ...prev];
@@ -3650,6 +3556,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     markComplete,
     addPastOrder,
     receiveOrder,
+    matchManualWithMagento,
     addProducer,
     updateProducer,
     removeProducer,

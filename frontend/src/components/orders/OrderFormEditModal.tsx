@@ -7,10 +7,8 @@ import { MTDOrderDetails } from "@/components/mtd/MTDOrderDetails";
 import { useAppState } from "@/context/AppStateContext";
 import { findLinkedOrder } from "@/lib/editor-assignment";
 import {
-  buildFieldSourceMap,
+  canSplitManualFormPair,
   enrichOrderWithMatchingForm,
-  ensureManualFormSnapshot,
-  overwriteManualWithFormPatches,
   resolveManualFormPair,
   splitManualFormPatches,
 } from "@/lib/manual-form-merge";
@@ -76,20 +74,6 @@ export function OrderFormEditModal({
     return resolveManualFormPair(linkedBase, allOrders);
   }, [linkedBase, allOrders]);
 
-  const fieldSources = useMemo(() => {
-    if (!pair) return undefined;
-    const sectionOrder = resolveOrderFormDisplay(pair.manual, record);
-    const keys = getOrderDetailSections(sectionOrder).flatMap((s) =>
-      s.fields.map((f) => f.key)
-    );
-    // Freeze pre-form manual if not persisted yet, then show under fields.
-    const withSnap = ensureManualFormSnapshot(pair.manual, pair.form);
-    return buildFieldSourceMap(pair.manual, pair.form, keys, {
-      preferFormOnOverlap: true,
-      frozenManualSnapshot: withSnap.manualOverlapSnapshot,
-    });
-  }, [pair, record]);
-
   const displayOrder = useMemo(() => {
     if (!linkedBase) return null;
     const enriched = enrichOrderWithMatchingForm(linkedBase, allOrders);
@@ -99,6 +83,7 @@ export function OrderFormEditModal({
 
   const handleSplitPair = useCallback(async () => {
     if (!pair || isViewOnly) return;
+    if (!canSplitManualFormPair(pair.manual, pair.form)) return;
     const { manualPatch, formPatch } = splitManualFormPatches(
       pair.manual,
       pair.form
@@ -119,31 +104,6 @@ export function OrderFormEditModal({
       tone: "success",
       title: "Orders split",
       message: "Restored as separate Manual and Form orders.",
-    });
-  }, [pair, isViewOnly, updateOrder, addAlert]);
-
-  const handleOverwriteData = useCallback(async () => {
-    if (!pair || isViewOnly) return;
-    const { manualPatch, formPatch } = overwriteManualWithFormPatches(
-      pair.manual,
-      pair.form
-    );
-    await updateOrder(pair.manual.id, manualPatch, pair.manual);
-    await updateOrder(pair.form.id, formPatch, pair.form);
-    setOrderDraft((prev) =>
-      prev
-        ? {
-            ...prev,
-            ...manualPatch,
-            isManualEntry: false,
-            manualOverlapSnapshot: undefined,
-          }
-        : prev
-    );
-    addAlert({
-      tone: "success",
-      title: "Form data kept",
-      message: "Order now looks like a normal Magento form submission.",
     });
   }, [pair, isViewOnly, updateOrder, addAlert]);
 
@@ -381,7 +341,6 @@ export function OrderFormEditModal({
               manual={pair.manual}
               form={pair.form}
               onConfirmSplit={handleSplitPair}
-              onOverwriteData={handleOverwriteData}
             />
           ) : null}
           <MTDOrderDetails
@@ -391,7 +350,6 @@ export function OrderFormEditModal({
             producers={producers}
             editable={!isViewOnly}
             onFieldChange={handleFieldChange}
-            fieldSources={fieldSources}
             // Admin forms: only identity name is required; other empties stay quiet.
             requiredFieldKeys={
               orderDraft

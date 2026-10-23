@@ -1,9 +1,4 @@
-import {
-  getOrderDetailSections,
-  getOrderIdentityFieldKey,
-  getOrderIdentityName,
-  getProgramColumnHeader,
-} from "@/lib/order-detail-sections";
+import { getOrderDetailSections } from "@/lib/order-detail-sections";
 import { rawFieldValue } from "@/lib/order-detail-fields";
 import { hasMeaningfulFieldValue } from "@/lib/empty-field-tokens";
 import type { Order } from "@/types";
@@ -210,27 +205,36 @@ export function formatOrderFormMtdBlockReason(gaps: OrderFormMtdGap[]): string {
   ].join("\n");
 }
 
+/** Marketing-only Magento fields — alone they do not unlock Add New Order save. */
+const ADD_ORDER_NON_CONTENT_KEYS = new Set([
+  "couponCode",
+  "howDidYouFindOut",
+]);
+
 /**
- * Add New Order (admin): only the category identity name is required to save.
- * Admins often lack full Magento-form details — everything else is optional.
+ * Add New Order (admin): any meaningful form field unlocks save, except
+ * coupon / how-did-you-find-out alone (same as Magento non-mandatory).
+ * Identity name is no longer strictly required — without it Match suggestions
+ * simply will not appear until a name is filled later.
  */
+export function orderHasAddOrderContent(order: Order): boolean {
+  const sections = getOrderDetailSections(order);
+  for (const section of sections) {
+    for (const field of section.fields) {
+      if (ADD_ORDER_NON_CONTENT_KEYS.has(field.key)) continue;
+      const raw = rawFieldValue(order, field.key);
+      if (hasMeaningfulFieldValue(raw, { fieldKey: field.key })) return true;
+    }
+  }
+  return false;
+}
+
 export function getAddOrderRequiredGaps(order: Order): OrderFormMtdGap[] {
-  const key = getOrderIdentityFieldKey(
-    order.formType,
-    order.cheerFormSubtype,
-    order.danceFormSubtype
-  );
-  const label = getProgramColumnHeader(
-    order.formType,
-    order.cheerFormSubtype,
-    order.danceFormSubtype
-  );
-  if (getOrderIdentityName(order).trim()) return [];
-  return [{ key, label }];
+  if (orderHasAddOrderContent(order)) return [];
+  return [{ key: "_anyField", label: "at least one field" }];
 }
 
 export function formatAddOrderSaveBlockReason(gaps: OrderFormMtdGap[]): string {
   if (gaps.length === 0) return "";
-  const label = gaps[0]?.label || "Name";
-  return `Enter ${label} before saving.`;
+  return "Fill at least one field to save (coupon and how-you-found-us alone don’t count).";
 }

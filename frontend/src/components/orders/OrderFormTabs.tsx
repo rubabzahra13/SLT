@@ -3,15 +3,6 @@
 import clsx from "clsx";
 import { ORDER_FORM_TABS, type OrderFormType } from "@/types";
 
-/** Short labels so every form fits on one row. */
-const FORM_TAB_LABELS: Record<OrderFormType, string> = {
-  "school-all-star-cheer": "Cheer",
-  "school-all-star-dance": "Dance",
-  "marching-band": "Band",
-  "sports-entertainment": "Sports Ent.",
-  "school-anthem": "Anthem",
-};
-
 type OrderFormTabsProps = {
   form: OrderFormType;
   onFormChange: (form: OrderFormType) => void;
@@ -20,6 +11,7 @@ type OrderFormTabsProps = {
 
 /**
  * Inline form pills with counts — distinct from subtype underline tabs.
+ * `w-fit` / `self-start` so a column parent doesn’t stretch the pill strip.
  */
 export function OrderFormTabs({
   form,
@@ -28,7 +20,7 @@ export function OrderFormTabs({
 }: OrderFormTabsProps) {
   return (
     <div
-      className="inline-flex max-w-full flex-wrap items-center gap-0.5 rounded-xl bg-brand-elevated/80 p-0.5 ring-1 ring-inset ring-brand-line/40"
+      className="inline-flex w-fit max-w-full flex-wrap items-center gap-0.5 self-start rounded-xl bg-brand-elevated/80 p-0.5 ring-1 ring-inset ring-brand-line/40"
       role="tablist"
       aria-label="Form"
     >
@@ -50,7 +42,7 @@ export function OrderFormTabs({
                 : "text-brand-ink-secondary hover:bg-brand-bg hover:text-brand-ink"
             )}
           >
-            <span>{FORM_TAB_LABELS[id]}</span>
+            <span>{label}</span>
             <span
               className={clsx(
                 "rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums",
