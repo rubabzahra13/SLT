@@ -188,6 +188,19 @@ export function inferDanceFormSubtype(raw: Partial<Order>): DanceFormSubtype | u
   return "pom";
 }
 
+/**
+ * Fold SoT aliases. An explicit empty string on any alias wins so cleared
+ * form fields are not revived from a stale sibling alias on save.
+ */
+function coalesceAliasesAllowClear(
+  ...values: Array<string | undefined | null>
+): string {
+  const defined = values.filter((v) => v !== undefined && v !== null) as string[];
+  if (defined.length === 0) return "";
+  if (defined.some((v) => !String(v).trim())) return "";
+  return String(defined.find((v) => String(v).trim()) || "").trim();
+}
+
 /** Map legacy spreadsheet-style orders + full POM form payloads into one shape. */
 export function normalizeOrder(
   raw: Order & {
@@ -200,26 +213,26 @@ export function normalizeOrder(
     raw.schoolName?.trim() || raw.schoolProgramName?.trim() || raw.gymName?.trim()
   );
 
-  // Identity SoT = school_gym_name (UI aliases only).
-  const programName =
-    raw.schoolName?.trim() ||
-    raw.gymName?.trim() ||
-    raw.schoolProgramName?.trim() ||
-    raw.schoolOrganizationName?.trim() ||
-    raw.organizationName?.trim() ||
-    raw.programName?.trim() ||
-    "";
+  // Identity SoT = school_gym_name (UI aliases only). Explicit "" wins.
+  const programName = coalesceAliasesAllowClear(
+    raw.schoolName,
+    raw.gymName,
+    raw.schoolProgramName,
+    raw.schoolOrganizationName,
+    raw.organizationName,
+    raw.programName
+  );
   // Person SoT = coach_name — never copy school/org identity into contact.
-  const coachPerson =
-    raw.coachName?.trim() ||
-    raw.coachContactFullName?.trim() ||
-    raw.musicContactName?.trim() ||
-    "";
-  const rawContact =
-    coachPerson ||
-    raw.contactName?.trim() ||
-    raw.customerName?.trim() ||
-    "";
+  const coachPerson = coalesceAliasesAllowClear(
+    raw.coachName,
+    raw.coachContactFullName,
+    raw.musicContactName
+  );
+  const boardContact = coalesceAliasesAllowClear(
+    raw.contactName,
+    raw.customerName
+  );
+  const rawContact = coachPerson || boardContact;
   const contactName =
     programName &&
     rawContact.toLowerCase() === programName.toLowerCase()
@@ -344,15 +357,15 @@ export function normalizeOrder(
     programName,
     // Billing aliases → school_gym_billing_address.
     ...(() => {
-      const billing =
-        raw.gymBillingAddress?.trim() ||
-        raw.schoolBillingAddress?.trim() ||
-        raw.youthRecBillingAddress?.trim() ||
-        raw.organizationBillingAddress?.trim() ||
-        raw.schoolGymAddress?.trim() ||
-        raw.schoolAddress?.trim() ||
-        (raw as { billingAddress?: string }).billingAddress?.trim() ||
-        "";
+      const billing = coalesceAliasesAllowClear(
+        raw.gymBillingAddress,
+        raw.schoolBillingAddress,
+        raw.youthRecBillingAddress,
+        raw.organizationBillingAddress,
+        raw.schoolGymAddress,
+        raw.schoolAddress,
+        (raw as { billingAddress?: string }).billingAddress
+      );
       return {
         gymBillingAddress: billing,
         schoolBillingAddress: billing,
@@ -365,14 +378,14 @@ export function normalizeOrder(
     teamName: raw.teamName?.trim() || "",
     mascot: raw.mascot?.trim() || "",
     teamCoedAllGirl: raw.teamCoedAllGirl?.trim() || "",
-    // Colors aliases → colors.
+    // Colors aliases → colors (explicit clear wins over stale sibling).
     ...(() => {
-      const colors =
-        raw.teamColors?.trim() ||
-        raw.youthRecColors?.trim() ||
-        raw.schoolProgramColors?.trim() ||
-        (raw as { colors?: string }).colors?.trim() ||
-        "";
+      const colors = coalesceAliasesAllowClear(
+        raw.teamColors,
+        raw.youthRecColors,
+        raw.schoolProgramColors,
+        (raw as { colors?: string }).colors
+      );
       return {
         teamColors: colors,
         youthRecColors: colors,
@@ -381,55 +394,52 @@ export function normalizeOrder(
     })(),
     splitOrNoSplit,
     // Choreographer aliases → choreographer_name / email.
-    choreographerName:
-      raw.choreographerName?.trim() ||
-      raw.virocChoreographerName?.trim() ||
-      "",
-    choreographerEmail:
-      raw.choreographerEmail?.trim() ||
-      raw.virocChoreographerEmail?.trim() ||
-      "",
-    virocChoreographerName:
-      raw.virocChoreographerName?.trim() ||
-      raw.choreographerName?.trim() ||
-      "",
-    virocChoreographerEmail:
-      raw.virocChoreographerEmail?.trim() ||
-      raw.choreographerEmail?.trim() ||
-      "",
+    ...(() => {
+      const name = coalesceAliasesAllowClear(
+        raw.choreographerName,
+        raw.virocChoreographerName
+      );
+      const email = coalesceAliasesAllowClear(
+        raw.choreographerEmail,
+        raw.virocChoreographerEmail
+      );
+      return {
+        choreographerName: name,
+        virocChoreographerName: name,
+        choreographerEmail: email,
+        virocChoreographerEmail: email,
+      };
+    })(),
     // Coach / Music Contact aliases → coach_name.
     coachName: contactName,
     coachContactFullName: contactName,
     musicContactName: contactName,
     contactName,
     customerName: contactName,
-    coachEmailAddress:
-      raw.coachEmailAddress?.trim() || raw.coachEmail?.trim() || "",
-    coachEmail: raw.coachEmail?.trim() || raw.coachEmailAddress?.trim() || "",
-    musicContactEmail:
-      raw.musicContactEmail?.trim() ||
-      raw.coachEmail?.trim() ||
-      raw.coachEmailAddress?.trim() ||
-      "",
-    musicContactPhone:
-      raw.musicContactPhone?.trim() || raw.coachPhone?.trim() || "",
-    // Youth Rec Magento second email — distinct from coach email.
-    youthRecExtraEmailAddress:
-      raw.youthRecExtraEmailAddress?.trim() ||
-      raw.emailAddress?.trim() ||
-      "",
-    emailAddress:
-      raw.youthRecExtraEmailAddress?.trim() ||
-      raw.emailAddress?.trim() ||
-      "",
-    sendingEightCountSheets:
-      raw.sendingEightCountSheets?.trim() ||
-      raw.usingEightCountSheets?.trim() ||
-      "",
-    usingEightCountSheets:
-      raw.sendingEightCountSheets?.trim() ||
-      raw.usingEightCountSheets?.trim() ||
-      "",
+    ...(() => {
+      const coachEmail = coalesceAliasesAllowClear(
+        raw.coachEmail,
+        raw.coachEmailAddress,
+        raw.musicContactEmail
+      );
+      const coachPhone = coalesceAliasesAllowClear(
+        raw.coachPhone,
+        raw.musicContactPhone
+      );
+      const eightCount = coalesceAliasesAllowClear(
+        raw.sendingEightCountSheets,
+        raw.usingEightCountSheets
+      );
+      return {
+        coachEmailAddress: coachEmail,
+        coachEmail,
+        musicContactEmail: coachEmail,
+        coachPhone,
+        musicContactPhone: coachPhone,
+        sendingEightCountSheets: eightCount,
+        usingEightCountSheets: eightCount,
+      };
+    })(),
     // Aliases of song_list_suggestions (Anthem style / MB instrumentation).
     instrumentationNotes: songList,
     instrumentalStylePreference: songList,
@@ -443,23 +453,28 @@ export function normalizeOrder(
     zipPostalCode: raw.zipPostalCode?.trim() || "",
     country: raw.country?.trim() || "United States",
     division: raw.division?.trim() || "",
-    coachPhone: raw.coachPhone?.trim() || raw.musicContactPhone?.trim() || "",
-    billingPersonName:
-      raw.billingPersonName?.trim() ||
-      raw.billingContactName?.trim() ||
-      "",
-    billingPersonEmail:
-      raw.billingPersonEmail?.trim() ||
-      raw.billingContactEmail?.trim() ||
-      "",
-    billingContactName:
-      raw.billingContactName?.trim() ||
-      raw.billingPersonName?.trim() ||
-      "",
-    billingContactEmail:
-      raw.billingContactEmail?.trim() ||
-      raw.billingPersonEmail?.trim() ||
-      "",
+    // If any alias is explicitly cleared (""), keep it cleared — do not revive
+    // a stale sibling (edit modal clear → save was putting the old value back).
+    ...(() => {
+      const billingName = coalesceAliasesAllowClear(
+        raw.billingPersonName,
+        raw.billingContactName
+      );
+      const billingEmail = coalesceAliasesAllowClear(
+        raw.billingPersonEmail,
+        raw.billingContactEmail,
+        raw.youthRecExtraEmailAddress,
+        raw.emailAddress
+      );
+      return {
+        billingPersonName: billingName,
+        billingContactName: billingName,
+        billingPersonEmail: billingEmail,
+        billingContactEmail: billingEmail,
+        youthRecExtraEmailAddress: billingEmail,
+        emailAddress: billingEmail,
+      };
+    })(),
     numberOfCopies: raw.numberOfCopies?.trim() || "",
     packageType: hasForm ? packageType : packageType || raw.package || "",
     package:

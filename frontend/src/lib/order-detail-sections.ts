@@ -1143,7 +1143,15 @@ export function getOrderDetailSections(order: Order): OrderDetailSection[] {
   }
 
   if (order.formType === "school-all-star-dance") {
-    switch (order.danceFormSubtype) {
+    const danceSubtype = String(order.danceFormSubtype || "").trim();
+    // Legacy Magento / UI aliases → Team Performance & Variety Routines.
+    if (
+      danceSubtype === "team-performance" ||
+      danceSubtype.startsWith("team-performance")
+    ) {
+      return buildSections(TEAM_PERFORMANCE_VARIETY_DANCE_FIELDS, order);
+    }
+    switch (danceSubtype) {
       case "pom":
         return buildSections(POM_DANCE_FIELDS, order);
       case "hip-hop":

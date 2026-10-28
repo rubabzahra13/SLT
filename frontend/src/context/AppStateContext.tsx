@@ -1584,6 +1584,13 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       // re-apply those patch values so clears actually stick.
       const merge = (order: Order) => {
         const normalized = normalizeOrder({ ...order, ...patch, id });
+        // Re-apply explicit empty-string clears. normalizeOrder folds aliases with
+        // fallbacks; a cleared primary can otherwise be revived from a sibling.
+        for (const [key, value] of Object.entries(patch)) {
+          if (typeof value === "string" && value.trim() === "") {
+            (normalized as Record<string, unknown>)[key] = "";
+          }
+        }
         if (patch.musicTheme !== undefined) {
           normalized.musicTheme = patch.musicTheme;
         }

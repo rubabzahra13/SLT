@@ -461,7 +461,17 @@ export async function updateOrderApi(
               : "Cheer";
   }
 
-  // Prefer first non-empty alias so blank exclusivity fields do not wipe identity.
+  // Prefer first *defined* alias (including "") so explicit clears stick.
+  // Synced UI patches write the same value to every alias; non-empty-first
+  // previously revived a stale sibling after the user cleared the field.
+  const firstDefined = (
+    aliases: Array<string | undefined | null>
+  ): string | undefined => {
+    for (const v of aliases) {
+      if (v !== undefined && v !== null) return String(v);
+    }
+    return undefined;
+  };
   const identityAliases = [
     patch.schoolName,
     patch.gymName,
@@ -471,9 +481,7 @@ export async function updateOrderApi(
     patch.programName,
   ];
   if (identityAliases.some((v) => v !== undefined)) {
-    payload.school_gym_name =
-      identityAliases.find((v) => v !== undefined && String(v).trim() !== "") ??
-      "";
+    payload.school_gym_name = firstDefined(identityAliases) ?? "";
   }
   const billingAliases = [
     patch.gymBillingAddress,
@@ -484,9 +492,7 @@ export async function updateOrderApi(
     patch.schoolAddress,
   ];
   if (billingAliases.some((v) => v !== undefined)) {
-    payload.school_gym_billing_address =
-      billingAliases.find((v) => v !== undefined && String(v).trim() !== "") ??
-      "";
+    payload.school_gym_billing_address = firstDefined(billingAliases) ?? "";
   }
   if (patch.teamName !== undefined) {
     payload.team_name = patch.teamName;
@@ -574,8 +580,7 @@ export async function updateOrderApi(
     patch.schoolProgramColors,
   ];
   if (colorAliases.some((v) => v !== undefined)) {
-    payload.colors =
-      colorAliases.find((v) => v !== undefined && String(v).trim() !== "") ?? "";
+    payload.colors = firstDefined(colorAliases) ?? "";
   }
   if (patch.musicContactPhone !== undefined) {
     payload.coach_phone = patch.musicContactPhone;
@@ -614,9 +619,7 @@ export async function updateOrderApi(
     patch.musicContactName,
   ];
   if (coachNameAliases.some((v) => v !== undefined)) {
-    const coach =
-      coachNameAliases.find((v) => v !== undefined && String(v).trim() !== "") ??
-      "";
+    const coach = firstDefined(coachNameAliases) ?? "";
     payload.coach_name = coach;
     if (patch.contactName === undefined) payload.contact_name = coach;
     if (patch.customerName === undefined) payload.customer_name = coach;
@@ -624,18 +627,14 @@ export async function updateOrderApi(
   if (patch.coachPhone !== undefined) payload.coach_phone = patch.coachPhone;
   const coachEmailAliases = [patch.coachEmail, patch.coachEmailAddress];
   if (coachEmailAliases.some((v) => v !== undefined)) {
-    payload.coach_email =
-      coachEmailAliases.find((v) => v !== undefined && String(v).trim() !== "") ??
-      "";
+    payload.coach_email = firstDefined(coachEmailAliases) ?? "";
   }
   const billingNameAliases = [
     patch.billingPersonName,
     patch.billingContactName,
   ];
   if (billingNameAliases.some((v) => v !== undefined)) {
-    payload.billing_person_name =
-      billingNameAliases.find((v) => v !== undefined && String(v).trim() !== "") ??
-      "";
+    payload.billing_person_name = firstDefined(billingNameAliases) ?? "";
   }
   const billingEmailAliases = [
     patch.billingPersonEmail,
@@ -644,34 +643,21 @@ export async function updateOrderApi(
     patch.emailAddress,
   ];
   if (billingEmailAliases.some((v) => v !== undefined)) {
-    payload.billing_person_email =
-      billingEmailAliases.find(
-        (v) => v !== undefined && String(v).trim() !== ""
-      ) ?? "";
+    payload.billing_person_email = firstDefined(billingEmailAliases) ?? "";
   }
   const choreographerNameAliases = [
     patch.choreographerName,
     patch.virocChoreographerName,
   ];
   if (choreographerNameAliases.some((v) => v !== undefined)) {
-    payload.choreographer_name =
-      choreographerNameAliases.find(
-        (v) => v !== undefined && String(v).trim() !== ""
-      ) ??
-      choreographerNameAliases.find((v) => v !== undefined) ??
-      "";
+    payload.choreographer_name = firstDefined(choreographerNameAliases) ?? "";
   }
   const choreographerEmailAliases = [
     patch.choreographerEmail,
     patch.virocChoreographerEmail,
   ];
   if (choreographerEmailAliases.some((v) => v !== undefined)) {
-    payload.choreographer_email =
-      choreographerEmailAliases.find(
-        (v) => v !== undefined && String(v).trim() !== ""
-      ) ??
-      choreographerEmailAliases.find((v) => v !== undefined) ??
-      "";
+    payload.choreographer_email = firstDefined(choreographerEmailAliases) ?? "";
   }
   if (patch.numberOfCopies !== undefined) {
     payload.number_of_copies = patch.numberOfCopies;
@@ -716,12 +702,7 @@ export async function updateOrderApi(
     patch.requestedProducer,
   ];
   if (requestedEditorAliases.some((v) => v !== undefined)) {
-    payload.requested_editor =
-      requestedEditorAliases.find(
-        (v) => v !== undefined && String(v).trim() !== ""
-      ) ??
-      requestedEditorAliases.find((v) => v !== undefined) ??
-      "";
+    payload.requested_editor = firstDefined(requestedEditorAliases) ?? "";
   }
   if (patch.status !== undefined) payload.status = patch.status;
   if (patch.needsAttention !== undefined) payload.needs_attention = patch.needsAttention;

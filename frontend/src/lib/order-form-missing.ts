@@ -37,21 +37,24 @@ const TABLE_COVERED_FIELD_KEYS = new Set([
 /** Always optional — empty is fine on every form (never red / never block MTD). */
 const ALWAYS_OPTIONAL_FORM_FIELD_KEYS = new Set([
   "couponCode",
-  "howDidYouFindOut",
   "invoice",
   "invoiceNumber",
-  "numberOfCopies",
   // Sports Entertainment: billing contact only if different from music contact.
   "billingContactName",
   "billingContactEmail",
-  // Youth Rec Magento "Email Address" → billing_person_email (optional).
+  // Youth Rec Magento "Email Address" aliases (form key is billingPersonEmail).
   "youthRecExtraEmailAddress",
   "emailAddress",
+  // Dance Magento cover boxes — optional even when that affiliate is selected.
+  "powerMusicCovers",
+  "unleashTheBeatsCovers",
 ]);
 
 /**
  * Optional on most forms, but required on School Anthem (Magento SoT).
  * Coupon stays always-optional — Magento does not require it.
+ * Youth Rec Colors are required on Youth Rec (not in this set).
+ * Team colors on All-Star / School Cheer stay required via teamColors key.
  */
 const OPTIONAL_EXCEPT_SCHOOL_ANTHEM = new Set([
   // Marching Band producer notes are optional; School Anthem Song/Notes are required.
@@ -60,12 +63,7 @@ const OPTIONAL_EXCEPT_SCHOOL_ANTHEM = new Set([
   "instrumentalStylePreference",
   "lyricalNotes",
   "nicknames",
-  "mascot",
   "schoolProgramColors",
-  "teamColors",
-  "youthRecColors",
-  "billingPersonName",
-  "billingPersonEmail",
 ]);
 
 function isSchoolAnthemOrder(
@@ -74,12 +72,63 @@ function isSchoolAnthemOrder(
   return String(order?.formType || "").trim() === "school-anthem";
 }
 
+function isMarchingBandOrder(
+  order?: Pick<Order, "formType"> | null
+): boolean {
+  return String(order?.formType || "").trim() === "marching-band";
+}
+
+function cheerSubtype(
+  order?: Pick<Order, "formType" | "cheerFormSubtype"> | null
+): string {
+  if (String(order?.formType || "").trim() !== "school-all-star-cheer") {
+    return "";
+  }
+  return String(order?.cheerFormSubtype || "all-star-cheer").trim();
+}
+
+/** All-Star Cheer subcategory (not School Cheer / VIROC / Youth Rec). */
+function isAllStarCheerSubtype(
+  order?: Pick<Order, "formType" | "cheerFormSubtype"> | null
+): boolean {
+  return cheerSubtype(order) === "all-star-cheer";
+}
+
+function isYouthRecCheerSubtype(
+  order?: Pick<Order, "formType" | "cheerFormSubtype"> | null
+): boolean {
+  return cheerSubtype(order) === "youth-rec-cheer";
+}
+
 /** True when this form field is optional (never blocks save / MTD). */
 export function isOptionalOrderFormField(
   key: string,
-  order?: Pick<Order, "formType"> | null
+  order?: Pick<Order, "formType" | "cheerFormSubtype"> | null
 ): boolean {
+  // Required on All-Star Cheer + Youth Rec; optional on School Cheer / others.
+  if (key === "howDidYouFindOut") {
+    return !(isAllStarCheerSubtype(order) || isYouthRecCheerSubtype(order));
+  }
+  // Youth Rec Magento "Email Address" (billing_person_email) is optional.
+  if (
+    (key === "billingPersonEmail" || key === "billingContactEmail") &&
+    isYouthRecCheerSubtype(order)
+  ) {
+    return true;
+  }
   if (ALWAYS_OPTIONAL_FORM_FIELD_KEYS.has(key)) return true;
+  // Marching Band Magento producer notes (form keys = song/routine SoT aliases).
+  if (
+    isMarchingBandOrder(order) &&
+    (key === "songListSuggestions" ||
+      key === "routineNotes" ||
+      key === "instrumentationNotes" ||
+      key === "instrumentalStylePreference" ||
+      key === "lyricalNotes" ||
+      key === "additionalNotes")
+  ) {
+    return true;
+  }
   if (isSchoolAnthemOrder(order)) return false;
   return OPTIONAL_EXCEPT_SCHOOL_ANTHEM.has(key);
 }
@@ -110,20 +159,8 @@ function fieldHasConditionalPass(order: Order, key: string): boolean {
     if (!CHEER_SUBTYPES_WITH_SPLIT.has(subtype)) return true;
   }
 
-  // Dance song boxes are optional unless that affiliate is selected.
-  if (key === "powerMusicCovers") {
-    const affiliate = rawFieldValue(order, "musicAffiliate").toLowerCase();
-    if (!affiliate.includes("power music")) return true;
-  }
-  if (
-    key === "unleashTheBeatsCovers" &&
-    order.formType === "school-all-star-dance"
-  ) {
-    const affiliate = rawFieldValue(order, "musicAffiliate").toLowerCase();
-    if (!affiliate.includes("unleash")) return true;
-  }
-
   // Voiceover follow-ups only required when a Yes voiceover is selected.
+  // (Cover boxes are always-optional via ALWAYS_OPTIONAL_FORM_FIELD_KEYS.)
   if (key === "voiceoverScript" || key === "pronunciationGuidance") {
     const vo = rawFieldValue(order, "customVoiceovers").toLowerCase();
     if (!vo || vo.startsWith("no") || vo.includes("none")) return true;
@@ -155,7 +192,10 @@ export type OrderFormMtdGap = {
 
 /**
  * Empty form / table fields that should block Move to MTD.
- * Coupon, how-did-you-find-out, and invoice may stay empty.
+ * Coupon, invoice, and dance Power/Unleash cover boxes may stay empty.
+ * howDidYouFindOut is required on All-Star Cheer and Youth Rec; optional
+ * on School Cheer and other forms. Youth Rec "Email Address" is optional.
+ * Voiceover script/pronunciation required only when custom voiceovers is Yes.
  * Manual School Anthem stays blocked until a Magento form is matched.
  */
 export function getOrderFormFieldsBlockingMtd(

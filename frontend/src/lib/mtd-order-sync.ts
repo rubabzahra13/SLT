@@ -342,7 +342,7 @@ export function orderPatchFromOrderField(
     patch.styleOfGamedayMix = value;
     patch.style = value;
   }
-  if (key === "musicContactPhone") {
+  if (key === "musicContactPhone" || key === "coachPhone") {
     patch.musicContactPhone = value;
     patch.coachPhone = value;
   }
@@ -351,13 +351,10 @@ export function orderPatchFromOrderField(
     patch.coachEmail = value;
     patch.coachEmailAddress = value;
   }
-  if (key === "billingContactName") {
-    patch.billingContactName = value;
+  if (key === "billingPersonName" || key === "billingContactName") {
+    // Single SoT: billing_person_name (SE Magento label is Billing Contact).
     patch.billingPersonName = value;
-  }
-  if (key === "billingContactEmail") {
-    patch.billingContactEmail = value;
-    patch.billingPersonEmail = value;
+    patch.billingContactName = value;
   }
   if (key === "customerSongs") {
     patch.customerSongs = value;
