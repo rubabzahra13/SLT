@@ -1,4 +1,5 @@
 import { apiClient } from "./client";
+import { fetchAllListPages } from "./pagination";
 import type { PayrollAddon } from "@/types";
 
 export interface BackendPayrollAddon {
@@ -60,8 +61,9 @@ function normalizePayrollAddon(raw: BackendPayrollAddon): PayrollAddon {
 export async function fetchPayrollAddonsApi(
   token?: string | null
 ): Promise<PayrollAddon[]> {
-  const data = await apiClient.get<BackendPayrollAddon[]>(
+  const data = await fetchAllListPages<BackendPayrollAddon>(
     "/api/payroll-addons",
+    "payroll_addons",
     token ? { headers: { Authorization: `Bearer ${token}` } } : undefined
   );
   return data.map(normalizePayrollAddon);
@@ -185,10 +187,12 @@ export async function updatePayrollAddonApi(
 
 export async function deletePayrollAddonApi(
   id: string,
-  token?: string | null
+  token?: string | null,
+  options?: { allowMissing?: boolean }
 ): Promise<void> {
+  const qs = options?.allowMissing !== false ? "?allow_missing=true" : "";
   await apiClient.delete<unknown>(
-    `/api/payroll-addons/${id}`,
+    `/api/payroll-addons/${id}${qs}`,
     token ? { headers: { Authorization: `Bearer ${token}` } } : undefined
   );
 }

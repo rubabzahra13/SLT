@@ -9,7 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { ArrowRight, Flag, Link2, Mail, Pencil } from "lucide-react";
+import { ArrowRight, Flag, Link2, Mail, Pencil, Trash2 } from "lucide-react";
 import clsx from "clsx";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { ReturnNavBanner } from "@/components/layout/ReturnNavBanner";
@@ -24,6 +24,7 @@ import { InlineTwoStateToggle } from "@/components/mtd/InlineFields";
 import { ForwardOrderMailModal } from "@/components/orders/ForwardOrderMailModal";
 import { AddNewOrderModal } from "@/components/orders/AddNewOrderModal";
 import { OrderFormEditModal } from "@/components/orders/OrderFormEditModal";
+import { DeleteOrderConfirmModal } from "@/components/orders/DeleteOrderConfirmModal";
 import { OrderRequirementsCell } from "@/components/orders/OrderRequirementsCell";
 import { OrderDataStatusBadge, OrderAssignmentStatusBadge } from "@/components/orders/OrderStatusDropdown";
 import { recordIsRushOrder } from "@/lib/forward-order-mail";
@@ -161,6 +162,7 @@ function OrdersPageContent() {
     allOrders,
     updateMTD,
     updateOrder,
+    deleteOrder,
     addManualScheduleEntry,
     producers,
     schedule,
@@ -343,6 +345,10 @@ function OrdersPageContent() {
   const [addNewOrderOpen, setAddNewOrderOpen] = useState(false);
   const [orderFormRecord, setOrderFormRecord] = useState<MTDRecord | null>(null);
   const [orderFormRowId, setOrderFormRowId] = useState<number | null>(null);
+  const [deleteOrderRecord, setDeleteOrderRecord] = useState<MTDRecord | null>(
+    null
+  );
+  const [deletingOrder, setDeletingOrder] = useState(false);
 
   const preMtdRecords = useMemo(
     () => listPreMtdOrderRecords(activeOrders, mtdRecords),
@@ -1707,7 +1713,7 @@ function OrdersPageContent() {
       {
         key: "actions",
         header: "Actions",
-        width: "120px",
+        width: "148px",
         align: "center" as const,
         nowrap: true,
         cellClassName: compactCellClass,
@@ -1802,37 +1808,56 @@ function OrdersPageContent() {
                 </button>
               </HoverTip>
               {!isViewOnly ? (
-                <HoverTip
-                  label={
-                    mtdBlockedReason ?? "MTD"
-                  }
-                  placement="left"
-                >
-                  <button
-                    type="button"
-                    disabled={mtdDisabled}
-                    aria-disabled={mtdDisabled}
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onClick={(e) => {
-                      if (mtdDisabled) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        return;
-                      }
-                      handleMoveToMTD(rec, e);
-                    }}
-                    className={clsx(
-                      ordersMtdButtonClass(ready, mtdDisabled),
-                      "whitespace-nowrap"
-                    )}
-                    aria-label={
+                <>
+                  <HoverTip
+                    label={
                       mtdBlockedReason ?? "MTD"
                     }
+                    placement="left"
                   >
-                    <span>MTD</span>
-                    <ArrowRight className="h-3 w-3 shrink-0" strokeWidth={2.25} />
-                  </button>
-                </HoverTip>
+                    <button
+                      type="button"
+                      disabled={mtdDisabled}
+                      aria-disabled={mtdDisabled}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        if (mtdDisabled) {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          return;
+                        }
+                        handleMoveToMTD(rec, e);
+                      }}
+                      className={clsx(
+                        ordersMtdButtonClass(ready, mtdDisabled),
+                        "whitespace-nowrap"
+                      )}
+                      aria-label={
+                        mtdBlockedReason ?? "MTD"
+                      }
+                    >
+                      <span>MTD</span>
+                      <ArrowRight className="h-3 w-3 shrink-0" strokeWidth={2.25} />
+                    </button>
+                  </HoverTip>
+                  <HoverTip label="Delete" placement="top">
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeleteOrderRecord(rec);
+                      }}
+                      className={clsx(
+                        ordersMailTextButtonClass,
+                        "!px-1.5 text-brand-danger hover:border-brand-danger/35 hover:bg-brand-orange-soft/50 hover:text-brand-danger"
+                      )}
+                      aria-label={`Delete ${rec.programName || "order"}`}
+                    >
+                      <Trash2 className="h-3.5 w-3.5 shrink-0" strokeWidth={2.25} />
+                    </button>
+                  </HoverTip>
+                </>
               ) : null}
             </div>
           );
@@ -2091,6 +2116,37 @@ function OrdersPageContent() {
         onClose={() => {
           setOrderFormRecord(null);
           setOrderFormRowId(null);
+        }}
+      />
+
+      <DeleteOrderConfirmModal
+        open={Boolean(deleteOrderRecord)}
+        record={deleteOrderRecord}
+        linkedOrder={
+          deleteOrderRecord
+            ? findLinkedOrder(deleteOrderRecord, allOrders)
+            : null
+        }
+        busy={deletingOrder}
+        onClose={() => {
+          if (deletingOrder) return;
+          setDeleteOrderRecord(null);
+        }}
+        onConfirm={() => {
+          const rec = deleteOrderRecord;
+          if (!rec || deletingOrder) return;
+          const orderId =
+            findLinkedOrder(rec, allOrders)?.id ||
+            rec.orderId ||
+            rec.uuid ||
+            rec.id;
+          setDeletingOrder(true);
+          void deleteOrder(orderId)
+            .then(() => setDeleteOrderRecord(null))
+            .catch(() => {
+              /* toast from AppState */
+            })
+            .finally(() => setDeletingOrder(false));
         }}
       />
     </div>

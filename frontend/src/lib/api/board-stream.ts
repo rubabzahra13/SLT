@@ -9,6 +9,7 @@ import type { MTDRecord, Order } from "@/types";
 export type BoardStreamEvent =
   | { type: "ready"; ok?: boolean }
   | { type: "order.updated"; order: Order }
+  | { type: "order.deleted"; id: string }
   | { type: "mtd.updated"; record: MTDRecord };
 
 function authHeaderFromStorage(): string {
@@ -85,6 +86,10 @@ export async function subscribeBoardStream(
           type: "order.updated",
           order: transformOrder(parsed.order as BackendOrder),
         });
+        return;
+      }
+      if (name === "order.deleted" && typeof parsed.id === "string") {
+        onEvent({ type: "order.deleted", id: parsed.id });
         return;
       }
       if (name === "mtd.updated" && parsed.mtd) {

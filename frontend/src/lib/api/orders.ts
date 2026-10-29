@@ -1,4 +1,5 @@
 import { apiClient } from "./client";
+import { fetchAllListPages } from "./pagination";
 import { parseDanceSongCovers } from "@/lib/dance-song-covers";
 import type { Order, OrderFormType, CheerFormSubtype, DanceFormSubtype } from "@/types";
 
@@ -351,7 +352,10 @@ export function transformOrder(bo: BackendOrder): Order {
 }
 
 export async function fetchOrdersApi(): Promise<{ activeOrders: Order[]; pastOrders: Order[] }> {
-  const backendOrders = await apiClient.get<BackendOrder[]>("/api/orders");
+  const backendOrders = await fetchAllListPages<BackendOrder>(
+    "/api/orders",
+    "orders"
+  );
   const activeOrders: Order[] = [];
   const pastOrders: Order[] = [];
 
@@ -767,4 +771,16 @@ export async function updateOrderApi(
     // Never fake success — callers must handle failure or the UI lies.
     throw err;
   }
+}
+
+/**
+ * Permanently delete an order (and linked MTD / payroll rows on the server).
+ * `allowMissing` follows Google AIP-135: already-absent → 204 no-op instead of 404.
+ */
+export async function deleteOrderApi(
+  id: string,
+  options?: { allowMissing?: boolean }
+): Promise<void> {
+  const qs = options?.allowMissing ? "?allow_missing=true" : "";
+  await apiClient.delete(`/api/orders/${id}${qs}`);
 }

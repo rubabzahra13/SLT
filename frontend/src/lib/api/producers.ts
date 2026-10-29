@@ -1,4 +1,5 @@
 import { apiClient, ApiClientError, API_BASE_URL } from "./client";
+import { fetchAllListPages } from "./pagination";
 import type { Producer, ProducerCompensationModel } from "@/types";
 import { normalizeProducer } from "@/lib/producers";
 
@@ -73,7 +74,10 @@ export function transformProducer(bp: BackendProducer): Producer {
 }
 
 export async function fetchProducersApi(): Promise<Producer[]> {
-  const backendProducers = await apiClient.get<BackendProducer[]>("/api/producers");
+  const backendProducers = await fetchAllListPages<BackendProducer>(
+    "/api/producers",
+    "producers"
+  );
   return backendProducers.map(transformProducer);
 }
 
@@ -193,16 +197,13 @@ export async function updateProducerApi(
   }
 }
 
-export async function deleteProducerApi(id: string, apiId?: string): Promise<void> {
-  try {
-    await apiClient.delete(`/api/producers/${apiId || id}`);
-  } catch (err) {
-    if (err instanceof ApiClientError && err.status === 404) {
-      // Producer is already deleted/missing on backend DB; complete deletion gracefully
-      return;
-    }
-    throw err;
-  }
+export async function deleteProducerApi(
+  id: string,
+  apiId?: string,
+  options?: { allowMissing?: boolean }
+): Promise<void> {
+  const qs = options?.allowMissing !== false ? "?allow_missing=true" : "";
+  await apiClient.delete(`/api/producers/${apiId || id}${qs}`);
 }
 
 export type ProducerStreamEvent =

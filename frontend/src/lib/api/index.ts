@@ -11,4 +11,5 @@ export * from "./bootstrap";
 export * from "./catalog-pricing";
 export * from "./pricing-rules";
 export * from "./music-affiliates";
+export * from "./pagination";
 

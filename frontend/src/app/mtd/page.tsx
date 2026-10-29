@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Lock, Pencil } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -236,7 +236,6 @@ function MTDPageContent() {
   }, []);
 
   const router = useRouter();
-  const pathname = usePathname();
   const searchParams = useSearchParams();
   const assignedParam = searchParams.get("assigned");
   const scheduleParam = searchParams.get("schedule");
@@ -393,18 +392,9 @@ function MTDPageContent() {
     (rec: MTDRecord, e: React.MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      const assigned = Boolean(rec.assignedProducer?.trim());
-      if (isViewOnly || assigned) {
-        setAssignRecordId(rec.id);
-        return;
-      }
-      const query = searchParams.toString();
-      const returnTo = query ? `${pathname}?${query}` : pathname;
-      router.push(
-        `/mtd/${rec.id}/assign?return=${encodeURIComponent(returnTo)}`
-      );
+      setAssignRecordId(rec.id);
     },
-    [isViewOnly, pathname, router, searchParams]
+    []
   );
 
   const handleMoveToOrders = useCallback(

@@ -1,4 +1,5 @@
 import { apiClient } from "./client";
+import { fetchAllListPages } from "./pagination";
 import type { MTDRecord, PriceCompliance, EditorRequest, MTDRecordStatus, Order } from "@/types";
 import { transformOrder, type BackendOrder } from "./orders";
 
@@ -106,7 +107,7 @@ export function transformMTDRecord(bm: BackendMTDRecord): MTDRecord {
 }
 
 export async function fetchMTDRecordsApi(): Promise<MTDRecord[]> {
-  const backendMtd = await apiClient.get<BackendMTDRecord[]>("/api/mtd");
+  const backendMtd = await fetchAllListPages<BackendMTDRecord>("/api/mtd", "mtd");
   return backendMtd.map(transformMTDRecord);
 }
 
@@ -197,8 +198,12 @@ export async function updateMTDRecordApi(
   }
 }
 
-export async function deleteMTDRecordApi(id: string): Promise<void> {
-  await apiClient.delete(`/api/mtd/${id}`);
+export async function deleteMTDRecordApi(
+  id: string,
+  options?: { allowMissing?: boolean }
+): Promise<void> {
+  const qs = options?.allowMissing !== false ? "?allow_missing=true" : "";
+  await apiClient.delete(`/api/mtd/${id}${qs}`);
 }
 
 export interface CreateManualSchedulePayload {

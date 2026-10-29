@@ -79,8 +79,12 @@ export async function updateStudioPersonalReasonApi(
   return transformStudioPersonalReason(res);
 }
 
-export async function deleteStudioPersonalReasonApi(id: string): Promise<void> {
-  await apiClient.delete(`/api/studio-personal-reasons/${id}`);
+export async function deleteStudioPersonalReasonApi(
+  id: string,
+  options?: { allowMissing?: boolean }
+): Promise<void> {
+  const qs = options?.allowMissing !== false ? "?allow_missing=true" : "";
+  await apiClient.delete(`/api/studio-personal-reasons/${id}${qs}`);
 }
 
 export async function fetchEmailTemplatesApi(): Promise<EmailTemplatesState | null> {

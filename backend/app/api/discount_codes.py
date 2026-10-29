@@ -2,11 +2,14 @@ import uuid
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
+from pydantic import BaseModel
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from app.api.auth import require_full_access
 from app.core.database import get_db
+from app.lib.delete_norm import allow_missing_query, missing_or_found
+from app.lib.pagination import page_size_query, page_token_query, paginate_query
 from app.models.discount_code import DiscountCode
 from app.schemas.discount_code import (
     DiscountCodeCreateSchema,
@@ -15,6 +18,11 @@ from app.schemas.discount_code import (
 )
 
 router = APIRouter()
+
+
+class DiscountCodeListResponse(BaseModel):
+    discount_codes: list[DiscountCodeSchema]
+    next_page_token: str | None = None
 
 
 def get_discount_code_by_id_or_code(db: Session, code_id: str) -> Optional[DiscountCode]:
@@ -38,9 +46,21 @@ def get_discount_code_by_id_or_code(db: Session, code_id: str) -> Optional[Disco
     )
 
 
-@router.get("/discount-codes", response_model=List[DiscountCodeSchema])
-def get_discount_codes(db: Session = Depends(get_db)):
-    return db.query(DiscountCode).order_by(DiscountCode.code.asc()).all()
+@router.get("/discount-codes", response_model=DiscountCodeListResponse)
+def get_discount_codes(
+    page_size: int = Depends(page_size_query),
+    page_token: str | None = Depends(page_token_query),
+    db: Session = Depends(get_db),
+):
+    query = db.query(DiscountCode).order_by(
+        DiscountCode.code.asc(), DiscountCode.id.asc()
+    )
+    page, next_token = paginate_query(
+        query, page_size=page_size, page_token=page_token
+    )
+    return DiscountCodeListResponse(
+        discount_codes=page, next_page_token=next_token
+    )
 
 
 @router.post(
@@ -103,10 +123,12 @@ def delete_discount_code(
     code_id: str,
     db: Session = Depends(get_db),
     _: None = Depends(require_full_access),
+    allow_missing: bool = Depends(allow_missing_query),
 ):
     dc = get_discount_code_by_id_or_code(db, code_id)
-    if not dc:
-        # Idempotent: already gone (or optimistic UI raced a prior delete).
+    if missing_or_found(
+        dc, allow_missing=allow_missing, detail="Coupon code not found"
+    ):
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     try:
         db.delete(dc)
@@ -116,7 +138,9 @@ def delete_discount_code(
         # against a fresh connection state.
         db.rollback()
         dc = get_discount_code_by_id_or_code(db, code_id)
-        if not dc:
+        if missing_or_found(
+            dc, allow_missing=True, detail="Coupon code not found"
+        ):
             return Response(status_code=status.HTTP_204_NO_CONTENT)
         db.delete(dc)
         db.commit()

@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.api.auth import require_full_access
 from app.core.database import get_db
+from app.lib.delete_norm import allow_missing_query, missing_or_found
 from app.models.studio_settings import (
     EmailTemplate,
     StudioHoliday,
@@ -190,10 +191,13 @@ def delete_studio_holiday(
     holiday_id: str,
     db: Session = Depends(get_db),
     _: None = Depends(require_full_access),
+    allow_missing: bool = Depends(allow_missing_query),
 ):
     row = _find_holiday(db, holiday_id)
-    if not row:
-        raise HTTPException(status_code=404, detail="Holiday not found")
+    if missing_or_found(
+        row, allow_missing=allow_missing, detail="Holiday not found"
+    ):
+        return None
     db.delete(row)
     db.commit()
     return None
@@ -264,10 +268,13 @@ def delete_studio_personal_reason(
     reason_id: str,
     db: Session = Depends(get_db),
     _: None = Depends(require_full_access),
+    allow_missing: bool = Depends(allow_missing_query),
 ):
     row = _find_reason(db, reason_id)
-    if not row:
-        raise HTTPException(status_code=404, detail="Personal reason not found")
+    if missing_or_found(
+        row, allow_missing=allow_missing, detail="Personal reason not found"
+    ):
+        return None
     if row.is_other:
         raise HTTPException(status_code=400, detail="Cannot delete the Other reason")
     db.delete(row)

@@ -1,11 +1,14 @@
 import uuid
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 from app.core.database import get_db
 from app.models.mtd_record import MTDRecord
 from app.models.order import Order
+from app.lib.delete_norm import allow_missing_query, missing_or_found
+from app.lib.pagination import page_size_query, page_token_query, paginate_query
 from app.lib.producer_assignment import (
     canonical_producer_assignment_key,
     resolve_producer_by_assignment_key,
@@ -31,6 +34,11 @@ from app.services.mtd_identity import (
     strip_order_sot_from_mtd_payload,
 )
 from app.api.auth import require_full_access
+
+
+class MtdListResponse(BaseModel):
+    mtd: list[MTDRecordSchema]
+    next_page_token: str | None = None
 
 router = APIRouter()
 
@@ -96,15 +104,19 @@ def _pop_order_sot_updates(data: dict) -> tuple[dict, dict, dict]:
     return identity, assignment, collection
 
 
-@router.get("/mtd", response_model=List[MTDRecordSchema])
+@router.get("/mtd", response_model=MtdListResponse)
 def get_mtd_records(
     form_type: str | None = None,
     cheer_form_subtype: str | None = None,
     category: str | None = None,
     status: str | None = None,
+    page_size: int = Depends(page_size_query),
+    page_token: str | None = Depends(page_token_query),
     db: Session = Depends(get_db)
 ):
-    query = db.query(MTDRecord).options(*_mtd_load_options())
+    query = db.query(MTDRecord).options(*_mtd_load_options()).order_by(
+        MTDRecord.created_at.desc(), MTDRecord.id.asc()
+    )
     needs_order_join = bool(
         (cheer_form_subtype and cheer_form_subtype != "all")
         or form_type
@@ -122,10 +134,16 @@ def get_mtd_records(
             query = query.filter(Order.form_type.in_(form_types))
         else:
             # Unknown label — empty result rather than scanning denorm column.
-            return []
+            return MtdListResponse(mtd=[], next_page_token=None)
     if status:
         query = query.filter(MTDRecord.status == status)
-    return [_serialize_mtd(row) for row in query.all()]
+    page, next_token = paginate_query(
+        query, page_size=page_size, page_token=page_token
+    )
+    return MtdListResponse(
+        mtd=[_serialize_mtd(row) for row in page],
+        next_page_token=next_token,
+    )
 
 
 @router.get("/mtd/{mtd_id}", response_model=MTDRecordSchema)
@@ -283,15 +301,16 @@ def delete_mtd_record(
     mtd_id: str,
     db: Session = Depends(get_db),
     _: None = Depends(require_full_access),
+    allow_missing: bool = Depends(allow_missing_query),
 ):
     """Permanently delete an archived payroll mix (and its linked order)."""
     from app.models.payroll_addon import PayrollAddon
 
     mtd = _find_mtd(db, mtd_id)
-    if not mtd:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="MTD Record not found"
-        )
+    if missing_or_found(
+        mtd, allow_missing=allow_missing, detail="MTD Record not found"
+    ):
+        return None
 
     order_id = mtd.order_id
     db.query(PayrollAddon).filter(PayrollAddon.mtd_id == mtd.id).delete(

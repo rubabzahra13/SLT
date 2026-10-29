@@ -4,6 +4,7 @@ import {
   type OrderDetailField,
 } from "@/lib/order-detail-sections";
 import { hasMeaningfulFieldValue } from "@/lib/empty-field-tokens";
+import { isAddOrderPrefillValue } from "@/lib/order-form-missing";
 import type { Order } from "@/types";
 
 /** Admin Add New Order: up to this many mixes in one Mix Information section. */
@@ -184,15 +185,13 @@ export function applyMixFieldValues(
 
 function mixHasMeaningfulContent(
   mix: Partial<Order>,
-  mixKeys: string[]
+  mixKeys: string[],
+  order: Order
 ): boolean {
   for (const key of mixKeys) {
     if (ADD_ORDER_NON_CONTENT_KEYS.has(key)) continue;
     const raw = String((mix as Record<string, unknown>)[key] ?? "").trim();
-    if (key === "requestedEditor") {
-      const norm = raw.toLowerCase();
-      if (!raw || norm === "first available" || norm === "fa") continue;
-    }
+    if (isAddOrderPrefillValue(key, raw, order)) continue;
     if (hasMeaningfulFieldValue(raw, { fieldKey: key })) return true;
   }
   return false;
@@ -200,7 +199,7 @@ function mixHasMeaningfulContent(
 
 /**
  * Add New Order content rule across shared fields + any mix slot:
- * at least one meaningful field (not coupon / how-found alone).
+ * at least one user-entered field (not coupon / how-found / draft dropdown defaults).
  */
 export function addOrderDraftHasContent(
   order: Order,
@@ -214,11 +213,12 @@ export function addOrderDraftHasContent(
       if (mixKeySet.has(field.key)) continue;
       if (ADD_ORDER_NON_CONTENT_KEYS.has(field.key)) continue;
       const raw = rawFieldValue(shared, field.key);
+      if (isAddOrderPrefillValue(field.key, raw, order)) continue;
       if (hasMeaningfulFieldValue(raw, { fieldKey: field.key })) return true;
     }
   }
   for (const mix of mixes) {
-    if (mixHasMeaningfulContent(mix, mixKeys)) return true;
+    if (mixHasMeaningfulContent(mix, mixKeys, order)) return true;
   }
   return false;
 }
