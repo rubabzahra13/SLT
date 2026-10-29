@@ -86,19 +86,10 @@ def _seed_producers(session: Session) -> None:
             "email": "casey@soundslikethat.com",
             "categories": ["All-Star Cheer"],
             "compensation_model": "percentage_of_payroll_base",
-            "default_rate": None,
+            # No rates_by_category — frontend CM dual-rate path is UI-only.
             "rates_by_category": None,
-            "rate_overrides": {
-                "old_pricing": 0.72,
-                "new_pricing": 0.70,
-                "dance_voiceover": 0.80,
-                "cheer_voiceover": 1.0,
-            },
-            "manual_input_fields": [
-                {"label": "100% Manual Field 1 (rush)", "rate_or_null": 1.0},
-                {"label": "Cheer Song Reimbursement", "rate_or_null": None},
-            ],
-            "notes": "No trigger for old vs new pricing.",
+            "dance_voiceover_rate": Decimal("0.80"),
+            "cheer_voiceover_rate": Decimal("1.0"),
         },
         {
             "initials": "MM",
@@ -106,7 +97,6 @@ def _seed_producers(session: Session) -> None:
             "email": "mark@soundslikethat.com",
             "categories": ["Pom", "Jazz / Kick", "Hip Hop"],
             "compensation_model": "percentage_of_payroll_base",
-            "default_rate": None,
             "rates_by_category": {
                 "jazz-kick": 0.72,
                 "pom": 0.72,
@@ -116,9 +106,6 @@ def _seed_producers(session: Session) -> None:
                 "school-cheer": 0.60,
                 "youth-rec-cheer": 0.60,
             },
-            "rate_overrides": None,
-            "manual_input_fields": None,
-            "notes": "72% dance; 60% cheer.",
         },
         {
             "initials": "R",
@@ -126,11 +113,7 @@ def _seed_producers(session: Session) -> None:
             "email": "riley@soundslikethat.com",
             "categories": ["All-Star Cheer"],
             "compensation_model": None,  # intentionally no rule
-            "default_rate": None,
             "rates_by_category": None,
-            "rate_overrides": None,
-            "manual_input_fields": None,
-            "notes": "No compensation rule on file.",
         },
         {
             "initials": "G",
@@ -138,11 +121,7 @@ def _seed_producers(session: Session) -> None:
             "email": "griffin@soundslikethat.com",
             "categories": ["All-Star Cheer"],
             "compensation_model": "hourly_manual",
-            "default_rate": None,
             "rates_by_category": None,
-            "rate_overrides": None,
-            "manual_input_fields": None,
-            "notes": "Hourly.",
         },
         {
             "initials": "SS",
@@ -150,11 +129,7 @@ def _seed_producers(session: Session) -> None:
             "email": "steve@soundslikethat.com",
             "categories": ["Hip Hop"],
             "compensation_model": "not_paid_for_mixing",
-            "default_rate": None,
             "rates_by_category": None,
-            "rate_overrides": None,
-            "manual_input_fields": None,
-            "notes": "Not paid for mixing.",
         },
         {
             "initials": "MS",
@@ -162,11 +137,7 @@ def _seed_producers(session: Session) -> None:
             "email": "matt@soundslikethat.com",
             "categories": ["All-Star Cheer"],
             "compensation_model": "percentage_of_payroll_base",
-            "default_rate": 0.60,
-            "rates_by_category": None,
-            "rate_overrides": None,
-            "manual_input_fields": None,
-            "notes": None,
+            "rates_by_category": {"all-star-cheer": 0.60},
         },
     ]
 
@@ -182,9 +153,7 @@ def _seed_producers(session: Session) -> None:
                 work_days=["mon", "tue", "wed", "thu", "fri"],
                 extra_days=[],
                 compensation_model=p["compensation_model"],
-                default_rate=Decimal(str(p["default_rate"])) if p["default_rate"] is not None else None,
                 rates_by_category=p["rates_by_category"],
-                rate_overrides=p["rate_overrides"],
-                manual_input_fields=p["manual_input_fields"],
-                notes=p["notes"],
+                dance_voiceover_rate=p.get("dance_voiceover_rate"),
+                cheer_voiceover_rate=p.get("cheer_voiceover_rate"),
             ))

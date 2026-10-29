@@ -133,6 +133,10 @@ type ExtraDayMixConflict = {
   bookings: ProducerMixDayBooking[];
 };
 
+type PendingChipRemoval =
+  | { kind: "extra-day"; iso: string }
+  | { kind: "off-day"; keys: string[]; label: string; reason: string };
+
 /** OT dates that would be dropped if these work days became active. */
 function extraDatesBlockedByWorkDays(
   extraDays: string[],
@@ -509,6 +513,10 @@ export function ProducerAvailabilityModal({
     useState<WorkDayMixConflict | null>(null);
   const [extraDayMixConflict, setExtraDayMixConflict] =
     useState<ExtraDayMixConflict | null>(null);
+  const [pendingChipRemoval, setPendingChipRemoval] =
+    useState<PendingChipRemoval | null>(null);
+  /** Blocks Remove until the opening click cannot hit the new dialog. */
+  const [chipRemovalArmed, setChipRemovalArmed] = useState(false);
   const [extraDayPickerOpen, setExtraDayPickerOpen] = useState(false);
   const [timeOffDateField, setTimeOffDateField] = useState<"start" | "end" | null>(
     null
@@ -580,6 +588,8 @@ export function ProducerAvailabilityModal({
     setWorkDayLeaveConflict(null);
     setWorkDayMixConflict(null);
     setExtraDayMixConflict(null);
+    setPendingChipRemoval(null);
+    setChipRemovalArmed(false);
     setExtraDayPickerOpen(false);
     setTimeOffDraft(createEmptyTimeOffDraft());
     setOffWorkDetail("");
@@ -595,6 +605,16 @@ export function ProducerAvailabilityModal({
       setTimeOffMultiDay(false);
     }
   }, [activeTab]);
+
+  useEffect(() => {
+    if (!pendingChipRemoval) {
+      setChipRemovalArmed(false);
+      return;
+    }
+    setChipRemovalArmed(false);
+    const timer = window.setTimeout(() => setChipRemovalArmed(true), 350);
+    return () => window.clearTimeout(timer);
+  }, [pendingChipRemoval]);
 
   if (!open || !producer) return null;
 
@@ -1027,8 +1047,12 @@ export function ProducerAvailabilityModal({
       ...entry,
       key: `${pendingEntry.key}-${entry.startDate}-${index}`,
     }));
-    setTimeOff((prev) => [...prev, ...splitEntries]);
+    const nextTimeOff = [...timeOff, ...splitEntries];
+    setTimeOff(nextTimeOff);
     closeTimeOffForm();
+    // Persist immediately so Schedule (and other views) see the off day
+    // without waiting for the modal Save button.
+    persistAvailabilityPatch(buildAvailabilityPatch(nextTimeOff, extraDays));
   }
 
   function toggleConflictCancel(producerId: string) {
@@ -1058,7 +1082,7 @@ export function ProducerAvailabilityModal({
       pendingEntry.startDate,
       pendingEntry.endDate
     );
-    setExtraDays((prev) => prev.filter((day) => !removeOt.includes(day)));
+    const nextExtra = extraDays.filter((day) => !removeOt.includes(day));
     const splitEntries = splitTimeOffToWorkDayRanges(
       [pendingEntry],
       workDays
@@ -1066,14 +1090,21 @@ export function ProducerAvailabilityModal({
       ...entry,
       key: `${pendingEntry.key}-${entry.startDate}-${index}`,
     }));
-    setTimeOff((prev) => [...prev, ...splitEntries]);
+    const nextTimeOff = [...timeOff, ...splitEntries];
+    setExtraDays(nextExtra);
+    setTimeOff(nextTimeOff);
     closeTimeOffForm();
     clearTimeOffNotice();
+    persistAvailabilityPatch(buildAvailabilityPatch(nextTimeOff, nextExtra));
   }
 
-  function removeTimeOff(keys: string | string[]) {
-    const remove = new Set(Array.isArray(keys) ? keys : [keys]);
-    setTimeOff((prev) => prev.filter((entry) => !remove.has(entry.key)));
+  function requestRemoveTimeOff(
+    keys: string[],
+    label: string,
+    reason: string
+  ) {
+    if (readOnly) return;
+    setPendingChipRemoval({ kind: "off-day", keys, label, reason });
   }
 
   function addExtraDay(iso: string) {
@@ -1086,25 +1117,65 @@ export function ProducerAvailabilityModal({
     const [y, m, d] = value.split("-").map(Number);
     const date = new Date(y, m - 1, d);
     if (!isEligibleExtraDate(date, workDays)) return;
-    setExtraDays((prev) =>
-      [...new Set([...prev, value])].sort((a, b) => a.localeCompare(b))
+    const nextExtra = [...new Set([...extraDays, value])].sort((a, b) =>
+      a.localeCompare(b)
     );
+    setExtraDays(nextExtra);
     setExtraDayPickerOpen(false);
+    // Persist immediately so Schedule reflects the Extra day right away.
+    persistAvailabilityPatch(buildAvailabilityPatch(timeOff, nextExtra));
   }
 
-  function removeExtraDay(iso: string) {
-    if (!producer) return;
-    const bookings = findLeaveMixConflicts(
-      producer,
-      iso,
-      iso,
-      assignedMixRecords
-    );
-    if (bookings.length > 0) {
-      setExtraDayMixConflict({ iso, bookings });
+  function requestRemoveExtraDay(iso: string) {
+    if (readOnly) return;
+    setPendingChipRemoval({ kind: "extra-day", iso });
+  }
+
+  function clearPendingChipRemoval() {
+    setPendingChipRemoval(null);
+    setChipRemovalArmed(false);
+  }
+
+  function persistAvailabilityPatch(patch: AvailabilityPatch) {
+    try {
+      void Promise.resolve(onSave(patch)).catch(() => {
+        // Toast + rollback come from updateProducer.
+      });
+    } catch {
+      // Parent threw synchronously; leave local state as-is for retry via Save.
+    }
+  }
+
+  function confirmPendingChipRemoval() {
+    if (!pendingChipRemoval || !producer || readOnly || !chipRemovalArmed) {
       return;
     }
-    setExtraDays((prev) => prev.filter((day) => day !== iso));
+    const pending = pendingChipRemoval;
+    setPendingChipRemoval(null);
+    setChipRemovalArmed(false);
+
+    if (pending.kind === "extra-day") {
+      const { iso } = pending;
+      const bookings = findLeaveMixConflicts(
+        producer,
+        iso,
+        iso,
+        assignedMixRecords
+      );
+      if (bookings.length > 0) {
+        setExtraDayMixConflict({ iso, bookings });
+        return;
+      }
+      const nextExtra = extraDays.filter((day) => day !== iso);
+      setExtraDays(nextExtra);
+      persistAvailabilityPatch(buildAvailabilityPatch(timeOff, nextExtra));
+      return;
+    }
+
+    const remove = new Set(pending.keys);
+    const nextTimeOff = timeOff.filter((entry) => !remove.has(entry.key));
+    setTimeOff(nextTimeOff);
+    persistAvailabilityPatch(buildAvailabilityPatch(nextTimeOff, extraDays));
   }
 
   function clearExtraDayMixConflict() {
@@ -1199,7 +1270,8 @@ export function ProducerAvailabilityModal({
   }
 
   function buildAvailabilityPatch(
-    nextTimeOff: DraftTimeOff[] = timeOff
+    nextTimeOff: DraftTimeOff[] = timeOff,
+    nextExtraDays: string[] = extraDays
   ): AvailabilityPatch {
     const parsed = parseInt(maxCostInput, 10);
     const committedMaxCost = hasMaxCostLimit
@@ -1226,7 +1298,7 @@ export function ProducerAvailabilityModal({
       maxProducerCostPerDay: hasMaxCostLimit
         ? Math.max(1, committedMaxCost ?? maxProducerCostPerDay)
         : null,
-      extraDays,
+      extraDays: nextExtraDays,
     };
   }
 
@@ -1664,14 +1736,20 @@ export function ProducerAvailabilityModal({
                   <li key={iso}>
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-blue-soft py-1.5 pl-3 pr-1.5 text-[12px] font-semibold text-brand-blue-deep ring-1 ring-inset ring-brand-blue-muted">
                       {formatExtraDayLabel(iso)}
-                      <button
-                        type="button"
-                        onClick={() => removeExtraDay(iso)}
-                        className="rounded-full p-1 text-brand-blue-deep/70 transition hover:bg-brand-blue-muted hover:text-brand-blue-deep"
-                        aria-label={`Remove extra day ${iso}`}
-                      >
-                        <X className="h-3 w-3" strokeWidth={2.5} />
-                      </button>
+                      {!readOnly ? (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            requestRemoveExtraDay(iso);
+                          }}
+                          className="rounded-full p-1 text-brand-blue-deep/70 transition hover:bg-brand-blue-muted hover:text-brand-blue-deep"
+                          aria-label={`Remove extra day ${iso}`}
+                        >
+                          <X className="h-3 w-3" strokeWidth={2.5} />
+                        </button>
+                      ) : null}
                     </span>
                   </li>
                 ))}
@@ -1723,14 +1801,24 @@ export function ProducerAvailabilityModal({
                             </span>
                           ) : null}
                         </span>
-                        <button
-                          type="button"
-                          onClick={() => removeTimeOff(chip.keys)}
-                          className="mt-0.5 shrink-0 rounded-full p-1 text-brand-blue-deep/70 transition hover:bg-brand-blue-muted hover:text-brand-blue-deep"
-                          aria-label={`Remove ${chip.label} (${chip.reason})`}
-                        >
-                          <X className="h-3 w-3" strokeWidth={2.5} />
-                        </button>
+                        {!readOnly ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              requestRemoveTimeOff(
+                                chip.keys,
+                                chip.label,
+                                chip.reason
+                              );
+                            }}
+                            className="mt-0.5 shrink-0 rounded-full p-1 text-brand-blue-deep/70 transition hover:bg-brand-blue-muted hover:text-brand-blue-deep"
+                            aria-label={`Remove ${chip.label} (${chip.reason})`}
+                          >
+                            <X className="h-3 w-3" strokeWidth={2.5} />
+                          </button>
+                        ) : null}
                       </span>
                     </li>
                   ))}
@@ -2507,6 +2595,87 @@ export function ProducerAvailabilityModal({
           </div>
         </div>
       ) : null}
+
+      {pendingChipRemoval
+        ? createPortal(
+            <div
+              className={clsx(
+                "fixed inset-0 z-[200] flex items-center justify-center p-4",
+                !chipRemovalArmed && "pointer-events-none"
+              )}
+            >
+              <button
+                type="button"
+                className="absolute inset-0 bg-brand-scrim/80"
+                aria-label="Close"
+                disabled={!chipRemovalArmed}
+                onClick={clearPendingChipRemoval}
+              />
+              <div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="pending-chip-removal-title"
+                className="relative flex max-h-[min(92dvh,640px)] w-full max-w-[360px] flex-col overflow-hidden rounded-[22px] bg-brand-elevated shadow-[0_24px_80px_rgba(0,0,0,0.28)]"
+              >
+                <div className="shrink-0 px-6 pb-4 pt-7">
+                  <h2
+                    id="pending-chip-removal-title"
+                    className="text-center text-[17px] font-semibold tracking-[-0.02em] text-brand-ink"
+                  >
+                    {pendingChipRemoval.kind === "extra-day"
+                      ? "Remove extra day?"
+                      : "Remove off day?"}
+                  </h2>
+                  <p className="mt-3 text-center text-[13px] leading-relaxed text-brand-ink-secondary">
+                    {pendingChipRemoval.kind === "extra-day" ? (
+                      <>
+                        This removes{" "}
+                        <span className="font-semibold text-brand-ink">
+                          {formatExtraDayLabel(pendingChipRemoval.iso)}
+                        </span>{" "}
+                        from {producer.name}&apos;s schedule.
+                      </>
+                    ) : (
+                      <>
+                        This removes{" "}
+                        <span className="font-semibold text-brand-ink">
+                          {pendingChipRemoval.label}
+                          {pendingChipRemoval.reason.trim()
+                            ? ` · ${pendingChipRemoval.reason.trim()}`
+                            : ""}
+                        </span>{" "}
+                        from {producer.name}&apos;s schedule.
+                      </>
+                    )}
+                  </p>
+                </div>
+                <div className="shrink-0 border-t border-black/[0.08]">
+                  <div className="flex flex-col">
+                    <button
+                      type="button"
+                      disabled={!chipRemovalArmed}
+                      onClick={confirmPendingChipRemoval}
+                      className="border-b border-black/[0.08] py-3.5 text-[15px] font-semibold text-brand-blue transition hover:bg-brand-blue-soft/40 disabled:opacity-50"
+                    >
+                      {pendingChipRemoval.kind === "extra-day"
+                        ? "Remove extra day"
+                        : "Remove off day"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!chipRemovalArmed}
+                      onClick={clearPendingChipRemoval}
+                      className="py-3.5 text-[15px] font-medium text-brand-ink transition hover:bg-brand-bg disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
 
       {workDayExtraConflict
         ? createPortal(

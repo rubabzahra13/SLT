@@ -16,6 +16,7 @@ import {
   miscAdjustmentAmount,
 } from "@/lib/misc-payroll-adjustment";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { ReturnNavBanner } from "@/components/layout/ReturnNavBanner";
 import { MTDPageToolbar } from "@/components/mtd/MTDPageToolbar";
 import type { MTDViewOrder } from "@/components/mtd/MTDViewOrderToggle";
 import { OrderFormFilters } from "@/components/orders/OrderFormFilters";
@@ -1557,6 +1558,7 @@ export default function PayrollPage() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <ReturnNavBanner />
       <PageHeader
         compact
         title="Payroll"

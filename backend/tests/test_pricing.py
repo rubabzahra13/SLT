@@ -425,7 +425,8 @@ class TestMissingAffiliate:
 
 class TestCaseyAmbiguity:
 
-    def test_casey_returns_both_rates(self, db):
+    def test_casey_without_category_rate_needs_manual_review(self, db):
+        # rate_overrides column removed — dual old/new rates are UI-only for CM.
         bd = calculate_pricing(
             db=db,
             form_type="school-all-star-cheer",
@@ -440,11 +441,8 @@ class TestCaseyAmbiguity:
             pricing_breakdown=bd,
             final_customer_price=bd.system_calculated_customer_price,
         )
-        assert comp.old_new_trigger_unconfirmed is True
-        assert comp.old_pricing_payout is not None
-        assert comp.new_pricing_payout is not None
-        assert comp.old_pricing_payout != comp.new_pricing_payout
-        # producer_payout should be None until Megan selects
+        assert comp.status == "needs_manual_review"
+        assert comp.rate_source == "no_rate_configured"
         assert comp.producer_payout is None
 
     def test_casey_override_rate_bypasses_ambiguity(self, db):

@@ -276,31 +276,19 @@ export function normalizeProducer(raw: Partial<Producer> & { id: string }): Prod
           ].sort()
         : [],
     compensationModel: raw.compensationModel ?? null,
-    defaultRate: normalizeFractionRate(raw.defaultRate),
     ratesByCategory,
     danceVoiceoverRate:
       raw.danceVoiceoverRate !== undefined
         ? normalizeFractionRate(raw.danceVoiceoverRate)
-        : initials === "CM"
-        ? 0.8
         : null,
     cheerVoiceoverRate:
       raw.cheerVoiceoverRate !== undefined
         ? normalizeFractionRate(raw.cheerVoiceoverRate)
-        : initials === "CM"
-        ? 1.0
-        : initials === "R"
-        ? 0.6
         : null,
     rushFeeRate:
       raw.rushFeeRate !== undefined
         ? normalizeFractionRate(raw.rushFeeRate)
-        : initials === "CM"
-        ? 1.0
         : null,
-    rateOverrides: raw.rateOverrides ?? null,
-    manualInputFields: raw.manualInputFields ?? null,
-    notes: raw.notes ?? null,
     createdAt: raw.createdAt ?? null,
     updatedAt: raw.updatedAt ?? null,
   };
@@ -378,7 +366,7 @@ export function formatCategoryCompensationRate(
   if (producer.compensationModel === "hourly_manual") return "Hourly";
 
   const rawRate =
-    producer.ratesByCategory?.[category] ?? producer.defaultRate ?? 0.5;
+    producer.ratesByCategory?.[category] ?? 0.5;
   return formatCompensationPercent(rawRate) ?? "0%";
 }
 

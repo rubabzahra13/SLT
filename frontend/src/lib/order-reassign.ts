@@ -116,7 +116,8 @@ export function patchForReassignProducerRemoved(): Partial<MTDRecord> {
   return {
     inMTD: false,
     isReassigned: true,
-    orderStatus: "Reassign: producer deleted",
+    // Must match ORDER_REASSIGN_STATUS.producer_deletion / parseReassignReason.
+    orderStatus: "Reassign: Producer deleted",
     assignedProducer: null,
     editorRequest: "FA",
     mixStartDate: "",

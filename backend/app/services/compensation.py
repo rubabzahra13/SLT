@@ -1,16 +1,13 @@
 """
 compensation.py — Calculates producer payout from a PricingBreakdown.
 
-Supports all compensation_model variants from pricing-rules.json:
+Supports compensation_model variants:
   - percentage_of_payroll_base  (most producers)
-  - hourly_manual               (Griffin, Josh, Joe Bell)
-  - not_paid_for_mixing         (Steve)
-  - null / None                 (Riley — needs_manual_review)
+  - hourly_manual
+  - not_paid_for_mixing
+  - null / None                 → needs_manual_review
 
-Casey-specific:
-  - rate_overrides["old_pricing"] vs ["new_pricing"]: both returned, trigger unconfirmed
-  - rate_overrides["dance_voiceover"] / ["cheer_voiceover"] override on those add-on lines
-  - manual_input_fields: passed through as-is for the UI to render
+Category rates come from rates_by_category.
 """
 from dataclasses import dataclass, field
 from decimal import Decimal
@@ -22,32 +19,25 @@ from app.models.producer import Producer
 from app.services.pricing import PricingBreakdown
 
 
-# ---------------------------------------------------------------------------
-# Result dataclass
-# ---------------------------------------------------------------------------
-
 @dataclass
 class CompensationResult:
     # "computed" | "needs_manual_review" | "hourly_manual" | "not_paid_for_mixing"
     status: str
 
-    # Populated when status == "computed"
     producer_payout: Optional[Decimal]
     rate_used: Optional[Decimal]
-    rate_source: str   # e.g. "default_rate", "rates_by_category[jazz-kick]", "rate_overrides[old_pricing]"
+    rate_source: str
 
-    # Casey old/new pricing ambiguity
     old_pricing_payout: Optional[Decimal] = None
     new_pricing_payout: Optional[Decimal] = None
     old_new_trigger_unconfirmed: bool = False
 
-    # Casey manual input fields (labels + rates, no computed amount)
+    # Kept empty for API shape compatibility with older clients.
     manual_input_fields: List[Dict[str, Any]] = field(default_factory=list)
 
     slt_portion: Optional[Decimal] = None
     final_customer_price: Optional[Decimal] = None
 
-    # Human note for the UI — always present
     flag: str = ""
 
     def to_dict(self) -> Dict[str, Any]:
@@ -65,10 +55,6 @@ class CompensationResult:
             "flag": self.flag,
         }
 
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 def _decimal(val: Any) -> Optional[Decimal]:
     if val is None:
@@ -93,25 +79,17 @@ def _payout(payroll_base: Decimal, rate: Decimal) -> Decimal:
     return (payroll_base * rate).quantize(Decimal("0.01"))
 
 
-def _determine_rate_for_subtype(producer: Producer, subtype_id: Optional[str]) -> tuple[Optional[Decimal], str]:
-    """
-    Returns (rate, rate_source) for percentage_of_payroll_base producers.
-    Looks up rates_by_category first, then falls back to default_rate.
-    """
+def _determine_rate_for_subtype(
+    producer: Producer, subtype_id: Optional[str]
+) -> tuple[Optional[Decimal], str]:
+    """Look up rates_by_category for the order subtype/category."""
     if subtype_id and producer.rates_by_category:
         cat_rate = producer.rates_by_category.get(subtype_id)
         if cat_rate is not None:
             return _fraction_rate(cat_rate), f"rates_by_category[{subtype_id}]"
 
-    if producer.default_rate is not None:
-        return _fraction_rate(producer.default_rate), "default_rate"
-
     return None, "no_rate_configured"
 
-
-# ---------------------------------------------------------------------------
-# Public function
-# ---------------------------------------------------------------------------
 
 def calculate_compensation(
     db: Session,
@@ -144,7 +122,6 @@ def calculate_compensation(
 
     model = producer.compensation_model
 
-    # --- No rule at all (e.g. Riley) ---------------------------------------
     if model is None:
         return CompensationResult(
             status="needs_manual_review",
@@ -153,13 +130,12 @@ def calculate_compensation(
             rate_source="no_compensation_rule",
             slt_portion=None,
             final_customer_price=final_customer_price,
-            flag=producer.notes or (
+            flag=(
                 f"No compensation rule on file for {producer.name}. "
                 "Confirm with Megan before enabling payroll."
             ),
         )
 
-    # --- not_paid_for_mixing (Steve) ----------------------------------------
     if model == "not_paid_for_mixing":
         return CompensationResult(
             status="not_paid_for_mixing",
@@ -174,7 +150,6 @@ def calculate_compensation(
             ),
         )
 
-    # --- hourly_manual (Griffin, Josh, Joe Bell) ----------------------------
     if model == "hourly_manual":
         return CompensationResult(
             status="hourly_manual",
@@ -189,7 +164,6 @@ def calculate_compensation(
             ),
         )
 
-    # --- percentage_of_payroll_base -----------------------------------------
     if model != "percentage_of_payroll_base":
         return CompensationResult(
             status="needs_manual_review",
@@ -204,7 +178,6 @@ def calculate_compensation(
     payroll_base = pricing_breakdown.payroll_base_price or Decimal("0")
     subtype_id = pricing_breakdown.canonical_subtype_id
 
-    # If an override rate was explicitly provided (from finalize-payroll endpoint)
     if overridden_rate is not None:
         rate = _fraction_rate(overridden_rate) or overridden_rate
         rate_source = "manual_override"
@@ -218,76 +191,11 @@ def calculate_compensation(
             slt_portion=slt,
             final_customer_price=final_customer_price,
             flag=f"Rate manually overridden to {float(rate)*100:.1f}%.",
-            manual_input_fields=producer.manual_input_fields or [],
         )
 
-    # Casey-specific: rate_overrides with old/new pricing ambiguity
-    rate_overrides: Dict = producer.rate_overrides or {}
-    is_casey = bool(rate_overrides.get("old_pricing") is not None and rate_overrides.get("new_pricing") is not None)
-
-    # Check if a voiceover add-on drives the rate
-    addon_ids = {a.addon_id for a in pricing_breakdown.addons}
-    has_dance_vo = any("dance_voiceover" in aid for aid in addon_ids)
-    has_cheer_vo = any("cheer_voiceover" in aid for aid in addon_ids)
-
-    if has_dance_vo and "dance_voiceover" in rate_overrides:
-        rate = _fraction_rate(rate_overrides["dance_voiceover"])
-        rate_source = "rate_overrides[dance_voiceover]"
-        payout = _payout(payroll_base, rate)
-        slt = (final_customer_price - payout).quantize(Decimal("0.01"))
-        return CompensationResult(
-            status="computed",
-            producer_payout=payout,
-            rate_used=rate,
-            rate_source=rate_source,
-            slt_portion=slt,
-            final_customer_price=final_customer_price,
-            flag=f"Dance voiceover rate applied: {float(rate)*100:.0f}%.",
-            manual_input_fields=producer.manual_input_fields or [],
-        )
-
-    if has_cheer_vo and "cheer_voiceover" in rate_overrides:
-        rate = _fraction_rate(rate_overrides["cheer_voiceover"])
-        rate_source = "rate_overrides[cheer_voiceover]"
-        payout = _payout(payroll_base, rate)
-        slt = (final_customer_price - payout).quantize(Decimal("0.01"))
-        return CompensationResult(
-            status="computed",
-            producer_payout=payout,
-            rate_used=rate,
-            rate_source=rate_source,
-            slt_portion=slt,
-            final_customer_price=final_customer_price,
-            flag=f"Cheer voiceover rate applied: {float(rate)*100:.0f}%.",
-            manual_input_fields=producer.manual_input_fields or [],
-        )
-
-    # Casey old/new pricing: return BOTH, flag as unconfirmed
-    if is_casey:
-        old_rate = _fraction_rate(rate_overrides["old_pricing"])
-        new_rate = _fraction_rate(rate_overrides["new_pricing"])
-        old_payout = _payout(payroll_base, old_rate)
-        new_payout = _payout(payroll_base, new_rate)
-        return CompensationResult(
-            status="computed",
-            producer_payout=None,   # Megan must choose; neither auto-applied
-            rate_used=None,
-            rate_source="rate_overrides[old_pricing|new_pricing]",
-            old_pricing_payout=old_payout,
-            new_pricing_payout=new_payout,
-            old_new_trigger_unconfirmed=True,
-            slt_portion=None,
-            final_customer_price=final_customer_price,
-            flag=(
-                f"Casey has two rates: Old pricing ({float(old_rate)*100:.0f}%)"
-                f" = ${old_payout:.2f}; New pricing ({float(new_rate)*100:.0f}%)"
-                f" = ${new_payout:.2f}. "
-                "The trigger rule is not confirmed — select the correct one manually."
-            ),
-            manual_input_fields=producer.manual_input_fields or [],
-        )
-
-    # Standard percentage: look up rate by subtype or default
+    # Category % from rates_by_category. Voiceover/rush addon % are applied
+    # separately by the payroll UI (dance_voiceover_rate / cheer_voiceover_rate /
+    # rush_fee_rate) — not as a substitute for the package rate here.
     rate, rate_source = _determine_rate_for_subtype(producer, subtype_id)
 
     if rate is None:
@@ -302,7 +210,6 @@ def calculate_compensation(
                 f"No rate found for {producer.name} "
                 f"(subtype: {subtype_id}). Confirm with Megan."
             ),
-            manual_input_fields=producer.manual_input_fields or [],
         )
 
     payout = _payout(payroll_base, rate)
@@ -316,5 +223,4 @@ def calculate_compensation(
         slt_portion=slt,
         final_customer_price=final_customer_price,
         flag=f"Rate: {float(rate)*100:.1f}% ({rate_source}). Payout: ${payout:.2f}. SLT: ${slt:.2f}.",
-        manual_input_fields=producer.manual_input_fields or [],
     )

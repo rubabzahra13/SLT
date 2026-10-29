@@ -17,7 +17,8 @@ const producers = [
     initials: "BEN",
     email: "ben@example.com",
     categories: ["Cheer"],
-    defaultRate: 0.8,
+    ratesByCategory: { Cheer: 0.8 },
+    compensationModel: "percentage_of_payroll_base",
   },
 ] as unknown as Producer[];
 

@@ -20,14 +20,10 @@ class Producer(Base):
     extra_days = Column(JSON, default=list, nullable=False)
 
     compensation_model = Column(String, nullable=True)
-    default_rate = Column(Numeric(5, 4), nullable=True)
     rates_by_category = Column(JSON, nullable=True)
     dance_voiceover_rate = Column(Numeric(5, 4), nullable=True)
     cheer_voiceover_rate = Column(Numeric(5, 4), nullable=True)
     rush_fee_rate = Column(Numeric(5, 4), nullable=True)
-    rate_overrides = Column(JSON, nullable=True)
-    manual_input_fields = Column(JSON, nullable=True)
-    notes = Column(Text, nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)

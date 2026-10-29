@@ -48,7 +48,7 @@ export const ORDER_ASSIGNMENT_STATUS_LABEL: Record<
 export const ORDER_REASSIGN_STATUS: Record<OrderReassignReason, string> = {
   leave: "Reassign: Off day",
   rush_order: "Reassign: rush order",
-  producer_deletion: "Reassign: Delete producer",
+  producer_deletion: "Reassign: Producer deleted",
   category_removed: "Reassign: Category removed",
 };
 
@@ -58,7 +58,7 @@ export const ORDER_RESELECTION_REASON_LABEL: Record<
 > = {
   leave: "Off day",
   rush_order: "Rush order",
-  producer_deletion: "Delete producer",
+  producer_deletion: "Producer deleted",
   category_removed: "Category removed",
 };
 
@@ -95,8 +95,10 @@ function parseReassignReason(
   }
   if (
     raw.startsWith("reassign: delete producer") ||
+    raw.startsWith("reassign: producer deleted") ||
     raw === "reassign: producer deletion" ||
     raw === "reassign producer deletion" ||
+    raw === "reassign producer deleted" ||
     raw === "producer deletion" ||
     raw === "delete producer" ||
     raw === "deleted producer" ||

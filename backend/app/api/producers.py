@@ -395,7 +395,7 @@ def create_producer(
         data["rates_by_category"] = _rewrite_legacy_general_rates(
             data.get("rates_by_category")
         )
-    for rate_key in ("default_rate", "dance_voiceover_rate", "cheer_voiceover_rate", "rush_fee_rate"):
+    for rate_key in ("dance_voiceover_rate", "cheer_voiceover_rate", "rush_fee_rate"):
         if rate_key in data and data[rate_key] is not None:
             data[rate_key] = _normalize_rate_value(data[rate_key])
 
@@ -464,7 +464,7 @@ def update_producer(
         update_data["rates_by_category"] = _rewrite_legacy_general_rates(
             update_data.get("rates_by_category")
         )
-    for rate_key in ("default_rate", "dance_voiceover_rate", "cheer_voiceover_rate", "rush_fee_rate"):
+    for rate_key in ("dance_voiceover_rate", "cheer_voiceover_rate", "rush_fee_rate"):
         if rate_key in update_data and update_data[rate_key] is not None:
             update_data[rate_key] = _normalize_rate_value(update_data[rate_key])
 
@@ -480,8 +480,6 @@ def update_producer(
         "work_days",
         "extra_days",
         "rates_by_category",
-        "rate_overrides",
-        "manual_input_fields",
     ):
         if json_key in update_data:
             flag_modified(producer, json_key)

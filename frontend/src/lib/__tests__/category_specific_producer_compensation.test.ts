@@ -22,15 +22,11 @@ function makeProducer(overrides: Partial<Producer> = {}): Producer {
     maxProducerCostPerDay: null,
     extraDays: [],
     compensationModel: "percentage_of_payroll_base",
-    defaultRate: 0.50,
     ratesByCategory: {
       "Pom": 0.50,
       "School Cheer": 0.45,
       "Hip Hop": 0.60,
     },
-    rateOverrides: null,
-    manualInputFields: null,
-    notes: null,
     ...overrides,
   });
 }
@@ -176,7 +172,6 @@ describe("Category-Specific Producer Compensation Resolution", () => {
       id: "prod-nc",
       name: "NoConfigProducer",
       initials: "NC",
-      defaultRate: null,
       ratesByCategory: {}, // empty rate config
     });
 

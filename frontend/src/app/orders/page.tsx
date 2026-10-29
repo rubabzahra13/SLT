@@ -12,6 +12,7 @@ import {
 import { ArrowRight, Flag, Link2, Mail, Pencil } from "lucide-react";
 import clsx from "clsx";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { ReturnNavBanner } from "@/components/layout/ReturnNavBanner";
 import { Avatar } from "@/components/ui/Avatar";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import { HoverTip } from "@/components/ui/HoverTip";
@@ -1862,6 +1863,7 @@ function OrdersPageContent() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <ReturnNavBanner />
       <PageHeader
         title="Orders"
         badge={`${filtered.length} of ${typeFilteredPreMtdRecords.length}`}

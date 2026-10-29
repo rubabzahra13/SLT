@@ -129,11 +129,7 @@ def seed_all(db: Session):
                 max_mixes_per_day=p.get("maxMixesPerDay"),
                 extra_days=p.get("extraDays", p.get("overtimeDays", [])),
                 compensation_model=p.get("compensationModel") if p.get("compensationModel") is not None else p.get("compensation_model"),
-                default_rate=p.get("defaultRate") if p.get("defaultRate") is not None else p.get("default_rate"),
                 rates_by_category=p.get("ratesByCategory") if p.get("ratesByCategory") is not None else p.get("rates_by_category"),
-                rate_overrides=p.get("rateOverrides") if p.get("rateOverrides") is not None else p.get("rate_overrides"),
-                manual_input_fields=p.get("manualInputFields") if p.get("manualInputFields") is not None else p.get("manual_input_fields"),
-                notes=p.get("notes"),
             )
             db.add(producer)
             db.flush()
@@ -146,11 +142,7 @@ def seed_all(db: Session):
                 producer.categories = [p["specialty"]]
             producer.avatar = p.get("avatar", producer.avatar)
             producer.compensation_model = p.get("compensationModel") if "compensationModel" in p else p.get("compensation_model", producer.compensation_model)
-            producer.default_rate = p.get("defaultRate") if "defaultRate" in p else p.get("default_rate", producer.default_rate)
             producer.rates_by_category = p.get("ratesByCategory") if "ratesByCategory" in p else p.get("rates_by_category", producer.rates_by_category)
-            producer.rate_overrides = p.get("rateOverrides") if "rateOverrides" in p else p.get("rate_overrides", producer.rate_overrides)
-            producer.manual_input_fields = p.get("manualInputFields") if "manualInputFields" in p else p.get("manual_input_fields", producer.manual_input_fields)
-            producer.notes = p.get("notes") if "notes" in p else producer.notes
 
         producer_initials_map[initials] = producer
 

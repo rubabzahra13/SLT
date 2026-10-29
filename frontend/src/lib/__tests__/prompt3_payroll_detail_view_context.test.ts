@@ -42,7 +42,6 @@ const mockProducer: Producer = normalizeProducer({
   status: "available",
   email: "john@soundslikethat.com",
   compensationModel: "percentage_of_payroll_base",
-  defaultRate: 70,
   cheerVoiceoverRate: 100,
   danceVoiceoverRate: 80,
   rushFeeRate: 100,

@@ -21,7 +21,6 @@ describe("Producer Compensation — Final Payroll Price Basis Unit Tests", () =>
     maxProducerCostPerDay: null,
     extraDays: [],
     compensationModel: "percentage_of_payroll_base",
-    defaultRate: 0.50,
   };
 
   it("Test 1 — Customer Price differs from Payroll Price ($1,000 Customer / $800 Payroll / 50% -> $400 Payout)", () => {
@@ -156,8 +155,6 @@ describe("Producer Compensation — Final Payroll Price Basis Unit Tests", () =>
     const casey: Producer = {
       ...sampleProducer,
       initials: "CM",
-      defaultRate: 0.70,
-      rateOverrides: { old_pricing: 0.72, new_pricing: 0.70 },
     };
 
     const custPrice = 1000;
@@ -206,7 +203,6 @@ describe("Producer Compensation — Final Payroll Price Basis Unit Tests", () =>
     const rory: Producer = {
       ...sampleProducer,
       name: "Rory Fowler",
-      defaultRate: 0.78,
     };
 
     const custPrice = 100;

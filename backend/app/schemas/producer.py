@@ -44,14 +44,10 @@ class ProducerSchema(BaseModel):
     extra_days: List[str] = []
 
     compensation_model: Optional[str] = None
-    default_rate: Optional[float] = None
     rates_by_category: Optional[Dict[str, float]] = None
     dance_voiceover_rate: Optional[float] = None
     cheer_voiceover_rate: Optional[float] = None
     rush_fee_rate: Optional[float] = None
-    rate_overrides: Optional[Dict[str, float]] = None
-    manual_input_fields: Optional[List[Dict[str, Any]]] = None
-    notes: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -70,14 +66,10 @@ class ProducerCreateSchema(BaseModel):
     time_offs: Optional[List[ProducerTimeOffWriteSchema]] = None
 
     compensation_model: Optional[str] = None
-    default_rate: Optional[float] = None
     rates_by_category: Optional[Dict[str, float]] = None
     dance_voiceover_rate: Optional[float] = None
     cheer_voiceover_rate: Optional[float] = None
     rush_fee_rate: Optional[float] = None
-    rate_overrides: Optional[Dict[str, float]] = None
-    manual_input_fields: Optional[List[Dict[str, Any]]] = None
-    notes: Optional[str] = None
 
 class ProducerUpdateSchema(BaseModel):
     name: Optional[str] = None
@@ -93,13 +85,9 @@ class ProducerUpdateSchema(BaseModel):
     time_offs: Optional[List[ProducerTimeOffWriteSchema]] = None
 
     compensation_model: Optional[str] = None
-    default_rate: Optional[float] = None
     rates_by_category: Optional[Dict[str, float]] = None
     dance_voiceover_rate: Optional[float] = None
     cheer_voiceover_rate: Optional[float] = None
     rush_fee_rate: Optional[float] = None
-    rate_overrides: Optional[Dict[str, float]] = None
-    manual_input_fields: Optional[List[Dict[str, Any]]] = None
-    notes: Optional[str] = None
     # Client's last-seen updated_at; when set and server is newer → 409.
     if_match_updated_at: Optional[datetime] = None

@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { CalendarClock, Eye, Mail, Music, Pencil, Plus, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import {
@@ -44,7 +45,11 @@ function formatProducerAddedAt(value?: string | null): string | null {
   return `${day} · ${time}`;
 }
 
-export default function ProducersPage() {
+function ProducersPageContent() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const deleteParam = searchParams.get("delete");
   const {
     producers,
     mtdRecords,
@@ -52,7 +57,9 @@ export default function ProducersPage() {
     addProducer,
     updateProducer,
     updateMTD,
+    updateOrder,
     removeProducer,
+    addAlert,
     isViewOnly,
   } = useAppState();
   const [modalOpen, setModalOpen] = useState(false);
@@ -61,6 +68,8 @@ export default function ProducersPage() {
     useState<Producer | null>(null);
   const [deleting, setDeleting] = useState<Producer | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
+  /** Prevents ?delete= from reopening the modal while the URL is still clearing. */
+  const deleteParamOpenedRef = useRef<string | null>(null);
 
   const assignedMixRecords = useMemo(() => {
     if (!deleting) return [] as AssignedMixForDelete[];
@@ -76,13 +85,23 @@ export default function ProducersPage() {
     return collectUnpaidPayrollMixesForProducer(deleting, mtdRecords);
   }, [deleting, mtdRecords]);
 
+  function clearDeleteQuery() {
+    if (!deleteParam) return;
+    const params = new URLSearchParams(Array.from(searchParams.entries()));
+    params.delete("delete");
+    const qs = params.toString();
+    router.replace(`${pathname}${qs ? `?${qs}` : ""}`, { scroll: false });
+  }
+
   function closeDeleteModal() {
     if (deleteBusy) return;
     setDeleting(null);
+    clearDeleteQuery();
   }
 
   function clearProducerUi(producer: Producer) {
     setDeleting(null);
+    clearDeleteQuery();
     if (editing?.id === producer.id) {
       setModalOpen(false);
       setEditing(null);
@@ -91,6 +110,28 @@ export default function ProducersPage() {
       setAvailabilityProducer(null);
     }
   }
+
+  // Deep-link from MTD/Orders/Payroll "Back to delete producer".
+  useEffect(() => {
+    if (!deleteParam) {
+      deleteParamOpenedRef.current = null;
+      return;
+    }
+    if (deleteParamOpenedRef.current === deleteParam && !deleting) {
+      return;
+    }
+    const match = producers.find(
+      (p) => p.id === deleteParam || p.uuid === deleteParam
+    );
+    if (match) {
+      deleteParamOpenedRef.current = deleteParam;
+      setDeleting(match);
+      return;
+    }
+    clearDeleteQuery();
+    // Intentionally omit clearDeleteQuery from deps — it closes over searchParams.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deleteParam, producers, deleting]);
 
   function openAdd() {
     if (isViewOnly) return;
@@ -127,12 +168,24 @@ export default function ProducersPage() {
 
   async function confirmDelete() {
     if (isViewOnly || !deleting || deleteBusy) return;
-    if (unpaidPayrollMixes.length > 0 || assignedMixRecords.length > 0) return;
+    if (unpaidPayrollMixes.length > 0 || assignedMixRecords.length > 0) {
+      addAlert({
+        tone: "warning",
+        title: "Cannot delete yet",
+        message:
+          unpaidPayrollMixes.length > 0
+            ? "Mark unpaid payroll mixes Paid first."
+            : "Send assigned mixes to Reassign before deleting.",
+      });
+      return;
+    }
     const producer = deleting;
     setDeleteBusy(true);
     try {
       await removeProducer(producer.id);
       clearProducerUi(producer);
+    } catch {
+      // Toast + rollback come from removeProducer.
     } finally {
       setDeleteBusy(false);
     }
@@ -140,16 +193,58 @@ export default function ProducersPage() {
 
   async function handleSendToReassignAndDelete() {
     if (isViewOnly || !deleting || deleteBusy) return;
-    if (unpaidPayrollMixes.length > 0) return;
+    if (unpaidPayrollMixes.length > 0) {
+      addAlert({
+        tone: "warning",
+        title: "Finish payroll first",
+        message: "Mark unpaid payroll mixes Paid, then delete again.",
+      });
+      return;
+    }
+
     const producer = deleting;
+    const mixes = [...assignedMixRecords];
     const patch = patchForReassignProducerRemoved();
+    const mtdIds = new Set(
+      mtdRecords.flatMap((r) =>
+        [r.id, r.orderId, r.uuid, r.legacyId].filter(Boolean)
+      )
+    );
+
     setDeleteBusy(true);
     try {
-      for (const rec of assignedMixRecords) {
-        updateMTD(rec.id, patch);
+      // Await sequentially — parallel updateMTD calls race on shared rollback
+      // snapshots and can wipe each other's optimistic patches.
+      for (const rec of mixes) {
+        if (mtdIds.has(rec.id) || rec.onMtdBoard || rec.inMTD) {
+          await updateMTD(rec.id, patch);
+        } else {
+          await updateOrder(rec.id, {
+            assignedProducer: null,
+            editorRequest: "FA",
+            mixStartDate: "",
+            mixEndDate: "",
+            isReassigned: true,
+            orderStatus: patch.orderStatus,
+            producerEmailSentAt: null,
+            status: "active",
+            collectionStates: patch.collectionStates,
+            haveSongs: patch.haveSongs,
+            eightCountSheet: patch.eightCountSheet,
+          });
+        }
       }
+
       await removeProducer(producer.id);
       clearProducerUi(producer);
+
+      const focusId = mixes[0]?.id;
+      const params = new URLSearchParams();
+      params.set("range", "reassigned");
+      if (focusId) params.set("focus", focusId);
+      router.push(`/orders?${params.toString()}`);
+    } catch {
+      // Toast + rollback come from updateMTD / updateOrder / removeProducer.
     } finally {
       setDeleteBusy(false);
     }
@@ -340,5 +435,19 @@ export default function ProducersPage() {
         busy={deleteBusy}
       />
     </div>
+  );
+}
+
+export default function ProducersPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-6 py-10 text-[13px] text-brand-ink-tertiary lg:px-8">
+          Loading producers…
+        </div>
+      }
+    >
+      <ProducersPageContent />
+    </Suspense>
   );
 }

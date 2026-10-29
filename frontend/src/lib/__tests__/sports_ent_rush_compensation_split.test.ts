@@ -17,7 +17,6 @@ const seProducer = {
   maxProducerCostPerDay: null,
   extraDays: [],
   ratesByCategory: { "Sports Entertainment": 0.55 },
-  defaultRate: 0.5,
   rushFeeRate: 0.4,
   compensationModel: "percentage_of_payroll_base",
 } as Producer;

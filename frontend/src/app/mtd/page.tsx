@@ -4,6 +4,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Lock, Pencil } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { ReturnNavBanner } from "@/components/layout/ReturnNavBanner";
 import { Avatar } from "@/components/ui/Avatar";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import { HoverTip } from "@/components/ui/HoverTip";
@@ -1624,6 +1625,7 @@ function MTDPageContent() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <ReturnNavBanner />
       <PageHeader
         title="Music To Do"
         badge={`${displayedRecords.length} of ${mtdBoardRecords.length}`}

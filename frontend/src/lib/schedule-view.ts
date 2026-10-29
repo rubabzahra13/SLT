@@ -251,22 +251,13 @@ function resolveBookings(
 
   if (status === "available") return [];
 
-  if (status === "off") {
-    return [
-      {
-        work: "Off day",
-        until: formatDisplayDate(date),
-      },
-    ];
-  }
-
-  if (status === "nonwork") {
-    return [
-      {
-        work: "Not working",
-        until: formatDisplayDate(date),
-      },
-    ];
+  // Off / regular-off cells must not invent a placeholder booking — that made
+  // the matrix show "Off: 1 mix" when there was no mix at all. Only attach
+  // real covering assignments (leave vs booking conflict).
+  if (status === "off" || status === "nonwork") {
+    return covering.length > 0
+      ? bookingsFromAssignments(date, covering)
+      : [];
   }
 
   if (covering.length > 0) {

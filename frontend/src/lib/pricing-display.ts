@@ -145,16 +145,6 @@ export function getProducerCategoryRate(
     }
   }
 
-  // Fallback to producer.defaultRate if present
-  if (producer.defaultRate !== undefined && producer.defaultRate !== null) {
-    const raw = producer.defaultRate;
-    return {
-      rate: raw > 1 ? raw / 100 : raw,
-      source: "default_rate",
-      categoryName: categoryName || categoryOrSubtype || "",
-    };
-  }
-
   return {
     rate: null,
     source: "no_rate_configured",
@@ -254,7 +244,7 @@ export function computeClientPayroll(
     Boolean(options?.hasThemedVoiceover);
 
   if (isDance) {
-    const rawDanceVo = producer.danceVoiceoverRate ?? 0.8;
+    const rawDanceVo = producer.danceVoiceoverRate ?? 1.0;
     voiceoverRateUsed = rawDanceVo > 1 ? rawDanceVo / 100 : rawDanceVo;
 
     let voBase = 0;
@@ -295,10 +285,11 @@ export function computeClientPayroll(
   let oldPayout: number | undefined;
   let newPayout: number | undefined;
 
-  if (producer.initials === "CM" || (producer.rateOverrides?.old_pricing && producer.rateOverrides?.new_pricing)) {
+  // Casey (CM): two historical rates — admin must pick one when no rate selected.
+  if (producer.initials === "CM") {
     isCasey = true;
-    const oldRate = producer.rateOverrides?.old_pricing ?? 0.72;
-    const newRate = producer.rateOverrides?.new_pricing ?? 0.70;
+    const oldRate = 0.72;
+    const newRate = 0.7;
     const oldCatPayout = Math.round(basePackagePayrollPrice * oldRate * 100) / 100;
     const newCatPayout = Math.round(basePackagePayrollPrice * newRate * 100) / 100;
     oldPayout = Math.round((oldCatPayout + rushFeePayout + voiceoverPayout) * 100) / 100;

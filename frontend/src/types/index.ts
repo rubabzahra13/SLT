@@ -133,11 +133,6 @@ export type ProducerCompensationModel =
   | "not_paid_for_mixing"
   | null;
 
-export type ProducerManualInputField = {
-  label: string;
-  rate_or_null: number | null;
-};
-
 export type Producer = {
   id: string;
   /** Same as id (UUID); kept for callers that still read uuid. */
@@ -172,14 +167,10 @@ export type Producer = {
   /** One-off extra work days (YYYY-MM-DD), outside regular workDays */
   extraDays: string[];
   compensationModel?: ProducerCompensationModel;
-  defaultRate?: number | null;
   ratesByCategory?: Record<string, number> | null;
   danceVoiceoverRate?: number | null;
   cheerVoiceoverRate?: number | null;
   rushFeeRate?: number | null;
-  rateOverrides?: Record<string, number> | null;
-  manualInputFields?: ProducerManualInputField[] | null;
-  notes?: string | null;
   /** When the producer was first created (ISO timestamp from server). */
   createdAt?: string | null;
   /** Server version for optimistic concurrency / live sync. */

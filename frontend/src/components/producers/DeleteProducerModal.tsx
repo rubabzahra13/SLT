@@ -9,6 +9,10 @@ import {
 import { Avatar } from "@/components/ui/Avatar";
 import { formatDisplayDate, toIsoDateString } from "@/lib/dates";
 import { resolveMTDFormMeta } from "@/lib/mtd-filters";
+import {
+  producersDeleteReturnHref,
+  withReturnParam,
+} from "@/lib/nav-return";
 
 /** @deprecated Prefer AssignedMixForProducer — kept for existing imports. */
 export type AssignedMixForDelete = AssignedMixForProducer;
@@ -36,10 +40,12 @@ function formatMixDateRange(rec: MTDRecord): string {
   return "No dates";
 }
 
-function hrefForAssignedMix(rec: AssignedMixForDelete): string {
-  const focus = encodeURIComponent(rec.id);
+function hrefForAssignedMix(
+  rec: AssignedMixForDelete,
+  returnTo: string | null
+): string {
   if (rec.onMtdBoard) {
-    return `/mtd?focus=${focus}`;
+    return withReturnParam(`/mtd?focus=${encodeURIComponent(rec.id)}`, returnTo);
   }
   const { formType } = resolveMTDFormMeta(rec, new Map());
   const params = new URLSearchParams({
@@ -47,7 +53,7 @@ function hrefForAssignedMix(rec: AssignedMixForDelete): string {
     form: formType,
     range: "assigned",
   });
-  return `/orders?${params.toString()}`;
+  return withReturnParam(`/orders?${params.toString()}`, returnTo);
 }
 
 function MixListItem({
@@ -166,6 +172,7 @@ export function DeleteProducerModal({
   const hasAssignedMixes = assignedMixesCount > 0;
   const needsReassign = !needsPayrollPaid && hasAssignedMixes;
   const showSteps = needsPayrollPaid && hasAssignedMixes;
+  const returnTo = producersDeleteReturnHref(producer.id);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -229,7 +236,10 @@ export function DeleteProducerModal({
                     rec={rec}
                     badge="Payroll"
                     badgeTone="green"
-                    href={`/payroll?focus=${encodeURIComponent(rec.id)}`}
+                    href={withReturnParam(
+                      `/payroll?focus=${encodeURIComponent(rec.id)}`,
+                      returnTo
+                    )}
                     linkLabel="Open in Payroll →"
                   />
                 ))}
@@ -258,7 +268,7 @@ export function DeleteProducerModal({
                     rec={rec}
                     badge={rec.onMtdBoard ? "MTD" : "Orders"}
                     badgeTone={rec.onMtdBoard ? "blue" : "amber"}
-                    href={hrefForAssignedMix(rec)}
+                    href={hrefForAssignedMix(rec, returnTo)}
                     linkLabel={
                       rec.onMtdBoard ? "Open in MTD →" : "Open in Orders →"
                     }

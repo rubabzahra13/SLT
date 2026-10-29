@@ -306,7 +306,10 @@ function ScheduleCellButton({
 
   const bookings = cell.bookings ?? (cell.booking ? [cell.booking] : []);
   const booking = bookings[0] ?? cell.booking;
-  const showCount = bookings.length >= 1 && cell.status !== "nonwork";
+  // Only count real mixes (mixId). Off/nonwork used to invent a placeholder
+  // booking that incorrectly rendered as "1 mix".
+  const realMixes = bookings.filter((b) => Boolean(b.mixId));
+  const showCount = realMixes.length >= 1 && cell.status !== "nonwork";
 
   const wrapWithTooltip = (
     node: React.ReactNode,
@@ -339,17 +342,17 @@ function ScheduleCellButton({
       }}
       aria-label={
         showCount
-          ? `${statusLabel(cell.status)}: ${bookings.length} mix${bookings.length === 1 ? "" : "es"} on ${cell.dayLabel}, ${cell.dateLabel}`
-          : booking
-            ? `${statusLabel(cell.status)}: ${booking.work}, until ${booking.until}`
-            : cell.status === "off" && cell.offDetail
-              ? `${cell.dayLabel} ${cell.dateLabel}, Off, ${cell.offDetail}`
+          ? `${statusLabel(cell.status)}: ${realMixes.length} mix${realMixes.length === 1 ? "" : "es"} on ${cell.dayLabel}, ${cell.dateLabel}`
+          : cell.status === "off" && cell.offDetail
+            ? `${cell.dayLabel} ${cell.dateLabel}, Off, ${cell.offDetail}`
+            : booking
+              ? `${statusLabel(cell.status)}: ${booking.work}, until ${booking.until}`
               : `${cell.dayLabel} ${cell.dateLabel}, ${statusLabel(cell.status)}`
       }
     >
       {showCount ? (
         <span className={scheduleCellCountClass(cell.status, range)}>
-          {bookings.length}
+          {realMixes.length}
         </span>
       ) : null}
     </div>
@@ -358,7 +361,7 @@ function ScheduleCellButton({
   if (showCount) {
     return wrapWithTooltip(
       button,
-      <MultiBookingTooltipContent cell={cell} bookings={bookings} />,
+      <MultiBookingTooltipContent cell={cell} bookings={realMixes} />,
       true
     );
   }

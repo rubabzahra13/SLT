@@ -373,7 +373,7 @@ export function AssignEditorModal({
       producers
         .map(
           (p) =>
-            `${p.id}:${JSON.stringify(p.ratesByCategory ?? null)}:${p.defaultRate ?? ""}:${p.rushFeeRate ?? ""}:${p.cheerVoiceoverRate ?? ""}:${p.danceVoiceoverRate ?? ""}`
+            `${p.id}:${JSON.stringify(p.ratesByCategory ?? null)}:${p.rushFeeRate ?? ""}:${p.cheerVoiceoverRate ?? ""}:${p.danceVoiceoverRate ?? ""}`
         )
         .join("|"),
     [producers]

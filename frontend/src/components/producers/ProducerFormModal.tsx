@@ -25,6 +25,7 @@ import {
   type AssignedMixForProducer,
   type ProducerAddonRateKind,
 } from "@/lib/producer-assigned-mixes";
+import { isValidEmailFormat } from "@/lib/email-format";
 import { initialsFromName, normalizeProducer } from "@/lib/producers";
 import { Avatar } from "@/components/ui/Avatar";
 import {
@@ -88,7 +89,7 @@ function weekdayPill(day: Weekday): string {
 }
 
 const VOICEOVER_OPTIONS: { id: VoiceoverKind; label: string; defaultRate: number }[] = [
-  { id: "dance", label: "Dance Voiceover", defaultRate: 80 },
+  { id: "dance", label: "Dance Voiceover", defaultRate: 100 },
   { id: "cheer", label: "Cheer Voiceover", defaultRate: 100 },
 ];
 
@@ -122,7 +123,7 @@ function fromProducer(producer: Producer): FormState {
 
   const categoryRates: Record<string, number> = {};
   for (const cat of categories) {
-    const raw = norm.ratesByCategory?.[cat] ?? norm.defaultRate ?? 0.50;
+    const raw = norm.ratesByCategory?.[cat] ?? 0.5;
     categoryRates[cat] = raw <= 1 ? Math.round(raw * 100) : raw;
   }
 
@@ -518,6 +519,11 @@ export function ProducerFormModal({
       return;
     }
 
+    if (!isValidEmailFormat(form.email)) {
+      setValidationError("Enter a valid email address (for example, name@studio.com).");
+      return;
+    }
+
     for (const cat of form.categories) {
       const rate = form.categoryRates[cat];
       if (typeof rate !== "number" || isNaN(rate) || rate < 0 || rate > 100) {
@@ -807,11 +813,29 @@ export function ProducerFormModal({
               <input
                 required
                 type="email"
+                inputMode="email"
+                autoComplete="email"
                 value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
-                placeholder="Email"
-                className={rowInput}
+                aria-invalid={
+                  Boolean(form.email.trim()) && !isValidEmailFormat(form.email)
+                }
+                onChange={(e) => {
+                  setValidationError(null);
+                  setForm({ ...form, email: e.target.value });
+                }}
+                placeholder="name@studio.com"
+                className={clsx(
+                  rowInput,
+                  form.email.trim() &&
+                    !isValidEmailFormat(form.email) &&
+                    "text-brand-danger"
+                )}
               />
+              {form.email.trim() && !isValidEmailFormat(form.email) ? (
+                <p className="mt-1 text-right text-[11px] font-medium text-brand-danger">
+                  Enter a valid email
+                </p>
+              ) : null}
             </ProfileRow>
           </section>
 

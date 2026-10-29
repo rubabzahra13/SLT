@@ -44,11 +44,7 @@ function makeProducer(overrides: Partial<Producer> = {}): Producer {
     maxProducerCostPerDay: null,
     extraDays: [],
     compensationModel: null,
-    defaultRate: null,
     ratesByCategory: null,
-    rateOverrides: null,
-    manualInputFields: null,
-    notes: null,
     ...overrides,
   };
 }
