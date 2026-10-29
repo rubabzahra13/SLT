@@ -119,7 +119,7 @@ export function FlaggedOrderViewModal({
 
         <div className="shrink-0 border-b border-rose-500/20 bg-rose-500/8 px-6 py-3">
           <p className="text-[12px] leading-snug text-rose-900/90">
-            <span className="font-semibold">Read only</span>: this view is for
+            <span className="font-semibold">Read only</span> - this view is for
             music affiliate resolution only. Resolve the affiliate to edit the
             form, use it as a real order on Orders, or match it with a manual
             order.

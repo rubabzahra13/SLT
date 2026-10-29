@@ -20,6 +20,8 @@ type DateFilterProps = {
   value: DateFilterValue;
   onChange: (value: DateFilterValue) => void;
   className?: string;
+  /** Match FilterMenu trigger look (label + rounded-lg) inside filter panels. */
+  embedded?: boolean;
 };
 
 const VIEW_MAIN = "main";
@@ -27,7 +29,12 @@ const VIEW_MONTH = "month";
 const VIEW_YEAR = "year";
 const VIEW_CUSTOM = "custom";
 
-export function DateFilter({ value, onChange, className }: DateFilterProps) {
+export function DateFilter({
+  value,
+  onChange,
+  className,
+  embedded = false,
+}: DateFilterProps) {
   const [open, setOpen] = useState(false);
   const [view, setView] = useState(VIEW_MAIN);
   const [navDate, setNavDate] = useState(() => new Date());
@@ -305,43 +312,63 @@ export function DateFilter({ value, onChange, className }: DateFilterProps) {
         type="button"
         onClick={() => setOpen((prev) => !prev)}
         className={clsx(
-          "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[12px] font-medium shadow-sm transition",
-          hasFilter
-            ? "border-brand-blue/35 bg-brand-blue-soft/45 text-brand-signature"
-            : "border-brand-line/55 bg-brand-elevated/90 text-brand-ink-secondary hover:border-brand-line-strong hover:bg-brand-elevated",
-          open && "ring-2 ring-brand-blue/15"
+          "inline-flex h-8 items-center gap-1.5 border px-3 text-[12px] font-medium shadow-sm transition",
+          embedded
+            ? clsx(
+                "w-full rounded-lg",
+                open
+                  ? "border-brand-line-strong bg-brand-bg text-brand-ink"
+                  : hasFilter
+                    ? "border-brand-blue/35 bg-brand-blue-soft/45 text-brand-ink"
+                    : "border-brand-line bg-brand-elevated text-brand-ink-secondary hover:border-brand-line-strong hover:bg-brand-accent-soft hover:text-brand-ink"
+              )
+            : clsx(
+                "rounded-full",
+                hasFilter
+                  ? "border-brand-blue/35 bg-brand-blue-soft/45 text-brand-signature"
+                  : "border-brand-line/55 bg-brand-elevated/90 text-brand-ink-secondary hover:border-brand-line-strong hover:bg-brand-elevated",
+                open && "ring-2 ring-brand-blue/15"
+              )
         )}
       >
-        <Calendar
-          className={clsx(
-            "h-3.5 w-3.5 shrink-0",
-            hasFilter ? "text-brand-info" : "text-brand-ink-tertiary"
+        <span className="flex min-w-0 flex-1 items-center gap-1.5">
+          {embedded ? (
+            <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.06em] text-brand-ink-tertiary">
+              Date
+            </span>
+          ) : (
+            <Calendar
+              className={clsx(
+                "h-3.5 w-3.5 shrink-0",
+                hasFilter ? "text-brand-info" : "text-brand-ink-tertiary"
+              )}
+            />
           )}
-        />
-        <span className="max-w-[180px] truncate">{currentLabel}</span>
-        {hasFilter ? (
-          <span
-            role="button"
-            tabIndex={0}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleSelectType("all");
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
+          <span className="min-w-0 truncate text-brand-ink">{currentLabel}</span>
+          {hasFilter ? (
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={(e) => {
                 e.stopPropagation();
                 handleSelectType("all");
-              }
-            }}
-            className="rounded p-0.5 text-brand-ink-tertiary hover:text-brand-warning"
-            aria-label="Clear date filter"
-          >
-            <X className="h-3.5 w-3.5" />
-          </span>
-        ) : null}
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.stopPropagation();
+                  handleSelectType("all");
+                }
+              }}
+              className="shrink-0 rounded p-0.5 text-brand-ink-tertiary hover:text-brand-warning"
+              aria-label="Clear date filter"
+            >
+              <X className="h-3.5 w-3.5" />
+            </span>
+          ) : null}
+        </span>
         <ChevronDown
           className={clsx(
-            "h-3.5 w-3.5 shrink-0 text-brand-ink-tertiary transition",
+            "ml-auto h-3.5 w-3.5 shrink-0 text-brand-ink-tertiary transition",
             open && "rotate-180"
           )}
         />

@@ -16,7 +16,6 @@ import { ManualFormPairBar } from "@/components/orders/ManualFormPairBar";
 import { orderFromMTDRecord, rawFieldValue } from "@/lib/order-detail-fields";
 import {
   getOrderDetailSections,
-  getOrderIdentityFieldKey,
   orderFormFieldsDirty,
 } from "@/lib/order-detail-sections";
 import {
@@ -29,6 +28,7 @@ import {
   mtdRecordCoversOrder,
 } from "@/lib/order-staging";
 import { resolveOrderFormDisplay } from "@/lib/order-form-display";
+import { isManualSlimFormOrder } from "@/lib/add-order-mixes";
 import { formatDisplayDateTime } from "@/lib/dates";
 import type { MTDRecord, Order } from "@/types";
 
@@ -350,18 +350,10 @@ export function OrderFormEditModal({
             producers={producers}
             editable={!isViewOnly}
             onFieldChange={handleFieldChange}
-            // Admin forms: only identity name is required; other empties stay quiet.
-            requiredFieldKeys={
-              orderDraft
-                ? [
-                    getOrderIdentityFieldKey(
-                      orderDraft.formType,
-                      orderDraft.cheerFormSubtype,
-                      orderDraft.danceFormSubtype
-                    ),
-                  ]
-                : []
-            }
+            manualAddSlim={isManualSlimFormOrder(orderDraft)}
+            // Admin edit: never show the old "- required" / identity star cues.
+            highlightMissing={false}
+            requiredFieldKeys={[]}
           />
         </div>
 

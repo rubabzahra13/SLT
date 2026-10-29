@@ -45,6 +45,16 @@ export const DANCE_PER_MIX_FIELD_CANDIDATES = [
 ] as const;
 
 /**
+ * Unmatched manual orders use the same slim field set as Add New Order
+ * (edit/view modals included). Magento Match fills the rest.
+ */
+export function isManualSlimFormOrder(
+  order: Pick<Order, "isManualEntry" | "mergedFormOrderId"> | null | undefined
+): boolean {
+  return Boolean(order?.isManualEntry && !order?.mergedFormOrderId);
+}
+
+/**
  * Fields admins can fill on Add New Order. Everything else (city/state/zip,
  * affiliate, songs, voiceovers, coupon, …) arrives from Magento after Match.
  */

@@ -45,7 +45,6 @@ const ALL_STAR_CHEER_FIELDS: { title: string; fields: FieldDef[] }[] = [
       {
         key: "division",
         label: "Division that your team competes in",
-        multiline: true,
       },
       { key: "teamCoedAllGirl", label: "My team is (Coed/All Girl)" },
       { key: "teamColors", label: "Team colors" },
@@ -120,7 +119,6 @@ const SCHOOL_CHEER_VIROC_YES_FIELDS: { title: string; fields: FieldDef[] }[] = [
       {
         key: "division",
         label: "Division that your team competes in",
-        multiline: true,
       },
       { key: "teamCoedAllGirl", label: "My team is" },
       { key: "teamColors", label: "Team Colors" },
@@ -205,7 +203,6 @@ const SCHOOL_CHEER_VIROC_NO_FIELDS: { title: string; fields: FieldDef[] }[] = [
       {
         key: "division",
         label: "Division that your team competes in",
-        multiline: true,
       },
       { key: "teamCoedAllGirl", label: "My team is" },
       { key: "teamColors", label: "Team Colors" },

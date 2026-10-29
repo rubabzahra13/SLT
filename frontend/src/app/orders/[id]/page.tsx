@@ -10,10 +10,7 @@ import { SetPricingModal } from "@/components/mtd/SetPricingModal";
 import { useAppState } from "@/context/AppStateContext";
 import { orderFromMTDRecord, rawFieldValue } from "@/lib/order-detail-fields";
 import { orderToMTDRecord } from "@/lib/order-form";
-import {
-  getOrderDetailSections,
-  getOrderIdentityFieldKey,
-} from "@/lib/order-detail-sections";
+import { getOrderDetailSections } from "@/lib/order-detail-sections";
 import { findLinkedOrder } from "@/lib/editor-assignment";
 import {
   canSplitManualFormPair,
@@ -27,6 +24,7 @@ import {
   orderPatchFromOrderField,
 } from "@/lib/mtd-order-sync";
 import { resolveOrderFormDisplay } from "@/lib/order-form-display";
+import { isManualSlimFormOrder } from "@/lib/add-order-mixes";
 import { formatDisplayDateTime } from "@/lib/dates";
 import type { Order } from "@/types";
 
@@ -243,13 +241,9 @@ export default function OrderDetailPage({
             producers={producers}
             editable={orderFormEditing && !isViewOnly}
             onFieldChange={handleOrderDraftChange}
-            requiredFieldKeys={[
-              getOrderIdentityFieldKey(
-                (orderDraft ?? displayOrder).formType,
-                (orderDraft ?? displayOrder).cheerFormSubtype,
-                (orderDraft ?? displayOrder).danceFormSubtype
-              ),
-            ]}
+            manualAddSlim={isManualSlimFormOrder(orderDraft ?? displayOrder)}
+            highlightMissing={false}
+            requiredFieldKeys={[]}
           />
         </section>
       </div>

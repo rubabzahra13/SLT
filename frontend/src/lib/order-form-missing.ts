@@ -3,6 +3,51 @@ import { rawFieldValue } from "@/lib/order-detail-fields";
 import { hasMeaningfulFieldValue } from "@/lib/empty-field-tokens";
 import type { Order } from "@/types";
 
+/** Keep in sync with ADD_ORDER_MANUAL_FIELD_KEYS in add-order-mixes.ts. */
+const MANUAL_SLIM_MTD_FIELD_KEYS = new Set<string>([
+  "gymName",
+  "schoolName",
+  "schoolProgramName",
+  "organizationName",
+  "schoolOrganizationName",
+  "programName",
+  "schoolGymAddress",
+  "gymBillingAddress",
+  "schoolBillingAddress",
+  "youthRecBillingAddress",
+  "organizationBillingAddress",
+  "schoolAddress",
+  "coachName",
+  "coachContactFullName",
+  "coachPhone",
+  "coachEmail",
+  "coachEmailAddress",
+  "musicContactName",
+  "musicContactPhone",
+  "musicContactEmail",
+  "billingPersonName",
+  "billingContactName",
+  "billingPersonEmail",
+  "billingContactEmail",
+  "youthRecExtraEmailAddress",
+  "emailAddress",
+  "choreographerName",
+  "choreographerEmail",
+  "virocChoreographerName",
+  "virocChoreographerEmail",
+  "packageType",
+  "package",
+  "requestedEditor",
+  "requestedProducer",
+  "editorRequest",
+  "division",
+  "divisionOfTeam",
+  "teamName",
+  "timeLengthOfMix",
+  "style",
+  "styleOfGamedayMix",
+]);
+
 /**
  * Form fields already represented by Orders table columns / collection pills.
  * Missing values for these show in the table (No data / red pills), not as form red.
@@ -207,12 +252,20 @@ export function getOrderFormFieldsBlockingMtd(
     return gaps;
   }
 
+  // Unmatched manuals: only slim Add Order fields can block MTD. Magento fills
+  // city/zip/affiliate/songs after Match (old full-form gate was wrong here).
+  const unmatchedManual = Boolean(
+    order.isManualEntry && !order.mergedFormOrderId
+  );
   const sections = getOrderDetailSections(order);
 
   for (const section of sections) {
     for (const field of section.fields) {
       if (seen.has(field.key)) continue;
       seen.add(field.key);
+      if (unmatchedManual && !MANUAL_SLIM_MTD_FIELD_KEYS.has(field.key)) {
+        continue;
+      }
       if (!isEmptyFormValue(order, field.key)) continue;
       gaps.push({ key: field.key, label: field.label });
     }

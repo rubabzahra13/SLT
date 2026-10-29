@@ -189,8 +189,9 @@ function FieldLabel({
 }
 
 export function formatDetailDisplay(value: string): string {
-  if (!value?.trim() || value === "-") return "";
-  return value.replace(/\s*[—–-]\s*/g, ", ").trim();
+  if (!value?.trim() || value === "-" || value === "—") return "";
+  // Only em/en dashes → commas (keep ASCII hyphens in values like All-Girl).
+  return value.replace(/\s*[—–]\s*/g, ", ").trim();
 }
 
 function fieldSpanClass(key: string, label: string): string {

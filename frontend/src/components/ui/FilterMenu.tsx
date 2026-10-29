@@ -272,27 +272,31 @@ export function FilterMenu({
           triggerClassName
         )}
       >
-        {!hideLabel ? (
-          <span className="text-[10px] font-semibold uppercase tracking-[0.06em] text-brand-ink-tertiary">
-            {label}
+        <span className="flex min-w-0 flex-1 items-center gap-1.5">
+          {!hideLabel ? (
+            <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.06em] text-brand-ink-tertiary">
+              {label}
+            </span>
+          ) : null}
+          <span
+            className={clsx(
+              "truncate text-brand-ink",
+              hideLabel && (triggerClassName || triggerWidth)
+                ? "min-w-0 flex-1 text-center"
+                : "min-w-0"
+            )}
+          >
+            {selected?.label ?? "-"}
           </span>
-        ) : null}
-        <span
-          className={clsx(
-            "truncate text-brand-ink",
-            hideLabel && (triggerClassName || triggerWidth)
-              ? "min-w-0 flex-1 text-center"
-              : "max-w-[148px]"
-          )}
-        >
-          {selected?.label ?? "-"}
+          {!hideLabel && selected?.count !== undefined ? (
+            <span className="shrink-0 text-brand-ink-tertiary">
+              ({selected.count})
+            </span>
+          ) : null}
         </span>
-        {!hideLabel && selected?.count !== undefined ? (
-          <span className="text-brand-ink-tertiary">({selected.count})</span>
-        ) : null}
         <ChevronDown
           className={clsx(
-            "h-3.5 w-3.5 shrink-0 text-brand-ink-tertiary transition",
+            "ml-auto h-3.5 w-3.5 shrink-0 text-brand-ink-tertiary transition",
             open && "rotate-180"
           )}
           strokeWidth={2}

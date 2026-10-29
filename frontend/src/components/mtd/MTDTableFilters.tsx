@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { ArrowUpDown, SlidersHorizontal, X } from "lucide-react";
 import clsx from "clsx";
 import { FilterMenu } from "@/components/ui/FilterMenu";
@@ -28,6 +29,26 @@ import type {
   OrderFormType,
   Producer,
 } from "@/types";
+
+type FloatingPanelPosition = {
+  top: number;
+  left: number;
+  width: number;
+};
+
+function computeFloatingPanelPosition(
+  trigger: HTMLElement,
+  preferredWidth: number
+): FloatingPanelPosition {
+  const rect = trigger.getBoundingClientRect();
+  const width = Math.min(window.innerWidth * 0.92, preferredWidth);
+  const maxLeft = Math.max(8, window.innerWidth - width - 8);
+  return {
+    top: rect.bottom + 8,
+    left: Math.min(Math.max(8, rect.left), maxLeft),
+    width,
+  };
+}
 
 export type MTDTableFilterState = {
   packageTier: string;
@@ -118,7 +139,11 @@ export function MTDTableFilterPanel({
   variant = "mtd",
 }: MTDTableFilterPanelProps & { grouped?: boolean }) {
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [position, setPosition] = useState<FloatingPanelPosition | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const showDataFilter = variant !== "orders";
   const editorFilterLabel = "Assigned editor";
 
@@ -157,6 +182,10 @@ export function MTDTableFilterPanel({
   const showSplit = showCheerSplitFilter(form, cheerSubtype);
   const activeCount = countTableFilters(filters, form, variant, cheerSubtype);
 
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   // All Star Cheer has no Split field: drop a leftover Split filter.
   useEffect(() => {
     if (!showSplit && filters.split !== "all") {
@@ -165,53 +194,52 @@ export function MTDTableFilterPanel({
   }, [showSplit, filters.split, onChange]);
 
   useEffect(() => {
+    if (!open || !buttonRef.current) return;
+    const updatePosition = () => {
+      if (!buttonRef.current) return;
+      const measured = panelRef.current?.getBoundingClientRect().width || 220;
+      setPosition(computeFloatingPanelPosition(buttonRef.current, measured));
+    };
+    updatePosition();
+    const frame = requestAnimationFrame(updatePosition);
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [open]);
+
+  useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
-        setOpen(false);
+      const target = e.target as Node;
+      if (
+        rootRef.current?.contains(target) ||
+        panelRef.current?.contains(target)
+      ) {
+        return;
       }
+      setOpen(false);
     };
     document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
   }, [open]);
 
-  return (
-    <div ref={rootRef} className="relative inline-block">
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          className={clsx(
-            "inline-flex h-8 items-center gap-1.5 text-[12px] font-medium transition",
-            grouped
-              ? clsx(
-                  "rounded-lg px-2.5",
-                  open && "bg-brand-elevated shadow-sm ring-1 ring-brand-line/35",
-                  open || activeCount > 0
-                    ? "bg-brand-blue-soft/70 font-semibold text-brand-ink"
-                    : "text-brand-ink-secondary hover:bg-brand-elevated/90 hover:text-brand-ink",
-                  open && activeCount === 0 && "text-brand-ink"
-                )
-              : clsx(
-                  "rounded-full border px-3 shadow-sm",
-                  open || activeCount > 0
-                    ? "border-brand-blue/35 bg-brand-blue-soft/45 text-brand-ink"
-                    : "border-brand-line/55 bg-brand-elevated/90 text-brand-ink-secondary hover:border-brand-line-strong hover:bg-brand-elevated",
-                  open && "ring-2 ring-brand-blue/15"
-                )
-          )}
-        >
-          <SlidersHorizontal className="h-3.5 w-3.5 shrink-0" strokeWidth={2} />
-          Filters
-          {activeCount > 0 ? (
-            <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-blue-deep px-1 text-[10px] font-bold tabular-nums text-white">
-              {activeCount}
-            </span>
-          ) : null}
-        </button>
-
-        {open ? (
-          <div className="absolute left-0 top-[calc(100%+8px)] z-40 w-[min(92vw,560px)] rounded-2xl border border-brand-line bg-brand-surface p-4 shadow-[var(--shadow-premium)]">
-            <div className="mb-3 flex items-center justify-between gap-3">
+  const panel =
+    mounted && open && position
+      ? createPortal(
+          <div
+            ref={panelRef}
+            className="fixed w-max max-w-[min(92vw,320px)] rounded-2xl border border-brand-line bg-brand-surface px-3 py-2.5 shadow-[var(--shadow-premium)]"
+            style={{
+              top: position.top,
+              left: position.left,
+              zIndex: 80,
+            }}
+          >
+            <div className="mb-2 flex items-center justify-between gap-3">
               <p className="text-[13px] font-semibold text-brand-ink">
                 Table filters
               </p>
@@ -228,13 +256,15 @@ export function MTDTableFilterPanel({
                 </button>
               ) : null}
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="flex w-max max-w-full flex-col gap-1.5">
               <FilterMenu
                 label="Package"
                 value={filters.packageTier}
                 options={packageOptions}
                 onChange={(value) => onChange({ packageTier: value })}
                 accent="blue"
+                className="w-full"
+                triggerClassName="w-full"
               />
               {isCheer ? (
                 <>
@@ -243,6 +273,8 @@ export function MTDTableFilterPanel({
                     value={filters.timeLimit}
                     options={timeLimitOptions}
                     onChange={(value) => onChange({ timeLimit: value })}
+                    className="w-full"
+                    triggerClassName="w-full"
                   />
                   {showSplit ? (
                     <FilterMenu
@@ -252,6 +284,8 @@ export function MTDTableFilterPanel({
                       onChange={(value) =>
                         onChange({ split: value as SplitFilter })
                       }
+                      className="w-full"
+                      triggerClassName="w-full"
                     />
                   ) : null}
                 </>
@@ -262,6 +296,8 @@ export function MTDTableFilterPanel({
                 options={assignedOptions}
                 onChange={(value) => onChange({ assignedProducer: value })}
                 accent="orange"
+                className="w-full"
+                triggerClassName="w-full"
               />
               <FilterMenu
                 label="Requested"
@@ -269,6 +305,8 @@ export function MTDTableFilterPanel({
                 options={requestedOptions}
                 onChange={(value) => onChange({ requestedProducer: value })}
                 accent="orange"
+                className="w-full"
+                triggerClassName="w-full"
               />
               {showDataFilter ? (
                 <FilterMenu
@@ -279,15 +317,57 @@ export function MTDTableFilterPanel({
                     onChange({ infoFilter: value as InfoFilter })
                   }
                   accent="orange"
+                  className="w-full"
+                  triggerClassName="w-full"
                 />
               ) : null}
               <DateFilter
+                embedded
                 value={filters.dateFilter}
                 onChange={(dateFilter) => onChange({ dateFilter })}
+                className="w-full"
               />
             </div>
-          </div>
+          </div>,
+          document.body
+        )
+      : null;
+
+  return (
+    <div ref={rootRef} className="relative inline-block">
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={clsx(
+          "inline-flex h-8 items-center gap-1.5 text-[12px] font-medium transition",
+          grouped
+            ? clsx(
+                "rounded-lg px-2.5",
+                open && "bg-brand-elevated shadow-sm ring-1 ring-brand-line/35",
+                open || activeCount > 0
+                  ? "bg-brand-blue-soft/70 font-semibold text-brand-ink"
+                  : "text-brand-ink-secondary hover:bg-brand-elevated/90 hover:text-brand-ink",
+                open && activeCount === 0 && "text-brand-ink"
+              )
+            : clsx(
+                "rounded-full border px-3 shadow-sm",
+                open || activeCount > 0
+                  ? "border-brand-blue/35 bg-brand-blue-soft/45 text-brand-ink"
+                  : "border-brand-line/55 bg-brand-elevated/90 text-brand-ink-secondary hover:border-brand-line-strong hover:bg-brand-elevated",
+                open && "ring-2 ring-brand-blue/15"
+              )
+        )}
+      >
+        <SlidersHorizontal className="h-3.5 w-3.5 shrink-0" strokeWidth={2} />
+        Filters
+        {activeCount > 0 ? (
+          <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-blue-deep px-1 text-[10px] font-bold tabular-nums text-white">
+            {activeCount}
+          </span>
         ) : null}
+      </button>
+      {panel}
     </div>
   );
 }
@@ -482,26 +562,99 @@ export function MTDSortMenu({
   grouped?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [position, setPosition] = useState<FloatingPanelPosition | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const sortValue = value || "newest";
   const isDefault = sortValue === "newest";
   const selectedLabel =
     MTD_SORT_BY_OPTIONS.find((o) => o.value === sortValue)?.label ?? "Newest";
 
   useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!open || !buttonRef.current) return;
+    const updatePosition = () => {
+      if (!buttonRef.current) return;
+      // Content width + comfortable side padding (tighter than old 248px).
+      setPosition(computeFloatingPanelPosition(buttonRef.current, 208));
+    };
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [open]);
+
+  useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
-        setOpen(false);
+      const target = e.target as Node;
+      if (
+        rootRef.current?.contains(target) ||
+        panelRef.current?.contains(target)
+      ) {
+        return;
       }
+      setOpen(false);
     };
     document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
   }, [open]);
 
+  const panel =
+    mounted && open && position
+      ? createPortal(
+          <div
+            ref={panelRef}
+            role="listbox"
+            aria-label="Sort by"
+            className="fixed max-h-[min(300px,70vh)] overflow-y-auto rounded-xl border border-brand-line bg-brand-surface py-1 shadow-[var(--shadow-premium)]"
+            style={{
+              top: position.top,
+              left: position.left,
+              width: position.width,
+              zIndex: 80,
+            }}
+          >
+            {MTD_SORT_BY_OPTIONS.map((opt) => {
+              const active = opt.value === sortValue;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  role="option"
+                  aria-selected={active}
+                  onClick={() => {
+                    onChange(opt.value);
+                    setOpen(false);
+                  }}
+                  className={clsx(
+                    "flex h-8 w-full items-center px-5 text-left text-[12px] transition hover:bg-brand-bg",
+                    active
+                      ? "font-semibold text-brand-ink"
+                      : "text-brand-ink-secondary"
+                  )}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>,
+          document.body
+        )
+      : null;
+
   return (
     <div ref={rootRef} className="relative inline-block">
       <button
+        ref={buttonRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
@@ -534,38 +687,7 @@ export function MTDSortMenu({
           </span>
         ) : null}
       </button>
-
-      {open ? (
-        <div
-          role="listbox"
-          aria-label="Sort by"
-          className="absolute left-0 top-[calc(100%+8px)] z-40 max-h-[300px] w-[min(92vw,248px)] overflow-y-auto rounded-xl border border-brand-line bg-brand-surface py-1 shadow-[var(--shadow-premium)]"
-        >
-          {MTD_SORT_BY_OPTIONS.map((opt) => {
-            const active = opt.value === sortValue;
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                role="option"
-                aria-selected={active}
-                onClick={() => {
-                  onChange(opt.value);
-                  setOpen(false);
-                }}
-                className={clsx(
-                  "flex w-full items-center px-3 py-2 text-left text-[13px] transition hover:bg-brand-bg",
-                  active
-                    ? "font-semibold text-brand-ink"
-                    : "text-brand-ink-secondary"
-                )}
-              >
-                {opt.label}
-              </button>
-            );
-          })}
-        </div>
-      ) : null}
+      {panel}
     </div>
   );
 }
