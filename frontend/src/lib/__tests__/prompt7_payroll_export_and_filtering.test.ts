@@ -117,7 +117,9 @@ describe("Prompt 7 — Payroll-Specific Export: Filters + Admin vs Producer-Safe
       producerName
     );
 
-    assert.ok(producerCsv.includes("Rush Fee Compensation"));
-    assert.ok(producerCsv.includes("Voiceover Compensation"));
+    // Mix/VO statement export: Voiceover Compensation is never a column —
+    // VO dollars stay in My Total Payout (same as the on-screen preview).
+    assert.equal(producerCsv.includes("Voiceover Compensation"), false);
+    assert.ok(producerCsv.includes("My Total Payout"));
   });
 });

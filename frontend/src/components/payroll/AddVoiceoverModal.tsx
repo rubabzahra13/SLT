@@ -144,12 +144,14 @@ export function AddVoiceoverModal({
   }, [teamDivisionOptions, teamSearch]);
 
   const handleClose = () => {
+    if (saving) return;
     setShowSchoolDropdown(false);
     setShowTeamDropdown(false);
     onClose();
   };
 
   const handleAdd = async () => {
+    if (saving) return;
     setError(null);
 
     if (!record) {
@@ -220,7 +222,9 @@ export function AddVoiceoverModal({
           <button
             type="button"
             onClick={handleClose}
-            className="flex h-7 w-7 items-center justify-center rounded-md text-brand-ink-faint transition hover:bg-brand-hover hover:text-brand-ink"
+            disabled={saving}
+            aria-label="Close"
+            className="flex h-7 w-7 items-center justify-center rounded-md text-brand-ink-faint transition hover:bg-brand-hover hover:text-brand-ink disabled:pointer-events-none disabled:opacity-40"
           >
             <X className="h-4 w-4" />
           </button>
@@ -393,18 +397,25 @@ export function AddVoiceoverModal({
             type="button"
             onClick={handleClose}
             disabled={saving}
-            className="rounded-lg border border-brand-line px-4 py-1.5 text-sm font-medium text-brand-ink-secondary transition hover:bg-brand-hover disabled:opacity-50"
+            className="rounded-lg border border-brand-line px-4 py-1.5 text-sm font-medium text-brand-ink-secondary transition hover:bg-brand-hover disabled:pointer-events-none disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             type="button"
-            onClick={handleAdd}
+            onClick={() => void handleAdd()}
             disabled={saving}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-brand-orange px-4 py-1.5 text-sm font-semibold text-white transition hover:bg-brand-orange/90 disabled:opacity-60"
+            aria-busy={saving}
+            className="inline-flex min-w-[5.5rem] items-center justify-center gap-1.5 rounded-lg bg-brand-orange px-4 py-1.5 text-sm font-semibold text-white transition hover:bg-brand-orange/90 disabled:opacity-80"
           >
-            {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            Add Voiceover
+            {saving ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                Saving…
+              </>
+            ) : (
+              "Add Voiceover"
+            )}
           </button>
         </div>
       </div>

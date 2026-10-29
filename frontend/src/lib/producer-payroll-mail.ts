@@ -1,7 +1,7 @@
 import { formatDisplayDate } from "@/lib/dates";
 import { todayIso } from "@/lib/date-filters";
 import {
-  PRODUCER_STATEMENT_COLUMNS,
+  producerStatementColumnsForRows,
   type ProducerFacingPayrollRow,
 } from "@/lib/export-csv";
 import type { Producer } from "@/types";
@@ -83,9 +83,10 @@ export function renderPayrollRowsPlainText(
     return "No completed mixes in this pay period.";
   }
 
+  const columns = producerStatementColumnsForRows(rows);
   return rows
     .map((row, index) => {
-      const fields = PRODUCER_STATEMENT_COLUMNS.map(
+      const fields = columns.map(
         (column) => `${column.label}: ${cellValue(row, column.key)}`
       );
       return [`Mix ${index + 1}`, ...fields].join("\n");
@@ -111,28 +112,34 @@ export function renderPayrollMailPlainText(
 }
 
 function renderPayrollRowsHtmlTable(rows: ProducerFacingPayrollRow[]): string {
-  const headerCells = PRODUCER_STATEMENT_COLUMNS.map(
-    (column) =>
-      `<th style="padding:10px 12px;border:1px solid rgba(15,30,45,0.12);background:rgba(82,200,238,0.12);font-size:10px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:rgba(15,20,25,0.55);text-align:left;white-space:nowrap;">${escapeHtml(column.label)}</th>`
-  ).join("");
+  // Same column set as UI preview / Download CSV (category-aware).
+  const columns = producerStatementColumnsForRows(rows);
+  const headerCells = columns
+    .map(
+      (column) =>
+        `<th style="padding:10px 12px;border:1px solid rgba(15,30,45,0.12);background:rgba(82,200,238,0.12);font-size:10px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:rgba(15,20,25,0.55);text-align:left;white-space:nowrap;">${escapeHtml(column.label)}</th>`
+    )
+    .join("");
 
   const bodyRows =
     rows.length === 0
-      ? `<tr><td colspan="${PRODUCER_STATEMENT_COLUMNS.length}" style="padding:16px 12px;border:1px solid rgba(15,30,45,0.08);font-size:13px;color:rgba(15,20,25,0.45);text-align:center;">No completed mixes in this pay period.</td></tr>`
+      ? `<tr><td colspan="${Math.max(columns.length, 1)}" style="padding:16px 12px;border:1px solid rgba(15,30,45,0.08);font-size:13px;color:rgba(15,20,25,0.45);text-align:center;">No completed mixes in this pay period.</td></tr>`
       : rows
           .map((row, index) => {
-            const cells = PRODUCER_STATEMENT_COLUMNS.map((column) => {
-              const value = cellValue(row, column.key);
-              const isProgram = column.key === "programName";
-              const isTotal = column.key === "totalPayout";
-              const color = isProgram
-                ? "#0f1419"
-                : isTotal
-                  ? "#16a34a"
-                  : "rgba(15,20,25,0.64)";
-              const weight = isProgram || isTotal ? "600" : "400";
-              return `<td style="padding:10px 12px;border:1px solid rgba(15,30,45,0.08);font-size:12px;line-height:1.4;color:${color};font-weight:${weight};white-space:nowrap;background:${index % 2 === 0 ? "#ffffff" : "#fafbfc"};">${escapeHtml(value)}</td>`;
-            }).join("");
+            const cells = columns
+              .map((column) => {
+                const value = cellValue(row, column.key);
+                const isProgram = column.key === "programName";
+                const isTotal = column.key === "totalPayout";
+                const color = isProgram
+                  ? "#0f1419"
+                  : isTotal
+                    ? "#16a34a"
+                    : "rgba(15,20,25,0.64)";
+                const weight = isProgram || isTotal ? "600" : "400";
+                return `<td style="padding:10px 12px;border:1px solid rgba(15,30,45,0.08);font-size:12px;line-height:1.4;color:${color};font-weight:${weight};white-space:nowrap;background:${index % 2 === 0 ? "#ffffff" : "#fafbfc"};">${escapeHtml(value)}</td>`;
+              })
+              .join("");
             return `<tr>${cells}</tr>`;
           })
           .join("");
@@ -192,15 +199,20 @@ export function renderPayrollMailHtml(
 export function generatePayrollExcelAttachment(
   rows: ProducerFacingPayrollRow[]
 ): string {
-  const headerCells = PRODUCER_STATEMENT_COLUMNS.map(
-    (column) => `<th>${escapeHtml(column.label)}</th>`
-  ).join("");
+  // Same columns as on-screen statement + Download CSV.
+  const columns = producerStatementColumnsForRows(rows);
+  const headerCells = columns
+    .map((column) => `<th>${escapeHtml(column.label)}</th>`)
+    .join("");
 
   const bodyRows = rows
     .map((row) => {
-      const cells = PRODUCER_STATEMENT_COLUMNS.map(
-        (column) => `<td>${escapeHtml(cellValue(row, column.key))}</td>`
-      ).join("");
+      const cells = columns
+        .map(
+          (column) =>
+            `<td>${escapeHtml(cellValue(row, column.key))}</td>`
+        )
+        .join("");
       return `<tr>${cells}</tr>`;
     })
     .join("");

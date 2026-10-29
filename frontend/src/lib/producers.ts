@@ -351,10 +351,16 @@ export function getProducerCategories(producer: Producer): string[] {
 }
 
 export function formatCompensationPercent(
-  rate: number | null | undefined
+  rate: number | string | null | undefined
 ): string | null {
-  if (rate == null || Number.isNaN(rate)) return null;
-  const pct = rate <= 1 ? Math.round(rate * 100) : Math.round(rate);
+  if (rate == null || rate === "") return null;
+  if (typeof rate === "string" && rate.trim().endsWith("%")) {
+    const raw = Number.parseFloat(rate);
+    return Number.isFinite(raw) ? `${Math.round(raw)}%` : null;
+  }
+  const n = typeof rate === "number" ? rate : Number(rate);
+  if (!Number.isFinite(n)) return null;
+  const pct = n <= 1 ? Math.round(n * 100) : Math.round(n);
   return `${pct}%`;
 }
 

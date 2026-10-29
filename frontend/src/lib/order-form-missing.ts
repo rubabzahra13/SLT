@@ -39,6 +39,8 @@ const ALWAYS_OPTIONAL_FORM_FIELD_KEYS = new Set([
   "couponCode",
   "invoice",
   "invoiceNumber",
+  // Marketing — Magento asks but never blocks Move to MTD.
+  "howDidYouFindOut",
   // Sports Entertainment: billing contact only if different from music contact.
   "billingContactName",
   "billingContactEmail",
@@ -87,13 +89,6 @@ function cheerSubtype(
   return String(order?.cheerFormSubtype || "all-star-cheer").trim();
 }
 
-/** All-Star Cheer subcategory (not School Cheer / VIROC / Youth Rec). */
-function isAllStarCheerSubtype(
-  order?: Pick<Order, "formType" | "cheerFormSubtype"> | null
-): boolean {
-  return cheerSubtype(order) === "all-star-cheer";
-}
-
 function isYouthRecCheerSubtype(
   order?: Pick<Order, "formType" | "cheerFormSubtype"> | null
 ): boolean {
@@ -105,10 +100,6 @@ export function isOptionalOrderFormField(
   key: string,
   order?: Pick<Order, "formType" | "cheerFormSubtype"> | null
 ): boolean {
-  // Required on All-Star Cheer + Youth Rec; optional on School Cheer / others.
-  if (key === "howDidYouFindOut") {
-    return !(isAllStarCheerSubtype(order) || isYouthRecCheerSubtype(order));
-  }
   // Youth Rec Magento "Email Address" (billing_person_email) is optional.
   if (
     (key === "billingPersonEmail" || key === "billingContactEmail") &&
@@ -192,9 +183,8 @@ export type OrderFormMtdGap = {
 
 /**
  * Empty form / table fields that should block Move to MTD.
- * Coupon, invoice, and dance Power/Unleash cover boxes may stay empty.
- * howDidYouFindOut is required on All-Star Cheer and Youth Rec; optional
- * on School Cheer and other forms. Youth Rec "Email Address" is optional.
+ * Coupon, invoice, howDidYouFindOut, and dance Power/Unleash cover boxes
+ * may stay empty. Youth Rec "Email Address" is optional.
  * Voiceover script/pronunciation required only when custom voiceovers is Yes.
  * Manual School Anthem stays blocked until a Magento form is matched.
  */

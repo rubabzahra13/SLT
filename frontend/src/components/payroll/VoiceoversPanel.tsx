@@ -475,6 +475,7 @@ function VoiceoverEntryModal({
   }, [open, editing, initialForm, initialCheerSubtype, initialDanceSubtype]);
 
   async function handleSave() {
+    if (saving) return;
     setError(null);
     const producer = producers.find((p) => p.id === producerId);
     if (!producer) {
@@ -546,8 +547,13 @@ function VoiceoverEntryModal({
           </div>
           <button
             type="button"
-            onClick={onClose}
-            className="flex h-7 w-7 items-center justify-center rounded-md text-brand-ink-faint transition hover:bg-brand-hover hover:text-brand-ink"
+            onClick={() => {
+              if (saving) return;
+              onClose();
+            }}
+            disabled={saving}
+            aria-label="Close"
+            className="flex h-7 w-7 items-center justify-center rounded-md text-brand-ink-faint transition hover:bg-brand-hover hover:text-brand-ink disabled:pointer-events-none disabled:opacity-40"
           >
             <X className="h-4 w-4" />
           </button>
@@ -691,9 +697,12 @@ function VoiceoverEntryModal({
         <div className="flex items-center justify-end gap-2 border-t border-brand-line px-5 py-4">
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => {
+              if (saving) return;
+              onClose();
+            }}
             disabled={saving}
-            className="rounded-lg border border-brand-line px-4 py-1.5 text-sm font-medium text-brand-ink-secondary transition hover:bg-brand-hover disabled:opacity-50"
+            className="rounded-lg border border-brand-line px-4 py-1.5 text-sm font-medium text-brand-ink-secondary transition hover:bg-brand-hover disabled:pointer-events-none disabled:opacity-50"
           >
             Cancel
           </button>
@@ -701,10 +710,19 @@ function VoiceoverEntryModal({
             type="button"
             onClick={() => void handleSave()}
             disabled={saving}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-brand-orange px-4 py-1.5 text-sm font-semibold text-white transition hover:bg-brand-orange/90 disabled:opacity-60"
+            aria-busy={saving}
+            className="inline-flex min-w-[5.5rem] items-center justify-center gap-1.5 rounded-lg bg-brand-orange px-4 py-1.5 text-sm font-semibold text-white transition hover:bg-brand-orange/90 disabled:opacity-80"
           >
-            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-            {editing ? "Save" : "Add voiceover"}
+            {saving ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                Saving…
+              </>
+            ) : editing ? (
+              "Save"
+            ) : (
+              "Add voiceover"
+            )}
           </button>
         </div>
       </div>

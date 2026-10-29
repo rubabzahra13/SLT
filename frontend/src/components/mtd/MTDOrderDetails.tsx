@@ -1113,6 +1113,12 @@ export function MTDOrderDetails({
                               n < 1 ? digits : String(n)
                             );
                           }}
+                          onBlur={() => {
+                            // Persist Magento default when left blank.
+                            if (!rawFieldValue(order, field.key).trim()) {
+                              onFieldChange(field.key, "1");
+                            }
+                          }}
                           className="w-full max-w-[220px]"
                         />
                       ) : (

@@ -17,6 +17,8 @@ class AddonsInput(BaseModel):
     eight_count_sheets: bool = False
     extra_songs: int = 0
     extra_song_added_time: int = 0
+    # Sports Entertainment Magento rush: +$100 payroll only. Not Cheer rush_standard.
+    sports_entertainment_rush: bool = False
 
 
 class PricingCalculateRequest(BaseModel):

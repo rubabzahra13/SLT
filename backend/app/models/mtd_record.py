@@ -3,6 +3,7 @@ from sqlalchemy import (
     Column,
     String,
     Boolean,
+    Integer,
     Numeric,
     DateTime,
     ForeignKey,
@@ -58,6 +59,9 @@ class MTDRecord(Base):
     paid_at = Column(DateTime(timezone=True), nullable=True)
     has_extend_8ct_addon = Column(Boolean, default=False, nullable=False)
     has_processing_8ct_sheets_addon = Column(Boolean, default=False, nullable=False)
+    # Dance payroll add-ons (board toggles → Complete-to-Payroll / statements).
+    extra_songs_quantity = Column(Integer, default=0, nullable=False)
+    extra_song_editing_time_quantity = Column(Integer, default=0, nullable=False)
 
     # Board display cache for customer price (Orders remains SoT for payout).
     final_customer_price = Column(Numeric(10, 2), nullable=True)

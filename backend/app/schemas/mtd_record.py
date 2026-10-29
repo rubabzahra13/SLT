@@ -47,6 +47,8 @@ class MTDRecordSchema(BaseModel):
     paid_at: Optional[datetime] = None
     has_extend_8ct_addon: bool = False
     has_processing_8ct_sheets_addon: bool = False
+    extra_songs_quantity: int = 0
+    extra_song_editing_time_quantity: int = 0
     final_customer_price: Optional[float] = None
     final_customer_price_overridden: bool = False
 
@@ -98,6 +100,8 @@ class MTDRecordCreateSchema(BaseModel):
     in_mtd: Optional[bool] = False
     has_extend_8ct_addon: Optional[bool] = False
     has_processing_8ct_sheets_addon: Optional[bool] = False
+    extra_songs_quantity: Optional[int] = 0
+    extra_song_editing_time_quantity: Optional[int] = 0
     missing_data_email_sent_at: Optional[datetime] = None
     producer_email_sent_at: Optional[datetime] = None
     producer_email_sent_to: Optional[str] = None
@@ -137,6 +141,8 @@ class MTDRecordUpdateSchema(BaseModel):
     paid_at: Optional[datetime] = None
     has_extend_8ct_addon: Optional[bool] = None
     has_processing_8ct_sheets_addon: Optional[bool] = None
+    extra_songs_quantity: Optional[int] = None
+    extra_song_editing_time_quantity: Optional[int] = None
     final_customer_price: Optional[float] = None
     final_customer_price_overridden: Optional[bool] = None
     is_manual_schedule_entry: Optional[bool] = None

@@ -344,6 +344,17 @@ export function transformOrder(bo: BackendOrder): Order {
     finalCustomerPrice: bo.final_customer_price ?? null,
     finalCustomerPriceOverridden: Boolean(bo.final_customer_price_overridden),
     pricingBreakdown: bo.pricing_breakdown || null,
+    // Complete-to-Payroll persists extras into pricing_breakdown.payroll_base_price.
+    finalPayrollPrice: (() => {
+      const bd = bo.pricing_breakdown as
+        | { payroll_base_price?: number | null }
+        | null
+        | undefined;
+      const fromBreakdown = bd?.payroll_base_price;
+      return typeof fromBreakdown === "number" && !Number.isNaN(fromBreakdown)
+        ? fromBreakdown
+        : null;
+    })(),
     rateUsed: bo.rate_used ?? null,
     rateSource: bo.rate_source || null,
     producerPayout: bo.producer_payout ?? null,
@@ -758,6 +769,18 @@ export async function updateOrderApi(
   }
   if (patch.howDidYouFindOut !== undefined) {
     payload.how_did_you_find_out = patch.howDidYouFindOut;
+  }
+  if (patch.systemCalculatedCustomerPrice !== undefined) {
+    payload.system_calculated_customer_price =
+      patch.systemCalculatedCustomerPrice;
+  }
+  if (patch.pricingBreakdown !== undefined) {
+    payload.pricing_breakdown = patch.pricingBreakdown;
+  }
+  if (patch.rateUsed !== undefined) payload.rate_used = patch.rateUsed;
+  if (patch.rateSource !== undefined) payload.rate_source = patch.rateSource;
+  if (patch.producerPayout !== undefined) {
+    payload.producer_payout = patch.producerPayout;
   }
 
   try {

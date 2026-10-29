@@ -23,13 +23,13 @@ describe("Youth Rec Cheer Move-to-MTD form gate", () => {
     const order = youthRec();
     assert.equal(isOptionalOrderFormField("couponCode", order), true);
     assert.equal(isOptionalOrderFormField("billingPersonEmail", order), true);
-    assert.equal(isOptionalOrderFormField("howDidYouFindOut", order), false);
+    assert.equal(isOptionalOrderFormField("howDidYouFindOut", order), true);
     assert.equal(isOptionalOrderFormField("youthRecColors", order), false);
     assert.equal(isOptionalOrderFormField("coachPhone", order), false);
     assert.equal(isOptionalOrderFormField("splitOrNoSplit", order), false);
   });
 
-  it("blocks on empty Colors / howDidYouFindOut; not on empty Email Address or coupon", () => {
+  it("blocks on empty Colors; not on empty howDidYouFindOut, Email Address, or coupon", () => {
     const gaps = getOrderFormFieldsBlockingMtd(
       youthRec({
         schoolProgramName: "Rec Stars",
@@ -57,7 +57,10 @@ describe("Youth Rec Cheer Move-to-MTD form gate", () => {
     );
     const keys = gaps.map((g) => g.key);
     assert.ok(keys.includes("youthRecColors"), "Colors must block");
-    assert.ok(keys.includes("howDidYouFindOut"), "howDidYouFindOut must block");
+    assert.ok(
+      !keys.includes("howDidYouFindOut"),
+      "howDidYouFindOut optional"
+    );
     assert.ok(!keys.includes("billingPersonEmail"), "Email Address optional");
     assert.ok(!keys.includes("couponCode"), "coupon optional");
   });

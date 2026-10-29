@@ -14,7 +14,7 @@ import {
   X,
 } from "lucide-react";
 import {
-  PRODUCER_STATEMENT_COLUMNS,
+  producerStatementColumnsForRows,
   type ProducerFacingPayrollRow,
 } from "@/lib/export-csv";
 import type { PayrollMailDraft } from "@/lib/producer-payroll-mail";
@@ -41,12 +41,13 @@ type PayrollSendMailModalProps = {
 };
 
 function PayrollMailTablePreview({ rows }: { rows: ProducerFacingPayrollRow[] }) {
+  const columns = producerStatementColumnsForRows(rows);
   return (
     <div className="overflow-x-auto rounded-xl border border-brand-line/60 bg-white">
       <table className="w-full min-w-[960px] border-collapse text-left">
         <thead>
           <tr className="border-b border-brand-line/60 bg-brand-signature/8">
-            {PRODUCER_STATEMENT_COLUMNS.map((column) => (
+            {columns.map((column) => (
               <th
                 key={column.key}
                 className="whitespace-nowrap px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-brand-ink-secondary"
@@ -60,7 +61,7 @@ function PayrollMailTablePreview({ rows }: { rows: ProducerFacingPayrollRow[] })
           {rows.length === 0 ? (
             <tr>
               <td
-                colSpan={PRODUCER_STATEMENT_COLUMNS.length}
+                colSpan={Math.max(columns.length, 1)}
                 className="px-3 py-6 text-center text-[12px] text-brand-ink-tertiary"
               >
                 No completed mixes in this pay period.
@@ -69,7 +70,7 @@ function PayrollMailTablePreview({ rows }: { rows: ProducerFacingPayrollRow[] })
           ) : (
             rows.map((row, index) => (
               <tr key={row.recId || index} className="bg-white even:bg-brand-bg/30">
-                {PRODUCER_STATEMENT_COLUMNS.map((column) => {
+                {columns.map((column) => {
                   const value = String(row[column.key] ?? "—");
                   const isProgram = column.key === "programName";
                   const isTotal = column.key === "totalPayout";

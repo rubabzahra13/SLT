@@ -259,32 +259,36 @@ def calculate_pricing(
                 note=r.note,
             ))
 
-    # Extra songs
-    extra_songs = int(addons_input.get("extra_songs", 0))
+    # Extra songs — Dance payroll-only ($15/ea). Never inflate customer package.
+    extra_songs = int(addons_input.get("extra_songs", 0) or 0)
     if extra_songs > 0:
         r = _lookup_addon(db, "extra_song")
-        if r:
-            unit = r.unit_amount or Decimal("15")
-            total = unit * extra_songs
-            addon_lines.append(AddOnLineItem(
-                addon_id="extra_song", label=f"Extra Song × {extra_songs}",
-                customer_amount=total, payroll_amount=total,
-                quantity=extra_songs, note=r.note,
-            ))
+        unit = (r.unit_amount if r and r.unit_amount is not None else None) or Decimal("15")
+        total = unit * extra_songs
+        addon_lines.append(AddOnLineItem(
+            addon_id="extra_song",
+            label=f"Extra Songs ({extra_songs})",
+            customer_amount=Decimal("0"),
+            payroll_amount=total,
+            quantity=extra_songs,
+            note=(r.note if r else None) or f"$15 × {extra_songs} extra song{'s' if extra_songs != 1 else ''}",
+        ))
 
-    # Extra song added-time fee
-    extra_time = int(addons_input.get("extra_song_added_time", 0))
+    # Extra song editing time — Dance payroll-only ($30/unit).
+    extra_time = int(addons_input.get("extra_song_added_time", 0) or 0)
     if extra_time > 0:
         r = _lookup_addon(db, "extra_song_added_time_fee")
-        if r:
-            unit = r.unit_amount or Decimal("30")
-            total = unit * extra_time
-            addon_lines.append(AddOnLineItem(
-                addon_id="extra_song_added_time_fee",
-                label=f"Extra Song Added-Time Fee × {extra_time}",
-                customer_amount=total, payroll_amount=total,
-                quantity=extra_time, note=r.note,
-            ))
+        unit = (r.unit_amount if r and r.unit_amount is not None else None) or Decimal("30")
+        total = unit * extra_time
+        addon_lines.append(AddOnLineItem(
+            addon_id="extra_song_added_time_fee",
+            label=f"Extra Song Editing Time ({extra_time})",
+            customer_amount=Decimal("0"),
+            payroll_amount=total,
+            quantity=extra_time,
+            note=(r.note if r else None)
+            or f"$30 × {extra_time} editing time unit{'s' if extra_time != 1 else ''}",
+        ))
 
     # --- 6. Totals ----------------------------------------------------------
     addon_customer_total = sum(a.customer_amount * a.quantity for a in addon_lines)
@@ -332,3 +336,38 @@ def calculate_pricing(
         needs_manual_review=(compliance.status == "needs_manual_review"),
         summary_line=" | ".join(summary_parts),
     )
+
+
+# Magento Sports Entertainment rush. Payroll only — customer package stays
+# on the rate card (Pre-Game / Halftime Remixed is $250, not $150).
+SPORTS_ENTERTAINMENT_RUSH_ADDON_ID = "sports_entertainment_rush"
+SPORTS_ENTERTAINMENT_RUSH_AMOUNT = Decimal("100")
+
+
+def apply_sports_entertainment_payroll_rush(
+    breakdown: PricingBreakdown,
+) -> PricingBreakdown:
+    """Add the flat $100 rush onto payroll. Leave the customer package unchanged."""
+    if breakdown.form_type != "sports-entertainment":
+        return breakdown
+    if breakdown.needs_manual_pricing or breakdown.payroll_base_price is None:
+        return breakdown
+    if any(a.addon_id == SPORTS_ENTERTAINMENT_RUSH_ADDON_ID for a in breakdown.addons):
+        return breakdown
+
+    breakdown.addons.append(
+        AddOnLineItem(
+            addon_id=SPORTS_ENTERTAINMENT_RUSH_ADDON_ID,
+            label="Rush Order Fee",
+            customer_amount=Decimal("0"),
+            payroll_amount=SPORTS_ENTERTAINMENT_RUSH_AMOUNT,
+            quantity=1,
+            note="Customer Magento rush order — $100 (Sports Entertainment)",
+        )
+    )
+    breakdown.payroll_base_price = (
+        breakdown.payroll_base_price + SPORTS_ENTERTAINMENT_RUSH_AMOUNT
+    )
+    if breakdown.summary_line:
+        breakdown.summary_line += " | SE rush: $100 payroll"
+    return breakdown

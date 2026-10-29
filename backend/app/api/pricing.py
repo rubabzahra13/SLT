@@ -24,10 +24,33 @@ from app.schemas.pricing import (
     OrderPricingResponse,
     AddOnLineItemResponse,
 )
-from app.services.pricing import calculate_pricing, PricingBreakdown
+from app.services.pricing import (
+    calculate_pricing,
+    apply_sports_entertainment_payroll_rush,
+    PricingBreakdown,
+)
 from app.services.compensation import calculate_compensation
 
 router = APIRouter()
+
+
+def _rush_flag_yes(value: Any) -> bool:
+    return str(value or "").strip().lower() in {"yes", "true", "1"}
+
+
+def _sports_entertainment_rush_requested(order: Order, addons: Dict[str, Any]) -> bool:
+    """SE Magento rush. Explicit complete-pricing flag wins; otherwise the order."""
+    if (order.form_type or "") != "sports-entertainment":
+        return False
+    if addons.get("sports_entertainment_rush"):
+        return True
+    # An explicit false from the modal means Rush Order is No.
+    if "sports_entertainment_rush" in addons:
+        return False
+    client = order.client_requested_rush_order
+    if client is not None and str(client).strip() != "":
+        return _rush_flag_yes(client)
+    return _rush_flag_yes(order.is_rush_order)
 
 
 def is_valid_uuid(val: str) -> bool:
@@ -165,6 +188,11 @@ def complete_pricing(
         music_affiliate=payload.music_affiliate or order.music_affiliate,
         addons_input=addons_dict,
     )
+
+    # Cheer rush_standard ($150) is a different add-on. SE rush is +$100 on
+    # payroll only, and the customer package (Pre-Game $250) stays put.
+    if _sports_entertainment_rush_requested(order, addons_dict):
+        breakdown = apply_sports_entertainment_payroll_rush(breakdown)
 
     # Persist
     sys_price = breakdown.system_calculated_customer_price

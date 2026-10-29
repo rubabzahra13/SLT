@@ -590,7 +590,22 @@ function MTDPageContent() {
       // Phase 2: lifecycle flags stay on MTD; pricing/payout SoT is Orders.
       // Persist inPayroll first so SSE cannot briefly clear Payroll membership.
       if (orderId) {
-        await updateMTD(recordId, basePatch);
+        // Keep board payroll cache + dance extras in sync (Send Statements).
+        await updateMTD(recordId, {
+          ...basePatch,
+          ...(mtdPatch?.finalPayrollPrice != null
+            ? { finalPayrollPrice: mtdPatch.finalPayrollPrice }
+            : {}),
+          ...(mtdPatch?.extraSongsQuantity != null
+            ? { extraSongsQuantity: mtdPatch.extraSongsQuantity }
+            : {}),
+          ...(mtdPatch?.extraSongEditingTimeQuantity != null
+            ? {
+                extraSongEditingTimeQuantity:
+                  mtdPatch.extraSongEditingTimeQuantity,
+              }
+            : {}),
+        });
         if (orderPatch) {
           await updateOrder(orderId, orderPatch);
         }

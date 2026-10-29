@@ -264,7 +264,7 @@ export function PayrollSendPanel({
         );
       });
     },
-    [payrollRecords, allOrders, producers, filterPeriod]
+    [payrollRecords, allOrders, producers, filterPeriod, payrollAddons]
   );
 
   const handleDownload = useCallback(() => {

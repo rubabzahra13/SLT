@@ -101,6 +101,9 @@ export function CompleteToPayrollModal({
   // Step 2 Payroll state
   const [selectedCaseyRate, setSelectedCaseyRate] = useState<number | null>(null); // 0.72 or 0.70
   const [customRateInput, setCustomRateInput] = useState<string>(""); // e.g. "72"
+  // While focused, allow empty/partial so clearing "53" to type "100" works
+  // (empty otherwise snaps back to the default rate display).
+  const [rateInputFocused, setRateInputFocused] = useState(false);
   const [manualPayoutInput, setManualPayoutInput] = useState<string>(""); // for Riley / hourly
 
   useEffect(() => {
@@ -136,6 +139,7 @@ export function CompleteToPayrollModal({
     setError(null);
     setSelectedCaseyRate(null);
     setCustomRateInput("");
+    setRateInputFocused(false);
     setManualPayoutInput("");
   }, [open, record, linkedOrder]);
 
@@ -644,8 +648,10 @@ export function CompleteToPayrollModal({
   if (!mounted || !open || !record) return null;
 
   // Client-side real-time payroll calculation for Step 2
-  const activeRateNum = customRateInput !== ""
-    ? parseFloat(customRateInput) / 100
+  const parsedCustomRatePct =
+    customRateInput.trim() !== "" ? parseFloat(customRateInput) : NaN;
+  const activeRateNum = !Number.isNaN(parsedCustomRatePct)
+    ? parsedCustomRatePct / 100
     : selectedCaseyRate;
 
   const activeManualPayoutNum = manualPayoutInput !== "" ? parseFloat(manualPayoutInput) : null;
@@ -676,6 +682,20 @@ export function CompleteToPayrollModal({
       })
     : 0;
 
+  const payrollOpts = {
+    // Cheer Rushby qty: strip $150×qty from package base; compensation stays
+    // on Payroll (includeRushFeeInPayout false). SE Magento $100 uses
+    // sportsEntertainmentRushFee × rushFeeRate inside this payout.
+    rushFeeQuantity: rushQty,
+    rushFeeCompensationRate:
+      record.rushFeeCompensationRate ??
+      assignedProducerObj?.rushFeeRate ??
+      1.0,
+    includeRushFeeInPayout: false as const,
+    sportsEntertainmentRushFee: seRushFee,
+    formType: breakdown?.form_type,
+  };
+
   const clientPayroll = computeClientPayroll(
     assignedProducerObj,
     finalCustomerPriceNum,
@@ -684,20 +704,26 @@ export function CompleteToPayrollModal({
     activeManualPayoutNum,
     breakdown?.canonical_subtype_id,
     finalPayrollPriceNum,
-    {
-      // Cheer Rushby qty: strip $150×qty from package base; compensation stays
-      // on Payroll (includeRushFeeInPayout false). SE Magento $100 uses
-      // sportsEntertainmentRushFee × rushFeeRate inside this payout.
-      rushFeeQuantity: rushQty,
-      rushFeeCompensationRate:
-        record.rushFeeCompensationRate ??
-        assignedProducerObj?.rushFeeRate ??
-        1.0,
-      includeRushFeeInPayout: false,
-      sportsEntertainmentRushFee: seRushFee,
-      formType: breakdown?.form_type,
-    }
+    payrollOpts
   );
+
+  // Baseline ignores the text-field override so focus/blur can clear/retype
+  // without snapping back to a rate that already includes the draft value.
+  const baselinePayrollRate =
+    selectedCaseyRate !== null
+      ? selectedCaseyRate
+      : computeClientPayroll(
+          assignedProducerObj,
+          finalCustomerPriceNum,
+          effectiveBreakdown,
+          selectedCaseyRate,
+          activeManualPayoutNum,
+          breakdown?.canonical_subtype_id,
+          finalPayrollPriceNum,
+          payrollOpts
+        ).rateUsed;
+
+  const defaultRateDisplay = formatRatePercentStr(baselinePayrollRate);
 
   const isRateOverridden = customRateInput !== "" || (selectedCaseyRate !== null && assignedProducerObj?.initials !== "CM");
 
@@ -714,8 +740,40 @@ export function CompleteToPayrollModal({
     setError(null);
     try {
       if (linkedOrder) {
+        const extraSongs = Math.max(
+          0,
+          Number(record.extraSongsQuantity ?? linkedOrder.extraSongsQuantity) ||
+            0
+        );
+        const extraSongTime = Math.max(
+          0,
+          Number(
+            record.extraSongEditingTimeQuantity ??
+              linkedOrder.extraSongEditingTimeQuantity
+          ) || 0
+        );
+        const isDance =
+          breakdown?.form_type === "school-all-star-dance" ||
+          linkedOrder.formType === "school-all-star-dance";
+        const isSports =
+          breakdown?.form_type === "sports-entertainment" ||
+          linkedOrder.formType === "sports-entertainment";
         await completePricingApi(linkedOrder.id, {
-          final_customer_price_override: isCustomerPriceOverridden ? finalCustomerPriceNum : undefined,
+          final_customer_price_override: isCustomerPriceOverridden
+            ? finalCustomerPriceNum
+            : undefined,
+          // Dance extras and the SE $100 rush must be in the saved payroll base.
+          // The customer package (Pre-Game $250) is not reduced by that rush.
+          addons:
+            isDance || isSports
+              ? {
+                  extra_songs: isDance ? extraSongs : 0,
+                  extra_song_added_time: isDance ? extraSongTime : 0,
+                  sports_entertainment_rush: isSports
+                    ? Boolean(calculatedEnginePricing?.hasRushFee)
+                    : false,
+                }
+              : undefined,
         });
       }
       setStep(2);
@@ -746,29 +804,68 @@ export function CompleteToPayrollModal({
 
     const producerInitials = assignedProducerObj?.initials || record.assignedProducer || "CM";
     const finalRate = activeRateNum ?? clientPayroll.rateUsed ?? undefined;
+    // Any explicit rate at finalize (Casey pick, % edit, or resolved default)
+    // is locked so Payroll does not re-resolve the producer category rate.
+    const lockedRateSource =
+      finalRate != null ? "manual_override" : clientPayroll.rateSource;
 
     try {
+      let finalizedPayout = clientPayroll.producerPayout ?? null;
+      let finalizedRate = finalRate ?? null;
+      let finalizedRateSource = lockedRateSource;
+
       if (linkedOrder) {
-        await finalizePayrollApi(linkedOrder.id, {
+        const finalized = await finalizePayrollApi(linkedOrder.id, {
           producer_initials: producerInitials,
           final_customer_price: finalCustomerPriceNum,
           overridden_rate: finalRate ?? undefined,
         });
+        if (finalized.producer_payout != null) {
+          finalizedPayout = finalized.producer_payout;
+        }
+        if (finalized.rate_used != null) {
+          finalizedRate = finalized.rate_used;
+        }
+        if (finalized.rate_source) {
+          finalizedRateSource = finalized.rate_source;
+        }
       }
 
       // Phase 2: pricing/payout fields go on Orders when linked; MTD only
       // receives them when there is no order (orphan board row).
-      const pricingPatch = {
+      // finalPayrollPrice includes dance Extra Songs / Editing Time (and other
+      // add-ons already folded into finalPayrollPriceNum).
+      const extraSongsQty = Math.max(
+        0,
+        Number(
+          record.extraSongsQuantity ?? linkedOrder?.extraSongsQuantity
+        ) || 0
+      );
+      const extraSongTimeQty = Math.max(
+        0,
+        Number(
+          record.extraSongEditingTimeQuantity ??
+            linkedOrder?.extraSongEditingTimeQuantity
+        ) || 0
+      );
+      const pricingPatch: Partial<Order> = {
         price: finalCustomerPriceNum,
         finalCustomerPrice: finalCustomerPriceNum,
         systemCalculatedCustomerPrice: systemPriceNum,
         finalCustomerPriceOverridden: isCustomerPriceOverridden,
-        producerPayout: clientPayroll.producerPayout ?? undefined,
-        rateUsed: finalRate ?? undefined,
-        rateSource: clientPayroll.rateSource,
+        finalPayrollPrice: finalPayrollPriceNum,
+        producerPayout: finalizedPayout ?? undefined,
+        rateUsed: finalizedRate ?? undefined,
+        rateSource: finalizedRateSource,
+        extraSongsQuantity: extraSongsQty,
+        extraSongEditingTimeQuantity: extraSongTimeQty,
       };
       onConfirm(
-        linkedOrder ? undefined : pricingPatch,
+        {
+          finalPayrollPrice: finalPayrollPriceNum,
+          extraSongsQuantity: extraSongsQty,
+          extraSongEditingTimeQuantity: extraSongTimeQty,
+        },
         linkedOrder ? pricingPatch : undefined
       );
       onClose();
@@ -904,22 +1001,25 @@ export function CompleteToPayrollModal({
                       "pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 font-semibold text-[14px] text-brand-ink";
 
                     // Delta between package (customer) and affiliate payroll column.
-                    // SE Magento rush ($100) is its own add-on line — exclude from
-                    // "Music compliance" so that row stays $0 for Sports Entertainment.
-                    const seRushInBreakdown =
-                      breakdown?.form_type === "sports-entertainment"
-                        ? (breakdown?.addons || []).reduce((sum, a) => {
-                            if (a.addon_id === SE_RUSH_ADDON_ID) {
-                              return sum + (a.payroll_amount || 0);
-                            }
-                            return sum;
-                          }, 0)
-                        : 0;
+                    // Payroll price = package payroll + add-ons (extras, SE rush, …).
+                    // Strip every add-on payroll dollar so "Music compliance" stays
+                    // rate-card-only (e.g. 850 → 730 = -120), not -120 + extras.
+                    const addonPayrollInBreakdown = (
+                      breakdown?.addons || []
+                    ).reduce((sum, a) => {
+                      if (
+                        a.addon_id === "rush_fee" ||
+                        a.addon_id === "rush_order"
+                      ) {
+                        return sum;
+                      }
+                      return sum + (a.payroll_amount || 0);
+                    }, 0);
                     const musicComplianceAmount =
                       Math.round(
                         (finalPayrollPriceNum -
                           finalCustomerPriceNum -
-                          seRushInBreakdown) *
+                          addonPayrollInBreakdown) *
                           100
                       ) / 100;
 
@@ -1302,19 +1402,41 @@ export function CompleteToPayrollModal({
                       <input
                         id="compensation-rate-input"
                         type="number"
+                        inputMode="decimal"
                         step="1"
                         min="0"
                         max="100"
                         value={
-                          customRateInput !== ""
+                          rateInputFocused || customRateInput !== ""
                             ? customRateInput
-                            : selectedCaseyRate !== null
-                            ? formatRatePercentStr(selectedCaseyRate)
-                            : clientPayroll.rateUsed !== null
-                            ? formatRatePercentStr(clientPayroll.rateUsed)
-                            : ""
+                            : defaultRateDisplay
                         }
+                        onFocus={() => {
+                          setRateInputFocused(true);
+                          if (customRateInput === "") {
+                            setCustomRateInput(defaultRateDisplay);
+                          }
+                        }}
                         onChange={(e) => setCustomRateInput(e.target.value)}
+                        onBlur={() => {
+                          setRateInputFocused(false);
+                          const trimmed = customRateInput.trim();
+                          if (trimmed === "" || Number.isNaN(parseFloat(trimmed))) {
+                            setCustomRateInput("");
+                            return;
+                          }
+                          const n = Math.min(100, Math.max(0, parseFloat(trimmed)));
+                          // Same as producer/Casey default → no override
+                          if (
+                            defaultRateDisplay !== "" &&
+                            !Number.isNaN(parseFloat(defaultRateDisplay)) &&
+                            Math.abs(n - parseFloat(defaultRateDisplay)) < 1e-9
+                          ) {
+                            setCustomRateInput("");
+                            return;
+                          }
+                          setCustomRateInput(String(n));
+                        }}
                         className="w-full rounded-lg border border-brand-line bg-brand-bg/50 py-2 pl-3 pr-8 text-[14px] font-semibold tabular-nums text-brand-ink focus:border-brand-signature focus:outline-none focus:ring-2 focus:ring-brand-signature/20"
                         placeholder="e.g. 72"
                       />
@@ -1326,7 +1448,10 @@ export function CompleteToPayrollModal({
                     {customRateInput !== "" && (
                       <button
                         type="button"
-                        onClick={() => setCustomRateInput("")}
+                        onClick={() => {
+                          setCustomRateInput("");
+                          setRateInputFocused(false);
+                        }}
                         className="rounded-lg border border-brand-line/60 bg-brand-bg px-2.5 py-2 text-[11px] font-medium text-brand-ink-secondary hover:bg-brand-line/30"
                       >
                         Reset

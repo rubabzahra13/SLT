@@ -17,7 +17,7 @@ import pytest
 
 from app.services.classification import classify_order
 from app.services.compliance import resolve_compliance
-from app.services.pricing import calculate_pricing
+from app.services.pricing import calculate_pricing, apply_sports_entertainment_payroll_rush, PricingBreakdown
 from app.services.compensation import calculate_compensation
 
 
@@ -221,6 +221,32 @@ class TestManualPricingPackage:
         )
         assert bd.needs_manual_pricing is False
         assert bd.system_calculated_customer_price == Decimal("150")
+
+    def test_pre_game_rush_adds_100_to_payroll_and_keeps_package(self):
+        bd = PricingBreakdown(
+            form_type="sports-entertainment",
+            canonical_subtype_id="sports-entertainment",
+            package_id="pre-game-halftime-remixed",
+            package_name="PRE-GAME / HALFTIME REMIXED",
+            pricing_rule_id=None,
+            compliance_status="needs_manual_review",
+            compliance_reason="",
+            canonical_affiliate=None,
+            base_customer_price=Decimal("250"),
+            base_payroll_price=Decimal("250"),
+            system_calculated_customer_price=Decimal("250"),
+            payroll_base_price=Decimal("250"),
+        )
+        rushed = apply_sports_entertainment_payroll_rush(bd)
+        assert rushed.system_calculated_customer_price == Decimal("250")
+        assert rushed.base_customer_price == Decimal("250")
+        assert rushed.payroll_base_price == Decimal("350")
+        assert rushed.addons[-1].addon_id == "sports_entertainment_rush"
+        assert rushed.addons[-1].customer_amount == Decimal("0")
+        assert rushed.addons[-1].payroll_amount == Decimal("100")
+
+        again = apply_sports_entertainment_payroll_rush(rushed)
+        assert again.payroll_base_price == Decimal("350")
 
     def test_unrecognised_package_needs_manual(self, db):
         bd = calculate_pricing(

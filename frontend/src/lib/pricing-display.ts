@@ -79,6 +79,53 @@ export interface CalculatedPayroll {
   message: string;
 }
 
+/**
+ * Rate locked at Complete-to-Payroll (`rate_source === "manual_override"`).
+ * Payroll must use this instead of re-resolving the producer category default.
+ */
+export function finalizedPayrollRate(order?: {
+  rateSource?: string | null;
+  rateUsed?: number | null;
+} | null): number | null {
+  if (!order || order.rateSource !== "manual_override") return null;
+  if (order.rateUsed == null) return null;
+  const r = Number(order.rateUsed);
+  return Number.isFinite(r) ? r : null;
+}
+
+/**
+ * Package mix payout SoT after finalize. Prefer the persisted producer_payout
+ * when the rate was locked so Payroll/Statements don't drift after refresh.
+ */
+export function finalizedPackageProducerPayout(
+  order:
+    | {
+        rateSource?: string | null;
+        producerPayout?: number | null;
+      }
+    | null
+    | undefined,
+  calculatedPayout: number | null | undefined
+): number | null {
+  if (
+    order?.rateSource === "manual_override" &&
+    typeof order.producerPayout === "number" &&
+    Number.isFinite(order.producerPayout)
+  ) {
+    return order.producerPayout;
+  }
+  if (typeof calculatedPayout === "number" && Number.isFinite(calculatedPayout)) {
+    return calculatedPayout;
+  }
+  if (
+    typeof order?.producerPayout === "number" &&
+    Number.isFinite(order.producerPayout)
+  ) {
+    return order.producerPayout;
+  }
+  return null;
+}
+
 export type PayrollOptions = {
   rushFeeQuantity?: number;
   rushFeeCompensationRate?: number | null;

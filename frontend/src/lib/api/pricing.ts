@@ -69,6 +69,8 @@ export interface AddonsInput {
   eight_count_sheets?: boolean;
   extra_songs?: number;
   extra_song_added_time?: number;
+  /** Sports Entertainment Magento rush: +$100 on payroll, package price unchanged. */
+  sports_entertainment_rush?: boolean;
 }
 
 export interface PricingCalculateRequest {

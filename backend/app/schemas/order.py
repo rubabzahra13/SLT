@@ -167,6 +167,12 @@ class OrderSchema(BaseModel):
     system_calculated_customer_price: Optional[float] = None
     final_customer_price: Optional[float] = None
     final_customer_price_overridden: bool = False
+    # Complete-to-Payroll SoT — must round-trip on GET/bootstrap or Payroll
+    # recomputes the producer default and drops manual rate overrides.
+    pricing_breakdown: Optional[Any] = None
+    rate_used: Optional[float] = None
+    rate_source: Optional[str] = None
+    producer_payout: Optional[float] = None
     status: str = "new"
     created_at: datetime
     completed_at: Optional[datetime] = None
@@ -394,3 +400,9 @@ class OrderUpdateSchema(BaseModel):
     sending_eight_count_sheets: Optional[str] = None
     using_eight_count_sheets: Optional[str] = None  # alias of sending_eight_count_sheets
     how_did_you_find_out: Optional[str] = None
+    # Locked Complete-to-Payroll rate/payout (final_customer_* already above)
+    system_calculated_customer_price: Optional[float] = None
+    pricing_breakdown: Optional[Any] = None
+    rate_used: Optional[float] = None
+    rate_source: Optional[str] = None
+    producer_payout: Optional[float] = None

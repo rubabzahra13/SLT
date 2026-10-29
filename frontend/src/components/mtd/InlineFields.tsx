@@ -533,6 +533,7 @@ export function InlineMultiCheckGroup({
 type InlineInputProps = {
   value: string;
   onChange: (value: string) => void;
+  onBlur?: () => void;
   placeholder?: string;
   type?: string;
   inputMode?:
@@ -554,6 +555,7 @@ type InlineInputProps = {
 export function InlineInput({
   value,
   onChange,
+  onBlur,
   placeholder,
   type = "text",
   inputMode,
@@ -579,6 +581,10 @@ export function InlineInput({
         e.stopPropagation();
         if (readOnly) return;
         onChange(e.target.value);
+      }}
+      onBlur={() => {
+        if (readOnly) return;
+        onBlur?.();
       }}
       className={clsx(
         inlineControlClass,

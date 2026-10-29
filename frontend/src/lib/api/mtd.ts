@@ -42,6 +42,8 @@ export interface BackendMTDRecord {
   has_processing_8ct_sheets_addon?: boolean;
   hasExtend8ctAddon?: boolean;
   hasProcessing8ctSheetsAddon?: boolean;
+  extra_songs_quantity?: number;
+  extra_song_editing_time_quantity?: number;
   final_customer_price?: number | null;
   final_customer_price_overridden?: boolean;
 }
@@ -100,6 +102,11 @@ export function transformMTDRecord(bm: BackendMTDRecord): MTDRecord {
     completedAt: bm.completed_at || undefined,
     hasExtend8ctAddon: Boolean(bm.has_extend_8ct_addon ?? bm.hasExtend8ctAddon),
     hasProcessing8ctSheetsAddon: Boolean(bm.has_processing_8ct_sheets_addon ?? bm.hasProcessing8ctSheetsAddon),
+    extraSongsQuantity: Math.max(0, Number(bm.extra_songs_quantity) || 0),
+    extraSongEditingTimeQuantity: Math.max(
+      0,
+      Number(bm.extra_song_editing_time_quantity) || 0
+    ),
     finalCustomerPrice: bm.final_customer_price ?? null,
     finalCustomerPriceOverridden: Boolean(bm.final_customer_price_overridden),
   };
@@ -128,6 +135,14 @@ export async function createMTDRecordApi(record: Partial<MTDRecord>): Promise<MT
     in_mtd: Boolean(record.inMTD),
     has_extend_8ct_addon: Boolean(record.hasExtend8ctAddon),
     has_processing_8ct_sheets_addon: Boolean(record.hasProcessing8ctSheetsAddon),
+    extra_songs_quantity: Math.max(
+      0,
+      Math.floor(Number(record.extraSongsQuantity) || 0)
+    ),
+    extra_song_editing_time_quantity: Math.max(
+      0,
+      Math.floor(Number(record.extraSongEditingTimeQuantity) || 0)
+    ),
   };
   if (record.priceCompliance !== undefined) {
     payload.price_compliance = record.priceCompliance;
@@ -181,6 +196,18 @@ export async function updateMTDRecordApi(
   if (patch.paidAt !== undefined) payload.paid_at = patch.paidAt;
   if (patch.hasExtend8ctAddon !== undefined) payload.has_extend_8ct_addon = patch.hasExtend8ctAddon;
   if (patch.hasProcessing8ctSheetsAddon !== undefined) payload.has_processing_8ct_sheets_addon = patch.hasProcessing8ctSheetsAddon;
+  if (patch.extraSongsQuantity !== undefined) {
+    payload.extra_songs_quantity = Math.max(
+      0,
+      Math.floor(Number(patch.extraSongsQuantity) || 0)
+    );
+  }
+  if (patch.extraSongEditingTimeQuantity !== undefined) {
+    payload.extra_song_editing_time_quantity = Math.max(
+      0,
+      Math.floor(Number(patch.extraSongEditingTimeQuantity) || 0)
+    );
+  }
   if (patch.finalCustomerPrice !== undefined) {
     payload.final_customer_price = patch.finalCustomerPrice;
   }

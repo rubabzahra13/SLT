@@ -14,7 +14,12 @@ import { isPreMTDOrderRecord, resolveMTDFormMeta } from "./mtd-filters";
 import { orderFromMTDRecord } from "./order-detail-fields";
 import { getOrderDetailSections, getFormTypeLabel } from "./order-detail-sections";
 import { parsePackage } from "./package";
-import { computeClientPayroll } from "./pricing-display";
+import {
+  computeClientPayroll,
+  finalizedPackageProducerPayout,
+  finalizedPayrollRate,
+} from "./pricing-display";
+import { formatCompensationPercent } from "./producers";
 import { payrollRowIsRushOrder } from "./forward-order-mail";
 import {
   finalizeMixPayout,
@@ -29,6 +34,71 @@ import {
 } from "./misc-payroll-adjustment";
 
 import { inferMTDRecordStatus } from "./mtd-status";
+
+/**
+ * Dance Extra Songs qty — MTD board toggle, order mirror, or pricing_breakdown
+ * from Complete-to-Payroll (addon_id extra_song / extra_songs).
+ */
+export function resolveDanceExtraSongsQuantity(
+  rec: Pick<MTDRecord, "extraSongsQuantity">,
+  order?: Order | null
+): number {
+  const fromRec = Math.max(0, Math.floor(Number(rec.extraSongsQuantity) || 0));
+  if (fromRec > 0) return fromRec;
+  const fromOrder = Math.max(
+    0,
+    Math.floor(Number(order?.extraSongsQuantity) || 0)
+  );
+  if (fromOrder > 0) return fromOrder;
+  const addons = (
+    order as { pricingBreakdown?: { addons?: Array<{ addon_id?: string; quantity?: number }> } } | null
+  )?.pricingBreakdown?.addons;
+  if (Array.isArray(addons)) {
+    for (const a of addons) {
+      const id = String(a?.addon_id || "");
+      if (
+        (id === "extra_song" || id === "extra_songs") &&
+        Number(a.quantity) > 0
+      ) {
+        return Math.floor(Number(a.quantity));
+      }
+    }
+  }
+  return 0;
+}
+
+/** Dance Extra Song Editing Time qty ($30/unit). */
+export function resolveDanceExtraSongTimeQuantity(
+  rec: Pick<MTDRecord, "extraSongEditingTimeQuantity">,
+  order?: Order | null
+): number {
+  const fromRec = Math.max(
+    0,
+    Math.floor(Number(rec.extraSongEditingTimeQuantity) || 0)
+  );
+  if (fromRec > 0) return fromRec;
+  const fromOrder = Math.max(
+    0,
+    Math.floor(Number(order?.extraSongEditingTimeQuantity) || 0)
+  );
+  if (fromOrder > 0) return fromOrder;
+  const addons = (
+    order as { pricingBreakdown?: { addons?: Array<{ addon_id?: string; quantity?: number }> } } | null
+  )?.pricingBreakdown?.addons;
+  if (Array.isArray(addons)) {
+    for (const a of addons) {
+      const id = String(a?.addon_id || "");
+      if (
+        (id === "extra_song_added_time_fee" ||
+          id === "extra_song_editing_time") &&
+        Number(a.quantity) > 0
+      ) {
+        return Math.floor(Number(a.quantity));
+      }
+    }
+  }
+  return 0;
+}
 
 export function isEligibleProducerScheduleRecord(rec: MTDRecord): boolean {
   if (!rec) return false;
@@ -264,14 +334,16 @@ export function generateMTDCsv(
       rushFee:
         rushQty === 2 ? "Double Rush ($300)" : rushQty === 1 ? "Rush Fee ($150)" : "None",
       danceExtraSongs: isDance
-        ? (rec as any).danceExtraSongs
-          ? `${(rec as any).danceExtraSongs} ($${(rec as any).danceExtraSongs * 15})`
-          : "0"
+        ? (() => {
+            const qty = resolveDanceExtraSongsQuantity(rec, linked ?? order);
+            return qty > 0 ? `${qty} ($${qty * 15})` : "0";
+          })()
         : "",
       danceExtraSongTime: isDance
-        ? (rec as any).danceExtraSongTime
-          ? `${(rec as any).danceExtraSongTime} ($${(rec as any).danceExtraSongTime * 30})`
-          : "0"
+        ? (() => {
+            const qty = resolveDanceExtraSongTimeQuantity(rec, linked ?? order);
+            return qty > 0 ? `${qty} ($${qty * 30})` : "0";
+          })()
         : "",
       voiceover:
         rec.danceVoiceover ||
@@ -370,7 +442,7 @@ export function generatePayrollCsv(
       producerObj,
       custPrice,
       null,
-      order?.rateUsed ?? null,
+      finalizedPayrollRate(order) ?? order?.rateUsed ?? null,
       rec.manualPayoutInput ?? null,
       meta.canonicalSubtypeId,
       payrollPrice,
@@ -389,7 +461,8 @@ export function generatePayrollCsv(
     );
 
     const isDance = meta.formType === "school-all-star-dance";
-    const basePayout = calc.producerPayout ?? order?.producerPayout ?? 0;
+    const basePayout =
+      finalizedPackageProducerPayout(order, calc.producerPayout) ?? 0;
     const rushPayout = rush.compensation;
     const withRush = finalizeMixPayout(basePayout, calc.status, rush) ?? basePayout;
     const miscAdj = miscAdjustmentAmount(rec.id, rec.orderId, payrollAddons);
@@ -410,16 +483,23 @@ export function generatePayrollCsv(
       assignedProducer: rec.assignedProducer || "",
       customerPrice: formatPrice(custPrice),
       payrollBasePrice: formatPrice(payrollPrice),
-      producerRate: order?.rateUsed ?? "Default",
+      producerRate:
+        formatCompensationPercent(
+          finalizedPayrollRate(order) ?? order?.rateUsed ?? calc.rateUsed
+        ) ?? "Default",
       voiceoverPayout: formatPrice(0),
       rushPayout: formatPrice(rushPayout),
       miscellaneousAdjustment:
         miscAdj !== 0 ? formatSignedMiscAdjustment(miscAdj) : "",
       danceExtraSongsPayout: isDance
-        ? formatPrice(((rec as any).danceExtraSongs || 0) * 15)
+        ? formatPrice(
+            resolveDanceExtraSongsQuantity(rec, linked ?? order) * 15
+          )
         : "",
       danceExtraSongTimePayout: isDance
-        ? formatPrice(((rec as any).danceExtraSongTime || 0) * 30)
+        ? formatPrice(
+            resolveDanceExtraSongTimeQuantity(rec, linked ?? order) * 30
+          )
         : "",
       totalProducerPayout: formatPrice(payoutTotal),
       couponCode: rec.couponCode || order?.couponCode || "",
@@ -529,7 +609,7 @@ export const PRODUCER_VO_STATEMENT_COLUMNS: {
 
 export function isVoiceoverStatementRow(row: ProducerFacingPayrollRow): boolean {
   return (
-    row.subtype.includes("Voiceover") ||
+    String(row.subtype || "").includes("Voiceover") ||
     (Boolean(row.voiceoverAddon) &&
       row.voiceoverAddon !== "None" &&
       row.producerRate === "VO")
@@ -545,9 +625,55 @@ export function isVoiceoverOnlyStatement(
 export function producerStatementColumnsForRows(
   rows: ProducerFacingPayrollRow[]
 ): { key: keyof ProducerFacingPayrollRow; label: string }[] {
-  return isVoiceoverOnlyStatement(rows)
-    ? PRODUCER_VO_STATEMENT_COLUMNS
-    : PRODUCER_STATEMENT_COLUMNS;
+  if (isVoiceoverOnlyStatement(rows)) return PRODUCER_VO_STATEMENT_COLUMNS;
+
+  const hasDanceExtras = rows.some(
+    (r) =>
+      (Number(r.danceExtraSongs) || 0) > 0 ||
+      (Number(r.danceExtraSongTime) || 0) > 0 ||
+      String(r.category || "")
+        .toLowerCase()
+        .includes("dance")
+  );
+  const hasVoiceover = rows.some(
+    (r) =>
+      Boolean(r.voiceoverAddon) &&
+      r.voiceoverAddon !== "None" &&
+      r.voiceoverAddon !== ""
+  );
+  const hasRush = rows.some(
+    (r) => Boolean(r.rushFee) && r.rushFee !== "None" && r.rushFee !== ""
+  );
+  const hasMisc = rows.some(
+    (r) =>
+      Boolean(r.miscellaneousAdjustment) && r.miscellaneousAdjustment !== ""
+  );
+
+  return PRODUCER_STATEMENT_COLUMNS.filter((col) => {
+    if (
+      col.key === "danceExtraSongs" ||
+      col.key === "danceExtraSongTime" ||
+      col.key === "danceExtraSongsPayout" ||
+      col.key === "danceExtraSongTimePayout"
+    ) {
+      return hasDanceExtras;
+    }
+    // Voiceover amount lives in My Total Payout (and VO-only statements).
+    // Never surface a separate Voiceover Compensation column on mix statements.
+    if (col.key === "voiceoverPayout") {
+      return false;
+    }
+    if (col.key === "voiceoverAddon") {
+      return hasVoiceover;
+    }
+    if (col.key === "rushFee" || col.key === "rushPayout") {
+      return hasRush;
+    }
+    if (col.key === "miscellaneousAdjustment") {
+      return hasMisc;
+    }
+    return true;
+  });
 }
 
 export function isCompletedMix(rec: MTDRecord): boolean {
@@ -717,7 +843,7 @@ export function getProducerFacingPayrollRows(
       producerObj,
       custPrice,
       null,
-      order?.rateUsed ?? null,
+      finalizedPayrollRate(order) ?? order?.rateUsed ?? null,
       rec.manualPayoutInput ?? null,
       meta.canonicalSubtypeId,
       payrollPrice,
@@ -739,7 +865,8 @@ export function getProducerFacingPayrollRows(
 
     if (rowRushAddon && rush.quantity > 0) usedAddonIds.add(rowRushAddon.id);
 
-    const basePayout = calc.producerPayout ?? order?.producerPayout ?? 0;
+    const basePayout =
+      finalizedPackageProducerPayout(order, calc.producerPayout) ?? 0;
     const rushPayout = rush.compensation;
     const withRush = finalizeMixPayout(basePayout, calc.status, rush) ?? basePayout;
     const miscAdj = miscAdjustmentAmount(
@@ -764,25 +891,28 @@ export function getProducerFacingPayrollRows(
       voiceoverAddon: "None",
       rushFee: rushLabel,
       danceExtraSongs: isDance
-        ? (rec as any).danceExtraSongs
-          ? String((rec as any).danceExtraSongs)
-          : "0"
+        ? String(resolveDanceExtraSongsQuantity(rec, linked ?? order))
         : "",
       danceExtraSongTime: isDance
-        ? (rec as any).danceExtraSongTime
-          ? String((rec as any).danceExtraSongTime)
-          : "0"
+        ? String(resolveDanceExtraSongTimeQuantity(rec, linked ?? order))
         : "",
-      producerRate: String(order?.rateUsed ?? "Default"),
+      producerRate:
+        formatCompensationPercent(
+          finalizedPayrollRate(order) ?? order?.rateUsed ?? calc.rateUsed
+        ) ?? "Default",
       voiceoverPayout: formatPrice(0),
       rushPayout: formatPrice(rushPayout),
       miscellaneousAdjustment:
         miscAdj !== 0 ? formatSignedMiscAdjustment(miscAdj) : "",
       danceExtraSongsPayout: isDance
-        ? formatPrice(((rec as any).danceExtraSongs || 0) * 15)
+        ? formatPrice(
+            resolveDanceExtraSongsQuantity(rec, linked ?? order) * 15
+          )
         : "",
       danceExtraSongTimePayout: isDance
-        ? formatPrice(((rec as any).danceExtraSongTime || 0) * 30)
+        ? formatPrice(
+            resolveDanceExtraSongTimeQuantity(rec, linked ?? order) * 30
+          )
         : "",
       totalPayout: formatPrice(payoutTotal),
       producerName: producerObj?.name || rec.assignedProducer || "Unassigned",

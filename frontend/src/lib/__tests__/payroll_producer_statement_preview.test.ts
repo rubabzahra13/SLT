@@ -189,4 +189,55 @@ describe("Payroll Producer Statement Preview & Single Source of Truth Tests", ()
     assert.equal(mattRows[0].programName, "Tigers Dance");
     assert.equal(mattRows[0].producerName, "Matt");
   });
+
+  it("5. Compensation rate is percent in preview rows and CSV (not 0.53 / 1)", () => {
+    const ordersWithRates = mockOrders.map((o) =>
+      o.id === "ord-1"
+        ? {
+            ...o,
+            rateUsed: 1,
+            rateSource: "manual_override",
+            producerPayout: 500,
+          }
+        : {
+            ...o,
+            rateUsed: 0.53,
+            rateSource: "manual_override",
+            producerPayout: 318,
+          }
+    ) as Order[];
+
+    const caseyRows = getProducerFacingPayrollRows(
+      mockMtdRecords,
+      ordersWithRates,
+      mockProducers,
+      "Casey Marlow"
+    );
+    assert.equal(caseyRows[0].producerRate, "100%");
+
+    const mattRows = getProducerFacingPayrollRows(
+      mockMtdRecords,
+      ordersWithRates,
+      mockProducers,
+      "Matt"
+    );
+    assert.equal(mattRows[0].producerRate, "53%");
+
+    const caseyCsv = generateProducerFacingPayrollCsv(
+      mockMtdRecords,
+      ordersWithRates,
+      mockProducers,
+      "Casey Marlow"
+    );
+    const mattCsv = generateProducerFacingPayrollCsv(
+      mockMtdRecords,
+      ordersWithRates,
+      mockProducers,
+      "Matt"
+    );
+    assert.ok(caseyCsv.includes("100%"), "Casey CSV must include 100%");
+    assert.equal(caseyCsv.includes(",1,"), false, "Casey CSV must not dump raw 1");
+    assert.ok(mattCsv.includes("53%"), "Matt CSV must include 53%");
+    assert.equal(mattCsv.includes("0.53"), false, "Matt CSV must not dump 0.53");
+  });
 });

@@ -157,6 +157,37 @@ function findReferenceRow(
   return null;
 }
 
+/** Dance-only: $15/song + $30/editing-time unit (Cheer/MB ignore these). */
+export function danceExtraSongsPayrollTotal(
+  rec: Pick<MTDRecord, "extraSongsQuantity" | "extraSongEditingTimeQuantity">,
+  order?: Pick<
+    Order,
+    "extraSongsQuantity" | "extraSongEditingTimeQuantity"
+  > | null,
+  formType?: string | null
+): number {
+  if (formType && formType !== "school-all-star-dance") return 0;
+  const songs = Math.max(
+    0,
+    parseInt(
+      String(rec.extraSongsQuantity ?? order?.extraSongsQuantity ?? 0),
+      10
+    ) || 0
+  );
+  const time = Math.max(
+    0,
+    parseInt(
+      String(
+        rec.extraSongEditingTimeQuantity ??
+          order?.extraSongEditingTimeQuantity ??
+          0
+      ),
+      10
+    ) || 0
+  );
+  return songs * 15 + time * 30;
+}
+
 function runEngine(
   rec: MTDRecord,
   order: Order | null | undefined,
@@ -164,6 +195,8 @@ function runEngine(
 ): EnginePriceResult | null {
   const packageType = order?.packageType || rec.package;
   if (meta.formType === "school-all-star-dance") {
+    // Rate-card only here — Extra Songs / Editing Time are layered once in
+    // resolveLiveOrderPricing so Pricing Reference overlay cannot wipe them.
     return calculateDanceOrderPricing({
       danceFormSubtype: meta.danceFormSubtype,
       packageType,
@@ -327,6 +360,17 @@ export function resolveLiveOrderPricing(
           (rushYes ? SPORTS_ENTERTAINMENT_CUSTOMER_RUSH_FEE : 0);
       }
     }
+
+    // Dance Extra Songs ($15) + Editing Time ($30) sit on top of the rate-card
+    // payroll column. Applied once after overlay so reference edits cannot
+    // drop them (and Cheer/MB misc already inside runEngine is not doubled).
+    if (enginePayroll != null && enginePayroll > 0) {
+      enginePayroll += danceExtraSongsPayrollTotal(
+        rec,
+        order,
+        formMeta.formType
+      );
+    }
   }
 
   const isOverridden = Boolean(
@@ -347,6 +391,7 @@ export function resolveLiveOrderPricing(
   // Payroll/cost always follow Pricing Reference compliant vs non-compliant
   // columns for the order's music affiliate + package — never the edited
   // customer package price. (Customer override only affects customerPrice.)
+  // Extras are already folded into enginePayroll above.
   const payrollPrice =
     enginePayroll && enginePayroll > 0
       ? enginePayroll

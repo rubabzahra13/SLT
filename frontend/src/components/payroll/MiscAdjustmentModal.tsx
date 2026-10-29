@@ -70,10 +70,12 @@ export function MiscAdjustmentModal({
   }, [open, record, existing]);
 
   const handleClose = () => {
+    if (saving) return;
     onClose();
   };
 
   const handleSave = async () => {
+    if (saving) return;
     setError(null);
     if (!record) {
       setError("No payroll row selected.");
@@ -105,7 +107,7 @@ export function MiscAdjustmentModal({
           assignedProducerObj?.initials || record.assignedProducer || null,
         notes: MISC_ADJUSTMENT_LABEL,
       });
-      handleClose();
+      onClose();
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to save adjustment."
@@ -115,12 +117,12 @@ export function MiscAdjustmentModal({
   };
 
   const handleClear = async () => {
-    if (!onClear || !existing) return;
+    if (!onClear || !existing || saving) return;
     setSaving(true);
     setError(null);
     try {
       await onClear();
-      handleClose();
+      onClose();
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to clear adjustment."
@@ -152,7 +154,9 @@ export function MiscAdjustmentModal({
           <button
             type="button"
             onClick={handleClose}
-            className="flex h-7 w-7 items-center justify-center rounded-md text-brand-ink-faint transition hover:bg-brand-hover hover:text-brand-ink"
+            disabled={saving}
+            aria-label="Close"
+            className="flex h-7 w-7 items-center justify-center rounded-md text-brand-ink-faint transition hover:bg-brand-hover hover:text-brand-ink disabled:pointer-events-none disabled:opacity-40"
           >
             <X className="h-4 w-4" />
           </button>
@@ -197,7 +201,8 @@ export function MiscAdjustmentModal({
                   key={opt.id}
                   type="button"
                   onClick={() => setDirection(opt.id)}
-                  className={`flex-1 rounded-lg border py-2 text-sm font-semibold transition ${
+                  disabled={saving}
+                  className={`flex-1 rounded-lg border py-2 text-sm font-semibold transition disabled:pointer-events-none disabled:opacity-60 ${
                     direction === opt.id
                       ? "border-brand-orange bg-brand-orange/10 text-brand-orange"
                       : "border-brand-line bg-brand-bg text-brand-ink-secondary hover:border-brand-orange/40 hover:text-brand-ink"
@@ -221,10 +226,11 @@ export function MiscAdjustmentModal({
                 type="number"
                 min="0.01"
                 step="0.01"
-                className="w-full rounded-lg border border-brand-line bg-brand-bg py-2 pl-7 pr-3 text-sm text-brand-ink placeholder:text-brand-ink-faint focus:border-brand-orange/60 focus:outline-none focus:ring-1 focus:ring-brand-orange/30"
+                className="w-full rounded-lg border border-brand-line bg-brand-bg py-2 pl-7 pr-3 text-sm text-brand-ink placeholder:text-brand-ink-faint focus:border-brand-orange/60 focus:outline-none focus:ring-1 focus:ring-brand-orange/30 disabled:cursor-not-allowed disabled:opacity-60"
                 placeholder="0.00"
                 value={amountText}
                 onChange={(e) => setAmountText(e.target.value)}
+                disabled={saving}
                 autoFocus
               />
             </div>
@@ -244,7 +250,7 @@ export function MiscAdjustmentModal({
                 type="button"
                 onClick={() => void handleClear()}
                 disabled={saving}
-                className="rounded-lg px-3 py-1.5 text-sm font-medium text-brand-danger transition hover:bg-brand-danger/10 disabled:opacity-50"
+                className="rounded-lg px-3 py-1.5 text-sm font-medium text-brand-danger transition hover:bg-brand-danger/10 disabled:pointer-events-none disabled:opacity-50"
               >
                 Clear
               </button>
@@ -255,7 +261,7 @@ export function MiscAdjustmentModal({
               type="button"
               onClick={handleClose}
               disabled={saving}
-              className="rounded-lg border border-brand-line px-4 py-1.5 text-sm font-medium text-brand-ink-secondary transition hover:bg-brand-hover disabled:opacity-50"
+              className="rounded-lg border border-brand-line px-4 py-1.5 text-sm font-medium text-brand-ink-secondary transition hover:bg-brand-hover disabled:pointer-events-none disabled:opacity-50"
             >
               Cancel
             </button>
@@ -263,10 +269,17 @@ export function MiscAdjustmentModal({
               type="button"
               onClick={() => void handleSave()}
               disabled={saving}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-brand-orange px-4 py-1.5 text-sm font-semibold text-white transition hover:bg-brand-orange/90 disabled:opacity-60"
+              aria-busy={saving}
+              className="inline-flex min-w-[5.5rem] items-center justify-center gap-1.5 rounded-lg bg-brand-orange px-4 py-1.5 text-sm font-semibold text-white transition hover:bg-brand-orange/90 disabled:opacity-80"
             >
-              {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-              Save
+              {saving ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                  Saving…
+                </>
+              ) : (
+                "Save"
+              )}
             </button>
           </div>
         </div>

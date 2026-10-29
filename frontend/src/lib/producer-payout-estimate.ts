@@ -2,7 +2,11 @@ import type { MTDRecord, Order, Producer } from "@/types";
 import { findProducerByAssignmentKey } from "@/lib/editor-assignment";
 import { resolveMTDFormMeta } from "@/lib/mtd-filters";
 import { resolveLiveOrderPricing } from "@/lib/order-package-price";
-import { computeClientPayroll } from "@/lib/pricing-display";
+import {
+  computeClientPayroll,
+  finalizedPackageProducerPayout,
+  finalizedPayrollRate,
+} from "@/lib/pricing-display";
 import {
   loadDailyCostSettings,
   type DailyCostSettings,
@@ -75,7 +79,7 @@ export function estimateRecordProducerPayoutDetail(
     producer,
     packagePrice ?? 0,
     null,
-    order?.rateUsed ?? null,
+    finalizedPayrollRate(order) ?? order?.rateUsed ?? null,
     rec.manualPayoutInput ?? null,
     meta.canonicalSubtypeId,
     payrollPrice,
@@ -98,14 +102,25 @@ export function estimateRecordProducerPayoutDetail(
   const voiceoverPayout = calc.voiceoverPayout ?? 0;
   const extrasApplied = rushFeePayout > 0 || voiceoverPayout > 0;
 
+  // Locked Complete-to-Payroll producer_payout is package-only (no rush/VO).
+  // Prefer it when rate was overridden, then add extras for statement totals.
+  const lockedPackagePayout = finalizedPackageProducerPayout(
+    order,
+    calc.categoryPayout ?? null
+  );
   const totalPayout =
-    calc.producerPayout ??
-    calc.newPricingPayout ??
-    order?.producerPayout ??
-    null;
+    order?.rateSource === "manual_override" && lockedPackagePayout != null
+      ? Math.round(
+          (lockedPackagePayout + rushFeePayout + voiceoverPayout) * 100
+        ) / 100
+      : calc.producerPayout ??
+        calc.newPricingPayout ??
+        order?.producerPayout ??
+        null;
 
-  // Prefer explicit category payout; otherwise back out extras from total.
+  // Prefer locked/explicit category payout; otherwise back out extras from total.
   let basePayout =
+    lockedPackagePayout ??
     calc.categoryPayout ??
     (totalPayout != null
       ? Math.max(

@@ -125,4 +125,33 @@ describe("payroll/cost uses compliant rate card, not edited customer price", () 
       assert.ok(nonLive.payrollPrice >= live.payrollPrice);
     }
   });
+
+  it("dance Extra Songs + Editing Time fold into live payroll price", () => {
+    const rec = baseRec({
+      package: "CUSTOM POM",
+      extraSongsQuantity: 2,
+      extraSongEditingTimeQuantity: 2,
+      category: "All Star Dance",
+    });
+    const order = baseOrder({
+      formType: "school-all-star-dance",
+      danceFormSubtype: "pom",
+      cheerFormSubtype: undefined,
+      packageType: "CUSTOM POM",
+      timeLengthOfMix: undefined,
+      musicAffiliate: "Power Music Covers",
+      extraSongsQuantity: 2,
+      extraSongEditingTimeQuantity: 2,
+    });
+    const live = resolveLiveOrderPricing(rec, order);
+    const bare = resolveLiveOrderPricing(
+      { ...rec, extraSongsQuantity: 0, extraSongEditingTimeQuantity: 0 },
+      { ...order, extraSongsQuantity: 0, extraSongEditingTimeQuantity: 0 }
+    );
+    // 2×$15 + 2×$30 = $90 on top of rate-card payroll.
+    if (bare.enginePayrollPrice != null && bare.enginePayrollPrice > 0) {
+      assert.equal(live.payrollPrice, bare.payrollPrice + 90);
+      assert.equal(live.enginePayrollPrice, bare.enginePayrollPrice! + 90);
+    }
+  });
 });

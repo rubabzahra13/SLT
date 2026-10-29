@@ -30,13 +30,13 @@ function schoolCheer(overrides: Partial<Order> = {}): Order {
 }
 
 describe("All-Star Cheer Move-to-MTD form gate", () => {
-  it("coupon is optional; howDidYouFindOut is required", () => {
+  it("coupon and howDidYouFindOut are optional", () => {
     const order = allStarCheer();
     assert.equal(isOptionalOrderFormField("couponCode", order), true);
-    assert.equal(isOptionalOrderFormField("howDidYouFindOut", order), false);
+    assert.equal(isOptionalOrderFormField("howDidYouFindOut", order), true);
   });
 
-  it("blocks MTD when howDidYouFindOut is empty", () => {
+  it("does not block MTD when howDidYouFindOut is empty", () => {
     const gaps = getOrderFormFieldsBlockingMtd(
       allStarCheer({
         gymName: "Spirit Athletics",
@@ -67,8 +67,8 @@ describe("All-Star Cheer Move-to-MTD form gate", () => {
       })
     );
     assert.ok(
-      gaps.some((g) => g.key === "howDidYouFindOut"),
-      "empty howDidYouFindOut must block All-Star Cheer MTD"
+      !gaps.some((g) => g.key === "howDidYouFindOut"),
+      "empty howDidYouFindOut must not block All-Star Cheer MTD"
     );
     assert.ok(
       !gaps.some((g) => g.key === "couponCode"),

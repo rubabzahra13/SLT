@@ -1113,13 +1113,8 @@ export function orderFormFieldsDirty(
     for (const field of section.fields) {
       const prev = rawFieldValue(original, field.key).trim();
       const next = rawFieldValue(draft, field.key).trim();
-      if (field.key === "numberOfCopies") {
-        // UI defaults empty copies to "1"; don't treat that alone as dirty.
-        const prevNorm = prev || "1";
-        const nextNorm = next || "1";
-        if (prevNorm !== nextNorm) return true;
-        continue;
-      }
+      // numberOfCopies: empty and "1" are distinct — equating them left Save
+      // disabled after typing the placeholder default into an empty field.
       if (prev !== next) return true;
     }
   }

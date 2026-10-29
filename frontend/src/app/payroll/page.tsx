@@ -6,6 +6,10 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Check, Trash2 } from "lucide-react";
 import { PayrollRushFeeControls } from "@/components/payroll/PayrollRushFeeControls";
 import { MarkPaidConfirmModal } from "@/components/payroll/MarkPaidConfirmModal";
+import {
+  PayoutCalculationButton,
+  PayoutCalculationModal,
+} from "@/components/payroll/PayoutCalculationModal";
 import { MiscAdjustmentModal } from "@/components/payroll/MiscAdjustmentModal";
 import { VoiceoversPanel } from "@/components/payroll/VoiceoversPanel";
 import type { CreatePayrollAddonPayload } from "@/lib/api/payroll-addons";
@@ -73,7 +77,11 @@ import type {
   PayrollAddon,
 } from "@/types";
 
-import { computeClientPayroll } from "@/lib/pricing-display";
+import {
+  computeClientPayroll,
+  finalizedPackageProducerPayout,
+  finalizedPayrollRate,
+} from "@/lib/pricing-display";
 import {
   compensationRatesEqual,
   DEFAULT_RUSH_FEE_UNIT,
@@ -148,6 +156,9 @@ export default function PayrollPage() {
   const [markPaidRecord, setMarkPaidRecord] = useState<MTDRecord | null>(null);
   const [miscAdjustmentRecord, setMiscAdjustmentRecord] =
     useState<MTDRecord | null>(null);
+  const [payoutViewRecord, setPayoutViewRecord] = useState<MTDRecord | null>(
+    null
+  );
   const [viewOrder, setViewOrder] = useState<MTDViewOrder>("sequence");
 
   const [formState, setFormState] = useState<OrderFormType>(DEFAULT_FORM);
@@ -484,8 +495,7 @@ export default function PayrollPage() {
       const meta = resolveMTDFormMeta(rec, orderById);
       const custPrice = order?.finalCustomerPrice ?? rec.finalCustomerPrice ?? rec.price;
       const payrollPrice = order?.finalPayrollPrice ?? rec.finalPayrollPrice ?? rec.price;
-      const rateIsManual = order?.rateSource === "manual_override";
-      const selectedRate = rateIsManual ? order?.rateUsed ?? null : null;
+      const selectedRate = finalizedPayrollRate(order);
 
       const seRushFee =
         meta.formType === "sports-entertainment"
@@ -519,7 +529,7 @@ export default function PayrollPage() {
           rushFeeCompensationRate: producerObj?.rushFeeRate ?? 1.0,
         }
       );
-      const base = calc.producerPayout ?? order?.producerPayout ?? 0;
+      const base = finalizedPackageProducerPayout(order, calc.producerPayout) ?? 0;
       const withRush = finalizeMixPayout(base, calc.status, selection) ?? 0;
       const misc = miscAdjustmentAmount(rec.id, rec.orderId, payrollAddons);
       const payout = applyMiscAdjustmentToPayout(withRush, misc) ?? withRush;
@@ -1142,8 +1152,7 @@ export default function PayrollPage() {
           const custPrice = order?.finalCustomerPrice ?? rec.finalCustomerPrice ?? rec.price;
           const payrollPrice = order?.finalPayrollPrice ?? rec.finalPayrollPrice ?? rec.price;
 
-          const rateIsManual = order?.rateSource === "manual_override";
-          const selectedRate = rateIsManual ? order?.rateUsed ?? null : null;
+          const selectedRate = finalizedPayrollRate(order);
 
           const seRushFee =
             meta.formType === "sports-entertainment"
@@ -1179,7 +1188,7 @@ export default function PayrollPage() {
           );
 
           const withRush = finalizeMixPayout(
-            calculated.producerPayout ?? order?.producerPayout,
+            finalizedPackageProducerPayout(order, calculated.producerPayout),
             calculated.status,
             selection
           );
@@ -1194,14 +1203,23 @@ export default function PayrollPage() {
             order?.finalCustomerPriceOverridden ?? rec.finalCustomerPriceOverridden
           );
 
+          const viewCalc = (
+            <PayoutCalculationButton
+              onOpen={() => setPayoutViewRecord(rec)}
+            />
+          );
+
           if (model === "not_paid_for_mixing") {
             // Misc adjustments still apply when the mix itself is unpaid.
             const unpaidTotal = applyMiscAdjustmentToPayout(0, miscAdj) ?? 0;
             return (
               <div className="flex flex-col items-center">
-                <span className="text-[12px] font-semibold tabular-nums text-brand-ink">
-                  {formatPrice(unpaidTotal)}
-                </span>
+                <div className="flex items-center justify-center gap-1">
+                  <span className="text-[12px] font-semibold tabular-nums text-brand-ink">
+                    {formatPrice(unpaidTotal)}
+                  </span>
+                  {viewCalc}
+                </div>
                 <span className="text-[10px] text-brand-ink-tertiary">
                   Not Paid for Mixing
                 </span>
@@ -1212,11 +1230,14 @@ export default function PayrollPage() {
           if (model === "hourly_manual") {
             return (
               <div className="flex flex-col items-center">
-                <span className="text-[12px] font-semibold tabular-nums text-brand-ink">
-                  {payout !== undefined && payout !== null
-                    ? formatPrice(payout)
-                    : "Hourly"}
-                </span>
+                <div className="flex items-center justify-center gap-1">
+                  <span className="text-[12px] font-semibold tabular-nums text-brand-ink">
+                    {payout !== undefined && payout !== null
+                      ? formatPrice(payout)
+                      : "Hourly"}
+                  </span>
+                  {viewCalc}
+                </div>
                 <span className="text-[10px] text-brand-ink-tertiary">
                   Manual Pay Sheet
                 </span>
@@ -1227,9 +1248,12 @@ export default function PayrollPage() {
           if (payout === undefined || payout === null) {
             return (
               <div className="flex flex-col items-center">
-                <span className="text-[12px] font-semibold tabular-nums text-brand-orange">
-                  Needs Review
-                </span>
+                <div className="flex items-center justify-center gap-1">
+                  <span className="text-[12px] font-semibold tabular-nums text-brand-orange">
+                    Needs Review
+                  </span>
+                  {viewCalc}
+                </div>
                 <span className="text-[10px] text-brand-ink-tertiary">
                   No rate on file
                 </span>
@@ -1251,6 +1275,7 @@ export default function PayrollPage() {
                     edited
                   </span>
                 )}
+                {viewCalc}
               </div>
             </div>
           );
@@ -1746,6 +1771,15 @@ export default function PayrollPage() {
           />
         )}
       </div>
+
+      <PayoutCalculationModal
+        open={Boolean(payoutViewRecord)}
+        record={payoutViewRecord}
+        allOrders={allOrders}
+        producers={producers}
+        payrollAddons={payrollAddons}
+        onClose={() => setPayoutViewRecord(null)}
+      />
 
       <MarkPaidConfirmModal
         open={Boolean(markPaidRecord)}
