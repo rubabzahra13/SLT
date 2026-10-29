@@ -56,7 +56,8 @@ describe("Prompt 3 — Detail View Context & Payroll Detail View Tests", () => {
         case "orders":
           return `/orders/${id}`;
         case "mtd":
-          return `/mtd/${id}`;
+          // MTD has no detail page — deep links go to the list with focus.
+          return `/mtd?focus=${id}`;
         case "payroll":
           // Payroll has no detail page — deep links go to the list with focus.
           return `/payroll?focus=${id}`;
@@ -64,11 +65,11 @@ describe("Prompt 3 — Detail View Context & Payroll Detail View Tests", () => {
     };
 
     assert.equal(getDetailHref("orders", recordId), "/orders/rec-101");
-    assert.equal(getDetailHref("mtd", recordId), "/mtd/rec-101");
+    assert.equal(getDetailHref("mtd", recordId), "/mtd?focus=rec-101");
     assert.equal(getDetailHref("payroll", recordId), "/payroll?focus=rec-101");
 
     // Context isolation check: Payroll list href must NEVER point to /mtd
-    assert.notEqual(getDetailHref("payroll", recordId), "/mtd/rec-101");
+    assert.notEqual(getDetailHref("payroll", recordId), "/mtd?focus=rec-101");
   });
 
   it("calculates Payroll detail view producer payout, voiceover, and completed date matching underlying record", () => {

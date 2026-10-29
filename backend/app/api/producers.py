@@ -6,6 +6,7 @@ from typing import Any, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
@@ -13,6 +14,8 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from app.api.auth import get_current_user, require_full_access
 from app.core.database import get_db
+from app.lib.delete_norm import allow_missing_query, missing_or_found
+from app.lib.pagination import page_size_query, page_token_query, paginate_query
 from app.lib.producer_assignment import (
     canonical_producer_assignment_key,
     normalize_producer_key,
@@ -27,6 +30,11 @@ from app.schemas.order import OrderSchema
 from app.schemas.producer import ProducerCreateSchema, ProducerSchema, ProducerUpdateSchema
 from app.services.board_events import board_event_hub
 from app.services.producer_events import producer_event_hub
+
+
+class ProducerListResponse(BaseModel):
+    producers: list[ProducerSchema]
+    next_page_token: str | None = None
 
 router = APIRouter()
 
@@ -324,17 +332,24 @@ def _load_producer(db: Session, producer_id: uuid.UUID) -> Producer:
     )
 
 
-@router.get("/producers", response_model=List[ProducerSchema])
-def get_producers(db: Session = Depends(get_db)):
+@router.get("/producers", response_model=ProducerListResponse)
+def get_producers(
+    page_size: int = Depends(page_size_query),
+    page_token: str | None = Depends(page_token_query),
+    db: Session = Depends(get_db),
+):
     # Eager-load time_offs so serializing each producer's time_offs does not
     # fire one query per producer (N+1) against the remote database.
     # Stable name order matches /api/bootstrap so the roster never reshuffles.
-    return (
+    query = (
         db.query(Producer)
         .options(selectinload(Producer.time_offs))
-        .order_by(Producer.name.asc())
-        .all()
+        .order_by(Producer.name.asc(), Producer.id.asc())
     )
+    page, next_token = paginate_query(
+        query, page_size=page_size, page_token=page_token
+    )
+    return ProducerListResponse(producers=page, next_page_token=next_token)
 
 
 @router.get("/producers/stream")
@@ -514,11 +529,15 @@ def delete_producer(
     producer_id: str,
     db: Session = Depends(get_db),
     _: None = Depends(require_full_access),
+    allow_missing: bool = Depends(allow_missing_query),
 ):
     producer = _find_producer(db, producer_id)
-    if producer:
-        deleted_id = producer.id
-        db.delete(producer)
-        db.commit()
-        _publish_producer_deleted(deleted_id)
+    if missing_or_found(
+        producer, allow_missing=allow_missing, detail="Producer not found"
+    ):
+        return None
+    deleted_id = producer.id
+    db.delete(producer)
+    db.commit()
+    _publish_producer_deleted(deleted_id)
     return None

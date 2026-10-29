@@ -242,10 +242,49 @@ const ADD_ORDER_NON_CONTENT_KEYS = new Set([
 ]);
 
 /**
- * Add New Order (admin): any meaningful form field unlocks save, except
- * coupon / how-did-you-find-out alone (same as Magento non-mandatory).
- * Identity name is no longer strictly required — without it Match suggestions
- * simply will not appear until a name is filled later.
+ * Values the blank Add New Order draft pre-fills in dropdowns / selects.
+ * These alone must not satisfy the “fill at least one field” rule.
+ */
+export function isAddOrderPrefillValue(
+  key: string,
+  raw: string,
+  order: Pick<Order, "formType">
+): boolean {
+  const v = String(raw ?? "").trim();
+  if (!v) return false;
+  const lower = v.toLowerCase();
+  if (key === "country" && lower === "united states") return true;
+  if (key === "numberOfCopies" && v === "1") return true;
+  if (
+    key === "requestedEditor" &&
+    (lower === "first available" || lower === "fa")
+  ) {
+    return true;
+  }
+  if (
+    key === "editorRequest" &&
+    (lower === "fa" || lower === "first available")
+  ) {
+    return true;
+  }
+  // Subtype-driven Yes/No on school cheer — not user-entered content.
+  if (key === "varsityVirocCustomer" && (lower === "yes" || lower === "no")) {
+    return true;
+  }
+  if (
+    order.formType === "school-anthem" &&
+    (key === "packageType" || key === "package") &&
+    lower === "school anthems"
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Add New Order (admin): any meaningful user-entered field unlocks save.
+ * Coupon / how-found, and blank-draft dropdown defaults, do not count alone.
+ * Identity name is not required — Match suggestions need it later if empty.
  */
 export function orderHasAddOrderContent(order: Order): boolean {
   const sections = getOrderDetailSections(order);
@@ -253,6 +292,7 @@ export function orderHasAddOrderContent(order: Order): boolean {
     for (const field of section.fields) {
       if (ADD_ORDER_NON_CONTENT_KEYS.has(field.key)) continue;
       const raw = rawFieldValue(order, field.key);
+      if (isAddOrderPrefillValue(field.key, raw, order)) continue;
       if (hasMeaningfulFieldValue(raw, { fieldKey: field.key })) return true;
     }
   }
@@ -266,5 +306,5 @@ export function getAddOrderRequiredGaps(order: Order): OrderFormMtdGap[] {
 
 export function formatAddOrderSaveBlockReason(gaps: OrderFormMtdGap[]): string {
   if (gaps.length === 0) return "";
-  return "Fill at least one field to save (coupon and how-you-found-us alone don’t count).";
+  return "Fill at least one field to save (pre-filled dropdowns, coupon, and how-you-found-us alone don’t count).";
 }

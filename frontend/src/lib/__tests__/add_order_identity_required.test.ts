@@ -96,4 +96,27 @@ describe("Add Order — any meaningful field (except coupon / how-found)", () =>
     } as Order;
     assert.equal(getAddOrderRequiredGaps(draft).length, 1);
   });
+
+  it("pre-filled country / copies / First Available alone do not unlock save", () => {
+    const draft = {
+      formType: "school-all-star-cheer",
+      cheerFormSubtype: "all-star-cheer",
+      country: "United States",
+      numberOfCopies: "1",
+      requestedEditor: "First Available",
+      editorRequest: "FA",
+    } as Order;
+    assert.equal(orderHasAddOrderContent(draft), false);
+    assert.equal(getAddOrderRequiredGaps(draft).length, 1);
+  });
+
+  it("school anthem default package alone does not unlock save", () => {
+    const draft = {
+      formType: "school-anthem",
+      packageType: "SCHOOL ANTHEMS",
+      package: "SCHOOL ANTHEMS",
+      country: "United States",
+    } as Order;
+    assert.equal(orderHasAddOrderContent(draft), false);
+  });
 });

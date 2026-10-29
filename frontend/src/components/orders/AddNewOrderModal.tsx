@@ -10,10 +10,7 @@ import { formatApiClientError } from "@/lib/api/client";
 import type { CreateManualSchedulePayload } from "@/lib/api/mtd";
 import { orderPatchFromOrderField } from "@/lib/mtd-order-sync";
 import { packageTypeDisplayValue } from "@/components/mtd/PackageTypeField";
-import {
-  getOrderIdentityFieldKey,
-  getOrderIdentityName,
-} from "@/lib/order-detail-sections";
+import { getOrderIdentityName } from "@/lib/order-detail-sections";
 import { normalizeOrder } from "@/lib/order-form";
 import {
   addOrderDraftHasContent,
@@ -430,7 +427,7 @@ export function AddNewOrderModal({
     if (!addOrderDraftHasContent(orderDraft, mixList, keys)) {
       setShowValidation(true);
       setError(
-        "Fill at least one field to save (coupon and how-you-found-us alone don’t count)."
+        "Fill at least one field to save (pre-filled dropdowns, coupon, and how-you-found-us alone don’t count)."
       );
       return;
     }
@@ -714,9 +711,8 @@ export function AddNewOrderModal({
             producers={producers}
             editable
             highlightMissing={showValidation}
-            requiredFieldKeys={[
-              getOrderIdentityFieldKey(formType, cheerSubtype, danceSubtype),
-            ]}
+            /** Empty allowlist: no field is mandatory / starred on Add Order. */
+            requiredFieldKeys={[]}
             onFieldChange={handleFieldChange}
             multiMix={
               multiMixEnabled

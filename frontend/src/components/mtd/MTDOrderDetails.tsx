@@ -95,8 +95,8 @@ type MTDOrderDetailsProps = {
   /** Highlight empty form-only fields in red (default true). */
   highlightMissing?: boolean;
   /**
-   * When set, only these keys can show as required/missing.
-   * Used by Add New Order (identity name only).
+   * When set, only these keys can show as required/missing / starred.
+   * Add New Order passes `[]` (nothing mandatory). Magento edit uses unset.
    */
   requiredFieldKeys?: ReadonlySet<string> | string[];
   /** Per-field provenance when a Manual↔Form pair is present (single value, no dupes). */
@@ -346,7 +346,7 @@ export function MTDOrderDetails({
                 editable &&
                 Boolean(rawValue.trim()) &&
                 isEmptyFieldToken(rawValue, { fieldKey: field.key });
-              // Add Order allowlist: only identity is required; don't spam "(optional)".
+              // Add Order empty allowlist: no "(optional)" spam. Magento: optional cues.
               const optional =
                 !requiredKeys && isOptionalOrderFormField(field.key, order);
               const requiredMark = Boolean(

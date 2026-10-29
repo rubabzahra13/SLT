@@ -396,9 +396,9 @@ export function buildPriorityQueue(
 
   for (const order of orders) {
     const href = order.mtdId
-      ? `/mtd/${order.mtdId}`
+      ? `/mtd?focus=${encodeURIComponent(order.mtdId)}`
       : mtdByOrderId.get(order.id)
-        ? `/mtd/${mtdByOrderId.get(order.id)}`
+        ? `/mtd?focus=${encodeURIComponent(mtdByOrderId.get(order.id)!)}`
         : `/orders/${order.id}`;
 
     if (order.needsAttention) {
@@ -449,7 +449,7 @@ export function buildPriorityQueue(
     if (coveredTitles.has(rec.programName.toLowerCase())) continue;
     items.push({
       id: `mtd-${rec.id}`,
-      href: `/mtd/${rec.id}`,
+      href: `/mtd?focus=${encodeURIComponent(rec.id)}`,
       title: rec.programName,
       meta: `${rec.contactName || "MTD"} · ${rec.category}`,
       reason:

@@ -1,4 +1,5 @@
 import { apiClient } from "./client";
+import { fetchAllListPages } from "./pagination";
 import type { DiscountCode } from "@/types";
 
 export interface BackendDiscountCode {
@@ -15,8 +16,9 @@ export function transformDiscountCode(bd: BackendDiscountCode): DiscountCode {
 
 export async function fetchDiscountCodesApi(): Promise<DiscountCode[]> {
   try {
-    const backendCodes = await apiClient.get<BackendDiscountCode[]>(
-      "/api/discount-codes"
+    const backendCodes = await fetchAllListPages<BackendDiscountCode>(
+      "/api/discount-codes",
+      "discount_codes"
     );
     return backendCodes.map(transformDiscountCode);
   } catch (err) {
@@ -60,19 +62,14 @@ export async function updateDiscountCodeApi(
   }
 }
 
-export async function deleteDiscountCodeApi(id: string): Promise<void> {
+export async function deleteDiscountCodeApi(
+  id: string,
+  options?: { allowMissing?: boolean }
+): Promise<void> {
+  const qs = options?.allowMissing !== false ? "?allow_missing=true" : "";
   try {
-    await apiClient.delete(`/api/discount-codes/${id}`);
+    await apiClient.delete(`/api/discount-codes/${id}${qs}`);
   } catch (err) {
-    // Treat 404 as success so optimistic / double-delete stays clean.
-    if (
-      err &&
-      typeof err === "object" &&
-      "status" in err &&
-      (err as { status?: number }).status === 404
-    ) {
-      return;
-    }
     console.error("Failed to delete coupon code from backend API:", err);
     throw err;
   }

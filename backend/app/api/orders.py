@@ -5,10 +5,14 @@ from typing import Any, List
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.api.auth import get_current_user, require_full_access
 from app.core.database import get_db
+from app.lib.delete_norm import allow_missing_query, missing_or_found
+from app.lib.pagination import page_size_query, page_token_query, paginate_query
 from app.lib.producer_assignment import (
     canonical_producer_assignment_key,
     resolve_producer_by_assignment_key,
@@ -20,6 +24,11 @@ from app.models.user import User
 from app.schemas.mtd_record import MTDRecordSchema
 from app.schemas.order import OrderSchema, OrderCreateSchema, OrderUpdateSchema
 from app.services.board_events import board_event_hub
+
+
+class OrderListResponse(BaseModel):
+    orders: list[OrderSchema]
+    next_page_token: str | None = None
 
 router = APIRouter()
 
@@ -325,15 +334,17 @@ def _mirror_shared_fields_to_mtd(db: Session, order: Order, changed: dict) -> No
             mtd.in_mtd = False
 
 
-@router.get("/orders", response_model=List[OrderSchema])
+@router.get("/orders", response_model=OrderListResponse)
 def get_orders(
     form_type: str | None = None,
     cheer_form_subtype: str | None = None,
     category: str | None = None,
     status: str | None = None,
+    page_size: int = Depends(page_size_query),
+    page_token: str | None = Depends(page_token_query),
     db: Session = Depends(get_db),
 ):
-    query = db.query(Order)
+    query = db.query(Order).order_by(Order.created_at.desc(), Order.id.asc())
     if cheer_form_subtype and cheer_form_subtype != "all":
         query = query.filter(Order.cheer_form_subtype == cheer_form_subtype)
     elif form_type:
@@ -359,7 +370,10 @@ def get_orders(
             query = query.filter(False)
     if status:
         query = query.filter(Order.status == status)
-    return query.all()
+    page, next_token = paginate_query(
+        query, page_size=page_size, page_token=page_token
+    )
+    return OrderListResponse(orders=page, next_page_token=next_token)
 
 
 def _serialize_order(order: Order) -> dict[str, Any]:
@@ -572,3 +586,81 @@ def update_order(
     ):
         _publish_linked_mtd_rows(db, order)
     return order
+
+
+@router.delete("/orders/{order_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_order(
+    order_id: str,
+    db: Session = Depends(get_db),
+    _: None = Depends(require_full_access),
+    allow_missing: bool = Depends(allow_missing_query),
+):
+    """Permanently delete an Orders-tab booking (and linked MTD / payroll rows)."""
+    from app.models.payroll_addon import PayrollAddon
+
+    order = _find_order(db, order_id)
+    if missing_or_found(
+        order, allow_missing=allow_missing, detail="Order not found"
+    ):
+        board_event_hub.publish({"type": "order.deleted", "id": order_id})
+        return None
+
+    order_uuid = order.id
+    order_id_str = str(order_uuid)
+
+    # Unlink Magento ↔ manual match peers so the surviving row is editable again.
+    peers = (
+        db.query(Order)
+        .filter(
+            Order.id != order_uuid,
+            or_(
+                Order.matched_order_id == order_uuid,
+                Order.merged_form_order_id == order_id_str,
+                Order.merged_into_manual_order_id == order_id_str,
+            ),
+        )
+        .all()
+    )
+    peer_ids: list[uuid.UUID] = []
+    for peer in peers:
+        if peer.matched_order_id == order_uuid:
+            peer.matched_order_id = None
+            peer.match_score = None
+            peer.match_status = None
+        if peer.merged_form_order_id == order_id_str:
+            peer.merged_form_order_id = None
+            peer.manual_overlap_snapshot = None
+        if peer.merged_into_manual_order_id == order_id_str:
+            peer.merged_into_manual_order_id = None
+            peer.manual_overlap_snapshot = None
+        peer_ids.append(peer.id)
+
+    linked_mtd = (
+        db.query(MTDRecord).filter(MTDRecord.order_id == order_uuid).all()
+    )
+    mtd_ids = [row.id for row in linked_mtd]
+    if mtd_ids:
+        db.query(PayrollAddon).filter(PayrollAddon.mtd_id.in_(mtd_ids)).delete(
+            synchronize_session=False
+        )
+    db.query(PayrollAddon).filter(PayrollAddon.order_id == order_uuid).delete(
+        synchronize_session=False
+    )
+    for row in linked_mtd:
+        db.delete(row)
+
+    db.delete(order)
+    db.commit()
+
+    board_event_hub.publish(
+        {
+            "type": "order.deleted",
+            "id": order_id_str,
+        }
+    )
+    for peer_id in peer_ids:
+        peer = db.query(Order).filter(Order.id == peer_id).first()
+        if peer:
+            _publish_order_updated(peer)
+
+    return None

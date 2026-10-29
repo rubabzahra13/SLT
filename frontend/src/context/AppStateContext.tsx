@@ -104,6 +104,7 @@ import {
   transformProducer,
   createOrderApi,
   updateOrderApi,
+  deleteOrderApi,
   createMTDRecordApi,
   updateMTDRecordApi,
   deleteMTDRecordApi,
@@ -169,6 +170,8 @@ type AppStateContextValue = {
     patch: Partial<Order>,
     seed?: Order
   ) => Promise<void>;
+  /** Permanently delete an Orders-tab booking (clears assignment with the order). */
+  deleteOrder: (id: string) => Promise<void>;
   setSecretMenuPrices: (pricing: SecretMenuPricing) => void;
   markComplete: (orderId: string) => void;
   addPastOrder: (order: Order) => void;
@@ -885,12 +888,12 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       if (n.dedupeKey) {
         setNotifications((prev) => {
           if (prev.some((x) => x.dedupeKey === n.dedupeKey)) return prev;
-          const notification: AppNotification = {
-            ...n,
-            id: `notif-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-            read: false,
-            createdAt: new Date().toISOString(),
-          };
+      const notification: AppNotification = {
+        ...n,
+        id: `notif-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        read: false,
+        createdAt: new Date().toISOString(),
+      };
           return [notification, ...prev].slice(0, 30);
         });
         return;
@@ -963,30 +966,30 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       // assignment/identity onto the create payload (that wiped Order fields).
       const draftRecord: MTDRecord = mergeCollectionStateFromOrder(
         {
-          id: draftId,
-          orderId: order.uuid || order.id,
-          section: sectionForCategory(order.category),
+        id: draftId,
+        orderId: order.uuid || order.id,
+        section: sectionForCategory(order.category),
           assignedProducer: order.assignedProducer ?? null,
-          category: order.category,
+        category: order.category,
           editorRequest: order.editorRequest || "FA",
           contactName: "",
           editorInitials: "",
           programName: "",
           package: "",
           musicTheme: order.musicTheme || "",
-          price,
-          priceCompliance: compliance,
-          invoice: "",
+        price,
+        priceCompliance: compliance,
+        invoice: "",
           mixStartDate: order.mixStartDate || "",
           mixEndDate: order.mixEndDate || undefined,
           eightCountSheet: order.eightCountSheet || "",
           haveSongs: order.haveSongs || "",
           needsAttention: Boolean(order.needsAttention),
-          status: "active",
-          recordStatus: "Ongoing",
-          formType: order.formType,
-          cheerFormSubtype: order.cheerFormSubtype,
-          danceFormSubtype: order.danceFormSubtype,
+        status: "active",
+        recordStatus: "Ongoing",
+        formType: order.formType,
+        cheerFormSubtype: order.cheerFormSubtype,
+        danceFormSubtype: order.danceFormSubtype,
           inMTD: true,
         },
         order
@@ -1031,7 +1034,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
             },
             order
           );
-          setMtdRecords((prev) =>
+            setMtdRecords((prev) =>
             prev.map((r) => (r.id === draftId ? hydrated : r))
           );
           await updateOrderApi(orderId, {
@@ -1056,7 +1059,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         tone: "success",
         title: "Moved to MTD",
         message: `${label} is now in Music To Do.`,
-        href: `/mtd/${newRecord.id}`,
+        href: `/mtd?focus=${encodeURIComponent(newRecord.id)}`,
       });
 
       return newRecord;
@@ -1102,13 +1105,13 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       const producer = existing.assignedProducer?.trim();
       addAlert({
         tone: "success",
-        title: "Moved to payroll",
-        message: producer
+            title: "Moved to payroll",
+            message: producer
           ? `${existing.programName} · ${producer}`
           : existing.programName,
-        href: "/payroll",
+            href: "/payroll",
       });
-    }
+        }
 
     setMtdRecords((prev) => {
       const next = prev.map((r) => {
@@ -1386,11 +1389,11 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
               ...(targetRecord || existing || updatedRecord),
               ...apiPatch,
               ...saved,
-              id: saved.id,
-              uuid: saved.uuid,
-              legacyId: saved.legacyId,
+                      id: saved.id,
+                      uuid: saved.uuid,
+                      legacyId: saved.legacyId,
               orderId: saved.orderId || orderRef,
-              inMTD: true,
+                      inMTD: true,
               recordStatus:
                 saved.recordStatus ||
                 updatedRecord.recordStatus ||
@@ -1482,7 +1485,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         setMtdRecords(prevMtd);
         notifySaveError("Could not save MTD changes", err);
       throw err;
-      }
+    }
   }, [
     activeOrders,
     addAlert,
@@ -1492,6 +1495,146 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     schedule,
     isViewOnly,
   ]);
+
+  const deleteOrder = useCallback(
+    async (id: string) => {
+      if (isViewOnly) {
+        throw new Error("View-only accounts cannot delete orders.");
+      }
+
+      const matchesOrderId = (order: Order, target: string) =>
+        order.id === target ||
+        order.uuid === target ||
+        order.legacyId === target;
+
+      const removedOrder =
+        activeOrders.find((o) => matchesOrderId(o, id)) ||
+        pastOrders.find((o) => matchesOrderId(o, id));
+      if (!removedOrder) {
+        throw new Error("Order not found");
+      }
+
+      const orderIds = new Set(
+        [removedOrder.id, removedOrder.uuid, removedOrder.legacyId].filter(
+          Boolean
+        ) as string[]
+      );
+
+      const clearPeerLinks = (order: Order): Order => {
+        let next = order;
+        if (
+          order.mergedFormOrderId &&
+          orderIds.has(String(order.mergedFormOrderId))
+        ) {
+          next = {
+            ...next,
+            mergedFormOrderId: undefined,
+            manualOverlapSnapshot: undefined,
+          };
+        }
+        if (
+          order.mergedIntoManualOrderId &&
+          orderIds.has(String(order.mergedIntoManualOrderId))
+        ) {
+          next = {
+            ...next,
+            mergedIntoManualOrderId: undefined,
+            manualOverlapSnapshot: undefined,
+          };
+        }
+        return next;
+      };
+
+      const removedMtd = mtdRecords.filter(
+        (r) =>
+          orderIds.has(r.id) ||
+          (r.orderId && orderIds.has(r.orderId)) ||
+          (r.uuid && orderIds.has(r.uuid)) ||
+          (r.legacyId && orderIds.has(r.legacyId))
+      );
+      const removedMtdIds = new Set(removedMtd.map((r) => r.id));
+      const removedAddons = payrollAddons.filter(
+        (a) =>
+          (a.orderId && orderIds.has(a.orderId)) ||
+          (a.mtdId && removedMtdIds.has(a.mtdId))
+      );
+
+      setActiveOrders((prev) =>
+        prev.filter((o) => o.id !== removedOrder.id).map(clearPeerLinks)
+      );
+      setPastOrders((prev) =>
+        prev.filter((o) => o.id !== removedOrder.id).map(clearPeerLinks)
+      );
+
+      mtdMutatedAtRef.current = Date.now();
+      setMtdRecords((prev) => {
+        const next = prev.filter((r) => !removedMtdIds.has(r.id));
+        writeTimedCache(CACHE_MTD_KEY, next);
+        return next;
+      });
+
+      setPayrollAddons((prev) => {
+        const removedAddonIds = new Set(removedAddons.map((a) => a.id));
+        const next = prev.filter((a) => !removedAddonIds.has(a.id));
+        writeTimedCache(CACHE_PAYROLL_ADDONS_KEY, next);
+        return next;
+      });
+
+      const label =
+        getOrderIdentityName(removedOrder).trim() ||
+        removedOrder.programName ||
+        "Order";
+
+      try {
+        // UI delete is declarative ("ensure gone") → AIP-135 allow_missing.
+        await deleteOrderApi(removedOrder.uuid || removedOrder.id, {
+          allowMissing: true,
+        });
+        setIsBackendConnected(true);
+        addAlert({
+          tone: "success",
+          title: "Order deleted",
+          message: `${label} was removed.`,
+        });
+      } catch (err) {
+        setActiveOrders((prev) => {
+          if (prev.some((o) => o.id === removedOrder.id)) return prev;
+          return [removedOrder, ...prev];
+        });
+        if (removedMtd.length) {
+          setMtdRecords((prev) => {
+            const next = [...removedMtd, ...prev];
+            writeTimedCache(CACHE_MTD_KEY, next);
+            return next;
+          });
+        }
+        if (removedAddons.length) {
+          setPayrollAddons((prev) => {
+            const next = [...removedAddons, ...prev];
+            writeTimedCache(CACHE_PAYROLL_ADDONS_KEY, next);
+            return next;
+          });
+        }
+        if (
+          err instanceof ApiClientError &&
+          (err.status === 0 || err.status >= 500)
+        ) {
+          setIsBackendConnected(false);
+        }
+        notifySaveError("Could not delete order", err);
+        throw err;
+      }
+    },
+    [
+      isViewOnly,
+      notifySaveError,
+      addAlert,
+      activeOrders,
+      pastOrders,
+      mtdRecords,
+      payrollAddons,
+    ]
+  );
 
   const removeMTDRecord = useCallback(
     async (id: string) => {
@@ -1877,14 +2020,14 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           href: "/orders/flagged",
         });
       } else {
-        addNotification({
-          type: "new_order",
-          title: "New order received",
+      addNotification({
+        type: "new_order",
+        title: "New order received",
           message: `${stamped.programName || stamped.gymName || "Order"} · ${
             stamped.contactName || stamped.customerName || "Customer"
-          }`,
+        }`,
           href: stamped.isManualEntry ? "/orders" : "/orders/match",
-        });
+      });
       }
     },
     [addNotification, activeOrders, notifySaveError]
@@ -3155,6 +3298,38 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           applyIncomingOrder(event.order);
           return;
         }
+        if (event.type === "order.deleted") {
+          const deletedId = event.id;
+          setActiveOrders((prev) =>
+            prev.filter(
+              (o) =>
+                o.id !== deletedId &&
+                o.uuid !== deletedId &&
+                o.legacyId !== deletedId
+            )
+          );
+          setPastOrders((prev) =>
+            prev.filter(
+              (o) =>
+                o.id !== deletedId &&
+                o.uuid !== deletedId &&
+                o.legacyId !== deletedId
+            )
+          );
+          mtdMutatedAtRef.current = Date.now();
+          setMtdRecords((prev) => {
+            const next = prev.filter(
+              (r) =>
+                r.id !== deletedId &&
+                r.orderId !== deletedId &&
+                r.uuid !== deletedId &&
+                r.legacyId !== deletedId
+            );
+            writeTimedCache(CACHE_MTD_KEY, next);
+            return next;
+          });
+          return;
+        }
         if (event.type === "mtd.updated") {
           applyIncomingMtd(event.record);
         }
@@ -3559,6 +3734,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     updateMTD,
     removeMTDRecord,
     updateOrder,
+    deleteOrder,
     setSecretMenuPrices,
     markComplete,
     addPastOrder,

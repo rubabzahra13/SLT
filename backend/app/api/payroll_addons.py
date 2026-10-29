@@ -2,9 +2,12 @@ import uuid
 from decimal import Decimal
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.lib.delete_norm import allow_missing_query, missing_or_found
+from app.lib.pagination import page_size_query, page_token_query, paginate_query
 from app.lib.producer_assignment import resolve_producer_by_assignment_key
 from app.models.payroll_addon import PayrollAddon
 from app.models.order import Order
@@ -16,6 +19,11 @@ from app.schemas.payroll_addon import (
 from app.services.rush_fee import RushFeeValidationError, apply_rush_fee_fields
 
 router = APIRouter()
+
+
+class PayrollAddonListResponse(BaseModel):
+    payroll_addons: list[PayrollAddonOut]
+    next_page_token: str | None = None
 
 
 def _resolve_producer_id(raw_id: Optional[str], db: Session) -> Optional[uuid.UUID]:
@@ -72,13 +80,21 @@ def _resolve_uuid(raw_id: Optional[str]) -> Optional[uuid.UUID]:
         return None
 
 
-@router.get("/payroll-addons", response_model=List[PayrollAddonOut])
-def list_payroll_addons(db: Session = Depends(get_db)):
-    """Return all payroll add-ons ordered by creation date descending."""
-    return (
-        db.query(PayrollAddon)
-        .order_by(PayrollAddon.created_at.desc())
-        .all()
+@router.get("/payroll-addons", response_model=PayrollAddonListResponse)
+def list_payroll_addons(
+    page_size: int = Depends(page_size_query),
+    page_token: str | None = Depends(page_token_query),
+    db: Session = Depends(get_db),
+):
+    """Return payroll add-ons ordered by creation date descending (AIP-158)."""
+    query = db.query(PayrollAddon).order_by(
+        PayrollAddon.created_at.desc(), PayrollAddon.id.asc()
+    )
+    page, next_token = paginate_query(
+        query, page_size=page_size, page_token=page_token
+    )
+    return PayrollAddonListResponse(
+        payroll_addons=page, next_page_token=next_token
     )
 
 
@@ -176,10 +192,16 @@ def update_payroll_addon(
 
 
 @router.delete("/payroll-addons/{addon_id}", status_code=204)
-def delete_payroll_addon(addon_id: uuid.UUID, db: Session = Depends(get_db)):
-    """Delete a payroll add-on by ID."""
+def delete_payroll_addon(
+    addon_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    allow_missing: bool = Depends(allow_missing_query),
+):
+    """Delete a payroll add-on by ID (AIP-135 allow_missing)."""
     addon = db.query(PayrollAddon).filter(PayrollAddon.id == addon_id).first()
-    if not addon:
-        raise HTTPException(status_code=404, detail="Payroll add-on not found")
+    if missing_or_found(
+        addon, allow_missing=allow_missing, detail="Payroll add-on not found"
+    ):
+        return None
     db.delete(addon)
     db.commit()
