@@ -629,7 +629,7 @@ export default function FlaggedOrdersPage() {
                 </button>
               </HoverTip>
               <HoverTip
-                label="Choose one music affiliate: then lands on Orders"
+                label="Choose one music affiliate - then lands on Orders"
                 placement="top"
               >
                 <button

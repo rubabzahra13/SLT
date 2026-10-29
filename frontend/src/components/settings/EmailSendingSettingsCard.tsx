@@ -474,8 +474,8 @@ export function EmailSendingSettingsCard() {
                   ? "Checking your connection…"
                   : phase === "unavailable"
                     ? showAsConnected
-                      ? "Last known: connected: status check failed"
-                      : "Status check failed: try again"
+                      ? "Last known: connected - status check failed"
+                      : "Status check failed - try again"
                     : showAsConnected
                       ? status.email || "Connected"
                       : "Connect Google to send CRM emails"}

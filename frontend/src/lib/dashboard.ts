@@ -435,7 +435,7 @@ export function buildPriorityQueue(
         href,
         title: order.programName,
         meta: `${order.customerName} · ${order.category}`,
-        reason: "First Available: needs producer match",
+        reason: "First Available - needs producer match",
         tone: "match",
         price: order.price,
       });

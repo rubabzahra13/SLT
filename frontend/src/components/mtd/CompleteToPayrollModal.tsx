@@ -229,7 +229,7 @@ export function CompleteToPayrollModal({
 
           if (mbResult.alwaysFixedPayroll) {
             complianceReason =
-              "Fight Song / Alma Mater (Original or Plus) is a fixed package: payroll is flat regardless of music affiliate.";
+              "Fight Song / Alma Mater (Original or Plus) is a fixed package - payroll is flat regardless of music affiliate.";
           } else if (mbResult.complianceStatus === "unknown-no-affiliate-field") {
             complianceReason =
               "Band Chant / Drum Cadence with no music affiliate on file; compliant payroll column applies.";
@@ -293,7 +293,7 @@ export function CompleteToPayrollModal({
                 customer_amount: 0,
                 payroll_amount: seResult.rushFeeAmount,
                 quantity: 1,
-                note: `Customer Magento rush order: $${SPORTS_ENTERTAINMENT_CUSTOMER_RUSH_FEE} (Sports Entertainment)`,
+                note: `Customer Magento rush order - $${SPORTS_ENTERTAINMENT_CUSTOMER_RUSH_FEE} (Sports Entertainment)`,
               });
             }
           }

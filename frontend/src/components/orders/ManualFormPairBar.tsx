@@ -73,7 +73,7 @@ export function ManualFormPairBar({
             disabled={disabled}
             onClick={() => setSplitConfirmOpen(true)}
             className="inline-flex items-center gap-1.5 rounded-xl border border-brand-line/70 bg-white px-3 py-1.5 text-[12px] font-semibold text-brand-ink shadow-sm transition hover:bg-brand-bg disabled:cursor-not-allowed disabled:opacity-40"
-            title="Undo Match: restore Manual and Form as two Orders rows"
+            title="Undo Match - restore Manual and Form as two Orders rows"
           >
             <SplitSquareVertical className="h-3.5 w-3.5" strokeWidth={2.25} />
             Split

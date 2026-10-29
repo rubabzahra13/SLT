@@ -58,18 +58,18 @@ function requirementPillTip(
   }
   if (item.id === "songs") {
     if (isWhite) return `${item.label}: Not applicable`;
-    return `${item.label}: ${isGreen ? "Have: click to remove" : "Not have: click to add"}`;
+    return `${item.label}: ${isGreen ? "Have - click to remove" : "Not have - click to add"}`;
   }
   if (item.id === "notes") {
     if (isWhite) return `${item.label}: Not applicable`;
     return `${item.label}: ${
-      isGreen ? "Have: click to remove" : "Not have: click to add"
+      isGreen ? "Have - click to remove" : "Not have - click to add"
     }`;
   }
   if (item.id === "mix" || item.id === "time_of_mix") {
     if (isWhite) return `${item.label}: Not applicable`;
     return `${item.label}: ${
-      isGreen ? "Collected: click to remove" : "Missing: click to mark collected"
+      isGreen ? "Collected - click to remove" : "Missing - click to mark collected"
     }`;
   }
   if (item.id === "form") {

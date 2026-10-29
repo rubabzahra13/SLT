@@ -120,7 +120,7 @@ export function findProducersAtLimitFull(
       producer,
       dayIso,
       dedupeKey: `limit_full:${producer.id}:${dayIso}`,
-      title: `${producer.name}: Limit full`,
+      title: `${producer.name} - Limit full`,
       message: `Daily mix/cost limit reached for ${formatDisplayDate(dayIso)}.`,
     });
   }

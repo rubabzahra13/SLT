@@ -658,7 +658,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         for (const o of newlyFlagged) {
           addNotification({
             type: "flagged_order",
-            title: "Order flagged: multiple affiliates",
+            title: "Order flagged - multiple affiliates",
             message: `${o.programName || o.gymName || "Order"} · ${
               o.contactName || o.customerName || "Customer"
             }`,
@@ -2011,7 +2011,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       if (flagPatch) {
         addNotification({
           type: "flagged_order",
-          title: "Order flagged: multiple affiliates",
+          title: "Order flagged - multiple affiliates",
           message: `${stamped.programName || stamped.gymName || "Order"} · ${
             stamped.contactName || stamped.customerName || "Customer"
           }`,
@@ -2128,7 +2128,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         if (flagPatch) {
           addNotification({
             type: "flagged_order",
-            title: "Order flagged: multiple affiliates",
+            title: "Order flagged - multiple affiliates",
             message: `${
               form.programName ||
               form.schoolOrganizationName ||
@@ -2530,7 +2530,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
               });
               addAlert({
                 tone: "warning",
-                title: "Updated elsewhere: reloaded",
+                title: "Updated elsewhere - reloaded",
                 message: `${retryConflict.name}'s schedule changed in another session.`,
               });
               throw retryErr;
@@ -2556,7 +2556,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         });
         addAlert({
           tone: "warning",
-          title: "Updated elsewhere: reloaded",
+          title: "Updated elsewhere - reloaded",
           message: `${conflictProducer.name}'s schedule changed in another session.`,
         });
         throw err;
@@ -3102,7 +3102,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           });
           addNotification({
             type: "flagged_order",
-            title: "Order flagged: multiple affiliates",
+            title: "Order flagged - multiple affiliates",
             message: `${stamped.programName || stamped.gymName || "Order"} · ${
               stamped.contactName || stamped.customerName || "Customer"
             }`,
@@ -3143,7 +3143,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         next[idx] = flagged;
         addNotification({
           type: "flagged_order",
-          title: "Order flagged: multiple affiliates",
+          title: "Order flagged - multiple affiliates",
           message: `${flagged.programName || flagged.gymName || "Order"} · ${
             flagged.contactName || flagged.customerName || "Customer"
           }`,

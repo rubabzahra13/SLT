@@ -23,7 +23,7 @@ export function MTDViewOrderToggle({
       aria-pressed={active}
       title={
         active
-          ? "Grouped by producer: click for sequence order"
+          ? "Grouped by producer - click for sequence order"
           : "Group by assigned producer"
       }
       onClick={() => onChange(active ? "sequence" : "by_producer")}
