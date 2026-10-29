@@ -298,7 +298,7 @@ export function computeClientPayroll(
     : 0;
 
   // Sports Entertainment Magento rush: flat $100 inside payroll base, paid at
-  // rushFeeRate — never Cheer $150 and never category % on the combined total.
+  // rushFeeRate: never Cheer $150 and never category % on the combined total.
   const isSportsEntertainment =
     options?.formType === "sports-entertainment";
   const seRushFee = isSportsEntertainment
@@ -364,7 +364,7 @@ export function computeClientPayroll(
   let oldPayout: number | undefined;
   let newPayout: number | undefined;
 
-  // Casey (CM): two historical rates — admin must pick one when no rate selected.
+  // Casey (CM): two historical rates: admin must pick one when no rate selected.
   if (producer.initials === "CM") {
     isCasey = true;
     const oldRate = 0.72;

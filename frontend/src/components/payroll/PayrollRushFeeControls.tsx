@@ -25,7 +25,7 @@ import {
 } from "@/lib/rush-fee";
 
 type PayrollRushFeeControlsProps = {
-  /** Rush order Yes on the mix or linked order — fee payout only applies then. */
+  /** Rush order Yes on the mix or linked order: fee payout only applies then. */
   rushOrder: boolean;
   selection: RushFeeSelection;
   producerRate?: number | null;
@@ -62,7 +62,7 @@ export function PayrollRushFeeControls({
     return pct != null ? `${pct}%` : "";
   }).filter(Boolean);
 
-  const selectValue = effectivePct != null ? `${effectivePct}%` : "—";
+  const selectValue = effectivePct != null ? `${effectivePct}%` : "-";
 
   const handleQtyChange = (qty: number) => {
     if (readOnly || !rushOrder) return;
@@ -194,7 +194,7 @@ export function PayrollRushFeeControls({
             title="Producer rush fee compensation"
             className="inline-flex h-5 items-center rounded-md bg-white px-1 text-[11px] font-semibold tabular-nums text-brand-ink ring-1 ring-inset ring-brand-line/70"
           >
-            {selection.rate == null ? "—" : formatPrice(selection.compensation)}
+            {selection.rate == null ? "-" : formatPrice(selection.compensation)}
           </span>
         ) : null}
       </div>

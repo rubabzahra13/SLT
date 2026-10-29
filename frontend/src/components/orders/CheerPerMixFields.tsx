@@ -18,11 +18,7 @@ import {
   GamedayStyleField,
   normalizeGamedayStyle,
 } from "@/components/mtd/GamedayStyleField";
-import {
-  DetailInput,
-  DetailTextarea,
-  InlineDateInput,
-} from "@/components/mtd/InlineFields";
+import { DetailInput, InlineDateInput } from "@/components/mtd/InlineFields";
 import { getAddOrderMultiMixFields } from "@/lib/add-order-mixes";
 import { rawFieldValue } from "@/lib/order-detail-fields";
 import type { Order, Producer } from "@/types";
@@ -56,7 +52,7 @@ function FieldShell({
 }
 
 /**
- * Add Order multi-mix slot fields (cheer or dance) — only keys already on
+ * Add Order multi-mix slot fields (cheer or dance): only keys already on
  * the active form subtype, rendered inside one Mix Information section.
  */
 export function CheerPerMixFields({
@@ -83,7 +79,7 @@ export function CheerPerMixFields({
                   onChange={(value) => onChange(field.key, value)}
                 />
               ) : (
-                <p className="text-[13px] text-brand-ink">{raw || "—"}</p>
+                <p className="text-[13px] text-brand-ink">{raw || "-"}</p>
               )}
             </FieldShell>
           );
@@ -91,20 +87,14 @@ export function CheerPerMixFields({
 
         if (field.key === "division") {
           return (
-            <FieldShell
-              key={field.key}
-              label={field.label}
-              className="flex min-w-0 flex-col sm:col-span-2 lg:col-span-3"
-            >
+            <FieldShell key={field.key} label={field.label}>
               {editable ? (
-                <DetailTextarea
+                <DetailInput
                   value={raw}
                   onChange={(value) => onChange(field.key, value)}
                 />
               ) : (
-                <p className="whitespace-pre-wrap text-[13px] text-brand-ink">
-                  {raw || "—"}
-                </p>
+                <p className="text-[13px] text-brand-ink">{raw || "-"}</p>
               )}
             </FieldShell>
           );
@@ -123,7 +113,7 @@ export function CheerPerMixFields({
                 />
               ) : (
                 <p className="text-[13px] text-brand-ink">
-                  {normalizeDanceStyle(raw, styleVariant) || raw || "—"}
+                  {normalizeDanceStyle(raw, styleVariant) || raw || "-"}
                 </p>
               )}
             </FieldShell>
@@ -140,7 +130,7 @@ export function CheerPerMixFields({
                 />
               ) : (
                 <p className="text-[13px] text-brand-ink">
-                  {normalizeGamedayStyle(raw) || raw || "—"}
+                  {normalizeGamedayStyle(raw) || raw || "-"}
                 </p>
               )}
             </FieldShell>
@@ -158,7 +148,7 @@ export function CheerPerMixFields({
                 />
               ) : (
                 <p className="text-[13px] text-brand-ink">
-                  {formatRequestedProducerDisplay(raw) || "—"}
+                  {formatRequestedProducerDisplay(raw) || "-"}
                 </p>
               )}
             </FieldShell>
@@ -178,7 +168,7 @@ export function CheerPerMixFields({
                 />
               ) : (
                 <p className="text-[13px] text-brand-ink">
-                  {packageTypeDisplayValue(raw) || "—"}
+                  {packageTypeDisplayValue(raw) || "-"}
                 </p>
               )}
             </FieldShell>
@@ -197,7 +187,7 @@ export function CheerPerMixFields({
                   onChange={(value) => onChange(field.key, value)}
                 />
               ) : (
-                <p className="text-[13px] text-brand-ink">{raw || "—"}</p>
+                <p className="text-[13px] text-brand-ink">{raw || "-"}</p>
               )}
             </FieldShell>
           );
@@ -212,7 +202,7 @@ export function CheerPerMixFields({
                   onChange={(value) => onChange(field.key, value)}
                 />
               ) : (
-                <p className="text-[13px] text-brand-ink">{raw || "—"}</p>
+                <p className="text-[13px] text-brand-ink">{raw || "-"}</p>
               )}
             </FieldShell>
           );

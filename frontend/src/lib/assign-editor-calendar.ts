@@ -427,7 +427,7 @@ function producerAssignmentKeyForFingerprint(producer: Producer): string {
  * pickable; leave is shown (blocked); other mixes for this producer are
  * pink with a tooltip listing each mix name and date range.
  *
- * No per-day memo cache — schedule edits must repaint every cell instantly.
+ * No per-day memo cache: schedule edits must repaint every cell instantly.
  */
 export function buildMixDateCalendarRules(
   options: MixDateCalendarOptions
@@ -470,14 +470,14 @@ export function buildMixDateCalendarRules(
     if (!day) return { disabled: true };
 
     const reason = getProducerDayBlockReason(producer, day);
-    // Non-work days are not Extra days and don't carry daily mix cost — don't
+    // Non-work days are not Extra days and don't carry daily mix cost: don't
     // paint mix bookings here just because the mix date range spans the weekend.
     if (reason === "not_working") {
       return { disabled: true, title: `${name} doesn't work this day` };
     }
 
     // Same category/subcategory mixes paint on work + Extra days only
-    // (no 50% filter — that threshold is only for the daily-limits graph).
+    // (no 50% filter: that threshold is only for the daily-limits graph).
     const bookings = mixBookingsOnDay(
       producer,
       iso,

@@ -114,7 +114,7 @@ export function TeamScheduleTodayView({
                 <span className="text-[12px] font-semibold text-amber-700">Reaching limit</span>
               );
             }
-            return <span className="text-brand-ink-tertiary">—</span>;
+            return <span className="text-brand-ink-tertiary">-</span>;
           }
           const extraCount = bookings.length - 1;
           return (
@@ -157,7 +157,7 @@ export function TeamScheduleTodayView({
                 until ? "font-medium text-brand-ink-secondary" : "text-brand-ink-tertiary"
               )}
             >
-              {until ?? "—"}
+              {until ?? "-"}
             </span>
           );
         },

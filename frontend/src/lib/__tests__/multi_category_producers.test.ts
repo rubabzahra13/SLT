@@ -82,7 +82,7 @@ function makeRecord(
 }
 
 // ---------------------------------------------------------------------------
-// 1. orderCategoryToProducerCategory — form/subtype mapping
+// 1. orderCategoryToProducerCategory: form/subtype mapping
 // ---------------------------------------------------------------------------
 
 describe("orderCategoryToProducerCategory", () => {
@@ -283,7 +283,7 @@ describe("Cost capacity", () => {
   });
 
   it("previous mix payout ÷ that mix's work days; share only on overlapping days", () => {
-    // Mon–Thu Oct 5–8, 2026 → 4 producer work days
+    // Mon-Thu Oct 5-8, 2026 → 4 producer work days
     const p = makeProducer({ initials: "TP" });
     const previous = makeRecord("prev", "TP", 825, "2026-10-05", "2026-10-08");
     assert.equal(dailyShareOfRecordCost(p, previous), 206.25);
@@ -347,7 +347,7 @@ describe("Cost capacity", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 6. isProducerAtDailyCapacity — combined
+// 6. isProducerAtDailyCapacity: combined
 // ---------------------------------------------------------------------------
 
 describe("isProducerAtDailyCapacity", () => {

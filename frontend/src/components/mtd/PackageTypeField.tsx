@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { SoftSelect } from "@/components/ui/SoftSelect";
+import { titleCase } from "@/lib/data";
 import { parsePackage } from "@/lib/package";
 import { packagesForOrderForm } from "@/lib/pricing-engine";
 import {
@@ -37,7 +38,7 @@ function normalizeLabel(value: string): string {
 }
 
 /**
- * Jazz Simple Cut only: Magento SoftSelect paren text is long / variable —
+ * Jazz Simple Cut only: Magento SoftSelect paren text is long / variable -
  * treat as a match when the first 3 words are "Jazz Simple Cut".
  */
 function isJazzSimpleCutByFirstThreeWords(raw: string): boolean {
@@ -175,7 +176,7 @@ const CHEER_PACKAGE_LABELS: Record<string, string> = {
   "RALLY MIX": "Rally Mix (without 8 count sheets)",
 };
 
-/** Youth Rec Magento SoftSelect PACKAGE — no "Package" suffix. */
+/** Youth Rec Magento SoftSelect PACKAGE: no "Package" suffix. */
 const YOUTH_REC_PACKAGE_LABELS: Record<string, string> = {
   BRONZE: "Bronze",
   SILVER: "Silver",
@@ -203,7 +204,7 @@ export const SCHOOL_CHEER_MAGENTO_MIX_ORDER = [
   "2:30",
 ] as const;
 
-/** Pricing Time Limit column — same SoftSelect lengths (+ Rally Mix "-" + Other). */
+/** Pricing Time Limit column: same SoftSelect lengths (+ Rally Mix "-" + Other). */
 const SCHOOL_CHEER_PRICING_MIX_ORDER = [
   "1:00",
   "1:30",
@@ -216,7 +217,7 @@ const SCHOOL_CHEER_PRICING_MIX_ORDER = [
 ] as const;
 
 /**
- * Exact Magento PACKAGE TYPE SoftSelect labels (with prices) — SoftSelect +
+ * Exact Magento PACKAGE TYPE SoftSelect labels (with prices): SoftSelect +
  * board matching. Do not use dollar amounts in Pricing UI.
  * POM Magento: Dance Mix → Dance Plus (6-8) → Custom Pom → Rally Mix.
  * Hip Hop Magento: Dance Mix → Dance Plus (6 to 8) → Custom Hip-Hop (no Rally).
@@ -232,7 +233,7 @@ const HIP_HOP_PACKAGE_LABELS: Record<string, string> = {
   "DANCE MIX": "Dance Mix (up to 5 songs) $475",
   "DANCE PLUS": "Dance Plus (6 to 8 songs) $575",
   "CUSTOM HIP-HOP": "Custom Hip-Hop (8 songs) $850",
-  // Legacy key still present on some rows — show Magento Hip Hop wording.
+  // Legacy key still present on some rows: show Magento Hip Hop wording.
   "CUSTOM POM": "Custom Hip-Hop (8 songs) $850",
 };
 
@@ -242,7 +243,7 @@ const TP_PACKAGE_LABELS: Record<string, string> = {
   "TP PLUS MIX": "TP Plus (6-8 songs)",
 };
 
-/** Magento SoftSelect for Gameday — ALL CAPS + song counts + prices. */
+/** Magento SoftSelect for Gameday: ALL CAPS + song counts + prices. */
 const GAMEDAY_PACKAGE_LABELS: Record<string, string> = {
   "PERFORMANCE MIX": "PERFORMANCE MIX (1 song) $100",
   "PERFORMANCE PLUS": "PERFORMANCE PLUS (2 songs) $150",
@@ -285,14 +286,14 @@ const GAMEDAY_PRICING_LABELS: Record<string, string> = {
   "PERFORMANCE EXTREME": "PERFORMANCE EXTREME (3-4 songs)",
 };
 
-/** Pricing modal names — Magento wording without dollar amounts. */
+/** Pricing modal names: Magento wording without dollar amounts. */
 const DANCE_PRICING_LABELS: Record<string, string> = {
   ...POM_PRICING_LABELS,
   "CUSTOM HIP-HOP": "Custom Hip-Hop (8 songs)",
   ...TP_PRICING_LABELS,
   ...GAMEDAY_PRICING_LABELS,
   "JAZZ/KICK MIX": "Jazz/Kick Mix (up to 2 songs)",
-  // Pricing only — SoftSelect keeps Magento paren body; Pricing shows name only.
+  // Pricing only: SoftSelect keeps Magento paren body; Pricing shows name only.
   "JAZZ SIMPLE CUT": "Jazz Simple Cut",
   "NON-COMPLIANT (FOR DTU)": "Non compliant (for DTU)",
 };
@@ -391,7 +392,7 @@ function dancePackageLabel(
   pkg: string,
   danceSubtype?: DanceFormSubtype | string | null
 ): string {
-  // Jazz Simple Cut: Magento paren body is long — key off first 3 words only.
+  // Jazz Simple Cut: Magento paren body is long: key off first 3 words only.
   const key = isJazzSimpleCutByFirstThreeWords(pkg)
     ? "JAZZ SIMPLE CUT"
     : pkg.trim().toUpperCase();
@@ -712,12 +713,8 @@ export function sortSchoolCheerPricingRows<
 }
 
 function titleCasePackage(value: string): string {
-  return value
-    .toLowerCase()
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ");
+  // Use shared titleCase so acronyms like TBD stay "TBD", not "Tbd".
+  return titleCase(value.trim());
 }
 
 export function PackageTypeField({
@@ -792,7 +789,7 @@ export function PackageTypeField({
       open={open}
       onOpenChange={setOpen}
       onChange={(next) => {
-        // Always persist tier/package only — length lives in Mix Length.
+        // Always persist tier/package only: length lives in Mix Length.
         onChange(packageTypeDisplayValue(next) || next);
         setOpen(false);
       }}

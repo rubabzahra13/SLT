@@ -883,7 +883,7 @@ function MTDPageContent() {
             },
           ]
         : []),
-      // Split/No Split is on VIROC, School Cheer, and Youth Rec — not All Star Cheer.
+      // Split/No Split is on VIROC, School Cheer, and Youth Rec: not All Star Cheer.
       ...(form === "school-all-star-cheer" &&
       cheerSubtype !== "all-star-cheer"
         ? [
@@ -897,7 +897,7 @@ function MTDPageContent() {
               headerClassName: compactHeaderClass,
               render: (rec: MTDRecord) => {
                 const meta = resolveMTDFormMeta(rec, orderById);
-                // All Star Cheer has no Split field — do not treat as missing data.
+                // All Star Cheer has no Split field: do not treat as missing data.
                 if (!orderHasSplitField(meta)) {
                   return (
                     <span
@@ -906,7 +906,7 @@ function MTDPageContent() {
                         compactTextClass
                       )}
                     >
-                      —
+                      -
                     </span>
                   );
                 }
@@ -962,7 +962,7 @@ function MTDPageContent() {
             },
           ]
         : []),
-      // Form song list text is edit-modal / Songs pill only — not a board column.
+      // Form song list text is edit-modal / Songs pill only: not a board column.
       ...(showRequestedProducer
         ? [
             {
@@ -991,7 +991,7 @@ function MTDPageContent() {
                           : "text-brand-ink"
                     )}
                   >
-                    {empty ? "—" : label}
+                    {empty ? "-" : label}
                   </span>
                 );
               },

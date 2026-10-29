@@ -4,7 +4,7 @@ import { PaperTexture } from "@paper-design/shaders-react";
 
 const COLLAGE_BG = "/login/scrapboard-bg.png";
 
-/** PaperTexture shader — fiber, crumple, warm kraft tint on the collage image */
+/** PaperTexture shader: fiber, crumple, warm kraft tint on the collage image */
 export function LoginBoardPaper({ className }: { className?: string }) {
   return (
     <PaperTexture

@@ -48,7 +48,7 @@ function mixState(order: Order): string | undefined {
     ?.state;
 }
 
-describe("POM Dance parity — Songs OR covers + Mix", () => {
+describe("POM Dance parity: Songs OR covers + Mix", () => {
   it("identity merge key is schoolProgramName", () => {
     assert.equal(
       getOrderIdentityFieldKey("school-all-star-dance", null, "pom"),
@@ -226,7 +226,7 @@ describe("POM Dance parity — Songs OR covers + Mix", () => {
   });
 });
 
-describe("POM Dance parity — empty package price", () => {
+describe("POM Dance parity: empty package price", () => {
   it("new order with no package selected shows $0 (not CUSTOM POM $850)", () => {
     for (const pkg of ["", "POM", "Standard", "TBD"]) {
       const order = pomOrder({

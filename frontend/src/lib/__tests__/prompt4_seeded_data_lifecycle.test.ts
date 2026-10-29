@@ -5,7 +5,7 @@ import { getPayrollRecords } from "../mtd-completion";
 import { isPreMTDOrderRecord } from "../mtd-filters";
 import type { MTDRecord } from "../../types";
 
-describe("Prompt 4 — Seed Realistic Test Data Through Real Lifecycle", () => {
+describe("Prompt 4: Seed Realistic Test Data Through Real Lifecycle", () => {
   it("verifies Payroll tab contains at least 10 varied records across categories, producers, dates, and add-ons", () => {
     const { mtdRecords } = getData();
     const payrollRecords = getPayrollRecords(mtdRecords);

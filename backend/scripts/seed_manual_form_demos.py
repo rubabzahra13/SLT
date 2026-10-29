@@ -12,7 +12,7 @@ MANUAL_DEMOS = [
     {
         "legacy_id": "demo-manual-mb-1",
         "form_type": "marching-band",
-        "school_gym_name": "Manual Slot — Westfield Band",
+        "school_gym_name": "Manual Slot: Westfield Band",
         "package": "BAND CHANT",
         "package_type": "BAND CHANT",
         "contact": "Director Pat Manual",
@@ -21,7 +21,7 @@ MANUAL_DEMOS = [
     {
         "legacy_id": "demo-manual-se-1",
         "form_type": "sports-entertainment",
-        "school_gym_name": "Manual Slot — Arena Hype Crew",
+        "school_gym_name": "Manual Slot: Arena Hype Crew",
         "package": "PRE-GAME / HALFTIME REMIXED",
         "package_type": "PRE-GAME / HALFTIME REMIXED",
         "contact": "Contact Jordan Manual",
@@ -31,7 +31,7 @@ MANUAL_DEMOS = [
         "legacy_id": "demo-manual-dance-1",
         "form_type": "school-all-star-dance",
         "dance_form_subtype": "pom",
-        "school_gym_name": "Manual Slot — Riverside POM",
+        "school_gym_name": "Manual Slot: Riverside POM",
         "package": "Custom POM 2:15",
         "package_type": "Custom POM",
         "time_length_of_mix": "2:15",
@@ -42,7 +42,7 @@ MANUAL_DEMOS = [
         "legacy_id": "demo-manual-cheer-1",
         "form_type": "school-all-star-cheer",
         "cheer_form_subtype": "all-star-cheer",
-        "school_gym_name": "Manual Slot — Thunder Elite",
+        "school_gym_name": "Manual Slot: Thunder Elite",
         "package": "Platinum 2:30",
         "package_type": "Platinum",
         "time_length_of_mix": "2:30",
@@ -52,7 +52,7 @@ MANUAL_DEMOS = [
     {
         "legacy_id": "demo-manual-anthem-1",
         "form_type": "school-anthem",
-        "school_gym_name": "Manual Slot — Highland Anthem",
+        "school_gym_name": "Manual Slot: Highland Anthem",
         "package": "SCHOOL ANTHEMS",
         "package_type": "SCHOOL ANTHEMS",
         "contact": "Director Riley Manual",
@@ -99,7 +99,7 @@ def main() -> None:
             )
             db.add(order)
             created += 1
-            print(f"created {row['legacy_id']} — {row['school_gym_name']}")
+            print(f"created {row['legacy_id']}: {row['school_gym_name']}")
 
         db.commit()
         print(f"Done. Created {created} manual demo order(s).")

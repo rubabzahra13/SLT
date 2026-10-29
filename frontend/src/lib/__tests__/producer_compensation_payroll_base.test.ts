@@ -4,7 +4,7 @@ import { computeClientPayroll } from "../pricing-display";
 import type { Producer } from "../../types";
 import type { PricingBreakdown } from "../api/pricing";
 
-describe("Producer Compensation — Final Payroll Price Basis Unit Tests", () => {
+describe("Producer Compensation: Final Payroll Price Basis Unit Tests", () => {
   const sampleProducer: Producer = {
     id: "prod-test",
     name: "Test Producer",
@@ -23,7 +23,7 @@ describe("Producer Compensation — Final Payroll Price Basis Unit Tests", () =>
     compensationModel: "percentage_of_payroll_base",
   };
 
-  it("Test 1 — Customer Price differs from Payroll Price ($1,000 Customer / $800 Payroll / 50% -> $400 Payout)", () => {
+  it("Test 1: Customer Price differs from Payroll Price ($1,000 Customer / $800 Payroll / 50% -> $400 Payout)", () => {
     const custPrice = 1000;
     const payrollPrice = 800;
 
@@ -61,7 +61,7 @@ describe("Producer Compensation — Final Payroll Price Basis Unit Tests", () =>
     assert.equal(res.sltPortion, 400); // $800 - $400 = $400
   });
 
-  it("Test 2 — Add-on affects payroll ($1,000 Customer / $900 Payroll / 50% -> $450 Payout)", () => {
+  it("Test 2: Add-on affects payroll ($1,000 Customer / $900 Payroll / 50% -> $450 Payout)", () => {
     const custPrice = 1000;
     const payrollPrice = 900;
 
@@ -79,7 +79,7 @@ describe("Producer Compensation — Final Payroll Price Basis Unit Tests", () =>
     assert.equal(res.sltPortion, 450); // $900 - $450 = $450
   });
 
-  it("Test 3 — Deduction affects payroll ($1,000 Customer / $800 Payroll / 50% -> $400 Payout)", () => {
+  it("Test 3: Deduction affects payroll ($1,000 Customer / $800 Payroll / 50% -> $400 Payout)", () => {
     const custPrice = 1000;
     const payrollPrice = 800;
 
@@ -97,7 +97,7 @@ describe("Producer Compensation — Final Payroll Price Basis Unit Tests", () =>
     assert.equal(res.sltPortion, 400); // $800 - $400 = $400
   });
 
-  it("Test 4 — Coupon affects payroll ($1,000 Customer / $800 Payroll after coupon / 50% -> $400 Payout)", () => {
+  it("Test 4: Coupon affects payroll ($1,000 Customer / $800 Payroll after coupon / 50% -> $400 Payout)", () => {
     const custPrice = 1000;
     const payrollPrice = 800;
 
@@ -115,7 +115,7 @@ describe("Producer Compensation — Final Payroll Price Basis Unit Tests", () =>
     assert.equal(res.sltPortion, 400); // $800 - $400 = $400
   });
 
-  it("Test 5 — Customer Price must remain unchanged ($1,000 Customer Price is not mutated)", () => {
+  it("Test 5: Customer Price must remain unchanged ($1,000 Customer Price is not mutated)", () => {
     const custPrice = 1000;
     const payrollPrice = 800;
 
@@ -133,7 +133,7 @@ describe("Producer Compensation — Final Payroll Price Basis Unit Tests", () =>
     assert.equal(res.producerPayout, 400);
   });
 
-  it("Test 6 — No adjustments ($1,000 Customer / $1,000 Payroll / 50% -> $500 Payout)", () => {
+  it("Test 6: No adjustments ($1,000 Customer / $1,000 Payroll / 50% -> $500 Payout)", () => {
     const custPrice = 1000;
     const payrollPrice = 1000;
 
@@ -151,7 +151,7 @@ describe("Producer Compensation — Final Payroll Price Basis Unit Tests", () =>
     assert.equal(res.sltPortion, 500);
   });
 
-  it("Test 7 — Casey dual rate calculation uses Final Payroll Price ($850 Payroll -> Old $612 / New $595)", () => {
+  it("Test 7: Casey dual rate calculation uses Final Payroll Price ($850 Payroll -> Old $612 / New $595)", () => {
     const casey: Producer = {
       ...sampleProducer,
       initials: "CM",
@@ -175,7 +175,7 @@ describe("Producer Compensation — Final Payroll Price Basis Unit Tests", () =>
     assert.equal(res.newPricingPayout, 595); // $850 * 70% = $595
   });
 
-  it("Test 8 — Steve not_paid_for_mixing ($100 Customer / $370 Payroll -> Payout $0 / SLT Portion $370)", () => {
+  it("Test 8: Steve not_paid_for_mixing ($100 Customer / $370 Payroll -> Payout $0 / SLT Portion $370)", () => {
     const steve: Producer = {
       ...sampleProducer,
       name: "Steve",
@@ -199,7 +199,7 @@ describe("Producer Compensation — Final Payroll Price Basis Unit Tests", () =>
     assert.equal(res.sltPortion, 370); // SLT portion is full Payroll Price ($370)
   });
 
-  it("Test 9 — Rory Fowler 78% rate ($100 Customer / $160 Payroll / 78% -> Payout $124.80 / SLT Portion $35.20)", () => {
+  it("Test 9: Rory Fowler 78% rate ($100 Customer / $160 Payroll / 78% -> Payout $124.80 / SLT Portion $35.20)", () => {
     const rory: Producer = {
       ...sampleProducer,
       name: "Rory Fowler",

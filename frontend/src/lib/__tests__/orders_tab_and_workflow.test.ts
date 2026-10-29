@@ -57,7 +57,7 @@ describe("Orders Tab & Workflow Separation", () => {
       assignedProducer: "CM",
       mixStartDate: "2026-09-10",
       mixEndDate: "2026-09-17",
-      // Explicit board flag — scheduled alone must not put the row on MTD.
+      // Explicit board flag: scheduled alone must not put the row on MTD.
       inMTD: false,
     });
     assert.equal(isOrderScheduledAndAssigned(readyOrder), true);
@@ -152,7 +152,7 @@ describe("Orders Tab & Workflow Separation", () => {
       id: "ord-assign-1",
       customerName: "Coach",
       contactName: "Coach",
-      programName: "Alpha High School – All-Star Cheer",
+      programName: "Alpha High School - All-Star Cheer",
       category: "Cheer",
       package: "GOLD 2:30",
       musicTheme: "Theme",
@@ -463,7 +463,7 @@ describe("Orders Tab & Workflow Separation", () => {
       editorRequest: "CP",
     });
     assert.equal(getOrderAssignmentStatus(requestedOnly), "not_assigned");
-    // Requested producer is a suggestion only — Assigned stays empty.
+    // Requested producer is a suggestion only: Assigned stays empty.
     assert.equal(getDisplayAssignedProducer(requestedOnly), null);
 
     const assigned = makeRecord({

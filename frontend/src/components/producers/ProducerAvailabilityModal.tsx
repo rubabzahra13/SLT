@@ -165,7 +165,7 @@ function leaveDatesBlockedByWorkDays(
         }
         const [y, m, d] = parts;
         const date = new Date(y, m - 1, d);
-        // Off days only apply on work days — ignore weekends/other off weekdays
+        // Off days only apply on work days: ignore weekends/other off weekdays
         // already outside the current schedule.
         return (
           isEligibleTimeOffDate(date, currentWorkDays) &&
@@ -385,7 +385,7 @@ function formatTimeOffDateLabel(
   return formatLeaveDateLabel(entry.startDate, entry.endDate, workDays);
 }
 
-/** One chip per reason — keeps split storage (so cancelled weekdays stay gone)
+/** One chip per reason: keeps split storage (so cancelled weekdays stay gone)
  *  but shows the compact comma/dash label the user expects. */
 function groupPersonalOffDayChips(
   entries: DraftTimeOff[],
@@ -527,7 +527,7 @@ export function ProducerAvailabilityModal({
   const extraDayButtonRef = useRef<HTMLButtonElement>(null);
   const timeOffStartRef = useRef<HTMLButtonElement>(null);
   const timeOffEndRef = useRef<HTMLButtonElement>(null);
-  /** Only re-hydrate when the modal opens or the producer id changes — not when
+  /** Only re-hydrate when the modal opens or the producer id changes: not when
    *  the parent passes a new producer object for the same person (bootstrap/cache). */
   const hydratedProducerKeyRef = useRef<string | null>(null);
   /** Prevent double-submit while the modal is closing (Google-style optimistic save). */
@@ -866,7 +866,7 @@ export function ProducerAvailabilityModal({
   }
 
   function getBlockedTimeOffDays(): string[] {
-    // Extra days sit on non-work weekdays — leave already can't start/end there.
+    // Extra days sit on non-work weekdays: leave already can't start/end there.
     // Don't treat them as a separate cancel-first barrier.
     return [...new Set(expandTimeOffDates(timeOff))];
   }
@@ -1390,7 +1390,7 @@ export function ProducerAvailabilityModal({
   // on/before a blocked day inside the chosen end, and end can't land on/after
   // a blocked day after start.
   const existingTimeOffDays = expandTimeOffDates(timeOff);
-  // Off days only apply on work days — Extra day calendar must match chips.
+  // Off days only apply on work days: Extra day calendar must match chips.
   const applicableTimeOffDays = [
     ...new Set(
       timeOff.flatMap((entry) =>
@@ -1407,9 +1407,9 @@ export function ProducerAvailabilityModal({
   ];
 
   // Days that cannot be pick points for leave start/end (and can't sit inside
-  // a leave range): existing leave. Extra days are non-work weekdays — shown
+  // a leave range): existing leave. Extra days are non-work weekdays: shown
   // with Extra day styling, but leave can't start/end there either way.
-  // Weekends/non-work weekdays are only invalid as endpoints — a leave range
+  // Weekends/non-work weekdays are only invalid as endpoints: a leave range
   // may span them. Mix days stay selectable (pink) and confirm on commit.
   const leaveSpanBarrierDays: string[] = [];
   {
@@ -1422,7 +1422,7 @@ export function ProducerAvailabilityModal({
     }
   }
 
-  // Legacy name used by clamp helpers — barriers that split contiguous leave.
+  // Legacy name used by clamp helpers: barriers that split contiguous leave.
   const rangeBlockedDays = leaveSpanBarrierDays;
 
   let timeOffStartMinIso = timeOffMinIso;
@@ -1459,7 +1459,7 @@ export function ProducerAvailabilityModal({
   }
 
   if (timeOffStartMaxIso < timeOffStartMinIso) {
-    // No valid start on this side of a blocked day — keep min so the grid opens.
+    // No valid start on this side of a blocked day: keep min so the grid opens.
   }
   if (timeOffEndMaxIso < timeOffEndMinIso) {
     timeOffEndMaxIso = timeOffEndMinIso;
@@ -1524,7 +1524,7 @@ export function ProducerAvailabilityModal({
       return "Past day";
     }
     const outsideRange = disabled && isOutsideTimeOffFieldRange(iso);
-    // Extra days are still non-work weekdays — canceling them doesn't enable leave.
+    // Extra days are still non-work weekdays: canceling them doesn't enable leave.
     // Keep Extra day styling via tone; tooltip matches other non-work days.
     if (extraDays.includes(iso) || isNonWorkTimeOffDay(iso)) {
       if (outsideRange) {
@@ -2466,7 +2466,7 @@ export function ProducerAvailabilityModal({
                           >
                             <span className="font-semibold">{b.programName}</span>
                             <span className="mt-0.5 block text-[11px] text-brand-ink-tertiary">
-                              {formatIsoDayMonthYear(b.mixStartDate)} –{" "}
+                              {formatIsoDayMonthYear(b.mixStartDate)} -{" "}
                               {formatIsoDayMonthYear(b.mixEndDate)}
                             </span>
                           </li>
@@ -2487,7 +2487,7 @@ export function ProducerAvailabilityModal({
                           >
                             <span className="font-semibold">{b.programName}</span>
                             <span className="mt-0.5 block text-[11px] text-brand-ink-tertiary">
-                              {formatIsoDayMonthYear(b.mixStartDate)} –{" "}
+                              {formatIsoDayMonthYear(b.mixStartDate)} -{" "}
                               {formatIsoDayMonthYear(b.mixEndDate)}
                             </span>
                           </li>
@@ -2838,7 +2838,7 @@ export function ProducerAvailabilityModal({
                           <span className="mt-0.5 block tabular-nums">
                             {formatIsoDayMonthYear(b.mixStartDate)}
                             {b.mixEndDate && b.mixEndDate !== b.mixStartDate
-                              ? ` – ${formatIsoDayMonthYear(b.mixEndDate)}`
+                              ? ` - ${formatIsoDayMonthYear(b.mixEndDate)}`
                               : ""}
                             {b.inMTD ? " · MTD" : " · Orders"}
                           </span>
@@ -2931,7 +2931,7 @@ export function ProducerAvailabilityModal({
                           <span className="mt-0.5 block tabular-nums">
                             {formatIsoDayMonthYear(b.mixStartDate)}
                             {b.mixEndDate && b.mixEndDate !== b.mixStartDate
-                              ? ` – ${formatIsoDayMonthYear(b.mixEndDate)}`
+                              ? ` - ${formatIsoDayMonthYear(b.mixEndDate)}`
                               : ""}
                             {b.inMTD ? " · MTD" : " · Orders"}
                           </span>

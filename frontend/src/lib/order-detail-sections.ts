@@ -185,7 +185,7 @@ const SCHOOL_CHEER_VIROC_YES_FIELDS: { title: string; fields: FieldDef[] }[] = [
   },
 ];
 
-/** Customer form fields for School Cheer (VIROC No) — edit + New Order only. */
+/** Customer form fields for School Cheer (VIROC No): edit + New Order only. */
 const SCHOOL_CHEER_VIROC_NO_FIELDS: { title: string; fields: FieldDef[] }[] = [
   {
     title: "School Information",
@@ -227,11 +227,11 @@ const SCHOOL_CHEER_VIROC_NO_FIELDS: { title: string; fields: FieldDef[] }[] = [
       { key: "billingPersonEmail", label: "Billing Person Email", preserveCase: true },
       {
         key: "choreographerName",
-        label: "Choreographer (full name) — if not relevant, put N/A",
+        label: "Choreographer (full name): if not relevant, put N/A",
       },
       {
         key: "choreographerEmail",
-        label: "Choreographer Email — if not relevant, put N/A",
+        label: "Choreographer Email: if not relevant, put N/A",
         preserveCase: true,
       },
     ],
@@ -273,7 +273,7 @@ const SCHOOL_CHEER_VIROC_NO_FIELDS: { title: string; fields: FieldDef[] }[] = [
   },
 ];
 
-/** Customer form fields for Youth Rec Cheer — edit + New Order only. */
+/** Customer form fields for Youth Rec Cheer: edit + New Order only. */
 const YOUTH_REC_CHEER_FIELDS: { title: string; fields: FieldDef[] }[] = [
   {
     title: "Program Information",
@@ -303,7 +303,7 @@ const YOUTH_REC_CHEER_FIELDS: { title: string; fields: FieldDef[] }[] = [
       },
       { key: "coachPhone", label: "Phone #" },
       {
-        // Magento label "Email Address" — SoT is billing_person_email.
+        // Magento label "Email Address": SoT is billing_person_email.
         key: "billingPersonEmail",
         label: "Email Address",
         preserveCase: true,
@@ -347,7 +347,7 @@ const YOUTH_REC_CHEER_FIELDS: { title: string; fields: FieldDef[] }[] = [
   },
 ];
 
-/** Customer form fields for POM — edit + New Order only. */
+/** Customer form fields for POM: edit + New Order only. */
 const POM_DANCE_FIELDS: { title: string; fields: FieldDef[] }[] = [
   {
     title: "School/Program Information",
@@ -376,13 +376,13 @@ const POM_DANCE_FIELDS: { title: string; fields: FieldDef[] }[] = [
       {
         key: "choreographerName",
         label:
-          "Choreographer (full name) — if this is not relevant to your order, put N/A",
+          "Choreographer (full name): if this is not relevant to your order, put N/A",
         wide: true,
       },
       {
         key: "choreographerEmail",
         label:
-          "Choreographer Email — if this is not relevant to your order, put N/A",
+          "Choreographer Email: if this is not relevant to your order, put N/A",
         preserveCase: true,
         wide: true,
       },
@@ -435,7 +435,7 @@ const POM_DANCE_FIELDS: { title: string; fields: FieldDef[] }[] = [
       {
         key: "pronunciationGuidance",
         label:
-          "Please include pronunciation guidance for any school/gym name, team color, mascot, or other voiceover wording that could be unclear. We will record exactly what you type—re-records due to pronunciation issues will be charged.",
+          "Please include pronunciation guidance for any school/gym name, team color, mascot, or other voiceover wording that could be unclear. We will record exactly what you type. Re-records due to pronunciation issues will be charged.",
         multiline: true,
         preserveCase: true,
         wide: true,
@@ -445,7 +445,7 @@ const POM_DANCE_FIELDS: { title: string; fields: FieldDef[] }[] = [
   },
 ];
 
-/** Customer form fields for Hip Hop — edit + New Order only. */
+/** Customer form fields for Hip Hop: edit + New Order only. */
 const HIP_HOP_DANCE_FIELDS: { title: string; fields: FieldDef[] }[] = [
   {
     title: "School/Program Information",
@@ -474,13 +474,13 @@ const HIP_HOP_DANCE_FIELDS: { title: string; fields: FieldDef[] }[] = [
       {
         key: "choreographerName",
         label:
-          "Choreographer (full name) — if this is not relevant to your order, put N/A",
+          "Choreographer (full name): if this is not relevant to your order, put N/A",
         wide: true,
       },
       {
         key: "choreographerEmail",
         label:
-          "Choreographer Email — if this is not relevant to your order, put N/A",
+          "Choreographer Email: if this is not relevant to your order, put N/A",
         preserveCase: true,
         wide: true,
       },
@@ -533,7 +533,7 @@ const HIP_HOP_DANCE_FIELDS: { title: string; fields: FieldDef[] }[] = [
       {
         key: "pronunciationGuidance",
         label:
-          "Please include pronunciation guidance for any school/gym name, team color, mascot, or other voiceover wording that could be unclear. We will record exactly what you type—re-records due to pronunciation issues will be charged.",
+          "Please include pronunciation guidance for any school/gym name, team color, mascot, or other voiceover wording that could be unclear. We will record exactly what you type. Re-records due to pronunciation issues will be charged.",
         multiline: true,
         preserveCase: true,
         wide: true,
@@ -543,7 +543,7 @@ const HIP_HOP_DANCE_FIELDS: { title: string; fields: FieldDef[] }[] = [
   },
 ];
 
-/** Customer form fields for Team Performance & Variety — edit + New Order only. */
+/** Customer form fields for Team Performance & Variety: edit + New Order only. */
 const TEAM_PERFORMANCE_VARIETY_DANCE_FIELDS: { title: string; fields: FieldDef[] }[] = [
   {
     title: "School/Program Information",
@@ -571,13 +571,13 @@ const TEAM_PERFORMANCE_VARIETY_DANCE_FIELDS: { title: string; fields: FieldDef[]
       {
         key: "choreographerName",
         label:
-          "Choreographer (full name) — if this is not relevant to your order, put N/A",
+          "Choreographer (full name): if this is not relevant to your order, put N/A",
         wide: true,
       },
       {
         key: "choreographerEmail",
         label:
-          "Choreographer Email — if this is not relevant to your order, put N/A",
+          "Choreographer Email: if this is not relevant to your order, put N/A",
         preserveCase: true,
         wide: true,
       },
@@ -634,7 +634,7 @@ const TEAM_PERFORMANCE_VARIETY_DANCE_FIELDS: { title: string; fields: FieldDef[]
       {
         key: "pronunciationGuidance",
         label:
-          "Please include pronunciation guidance for any school/gym name, team color, mascot, or other voiceover wording that could be unclear. We will record exactly what you type—re-records due to pronunciation issues will be charged.",
+          "Please include pronunciation guidance for any school/gym name, team color, mascot, or other voiceover wording that could be unclear. We will record exactly what you type. Re-records due to pronunciation issues will be charged.",
         multiline: true,
         preserveCase: true,
         wide: true,
@@ -644,7 +644,7 @@ const TEAM_PERFORMANCE_VARIETY_DANCE_FIELDS: { title: string; fields: FieldDef[]
   },
 ];
 
-/** Customer form fields for Gameday — edit + New Order only. */
+/** Customer form fields for Gameday: edit + New Order only. */
 const GAMEDAY_DANCE_FIELDS: { title: string; fields: FieldDef[] }[] = [
   {
     title: "School/Program Information",
@@ -672,13 +672,13 @@ const GAMEDAY_DANCE_FIELDS: { title: string; fields: FieldDef[] }[] = [
       {
         key: "choreographerName",
         label:
-          "Choreographer (full name) — if this is not relevant to your order, put N/A",
+          "Choreographer (full name): if this is not relevant to your order, put N/A",
         wide: true,
       },
       {
         key: "choreographerEmail",
         label:
-          "Choreographer Email — if this is not relevant to your order, put N/A",
+          "Choreographer Email: if this is not relevant to your order, put N/A",
         preserveCase: true,
         wide: true,
       },
@@ -732,7 +732,7 @@ const GAMEDAY_DANCE_FIELDS: { title: string; fields: FieldDef[] }[] = [
       {
         key: "pronunciationGuidance",
         label:
-          "Please include pronunciation guidance for any school/gym name, team color, mascot, or other voiceover wording that could be unclear. We will record exactly what you type—re-records due to pronunciation issues will be charged.",
+          "Please include pronunciation guidance for any school/gym name, team color, mascot, or other voiceover wording that could be unclear. We will record exactly what you type. Re-records due to pronunciation issues will be charged.",
         multiline: true,
         preserveCase: true,
         wide: true,
@@ -742,7 +742,7 @@ const GAMEDAY_DANCE_FIELDS: { title: string; fields: FieldDef[] }[] = [
   },
 ];
 
-/** Customer form fields for Jazz/Kick — edit + New Order only. */
+/** Customer form fields for Jazz/Kick: edit + New Order only. */
 const JAZZ_KICK_DANCE_FIELDS: { title: string; fields: FieldDef[] }[] = [
   {
     title: "School/Program Information",
@@ -770,13 +770,13 @@ const JAZZ_KICK_DANCE_FIELDS: { title: string; fields: FieldDef[] }[] = [
       {
         key: "choreographerName",
         label:
-          "Choreographer (full name) — if this is not relevant to your order, put N/A",
+          "Choreographer (full name): if this is not relevant to your order, put N/A",
         wide: true,
       },
       {
         key: "choreographerEmail",
         label:
-          "Choreographer Email — if this is not relevant to your order, put N/A",
+          "Choreographer Email: if this is not relevant to your order, put N/A",
         preserveCase: true,
         wide: true,
       },
@@ -837,7 +837,7 @@ const JAZZ_KICK_DANCE_FIELDS: { title: string; fields: FieldDef[] }[] = [
       {
         key: "pronunciationGuidance",
         label:
-          "Please include pronunciation guidance for any school/gym name, team color, mascot, or other voiceover wording that could be unclear. We will record exactly what you type—re-records due to pronunciation issues will be charged.",
+          "Please include pronunciation guidance for any school/gym name, team color, mascot, or other voiceover wording that could be unclear. We will record exactly what you type. Re-records due to pronunciation issues will be charged.",
         multiline: true,
         preserveCase: true,
         wide: true,
@@ -847,7 +847,7 @@ const JAZZ_KICK_DANCE_FIELDS: { title: string; fields: FieldDef[] }[] = [
   },
 ];
 
-/** Customer form fields for Marching Band — edit + New Order only. */
+/** Customer form fields for Marching Band: edit + New Order only. */
 const MARCHING_BAND_FIELDS: { title: string; fields: FieldDef[] }[] = [
   {
     title: "School/Program Information",
@@ -903,7 +903,7 @@ const MARCHING_BAND_FIELDS: { title: string; fields: FieldDef[] }[] = [
   },
 ];
 
-/** Customer form fields for Sports Entertainment — edit + New Order only. */
+/** Customer form fields for Sports Entertainment: edit + New Order only. */
 const SPORTS_ENTERTAINMENT_FIELDS: { title: string; fields: FieldDef[] }[] = [
   {
     title: "Organization Information",
@@ -974,7 +974,7 @@ const SPORTS_ENTERTAINMENT_FIELDS: { title: string; fields: FieldDef[] }[] = [
   },
 ];
 
-/** Customer form fields for School Anthem — edit + New Order only. */
+/** Customer form fields for School Anthem: edit + New Order only. */
 const SCHOOL_ANTHEMS_FIELDS: { title: string; fields: FieldDef[] }[] = [
   {
     title: "School/Organization Information",
@@ -1059,10 +1059,10 @@ function formatFieldValue(
   const raw = rawFieldValue(order, def.key);
   const value = def.multiline
     ? def.preserveCase
-      ? raw.trim() || "—"
+      ? raw.trim() || "-"
       : displayMultiline(raw, 2000)
     : def.preserveCase
-      ? raw.trim() || "—"
+      ? raw.trim() || "-"
       : displayText(raw);
 
   return {
@@ -1278,7 +1278,7 @@ function identityFieldForForm(
 }
 
 /**
- * Orders/MTD "Program" column header — matches the first field label
+ * Orders/MTD "Program" column header: matches the first field label
  * on that form's edit / New Order view.
  */
 export function getProgramColumnHeader(
@@ -1290,7 +1290,7 @@ export function getProgramColumnHeader(
 }
 
 /**
- * Orders/MTD person-name column header — matches the contact name field
+ * Orders/MTD person-name column header: matches the contact name field
  * on that form's edit / New Order view.
  */
 export function getContactColumnHeader(
@@ -1360,7 +1360,7 @@ export function getOrderIdentityName(order: Order): string {
 
 /**
  * Person name for Orders/MTD contact columns (Coach / Music Contact).
- * Reads coach_name SoT aliases only — never school_gym_name identity.
+ * Reads coach_name SoT aliases only: never school_gym_name identity.
  */
 export function getOrderContactPersonName(
   order?: Order | null,

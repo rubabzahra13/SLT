@@ -57,13 +57,13 @@ export type ForwardMailDraft = {
 
 function formatMailText(value: string): string {
   return value
-    .replace(/\s*[—–]\s*/g, " - ")
-    .replace(/[—–]/g, "-");
+    .replace(/\s*[--]\s*/g, " - ")
+    .replace(/[--]/g, "-");
 }
 
 function hasDisplayValue(value: string | undefined | null): boolean {
   const trimmed = value?.trim();
-  return Boolean(trimmed && trimmed !== "—" && trimmed !== "N/A");
+  return Boolean(trimmed && trimmed !== "-" && trimmed !== "N/A");
 }
 
 function mtdWorkflowFields(
@@ -427,7 +427,7 @@ function renderSectionHtml(section: ForwardMailSection): string {
   </table>`;
 }
 
-/** Modern HTML body for Gmail — table layout for broad client support. */
+/** Modern HTML body for Gmail: table layout for broad client support. */
 export function renderForwardMailHtml(draft: ForwardMailDraft): string {
   const isCustomer = draft.variant === "customer";
   const embedsRequiredData = isCustomer && draft.sections.length === 0;

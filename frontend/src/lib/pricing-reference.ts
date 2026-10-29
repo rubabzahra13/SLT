@@ -115,7 +115,7 @@ export const COMPLIANT_AFFILIATE_OPTIONS: MusicAffiliateOption[] = [
     label:
       "Power Music & Unleash the Beats Covers (can not be used for a Titanium Package)",
   },
-  /** Dance Magento checkboxes — not All-Star Cheer form options. */
+  /** Dance Magento checkboxes: not All-Star Cheer form options. */
   { id: "power-music-covers", label: "Power Music Covers", danceOnly: true },
   {
     id: "unleash-the-beats-covers",
@@ -129,7 +129,7 @@ export const COMPLIANT_AFFILIATE_OPTIONS: MusicAffiliateOption[] = [
   },
 ];
 
-/** Explicit non-compliant choice — any other free text is also non-compliant. */
+/** Explicit non-compliant choice: any other free text is also non-compliant. */
 export const NON_COMPLIANT_AFFILIATE_OPTIONS: MusicAffiliateOption[] = [
   { id: "non-compliant", label: "Non compliant", alwaysNonCompliant: true },
 ];
@@ -150,7 +150,7 @@ export const ALL_STAR_CHEER_MUSIC_AFFILIATE_OPTIONS = [
 ] as const;
 
 /**
- * School Cheer / V!ROC SoftSelect Magento set (exactly 3 options — no Songs for Cheer).
+ * School Cheer / V!ROC SoftSelect Magento set (exactly 3 options: no Songs for Cheer).
  */
 export const SCHOOL_CHEER_VIROC_MUSIC_AFFILIATE_OPTIONS = [
   CHEER_NON_TITANIUM_ONLY_AFFILIATE,
@@ -470,7 +470,7 @@ export function buildDefaultCategorySnapshot(
       }));
       break;
     case "Youth Rec Cheer":
-      // Flat package price (no music affiliate) — compliant === nonCompliant.
+      // Flat package price (no music affiliate): compliant === nonCompliant.
       rows = getRateCardForSubtype("youth-rec-cheer").map((row) => ({
         kind: "tier-time" as const,
         tier: row.tier,
@@ -715,7 +715,7 @@ export function getCategoryPricingSnapshot(
       ? saved.addOns.map((addon) => ({ ...addon }))
       : defaults.addOns,
     compliantAffiliateIds: saved.musicAffiliateCatalog?.length
-      ? // DB SoftSelect catalog is source of truth — allow empty compliant set.
+      ? // DB SoftSelect catalog is source of truth: allow empty compliant set.
         (saved.compliantAffiliateIds || []).filter((id) =>
           DEFAULT_COMPLIANT_AFFILIATE_IDS.includes(id)
         )
@@ -1131,7 +1131,7 @@ function rulesToFlatRows(
     formType === "school-anthem" || formType === "marching-band";
   return rules.map((rule) => {
     const customer = rule.customer_facing_price;
-    // Unpriced only when the DB has no customer price — never pin DTU as TBD.
+    // Unpriced only when the DB has no customer price: never pin DTU as TBD.
     const isUnpriced = customer === null || customer === undefined;
     const alwaysFixed =
       flatAlways ||
@@ -1151,7 +1151,7 @@ function rulesToFlatRows(
 }
 
 /**
- * Magento POM / Hip Hop SoftSelect includes Rally Mix — merge any packages
+ * Magento POM / Hip Hop SoftSelect includes Rally Mix: merge any packages
  * present on the code rate card that are missing from older DB snapshots.
  */
 function ensurePomHipHopMagentoPackages(
@@ -1208,7 +1208,7 @@ function expandMarchingBandDbRows(
   const expanded = migrateMarchingBandCombinedPackages(rows).filter(
     (row): row is FlatPackagePricingRow => row.kind === "flat-package"
   );
-  // No music-affiliate split — one payroll amount (always), but do not overwrite
+  // No music-affiliate split: one payroll amount (always), but do not overwrite
   // DB payroll with customer price (that wiped edits after Save).
   return expanded.map((row) => {
     const price = row.customer;

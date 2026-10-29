@@ -38,7 +38,7 @@ SPORTS_ENT_DEMO = [
         "time_length_of_mix": "3:30",
         "is_rush_order": "No",
         "song_list_suggestions": "Custom long-form entrance package",
-        "routine_notes": "Manual pricing required — mix longer than 2:30.",
+        "routine_notes": "Manual pricing required: mix longer than 2:30.",
     },
     # Extra Magento coverage so each PACKAGE TYPE has a second demo row.
     {
@@ -68,8 +68,8 @@ SPORTS_ENT_DEMO = [
         "package": "OTHER (mixes longer than 2:30)",
         "time_length_of_mix": "4:00",
         "is_rush_order": "Yes",
-        "song_list_suggestions": "Specify full song list in notes — custom length show open.",
-        "routine_notes": "Other package — quote via email. Need under 7 days.",
+        "song_list_suggestions": "Specify full song list in notes: custom length show open.",
+        "routine_notes": "Other package: quote via email. Need under 7 days.",
     },
     # Normal Magento form (not manual): OTHER package + Rush Yes.
     {
@@ -86,7 +86,7 @@ SPORTS_ENT_DEMO = [
             "3) Timeout stinger pack"
         ),
         "routine_notes": (
-            "OTHER package — specify in notes: need a custom 3:15 "
+            "OTHER package: specify in notes: need a custom 3:15 "
             "arena entertainment suite (walk-out + timeout + goal cue). "
             "Quote via email. Rush under 7 days."
         ),
@@ -150,7 +150,7 @@ def main() -> None:
             )
             db.add(order)
             created += 1
-            print(f"created {legacy} — {row['school_program_name']}")
+            print(f"created {legacy}: {row['school_program_name']}")
 
         db.commit()
         print(f"Done. Created {created} Sports Entertainment demo order(s).")

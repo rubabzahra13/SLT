@@ -1,6 +1,6 @@
 """add unleash_the_beats_covers to orders
 
-Dance Magento "Unleash the Beats Covers" is its own field — not
+Dance Magento "Unleash the Beats Covers" is its own field: not
 song_list_suggestions (cheer Song List/Suggestions).
 
 Revision ID: e7f8a9b0c1d2

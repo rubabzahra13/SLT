@@ -247,7 +247,7 @@ describe("Voiceover & Rush Fee Producer Compensation End-to-End Test Suite", () 
       );
 
       assert.equal(computed.rushFeePayout, 150);
-      // Base only: (650 - 150) * 80% = 400 — rush not folded in
+      // Base only: (650 - 150) * 80% = 400: rush not folded in
       assert.equal(computed.producerPayout, 400);
     });
   });

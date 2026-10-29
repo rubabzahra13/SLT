@@ -44,7 +44,7 @@ export function SongsNotesToggleModal({
 
   useEffect(() => {
     if (!open) return;
-    // Red→green: never prefill placeholder tokens (none, N/A, …) — blank draft.
+    // Red→green: never prefill placeholder tokens (none, N/A, …): blank draft.
     setDraft(
       direction === "to_green"
         ? initialCollectionGreenDraft(currentText)

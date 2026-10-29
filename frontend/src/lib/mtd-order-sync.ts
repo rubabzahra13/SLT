@@ -10,7 +10,7 @@ import {
 
 /** MTD patches when an order form field changes.
  *
- * Phase 3–5: identity, assignment, and collection/ops live on Orders only —
+ * Phase 3-5: identity, assignment, and collection/ops live on Orders only -
  * do not dual-write them onto MTD storage. Local display mirrors may still
  * update haveSongs/eightCountSheet for board pills until refresh.
  */
@@ -97,7 +97,7 @@ export function orderPatchFromMTD(
     orderPatch.musicContactName = patch.contactName;
   }
   if (patch.programName !== undefined) {
-    // Identity only — school_gym_name; do not overwrite team_name.
+    // Identity only: school_gym_name; do not overwrite team_name.
     orderPatch.programName = patch.programName;
     orderPatch.schoolName = patch.programName;
     orderPatch.schoolProgramName = patch.programName;
@@ -110,7 +110,7 @@ export function orderPatchFromMTD(
     orderPatch.packageType = patch.package;
   }
   if (patch.musicTheme !== undefined) {
-    // Keep musicTheme on the legacy column only — do not copy into Song list /
+    // Keep musicTheme on the legacy column only: do not copy into Song list /
     // Routine notes / Power Music Covers (Songs & Notes pills read those fields).
     orderPatch.musicTheme = patch.musicTheme;
   }
@@ -194,11 +194,11 @@ export function orderPatchFromOrderField(
     patch.emailAddress = value;
   }
   if (key === "teamName") {
-    // Team Name is its own form field — do not also fill program_name.
+    // Team Name is its own form field: do not also fill program_name.
     patch.teamName = value;
   }
   // Identity fields map 1:1 to the UI/DB column for that form.
-  // All Star Cheer has Gym Name (not Program Name) — never write program_name from gym.
+  // All Star Cheer has Gym Name (not Program Name): never write program_name from gym.
   if (
     key === "gymName" ||
     key === "schoolName" ||
@@ -270,7 +270,7 @@ export function orderPatchFromOrderField(
     patch.collectionStates = nextStates as Order["collectionStates"];
   }
   if (key === "songListSuggestions") {
-    // Cheer Song list is its own Magento column — never copy into musicTheme.
+    // Cheer Song list is its own Magento column: never copy into musicTheme.
     // (Legacy copy made normalizeOrder fill Music Affiliate + Routine Notes.)
     if (current?.formType === "school-all-star-dance") {
       const covers = parseDanceSongCovers(value);
@@ -449,7 +449,7 @@ export function orderPatchFromOrderField(
 
 /**
  * Magento form-field patch for a linked form row when the paired manual is saved.
- * Form is SoT after match — without this, reload form-wins revive stale form values.
+ * Form is SoT after match: without this, reload form-wins revive stale form values.
  */
 export function buildLinkedFormSyncPatch(draft: Order): Partial<Order> {
   const patch: Partial<Order> = {};

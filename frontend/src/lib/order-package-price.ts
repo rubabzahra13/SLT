@@ -258,7 +258,7 @@ export type LiveOrderPricing = {
 /**
  * Live customer + payroll package amounts: Pricing Reference overlay on the
  * rate-card engine (compliant/non-compliant by music affiliate). Customer
- * package-price overrides affect customerPrice only — not payroll/cost.
+ * package-price overrides affect customerPrice only: not payroll/cost.
  */
 export function resolveLiveOrderPricing(
   rec: MTDRecord,
@@ -335,7 +335,7 @@ export function resolveLiveOrderPricing(
       }
 
       // SE Magento rush ($100) is payroll-only. Pricing Reference overlay sets
-      // flat package amounts — re-apply customer rush on top of package payroll.
+      // flat package amounts: re-apply customer rush on top of package payroll.
       if (
         formMeta.formType === "sports-entertainment" &&
         engineCustomer != null &&
@@ -387,7 +387,7 @@ export function resolveLiveOrderPricing(
       : (order?.finalCustomerPrice ?? order?.price ?? rec.price ?? 0);
 
   // Payroll/cost always follow Pricing Reference compliant vs non-compliant
-  // columns for the order's music affiliate + package — never the edited
+  // columns for the order's music affiliate + package: never the edited
   // customer package price. (Customer override only affects customerPrice.)
   // Extras are already folded into enginePayroll above.
   const payrollPrice =
@@ -495,7 +495,7 @@ export function resolveStoredOrEngineCustomerPrice(
 }
 
 /**
- * Package amount the Orders/MTD price chip shows — same as Pricing modal
+ * Package amount the Orders/MTD price chip shows: same as Pricing modal
  * PACKAGE PRICE for the package/tier (live rate card). Per-order overrides
  * are ignored so the board stays in sync with Pricing edits.
  */

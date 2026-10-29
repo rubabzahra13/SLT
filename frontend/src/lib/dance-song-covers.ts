@@ -32,7 +32,7 @@ export function parseDanceSongCovers(
   const hasPower = /Power Music Covers:/i.test(text);
   const hasUnleash = /Unleash the Beats Covers:/i.test(text);
   if (!hasPower && !hasUnleash) {
-    // Plain cheer / anthem / sports song list — not Dance cover boxes.
+    // Plain cheer / anthem / sports song list: not Dance cover boxes.
     return { power: "", unleash: "" };
   }
 

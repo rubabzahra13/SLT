@@ -17,7 +17,7 @@ def category_from_form_type(form_type: str | None) -> str:
 
 
 def order_identity_name(order: Any) -> str:
-    """Form identity name — always school_gym_name.
+    """Form identity name: always school_gym_name.
 
     UI may label it Gym Name, School Name, Program Name, School/Program Name,
     or Organization (same column; like POM School/Gym Address).

@@ -472,7 +472,7 @@ export default function FlaggedOrdersPage() {
                 displayPrice <= 0 && "text-brand-ink-tertiary"
               )}
             >
-              {displayPrice > 0 ? formatPrice(displayPrice) : "—"}
+              {displayPrice > 0 ? formatPrice(displayPrice) : "-"}
             </span>
           );
         },
@@ -539,7 +539,7 @@ export default function FlaggedOrdersPage() {
                         compactTextClass
                       )}
                     >
-                      —
+                      -
                     </span>
                   );
                 }
@@ -629,7 +629,7 @@ export default function FlaggedOrdersPage() {
                 </button>
               </HoverTip>
               <HoverTip
-                label="Choose one music affiliate — then lands on Orders"
+                label="Choose one music affiliate: then lands on Orders"
                 placement="top"
               >
                 <button

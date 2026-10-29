@@ -530,7 +530,7 @@ export function SetPricingModal({
       isEditingPricing && draftSnapshot
         ? draftSnapshot
         : getCategoryPricingSnapshot(selectedCategory, referenceStore);
-    // Sort for display only — keep draft row indices stable while editing.
+    // Sort for display only: keep draft row indices stable while editing.
     if (isEditingPricing) return base;
     if (selectedCategory === "Marching Band") {
       return { ...base, rows: sortMarchingBandPricingRows(base.rows) };
@@ -686,7 +686,7 @@ export function SetPricingModal({
         getVisibleMusicAffiliateOptions(selectedCategory).map((option) => {
           const fromCatalog = catalogById.get(option.id);
           if (catalog?.length && !fromCatalog) {
-            // Previously removed from SoftSelect — keep empty until re-typed.
+            // Previously removed from SoftSelect: keep empty until re-typed.
             return [option.id, ""];
           }
           return [
@@ -727,7 +727,7 @@ export function SetPricingModal({
       addOns: draftSnapshot.addOns,
     });
 
-    // Persist package pricing to pricing_rules (DB) — never browser-only.
+    // Persist package pricing to pricing_rules (DB): never browser-only.
     const dbTarget = categoryKeyToDbPricingTarget(selectedCategory);
     if (!dbTarget || !DB_BACKED_PRICING_CATEGORIES.has(selectedCategory)) {
       setPricingSaveError("This category cannot be saved to the database");
@@ -1286,7 +1286,7 @@ export function SetPricingModal({
                               className="even:bg-neutral-50/80 hover:bg-blue-50/40 transition-colors"
                             >
                               <td className="border border-neutral-300 px-3.5 py-2 font-bold text-neutral-900">
-                                {/* Cheer Magento SoftSelect tiers/limits are fixed — prices only. */}
+                                {/* Cheer Magento SoftSelect tiers/limits are fixed: prices only. */}
                                 {magentoPricingPackageLabel(
                                   selectedCategory,
                                   tierRow.tier

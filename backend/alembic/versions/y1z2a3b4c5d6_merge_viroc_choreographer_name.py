@@ -1,7 +1,7 @@
 """merge viroc_choreographer_name into choreographer_name
 
 V!ROC Magento "V!ROC Choreographer (full name)" is the same contact
-as "Choreographer (full name)" on other forms — one SoT column.
+as "Choreographer (full name)" on other forms: one SoT column.
 
 Revision ID: y1z2a3b4c5d6
 Revises: x0y1z2a3b4c5

@@ -1,7 +1,7 @@
 """merge instrumental_style_preference into instrumentation_notes
 
 Marching Band "instrumentation notes" and School Anthem "instrumental
-style preference" are one Magento preference — keep instrumentation_notes.
+style preference" are one Magento preference: keep instrumentation_notes.
 
 Revision ID: f8a9b0c1d2e3
 Revises: e7f8a9b0c1d2

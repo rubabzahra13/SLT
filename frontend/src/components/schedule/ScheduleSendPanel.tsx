@@ -405,7 +405,7 @@ export function ScheduleSendPanel({
                 </span>{" "}
                 {categoryLabel} producers are assigned to ongoing mixes
                 {filterPeriod
-                  ? ` overlapping ${periodLabel.toLowerCase()} (${filterPeriod.start} – ${filterPeriod.end})`
+                  ? ` overlapping ${periodLabel.toLowerCase()} (${filterPeriod.start} - ${filterPeriod.end})`
                   : ` (${periodLabel.toLowerCase()})`}
                 .
                 {!viewingAll && activeProducerName ? (

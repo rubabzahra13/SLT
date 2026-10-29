@@ -18,7 +18,7 @@ import { findProducerByAssignmentKey } from "../editor-assignment";
 import { PRODUCER_COLORS } from "../producer-avatars";
 import type { MTDRecord, Order, Producer } from "@/types";
 
-describe("Prompt 12 — Full End-to-End QA and Regression Audit", () => {
+describe("Prompt 12: Full End-to-End QA and Regression Audit", () => {
   const { mtdRecords, orders: allOrders, producers } = getData();
   const payrollRecords = getPayrollRecords(mtdRecords);
 

@@ -1,5 +1,5 @@
 """
-classification.py — Resolves an order's (form_type, cheer/dance subtype, package_name)
+classification.py: Resolves an order's (form_type, cheer/dance subtype, package_name)
 to the exact PricingRule row in the database.
 """
 import re
@@ -117,7 +117,7 @@ def classify_order(
             ),
         )
 
-    # Package exists but has no price (TBD via email — Sports Entertainment OTHER)
+    # Package exists but has no price (TBD via email: Sports Entertainment OTHER)
     if matched.customer_facing_price is None:
         return ClassificationResult(
             status="needs_manual_pricing",
@@ -139,6 +139,6 @@ def classify_order(
         pricing_rule=matched,
         reason=(
             f"Matched {form_type}/{canonical_subtype}/{matched.package_id} "
-            f"— '{matched.package_name}'."
+            f"- '{matched.package_name}'."
         ),
     )

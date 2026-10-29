@@ -8,7 +8,7 @@ from sqlalchemy.orm import relationship
 from app.core.database import Base
 
 class Order(Base):
-    """Orders table — columns grouped by form field family for easier auditing.
+    """Orders table: columns grouped by form field family for easier auditing.
 
     Physical DB column order matches these groups (see migration n0o1p2q3r4s5).
 
@@ -26,7 +26,7 @@ class Order(Base):
     cheer_form_subtype = Column(String, nullable=True)
     dance_form_subtype = Column(String, nullable=True)
     varsity_viroc_customer = Column(String, nullable=True)
-    # category + program_name removed — derived via @property (see below)
+    # category + program_name removed: derived via @property (see below)
 
     # --- 2. Form identity names ---
     # school_gym_name = gym / school / program / org (one column; UI label varies by form)
@@ -34,7 +34,7 @@ class Order(Base):
     team_name = Column(String, nullable=True)
 
     # --- 3. Address / billing (one column; UI label varies by form) ---
-    # School/Gym Billing Address — also Gym Billing, School Billing, Billing Address,
+    # School/Gym Billing Address: also Gym Billing, School Billing, Billing Address,
     # Organization Billing, School/Gym Address.
     school_gym_billing_address = Column(Text, nullable=True)
     city = Column(String, nullable=True)
@@ -59,7 +59,7 @@ class Order(Base):
     coach_phone = Column(String, nullable=True)
     coach_email = Column(String, nullable=True)
     billing_person_name = Column(String, nullable=True)
-    # Magento "Billing Person Email" / Youth Rec "Email Address" — one SoT.
+    # Magento "Billing Person Email" / Youth Rec "Email Address": one SoT.
     billing_person_email = Column(String, nullable=True)
     # choreographer_name / choreographer_email are SoT; Magento
     # "V!ROC Choreographer (full name/email)" are aliases.
@@ -76,22 +76,22 @@ class Order(Base):
     music_affiliate = Column(String, nullable=True)
     music_affiliate_selections = Column(Text, nullable=True)
     affiliate_flag_status = Column(String, nullable=True)
-    # Cheer Song List + Anthem style + MB instrumentation + Dance covers — one SoT.
+    # Cheer Song List + Anthem style + MB instrumentation + Dance covers: one SoT.
     # Dance Power/Unleash are packed with Magento labels in this column.
     # instrumentation_notes / instrumental_style_preference /
     # power_music_covers / unleash_the_beats_covers are API aliases.
     song_list_suggestions = Column(Text, nullable=True)
-    # Routine Notes + Anthem Lyrical Notes + MB fight/alma notes — one SoT.
+    # Routine Notes + Anthem Lyrical Notes + MB fight/alma notes: one SoT.
     # lyrical_notes is a legacy API alias of the same value.
     routine_notes = Column(Text, nullable=True)
     music_theme = Column(Text, nullable=True)
     custom_voiceovers = Column(Text, nullable=True)
     voiceover_script = Column(Text, nullable=True)
     pronunciation_guidance = Column(Text, nullable=True)
-    # Magento Yes/No for 8-count sheets (sending / using labels — one SoT).
+    # Magento Yes/No for 8-count sheets (sending / using labels: one SoT).
     # using_eight_count_sheets is a legacy API alias of the same value.
     sending_eight_count_sheets = Column(String, nullable=True)
-    # Admin collection status (HAVE CS / NEED CS) — client sheets received?
+    # Admin collection status (HAVE CS / NEED CS): client sheets received?
     received_eight_count_sheet = Column(String, nullable=True)
     have_songs = Column(String, nullable=True)
     style = Column(String, nullable=True)
@@ -166,7 +166,7 @@ class Order(Base):
 
     @property
     def program_name(self) -> str:
-        """Display/MTD alias of the form identity name — not a stored column."""
+        """Display/MTD alias of the form identity name: not a stored column."""
         from app.order_identity import order_identity_name
 
         return order_identity_name(self)
@@ -177,7 +177,7 @@ class Order(Base):
 
     @property
     def school_name(self) -> Optional[str]:
-        """API alias — same stored value as school_gym_name."""
+        """API alias: same stored value as school_gym_name."""
         return self.school_gym_name
 
     @school_name.setter
@@ -186,7 +186,7 @@ class Order(Base):
 
     @property
     def gym_name(self) -> Optional[str]:
-        """API alias — same stored value as school_gym_name."""
+        """API alias: same stored value as school_gym_name."""
         return self.school_gym_name
 
     @gym_name.setter
@@ -195,7 +195,7 @@ class Order(Base):
 
     @property
     def school_program_name(self) -> Optional[str]:
-        """API alias — same stored value as school_gym_name."""
+        """API alias: same stored value as school_gym_name."""
         return self.school_gym_name
 
     @school_program_name.setter
@@ -276,7 +276,7 @@ class Order(Base):
 
     @property
     def viroc_choreographer_name(self) -> Optional[str]:
-        """API alias — same stored value as choreographer_name."""
+        """API alias: same stored value as choreographer_name."""
         return self.choreographer_name
 
     @viroc_choreographer_name.setter
@@ -285,7 +285,7 @@ class Order(Base):
 
     @property
     def viroc_choreographer_email(self) -> Optional[str]:
-        """API alias — same stored value as choreographer_email."""
+        """API alias: same stored value as choreographer_email."""
         return self.choreographer_email
 
     @viroc_choreographer_email.setter
@@ -294,7 +294,7 @@ class Order(Base):
 
     @property
     def using_eight_count_sheets(self) -> Optional[str]:
-        """API alias — same stored value as sending_eight_count_sheets."""
+        """API alias: same stored value as sending_eight_count_sheets."""
         return self.sending_eight_count_sheets
 
     @using_eight_count_sheets.setter
@@ -303,7 +303,7 @@ class Order(Base):
 
     @property
     def instrumentation_notes(self) -> Optional[str]:
-        """API alias — Anthem/MB instrumentation → song_list_suggestions."""
+        """API alias: Anthem/MB instrumentation → song_list_suggestions."""
         return self.song_list_suggestions
 
     @instrumentation_notes.setter
@@ -312,7 +312,7 @@ class Order(Base):
 
     @property
     def instrumental_style_preference(self) -> Optional[str]:
-        """API alias — School Anthem Magento label → song_list_suggestions."""
+        """API alias: School Anthem Magento label → song_list_suggestions."""
         return self.song_list_suggestions
 
     @instrumental_style_preference.setter
@@ -321,7 +321,7 @@ class Order(Base):
 
     @property
     def power_music_covers(self) -> Optional[str]:
-        """API alias — Dance Magento box packed in song_list_suggestions."""
+        """API alias: Dance Magento box packed in song_list_suggestions."""
         from app.services.dance_song_covers import parse_dance_song_covers
 
         power, _ = parse_dance_song_covers(self.song_list_suggestions)
@@ -339,7 +339,7 @@ class Order(Base):
 
     @property
     def unleash_the_beats_covers(self) -> Optional[str]:
-        """API alias — Dance Magento box packed in song_list_suggestions."""
+        """API alias: Dance Magento box packed in song_list_suggestions."""
         from app.services.dance_song_covers import parse_dance_song_covers
 
         _, unleash = parse_dance_song_covers(self.song_list_suggestions)
@@ -357,7 +357,7 @@ class Order(Base):
 
     @property
     def lyrical_notes(self) -> Optional[str]:
-        """API alias — Anthem/MB lyrical notes → routine_notes."""
+        """API alias: Anthem/MB lyrical notes → routine_notes."""
         return self.routine_notes
 
     @lyrical_notes.setter
@@ -366,7 +366,7 @@ class Order(Base):
 
     @property
     def requested_producer(self) -> Optional[str]:
-        """API alias — same stored value as requested_editor."""
+        """API alias: same stored value as requested_editor."""
         return self.requested_editor
 
     @requested_producer.setter
@@ -375,7 +375,7 @@ class Order(Base):
 
     @property
     def editor_request(self) -> Optional[str]:
-        """API alias — same stored value as editor_initials."""
+        """API alias: same stored value as editor_initials."""
         return self.editor_initials
 
     @editor_request.setter
@@ -392,7 +392,7 @@ class Order(Base):
 
     @property
     def email_address(self) -> Optional[str]:
-        """API alias — Youth Rec Magento label; SoT is billing_person_email."""
+        """API alias: Youth Rec Magento label; SoT is billing_person_email."""
         return self.billing_person_email
 
     @email_address.setter
@@ -401,7 +401,7 @@ class Order(Base):
 
     @property
     def youth_rec_extra_email_address(self) -> Optional[str]:
-        """Deprecated API alias — same SoT as billing_person_email."""
+        """Deprecated API alias: same SoT as billing_person_email."""
         return self.billing_person_email
 
     @youth_rec_extra_email_address.setter

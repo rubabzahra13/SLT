@@ -10,7 +10,7 @@ function resolveApiBaseUrl(): string {
 
 export const API_BASE_URL = resolveApiBaseUrl();
 
-/** Default request timeout — shorter than Vercel maxDuration so UI can recover. */
+/** Default request timeout: shorter than Vercel maxDuration so UI can recover. */
 export const API_TIMEOUT_MS = 20_000;
 
 /** Creates / updates often wait on DB + uvicorn reload; give them more headroom. */
@@ -181,7 +181,7 @@ async function request<T>(
     return await requestOnce<T>(endpoint, init, timeoutMs);
   } catch (err) {
     // One retry for cold-start / uvicorn reload / transient network failures.
-    // Mutations also retry once on timeout — Add Order is create+patch and often
+    // Mutations also retry once on timeout: Add Order is create+patch and often
     // races a backend reload; a second attempt usually succeeds quickly.
     const timedOut =
       err instanceof ApiClientError && /timed out/i.test(err.message);

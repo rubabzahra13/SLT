@@ -173,7 +173,7 @@ export function CompleteToPayrollModal({
         let baseCust: number | null = 0;
         let basePay: number | null = 0;
 
-        // Rush is a yes/no tag only here — never bake $ into payroll price.
+        // Rush is a yes/no tag only here: never bake $ into payroll price.
         const pricingRec = withoutRushPricingFlags(currentRec as Record<string, unknown>);
         const pricingOrder = order
           ? withoutRushPricingFlags(order as unknown as Record<string, unknown>)
@@ -229,7 +229,7 @@ export function CompleteToPayrollModal({
 
           if (mbResult.alwaysFixedPayroll) {
             complianceReason =
-              "Fight Song / Alma Mater (Original or Plus) is a fixed package — payroll is flat regardless of music affiliate.";
+              "Fight Song / Alma Mater (Original or Plus) is a fixed package: payroll is flat regardless of music affiliate.";
           } else if (mbResult.complianceStatus === "unknown-no-affiliate-field") {
             complianceReason =
               "Band Chant / Drum Cadence with no music affiliate on file; compliant payroll column applies.";
@@ -293,7 +293,7 @@ export function CompleteToPayrollModal({
                 customer_amount: 0,
                 payroll_amount: seResult.rushFeeAmount,
                 quantity: 1,
-                note: `Customer Magento rush order — $${SPORTS_ENTERTAINMENT_CUSTOMER_RUSH_FEE} (Sports Entertainment)`,
+                note: `Customer Magento rush order: $${SPORTS_ENTERTAINMENT_CUSTOMER_RUSH_FEE} (Sports Entertainment)`,
               });
             }
           }
@@ -420,7 +420,7 @@ export function CompleteToPayrollModal({
           orderById
         );
         const packageDisplay = resolveOrderPackageDisplayPrice(
-          // Package chip stays base package — never include SE rush in customer $.
+          // Package chip stays base package: never include SE rush in customer $.
           pricingRec as unknown as MTDRecord,
           pricingOrder as Order | undefined,
           meta,
@@ -1022,7 +1022,7 @@ export function CompleteToPayrollModal({
 
                     return (
                       <>
-                  {/* Package Price — edit in Pricing modal */}
+                  {/* Package Price: edit in Pricing modal */}
                   <div className={breakdownRowClass}>
                     <div>
                       <div className="flex items-center gap-1.5">
@@ -1081,7 +1081,7 @@ export function CompleteToPayrollModal({
                     </div>
                   </div>
 
-                  {/* Music Compliance — opens Pricing; amount from affiliate compliance */}
+                  {/* Music Compliance: opens Pricing; amount from affiliate compliance */}
                   <div className={breakdownRowClass}>
                     <span className="font-medium text-brand-ink">
                       Music compliance
@@ -1106,7 +1106,7 @@ export function CompleteToPayrollModal({
                     </div>
                   </div>
 
-                  {/* Add-on items — Cheer/Dance admin rush is tag-only.
+                  {/* Add-on items: Cheer/Dance admin rush is tag-only.
                       SE Magento rush ($100) shows as sports_entertainment_rush. */}
                   {breakdown?.addons
                     .filter(
@@ -1122,7 +1122,7 @@ export function CompleteToPayrollModal({
                       : `+${formatPrice(rawAmt)}`;
                     const normalizeAddonText = (value: string) =>
                       value
-                        .replace(/\s*[—–]\s*/g, " ")
+                        .replace(/\s*[--]\s*/g, " ")
                         .replace(/\s+/g, " ")
                         .trim()
                         .toLowerCase();
@@ -1134,11 +1134,11 @@ export function CompleteToPayrollModal({
                       <div key={addon.addon_id} className={breakdownRowClass}>
                         <div>
                           <span className="font-medium text-brand-ink">
-                            {addon.label.replace(/\s*[—–]\s*/g, " ")}
+                            {addon.label.replace(/\s*[--]\s*/g, " ")}
                           </span>
                           {showAddonNote && addon.note ? (
                             <p className="text-[11px] text-brand-ink-tertiary">
-                              {addon.note.replace(/\s*[—–]\s*/g, " ")}
+                              {addon.note.replace(/\s*[--]\s*/g, " ")}
                             </p>
                           ) : null}
                         </div>
@@ -1159,7 +1159,7 @@ export function CompleteToPayrollModal({
                     );
                   })}
 
-                  {/* Final Payroll Price — from compliant/non-compliant rate card */}
+                  {/* Final Payroll Price: from compliant/non-compliant rate card */}
                   <div
                     className={clsx(
                       breakdownRowClass,
@@ -1268,7 +1268,7 @@ export function CompleteToPayrollModal({
                 </div>
               </div>
 
-              {/* Rush is a yes/no tag only — fee is handled on Payroll */}
+              {/* Rush is a yes/no tag only: fee is handled on Payroll */}
               <div className="rounded-xl border border-brand-line/70 bg-brand-bg/40 px-4 py-3 flex items-center justify-between gap-3">
                 <p className="text-[13px] font-bold text-brand-ink">Rush order</p>
                 <span

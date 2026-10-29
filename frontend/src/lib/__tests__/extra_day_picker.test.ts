@@ -4,7 +4,7 @@ import { isEligibleExtraDate } from "../producer-availability";
 import type { Weekday } from "@/types";
 
 describe("Extra day eligibility", () => {
-  it("only allows non-work weekdays (Mon–Sat workers → Sundays only)", () => {
+  it("only allows non-work weekdays (Mon-Sat workers → Sundays only)", () => {
     const workDays: Weekday[] = ["mon", "tue", "wed", "thu", "fri", "sat"];
     assert.equal(
       isEligibleExtraDate(new Date(2026, 7, 16), workDays),
@@ -20,7 +20,7 @@ describe("Extra day eligibility", () => {
     );
   });
 
-  it("allows Saturday when work days are Mon–Fri", () => {
+  it("allows Saturday when work days are Mon-Fri", () => {
     const workDays: Weekday[] = ["mon", "tue", "wed", "thu", "fri"];
     assert.equal(
       isEligibleExtraDate(new Date(2026, 7, 22), workDays),

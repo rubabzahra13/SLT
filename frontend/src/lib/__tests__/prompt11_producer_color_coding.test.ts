@@ -5,7 +5,7 @@ import { getData } from "../data";
 import { PRODUCER_COLORS } from "../producer-avatars";
 import type { Producer } from "@/types";
 
-describe("Prompt 11 — Producer Color-Coding in Selection UI Tests", () => {
+describe("Prompt 11: Producer Color-Coding in Selection UI Tests", () => {
   const { producers } = getData();
 
   it("1. Configured producers possess authentic configured color values", () => {

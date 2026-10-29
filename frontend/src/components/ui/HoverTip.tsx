@@ -13,7 +13,7 @@ type HoverTipProps = {
   zIndex?: number;
   /**
    * Allow pointer interaction (scroll, hover). Keeps the tip open while the
-   * cursor is over the tip itself — needed for scrollable content.
+   * cursor is over the tip itself: needed for scrollable content.
    */
   interactive?: boolean;
   /** Extra classes on the portaled tooltip (e.g. wider card). */

@@ -19,7 +19,7 @@ type ExtraDayPickerProps = {
   excludeRef?: React.RefObject<HTMLElement | null>;
   /** Work-day Off days already scheduled for this producer. */
   blockedTimeOffDays?: string[];
-  /** Days with an ongoing mix — not available as Extra days. */
+  /** Days with an ongoing mix: not available as Extra days. */
   mixBlockedDays?: string[];
 };
 

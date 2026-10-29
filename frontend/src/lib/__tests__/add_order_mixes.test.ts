@@ -64,11 +64,20 @@ describe("add-order-mixes", () => {
     ]);
   });
 
-  it("VIROC omits teamName (not on form)", () => {
+  it("VIROC omits teamName (not on Team/Mix sections)", () => {
     const viroc = baseOrder({ cheerFormSubtype: "school-cheer-viroc-yes" });
     assert.deepEqual(getAddOrderMultiMixFieldKeys(viroc), [
       "requestedEditor",
       "division",
+      "packageType",
+      "timeLengthOfMix",
+    ]);
+  });
+
+  it("Youth Rec: Team Name is per-mix (even though Magento puts it on Program)", () => {
+    const youth = baseOrder({ cheerFormSubtype: "youth-rec-cheer" });
+    assert.deepEqual(getAddOrderMultiMixFieldKeys(youth), [
+      "teamName",
       "packageType",
       "timeLengthOfMix",
     ]);

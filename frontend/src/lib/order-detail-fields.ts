@@ -7,7 +7,7 @@ import type { MTDRecord, Order } from "@/types";
 import type { OrderDetailField } from "@/lib/order-detail-sections";
 
 /**
- * First defined alias wins — including explicit "".
+ * First defined alias wins: including explicit "".
  * Prevents cleared inputs from snapping back via sibling `||` fallbacks.
  */
 export function coalesceFieldAliases(
@@ -89,7 +89,7 @@ const FIELD_GETTERS: Record<string, (order: Order) => string | undefined> = {
   stateProvince: (o) => o.stateProvince,
   zipPostalCode: (o) => o.zipPostalCode,
   country: (o) => o.country,
-  // Team name is its own column — never fall back to gym/school identity.
+  // Team name is its own column: never fall back to gym/school identity.
   teamName: (o) => coalesceFieldAliases(o.teamName),
   programName: (o) =>
     coalesceFieldAliases(
@@ -293,7 +293,7 @@ export function getOrderDetailFields(order: Order): OrderDetailField[] {
         multiline,
       };
     })
-    .filter((field) => field.value !== "—");
+    .filter((field) => field.value !== "-");
 }
 
 function enrichOrderFromMTD(rec: {
@@ -312,7 +312,7 @@ function enrichOrderFromMTD(rec: {
     packageType: rec.package,
     timeLengthOfMix: limit !== "-" ? limit : "",
     teamName: rec.programName,
-    gymName: rec.programName.split(" — ")[0]?.trim() || rec.programName,
+    gymName: rec.programName.split(": ")[0]?.trim() || rec.programName,
     requestedEditor:
       rec.editorRequest === "FA" ? "First Available" : String(rec.editorRequest),
     musicTheme: rec.musicTheme,

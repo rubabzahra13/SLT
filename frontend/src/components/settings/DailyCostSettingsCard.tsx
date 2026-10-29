@@ -8,7 +8,7 @@ import {
   type DailyCostSettings,
 } from "@/lib/daily-cost-settings";
 
-/** Checkbox fields for daily cost — embeds inside Producers & Payroll. */
+/** Checkbox fields for daily cost: embeds inside Producers & Payroll. */
 export function DailyCostSettingsFields() {
   const [settings, setSettings] = useState<DailyCostSettings>(() =>
     loadDailyCostSettings()

@@ -206,7 +206,7 @@ export function normalizeProducer(raw: Partial<Producer> & { id: string }): Prod
     name: raw.name,
   });
 
-  // Seed / migrate only — never force canonical back over an explicit user edit
+  // Seed / migrate only: never force canonical back over an explicit user edit
   // (add/remove category in the producer form must stick across tabs).
   if (canonical) {
     const hasLegacyGenre =
@@ -336,7 +336,7 @@ export function formatWorkDays(days: Weekday[]): string {
     sorted.length === 5 &&
     DEFAULT_WORK_DAYS.every((d) => sorted.includes(d))
   ) {
-    return "Mon–Fri";
+    return "Mon-Fri";
   }
   return sorted.map((d) => labels[d]).join(", ");
 }
@@ -471,7 +471,7 @@ export function producersReferToSamePerson(
   return false;
 }
 
-/** Stable roster order — always match DB / bootstrap (name, then id). */
+/** Stable roster order: always match DB / bootstrap (name, then id). */
 export function sortProducersByName(producers: Producer[]): Producer[] {
   return [...producers].sort((a, b) => {
     const byName = a.name.localeCompare(b.name, undefined, {

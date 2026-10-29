@@ -1,4 +1,4 @@
-"""Catalog pricing — secret_menu_pricing (reference-only).
+"""Catalog pricing: secret_menu_pricing (reference-only).
 
 Package rate cards live in pricing_rules; this module only serves Secret Menu.
 """

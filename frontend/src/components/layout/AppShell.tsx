@@ -76,7 +76,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {isViewOnly ? (
           <div className="relative z-20 flex w-full shrink-0 items-center justify-center gap-2 border-b border-amber-300/40 bg-amber-500/10 px-4 py-2 text-[12px] font-semibold text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/15 dark:text-amber-300">
             <Eye className="h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" strokeWidth={2} />
-            <span className="text-center">View Only Mode — All application data is read-only. Editing and modification actions are disabled.</span>
+            <span className="text-center">View Only Mode: All application data is read-only. Editing and modification actions are disabled.</span>
           </div>
         ) : null}
 

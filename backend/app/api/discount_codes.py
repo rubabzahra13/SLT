@@ -134,7 +134,7 @@ def delete_discount_code(
         db.delete(dc)
         db.commit()
     except OperationalError:
-        # Transient pooler/SSL drop after (or during) commit — retry once
+        # Transient pooler/SSL drop after (or during) commit: retry once
         # against a fresh connection state.
         db.rollback()
         dc = get_discount_code_by_id_or_code(db, code_id)

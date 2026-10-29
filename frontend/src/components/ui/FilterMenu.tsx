@@ -285,7 +285,7 @@ export function FilterMenu({
               : "max-w-[148px]"
           )}
         >
-          {selected?.label ?? "—"}
+          {selected?.label ?? "-"}
         </span>
         {!hideLabel && selected?.count !== undefined ? (
           <span className="text-brand-ink-tertiary">({selected.count})</span>

@@ -19,7 +19,7 @@ export type RushFeeSelection = {
   /** Fraction (0.93 = 93%), or null when nobody has configured a rate. */
   rate: number | null;
   rateSource: RushRateSource;
-  /** Producer share of `total`. Zero when the rate is unset — never a silent 100%. */
+  /** Producer share of `total`. Zero when the rate is unset: never a silent 100%. */
   compensation: number;
   overridden: boolean;
 };
@@ -53,7 +53,7 @@ export function normalizeCompensationFraction(
 
 export function formatCompensationPercent(rate: number): string {
   const fraction = normalizeCompensationFraction(rate);
-  if (fraction == null) return "—";
+  if (fraction == null) return "-";
   const pct = Math.round(fraction * 10000) / 100;
   const label = Number.isInteger(pct) ? String(pct) : String(Number(pct.toFixed(2)));
   return `${label}%`;
@@ -146,7 +146,7 @@ function overrideApplies(
 
 /**
  * Resolve the rush fee for one payroll row.
- * Rush Order Yes only gates the controls — it does NOT invent a $150 fee.
+ * Rush Order Yes only gates the controls: it does NOT invent a $150 fee.
  * Quantity stays 0 until a saved addon exists or the admin picks 1x/2x/+.
  * The producer rate is the default. A saved override is used only while the
  * same producer is still assigned. Non-rush rows contribute nothing.
@@ -172,7 +172,7 @@ export function resolveRushFeeSelection(input: {
   const { quantity, unitAmount } = inferQuantityAndUnit(input.addon ?? null);
   const producerRate = normalizeCompensationFraction(input.producerRate);
   const overridden = overrideApplies(input.addon ?? null, input.producerId);
-  // Only expose a rate once an amount is chosen — avoids showing 100% on an unset fee.
+  // Only expose a rate once an amount is chosen: avoids showing 100% on an unset fee.
   const rate =
     quantity < 1
       ? null
@@ -308,7 +308,7 @@ export function sportsEntertainmentIncludedRushFeeAmount(input: {
     if (delta > 0 && delta <= SPORTS_ENTERTAINMENT_CUSTOMER_RUSH_FEE + 0.009) {
       return delta;
     }
-    // Admin raised payroll further — still attribute at most the Magento $100.
+    // Admin raised payroll further: still attribute at most the Magento $100.
     if (delta > SPORTS_ENTERTAINMENT_CUSTOMER_RUSH_FEE) {
       return SPORTS_ENTERTAINMENT_CUSTOMER_RUSH_FEE;
     }
@@ -319,7 +319,7 @@ export function sportsEntertainmentIncludedRushFeeAmount(input: {
 
 /**
  * Informational SE Magento rush compensation already inside producer payout
- * ($100 × producer rushFeeRate). Not a Rushby add-on — do not add again.
+ * ($100 × producer rushFeeRate). Not a Rushby add-on: do not add again.
  */
 export function sportsEntertainmentIncludedRushCompensation(input: {
   isRush: boolean;
@@ -332,7 +332,7 @@ export function sportsEntertainmentIncludedRushCompensation(input: {
    * Not the Sports Entertainment category package rate.
    */
   rushFeeRate?: number | null;
-  /** @deprecated Use rushFeeRate — kept for older call sites. */
+  /** @deprecated Use rushFeeRate: kept for older call sites. */
   packageRate?: number | null;
 }): SportsEntertainmentIncludedRush | null {
   const feeAmount = sportsEntertainmentIncludedRushFeeAmount(input);

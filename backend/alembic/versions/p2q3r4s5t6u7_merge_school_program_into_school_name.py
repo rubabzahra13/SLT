@@ -28,7 +28,7 @@ def upgrade() -> None:
         WHERE NULLIF(TRIM(school_program_name), '') IS NOT NULL
         """
     )
-    # All Star keeps gym only — clear school_name if it was wrongly filled.
+    # All Star keeps gym only: clear school_name if it was wrongly filled.
     op.execute(
         """
         UPDATE orders

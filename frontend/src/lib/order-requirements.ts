@@ -68,7 +68,7 @@ export type OrderRequirementsResult = {
   all: OrderRequirementItem[];
   allMet: boolean;
   missingCount: number;
-  /** Data completeness only — independent of reassignment. */
+  /** Data completeness only: independent of reassignment. */
   status: OrderDataStatus;
   needsReassign: boolean;
   reassignReason: OrderReassignReason | null;
@@ -128,7 +128,7 @@ function parseReassignReason(
 
 /**
  * Determines whether a string value is present and non-empty.
- * Placeholder sentinels (none, N/A, TBD, null, …) count as missing —
+ * Placeholder sentinels (none, N/A, TBD, null, …) count as missing -
  * see EMPTY_FIELD_TOKENS in empty-field-tokens.ts.
  */
 function isPresent(val: string | null | undefined): boolean {
@@ -199,7 +199,7 @@ export function isAllStarDanceOrder(order: Order | MTDRecord): boolean {
   const pkg = String(
     o.package || o.packageType || o.package_type || ""
   ).toUpperCase();
-  // Dance-only Magento packages (do not use bare RALLY MIX — Cheer shares it).
+  // Dance-only Magento packages (do not use bare RALLY MIX: Cheer shares it).
   return (
     pkg.includes("DANCE MIX") ||
     pkg.includes("DANCE PLUS") ||
@@ -218,7 +218,7 @@ export function isAllStarDanceOrder(order: Order | MTDRecord): boolean {
 }
 
 /**
- * Song-list text for the Songs pill — must match the edit-form field:
+ * Song-list text for the Songs pill: must match the edit-form field:
  * Cheer / All Star → Song list/suggestions
  * Dance → Power Music Covers / Unleash the Beats Covers
  * Sports → customer songs / song list
@@ -228,7 +228,7 @@ export function isAllStarDanceOrder(order: Order | MTDRecord): boolean {
  *
  * @param opts.includePlaceholders When true, return sentinel tokens (none, N/A, …)
  *   so the red→green collection modal can show the amber “placeholder on file” UI.
- *   Default false — placeholders do not count as collected for the Songs pill.
+ *   Default false: placeholders do not count as collected for the Songs pill.
  */
 export function getFormSongListText(
   order: Order | MTDRecord,
@@ -294,7 +294,7 @@ export function getFormSongListText(
     );
   }
   if (isMarchingBand) {
-    // Band Chant Songs pill — instrumentation → song_list_suggestions.
+    // Band Chant Songs pill: instrumentation → song_list_suggestions.
     return pick(
       o.songListSuggestions,
       o.song_list_suggestions,
@@ -307,7 +307,7 @@ export function getFormSongListText(
 }
 
 /**
- * Songs SoT including placeholder tokens — for collection toggle confirm UI only.
+ * Songs SoT including placeholder tokens: for collection toggle confirm UI only.
  * Does not green the Songs pill (use getFormSongListColumnText / isPresent for that).
  */
 export function getFormSongListStoredText(order: Order | MTDRecord): string {
@@ -322,7 +322,7 @@ export function getFormSongListStoredText(order: Order | MTDRecord): string {
  * Prefer real form Song list / Power Music / Unleash / customer songs.
  * Fall back to legacy `musicTheme` for Cheer historical board text only.
  * Dance / School Anthem / Marching Band / Sports Entertainment: no musicTheme
- * fallback — Dance Songs must be Power Music OR Unleash covers only; other
+ * fallback: Dance Songs must be Power Music OR Unleash covers only; other
  * forms pack notes into musicTheme and would wrongly green Songs.
  */
 export function getFormSongListColumnText(order: Order | MTDRecord): string {
@@ -349,7 +349,7 @@ export function getFormSongListColumnText(order: Order | MTDRecord): string {
 }
 
 /**
- * Dance Songs confirm preview — show both cover boxes when either is filled
+ * Dance Songs confirm preview: show both cover boxes when either is filled
  * (Songs is green if Power Music OR Unleash has text).
  */
 export function getDanceSongsConfirmText(order: Order | MTDRecord): string {
@@ -418,7 +418,7 @@ export function isMarchingBandOrder(
   );
 }
 
-/** Notes pill text — Magento Notes field (routine_notes SoT). */
+/** Notes pill text: Magento Notes field (routine_notes SoT). */
 export function getFormNotesText(order: Order | MTDRecord): string {
   const o = order as Order & MTDRecord & Record<string, unknown>;
   return String(
@@ -454,7 +454,7 @@ function magentoFormFieldKeys(order: Order | MTDRecord): Set<string> {
 
 /**
  * Board Collections / Songs pills follow Magento form fields for this
- * category — never package tier (Platinum/Titanium/Jazz Simple Cut, etc.).
+ * category: never package tier (Platinum/Titanium/Jazz Simple Cut, etc.).
  */
 function magentoBoardPillFlags(order: Order | MTDRecord): {
   needMix: boolean;
@@ -538,10 +538,10 @@ function getOverrideState(order: Order | MTDRecord, itemId: string): boolean | u
   }
 
   // Songs green/red defaults from form song-list content (see hasFormSongListData).
-  // Do not let stale haveSongs NEED/HAVE override that — only collectionStates.songs.
+  // Do not let stale haveSongs NEED/HAVE override that: only collectionStates.songs.
 
   if (itemId === "cs" || itemId === "eight_count") {
-    // Collection status only — not the form Yes/No "will you send" intent.
+    // Collection status only: not the form Yes/No "will you send" intent.
     const val =
       (order as any).eightCountSheet ||
       (order as any).received_eight_count_sheet;
@@ -659,7 +659,7 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
   const needTimeOfMix = pills.needMix;
   // CS only when Magento has the 8-count question; Yes/No still gates display.
   const needEightCount = pills.needCsField;
-  // No Magento Video field on any current form — never a board pill.
+  // No Magento Video field on any current form: never a board pill.
   const needVideo = false;
   const needCompliancy = false;
 
@@ -688,7 +688,7 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
         ""
     ).trim();
     // Cheer Magento often encodes length in package (GOLD 2:00) when the SoftSelect
-    // column was never written — use that only if the dedicated field is absent.
+    // column was never written: use that only if the dedicated field is absent.
     const cheerPackageTime =
       isCheer && !isSports && !isDance && !isMarchingBand && !isAnthem
         ? String(parsedPkg.limit || "").trim()
@@ -752,7 +752,7 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
     const override = getOverrideState(order, "video");
     // There is no free-text "video" field on an order, so collection is driven
     // by the explicit toggle (collectionStates.video) or a genuine video link.
-    // Do NOT infer from routineNotes/musicTheme — those almost always have
+    // Do NOT infer from routineNotes/musicTheme: those almost always have
     // content and would wrongly mark the video as received (hiding it from the
     // missing-data email).
     const videoVal = (order as any).video_url || (order as any).videoUrl;
@@ -797,7 +797,7 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
 
   // --- SONGS GROUP ---
 
-  // 4. SONGS — green/red matches Form song list column (form field or musicTheme).
+  // 4. SONGS: green/red matches Form song list column (form field or musicTheme).
   {
     const defaultProvided = hasFormSongListData(order);
     const isApplicable = needSongs;
@@ -816,8 +816,8 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
     });
   }
 
-  // 5. NOTES — green iff Magento Notes field has content (routine_notes SoT).
-  // Ignore collectionStates — pill must match the form field exactly.
+  // 5. NOTES: green iff Magento Notes field has content (routine_notes SoT).
+  // Ignore collectionStates: pill must match the form field exactly.
   {
     const notesVal = getFormNotesText(order);
     const defaultProvided = isPresent(String(notesVal));
@@ -851,7 +851,7 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
 
   const rawManual = (order as any).orderStatus || (order as any).order_status;
   // Normalize legacy labels. "Reassign" / "Reassigned" are not data statuses.
-  // Also ignore data labels that used to be incorrectly stored in orderStatus —
+  // Also ignore data labels that used to be incorrectly stored in orderStatus -
   // those must not override pill-derived completeness for reassigned rows.
   const isDataStatusLabel =
     rawManual === "Need to be Scheduled" ||
@@ -887,7 +887,7 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
   );
   const needsReassign = reassignReason !== null;
 
-  // Reassign leave/rush always land on Orders as Complete data — force
+  // Reassign leave/rush always land on Orders as Complete data: force
   // applicable pills green so Data badge and collection UI stay aligned.
   if (needsReassign) {
     for (const item of requirements) {
@@ -949,7 +949,7 @@ export function mergeOrderFormFieldsForRequirements(
       linkedOrder.cheerFormSubtype || (rec as Order).cheerFormSubtype,
     danceFormSubtype:
       linkedOrder.danceFormSubtype || (rec as Order).danceFormSubtype,
-    // Package column already prefers linked order — requirements must too
+    // Package column already prefers linked order: requirements must too
     // (stale MTD "HALFTIME SHOW" must not override Band Chant → Song).
     package: linkedOrder.package || rec.package,
     packageType:
@@ -980,10 +980,10 @@ export function mergeOrderFormFieldsForRequirements(
       linkedOrder.instrumentationNotes ?? (rec as Order).instrumentationNotes,
     lyricalNotes: linkedOrder.lyricalNotes ?? (rec as Order).lyricalNotes,
     // Prefer linked order musicTheme, including explicit "" after Songs remove.
-    // Do not use || — empty string must win over stale MTD theme text.
+    // Do not use ||: empty string must win over stale MTD theme text.
     musicTheme: linkedOrder.musicTheme ?? rec.musicTheme,
     routineNotes: linkedOrder.routineNotes ?? (rec as Order).routineNotes,
-    // Cleared Time Length must turn Mix red — do not keep stale staging values.
+    // Cleared Time Length must turn Mix red: do not keep stale staging values.
     timeLengthOfMix:
       linkedOrder.timeLengthOfMix ?? (rec as Order).timeLengthOfMix,
     clientRequestedRushOrder:
@@ -1039,7 +1039,7 @@ export function getOrderStatus(order: Order | MTDRecord): {
 export function getOrderAssignmentStatus(
   order: Order | MTDRecord
 ): OrderAssignmentStatus {
-  // Only a real assignedProducer counts — requested producer / FA do not.
+  // Only a real assignedProducer counts: requested producer / FA do not.
   const assigned = Boolean((order as MTDRecord).assignedProducer?.trim());
   const { needsReassign, reassignReason } = getOrderStatus(order);
   // Reassign rows stay in Leave/Rush until a producer is assigned again.

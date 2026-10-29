@@ -21,7 +21,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # 1) Empty shell MTD rows with no order link — not recoverable identity.
+    # 1) Empty shell MTD rows with no order link: not recoverable identity.
     op.execute(
         """
         DELETE FROM mtd_records
@@ -32,7 +32,7 @@ def upgrade() -> None:
         """
     )
 
-    # 2) Orders marked in_mtd but missing an MTD row — recreate from order SoT.
+    # 2) Orders marked in_mtd but missing an MTD row: recreate from order SoT.
     op.execute(
         """
         INSERT INTO mtd_records (

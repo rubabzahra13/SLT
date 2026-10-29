@@ -174,7 +174,7 @@ describe("Assign Producer Availability Logic", () => {
     });
     const estimateCost = () => 500;
 
-    // 500 across Mon–Tue = $250/day booked on Sep 15
+    // 500 across Mon-Tue = $250/day booked on Sep 15
     const within = checkProducerDailyLimits(producer, "2026-09-15", "2026-09-16", [existingMix], {
       newMixCost: 500, // full payout → $250/day over 2 work days
       estimateCost,
@@ -250,7 +250,7 @@ describe("Assign Producer Availability Logic", () => {
     const producer = createMockProducer();
     assert.equal(suggestMixEndDate("2026-09-14", "Gold", { producer }), "2026-09-18");
     assert.equal(suggestMixEndDate("2026-09-14", "Platinum", { producer }), "2026-09-22");
-    // Without a producer the studio week (Mon–Fri) is used.
+    // Without a producer the studio week (Mon-Fri) is used.
     assert.equal(suggestMixEndDate("2026-09-14", "Platinum"), "2026-09-22");
   });
 

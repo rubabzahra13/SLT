@@ -1,5 +1,5 @@
 /**
- * Admin bell notifications — only these four events belong in the bell.
+ * Admin bell notifications: only these four events belong in the bell.
  * Everything else is an ephemeral alert (toast).
  */
 import type { MTDRecord, Producer, ProducerTimeOff } from "@/types";
@@ -71,7 +71,7 @@ export function findLeavesStartingTomorrow(
       const end = toIsoDateString(leave.endDate) || start;
       const dateLabel =
         start && end && start !== end
-          ? `${formatDisplayDate(start)} – ${formatDisplayDate(end)}`
+          ? `${formatDisplayDate(start)} - ${formatDisplayDate(end)}`
           : formatDisplayDate(tomorrow);
 
       hits.push({
@@ -120,7 +120,7 @@ export function findProducersAtLimitFull(
       producer,
       dayIso,
       dedupeKey: `limit_full:${producer.id}:${dayIso}`,
-      title: `${producer.name} — Limit full`,
+      title: `${producer.name}: Limit full`,
       message: `Daily mix/cost limit reached for ${formatDisplayDate(dayIso)}.`,
     });
   }

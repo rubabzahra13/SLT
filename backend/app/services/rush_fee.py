@@ -6,7 +6,7 @@ Customer rush fee and producer compensation stay separate:
     compensation = total × compensation_rate
 
 The package price is never included in this total. A missing rate is left
-unset — it is not replaced with 100%.
+unset: it is not replaced with 100%.
 """
 
 from decimal import Decimal, ROUND_HALF_UP

@@ -2,7 +2,7 @@ import type { MTDRecord, PayrollAddon } from "@/types";
 
 export const MISC_ADJUSTMENT_LABEL = "Miscellaneous Adjustment";
 
-/** One misc_adjustment per mix — keep the newest when duplicates exist. */
+/** One misc_adjustment per mix: keep the newest when duplicates exist. */
 export function dedupePayrollAddons(addons: PayrollAddon[]): PayrollAddon[] {
   const miscNewest = new Map<string, PayrollAddon>();
   const rest: PayrollAddon[] = [];
@@ -74,7 +74,7 @@ export function applyMiscAdjustmentToPayout(
 
 /** Display signed money for statement / UI cells (+$20.00 / -$10.00). */
 export function formatSignedMiscAdjustment(amount: number): string {
-  if (!amount) return "—";
+  if (!amount) return "-";
   const abs = Math.abs(amount);
   const formatted = new Intl.NumberFormat("en-US", {
     style: "currency",

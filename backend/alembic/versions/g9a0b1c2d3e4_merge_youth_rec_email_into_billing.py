@@ -1,7 +1,7 @@
 """merge youth_rec_extra_email_address into billing_person_email
 
 Youth Rec Magento "Email Address" is the same contact email as
-"Billing Person Email" on other forms — one SoT column.
+"Billing Person Email" on other forms: one SoT column.
 
 Revision ID: g9a0b1c2d3e4
 Revises: f8a9b0c1d2e3, p5a6b7c8d9e0

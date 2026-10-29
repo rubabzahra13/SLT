@@ -20,7 +20,7 @@ import {
 } from "@/lib/producer-availability";
 import { enrichProducersWithSchedule } from "@/lib/producer-schedule-calc";
 
-/** Dashboard "today" — defaults to current system date. */
+/** Dashboard "today": defaults to current system date. */
 export const DASHBOARD_ANCHOR_DATE = new Date();
 
 export type DashboardMixStatus =
@@ -435,7 +435,7 @@ export function buildPriorityQueue(
         href,
         title: order.programName,
         meta: `${order.customerName} · ${order.category}`,
-        reason: "First Available — needs producer match",
+        reason: "First Available: needs producer match",
         tone: "match",
         price: order.price,
       });

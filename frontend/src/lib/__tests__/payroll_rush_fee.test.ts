@@ -275,7 +275,7 @@ describe("Sports Entertainment included Magento rush (Payroll display)", () => {
     );
   });
 
-  it("does not invent Rushby compensation — finalizeMixPayout stays package-only without addon", () => {
+  it("does not invent Rushby compensation: finalizeMixPayout stays package-only without addon", () => {
     const selection = resolveRushFeeSelection({
       isRush: true,
       producerRate: 1,

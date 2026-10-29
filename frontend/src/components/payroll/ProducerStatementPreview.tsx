@@ -129,8 +129,8 @@ function StatementPreviewTable({ rows }: { rows: ProducerFacingPayrollRow[] }) {
                               : "text-brand-ink-secondary"
                         }`}
                       >
-                        {/* "" = intentionally blank; nullish → — */}
-                        {val === "" ? "" : val ?? "—"}
+                        {/* "" = intentionally blank; nullish →: */}
+                        {val === "" ? "" : val ?? "-"}
                       </td>
                     );
                   })}

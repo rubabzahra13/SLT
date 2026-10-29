@@ -81,7 +81,7 @@ export function mixMatchesProducerCategory(
 }
 
 /**
- * All open assigned mixes across the roster — Orders staging and MTD board.
+ * All open assigned mixes across the roster: Orders staging and MTD board.
  * Used for assign daily-limit / calendar comparison (not payroll/completed).
  */
 export function collectOpenAssignedMixRecords(
@@ -145,7 +145,7 @@ export function collectOpenAssignedMixRecords(
   return combined;
 }
 
-/** Every active mix assigned to this producer — Orders and MTD board. */
+/** Every active mix assigned to this producer: Orders and MTD board. */
 export function collectAssignedMixesForProducer(
   producer: Producer,
   activeOrders: Order[],
@@ -276,7 +276,7 @@ export function recordHasProducerAddonRate(
 }
 
 /**
- * Mixes for this producer that still use the given voiceover / rush fee —
+ * Mixes for this producer that still use the given voiceover / rush fee -
  * open Orders/MTD assignments plus unpaid Payroll rows.
  */
 export function collectMixesUsingProducerAddonRate(

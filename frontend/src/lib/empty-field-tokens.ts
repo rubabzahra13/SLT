@@ -2,11 +2,11 @@
  * Sentinel / placeholder tokens that customers type when a field is unset.
  *
  * Professional practice (OpenDMI placeholders, warehouse NULLIF cleanup,
- * form-validation blank sets) is to keep this as a frozen in-code dictionary —
+ * form-validation blank sets) is to keep this as a frozen in-code dictionary -
  * not a DB table. These values rarely change and must stay identical across
  * collection pills and Move-to-MTD form validation.
  *
- * Intentionally omitted: "yes" / "no" — valid answers on binary Magento fields
+ * Intentionally omitted: "yes" / "no": valid answers on binary Magento fields
  * (8-count sheets, rush order, voiceovers, licensing).
  */
 
@@ -106,7 +106,7 @@ const TOKEN_SET = new Set<string>(
 export type EmptyFieldCheckOptions = {
   /** When true, N/A-family tokens are treated as real content. */
   allowNa?: boolean;
-  /** Order form field key — enables N/A allowlist for choreographer fields. */
+  /** Order form field key: enables N/A allowlist for choreographer fields. */
   fieldKey?: string;
 };
 
@@ -165,7 +165,7 @@ export function placeholderFieldErrorMessage(
 
 /**
  * Draft text for Songs/Notes/Mix “turn green” modal.
- * Never seed the textarea with a placeholder — admin types a real value.
+ * Never seed the textarea with a placeholder: admin types a real value.
  */
 export function initialCollectionGreenDraft(
   currentText: string | null | undefined

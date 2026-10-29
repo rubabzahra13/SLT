@@ -1,5 +1,5 @@
 """
-conftest.py — Pytest fixtures for pricing engine unit tests.
+conftest.py: Pytest fixtures for pricing engine unit tests.
 Uses SQLite in-memory database; no Supabase connection required.
 Seeds pricing rules + producers directly using service functions.
 """
@@ -59,7 +59,7 @@ def seeded_session(engine) -> Generator[Session, None, None]:
 
 @pytest.fixture
 def db(seeded_session) -> Session:
-    """Per-test session — uses savepoints for rollback isolation."""
+    """Per-test session: uses savepoints for rollback isolation."""
     seeded_session.begin_nested()
     yield seeded_session
     seeded_session.rollback()
@@ -86,7 +86,7 @@ def _seed_producers(session: Session) -> None:
             "email": "casey@soundslikethat.com",
             "categories": ["All-Star Cheer"],
             "compensation_model": "percentage_of_payroll_base",
-            # No rates_by_category — frontend CM dual-rate path is UI-only.
+            # No rates_by_category: frontend CM dual-rate path is UI-only.
             "rates_by_category": None,
             "dance_voiceover_rate": Decimal("0.80"),
             "cheer_voiceover_rate": Decimal("1.0"),

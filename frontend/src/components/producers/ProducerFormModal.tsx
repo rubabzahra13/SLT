@@ -236,7 +236,7 @@ export function ProducerFormModal({
     }
   }, [open, producer]);
 
-  // Hot reload / older form snapshots may omit workDays — keep the picker safe.
+  // Hot reload / older form snapshots may omit workDays: keep the picker safe.
   useEffect(() => {
     if (!open || isEdit) return;
     setForm((prev) =>

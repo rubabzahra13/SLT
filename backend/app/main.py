@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Schema is owned by Alembic. Never run DDL on Vercel cold starts —
+    # Schema is owned by Alembic. Never run DDL on Vercel cold starts -
     # it adds multi-second latency and fights the connection pooler.
     if os.getenv("VERCEL"):
         yield
@@ -29,7 +29,7 @@ async def lifespan(app: FastAPI):
         from sqlalchemy import text
         with engine.begin() as conn:
             if engine.dialect.name == "sqlite":
-                # Phase 5: collection/email live on Orders only — do not re-add on mtd_records.
+                # Phase 5: collection/email live on Orders only: do not re-add on mtd_records.
                 for stmt in (
                     "ALTER TABLE orders ADD COLUMN is_reassigned BOOLEAN DEFAULT 0",
                     "ALTER TABLE orders ADD COLUMN collection_states TEXT",
@@ -44,7 +44,7 @@ async def lifespan(app: FastAPI):
                         pass
             else:
                 conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS is_reassigned BOOLEAN DEFAULT FALSE;"))
-                # Phase 4–5: assignment/collection live on Orders only — do not re-add on mtd_records.
+                # Phase 4-5: assignment/collection live on Orders only: do not re-add on mtd_records.
                 conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS collection_states JSON;"))
                 conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS order_status VARCHAR;"))
                 conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS missing_data_email_sent_at TIMESTAMPTZ;"))

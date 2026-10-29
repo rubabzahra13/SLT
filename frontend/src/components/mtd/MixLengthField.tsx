@@ -35,7 +35,7 @@ function normalizeMixLength(
 ): string {
   const trimmed = raw.trim();
   if (!trimmed) return "";
-  // Magento SoftSelect "Other…" — keep full label when already stored.
+  // Magento SoftSelect "Other…": keep full label when already stored.
   if (
     isSchoolCheerSubtype(cheerSubtype) &&
     (trimmed === SCHOOL_CHEER_MAGENTO_MIX_OTHER ||
@@ -51,7 +51,7 @@ function normalizeMixLength(
   }
   const match = trimmed.match(/\d+:\d{2}/);
   if (match) {
-    // Magento SoftSelect has no 2:15 — map legacy Youth Rec 2:15 → 2:30.
+    // Magento SoftSelect has no 2:15: map legacy Youth Rec 2:15 → 2:30.
     if (cheerSubtype === "youth-rec-cheer" && match[0] === "2:15") {
       return "2:30";
     }

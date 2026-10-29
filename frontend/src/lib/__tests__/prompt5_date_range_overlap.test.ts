@@ -8,13 +8,13 @@ import {
 import { matchesDateFilter } from "../mtd-filters";
 import type { MTDRecord } from "../../types";
 
-describe("Prompt 5 — Shared Date-Range Overlap Filtering Utility", () => {
+describe("Prompt 5: Shared Date-Range Overlap Filtering Utility", () => {
   const dec15to17Record = {
     mixStartDate: "2026-12-15",
     mixEndDate: "2026-12-17",
   };
 
-  it("1. Exact match: record Dec 15–17 vs filter Dec 15–17", () => {
+  it("1. Exact match: record Dec 15-17 vs filter Dec 15-17", () => {
     const filter = { start: "2026-12-15", end: "2026-12-17" };
     assert.equal(doDateRangesOverlap(dec15to17Record, filter), true);
     assert.equal(
@@ -23,17 +23,17 @@ describe("Prompt 5 — Shared Date-Range Overlap Filtering Utility", () => {
     );
   });
 
-  it("2. Partial overlap on left side: record Dec 15–17 vs filter Dec 14–16", () => {
+  it("2. Partial overlap on left side: record Dec 15-17 vs filter Dec 14-16", () => {
     const filter = { start: "2026-12-14", end: "2026-12-16" };
     assert.equal(doDateRangesOverlap(dec15to17Record, filter), true);
   });
 
-  it("3. Partial overlap on right side: record Dec 15–17 vs filter Dec 17–20", () => {
+  it("3. Partial overlap on right side: record Dec 15-17 vs filter Dec 17-20", () => {
     const filter = { start: "2026-12-17", end: "2026-12-20" };
     assert.equal(doDateRangesOverlap(dec15to17Record, filter), true);
   });
 
-  it("4. Single day filter inside range: record Dec 15–17 vs filter Dec 16 alone", () => {
+  it("4. Single day filter inside range: record Dec 15-17 vs filter Dec 16 alone", () => {
     assert.equal(doDateRangesOverlap(dec15to17Record, "2026-12-16"), true);
     assert.equal(
       doDateRangesOverlap(dec15to17Record, {
@@ -44,23 +44,23 @@ describe("Prompt 5 — Shared Date-Range Overlap Filtering Utility", () => {
     );
   });
 
-  it("5. Fully-contained-within: record Dec 15–17 vs filter Dec 10–25", () => {
+  it("5. Fully-contained-within: record Dec 15-17 vs filter Dec 10-25", () => {
     const filter = { start: "2026-12-10", end: "2026-12-25" };
     assert.equal(doDateRangesOverlap(dec15to17Record, filter), true);
   });
 
-  it("6. Filter fully contained within record range: record Dec 10–25 vs filter Dec 15–17", () => {
+  it("6. Filter fully contained within record range: record Dec 10-25 vs filter Dec 15-17", () => {
     const wideRecord = { start: "2026-12-10", end: "2026-12-25" };
     const filter = { start: "2026-12-15", end: "2026-12-17" };
     assert.equal(doDateRangesOverlap(wideRecord, filter), true);
   });
 
-  it("7. No overlap (after): record Dec 15–17 vs filter Dec 20–25", () => {
+  it("7. No overlap (after): record Dec 15-17 vs filter Dec 20-25", () => {
     const filter = { start: "2026-12-20", end: "2026-12-25" };
     assert.equal(doDateRangesOverlap(dec15to17Record, filter), false);
   });
 
-  it("8. No overlap (before): record Dec 15–17 vs filter Dec 01–10", () => {
+  it("8. No overlap (before): record Dec 15-17 vs filter Dec 01-10", () => {
     const filter = { start: "2026-12-01", end: "2026-12-10" };
     assert.equal(doDateRangesOverlap(dec15to17Record, filter), false);
   });
@@ -117,7 +117,7 @@ describe("Prompt 5 — Shared Date-Range Overlap Filtering Utility", () => {
 
     assert.equal(matchesDateFilter(mockRec, singleDayFilter), true);
 
-    // Filter period for Dec 20–25
+    // Filter period for Dec 20-25
     const nonOverlappingFilter = {
       type: "custom" as const,
       value: { start: "2026-12-20", end: "2026-12-25" },

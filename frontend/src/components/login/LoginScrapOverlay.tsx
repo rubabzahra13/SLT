@@ -8,9 +8,9 @@ type ScrapPiece = {
   rotate: number;
   /** Extra vertical nudge in px (negative = up) */
   nudgeY?: number;
-  /** Stack order — higher draws in front */
+  /** Stack order: higher draws in front */
   zIndex?: number;
-  /** Absolute overlay — does not take flex space */
+  /** Absolute overlay: does not take flex space */
   overlay?: boolean;
 };
 
@@ -31,7 +31,7 @@ const LEFT_STACK: ScrapPiece[] = [
   },
 ];
 
-/** Sits between marching-band + dance, layered on top — no layout push */
+/** Sits between marching-band + dance, layered on top: no layout push */
 const LEFT_OVERLAY: ScrapPiece = {
   id: "anthem",
   src: "/login/scrap-anthem.png",

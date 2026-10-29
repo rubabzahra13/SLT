@@ -1,4 +1,4 @@
-"""Application bootstrap — one request, one DB session, all core lists.
+"""Application bootstrap: one request, one DB session, all core lists.
 
 Avoids N parallel Vercel Python cold starts on first page load.
 """

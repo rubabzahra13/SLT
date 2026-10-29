@@ -55,7 +55,7 @@ function pomFormColumns(): Column<Order>[] {
       key: "zipPostalCode",
       header: "ZIP",
       width: "80px",
-      render: (o) => <span className="tabular-nums">{o.zipPostalCode || "—"}</span>,
+      render: (o) => <span className="tabular-nums">{o.zipPostalCode || "-"}</span>,
     },
     {
       key: "country",
@@ -80,14 +80,14 @@ function pomFormColumns(): Column<Order>[] {
       key: "coachPhone",
       header: "Coach Phone",
       width: "110px",
-      render: (o) => <span className="tabular-nums">{o.coachPhone || "—"}</span>,
+      render: (o) => <span className="tabular-nums">{o.coachPhone || "-"}</span>,
     },
     {
       key: "coachEmail",
       header: "Coach Email",
       width: "180px",
       render: (o) => (
-        <span className="block truncate text-brand-ink-secondary">{o.coachEmail || "—"}</span>
+        <span className="block truncate text-brand-ink-secondary">{o.coachEmail || "-"}</span>
       ),
     },
     {
@@ -102,7 +102,7 @@ function pomFormColumns(): Column<Order>[] {
       width: "180px",
       render: (o) => (
         <span className="block truncate text-brand-ink-secondary">
-          {o.billingPersonEmail || "—"}
+          {o.billingPersonEmail || "-"}
         </span>
       ),
     },
@@ -118,7 +118,7 @@ function pomFormColumns(): Column<Order>[] {
       width: "180px",
       render: (o) => (
         <span className="block truncate text-brand-ink-secondary">
-          {o.choreographerEmail || "—"}
+          {o.choreographerEmail || "-"}
         </span>
       ),
     },
@@ -127,7 +127,7 @@ function pomFormColumns(): Column<Order>[] {
       header: "Copies",
       width: "72px",
       align: "center",
-      render: (o) => <span className="tabular-nums">{o.numberOfCopies || "—"}</span>,
+      render: (o) => <span className="tabular-nums">{o.numberOfCopies || "-"}</span>,
     },
     {
       key: "packageType",
@@ -157,7 +157,7 @@ function pomFormColumns(): Column<Order>[] {
       key: "timeLengthOfMix",
       header: "Mix Length",
       width: "100px",
-      render: (o) => <span>{o.timeLengthOfMix || "—"}</span>,
+      render: (o) => <span>{o.timeLengthOfMix || "-"}</span>,
     },
     {
       key: "musicAffiliate",

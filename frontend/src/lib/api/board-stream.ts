@@ -32,7 +32,7 @@ function authHeaderFromStorage(): string {
 
 /**
  * Authenticated fetch-based SSE for order / MTD board price + field updates.
- * Hit the API host directly — Next.js rewrites buffer streams and break SSE.
+ * Hit the API host directly: Next.js rewrites buffer streams and break SSE.
  */
 export async function subscribeBoardStream(
   onEvent: (event: BoardStreamEvent) => void,

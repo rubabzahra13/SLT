@@ -9,7 +9,7 @@ import { overlayMergedFormForDisplay } from "../manual-form-merge";
 import { getOrderIdentityName } from "../order-detail-sections";
 import type { MTDRecord, Order } from "@/types";
 
-describe("Phase 3 — MTD identity SoT is Orders", () => {
+describe("Phase 3: MTD identity SoT is Orders", () => {
   it("order form identity edits do not dual-write onto MTD", () => {
     assert.deepEqual(mtdPatchFromOrderField("contactName", "Coach A"), {});
     assert.deepEqual(mtdPatchFromOrderField("programName", "Gym A"), {});

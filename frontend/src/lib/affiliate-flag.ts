@@ -13,7 +13,7 @@ import {
 
 export type AffiliateFlagStatus = "open" | "resolved" | "released";
 
-/** Cheer form affiliate labels (checkbox options) — excludes dance-only covers. */
+/** Cheer form affiliate labels (checkbox options): excludes dance-only covers. */
 export const CHEER_MUSIC_AFFILIATE_LABELS: string[] = [
   ...COMPLIANT_AFFILIATE_OPTIONS.filter((o) => !o.danceOnly).map((o) => o.label),
   ...NON_COMPLIANT_AFFILIATE_OPTIONS.map((o) => o.label),
@@ -35,7 +35,7 @@ export function parseSelectedMusicAffiliates(
   const text = String(raw || "").trim();
   if (!text) return [];
 
-  // Exact single-option match (normalize whitespace/case only — keep + vs comma)
+  // Exact single-option match (normalize whitespace/case only: keep + vs comma)
   const exactKey = text.toUpperCase().replace(/\s+/g, " ").trim();
   const exact = CHEER_MUSIC_AFFILIATE_LABELS.find(
     (label) => label.toUpperCase().replace(/\s+/g, " ").trim() === exactKey

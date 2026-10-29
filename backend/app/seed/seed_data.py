@@ -325,7 +325,7 @@ def seed_all(db: Session):
         mtd_pk = seed_uuid("mtd", legacy_id)
         existing_mtd = db.query(MTDRecord).filter(MTDRecord.id == mtd_pk).first()
 
-        # Phase 4: assignment / mix dates live on Orders — resolve linked order first.
+        # Phase 4: assignment / mix dates live on Orders: resolve linked order first.
         assigned_prod_str = m.get("assignedProducer")
         assigned_producer_id = None
         assigned_key = None
@@ -381,7 +381,7 @@ def seed_all(db: Session):
             continue
 
         if not existing_mtd:
-            # Phase 3–5: identity/assignment/collection on Orders — MTD lifecycle only.
+            # Phase 3-5: identity/assignment/collection on Orders: MTD lifecycle only.
             mtd_obj = MTDRecord(
                 id=mtd_pk,
                 order_id=linked_order_id,

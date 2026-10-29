@@ -97,7 +97,7 @@ The new system should let her:
 For example:
 
 > **Producer: Ann**
-> Week: Aug 17–21
+> Week: Aug 17-21
 > Mon: Mix
 > Tue: Mix
 > Wed: Mix
@@ -122,13 +122,13 @@ For example:
 >
 > Suggested:
 >
-> * Matt — Aug 27
-> * Nate — Aug 27
-> * Steve — Sep 2
+> * Matt: Aug 27
+> * Nate: Aug 27
+> * Steve: Sep 2
 
 Megan chooses the producer.
 
-The system **must not suggest someone outside the required specialty**. They specifically said producers don't cross genres—for example, a hip-hop order should not automatically be assigned to someone who doesn't specialize in hip-hop.
+The system **must not suggest someone outside the required specialty**. They specifically said producers don't cross genres-for example, a hip-hop order should not automatically be assigned to someone who doesn't specialize in hip-hop.
 
 ---
 
@@ -241,7 +241,7 @@ The system should flag the order:
 
 Megan can then decide what to do/contact the customer.
 
-This is particularly useful because producer schedules can change—for example, Casey may suddenly decide to work on a Saturday and create new availability.
+This is particularly useful because producer schedules can change-for example, Casey may suddenly decide to work on a Saturday and create new availability.
 
 ---
 
@@ -282,12 +282,12 @@ SIDEBAR
 
 If you're turning this into an actual UI/requirements document, I would **not treat all tabs as equal**. The meeting makes these the core MVP:
 
-1. **Orders** — automatically receive all customer orders.
-2. **MTD** — replace Megan's spreadsheet and pre-fill as much as possible.
-3. **Producer Schedule** — let Megan quickly see availability.
-4. **Assignment** — suggest suitable available producers.
-5. **Needs Attention** — flag scheduling problems.
-6. **Roster** — Megan can manage producers herself.
-7. **Past Orders** — completed orders/history.
+1. **Orders**: automatically receive all customer orders.
+2. **MTD**: replace Megan's spreadsheet and pre-fill as much as possible.
+3. **Producer Schedule**: let Megan quickly see availability.
+4. **Assignment**: suggest suitable available producers.
+5. **Needs Attention**: flag scheduling problems.
+6. **Roster**: Megan can manage producers herself.
+7. **Past Orders**: completed orders/history.
 
 The **editor login** is explicitly more of a **Phase 2** idea: producers/editors could eventually log into the portal themselves, while restricting the customer information they can see.

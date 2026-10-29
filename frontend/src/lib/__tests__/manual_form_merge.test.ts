@@ -527,7 +527,7 @@ describe("manual ↔ form merge", () => {
         alsoHas: { source: "manual", value: "Austin" },
       }
     );
-    // Name match alone does not pair from either side — needs a persisted Magento link.
+    // Name match alone does not pair from either side: needs a persisted Magento link.
     assert.equal(resolveManualFormPair(manual, [manual, form]), null);
     assert.equal(resolveManualFormPair(form, [manual, form]), null);
     const linkedManual = { ...manual, mergedFormOrderId: "f1" };

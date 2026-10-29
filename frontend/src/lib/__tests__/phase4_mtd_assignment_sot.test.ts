@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { mtdPatchFromOrderField, orderPatchFromMTD } from "../mtd-order-sync";
 
-describe("Phase 4 — MTD assignment SoT is Orders", () => {
+describe("Phase 4: MTD assignment SoT is Orders", () => {
   it("order assignment edits do not dual-write onto MTD", () => {
     assert.deepEqual(mtdPatchFromOrderField("assignedProducer", "CM"), {});
     assert.deepEqual(mtdPatchFromOrderField("mixStartDate", "2026-09-14"), {});

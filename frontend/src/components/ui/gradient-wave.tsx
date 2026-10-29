@@ -14,7 +14,7 @@ function normalizeColor(hexCode: number): number[] {
 class MiniGl {
   canvas: HTMLCanvasElement;
   gl: WebGLRenderingContext;
-  // WebGL internals — typed loosely to match upstream shader helper
+  // WebGL internals: typed loosely to match upstream shader helper
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   meshes: any[] = [];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

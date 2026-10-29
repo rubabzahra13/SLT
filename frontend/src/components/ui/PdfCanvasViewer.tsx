@@ -17,7 +17,7 @@ type PdfImageViewerProps = {
 /**
  * Displays a PDF that has been pre-rendered to PNG page images (see
  * scripts/render-eight-count.mjs). Using plain <img> tags means the preview
- * works in every browser — including embedded webviews where PDF plugins and
+ * works in every browser: including embedded webviews where PDF plugins and
  * Web Workers are unavailable.
  */
 export function PdfImageViewer({

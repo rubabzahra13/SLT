@@ -1,6 +1,6 @@
 """add client_requested_rush_order
 
-Sports Ent Magento rush Yes/No is client info —
+Sports Ent Magento rush Yes/No is client info -
 must not overwrite admin is_rush_order (board Rush order).
 
 Revision ID: x0y1z2a3b4c5

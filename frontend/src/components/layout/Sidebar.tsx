@@ -242,7 +242,7 @@ export function Sidebar() {
         </nav>
       </DottedScroll>
 
-      {/* User & Sign Out — bell above avatar only when collapsed */}
+      {/* User & Sign Out: bell above avatar only when collapsed */}
       <div
         className={clsx(
           "shrink-0 border-t border-brand-sidebar-border",

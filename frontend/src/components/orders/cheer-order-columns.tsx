@@ -70,7 +70,7 @@ function addressCols(prefix: "gym" | "school" | "billing", includeName = true): 
       key: "zipPostalCode",
       header: "ZIP/Postal Code",
       width: "90px",
-      render: (o) => <span className="tabular-nums">{o.zipPostalCode || "—"}</span>,
+      render: (o) => <span className="tabular-nums">{o.zipPostalCode || "-"}</span>,
     },
     textCol("country", "Country", (o) => o.country, "110px")
   );
@@ -92,7 +92,7 @@ function teamInfoCols(includeMascot = false): Column<Order>[] {
       header: "Copies",
       width: "72px",
       align: "center",
-      render: (o) => <span className="tabular-nums">{o.numberOfCopies || "—"}</span>,
+      render: (o) => <span className="tabular-nums">{o.numberOfCopies || "-"}</span>,
     }
   );
   return cols;
@@ -105,7 +105,7 @@ function contactCols(): Column<Order>[] {
       key: "coachPhone",
       header: "Coach Phone",
       width: "110px",
-      render: (o) => <span className="tabular-nums">{o.coachPhone || "—"}</span>,
+      render: (o) => <span className="tabular-nums">{o.coachPhone || "-"}</span>,
     },
     textCol("coachEmail", "Coach Email", (o) => o.coachEmail || o.coachEmailAddress || "", "180px"),
     textCol("billingPersonName", "Billing Contact", (o) => o.billingPersonName, "120px"),
@@ -211,7 +211,7 @@ function youthRecCheerColumns(): Column<Order>[] {
       key: "coachPhone",
       header: "Phone #",
       width: "110px",
-      render: (o) => <span className="tabular-nums">{o.coachPhone || "—"}</span>,
+      render: (o) => <span className="tabular-nums">{o.coachPhone || "-"}</span>,
     },
     textCol(
       "billingPersonEmail",

@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-/** Payroll detail was removed — send deep links to the list with focus. */
+/** Payroll detail was removed: send deep links to the list with focus. */
 export default async function PayrollDetailRedirect({
   params,
 }: {

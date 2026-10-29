@@ -51,7 +51,7 @@ export function formatDanceMusicAffiliates(selected: string[]): string {
 
 /**
  * All-Star Dance may select both Power Music Covers and Unleash the Beats
- * Covers together — that pair alone is not a multi-affiliate flag.
+ * Covers together: that pair alone is not a multi-affiliate flag.
  */
 export function isAllowedAllStarDanceCoverPair(
   selections: string[] | null | undefined

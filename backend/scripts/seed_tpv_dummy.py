@@ -99,8 +99,8 @@ Unleash the Beats Covers:
                 ),
                 song_list_suggestions=row["song_list_suggestions"] or None,
                 routine_notes=(
-                    "Pom 0:00–0:45 (8 eights), Jazz 0:45–1:30 (8 eights), "
-                    "Hip Hop finish 1:30–end."
+                    "Pom 0:00-0:45 (8 eights), Jazz 0:45-1:30 (8 eights), "
+                    "Hip Hop finish 1:30-end."
                 ),
                 custom_voiceovers=row["custom_voiceovers"],
                 voiceover_script="Go Hawks" if "Yes" in row["custom_voiceovers"] else None,
@@ -118,7 +118,7 @@ Unleash the Beats Covers:
             )
             db.add(order)
             created += 1
-            print(f"created {legacy} — {row['school_program_name']}")
+            print(f"created {legacy}: {row['school_program_name']}")
 
         db.commit()
         print(f"Done. Created {created} Team Performance & Variety demo order(s).")

@@ -94,7 +94,7 @@ export function resolveMTDFormMeta(
       "pom";
   }
 
-  // Only expose subtypes that belong to this form — avoid "pom" leaking onto
+  // Only expose subtypes that belong to this form: avoid "pom" leaking onto
   // School Anthem / MB rows and hijacking the edit modal into Dance.
   if (formType !== "school-all-star-cheer") {
     cheerFormSubtype = "all-star-cheer";
@@ -518,7 +518,7 @@ export function buildAssignedProducerOptions(
   const editorOptions: Array<{ value: string; label: string; count: number }> =
     [];
 
-  // Live roster only — do not pad with legacy mock EDITOR_NAMES.
+  // Live roster only: do not pad with legacy mock EDITOR_NAMES.
   for (const producer of producers) {
     const key = producerAssignmentKey(producer);
     if (!key || seen.has(key)) continue;
@@ -605,7 +605,7 @@ export function buildRequestedProducerOptions(
   }
 
   for (const [key, count] of counts) {
-    // "FA" may be a real producer (initials) — only skip duplicates already added.
+    // "FA" may be a real producer (initials): only skip duplicates already added.
     if (seen.has(key)) continue;
     seen.add(key);
     editorOptions.push({
@@ -788,8 +788,8 @@ export type MTDSortBy =
 export const MTD_SORT_BY_OPTIONS: { value: MTDSortBy; label: string }[] = [
   { value: "newest", label: "Newest" },
   { value: "oldest", label: "Oldest" },
-  { value: "name_az", label: "A–Z" },
-  { value: "name_za", label: "Z–A" },
+  { value: "name_az", label: "A-Z" },
+  { value: "name_za", label: "Z-A" },
   { value: "price_high", label: "Package price · High" },
   { value: "price_low", label: "Package price · Low" },
   { value: "start_earliest", label: "Start date · Earliest" },
@@ -951,7 +951,7 @@ export function sortMTDRecordsBySortKey(
 /**
  * Sequence = preserve input order.
  * By producer = cluster same assigned producers together in first-seen order
- * (unassigned last). Does not alphabetize — use Filters → Sort by for that.
+ * (unassigned last). Does not alphabetize: use Filters → Sort by for that.
  */
 export function sortMTDRecordsByViewOrder(
   records: MTDRecord[],
@@ -1002,7 +1002,7 @@ export function isOrderScheduledAndAssigned(rec: MTDRecord): boolean {
 
 export function isMTDRecord(rec: MTDRecord): boolean {
   // An explicit "Move to Orders" flags the row reassigned and clears the board
-  // flag. That intent must win even for OUTSOURCED-section rows — otherwise the
+  // flag. That intent must win even for OUTSOURCED-section rows: otherwise the
   // outsourced heuristic below drags the row straight back onto the MTD board
   // and "Move to Orders" appears to do nothing.
   if (rec.isReassigned && rec.inMTD === false) return false;

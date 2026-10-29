@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { calculateCheerOrderPricing } from "../pricing-engine";
 
-describe("Central Pricing Engine — Core Rules Unit Tests (Prompt 8)", () => {
+describe("Central Pricing Engine: Core Rules Unit Tests (Prompt 8)", () => {
   it("All-Star Cheer GOLD 1:30 with Power Music (compliant affiliate)", () => {
     const result = calculateCheerOrderPricing({
       cheerFormSubtype: "all-star-cheer",
@@ -27,7 +27,7 @@ describe("Central Pricing Engine — Core Rules Unit Tests (Prompt 8)", () => {
     assert.equal(result.complianceStatus, "non-compliant");
   });
 
-  it("All-Star Cheer TITANIUM 2:30 — payroll base is $2800 regardless of compliance", () => {
+  it("All-Star Cheer TITANIUM 2:30: payroll base is $2800 regardless of compliance", () => {
     const compliantResult = calculateCheerOrderPricing({
       cheerFormSubtype: "all-star-cheer",
       packageType: "TITANIUM 2:30",

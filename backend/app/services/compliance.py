@@ -1,5 +1,5 @@
 """
-compliance.py — Resolves order.music_affiliate against the per-subtype
+compliance.py: Resolves order.music_affiliate against the per-subtype
 music_affiliate_options catalog (Pricing Reference), with fallback to the
 legacy global compliant_affiliates table.
 """
@@ -64,7 +64,7 @@ def resolve_compliance(
     if not music_affiliate or not music_affiliate.strip():
         return ComplianceResult(
             status="needs_manual_review",
-            reason="No music affiliate on file – please verify before finalizing pricing.",
+            reason="No music affiliate on file - please verify before finalizing pricing.",
             canonical_affiliate=None,
         )
 
@@ -96,7 +96,7 @@ def resolve_compliance(
                         status="compliant",
                         reason=(
                             f"'{query_val}' matches compliant affiliate "
-                            f"'{label}' for {form_type}/{subtype or '—'}."
+                            f"'{label}' for {form_type}/{subtype or '-'}."
                         ),
                         canonical_affiliate=label,
                     )
@@ -104,7 +104,7 @@ def resolve_compliance(
                     status="non-compliant",
                     reason=(
                         f"'{query_val}' matches non-compliant affiliate "
-                        f"'{label}' for {form_type}/{subtype or '—'}."
+                        f"'{label}' for {form_type}/{subtype or '-'}."
                     ),
                     canonical_affiliate=label,
                 )
@@ -113,7 +113,7 @@ def resolve_compliance(
             status="non-compliant",
             reason=(
                 f"'{query_val}' is not a recognised compliant affiliate for "
-                f"{form_type}/{subtype or '—'}. Non-compliant payroll rates apply."
+                f"{form_type}/{subtype or '-'}. Non-compliant payroll rates apply."
             ),
             canonical_affiliate=None,
         )

@@ -133,7 +133,7 @@ def get_mtd_records(
         if form_types:
             query = query.filter(Order.form_type.in_(form_types))
         else:
-            # Unknown label — empty result rather than scanning denorm column.
+            # Unknown label: empty result rather than scanning denorm column.
             return MtdListResponse(mtd=[], next_page_token=None)
     if status:
         query = query.filter(MTDRecord.status == status)
@@ -178,11 +178,11 @@ def create_mtd_record(payload: MTDRecordCreateSchema, db: Session = Depends(get_
     if not order_id or not linked_order:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="order_id is required — MTD rows cannot be unlinked",
+            detail="order_id is required: MTD rows cannot be unlinked",
         )
 
     # Create only links the board row. Order already holds identity /
-    # assignment / collection SoT — applying empty create defaults here
+    # assignment / collection SoT: applying empty create defaults here
     # wiped producers, mix dates, and form fields on move-to-MTD.
     # Intentional SoT edits go through PATCH /mtd or Orders APIs.
     data = strip_order_sot_from_mtd_payload(data)
@@ -261,10 +261,10 @@ def update_mtd_record(mtd_id: str, payload: MTDRecordUpdateSchema, db: Session =
     if not linked_order:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="MTD row is missing linked order_id — cannot update",
+            detail="MTD row is missing linked order_id: cannot update",
         )
 
-    # Phase 3–5: identity + assignment + collection writes → Orders only.
+    # Phase 3-5: identity + assignment + collection writes → Orders only.
     if identity_updates:
         apply_identity_writes_to_order(linked_order, identity_updates)
     if assignment_updates:
@@ -341,7 +341,7 @@ def create_manual_schedule_entry(
 
     category = data.get("category") or "Cheer"
     form_type = data.get("form_type") or "school-all-star-cheer"
-    # Subtype is exclusive by form family — never store dance subtype on cheer (or vice versa).
+    # Subtype is exclusive by form family: never store dance subtype on cheer (or vice versa).
     if form_type == "school-all-star-cheer":
         cheer_form_subtype = data.get("cheer_form_subtype") or "all-star-cheer"
         dance_form_subtype = None
@@ -362,7 +362,7 @@ def create_manual_schedule_entry(
         or data.get("school_gym_name") or data.get("school_name")
         or ""
     ).strip() or None
-    # customer_name / contact_name are people — never seed from school/org identity.
+    # customer_name / contact_name are people: never seed from school/org identity.
 
     # One identity column: school_gym_name (Gym / School / Program / Org).
     school_gym_name = (

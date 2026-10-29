@@ -237,7 +237,7 @@ export function VoiceoversPanel({
                     <td className="px-4 py-3 text-[12px] tabular-nums text-brand-ink-secondary">
                       {addon.createdAt
                         ? formatDisplayDate(addon.createdAt.slice(0, 10))
-                        : "—"}
+                        : "-"}
                     </td>
                     {!readOnly ? (
                       <td className="px-4 py-3">

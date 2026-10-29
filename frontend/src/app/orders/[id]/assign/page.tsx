@@ -44,7 +44,7 @@ function OrderAssignPageContent({ id }: { id: string }) {
       updateMTD(recordId, {
         editorRequest: result.editorRequest,
         assignedProducer: result.assignedProducer,
-        // Completing reassignment — clear so the row moves to Assigned
+        // Completing reassignment: clear so the row moves to Assigned
         isReassigned: false,
         orderStatus: "",
         ...(result.mixStartDate ? { mixStartDate: result.mixStartDate } : {}),

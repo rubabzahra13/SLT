@@ -1,6 +1,6 @@
 """rename email_address to youth_rec_extra_email_address
 
-Youth Rec Magento second email field — not coach email.
+Youth Rec Magento second email field: not coach email.
 
 Revision ID: v8w9x0y1z2a3
 Revises: u7v8w9x0y1z2

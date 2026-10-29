@@ -20,7 +20,7 @@ export function normalizeVocalsPreference(value: string): string {
   if (exact) return exact;
 
   const lower = raw.toLowerCase();
-  // Two separate versions ($250) — check before generic male+female
+  // Two separate versions ($250): check before generic male+female
   if (
     lower.includes("2 version") ||
     lower.includes("two version") ||
@@ -43,7 +43,7 @@ export function normalizeVocalsPreference(value: string): string {
   if (lower.includes("female") && !lower.includes("male")) {
     return "Female vocals";
   }
-  // Unknown legacy values (e.g. choir/group) — keep as-is for SoftSelect one-off
+  // Unknown legacy values (e.g. choir/group): keep as-is for SoftSelect one-off
   return raw.replace(/\.$/, "");
 }
 

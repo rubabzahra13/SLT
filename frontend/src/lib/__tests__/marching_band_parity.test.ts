@@ -42,7 +42,7 @@ function applicableIds(order: Order): string[] {
     .sort();
 }
 
-describe("Marching Band parity — Magento form fields + SoT", () => {
+describe("Marching Band parity: Magento form fields + SoT", () => {
   it("identity merge key is schoolProgramName", () => {
     assert.equal(getOrderIdentityFieldKey("marching-band"), "schoolProgramName");
   });

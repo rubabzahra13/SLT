@@ -58,18 +58,18 @@ function requirementPillTip(
   }
   if (item.id === "songs") {
     if (isWhite) return `${item.label}: Not applicable`;
-    return `${item.label}: ${isGreen ? "Have — click to remove" : "Not have — click to add"}`;
+    return `${item.label}: ${isGreen ? "Have: click to remove" : "Not have: click to add"}`;
   }
   if (item.id === "notes") {
     if (isWhite) return `${item.label}: Not applicable`;
     return `${item.label}: ${
-      isGreen ? "Have — click to remove" : "Not have — click to add"
+      isGreen ? "Have: click to remove" : "Not have: click to add"
     }`;
   }
   if (item.id === "mix" || item.id === "time_of_mix") {
     if (isWhite) return `${item.label}: Not applicable`;
     return `${item.label}: ${
-      isGreen ? "Collected — click to remove" : "Missing — click to mark collected"
+      isGreen ? "Collected: click to remove" : "Missing: click to mark collected"
     }`;
   }
   if (item.id === "form") {
@@ -233,7 +233,7 @@ function buildSongsNotesPatches(
     const sports = isSportsOrder(order);
     const anthem = isAnthemOrder(order);
     const marchingBand = isMarchingBandOrder(order);
-    // On clear: wipe musicTheme completely. Do not leave affiliate/notes in theme —
+    // On clear: wipe musicTheme completely. Do not leave affiliate/notes in theme -
     // Form song list / Songs pill fall back to musicTheme and would stay green.
     // Cheer → songListSuggestions. Dance covers packed into song_list_suggestions.
     // School Anthem / MB Band Chant Song → song_list_suggestions.
@@ -443,7 +443,7 @@ export function OrderRequirementsCell({
     if (isViewOnly) return;
     if (isReassign && item.state === "green") return;
     if (item.state === "white") return;
-    // Form is automatic from Magento name-match — not manually toggleable.
+    // Form is automatic from Magento name-match: not manually toggleable.
     if (item.id === "form") return;
 
     if (item.id === "songs" || item.id === "notes") {
@@ -466,7 +466,7 @@ export function OrderRequirementsCell({
     }
 
     // Mix Time SoT = Time Length of Mix. Green↔red always goes through confirm
-    // (clear field / enter field) — never a toggle-only green with empty time.
+    // (clear field / enter field): never a toggle-only green with empty time.
     if (item.id === "mix" || item.id === "time_of_mix") {
       const currentText = String(
         (requirementsRecord as Order).timeLengthOfMix ||
@@ -557,7 +557,7 @@ export function OrderRequirementsCell({
     );
 
     // Order is source of truth for song list / notes. Only patch an existing MTD
-    // staging row — never createMTD via updateMTD (that cloned Orders rows).
+    // staging row: never createMTD via updateMTD (that cloned Orders rows).
     if (orderId) {
       void updateOrder(orderId, orderPatch, linkedOrder || undefined);
     }

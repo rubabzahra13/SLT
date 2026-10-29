@@ -1,5 +1,5 @@
 """
-pricing.py — API routes for the pricing calculation engine.
+pricing.py: API routes for the pricing calculation engine.
 
 Routes:
     POST /api/pricing/calculate            Stateless breakdown (no DB write)
@@ -130,7 +130,7 @@ def _breakdown_to_response(bd: PricingBreakdown) -> PricingBreakdownResponse:
 
 
 # ---------------------------------------------------------------------------
-# POST /api/pricing/calculate  — stateless
+# POST /api/pricing/calculate : stateless
 # ---------------------------------------------------------------------------
 
 @router.post("/pricing/calculate", response_model=PricingBreakdownResponse)
@@ -157,7 +157,7 @@ def pricing_calculate(
 
 
 # ---------------------------------------------------------------------------
-# POST /api/orders/{id}/complete-pricing  — persist
+# POST /api/orders/{id}/complete-pricing : persist
 # ---------------------------------------------------------------------------
 
 @router.post("/orders/{order_id}/complete-pricing", response_model=OrderPricingResponse)
@@ -232,7 +232,7 @@ def complete_pricing(
     order.price_compliance = breakdown.compliance_status if breakdown.compliance_status != "needs_manual_review" else order.price_compliance
     order.pricing_breakdown = breakdown.to_dict()
 
-    # Phase 2: Orders SoT — push display cache to linked MTD only.
+    # Phase 2: Orders SoT: push display cache to linked MTD only.
     _mirror_pricing_display_to_mtd(db, order)
 
     db.commit()
@@ -249,7 +249,7 @@ def complete_pricing(
 
 
 # ---------------------------------------------------------------------------
-# POST /api/orders/{id}/finalize-payroll  — persist
+# POST /api/orders/{id}/finalize-payroll : persist
 # ---------------------------------------------------------------------------
 
 @router.post("/orders/{order_id}/finalize-payroll", response_model=OrderPricingResponse)
@@ -272,7 +272,7 @@ def finalize_payroll(
             detail="Pricing has not been completed for this order. Run /complete-pricing first.",
         )
 
-    # Reconstruct PricingBreakdown from persisted dict (lightweight — only fields needed for compensation)
+    # Reconstruct PricingBreakdown from persisted dict (lightweight: only fields needed for compensation)
     bd_dict: Dict[str, Any] = order.pricing_breakdown
 
     # Create a minimal PricingBreakdown from the stored dict
@@ -333,7 +333,7 @@ def finalize_payroll(
     order.rate_source = comp.rate_source
     order.producer_payout = comp.producer_payout
 
-    # Keep board customer-price cache in sync (not payout — that stays on Orders).
+    # Keep board customer-price cache in sync (not payout: that stays on Orders).
     _mirror_pricing_display_to_mtd(db, order)
 
     db.commit()

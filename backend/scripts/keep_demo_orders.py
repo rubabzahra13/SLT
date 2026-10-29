@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Keep only the 5 Greek Demo Coach orders; delete everything else.
 
-Usage (from repo root, via Terminal — agent DNS often cannot reach Supabase):
+Usage (from repo root, via Terminal: agent DNS often cannot reach Supabase):
   bash backend/run-cleanup.command
 """
 from __future__ import annotations
@@ -78,7 +78,7 @@ def main() -> int:
             print(" ", dict(row._mapping))
 
         if len(keep_rows) < 1:
-            print("ABORT: no demo orders found — refusing to delete.")
+            print("ABORT: no demo orders found: refusing to delete.")
             return 1
 
         keep_ids = [str(r.id) for r in keep_rows]

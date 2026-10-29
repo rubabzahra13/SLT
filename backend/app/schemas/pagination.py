@@ -8,7 +8,7 @@ T = TypeVar("T")
 
 
 class ListResponse(BaseModel, Generic[T]):
-    """Generic list envelope — prefer resource-named subclasses for OpenAPI."""
+    """Generic list envelope: prefer resource-named subclasses for OpenAPI."""
 
     model_config = ConfigDict(populate_by_name=True)
 

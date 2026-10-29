@@ -639,7 +639,7 @@ export function startOfLocalWeek(anchorDate: Date = new Date()): Date {
 
 /**
  * Distinct ongoing mixes assigned to this producer that cover any day
- * in the Mon–Sun week containing `anchorDate`.
+ * in the Mon-Sun week containing `anchorDate`.
  */
 export function countProducerMixesThisWeek(
   producer: Producer,
@@ -663,7 +663,7 @@ export function countProducerMixesThisWeek(
   return seen.size;
 }
 
-/** Ongoing mix covering a day — shown on leave calendar (not blocked). */
+/** Ongoing mix covering a day: shown on leave calendar (not blocked). */
 export type ProducerMixDayBooking = {
   recordId: string;
   programName: string;
@@ -739,7 +739,7 @@ export function describeProducerMixDayForLeave(
     const range =
       startLabel === endLabel
         ? startLabel
-        : `${startLabel} – ${endLabel}`;
+        : `${startLabel} - ${endLabel}`;
     return `• ${b.programName}\n  ${range}`;
   });
   return [header, ...blocks].join("\n\n");
@@ -777,7 +777,7 @@ export function collectProducerMixBlockedDays(
 /**
  * Upcoming calendar dates on a weekday that still have assigned mixes
  * (Orders or MTD), plus the distinct bookings covering those dates.
- * Broader than leave-calendar "Ongoing" checks — any active assigned mix
+ * Broader than leave-calendar "Ongoing" checks: any active assigned mix
  * with dates counts so schedule changes can't orphan booked work.
  */
 export function collectProducerWeekdayMixConflict(
@@ -913,7 +913,7 @@ function contributorFromRecord(
   const dayShare = dailyShareOfRecordCost(producer, rec, estimateCost);
   const mixTotal = bookedRecordCost(rec, estimateCost);
   const workDays = countProducerWorkingDays(producer, startIso, endIso);
-  // Keep $0 mixes too — they still fill a mix slot on the chart.
+  // Keep $0 mixes too: they still fill a mix slot on the chart.
   return {
     recordId: rec.id,
     programName: rec.programName?.trim() || "Untitled mix",
@@ -1303,7 +1303,7 @@ export function isProducerWorkableDay(
 
 /**
  * Next day the producer can work from `fromDate` (inclusive).
- * Skips non-work / leave only — ignores already-scheduled mixes.
+ * Skips non-work / leave only: ignores already-scheduled mixes.
  */
 export function nextProducerWorkableDayIso(
   producer: Producer,
@@ -1352,7 +1352,7 @@ export function packageMixWorkingDays(packageStr: string): number {
 }
 
 export type MixWorkingDayOptions = {
-  /** Without a producer, Mon–Fri count as working days. */
+  /** Without a producer, Mon-Fri count as working days. */
   producer?: Producer | null;
 };
 
@@ -1391,7 +1391,7 @@ export function suggestMixEndDate(
 /**
  * Whether the producer can work this mix window: the start and end are days
  * they work. Weekends and leave in between are skipped, and daily
- * limits never make a producer unavailable — see `checkProducerDailyLimits`.
+ * limits never make a producer unavailable: see `checkProducerDailyLimits`.
  */
 export function isProducerAvailableForMixWindow(
   producer: Producer,

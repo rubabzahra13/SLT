@@ -1,4 +1,4 @@
-"""Google AIP-135 delete helpers — 404 by default, allow_missing no-op."""
+"""Google AIP-135 delete helpers: 404 by default, allow_missing no-op."""
 
 from __future__ import annotations
 

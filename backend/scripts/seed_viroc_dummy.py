@@ -1,4 +1,4 @@
-"""Insert VIROC (school-cheer-viroc-yes) demos — one per Magento SoftSelect PACKAGE TYPE.
+"""Insert VIROC (school-cheer-viroc-yes) demos: one per Magento SoftSelect PACKAGE TYPE.
 
 Magento SoftSelect (VIROC):
   Silver Package → Gold Package → Platinum Package → Titanium Package
@@ -157,14 +157,14 @@ def main() -> None:
             if existing:
                 _apply_demo_fields(existing, row, i)
                 updated += 1
-                print(f"updated {legacy} — {row['school_name']} / {row['package']}")
+                print(f"updated {legacy}: {row['school_name']} / {row['package']}")
                 continue
 
             order = Order(id=order_pk)
             _apply_demo_fields(order, row, i)
             db.add(order)
             created += 1
-            print(f"created {legacy} — {row['school_name']} / {row['package']}")
+            print(f"created {legacy}: {row['school_name']} / {row['package']}")
 
         db.commit()
         print(f"Done. Created {created}, updated {updated} VIROC Magento SoftSelect demo(s).")

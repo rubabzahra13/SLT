@@ -50,7 +50,8 @@ import { stagingRecordFromOrder } from "@/lib/order-staging";
 import {
   CHEER_FORM_SUBTABS,
   DANCE_FORM_SUBTABS,
-  ORDER_FORM_TABS,
+  MANUAL_MATCH_FORM_TABS,
+  supportsManualMatchForm,
 } from "@/types";
 import type {
   CheerFormSubtypeFilter,
@@ -63,7 +64,7 @@ import type {
 const DEFAULT_FORM: OrderFormType = "school-all-star-cheer";
 const DEFAULT_CHEER_SUBTYPE: CheerFormSubtypeFilter = "all-star-cheer";
 const DEFAULT_DANCE_SUBTYPE: DanceFormSubtypeFilter = "pom";
-/** Rows per Match panel page — small enough that dual panes page quickly. */
+/** Rows per Match panel page: small enough that dual panes page quickly. */
 const MATCH_PAGE_SIZE = 5;
 
 function ListPagination({
@@ -85,7 +86,7 @@ function ListPagination({
   return (
     <div className="flex shrink-0 items-center justify-between gap-3 border-t border-brand-line/40 bg-brand-elevated/40 px-4 py-2.5">
       <p className="text-[12px] font-medium text-brand-ink-tertiary">
-        {rangeStart}–{rangeEnd} of {total}
+        {rangeStart}-{rangeEnd} of {total}
       </p>
       <div className="flex items-center gap-1.5">
         <button
@@ -311,7 +312,7 @@ function SideRow({
           ) : null}
         </div>
         <p className="mt-0.5 truncate text-[12px] text-brand-ink-secondary">
-          {meta || "—"}
+          {meta || "-"}
         </p>
         <p className="truncate text-[11px] tabular-nums text-brand-ink-tertiary">
           {formatDisplayDateTime(order.createdAt || "")}
@@ -411,7 +412,7 @@ export default function MatchOrdersPage() {
 
   const formCounts = useMemo(() => {
     const counts = Object.fromEntries(
-      ORDER_FORM_TABS.map(({ id }) => [id, 0])
+      MANUAL_MATCH_FORM_TABS.map(({ id }) => [id, 0])
     ) as Record<OrderFormType, number>;
     for (const o of unmatchedMagento) {
       if (counts[o.formType] !== undefined) counts[o.formType] += 1;
@@ -460,6 +461,7 @@ export default function MatchOrdersPage() {
   }, [unmatchedMagento]);
 
   const switchForm = useCallback((next: OrderFormType) => {
+    if (!supportsManualMatchForm(next)) return;
     setForm(next);
     setSelectedMagentoId(null);
     setMagentoPage(0);
@@ -676,6 +678,7 @@ export default function MatchOrdersPage() {
               form={form}
               onFormChange={switchForm}
               formCounts={formCounts}
+              tabs={MANUAL_MATCH_FORM_TABS}
             />
             <OrderFormSubtypeTabs
               form={form}

@@ -248,7 +248,7 @@ def update_studio_personal_reason(
         raise HTTPException(status_code=404, detail="Personal reason not found")
     data = payload.model_dump(exclude_unset=True)
     if row.is_other:
-        # Locked Other row — keep enabled/is_other
+        # Locked Other row: keep enabled/is_other
         data.pop("enabled", None)
         data.pop("is_other", None)
         data["enabled"] = True

@@ -44,7 +44,7 @@ export function resolveStoredProducerPayout(
 ): number | null {
   const fromOrder = order?.producerPayout;
   if (typeof fromOrder === "number" && Number.isFinite(fromOrder)) return fromOrder;
-  // Legacy MTD cache — keep reading until column is fully gone from clients.
+  // Legacy MTD cache: keep reading until column is fully gone from clients.
   const fromRec = (rec as { producerPayout?: number | null }).producerPayout;
   if (typeof fromRec === "number" && Number.isFinite(fromRec)) return fromRec;
   return null;

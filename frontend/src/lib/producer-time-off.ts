@@ -1,4 +1,4 @@
-/** Fixed leave reason prefix — admin fills in the rest (e.g. "wedding"). */
+/** Fixed leave reason prefix: admin fills in the rest (e.g. "wedding"). */
 export const OFF_WORK_FOR_PREFIX = "Off work for ";
 
 export function formatOffWorkReason(detail: string): string {
@@ -20,7 +20,7 @@ export function offWorkReasonDetail(reason: string): string {
   if (trimmed.toLowerCase().startsWith(prefixLower)) {
     return trimmed.slice(OFF_WORK_FOR_PREFIX.trim().length).trim();
   }
-  // Legacy preset names (Vacation, etc.) — treat whole string as detail for editing.
+  // Legacy preset names (Vacation, etc.): treat whole string as detail for editing.
   return trimmed;
 }
 
@@ -31,7 +31,7 @@ export function isValidOffWorkReason(reason: string): boolean {
   );
 }
 
-/** @deprecated Leave names settings removed — kept for API/bootstrap compat. */
+/** @deprecated Leave names settings removed: kept for API/bootstrap compat. */
 export type StudioPersonalReason = {
   id: string;
   name: string;

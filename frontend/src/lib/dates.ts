@@ -42,7 +42,7 @@ export function toIsoDateString(value?: string | null): string {
 
 export function formatDisplayDate(value?: string | null): string {
   const iso = toIsoDateString(value);
-  if (!iso || !/^\d{4}-\d{2}-\d{2}/.test(iso)) return value?.trim() || "—";
+  if (!iso || !/^\d{4}-\d{2}-\d{2}/.test(iso)) return value?.trim() || "-";
   const date = parseFlexibleDate(iso);
   if (!date) return iso;
   return date.toLocaleDateString("en-US", {
@@ -55,12 +55,12 @@ export function formatDisplayDate(value?: string | null): string {
 /** Date + time for order createdAt (keeps clock when ISO has time). */
 export function formatDisplayDateTime(value?: string | null): string {
   const raw = String(value || "").trim();
-  if (!raw) return "—";
+  if (!raw) return "-";
   const date = new Date(raw);
   if (Number.isNaN(date.getTime())) {
     return formatDisplayDate(raw);
   }
-  // Date-only strings (YYYY-MM-DD) have no useful clock — show date only.
+  // Date-only strings (YYYY-MM-DD) have no useful clock: show date only.
   if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
     return formatDisplayDate(raw);
   }
@@ -200,7 +200,7 @@ export function extractDateRange(input: DateRangeSpec): { start: string; end: st
 /**
  * Shared utility function: given a record's scheduled range (Mix Start Date → Mix End Date)
  * and a selected filter period (a specific day or date range), return true if the record's
- * range overlaps the filter period at all — not just if the start date falls within it.
+ * range overlaps the filter period at all: not just if the start date falls within it.
  *
  * Business Rule: Overlap (rec.start <= filter.end AND rec.end >= filter.start) is the rule everywhere.
  */

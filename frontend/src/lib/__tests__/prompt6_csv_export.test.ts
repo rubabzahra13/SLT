@@ -11,7 +11,7 @@ import { getPayrollRecords } from "../mtd-completion";
 import { filterMTDRecords, isPreMTDOrderRecord } from "../mtd-filters";
 import type { MTDRecord, Order } from "@/types";
 
-describe("Prompt 6 — Filter-Aware CSV Export Utility", () => {
+describe("Prompt 6: Filter-Aware CSV Export Utility", () => {
   const { mtdRecords, orders: allOrders, producers } = getData();
   const orderById = new Map(allOrders.map((o: Order) => [o.id, o]));
 

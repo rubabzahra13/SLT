@@ -3,7 +3,7 @@ import type { DanceFormSubtype, MTDRecord, Order } from "@/types";
 
 /**
  * Resolve the order shape for Add/Edit form sections.
- * Trusts formType first — never let stale cheer/dance subtypes on an MTD row
+ * Trusts formType first: never let stale cheer/dance subtypes on an MTD row
  * rewrite School Anthem / MB / Sports into Cheer or Dance sections.
  */
 export function resolveOrderFormDisplay(

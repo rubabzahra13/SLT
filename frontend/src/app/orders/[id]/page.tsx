@@ -197,7 +197,7 @@ export default function OrderDetailPage({
             record.contactName ||
             "Customer";
           const stamp = formatDisplayDateTime(displayOrder.createdAt);
-          return stamp !== "—" ? `${contact} · Timestamp ${stamp}` : contact;
+          return stamp !== "-" ? `${contact} · Timestamp ${stamp}` : contact;
         })()}
         secondaryAction={{
           label: "Pricing",

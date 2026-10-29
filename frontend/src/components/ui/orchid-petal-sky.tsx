@@ -6,7 +6,7 @@ import {
   BRAND_ORANGE,
 } from "@/lib/brand-colors";
 
-// GradientBackground — SLT brand remix of 21st.dev "Orchid Petal Sky".
+// GradientBackground: SLT brand remix of 21st.dev "Orchid Petal Sky".
 // Zero dependencies: one <div> that fills its parent.
 // Remix source: https://21st.dev/community/gradients/editor?from=5bccdbda-6bc4-4d83-8d0d-cead4a853ade
 

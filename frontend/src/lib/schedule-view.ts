@@ -133,14 +133,14 @@ function inferStatus(
   const legacy = formatLegacyDay(date);
   const entry = scheduleByDay.get(legacy);
   // Only honour explicit "off" or "available" overrides from the legacy table.
-  // Ignore legacy "mix" entries — those referred to old demo mixes that no
+  // Ignore legacy "mix" entries: those referred to old demo mixes that no
   // longer exist in the database.
   if (entry && (entry.status === "off" || entry.status === "available")) {
     return entry.status;
   }
 
   // Time off only applies on regular work days. Extra days are cancelled
-  // via removing the Extra day date — not by adding leave.
+  // via removing the Extra day date: not by adding leave.
   if (
     isProducerWorkDay(producer, date) &&
     isProducerOnTimeOff(producer, date)
@@ -251,7 +251,7 @@ function resolveBookings(
 
   if (status === "available") return [];
 
-  // Off / regular-off cells must not invent a placeholder booking — that made
+  // Off / regular-off cells must not invent a placeholder booking: that made
   // the matrix show "Off: 1 mix" when there was no mix at all. Only attach
   // real covering assignments (leave vs booking conflict).
   if (status === "off" || status === "nonwork") {
@@ -264,7 +264,7 @@ function resolveBookings(
     return bookingsFromAssignments(date, covering);
   }
 
-  // No real assignments cover this date — return empty (no phantom bookings).
+  // No real assignments cover this date: return empty (no phantom bookings).
   return [];
 }
 
@@ -315,7 +315,7 @@ function buildDateRange(range: ScheduleViewRange, anchor: any): Date[] {
     return enumerateDays(start, endMonth);
   }
 
-  // Six full calendar months starting with the current month (28–31 days each).
+  // Six full calendar months starting with the current month (28-31 days each).
   const start = new Date(today.getFullYear(), today.getMonth(), 1);
   const endMonth = new Date(today.getFullYear(), today.getMonth() + 6, 0);
   return enumerateDays(start, endMonth);
@@ -468,9 +468,9 @@ export function rangeLabel(
     const end = dates[dates.length - 1];
     const sameMonth = start.getMonth() === end.getMonth();
     if (sameMonth) {
-      return `Week of ${MONTH_NAMES[start.getMonth()]} ${start.getDate()}–${end.getDate()}`;
+      return `Week of ${MONTH_NAMES[start.getMonth()]} ${start.getDate()}-${end.getDate()}`;
     }
-    return `Week of ${MONTH_NAMES[start.getMonth()]} ${start.getDate()}–${MONTH_NAMES[end.getMonth()]} ${end.getDate()}`;
+    return `Week of ${MONTH_NAMES[start.getMonth()]} ${start.getDate()}-${MONTH_NAMES[end.getMonth()]} ${end.getDate()}`;
   }
   if (range === "month") return "This month";
   if (range === "90days") return "This month + next 2";

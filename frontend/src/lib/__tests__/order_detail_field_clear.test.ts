@@ -7,7 +7,7 @@ import {
 import { orderPatchFromOrderField } from "../mtd-order-sync";
 import type { Order } from "../../types";
 
-describe("Add Order / form fields — clearable inputs", () => {
+describe("Add Order / form fields: clearable inputs", () => {
   it("coalesceFieldAliases treats explicit empty as intentional", () => {
     assert.equal(coalesceFieldAliases("", "fallback"), "");
     assert.equal(coalesceFieldAliases(undefined, "fallback"), "fallback");

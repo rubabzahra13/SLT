@@ -71,7 +71,7 @@ function PayrollMailTablePreview({ rows }: { rows: ProducerFacingPayrollRow[] })
             rows.map((row, index) => (
               <tr key={row.recId || index} className="bg-white even:bg-brand-bg/30">
                 {columns.map((column) => {
-                  const value = String(row[column.key] ?? "—");
+                  const value = String(row[column.key] ?? "-");
                   const isProgram = column.key === "programName";
                   const isTotal = column.key === "totalPayout";
                   return (

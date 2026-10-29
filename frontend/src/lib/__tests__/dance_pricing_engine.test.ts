@@ -6,7 +6,7 @@ import {
   determineComplianceStatus,
 } from "../pricing-engine";
 
-describe("Prompt 6 — Dance Pricing Engine Unit Tests", () => {
+describe("Prompt 6: Dance Pricing Engine Unit Tests", () => {
   it("1. POM DANCE MIX with musicAffiliate = 'Power Music Covers' → customerFacingPrice = 475, payrollBasePrice = 375, compliant", () => {
     const res = calculateDanceOrderPricing({
       danceFormSubtype: "pom",

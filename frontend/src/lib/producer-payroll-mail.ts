@@ -38,7 +38,7 @@ function htmlMultiline(value: string): string {
 
 function cellValue(row: ProducerFacingPayrollRow, key: string): string {
   const value = row[key as keyof ProducerFacingPayrollRow];
-  return String(value ?? "—");
+  return String(value ?? "-");
 }
 
 export function payrollAttachmentFilename(producerName: string): string {

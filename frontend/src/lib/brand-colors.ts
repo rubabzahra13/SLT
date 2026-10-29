@@ -1,4 +1,4 @@
-/** Shared SLT brand palette — blue-led with orange as secondary accent */
+/** Shared SLT brand palette: blue-led with orange as secondary accent */
 export const BRAND_BLUE = "#52c8ee";
 export const BRAND_ORANGE = "#f07840";
 
@@ -22,7 +22,7 @@ export function chartSegmentColor(index: number): string {
   return CHART_SEGMENT_COLORS[index % CHART_SEGMENT_COLORS.length];
 }
 
-/** Gradient stops keyed by brand color — aligned with sidebar accents */
+/** Gradient stops keyed by brand color: aligned with sidebar accents */
 export const CHART_GRADIENTS: Record<string, [string, string]> = {
   "#0c0f14": ["#1a2430", "#0c0f14"],
   "#141820": ["#1f2430", "#141820"],

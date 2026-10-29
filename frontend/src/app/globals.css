@@ -23,7 +23,7 @@
   --color-brand-grey-light: #9ca3af;
   --color-brand-white: #ffffff;
 
-  /* Cool slate-blue canvas — mist vs elevated white */
+  /* Cool slate-blue canvas: mist vs elevated white */
   --color-brand-bg: #f5f7fa;
   --color-brand-bg-subtle: #eef2f6;
   --color-brand-surface: #fafbfc;
@@ -151,7 +151,7 @@ main.app-canvas {
   border-bottom: 1px solid var(--color-brand-line);
 }
 
-/* Premium orange chrome — accent lines only, no orange fill */
+/* Premium orange chrome: accent lines only, no orange fill */
 .panel-chrome-header {
   background: #ffffff;
   box-shadow: inset 0 2px 0 0 var(--color-brand-orange-deep);
@@ -319,8 +319,8 @@ main.app-canvas {
   }
 }
 
-/* Login background — scrapbook pieces drop in one by one (loops) */
-/* Scrapbook loop — slow irregular load, fast cascade fade at cycle end */
+/* Login background: scrapbook pieces drop in one by one (loops) */
+/* Scrapbook loop: slow irregular load, fast cascade fade at cycle end */
 @keyframes login-scrap-loop-exit0 {
   0% {
     opacity: 0;
@@ -623,7 +623,7 @@ main.app-canvas {
   background: transparent;
 }
 
-/* Layer 0 — cinematic ambient charcoal atmosphere */
+/* Layer 0: cinematic ambient charcoal atmosphere */
 .login-bg-atmosphere {
   position: fixed;
   inset: 0;
@@ -651,7 +651,7 @@ main.app-canvas {
   mix-blend-mode: screen;
 }
 
-/* Muted teal-blue — left / bottom edge */
+/* Muted teal-blue: left / bottom edge */
 .login-ambient-orb-teal {
   width: min(70vw, 720px);
   height: min(70vw, 720px);
@@ -666,7 +666,7 @@ main.app-canvas {
   animation: login-ambient-drift-a 26s ease-in-out infinite;
 }
 
-/* Warm amber-orange — top / right edge */
+/* Warm amber-orange: top / right edge */
 .login-ambient-orb-amber {
   width: min(65vw, 680px);
   height: min(65vw, 680px);
@@ -681,7 +681,7 @@ main.app-canvas {
   animation: login-ambient-drift-b 28s ease-in-out infinite;
 }
 
-/* Soft teal — upper left */
+/* Soft teal: upper left */
 .login-ambient-orb-teal-soft {
   width: min(48vw, 520px);
   height: min(48vw, 520px);
@@ -695,7 +695,7 @@ main.app-canvas {
   animation: login-ambient-breathe-a 24s ease-in-out infinite;
 }
 
-/* Soft amber — lower right */
+/* Soft amber: lower right */
 .login-ambient-orb-amber-soft {
   width: min(52vw, 560px);
   height: min(52vw, 560px);
@@ -709,7 +709,7 @@ main.app-canvas {
   animation: login-ambient-breathe-b 30s ease-in-out infinite;
 }
 
-/* Soft veil — keep form zone readable without killing edge color */
+/* Soft veil: keep form zone readable without killing edge color */
 .login-ambient-veil {
   position: absolute;
   inset: 0;
@@ -800,12 +800,12 @@ main.app-canvas {
   will-change: transform;
 }
 
-/* Layer 3 — category crops above gradient */
+/* Layer 3: category crops above gradient */
 .login-scrap-crops-layer {
   opacity: 1;
 }
 
-/* Warm edge glow — cream/amber wash at edges (not cold black vignette) */
+/* Warm edge glow: cream/amber wash at edges (not cold black vignette) */
 .login-bg-warm-glow {
   mix-blend-mode: soft-light;
   background:
@@ -816,7 +816,7 @@ main.app-canvas {
     radial-gradient(ellipse 55% 45% at 100% 100%, rgba(255, 218, 170, 0.17) 0%, transparent 66%);
 }
 
-/* Film grain — subtle craft texture on top of full bg */
+/* Film grain: subtle craft texture on top of full bg */
 @keyframes login-bg-grain-shift {
   0% {
     transform: translate3d(0, 0, 0);
@@ -851,7 +851,7 @@ main.app-canvas {
   animation: login-bg-grain-shift 9s steps(9) infinite reverse;
 }
 
-/* smartReader-style line boil — stepped drop-shadow edge shimmer (150ms × 4) */
+/* smartReader-style line boil: stepped drop-shadow edge shimmer (150ms × 4) */
 .login-line-boil-wrap {
   position: relative;
   overflow: visible;
@@ -1064,7 +1064,7 @@ main.app-canvas {
   animation-name: login-scrap-scribble-exit4;
 }
 
-/* Bg void stars — reuse scribble stroke-draw loop */
+/* Bg void stars: reuse scribble stroke-draw loop */
 .login-bg-doodles {
   overflow: visible;
 }
@@ -1163,7 +1163,7 @@ main.app-canvas {
   left: clamp(11px, 1.5vw, 15px);
 }
 
-/* Scrap PNGs — 3 left / 2 right columns */
+/* Scrap PNGs: 3 left / 2 right columns */
 .login-scrap-overlay-img {
   display: block;
   height: auto;
@@ -1172,12 +1172,12 @@ main.app-canvas {
   animation: login-scrap-overlay-float 11s ease-in-out infinite;
 }
 
-/* Darker gradient side — screen hides black PNG bg */
+/* Darker gradient side: screen hides black PNG bg */
 .login-scrap-overlay-col-left .login-scrap-overlay-img {
   mix-blend-mode: screen;
 }
 
-/* Brighter gradient side — normal so images stay visible on orange */
+/* Brighter gradient side: normal so images stay visible on orange */
 .login-scrap-overlay-col-right .login-scrap-overlay-img {
   mix-blend-mode: normal;
 }
@@ -1208,7 +1208,7 @@ main.app-canvas {
   }
 }
 
-/* Layer on top of gradient — category scrap PNGs (legacy) */
+/* Layer on top of gradient: category scrap PNGs (legacy) */
 .login-scrap-crops-layer {
   position: absolute;
   inset: 0;
@@ -1272,7 +1272,7 @@ main.app-canvas {
     inset 0 0 16px rgba(0, 0, 0, 0.03);
 }
 
-/* Hand-torn edge shapes — each piece gets a different messy cut */
+/* Hand-torn edge shapes: each piece gets a different messy cut */
 .login-scrap-tear-1 {
   clip-path: polygon(
     0% 3%, 6% 0%, 14% 4%, 24% 0%, 34% 3%, 44% 0%, 54% 4%, 64% 1%, 74% 3%, 84% 0%, 94% 4%, 100% 8%,
@@ -1360,7 +1360,7 @@ main.app-canvas {
   transform: rotate(-24deg);
 }
 
-/* ——— Figma login layout ——— */
+/* --- Figma login layout --- */
 .login-figma-vignette {
   /* Edge color stays visible; only a light read-pass over the form zone */
   background: radial-gradient(
@@ -1401,7 +1401,7 @@ main.app-canvas {
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
-/* Nudge form toward collage — inline Tailwind translate utilities were not emitting */
+/* Nudge form toward collage: inline Tailwind translate utilities were not emitting */
 @media (min-width: 768px) {
   .login-form-panel {
     transform: translateX(-140px);
@@ -1478,7 +1478,7 @@ main.app-canvas {
   overflow: hidden;
 }
 
-/* Dashboard shared surface — KPI strip, panels, table headers */
+/* Dashboard shared surface: KPI strip, panels, table headers */
 :root {
   --dashboard-surface-gradient: linear-gradient(
     180deg,
@@ -1759,7 +1759,7 @@ main.app-canvas {
   text-underline-offset: 2px;
 }
 
-/* Team strip — no nested box; cards carry their own border (Instagram stories row) */
+/* Team strip: no nested box; cards carry their own border (Instagram stories row) */
 .dashboard-team-track {
   background: transparent;
 }
@@ -1783,7 +1783,7 @@ main.app-canvas {
 }
 
 .dashboard-marquee {
-  /* Static producer roster — animation disabled */
+  /* Static producer roster: animation disabled */
 }
 
 .dashboard-producer-tile {
@@ -1805,7 +1805,7 @@ main.app-canvas {
   transform: translateY(-1px);
 }
 
-/* Shared decorative avatar ring — gradient color set inline from producer color. */
+/* Shared decorative avatar ring: gradient color set inline from producer color. */
 .avatar-gradient-ring {
   position: relative;
 }

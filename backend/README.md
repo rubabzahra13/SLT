@@ -1,4 +1,4 @@
-# SLT CRM — Backend Foundation & API Services
+# SLT CRM: Backend Foundation & API Services
 
 This repository directory contains the Python FastAPI backend service for the **Sounds Like That (SLT) CRM**.
 
@@ -163,11 +163,11 @@ uvicorn app.main:app --reload --port 8001
 
 ## 8. Available Initial Endpoints
 
-* `GET /health` — Verifies API & PostgreSQL database connectivity. Returns `{"status": "ok", "database": "connected"}`.
-* `GET /api/producers` — Returns active producer records from database.
-* `GET /api/orders` — Returns order intake records from database.
-* `GET /api/mtd` — Returns Music To Do workflow records from database.
-* `GET /api/docs` — Swagger UI API documentation.
+* `GET /health`: Verifies API & PostgreSQL database connectivity. Returns `{"status": "ok", "database": "connected"}`.
+* `GET /api/producers`: Returns active producer records from database.
+* `GET /api/orders`: Returns order intake records from database.
+* `GET /api/mtd`: Returns Music To Do workflow records from database.
+* `GET /api/docs`: Swagger UI API documentation.
 
 ---
 
@@ -176,8 +176,8 @@ uvicorn app.main:app --reload --port 8001
 * **`producers`**: Producer profiles, initials, categories, work days, max daily mixes limit, and extra days.
 * **`producer_time_off`**: Vacation, holiday, and personal leave ranges for producers (`producer_id` FK).
 * **`orders`**: Form submissions and order intake details (SoT for customer/form fields **and** pricing/payout: `price`, `final_customer_price*`, `system_calculated_*`, `producer_payout`, `rate_*`, `pricing_breakdown`).
-* **`mtd_records`**: Music To Do board + payroll lifecycle (`in_mtd`, `record_status`, `in_payroll`, `paid_at`, `invoice`, `waiting_on`, `section`, `is_manual_schedule_entry`), linked 1:1 to `orders.id` via unique `order_id` (`uq_mtd_records_order_id`; every row must have a linked order). Board customer-price cache: `price`, `final_customer_price*`, `price_compliance`. **Identity** (Phase 3), **assignment** (Phase 4), and **collection/ops** (`received_eight_count_sheet`, `have_songs`, `collection_states`, emails, `needs_attention`, `order_status`) (Phase 5) are Orders-only — projected onto `GET /api/mtd` from the linked order; never stored twice.
-* **`schedule_entries`**: Removed — schedule capacity is derived from producer assignments and mix dates, not a separate matrix table.
+* **`mtd_records`**: Music To Do board + payroll lifecycle (`in_mtd`, `record_status`, `in_payroll`, `paid_at`, `invoice`, `waiting_on`, `section`, `is_manual_schedule_entry`), linked 1:1 to `orders.id` via unique `order_id` (`uq_mtd_records_order_id`; every row must have a linked order). Board customer-price cache: `price`, `final_customer_price*`, `price_compliance`. **Identity** (Phase 3), **assignment** (Phase 4), and **collection/ops** (`received_eight_count_sheet`, `have_songs`, `collection_states`, emails, `needs_attention`, `order_status`) (Phase 5) are Orders-only: projected onto `GET /api/mtd` from the linked order; never stored twice.
+* **`schedule_entries`**: Removed: schedule capacity is derived from producer assignments and mix dates, not a separate matrix table.
 * **`discount_codes`**: Promo codes and usage rules.
 * **`pricing_rules`**: Package rate cards (customer / compliant / non-compliant) for Pricing Reference.
 * **`secret_menu_pricing`**: Semi-Custom Plus package extra song tiers (reference-only).

@@ -57,7 +57,7 @@ export function inferMusicAffiliate(musicTheme: string): string {
   return known.has(normalized) ? normalized : "";
 }
 
-/** Magento School Anthem has no package field — flat rate card. */
+/** Magento School Anthem has no package field: flat rate card. */
 export const SCHOOL_ANTHEM_PACKAGE = "SCHOOL ANTHEMS";
 export const SCHOOL_ANTHEM_PRICE = 1250;
 
@@ -79,7 +79,7 @@ export function buildLegacyMusicTheme(order: Pick<Order, "routineNotes" | "power
   return parts.join(" · ") || "";
 }
 
-/** Board/MTD category label — always derived from form_type (single source of truth). */
+/** Board/MTD category label: always derived from form_type (single source of truth). */
 export function categoryFromFormType(
   formType: OrderFormType | string | undefined
 ): string {
@@ -222,7 +222,7 @@ export function normalizeOrder(
     raw.organizationName,
     raw.programName
   );
-  // Person SoT = coach_name — never copy school/org identity into contact.
+  // Person SoT = coach_name: never copy school/org identity into contact.
   const coachPerson = coalesceAliasesAllowClear(
     raw.coachName,
     raw.coachContactFullName,
@@ -256,7 +256,7 @@ export function normalizeOrder(
         "";
 
   // Cheer packages encode mix length in the label (e.g. GOLD 2:00). Other forms
-  // keep Magento package labels flat — never refill Time Length from package, or
+  // keep Magento package labels flat: never refill Time Length from package, or
   // clearing the field "comes back" after save/normalize.
   const isCheerForm = formType === "school-all-star-cheer";
   const timeLengthOfMix = isCheerForm
@@ -453,7 +453,7 @@ export function normalizeOrder(
     zipPostalCode: raw.zipPostalCode?.trim() || "",
     country: raw.country?.trim() || "United States",
     division: raw.division?.trim() || "",
-    // If any alias is explicitly cleared (""), keep it cleared — do not revive
+    // If any alias is explicitly cleared (""), keep it cleared: do not revive
     // a stale sibling (edit modal clear → save was putting the old value back).
     ...(() => {
       const billingName = coalesceAliasesAllowClear(
@@ -496,7 +496,7 @@ export function normalizeOrder(
     timeLengthOfMix,
     musicAffiliate,
     // Power Music Covers is a dance Magento field. Never backfill it from
-    // musicTheme — cheer Song list saves set musicTheme and would otherwise
+    // musicTheme: cheer Song list saves set musicTheme and would otherwise
     // mirror into power_music_covers.
     powerMusicCovers:
       formType === "school-all-star-dance" ? powerMusicCovers : "",
@@ -551,12 +551,12 @@ export function normalizeOrder(
 }
 
 export function displayText(value?: string): string {
-  if (!value?.trim()) return "—";
+  if (!value?.trim()) return "-";
   return titleCase(value);
 }
 
 export function displayMultiline(value?: string, max = 120): string {
-  if (!value?.trim()) return "—";
+  if (!value?.trim()) return "-";
   const cleaned = value.replace(/\s+/g, " ").trim();
   if (cleaned.length <= max) return titleCase(cleaned);
   return `${titleCase(cleaned.slice(0, max))}…`;

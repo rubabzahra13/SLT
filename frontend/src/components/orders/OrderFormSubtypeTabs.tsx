@@ -20,7 +20,7 @@ type OrderFormSubtypeTabsProps = {
 };
 
 /**
- * Underline tab strip for cheer/dance subtypes — same visual language as
+ * Underline tab strip for cheer/dance subtypes: same visual language as
  * Orders view-range tabs (All / Complete data / …).
  */
 export function OrderFormSubtypeTabs({

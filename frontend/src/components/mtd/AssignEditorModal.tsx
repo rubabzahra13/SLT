@@ -106,7 +106,7 @@ export type EditorAssignmentResult = {
   assignedProducer: string | null;
   mixStartDate?: string;
   mixEndDate?: string;
-  /** Manual orders only — written to MTD invoice column. */
+  /** Manual orders only: written to MTD invoice column. */
   invoice?: string;
   recordStatus?: MTDRecordStatus;
   status?: MTDRecord["status"];
@@ -662,7 +662,7 @@ export function AssignEditorModal({
   ]);
 
   // Hydrate draft from a locked assignment. Do NOT clear draft whenever an
-  // unassigned record object refreshes — that wiped first-available picks
+  // unassigned record object refreshes: that wiped first-available picks
   // right after Unassign while the parent re-synced MTD/order.
   useEffect(() => {
     if (!record) return;
@@ -687,7 +687,7 @@ export function AssignEditorModal({
     categoryEditors,
   ]);
 
-  // Fresh open / switch to a different unassigned record — leave dates empty
+  // Fresh open / switch to a different unassigned record: leave dates empty
   // until a producer is selected. Do not touch invoice here (separate sync).
   useEffect(() => {
     if (!record) return;
@@ -880,7 +880,7 @@ export function AssignEditorModal({
 
   /**
    * Pick an editor. On first pick with no start date yet, prefill their next
-   * workable day (skips leave / non-work only — not existing mixes).
+   * workable day (skips leave / non-work only: not existing mixes).
    */
   function applyEditorSelection(name: string, _startIso?: string) {
     if (selectedEditor && producerKeysMatch(selectedEditor, name)) {
@@ -894,7 +894,7 @@ export function AssignEditorModal({
       ? nextProducerWorkableDayIso(producer, today)
       : todayIso;
     setDraftMixStartDate(nextStart);
-    // Mix end is never auto-filled — the user sets it explicitly.
+    // Mix end is never auto-filled: the user sets it explicitly.
   }
 
   function clearDates() {
@@ -1034,7 +1034,7 @@ export function AssignEditorModal({
       producerName={selectedProducer?.name?.trim() || selectedEditor}
       rangeLabel={
         draftStartIso && draftEndIso
-          ? `${formatDisplayDate(draftStartIso)} – ${formatDisplayDate(draftEndIso)}`
+          ? `${formatDisplayDate(draftStartIso)} - ${formatDisplayDate(draftEndIso)}`
           : windowStartLabel
       }
       issues={selectedLimitCheck ? describeDailyLimitIssues(selectedLimitCheck) : []}
@@ -1248,7 +1248,7 @@ export function AssignEditorModal({
                           windowLabel={
                             stripWindowMode
                               ? `${windowStartLabel}${
-                                  windowEndLabel ? ` – ${windowEndLabel}` : ""
+                                  windowEndLabel ? ` - ${windowEndLabel}` : ""
                                 }`
                               : null
                           }
@@ -1390,7 +1390,7 @@ export function AssignEditorModal({
                       windowLabel={`${windowStartLabel}${
                         windowEndLabel &&
                         windowEndLabel !== windowStartLabel
-                          ? ` – ${windowEndLabel}`
+                          ? ` - ${windowEndLabel}`
                           : ""
                       }`}
                       payoutDetail={selectedPayoutDetail}
@@ -1429,7 +1429,7 @@ export function AssignEditorModal({
                       {draftStartIso && draftEndIso
                         ? ` · ${
                             bookingDaySummary?.includedLabel ||
-                            `${formatDisplayDate(draftStartIso)} – ${formatDisplayDate(draftEndIso)}`
+                            `${formatDisplayDate(draftStartIso)} - ${formatDisplayDate(draftEndIso)}`
                           }`
                         : " · set mix dates to assign"}
                     </>
@@ -1470,7 +1470,7 @@ export function AssignEditorModal({
   const showRequestedHeader =
     Boolean(record) && recordHasRequestedProducer(record!, linkedOrder);
 
-  // Client request is a suggestion only — show who they asked for, not
+  // Client request is a suggestion only: show who they asked for, not
   // availability / auto-assign status.
   const requestedHeaderMeta = showRequestedHeader ? (
     <div className="inline-flex max-w-full items-center gap-2 rounded-full bg-brand-blue-soft/70 px-3 py-1.5 ring-1 ring-inset ring-brand-blue/25">
@@ -1598,7 +1598,7 @@ function ProducerAvailChip({
   selectedEditor: string;
   onSelect: (name: string, startIso?: string) => void;
 }) {
-  // Category roster only — availability is handled by the booking calendars,
+  // Category roster only: availability is handled by the booking calendars,
   // not by greying out chips in this strip.
   const selected =
     Boolean(selectedEditor) && producerKeysMatch(selectedEditor, row.name);
@@ -2322,7 +2322,7 @@ function RangeMixBreakdown({
 }) {
   const rangeLabel =
     rangeEndIso && rangeEndIso !== rangeStartIso
-      ? `${shortMixLimitDay(rangeStartIso)} – ${shortMixLimitDay(rangeEndIso)}`
+      ? `${shortMixLimitDay(rangeStartIso)} - ${shortMixLimitDay(rangeEndIso)}`
       : shortMixLimitDay(rangeStartIso);
 
   const mixCostFormula = describeDailyCostSettings(dailyCostSettings);
@@ -2374,7 +2374,7 @@ function RangeMixBreakdown({
             {contributors.map((c) => {
               const dateRange =
                 c.mixEndDate !== c.mixStartDate
-                  ? `${shortMixLimitDay(c.mixStartDate)} – ${shortMixLimitDay(c.mixEndDate)}`
+                  ? `${shortMixLimitDay(c.mixStartDate)} - ${shortMixLimitDay(c.mixEndDate)}`
                   : shortMixLimitDay(c.mixStartDate);
               const workDays = Math.max(c.workDays, 0);
               return (
@@ -2394,7 +2394,7 @@ function RangeMixBreakdown({
                     </span>
                     <span className="text-brand-ink-tertiary">÷</span>
                     <span className="rounded-md bg-brand-bg px-1.5 py-0.5 font-medium text-brand-ink ring-1 ring-inset ring-brand-line/50">
-                      {workDays || "—"}
+                      {workDays || "-"}
                     </span>
                     <span className="text-brand-ink-tertiary">=</span>
                     <span className="rounded-md bg-brand-info/10 px-1.5 py-0.5 font-semibold text-brand-info ring-1 ring-inset ring-brand-info/25">
@@ -2510,7 +2510,7 @@ function SelectedMixLimitPanel({
         estimateCost,
         categoryMatch
       );
-      // Booked mixes only — do not stack the draft/current mix into the bar.
+      // Booked mixes only: do not stack the draft/current mix into the bar.
       out[day.iso] = dayContributors.map((c) => ({
         key: c.recordId,
         pct: (c.dayShare / maxCost) * 100,
@@ -2565,7 +2565,7 @@ function SelectedMixLimitPanel({
     matchFormType,
   ]);
 
-  // Panel is only for days past 50% — don't show an empty shell + disclaimer.
+  // Panel is only for days past 50%: don't show an empty shell + disclaimer.
   if (!hasLimits || chartDays.length === 0) return null;
 
   return (
@@ -2636,7 +2636,7 @@ function AvailabilityProducerStrip({
   windowLabel: string | null;
   onSelect: (name: string, startIso?: string) => void;
 }) {
-  // Stable category order — do not sort by next opening / free status.
+  // Stable category order: do not sort by next opening / free status.
   const stripRows = rows;
 
   if (stripRows.length === 0) {

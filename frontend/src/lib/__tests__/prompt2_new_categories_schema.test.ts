@@ -6,7 +6,7 @@ import type {
   SchoolAnthemOrder,
 } from "../../types";
 
-describe("Prompt 2 — Schema Definition for Marching Band, Sports Entertainment, School Anthems", () => {
+describe("Prompt 2: Schema Definition for Marching Band, Sports Entertainment, School Anthems", () => {
   it("Marching Band: Fully-populated object matches exact field list with no subtype key, no musicAffiliate, no couponCode", () => {
     const marchingBandOrder: MarchingBandOrder = {
       id: "ord-test-mb-01",

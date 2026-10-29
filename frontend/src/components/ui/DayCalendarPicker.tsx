@@ -196,7 +196,7 @@ export function addYearsToIso(iso: string, years: number): string {
   return isoFromLocalDate(date);
 }
 
-/** Dec 31 of (the year of `iso` + `years`) — full last year in the picker. */
+/** Dec 31 of (the year of `iso` + `years`): full last year in the picker. */
 export function endOfYearPlusYearsIso(iso: string, years: number): string {
   const date = parseIsoToLocalDate(iso);
   if (!date) return iso;

@@ -37,7 +37,7 @@ function htmlMultiline(value: string): string {
 
 function cellValue(row: ProducerFacingScheduleRow, key: string): string {
   const value = row[key];
-  return String(value ?? "—");
+  return String(value ?? "-");
 }
 
 export function scheduleAttachmentFilename(producerName: string): string {
@@ -143,7 +143,7 @@ function renderScheduleRowsHtmlTable(rows: ProducerFacingScheduleRow[]): string 
   </div>`;
 }
 
-/** Modern HTML body for Gmail — includes an Excel-style schedule table. */
+/** Modern HTML body for Gmail: includes an Excel-style schedule table. */
 export function renderScheduleMailHtml(
   draft: ScheduleMailDraft,
   rows: ProducerFacingScheduleRow[]
@@ -188,7 +188,7 @@ export function renderScheduleMailHtml(
 </html>`;
 }
 
-/** Excel-compatible HTML attachment — opens directly in Microsoft Excel. */
+/** Excel-compatible HTML attachment: opens directly in Microsoft Excel. */
 export function generateScheduleExcelAttachment(
   rows: ProducerFacingScheduleRow[]
 ): string {

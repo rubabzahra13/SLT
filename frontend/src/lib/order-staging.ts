@@ -9,7 +9,7 @@ import { resolveStoredOrEngineCustomerPrice } from "@/lib/order-package-price";
 import { resolveOrderPriceCompliance } from "@/lib/pricing";
 import type { MTDRecord, Order } from "@/types";
 
-/** HAVE/NEED CS only — form Yes/No send-intent must not populate received_eight_count_sheet. */
+/** HAVE/NEED CS only: form Yes/No send-intent must not populate received_eight_count_sheet. */
 function collectionCsFromOrder(order: Order): string {
   const raw = String(order.eightCountSheet || "").trim();
   if (!raw) return "";
@@ -47,7 +47,7 @@ export function mtdRecordCoversOrder(rec: MTDRecord, order: Order): boolean {
 /**
  * True when `rec` is a real mtd_records row (own UUID), not a client-side
  * staging stand-in that reuses the order id as `id`/`orderId`.
- * PATCH /api/mtd/{orderId} 404s — only call the MTD API for persisted rows.
+ * PATCH /api/mtd/{orderId} 404s: only call the MTD API for persisted rows.
  */
 export function isPersistedMtdRecord(rec: MTDRecord | null | undefined): boolean {
   if (!rec) return false;
@@ -90,7 +90,7 @@ export function stagingRecordFromOrder(order: Order): MTDRecord {
     cheerFormSubtype: order.cheerFormSubtype,
     danceFormSubtype: order.danceFormSubtype,
     editorRequest: order.editorRequest || "FA",
-    // Person contact only — never copy school/org identity into contactName.
+    // Person contact only: never copy school/org identity into contactName.
     contactName:
       order.musicContactName ||
       order.coachName ||
@@ -116,7 +116,7 @@ export function stagingRecordFromOrder(order: Order): MTDRecord {
     invoice: "",
     mixStartDate: order.mixStartDate || "",
     mixEndDate: order.mixEndDate || "",
-    // Collection status only — never seed from form Yes/No send-intent.
+    // Collection status only: never seed from form Yes/No send-intent.
     eightCountSheet: collectionCsFromOrder(order),
     sendingEightCountSheets:
       order.sendingEightCountSheets || order.usingEightCountSheets || "",
@@ -150,7 +150,7 @@ export function stagingRecordFromOrder(order: Order): MTDRecord {
   };
 }
 
-/** Board package label source — packageType first (Magento), then package. */
+/** Board package label source: packageType first (Magento), then package. */
 export function displayPackageFromOrder(order: Order | null | undefined): string {
   if (!order) return "";
   const fromType = String(order.packageType || "").trim();
@@ -160,7 +160,7 @@ export function displayPackageFromOrder(order: Order | null | undefined): string
   return fromPackage;
 }
 
-/** Person contact for board columns — coach/music contact, never school identity. */
+/** Person contact for board columns: coach/music contact, never school identity. */
 export function displayContactFromOrder(order: Order | null | undefined): string {
   if (!order) return "";
   return (
@@ -247,7 +247,7 @@ export function mergeCollectionStateFromOrder(
     (order as { video_url?: string }).video_url ||
     "";
 
-  // Prefer Order formType/subtypes — MTD no longer stores them after Phase 3.
+  // Prefer Order formType/subtypes: MTD no longer stores them after Phase 3.
   const formType = order.formType || record.formType;
   const cheerFormSubtype = order.cheerFormSubtype || record.cheerFormSubtype;
   const danceFormSubtype = order.danceFormSubtype || record.danceFormSubtype;
@@ -365,7 +365,7 @@ export function mergeCollectionStateFromOrder(
     producerEmailSentTo:
       order.producerEmailSentTo ?? record.producerEmailSentTo,
     needsAttention: order.needsAttention ?? record.needsAttention,
-    // Prefer true from either side — MTD default false must not hide Form pill.
+    // Prefer true from either side: MTD default false must not hide Form pill.
     isManualScheduleEntry:
       Boolean(record.isManualScheduleEntry) || Boolean(order.isManualEntry),
   } as MTDRecord;
@@ -407,7 +407,7 @@ export function preMtdOrderDedupeKey(
   // Shared foreign key even when the order isn't in the current list.
   if (rec.orderId) return `orderRef:${rec.orderId}`;
   if (rec.legacyId) return `legacy:${rec.legacyId}`;
-  // Placeholder contact from orderToMTDRecord — collapse orphan staging clones
+  // Placeholder contact from orderToMTDRecord: collapse orphan staging clones
   // that share program + package (same booking re-created without order_id).
   const contact = String(rec.contactName || "")
     .trim()
@@ -479,7 +479,7 @@ export function listPreMtdOrderRecords(
   activeOrders: Order[],
   mtdRecords: MTDRecord[]
 ): MTDRecord[] {
-  // Form submissions that match a manual program (90–100%) fold into the manual row.
+  // Form submissions that match a manual program (90-100%) fold into the manual row.
   const mergedOrders = applyManualFormMerges(activeOrders);
   const absorbedFormIds = new Set<string>();
   for (const order of mergedOrders) {
@@ -516,7 +516,7 @@ export function listPreMtdOrderRecords(
           (rec.legacyId && orderById.get(rec.legacyId)) ||
           null;
         // orderToMTDRecord clones often land as contact "Contact" with no
-        // order_id — soft-link when exactly one open order matches program+package.
+        // order_id: soft-link when exactly one open order matches program+package.
         if (!linked) {
           const contact = String(rec.contactName || "")
             .trim()

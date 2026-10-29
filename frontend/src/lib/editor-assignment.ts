@@ -293,7 +293,7 @@ export function pickDefaultEditor(
     };
   }
 
-  // Client request is a suggestion only — never auto-select / auto-assign.
+  // Client request is a suggestion only: never auto-select / auto-assign.
   return {
     editor: "",
     requestedEditor,
@@ -326,7 +326,7 @@ export function findProducerByAssignmentKey(
   if (!normalized) return undefined;
 
   // Prefer a real roster match first. Initials like "FA" are also the
-  // reserved "First available" request code — without this order, a producer
+  // reserved "First available" request code: without this order, a producer
   // whose initials are FA can never be resolved and stays disabled in Assign.
   const match = producers.find((producer) => {
     const assignmentKey = producerAssignmentKey(producer);
@@ -390,7 +390,7 @@ export function resolveAssignedProducerForPatch(
 }
 
 /** Assigned producer shown in MTD / Orders tables.
- * Client request (editorRequest / Form producer) is a suggestion only —
+ * Client request (editorRequest / Form producer) is a suggestion only -
  * never treat it as an assignment.
  */
 export function getDisplayAssignedProducer(
@@ -497,7 +497,7 @@ function producerCategoryMatchesRequired(
   const rn = r.replace(/[/\-\s]+/g, "-");
   if (pn === rn) return true;
 
-  // Coarse legacy labels only — specific subtypes (All-Star Cheer, Pom, …)
+  // Coarse legacy labels only: specific subtypes (All-Star Cheer, Pom, …)
   // must match the producer's Category tab exactly (after normalization).
   const pIsDance =
     p.includes("dance") ||

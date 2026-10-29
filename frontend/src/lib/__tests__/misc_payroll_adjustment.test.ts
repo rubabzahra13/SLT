@@ -82,7 +82,7 @@ describe("Miscellaneous payroll adjustment", () => {
   it("formats signed amounts for statements", () => {
     assert.equal(formatSignedMiscAdjustment(20), "+$20.00");
     assert.equal(formatSignedMiscAdjustment(-10), "-$10.00");
-    assert.equal(formatSignedMiscAdjustment(0), "—");
+    assert.equal(formatSignedMiscAdjustment(0), "-");
   });
 
   it("applies an adjustment exactly once to the mix payout", () => {

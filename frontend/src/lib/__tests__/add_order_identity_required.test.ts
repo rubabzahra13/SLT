@@ -35,7 +35,7 @@ const CASES: Array<{
   },
 ];
 
-describe("Add Order — any meaningful field (except coupon / how-found)", () => {
+describe("Add Order: any meaningful field (except coupon / how-found)", () => {
   for (const c of CASES) {
     it(`${c.formType}${c.cheer ? `/${c.cheer}` : ""}${c.dance ? `/${c.dance}` : ""}: empty blocked; identity unlocks`, () => {
       const key = getOrderIdentityFieldKey(c.formType, c.cheer, c.dance);
@@ -49,7 +49,7 @@ describe("Add Order — any meaningful field (except coupon / how-found)", () =>
       const gaps = getAddOrderRequiredGaps(empty);
       assert.equal(gaps.length, 1);
       assert.equal(gaps[0].key, "_anyField");
-      assert.match(formatAddOrderSaveBlockReason(gaps), /at least one field/i);
+      assert.match(formatAddOrderSaveBlockReason(gaps), /at least one order detail/i);
 
       const filled = {
         ...empty,

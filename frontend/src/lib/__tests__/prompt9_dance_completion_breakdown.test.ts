@@ -4,7 +4,7 @@ import { calculateDanceOrderPricing } from "../pricing-engine";
 import { evaluateCouponCode } from "../discount-codes";
 import type { DiscountCode } from "../../types";
 
-describe("Prompt 9 — Completion Modal Pricing Breakdown + Coupon Integration for Dance", () => {
+describe("Prompt 9: Completion Modal Pricing Breakdown + Coupon Integration for Dance", () => {
   const discountCodes: DiscountCode[] = [
     { id: "code-austin", code: "AUSTIN2026" },
     { id: "code-save50", code: "SAVE50" },

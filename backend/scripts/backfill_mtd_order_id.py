@@ -91,7 +91,7 @@ def main(write: bool) -> None:
                 print(f"  MTD {m.id} '{m.program_name}' [{m.package}] -> {len(cands)} candidates")
 
         if not write:
-            print("\nDRY RUN — no changes written. Re-run with --write to apply.")
+            print("\nDRY RUN: no changes written. Re-run with --write to apply.")
             return
 
         for m, o in linked:

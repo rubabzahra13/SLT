@@ -55,7 +55,7 @@ class Settings(BaseSettings):
             url = url.replace(":[", ":").replace("]@ ", "@").replace("]@", "@")
 
         # Convert direct Supabase IPv6-only host to IPv4 pooler host for Vercel/local
-        # compatibility. RUNTIME_DATABASE_URL overrides must go through this too —
+        # compatibility. RUNTIME_DATABASE_URL overrides must go through this too -
         # otherwise a direct-host override silently breaks serverless + some networks.
         if "db.fqjwjiltizsjzrinoiwv.supabase.co" in url:
             url = url.replace(
@@ -69,7 +69,7 @@ class Settings(BaseSettings):
                     1,
                 )
 
-        # Pin psycopg2 — we install psycopg2-binary. Plain postgresql:// can
+        # Pin psycopg2: we install psycopg2-binary. Plain postgresql:// can
         # resolve to psycopg v3 on newer SQLAlchemy, which is not in our deps.
         if url.startswith("postgresql://"):
             url = "postgresql+psycopg2://" + url[len("postgresql://") :]

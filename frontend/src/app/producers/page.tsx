@@ -129,7 +129,7 @@ function ProducersPageContent() {
       return;
     }
     clearDeleteQuery();
-    // Intentionally omit clearDeleteQuery from deps — it closes over searchParams.
+    // Intentionally omit clearDeleteQuery from deps: it closes over searchParams.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deleteParam, producers, deleting]);
 
@@ -213,7 +213,7 @@ function ProducersPageContent() {
 
     setDeleteBusy(true);
     try {
-      // Await sequentially — parallel updateMTD calls race on shared rollback
+      // Await sequentially: parallel updateMTD calls race on shared rollback
       // snapshots and can wipe each other's optimistic patches.
       for (const rec of mixes) {
         if (mtdIds.has(rec.id) || rec.onMtdBoard || rec.inMTD) {

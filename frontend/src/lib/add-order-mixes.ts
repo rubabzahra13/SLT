@@ -17,7 +17,7 @@ const ADD_ORDER_NON_CONTENT_KEYS = new Set([
 
 /**
  * Cheer multi-mix (display order). Only keys present on the active subtype
- * are used — never invent fields.
+ * are used: never invent fields.
  *
  * Requested Editor · Division · Team Name · Package · Length of Mix
  */
@@ -31,18 +31,122 @@ export const CHEER_PER_MIX_FIELD_CANDIDATES = [
 
 /**
  * Dance multi-mix (display order). Only keys present on the active subtype
- * are used — never invent fields (e.g. no Date if the form has none;
- * Style only when `style` / `styleOfGamedayMix` exists).
+ * are used: never invent fields (Style only when `style` / `styleOfGamedayMix`
+ * exists on that subtype).
  *
- * Style of Dance · Package Name · Date You Need Music By · Requested Editor
+ * Admin New Order is slim: Magento fills the rest after Match.
+ * Style · Package · Requested Editor
  */
 export const DANCE_PER_MIX_FIELD_CANDIDATES = [
   "style",
   "styleOfGamedayMix",
   "packageType",
-  "mixEndDate",
   "requestedEditor",
 ] as const;
+
+/**
+ * Fields admins can fill on Add New Order. Everything else (city/state/zip,
+ * affiliate, songs, voiceovers, coupon, …) arrives from Magento after Match.
+ */
+export const ADD_ORDER_MANUAL_FIELD_KEYS = new Set<string>([
+  // Identity
+  "gymName",
+  "schoolName",
+  "schoolProgramName",
+  "organizationName",
+  "schoolOrganizationName",
+  "programName",
+  // Address (single block: Magento city/state/zip/country come later)
+  "schoolGymAddress",
+  "gymBillingAddress",
+  "schoolBillingAddress",
+  "youthRecBillingAddress",
+  "organizationBillingAddress",
+  "schoolAddress",
+  "schoolGymAddress",
+  // Contacts
+  "coachName",
+  "coachContactFullName",
+  "coachPhone",
+  "coachEmail",
+  "coachEmailAddress",
+  "musicContactName",
+  "musicContactPhone",
+  "musicContactEmail",
+  "billingPersonName",
+  "billingContactName",
+  "billingPersonEmail",
+  "billingContactEmail",
+  "youthRecExtraEmailAddress",
+  "emailAddress",
+  "choreographerName",
+  "choreographerEmail",
+  "virocChoreographerName",
+  "virocChoreographerEmail",
+  // Per-mix / mix essentials (cheer + dance)
+  "packageType",
+  "package",
+  "requestedEditor",
+  "requestedProducer",
+  "editorRequest",
+  "division",
+  "divisionOfTeam",
+  "teamName",
+  "timeLengthOfMix",
+  "style",
+  "styleOfGamedayMix",
+]);
+
+function isSchoolProgramSectionTitle(title: string): boolean {
+  return /school\/program|program information|^gym$|school information/i.test(
+    String(title || "").trim()
+  );
+}
+
+export function filterSectionsForManualAddOrder<
+  T extends { title: string; fields: Array<{ key: string; label?: string }> },
+>(sections: T[]): T[] {
+  // Prefer the form's own Division of Team field (label may vary by subtype).
+  let divisionOfTeamField: T["fields"][number] | null = null;
+  for (const section of sections) {
+    const hit = section.fields.find((f) => f.key === "divisionOfTeam");
+    if (hit) {
+      divisionOfTeamField = hit;
+      break;
+    }
+  }
+
+  const mapped = sections.map((section) => {
+    const fields = section.fields.filter((f) => {
+      if (!ADD_ORDER_MANUAL_FIELD_KEYS.has(f.key)) return false;
+      // Never under Mix "Shared for all mixes" — surface on School/Program instead.
+      if (
+        f.key === "divisionOfTeam" &&
+        isMixInformationSectionTitle(section.title)
+      ) {
+        return false;
+      }
+      return true;
+    });
+
+    // TPV / Jazz / etc. only define Division on Mix — move it to School/Program
+    // for admin New Order so it sits with name + address.
+    if (
+      divisionOfTeamField &&
+      isSchoolProgramSectionTitle(section.title) &&
+      !fields.some((f) => f.key === "divisionOfTeam")
+    ) {
+      fields.push({ ...divisionOfTeamField });
+    }
+
+    return { ...section, fields };
+  });
+
+  return mapped.filter((section) => {
+    if (isMixInformationSectionTitle(section.title)) return true;
+    return section.fields.length > 0;
+  }) as T[];
+}
 
 /** @deprecated Prefer getAddOrderMultiMixFieldKeys(order). */
 export const CHEER_PER_MIX_FIELD_KEYS = CHEER_PER_MIX_FIELD_CANDIDATES;
@@ -108,14 +212,34 @@ function perMixCandidatesForOrder(order: Order): readonly string[] {
   return [];
 }
 
+function isTeamInformationSectionTitle(title: string): boolean {
+  return /^team information$/i.test(String(title || "").trim());
+}
+
 /**
  * Keys that vary per mix for this form/subtype.
- * Intersection of the category candidate list with fields actually on the form.
+ * Candidates must appear on Mix or Team Information — except cheer Team Name /
+ * Division, which count from anywhere on the form (Youth Rec puts Team Name
+ * under Program Information; admins still fill it per mix).
  */
 export function getAddOrderMultiMixFieldKeys(order: Order): string[] {
   if (!supportsAddOrderMultiMix(order)) return [];
-  const present = formFieldKeySet(order);
-  return perMixCandidatesForOrder(order).filter((key) => present.has(key));
+  const presentAnywhere = formFieldKeySet(order);
+  const perMixSectionKeys = new Set<string>();
+  for (const section of getOrderDetailSections(order)) {
+    if (
+      isMixInformationSectionTitle(section.title) ||
+      isTeamInformationSectionTitle(section.title)
+    ) {
+      for (const field of section.fields) perMixSectionKeys.add(field.key);
+    }
+  }
+  return perMixCandidatesForOrder(order).filter((key) => {
+    if (key === "teamName" || key === "division") {
+      return presentAnywhere.has(key);
+    }
+    return perMixSectionKeys.has(key);
+  });
 }
 
 /** Field defs for one mix slot (labels from form sections). */
@@ -153,7 +277,6 @@ export function blankAddOrderPerMixValues(): Partial<Order> {
     timeLengthOfMix: "",
     style: "",
     styleOfGamedayMix: "",
-    mixEndDate: "",
   };
 }
 
@@ -162,7 +285,7 @@ export function blankCheerPerMixValues(): Partial<Order> {
   return blankAddOrderPerMixValues();
 }
 
-/** Shared draft — per-mix keys cleared so each mix can overlay cleanly. */
+/** Shared draft: per-mix keys cleared so each mix can overlay cleanly. */
 export function orderWithoutMixFields(
   order: Order,
   mixKeys: string[]

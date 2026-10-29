@@ -32,7 +32,7 @@ class OrderListResponse(BaseModel):
 
 router = APIRouter()
 
-# Magento School Anthem has no package-type field — always flat rate card.
+# Magento School Anthem has no package-type field: always flat rate card.
 SCHOOL_ANTHEM_PACKAGE = "SCHOOL ANTHEMS"
 SCHOOL_ANTHEM_PRICE = 1250.0
 
@@ -40,7 +40,7 @@ SCHOOL_ANTHEM_PRICE = 1250.0
 def _apply_school_anthem_defaults(data: dict, form_type: str | None = None) -> None:
     """Force package + $1,250 whenever form_type is school-anthem.
 
-    Magento School Anthem has no package-type field — one flat rate card.
+    Magento School Anthem has no package-type field: one flat rate card.
     """
     ft = form_type if form_type is not None else data.get("form_type")
     if ft != "school-anthem":
@@ -52,9 +52,9 @@ def _apply_school_anthem_defaults(data: dict, form_type: str | None = None) -> N
 
 # Shared business fields that must stay aligned between orders and mtd_records.
 # Phase 3: identity (contact/program/package/music_theme/editor request/category)
-# is Orders-only — do not mirror onto mtd_records. Assignment + schedule +
+# is Orders-only: do not mirror onto mtd_records. Assignment + schedule +
 # collection + price display cache still sync to the board row.
-# Phase 3–5: identity / assignment / collection are Orders-only (projected
+# Phase 3-5: identity / assignment / collection are Orders-only (projected
 # onto MTD responses). Mirror only customer-price display cache onto MTD.
 ORDER_MTD_SHARED_KEYS = (
     "price",
@@ -320,7 +320,7 @@ def _mirror_shared_fields_to_mtd(db: Session, order: Order, changed: dict) -> No
             )
         if "price_compliance" in shared:
             mtd.price_compliance = order.price_compliance or mtd.price_compliance
-        # Phase 3–5: identity + assignment + collection are Orders-only.
+        # Phase 3-5: identity + assignment + collection are Orders-only.
         if "coach_name" in changed or "coach_contact_full_name" in changed:
             coach = (
                 (order.coach_name or "").strip()
@@ -472,7 +472,7 @@ def create_order(
     _coerce_dance_cover_fields(data)
     _coerce_routine_notes_fields(data)
     _apply_school_anthem_defaults(data)
-    # Response/API aliases only — never constructor kwargs on Order.
+    # Response/API aliases only: never constructor kwargs on Order.
     for alias_only in (
         "coach_youth_rec_extra_email_address",
         "coach_contact_full_name",

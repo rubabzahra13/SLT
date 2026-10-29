@@ -5,7 +5,7 @@ import { getData } from "../data";
 import { generateScheduleCsv, isEligibleProducerScheduleRecord } from "../export-csv";
 import { findProducerByAssignmentKey } from "../editor-assignment";
 
-describe("Prompt 10 — Bulk All Schedules Generation Tests", () => {
+describe("Prompt 10: Bulk All Schedules Generation Tests", () => {
   const { mtdRecords, orders: allOrders, producers } = getData();
 
   it("1. Bulk generation produces one distinct schedule file per producer with scheduled mixes", () => {

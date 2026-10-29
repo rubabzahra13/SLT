@@ -119,7 +119,7 @@ describe("Row-Level Payroll Add-ons Workflow Tests", () => {
     assert.equal(voRow!.voiceoverPayout, "$20");
     assert.equal(voRow!.voiceoverAddon, "$20");
     assert.equal(voRow!.rawTotalPayout, 20);
-    // Linked to same mix/order — package & time fill from the mix
+    // Linked to same mix/order: package & time fill from the mix
     assert.equal(voRow!.package, "GOLD 1:30");
     assert.ok(voRow!.subtype.includes("Voiceover"));
   });
@@ -158,13 +158,13 @@ describe("Row-Level Payroll Add-ons Workflow Tests", () => {
       [voAddon]
     );
 
-    // Casey is mix editor — no VO on their mix line
+    // Casey is mix editor: no VO on their mix line
     assert.equal(caseyRows.length, 1);
     assert.equal(caseyRows[0].recId, "mtd-101");
     assert.equal(caseyRows[0].voiceoverPayout, "$0");
     assert.equal(caseyRows[0].rawTotalPayout, 400);
 
-    // Matt is VO producer — gets the VO add-on (plus their own mix)
+    // Matt is VO producer: gets the VO add-on (plus their own mix)
     const voRow = mattRows.find((r) => r.recId === "addon-vo-matt");
     assert.ok(voRow);
     assert.equal(voRow!.voiceoverPayout, "$40");

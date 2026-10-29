@@ -18,7 +18,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # pricing_rules — one row per (form_type, subtype_id, package_id)
+    # pricing_rules: one row per (form_type, subtype_id, package_id)
     op.create_table(
         'pricing_rules',
         sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
@@ -43,7 +43,7 @@ def upgrade() -> None:
         ['form_type', 'subtype_id', 'package_id'],
     )
 
-    # addon_rules — one row per add-on type
+    # addon_rules: one row per add-on type
     op.create_table(
         'addon_rules',
         sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
@@ -59,7 +59,7 @@ def upgrade() -> None:
     )
     op.create_index('ix_addon_rules_addon_id', 'addon_rules', ['addon_id'])
 
-    # compliant_affiliates — canonical affiliate names + synonym lists
+    # compliant_affiliates: canonical affiliate names + synonym lists
     op.create_table(
         'compliant_affiliates',
         sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),

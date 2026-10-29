@@ -18,7 +18,7 @@ export type RateCardEntry = {
   compliant: number | null;
   nonCompliant: number | null;
   isTitanium: boolean;
-  /** Manual quote — e.g. School Cheer Magento SoftSelect "Other" mix length. */
+  /** Manual quote: e.g. School Cheer Magento SoftSelect "Other" mix length. */
   isUnpriced?: boolean;
 };
 
@@ -65,7 +65,7 @@ export const SCHOOL_CHEER_RATE_CARD: RateCardEntry[] = [
   { tier: "TITANIUM", limit: "2:15", customer: 2800, compliant: 2800, nonCompliant: 2800, isTitanium: true },
   { tier: "TITANIUM", limit: "2:30", customer: 2800, compliant: 2800, nonCompliant: 2800, isTitanium: true },
   { tier: "RALLY MIX", limit: "-", customer: 350, compliant: 350, nonCompliant: 350, isTitanium: false },
-  // Magento SoftSelect "Other" Length of Mix — any package → manual quote.
+  // Magento SoftSelect "Other" Length of Mix: any package → manual quote.
   {
     tier: "ANY PACKAGE",
     limit: "Other - please specify the time needed in your notes section",
@@ -80,7 +80,7 @@ export const SCHOOL_CHEER_RATE_CARD: RateCardEntry[] = [
 /**
  * Youth Rec Cheer Pricing Table.
  * Magento SoftSelect Mix Length: 1:00 / 1:30 / 1:45 / 2:00 / 2:30 (no 2:15).
- * No music-affiliate field — package price is flat for customer and payroll.
+ * No music-affiliate field: package price is flat for customer and payroll.
  */
 export const YOUTH_REC_CHEER_RATE_CARD: RateCardEntry[] = [
   { tier: "BRONZE", limit: "1:00", customer: 450, compliant: 450, nonCompliant: 450, isTitanium: false },
@@ -99,7 +99,7 @@ export const YOUTH_REC_MAGENTO_MIX_LENGTHS = [
   "2:30",
 ] as const;
 
-/** SoftSelect "Other" — pick a custom mix length (not on rate card → Needs Quote). */
+/** SoftSelect "Other": pick a custom mix length (not on rate card → Needs Quote). */
 export const YOUTH_REC_MIX_OTHER = "Other";
 
 /** In-memory rate-card overrides hydrated from pricing_rules (DB). */
@@ -116,7 +116,7 @@ export type DanceRateCardEntry = {
   isUnpriced?: boolean;
 };
 
-/** POM Rate Card — Magento order: Dance Mix → Dance Plus → Custom Pom → Rally Mix */
+/** POM Rate Card: Magento order: Dance Mix → Dance Plus → Custom Pom → Rally Mix */
 export const POM_RATE_CARD: DanceRateCardEntry[] = [
   { package: "DANCE MIX", customer: 475, compliant: 375, nonCompliant: 475 },
   { package: "DANCE PLUS", customer: 575, compliant: 430, nonCompliant: 575 },
@@ -534,7 +534,7 @@ export function packagesForOrderForm(
   danceSubtype?: DanceFormSubtype | null
 ): string[] {
   if (formType === "school-all-star-cheer") {
-    // Tier only — mix length is a separate field.
+    // Tier only: mix length is a separate field.
     const subtype = cheerSubtype || "all-star-cheer";
     const seen = new Set<string>();
     const tiers: string[] = [];
@@ -706,7 +706,7 @@ export function lookupRateCardEntry(
     targetLimit = timeLengthOfMix.trim();
   }
 
-  // Magento SoftSelect has no 2:15 — map legacy Youth Rec 2:15 → 2:30.
+  // Magento SoftSelect has no 2:15: map legacy Youth Rec 2:15 → 2:30.
   if (cheerFormSubtype === "youth-rec-cheer" && targetLimit === "2:15") {
     targetLimit = "2:30";
   }
@@ -746,7 +746,7 @@ export function lookupRateCardEntry(
   return matched ?? null;
 }
 
-/** Jazz Simple Cut SoftSelect only — match on first 3 words (ignore paren body). */
+/** Jazz Simple Cut SoftSelect only: match on first 3 words (ignore paren body). */
 function isJazzSimpleCutByFirstThreeWords(raw: string): boolean {
   const words = String(raw || "")
     .trim()
@@ -766,7 +766,7 @@ function isJazzSimpleCutByFirstThreeWords(raw: string): boolean {
   );
 }
 
-/** Form / subcategory / placeholder labels — never Magento package prices. */
+/** Form / subcategory / placeholder labels: never Magento package prices. */
 const DANCE_NON_PACKAGE_LABELS = new Set([
   "POM",
   "HIP HOP",
@@ -801,7 +801,7 @@ export function lookupDanceRateCardEntry(
   if (danceFormSubtype === "pom" && target === "CUSTOM HIP-HOP") {
     target = "CUSTOM POM";
   }
-  // Jazz Simple Cut: Magento SoftSelect paren text is long — first 3 words only.
+  // Jazz Simple Cut: Magento SoftSelect paren text is long: first 3 words only.
   if (
     danceFormSubtype === "jazz-kick" &&
     isJazzSimpleCutByFirstThreeWords(packageType)
@@ -965,7 +965,7 @@ export type PricingEngineInput = {
   extraSongsQuantity?: number;
   extraSongEditingTimeQuantity?: number;
   couponCode?: string;
-  /** @deprecated Unused — coupons are match-only and never affect price. */
+  /** @deprecated Unused: coupons are match-only and never affect price. */
   discountCodeObj?: DiscountCode | null;
 };
 
@@ -979,7 +979,7 @@ export type PricingEngineResult = {
   matchedEntry: RateCardEntry | null;
   packageName: string;
   timeLengthOfMix: string;
-  /** Always 0 — coupons are match-only. */
+  /** Always 0: coupons are match-only. */
   discountAmount: number;
   preDiscountPayrollBasePrice: number;
   preDiscountCustomerFacingPrice: number;
@@ -1088,7 +1088,7 @@ export function calculateCheerOrderPricing(
   const compliantPayrollBasePrice = compliantPrice + addOnTotal;
   const nonCompliantPayrollBasePrice = nonCompliantPrice + addOnTotal;
 
-  // Youth Rec has no music-affiliate field — always pull the flat package price.
+  // Youth Rec has no music-affiliate field: always pull the flat package price.
   const youthRecFlat = input.cheerFormSubtype === "youth-rec-cheer";
 
   let preDiscountPayrollBasePrice = compliantPayrollBasePrice;
@@ -1228,7 +1228,7 @@ export type MarchingBandRateCardEntry = {
 
 /**
  * Marching Band Pricing Table.
- * No customer music-affiliate field on this form — compliant / non-compliant
+ * No customer music-affiliate field on this form: compliant / non-compliant
  * match package price (flat). Overridable from pricing_rules DB.
  */
 /** Magento PACKAGE TYPE order (Sounds Like That Marching Band form). */
@@ -1318,7 +1318,7 @@ export function lookupMarchingBandRateCardEntry(
 ): MarchingBandRateCardEntry | null {
   if (!packageType || !packageType.trim()) return null;
 
-  // Dropdown names are fixed — exact match only (after normalize + aliases).
+  // Dropdown names are fixed: exact match only (after normalize + aliases).
   // Never substring-match PLUS onto ORIGINAL (cheaper row).
   let target = normalizeMarchingBandPackageLabel(packageType);
   target = MARCHING_BAND_PACKAGE_ALIASES[target] ?? target;
@@ -1381,7 +1381,7 @@ export function calculateMarchingBandOrderPricing(
   const nonCompliantPayrollBasePrice = matchedEntry.nonCompliant + addOnTotal;
   const alwaysFixedPayroll = Boolean(matchedEntry.alwaysFixedPayroll);
 
-  // No music-affiliate field on the Marching Band customer form — payroll
+  // No music-affiliate field on the Marching Band customer form: payroll
   // follows the flat package / compliant column (compliant === nonCompliant).
   let payrollBasePrice = compliantPayrollBasePrice;
   if (!alwaysFixedPayroll && complianceStatus === "non-compliant") {
@@ -1493,7 +1493,7 @@ export const SPORTS_ENTERTAINMENT_CUSTOMER_RUSH_FEE = 100;
 export type SportsEntertainmentPricingEngineInput = {
   packageType?: string;
   isRushOrder?: "yes" | "no" | boolean | string;
-  /** Magento "Do you need a Rush Order?" — preferred SoT when present. */
+  /** Magento "Do you need a Rush Order?": preferred SoT when present. */
   clientRequestedRushOrder?: "yes" | "no" | boolean | string | null;
   rushFeeOption?: "none" | "single" | "double" | string | null;
   extraSongsQuantity?: number;
@@ -1538,7 +1538,7 @@ export function calculateSportsEntertainmentOrderPricing(
 ): SportsEntertainmentPricingEngineResult {
   const matchedEntry = lookupSportsEntertainmentRateCardEntry(input?.packageType ?? "");
 
-  // SE customer rush is a flat $100 — never the Cheer/Dance $150 misc rush_fee.
+  // SE customer rush is a flat $100: never the Cheer/Dance $150 misc rush_fee.
   const isRush = isSportsEntertainmentRushYes(input);
   const rushFeeAmount = isRush ? SPORTS_ENTERTAINMENT_CUSTOMER_RUSH_FEE : 0;
 

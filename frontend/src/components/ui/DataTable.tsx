@@ -344,7 +344,7 @@ export function DataTable<T>({
           )}
         >
           <p className="text-[12px] font-medium text-brand-ink-tertiary">
-            {rangeStart}–{rangeEnd} of {data.length}
+            {rangeStart}-{rangeEnd} of {data.length}
           </p>
           <div className="flex items-center gap-1.5">
             <button

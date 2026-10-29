@@ -33,7 +33,7 @@ function row(
 
 describe("DB music affiliate catalog → SoftSelect + compliance", () => {
   it("hydrates SoftSelect and compliance from music_affiliate_options rows", () => {
-    // Avoid writing localStorage in node tests — pass an empty store.
+    // Avoid writing localStorage in node tests: pass an empty store.
     const store = { categories: {} };
     applyDbMusicAffiliates(
       [

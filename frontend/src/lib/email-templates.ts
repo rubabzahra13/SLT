@@ -104,7 +104,7 @@ export const EMAIL_TEMPLATE_DEFINITIONS: EmailTemplateDefinition[] = [
 
 {{affiliateOptions}}
 
-Could you confirm which affiliate you'd like us to use for this mix? If {{selectedAffiliate}} is the correct choice, just reply to confirm — otherwise let us know which option you prefer.`,
+Could you confirm which affiliate you'd like us to use for this mix? If {{selectedAffiliate}} is the correct choice, just reply to confirm: otherwise let us know which option you prefer.`,
     footer: CUSTOMER_DEFAULT_FOOTER,
     signature: CUSTOMER_DEFAULT_SIGNATURE,
   },
@@ -200,7 +200,7 @@ export function migrateEmailTemplateTokens(text: string): string {
     );
   }
 
-  // Rush is a row in order details now — drop the old intro placeholder.
+  // Rush is a row in order details now: drop the old intro placeholder.
   next = next.replace(/\{\{\s*rushNotice\s*\}\}/gi, "");
 
   // Drop duplicated footer/signature blocks that got packed into the body twice.

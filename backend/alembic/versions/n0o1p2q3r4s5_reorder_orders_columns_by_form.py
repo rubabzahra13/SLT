@@ -261,5 +261,5 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    # Column order is cosmetic — no reverse rebuild.
+    # Column order is cosmetic: no reverse rebuild.
     pass

@@ -92,7 +92,7 @@ export function preferenceKeyForNotificationType(
     return "gmail";
   }
   if (type === "assignment") {
-    // Assignments are alerts only — not a bell preference.
+    // Assignments are alerts only: not a bell preference.
     return null;
   }
   return type;

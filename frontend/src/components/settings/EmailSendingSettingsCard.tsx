@@ -70,7 +70,7 @@ function isCacheFresh(cache: CachedGmailStatus | null): boolean {
   return Date.now() - cache.checkedAt < CACHE_FRESH_MS;
 }
 
-/** Calm copy — never surface raw HTTP codes like “500 Internal Server Error”. */
+/** Calm copy: never surface raw HTTP codes like “500 Internal Server Error”. */
 function friendlyGmailError(err: unknown, fallback: string): string {
   if (err instanceof ApiClientError) {
     if (err.status === 0) {
@@ -106,7 +106,7 @@ export function EmailSendingSettingsCard() {
     email: initialCache?.email ?? null,
     provider: "google",
   });
-  // Trust last-known UI immediately — like Google/Instagram account pages.
+  // Trust last-known UI immediately: like Google/Instagram account pages.
   const [phase, setPhase] = useState<ConnectionPhase>(
     initialCache ? "verified" : "loading"
   );
@@ -186,7 +186,7 @@ export function EmailSendingSettingsCard() {
         if (!silent) setFeedback(null);
       } catch (err) {
         if (silent && readCachedStatus()) {
-          // Quiet background refresh failed — keep showing last-known, no banner.
+          // Quiet background refresh failed: keep showing last-known, no banner.
           return;
         }
         setPhase("unavailable");
@@ -269,7 +269,7 @@ export function EmailSendingSettingsCard() {
 
       const cache = readCachedStatus();
       if (isCacheFresh(cache)) {
-        // Already know — no Checking spinner, no network probe on every open.
+        // Already know: no Checking spinner, no network probe on every open.
         setStatus({
           connected: cache!.connected,
           email: cache!.email,
@@ -293,7 +293,7 @@ export function EmailSendingSettingsCard() {
         return;
       }
 
-      // First visit — one visible check.
+      // First visit: one visible check.
       await fetchStatus({ silent: false });
     }
 
@@ -474,8 +474,8 @@ export function EmailSendingSettingsCard() {
                   ? "Checking your connection…"
                   : phase === "unavailable"
                     ? showAsConnected
-                      ? "Last known: connected — status check failed"
-                      : "Status check failed — try again"
+                      ? "Last known: connected: status check failed"
+                      : "Status check failed: try again"
                     : showAsConnected
                       ? status.email || "Connected"
                       : "Connect Google to send CRM emails"}

@@ -16,7 +16,7 @@ type Ripple = {
   interval: number;
 };
 
-/** Soft aurora + sound-ripple background — music-themed without busy equalizer bars. */
+/** Soft aurora + sound-ripple background: music-themed without busy equalizer bars. */
 export function MusicWaveBackground({ className }: { className?: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -94,7 +94,7 @@ export function MusicWaveBackground({ className }: { className?: string }) {
         }
       }
 
-      // Single elegant waveform — thin, low in frame
+      // Single elegant waveform: thin, low in frame
       if (width > 0 && height > 0) {
         const baseY = height * 0.82;
         const t = reducedMotion ? 0 : now / 1000;
@@ -170,7 +170,7 @@ export function MusicWaveBackground({ className }: { className?: string }) {
       {/* Soft sound ripples + single waveform */}
       <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
 
-      {/* Center vignette — keeps the card readable */}
+      {/* Center vignette: keeps the card readable */}
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(12,15,20,0.15)_0%,rgba(12,15,20,0.55)_55%,rgba(12,15,20,0.88)_100%)]" />
     </div>
   );

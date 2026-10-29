@@ -13,7 +13,7 @@ const mockDiscountCodes: DiscountCode[] = [
   { id: "2", code: "PROMO10" },
 ];
 
-describe("Prompt 9 — New Categories Completion Modal Pricing & Coupon Integration", () => {
+describe("Prompt 9: New Categories Completion Modal Pricing & Coupon Integration", () => {
   describe("Marching Band Completion Pricing Breakdown", () => {
     it("calculates Marching Band itemized breakdown with both add-ons active and coupon", () => {
       const result = calculateMarchingBandOrderPricing({
@@ -29,7 +29,7 @@ describe("Prompt 9 — New Categories Completion Modal Pricing & Coupon Integrat
       assert.equal(result.payrollBasePrice, 600);
       assert.equal(result.complianceStatus, "unknown-no-affiliate-field");
 
-      // Coupon matching is informational only — prices stay unchanged.
+      // Coupon matching is informational only: prices stay unchanged.
       const couponEval = evaluateCouponCode("SAVE50", mockDiscountCodes);
       assert.equal(couponEval.status, "matched");
       assert.equal(couponEval.match?.code, "SAVE50");

@@ -23,7 +23,7 @@ import {
   affiliateTextsFuzzyMatch,
 } from "@/lib/pricing-engine";
 
-/** School Cheer / V!ROC SoftSelect catalog (3 Magento options — no Songs for Cheer). */
+/** School Cheer / V!ROC SoftSelect catalog (3 Magento options: no Songs for Cheer). */
 export const SCHOOL_CHEER_MUSIC_AFFILIATE_OPTIONS =
   SCHOOL_CHEER_VIROC_MUSIC_AFFILIATE_OPTIONS;
 
@@ -188,7 +188,7 @@ type MusicAffiliateFieldProps = {
   onChange: (value: string) => void;
   formType?: OrderFormType;
   cheerSubtype?: CheerFormSubtype | null;
-  /** Package name/type — used to enforce Titanium affiliate rules. */
+  /** Package name/type: used to enforce Titanium affiliate rules. */
   packageType?: string | null;
   "aria-label"?: string;
 };

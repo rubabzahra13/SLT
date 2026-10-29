@@ -43,7 +43,7 @@ ORDER_IDENTITY_KEYS = frozenset(
     }
 )
 
-# Phase 4: assignment / schedule / reassignment flag — Orders SoT.
+# Phase 4: assignment / schedule / reassignment flag: Orders SoT.
 ORDER_ASSIGNMENT_KEYS = frozenset(
     {
         "assigned_producer",
@@ -55,7 +55,7 @@ ORDER_ASSIGNMENT_KEYS = frozenset(
     }
 )
 
-# Phase 5: collection / email / attention — Orders SoT.
+# Phase 5: collection / email / attention: Orders SoT.
 ORDER_COLLECTION_KEYS = frozenset(
     {
         "received_eight_count_sheet",

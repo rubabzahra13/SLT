@@ -1,4 +1,4 @@
-"""CRUD for music_affiliate_options — SoftSelect + compliance catalogs."""
+"""CRUD for music_affiliate_options: SoftSelect + compliance catalogs."""
 from __future__ import annotations
 
 from typing import List, Optional

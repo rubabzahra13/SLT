@@ -159,7 +159,7 @@ Compensation Calculations
 Sounds Like That will provide the rules necessary to calculate producer compensation.
 Where those rules are clearly defined, the system will calculate compensation based on the
 applicable combination of:
-(Package value) – (Applicable licensing adjustment)
+(Package value) - (Applicable licensing adjustment)
 Applicable order-specific additions
 × producer compensation percentage
 Manual adjustment will remain available where necessary.

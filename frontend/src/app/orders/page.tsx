@@ -254,7 +254,7 @@ function OrdersPageContent() {
   }, [focusParam]);
 
   useEffect(() => {
-    // Old links / notifications used ?range=flagged — send them to the Flagged page.
+    // Old links / notifications used ?range=flagged: send them to the Flagged page.
     if (rangeParam === "flagged") {
       router.replace("/orders/flagged");
       return;
@@ -378,7 +378,7 @@ function OrdersPageContent() {
     [sourceFilteredRecords, orderById]
   );
 
-  /** Normal Orders board — multi-affiliate Magento holds stay on Flagged until Resolve. */
+  /** Normal Orders board: multi-affiliate Magento holds stay on Flagged until Resolve. */
   const boardRecords = useMemo(
     () =>
       sourceFilteredRecords.filter(
@@ -1014,7 +1014,7 @@ function OrdersPageContent() {
             },
           ]
         : []),
-      // Split/No Split is on VIROC, School Cheer, and Youth Rec — not All Star Cheer.
+      // Split/No Split is on VIROC, School Cheer, and Youth Rec: not All Star Cheer.
       ...(form === "school-all-star-cheer" &&
       cheerSubtype !== "all-star-cheer"
         ? [
@@ -1028,7 +1028,7 @@ function OrdersPageContent() {
               headerClassName: compactHeaderClass,
               render: (rec: MTDRecord) => {
                 const meta = resolveMTDFormMeta(rec, orderById);
-                // All Star Cheer has no Split field — do not treat as missing data.
+                // All Star Cheer has no Split field: do not treat as missing data.
                 if (!orderHasSplitField(meta)) {
                   return (
                     <span
@@ -1037,7 +1037,7 @@ function OrdersPageContent() {
                         compactTextClass
                       )}
                     >
-                      —
+                      -
                     </span>
                   );
                 }
@@ -1113,7 +1113,7 @@ function OrdersPageContent() {
             },
           ]
         : []),
-      // Form song list text is edit-modal / Songs pill only — not a board column.
+      // Form song list text is edit-modal / Songs pill only: not a board column.
       {
         key: "packagePrice",
         header: "Package Price",
@@ -1312,7 +1312,7 @@ function OrdersPageContent() {
                         compactTextClass
                       )}
                     >
-                      —
+                      -
                     </span>
                   );
                 }
@@ -1639,7 +1639,7 @@ function OrdersPageContent() {
 
           if (!showProducerMail && !showCustomerMail) {
             return (
-              <span className="text-[11px] text-brand-ink-tertiary">—</span>
+              <span className="text-[11px] text-brand-ink-tertiary">-</span>
             );
           }
 
@@ -2050,7 +2050,7 @@ function OrdersPageContent() {
         </div>
       </div>
 
-      {/* Pricing rate card — header Pricing + catalog package-price cells */}
+      {/* Pricing rate card: header Pricing + catalog package-price cells */}
       <SetPricingModal
         open={pricingOpen}
         order={pricingFocusOrder}

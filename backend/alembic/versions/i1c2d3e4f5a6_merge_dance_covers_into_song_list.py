@@ -1,7 +1,7 @@
 """merge power/unleash covers into song_list_suggestions
 
 Dance Magento "Power Music Covers" + "Unleash the Beats Covers" share the
-same SoT as Cheer Song List — packed with Magento labels in
+same SoT as Cheer Song List: packed with Magento labels in
 song_list_suggestions.
 
 Revision ID: i1c2d3e4f5a6

@@ -129,7 +129,7 @@ function isPayrollPaid(rec: MTDRecord): boolean {
   return Boolean(rec.paidAt || (rec as { paid_at?: string }).paid_at);
 }
 
-/** Active payroll (ready for payout) — excludes Paid / Archive. */
+/** Active payroll (ready for payout): excludes Paid / Archive. */
 export function getPayrollRecords(records: MTDRecord[]): MTDRecord[] {
   return records.filter((rec) => isPayrollMember(rec) && !isPayrollPaid(rec));
 }
@@ -183,7 +183,7 @@ export function mergeLocalMtdRecordFields(
       editorRequest: localRecord.editorRequest ?? merged.editorRequest,
       mixStartDate: localRecord.mixStartDate || merged.mixStartDate,
       mixEndDate: localRecord.mixEndDate || merged.mixEndDate,
-      // Prefer whichever side has a real invoice — never let empty SSE wipe local.
+      // Prefer whichever side has a real invoice: never let empty SSE wipe local.
       invoice:
         (localRecord.invoice || "").trim() ||
         (merged.invoice || "").trim() ||

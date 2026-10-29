@@ -33,7 +33,7 @@ function ordersListFrom(
   return orders;
 }
 
-/** Magento form matched this slot — treat as Form order (client SoT). */
+/** Magento form matched this slot: treat as Form order (client SoT). */
 export function orderHasMatchedMagentoForm(
   order:
     | Pick<Order, "mergedFormOrderId" | "manualOverlapSnapshot">

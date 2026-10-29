@@ -51,12 +51,12 @@ export interface BackendMTDRecord {
 
 export function transformMTDRecord(bm: BackendMTDRecord): MTDRecord {
   return {
-    // Always use the DB UUID — legacy_id is retired.
+    // Always use the DB UUID: legacy_id is retired.
     id: bm.id,
     uuid: bm.id,
     orderId: bm.order_id || undefined,
     section: bm.section || "CHEERLEADING MUSIC",
-    // Keep "FA" — it can be a real producer's initials. Only "NA" means unassigned.
+    // Keep "FA": it can be a real producer's initials. Only "NA" means unassigned.
     assignedProducer:
       bm.assigned_producer && bm.assigned_producer !== "NA"
         ? bm.assigned_producer
@@ -124,7 +124,7 @@ export async function createMTDRecordApi(record: Partial<MTDRecord>): Promise<MT
     (record as { orderUuid?: string }).orderUuid || record.orderId || null;
 
   // Create links the board row only. Order identity/assignment/collection are
-  // already on Orders — sending empty SoT keys was wiping assigned producers,
+  // already on Orders: sending empty SoT keys was wiping assigned producers,
   // mix dates, and form fields on move-to-MTD.
   const payload: Record<string, unknown> = {
     order_id: orderRef,
@@ -220,7 +220,7 @@ export async function updateMTDRecordApi(
     const res = await apiClient.patch<BackendMTDRecord>(`/api/mtd/${id}`, payload);
     return transformMTDRecord(res);
   } catch (err) {
-    // Never fake success — callers must handle failure or the UI lies.
+    // Never fake success: callers must handle failure or the UI lies.
     throw err;
   }
 }

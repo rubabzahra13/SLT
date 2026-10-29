@@ -217,6 +217,7 @@ class OrderCreateSchema(BaseModel):
     varsity_viroc_customer: Optional[str] = None
     status: Optional[str] = "new"
     is_reassigned: Optional[bool] = False
+    is_manual_entry: Optional[bool] = None
 
     school_gym_name: Optional[str] = None
     school_gym_billing_address: Optional[str] = None

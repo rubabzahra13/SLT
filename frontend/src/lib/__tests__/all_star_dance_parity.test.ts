@@ -62,7 +62,7 @@ function mixState(order: Order): string | undefined {
     ?.state;
 }
 
-describe("All-Star Dance parity — every subcategory matches POM rules", () => {
+describe("All-Star Dance parity: every subcategory matches POM rules", () => {
   for (const { id: subtype, label } of DANCE_FORM_SUBTABS) {
     describe(label, () => {
       it("identity merge key is schoolProgramName (School/Program Name)", () => {

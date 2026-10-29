@@ -9,7 +9,7 @@ type LineBoilImageProps = {
   alt?: string;
   className?: string;
   variant?: LineBoilVariant;
-  /** Soft ghost copy behind the boil — off for large scraps */
+  /** Soft ghost copy behind the boil: off for large scraps */
   showEcho?: boolean;
 };
 
@@ -21,7 +21,7 @@ type LineBoilWrapProps = {
   showEcho?: boolean;
 };
 
-/** Stepped edge shimmer — ported from smartReader LineBoilImage */
+/** Stepped edge shimmer: ported from smartReader LineBoilImage */
 export function LineBoilImage({
   src,
   alt = "",

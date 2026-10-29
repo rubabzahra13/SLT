@@ -1,6 +1,6 @@
 """add client_requested_mix_due_date
 
-Sports Ent Magento "14 days turn around" date is client info —
+Sports Ent Magento "14 days turn around" date is client info -
 must not overwrite admin mix_end_date (Mix Due Date / Assign).
 
 Revision ID: w9x0y1z2a3b4

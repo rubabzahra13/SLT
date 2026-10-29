@@ -186,7 +186,7 @@ test("Dashboard Status & Date-Aware Classification", async (t) => {
 
     const inQueueTip = kpiInsight("In Queue", {} as any);
     assert.equal(inQueueTip.body, "Mixes that are scheduled but not currently being worked on.");
-    assert.equal(inQueueTip.body.includes("—"), false);
+    assert.equal(inQueueTip.body.includes("-"), false);
 
     const todaysTip = kpiInsight("Today's Mixes", {} as any);
     assert.equal(todaysTip.title, "Today's Mixes");

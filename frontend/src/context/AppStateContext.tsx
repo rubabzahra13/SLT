@@ -117,8 +117,6 @@ import {
   mergePayrollAddonPatch,
   type CreatePayrollAddonPayload,
   type UpdatePayrollAddonPayload,
-  createManualScheduleEntryApi,
-  type CreateManualSchedulePayload,
   createStudioPersonalReasonApi,
   updateStudioPersonalReasonApi,
   deleteStudioPersonalReasonApi,
@@ -156,7 +154,7 @@ type AppStateContextValue = {
   emailTemplates: EmailTemplatesState;
   schedule: ScheduleEntry[];
   notifications: AppNotification[];
-  /** Ephemeral toasts — not the bell inbox. */
+  /** Ephemeral toasts: not the bell inbox. */
   alerts: AppAlert[];
   unreadCount: number;
   isBackendConnected: boolean;
@@ -175,7 +173,7 @@ type AppStateContextValue = {
   setSecretMenuPrices: (pricing: SecretMenuPricing) => void;
   markComplete: (orderId: string) => void;
   addPastOrder: (order: Order) => void;
-  /** Incoming customer order — adds to active list and notifies the bell. */
+  /** Incoming customer order: adds to active list and notifies the bell. */
   receiveOrder: (order: Order) => void;
   /**
    * Admin Match Orders: link a Magento form into an unmatched manual slot
@@ -198,7 +196,7 @@ type AppStateContextValue = {
     patch: UpdatePayrollAddonPayload
   ) => Promise<PayrollAddon>;
   removePayrollAddon: (id: string) => Promise<void>;
-  addManualScheduleEntry: (payload: CreateManualSchedulePayload) => Promise<Order>;
+  addManualScheduleEntry: (order: Partial<Order>) => Promise<Order>;
   addNotification: (
     notification: Omit<AppNotification, "id" | "read" | "createdAt">
   ) => void;
@@ -294,7 +292,7 @@ function setLocalItem<T>(key: string, value: T): void {
 // blobs can briefly show deleted rows until bootstrap overwrites them.
 //
 // Rules (how large apps avoid this):
-// 1) Version the key — bump to invalidate everyone's old blobs after schema/data resets
+// 1) Version the key: bump to invalidate everyone's old blobs after schema/data resets
 // 2) Always paint any snapshot; always revalidate from the network (SWR)
 // 3) Drop only absurdly old blobs (safety); rewrite cache after successful sync / mutations
 const CACHE_VERSION = "v2";
@@ -302,7 +300,7 @@ const CACHE_ORDERS_KEY = `slt_cache_orders_${CACHE_VERSION}`;
 const CACHE_MTD_KEY = `slt_cache_mtd_${CACHE_VERSION}`;
 const CACHE_PRODUCERS_KEY = `slt_cache_producers_${CACHE_VERSION}`;
 const CACHE_PAYROLL_ADDONS_KEY = `slt_cache_payroll_addons_${CACHE_VERSION}`;
-/** Drop snapshots older than this — not used to block first paint under 7 days. */
+/** Drop snapshots older than this: not used to block first paint under 7 days. */
 const CACHE_HARD_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 type TimedCache<T> = { savedAt: number; data: T };
@@ -311,7 +309,7 @@ type TimedCache<T> = { savedAt: number; data: T };
 function readCache<T>(key: string): T | null {
   const wrapped = getLocalItem<TimedCache<T> | T | null>(key, null);
   if (!wrapped) return null;
-  // Legacy unwrapped shape from older builds — treat as unusable.
+  // Legacy unwrapped shape from older builds: treat as unusable.
   if (
     typeof wrapped === "object" &&
     wrapped !== null &&
@@ -441,7 +439,7 @@ function orderLiveSyncKey(o: Order): string {
     o.assignedProducer || "",
     o.mixStartDate || "",
     o.mixEndDate || "",
-    // Magento↔manual link — must invalidate live sync or Form filter stays stale.
+    // Magento↔manual link: must invalidate live sync or Form filter stays stale.
     o.mergedFormOrderId || "",
     o.mergedIntoManualOrderId || "",
     o.isManualEntry ? "1" : "0",
@@ -519,7 +517,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const producersMutatedAtRef = useRef(0);
   const mtdMutatedAtRef = useRef(0);
   const ordersMutatedAtRef = useRef(0);
-  /** Producer ids with an in-flight save — skip stream merges until complete. */
+  /** Producer ids with an in-flight save: skip stream merges until complete. */
   const pendingProducerSavesRef = useRef<Set<string>>(new Set());
   const applyingPeerProducersRef = useRef(false);
   const producersChannelRef = useRef<BroadcastChannel | null>(null);
@@ -562,7 +560,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     () => getDefaultSecretMenuPricing()
   );
 
-  // Notifications start empty — populated when backend data loads or user actions occur.
+  // Notifications start empty: populated when backend data loads or user actions occur.
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [alerts, setAlerts] = useState<AppAlert[]>([]);
 
@@ -572,11 +570,11 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         cachedProducers.map((p) => normalizeProducer(p))
       );
     }
-    // Don't paint seed order first — that reshuffles when DB bootstrap arrives.
+    // Don't paint seed order first: that reshuffles when DB bootstrap arrives.
     return [];
   });
   const [discountCodes, setDiscountCodes] = useState<DiscountCode[]>([]);
-  // Same SWR paint buffer as MTD — otherwise cached payroll rows render with
+  // Same SWR paint buffer as MTD: otherwise cached payroll rows render with
   // empty addons until bootstrap finishes (or forever if bootstrap fails once).
   const [payrollAddons, setPayrollAddons] = useState<PayrollAddon[]>(
     () => dedupePayrollAddons(cachedPayrollAddons ?? [])
@@ -606,7 +604,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
   const schedule = seed.schedule;
 
-  // Load data from FastAPI Backend on Mount — prefer one bootstrap request.
+  // Load data from FastAPI Backend on Mount: prefer one bootstrap request.
   useEffect(() => {
     let isMounted = true;
     let loadGen = 0;
@@ -660,7 +658,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         for (const o of newlyFlagged) {
           addNotification({
             type: "flagged_order",
-            title: "Order flagged — multiple affiliates",
+            title: "Order flagged: multiple affiliates",
             message: `${o.programName || o.gymName || "Order"} · ${
               o.contactName || o.customerName || "Customer"
             }`,
@@ -691,7 +689,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           : null;
         return mergeCollectionStateFromOrder(rec, enriched);
       });
-      // Do NOT inject orderToMTDRecord fakes into mtdRecords — those reuse the
+      // Do NOT inject orderToMTDRecord fakes into mtdRecords: those reuse the
       // order UUID as id and cause PATCH /api/mtd/{orderId} → 404. Orders-tab
       // synthetics come from listPreMtdOrderRecords(activeOrders, mtdRecords).
       const combinedMtd = loadedMtdRecords.filter(isPersistedMtdRecord);
@@ -791,7 +789,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         if (!isMounted || gen !== loadGen) return;
         applyBoot(boot, fetchedAt);
         // Bootstrap can race a backend restart and omit add-ons while MTD still
-        // paints from cache — re-fetch the dedicated list when the boot was empty.
+        // paints from cache: re-fetch the dedicated list when the boot was empty.
         if (boot.payrollAddons.length === 0) {
           void fetchPayrollAddonsApi()
             .then((addons) => {
@@ -818,7 +816,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
             if (!isMounted || gen !== loadGen || !affiliates.length) return;
             applyDbMusicAffiliates(affiliates);
             // Recompute compliance now that per-subtype SoftSelect catalogs
-            // are loaded — bootstrap normalized orders before this hydrate.
+            // are loaded: bootstrap normalized orders before this hydrate.
             const refreshCompliance = (order: Order): Order => ({
               ...order,
               priceCompliance: resolveOrderCompliance(order),
@@ -962,7 +960,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         return "CHEERLEADING MUSIC";
       };
 
-      // Mirror Orders-tab staging display — Order remains SoT; do not null
+      // Mirror Orders-tab staging display: Order remains SoT; do not null
       // assignment/identity onto the create payload (that wiped Order fields).
       const draftRecord: MTDRecord = mergeCollectionStateFromOrder(
         {
@@ -1011,7 +1009,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         )
       );
 
-      // Persist board row only — Order SoT stays on the Order (no wipe on create).
+      // Persist board row only: Order SoT stays on the Order (no wipe on create).
       void (async () => {
         try {
           const saved = await createMTDRecordApi({
@@ -1100,7 +1098,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     mtdMutatedAtRef.current = Date.now();
     ordersMutatedAtRef.current = Date.now();
 
-    // Toast immediately on action — do not wait for the API round-trip.
+    // Toast immediately on action: do not wait for the API round-trip.
     if (patch.inPayroll === true && existing && !existing.inPayroll) {
       const producer = existing.assignedProducer?.trim();
       addAlert({
@@ -1229,7 +1227,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     });
 
     // Sync linked Order. MTD rows use their own UUID as `id`, so also match via
-    // orderId / mtdId — otherwise Move to Orders never flips Order.status off in_mtd.
+    // orderId / mtdId: otherwise Move to Orders never flips Order.status off in_mtd.
     const orderLookupIds = new Set(
       [id, existing?.orderId, existing?.id, existing?.uuid, existing?.legacyId].filter(
         (value): value is string => Boolean(value)
@@ -1255,9 +1253,9 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       if (patch.mixEndDate !== undefined) {
         orderPatch.mixEndDate = apiPatch.mixEndDate ?? patch.mixEndDate;
       }
-      // Phase 2: pricing/payout SoT is Orders — do not push price fields
+      // Phase 2: pricing/payout SoT is Orders: do not push price fields
       // from MTD patches onto the linked order.
-      // Phase 3: identity SoT is Orders — route board identity edits here.
+      // Phase 3: identity SoT is Orders: route board identity edits here.
       {
         const identityOrderPatch = orderPatchFromMTD(patch);
         delete identityOrderPatch.price;
@@ -1342,7 +1340,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
               r.legacyId === id
           );
           // Orders-tab rows are often synthetic (listPreMtdOrderRecords) and are
-          // NOT in mtdRecords state — always seed orderId from the linked Order.
+          // NOT in mtdRecords state: always seed orderId from the linked Order.
           const orderRef =
             linkedOrder?.uuid ||
             linkedOrder?.id ||
@@ -1448,7 +1446,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
               )
             );
           } else if (linkedOrder) {
-            // No persisted mtd_records row yet — order PATCH is enough for
+            // No persisted mtd_records row yet: order PATCH is enough for
             // form fields. Skip createMTD here to avoid clones; assign/move
             // flows create the board row when needed.
           } else {
@@ -1827,7 +1825,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       if (patch.finalPayrollPrice !== undefined) {
         mtdPatch.finalPayrollPrice = patch.finalPayrollPrice;
       }
-      // Payout / system calc / rates stay on Orders only — do not fan out to MTD.
+      // Payout / system calc / rates stay on Orders only: do not fan out to MTD.
       if (patch.priceCompliance !== undefined) {
         mtdPatch.priceCompliance = patch.priceCompliance;
       }
@@ -2013,7 +2011,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       if (flagPatch) {
         addNotification({
           type: "flagged_order",
-          title: "Order flagged — multiple affiliates",
+          title: "Order flagged: multiple affiliates",
           message: `${stamped.programName || stamped.gymName || "Order"} · ${
             stamped.contactName || stamped.customerName || "Customer"
           }`,
@@ -2130,7 +2128,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         if (flagPatch) {
           addNotification({
             type: "flagged_order",
-            title: "Order flagged — multiple affiliates",
+            title: "Order flagged: multiple affiliates",
             message: `${
               form.programName ||
               form.schoolOrganizationName ||
@@ -2289,7 +2287,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
     const persistRewrittenAssignmentKeys = async () => {
       if (!assignmentKeyChanged) return;
-      // Phase 4: assignment SoT is Orders — backend cascade updates Orders and
+      // Phase 4: assignment SoT is Orders: backend cascade updates Orders and
       // re-publishes linked MTD projections. Local MTD state already rewritten.
       for (const order of ordersToSync) {
         const orderPatch: Partial<Order> = {};
@@ -2532,7 +2530,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
               });
               addAlert({
                 tone: "warning",
-                title: "Updated elsewhere — reloaded",
+                title: "Updated elsewhere: reloaded",
                 message: `${retryConflict.name}'s schedule changed in another session.`,
               });
               throw retryErr;
@@ -2558,7 +2556,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         });
         addAlert({
           tone: "warning",
-          title: "Updated elsewhere — reloaded",
+          title: "Updated elsewhere: reloaded",
           message: `${conflictProducer.name}'s schedule changed in another session.`,
         });
         throw err;
@@ -2835,7 +2833,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     });
 
     // Other browsers receive producer.updated before/without waiting for
-    // order patches — rewrite local assignment keys immediately so Orders
+    // order patches: rewrite local assignment keys immediately so Orders
     // doesn't flash Assign while the old initials are orphaned.
     if (oldKeyForRewrite && newKeyForRewrite) {
       mtdMutatedAtRef.current = Date.now();
@@ -3090,7 +3088,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     const mergeList = (prev: Order[]) => {
       const idx = prev.findIndex((o) => ordersReferToSame(o, incoming));
       if (idx === -1) {
-        // Brand-new Magento form from API/stream — stays unmatched until
+        // Brand-new Magento form from API/stream: stays unmatched until
         // an admin links it on Match Orders (no automatic name-merge).
         applyingPeerOrdersRef.current = true;
         ordersMutatedAtRef.current = Date.now();
@@ -3104,7 +3102,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           });
           addNotification({
             type: "flagged_order",
-            title: "Order flagged — multiple affiliates",
+            title: "Order flagged: multiple affiliates",
             message: `${stamped.programName || stamped.gymName || "Order"} · ${
               stamped.contactName || stamped.customerName || "Customer"
             }`,
@@ -3145,7 +3143,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         next[idx] = flagged;
         addNotification({
           type: "flagged_order",
-          title: "Order flagged — multiple affiliates",
+          title: "Order flagged: multiple affiliates",
           message: `${flagged.programName || flagged.gymName || "Order"} · ${
             flagged.contactName || flagged.customerName || "Customer"
           }`,
@@ -3213,7 +3211,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       const localPaid = Boolean(local.paidAt);
       if (localPaid && !peerPaid) return prev;
       // Stale order→MTD fan-out can arrive with inPayroll still false while
-      // local already moved the row to Payroll — keep local payroll fields.
+      // local already moved the row to Payroll: keep local payroll fields.
       const merged = mergeLocalMtdRecordFields(incoming, local);
       if (mtdLiveSyncKey(merged) === mtdLiveSyncKey(local)) return prev;
       applyingPeerMtdRef.current = true;
@@ -3597,15 +3595,32 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   );
 
   const addManualScheduleEntry = useCallback(
-    async (payload: CreateManualSchedulePayload): Promise<Order> => {
+    async (order: Partial<Order>): Promise<Order> => {
       if (isViewOnly) throw new Error("View-only accounts cannot create manual schedule entries.");
-      const created = await createManualScheduleEntryApi(payload);
+      // One POST with the full draft (is_manual_entry): no create-then-patch.
+      const created = await createOrderApi({
+        ...order,
+        isManualEntry: true,
+        status: order.status || "new",
+      });
       // Stamp createdAt so Orders "newest" sort places this row at ID 1.
       const withCreatedAt: Order = {
         ...created,
         createdAt: created.createdAt || new Date().toISOString(),
       };
-      setActiveOrders((prev) => [withCreatedAt, ...prev]);
+      // Dedupe vs live stream: order.updated often arrives before/alongside this
+      // prepend; blind unshift was showing the same manual twice on Match.
+      setActiveOrders((prev) => {
+        const idx = prev.findIndex((o) => ordersReferToSame(o, withCreatedAt));
+        if (idx === -1) return [withCreatedAt, ...prev];
+        const next = [...prev];
+        next[idx] = normalizeOrder({
+          ...prev[idx],
+          ...withCreatedAt,
+          id: prev[idx].id,
+        });
+        return next;
+      });
       return withCreatedAt;
     },
     [isViewOnly]

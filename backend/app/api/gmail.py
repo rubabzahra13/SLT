@@ -113,7 +113,7 @@ def get_gmail_connection_status(db: Session = Depends(get_db)):
             "updated_at": conn.updated_at.isoformat() if conn.updated_at else None,
         }
     except Exception:
-        # Missing table / pool blip — never 500 a status probe.
+        # Missing table / pool blip: never 500 a status probe.
         return {
             "connected": False,
             "email": None,

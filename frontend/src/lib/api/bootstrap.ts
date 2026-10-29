@@ -81,9 +81,9 @@ type RawBootstrap = {
   secret_menu_pricing?: BackendSecretMenuPricing;
 };
 
-/** Single round-trip warm-start — avoids 8 parallel Vercel cold starts. */
+/** Single round-trip warm-start: avoids 8 parallel Vercel cold starts. */
 export async function fetchBootstrapApi(): Promise<BootstrapPayload> {
-  // One attempt, longer budget for Vercel cold start + DB — no double 20s retry.
+  // One attempt, longer budget for Vercel cold start + DB: no double 20s retry.
   const raw = await apiClient.get<RawBootstrap>("/api/bootstrap", {
     timeoutMs: 45_000,
     retry: false,

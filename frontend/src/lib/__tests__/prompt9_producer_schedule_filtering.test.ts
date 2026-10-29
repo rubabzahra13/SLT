@@ -6,7 +6,7 @@ import { doDateRangesOverlap } from "../dates";
 import { generateScheduleCsv } from "../export-csv";
 import { findProducerByAssignmentKey } from "../editor-assignment";
 
-describe("Prompt 9 — Producer Schedule Filtering & Individual Download Tests", () => {
+describe("Prompt 9: Producer Schedule Filtering & Individual Download Tests", () => {
   const { mtdRecords, orders: allOrders, producers } = getData();
 
   it("1. Generating schedule CSV for 'All Editors' returns records across assigned producers", () => {

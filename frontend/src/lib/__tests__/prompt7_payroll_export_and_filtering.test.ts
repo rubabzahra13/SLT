@@ -10,7 +10,7 @@ import { filterMTDRecords } from "../mtd-filters";
 import { calculateDateBounds, type DateFilterValue } from "../date-filters";
 import type { MTDRecord, Order } from "@/types";
 
-describe("Prompt 7 — Payroll-Specific Export: Filters + Admin vs Producer-Safe Output", () => {
+describe("Prompt 7: Payroll-Specific Export: Filters + Admin vs Producer-Safe Output", () => {
   const { mtdRecords, orders: allOrders, producers } = getData();
   const payrollRecords = getPayrollRecords(mtdRecords);
 

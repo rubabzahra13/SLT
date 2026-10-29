@@ -10,7 +10,7 @@ import {
 import { syncRuntimeCompliantAffiliateLabels } from "../pricing-reference";
 import { resolveOrderPriceCompliance } from "../pricing";
 
-describe("Prompt 5 — Marching Band Pricing Engine Unit Tests", () => {
+describe("Prompt 5: Marching Band Pricing Engine Unit Tests", () => {
   it("Rate Card completeness: Fight Song and Alma Mater are separate packages", () => {
     assert.equal(MARCHING_BAND_RATE_CARD.length, 6);
     assert.deepEqual(
@@ -83,7 +83,7 @@ describe("Prompt 5 — Marching Band Pricing Engine Unit Tests", () => {
   it("Songs for Cheer and original custom music are compliant", () => {
     for (const affiliate of [
       "Songs for Cheer",
-      "Songs for Cheer — Editor's Choice",
+      "Songs for Cheer: Editor's Choice",
       "100% original custom music (titanium package only)",
       "Power Music Covers",
       "Unleash the Beats Covers",
@@ -196,7 +196,7 @@ describe("Prompt 5 — Marching Band Pricing Engine Unit Tests", () => {
     });
     const custom = calculateMarchingBandOrderPricing({
       packageType: "Drum Cadence",
-      musicAffiliate: "Songs for Cheer — Editor's Choice",
+      musicAffiliate: "Songs for Cheer: Editor's Choice",
     });
     assert.equal(withAff.customerFacingPrice, 350);
     assert.equal(withAff.payrollBasePrice, 350);

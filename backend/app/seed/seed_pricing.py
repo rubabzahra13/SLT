@@ -1,5 +1,5 @@
 """
-seed_pricing.py — Seeds pricing_rules, addon_rules, and compliant_affiliates
+seed_pricing.py: Seeds pricing_rules, addon_rules, and compliant_affiliates
 tables from pricing-rules.json. Idempotent: upserts by (form_type, subtype_id, package_id).
 """
 import os
@@ -365,7 +365,7 @@ def _affiliate_seed_rows() -> list[dict]:
 def seed_music_affiliate_options(db: Session) -> None:
     """
     Idempotent upsert of SoftSelect catalogs. Does not delete admin removals
-    for existing subtype catalogs — only inserts missing defaults.
+    for existing subtype catalogs: only inserts missing defaults.
     """
     seeded = 0
     for row in _affiliate_seed_rows():

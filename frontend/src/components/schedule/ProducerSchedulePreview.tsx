@@ -107,7 +107,7 @@ function SchedulePreviewTable({ rows }: { rows: ProducerFacingScheduleRow[] }) {
                               : "text-brand-ink-secondary"
                         }`}
                       >
-                        {String(val ?? "—")}
+                        {String(val ?? "-")}
                       </td>
                     );
                   })}

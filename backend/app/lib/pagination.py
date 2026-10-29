@@ -45,7 +45,7 @@ def decode_page_token(page_token: str | None) -> int:
         if offset < 0:
             raise ValueError("negative offset")
         return offset
-    except Exception as exc:  # noqa: BLE001 — invalid client token
+    except Exception as exc:  # noqa: BLE001: invalid client token
         raise HTTPException(status_code=400, detail="Invalid page_token") from exc
 
 

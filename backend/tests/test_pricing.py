@@ -1,5 +1,5 @@
 """
-test_pricing.py — Unit tests for the SLT CRM pricing and compensation engine.
+test_pricing.py: Unit tests for the SLT CRM pricing and compensation engine.
 
 Required test cases (all 8 from spec):
   1. Compliant vs non-compliant same package → different payroll_base_price, identical customer_facing_price
@@ -27,7 +27,7 @@ from app.services.compensation import calculate_compensation
 
 
 # ---------------------------------------------------------------------------
-# Test 1: Compliant vs non-compliant — same package, same customer price,
+# Test 1: Compliant vs non-compliant: same package, same customer price,
 #         different payroll base price
 # ---------------------------------------------------------------------------
 
@@ -482,7 +482,7 @@ class TestMissingAffiliate:
 class TestCaseyAmbiguity:
 
     def test_casey_without_category_rate_needs_manual_review(self, db):
-        # rate_overrides column removed — dual old/new rates are UI-only for CM.
+        # rate_overrides column removed: dual old/new rates are UI-only for CM.
         bd = calculate_pricing(
             db=db,
             form_type="school-all-star-cheer",

@@ -7,8 +7,8 @@ import {
   calculateSportsEntertainmentOrderPricing,
 } from "../pricing-engine";
 
-describe("Add-On Pricing Invariant Tests — Package Price Must Not Change", () => {
-  it("Test 1 — No Add-On: Base Package Price is $700", () => {
+describe("Add-On Pricing Invariant Tests: Package Price Must Not Change", () => {
+  it("Test 1: No Add-On: Base Package Price is $700", () => {
     const res = calculateCheerOrderPricing({
       cheerFormSubtype: "school-cheer-viroc-yes",
       packageType: "GOLD 1:30",
@@ -20,7 +20,7 @@ describe("Add-On Pricing Invariant Tests — Package Price Must Not Change", () 
     assert.equal(res.payrollBasePrice, 600);
   });
 
-  it("Test 2 — Standalone Package Rally Mix: Package Price is $350 and Payroll Price is $350", () => {
+  it("Test 2: Standalone Package Rally Mix: Package Price is $350 and Payroll Price is $350", () => {
     const res = calculateCheerOrderPricing({
       cheerFormSubtype: "school-cheer-viroc-yes",
       packageType: "Rally Mix",
@@ -30,7 +30,7 @@ describe("Add-On Pricing Invariant Tests — Package Price Must Not Change", () 
     assert.equal(res.payrollBasePrice, 350);
   });
 
-  it("Test 3 — Rush Fee Add-on: Package Price remains $700 while Payroll Price includes +$150 Rush Fee", () => {
+  it("Test 3: Rush Fee Add-on: Package Price remains $700 while Payroll Price includes +$150 Rush Fee", () => {
     const res = calculateCheerOrderPricing({
       cheerFormSubtype: "school-cheer-viroc-yes",
       packageType: "GOLD 1:30",
@@ -42,7 +42,7 @@ describe("Add-On Pricing Invariant Tests — Package Price Must Not Change", () 
     assert.equal(res.payrollBasePrice, 750); // $600 + $150
   });
 
-  it("Test 4 — Toggle Rush Fee: ON -> OFF -> ON stays $700 every time", () => {
+  it("Test 4: Toggle Rush Fee: ON -> OFF -> ON stays $700 every time", () => {
     let state = false;
     for (let i = 0; i < 5; i++) {
       state = !state;
@@ -62,7 +62,7 @@ describe("Add-On Pricing Invariant Tests — Package Price Must Not Change", () 
     }
   });
 
-  it("Test 5 — Multiple Add-Ons: Base Package Price remains $450 (Youth Rec Cheer)", () => {
+  it("Test 5: Multiple Add-Ons: Base Package Price remains $450 (Youth Rec Cheer)", () => {
     const res = calculateCheerOrderPricing({
       cheerFormSubtype: "youth-rec-cheer",
       packageType: "BRONZE 1:00",
@@ -73,7 +73,7 @@ describe("Add-On Pricing Invariant Tests — Package Price Must Not Change", () 
     assert.equal(res.payrollBasePrice, 525); // $450 + $25 + $50
   });
 
-  it("Test 6 — Dance & Marching Band Add-Ons: Base Package Prices remain immutable", () => {
+  it("Test 6: Dance & Marching Band Add-Ons: Base Package Prices remain immutable", () => {
     // Dance VO Add-ons
     const danceRes = calculateDanceOrderPricing({
       danceFormSubtype: "pom",
@@ -103,7 +103,7 @@ describe("Add-On Pricing Invariant Tests — Package Price Must Not Change", () 
     assert.equal(seRes.payrollBasePrice, 350); // $250 + $100 SE rush
   });
 
-  it("Test 7 — Compliance & Non-Compliance: Compliance affects payroll base but Package Price is immutable", () => {
+  it("Test 7: Compliance & Non-Compliance: Compliance affects payroll base but Package Price is immutable", () => {
     const compliantRes = calculateCheerOrderPricing({
       cheerFormSubtype: "school-cheer-viroc-yes",
       packageType: "GOLD 1:30",

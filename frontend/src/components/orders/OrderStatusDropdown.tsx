@@ -92,7 +92,7 @@ function dataStatusTooltip(
   return `We have all we need:\n${labels.join(", ")}`;
 }
 
-/** Derived from Mix/CS/Video + Songs/Notes — not manually editable. */
+/** Derived from Mix/CS/Video + Songs/Notes: not manually editable. */
 export function OrderDataStatusBadge({
   record,
 }: {

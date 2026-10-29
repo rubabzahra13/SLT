@@ -10,7 +10,7 @@ const WEEKDAYS_MON_FRI: Weekday[] = ["mon", "tue", "wed", "thu", "fri"];
 
 describe("splitTimeOffToWorkDayRanges", () => {
   it("drops non-work days inside a selected leave span", () => {
-    // Thu 22 – Tue 27 Oct 2026 spans a weekend (24–25).
+    // Thu 22 - Tue 27 Oct 2026 spans a weekend (24-25).
     const split = splitTimeOffToWorkDayRanges(
       [
         {

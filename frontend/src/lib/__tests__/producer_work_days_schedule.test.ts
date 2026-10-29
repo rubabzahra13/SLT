@@ -25,8 +25,8 @@ const monSatProducer: Producer = {
 };
 
 describe("Producer work days on schedule and booking", () => {
-  it("marks Sunday as non-working for Mon–Sat producers and Saturday as available", () => {
-    // Week of Sun Aug 16 – Sat Aug 22, 2026
+  it("marks Sunday as non-working for Mon-Sat producers and Saturday as available", () => {
+    // Week of Sun Aug 16 - Sat Aug 22, 2026
     const anchor = new Date(2026, 7, 19); // Wed Aug 19
     const cells = getScheduleCells(monSatProducer, [], "week", anchor, []);
 
@@ -71,7 +71,7 @@ describe("Producer work days on schedule and booking", () => {
     const sunday = cells.find((c) => c.key === "2026-08-16");
     const monday = cells.find((c) => c.key === "2026-08-17");
 
-    // Sunday is an extra day — time off does not cancel it; remove OT instead.
+    // Sunday is an extra day: time off does not cancel it; remove OT instead.
     assert.equal(sunday?.status, "available");
     assert.equal(monday?.status, "off");
   });
@@ -98,7 +98,7 @@ describe("Producer work days on schedule and booking", () => {
   });
 
   it("skips Sunday when finding the next available booking slot", () => {
-    // From Sunday Aug 16, next Mon–Sat work day is Monday Aug 17.
+    // From Sunday Aug 16, next Mon-Sat work day is Monday Aug 17.
     const fromSunday = new Date(2026, 7, 16);
     const slot = getNextAvailableSlot(
       "CM",

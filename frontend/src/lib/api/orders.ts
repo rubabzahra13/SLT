@@ -8,7 +8,7 @@ export interface BackendOrder {
   form_type?: string;
   cheer_form_subtype?: string | null;
   dance_form_subtype?: string | null;
-  /** @deprecated alias of school_gym_name — kept for older payloads */
+  /** @deprecated alias of school_gym_name: kept for older payloads */
   school_program_name?: string | null;
   school_gym_name?: string | null;
   school_gym_billing_address?: string | null;
@@ -142,7 +142,7 @@ export function transformOrder(bo: BackendOrder): Order {
   const isAllStar =
     cheerFormSubtype === "all-star-cheer" ||
     (formType === "school-all-star-cheer" && !cheerFormSubtype);
-  // SoT columns (UI aliases below mirror these — do not cross-leak identity ↔ contact).
+  // SoT columns (UI aliases below mirror these: do not cross-leak identity ↔ contact).
   const schoolName = String(bo.school_gym_name || "").trim();
   const billing = String(bo.school_gym_billing_address || "").trim();
   const colors = String(bo.colors || "").trim();
@@ -189,7 +189,7 @@ export function transformOrder(bo: BackendOrder): Order {
             : "Cheer";
 
   return {
-    // Always use the DB UUID — legacy_id is retired.
+    // Always use the DB UUID: legacy_id is retired.
     id: bo.id,
     uuid: bo.id,
     formType,
@@ -241,7 +241,7 @@ export function transformOrder(bo: BackendOrder): Order {
     requestedEditor,
     // Client form "Length of Mix" → time_length_of_mix.
     // Cheer may fall back to time encoded in package (GOLD 2:00); other forms
-    // must not — package-time refill makes a cleared SE Time Length reappear.
+    // must not: package-time refill makes a cleared SE Time Length reappear.
     timeLengthOfMix:
       bo.time_length_of_mix ||
       (formType === "school-all-star-cheer"
@@ -311,7 +311,7 @@ export function transformOrder(bo: BackendOrder): Order {
     suppressManualFormMerge: Boolean(bo.suppress_manual_form_merge),
     orderStatus: bo.order_status || undefined,
 
-    // Person columns only — never school_gym_name.
+    // Person columns only: never school_gym_name.
     customerName: personNotIdentity(bo.customer_name) || personName,
     contactName: personName,
     programName: schoolName,
@@ -382,83 +382,17 @@ export async function fetchOrdersApi(): Promise<{ activeOrders: Order[]; pastOrd
   return { activeOrders, pastOrders };
 }
 
-export async function createOrderApi(order: Partial<Order>): Promise<Order> {
-  const formType = order.formType || "school-all-star-cheer";
-  // Contact / customer are people — do not seed them from school/org identity.
-  const personName =
-    order.musicContactName ||
-    order.coachName ||
-    order.coachContactFullName ||
-    order.contactName ||
-    order.customerName ||
-    "";
-  const payload = {
-    customer_name: personName || null,
-    contact_name: personName || null,
-    // Derived on the server from form_type; keep payload fields for older APIs.
-    program_name: null,
-    category:
-      formType === "school-all-star-dance"
-        ? "Dance"
-        : formType === "marching-band"
-          ? "Marching Band"
-          : formType === "sports-entertainment"
-            ? "Sports Entertainment"
-            : formType === "school-anthem"
-              ? "School Anthem"
-              : "Cheer",
-    school_gym_name:
-      order.schoolName ||
-      order.gymName ||
-      order.schoolProgramName ||
-      order.organizationName ||
-      order.schoolOrganizationName ||
-      order.programName ||
-      null,
-    package:
-      formType === "school-anthem"
-        ? "SCHOOL ANTHEMS"
-        : order.package || "TBD",
-    package_type:
-      formType === "school-anthem"
-        ? "SCHOOL ANTHEMS"
-        : order.packageType || null,
-    price: formType === "school-anthem" ? 1250 : order.price ?? 0,
-    music_theme: order.musicTheme || null,
-    editor_initials: order.editorRequest || "FA",
-    requested_editor:
-      order.requestedEditor || order.requestedProducer || null,
-    form_type: formType,
-    cheer_form_subtype: order.cheerFormSubtype || null,
-    dance_form_subtype: order.danceFormSubtype || null,
-    varsity_viroc_customer:
-      order.varsityVirocCustomer ||
-      (order.cheerFormSubtype === "school-cheer-viroc-yes"
-        ? "Yes"
-        : order.cheerFormSubtype === "school-cheer-viroc-no"
-          ? "No"
-          : null),
-    status: order.status || "new",
-  };
-  const res = await apiClient.post<BackendOrder>("/api/orders", payload);
-  return transformOrder(res);
-}
-
-export async function updateOrderApi(
-  id: string,
+/**
+ * Map a camelCase Order patch to the snake_case API body.
+ * Shared by create + update so Add Order can POST the full draft once.
+ */
+export function orderPatchToApiPayload(
   patch: Partial<Order>
-): Promise<Order> {
+): Record<string, unknown> {
   const payload: Record<string, unknown> = {};
   if (patch.customerName !== undefined) payload.customer_name = patch.customerName;
   if (patch.contactName !== undefined) payload.contact_name = patch.contactName;
-  const cheerSubtype = patch.cheerFormSubtype;
   const formType = patch.formType;
-  const isAllStarCheer =
-    formType === "school-all-star-cheer" &&
-    (!cheerSubtype || cheerSubtype === "all-star-cheer");
-  const isSchoolCheer =
-    cheerSubtype === "school-cheer-viroc-yes" ||
-    cheerSubtype === "school-cheer-viroc-no";
 
   // Identity SoT: school_gym_name for every form (Gym / School / Program / Org).
   payload.program_name = null;
@@ -787,11 +721,52 @@ export async function updateOrderApi(
     payload.producer_payout = patch.producerPayout;
   }
 
+  return payload;
+}
+
+export async function createOrderApi(order: Partial<Order>): Promise<Order> {
+  const formType = order.formType || "school-all-star-cheer";
+  const createPatch: Partial<Order> = {
+    ...order,
+    formType,
+    status: order.status || "new",
+    package:
+      formType === "school-anthem"
+        ? "SCHOOL ANTHEMS"
+        : order.package || "TBD",
+    packageType:
+      formType === "school-anthem"
+        ? "SCHOOL ANTHEMS"
+        : order.packageType,
+    price: formType === "school-anthem" ? order.price ?? 1250 : order.price ?? 0,
+    editorRequest: order.editorRequest || "FA",
+  };
+  // Contact / customer are people: do not seed them from school/org identity.
+  if (
+    createPatch.customerName === undefined &&
+    createPatch.contactName === undefined &&
+    createPatch.coachName === undefined &&
+    createPatch.coachContactFullName === undefined &&
+    createPatch.musicContactName === undefined
+  ) {
+    createPatch.customerName = "";
+    createPatch.contactName = "";
+  }
+  const payload = orderPatchToApiPayload(createPatch);
+  const res = await apiClient.post<BackendOrder>("/api/orders", payload);
+  return transformOrder(res);
+}
+
+export async function updateOrderApi(
+  id: string,
+  patch: Partial<Order>
+): Promise<Order> {
+  const payload = orderPatchToApiPayload(patch);
   try {
     const res = await apiClient.patch<BackendOrder>(`/api/orders/${id}`, payload);
     return transformOrder(res);
   } catch (err) {
-    // Never fake success — callers must handle failure or the UI lies.
+    // Never fake success: callers must handle failure or the UI lies.
     throw err;
   }
 }

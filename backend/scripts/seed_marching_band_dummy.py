@@ -27,7 +27,7 @@ MARCHING_BAND_DEMO = [
         "package": "BAND CHANT",
         "time_length_of_mix": "1:30",
         "price": 600.0,
-        "instrumentation_notes": "Cover in marching band style: Seven Nation Army — The White Stripes",
+        "instrumentation_notes": "Cover in marching band style: Seven Nation Army: The White Stripes",
         "lyrical_notes": "",
     },
     {
@@ -47,7 +47,7 @@ MARCHING_BAND_DEMO = [
         "package": "FIGHT SONG ORIGINAL",
         "time_length_of_mix": "2:00",
         "price": 1100.0,
-        "instrumentation_notes": "Traditional collegiate fight song — no lyrics package.",
+        "instrumentation_notes": "Traditional collegiate fight song: no lyrics package.",
         "lyrical_notes": "",
     },
     {
@@ -117,7 +117,7 @@ def main() -> None:
             )
             db.add(order)
             created += 1
-            print(f"created {legacy} — {row['school_program_name']}")
+            print(f"created {legacy}: {row['school_program_name']}")
 
         db.commit()
         print(f"Done. Created {created} Marching Band demo order(s).")

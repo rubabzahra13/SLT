@@ -1,5 +1,5 @@
 """
-pricing.py — Calculates the full pricing breakdown for an order.
+pricing.py: Calculates the full pricing breakdown for an order.
 
 Inputs come from the classification + compliance services plus the caller-supplied
 add-on selections. Nothing is persisted here; that happens in the API layer.
@@ -56,7 +56,7 @@ class PricingBreakdown:
 
     # Flags
     needs_manual_pricing: bool = False
-    needs_manual_review: bool = False   # compliance flag — does not block calculation
+    needs_manual_review: bool = False   # compliance flag: does not block calculation
 
     # Human-readable one-liner for the UI
     summary_line: str = ""
@@ -140,7 +140,7 @@ def _resolve_voiceover_addon(
         payroll_amount=Decimal(str(amount)),
         quantity=1,
         note=(
-            "Note: this voiceover tier has no definition in the rate card — "
+            "Note: this voiceover tier has no definition in the rate card: "
             "confirm amount with Megan before finalizing."
             if amount == 100 else None
         ),
@@ -162,7 +162,7 @@ def calculate_pricing(
 ) -> PricingBreakdown:
     """
     Calculate the full pricing breakdown for an order.
-    Pure calculation — does not write to the database.
+    Pure calculation: does not write to the database.
     """
     if addons_input is None:
         addons_input = {}
@@ -312,7 +312,7 @@ def calculate_pricing(
         f"Package: {rule.package_name}",
         f"Customer price: ${system_customer_price:.2f}",
         f"Payroll base: ${payroll_base_price:.2f}",
-        f"Compliance: {compliance.status} — {compliance.reason}",
+        f"Compliance: {compliance.status}: {compliance.reason}",
     ]
     if addon_lines:
         addon_desc = ", ".join(a.label for a in addon_lines)

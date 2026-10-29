@@ -16,7 +16,7 @@ from app.seed.ids import seed_uuid
 # Magento forms named to score ≥0.9 against current unmatched manuals,
 # plus a couple of polished Cheer pairs for the default Match tab.
 MAGENTO_DEMOS = [
-    # Default Cheer / All-Star tab — matches manual "l"
+    # Default Cheer / All-Star tab: matches manual "l"
     {
         "legacy_id": "demo-match-magento-cheer-l",
         "form_type": "school-all-star-cheer",
@@ -69,7 +69,7 @@ MAGENTO_DEMOS = [
             "price": 0.0,
         },
     },
-    # Sports Entertainment — matches manual "x"
+    # Sports Entertainment: matches manual "x"
     {
         "legacy_id": "demo-match-magento-se-x",
         "form_type": "sports-entertainment",
@@ -80,7 +80,7 @@ MAGENTO_DEMOS = [
         "contact": "Contact Magento X",
         "price": 900.0,
     },
-    # Marching Band — matches manual "bb"
+    # Marching Band: matches manual "bb"
     {
         "legacy_id": "demo-match-magento-mb-bb",
         "form_type": "marching-band",
@@ -157,7 +157,7 @@ MAGENTO_DEMOS = [
         "contact": "Coach Magento S",
         "price": 1500.0,
     },
-    # School Anthem — matches manuals "mm" and "School Anthem 1"
+    # School Anthem: matches manuals "mm" and "School Anthem 1"
     {
         "legacy_id": "demo-match-magento-anthem-mm",
         "form_type": "school-anthem",
@@ -191,7 +191,7 @@ def _upsert_manual(db, form_type: str, cheer_sub: str | None, dance_sub: str | N
         existing.is_past_order = False
         existing.status = "new"
         existing.school_gym_name = row["school_gym_name"]
-        print(f"manual keep {row['legacy_id']} — {row['school_gym_name']}")
+        print(f"manual keep {row['legacy_id']}: {row['school_gym_name']}")
         return
 
     db.add(
@@ -218,7 +218,7 @@ def _upsert_manual(db, form_type: str, cheer_sub: str | None, dance_sub: str | N
             is_past_order=False,
         )
     )
-    print(f"manual create {row['legacy_id']} — {row['school_gym_name']}")
+    print(f"manual create {row['legacy_id']}: {row['school_gym_name']}")
 
 
 def main() -> None:
@@ -250,7 +250,7 @@ def main() -> None:
                 existing.form_type = row["form_type"]
                 existing.cheer_form_subtype = row.get("cheer_form_subtype")
                 existing.dance_form_subtype = row.get("dance_form_subtype")
-                print(f"magento keep {row['legacy_id']} — {row['school_gym_name']}")
+                print(f"magento keep {row['legacy_id']}: {row['school_gym_name']}")
                 continue
 
             db.add(
@@ -285,7 +285,7 @@ def main() -> None:
                 )
             )
             created += 1
-            print(f"magento create {row['legacy_id']} — {row['school_gym_name']}")
+            print(f"magento create {row['legacy_id']}: {row['school_gym_name']}")
 
         db.commit()
         print(f"Done. Created {created} Magento match demo(s). Refresh Match Orders.")

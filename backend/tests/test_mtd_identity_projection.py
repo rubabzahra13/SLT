@@ -1,4 +1,4 @@
-"""Order-SoT projection for MTD API responses (Phases 3–5)."""
+"""Order-SoT projection for MTD API responses (Phases 3-5)."""
 
 from types import SimpleNamespace
 from unittest.mock import patch

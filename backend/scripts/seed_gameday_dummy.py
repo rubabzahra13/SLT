@@ -111,7 +111,7 @@ Unleash the Beats Covers:
             )
             db.add(order)
             created += 1
-            print(f"created {legacy} — {row['school_program_name']}")
+            print(f"created {legacy}: {row['school_program_name']}")
 
         db.commit()
         print(f"Done. Created {created} Gameday demo order(s).")

@@ -137,7 +137,7 @@ describe("Bug Fix Verification: Persistence & Magento Collections", () => {
       assert.strictEqual(
         hasCompliancyInEmail,
         false,
-        "Compliancy must NOT appear — Magento has no Compliancy board pill"
+        "Compliancy must NOT appear: Magento has no Compliancy board pill"
       );
     });
 

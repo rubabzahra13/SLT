@@ -4,7 +4,7 @@ import { getPayrollRecords, patchMoveToPayroll } from "../mtd-completion";
 import { filterMTDRecords, countMTDByForm } from "../mtd-filters";
 import type { MTDRecord, Order } from "../../types";
 
-describe("Prompt 10 — New Categories Payroll Integration Unit Tests", () => {
+describe("Prompt 10: New Categories Payroll Integration Unit Tests", () => {
   const mbRecord: MTDRecord = {
     id: "mtd-mb-01",
     section: "COMPLETED MIXES",

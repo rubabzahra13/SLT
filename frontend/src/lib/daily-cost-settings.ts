@@ -2,7 +2,7 @@
  * How Assign Editor daily cost limits are estimated.
  *
  * Package price is always included. Add-ons (8ct / sheet / vocals / rush /
- * voiceover) are intentionally excluded — the client wants the day-cap to
+ * voiceover) are intentionally excluded: the client wants the day-cap to
  * track package + optional compliance / producer rate only.
  */
 
@@ -11,7 +11,7 @@ export const DAILY_COST_SETTINGS_CHANGED_EVENT = "slt-daily-cost-settings-change
 const STORAGE_KEY = "slt-daily-cost-settings-v1";
 
 export type DailyCostSettings = {
-  /** Always true — package price is required in the day-cap math. */
+  /** Always true: package price is required in the day-cap math. */
   includePackagePrice: true;
   /**
    * When true, use the compliant / non-compliant payroll column for the

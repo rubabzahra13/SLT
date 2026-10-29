@@ -36,7 +36,7 @@ type OrderFormEditModalProps = {
   open: boolean;
   record: MTDRecord | null;
   allOrders: Order[];
-  /** Optional board row index — unused in the header (no IDs in UI). */
+  /** Optional board row index: unused in the header (no IDs in UI). */
   rowId?: number | null;
   onClose: () => void;
 };
@@ -77,7 +77,7 @@ export function OrderFormEditModal({
   const displayOrder = useMemo(() => {
     if (!linkedBase) return null;
     const enriched = enrichOrderWithMatchingForm(linkedBase, allOrders);
-    // Same form sections as Add New Order — formType wins over stale subtypes.
+    // Same form sections as Add New Order: formType wins over stale subtypes.
     return resolveOrderFormDisplay(enriched, record);
   }, [linkedBase, allOrders, record]);
 
@@ -112,7 +112,7 @@ export function OrderFormEditModal({
       setOrderDraft(null);
       return;
     }
-    // Same SoT columns as Add New — keep existing values; do not blank form-
+    // Same SoT columns as Add New: keep existing values; do not blank form-
     // specific Magento fields (that would wipe power_music_covers / voiceovers
     // on save when this form does not show those inputs).
     setOrderDraft({
@@ -147,7 +147,7 @@ export function OrderFormEditModal({
 
     // Order is source of truth for form fields. Same column mapping as Add New
     // (updateOrder → updateOrderApi). Only patch a real mtd_records row when one
-    // already covers this order — never PATCH /api/mtd/{orderId} (synthetic
+    // already covers this order: never PATCH /api/mtd/{orderId} (synthetic
     // staging rows use the order UUID as id → 404).
     const editorInitials =
       orderDraft.requestedEditor === "First Available" ||
@@ -317,7 +317,7 @@ export function OrderFormEditModal({
               <p className="mt-0.5 truncate text-[13px] text-brand-ink-secondary">
                 {subtitle}
               </p>
-              {createdLabel !== "—" ? (
+              {createdLabel !== "-" ? (
                 <p className="mt-1 text-[12px] tabular-nums text-brand-ink-tertiary">
                   Timestamp {createdLabel}
                 </p>

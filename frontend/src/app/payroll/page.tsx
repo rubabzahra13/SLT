@@ -108,7 +108,7 @@ import {
 
 /** Survives a dev remount so a rush row is not created twice for the same mix. */
 const rushCreateInflight = new Set<string>();
-/** Clear requested while a create was still in flight — delete as soon as it lands. */
+/** Clear requested while a create was still in flight: delete as soon as it lands. */
 const rushPendingClear = new Set<string>();
 
 const RUSH_SAVE_DEBOUNCE_MS = 200;
@@ -288,7 +288,7 @@ export default function PayrollPage() {
     [allOrders]
   );
 
-  // No Source filter here — manuals are merged/split on Orders/MTD before
+  // No Source filter here: manuals are merged/split on Orders/MTD before
   // completion, so Payroll rows are effectively form-sourced.
   const sourceRecords =
     pageTab === "archive" ? archivedPayrollRecords : payrollRecords;
@@ -677,7 +677,7 @@ export default function PayrollPage() {
       if (quantity < 1) {
         rushPendingClear.add(key);
         if (rushCreateInflight.has(key) && !existing) {
-          // Create still running — delete in that path once it finishes.
+          // Create still running: delete in that path once it finishes.
           clearRushOverlay(key);
           return;
         }
@@ -731,7 +731,7 @@ export default function PayrollPage() {
           : await addPayrollAddon({
               orderId: rec.orderId || rec.id,
               mtdId: rec.id,
-              programName: rec.programName || "—",
+              programName: rec.programName || "-",
               teamName: (rec as { teamName?: string }).teamName || null,
               contactName: rec.contactName || null,
               category:
@@ -750,7 +750,7 @@ export default function PayrollPage() {
               producerInitials,
             });
 
-        // User cleared while create was in flight — drop the row now.
+        // User cleared while create was in flight: drop the row now.
         if (rushPendingClear.has(key) || (rushOverlayRef.current[key]?.quantity ?? 1) < 1) {
           rushPendingClear.delete(key);
           knownRushAddonRef.current.delete(key);
@@ -845,7 +845,7 @@ export default function PayrollPage() {
   );
 
   // Rush Order Yes/No is informational (and gates the Rush Fee controls).
-  // Never auto-create a Rushby payroll add-on — admin must add amount/qty
+  // Never auto-create a Rushby payroll add-on: admin must add amount/qty
   // explicitly. Drop orphan fees when Rush Order is No; de-dupe extras;
   // clear an override that belonged to a previous producer.
   const orphanRushCleanupRef = useRef(new Set<string>());
@@ -1341,7 +1341,7 @@ export default function PayrollPage() {
           <span className="text-[12px] tabular-nums text-brand-ink-secondary">
             {rec.completedAt
               ? formatDisplayDate(rec.completedAt.slice(0, 10))
-              : "—"}
+              : "-"}
           </span>
         ),
       },
@@ -1484,7 +1484,7 @@ export default function PayrollPage() {
             <span className="text-[12px] tabular-nums text-brand-ink-secondary">
               {rec.paidAt
                 ? formatDisplayDate(rec.paidAt.slice(0, 10))
-                : "—"}
+                : "-"}
             </span>
           ),
         });
@@ -1578,7 +1578,7 @@ export default function PayrollPage() {
       const rec = miscAdjustmentRecord;
       if (!rec) return;
 
-      // Always read the latest list — a stale closure after create would miss
+      // Always read the latest list: a stale closure after create would miss
       // the row and POST a second misc_adjustment for the same mix.
       const latest = payrollAddonsRef.current;
       const matches = latest.filter((addon) => {
@@ -1593,7 +1593,7 @@ export default function PayrollPage() {
       });
 
       const primary = matches[0] ?? null;
-      // Keep exactly one misc adjustment per order — drop duplicates.
+      // Keep exactly one misc adjustment per order: drop duplicates.
       for (const extra of matches.slice(1)) {
         await removePayrollAddon(extra.id);
       }

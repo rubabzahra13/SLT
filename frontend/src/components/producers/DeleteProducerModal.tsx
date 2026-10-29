@@ -14,7 +14,7 @@ import {
   withReturnParam,
 } from "@/lib/nav-return";
 
-/** @deprecated Prefer AssignedMixForProducer — kept for existing imports. */
+/** @deprecated Prefer AssignedMixForProducer: kept for existing imports. */
 export type AssignedMixForDelete = AssignedMixForProducer;
 
 type DeleteProducerModalProps = {
@@ -33,7 +33,7 @@ function formatMixDateRange(rec: MTDRecord): string {
   const start = toIsoDateString(rec.mixStartDate);
   const end = toIsoDateString(rec.mixEndDate);
   if (start && end) {
-    return `${formatDisplayDate(start)} – ${formatDisplayDate(end)}`;
+    return `${formatDisplayDate(start)} - ${formatDisplayDate(end)}`;
   }
   if (start) return formatDisplayDate(start);
   if (end) return formatDisplayDate(end);

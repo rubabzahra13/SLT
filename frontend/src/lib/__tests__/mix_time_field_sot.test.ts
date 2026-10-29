@@ -45,7 +45,7 @@ function baseOrder(
   } as Order;
 }
 
-describe("Mix Time SoT — Time Length field only (all categories)", () => {
+describe("Mix Time SoT: Time Length field only (all categories)", () => {
   const cases: {
     label: string;
     formType: OrderFormType;
@@ -93,7 +93,7 @@ describe("Mix Time SoT — Time Length field only (all categories)", () => {
     if (!c.needMix) continue;
 
     describe(c.label, () => {
-      it("is red when Time Length is empty — even with stale Mix override", () => {
+      it("is red when Time Length is empty: even with stale Mix override", () => {
         const order = baseOrder(c.formType, {
           package: c.package,
           packageType: c.package,

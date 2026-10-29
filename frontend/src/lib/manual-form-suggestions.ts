@@ -27,12 +27,24 @@ export function isUnmatchedManualOrder(order: Order): boolean {
   );
 }
 
+function uniqueOrdersById(orders: Order[]): Order[] {
+  const seen = new Set<string>();
+  const out: Order[] = [];
+  for (const o of orders) {
+    const key = String(o.id || o.uuid || "").trim();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(o);
+  }
+  return out;
+}
+
 export function listUnmatchedMagentoForms(orders: Order[]): Order[] {
-  return orders.filter(isUnmatchedMagentoForm);
+  return uniqueOrdersById(orders.filter(isUnmatchedMagentoForm));
 }
 
 export function listUnmatchedManualOrders(orders: Order[]): Order[] {
-  return orders.filter(isUnmatchedManualOrder);
+  return uniqueOrdersById(orders.filter(isUnmatchedManualOrder));
 }
 
 export type ManualFormSuggestion = {
@@ -42,7 +54,7 @@ export type ManualFormSuggestion = {
 };
 
 /**
- * Manual candidates for a Magento form — only when both identity names are
+ * Manual candidates for a Magento form: only when both identity names are
  * filled and similarity ≥ threshold, same category/subtype rules as merge.
  */
 export function suggestManualsForMagento(

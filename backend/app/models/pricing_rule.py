@@ -16,7 +16,7 @@ class PricingRule(Base):
     package_id = Column(String, nullable=False, index=True)
     package_name = Column(String, nullable=False)
 
-    # Prices — null means "TBD via email" (e.g. Sports Entertainment OTHER)
+    # Prices: null means "TBD via email" (e.g. Sports Entertainment OTHER)
     customer_facing_price = Column(Numeric(10, 2), nullable=True)
     payroll_base_compliant = Column(Numeric(10, 2), nullable=True)
     payroll_base_non_compliant = Column(Numeric(10, 2), nullable=True)

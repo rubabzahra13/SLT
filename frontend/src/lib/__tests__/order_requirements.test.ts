@@ -437,7 +437,7 @@ describe("SLT Implementation 2: Magento form-field Collections / Songs", () => {
       ["mix", "cs", "video", "form"]
     );
 
-    // Form is automatic — collectionStates.form must not green it.
+    // Form is automatic: collectionStates.form must not green it.
     const toggled = getOrderRequirements({
       ...manualOrder,
       collectionStates: { form: true },

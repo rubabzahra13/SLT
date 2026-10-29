@@ -1,4 +1,4 @@
-# Sounds Like That — Admin Portal
+# Sounds Like That: Admin Portal
 
 Next.js admin dashboard for music order operations: orders, MTD spreadsheet, scheduling, producers, and notifications.
 
@@ -11,10 +11,10 @@ npm install --prefix frontend
 Use **two terminals** (frontend alone cannot save payroll or rush fees):
 
 ```bash
-# Terminal 1 — Next.js UI on port 3000
+# Terminal 1: Next.js UI on port 3000
 npm run dev
 
-# Terminal 2 — FastAPI on port 8001 (required for API calls)
+# Terminal 2: FastAPI on port 8001 (required for API calls)
 cd backend && ./venv/bin/uvicorn app.main:app --reload --port 8001
 ```
 
@@ -39,6 +39,6 @@ Public routing: `/api/*` and `/health` → api; everything else → web.
 
 Set these project env vars (shared by both services):
 
-- `DATABASE_URL` — Supabase pooler URL
+- `DATABASE_URL`: Supabase pooler URL
 - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `GOOGLE_REDIRECT_URI` (optional Gmail)
 - `FRONTEND_URL` = `https://slt-teal.vercel.app`

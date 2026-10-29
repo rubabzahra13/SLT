@@ -1,5 +1,5 @@
 """
-compensation.py — Calculates producer payout from a PricingBreakdown.
+compensation.py: Calculates producer payout from a PricingBreakdown.
 
 Supports compensation_model variants:
   - percentage_of_payroll_base  (most producers)
@@ -195,7 +195,7 @@ def calculate_compensation(
 
     # Category % from rates_by_category. Voiceover/rush addon % are applied
     # separately by the payroll UI (dance_voiceover_rate / cheer_voiceover_rate /
-    # rush_fee_rate) — not as a substitute for the package rate here.
+    # rush_fee_rate): not as a substitute for the package rate here.
     rate, rate_source = _determine_rate_for_subtype(producer, subtype_id)
 
     if rate is None:

@@ -33,7 +33,7 @@ function allStarCheerOrder(overrides: Partial<Order> = {}): Order {
   } as Order;
 }
 
-describe("All-Star Cheer — Song list must not fill Music Affiliate / Routine Notes", () => {
+describe("All-Star Cheer: Song list must not fill Music Affiliate / Routine Notes", () => {
   it("inferMusicAffiliate ignores free-text song lists; accepts catalog / parenthetical", () => {
     assert.equal(inferMusicAffiliate("My custom song list abc123"), "");
     assert.equal(inferMusicAffiliate("Notes here · (Songs for Cheer)"), "Songs for Cheer");

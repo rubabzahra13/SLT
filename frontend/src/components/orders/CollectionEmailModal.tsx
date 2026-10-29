@@ -109,7 +109,7 @@ function CollectionEmailPreview({
         {/* Intro */}
         <p className="text-[13px] leading-relaxed text-brand-ink-secondary">
           This is your only reminder that your mix is scheduled for production
-          next week—yay! 🎉 To ensure we stay on track for your mix&apos;s
+          next week. Yay! 🎉 To ensure we stay on track for your mix&apos;s
           completion, I&apos;ll need the following items submitted by{" "}
           <strong className="text-brand-ink">{draft.deadlineLabel}</strong>.
         </p>
@@ -121,14 +121,16 @@ function CollectionEmailPreview({
           </p>
           <ul className="divide-y divide-brand-line/40">
             {draft.missingItems.map((item, idx) => {
-              const dashIdx = item.indexOf("\u2013");
-              const label = dashIdx === -1 ? item.trim() : item.slice(0, dashIdx).trim();
-              const desc = dashIdx === -1 ? "" : item.slice(dashIdx + 1).trim();
+              const dashIdx = item.indexOf(" - ");
+              const label =
+                dashIdx === -1 ? item.trim() : item.slice(0, dashIdx).trim();
+              const desc =
+                dashIdx === -1 ? "" : item.slice(dashIdx + 3).trim();
               return (
                 <li key={idx} className="px-3 py-2.5 text-[12px]">
                   <span className="font-bold text-brand-danger">{label}</span>
                   {desc && (
-                    <span className="text-brand-ink-secondary"> – {desc}</span>
+                    <span className="text-brand-ink-secondary"> - {desc}</span>
                   )}
                 </li>
               );
@@ -155,14 +157,14 @@ function CollectionEmailPreview({
           possible. Our schedule is very tight during the busy season, and
           delays may result in your mix being moved to the end of our calendar.
           If we&apos;re able to shift it back by one week, we&apos;ll certainly
-          try—but unfortunately, we can&apos;t guarantee availability.
+          try-but unfortunately, we can&apos;t guarantee availability.
         </p>
 
         <p className="text-[13px] leading-relaxed text-brand-ink-secondary">
           Once everything is received, I&apos;ll confirm your invoice and make
           sure the editor has all the necessary details to move forward. Thank
-          you so much for choosing us for your music needs—we&apos;re excited to
-          work with you! Wishing you a fantastic week ahead!
+          you so much for choosing us for your music needs. We&apos;re excited
+          to work with you! Wishing you a fantastic week ahead!
         </p>
 
         {/* Signature */}
@@ -317,7 +319,7 @@ export function CollectionEmailModal({
           setPdfLoadError(
             "Could not load the 8-count sheet PDF. Email will be sent without the attachment."
           );
-          // Still send — just without attachment
+          // Still send: just without attachment
         }
       }
 
@@ -491,7 +493,7 @@ export function CollectionEmailModal({
                       {PDF_FILENAME}
                     </span>{" "}
                     will be attached when sending via Gmail. Note: Copy Email
-                    only copies the email text — the PDF attachment must be
+                    only copies the email text: the PDF attachment must be
                     added manually if pasting.
                   </p>
                 </div>

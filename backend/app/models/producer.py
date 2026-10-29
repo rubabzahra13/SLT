@@ -29,7 +29,7 @@ class Producer(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
     time_offs = relationship("ProducerTimeOff", back_populates="producer", cascade="all, delete-orphan")
-    # Phase 4: assignment lives on Orders only — no MTD assigned_producer FK.
+    # Phase 4: assignment lives on Orders only: no MTD assigned_producer FK.
 
 
 class ProducerTimeOff(Base):

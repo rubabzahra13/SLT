@@ -1,4 +1,4 @@
-"""CRUD for pricing_rules — all Pricing Reference categories/subtypes."""
+"""CRUD for pricing_rules: all Pricing Reference categories/subtypes."""
 from __future__ import annotations
 
 from decimal import Decimal, InvalidOperation
@@ -240,7 +240,7 @@ def upsert_pricing_rules(
             if non_compliant is None:
                 non_compliant = compliant
 
-            # Youth Rec: no affiliate — keep payroll columns = package price.
+            # Youth Rec: no affiliate: keep payroll columns = package price.
             if subtype_id == "youth-rec-cheer" and customer is not None:
                 compliant = customer
                 non_compliant = customer

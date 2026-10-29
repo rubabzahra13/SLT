@@ -8,7 +8,7 @@ import type { Order } from "@/types";
 
 /**
  * Email keys that appear on Magento / Add Order category forms.
- * Any domain is fine (@gmail.com, @school.edu, …) — format only.
+ * Any domain is fine (@gmail.com, @school.edu, …): format only.
  */
 export const ORDER_EMAIL_FIELD_KEYS = new Set([
   "coachEmail",
@@ -22,7 +22,7 @@ export const ORDER_EMAIL_FIELD_KEYS = new Set([
   "emailAddress",
 ]);
 
-/** Practical address check: local@domain.tld — not Gmail-only. */
+/** Practical address check: local@domain.tld: not Gmail-only. */
 const EMAIL_FORMAT =
   /^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/i;
 

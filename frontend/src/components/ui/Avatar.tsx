@@ -64,7 +64,7 @@ function resolveInitials(
   alt?: string | null,
   src?: string | null
 ): string {
-  // Prefer live roster data when the producer was resolved — assignment keys on
+  // Prefer live roster data when the producer was resolved: assignment keys on
   // Orders/MTD/Payroll rows can lag after an edit.
   if (producer?.initials?.trim()) {
     return producer.initials.trim().toUpperCase();

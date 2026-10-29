@@ -99,7 +99,7 @@ def main() -> None:
             )
             db.add(order)
             created += 1
-            print(f"created {legacy} — {row['program_name']}")
+            print(f"created {legacy}: {row['program_name']}")
 
         db.commit()
         print(f"Done. Created {created} Youth Rec Cheer demo order(s).")

@@ -19,10 +19,10 @@ from app.core.database import Base
 class MTDRecord(Base):
     """Music To Do board / payroll lifecycle row.
 
-    Source-of-truth split (Phase 0–5):
+    Source-of-truth split (Phase 0-5):
     - Orders: identity, assignment, collection/ops (CS/songs/collection_states/
       emails/needs_attention/order_status), pricing/payout.
-    - MTD_Records: board/payroll lifecycle only — section, invoice, waiting_on,
+    - MTD_Records: board/payroll lifecycle only: section, invoice, waiting_on,
       record_status, status, in_mtd, in_payroll, paid_at,
       is_manual_schedule_entry, completed_at, customer-price display cache.
     Order-SoT fields are projected from the linked Order on read.

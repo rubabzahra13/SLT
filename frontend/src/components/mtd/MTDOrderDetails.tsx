@@ -2,6 +2,7 @@
 
 import type { DiscountCode, Order, Producer } from "@/types";
 import {
+  filterSectionsForManualAddOrder,
   isAddOrderPerMixFieldKey,
   isMixInformationSectionTitle,
   MAX_ADD_ORDER_MIXES,
@@ -112,6 +113,11 @@ type MTDOrderDetailsProps = {
     onRemoveMix: (mixIndex: number) => void;
     maxMixes?: number;
   };
+  /**
+   * Add New Order only: hide Magento-only fields (city/zip, affiliate, songs,
+   * voiceovers, coupon, …). Magento fills those after Match.
+   */
+  manualAddSlim?: boolean;
 };
 
 function FieldLabel({
@@ -129,7 +135,7 @@ function FieldLabel({
   requiredMark?: boolean;
   provenance?: FieldProvenance;
 }) {
-  // Length of Mix Magento note — never show the parenthetical instruction.
+  // Length of Mix Magento note: never show the parenthetical instruction.
   const shown = /^length of mix\b/i.test(label) ? "Length of Mix" : label;
   const also = provenance?.alsoHas;
   return (
@@ -183,8 +189,8 @@ function FieldLabel({
 }
 
 export function formatDetailDisplay(value: string): string {
-  if (!value?.trim() || value === "—") return "";
-  return value.replace(/\s*[—–]\s*/g, ", ").trim();
+  if (!value?.trim() || value === "-") return "";
+  return value.replace(/\s*[—–-]\s*/g, ", ").trim();
 }
 
 function fieldSpanClass(key: string, label: string): string {
@@ -192,15 +198,22 @@ function fieldSpanClass(key: string, label: string): string {
     return "sm:col-span-2";
   }
   const haystack = `${key} ${label}`;
+  // Street / billing address only — not "Email Address" labels.
   if (
-    /address|street|songList|suggestions|routineNotes|script/i.test(haystack)
+    /billingAddress|schoolAddress|gymAddress|schoolGymAddress|street/i.test(
+      key
+    ) ||
+    (/\baddress\b/i.test(label) && !/email/i.test(haystack))
   ) {
+    return "sm:col-span-2 lg:col-span-3";
+  }
+  if (/songList|suggestions|routineNotes|script/i.test(haystack)) {
     return "sm:col-span-2 lg:col-span-3";
   }
   if (/howDidYouFindOut|find out/i.test(haystack)) {
     return "sm:col-span-2";
   }
-  if (/pronunciation|choreographer/i.test(haystack)) {
+  if (/pronunciation/i.test(haystack)) {
     return "sm:col-span-2 lg:col-span-3";
   }
   return "";
@@ -217,8 +230,11 @@ export function MTDOrderDetails({
   requiredFieldKeys,
   fieldSources,
   multiMix,
+  manualAddSlim = false,
 }: MTDOrderDetailsProps) {
-  const sections = getOrderDetailSections(order);
+  const sections = manualAddSlim
+    ? filterSectionsForManualAddOrder(getOrderDetailSections(order))
+    : getOrderDetailSections(order);
   const requiredKeys = requiredFieldKeys
     ? requiredFieldKeys instanceof Set
       ? requiredFieldKeys
@@ -239,7 +255,7 @@ export function MTDOrderDetails({
       {sections.map((section) => {
         const mixMode =
           Boolean(multiMix) && isMixInformationSectionTitle(section.title);
-        // Per-mix cheer fields live in Mix slots — hide elsewhere (Team, etc.).
+        // Per-mix cheer fields live in Mix slots: hide elsewhere (Team, etc.).
         const sectionFields = multiMix
           ? section.fields.filter((f) => !isAddOrderPerMixFieldKey(f.key))
           : section.fields;
@@ -258,7 +274,10 @@ export function MTDOrderDetails({
               {mixMode && multiMix && multiMix.mixes.length > 1 ? (
                 <p className="mt-0.5 text-[10px] font-medium text-brand-ink-secondary">
                   One section · {multiMix.mixes.length} mixes (separate orders
-                  on save). Affiliate & notes below are shared.
+                  on save)
+                  {manualAddSlim
+                    ? "."
+                    : ". Affiliate & notes below are shared."}
                 </p>
               ) : null}
             </div>
@@ -341,7 +360,7 @@ export function MTDOrderDetails({
                 isOrderEmailFieldKey(field.key) &&
                 Boolean(rawValue.trim()) &&
                 !isAcceptableOrderEmailValue(rawValue, field.key);
-              // Placeholder dictionary (none, N/A, TBD, …) — warn live, never block save.
+              // Placeholder dictionary (none, N/A, TBD, …): warn live, never block save.
               const placeholderInvalid =
                 editable &&
                 Boolean(rawValue.trim()) &&
@@ -476,7 +495,7 @@ export function MTDOrderDetails({
                 );
               }
 
-              // Dance (POM+) — customer-form affiliate checkboxes.
+              // Dance (POM+): customer-form affiliate checkboxes.
               if (
                 field.key === "musicAffiliate" &&
                 order.formType === "school-all-star-dance"
@@ -517,7 +536,7 @@ export function MTDOrderDetails({
                 );
               }
 
-              // Cheer Add Order / edit — SoftSelect with fuzzy spacing/caps/near-word match.
+              // Cheer Add Order / edit: SoftSelect with fuzzy spacing/caps/near-word match.
               if (
                 field.key === "musicAffiliate" &&
                 order.formType === "school-all-star-cheer" &&

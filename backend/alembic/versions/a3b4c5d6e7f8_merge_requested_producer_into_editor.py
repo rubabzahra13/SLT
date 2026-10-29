@@ -1,7 +1,7 @@
 """merge requested_producer into requested_editor
 
 Magento "Requested Editor/Producer" is one client preference.
-requested_producer was a legacy mirror — fold into requested_editor.
+requested_producer was a legacy mirror: fold into requested_editor.
 editor_request (FA / initials) stays separate for admin board codes.
 
 Revision ID: a3b4c5d6e7f8

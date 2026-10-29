@@ -8,7 +8,7 @@ import { generateProducerFacingPayrollCsv } from "../export-csv";
 import { getPayrollRecords } from "../mtd-completion";
 import { findProducerByAssignmentKey } from "../editor-assignment";
 
-describe("Prompt 8 — Payroll Producer Send-Preparation Workflow Tests", () => {
+describe("Prompt 8: Payroll Producer Send-Preparation Workflow Tests", () => {
   const { mtdRecords, orders: allOrders, producers } = getData();
   const payrollRecords = getPayrollRecords(mtdRecords);
 

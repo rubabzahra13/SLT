@@ -7,7 +7,6 @@ import { FilterMenu } from "@/components/ui/FilterMenu";
 import { MTDOrderDetails } from "@/components/mtd/MTDOrderDetails";
 import { useAppState } from "@/context/AppStateContext";
 import { formatApiClientError } from "@/lib/api/client";
-import type { CreateManualSchedulePayload } from "@/lib/api/mtd";
 import { orderPatchFromOrderField } from "@/lib/mtd-order-sync";
 import { packageTypeDisplayValue } from "@/components/mtd/PackageTypeField";
 import { getOrderIdentityName } from "@/lib/order-detail-sections";
@@ -38,7 +37,8 @@ import type {
 import {
   CHEER_FORM_SUBTABS,
   DANCE_FORM_SUBTABS,
-  ORDER_FORM_TABS,
+  MANUAL_MATCH_FORM_TABS,
+  supportsManualMatchForm,
 } from "@/types";
 
 type AddNewOrderModalProps = {
@@ -47,7 +47,7 @@ type AddNewOrderModalProps = {
   initialFormType?: OrderFormType;
   initialCheerSubtype?: CheerFormSubtypeFilter;
   initialDanceSubtype?: DanceFormSubtypeFilter;
-  onAdd: (payload: CreateManualSchedulePayload) => Promise<Order>;
+  onAdd: (order: Partial<Order>) => Promise<Order>;
 };
 
 function composePackageLabel(tierOrPackage: string, mixLength?: string): string {
@@ -144,7 +144,7 @@ function blankOrderDraft(
     division: "",
   } as Order);
 
-  // normalizeOrder may infer affiliate/songs — wipe for a true blank Google-style form.
+  // normalizeOrder may infer affiliate/songs: wipe for a true blank Google-style form.
   const cleared = {
     ...draft,
     isManualEntry: true,
@@ -218,10 +218,14 @@ export function AddNewOrderModal({
   initialDanceSubtype = "pom",
   onAdd,
 }: AddNewOrderModalProps) {
-  const { discountCodes, producers, updateOrder } = useAppState();
+  const { discountCodes, producers } = useAppState();
   const [mounted, setMounted] = useState(false);
 
-  const [formType, setFormType] = useState<OrderFormType>(initialFormType);
+  const [formType, setFormType] = useState<OrderFormType>(() =>
+    supportsManualMatchForm(initialFormType)
+      ? initialFormType
+      : "school-all-star-cheer"
+  );
   const [cheerSubtype, setCheerSubtype] = useState<CheerFormSubtype>(
     initialCheerSubtype === "all"
       ? "all-star-cheer"
@@ -234,7 +238,7 @@ export function AddNewOrderModal({
   );
 
   const [orderDraft, setOrderDraft] = useState<Order | null>(null);
-  /** Mix Information copies — each becomes its own order on save (max 10). */
+  /** Mix Information copies: each becomes its own order on save (max 10). */
   const [mixes, setMixes] = useState<Partial<Order>[]>([{}]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -255,7 +259,10 @@ export function AddNewOrderModal({
       return;
     }
 
-    const nextForm = initialFormType || "school-all-star-cheer";
+    const nextForm =
+      initialFormType && supportsManualMatchForm(initialFormType)
+        ? initialFormType
+        : "school-all-star-cheer";
     const nextCheer =
       !initialCheerSubtype || initialCheerSubtype === "all"
         ? "all-star-cheer"
@@ -349,6 +356,21 @@ export function AddNewOrderModal({
     orderDraft && supportsAddOrderMultiMix(orderDraft) && mixKeys.length > 0
   );
 
+  const mixListForSave = useMemo(() => {
+    if (!orderDraft) return [{}] as Partial<Order>[];
+    if (multiMixEnabled && mixes.length > 0) return mixes;
+    if (mixKeys.length > 0) return [pickMixFieldValues(orderDraft, mixKeys)];
+    return [{}];
+  }, [orderDraft, multiMixEnabled, mixes, mixKeys]);
+
+  const draftHasContent = useMemo(
+    () =>
+      orderDraft
+        ? addOrderDraftHasContent(orderDraft, mixListForSave, mixKeys)
+        : false,
+    [orderDraft, mixListForSave, mixKeys]
+  );
+
   const handleFormChange = (nextForm: OrderFormType) => {
     applyFormMeta(
       nextForm,
@@ -416,19 +438,12 @@ export function AddNewOrderModal({
     setError(null);
 
     const keys = mixKeys;
-    const mixList =
-      multiMixEnabled && mixes.length > 0
-        ? mixes
-        : keys.length > 0
-          ? [pickMixFieldValues(orderDraft, keys)]
-          : [{}];
+    const mixList = mixListForSave;
 
     // Admin Add Order: any field except coupon / how-did-you-find-out alone.
+    // Footer error (near Save): only after this click via showValidation.
     if (!addOrderDraftHasContent(orderDraft, mixList, keys)) {
       setShowValidation(true);
-      setError(
-        "Fill at least one field to save (pre-filled dropdowns, coupon, and how-you-found-us alone don’t count)."
-      );
       return;
     }
 
@@ -449,7 +464,7 @@ export function AddNewOrderModal({
 
     setSaving(true);
 
-    const { category, subcategory } = categoryLabelsForForm(
+    const { category } = categoryLabelsForForm(
       formType,
       cheerSubtype,
       danceSubtype
@@ -480,95 +495,46 @@ export function AddNewOrderModal({
           draft.programName ||
           "";
 
-        const created = await onAdd({
+        await onAdd({
+          ...draft,
+          isManualEntry: true,
           category,
-          subcategory,
-          form_type: formType,
-          cheer_form_subtype:
-            formType === "school-all-star-cheer" ? cheerSubtype : undefined,
-          dance_form_subtype:
-            formType === "school-all-star-dance" ? danceSubtype : undefined,
-          mix_start_date: null,
-          mix_end_date: null,
-          assigned_producer: null,
-          contact_name: contact.trim() || null,
-          email: draft.coachEmail || draft.coachEmailAddress || null,
-          coach_email: draft.coachEmail || draft.coachEmailAddress || null,
-          billing_person_email:
-            cheerSubtype === "youth-rec-cheer"
-              ? draft.billingPersonEmail?.trim() ||
-                draft.youthRecExtraEmailAddress?.trim() ||
-                draft.emailAddress?.trim() ||
-                null
-              : draft.billingPersonEmail?.trim() ||
-                draft.billingContactEmail?.trim() ||
-                null,
-          program_name: null,
-          school_gym_name:
-            draft.schoolName?.trim() ||
-            draft.gymName?.trim() ||
-            draft.schoolProgramName?.trim() ||
-            program.trim() ||
-            null,
-          team_name: draft.teamName?.trim() || null,
           package:
             formType === "school-anthem" ? "SCHOOL ANTHEMS" : selectedPkg,
-          time_length_of_mix: mixLength || null,
-          song_list_suggestions: draft.songListSuggestions || null,
-          power_music_covers: draft.powerMusicCovers || null,
-          routine_notes: draft.routineNotes || null,
-          custom_voiceovers: draft.customVoiceovers || null,
-          voiceover_script: draft.voiceoverScript || null,
-          pronunciation_guidance: draft.pronunciationGuidance || null,
-          received_eight_count_sheet: undefined,
-          video_url: null,
-          music_affiliate: draft.musicAffiliate || undefined,
+          packageType:
+            formType === "school-anthem"
+              ? "SCHOOL ANTHEMS"
+              : tier || draft.packageType,
+          price: formType === "school-anthem" ? 1250 : draft.price,
+          timeLengthOfMix: mixLength,
+          contactName: contact,
+          customerName: contact,
+          programName: program,
+          gymName:
+            draft.gymName?.trim() ||
+            (cheerSubtype === "all-star-cheer" ? program : ""),
+          schoolName:
+            draft.schoolName?.trim() || draft.gymName?.trim() || program,
+          formType,
+          cheerFormSubtype:
+            formType === "school-all-star-cheer" ? cheerSubtype : undefined,
+          danceFormSubtype:
+            formType === "school-all-star-dance" ? danceSubtype : undefined,
+          editorRequest:
+            draft.requestedEditor === "First Available" ||
+            !draft.requestedEditor
+              ? "FA"
+              : draft.requestedEditor,
+          requestedProducer: draft.requestedEditor || "",
+          musicTheme:
+            draft.songListSuggestions ||
+            draft.routineNotes ||
+            draft.musicTheme ||
+            "",
+          mixStartDate: "",
+          mixEndDate: "",
+          assignedProducer: "",
         });
-
-        await updateOrder(
-          created.id,
-          {
-            ...draft,
-            id: created.id,
-            isManualEntry: true,
-            category,
-            package:
-              formType === "school-anthem" ? "SCHOOL ANTHEMS" : selectedPkg,
-            packageType:
-              formType === "school-anthem"
-                ? "SCHOOL ANTHEMS"
-                : tier || draft.packageType,
-            price: formType === "school-anthem" ? 1250 : draft.price,
-            timeLengthOfMix: mixLength,
-            contactName: contact,
-            customerName: contact,
-            programName: program,
-            gymName:
-              draft.gymName?.trim() ||
-              (cheerSubtype === "all-star-cheer" ? program : ""),
-            schoolName:
-              draft.schoolName?.trim() ||
-              draft.gymName?.trim() ||
-              program,
-            formType,
-            cheerFormSubtype:
-              formType === "school-all-star-cheer" ? cheerSubtype : undefined,
-            danceFormSubtype:
-              formType === "school-all-star-dance" ? danceSubtype : undefined,
-            editorRequest:
-              draft.requestedEditor === "First Available" ||
-              !draft.requestedEditor
-                ? "FA"
-                : draft.requestedEditor,
-            requestedProducer: draft.requestedEditor || "",
-            musicTheme:
-              draft.songListSuggestions ||
-              draft.routineNotes ||
-              draft.musicTheme ||
-              "",
-          },
-          created
-        );
       }
 
       onClose();
@@ -593,7 +559,10 @@ export function AddNewOrderModal({
         DANCE_FORM_SUBTABS.find((s) => s.id === danceSubtype)?.label || "POM"
       );
     }
-    return ORDER_FORM_TABS.find((t) => t.id === formType)?.label || "New order";
+    return (
+      MANUAL_MATCH_FORM_TABS.find((t) => t.id === formType)?.label ||
+      "New order"
+    );
   }, [formType, cheerSubtype, danceSubtype]);
 
   if (!mounted || !open || !orderDraft) return null;
@@ -643,7 +612,7 @@ export function AddNewOrderModal({
               value={formType}
               onChange={(v) => handleFormChange(v as OrderFormType)}
               accent="orange"
-              options={ORDER_FORM_TABS.map(({ id, label }) => ({
+              options={MANUAL_MATCH_FORM_TABS.map(({ id, label }) => ({
                 value: id,
                 label,
               }))}
@@ -713,6 +682,8 @@ export function AddNewOrderModal({
             highlightMissing={showValidation}
             /** Empty allowlist: no field is mandatory / starred on Add Order. */
             requiredFieldKeys={[]}
+            /** Magento-only fields stay hidden until Match fills them. */
+            manualAddSlim
             onFieldChange={handleFieldChange}
             multiMix={
               multiMixEnabled
@@ -728,32 +699,43 @@ export function AddNewOrderModal({
           />
         </div>
 
-        <div className="flex shrink-0 items-center justify-end gap-2 border-t border-brand-line/60 bg-brand-bg/40 px-6 py-4">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={saving}
-            className="rounded-xl border border-brand-line/70 bg-white px-4 py-2 text-[13px] font-semibold text-brand-ink-secondary shadow-sm transition hover:bg-brand-bg disabled:opacity-50"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={() => void handleSave()}
-            disabled={saving}
-            className="inline-flex items-center gap-2 rounded-xl bg-brand-orange px-4 py-2 text-[13px] font-semibold text-white shadow-sm transition hover:bg-brand-orange-hover disabled:opacity-50"
-          >
-            {saving ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Saving…
-              </>
-            ) : multiMixEnabled && mixes.length > 1 ? (
-              `Save ${mixes.length} Orders`
-            ) : (
-              "Save Order"
-            )}
-          </button>
+        <div className="flex shrink-0 flex-col gap-3 border-t border-brand-line/60 bg-brand-bg/40 px-6 py-4">
+          {showValidation && !draftHasContent ? (
+            <div className="flex items-center gap-2 rounded-xl bg-red-50 p-3.5 text-[13px] font-medium text-red-700 ring-1 ring-inset ring-red-200">
+              <AlertCircle className="h-4 w-4 shrink-0 text-red-600" />
+              <span>
+                Add at least one order detail to save. Defaults, coupon codes,
+                and “how did you find us?” don’t count on their own.
+              </span>
+            </div>
+          ) : null}
+          <div className="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={saving}
+              className="rounded-xl border border-brand-line/70 bg-white px-4 py-2 text-[13px] font-semibold text-brand-ink-secondary shadow-sm transition hover:bg-brand-bg disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleSave()}
+              disabled={saving}
+              className="inline-flex items-center gap-2 rounded-xl bg-brand-orange px-4 py-2 text-[13px] font-semibold text-white shadow-sm transition hover:bg-brand-orange-hover disabled:opacity-50"
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Saving…
+                </>
+              ) : multiMixEnabled && mixes.length > 1 ? (
+                `Save ${mixes.length} Orders`
+              ) : (
+                "Save Order"
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>,

@@ -175,7 +175,7 @@ function extractDetailFieldsMap(order: Order): Map<string, { label: string; valu
 
   for (const section of sections) {
     for (const field of section.fields) {
-      if (field.value && field.value !== "—") {
+      if (field.value && field.value !== "-") {
         map.set(field.key, { label: field.label, value: field.value });
       }
     }
@@ -538,7 +538,7 @@ export function generatePayrollCsv(
       assignedProducer: voProducer?.name || addon.producerInitials || "",
       customerPrice: "",
       payrollBasePrice: "",
-      producerRate: "—",
+      producerRate: "-",
       voiceoverPayout: formatPrice(addon.amount),
       rushPayout: formatPrice(0),
       miscellaneousAdjustment: "",
@@ -990,7 +990,7 @@ export function getProducerFacingPayrollRows(
         }
       }
 
-      // Misc adjustments stay on the mix row — never emit a second line.
+      // Misc adjustments stay on the mix row: never emit a second line.
       if (addon.addonType === "misc_adjustment") return false;
       if (addon.addonType === "voiceover") return true;
       // Rush: standalone only
@@ -1004,7 +1004,7 @@ export function getProducerFacingPayrollRows(
         producers.find((p) => p.id === addon.producerId) ||
         findProducerByAssignmentKey(addon.producerInitials, producers);
 
-      // Same order/mix as the editor row — fill package & dates from that mix
+      // Same order/mix as the editor row: fill package & dates from that mix
       const linkedMix = findMixForPayrollAddon(addon, records);
       const mixMeta = linkedMix
         ? resolveMTDFormMeta(linkedMix, orderById)
@@ -1036,16 +1036,16 @@ export function getProducerFacingPayrollRows(
         subtype: mixMeta
           ? `${mixMeta.canonicalSubtypeId} · ${typeLabel}`
           : `${typeLabel} Add-on`,
-        package: linkedMix?.package || "—",
-        timeLimit: parsedPkg?.limit || "—",
+        package: linkedMix?.package || "-",
+        timeLimit: parsedPkg?.limit || "-",
         voiceoverAddon:
           addon.addonType === "voiceover" ? formatPrice(addon.amount) : "",
-        // Rush is for mix editors only — leave blank on VO rows
+        // Rush is for mix editors only: leave blank on VO rows
         rushFee: standaloneRush ? formatPrice(standaloneRush.total) : "",
-        // Mix-editor fields — not used on VO statement columns
+        // Mix-editor fields: not used on VO statement columns
         danceExtraSongs: "",
         danceExtraSongTime: "",
-        producerRate: addon.addonType === "voiceover" ? "VO" : "—",
+        producerRate: addon.addonType === "voiceover" ? "VO" : "-",
         voiceoverPayout:
           addon.addonType === "voiceover"
             ? formatPrice(addon.amount)
@@ -1154,15 +1154,15 @@ export function getProducerFacingScheduleRows(
     const prodName = prodObj?.name || rec.assignedProducer || "Unassigned";
 
     preparedRows.push({
-      mixStartDate: toIsoDateString(rec.mixStartDate) || "—",
-      mixEndDate: toIsoDateString(rec.mixEndDate ?? rec.mixStartDate) || "—",
+      mixStartDate: toIsoDateString(rec.mixStartDate) || "-",
+      mixEndDate: toIsoDateString(rec.mixEndDate ?? rec.mixStartDate) || "-",
       assignedProducer: prodName,
-      programName: rec.programName || "—",
-      contactName: rec.contactName || "—",
-      invoice: rec.invoice || "—",
+      programName: rec.programName || "-",
+      contactName: rec.contactName || "-",
+      invoice: rec.invoice || "-",
       category: getFormTypeLabel(meta.formType),
-      subtype: meta.canonicalSubtypeId || "—",
-      package: rec.package || "—",
+      subtype: meta.canonicalSubtypeId || "-",
+      package: rec.package || "-",
       status: "Ongoing",
       recId: rec.id,
     });

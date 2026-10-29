@@ -47,7 +47,7 @@ const mockProducer: Producer = normalizeProducer({
   rushFeeRate: 100,
 });
 
-describe("Prompt 3 — Detail View Context & Payroll Detail View Tests", () => {
+describe("Prompt 3: Detail View Context & Payroll Detail View Tests", () => {
   it("verifies route context mapping for Orders, MTD, and Payroll tabs", () => {
     const recordId = "rec-101";
 
@@ -56,10 +56,10 @@ describe("Prompt 3 — Detail View Context & Payroll Detail View Tests", () => {
         case "orders":
           return `/orders/${id}`;
         case "mtd":
-          // MTD has no detail page — deep links go to the list with focus.
+          // MTD has no detail page: deep links go to the list with focus.
           return `/mtd?focus=${id}`;
         case "payroll":
-          // Payroll has no detail page — deep links go to the list with focus.
+          // Payroll has no detail page: deep links go to the list with focus.
           return `/payroll?focus=${id}`;
       }
     };

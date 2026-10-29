@@ -78,7 +78,7 @@ describe("MTD view order", () => {
       rec("5", "AM"),
     ];
     const out = sortMTDRecordsByViewOrder(rows, "by_producer", producers);
-    // CP appears first in input, then AM — not A–Z by producer name.
+    // CP appears first in input, then AM: not A-Z by producer name.
     assert.deepEqual(
       out.map((r) => r.id),
       ["1", "4", "3", "5", "2"]
@@ -87,7 +87,7 @@ describe("MTD view order", () => {
 });
 
 describe("MTD sort by", () => {
-  it("sorts A–Z / Z–A by program name", () => {
+  it("sorts A-Z / Z-A by program name", () => {
     const rows = [
       rec("1", null, "Zebra"),
       rec("2", null, "Alpha"),

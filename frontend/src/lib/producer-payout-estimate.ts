@@ -84,7 +84,7 @@ export function estimateRecordProducerPayoutDetail(
     meta.canonicalSubtypeId,
     payrollPrice,
     {
-      // SE Magento rush is $100 × rushFeeRate — not Cheer $150×qty.
+      // SE Magento rush is $100 × rushFeeRate: not Cheer $150×qty.
       rushFeeQuantity: isSportsEntertainment ? 0 : rushFeeQuantity(rec),
       rushFeeCompensationRate:
         rec.rushFeeCompensationRate ?? producer?.rushFeeRate ?? 1.0,

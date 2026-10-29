@@ -41,7 +41,7 @@ export type MTDRecord = {
   waitingOn?: string | null;
   /** Admin CS status (HAVE CS / NEED CS) → received_eight_count_sheet. */
   eightCountSheet: string;
-  /** Form intent: will customer send/use 8-count sheets? (Yes/No) — not collection status. */
+  /** Form intent: will customer send/use 8-count sheets? (Yes/No): not collection status. */
   sendingEightCountSheets?: string;
   /** @deprecated alias of sendingEightCountSheets */
   usingEightCountSheets?: string;
@@ -51,7 +51,7 @@ export type MTDRecord = {
   recordStatus?: MTDRecordStatus;
   /** Completed mixes moved off the MTD board into payroll */
   inPayroll?: boolean;
-  /** Marked Paid — archived out of active payroll view */
+  /** Marked Paid: archived out of active payroll view */
   paidAt?: string | null;
   /** Explicitly moved from Orders staging to MTD */
   inMTD?: boolean;
@@ -93,7 +93,7 @@ export type MTDRecord = {
   /** Sports Ent Magento client rush answer (synced onto staging/MTD rows). */
   clientRequestedRushOrder?: "yes" | "no" | boolean | string;
   couponCode?: string;
-  /** Board display cache — payout/system/rate SoT is Orders. */
+  /** Board display cache: payout/system/rate SoT is Orders. */
   finalCustomerPrice?: number | null;
   finalPayrollPrice?: number | null;
   finalCustomerPriceOverridden?: boolean;
@@ -150,11 +150,11 @@ export type Producer = {
   /** Display count for Producers cards; not used for live schedule logic. */
   mixesThisWeek: number;
   /**
-   * Computed at runtime by schedule enrichment — not stored in DB.
+   * Computed at runtime by schedule enrichment: not stored in DB.
    * Prefer `calculateProducerNextOpening` / enrich helpers.
    */
   nextAvailable?: string;
-  /** Computed at runtime by schedule enrichment — not stored in DB. */
+  /** Computed at runtime by schedule enrichment: not stored in DB. */
   status?: "available" | "limited" | "unavailable";
   /** Days of the week this producer normally works */
   workDays: Weekday[];
@@ -229,6 +229,21 @@ export const ORDER_FORM_TABS: { id: OrderFormType; label: string }[] = [
   { id: "sports-entertainment", label: "Sports Entertainment" },
   { id: "school-anthem", label: "School Anthem" },
 ];
+
+/**
+ * Forms where admins create New Order manuals and use Match Orders.
+ * Sports Entertainment + School Anthem are Magento-only (no manual create / match).
+ */
+export const MANUAL_MATCH_FORM_TABS: {
+  id: OrderFormType;
+  label: string;
+}[] = ORDER_FORM_TABS.filter(
+  (t) => t.id !== "sports-entertainment" && t.id !== "school-anthem"
+);
+
+export function supportsManualMatchForm(formType: OrderFormType): boolean {
+  return MANUAL_MATCH_FORM_TABS.some((t) => t.id === formType);
+}
 
 export type CheerFormSubtype =
   | "all-star-cheer"
@@ -639,9 +654,9 @@ export type SportsEntertainmentCustomerFields = {
   billingContactName: string;
   billingContactEmail: string;
   packageType: string;
-  /** Magento client-requested due date — not admin mix_end_date. */
+  /** Magento client-requested due date: not admin mix_end_date. */
   clientRequestedMixDueDate: string;
-  /** Magento client rush Yes/No — not admin is_rush_order. */
+  /** Magento client rush Yes/No: not admin is_rush_order. */
   clientRequestedRushOrder: "yes" | "no" | boolean | string;
   timeLengthOfMix: string;
   customerSongs: string;
@@ -665,7 +680,7 @@ export type SchoolAnthemCustomerFields = {
   schoolProgramColors: string;
   nicknames: string;
   vocalsPreference: string;
-  /** Magento "Instrumental Style Preference" — same DB col as marching band notes. */
+  /** Magento "Instrumental Style Preference": same DB col as marching band notes. */
   instrumentationNotes: string;
   lyricalNotes: string;
   couponCode: string;
@@ -797,7 +812,7 @@ export type Order = {
   vocalsPreference?: string;
   /** Alias of instrumentationNotes (School Anthem Magento label). */
   instrumentalStylePreference?: string;
-  /** POM order form — school / program */
+  /** POM order form: school / program */
   schoolProgramName?: string;
   schoolAddress?: string;
   schoolGymAddress?: string;
@@ -900,7 +915,7 @@ export type Order = {
    * Shown under fields as "Manually added data"; restored on Split. Never rewritten by later edits.
    */
   manualOverlapSnapshot?: Record<string, unknown> | null;
-  /** After admin Split — do not auto-absorb by program-name similarity. */
+  /** After admin Split: do not auto-absorb by program-name similarity. */
   suppressManualFormMerge?: boolean;
   /**
    * Cheer form multi-affiliate checkbox accident:
@@ -946,7 +961,7 @@ export type ScheduleCellStatus =
   | "nonwork";
 
 /**
- * Bell inbox only — new Magento orders, flagged multi-affiliate holds,
+ * Bell inbox only: new Magento orders, flagged multi-affiliate holds,
  * producer leave starting tomorrow, daily Limit full, and Gmail connect/disconnect.
  * Transient UX feedback uses AppAlert (toast), not the bell.
  */
@@ -973,7 +988,7 @@ export type AppNotification = {
 
 export type AppAlertTone = "info" | "success" | "warning" | "error";
 
-/** Ephemeral toast — not stored in the notification bell. */
+/** Ephemeral toast: not stored in the notification bell. */
 export type AppAlert = {
   id: string;
   tone: AppAlertTone;
@@ -1058,7 +1073,7 @@ export type PayrollAddon = {
   addonType: "voiceover" | "rush_fee" | "misc_adjustment";
   /**
    * Dollar amount. Rush fees: unitAmount × quantity (customer).
-   * misc_adjustment: signed — positive adds to payroll, negative deducts.
+   * misc_adjustment: signed: positive adds to payroll, negative deducts.
    */
   amount: number;
   /** Rush fee quantity. Null on voiceover rows and legacy rush rows. */
@@ -1073,7 +1088,7 @@ export type PayrollAddon = {
   compensationOverridden?: boolean;
   /** "predefined" | "manual" */
   rateSource: "predefined" | "manual";
-  /** Required — which producer this payout goes to */
+  /** Required: which producer this payout goes to */
   producerId?: string | null;
   producerInitials?: string | null;
   notes?: string | null;

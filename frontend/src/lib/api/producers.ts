@@ -231,7 +231,7 @@ function authHeaderFromStorage(): string {
 
 /**
  * Authenticated fetch-based SSE (EventSource cannot set Authorization).
- * Hit the API host directly — Next.js rewrites buffer streams and break SSE.
+ * Hit the API host directly: Next.js rewrites buffer streams and break SSE.
  * Calls onEvent for each parsed message until aborted / connection drops.
  */
 export async function subscribeProducerStream(

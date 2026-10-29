@@ -45,7 +45,7 @@ const mockProducerMary: Producer = {
 
 const anchorDate = new Date(2026, 8, 10); // Sept 10, 2026
 
-describe("Schedule Tab — Extended 6 Month Range and Multi-Mix Resolution", () => {
+describe("Schedule Tab: Extended 6 Month Range and Multi-Mix Resolution", () => {
   it("supports all four date-range view options (week, month, 90days, 6months)", () => {
     const ranges: ScheduleViewRange[] = ["week", "month", "90days", "6months"];
 
@@ -59,13 +59,13 @@ describe("Schedule Tab — Extended 6 Month Range and Multi-Mix Resolution", () 
         assert.equal(cells[cells.length - 1]?.key, "2026-09-30");
       }
       if (range === "90days") {
-        // Sep–Nov 2026: 30+31+30 = 91
+        // Sep-Nov 2026: 30+31+30 = 91
         assert.equal(cells.length, 91);
         assert.equal(cells[0]?.key, "2026-09-01");
         assert.equal(cells[cells.length - 1]?.key, "2026-11-30");
       }
       if (range === "6months") {
-        // Sep 2026–Feb 2027: 30+31+30+31+31+28 = 181
+        // Sep 2026-Feb 2027: 30+31+30+31+31+28 = 181
         assert.equal(cells[0]?.key, "2026-09-01");
         assert.equal(cells[cells.length - 1]?.key, "2027-02-28");
         assert.equal(cells.length, 181);

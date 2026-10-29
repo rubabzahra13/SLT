@@ -34,7 +34,7 @@ const TABLE_COVERED_FIELD_KEYS = new Set([
   "eightCountSheet",
 ]);
 
-/** Always optional — empty is fine on every form (never red / never block MTD). */
+/** Always optional: empty is fine on every form (never red / never block MTD). */
 const ALWAYS_OPTIONAL_FORM_FIELD_KEYS = new Set([
   "couponCode",
   "invoice",
@@ -47,20 +47,20 @@ const ALWAYS_OPTIONAL_FORM_FIELD_KEYS = new Set([
   // Youth Rec Magento "Email Address" aliases (form key is billingPersonEmail).
   "youthRecExtraEmailAddress",
   "emailAddress",
-  // Dance Magento cover boxes — optional even when that affiliate is selected.
+  // Dance Magento cover boxes: optional even when that affiliate is selected.
   "powerMusicCovers",
   "unleashTheBeatsCovers",
 ]);
 
 /**
  * Optional on most forms, but required on School Anthem (Magento SoT).
- * Coupon stays always-optional — Magento does not require it.
+ * Coupon stays always-optional: Magento does not require it.
  * Youth Rec Colors are required on Youth Rec (not in this set).
  * Team colors on All-Star / School Cheer stay required via teamColors key.
  */
 const OPTIONAL_EXCEPT_SCHOOL_ANTHEM = new Set([
   // Marching Band producer notes are optional; School Anthem Song/Notes are required.
-  // (Aliases of song_list_suggestions / routine_notes — Anthem form keys.)
+  // (Aliases of song_list_suggestions / routine_notes: Anthem form keys.)
   "instrumentationNotes",
   "instrumentalStylePreference",
   "lyricalNotes",
@@ -130,7 +130,7 @@ function orderHasMatchedMagentoForm(order: Order): boolean {
   return Boolean(snap && Object.keys(snap).length > 0);
 }
 
-/** Split/No Split exists on VIROC, School Cheer, Youth Rec — not All Star Cheer. */
+/** Split/No Split exists on VIROC, School Cheer, Youth Rec: not All Star Cheer. */
 export const CHEER_SUBTYPES_WITH_SPLIT = new Set([
   "school-cheer-viroc-yes",
   "school-cheer-viroc-no",
@@ -144,7 +144,7 @@ export function orderHasSplitField(order: {
 }
 
 function fieldHasConditionalPass(order: Order, key: string): boolean {
-  // All Star Cheer (and non-cheer forms) have no Split field — never block MTD.
+  // All Star Cheer (and non-cheer forms) have no Split field: never block MTD.
   if (key === "splitOrNoSplit") {
     const subtype = order.cheerFormSubtype || "all-star-cheer";
     if (!CHEER_SUBTYPES_WITH_SPLIT.has(subtype)) return true;
@@ -169,7 +169,7 @@ function isEmptyFormValue(order: Order, key: string): boolean {
   return !hasMeaningfulFieldValue(raw, { fieldKey: key });
 }
 
-/** Red (missing) in the order form editor — skips table-covered columns. */
+/** Red (missing) in the order form editor: skips table-covered columns. */
 export function isOrderFormFieldMissing(order: Order, key: string): boolean {
   if (isOptionalOrderFormField(key, order)) return false;
   if (TABLE_COVERED_FIELD_KEYS.has(key)) return false;
@@ -235,7 +235,7 @@ export function formatOrderFormMtdBlockReason(gaps: OrderFormMtdGap[]): string {
   ].join("\n");
 }
 
-/** Marketing-only Magento fields — alone they do not unlock Add New Order save. */
+/** Marketing-only Magento fields: alone they do not unlock Add New Order save. */
 const ADD_ORDER_NON_CONTENT_KEYS = new Set([
   "couponCode",
   "howDidYouFindOut",
@@ -267,7 +267,7 @@ export function isAddOrderPrefillValue(
   ) {
     return true;
   }
-  // Subtype-driven Yes/No on school cheer — not user-entered content.
+  // Subtype-driven Yes/No on school cheer: not user-entered content.
   if (key === "varsityVirocCustomer" && (lower === "yes" || lower === "no")) {
     return true;
   }
@@ -284,7 +284,7 @@ export function isAddOrderPrefillValue(
 /**
  * Add New Order (admin): any meaningful user-entered field unlocks save.
  * Coupon / how-found, and blank-draft dropdown defaults, do not count alone.
- * Identity name is not required — Match suggestions need it later if empty.
+ * Identity name is not required: Match suggestions need it later if empty.
  */
 export function orderHasAddOrderContent(order: Order): boolean {
   const sections = getOrderDetailSections(order);
@@ -306,5 +306,5 @@ export function getAddOrderRequiredGaps(order: Order): OrderFormMtdGap[] {
 
 export function formatAddOrderSaveBlockReason(gaps: OrderFormMtdGap[]): string {
   if (gaps.length === 0) return "";
-  return "Fill at least one field to save (pre-filled dropdowns, coupon, and how-you-found-us alone don’t count).";
+  return "Add at least one order detail to save. Defaults, coupon codes, and “how did you find us?” don’t count on their own.";
 }

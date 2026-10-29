@@ -6,7 +6,7 @@ import {
   SPORTS_ENTERTAINMENT_RATE_CARD,
 } from "../pricing-engine";
 
-describe("Prompt 6 — Sports Entertainment Pricing Engine Unit Tests", () => {
+describe("Prompt 6: Sports Entertainment Pricing Engine Unit Tests", () => {
   it("Rate Card completeness: contains all 3 Sports Entertainment packages", () => {
     assert.equal(SPORTS_ENTERTAINMENT_RATE_CARD.length, 3);
     assert.deepEqual(
@@ -111,7 +111,7 @@ describe("Prompt 6 — Sports Entertainment Pricing Engine Unit Tests", () => {
     assert.equal(res.payrollBasePrice, 350);
   });
 
-  it("does not use Cheer/Dance $150 misc rush — SE customer rush is always $100", () => {
+  it("does not use Cheer/Dance $150 misc rush: SE customer rush is always $100", () => {
     const res = calculateSportsEntertainmentOrderPricing({
       packageType: "QUARTER BREAK / TIMEOUT REMIXED",
       isRushOrder: "yes",

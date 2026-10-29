@@ -7,16 +7,19 @@ type OrderFormTabsProps = {
   form: OrderFormType;
   onFormChange: (form: OrderFormType) => void;
   formCounts: Record<OrderFormType, number>;
+  /** Defaults to all form tabs; Match passes manuals-only tabs. */
+  tabs?: readonly { id: OrderFormType; label: string }[];
 };
 
 /**
- * Inline form pills with counts — distinct from subtype underline tabs.
+ * Inline form pills with counts: distinct from subtype underline tabs.
  * `w-fit` / `self-start` so a column parent doesn’t stretch the pill strip.
  */
 export function OrderFormTabs({
   form,
   onFormChange,
   formCounts,
+  tabs = ORDER_FORM_TABS,
 }: OrderFormTabsProps) {
   return (
     <div
@@ -24,7 +27,7 @@ export function OrderFormTabs({
       role="tablist"
       aria-label="Form"
     >
-      {ORDER_FORM_TABS.map(({ id, label }) => {
+      {tabs.map(({ id, label }) => {
         const active = form === id;
         const count = formCounts[id] ?? 0;
         return (

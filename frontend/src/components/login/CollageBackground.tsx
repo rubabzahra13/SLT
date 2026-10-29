@@ -2,7 +2,7 @@
 
 import clsx from "clsx";
 
-/** Pre-made category scrapbook assets — one per SLT vertical */
+/** Pre-made category scrapbook assets: one per SLT vertical */
 const SCRAP_ASSETS = {
   marchingBand: "/login/scrap-marching-band.png",
   cheer: "/login/scrap-cheer.png",

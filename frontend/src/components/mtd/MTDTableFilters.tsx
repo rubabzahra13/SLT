@@ -55,7 +55,7 @@ type MTDTableFilterPanelProps = {
   variant?: "mtd" | "orders";
 };
 
-/** Split/No Split applies to VIROC, School Cheer, Youth Rec — not All Star Cheer. */
+/** Split/No Split applies to VIROC, School Cheer, Youth Rec: not All Star Cheer. */
 function showCheerSplitFilter(
   form?: OrderFormType,
   cheerSubtype?: CheerFormSubtypeFilter
@@ -157,7 +157,7 @@ export function MTDTableFilterPanel({
   const showSplit = showCheerSplitFilter(form, cheerSubtype);
   const activeCount = countTableFilters(filters, form, variant, cheerSubtype);
 
-  // All Star Cheer has no Split field — drop a leftover Split filter.
+  // All Star Cheer has no Split field: drop a leftover Split filter.
   useEffect(() => {
     if (!showSplit && filters.split !== "all") {
       onChange({ split: "all" });
@@ -471,7 +471,7 @@ export const DEFAULT_MTD_TABLE_FILTERS: MTDTableFilterState = {
   sortBy: "newest",
 };
 
-/** Standalone Sort control — lives outside Filters, defaults to Newest. */
+/** Standalone Sort control: lives outside Filters, defaults to Newest. */
 export function MTDSortMenu({
   value,
   onChange,

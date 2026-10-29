@@ -1,7 +1,7 @@
 """merge viroc_choreographer_email into choreographer_email
 
 V!ROC Magento "V!ROC Choreographer Email" is the same contact
-as "Choreographer Email" on other forms — one SoT column.
+as "Choreographer Email" on other forms: one SoT column.
 
 Revision ID: z2a3b4c5d6e7
 Revises: y1z2a3b4c5d6
