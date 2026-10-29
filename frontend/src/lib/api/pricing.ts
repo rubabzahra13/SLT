@@ -88,6 +88,11 @@ export interface CompletePricingRequest {
   music_affiliate?: string | null;
   addons?: AddonsInput;
   final_customer_price_override?: number | null;
+  /** Package payroll after music compliancy, before add-ons. */
+  base_payroll_price?: number | null;
+  /** Full payroll the Complete modal compensates on. */
+  payroll_base_price?: number | null;
+  compliance_status?: string | null;
 }
 
 export interface FinalizePayrollRequest {

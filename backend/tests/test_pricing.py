@@ -17,7 +17,12 @@ import pytest
 
 from app.services.classification import classify_order
 from app.services.compliance import resolve_compliance
-from app.services.pricing import calculate_pricing, apply_sports_entertainment_payroll_rush, PricingBreakdown
+from app.services.pricing import (
+    calculate_pricing,
+    apply_modal_compliance_payroll,
+    apply_sports_entertainment_payroll_rush,
+    PricingBreakdown,
+)
 from app.services.compensation import calculate_compensation
 
 
@@ -247,6 +252,31 @@ class TestManualPricingPackage:
 
         again = apply_sports_entertainment_payroll_rush(rushed)
         assert again.payroll_base_price == Decimal("350")
+
+    def test_modal_compliance_payroll_replaces_full_package_base(self):
+        bd = PricingBreakdown(
+            form_type="school-all-star-cheer",
+            canonical_subtype_id="all-star-cheer",
+            package_id="gold",
+            package_name="GOLD",
+            pricing_rule_id=None,
+            compliance_status="compliant",
+            compliance_reason="",
+            canonical_affiliate="Power Music",
+            base_customer_price=Decimal("950"),
+            base_payroll_price=Decimal("950"),
+            system_calculated_customer_price=Decimal("950"),
+            payroll_base_price=Decimal("950"),
+        )
+        applied = apply_modal_compliance_payroll(
+            bd,
+            base_payroll_price=Decimal("800"),
+            payroll_base_price=Decimal("800"),
+            compliance_status="compliant",
+        )
+        assert applied.base_customer_price == Decimal("950")
+        assert applied.base_payroll_price == Decimal("800")
+        assert applied.payroll_base_price == Decimal("800")
 
     def test_unrecognised_package_needs_manual(self, db):
         bd = calculate_pricing(

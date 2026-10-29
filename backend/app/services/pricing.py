@@ -344,6 +344,22 @@ SPORTS_ENTERTAINMENT_RUSH_ADDON_ID = "sports_entertainment_rush"
 SPORTS_ENTERTAINMENT_RUSH_AMOUNT = Decimal("100")
 
 
+def apply_modal_compliance_payroll(
+    breakdown: PricingBreakdown,
+    base_payroll_price: Optional[Decimal] = None,
+    payroll_base_price: Optional[Decimal] = None,
+    compliance_status: Optional[str] = None,
+) -> PricingBreakdown:
+    """Replace the engine payroll with the Complete modal's compliancy result."""
+    if base_payroll_price is not None:
+        breakdown.base_payroll_price = base_payroll_price
+    if payroll_base_price is not None:
+        breakdown.payroll_base_price = payroll_base_price
+    if compliance_status:
+        breakdown.compliance_status = compliance_status
+    return breakdown
+
+
 def apply_sports_entertainment_payroll_rush(
     breakdown: PricingBreakdown,
 ) -> PricingBreakdown:

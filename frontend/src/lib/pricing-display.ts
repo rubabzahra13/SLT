@@ -126,6 +126,38 @@ export function finalizedPackageProducerPayout(
   return null;
 }
 
+/**
+ * Locked producer_payout wins when it was computed on the same payroll base
+ * the Complete modal uses. When that saved base dropped music compliancy
+ * (Cheer/Dance payroll higher than the compliant column), use the rate × the
+ * modal's payroll base instead.
+ */
+export function packagePayoutMatchingCompliance(
+  order: {
+    rateSource?: string | null;
+    producerPayout?: number | null;
+  } | null | undefined,
+  calculatedPayout: number | null | undefined,
+  savedPayrollPrice: number | null | undefined,
+  livePayrollPrice: number | null | undefined,
+  formType?: string | null
+): number | null {
+  const locked = finalizedPackageProducerPayout(order, calculatedPayout);
+  const complianceForm =
+    formType === "school-all-star-cheer" || formType === "school-all-star-dance";
+  if (
+    complianceForm &&
+    locked != null &&
+    calculatedPayout != null &&
+    typeof savedPayrollPrice === "number" &&
+    typeof livePayrollPrice === "number" &&
+    livePayrollPrice + 0.05 < savedPayrollPrice
+  ) {
+    return calculatedPayout;
+  }
+  return locked;
+}
+
 export type PayrollOptions = {
   rushFeeQuantity?: number;
   rushFeeCompensationRate?: number | null;

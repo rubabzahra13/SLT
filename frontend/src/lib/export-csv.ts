@@ -14,10 +14,11 @@ import { isPreMTDOrderRecord, resolveMTDFormMeta } from "./mtd-filters";
 import { orderFromMTDRecord } from "./order-detail-fields";
 import { getOrderDetailSections, getFormTypeLabel } from "./order-detail-sections";
 import { parsePackage } from "./package";
+import { payrollAmountsForRow } from "./order-package-price";
 import {
   computeClientPayroll,
-  finalizedPackageProducerPayout,
   finalizedPayrollRate,
+  packagePayoutMatchingCompliance,
 } from "./pricing-display";
 import { formatCompensationPercent } from "./producers";
 import { payrollRowIsRushOrder } from "./forward-order-mail";
@@ -417,8 +418,9 @@ export function generatePayrollCsv(
       }
     }
 
-    const custPrice = order?.finalCustomerPrice ?? rec.finalCustomerPrice ?? rec.price;
-    const payrollPrice = rec.finalPayrollPrice ?? order?.finalPayrollPrice ?? rec.price;
+    const priced = payrollAmountsForRow(rec, order, meta, orderById);
+    const custPrice = priced.customerPrice;
+    const payrollPrice = priced.payrollPrice;
     const rush = resolveRushFeeSelection({
       isRush: payrollRowIsRushOrder(rec, linked),
       producerRate: producerObj?.rushFeeRate,
@@ -462,7 +464,13 @@ export function generatePayrollCsv(
 
     const isDance = meta.formType === "school-all-star-dance";
     const basePayout =
-      finalizedPackageProducerPayout(order, calc.producerPayout) ?? 0;
+      packagePayoutMatchingCompliance(
+        order,
+        calc.producerPayout,
+        priced.savedPayrollPrice,
+        payrollPrice,
+        meta.formType
+      ) ?? 0;
     const rushPayout = rush.compensation;
     const withRush = finalizeMixPayout(basePayout, calc.status, rush) ?? basePayout;
     const miscAdj = miscAdjustmentAmount(rec.id, rec.orderId, payrollAddons);
@@ -815,8 +823,9 @@ export function getProducerFacingPayrollRows(
     const producerObj = findProducerByAssignmentKey(rec.assignedProducer, producers);
     const parsedPkg = parsePackage(rec.package);
 
-    const custPrice = order?.finalCustomerPrice ?? rec.finalCustomerPrice ?? rec.price;
-    const payrollPrice = rec.finalPayrollPrice ?? order?.finalPayrollPrice ?? rec.price;
+    const priced = payrollAmountsForRow(rec, order, meta, orderById);
+    const custPrice = priced.customerPrice;
+    const payrollPrice = priced.payrollPrice;
     const rowRushAddon = payrollAddons?.find((a) =>
       matchAddonToRecord(a, rec, "rush_fee", producerObj)
     );
@@ -866,7 +875,13 @@ export function getProducerFacingPayrollRows(
     if (rowRushAddon && rush.quantity > 0) usedAddonIds.add(rowRushAddon.id);
 
     const basePayout =
-      finalizedPackageProducerPayout(order, calc.producerPayout) ?? 0;
+      packagePayoutMatchingCompliance(
+        order,
+        calc.producerPayout,
+        priced.savedPayrollPrice,
+        payrollPrice,
+        meta.formType
+      ) ?? 0;
     const rushPayout = rush.compensation;
     const withRush = finalizeMixPayout(basePayout, calc.status, rush) ?? basePayout;
     const miscAdj = miscAdjustmentAmount(

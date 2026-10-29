@@ -700,7 +700,6 @@ function MTDPageContent() {
     const showDanceVoiceover = false; // Removed from MTD per spec (Voiceover is strictly Payroll internal)
     const showMusicAffiliate =
       form === "school-all-star-cheer" || form === "school-all-star-dance";
-    const showMarchingAddons = form === "marching-band";
     const showCouponCode = formSupportsCouponCode(form);
     const showRequestedProducer = formHasRequestedProducer(
       form,
@@ -1036,8 +1035,6 @@ function MTDPageContent() {
             const mbPricing = calculateMarchingBandOrderPricing({
               packageType: order?.packageType || rec.package,
               musicAffiliate: order?.musicAffiliate,
-              hasSheetMusicAdd: rec.hasSheetMusicAdd,
-              hasAddVocals: rec.hasAddVocals,
             });
             engineCustomerPrice = mbPricing.customerFacingPrice;
           } else if (meta.formType === "sports-entertainment") {
@@ -1361,50 +1358,6 @@ function MTDPageContent() {
               record={rec}
               readOnly={isViewOnly}
               onUpdate={(id, patch) => updateMTD(id, patch)}
-            />
-          </div>
-        ),
-      });
-    }
-
-    if (showMarchingAddons) {
-      baseCols.push({
-        key: "sheetMusicCol",
-        header: "Sheet Music",
-        width: "95px",
-        align: "center",
-        nowrap: false,
-        cellClassName: "!px-2 !py-2",
-        headerClassName: "!px-2",
-        render: (rec) => (
-          <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
-            <InlineTwoStateToggle
-              value={Boolean(rec.hasSheetMusicAdd)}
-              readOnly={isViewOnly}
-              onToggle={() =>
-                updateMTD(rec.id, { hasSheetMusicAdd: !rec.hasSheetMusicAdd })
-              }
-            />
-          </div>
-        ),
-      });
-
-      baseCols.push({
-        key: "addVocalsCol",
-        header: "Add Vocals",
-        width: "95px",
-        align: "center",
-        nowrap: false,
-        cellClassName: "!px-2 !py-2",
-        headerClassName: "!px-2",
-        render: (rec) => (
-          <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
-            <InlineTwoStateToggle
-              value={Boolean(rec.hasAddVocals)}
-              readOnly={isViewOnly}
-              onToggle={() =>
-                updateMTD(rec.id, { hasAddVocals: !rec.hasAddVocals })
-              }
             />
           </div>
         ),

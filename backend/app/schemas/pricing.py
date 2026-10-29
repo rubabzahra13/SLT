@@ -39,6 +39,14 @@ class CompletePricingRequest(BaseModel):
     addons: Optional[AddonsInput] = None
     # Optional: Megan's price override (if she sets a different customer-facing price)
     final_customer_price_override: Optional[float] = None
+    # Complete-to-Payroll modal amounts. These already include music compliancy
+    # from the Pricing Reference columns. Persisting them keeps Payroll and the
+    # payout view on the same base the modal showed.
+    # base_payroll_price: package payroll after compliancy, before add-ons.
+    # payroll_base_price: full payroll the modal compensates on (add-ons included).
+    base_payroll_price: Optional[float] = None
+    payroll_base_price: Optional[float] = None
+    compliance_status: Optional[str] = None
 
 
 class FinalizePayrollRequest(BaseModel):

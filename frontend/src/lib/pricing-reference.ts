@@ -388,10 +388,7 @@ const DEFAULT_CATEGORY_ADDONS: Record<CategoryKey, PricingReferenceAddOn[]> = {
     { name: "Traditional VO", price: "+$25" },
     { name: "Themed VO (up to 5)", price: "+$75" },
   ],
-  "Marching Band": [
-    { name: "Sheet Music Add", price: "+$50" },
-    { name: "Add Vocals", price: "+$75" },
-  ],
+  "Marching Band": [],
   "Sports Entertainment": [
     { name: "Rush Order (needed in under 7 days)", price: "+$100" },
   ],

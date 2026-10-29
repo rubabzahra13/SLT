@@ -204,7 +204,7 @@ describe("Prompt 5 — Marching Band Pricing Engine Unit Tests", () => {
     assert.equal(custom.payrollBasePrice, 350);
   });
 
-  it("BAND CHANT + add-ons: payroll = $600 + $50 + $75", () => {
+  it("BAND CHANT ignores retired Sheet Music and Add Vocals flags", () => {
     const res = calculateMarchingBandOrderPricing({
       packageType: "BAND CHANT",
       musicAffiliate: "Power Music + Unleash the Beats",
@@ -212,7 +212,7 @@ describe("Prompt 5 — Marching Band Pricing Engine Unit Tests", () => {
       hasAddVocals: true,
     });
     assert.equal(res.customerFacingPrice, 600);
-    assert.equal(res.payrollBasePrice, 725);
+    assert.equal(res.payrollBasePrice, 600);
   });
 
   it("Fight Song Plus must not match cheaper Fight Song Original", () => {
@@ -289,7 +289,7 @@ describe("Prompt 5 — Marching Band Pricing Engine Unit Tests", () => {
     assert.equal(res.alwaysFixedPayroll, true);
   });
 
-  it("Legacy Plus parenthetical still resolves; add-ons apply", () => {
+  it("Legacy Plus parenthetical still resolves; retired add-on flags do not change price", () => {
     const res = calculateMarchingBandOrderPricing({
       packageType: "ALMA MATER PLUS (Written & Recorded Lyrics)",
       hasSheetMusicAdd: true,
@@ -297,7 +297,7 @@ describe("Prompt 5 — Marching Band Pricing Engine Unit Tests", () => {
     });
 
     assert.equal(res.customerFacingPrice, 2250);
-    assert.equal(res.payrollBasePrice, 2375);
+    assert.equal(res.payrollBasePrice, 2250);
     assert.equal(res.packageName, "ALMA MATER PLUS");
     assert.equal(res.alwaysFixedPayroll, true);
   });

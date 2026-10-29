@@ -77,10 +77,11 @@ import type {
   PayrollAddon,
 } from "@/types";
 
+import { payrollAmountsForRow } from "@/lib/order-package-price";
 import {
   computeClientPayroll,
-  finalizedPackageProducerPayout,
   finalizedPayrollRate,
+  packagePayoutMatchingCompliance,
 } from "@/lib/pricing-display";
 import {
   compensationRatesEqual,
@@ -96,6 +97,7 @@ import {
 } from "@/lib/rush-fee";
 import { HoverTip } from "@/components/ui/HoverTip";
 import {
+  filterPayrollAddonsForForm,
   getPayrollSendProducerNames,
   resolvePayrollSendEditorProducers,
 } from "@/lib/payroll-send-filters";
@@ -493,8 +495,9 @@ export default function PayrollPage() {
     const mixTotal = filtered.reduce((sum, rec) => {
       const { order, producerObj, selection } = rushStateForRecord(rec);
       const meta = resolveMTDFormMeta(rec, orderById);
-      const custPrice = order?.finalCustomerPrice ?? rec.finalCustomerPrice ?? rec.price;
-      const payrollPrice = order?.finalPayrollPrice ?? rec.finalPayrollPrice ?? rec.price;
+      const priced = payrollAmountsForRow(rec, order, meta, orderById);
+      const custPrice = priced.customerPrice;
+      const payrollPrice = priced.payrollPrice;
       const selectedRate = finalizedPayrollRate(order);
 
       const seRushFee =
@@ -529,7 +532,14 @@ export default function PayrollPage() {
           rushFeeCompensationRate: producerObj?.rushFeeRate ?? 1.0,
         }
       );
-      const base = finalizedPackageProducerPayout(order, calc.producerPayout) ?? 0;
+      const base =
+        packagePayoutMatchingCompliance(
+          order,
+          calc.producerPayout,
+          priced.savedPayrollPrice,
+          payrollPrice,
+          meta.formType
+        ) ?? 0;
       const withRush = finalizeMixPayout(base, calc.status, selection) ?? 0;
       const misc = miscAdjustmentAmount(rec.id, rec.orderId, payrollAddons);
       const payout = applyMiscAdjustmentToPayout(withRush, misc) ?? withRush;
@@ -543,8 +553,23 @@ export default function PayrollPage() {
   }, [filtered, orderById, payrollAddons, rushStateForRecord]);
 
   const voiceoverCount = useMemo(
-    () => payrollAddons.filter((a) => a.addonType === "voiceover").length,
-    [payrollAddons]
+    () =>
+      filterPayrollAddonsForForm(
+        payrollAddons,
+        form,
+        cheerSubtype,
+        danceSubtype,
+        payrollRecords,
+        orderById
+      ).filter((a) => a.addonType === "voiceover").length,
+    [
+      payrollAddons,
+      form,
+      cheerSubtype,
+      danceSubtype,
+      payrollRecords,
+      orderById,
+    ]
   );
 
   const formCounts = useMemo(
@@ -899,6 +924,21 @@ export default function PayrollPage() {
     [payrollRecords, orderById, form, cheerSubtype, danceSubtype]
   );
 
+  // Voiceovers are Cheer|Dance-tagged; scope them to the active form tab so
+  // Cheer VOs never appear on Sports Entertainment / Band / Anthem statements.
+  const sendPayrollAddons = useMemo(
+    () =>
+      filterPayrollAddonsForForm(
+        payrollAddons,
+        form,
+        cheerSubtype,
+        danceSubtype,
+        payrollRecords,
+        orderById
+      ),
+    [payrollAddons, form, cheerSubtype, danceSubtype, payrollRecords, orderById]
+  );
+
   const sendProducerNames = useMemo(
     () =>
       getPayrollSendProducerNames(
@@ -909,7 +949,8 @@ export default function PayrollPage() {
         cheerSubtype,
         danceSubtype,
         sendPayPeriodBounds,
-        payrollAddons
+        sendPayrollAddons,
+        payrollRecords
       ),
     [
       sendPayrollRecords,
@@ -919,7 +960,8 @@ export default function PayrollPage() {
       cheerSubtype,
       danceSubtype,
       sendPayPeriodBounds,
-      payrollAddons,
+      sendPayrollAddons,
+      payrollRecords,
     ]
   );
 
@@ -1149,8 +1191,9 @@ export default function PayrollPage() {
           const { order, producerObj, selection } = rushStateForRecord(rec);
           const model = producerObj?.compensationModel;
           const meta = resolveMTDFormMeta(rec, orderById);
-          const custPrice = order?.finalCustomerPrice ?? rec.finalCustomerPrice ?? rec.price;
-          const payrollPrice = order?.finalPayrollPrice ?? rec.finalPayrollPrice ?? rec.price;
+          const priced = payrollAmountsForRow(rec, order, meta, orderById);
+          const custPrice = priced.customerPrice;
+          const payrollPrice = priced.payrollPrice;
 
           const selectedRate = finalizedPayrollRate(order);
 
@@ -1188,7 +1231,13 @@ export default function PayrollPage() {
           );
 
           const withRush = finalizeMixPayout(
-            finalizedPackageProducerPayout(order, calculated.producerPayout),
+            packagePayoutMatchingCompliance(
+              order,
+              calculated.producerPayout,
+              priced.savedPayrollPrice,
+              payrollPrice,
+              meta.formType
+            ),
             calculated.status,
             selection
           );
@@ -1767,7 +1816,7 @@ export default function PayrollPage() {
             payrollRecords={sendPayrollRecords}
             allOrders={allOrders}
             producers={producers}
-            payrollAddons={payrollAddons}
+            payrollAddons={sendPayrollAddons}
           />
         )}
       </div>

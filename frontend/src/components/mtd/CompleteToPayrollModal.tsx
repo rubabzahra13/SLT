@@ -215,14 +215,10 @@ export function CompleteToPayrollModal({
 
         } else if (meta.formType === "marching-band") {
           canonicalSubtypeId = "marching-band";
-          const sheetMusic = Boolean(currentRec.hasSheetMusicAdd ?? (order as any)?.hasSheetMusicAdd);
-          const addVocals = Boolean(currentRec.hasAddVocals ?? (order as any)?.hasAddVocals);
 
           const mbResult = calculateMarchingBandOrderPricing({
             packageType: pkgName,
             musicAffiliate: affiliate,
-            hasSheetMusicAdd: sheetMusic,
-            hasAddVocals: addVocals,
           });
 
           enginePricing = {
@@ -241,27 +237,6 @@ export function CompleteToPayrollModal({
             complianceReason = `Band Chant / Drum Cadence: music affiliate '${affiliate || "Approved Affiliate"}' is compliant.`;
           } else {
             complianceReason = `Band Chant / Drum Cadence: music affiliate '${affiliate || "Unapproved"}' is non-compliant.`;
-          }
-
-          if (sheetMusic) {
-            addons.push({
-              addon_id: "sheet_music_add",
-              label: "Sheet Music Add",
-              customer_amount: 50,
-              payroll_amount: 50,
-              quantity: 1,
-              note: "Fixed fee add-on (Marching Band)",
-            });
-          }
-          if (addVocals) {
-            addons.push({
-              addon_id: "add_vocals",
-              label: "Add Vocals",
-              customer_amount: 75,
-              payroll_amount: 75,
-              quantity: 1,
-              note: "Fixed fee add-on (Marching Band)",
-            });
           }
 
           baseCust = mbResult.matchedEntry?.customer ?? currentRec.price;
@@ -758,10 +733,27 @@ export function CompleteToPayrollModal({
         const isSports =
           breakdown?.form_type === "sports-entertainment" ||
           linkedOrder.formType === "sports-entertainment";
+        const addonPayroll = (breakdown?.addons || []).reduce((sum, addon) => {
+          if (addon.addon_id === "rush_fee" || addon.addon_id === "rush_order") {
+            return sum;
+          }
+          return sum + (Number(addon.payroll_amount) || 0);
+        }, 0);
+        const compliancePackagePayroll =
+          Math.round((finalPayrollPriceNum - addonPayroll) * 100) / 100;
         await completePricingApi(linkedOrder.id, {
           final_customer_price_override: isCustomerPriceOverridden
             ? finalCustomerPriceNum
             : undefined,
+          // Carry the modal's music-compliancy payroll. The server engine
+          // otherwise saves the full package and Payroll loses the reduction.
+          ...(finalPayrollPriceNum > 0
+            ? {
+                base_payroll_price: compliancePackagePayroll,
+                payroll_base_price: finalPayrollPriceNum,
+                compliance_status: breakdown?.compliance_status,
+              }
+            : {}),
           // Dance extras and the SE $100 rush must be in the saved payroll base.
           // The customer package (Pre-Game $250) is not reduced by that rush.
           addons:

@@ -27,6 +27,96 @@ function resolveAddonProducerName(
   return null;
 }
 
+/**
+ * VO rows are stored as Cheer|Dance only. Map form tabs to that bucket, or null
+ * for forms that must resolve via a linked mix (SE / Band / Anthem).
+ */
+export function voiceoverCategoryBucketForForm(
+  form: OrderFormType
+): "Cheer" | "Dance" | null {
+  if (form === "school-all-star-dance") return "Dance";
+  if (form === "school-all-star-cheer") return "Cheer";
+  return null;
+}
+
+/** Resolve VO → mix by mtdId / orderId only (no program-name guess). */
+function findLinkedMixById(
+  addon: PayrollAddon,
+  records: MTDRecord[]
+): MTDRecord | null {
+  const aMtd = addon.mtdId ? String(addon.mtdId).trim() : "";
+  const aOrd = addon.orderId ? String(addon.orderId).trim() : "";
+  if (aMtd) {
+    const byMtd = records.find(
+      (r) =>
+        String(r.id).trim() === aMtd || String(r.orderId || "").trim() === aMtd
+    );
+    if (byMtd) return byMtd;
+  }
+  if (aOrd) {
+    const byOrd = records.find(
+      (r) =>
+        String(r.orderId || "").trim() === aOrd || String(r.id).trim() === aOrd
+    );
+    if (byOrd) return byOrd;
+  }
+  return null;
+}
+
+/**
+ * Whether a voiceover belongs on the current Send Statements / Voiceovers form tab.
+ * Prefer the linked mix's form; unlinked VOs only appear on Cheer/Dance tabs.
+ */
+export function voiceoverMatchesFormFilter(
+  addon: PayrollAddon,
+  form: OrderFormType,
+  cheerSubtype: CheerFormSubtypeFilter,
+  danceSubtype: DanceFormSubtypeFilter,
+  allPayrollRecords: MTDRecord[],
+  orderById: Map<string, Order>
+): boolean {
+  if (addon.addonType !== "voiceover") return true;
+
+  const linked = findLinkedMixById(addon, allPayrollRecords);
+  if (linked) {
+    return matchesFormFilter(
+      linked,
+      orderById,
+      form,
+      cheerSubtype,
+      danceSubtype
+    );
+  }
+
+  const bucket = voiceoverCategoryBucketForForm(form);
+  if (!bucket) return false;
+  const category = String(addon.category || "").trim();
+  if (!category) return true;
+  return category.toLowerCase() === bucket.toLowerCase();
+}
+
+/** Non-voiceover addons pass through; voiceovers are scoped to the form tab. */
+export function filterPayrollAddonsForForm(
+  payrollAddons: PayrollAddon[],
+  form: OrderFormType,
+  cheerSubtype: CheerFormSubtypeFilter,
+  danceSubtype: DanceFormSubtypeFilter,
+  allPayrollRecords: MTDRecord[],
+  orderById: Map<string, Order>
+): PayrollAddon[] {
+  return payrollAddons.filter((addon) => {
+    if (addon.addonType !== "voiceover") return true;
+    return voiceoverMatchesFormFilter(
+      addon,
+      form,
+      cheerSubtype,
+      danceSubtype,
+      allPayrollRecords,
+      orderById
+    );
+  });
+}
+
 export function getPayrollSendProducerNames(
   payrollRecords: MTDRecord[],
   orderById: Map<string, Order>,
@@ -35,7 +125,9 @@ export function getPayrollSendProducerNames(
   cheerSubtype: CheerFormSubtypeFilter,
   danceSubtype: DanceFormSubtypeFilter,
   filterPeriod: { start: string; end: string },
-  payrollAddons: PayrollAddon[] = []
+  payrollAddons: PayrollAddon[] = [],
+  /** Full payroll board — used to resolve VO links outside the form-filtered set. */
+  allPayrollRecords: MTDRecord[] = payrollRecords
 ): string[] {
   const set = new Set<string>();
 
@@ -55,28 +147,26 @@ export function getPayrollSendProducerNames(
     if (name) set.add(name);
   }
 
-  // VO-only producers must get statements even when they have no mix rows
-  const formCategory = form === "school-all-star-dance" ? "Dance" : "Cheer";
+  // VO-only producers must get statements even when they have no mix rows —
+  // but only for VOs that belong to this form tab.
   for (const addon of payrollAddons) {
     if (addon.addonType !== "voiceover") continue;
-    if (addon.category && addon.category !== formCategory) continue;
+    if (
+      !voiceoverMatchesFormFilter(
+        addon,
+        form,
+        cheerSubtype,
+        danceSubtype,
+        allPayrollRecords,
+        orderById
+      )
+    ) {
+      continue;
+    }
     if (filterPeriod.start || filterPeriod.end) {
       const linked =
-        (addon.mtdId &&
-          payrollRecords.find(
-            (r) => r.id === addon.mtdId || r.orderId === addon.mtdId
-          )) ||
-        (addon.orderId &&
-          payrollRecords.find(
-            (r) => r.orderId === addon.orderId || r.id === addon.orderId
-          )) ||
-        (addon.programName
-          ? payrollRecords.find(
-              (r) =>
-                r.programName?.trim().toUpperCase() ===
-                addon.programName.trim().toUpperCase()
-            )
-          : undefined);
+        findLinkedMixById(addon, allPayrollRecords) ||
+        findLinkedMixById(addon, payrollRecords);
       const rangeStart =
         linked?.completedAt || linked?.mixStartDate || addon.createdAt || "";
       const rangeEnd =

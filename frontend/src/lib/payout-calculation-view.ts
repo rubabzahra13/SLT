@@ -20,10 +20,11 @@ import {
   resolveDanceExtraSongsQuantity,
 } from "@/lib/export-csv";
 import { miscAdjustmentAmount, applyMiscAdjustmentToPayout } from "@/lib/misc-payroll-adjustment";
+import { payrollAmountsForRow } from "@/lib/order-package-price";
 import {
   computeClientPayroll,
-  finalizedPackageProducerPayout,
   finalizedPayrollRate,
+  packagePayoutMatchingCompliance,
 } from "@/lib/pricing-display";
 import { formatCompensationPercent } from "@/lib/producers";
 import {
@@ -86,7 +87,7 @@ export function buildPayoutCalculationView(input: {
     record.assignedProducer,
     producers
   );
-  const meta = resolveMTDFormMeta(record, new Map(
+  const orderById = new Map(
     allOrders.flatMap((o) => {
       const pairs: [string, Order][] = [];
       if (o.id) pairs.push([o.id, o]);
@@ -94,20 +95,15 @@ export function buildPayoutCalculationView(input: {
       if (o.uuid) pairs.push([o.uuid, o]);
       return pairs;
     })
-  ));
+  );
+  const meta = resolveMTDFormMeta(record, orderById);
 
   const isDance = meta.formType === "school-all-star-dance";
   const isSports = meta.formType === "sports-entertainment";
-  const packagePrice =
-    asNumber(order?.finalCustomerPrice) ??
-    asNumber(record.finalCustomerPrice) ??
-    asNumber(order?.price) ??
-    asNumber(record.price) ??
-    0;
-  const payrollPrice =
-    asNumber(order?.finalPayrollPrice) ??
-    asNumber(record.finalPayrollPrice) ??
-    packagePrice;
+  const priced = payrollAmountsForRow(record, order, meta, orderById);
+  const packagePrice = priced.customerPrice;
+  const payrollPrice = priced.payrollPrice;
+  const savedPayrollPrice = priced.savedPayrollPrice;
 
   const songQty = isDance ? resolveDanceExtraSongsQuantity(record, order) : 0;
   const timeQty = isDance
@@ -226,9 +222,12 @@ export function buildPayoutCalculationView(input: {
     }
   );
 
-  const packagePortion = finalizedPackageProducerPayout(
+  const packagePortion = packagePayoutMatchingCompliance(
     order,
-    calc.producerPayout
+    calc.producerPayout,
+    savedPayrollPrice,
+    payrollPrice,
+    meta.formType
   );
   const rateLabel =
     formatCompensationPercent(selectedRate ?? calc.rateUsed) ?? "—";

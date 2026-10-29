@@ -25,7 +25,8 @@ describe("Prompt 9 — New Categories Completion Modal Pricing & Coupon Integrat
 
       assert.equal(result.matchedEntry?.package, "BAND CHANT");
       assert.equal(result.matchedEntry?.customer, 600);
-      assert.equal(result.customerFacingPrice, 600); // Base package price $600 (add-ons are separate)
+      assert.equal(result.customerFacingPrice, 600);
+      assert.equal(result.payrollBasePrice, 600);
       assert.equal(result.complianceStatus, "unknown-no-affiliate-field");
 
       // Coupon matching is informational only — prices stay unchanged.

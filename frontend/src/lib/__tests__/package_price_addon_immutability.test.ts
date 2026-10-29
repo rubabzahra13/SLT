@@ -92,7 +92,7 @@ describe("Add-On Pricing Invariant Tests — Package Price Must Not Change", () 
       hasAddVocals: true,
     });
     assert.equal(mbRes.customerFacingPrice, 600);
-    assert.equal(mbRes.payrollBasePrice, 725); // $600 + $125
+    assert.equal(mbRes.payrollBasePrice, 600);
 
     // Sports Entertainment Rush Fee
     const seRes = calculateSportsEntertainmentOrderPricing({
@@ -100,7 +100,7 @@ describe("Add-On Pricing Invariant Tests — Package Price Must Not Change", () 
       isRushOrder: "yes",
     });
     assert.equal(seRes.customerFacingPrice, 250);
-    assert.equal(seRes.payrollBasePrice, 400); // $250 + $150
+    assert.equal(seRes.payrollBasePrice, 350); // $250 + $100 SE rush
   });
 
   it("Test 7 — Compliance & Non-Compliance: Compliance affects payroll base but Package Price is immutable", () => {

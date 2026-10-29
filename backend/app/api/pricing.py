@@ -26,6 +26,7 @@ from app.schemas.pricing import (
 )
 from app.services.pricing import (
     calculate_pricing,
+    apply_modal_compliance_payroll,
     apply_sports_entertainment_payroll_rush,
     PricingBreakdown,
 )
@@ -193,6 +194,28 @@ def complete_pricing(
     # payroll only, and the customer package (Pre-Game $250) stays put.
     if _sports_entertainment_rush_requested(order, addons_dict):
         breakdown = apply_sports_entertainment_payroll_rush(breakdown)
+
+    # Modal already resolved compliant vs non-compliant payroll. Keep that
+    # base so finalize and the Payroll view do not fall back to the full package.
+    if (
+        payload.base_payroll_price is not None
+        or payload.payroll_base_price is not None
+        or payload.compliance_status
+    ):
+        breakdown = apply_modal_compliance_payroll(
+            breakdown,
+            base_payroll_price=(
+                Decimal(str(payload.base_payroll_price))
+                if payload.base_payroll_price is not None
+                else None
+            ),
+            payroll_base_price=(
+                Decimal(str(payload.payroll_base_price))
+                if payload.payroll_base_price is not None
+                else None
+            ),
+            compliance_status=payload.compliance_status,
+        )
 
     # Persist
     sys_price = breakdown.system_calculated_customer_price

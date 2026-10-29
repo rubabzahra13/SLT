@@ -209,8 +209,6 @@ function runEngine(
     return calculateMarchingBandOrderPricing({
       packageType,
       musicAffiliate: order?.musicAffiliate,
-      hasSheetMusicAdd: rec.hasSheetMusicAdd,
-      hasAddVocals: rec.hasAddVocals,
     });
   }
   if (meta.formType === "sports-entertainment") {
@@ -405,6 +403,50 @@ export function resolveLiveOrderPricing(
     engineCustomerPrice: engineCustomer,
     enginePayrollPrice: enginePayroll,
     isOverridden,
+  };
+}
+
+/**
+ * Customer package and payroll base the Complete-to-Payroll modal shows
+ * (Pricing Reference compliant / non-compliant columns). Falls back to the
+ * saved order prices when the rate card has no match.
+ */
+export function payrollAmountsForRow(
+  rec: MTDRecord,
+  order: Order | null | undefined,
+  meta?: MTDFormMeta | null,
+  orderById?: Map<string, Order>
+): {
+  customerPrice: number;
+  payrollPrice: number;
+  savedPayrollPrice: number | null;
+} {
+  let liveCustomer = 0;
+  let livePayroll = 0;
+  try {
+    const live = resolveLiveOrderPricing(rec, order, meta, orderById);
+    liveCustomer = live.customerPrice;
+    livePayroll = live.payrollPrice;
+  } catch {
+    liveCustomer = 0;
+    livePayroll = 0;
+  }
+  const savedCustomer =
+    (typeof order?.finalCustomerPrice === "number" ? order.finalCustomerPrice : null) ??
+    (typeof rec.finalCustomerPrice === "number" ? rec.finalCustomerPrice : null) ??
+    (typeof order?.price === "number" ? order.price : null) ??
+    (typeof rec.price === "number" ? rec.price : null) ??
+    0;
+  const savedPayroll =
+    typeof order?.finalPayrollPrice === "number" && Number.isFinite(order.finalPayrollPrice)
+      ? order.finalPayrollPrice
+      : typeof rec.finalPayrollPrice === "number" && Number.isFinite(rec.finalPayrollPrice)
+        ? rec.finalPayrollPrice
+        : null;
+  return {
+    customerPrice: liveCustomer > 0 ? liveCustomer : savedCustomer,
+    payrollPrice: livePayroll > 0 ? livePayroll : (savedPayroll ?? savedCustomer),
+    savedPayrollPrice: savedPayroll,
   };
 }
 

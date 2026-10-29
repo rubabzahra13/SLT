@@ -13,10 +13,17 @@ import {
   countMTDByCheerSubtype,
   countMTDByDanceSubtype,
   countMTDByForm,
-  matchesFormFilter,
 } from "@/lib/mtd-filters";
 import { getPayrollRecords } from "@/lib/mtd-completion";
 import { producerMatchesScheduleFormFilter } from "@/lib/schedule-filters";
+import {
+  findVoiceoverProgramMatch,
+  voiceoverProgramNames,
+} from "@/lib/voiceover-program-options";
+import {
+  filterPayrollAddonsForForm,
+  voiceoverCategoryBucketForForm,
+} from "@/lib/payroll-send-filters";
 import type { CreatePayrollAddonPayload } from "@/lib/api/payroll-addons";
 import type {
   CheerFormSubtypeFilter,
@@ -41,7 +48,7 @@ const DANCE_RATES = [
 ];
 
 function categoryFromForm(form: OrderFormType): "Cheer" | "Dance" {
-  return form === "school-all-star-dance" ? "Dance" : "Cheer";
+  return voiceoverCategoryBucketForForm(form) ?? "Cheer";
 }
 
 type VoiceoversPanelProps = {
@@ -83,14 +90,35 @@ export function VoiceoversPanel({
     }
   }
 
+  const payrollBoardRecords = useMemo(
+    () => getPayrollRecords(mtdRecords),
+    [mtdRecords]
+  );
+
+  const orderById = useMemo(
+    () => new Map(allOrders.map((order) => [order.id, order])),
+    [allOrders]
+  );
+
   const voiceovers = useMemo(() => {
-    const pageCategory = categoryFromForm(pageForm);
-    return payrollAddons
-      .filter(
-        (a) => a.addonType === "voiceover" && a.category === pageCategory
-      )
+    return filterPayrollAddonsForForm(
+      payrollAddons,
+      pageForm,
+      pageCheerSubtype,
+      pageDanceSubtype,
+      payrollBoardRecords,
+      orderById
+    )
+      .filter((a) => a.addonType === "voiceover")
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  }, [payrollAddons, pageForm]);
+  }, [
+    payrollAddons,
+    pageForm,
+    pageCheerSubtype,
+    pageDanceSubtype,
+    payrollBoardRecords,
+    orderById,
+  ]);
 
   const total = useMemo(
     () => voiceovers.reduce((sum, a) => sum + a.amount, 0),
@@ -325,14 +353,6 @@ function VoiceoverEntryModal({
 
   const payrollMixes = useMemo(() => getPayrollRecords(mtdRecords), [mtdRecords]);
 
-  const formFilteredMixes = useMemo(
-    () =>
-      payrollMixes.filter((rec) =>
-        matchesFormFilter(rec, orderById, form, cheerSubtype, danceSubtype)
-      ),
-    [payrollMixes, orderById, form, cheerSubtype, danceSubtype]
-  );
-
   const formCounts = useMemo(
     () => countMTDByForm(payrollMixes, orderById),
     [payrollMixes, orderById]
@@ -373,18 +393,17 @@ function VoiceoverEntryModal({
   );
 
   const programOptions: SoftSelectOption[] = useMemo(() => {
-    const names = new Set<string>();
-    for (const rec of formFilteredMixes) {
-      const name = rec.programName?.trim();
-      if (name) names.add(name);
+    const names = voiceoverProgramNames(allOrders, mtdRecords);
+    const current = programName.trim();
+    if (
+      current &&
+      !names.some((name) => name.toUpperCase() === current.toUpperCase())
+    ) {
+      names.push(current);
+      names.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
     }
-    if (programName.trim() && !names.has(programName.trim())) {
-      names.add(programName.trim());
-    }
-    return [...names]
-      .sort((a, b) => a.localeCompare(b))
-      .map((name) => ({ value: name, label: titleCase(name) }));
-  }, [formFilteredMixes, programName]);
+    return names.map((name) => ({ value: name, label: titleCase(name) }));
+  }, [allOrders, mtdRecords, programName]);
 
   function switchForm(next: OrderFormType) {
     setForm(next);
@@ -410,17 +429,6 @@ function VoiceoverEntryModal({
       setProducerId("");
     }
   }, [producerId, producers, form, cheerSubtype, danceSubtype, editing]);
-
-  // Clear program when it is no longer in the filtered Payroll list
-  useEffect(() => {
-    if (!programName.trim() || editing) return;
-    const stillListed = formFilteredMixes.some(
-      (rec) =>
-        rec.programName?.trim().toLowerCase() ===
-        programName.trim().toLowerCase()
-    );
-    if (!stillListed) setProgramName("");
-  }, [programName, formFilteredMixes, editing]);
 
   useEffect(() => {
     if (!open) return;
@@ -498,23 +506,24 @@ function VoiceoverEntryModal({
       amount = selectedRate.value!;
     }
 
-    // Link to the payroll mix for this program so statement details fill from the order
-    const linkedMix =
-      formFilteredMixes.find(
-        (rec) =>
-          rec.programName?.trim().toLowerCase() ===
-          programName.trim().toLowerCase()
-      ) ?? null;
+    const linked = findVoiceoverProgramMatch(
+      programName,
+      allOrders,
+      mtdRecords
+    );
 
     setSaving(true);
     try {
       await onSave({
-        orderId: linkedMix?.orderId || linkedMix?.id || null,
-        mtdId: linkedMix?.id || null,
+        orderId: linked.order?.id || linked.record?.orderId || linked.record?.id || null,
+        mtdId: linked.record?.id || null,
         programName: programName.trim(),
         teamName:
-          (linkedMix as { teamName?: string } | null)?.teamName?.trim() || null,
-        contactName: linkedMix?.contactName || null,
+          linked.order?.teamName?.trim() ||
+          (linked.record as { teamName?: string } | null)?.teamName?.trim() ||
+          null,
+        contactName:
+          linked.order?.contactName || linked.record?.contactName || null,
         category,
         addonType: "voiceover",
         amount,
@@ -622,7 +631,7 @@ function VoiceoverEntryModal({
               searchPlaceholder="Search programs…"
               placeholder={
                 programOptions.length === 0
-                  ? "No programs on Payroll for this form…"
+                  ? "No programs in the system…"
                   : "Select program…"
               }
               value={programName}

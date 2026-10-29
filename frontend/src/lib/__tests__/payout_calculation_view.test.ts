@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { buildPayoutCalculationView } from "../payout-calculation-view";
+import { packagePayoutMatchingCompliance } from "../pricing-display";
 import type { MTDRecord, Order, PayrollAddon, Producer } from "@/types";
 
 const producer = {
@@ -24,6 +25,30 @@ const producer = {
 function line(view: ReturnType<typeof buildPayoutCalculationView>, label: string) {
   return view.lines.find((row) => row.label === label);
 }
+
+describe("package payout when compliancy was dropped", () => {
+  it("uses the compliant payroll base when the saved base is the full package", () => {
+    const payout = packagePayoutMatchingCompliance(
+      { rateSource: "manual_override", producerPayout: 665 },
+      560,
+      950,
+      800,
+      "school-all-star-cheer"
+    );
+    assert.equal(payout, 560);
+  });
+
+  it("keeps the saved payout when the saved payroll base already matches", () => {
+    const payout = packagePayoutMatchingCompliance(
+      { rateSource: "manual_override", producerPayout: 424 },
+      424,
+      800,
+      800,
+      "school-all-star-cheer"
+    );
+    assert.equal(payout, 424);
+  });
+});
 
 describe("payout calculation view", () => {
   it("shows cheer package, music compliancy reduction, and saved rate", () => {

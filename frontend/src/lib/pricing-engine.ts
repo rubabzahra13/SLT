@@ -945,30 +945,7 @@ export function calculateMiscellaneousPayrollAddons(
     totalPayrollAddOns += 50;
   }
 
-  if (Boolean(item.hasSheetMusicAdd)) {
-    items.push({
-      id: "sheet_music_add",
-      label: "Sheet Music Add",
-      customerAmount: 0,
-      payrollAmount: 50,
-      quantity: 1,
-      note: "Add-on (Marching Band)",
-    });
-    totalPayrollAddOns += 50;
-  }
-
-  if (Boolean(item.hasAddVocals)) {
-    items.push({
-      id: "add_vocals",
-      label: "Add Vocals",
-      customerAmount: 0,
-      payrollAmount: 75,
-      quantity: 1,
-      note: "Add-on (Marching Band)",
-    });
-    totalPayrollAddOns += 75;
-  }
-
+  // Sheet Music and Add Vocals are retired. Stored flags must not change price.
   return { items, totalPayrollAddOns };
 }
 
@@ -1356,7 +1333,9 @@ export function lookupMarchingBandRateCardEntry(
 export type MarchingBandPricingEngineInput = {
   packageType?: string;
   musicAffiliate?: string;
+  /** Retired. Ignored so a stored Yes cannot add Sheet Music dollars. */
   hasSheetMusicAdd?: boolean;
+  /** Retired. Ignored so a stored Yes cannot add Add Vocals dollars. */
   hasAddVocals?: boolean;
 };
 
