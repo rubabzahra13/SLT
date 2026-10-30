@@ -191,22 +191,33 @@ describe("Assign Producer Availability Logic", () => {
     assert.deepEqual(over.overCostDays, ["2026-09-15"]);
   });
 
-  it("Test 3c: Completed, outsourced, and in-payroll mixes don't count toward limits", () => {
+  it("Test 3c: Completed and in-payroll mixes don't count; Outsourced does", () => {
     const producer = createMockProducer({ maxMixesPerDay: 1 });
     const base = {
       assignedProducer: "Casey Marlow",
       mixStartDate: "2026-09-14",
       mixEndDate: "2026-09-18",
     };
-    const records = [
+    const closed = [
       createMockRecord({ ...base, id: "done", recordStatus: "Completed", status: "completed" }),
-      createMockRecord({ ...base, id: "out", recordStatus: "Outsourced", status: "outsourced" }),
       createMockRecord({ ...base, id: "pay", inPayroll: true }),
     ];
+    const closedCheck = checkProducerDailyLimits(producer, "2026-09-14", "2026-09-18", closed);
+    assert.deepEqual(closedCheck.overMixDays, []);
+    assert.equal(closedCheck.peakMixDay?.bookedMixes, 0);
 
-    const check = checkProducerDailyLimits(producer, "2026-09-14", "2026-09-18", records);
-    assert.deepEqual(check.overMixDays, []);
-    assert.equal(check.peakMixDay?.bookedMixes, 0);
+    const outsourced = [
+      createMockRecord({
+        ...base,
+        id: "out",
+        recordStatus: "Outsourced",
+        status: "outsourced",
+        inMTD: true,
+      }),
+    ];
+    const outCheck = checkProducerDailyLimits(producer, "2026-09-14", "2026-09-18", outsourced);
+    assert.equal(outCheck.peakMixDay?.bookedMixes, 1);
+    assert.ok(outCheck.overMixDays.length > 0);
   });
 
   it("Test 4: Editor who does not work Monday is NOT eligible for Sep 14 mix", () => {
@@ -394,5 +405,58 @@ describe("Assign Producer Availability Logic", () => {
       ),
       false
     );
+  });
+
+  it("max mixes and max cost count All-Star Cheer bookings while assigning School Anthem", () => {
+    const producer = createMockProducer({
+      maxMixesPerDay: 2,
+      maxProducerCostPerDay: 500,
+    });
+    const cheer = [
+      createMockRecord({
+        id: "c1",
+        programName: "Cheer A",
+        assignedProducer: "Casey Marlow",
+        category: "All-Star Cheer",
+        formType: "school-all-star-cheer",
+        cheerFormSubtype: "all-star-cheer",
+        mixStartDate: "2026-09-14",
+        mixEndDate: "2026-09-14",
+        finalPayrollPrice: 200,
+      }),
+      createMockRecord({
+        id: "c2",
+        programName: "Cheer B",
+        assignedProducer: "Casey Marlow",
+        category: "All-Star Cheer",
+        formType: "school-all-star-cheer",
+        cheerFormSubtype: "all-star-cheer",
+        mixStartDate: "2026-09-14",
+        mixEndDate: "2026-09-14",
+        finalPayrollPrice: 200,
+      }),
+    ];
+    const schoolAnthem = {
+      matchCategory: "School Anthem",
+      matchFormType: "school-anthem",
+    };
+    const check = checkProducerDailyLimits(
+      producer,
+      "2026-09-14",
+      "2026-09-14",
+      cheer,
+      schoolAnthem
+    );
+    assert.equal(check.peakMixDay?.bookedMixes, 2);
+    assert.ok(check.overMixDays.includes("2026-09-14"));
+    assert.equal(check.peakCostDay?.bookedCost, 400);
+
+    const bookings = listProducerMixBookingsOnDay(
+      producer,
+      "2026-09-14",
+      cheer,
+      schoolAnthem
+    );
+    assert.equal(bookings.length, 2);
   });
 });

@@ -121,9 +121,9 @@ export function describeScheduleOffDetail(
  *
  * NOTE: We deliberately do NOT randomly generate "mix" statuses here.
  * A cell is marked "mix" only when `coveringAssignments()` finds a real
- * eligible MTD record (Ongoing + assigned + valid dates) covering that date.
- * Random/hash-based "mix" generation was removed because it produced phantom
- * bookings that had no backing database record.
+ * eligible booking (Orders Assigned or MTD Ongoing/Outsourced, with dates)
+ * covering that date. Random/hash-based "mix" generation was removed because
+ * it produced phantom bookings that had no backing database record.
  */
 function inferStatus(
   producer: Producer,
@@ -190,9 +190,8 @@ function producerMatchesAssignment(producer: Producer, assigned: string): boolea
  *
  * Eligibility (mirrors isEligibleProducerScheduleRecord):
  *   - Has an assigned producer matching this producer
- *   - Status is Ongoing (not Waiting for Data, Outsourced, Completed)
- *   - Has a valid Mix Start Date
- *   - Has a valid Mix End Date
+ *   - Orders Assigned (pre-MTD), or MTD Ongoing / Outsourced
+ *   - Has a valid Mix Start Date and Mix End Date
  *   - Not in payroll / completed
  */
 function producerAssignments(

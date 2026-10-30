@@ -14,6 +14,7 @@ import { todayIso } from "@/lib/date-filters";
 import { doDateRangesOverlap } from "@/lib/dates";
 import { isEligibleProducerScheduleRecord } from "@/lib/export-csv";
 import { findProducerByAssignmentKey } from "@/lib/editor-assignment";
+import { collectOpenAssignedMixRecords } from "@/lib/producer-assigned-mixes";
 import {
   aggregateColumns,
   buildScheduleColumnAggregates,
@@ -48,7 +49,8 @@ function SchedulePageContent() {
   const searchParams = useSearchParams();
   const viewParam = searchParams.get("view") || searchParams.get("range");
 
-  const { producers, schedule, mtdRecords, allOrders } = useAppState();
+  const { producers, schedule, mtdRecords, allOrders, activeOrders } =
+    useAppState();
   const [pageTab, setPageTab] = useState<SchedulePageTab>("view");
   const [selectedEditor, setSelectedEditor] = useState("all");
   const [selectedSendEditor, setSelectedSendEditor] = useState("all");
@@ -126,6 +128,13 @@ function SchedulePageContent() {
     [currentDate]
   );
 
+  // Orders Assigned (pre-MTD) + MTD Ongoing/Outsourced. Assign on Orders only
+  // patches the order, so raw mtdRecords alone miss those bookings.
+  const scheduleBookings = useMemo(
+    () => collectOpenAssignedMixRecords(activeOrders, mtdRecords),
+    [activeOrders, mtdRecords]
+  );
+
   const teamRows = useMemo(
     () =>
       filterTeamScheduleByStatus(
@@ -134,12 +143,19 @@ function SchedulePageContent() {
           schedule,
           view,
           anchorDate,
-          mtdRecords,
+          scheduleBookings,
         ),
         statusFilter,
         view
       ),
-    [viewFilteredProducers, schedule, view, anchorDate, mtdRecords, statusFilter]
+    [
+      viewFilteredProducers,
+      schedule,
+      view,
+      anchorDate,
+      scheduleBookings,
+      statusFilter,
+    ]
   );
 
   const emptyMessage = useMemo(() => {
@@ -188,7 +204,9 @@ function SchedulePageContent() {
     const allowed = new Set(
       categoryFilteredProducers.map((p) => p.name.toUpperCase())
     );
-    const eligibleRecords = mtdRecords.filter(isEligibleProducerScheduleRecord);
+    const eligibleRecords = scheduleBookings.filter(
+      isEligibleProducerScheduleRecord
+    );
     const set = new Set<string>();
     for (const r of eligibleRecords) {
       if (!r.assignedProducer) continue;
@@ -211,7 +229,12 @@ function SchedulePageContent() {
       }
     }
     return Array.from(set).sort();
-  }, [mtdRecords, producers, categoryFilteredProducers, sendFilterPeriod]);
+  }, [
+    scheduleBookings,
+    producers,
+    categoryFilteredProducers,
+    sendFilterPeriod,
+  ]);
 
   const exportCategoryLabel = useMemo(
     () => scheduleFormFilterLabel(form, cheerSubtype, danceSubtype),

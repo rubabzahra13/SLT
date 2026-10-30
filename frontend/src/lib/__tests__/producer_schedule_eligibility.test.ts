@@ -70,13 +70,14 @@ function createMockRecord(overrides: Partial<MTDRecord>): MTDRecord {
 }
 
 describe("Producer Schedule Strict Eligibility Rules", () => {
-  it("includes ONLY records that are Ongoing, assigned, and have valid start AND end dates", () => {
+  it("includes MTD Ongoing records that are assigned with valid start AND end dates", () => {
     const validOngoingRecord = createMockRecord({
       id: "rec-valid",
       programName: "Valid Ongoing Program",
       assignedProducer: "Casey Marlow",
       recordStatus: "Ongoing",
       status: "active",
+      inMTD: true,
       mixStartDate: "2026-09-12",
       mixEndDate: "2026-09-15",
     });
@@ -84,22 +85,22 @@ describe("Producer Schedule Strict Eligibility Rules", () => {
     assert.equal(isEligibleProducerScheduleRecord(validOngoingRecord), true);
   });
 
-  it("excludes records with Waiting for Data / Needs Attention status", () => {
-    const waitingForDataRecord = createMockRecord({
-      id: "rec-waiting",
-      programName: "Waiting Program",
+  it("includes Orders-tab Assigned records (pre-MTD) with producer and dates", () => {
+    const assignedOrdersRecord = createMockRecord({
+      id: "rec-orders-assigned",
+      programName: "Orders Assigned Program",
       assignedProducer: "Casey Marlow",
-      recordStatus: "Completed",
-      needsAttention: true,
-      status: "needs_attention",
+      inMTD: false,
+      status: "active",
+      recordStatus: undefined,
       mixStartDate: "2026-09-12",
       mixEndDate: "2026-09-15",
     });
 
-    assert.equal(isEligibleProducerScheduleRecord(waitingForDataRecord), false);
+    assert.equal(isEligibleProducerScheduleRecord(assignedOrdersRecord), true);
   });
 
-  it("excludes records with Completed status or inPayroll flag", () => {
+  it("excludes Completed / Payroll records from the schedule", () => {
     const completedRecord = createMockRecord({
       id: "rec-completed",
       programName: "Completed Program",
@@ -107,6 +108,7 @@ describe("Producer Schedule Strict Eligibility Rules", () => {
       recordStatus: "Completed",
       status: "completed",
       inPayroll: true,
+      inMTD: true,
       mixStartDate: "2026-09-12",
       mixEndDate: "2026-09-15",
     });
@@ -114,7 +116,7 @@ describe("Producer Schedule Strict Eligibility Rules", () => {
     assert.equal(isEligibleProducerScheduleRecord(completedRecord), false);
   });
 
-  it("excludes records with Outsourced status", () => {
+  it("includes MTD Outsourced records that are assigned with dates", () => {
     const outsourcedRecord = createMockRecord({
       id: "rec-outsourced",
       section: "OUTSOURCED MIXES",
@@ -122,11 +124,12 @@ describe("Producer Schedule Strict Eligibility Rules", () => {
       assignedProducer: "Casey Marlow",
       recordStatus: "Outsourced",
       status: "outsourced",
+      inMTD: true,
       mixStartDate: "2026-09-12",
       mixEndDate: "2026-09-15",
     });
 
-    assert.equal(isEligibleProducerScheduleRecord(outsourcedRecord), false);
+    assert.equal(isEligibleProducerScheduleRecord(outsourcedRecord), true);
   });
 
   it("excludes unassigned records even if dates and status are valid", () => {
@@ -168,7 +171,7 @@ describe("Producer Schedule Strict Eligibility Rules", () => {
     assert.equal(isEligibleProducerScheduleRecord(missingEnd), false);
   });
 
-  it("displays status as 'Ongoing' for all eligible schedule rows in preview and CSV export", () => {
+  it("displays Assigned / Ongoing / Outsourced statuses in preview and CSV export", () => {
     const mixedRecords: MTDRecord[] = [
       createMockRecord({
         id: "rec-1",
@@ -176,15 +179,17 @@ describe("Producer Schedule Strict Eligibility Rules", () => {
         assignedProducer: "Casey Marlow",
         recordStatus: "Ongoing",
         status: "active",
+        inMTD: true,
         mixStartDate: "2026-09-12",
         mixEndDate: "2026-09-15",
       }),
       createMockRecord({
         id: "rec-2",
-        programName: "Casey Waiting Mix",
+        programName: "Casey Payroll Mix",
         assignedProducer: "Casey Marlow",
         recordStatus: "Completed",
-        status: "needs_attention",
+        status: "completed",
+        inPayroll: true,
         mixStartDate: "2026-09-12",
         mixEndDate: "2026-09-15",
       }),
@@ -194,24 +199,45 @@ describe("Producer Schedule Strict Eligibility Rules", () => {
         assignedProducer: "Matt Sturgis",
         recordStatus: "Ongoing",
         status: "active",
+        inMTD: true,
         mixStartDate: "2026-09-14",
         mixEndDate: "2026-09-18",
+      }),
+      createMockRecord({
+        id: "rec-4",
+        programName: "Casey Outsourced Mix",
+        assignedProducer: "Casey Marlow",
+        recordStatus: "Outsourced",
+        status: "outsourced",
+        inMTD: true,
+        mixStartDate: "2026-09-12",
+        mixEndDate: "2026-09-16",
+      }),
+      createMockRecord({
+        id: "rec-5",
+        programName: "Casey Orders Assigned",
+        assignedProducer: "Casey Marlow",
+        inMTD: false,
+        status: "active",
+        mixStartDate: "2026-09-13",
+        mixEndDate: "2026-09-17",
       }),
     ];
 
     const rowsAll = getProducerFacingScheduleRows(mixedRecords, mockOrders, mockProducers, "all");
-    assert.equal(rowsAll.length, 2);
-    assert.equal(rowsAll[0].status, "Ongoing");
-    assert.equal(rowsAll[1].status, "Ongoing");
+    assert.equal(rowsAll.length, 4);
 
     const rowsCasey = getProducerFacingScheduleRows(mixedRecords, mockOrders, mockProducers, "Casey Marlow");
-    assert.equal(rowsCasey.length, 1);
-    assert.equal(rowsCasey[0].programName, "Casey Standard Mix");
-    assert.equal(rowsCasey[0].status, "Ongoing");
+    assert.equal(rowsCasey.length, 3);
+    const byName = Object.fromEntries(rowsCasey.map((r) => [r.programName, r.status]));
+    assert.equal(byName["Casey Standard Mix"], "Ongoing");
+    assert.equal(byName["Casey Outsourced Mix"], "Outsourced");
+    assert.equal(byName["Casey Orders Assigned"], "Assigned");
 
     const csvCasey = generateScheduleCsv(mixedRecords, mockOrders, mockProducers, "Casey Marlow");
     assert.ok(csvCasey.includes("Ongoing"));
-    assert.equal(csvCasey.includes("Needs Attention"), false);
-    assert.equal(csvCasey.includes("Active"), false);
+    assert.ok(csvCasey.includes("Outsourced"));
+    assert.ok(csvCasey.includes("Assigned"));
+    assert.equal(csvCasey.includes("Casey Payroll Mix"), false);
   });
 });

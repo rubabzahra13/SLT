@@ -132,20 +132,20 @@ describe("Producer Next Opening Calculation Engine", () => {
     assert.equal(res.status, "available");
   });
 
-  it("Test 5: Outsourced record does NOT block availability", () => {
+  it("Test 5: Outsourced record blocks availability like Ongoing", () => {
     const mondayAnchor = "2026-09-14";
     const outsourcedRec = createMockRecord({
       id: "rec-outsourced",
       assignedProducer: "Casey Marlow",
       recordStatus: "Outsourced",
       status: "outsourced",
+      inMTD: true,
       mixStartDate: "2026-09-14",
       mixEndDate: "2026-09-20",
     });
 
     const res = calculateProducerNextOpening(caseyProducer, [outsourcedRec], [], mondayAnchor);
-    assert.equal(res.nextAvailable, "Today");
-    assert.equal(res.status, "available");
+    assert.notEqual(res.nextAvailable, "Today");
   });
 
   it("Test 6: Completed record does NOT block availability", () => {

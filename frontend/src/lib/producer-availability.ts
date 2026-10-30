@@ -555,19 +555,19 @@ function recordCoversDay(rec: MTDRecord, day: Date): boolean {
 }
 
 /**
- * Whether a record holds open workload for daily limits / assign comparison.
- * Assigned + scheduled + not completed/payroll (Orders or MTD).
+ * Whether a record holds open workload for daily limits / schedule capacity.
+ * Counts: Orders Assigned (pre-MTD), MTD Ongoing, and MTD Outsourced.
+ * Excludes: Completed / Payroll.
  */
 export function isProducerBookingRecord(rec: MTDRecord): boolean {
   if (!rec.assignedProducer?.trim()) return false;
   if (rec.inPayroll || (rec as { in_payroll?: boolean }).in_payroll) {
     return false;
   }
-  if (rec.status === "completed" || rec.status === "outsourced") return false;
+  if (rec.status === "completed") return false;
   if ((rec as { recordStatus?: string }).recordStatus === "Completed") {
     return false;
   }
-  if (rec.section === "OUTSOURCED MIXES") return false;
   if (Boolean(rec.completedAt)) return false;
   // Must have a mix window so it can land on calendar days.
   return Boolean(rec.mixStartDate?.trim());
@@ -613,7 +613,7 @@ export function countProducerMixesOnDay(
   day: Date,
   mtdRecords: MTDRecord[],
   excludeRecordId?: string,
-  categoryMatch?: Pick<DailyCostOptions, "matchCategory" | "matchFormType"> | null
+  _categoryMatch?: Pick<DailyCostOptions, "matchCategory" | "matchFormType"> | null
 ): number {
   let count = 0;
 
@@ -621,7 +621,6 @@ export function countProducerMixesOnDay(
     if (!isBookingForProducerOnDay(rec, producer, day, excludeRecordId)) {
       continue;
     }
-    if (!recordMatchesAssignCategory(rec, categoryMatch)) continue;
     count += 1;
   }
 
@@ -707,7 +706,7 @@ export function listProducerMixBookingsOnDay(
   producer: Producer,
   dayIso: string,
   mtdRecords: MTDRecord[],
-  categoryMatch?: Pick<DailyCostOptions, "matchCategory" | "matchFormType"> | null
+  _categoryMatch?: Pick<DailyCostOptions, "matchCategory" | "matchFormType"> | null
 ): ProducerMixDayBooking[] {
   const day = parseFlexibleDate(dayIso);
   if (!day) return [];
@@ -715,7 +714,6 @@ export function listProducerMixBookingsOnDay(
   for (const rec of mtdRecords) {
     if (!isActiveAssignedMixForConflict(rec, producer)) continue;
     if (!recordCoversDay(rec, day)) continue;
-    if (!recordMatchesAssignCategory(rec, categoryMatch)) continue;
     out.push(bookingFromRecord(rec));
   }
   return out;
@@ -874,13 +872,12 @@ export function countProducerDailyCost(
   mtdRecords: MTDRecord[],
   excludeRecordId?: string,
   estimateCost?: RecordCostEstimator,
-  categoryMatch?: Pick<DailyCostOptions, "matchCategory" | "matchFormType"> | null
+  _categoryMatch?: Pick<DailyCostOptions, "matchCategory" | "matchFormType"> | null
 ): number {
   let total = 0;
 
   for (const rec of mtdRecords) {
     if (!isBookingForProducerOnDay(rec, producer, day, excludeRecordId)) continue;
-    if (!recordMatchesAssignCategory(rec, categoryMatch)) continue;
     total += dailyShareOfRecordCost(producer, rec, estimateCost);
   }
 
@@ -933,12 +930,11 @@ export function listProducerDailyCostContributors(
   mtdRecords: MTDRecord[],
   excludeRecordId?: string,
   estimateCost?: RecordCostEstimator,
-  categoryMatch?: Pick<DailyCostOptions, "matchCategory" | "matchFormType"> | null
+  _categoryMatch?: Pick<DailyCostOptions, "matchCategory" | "matchFormType"> | null
 ): DailyCostContributor[] {
   const out: DailyCostContributor[] = [];
   for (const rec of mtdRecords) {
     if (!isBookingForProducerOnDay(rec, producer, day, excludeRecordId)) continue;
-    if (!recordMatchesAssignCategory(rec, categoryMatch)) continue;
     const row = contributorFromRecord(producer, rec, estimateCost);
     if (!row || row.dayShare <= 0) continue;
     out.push(row);
@@ -953,12 +949,11 @@ export function listProducerDailyMixSlots(
   mtdRecords: MTDRecord[],
   excludeRecordId?: string,
   estimateCost?: RecordCostEstimator,
-  categoryMatch?: Pick<DailyCostOptions, "matchCategory" | "matchFormType"> | null
+  _categoryMatch?: Pick<DailyCostOptions, "matchCategory" | "matchFormType"> | null
 ): DailyCostContributor[] {
   const out: DailyCostContributor[] = [];
   for (const rec of mtdRecords) {
     if (!isBookingForProducerOnDay(rec, producer, day, excludeRecordId)) continue;
-    if (!recordMatchesAssignCategory(rec, categoryMatch)) continue;
     const row = contributorFromRecord(producer, rec, estimateCost);
     if (!row) continue;
     out.push(row);
@@ -977,7 +972,7 @@ export function listProducerCostContributorsInRange(
   mtdRecords: MTDRecord[],
   excludeRecordId?: string,
   estimateCost?: RecordCostEstimator,
-  categoryMatch?: Pick<DailyCostOptions, "matchCategory" | "matchFormType"> | null
+  _categoryMatch?: Pick<DailyCostOptions, "matchCategory" | "matchFormType"> | null
 ): DailyCostContributor[] {
   const start = parseFlexibleDate(startIso);
   const end = parseFlexibleDate(endIso || startIso);
@@ -992,7 +987,6 @@ export function listProducerCostContributorsInRange(
       if (!isBookingForProducerOnDay(rec, producer, cursor, excludeRecordId)) {
         continue;
       }
-      if (!recordMatchesAssignCategory(rec, categoryMatch)) continue;
       if (seen.has(rec.id)) continue;
       seen.add(rec.id);
       const row = contributorFromRecord(producer, rec, estimateCost);
@@ -1036,11 +1030,11 @@ export type DailyCostOptions = {
    */
   newMixCost?: number | null;
   /**
-   * Only compare against booked mixes in this producer subcategory
-   * (e.g. "Team Performance / Variety", "Pom").
+   * Unused for capacity. Max mixes and max cost are producer-wide across
+   * every category. Kept so older callers still type-check.
    */
   matchCategory?: string | null;
-  /** When set, also require the same order form type (category group). */
+  /** Unused for capacity. See matchCategory. */
   matchFormType?: string | null;
 };
 
@@ -1066,7 +1060,10 @@ export function assignCategoryForRecord(
   );
 }
 
-/** Whether a booked mix counts toward assign limits / calendar comparison. */
+/**
+ * Category key helper. Daily mix and cost limits do not use this: those caps
+ * count every booking for the producer.
+ */
 export function recordMatchesAssignCategory(
   rec: Pick<
     MTDRecord,

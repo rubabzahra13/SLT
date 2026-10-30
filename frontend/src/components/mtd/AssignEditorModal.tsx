@@ -438,7 +438,7 @@ export function AssignEditorModal({
           estimateCost: estimateBookedCost,
           // Single-day availability checks expect a per-day share.
           newMixCost: newMixDailyShare,
-          // Only compare capacity against mixes in this category + subcategory.
+          // Mix and cost caps are producer-wide, not reset per category.
           matchCategory: requiredProducerCategory || record.category,
           matchFormType: formMeta?.formType || record.formType,
         };

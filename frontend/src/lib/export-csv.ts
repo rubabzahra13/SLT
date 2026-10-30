@@ -35,6 +35,7 @@ import {
 } from "./misc-payroll-adjustment";
 
 import { inferMTDRecordStatus } from "./mtd-status";
+import { collectOpenAssignedMixRecords } from "./producer-assigned-mixes";
 
 /**
  * Dance Extra Songs qty — MTD board toggle, order mirror, or pricing_breakdown
@@ -109,31 +110,29 @@ export function isEligibleProducerScheduleRecord(rec: MTDRecord): boolean {
     return false;
   }
 
-  // 2. Must NOT be completed or in payroll
+  // 2. Completed / Payroll never fill the schedule
   const isCompleted =
     rec.status === "completed" ||
     (rec.status as string) === "Completed" ||
     (rec as any).recordStatus === "completed" ||
     (rec as any).recordStatus === "Completed" ||
     Boolean(rec.inPayroll) ||
-    Boolean((rec as any).in_payroll);
+    Boolean((rec as any).in_payroll) ||
+    Boolean(rec.completedAt);
   if (isCompleted) return false;
 
-  // 3. Must be Ongoing status (not Waiting for Data, Outsourced, Completed, etc.)
-  const mtdStatus = inferMTDRecordStatus(rec);
-  if (mtdStatus !== "Ongoing") {
-    return false;
-  }
-
-  // 4. Must have a valid Mix Start Date
+  // 3. Must have a valid Mix Start Date and Mix End Date
   const startDate = toIsoDateString(rec.mixStartDate);
   if (!startDate) return false;
-
-  // 5. Must have a valid Mix End Date
   const endDate = toIsoDateString(rec.mixEndDate);
   if (!endDate) return false;
 
-  return true;
+  // 4. Orders tab: assigned + dated (pre-MTD) fills capacity as soon as Assign saves
+  if (isPreMTDOrderRecord(rec)) return true;
+
+  // 5. MTD tab: Ongoing and Outsourced both fill capacity
+  const mtdStatus = inferMTDRecordStatus(rec);
+  return mtdStatus === "Ongoing" || mtdStatus === "Outsourced";
 }
 
 export function escapeCsvCell(value: unknown): string {
@@ -1123,8 +1122,12 @@ export function getProducerFacingScheduleRows(
 ): ProducerFacingScheduleRow[] {
   const orderById = new Map(allOrders.map((o) => [o.id, o]));
 
-  // Source dataset: Strictly eligible Ongoing MTD records with an assigned producer and valid dates
-  let filtered = records.filter(isEligibleProducerScheduleRecord);
+  // Merge Orders Assigned (order SoT) with MTD board rows, then apply
+  // schedule eligibility (dates + Ongoing/Outsourced / pre-MTD Assigned).
+  const activeLike = allOrders.filter((order) => order.status !== "completed");
+  let filtered = collectOpenAssignedMixRecords(activeLike, records).filter(
+    isEligibleProducerScheduleRecord
+  );
 
   if (targetProducerName && targetProducerName !== "all" && targetProducerName !== "All Editors") {
     filtered = filtered.filter((rec) => {
@@ -1153,6 +1156,12 @@ export function getProducerFacingScheduleRows(
     const prodObj = findProducerByAssignmentKey(rec.assignedProducer, producers);
     const prodName = prodObj?.name || rec.assignedProducer || "Unassigned";
 
+    const scheduleStatus = isPreMTDOrderRecord(rec)
+      ? "Assigned"
+      : inferMTDRecordStatus(rec) === "Outsourced"
+        ? "Outsourced"
+        : "Ongoing";
+
     preparedRows.push({
       mixStartDate: toIsoDateString(rec.mixStartDate) || "-",
       mixEndDate: toIsoDateString(rec.mixEndDate ?? rec.mixStartDate) || "-",
@@ -1163,7 +1172,7 @@ export function getProducerFacingScheduleRows(
       category: getFormTypeLabel(meta.formType),
       subtype: meta.canonicalSubtypeId || "-",
       package: rec.package || "-",
-      status: "Ongoing",
+      status: scheduleStatus,
       recId: rec.id,
     });
   }
