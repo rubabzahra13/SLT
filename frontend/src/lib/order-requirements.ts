@@ -33,7 +33,8 @@ export type OrderReassignReason =
   | "leave"
   | "rush_order"
   | "producer_deletion"
-  | "category_removed";
+  | "category_removed"
+  | "extra_day_removed";
 
 export const ORDER_ASSIGNMENT_STATUS_LABEL: Record<
   OrderAssignmentStatus,
@@ -50,6 +51,7 @@ export const ORDER_REASSIGN_STATUS: Record<OrderReassignReason, string> = {
   rush_order: "Reassign: rush order",
   producer_deletion: "Reassign: Producer deleted",
   category_removed: "Reassign: Category removed",
+  extra_day_removed: "Reassign: Extra day removed",
 };
 
 export const ORDER_RESELECTION_REASON_LABEL: Record<
@@ -60,6 +62,7 @@ export const ORDER_RESELECTION_REASON_LABEL: Record<
   rush_order: "Rush order",
   producer_deletion: "Producer deleted",
   category_removed: "Category removed",
+  extra_day_removed: "Extra day removed",
 };
 
 export type OrderRequirementsResult = {
@@ -111,6 +114,12 @@ function parseReassignReason(
     raw.includes("category removed")
   ) {
     return "category_removed";
+  }
+  if (
+    raw.startsWith("reassign: extra day removed") ||
+    raw.includes("extra day removed")
+  ) {
+    return "extra_day_removed";
   }
   if (
     raw === "reassign: rush order" ||

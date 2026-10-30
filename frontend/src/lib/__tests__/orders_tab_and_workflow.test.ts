@@ -10,6 +10,7 @@ import { getOrderDetailSections } from "../order-detail-sections";
 import {
   getOrderAssignmentStatus,
   getOrderRequirements,
+  getOrderStatus,
 } from "../order-requirements";
 import { getDisplayAssignedProducer } from "../editor-assignment";
 import type { MTDRecord, Order } from "../../types";
@@ -443,6 +444,19 @@ describe("Orders Tab & Workflow Separation", () => {
     });
     assert.equal(getOrderAssignmentStatus(reassignLeave), "reassign_leave");
     assert.equal(getDisplayAssignedProducer(reassignLeave), null);
+
+    const extraDayRemoved = makeRecord({
+      programName: "QA OF CAPACITY",
+      isReassigned: true,
+      orderStatus: "Reassign: Extra day removed",
+      assignedProducer: null,
+      editorRequest: "FA",
+    });
+    assert.equal(getOrderStatus(extraDayRemoved).reassignReason, "extra_day_removed");
+    assert.equal(
+      getOrderAssignmentStatus(extraDayRemoved),
+      "reassign_rush"
+    );
 
     // Named requested producer must not count as Assigned while awaiting reassign.
     const reassignWithRequested = makeRecord({

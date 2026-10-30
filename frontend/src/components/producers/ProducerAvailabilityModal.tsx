@@ -38,7 +38,10 @@ import {
   type ProducerMixDayBooking,
 } from "@/lib/producer-availability";
 import { collectAssignedMixesForProducer } from "@/lib/producer-assigned-mixes";
-import { patchForReassignLeave } from "@/lib/order-reassign";
+import {
+  patchForReassignExtraDayRemoved,
+  patchForReassignLeave,
+} from "@/lib/order-reassign";
 import {
   formatOffWorkReason,
   isValidOffWorkReason,
@@ -1127,7 +1130,18 @@ export function ProducerAvailabilityModal({
   }
 
   function requestRemoveExtraDay(iso: string) {
-    if (readOnly) return;
+    if (readOnly || !producer) return;
+    const bookings = findLeaveMixConflicts(
+      producer,
+      iso,
+      iso,
+      assignedMixRecords
+    );
+    if (bookings.length > 0) {
+      setPendingChipRemoval(null);
+      setExtraDayMixConflict({ iso, bookings });
+      return;
+    }
     setPendingChipRemoval({ kind: "extra-day", iso });
   }
 
@@ -1189,7 +1203,7 @@ export function ProducerAvailabilityModal({
 
     const { iso, bookings } = extraDayMixConflict;
     const nextExtra = extraDays.filter((day) => day !== iso);
-    const reassignPatch = patchForReassignLeave();
+    const reassignPatch = patchForReassignExtraDayRemoved();
     const mtdIds = new Set(
       mtdRecords.flatMap((r) =>
         [r.id, r.orderId, r.uuid, r.legacyId].filter(Boolean)
@@ -1206,7 +1220,7 @@ export function ProducerAvailabilityModal({
           mixStartDate: "",
           mixEndDate: "",
           isReassigned: true,
-          orderStatus: "Reassign: Off day",
+          orderStatus: reassignPatch.orderStatus,
           producerEmailSentAt: null,
           status: "active",
           collectionStates: reassignPatch.collectionStates,
@@ -1586,11 +1600,9 @@ export function ProducerAvailabilityModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
-      <button
-        type="button"
+      <div
         className="absolute inset-0 bg-black/45 backdrop-blur-[2px]"
-        onClick={onClose}
-        aria-label="Close"
+        aria-hidden
       />
 
       <div className="relative flex max-h-[min(92dvh,720px)] w-full max-w-[440px] flex-col overflow-hidden rounded-t-[28px] bg-brand-elevated shadow-[0_24px_80px_rgba(0,0,0,0.28)] sm:rounded-[28px]">
@@ -2907,42 +2919,64 @@ export function ProducerAvailabilityModal({
                   </h2>
                   <p className="mt-3 text-center text-[13px] leading-relaxed text-brand-ink-secondary">
                     {extraDayMixConflict.bookings.length === 1
-                      ? "1 assigned mix is on "
-                      : `${extraDayMixConflict.bookings.length} assigned mixes are on `}
-                    {formatIsoDayMonthYear(extraDayMixConflict.iso)}. Canceling
-                    the Extra day sends {extraDayMixConflict.bookings.length === 1
-                      ? "it"
-                      : "them"}{" "}
-                    to Reassign.
+                      ? "1 assigned mix lands on "
+                      : `${extraDayMixConflict.bookings.length} assigned mixes land on `}
+                    {formatIsoDayMonthYear(extraDayMixConflict.iso)}. Send{" "}
+                    {extraDayMixConflict.bookings.length === 1 ? "it" : "them"}{" "}
+                    to Reassign and remove this extra day, or cancel and keep
+                    the extra day.
                   </p>
-                  <WorkDayOtConflictDateList
-                    dates={[extraDayMixConflict.iso]}
-                  />
-                  {extraDayMixConflict.bookings.length > 0 ? (
-                    <ul className="mt-3 space-y-1.5">
-                      {extraDayMixConflict.bookings.slice(0, 6).map((b) => (
-                        <li
-                          key={b.recordId}
-                          className="rounded-xl bg-brand-bg px-3 py-2 text-[12px] text-brand-ink-secondary ring-1 ring-inset ring-black/[0.06]"
-                        >
-                          <span className="font-semibold text-brand-ink">
-                            {b.programName}
-                          </span>
-                          <span className="mt-0.5 block tabular-nums">
-                            {formatIsoDayMonthYear(b.mixStartDate)}
-                            {b.mixEndDate && b.mixEndDate !== b.mixStartDate
-                              ? ` - ${formatIsoDayMonthYear(b.mixEndDate)}`
-                              : ""}
-                            {b.inMTD ? " · MTD" : " · Orders"}
-                          </span>
-                        </li>
-                      ))}
-                      {extraDayMixConflict.bookings.length > 6 ? (
-                        <li className="px-1 text-center text-[11px] text-brand-ink-tertiary">
-                          +{extraDayMixConflict.bookings.length - 6} more
-                        </li>
-                      ) : null}
-                    </ul>
+                  {extraDayMixConflict.bookings.some((b) => !b.inMTD) ? (
+                    <div className="mt-4 rounded-2xl bg-brand-bg px-3 py-3 ring-1 ring-inset ring-black/[0.06]">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-brand-ink-secondary">
+                        Orders · Assigned → Reassign: Extra day removed
+                      </p>
+                      <ul className="mt-2 space-y-1.5">
+                        {extraDayMixConflict.bookings
+                          .filter((b) => !b.inMTD)
+                          .slice(0, 6)
+                          .map((b) => (
+                            <li
+                              key={b.recordId}
+                              className="text-[12.5px] leading-snug text-brand-ink"
+                            >
+                              <span className="font-semibold">
+                                {b.programName}
+                              </span>
+                              <span className="mt-0.5 block text-[11px] text-brand-ink-tertiary">
+                                {formatIsoDayMonthYear(b.mixStartDate)} -{" "}
+                                {formatIsoDayMonthYear(b.mixEndDate)}
+                              </span>
+                            </li>
+                          ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                  {extraDayMixConflict.bookings.some((b) => b.inMTD) ? (
+                    <div className="mt-4 rounded-2xl bg-brand-bg px-3 py-3 ring-1 ring-inset ring-black/[0.06]">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-brand-ink-secondary">
+                        MTD → Orders · Reassign: Extra day removed
+                      </p>
+                      <ul className="mt-2 space-y-1.5">
+                        {extraDayMixConflict.bookings
+                          .filter((b) => b.inMTD)
+                          .slice(0, 6)
+                          .map((b) => (
+                            <li
+                              key={b.recordId}
+                              className="text-[12.5px] leading-snug text-brand-ink"
+                            >
+                              <span className="font-semibold">
+                                {b.programName}
+                              </span>
+                              <span className="mt-0.5 block text-[11px] text-brand-ink-tertiary">
+                                {formatIsoDayMonthYear(b.mixStartDate)} -{" "}
+                                {formatIsoDayMonthYear(b.mixEndDate)}
+                              </span>
+                            </li>
+                          ))}
+                      </ul>
+                    </div>
                   ) : null}
                 </div>
                 <div className="shrink-0 border-t border-black/[0.08]">

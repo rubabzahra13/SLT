@@ -599,13 +599,9 @@ export function ProducerFormModal({
   return (
     <>
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
-      <button
-        type="button"
+      <div
         className="absolute inset-0 bg-black/45 backdrop-blur-[2px] transition"
-        onClick={() => {
-          if (!saveBusy) onClose();
-        }}
-        aria-label="Close"
+        aria-hidden
       />
 
       <div className="relative flex max-h-[min(94dvh,820px)] w-full max-w-md sm:w-[440px] sm:max-w-[440px] flex-col overflow-hidden rounded-t-[28px] bg-brand-elevated shadow-[0_24px_80px_rgba(0,0,0,0.28)] sm:rounded-[28px]">

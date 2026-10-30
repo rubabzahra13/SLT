@@ -20,6 +20,22 @@ function completeDataFields(): Partial<MTDRecord> {
   };
 }
 
+/** Clear assignment/schedule and flag Orders as Reassign: extra day removed. */
+export function patchForReassignExtraDayRemoved(): Partial<MTDRecord> {
+  return {
+    inMTD: false,
+    isReassigned: true,
+    orderStatus: "Reassign: Extra day removed",
+    assignedProducer: null,
+    editorRequest: "FA",
+    mixStartDate: "",
+    mixEndDate: "",
+    producerEmailSentAt: null,
+    status: "active",
+    ...completeDataFields(),
+  };
+}
+
 /** Clear assignment/schedule and flag Orders as Reassign: leave. */
 export function patchForReassignLeave(): Partial<MTDRecord> {
   return {
