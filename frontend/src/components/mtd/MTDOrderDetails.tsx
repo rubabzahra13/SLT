@@ -239,7 +239,7 @@ export function MTDOrderDetails({
   manualAddSlim = false,
 }: MTDOrderDetailsProps) {
   const sections = manualAddSlim
-    ? filterSectionsForManualAddOrder(getOrderDetailSections(order))
+    ? filterSectionsForManualAddOrder(getOrderDetailSections(order), order)
     : getOrderDetailSections(order);
   const requiredKeys = requiredFieldKeys
     ? requiredFieldKeys instanceof Set
@@ -293,10 +293,10 @@ export function MTDOrderDetails({
                   <button
                     type="button"
                     onClick={() => multiMix.onDuplicateMix()}
-                    className="inline-flex h-7 items-center gap-1 rounded-lg border border-brand-line/60 bg-white px-2 text-[11px] font-semibold text-brand-ink-secondary transition hover:bg-brand-bg hover:text-brand-ink"
+                    className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-brand-ink px-3 text-[12px] font-bold text-white shadow-sm transition hover:bg-brand-ink/90"
                     title={`Add another mix (max ${maxMixes})`}
                   >
-                    <CopyPlus className="h-3 w-3" strokeWidth={2.25} />
+                    <CopyPlus className="h-3.5 w-3.5" strokeWidth={2.5} />
                     Add mix
                   </button>
                 ) : null}
@@ -799,7 +799,8 @@ export function MTDOrderDetails({
 
               if (
                 field.key === "mixEndDate" ||
-                field.key === "clientRequestedMixDueDate"
+                field.key === "clientRequestedMixDueDate" ||
+                field.key === "choreographyCompletionDate"
               ) {
                 return (
                   <div

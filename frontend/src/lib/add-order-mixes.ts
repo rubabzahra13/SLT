@@ -1,11 +1,19 @@
+import { packageTypeDisplayValue } from "@/components/mtd/PackageTypeField";
 import { rawFieldValue } from "@/lib/order-detail-fields";
 import {
   getOrderDetailSections,
+  getOrderIdentityName,
   type OrderDetailField,
 } from "@/lib/order-detail-sections";
 import { hasMeaningfulFieldValue } from "@/lib/empty-field-tokens";
 import { isAddOrderPrefillValue } from "@/lib/order-form-missing";
-import type { Order } from "@/types";
+import { parsePackage } from "@/lib/package";
+import type {
+  CheerFormSubtype,
+  DanceFormSubtype,
+  Order,
+  OrderFormType,
+} from "@/types";
 
 /** Admin Add New Order: up to this many mixes in one Mix Information section. */
 export const MAX_ADD_ORDER_MIXES = 10;
@@ -19,7 +27,14 @@ const ADD_ORDER_NON_CONTENT_KEYS = new Set([
  * Cheer multi-mix (display order). Only keys present on the active subtype
  * are used: never invent fields.
  *
- * Requested Editor · Division · Team Name · Package · Length of Mix
+ * Magento-aligned per mix (unique on Save N Orders):
+ * - All-Star: requestedEditor, division, teamName, packageType, timeLengthOfMix
+ * - VIROC / School Cheer: requestedEditor, division, packageType, timeLengthOfMix
+ * - Youth Rec: teamName, packageType, timeLengthOfMix
+ * Plus manual-only: choreographyCompletionDate (all Cheer subtypes).
+ *
+ * Shared across mixes: gym/school/program identity, billing, contacts.
+ * Team Name never becomes school_gym_name.
  */
 export const CHEER_PER_MIX_FIELD_CANDIDATES = [
   "requestedEditor",
@@ -27,6 +42,7 @@ export const CHEER_PER_MIX_FIELD_CANDIDATES = [
   "teamName",
   "packageType",
   "timeLengthOfMix",
+  "choreographyCompletionDate",
 ] as const;
 
 /**
@@ -34,15 +50,52 @@ export const CHEER_PER_MIX_FIELD_CANDIDATES = [
  * are used: never invent fields (Style only when `style` / `styleOfGamedayMix`
  * exists on that subtype).
  *
- * Admin New Order is slim: Magento fills the rest after Match.
- * Style · Package · Requested Editor
+ * Magento-aligned per mix (unique on Save N Orders):
+ * - POM / Hip Hop: packageType, requestedEditor (no Style on Magento form)
+ * - TPV / Jazz-Kick: style, packageType, requestedEditor
+ * - Gameday: styleOfGamedayMix, packageType, requestedEditor
+ * Plus manual-only: choreographyCompletionDate (all Dance subtypes).
+ *
+ * Shared across mixes: school/program identity, billing, contacts
+ * (choreographer when present). Style is never shared identity.
  */
 export const DANCE_PER_MIX_FIELD_CANDIDATES = [
   "style",
   "styleOfGamedayMix",
   "packageType",
   "requestedEditor",
+  "choreographyCompletionDate",
 ] as const;
+
+/**
+ * Marching Band multi-mix (display order). Magento Mix Information essentials
+ * that New Order collects: package + mix length.
+ * Plus manual-only: choreographyCompletionDate.
+ *
+ * Shared across mixes: school/program identity, billing address, coach/billing
+ * contacts. Instrumentation / lyric notes arrive from Magento after Match.
+ */
+export const MARCHING_BAND_PER_MIX_FIELD_CANDIDATES = [
+  "packageType",
+  "timeLengthOfMix",
+  "choreographyCompletionDate",
+] as const;
+
+/** Manual Mix Information date — not Magento-mapped. */
+export const CHOREOGRAPHY_COMPLETION_DATE_KEY =
+  "choreographyCompletionDate" as const;
+
+export function choreographyCompletionDateLabel(
+  formType?: OrderFormType | string | null
+): string {
+  if (formType === "school-all-star-cheer") {
+    return "Date choreography will be completed and eight count sheets will be emailed";
+  }
+  if (formType === "school-all-star-dance") {
+    return "Date You Need Music By:";
+  }
+  return "Date choreography will be completed";
+}
 
 /**
  * Unmatched manual orders use the same slim field set as Add New Order
@@ -93,7 +146,7 @@ export const ADD_ORDER_MANUAL_FIELD_KEYS = new Set<string>([
   "choreographerEmail",
   "virocChoreographerName",
   "virocChoreographerEmail",
-  // Per-mix / mix essentials (cheer + dance)
+  // Per-mix / mix essentials (cheer + dance + marching band)
   "packageType",
   "package",
   "requestedEditor",
@@ -105,6 +158,7 @@ export const ADD_ORDER_MANUAL_FIELD_KEYS = new Set<string>([
   "timeLengthOfMix",
   "style",
   "styleOfGamedayMix",
+  "choreographyCompletionDate",
 ]);
 
 function isSchoolProgramSectionTitle(title: string): boolean {
@@ -113,9 +167,22 @@ function isSchoolProgramSectionTitle(title: string): boolean {
   );
 }
 
+function supportsManualChoreographyDate(
+  formType?: OrderFormType | string | null
+): boolean {
+  return (
+    formType === "school-all-star-cheer" ||
+    formType === "school-all-star-dance" ||
+    formType === "marching-band"
+  );
+}
+
 export function filterSectionsForManualAddOrder<
   T extends { title: string; fields: Array<{ key: string; label?: string }> },
->(sections: T[]): T[] {
+>(
+  sections: T[],
+  order?: Pick<Order, "formType"> | null
+): T[] {
   // Prefer the form's own Division of Team field (label may vary by subtype).
   let divisionOfTeamField: T["fields"][number] | null = null;
   for (const section of sections) {
@@ -125,6 +192,9 @@ export function filterSectionsForManualAddOrder<
       break;
     }
   }
+
+  const formType = order?.formType;
+  const injectChoreo = supportsManualChoreographyDate(formType);
 
   const mapped = sections.map((section) => {
     const fields = section.fields.filter((f) => {
@@ -149,6 +219,18 @@ export function filterSectionsForManualAddOrder<
       fields.push({ ...divisionOfTeamField });
     }
 
+    // Manual-only choreography date on Mix Information (edit + single-mix view).
+    if (
+      injectChoreo &&
+      isMixInformationSectionTitle(section.title) &&
+      !fields.some((f) => f.key === CHOREOGRAPHY_COMPLETION_DATE_KEY)
+    ) {
+      fields.push({
+        key: CHOREOGRAPHY_COMPLETION_DATE_KEY,
+        label: choreographyCompletionDateLabel(formType),
+      } as T["fields"][number]);
+    }
+
     return { ...section, fields };
   });
 
@@ -164,6 +246,7 @@ export const CHEER_PER_MIX_FIELD_KEYS = CHEER_PER_MIX_FIELD_CANDIDATES;
 const ALL_PER_MIX_CANDIDATES = new Set<string>([
   ...CHEER_PER_MIX_FIELD_CANDIDATES,
   ...DANCE_PER_MIX_FIELD_CANDIDATES,
+  ...MARCHING_BAND_PER_MIX_FIELD_CANDIDATES,
 ]);
 
 export function isMixInformationSectionTitle(title: string): boolean {
@@ -204,11 +287,12 @@ export function getMixInformationFieldKeys(order: Order): string[] {
   return keys;
 }
 
-/** Cheer or Dance Add Order: multi-mix slots in one Mix Information section. */
+/** Cheer, Dance, or Marching Band Add Order: multi-mix slots in Mix Information. */
 export function supportsAddOrderMultiMix(order: Order): boolean {
   return (
     order.formType === "school-all-star-cheer" ||
-    order.formType === "school-all-star-dance"
+    order.formType === "school-all-star-dance" ||
+    order.formType === "marching-band"
   );
 }
 
@@ -218,6 +302,9 @@ function perMixCandidatesForOrder(order: Order): readonly string[] {
   }
   if (order.formType === "school-all-star-dance") {
     return DANCE_PER_MIX_FIELD_CANDIDATES;
+  }
+  if (order.formType === "marching-band") {
+    return MARCHING_BAND_PER_MIX_FIELD_CANDIDATES;
   }
   return [];
 }
@@ -231,6 +318,8 @@ function isTeamInformationSectionTitle(title: string): boolean {
  * Candidates must appear on Mix or Team Information — except cheer Team Name /
  * Division, which count from anywhere on the form (Youth Rec puts Team Name
  * under Program Information; admins still fill it per mix).
+ * Dance Style / Gameday Style only when present on the active subtype.
+ * Marching Band: packageType + timeLengthOfMix only.
  */
 export function getAddOrderMultiMixFieldKeys(order: Order): string[] {
   if (!supportsAddOrderMultiMix(order)) return [];
@@ -248,6 +337,10 @@ export function getAddOrderMultiMixFieldKeys(order: Order): string[] {
     if (key === "teamName" || key === "division") {
       return presentAnywhere.has(key);
     }
+    // Manual-only: not on Magento form sections.
+    if (key === CHOREOGRAPHY_COMPLETION_DATE_KEY) {
+      return supportsManualChoreographyDate(order.formType);
+    }
     return perMixSectionKeys.has(key);
   });
 }
@@ -263,7 +356,19 @@ export function getAddOrderMultiMixFields(order: Order): OrderDetailField[] {
     }
   }
   return keys
-    .map((key) => byKey.get(key))
+    .map((key) => {
+      const existing = byKey.get(key);
+      if (existing) return existing;
+      if (key === CHOREOGRAPHY_COMPLETION_DATE_KEY) {
+        return {
+          key,
+          label: choreographyCompletionDateLabel(order.formType),
+          value: "",
+          wide: true,
+        };
+      }
+      return undefined;
+    })
     .filter((f): f is OrderDetailField => Boolean(f));
 }
 
@@ -287,6 +392,7 @@ export function blankAddOrderPerMixValues(): Partial<Order> {
     timeLengthOfMix: "",
     style: "",
     styleOfGamedayMix: "",
+    choreographyCompletionDate: "",
   };
 }
 
@@ -314,6 +420,140 @@ export function applyMixFieldValues(
   mix: Partial<Order>
 ): Order {
   return { ...order, ...mix };
+}
+
+function composeCheerPackageLabel(
+  tierOrPackage: string,
+  mixLength?: string
+): string {
+  const raw = tierOrPackage.trim();
+  if (!raw) return mixLength?.trim() || "";
+  const parsed = parsePackage(raw);
+  const tier =
+    parsed.tier && parsed.tier !== "-"
+      ? parsed.tier
+      : raw.replace(/\s+\d+:\d{2}\b/g, "").replace(/\s+TBD\b/i, "").trim();
+  const length = (mixLength || "").trim();
+  if (tier && length && length !== "-") return `${tier} ${length}`;
+  return tier || raw;
+}
+
+/**
+ * Gym / school / program identity only — never Team Name.
+ * Magento keeps team_name separate from school_gym_name.
+ */
+export function manualOrderIdentityName(order: Order): string {
+  return getOrderIdentityName(order).trim();
+}
+
+export type BuildManualOrdersFromMixesArgs = {
+  orderDraft: Order;
+  mixes: Partial<Order>[];
+  formType: OrderFormType;
+  cheerSubtype: CheerFormSubtype;
+  danceSubtype: DanceFormSubtype;
+  category: string;
+};
+
+/**
+ * Build one Partial<Order> per mix for Add New Order save.
+ * Shared identity/contacts come from the draft; mix overlays supply unique
+ * team / package / length / producer / dance style fields.
+ */
+export function buildManualOrdersFromMixes(
+  args: BuildManualOrdersFromMixesArgs
+): Partial<Order>[] {
+  const {
+    orderDraft,
+    mixes,
+    formType,
+    cheerSubtype,
+    danceSubtype,
+    category,
+  } = args;
+  const mixKeys = getAddOrderMultiMixFieldKeys(orderDraft);
+  const mixList =
+    mixes.length > 0
+      ? mixes
+      : mixKeys.length > 0
+        ? [pickMixFieldValues(orderDraft, mixKeys)]
+        : [{}];
+  const sharedBase = orderWithoutMixFields(orderDraft, mixKeys);
+
+  return mixList.map((mix) => {
+    const draft = applyMixFieldValues(sharedBase, mix);
+    const tier =
+      packageTypeDisplayValue(draft.packageType || "") ||
+      packageTypeDisplayValue(draft.package || "");
+    const mixLength = (draft.timeLengthOfMix || "").trim();
+    const selectedPkg =
+      formType === "school-all-star-cheer"
+        ? composeCheerPackageLabel(tier, mixLength)
+        : tier || (draft.packageType || draft.package || "").trim();
+
+    const contact =
+      draft.coachName ||
+      draft.coachContactFullName ||
+      draft.musicContactName ||
+      draft.contactName ||
+      draft.customerName ||
+      "";
+
+    // Identity SoT only — never fall back to teamName or dance style.
+    const identity = manualOrderIdentityName(draft);
+    const gym = (draft.gymName || "").trim() || identity;
+    const school = (draft.schoolName || "").trim() || identity;
+    const schoolProgram = (draft.schoolProgramName || "").trim() || identity;
+
+    // Dance: keep style unique per mix; Gameday also mirrors onto `style` SoT.
+    const styleOfGameday = (draft.styleOfGamedayMix || "").trim();
+    const style =
+      (draft.style || "").trim() ||
+      (danceSubtype === "gameday" ? styleOfGameday : "");
+
+    return {
+      ...draft,
+      isManualEntry: true,
+      category,
+      package: formType === "school-anthem" ? "SCHOOL ANTHEMS" : selectedPkg,
+      packageType:
+        formType === "school-anthem"
+          ? "SCHOOL ANTHEMS"
+          : tier || draft.packageType,
+      price: formType === "school-anthem" ? 1250 : draft.price,
+      timeLengthOfMix: mixLength,
+      contactName: contact,
+      customerName: contact,
+      programName: identity,
+      gymName: gym,
+      schoolName: school,
+      schoolProgramName: schoolProgram,
+      // Per-mix team stays on team_name only.
+      teamName: draft.teamName || "",
+      style,
+      styleOfGamedayMix: styleOfGameday,
+      choreographyCompletionDate:
+        (draft.choreographyCompletionDate || "").trim(),
+      formType,
+      cheerFormSubtype:
+        formType === "school-all-star-cheer" ? cheerSubtype : undefined,
+      danceFormSubtype:
+        formType === "school-all-star-dance" ? danceSubtype : undefined,
+      editorRequest:
+        draft.requestedEditor === "First Available" || !draft.requestedEditor
+          ? "FA"
+          : draft.requestedEditor,
+      requestedProducer: draft.requestedEditor || "",
+      musicTheme:
+        draft.songListSuggestions ||
+        draft.routineNotes ||
+        draft.musicTheme ||
+        "",
+      mixStartDate: "",
+      mixEndDate: "",
+      assignedProducer: "",
+    };
+  });
 }
 
 function mixHasMeaningfulContent(

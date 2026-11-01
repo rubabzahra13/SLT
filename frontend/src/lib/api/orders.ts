@@ -102,6 +102,7 @@ export interface BackendOrder {
   mix_start_date?: string | null;
   mix_end_date?: string | null;
   client_requested_mix_due_date?: string | null;
+  choreography_completion_date?: string | null;
   received_eight_count_sheet?: string | null;
   have_songs?: string | null;
 
@@ -329,6 +330,8 @@ export function transformOrder(bo: BackendOrder): Order {
     mixEndDate: bo.mix_end_date || undefined,
     clientRequestedMixDueDate:
       bo.client_requested_mix_due_date || undefined,
+    choreographyCompletionDate:
+      bo.choreography_completion_date || undefined,
     eightCountSheet: bo.received_eight_count_sheet || undefined,
     haveSongs: (bo.have_songs as any) || undefined,
     price: formType === "school-anthem" ? 1250 : bo.price ?? 0,
@@ -688,6 +691,10 @@ export function orderPatchToApiPayload(
   if (patch.clientRequestedMixDueDate !== undefined) {
     payload.client_requested_mix_due_date =
       patch.clientRequestedMixDueDate || null;
+  }
+  if (patch.choreographyCompletionDate !== undefined) {
+    payload.choreography_completion_date =
+      patch.choreographyCompletionDate || null;
   }
   if (patch.haveSongs !== undefined) payload.have_songs = patch.haveSongs;
   if ((patch as any).have_songs !== undefined) payload.have_songs = (patch as any).have_songs;

@@ -36,11 +36,9 @@ export function SetInvoiceModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <button
-        type="button"
+      <div
         className="absolute inset-0 bg-brand-scrim backdrop-blur-sm"
-        onClick={onClose}
-        aria-label="Close"
+        aria-hidden="true"
       />
       <div className="surface-premium relative w-full max-w-md rounded-2xl shadow-[var(--shadow-premium)]">
         <div className="flex items-start justify-between gap-4 border-b border-brand-line/70 p-6">

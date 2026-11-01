@@ -62,11 +62,9 @@ function EightCountSheetsPdfOverlay({ onClose }: { onClose: () => void }) {
       className="fixed inset-0 flex items-center justify-center p-4"
       style={{ zIndex: 10000 }}
     >
-      <button
-        type="button"
+      <div
         className="absolute inset-0 bg-black/60 backdrop-blur-[2px]"
-        onClick={onClose}
-        aria-label="Close PDF preview"
+        aria-hidden="true"
       />
       <div
         role="dialog"
@@ -594,11 +592,9 @@ export function ForwardOrderMailModal({
           pdfPreviewOpen && "pointer-events-none"
         )}
       >
-      <button
-        type="button"
+      <div
         className="absolute inset-0 bg-black/45 backdrop-blur-[2px]"
-        onClick={onClose}
-        aria-label="Close"
+        aria-hidden="true"
       />
 
       <div

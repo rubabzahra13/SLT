@@ -147,10 +147,10 @@ class OrderSchema(BaseModel):
     mix_start_date: Optional[str] = None
     mix_end_date: Optional[str] = None
     client_requested_mix_due_date: Optional[str] = None
+    choreography_completion_date: Optional[str] = None
     received_eight_count_sheet: Optional[str] = None
     have_songs: Optional[str] = None
     editor_initials: Optional[str] = None
-    client_requested_mix_due_date: Optional[str] = None
     client_requested_rush_order: Optional[str] = None
 
     customer_name: Optional[str] = None
@@ -292,6 +292,7 @@ class OrderCreateSchema(BaseModel):
     mix_start_date: Optional[str] = None
     mix_end_date: Optional[str] = None
     client_requested_mix_due_date: Optional[str] = None
+    choreography_completion_date: Optional[str] = None
     received_eight_count_sheet: Optional[str] = None
     have_songs: Optional[str] = None
 
@@ -366,6 +367,7 @@ class OrderUpdateSchema(BaseModel):
     mix_start_date: Optional[str] = None
     mix_end_date: Optional[str] = None
     client_requested_mix_due_date: Optional[str] = None
+    choreography_completion_date: Optional[str] = None
     received_eight_count_sheet: Optional[str] = None
     have_songs: Optional[str] = None
     voiceover_script: Optional[str] = None

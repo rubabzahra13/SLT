@@ -54,12 +54,9 @@ export function DeleteOrderConfirmModal({
 
   return createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      <button
-        type="button"
+      <div
         className="absolute inset-0 bg-black/45 backdrop-blur-[2px]"
-        onClick={busy ? undefined : onClose}
-        aria-label="Close"
-        disabled={busy}
+        aria-hidden="true"
       />
 
       <div

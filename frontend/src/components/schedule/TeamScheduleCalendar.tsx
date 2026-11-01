@@ -98,11 +98,9 @@ export function ScheduleDayDrawer({
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
-      <button
-        type="button"
+      <div
         className="absolute inset-0 bg-brand-scrim backdrop-blur-sm"
-        onClick={onClose}
-        aria-label="Close"
+        aria-hidden="true"
       />
       <aside className="relative flex h-full w-full max-w-md flex-col border-l border-brand-line bg-brand-surface shadow-[var(--shadow-premium)]">
         <div className="flex items-start justify-between gap-4 border-b border-brand-line/70 p-5">

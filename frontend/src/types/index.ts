@@ -949,6 +949,11 @@ export type Order = {
   mixEndDate?: string;
   /** Sports Ent Magento client-requested due date (DB: client_requested_mix_due_date). */
   clientRequestedMixDueDate?: string;
+  /**
+   * Manual New Order Mix Information only (DB: choreography_completion_date).
+   * Not Magento-mapped; display/CRUD for Cheer / Dance / Marching Band.
+   */
+  choreographyCompletionDate?: string;
   /** Sports Ent Magento client rush answer (DB: client_requested_rush_order). */
   clientRequestedRushOrder?: "yes" | "no" | boolean | string;
   missingDataEmailSentAt?: string | null;

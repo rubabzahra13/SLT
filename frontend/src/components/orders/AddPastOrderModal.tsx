@@ -95,11 +95,9 @@ export function AddPastOrderModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <button
-        type="button"
+      <div
         className="absolute inset-0 bg-brand-scrim backdrop-blur-sm"
-        onClick={onClose}
-        aria-label="Close"
+        aria-hidden="true"
       />
       <div className="surface-premium relative w-full max-w-lg rounded-2xl p-6 shadow-[var(--shadow-premium)]">
         <div className="mb-6 flex items-start justify-between">

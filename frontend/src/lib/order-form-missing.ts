@@ -46,6 +46,7 @@ const MANUAL_SLIM_MTD_FIELD_KEYS = new Set<string>([
   "timeLengthOfMix",
   "style",
   "styleOfGamedayMix",
+  "choreographyCompletionDate",
 ]);
 
 /**
@@ -95,6 +96,8 @@ const ALWAYS_OPTIONAL_FORM_FIELD_KEYS = new Set([
   // Dance Magento cover boxes: optional even when that affiliate is selected.
   "powerMusicCovers",
   "unleashTheBeatsCovers",
+  // Manual Mix Information date — display/CRUD only; never blocks MTD.
+  "choreographyCompletionDate",
 ]);
 
 /**

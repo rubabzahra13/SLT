@@ -1523,11 +1523,9 @@ export function AssignEditorModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4">
-      <button
-        type="button"
+      <div
         className="absolute inset-0 bg-brand-scrim backdrop-blur-sm"
-        onClick={onClose}
-        aria-label="Close"
+        aria-hidden="true"
       />
       <div
         className={clsx(

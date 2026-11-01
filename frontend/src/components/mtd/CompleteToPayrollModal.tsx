@@ -873,11 +873,9 @@ export function CompleteToPayrollModal({
 
   return createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      <button
-        type="button"
+      <div
         className="absolute inset-0 bg-black/50 backdrop-blur-[3px]"
-        onClick={onClose}
-        aria-label="Close"
+        aria-hidden="true"
       />
 
       <div

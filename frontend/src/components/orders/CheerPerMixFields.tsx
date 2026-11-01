@@ -193,13 +193,27 @@ export function CheerPerMixFields({
           );
         }
 
-        if (field.key === "mixEndDate") {
+        if (
+          field.key === "mixEndDate" ||
+          field.key === "choreographyCompletionDate"
+        ) {
           return (
-            <FieldShell key={field.key} label={field.label}>
+            <FieldShell
+              key={field.key}
+              label={field.label}
+              className={
+                field.key === "choreographyCompletionDate"
+                  ? "flex min-w-0 flex-col sm:col-span-2 lg:col-span-3"
+                  : undefined
+              }
+            >
               {editable ? (
                 <InlineDateInput
                   value={raw}
                   onChange={(value) => onChange(field.key, value)}
+                  placeholder="Select date"
+                  menuZIndex={110}
+                  className="w-full max-w-[280px]"
                 />
               ) : (
                 <p className="text-[13px] text-brand-ink">{raw || "-"}</p>

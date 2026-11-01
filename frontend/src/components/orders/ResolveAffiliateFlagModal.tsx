@@ -260,12 +260,9 @@ export function ResolveAffiliateFlagModal({
 
   return createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      <button
-        type="button"
+      <div
         className="absolute inset-0 bg-black/45 backdrop-blur-[2px]"
-        onClick={isBusy ? undefined : onClose}
-        disabled={isBusy}
-        aria-label="Close"
+        aria-hidden="true"
       />
 
       <div

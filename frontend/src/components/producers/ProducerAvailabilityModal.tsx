@@ -2365,11 +2365,9 @@ export function ProducerAvailabilityModal({
 
       {timeOffNotice ? (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-          <button
-            type="button"
+          <div
             className="absolute inset-0 bg-brand-scrim/80"
-            aria-label="Close"
-            onClick={clearTimeOffNotice}
+            aria-hidden="true"
           />
           <div
             role="dialog"
@@ -2616,12 +2614,9 @@ export function ProducerAvailabilityModal({
                 !chipRemovalArmed && "pointer-events-none"
               )}
             >
-              <button
-                type="button"
+              <div
                 className="absolute inset-0 bg-brand-scrim/80"
-                aria-label="Close"
-                disabled={!chipRemovalArmed}
-                onClick={clearPendingChipRemoval}
+                aria-hidden="true"
               />
               <div
                 role="dialog"
@@ -2692,11 +2687,9 @@ export function ProducerAvailabilityModal({
       {workDayExtraConflict
         ? createPortal(
             <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-              <button
-                type="button"
+              <div
                 className="absolute inset-0 bg-brand-scrim/80"
-                aria-label="Close"
-                onClick={clearWorkDayOtConflict}
+                aria-hidden="true"
               />
               <div
                 role="dialog"
@@ -2749,11 +2742,9 @@ export function ProducerAvailabilityModal({
       {workDayLeaveConflict
         ? createPortal(
             <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-              <button
-                type="button"
+              <div
                 className="absolute inset-0 bg-brand-scrim/80"
-                aria-label="Close"
-                onClick={clearWorkDayLeaveConflict}
+                aria-hidden="true"
               />
               <div
                 role="dialog"
@@ -2806,11 +2797,9 @@ export function ProducerAvailabilityModal({
       {workDayMixConflict
         ? createPortal(
             <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-              <button
-                type="button"
+              <div
                 className="absolute inset-0 bg-brand-scrim/80"
-                aria-label="Close"
-                onClick={clearWorkDayMixConflict}
+                aria-hidden="true"
               />
               <div
                 role="dialog"
@@ -2898,11 +2887,9 @@ export function ProducerAvailabilityModal({
       {extraDayMixConflict
         ? createPortal(
             <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-              <button
-                type="button"
+              <div
                 className="absolute inset-0 bg-brand-scrim/80"
-                aria-label="Close"
-                onClick={clearExtraDayMixConflict}
+                aria-hidden="true"
               />
               <div
                 role="dialog"

@@ -176,13 +176,9 @@ export function DeleteProducerModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <button
-        type="button"
+      <div
         className="absolute inset-0 bg-brand-scrim backdrop-blur-sm"
-        onClick={() => {
-          if (!busy) onClose();
-        }}
-        aria-label="Close"
+        aria-hidden="true"
       />
 
       <div

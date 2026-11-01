@@ -8,16 +8,13 @@ import { MTDOrderDetails } from "@/components/mtd/MTDOrderDetails";
 import { useAppState } from "@/context/AppStateContext";
 import { formatApiClientError } from "@/lib/api/client";
 import { orderPatchFromOrderField } from "@/lib/mtd-order-sync";
-import { packageTypeDisplayValue } from "@/components/mtd/PackageTypeField";
-import { getOrderIdentityName } from "@/lib/order-detail-sections";
 import { normalizeOrder } from "@/lib/order-form";
 import {
   addOrderDraftHasContent,
-  applyMixFieldValues,
   blankAddOrderPerMixValues,
+  buildManualOrdersFromMixes,
   getAddOrderMultiMixFieldKeys,
   MAX_ADD_ORDER_MIXES,
-  orderWithoutMixFields,
   pickMixFieldValues,
   supportsAddOrderMultiMix,
 } from "@/lib/add-order-mixes";
@@ -25,7 +22,6 @@ import {
   formatOrderEmailFormatBlockReason,
   getInvalidOrderEmailFields,
 } from "@/lib/email-format";
-import { parsePackage } from "@/lib/package";
 import type {
   CheerFormSubtype,
   CheerFormSubtypeFilter,
@@ -49,19 +45,6 @@ type AddNewOrderModalProps = {
   initialDanceSubtype?: DanceFormSubtypeFilter;
   onAdd: (order: Partial<Order>) => Promise<Order>;
 };
-
-function composePackageLabel(tierOrPackage: string, mixLength?: string): string {
-  const raw = tierOrPackage.trim();
-  if (!raw) return mixLength?.trim() || "";
-  const parsed = parsePackage(raw);
-  const tier =
-    parsed.tier && parsed.tier !== "-"
-      ? parsed.tier
-      : raw.replace(/\s+\d+:\d{2}\b/g, "").replace(/\s+TBD\b/i, "").trim();
-  const length = (mixLength || "").trim();
-  if (tier && length && length !== "-") return `${tier} ${length}`;
-  return tier || raw;
-}
 
 function categoryLabelsForForm(
   formType: OrderFormType,
@@ -319,7 +302,8 @@ export function AddNewOrderModal({
           contactName: prev.contactName || prev.coachName || "",
           customerName: prev.customerName || prev.coachName || "",
           teamName: prev.teamName,
-          programName: prev.programName || prev.teamName || "",
+          // Never fold Team Name into gym/school/program identity.
+          programName: prev.programName || "",
           gymName: prev.gymName,
           schoolName: prev.schoolName,
           schoolProgramName: prev.schoolProgramName,
@@ -416,7 +400,7 @@ export function AddNewOrderModal({
   );
 
   const handleDuplicateMix = useCallback(() => {
-    // Add another empty mix slot (team / package / length / producer only).
+    // Add another empty mix slot (cheer/dance/MB per-mix keys only).
     setMixes((prev) => {
       if (prev.length >= MAX_ADD_ORDER_MIXES) return prev;
       return [...prev, blankAddOrderPerMixValues()];
@@ -437,24 +421,33 @@ export function AddNewOrderModal({
     if (!orderDraft) return;
     setError(null);
 
-    const keys = mixKeys;
     const mixList = mixListForSave;
 
     // Admin Add Order: any field except coupon / how-did-you-find-out alone.
     // Footer error (near Save): only after this click via showValidation.
-    if (!addOrderDraftHasContent(orderDraft, mixList, keys)) {
+    if (!addOrderDraftHasContent(orderDraft, mixList, mixKeys)) {
       setShowValidation(true);
       return;
     }
 
-    const sharedBase = orderWithoutMixFields(orderDraft, keys);
-    const fullOrders = mixList.map((mix) =>
-      applyMixFieldValues(sharedBase, mix)
+    const { category } = categoryLabelsForForm(
+      formType,
+      cheerSubtype,
+      danceSubtype
     );
+
+    const fullOrders = buildManualOrdersFromMixes({
+      orderDraft,
+      mixes: mixList,
+      formType,
+      cheerSubtype,
+      danceSubtype,
+      category,
+    });
 
     // Any filled email field must be a valid address (any domain).
     for (const full of fullOrders) {
-      const emailGaps = getInvalidOrderEmailFields(full);
+      const emailGaps = getInvalidOrderEmailFields(full as Order);
       if (emailGaps.length > 0) {
         setShowValidation(true);
         setError(formatOrderEmailFormatBlockReason(emailGaps));
@@ -464,77 +457,9 @@ export function AddNewOrderModal({
 
     setSaving(true);
 
-    const { category } = categoryLabelsForForm(
-      formType,
-      cheerSubtype,
-      danceSubtype
-    );
-
     try {
       for (const draft of fullOrders) {
-        const tier =
-          packageTypeDisplayValue(draft.packageType || "") ||
-          packageTypeDisplayValue(draft.package || "");
-        const mixLength = (draft.timeLengthOfMix || "").trim();
-        const selectedPkg =
-          formType === "school-all-star-cheer"
-            ? composePackageLabel(tier, mixLength)
-            : tier ||
-              (draft.packageType || draft.package || "").trim();
-
-        const contact =
-          draft.coachName ||
-          draft.coachContactFullName ||
-          draft.musicContactName ||
-          draft.contactName ||
-          draft.customerName ||
-          "";
-        const program =
-          getOrderIdentityName(draft) ||
-          draft.teamName ||
-          draft.programName ||
-          "";
-
-        await onAdd({
-          ...draft,
-          isManualEntry: true,
-          category,
-          package:
-            formType === "school-anthem" ? "SCHOOL ANTHEMS" : selectedPkg,
-          packageType:
-            formType === "school-anthem"
-              ? "SCHOOL ANTHEMS"
-              : tier || draft.packageType,
-          price: formType === "school-anthem" ? 1250 : draft.price,
-          timeLengthOfMix: mixLength,
-          contactName: contact,
-          customerName: contact,
-          programName: program,
-          gymName:
-            draft.gymName?.trim() ||
-            (cheerSubtype === "all-star-cheer" ? program : ""),
-          schoolName:
-            draft.schoolName?.trim() || draft.gymName?.trim() || program,
-          formType,
-          cheerFormSubtype:
-            formType === "school-all-star-cheer" ? cheerSubtype : undefined,
-          danceFormSubtype:
-            formType === "school-all-star-dance" ? danceSubtype : undefined,
-          editorRequest:
-            draft.requestedEditor === "First Available" ||
-            !draft.requestedEditor
-              ? "FA"
-              : draft.requestedEditor,
-          requestedProducer: draft.requestedEditor || "",
-          musicTheme:
-            draft.songListSuggestions ||
-            draft.routineNotes ||
-            draft.musicTheme ||
-            "",
-          mixStartDate: "",
-          mixEndDate: "",
-          assignedProducer: "",
-        });
+        await onAdd(draft);
       }
 
       onClose();
@@ -569,11 +494,9 @@ export function AddNewOrderModal({
 
   return createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      <button
-        type="button"
+      <div
         className="absolute inset-0 bg-black/45 backdrop-blur-[2px]"
-        onClick={onClose}
-        aria-label="Close"
+        aria-hidden="true"
       />
 
       <div

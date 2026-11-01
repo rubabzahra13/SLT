@@ -941,11 +941,9 @@ export function SetPricingModal({
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center p-3 sm:p-6 overflow-hidden">
-      <button
-        type="button"
+      <div
         className="absolute inset-0 bg-brand-scrim/90 backdrop-blur-sm"
-        onClick={onClose}
-        aria-label="Close modal"
+        aria-hidden="true"
       />
 
       <div

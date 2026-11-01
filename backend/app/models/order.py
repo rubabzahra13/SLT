@@ -120,6 +120,8 @@ class Order(Base):
     mix_end_date = Column(String, nullable=True)
     # Sports Ent Magento client-requested due date (not admin Mix Due Date).
     client_requested_mix_due_date = Column(String, nullable=True)
+    # Manual New Order Mix Information only — not Magento-mapped; display/CRUD.
+    choreography_completion_date = Column(String, nullable=True)
     is_reassigned = Column(Boolean, default=False, nullable=False)
 
     # --- 9. Status / workflow / merge / email ---
