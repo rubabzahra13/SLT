@@ -21,6 +21,7 @@ import {
   applyDbMusicAffiliates,
   applyDbPricingRules,
   categoryKeyToDbPricingTarget,
+  categoryUsesMusicAffiliate,
   DB_BACKED_PRICING_CATEGORIES,
   flatRowsToPricingRulePackages,
   getCategoryPricingSnapshot,
@@ -936,6 +937,7 @@ export function SetPricingModal({
   if (!open) return null;
 
   const hasPricingRows = activeSnapshot.rows.length > 0;
+  const usesMusicAffiliate = categoryUsesMusicAffiliate(selectedCategory);
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center p-3 sm:p-6 overflow-hidden">
@@ -1263,12 +1265,20 @@ export function SetPricingModal({
                       <th className="sticky top-0 z-20 border border-neutral-300 px-3.5 py-2.5 text-center bg-neutral-200 text-neutral-900">
                         Package Price
                       </th>
-                      <th className="sticky top-0 z-20 border border-neutral-300 px-3.5 py-2.5 text-center bg-emerald-200 text-emerald-950 font-bold">
-                        Music Affiliate: Compliant (Payroll Price)
-                      </th>
-                      <th className="sticky top-0 z-20 border border-neutral-300 px-3.5 py-2.5 text-center bg-rose-200 text-rose-950 font-bold">
-                        Music Affiliate: Non-Compliant (Payroll Price)
-                      </th>
+                      {usesMusicAffiliate ? (
+                        <>
+                          <th className="sticky top-0 z-20 border border-neutral-300 px-3.5 py-2.5 text-center bg-emerald-200 text-emerald-950 font-bold">
+                            Music Affiliate: Compliant (Payroll Price)
+                          </th>
+                          <th className="sticky top-0 z-20 border border-neutral-300 px-3.5 py-2.5 text-center bg-rose-200 text-rose-950 font-bold">
+                            Music Affiliate: Non-Compliant (Payroll Price)
+                          </th>
+                        </>
+                      ) : (
+                        <th className="sticky top-0 z-20 border border-neutral-300 px-3.5 py-2.5 text-center bg-neutral-200 text-neutral-900">
+                          Payroll Price
+                        </th>
+                      )}
                     </tr>
                   </thead>
                   <tbody className="text-neutral-900">
@@ -1305,10 +1315,11 @@ export function SetPricingModal({
                                     onChange={(next) => {
                                       const price = next ?? tierRow.customer;
                                       const flatAlways =
-                                        selectedCategory === "Youth Rec Cheer" ||
-                                        isTitanium ||
-                                        tierRow.alwaysFixedPayroll ||
-                                        tierRow.compliant === tierRow.nonCompliant;
+                                        usesMusicAffiliate &&
+                                        (isTitanium ||
+                                          tierRow.alwaysFixedPayroll ||
+                                          tierRow.compliant ===
+                                            tierRow.nonCompliant);
                                       updateDraftRow(
                                         idx,
                                         flatAlways
@@ -1325,15 +1336,29 @@ export function SetPricingModal({
                               </td>
                               {isUnpriced && !isEditingPricing ? (
                                 <td
-                                  colSpan={2}
+                                  colSpan={usesMusicAffiliate ? 2 : 1}
                                   className="border border-neutral-300 bg-amber-50/10 px-3.5 py-2 text-center text-[12px] font-medium text-neutral-500"
                                 >
                                   N/A
                                 </td>
+                              ) : !usesMusicAffiliate ? (
+                                <td className="border border-neutral-300 px-3.5 py-2 text-center font-bold tabular-nums text-neutral-900">
+                                  <PriceCell
+                                    editing={isEditingPricing}
+                                    value={tierRow.compliant}
+                                    onChange={(next) => {
+                                      const price = next ?? tierRow.compliant;
+                                      updateDraftRow(idx, {
+                                        customer: price,
+                                        compliant: price,
+                                        nonCompliant: price,
+                                      });
+                                    }}
+                                  />
+                                </td>
                               ) : isTitanium ||
                               tierRow.alwaysFixedPayroll ||
-                              tierRow.compliant === tierRow.nonCompliant ||
-                              selectedCategory === "Youth Rec Cheer" ? (
+                              tierRow.compliant === tierRow.nonCompliant ? (
                                 <td
                                   colSpan={2}
                                   className="border border-neutral-300 bg-blue-50/40 px-3.5 py-2 text-center font-bold tabular-nums text-neutral-900"
@@ -1438,12 +1463,18 @@ export function SetPricingModal({
                                         isUnpriced: next == null,
                                         ...(next != null &&
                                         packageRow.compliant == null
-                                          ? { compliant: next }
-                                          : {}),
-                                        ...(next != null &&
-                                        packageRow.nonCompliant == null
-                                          ? { nonCompliant: next }
-                                          : {}),
+                                          ? {
+                                              compliant: next,
+                                              ...(!usesMusicAffiliate ||
+                                              packageRow.nonCompliant == null
+                                                ? { nonCompliant: next }
+                                                : {}),
+                                            }
+                                          : next != null &&
+                                              packageRow.nonCompliant == null &&
+                                              usesMusicAffiliate
+                                            ? { nonCompliant: next }
+                                            : {}),
                                       })
                                     }
                                   />
@@ -1451,10 +1482,23 @@ export function SetPricingModal({
                               </td>
                               {isUnpriced && !isEditingPricing ? (
                                 <td
-                                  colSpan={2}
+                                  colSpan={usesMusicAffiliate ? 2 : 1}
                                   className="border border-neutral-300 bg-amber-50/10 px-3.5 py-2 text-center text-[12px] font-medium text-neutral-500"
                                 >
                                   N/A
+                                </td>
+                              ) : !usesMusicAffiliate ? (
+                                <td className="border border-neutral-300 px-3.5 py-2 text-center font-bold tabular-nums text-neutral-900">
+                                  <PriceCell
+                                    editing={isEditingPricing}
+                                    value={packageRow.compliant}
+                                    onChange={(next) =>
+                                      updateDraftRow(idx, {
+                                        compliant: next,
+                                        nonCompliant: next,
+                                      })
+                                    }
+                                  />
                                 </td>
                               ) : alwaysFixed ? (
                                 <td
@@ -1563,6 +1607,7 @@ export function SetPricingModal({
                 </div>
               )}
 
+              {categoryUsesMusicAffiliate(selectedCategory) ? (
               <div className="rounded-xl border border-neutral-300 bg-neutral-50 p-4 shadow-sm">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -1671,6 +1716,7 @@ export function SetPricingModal({
                   )}
                 </div>
               </div>
+              ) : null}
             </div>
           )}
         </div>

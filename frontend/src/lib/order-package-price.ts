@@ -18,6 +18,8 @@ import {
   type PricingReferenceStore,
 } from "@/lib/pricing-reference";
 import { parsePackage } from "@/lib/package";
+import { isHeldOnAffiliateFlag } from "@/lib/affiliate-flag";
+import { resolveOrderPriceCompliance } from "@/lib/pricing";
 import type { MTDRecord, Order, PriceCompliance } from "@/types";
 
 export const PRICING_REFERENCE_CHANGED_EVENT = "slt-pricing-reference-changed";
@@ -267,6 +269,16 @@ export function resolveLiveOrderPricing(
   orderById?: Map<string, Order>,
   referenceStore?: PricingReferenceStore
 ): LiveOrderPricing {
+  if (isHeldOnAffiliateFlag(order, rec)) {
+    return {
+      customerPrice: 0,
+      payrollPrice: 0,
+      engineCustomerPrice: null,
+      enginePayrollPrice: null,
+      isOverridden: false,
+    };
+  }
+
   let formMeta = meta ?? null;
   if (!formMeta && orderById) {
     formMeta = resolveMTDFormMeta(rec, orderById);
@@ -315,17 +327,28 @@ export function resolveLiveOrderPricing(
         order?.timeLengthOfMix
       );
       if (row) {
+        const noAffiliateForm =
+          formMeta.cheerFormSubtype === "youth-rec-cheer" ||
+          formMeta.formType === "marching-band" ||
+          formMeta.formType === "sports-entertainment" ||
+          formMeta.formType === "school-anthem";
         if (row.kind === "tier-time" && !row.isUnpriced && row.customer != null) {
           engineCustomer = row.customer;
-          const compliant =
-            engine?.complianceStatus === "non-compliant"
-              ? row.nonCompliant
-              : row.compliant;
-          enginePayroll = row.isTitanium ? row.customer : compliant;
+          // Youth Rec has no affiliate field: always flat package (customer).
+          if (noAffiliateForm || row.isTitanium) {
+            enginePayroll = row.customer;
+          } else {
+            const compliant =
+              engine?.complianceStatus === "non-compliant"
+                ? row.nonCompliant
+                : row.compliant;
+            enginePayroll = compliant;
+          }
         } else if (row.kind === "flat-package" && row.customer != null) {
           engineCustomer = row.customer;
-          // alwaysFixed (Fight Song / Alma Mater): both columns are the flat amount.
+          // MB / SE / Anthem / alwaysFixed: never split on music affiliate compliance.
           const useNonCompliant =
+            !noAffiliateForm &&
             !row.alwaysFixedPayroll &&
             engine?.complianceStatus === "non-compliant";
           const payrollCol = useNonCompliant ? row.nonCompliant : row.compliant;
@@ -443,10 +466,44 @@ export function payrollAmountsForRow(
       : typeof rec.finalPayrollPrice === "number" && Number.isFinite(rec.finalPayrollPrice)
         ? rec.finalPayrollPrice
         : null;
+  if (isHeldOnAffiliateFlag(order, rec)) {
+    return {
+      customerPrice: 0,
+      payrollPrice: 0,
+      savedPayrollPrice: null,
+    };
+  }
   return {
     customerPrice: liveCustomer > 0 ? liveCustomer : savedCustomer,
     payrollPrice: livePayroll > 0 ? livePayroll : (savedPayroll ?? savedCustomer),
     savedPayrollPrice: savedPayroll,
+  };
+}
+
+/**
+ * After admin picks one music affiliate, compute and persist live prices
+ * the same way a normal single-value order would.
+ */
+export function pricingPatchAfterAffiliateResolve(order: Order): Partial<Order> {
+  const stub: MTDRecord = {
+    id: order.id,
+    orderId: order.id,
+    package: order.package || order.packageType || "",
+    category: order.category || "",
+    formType: order.formType,
+    cheerFormSubtype: order.cheerFormSubtype,
+    danceFormSubtype: order.danceFormSubtype,
+    price: 0,
+    priceCompliance: resolveOrderPriceCompliance(order),
+  } as MTDRecord;
+  const live = resolveLiveOrderPricing(stub, order);
+  return {
+    price: live.customerPrice,
+    finalCustomerPrice: live.customerPrice,
+    finalPayrollPrice: live.payrollPrice,
+    systemCalculatedCustomerPrice: live.engineCustomerPrice,
+    finalCustomerPriceOverridden: false,
+    priceCompliance: resolveOrderPriceCompliance(order),
   };
 }
 

@@ -2,8 +2,11 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   buildRecordPriceSavePatch,
+  pricingPatchAfterAffiliateResolve,
   resolveLiveOrderPricing,
 } from "../order-package-price";
+import { ALL_STAR_CHEER_MUSIC_AFFILIATE_OPTIONS } from "../pricing-reference";
+import { resolveAffiliateFlagPatch } from "../affiliate-flag";
 import type { MTDRecord, Order } from "@/types";
 
 function baseRec(overrides: Partial<MTDRecord> = {}): MTDRecord {
@@ -153,5 +156,46 @@ describe("payroll/cost uses compliant rate card, not edited customer price", () 
       assert.equal(live.payrollPrice, bare.payrollPrice + 90);
       assert.equal(live.enginePayrollPrice, bare.enginePayrollPrice! + 90);
     }
+  });
+
+  it("does not price a flagged multi-affiliate order", () => {
+    const raw = ALL_STAR_CHEER_MUSIC_AFFILIATE_OPTIONS.join(", ");
+    const rec = baseRec({
+      price: 350,
+      finalCustomerPrice: 350,
+    });
+    const order = baseOrder({
+      musicAffiliate: raw,
+      musicAffiliateSelections: raw,
+      affiliateFlagStatus: "open",
+      price: 350,
+      finalCustomerPrice: 350,
+    });
+    const live = resolveLiveOrderPricing(rec, order);
+    assert.equal(live.customerPrice, 0);
+    assert.equal(live.payrollPrice, 0);
+    assert.equal(live.engineCustomerPrice, null);
+    assert.equal(live.enginePayrollPrice, null);
+  });
+
+  it("prices like a normal order after a single affiliate is chosen", () => {
+    const raw = ALL_STAR_CHEER_MUSIC_AFFILIATE_OPTIONS.join(", ");
+    const flagged = baseOrder({
+      musicAffiliate: raw,
+      musicAffiliateSelections: raw,
+      affiliateFlagStatus: "open",
+      price: 0,
+    });
+    const resolved = {
+      ...flagged,
+      ...resolveAffiliateFlagPatch(flagged, "Songs for Cheer"),
+    };
+    assert.equal(resolved.musicAffiliate, "Songs for Cheer");
+    const patch = pricingPatchAfterAffiliateResolve(resolved);
+    const single = baseOrder({ musicAffiliate: "Songs for Cheer" });
+    const expected = resolveLiveOrderPricing(baseRec(), single);
+    assert.equal(patch.price, expected.customerPrice);
+    assert.equal(patch.finalCustomerPrice, expected.customerPrice);
+    assert.equal(patch.finalPayrollPrice, expected.payrollPrice);
   });
 });

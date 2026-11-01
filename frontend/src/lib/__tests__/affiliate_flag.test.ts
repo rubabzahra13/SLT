@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
 import {
+  formatMusicAffiliateDisplay,
   getAffiliateSelections,
   isHeldOnAffiliateFlag,
   isInvalidMultiAffiliateSelection,
@@ -10,6 +11,7 @@ import {
   resolveAffiliateFlagPatch,
 } from "../affiliate-flag";
 import { isAllowedAllStarDanceCoverPair } from "../dance-music-affiliate";
+import { ALL_STAR_CHEER_MUSIC_AFFILIATE_OPTIONS } from "../pricing-reference";
 import type { DanceFormSubtype, Order } from "../../types";
 
 function cheerOrder(overrides: Partial<Order> = {}): Order {
@@ -81,6 +83,28 @@ describe("affiliate flag detection", () => {
     );
   });
 
+  it("flags All-Star Magento comma-joined four-option string", () => {
+    const raw = ALL_STAR_CHEER_MUSIC_AFFILIATE_OPTIONS.join(", ");
+    const parsed = parseSelectedMusicAffiliates(raw);
+    assert.equal(parsed.length, 4);
+    for (const label of ALL_STAR_CHEER_MUSIC_AFFILIATE_OPTIONS) {
+      assert.ok(parsed.includes(label), `missing ${label}`);
+    }
+    const order = cheerOrder({
+      musicAffiliate: raw,
+      price: 350,
+      finalCustomerPrice: 350,
+    });
+    assert.equal(isInvalidMultiAffiliateSelection(order), true);
+    assert.equal(isHeldOnAffiliateFlag(order), true);
+    const open = openAffiliateFlagPatch(order);
+    assert.ok(open);
+    assert.equal(open!.affiliateFlagStatus, "open");
+    assert.equal(open!.price, 0);
+    assert.equal(open!.finalCustomerPrice, null);
+    assert.equal(open!.systemCalculatedCustomerPrice, null);
+  });
+
   it("flags multiple distinct cheer affiliates", () => {
     const raw = "Power Music, Unleash the Beats, Library Music";
     const parsed = parseSelectedMusicAffiliates(raw);
@@ -103,6 +127,10 @@ describe("affiliate flag detection", () => {
       ...resolveAffiliateFlagPatch(open, "Power Music"),
     });
     assert.equal(resolved.musicAffiliate, "Power Music");
+    assert.equal(
+      resolved.musicAffiliateSelections,
+      "Power Music, Library Music"
+    );
     assert.equal(resolved.affiliateFlagStatus, "released");
     assert.equal(isHeldOnAffiliateFlag(resolved), false);
 
@@ -112,6 +140,8 @@ describe("affiliate flag detection", () => {
       musicAffiliateSelections: "Power Music, Library Music",
     });
     assert.equal(isHeldOnAffiliateFlag(released), false);
+    assert.equal(isInvalidMultiAffiliateSelection(released), false);
+    assert.equal(formatMusicAffiliateDisplay(released), "Power Music");
   });
 
   it("openAffiliateFlagPatch only applies to multi cheer selections", () => {

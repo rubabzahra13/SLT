@@ -29,12 +29,10 @@ import { OrderRequirementsCell } from "@/components/orders/OrderRequirementsCell
 import { OrderDataStatusBadge, OrderAssignmentStatusBadge } from "@/components/orders/OrderStatusDropdown";
 import { recordIsRushOrder } from "@/lib/forward-order-mail";
 import {
-  getAffiliateSelections,
-  isDanceFormOrder,
+  formatMusicAffiliateDisplay,
   isInvalidMultiAffiliateSelection,
   recordHeldOnAffiliateFlag,
 } from "@/lib/affiliate-flag";
-import { formatDanceMusicAffiliates } from "@/lib/dance-music-affiliate";
 import {
   DEFAULT_MTD_TABLE_FILTERS,
   type MTDTableFilterState,
@@ -1073,11 +1071,8 @@ function OrdersPageContent() {
               headerClassName: compactHeaderClass,
               render: (rec: MTDRecord) => {
                 const linked = findLinkedOrder(rec, allOrders);
-                const selections = getAffiliateSelections(linked, rec);
-                const affiliate =
-                  linked?.musicAffiliate ??
-                  (rec as MTDRecord & { musicAffiliate?: string }).musicAffiliate;
-                if (!affiliate && selections.length === 0) {
+                const display = formatMusicAffiliateDisplay(linked, rec);
+                if (!display) {
                   return (
                     <span className={clsx("mx-auto block text-center text-brand-ink-tertiary", compactTextClass)}>
                       No data
@@ -1089,18 +1084,14 @@ function OrdersPageContent() {
                   linked,
                   rec
                 );
-                const danceOrder =
-                  isDanceFormOrder(linked) || isDanceFormOrder(rec);
-                const display =
-                  selections.length >= 2
-                    ? danceOrder
-                      ? formatDanceMusicAffiliates(selections)
-                      : selections.join(" · ")
-                    : titleCase(affiliate || selections[0] || "");
 
                 return (
                   <TruncatedText
-                    text={display}
+                    text={
+                      invalidMulti
+                        ? display
+                        : titleCase(display)
+                    }
                     className={clsx(
                       "mx-auto w-full min-w-0 text-center font-medium",
                       compactTextClass,

@@ -205,6 +205,28 @@ export function schoolCheerVirocMusicAffiliateOptionsForPackage(
   );
 }
 
+/**
+ * Magento multi-select arrives as "option1, option2, …". Do not collapse that
+ * into a single SoftSelect label (e.g. "Non compliant" via substring match).
+ */
+function cheerAffiliateCatalogHitCount(
+  raw: string,
+  catalog: readonly string[]
+): number {
+  let remaining = raw.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (!remaining) return 0;
+  let hits = 0;
+  const labels = [...catalog].sort((a, b) => b.length - a.length);
+  for (const label of labels) {
+    const key = label.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (!key || key.length < 4) continue;
+    if (!remaining.includes(key)) continue;
+    hits += 1;
+    remaining = remaining.replace(key, "");
+  }
+  return hits;
+}
+
 function normalizeCheerAffiliateAgainstCatalog(
   value: string | null | undefined,
   catalog: readonly string[],
@@ -218,6 +240,11 @@ function normalizeCheerAffiliateAgainstCatalog(
   const lower = raw.toLowerCase();
   const loose = catalog.find((opt) => opt.toLowerCase() === lower);
   if (loose) return loose;
+
+  // Keep Magento multi-select intact for Flagged Orders resolution.
+  if (cheerAffiliateCatalogHitCount(raw, catalog) >= 2) {
+    return raw;
+  }
 
   const compact = raw.toUpperCase().replace(/[^A-Z0-9]/g, "");
   if (compact === "NONCOMPLIANT" || compact.includes("NONCOMPLIANT")) {
@@ -305,6 +332,25 @@ export function isDanceCategory(category: CategoryKey): boolean {
   return DANCE_CATEGORIES.has(category);
 }
 
+/**
+ * Categories with a Magento / SoftSelect Music Affiliate field.
+ * Youth Rec, Marching Band, Sports Entertainment, and School Anthems have none:
+ * no Edit Affiliates UI, SoftSelect options, or compliant/non-compliant payroll split.
+ */
+export const CATEGORIES_WITHOUT_MUSIC_AFFILIATE = new Set<CategoryKey>([
+  "Youth Rec Cheer",
+  "Marching Band",
+  "Sports Entertainment",
+  "School Anthems",
+]);
+
+export function categoryUsesMusicAffiliate(
+  category: CategoryKey | string | null | undefined
+): boolean {
+  if (!category) return false;
+  return !CATEGORIES_WITHOUT_MUSIC_AFFILIATE.has(category as CategoryKey);
+}
+
 function findMusicAffiliateOption(id: string): MusicAffiliateOption | undefined {
   return (
     COMPLIANT_AFFILIATE_OPTIONS.find((entry) => entry.id === id) ??
@@ -315,6 +361,7 @@ function findMusicAffiliateOption(id: string): MusicAffiliateOption | undefined 
 export function getVisibleCompliantAffiliateOptions(
   category: CategoryKey
 ): CompliantAffiliateOption[] {
+  if (!categoryUsesMusicAffiliate(category)) return [];
   return COMPLIANT_AFFILIATE_OPTIONS.filter(
     (option) => !option.danceOnly || isDanceCategory(category)
   );
@@ -323,6 +370,7 @@ export function getVisibleCompliantAffiliateOptions(
 export function getVisibleMusicAffiliateOptions(
   category: CategoryKey
 ): MusicAffiliateOption[] {
+  if (!categoryUsesMusicAffiliate(category)) return [];
   const compliant = getVisibleCompliantAffiliateOptions(category);
   return [...compliant, ...NON_COMPLIANT_AFFILIATE_OPTIONS];
 }
@@ -421,6 +469,7 @@ function defaultMusicAffiliateCatalog(
     if (label.startsWith("100%")) return "original-custom-music-titanium";
     return "power-music-unleash-covers";
   };
+  if (!categoryUsesMusicAffiliate(category)) return [];
   if (category === "All-Star Cheer") {
     return ALL_STAR_CHEER_MUSIC_AFFILIATE_OPTIONS.map((label) => ({
       id: idForLabel(label),
@@ -428,7 +477,7 @@ function defaultMusicAffiliateCatalog(
       isCompliant: label !== "Non compliant",
     }));
   }
-  if (category === "School Cheer" || category === "Youth Rec Cheer") {
+  if (category === "School Cheer") {
     return SCHOOL_CHEER_VIROC_MUSIC_AFFILIATE_OPTIONS.map((label) => ({
       id: idForLabel(label),
       label,
@@ -580,17 +629,21 @@ export function buildDefaultCategorySnapshot(
   const catalogCompliantIds = musicAffiliateCatalog
     .filter((entry) => entry.isCompliant)
     .map((entry) => entry.id);
+  const usesAffiliate = categoryUsesMusicAffiliate(category);
 
   return {
     rows,
     addOns: DEFAULT_CATEGORY_ADDONS[category].map((addon) => ({ ...addon })),
-    compliantAffiliateIds:
-      catalogCompliantIds.length > 0
+    compliantAffiliateIds: usesAffiliate
+      ? catalogCompliantIds.length > 0
         ? catalogCompliantIds
-        : [...DEFAULT_COMPLIANT_AFFILIATE_IDS],
+        : [...DEFAULT_COMPLIANT_AFFILIATE_IDS]
+      : [],
     compliantAffiliateLabels: {},
     musicAffiliateCatalog:
-      musicAffiliateCatalog.length > 0 ? musicAffiliateCatalog : undefined,
+      usesAffiliate && musicAffiliateCatalog.length > 0
+        ? musicAffiliateCatalog
+        : undefined,
     nonCompliantAffiliateLabels: {},
   };
 }
@@ -709,6 +762,19 @@ export function getCategoryPricingSnapshot(
       : category === "Marching Band"
         ? migrateMarchingBandCombinedPackages(rawRows)
         : rawRows;
+  // Forms without a Music Affiliate field never carry SoftSelect / compliance catalogs.
+  if (!categoryUsesMusicAffiliate(category)) {
+    return {
+      rows,
+      addOns: saved.addOns?.length
+        ? saved.addOns.map((addon) => ({ ...addon }))
+        : defaults.addOns,
+      compliantAffiliateIds: [],
+      compliantAffiliateLabels: {},
+      nonCompliantAffiliateLabels: {},
+      musicAffiliateCatalog: undefined,
+    };
+  }
   return {
     rows,
     addOns: saved.addOns?.length
@@ -819,6 +885,7 @@ export function getCompliantAffiliateLabelsForCategory(
   category: CategoryKey,
   store?: PricingReferenceStore
 ): string[] {
+  if (!categoryUsesMusicAffiliate(category)) return [];
   const snapshot = getCategoryPricingSnapshot(category, store);
   const labels: string[] = [];
 
@@ -951,6 +1018,16 @@ export function applyDbMusicAffiliates(
 
   let updated = next;
   for (const [category, options] of byCategory) {
+    // Never hydrate SoftSelect / compliance for forms without a music affiliate field.
+    if (!categoryUsesMusicAffiliate(category)) {
+      updated = updateCategoryPricingSnapshot(updated, category, {
+        musicAffiliateCatalog: undefined,
+        compliantAffiliateIds: [],
+        compliantAffiliateLabels: {},
+        nonCompliantAffiliateLabels: {},
+      });
+      continue;
+    }
     const enabled = [...options]
       .filter((opt) => opt.enabled)
       .sort((a, b) => a.sort_order - b.sort_order || a.label.localeCompare(b.label));

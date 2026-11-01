@@ -20,13 +20,12 @@ import {
 } from "@/components/mtd/PackageTypeField";
 import { useAppState } from "@/context/AppStateContext";
 import {
+  formatMusicAffiliateDisplay,
   getAffiliateSelections,
-  isDanceFormOrder,
   isInvalidMultiAffiliateSelection,
   recordHeldOnAffiliateFlag,
 } from "@/lib/affiliate-flag";
-import { formatDanceMusicAffiliates } from "@/lib/dance-music-affiliate";
-import { formatPrice, titleCase } from "@/lib/data";
+import { titleCase } from "@/lib/data";
 import { formatDisplayDateTime } from "@/lib/dates";
 import {
   findLinkedOrder,
@@ -40,7 +39,6 @@ import {
   matchesFormFilter,
   resolveMTDFormMeta,
 } from "@/lib/mtd-filters";
-import { resolveOrderPackageDisplayPrice } from "@/lib/order-package-price";
 import { parsePackage } from "@/lib/package";
 import { listPreMtdOrderRecords } from "@/lib/order-staging";
 import {
@@ -50,12 +48,14 @@ import {
   getProgramColumnHeader,
 } from "@/lib/order-detail-sections";
 import { orderFromMTDRecord } from "@/lib/order-detail-fields";
-import type {
-  CheerFormSubtypeFilter,
-  DanceFormSubtypeFilter,
-  MTDRecord,
-  Order,
-  OrderFormType,
+import {
+  AFFILIATE_FLAG_CHEER_SUBTABS,
+  AFFILIATE_FLAG_FORM_TABS,
+  type CheerFormSubtypeFilter,
+  type DanceFormSubtypeFilter,
+  type MTDRecord,
+  type Order,
+  type OrderFormType,
 } from "@/types";
 
 const viewBtnClass =
@@ -404,11 +404,8 @@ export default function FlaggedOrdersPage() {
               headerClassName: compactHeaderClass,
               render: (rec: MTDRecord) => {
                 const linked = findLinkedOrder(rec, allOrders);
-                const selections = getAffiliateSelections(linked ?? null, rec);
-                const affiliate =
-                  linked?.musicAffiliate ??
-                  (rec as MTDRecord & { musicAffiliate?: string }).musicAffiliate;
-                if (!affiliate && selections.length === 0) {
+                const display = formatMusicAffiliateDisplay(linked ?? null, rec);
+                if (!display) {
                   return (
                     <span
                       className={clsx(
@@ -424,14 +421,6 @@ export default function FlaggedOrdersPage() {
                   linked,
                   rec
                 );
-                const danceOrder =
-                  isDanceFormOrder(linked) || isDanceFormOrder(rec);
-                const display =
-                  selections.length >= 2
-                    ? danceOrder
-                      ? formatDanceMusicAffiliates(selections)
-                      : selections.join(" · ")
-                    : titleCase(affiliate || selections[0] || "");
                 return (
                   <TruncatedText
                     text={display}
@@ -447,36 +436,6 @@ export default function FlaggedOrdersPage() {
             } satisfies Column<MTDRecord>,
           ]
         : []),
-      {
-        key: "packagePrice",
-        header: "Package Price",
-        width: "110px",
-        align: "center",
-        nowrap: false,
-        cellClassName: "!px-2",
-        headerClassName: "!px-2",
-        render: (rec) => {
-          const order = findLinkedOrder(rec, allOrders);
-          const meta = resolveMTDFormMeta(rec, orderById);
-          const displayPrice = resolveOrderPackageDisplayPrice(
-            rec,
-            order,
-            meta,
-            orderById
-          );
-          return (
-            <span
-              className={clsx(
-                "mx-auto block text-center font-semibold tabular-nums",
-                compactTextClass,
-                displayPrice <= 0 && "text-brand-ink-tertiary"
-              )}
-            >
-              {displayPrice > 0 ? formatPrice(displayPrice) : "-"}
-            </span>
-          );
-        },
-      },
       {
         key: "collections",
         header: "Collections",
@@ -702,6 +661,7 @@ export default function FlaggedOrdersPage() {
               form={form}
               onFormChange={switchForm}
               formCounts={formCounts}
+              tabs={AFFILIATE_FLAG_FORM_TABS}
             />
             <OrderFormSubtypeTabs
               form={form}
@@ -711,6 +671,7 @@ export default function FlaggedOrdersPage() {
               onDanceSubtypeChange={setDanceSubtype}
               cheerCounts={cheerSubtypeCounts}
               danceCounts={danceSubtypeCounts}
+              cheerTabs={AFFILIATE_FLAG_CHEER_SUBTABS}
             />
           </div>
         }

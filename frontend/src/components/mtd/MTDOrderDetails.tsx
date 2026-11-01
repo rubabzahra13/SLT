@@ -45,6 +45,11 @@ import {
   parseDanceMusicAffiliates,
 } from "@/components/mtd/DanceMusicAffiliateField";
 import {
+  formatMusicAffiliateDisplay,
+  getAffiliateSelections,
+  isHeldOnAffiliateFlag,
+} from "@/lib/affiliate-flag";
+import {
   CustomVoiceoversField,
   normalizeCustomVoiceovers,
 } from "@/components/mtd/CustomVoiceoversField";
@@ -501,9 +506,16 @@ export function MTDOrderDetails({
                 field.key === "musicAffiliate" &&
                 order.formType === "school-all-star-dance"
               ) {
-                const selected = parseDanceMusicAffiliates(rawValue);
-                const affiliateDisplay =
-                  formatDanceMusicAffiliates(selected) || displayValue;
+                const held = isHeldOnAffiliateFlag(order);
+                const selected = getAffiliateSelections(order);
+                const fromRaw = parseDanceMusicAffiliates(rawValue);
+                const affiliateDisplay = held
+                  ? formatMusicAffiliateDisplay(order) || displayValue
+                  : formatDanceMusicAffiliates(
+                      fromRaw.length ? fromRaw : selected.slice(0, 1)
+                    ) ||
+                    rawValue ||
+                    displayValue;
                 return (
                   <div
                     key={field.key}
@@ -524,7 +536,7 @@ export function MTDOrderDetails({
                           onChange={(value) => onFieldChange(field.key, value)}
                         />
                       ) : affiliateDisplay ? (
-                        <p className="text-[13px] font-normal text-brand-ink">
+                        <p className="text-[13px] font-normal text-brand-ink whitespace-pre-wrap">
                           {affiliateDisplay}
                         </p>
                       ) : (
@@ -544,9 +556,14 @@ export function MTDOrderDetails({
                 order.cheerFormSubtype !== "youth-rec-cheer"
               ) {
                 const affiliateOptions = musicAffiliateOptionsForOrder(order);
-                const affiliateDisplay =
-                  normalizeMusicAffiliateOption(rawValue, affiliateOptions) ||
-                  displayValue;
+                // Flagged read-only: Magento multi. Normal/resolved: single pricing value.
+                const held = isHeldOnAffiliateFlag(order);
+                const affiliateDisplay = held
+                  ? formatMusicAffiliateDisplay(order) || displayValue
+                  : normalizeMusicAffiliateOption(
+                      rawValue,
+                      affiliateOptions
+                    ) || displayValue;
                 return (
                   <div
                     key={field.key}
@@ -572,7 +589,7 @@ export function MTDOrderDetails({
                           onChange={(value) => onFieldChange(field.key, value)}
                         />
                       ) : affiliateDisplay ? (
-                        <p className="text-[13px] font-normal text-brand-ink">
+                        <p className="text-[13px] font-normal text-brand-ink whitespace-pre-wrap">
                           {affiliateDisplay}
                         </p>
                       ) : (

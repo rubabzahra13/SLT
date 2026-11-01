@@ -4,6 +4,7 @@ pricing.py: Calculates the full pricing breakdown for an order.
 Inputs come from the classification + compliance services plus the caller-supplied
 add-on selections. Nothing is persisted here; that happens in the API layer.
 """
+import re
 from dataclasses import dataclass, field
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Any, Dict, List, Optional
@@ -13,6 +14,70 @@ from sqlalchemy.orm import Session
 from app.services.classification import classify_order, ClassificationResult
 from app.services.compliance import resolve_compliance, ComplianceResult
 from app.models.addon_rule import AddonRule
+
+
+# Magento multi-select: "option1, option2". Do not split on "&" — All-Star
+# Cheer uses that character inside a single official label.
+_MULTI_AFFILIATE_SPLIT = re.compile(r"\s*(?:,|;)\s*")
+_DANCE_COVER_PAIR = {
+    "power music covers",
+    "unleash the beats covers",
+}
+
+
+def is_multi_music_affiliate_selection(
+    music_affiliate: Optional[str],
+    form_type: Optional[str] = None,
+) -> bool:
+    """True when the pricing field still holds more than one affiliate option."""
+    raw = (music_affiliate or "").strip()
+    if not raw:
+        return False
+    parts = [p.strip() for p in _MULTI_AFFILIATE_SPLIT.split(raw) if p.strip()]
+    if len(parts) < 2:
+        return False
+    if form_type and "dance" in form_type.lower():
+        lowered = {p.lower() for p in parts}
+        if lowered == _DANCE_COVER_PAIR:
+            return False
+    return True
+
+
+def should_defer_affiliate_flag_pricing(
+    music_affiliate: Optional[str],
+    form_type: Optional[str] = None,
+    affiliate_flag_status: Optional[str] = None,
+) -> bool:
+    if (affiliate_flag_status or "").strip().lower() == "open":
+        return True
+    return is_multi_music_affiliate_selection(music_affiliate, form_type)
+
+
+def _deferred_affiliate_flag_breakdown(
+    form_type: str,
+    cheer_subtype: Optional[str],
+    dance_subtype: Optional[str],
+    package_name: str,
+) -> "PricingBreakdown":
+    return PricingBreakdown(
+        form_type=form_type,
+        canonical_subtype_id=cheer_subtype or dance_subtype,
+        package_id=None,
+        package_name=package_name,
+        pricing_rule_id=None,
+        compliance_status="needs_manual_review",
+        compliance_reason=(
+            "Multiple music affiliates selected; pricing deferred until flag is resolved."
+        ),
+        canonical_affiliate=None,
+        base_customer_price=None,
+        base_payroll_price=None,
+        needs_manual_pricing=True,
+        needs_manual_review=True,
+        summary_line=(
+            "Affiliate flag: multiple music affiliates — pricing deferred until resolve."
+        ),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -159,6 +224,7 @@ def calculate_pricing(
     package_name: str,
     music_affiliate: Optional[str],
     addons_input: Optional[Dict[str, Any]] = None,
+    affiliate_flag_status: Optional[str] = None,
 ) -> PricingBreakdown:
     """
     Calculate the full pricing breakdown for an order.
@@ -166,6 +232,13 @@ def calculate_pricing(
     """
     if addons_input is None:
         addons_input = {}
+
+    if should_defer_affiliate_flag_pricing(
+        music_affiliate, form_type, affiliate_flag_status
+    ):
+        return _deferred_affiliate_flag_breakdown(
+            form_type, cheer_subtype, dance_subtype, package_name
+        )
 
     # --- 1. Classify -------------------------------------------------------
     classification: ClassificationResult = classify_order(

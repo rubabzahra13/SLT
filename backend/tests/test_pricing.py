@@ -21,6 +21,7 @@ from app.services.pricing import (
     calculate_pricing,
     apply_modal_compliance_payroll,
     apply_sports_entertainment_payroll_rush,
+    is_multi_music_affiliate_selection,
     PricingBreakdown,
 )
 from app.services.compensation import calculate_compensation
@@ -598,3 +599,48 @@ class TestSplitFlagNormalization:
         )
         assert bd.needs_manual_pricing is False
         assert bd.package_id == "gold_1_30"
+
+
+class TestAffiliateFlagDefersPricing:
+    """Multi-select music affiliate must not receive an automatic price."""
+
+    def test_comma_joined_all_star_options_are_multi(self):
+        raw = (
+            "Power Music & Unleash the Beats Covers (can not be used for a Titanium Package), "
+            "Songs for Cheer, "
+            "100% original custom music (titanium package only), "
+            "Non compliant"
+        )
+        assert is_multi_music_affiliate_selection(raw, "school-all-star-cheer") is True
+
+    def test_dance_cover_pair_is_not_multi(self):
+        raw = "Power Music Covers, Unleash the Beats Covers"
+        assert is_multi_music_affiliate_selection(raw, "school-all-star-dance") is False
+        assert is_multi_music_affiliate_selection(raw, "school-all-star-cheer") is True
+
+    def test_calculate_skips_price_for_multi_select(self):
+        raw = "Songs for Cheer, Non compliant"
+        bd = calculate_pricing(
+            db=None,
+            form_type="school-all-star-cheer",
+            cheer_subtype="all-star-cheer",
+            dance_subtype=None,
+            package_name="GOLD 1:30",
+            music_affiliate=raw,
+        )
+        assert bd.needs_manual_pricing is True
+        assert bd.base_customer_price is None
+        assert bd.system_calculated_customer_price is None
+
+    def test_open_flag_status_skips_price(self):
+        bd = calculate_pricing(
+            db=None,
+            form_type="school-all-star-cheer",
+            cheer_subtype="all-star-cheer",
+            dance_subtype=None,
+            package_name="GOLD 1:30",
+            music_affiliate="Songs for Cheer",
+            affiliate_flag_status="open",
+        )
+        assert bd.needs_manual_pricing is True
+        assert bd.base_customer_price is None

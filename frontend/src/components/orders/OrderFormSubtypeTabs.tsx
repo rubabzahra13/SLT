@@ -4,6 +4,7 @@ import clsx from "clsx";
 import {
   CHEER_FORM_SUBTABS,
   DANCE_FORM_SUBTABS,
+  type CheerFormSubtype,
   type CheerFormSubtypeFilter,
   type DanceFormSubtypeFilter,
   type OrderFormType,
@@ -17,6 +18,8 @@ type OrderFormSubtypeTabsProps = {
   onDanceSubtypeChange: (subtype: DanceFormSubtypeFilter) => void;
   cheerCounts: Record<CheerFormSubtypeFilter, number>;
   danceCounts: Record<DanceFormSubtypeFilter, number>;
+  /** Defaults to all cheer subtypes; Flagged Orders omits Youth Rec. */
+  cheerTabs?: readonly { id: CheerFormSubtype; label: string }[];
 };
 
 /**
@@ -31,6 +34,7 @@ export function OrderFormSubtypeTabs({
   onDanceSubtypeChange,
   cheerCounts,
   danceCounts,
+  cheerTabs = CHEER_FORM_SUBTABS,
 }: OrderFormSubtypeTabsProps) {
   if (form === "school-all-star-cheer") {
     return (
@@ -39,7 +43,7 @@ export function OrderFormSubtypeTabs({
         role="tablist"
         aria-label="Cheer subtype"
       >
-        {CHEER_FORM_SUBTABS.map(({ id, label }) => {
+        {cheerTabs.map(({ id, label }) => {
           const active = cheerSubtype === id;
           const count = cheerCounts[id] ?? 0;
           return (

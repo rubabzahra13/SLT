@@ -2,6 +2,8 @@ import type { MTDRecord, Order } from "@/types";
 import {
   COMPLIANT_AFFILIATE_OPTIONS,
   NON_COMPLIANT_AFFILIATE_OPTIONS,
+  getCategoryPricingSnapshot,
+  type CategoryKey,
 } from "@/lib/pricing-reference";
 import { affiliateCompactKey } from "@/lib/pricing-engine";
 import { findLinkedOrder } from "@/lib/editor-assignment";
@@ -25,19 +27,46 @@ function compact(value: string): string {
 
 export { isAllowedAllStarDanceCoverPair };
 
+function extraCheerAffiliateLabels(
+  order?: Pick<Order, "cheerFormSubtype"> | null,
+  record?: Pick<MTDRecord, "cheerFormSubtype"> | null
+): string[] {
+  const subtype = String(
+    order?.cheerFormSubtype || record?.cheerFormSubtype || ""
+  ).trim();
+  const category: CategoryKey | null =
+    subtype === "all-star-cheer"
+      ? "All-Star Cheer"
+      : subtype.startsWith("school-cheer")
+        ? "School Cheer"
+        : null;
+  if (!category) return [];
+  const catalog =
+    getCategoryPricingSnapshot(category).musicAffiliateCatalog ?? [];
+  return catalog
+    .map((entry) => String(entry.label || "").trim())
+    .filter(Boolean);
+}
+
 /**
  * Extract distinct known cheer affiliates from a raw musicAffiliate string.
  * Treats "Power Music + Unleash the Beats" as one option (longest-first match).
+ * Magento multi-select arrives as "option1, option2, option3".
  */
 export function parseSelectedMusicAffiliates(
-  raw: string | null | undefined
+  raw: string | null | undefined,
+  extraLabels: string[] = []
 ): string[] {
   const text = String(raw || "").trim();
   if (!text) return [];
 
+  const labels = [...extraLabels, ...CHEER_MUSIC_AFFILIATE_LABELS]
+    .filter(Boolean)
+    .sort((a, b) => b.length - a.length);
+
   // Exact single-option match (normalize whitespace/case only: keep + vs comma)
   const exactKey = text.toUpperCase().replace(/\s+/g, " ").trim();
-  const exact = CHEER_MUSIC_AFFILIATE_LABELS.find(
+  const exact = labels.find(
     (label) => label.toUpperCase().replace(/\s+/g, " ").trim() === exactKey
   );
   if (exact) return [exact];
@@ -46,7 +75,7 @@ export function parseSelectedMusicAffiliates(
   const found: { label: string; index: number }[] = [];
   const usedRanges: [number, number][] = [];
 
-  for (const label of CHEER_MUSIC_AFFILIATE_LABELS) {
+  for (const label of labels) {
     const key = compact(label);
     if (!key) continue;
     // Scan compact forms via regex on original with flexible spacing
@@ -87,7 +116,7 @@ export function parseSelectedMusicAffiliates(
     .filter(Boolean);
   if (parts.length >= 2) {
     const mapped = parts.map((part) => {
-      const known = CHEER_MUSIC_AFFILIATE_LABELS.find(
+      const known = labels.find(
         (label) => compact(label) === compact(part)
       );
       return known || part;
@@ -123,6 +152,32 @@ export function isCheerFormOrder(order: FormMeta | null | undefined): boolean {
   if (order.formType === "school-all-star-cheer") return true;
   const cat = String(order.category || "").toLowerCase();
   return cat.includes("cheer") && !cat.includes("dance");
+}
+
+/**
+ * Forms that can land on Flagged Orders for multi music-affiliate resolution.
+ * Youth Rec / Marching Band / Sports Entertainment / School Anthem have no
+ * music affiliate field, so they never belong here.
+ */
+export function orderSupportsAffiliateFlag(
+  order: FormMeta & { cheerFormSubtype?: string | null } | null | undefined
+): boolean {
+  if (!order) return false;
+  if (order.formType === "marching-band") return false;
+  if (order.formType === "sports-entertainment") return false;
+  if (order.formType === "school-anthem") return false;
+  const subtype = String(
+    (order as { cheerFormSubtype?: string | null }).cheerFormSubtype || ""
+  ).toLowerCase();
+  if (subtype === "youth-rec-cheer") return false;
+  const cat = String(order.category || "").toLowerCase();
+  if (cat.includes("youth rec")) return false;
+  if (cat.includes("marching")) return false;
+  if (cat.includes("sports entertainment") || cat.includes("sports-entertainment")) {
+    return false;
+  }
+  if (cat.includes("anthem")) return false;
+  return isCheerFormOrder(order) || isDanceFormOrder(order);
 }
 
 /** All-Star Dance Magento form (POM / Hip Hop / TPV / Gameday / Jazz-Kick). */
@@ -166,12 +221,15 @@ export function getAffiliateSelectionsRaw(
 function formMetaFromOrderOrRecord(
   order: Order | null | undefined,
   record?: MTDRecord | null
-): FormMeta | null {
+): (FormMeta & { cheerFormSubtype?: string | null }) | null {
   if (order) return order;
   if (!record) return null;
   return {
     formType: record.formType,
     category: record.category,
+    cheerFormSubtype:
+      (record as MTDRecord & { cheerFormSubtype?: string | null })
+        .cheerFormSubtype || null,
   };
 }
 
@@ -184,7 +242,10 @@ export function getAffiliateSelections(
   if (isDanceFormOrder(meta)) {
     return parseDanceMusicAffiliates(raw);
   }
-  return parseSelectedMusicAffiliates(raw);
+  return parseSelectedMusicAffiliates(
+    raw,
+    extraCheerAffiliateLabels(order, record)
+  );
 }
 
 /**
@@ -196,6 +257,10 @@ export function isInvalidMultiAffiliateSelection(
   record?: MTDRecord | null
 ): boolean {
   if (!order && !record) return false;
+  // After Resolve, music_affiliate is one value; selections keep the Magento
+  // multi history and must not keep the order in an "invalid multi" state.
+  const status = getOrderAffiliateFlagStatus(order);
+  if (status === "released" || status === "resolved") return false;
   const selections = getAffiliateSelections(order, record);
   if (selections.length < 2) return false;
   const meta = formMetaFromOrderOrRecord(order, record);
@@ -203,6 +268,43 @@ export function isInvalidMultiAffiliateSelection(
     return false;
   }
   return true;
+}
+
+/**
+ * Board / detail label for music affiliate.
+ * Flagged (held): show Magento multi-select. Resolved / normal: show the single
+ * pricing field (musicAffiliate), not the historical selections blob.
+ */
+export function formatMusicAffiliateDisplay(
+  order: Order | null | undefined,
+  record?: MTDRecord | null
+): string {
+  const held = isHeldOnAffiliateFlag(order, record);
+  const selections = getAffiliateSelections(order, record);
+  const affiliate =
+    order?.musicAffiliate?.trim() ||
+    (record as MTDRecord & { musicAffiliate?: string } | null | undefined)
+      ?.musicAffiliate?.trim() ||
+    "";
+
+  if (held && selections.length >= 2) {
+    const meta = formMetaFromOrderOrRecord(order, record);
+    if (isDanceFormOrder(meta)) {
+      return formatDanceMusicAffiliates(selections);
+    }
+    return selections.join(", ");
+  }
+
+  if (affiliate) return affiliate;
+  if (selections.length === 1) return selections[0];
+  if (selections.length > 1) {
+    // Released but empty musicAffiliate (legacy): fall back without looking "flagged".
+    const meta = formMetaFromOrderOrRecord(order, record);
+    return isDanceFormOrder(meta)
+      ? formatDanceMusicAffiliates(selections)
+      : selections.join(", ");
+  }
+  return "";
 }
 
 /**
@@ -219,9 +321,18 @@ export function isHeldOnAffiliateFlag(
   if (status === "released" || status === "resolved") return false;
   if (status === "open") return true;
 
-  // Auto-detect: cheer or dance form with invalid multi affiliates (API / hydrate).
+  // Auto-detect: cheer/dance forms that have a music affiliate field only.
   const meta = formMetaFromOrderOrRecord(order, record);
-  if (meta && !isCheerFormOrder(meta) && !isDanceFormOrder(meta)) {
+  const linkedSubtype =
+    (order as Order | null | undefined)?.cheerFormSubtype ||
+    (record as MTDRecord & { cheerFormSubtype?: string })?.cheerFormSubtype ||
+    null;
+  if (
+    !orderSupportsAffiliateFlag({
+      ...(meta || {}),
+      cheerFormSubtype: linkedSubtype,
+    })
+  ) {
     return false;
   }
   return isInvalidMultiAffiliateSelection(order, record);
@@ -253,7 +364,7 @@ export function recordHeldOnAffiliateFlag(
 
 /** Patch to open a flag when invalid multi-affiliate form arrives. */
 export function openAffiliateFlagPatch(order: Order): Partial<Order> | null {
-  if (!isCheerFormOrder(order) && !isDanceFormOrder(order)) return null;
+  if (!orderSupportsAffiliateFlag(order)) return null;
   if (getOrderAffiliateFlagStatus(order) === "released") return null;
   if (getOrderAffiliateFlagStatus(order) === "resolved") return null;
   if (getOrderAffiliateFlagStatus(order) === "open") return null;
@@ -273,6 +384,12 @@ export function openAffiliateFlagPatch(order: Order): Partial<Order> | null {
     musicAffiliateSelections: stored,
     needsAttention: true,
     attentionReason: order.attentionReason || "Multiple music affiliates selected",
+    // Multi-select is unresolved: do not assign package or payroll prices.
+    price: 0,
+    finalCustomerPrice: null,
+    systemCalculatedCustomerPrice: null,
+    finalCustomerPriceOverridden: false,
+    finalPayrollPrice: null,
   };
 }
 

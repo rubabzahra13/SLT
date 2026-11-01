@@ -23,6 +23,7 @@ import {
   getAffiliateSelections,
   resolveAffiliateFlagPatch,
 } from "@/lib/affiliate-flag";
+import { pricingPatchAfterAffiliateResolve } from "@/lib/order-package-price";
 import {
   buildCustomerAffiliateClarificationDraft,
   renderForwardMailHtml,
@@ -89,16 +90,32 @@ export function ResolveAffiliateFlagModal({
     setMounted(true);
   }, []);
 
+  // Snapshot form state only when the dialog opens / switches rows.
+  // Do NOT depend on linked order / selections identity: optimistic updateOrder
+  // rebuilds those every render and was clearing isSaving before the spinner painted.
+  const openRecordKey = open && record
+    ? `${record.id}|${record.orderId ?? ""}|${mode}`
+    : "";
+
   useEffect(() => {
-    if (!open || !record) return;
-    setSelectedAffiliate(selections[0] || "");
-    setCustomerContactId(customerContacts[0]?.id ?? "");
+    if (!openRecordKey || !record) return;
+    const initialSelections = getAffiliateSelections(
+      findLinkedOrder(record, allOrders),
+      record
+    );
+    const initialContacts = resolveCustomerMailContacts(
+      record,
+      findLinkedOrder(record, allOrders)
+    );
+    setSelectedAffiliate(initialSelections[0] || "");
+    setCustomerContactId(initialContacts[0]?.id ?? "");
     setSelectOpen(false);
     setSendError(null);
     setSent(false);
     setIsSending(false);
     setIsSaving(false);
-  }, [open, record, selections, customerContacts]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally open-session only
+  }, [openRecordKey]);
 
   useEffect(() => {
     if (!open || mode !== "email" || !token) return;
@@ -153,11 +170,25 @@ export function ResolveAffiliateFlagModal({
       : null;
 
   async function handleResolve() {
-    if (!linkedOrder || !selectedAffiliate.trim() || isViewOnly) return;
+    if (!linkedOrder || !selectedAffiliate.trim() || isViewOnly || isSaving) {
+      return;
+    }
     setIsSaving(true);
     setSendError(null);
+    // Let React paint the spinner before sync pricing + API work.
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => resolve());
+    });
     try {
-      const patch = resolveAffiliateFlagPatch(linkedOrder, selectedAffiliate);
+      const flagPatch = resolveAffiliateFlagPatch(
+        linkedOrder,
+        selectedAffiliate
+      );
+      const nextOrder = { ...linkedOrder, ...flagPatch };
+      const patch = {
+        ...flagPatch,
+        ...pricingPatchAfterAffiliateResolve(nextOrder),
+      };
       await updateOrder(linkedOrder.id, patch, linkedOrder);
       addAlert({
         tone: "success",
@@ -167,13 +198,12 @@ export function ResolveAffiliateFlagModal({
       });
       onClose();
     } catch (err) {
+      setIsSaving(false);
       setSendError(
         err instanceof ApiClientError
           ? err.message
           : "Could not save affiliate choice."
       );
-    } finally {
-      setIsSaving(false);
     }
   }
 
@@ -214,25 +244,27 @@ export function ResolveAffiliateFlagModal({
   if (!mounted || !open || !record) return null;
 
   const isEmail = mode === "email";
-  const canResolve =
+  const isBusy = isSaving || isSending;
+  const resolveReady =
     Boolean(selectedAffiliate.trim()) &&
     Boolean(linkedOrder) &&
-    !isViewOnly &&
-    !isSaving;
-  const canSend =
+    !isViewOnly;
+  const canResolve = resolveReady && !isSaving;
+  const sendReady =
     Boolean(draft?.to) &&
     Boolean(selectedAffiliate.trim()) &&
     gmailConnected &&
     !isViewOnly &&
-    !sent &&
-    !isSending;
+    !sent;
+  const canSend = sendReady && !isSending;
 
   return createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <button
         type="button"
         className="absolute inset-0 bg-black/45 backdrop-blur-[2px]"
-        onClick={onClose}
+        onClick={isBusy ? undefined : onClose}
+        disabled={isBusy}
         aria-label="Close"
       />
 
@@ -274,7 +306,13 @@ export function ResolveAffiliateFlagModal({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg p-1.5 text-brand-ink-tertiary transition hover:bg-brand-bg hover:text-brand-ink"
+              disabled={isBusy}
+              className={clsx(
+                "rounded-lg p-1.5 transition",
+                isBusy
+                  ? "cursor-not-allowed text-brand-ink-tertiary/50"
+                  : "text-brand-ink-tertiary hover:bg-brand-bg hover:text-brand-ink"
+              )}
               aria-label="Close dialog"
             >
               <X className="h-4 w-4" />
@@ -310,8 +348,11 @@ export function ResolveAffiliateFlagModal({
               value={selectedAffiliate}
               options={affiliateOptions}
               onChange={setSelectedAffiliate}
-              open={selectOpen}
-              onOpenChange={setSelectOpen}
+              open={isBusy ? false : selectOpen}
+              onOpenChange={(next) => {
+                if (isBusy) return;
+                setSelectOpen(next);
+              }}
               size="md"
               placeholder="Select affiliate"
             />
@@ -331,7 +372,8 @@ export function ResolveAffiliateFlagModal({
                   <select
                     value={customerContactId}
                     onChange={(e) => setCustomerContactId(e.target.value)}
-                    className="w-full rounded-xl border border-brand-line/60 bg-white px-3 py-2.5 text-[13px] text-brand-ink"
+                    disabled={isBusy || sent}
+                    className="w-full rounded-xl border border-brand-line/60 bg-white px-3 py-2.5 text-[13px] text-brand-ink disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {customerContacts.map((c) => (
                       <option key={c.id} value={c.id}>
@@ -388,7 +430,13 @@ export function ResolveAffiliateFlagModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl px-3.5 py-2 text-[13px] font-medium text-brand-ink-secondary transition hover:bg-brand-bg"
+            disabled={isBusy}
+            className={clsx(
+              "rounded-xl px-3.5 py-2 text-[13px] font-medium transition",
+              isBusy
+                ? "cursor-not-allowed text-brand-ink-tertiary/50"
+                : "text-brand-ink-secondary hover:bg-brand-bg"
+            )}
           >
             {sent ? "Close" : "Cancel"}
           </button>
@@ -397,10 +445,11 @@ export function ResolveAffiliateFlagModal({
               type="button"
               disabled={!canSend}
               onClick={() => void handleSendEmail()}
+              aria-busy={isSending}
               className={clsx(
                 "inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-[13px] font-semibold transition",
-                canSend
-                  ? "bg-brand-signature text-white hover:opacity-95"
+                isSending || sendReady
+                  ? "bg-brand-signature text-white hover:opacity-95 disabled:cursor-wait disabled:opacity-90"
                   : "cursor-not-allowed bg-brand-bg text-brand-ink-tertiary"
               )}
             >
@@ -411,17 +460,18 @@ export function ResolveAffiliateFlagModal({
               ) : (
                 <Send className="h-4 w-4" />
               )}
-              {sent ? "Sent" : "Send email"}
+              {isSending ? "Sending…" : sent ? "Sent" : "Send email"}
             </button>
           ) : (
             <button
               type="button"
               disabled={!canResolve}
               onClick={() => void handleResolve()}
+              aria-busy={isSaving}
               className={clsx(
                 "inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-[13px] font-semibold transition",
-                canResolve
-                  ? "bg-brand-signature text-white hover:opacity-95"
+                isSaving || resolveReady
+                  ? "bg-brand-signature text-white hover:opacity-95 disabled:cursor-wait disabled:opacity-90"
                   : "cursor-not-allowed bg-brand-bg text-brand-ink-tertiary"
               )}
             >
@@ -430,7 +480,7 @@ export function ResolveAffiliateFlagModal({
               ) : (
                 <Check className="h-4 w-4" />
               )}
-              Resolve affiliate
+              {isSaving ? "Resolving…" : "Resolve affiliate"}
             </button>
           )}
         </div>

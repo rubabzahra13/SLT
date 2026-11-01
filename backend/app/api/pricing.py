@@ -28,6 +28,7 @@ from app.services.pricing import (
     calculate_pricing,
     apply_modal_compliance_payroll,
     apply_sports_entertainment_payroll_rush,
+    is_multi_music_affiliate_selection,
     PricingBreakdown,
 )
 from app.services.compensation import calculate_compensation
@@ -178,6 +179,16 @@ def complete_pricing(
     if not order:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
 
+    music = payload.music_affiliate or order.music_affiliate
+    flag_status = getattr(order, "affiliate_flag_status", None)
+    if (flag_status or "").strip().lower() == "open" or is_multi_music_affiliate_selection(
+        music, order.form_type
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Affiliate flag is open; resolve a single music affiliate before pricing.",
+        )
+
     addons_dict = payload.addons.model_dump() if payload.addons else {}
 
     breakdown = calculate_pricing(
@@ -186,8 +197,9 @@ def complete_pricing(
         cheer_subtype=payload.cheer_form_subtype or order.cheer_form_subtype,
         dance_subtype=payload.dance_form_subtype or order.dance_form_subtype,
         package_name=order.package,
-        music_affiliate=payload.music_affiliate or order.music_affiliate,
+        music_affiliate=music,
         addons_input=addons_dict,
+        affiliate_flag_status=flag_status,
     )
 
     # Cheer rush_standard ($150) is a different add-on. SE rush is +$100 on

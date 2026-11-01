@@ -95,6 +95,15 @@ export function musicAffiliateOptionsForOrder(order: {
   package?: string | null;
   packageType?: string | null;
 }): string[] {
+  // Youth Rec / MB / SE / Anthem have no music affiliate field.
+  if (
+    order.cheerFormSubtype === "youth-rec-cheer" ||
+    order.formType === "marching-band" ||
+    order.formType === "sports-entertainment" ||
+    order.formType === "school-anthem"
+  ) {
+    return [];
+  }
   if (order.formType === "school-all-star-cheer") {
     const category = cheerCategoryForSubtype(order.cheerFormSubtype);
     const pkg = order.packageType || order.package;
@@ -120,6 +129,10 @@ export function musicAffiliateOptionsForOrder(order: {
     ) {
       return allStarCheerMusicAffiliateOptionsForPackage(pkg);
     }
+    return [];
+  }
+  if (order.formType === "school-all-star-dance") {
+    return defaultCheerAffiliateOptions();
   }
   return defaultCheerAffiliateOptions();
 }
@@ -145,6 +158,17 @@ export function normalizeMusicAffiliateOption(
     (opt) => affiliateCompactKey(opt) === compact
   );
   if (compactHit) return compactHit;
+
+  // Magento multi-select ("a, b, c"): do not pick one substring option.
+  let multiHits = 0;
+  let remaining = compact;
+  for (const opt of [...options].sort((a, b) => b.length - a.length)) {
+    const key = affiliateCompactKey(opt);
+    if (!key || key.length < 4 || !remaining.includes(key)) continue;
+    multiHits += 1;
+    remaining = remaining.replace(key, "");
+  }
+  if (multiHits >= 2) return raw;
 
   const compactContains = options.find((opt) => {
     const key = affiliateCompactKey(opt);

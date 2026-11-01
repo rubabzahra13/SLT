@@ -669,10 +669,31 @@ export function mixLengthsForOrderForm(
   return ["1:30", "2:00", "2:30"];
 }
 
+/** Subtypes / form keys with no Magento music affiliate field. */
+function subtypeHasNoMusicAffiliateField(
+  subType: string | null | undefined
+): boolean {
+  const s = String(subType || "").toLowerCase();
+  return (
+    s === "youth-rec-cheer" ||
+    s === "marching-band" ||
+    s.includes("band") ||
+    s === "sports-entertainment" ||
+    s.includes("sports") ||
+    s === "school-anthem" ||
+    s.includes("anthem")
+  );
+}
+
 export function determineComplianceStatus(
   subType: CheerFormSubtype | DanceFormSubtype | string,
   musicAffiliate?: string
 ): ComplianceStatus {
+  // Forms without a music affiliate field never split payroll on compliance.
+  if (subtypeHasNoMusicAffiliateField(subType)) {
+    return "unknown-no-affiliate-field";
+  }
+
   if (musicAffiliate === undefined || musicAffiliate === null) {
     return "unknown-no-affiliate-field";
   }
@@ -1355,19 +1376,14 @@ export function calculateMarchingBandOrderPricing(
 ): MarchingBandPricingEngineResult {
   const matchedEntry = lookupMarchingBandRateCardEntry(input?.packageType ?? "");
 
-  const complianceStatus = determineComplianceStatus(
-    "marching-band" as any,
-    input?.musicAffiliate
-  );
-
   if (!matchedEntry) {
     return {
       customerFacingPrice: 0,
       payrollBasePrice: 0,
       compliantPayrollBasePrice: 0,
       nonCompliantPayrollBasePrice: 0,
-      complianceStatus,
-      alwaysFixedPayroll: false,
+      complianceStatus: "unknown-no-affiliate-field",
+      alwaysFixedPayroll: true,
       matchedEntry: null,
       packageName: input?.packageType ?? "",
     };
@@ -1377,23 +1393,16 @@ export function calculateMarchingBandOrderPricing(
   const addOnTotal = miscAddons.totalPayrollAddOns;
 
   const customerFacingPrice = matchedEntry.customer;
-  const compliantPayrollBasePrice = matchedEntry.compliant + addOnTotal;
-  const nonCompliantPayrollBasePrice = matchedEntry.nonCompliant + addOnTotal;
-  const alwaysFixedPayroll = Boolean(matchedEntry.alwaysFixedPayroll);
-
-  // No music-affiliate field on the Marching Band customer form: payroll
-  // follows the flat package / compliant column (compliant === nonCompliant).
-  let payrollBasePrice = compliantPayrollBasePrice;
-  if (!alwaysFixedPayroll && complianceStatus === "non-compliant") {
-    payrollBasePrice = nonCompliantPayrollBasePrice;
-  }
+  // No music-affiliate field: package price is flat (never compliant vs non-compliant).
+  const payrollBasePrice = matchedEntry.customer + addOnTotal;
+  const alwaysFixedPayroll = true;
 
   return {
     customerFacingPrice,
     payrollBasePrice,
-    compliantPayrollBasePrice,
-    nonCompliantPayrollBasePrice,
-    complianceStatus,
+    compliantPayrollBasePrice: payrollBasePrice,
+    nonCompliantPayrollBasePrice: payrollBasePrice,
+    complianceStatus: "unknown-no-affiliate-field",
     alwaysFixedPayroll,
     matchedEntry,
     packageName: matchedEntry.package,

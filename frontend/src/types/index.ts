@@ -231,6 +231,16 @@ export const ORDER_FORM_TABS: { id: OrderFormType; label: string }[] = [
 ];
 
 /**
+ * Flagged Orders only covers forms that have a Music Affiliate field.
+ * Youth Rec / Marching Band / Sports Entertainment / School Anthem are excluded.
+ */
+export const AFFILIATE_FLAG_FORM_TABS: { id: OrderFormType; label: string }[] =
+  ORDER_FORM_TABS.filter(
+    (t) =>
+      t.id === "school-all-star-cheer" || t.id === "school-all-star-dance"
+  );
+
+/**
  * Forms where admins create New Order manuals and use Match Orders.
  * Sports Entertainment + School Anthem are Magento-only (no manual create / match).
  */
@@ -259,6 +269,12 @@ export const CHEER_FORM_SUBTABS: { id: CheerFormSubtype; label: string }[] = [
   { id: "school-cheer-viroc-no", label: "School Cheer" },
   { id: "youth-rec-cheer", label: "Youth Rec Cheer" },
 ];
+
+/** Cheer subtypes that have a Music Affiliate SoftSelect (Flagged Orders). */
+export const AFFILIATE_FLAG_CHEER_SUBTABS: {
+  id: CheerFormSubtype;
+  label: string;
+}[] = CHEER_FORM_SUBTABS.filter((t) => t.id !== "youth-rec-cheer");
 
 export const CHEER_FORM_SUBTABS_WITH_ALL: { id: CheerFormSubtypeFilter; label: string }[] = [
   ...CHEER_FORM_SUBTABS,

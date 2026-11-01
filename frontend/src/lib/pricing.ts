@@ -107,6 +107,16 @@ export function resolveOrderPriceCompliance(order: {
   danceFormSubtype?: string | null;
   formType?: string | null;
 }): "compliant" | "non-compliant" {
+  // Forms with no music affiliate field never get a non-compliant surcharge.
+  const form = String(order.formType || "");
+  if (
+    form === "marching-band" ||
+    form === "sports-entertainment" ||
+    form === "school-anthem" ||
+    order.cheerFormSubtype === "youth-rec-cheer"
+  ) {
+    return "compliant";
+  }
   const text =
     String(order.musicAffiliate || "").trim() ||
     String(order.musicTheme || "").trim();
