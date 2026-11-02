@@ -633,7 +633,7 @@ export function ForwardOrderMailModal({
     ? isCustomerResend
       ? "Request corrected materials"
       : isUnmatchedManualCustomer
-        ? "Email customer about missing form"
+        ? "Email customer about form order"
         : "Email customer about missing data"
     : "Send mail to editor";
   const composeEyebrow = isCustomer

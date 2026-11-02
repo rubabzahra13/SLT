@@ -46,13 +46,15 @@ function anthemOrder(overrides: Partial<Order> = {}): Order {
 
 describe("School Anthem MTD gate", () => {
   it("unmatched manual School Anthem needs Magento match on the MTD button only", () => {
-    const manual = anthemOrder({ isManualEntry: true, couponCode: "" });
+    const manual = anthemOrder({
+      isManualEntry: true,
+      couponCode: "",
+      mascot: "",
+      schoolBillingAddress: "",
+    });
     assert.equal(unmatchedManualNeedsMagentoMatch(manual), true);
-    assert.ok(
-      !getOrderFormFieldsBlockingMtd(manual).some(
-        (g) => g.key === "mergedFormOrderId"
-      )
-    );
+    // Form-field gaps stay empty until Match — Match Orders is the MTD gate.
+    assert.deepEqual(getOrderFormFieldsBlockingMtd(manual), []);
   });
 
   it("allows matched Magento School Anthem when required fields are filled; coupon optional", () => {

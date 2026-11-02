@@ -65,8 +65,10 @@ import {
 import {
   formatOrderFormMtdBlockReason,
   getOrderFormFieldsBlockingMtd,
+  MAGENTO_MATCH_BEFORE_MTD_REASON,
   orderHasSplitField,
   resolveFinalMatchedOrder,
+  unmatchedManualNeedsMagentoMatch,
 } from "@/lib/order-form-missing";
 import {
   buildRecordPriceSavePatch,
@@ -652,6 +654,18 @@ function OrdersPageContent() {
       const reqSource = finalized
         ? mergeOrderFormFieldsForRequirements(rec, finalized)
         : rec;
+
+      // Manuals must Match Orders first. Soft-gate when lookalike forms exist.
+      if (linkedOrder && unmatchedManualNeedsMagentoMatch(linkedOrder)) {
+        const suggestions = matchCandidatesBeforeMtd(linkedOrder, allOrders);
+        if (suggestions.length > 0) {
+          setMatchBeforeMtd({ record: rec, suggestions });
+          return;
+        }
+        setValidationModalRecord(rec);
+        return;
+      }
+
       if (
         linkedOrder &&
         getOrderFormFieldsBlockingMtd(linkedOrder, allOrders).length > 0
@@ -679,15 +693,6 @@ function OrdersPageContent() {
       if (!producerMailOk) {
         setValidationModalRecord(rec);
         return;
-      }
-
-      // Soft gate: unmatched manual↔form lookalikes get a chooser before MTD.
-      if (linkedOrder) {
-        const suggestions = matchCandidatesBeforeMtd(linkedOrder, allOrders);
-        if (suggestions.length > 0) {
-          setMatchBeforeMtd({ record: rec, suggestions });
-          return;
-        }
       }
 
       commitMoveToMTD(rec);
@@ -1759,6 +1764,14 @@ function OrdersPageContent() {
                 : "Email producer about order";
           const showCustomerMail = blockedByMissingData;
           const customerMailAlreadySent = Boolean(rec.missingDataEmailSentAt);
+          const unmatchedManualCustomerMail = linkedForMail
+            ? unmatchedManualNeedsMagentoMatch(linkedForMail)
+            : Boolean(rec.isManualScheduleEntry);
+          const customerMailTip = customerMailAlreadySent
+            ? "Resend to customer"
+            : unmatchedManualCustomerMail
+              ? "Email customer about form order"
+              : "Email customer about missing data";
 
           if (!showProducerMail && !showCustomerMail) {
             return (
@@ -1796,14 +1809,7 @@ function OrdersPageContent() {
                 </HoverTip>
               ) : null}
               {showCustomerMail ? (
-                <HoverTip
-                  label={
-                    customerMailAlreadySent
-                      ? "Resend to customer"
-                      : "Email customer about missing data"
-                  }
-                  placement="top"
-                >
+                <HoverTip label={customerMailTip} placement="top">
                   <button
                     type="button"
                     onMouseDown={(e) => e.stopPropagation()}
@@ -1818,11 +1824,7 @@ function OrdersPageContent() {
                           ? ordersMailCustomerButtonClass
                           : ordersMailTextButtonClass
                     }
-                    aria-label={
-                      customerMailAlreadySent
-                        ? "Resend to customer"
-                        : "Email customer"
-                    }
+                    aria-label={customerMailTip}
                   >
                     <Mail className="h-3 w-3 shrink-0" strokeWidth={2.25} />
                     <span>{customerMailAlreadySent ? "Resend" : "Customer"}</span>
@@ -1851,9 +1853,20 @@ function OrdersPageContent() {
             : rec;
           const { needsReassign, missingCount } = getOrderStatus(reqSource);
           const blockedByMissingData = missingCount > 0;
-          const formMtdGaps = linkedForForm
-            ? getOrderFormFieldsBlockingMtd(linkedForForm, allOrders)
-            : [];
+          const needsMagentoMatch = linkedForForm
+            ? unmatchedManualNeedsMagentoMatch(linkedForForm)
+            : Boolean(rec.isManualScheduleEntry);
+          const matchSuggestions =
+            needsMagentoMatch && linkedForForm
+              ? matchCandidatesBeforeMtd(linkedForForm, allOrders)
+              : [];
+          // Lookalike soft-gate stays clickable; otherwise Match Orders first.
+          const hardBlockMagentoMatch =
+            needsMagentoMatch && matchSuggestions.length === 0;
+          const formMtdGaps =
+            !needsMagentoMatch && linkedForForm
+              ? getOrderFormFieldsBlockingMtd(linkedForForm, allOrders)
+              : [];
           const blockedByFormGaps = formMtdGaps.length > 0;
           const assignedProducer =
             getDisplayAssignedProducer(rec) ||
@@ -1873,6 +1886,7 @@ function OrdersPageContent() {
           const producerMailSatisfied =
             isAssigned && Boolean(producerSentAt) && sameProducerAsLastSend;
           const producerMailIsResend =
+            !hardBlockMagentoMatch &&
             !blockedByMissingData &&
             !blockedByFormGaps &&
             isAssigned &&
@@ -1881,31 +1895,38 @@ function OrdersPageContent() {
             (needsReassign || Boolean(rec.isReassigned));
           const awaitingProducerMail =
             isAssigned &&
+            !hardBlockMagentoMatch &&
             !blockedByMissingData &&
             !blockedByFormGaps &&
             !producerMailSatisfied;
           const ready =
+            !hardBlockMagentoMatch &&
             isAssigned &&
             isScheduled &&
             !blockedByMissingData &&
             !blockedByFormGaps &&
             producerMailSatisfied;
-          const mtdBlockedReason = blockedByFormGaps
-            ? formatOrderFormMtdBlockReason(formMtdGaps)
-            : blockedByMissingData
-            ? "Resolve missing data\nbefore moving to MTD"
-            : !isAssigned && !isScheduled
-              ? "Assign a producer and set\nschedule dates before moving to MTD"
-              : !isAssigned
-                ? "Assign a producer\nbefore moving to MTD"
-                : !isScheduled
-                  ? "Set start and end dates\nbefore moving to MTD"
-                  : awaitingProducerMail
-                    ? producerMailIsResend
-                      ? "Resend producer email\nbefore moving to MTD"
-                      : "Email producer\nbefore moving to MTD"
-                    : null;
-          const mtdDisabled = Boolean(mtdBlockedReason);
+          const mtdBlockedReason = needsMagentoMatch
+            ? MAGENTO_MATCH_BEFORE_MTD_REASON
+            : blockedByFormGaps
+              ? formatOrderFormMtdBlockReason(formMtdGaps)
+              : blockedByMissingData
+                ? "Resolve missing data\nbefore moving to MTD"
+                : !isAssigned && !isScheduled
+                  ? "Assign a producer and set\nschedule dates before moving to MTD"
+                  : !isAssigned
+                    ? "Assign a producer\nbefore moving to MTD"
+                    : !isScheduled
+                      ? "Set start and end dates\nbefore moving to MTD"
+                      : awaitingProducerMail
+                        ? producerMailIsResend
+                          ? "Resend producer email\nbefore moving to MTD"
+                          : "Email producer\nbefore moving to MTD"
+                        : null;
+          // Soft-gate lookalikes: keep MTD clickable so MatchBeforeMtd can open.
+          const mtdDisabled = needsMagentoMatch
+            ? matchSuggestions.length === 0
+            : Boolean(mtdBlockedReason);
           return (
             <div
               className="flex items-center justify-center gap-1"
