@@ -29,6 +29,7 @@ describe("admin notifications", () => {
   it("bell types are only the four admin events", () => {
     assert.equal(isBellNotificationType("new_order"), true);
     assert.equal(isBellNotificationType("flagged_order"), true);
+    assert.equal(isBellNotificationType("match_suggestion"), true);
     assert.equal(isBellNotificationType("leave_tomorrow"), true);
     assert.equal(isBellNotificationType("limit_full"), true);
     assert.equal(isBellNotificationType("assignment"), true);

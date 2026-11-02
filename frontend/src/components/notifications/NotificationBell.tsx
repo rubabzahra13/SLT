@@ -1,12 +1,13 @@
 "use client";
 
 import clsx from "clsx";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Bell,
   CalendarOff,
   Flag,
   Gauge,
+  Link2,
   Mail,
   MailX,
   Package,
@@ -20,6 +21,7 @@ import type { AppNotificationType } from "@/types";
 const DOT: Record<AppNotificationType, string> = {
   new_order: "bg-brand-orange",
   flagged_order: "bg-rose-500",
+  match_suggestion: "bg-rose-500",
   leave_tomorrow: "bg-brand-warning",
   limit_full: "bg-red-500",
   assignment: "bg-brand-blue",
@@ -30,6 +32,7 @@ const DOT: Record<AppNotificationType, string> = {
 const ICON: Record<AppNotificationType, typeof Package> = {
   new_order: Package,
   flagged_order: Flag,
+  match_suggestion: Link2,
   leave_tomorrow: CalendarOff,
   limit_full: Gauge,
   assignment: UserCheck,
@@ -45,6 +48,7 @@ export function NotificationBell({
   /** `sidebar` opens the panel above/ beside the trigger. */
   placement?: "header" | "sidebar";
 }) {
+  const router = useRouter();
   const {
     notifications,
     unreadCount,
@@ -112,7 +116,7 @@ export function NotificationBell({
                   </p>
                 ) : (
                   <p className="mt-0.5 text-[11px] text-brand-ink-tertiary">
-                    Orders · Flagged · Leave · Limit full · Gmail
+                    Orders · Flagged · Matches · Leave · Limit full · Gmail
                   </p>
                 )}
               </div>
@@ -140,23 +144,25 @@ export function NotificationBell({
                     You&apos;re all caught up
                   </p>
                   <p className="mt-1 max-w-[16rem] text-[12px] text-brand-ink-tertiary">
-                    New orders, Flagged holds, leave tomorrow, Limit full, and
-                    Gmail connect/disconnect appear here.
+                    Flagged holds, suggested matches, leave tomorrow, Limit
+                    full, and Gmail connect/disconnect appear here.
                   </p>
                 </div>
               ) : (
                 notifications.map((n) => {
                   const Icon = ICON[n.type] ?? Bell;
+                  const href = n.href || "/orders";
                   return (
-                    <Link
+                    <button
                       key={n.id}
-                      href={n.href || "#"}
+                      type="button"
                       onClick={() => {
                         markNotificationRead(n.id);
                         setOpen(false);
+                        router.push(href);
                       }}
                       className={clsx(
-                        "block border-b border-brand-line/60 px-4 py-3.5 transition last:border-b-0 hover:bg-brand-bg/70",
+                        "block w-full border-b border-brand-line/60 px-4 py-3.5 text-left transition last:border-b-0 hover:bg-brand-bg/70",
                         !n.read && "bg-brand-signature-soft/40"
                       )}
                     >
@@ -172,6 +178,7 @@ export function NotificationBell({
                               "h-3.5 w-3.5",
                               n.type === "new_order" && "text-brand-orange",
                               n.type === "flagged_order" && "text-rose-600",
+                              n.type === "match_suggestion" && "text-rose-600",
                               n.type === "leave_tomorrow" && "text-amber-600",
                               n.type === "limit_full" && "text-red-600",
                               n.type === "assignment" && "text-brand-blue",
@@ -200,7 +207,7 @@ export function NotificationBell({
                           </p>
                         </div>
                       </div>
-                    </Link>
+                    </button>
                   );
                 })
               )}

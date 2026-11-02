@@ -10,6 +10,7 @@ import { isProducerDailyLimitFull } from "@/lib/producer-availability";
 export const BELL_NOTIFICATION_TYPES = [
   "new_order",
   "flagged_order",
+  "match_suggestion",
   "leave_tomorrow",
   "limit_full",
   "assignment",

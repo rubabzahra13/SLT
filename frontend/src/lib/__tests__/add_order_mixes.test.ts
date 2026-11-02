@@ -82,7 +82,7 @@ describe("add-order-mixes", () => {
     ]);
   });
 
-  it("VIROC omits teamName (not on Team/Mix sections)", () => {
+  it("VIROC omits teamName (not on Magento form)", () => {
     const viroc = baseOrder({ cheerFormSubtype: "school-cheer-viroc-yes" });
     assert.deepEqual(getAddOrderMultiMixFieldKeys(viroc), [
       "requestedEditor",
@@ -174,11 +174,60 @@ describe("add-order-mixes", () => {
     assert.equal(addOrderDraftHasContent(order, [{}], keys), true);
   });
 
-  it("content rule: per-mix package unlocks save", () => {
+  it("content rule: cheer team name alone unlocks save", () => {
+    const order = baseOrder();
+    const keys = getAddOrderMultiMixFieldKeys(order);
+    assert.equal(
+      addOrderDraftHasContent(order, [{ teamName: "Open" }], keys),
+      true
+    );
+  });
+
+  it("content rule: cheer package alone does not unlock save", () => {
     const order = baseOrder();
     const keys = getAddOrderMultiMixFieldKeys(order);
     assert.equal(
       addOrderDraftHasContent(order, [{ packageType: "GOLD" }], keys),
+      false
+    );
+  });
+
+  it("content rule: dance/MB require school/program identity", () => {
+    const dance = baseOrder({
+      formType: "school-all-star-dance",
+      danceFormSubtype: "pom",
+      cheerFormSubtype: undefined,
+      category: "All Star Dance",
+    });
+    const danceKeys = getAddOrderMultiMixFieldKeys(dance);
+    assert.equal(
+      addOrderDraftHasContent(dance, [{ packageType: "CUSTOM POM" }], danceKeys),
+      false
+    );
+    assert.equal(
+      addOrderDraftHasContent(
+        { ...dance, schoolProgramName: "Westside Dance" },
+        [{}],
+        danceKeys
+      ),
+      true
+    );
+    const mb = baseOrder({
+      formType: "marching-band",
+      cheerFormSubtype: undefined,
+      category: "Marching Band",
+    });
+    const mbKeys = getAddOrderMultiMixFieldKeys(mb);
+    assert.equal(
+      addOrderDraftHasContent(mb, [{ packageType: "BAND CHANT" }], mbKeys),
+      false
+    );
+    assert.equal(
+      addOrderDraftHasContent(
+        { ...mb, schoolProgramName: "Westlake Band" },
+        [{}],
+        mbKeys
+      ),
       true
     );
   });
@@ -412,6 +461,27 @@ describe("add-order-mixes", () => {
     assert.equal(orders[1].packageType, "STAND TUNE");
     assert.equal(orders[0].timeLengthOfMix, "7:00");
     assert.equal(orders[1].timeLengthOfMix, "2:30");
+  });
+
+  it("Save N Orders: cheer team-only mixes create unique orders without gym", () => {
+    const draft = baseOrder({ gymName: "", programName: "" });
+    const orders = buildManualOrdersFromMixes({
+      orderDraft: draft,
+      mixes: [
+        { teamName: "Open", packageType: "GOLD" },
+        { teamName: "Elite", packageType: "PLATINUM" },
+        { packageType: "SILVER" },
+      ],
+      formType: "school-all-star-cheer",
+      cheerSubtype: "all-star-cheer",
+      danceSubtype: "pom",
+      category: "All Star Cheer",
+    });
+    assert.equal(orders.length, 2);
+    assert.equal(orders[0].teamName, "Open");
+    assert.equal(orders[1].teamName, "Elite");
+    assert.equal(orders[0].gymName || "", "");
+    assert.equal(orders[1].gymName || "", "");
   });
 
   it("Save N Orders: choreographyCompletionDate is unique per mix", () => {

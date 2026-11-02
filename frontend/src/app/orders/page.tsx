@@ -60,8 +60,10 @@ import { countMagentoFormsWithSuggestions } from "@/lib/manual-form-suggestions"
 import {
   formatOrderFormMtdBlockReason,
   getOrderFormFieldsBlockingMtd,
+  MAGENTO_MATCH_BEFORE_MTD_REASON,
   orderHasSplitField,
   resolveFinalMatchedOrder,
+  unmatchedManualNeedsMagentoMatch,
 } from "@/lib/order-form-missing";
 import {
   buildRecordPriceSavePatch,
@@ -177,6 +179,7 @@ function OrdersPageContent() {
     setSecretMenuPrices,
     discountCodes,
     isLoading,
+    unseenSuggestedMatchCount,
   } = useAppState();
 
   const [formState, setFormState] = useState<OrderFormType>(DEFAULT_FORM);
@@ -624,6 +627,11 @@ function OrdersPageContent() {
         !isOrderScheduledAndAssigned(rec) ||
         getOrderStatus(reqSource).missingCount > 0
       ) {
+        setValidationModalRecord(rec);
+        return;
+      }
+
+      if (unmatchedManualNeedsMagentoMatch(linkedOrder)) {
         setValidationModalRecord(rec);
         return;
       }
@@ -1859,7 +1867,7 @@ function OrdersPageContent() {
             !blockedByFormGaps &&
             producerMailSatisfied;
           const mtdBlockedReason = isUnmatchedManual
-            ? "Match form order to send"
+            ? MAGENTO_MATCH_BEFORE_MTD_REASON
             : blockedByFormGaps
             ? formatOrderFormMtdBlockReason(formMtdGaps)
             : blockedByMissingData
@@ -2012,25 +2020,44 @@ function OrdersPageContent() {
               type="button"
               onClick={goToMatchPage}
               title={
-                matchOrdersCount > 0
-                  ? `Open Match Orders (${matchOrdersCount})`
-                  : "Open Match Orders"
+                unseenSuggestedMatchCount > 0
+                  ? `Open Match Orders (${matchOrdersCount}), ${unseenSuggestedMatchCount} new`
+                  : matchOrdersCount > 0
+                    ? `Open Match Orders (${matchOrdersCount})`
+                    : "Open Match Orders"
               }
               aria-label={
-                matchOrdersCount > 0
-                  ? `Open Match Orders, ${matchOrdersCount}`
-                  : "Open Match Orders"
+                unseenSuggestedMatchCount > 0
+                  ? `Open Match Orders, ${matchOrdersCount}, ${unseenSuggestedMatchCount} new`
+                  : matchOrdersCount > 0
+                    ? `Open Match Orders, ${matchOrdersCount}`
+                    : "Open Match Orders"
               }
-              className="flex h-9 items-center gap-1.5 rounded-xl border border-brand-line/70 bg-white px-3 text-[13px] font-semibold text-brand-ink shadow-sm transition hover:border-brand-line hover:bg-brand-bg/60 hover:text-brand-orange focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange/20"
+              className={clsx(
+                "flex h-9 items-center gap-1.5 rounded-xl border bg-white px-3 text-[13px] font-semibold shadow-sm transition focus-visible:outline-none focus-visible:ring-2",
+                unseenSuggestedMatchCount > 0
+                  ? "border-rose-300 text-brand-ink hover:border-rose-400 hover:bg-rose-50/80 hover:text-rose-800 focus-visible:ring-rose-300/40"
+                  : "border-brand-line/70 text-brand-ink hover:border-brand-line hover:bg-brand-bg/60 hover:text-brand-orange focus-visible:ring-brand-orange/20"
+              )}
             >
               <Link2
-                className="h-4 w-4 text-brand-ink-secondary"
+                className={clsx(
+                  "h-4 w-4",
+                  unseenSuggestedMatchCount > 0
+                    ? "text-rose-600"
+                    : "text-brand-ink-secondary"
+                )}
                 strokeWidth={2}
               />
               <span className="hidden sm:inline">Match Orders</span>
               {matchOrdersCount > 0 ? (
                 <span className="rounded-full bg-brand-orange/10 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-brand-orange">
                   {matchOrdersCount}
+                </span>
+              ) : null}
+              {unseenSuggestedMatchCount > 0 ? (
+                <span className="rounded-full bg-rose-600 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide tabular-nums text-white">
+                  {unseenSuggestedMatchCount} new
                 </span>
               ) : null}
             </button>

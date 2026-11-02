@@ -984,13 +984,14 @@ export type ScheduleCellStatus =
   | "nonwork";
 
 /**
- * Bell inbox only: new Magento orders, flagged multi-affiliate holds,
- * producer leave starting tomorrow, daily Limit full, and Gmail connect/disconnect.
- * Transient UX feedback uses AppAlert (toast), not the bell.
+ * Bell inbox only: flagged multi-affiliate holds, suggested Magento↔manual
+ * matches, producer leave starting tomorrow, daily Limit full, and Gmail
+ * connect/disconnect. Transient UX feedback uses AppAlert (toast), not the bell.
  */
 export type AppNotificationType =
   | "new_order"
   | "flagged_order"
+  | "match_suggestion"
   | "leave_tomorrow"
   | "limit_full"
   | "assignment"

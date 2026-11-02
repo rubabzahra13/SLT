@@ -35,7 +35,7 @@ const CASES: Array<{
   },
 ];
 
-describe("Add Order: any meaningful field (except coupon / how-found)", () => {
+describe("Add Order: identity (Cheer also team name)", () => {
   for (const c of CASES) {
     it(`${c.formType}${c.cheer ? `/${c.cheer}` : ""}${c.dance ? `/${c.dance}` : ""}: empty blocked; identity unlocks`, () => {
       const key = getOrderIdentityFieldKey(c.formType, c.cheer, c.dance);
@@ -60,13 +60,30 @@ describe("Add Order: any meaningful field (except coupon / how-found)", () => {
     });
   }
 
-  it("coach phone alone unlocks save", () => {
-    const draft = {
+  it("cheer: coach phone alone does not unlock save; team name does", () => {
+    const empty = {
       formType: "school-all-star-cheer",
       cheerFormSubtype: "all-star-cheer",
       coachPhone: "512-555-0100",
     } as Order;
-    assert.deepEqual(getAddOrderRequiredGaps(draft), []);
+    assert.equal(orderHasAddOrderContent(empty), false);
+    const withTeam = { ...empty, teamName: "Open" } as Order;
+    assert.equal(orderHasAddOrderContent(withTeam), true);
+  });
+
+  it("VIROC / School Cheer: team name alone does not unlock save", () => {
+    const viroc = {
+      formType: "school-all-star-cheer",
+      cheerFormSubtype: "school-cheer-viroc-yes",
+      teamName: "Open",
+    } as Order;
+    assert.equal(orderHasAddOrderContent(viroc), false);
+    const school = {
+      formType: "school-all-star-cheer",
+      cheerFormSubtype: "school-cheer-viroc-no",
+      teamName: "Open",
+    } as Order;
+    assert.equal(orderHasAddOrderContent(school), false);
   });
 
   it("coupon alone does not unlock save", () => {

@@ -446,6 +446,25 @@ export function manualOrderIdentityName(order: Order): string {
   return getOrderIdentityName(order).trim();
 }
 
+export function orderTeamName(
+  order: Pick<Order, "teamName"> | Partial<Order> | null | undefined
+): string {
+  return String(order?.teamName || "").trim();
+}
+
+/** Team Name exists on Magento for All-Star Cheer and Youth Rec only. */
+export function cheerSubtypeHasTeamName(
+  order: Pick<Order, "formType" | "cheerFormSubtype"> | null | undefined
+): boolean {
+  if (order?.formType !== "school-all-star-cheer") return false;
+  const sub = String(order.cheerFormSubtype || "all-star-cheer");
+  return sub === "all-star-cheer" || sub === "youth-rec-cheer";
+}
+
+function mixHasTeamName(mix: Partial<Order>): boolean {
+  return Boolean(orderTeamName(mix));
+}
+
 export type BuildManualOrdersFromMixesArgs = {
   orderDraft: Order;
   mixes: Partial<Order>[];
@@ -472,12 +491,20 @@ export function buildManualOrdersFromMixes(
     category,
   } = args;
   const mixKeys = getAddOrderMultiMixFieldKeys(orderDraft);
-  const mixList =
+  let mixList =
     mixes.length > 0
       ? mixes
       : mixKeys.length > 0
         ? [pickMixFieldValues(orderDraft, mixKeys)]
         : [{}];
+  // All-Star / Youth Rec with no gym/program: only mixes with a team name.
+  if (
+    cheerSubtypeHasTeamName(orderDraft) &&
+    !manualOrderIdentityName(orderDraft)
+  ) {
+    mixList = mixList.filter(mixHasTeamName);
+    if (mixList.length === 0) mixList = [{}];
+  }
   const sharedBase = orderWithoutMixFields(orderDraft, mixKeys);
 
   return mixList.map((mix) => {
@@ -570,15 +597,39 @@ function mixHasMeaningfulContent(
   return false;
 }
 
+function cheerDraftHasTeamName(
+  order: Order,
+  mixes: Partial<Order>[]
+): boolean {
+  if (mixHasTeamName(order)) return true;
+  return mixes.some(mixHasTeamName);
+}
+
 /**
- * Add New Order content rule across shared fields + any mix slot:
- * at least one user-entered field (not coupon / how-found / draft dropdown defaults).
+ * Add New Order save gate:
+ * - All-Star Cheer / Youth Rec: gym/program identity OR a team name (per mix).
+ * - Other Cheer, Dance, Marching Band: identity required.
+ * - Other forms: at least one user-entered field (not coupon / how-found / defaults).
  */
 export function addOrderDraftHasContent(
   order: Order,
   mixes: Partial<Order>[],
   mixKeys: string[]
 ): boolean {
+  const identity = manualOrderIdentityName(order);
+  if (cheerSubtypeHasTeamName(order)) {
+    return Boolean(identity) || cheerDraftHasTeamName(order, mixes);
+  }
+  if (order.formType === "school-all-star-cheer") {
+    return Boolean(identity);
+  }
+  if (
+    order.formType === "school-all-star-dance" ||
+    order.formType === "marching-band"
+  ) {
+    return Boolean(identity);
+  }
+
   const shared = orderWithoutMixFields(order, mixKeys);
   const mixKeySet = new Set(mixKeys);
   for (const section of getOrderDetailSections(order)) {
@@ -594,4 +645,25 @@ export function addOrderDraftHasContent(
     if (mixHasMeaningfulContent(mix, mixKeys, order)) return true;
   }
   return false;
+}
+
+export function addOrderSaveBlockReason(
+  order: Order,
+  mixes: Partial<Order>[],
+  mixKeys: string[]
+): string {
+  if (addOrderDraftHasContent(order, mixes, mixKeys)) return "";
+  if (cheerSubtypeHasTeamName(order)) {
+    return "Add a gym or program name — or a team name — to save.";
+  }
+  if (order.formType === "school-all-star-cheer") {
+    return "Add a school name to save.";
+  }
+  if (
+    order.formType === "school-all-star-dance" ||
+    order.formType === "marching-band"
+  ) {
+    return "Add a school/program name to save.";
+  }
+  return "Add at least one order detail to save. Defaults, coupon codes, and “how did you find us?” don’t count on their own.";
 }

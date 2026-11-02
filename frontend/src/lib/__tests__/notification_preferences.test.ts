@@ -14,6 +14,10 @@ describe("notification preferences", () => {
       "flagged_order"
     );
     assert.equal(
+      preferenceKeyForNotificationType("match_suggestion"),
+      "match_suggestion"
+    );
+    assert.equal(
       preferenceKeyForNotificationType("leave_tomorrow"),
       "leave_tomorrow"
     );

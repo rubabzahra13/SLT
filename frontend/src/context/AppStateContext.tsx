@@ -50,6 +50,13 @@ import {
 } from "@/lib/manual-form-merge";
 import { openAffiliateFlagPatch } from "@/lib/affiliate-flag";
 import {
+  addUnseenMatchFormId,
+  clearUnseenMatchFormIds,
+  incomingOrderBellEvent,
+  isMatchOrdersPageOpen,
+  readUnseenMatchFormIds,
+} from "@/lib/match-suggestion-notify";
+import {
   collapsePreMtdClonesForOrder,
   isPersistedMtdRecord,
   mergeCollectionStateFromOrder,
@@ -222,6 +229,15 @@ type AppStateContextValue = {
   resetEmailTemplate: (id: EmailTemplateId) => void;
   markNotificationRead: (id: string) => void;
   markAllNotificationsRead: () => void;
+  /** Unseen Suggested-for-You Magento forms since Match Orders was last opened. */
+  unseenSuggestedMatchCount: number;
+  /** Clear the Match Orders "N new" badge (call when that page is opened). */
+  markMatchOrdersSeen: () => void;
+  /**
+   * After a Magento form leaves Flagged (Resolve), check Suggested for You and
+   * raise a bell + "N new" badge when a manual match exists.
+   */
+  maybeNotifyMatchSuggestion: (order: Order) => void;
   isInMTD: (orderId: string) => boolean;
 };
 
@@ -599,6 +615,9 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   // Notifications start empty: populated when backend data loads or user actions occur.
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [alerts, setAlerts] = useState<AppAlert[]>([]);
+  const [unseenMatchFormIds, setUnseenMatchFormIds] = useState<string[]>(() =>
+    readUnseenMatchFormIds()
+  );
 
   const [producers, setProducers] = useState<Producer[]>(() => {
     if (cachedProducers && cachedProducers.length > 0) {
@@ -941,6 +960,31 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       setNotifications((prev) => [notification, ...prev].slice(0, 30));
     },
     []
+  );
+
+  const recordUnseenSuggestedMatch = useCallback((formId: string) => {
+    if (isMatchOrdersPageOpen()) return;
+    setUnseenMatchFormIds((prev) => addUnseenMatchFormId(formId, prev));
+  }, []);
+
+  const markMatchOrdersSeen = useCallback(() => {
+    clearUnseenMatchFormIds();
+    setUnseenMatchFormIds([]);
+  }, []);
+
+  const maybeNotifyMatchSuggestion = useCallback(
+    (order: Order) => {
+      const stamped = normalizeOrder(order);
+      const catalog = [
+        stamped,
+        ...activeOrders.filter((o) => o.id !== stamped.id),
+      ];
+      const event = incomingOrderBellEvent(stamped, catalog);
+      if (event.kind !== "match_suggestion") return;
+      addNotification(event.notification);
+      recordUnseenSuggestedMatch(event.formId);
+    },
+    [activeOrders, addNotification, recordUnseenSuggestedMatch]
   );
 
   const notifySaveError = useCallback(
@@ -2382,27 +2426,18 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         notifySaveError("Could not save new order", err);
       });
 
-      if (flagPatch) {
-        addNotification({
-          type: "flagged_order",
-          title: "Order flagged - multiple affiliates",
-          message: `${stamped.programName || stamped.gymName || "Order"} · ${
-            stamped.contactName || stamped.customerName || "Customer"
-          }`,
-          href: "/orders/flagged",
-        });
-      } else {
-      addNotification({
-        type: "new_order",
-        title: "New order received",
-          message: `${stamped.programName || stamped.gymName || "Order"} · ${
-            stamped.contactName || stamped.customerName || "Customer"
-        }`,
-          href: stamped.isManualEntry ? "/orders" : "/orders/match",
-      });
+      const alreadyPresent = prevActive.some((o) => o.id === stamped.id);
+      if (!alreadyPresent) {
+        const event = incomingOrderBellEvent(stamped, [stamped, ...prevActive]);
+        if (event.kind !== "none") {
+          addNotification(event.notification);
+        }
+        if (event.kind === "match_suggestion") {
+          recordUnseenSuggestedMatch(event.formId);
+        }
       }
     },
-    [addNotification, activeOrders, notifySaveError]
+    [addNotification, activeOrders, notifySaveError, recordUnseenSuggestedMatch]
   );
 
   const matchManualWithMagento = useCallback(
@@ -3615,7 +3650,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const applyIncomingOrder = useCallback((incoming: Order) => {
-    const mergeList = (prev: Order[]) => {
+    const mergeList = (prev: Order[], notify: boolean) => {
       const idx = prev.findIndex((o) => ordersReferToSame(o, incoming));
       if (idx === -1) {
         // Brand-new Magento form from API/stream: stays unmatched until
@@ -3626,27 +3661,19 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         const stamped = flagPatch
           ? normalizeOrder({ ...incoming, ...flagPatch })
           : normalizeOrder(incoming);
-        if (flagPatch) {
+        if (notify && flagPatch) {
           void updateOrderApi(stamped.id, flagPatch).catch((err) => {
             notifySaveError("Could not open affiliate flag", err);
           });
-          addNotification({
-            type: "flagged_order",
-            title: "Order flagged - multiple affiliates",
-            message: `${stamped.programName || stamped.gymName || "Order"} · ${
-              stamped.contactName || stamped.customerName || "Customer"
-            }`,
-            href: "/orders/flagged",
-          });
-        } else {
-          addNotification({
-            type: "new_order",
-            title: "New order received",
-            message: `${stamped.programName || stamped.gymName || "Order"} · ${
-              stamped.contactName || stamped.customerName || "Customer"
-            }`,
-            href: stamped.isManualEntry ? "/orders" : "/orders/match",
-          });
+        }
+        if (notify) {
+          const event = incomingOrderBellEvent(stamped, [stamped, ...prev]);
+          if (event.kind !== "none") {
+            addNotification(event.notification);
+          }
+          if (event.kind === "match_suggestion") {
+            recordUnseenSuggestedMatch(event.formId);
+          }
         }
         return [stamped, ...prev];
       }
@@ -3673,22 +3700,24 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       if (flagPatch) {
         const flagged = normalizeOrder({ ...merged, ...flagPatch });
         next[idx] = flagged;
-        addNotification({
-          type: "flagged_order",
-          title: "Order flagged - multiple affiliates",
-          message: `${flagged.programName || flagged.gymName || "Order"} · ${
-            flagged.contactName || flagged.customerName || "Customer"
-          }`,
-          href: "/orders/flagged",
-          dedupeKey: `flagged_order:${flagged.id}`,
-        });
+        if (notify) {
+          addNotification({
+            type: "flagged_order",
+            title: "Order flagged - multiple affiliates",
+            message: `${flagged.programName || flagged.gymName || "Order"} · ${
+              flagged.contactName || flagged.customerName || "Customer"
+            }`,
+            href: "/orders/flagged",
+            dedupeKey: `flagged_order:${flagged.id}`,
+          });
+        }
       } else {
         next[idx] = merged;
       }
       return next;
     };
-    setActiveOrders(mergeList);
-    setPastOrders(mergeList);
+    setActiveOrders((prev) => mergeList(prev, true));
+    setPastOrders((prev) => mergeList(prev, false));
 
     // Keep linked MTD chip/base in sync when order price lands first.
     setMtdRecords((prev) => {
@@ -3725,7 +3754,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       writeTimedCache(CACHE_MTD_KEY, next);
       return next;
     });
-  }, [addNotification, notifySaveError]);
+  }, [addNotification, notifySaveError, recordUnseenSuggestedMatch]);
 
   const applyIncomingMtd = useCallback((incoming: MTDRecord) => {
     setMtdRecords((prev) => {
@@ -4306,6 +4335,9 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     resetEmailTemplate,
     markNotificationRead,
     markAllNotificationsRead,
+    unseenSuggestedMatchCount: unseenMatchFormIds.length,
+    markMatchOrdersSeen,
+    maybeNotifyMatchSuggestion,
     isInMTD,
   };
 

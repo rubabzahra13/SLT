@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   getOrderFormFieldsBlockingMtd,
   isOptionalOrderFormField,
+  unmatchedManualNeedsMagentoMatch,
 } from "../order-form-missing";
 import type { Order } from "../../types";
 
@@ -44,11 +45,14 @@ function anthemOrder(overrides: Partial<Order> = {}): Order {
 }
 
 describe("School Anthem MTD gate", () => {
-  it("blocks unmatched manual School Anthem even when Magento fields are filled", () => {
+  it("unmatched manual School Anthem needs Magento match on the MTD button only", () => {
     const manual = anthemOrder({ isManualEntry: true, couponCode: "" });
-    const gaps = getOrderFormFieldsBlockingMtd(manual);
-    assert.equal(gaps.length, 1);
-    assert.equal(gaps[0]?.key, "mergedFormOrderId");
+    assert.equal(unmatchedManualNeedsMagentoMatch(manual), true);
+    assert.ok(
+      !getOrderFormFieldsBlockingMtd(manual).some(
+        (g) => g.key === "mergedFormOrderId"
+      )
+    );
   });
 
   it("allows matched Magento School Anthem when required fields are filled; coupon optional", () => {
@@ -73,6 +77,14 @@ describe("School Anthem MTD gate", () => {
     assert.ok(keys.includes("mascot"));
     assert.ok(keys.includes("nicknames"));
     assert.ok(!keys.includes("couponCode"));
+  });
+
+  it("matched Magento form no longer needs the MTD match stop", () => {
+    const matched = anthemOrder({
+      isManualEntry: true,
+      mergedFormOrderId: "form-anthem-1",
+    });
+    assert.equal(unmatchedManualNeedsMagentoMatch(matched), false);
   });
 
   it("treats coupon as optional and School Anthem song/team fields as required", () => {

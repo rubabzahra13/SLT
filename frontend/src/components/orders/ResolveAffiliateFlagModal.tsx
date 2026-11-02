@@ -49,7 +49,8 @@ export function ResolveAffiliateFlagModal({
   onClose,
 }: ResolveAffiliateFlagModalProps) {
   const { token, isViewOnly } = useAuth();
-  const { emailTemplates, updateOrder, addAlert } = useAppState();
+  const { emailTemplates, updateOrder, addAlert, maybeNotifyMatchSuggestion } =
+    useAppState();
   const [mounted, setMounted] = useState(false);
   const [selectedAffiliate, setSelectedAffiliate] = useState("");
   const [selectOpen, setSelectOpen] = useState(false);
@@ -190,6 +191,8 @@ export function ResolveAffiliateFlagModal({
         ...pricingPatchAfterAffiliateResolve(nextOrder),
       };
       await updateOrder(linkedOrder.id, patch, linkedOrder);
+      // Flagged is cleared: now run Suggested for You (bell + Match Orders "N new").
+      maybeNotifyMatchSuggestion({ ...linkedOrder, ...patch });
       addAlert({
         tone: "success",
         title: "Affiliate resolved",

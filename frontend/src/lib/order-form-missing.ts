@@ -1,4 +1,7 @@
-import { getOrderDetailSections } from "@/lib/order-detail-sections";
+import {
+  getOrderDetailSections,
+  getOrderIdentityName,
+} from "@/lib/order-detail-sections";
 import { rawFieldValue } from "@/lib/order-detail-fields";
 import { hasMeaningfulFieldValue } from "@/lib/empty-field-tokens";
 import {
@@ -197,6 +200,17 @@ function orderHasMatchedMagentoForm(order: Order): boolean {
   return Boolean(snap && Object.keys(snap).length > 0);
 }
 
+/** Manual New Order not yet linked in Match Orders. */
+export function unmatchedManualNeedsMagentoMatch(
+  order?: Pick<Order, "isManualEntry" | "mergedFormOrderId" | "manualOverlapSnapshot"> | null
+): boolean {
+  if (!order?.isManualEntry) return false;
+  return !orderHasMatchedMagentoForm(order as Order);
+}
+
+export const MAGENTO_MATCH_BEFORE_MTD_REASON =
+  "Match this manual order\nwith a Magento form first";
+
 /** Split/No Split exists on VIROC, School Cheer, Youth Rec: not All Star Cheer. */
 export const CHEER_SUBTYPES_WITH_SPLIT = new Set([
   "school-cheer-viroc-yes",
@@ -311,7 +325,8 @@ export function resolveFinalMatchedOrder(
  * Coupon, invoice, howDidYouFindOut, and dance Power/Unleash cover boxes
  * may stay empty. Youth Rec "Email Address" is optional.
  * Voiceover script/pronunciation required only when custom voiceovers is Yes.
- * Manual School Anthem stays blocked until a Magento form is matched.
+ * Unmatched manuals: Magento match is a last check on the MTD button only
+ * (`unmatchedManualNeedsMagentoMatch`), not a form-field gap.
  */
 export function getOrderFormFieldsBlockingMtd(
   order: Order,
@@ -327,21 +342,10 @@ export function getOrderFormFieldsBlockingMtd(
   const gaps: OrderFormMtdGap[] = [];
   const seen = new Set<string>();
 
-  // Manual School Anthem: wait for Magento match before MTD (form is SoT).
-  if (
-    isSchoolAnthemOrder(source) &&
-    source.isManualEntry &&
-    !orderHasMatchedMagentoForm(source)
-  ) {
-    gaps.push({
-      key: "mergedFormOrderId",
-      label: "Magento form match",
-    });
-    return gaps;
-  }
-
   // Unmatched manuals: only slim Add Order fields can block MTD. Magento fills
   // city/zip/affiliate/songs after Match (old full-form gate was wrong here).
+  // Magento match itself is a last stop on the MTD button only
+  // (`unmatchedManualNeedsMagentoMatch`), not a form-field gap.
   const unmatchedManual = Boolean(
     source.isManualEntry && !source.mergedFormOrderId
   );
@@ -365,7 +369,7 @@ export function getOrderFormFieldsBlockingMtd(
 export function formatOrderFormMtdBlockReason(gaps: OrderFormMtdGap[]): string {
   if (gaps.length === 0) return "";
   if (gaps.length === 1 && gaps[0]?.key === "mergedFormOrderId") {
-    return "Wait for Magento form\nmatch before MTD";
+    return MAGENTO_MATCH_BEFORE_MTD_REASON;
   }
   const labels = gaps.map((g) => g.label);
   const shown = labels.slice(0, 6);
@@ -475,11 +479,26 @@ export function isAddOrderPrefillValue(
 }
 
 /**
- * Add New Order (admin): any meaningful user-entered field unlocks save.
- * Coupon / how-found, and blank-draft dropdown defaults, do not count alone.
- * Identity name is not required: Match suggestions need it later if empty.
+ * Add New Order (admin):
+ * Cheer — gym/school/program or team name.
+ * Dance / Marching Band — school/program identity.
+ * Other forms — any meaningful field except coupon / how-found / draft defaults.
  */
 export function orderHasAddOrderContent(order: Order): boolean {
+  const identity = getOrderIdentityName(order).trim();
+  if (order.formType === "school-all-star-cheer") {
+    const sub = String(order.cheerFormSubtype || "all-star-cheer");
+    const teamOk =
+      (sub === "all-star-cheer" || sub === "youth-rec-cheer") &&
+      Boolean(String(order.teamName || "").trim());
+    return Boolean(identity) || teamOk;
+  }
+  if (
+    order.formType === "school-all-star-dance" ||
+    order.formType === "marching-band"
+  ) {
+    return Boolean(identity);
+  }
   const sections = getOrderDetailSections(order);
   for (const section of sections) {
     for (const field of section.fields) {

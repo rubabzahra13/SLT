@@ -7,6 +7,7 @@ import type { AppNotificationType } from "@/types";
 export type NotificationPreferenceKey =
   | "new_order"
   | "flagged_order"
+  | "match_suggestion"
   | "leave_tomorrow"
   | "limit_full"
   | "gmail";
@@ -21,12 +22,17 @@ export const NOTIFICATION_PREFERENCE_META: {
   {
     key: "new_order",
     label: "New orders",
-    description: "Incoming Magento / form orders",
+    description: "Manually created orders",
   },
   {
     key: "flagged_order",
     label: "Flagged orders",
     description: "Multi-affiliate holds that need Resolve",
+  },
+  {
+    key: "match_suggestion",
+    label: "Suggested matches",
+    description: "Magento form automatically matched to a manual order",
   },
   {
     key: "leave_tomorrow",
@@ -48,6 +54,7 @@ export const NOTIFICATION_PREFERENCE_META: {
 export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   new_order: true,
   flagged_order: true,
+  match_suggestion: true,
   leave_tomorrow: true,
   limit_full: true,
   gmail: true,
@@ -95,7 +102,7 @@ export function preferenceKeyForNotificationType(
     // Assignments are alerts only: not a bell preference.
     return null;
   }
-  return type;
+  return type as NotificationPreferenceKey;
 }
 
 export function isNotificationTypeEnabled(

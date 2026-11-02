@@ -11,6 +11,7 @@ import { orderPatchFromOrderField } from "@/lib/mtd-order-sync";
 import { normalizeOrder } from "@/lib/order-form";
 import {
   addOrderDraftHasContent,
+  addOrderSaveBlockReason,
   blankAddOrderPerMixValues,
   buildManualOrdersFromMixes,
   getAddOrderMultiMixFieldKeys,
@@ -423,7 +424,7 @@ export function AddNewOrderModal({
 
     const mixList = mixListForSave;
 
-    // Admin Add Order: any field except coupon / how-did-you-find-out alone.
+    // Cheer: gym/school or team name. Dance/MB: school/program name.
     // Footer error (near Save): only after this click via showValidation.
     if (!addOrderDraftHasContent(orderDraft, mixList, mixKeys)) {
       setShowValidation(true);
@@ -627,8 +628,11 @@ export function AddNewOrderModal({
             <div className="flex items-center gap-2 rounded-xl bg-red-50 p-3.5 text-[13px] font-medium text-red-700 ring-1 ring-inset ring-red-200">
               <AlertCircle className="h-4 w-4 shrink-0 text-red-600" />
               <span>
-                Add at least one order detail to save. Defaults, coupon codes,
-                and “how did you find us?” don’t count on their own.
+                {addOrderSaveBlockReason(
+                  orderDraft,
+                  mixListForSave,
+                  mixKeys
+                )}
               </span>
             </div>
           ) : null}

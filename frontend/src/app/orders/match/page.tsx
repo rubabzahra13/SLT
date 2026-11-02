@@ -41,6 +41,7 @@ import {
   listUnmatchedManualOrders,
   suggestManualsForMagento,
 } from "@/lib/manual-form-suggestions";
+import { setMatchOrdersPageOpen } from "@/lib/match-suggestion-notify";
 import { canMergeMagentoFormIntoManual } from "@/lib/manual-form-merge";
 import {
   filterMTDRecords,
@@ -251,8 +252,20 @@ function SideRow({
 }: SideRowProps) {
   const identity = getOrderIdentityName(order).trim();
   const contact = titleCase(getOrderContactPersonName(order)).trim();
-  const displayName = identity || "No name yet";
-  const meta = [contact || null, packageLabel(order)].filter(Boolean).join(" · ");
+  const teamName = String(order.teamName || "").trim();
+  const showTeam =
+    order.formType === "school-all-star-cheer" &&
+    (order.cheerFormSubtype === "all-star-cheer" ||
+      order.cheerFormSubtype === "youth-rec-cheer" ||
+      !order.cheerFormSubtype);
+  const displayName = identity || (showTeam ? teamName : "") || "No name yet";
+  const meta = [
+    contact || null,
+    showTeam && teamName && teamName !== displayName ? teamName : null,
+    packageLabel(order),
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <div
@@ -367,7 +380,14 @@ export default function MatchOrdersPage() {
     producers,
     isLoading,
     isViewOnly,
+    markMatchOrdersSeen,
   } = useAppState();
+
+  useEffect(() => {
+    setMatchOrdersPageOpen(true);
+    markMatchOrdersSeen();
+    return () => setMatchOrdersPageOpen(false);
+  }, [markMatchOrdersSeen]);
 
   const [form, setForm] = useState<OrderFormType>(DEFAULT_FORM);
   const [cheerSubtype, setCheerSubtype] =

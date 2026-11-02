@@ -46,6 +46,25 @@ describe("manual Magento suggestions", () => {
     assert.equal(manuals[0].id, "m1");
   });
 
+  it("keeps flagged Magento forms off Match Orders", () => {
+    const flagged = baseOrder({
+      id: "flagged",
+      gymName: "Thunder Gym",
+      programName: "Thunder Gym",
+      affiliateFlagStatus: "open",
+      musicAffiliateSelections: "BMI, SESAC",
+    });
+    const manual = baseOrder({
+      id: "m1",
+      isManualEntry: true,
+      gymName: "Thunder Gym",
+      programName: "Thunder Gym",
+    });
+    assert.deepEqual(listUnmatchedMagentoForms([flagged, manual]), []);
+    assert.deepEqual(suggestManualsForMagento(flagged, [flagged, manual]), []);
+    assert.equal(countMagentoFormsWithSuggestions([flagged, manual]), 0);
+  });
+
   it("suggests manuals only when both identities filled and similar", () => {
     const form = baseOrder({
       id: "f1",
@@ -88,6 +107,123 @@ describe("manual Magento suggestions", () => {
       isManualEntry: true,
       gymName: "Something",
       programName: "Something",
+    });
+    assert.deepEqual(suggestManualsForMagento(form, [form, manual]), []);
+  });
+
+  it("VIROC does not suggest on team name", () => {
+    const form = baseOrder({
+      id: "f1",
+      cheerFormSubtype: "school-cheer-viroc-yes",
+      gymName: "",
+      schoolName: "",
+      programName: "",
+      teamName: "Open",
+    });
+    const manual = baseOrder({
+      id: "m1",
+      isManualEntry: true,
+      cheerFormSubtype: "school-cheer-viroc-yes",
+      gymName: "",
+      schoolName: "",
+      programName: "",
+      teamName: "Open",
+    });
+    assert.deepEqual(suggestManualsForMagento(form, [form, manual]), []);
+  });
+
+  it("cheer: team-only manuals match Magento team names", () => {
+    const form = baseOrder({
+      id: "f1",
+      gymName: "",
+      programName: "",
+      teamName: "Open",
+    });
+    const manuals = [
+      baseOrder({
+        id: "m1",
+        isManualEntry: true,
+        gymName: "",
+        programName: "",
+        teamName: "Open",
+      }),
+      baseOrder({
+        id: "m2",
+        isManualEntry: true,
+        gymName: "",
+        programName: "",
+        teamName: "Elite",
+      }),
+    ];
+    const suggestions = suggestManualsForMagento(form, [form, ...manuals]);
+    assert.equal(suggestions.length, 1);
+    assert.equal(suggestions[0].manual.id, "m1");
+    assert.equal(suggestions[0].identityName, "Open");
+  });
+
+  it("cheer: team match ranks first; gym/program still suggested when teams differ", () => {
+    const form = baseOrder({
+      id: "f1",
+      gymName: "Spirit Elite",
+      programName: "Spirit Elite",
+      teamName: "Open",
+    });
+    const byGym = baseOrder({
+      id: "m-gym",
+      isManualEntry: true,
+      gymName: "Spirit Elite",
+      programName: "Spirit Elite",
+      teamName: "Elite",
+    });
+    const byTeam = baseOrder({
+      id: "m-team",
+      isManualEntry: true,
+      gymName: "Other Gym",
+      programName: "Other Gym",
+      teamName: "Open",
+    });
+    const suggestions = suggestManualsForMagento(form, [form, byGym, byTeam]);
+    assert.equal(suggestions.length, 2);
+    assert.equal(suggestions[0].manual.id, "m-team");
+    assert.equal(suggestions[0].matchKind, "team");
+    assert.equal(suggestions[1].manual.id, "m-gym");
+    assert.equal(suggestions[1].matchKind, "identity");
+  });
+
+  it("cheer: empty gym and empty team on either side does not suggest", () => {
+    const form = baseOrder({
+      id: "f1",
+      gymName: "Spirit Elite",
+      programName: "Spirit Elite",
+      teamName: "",
+    });
+    const manual = baseOrder({
+      id: "m1",
+      isManualEntry: true,
+      gymName: "",
+      programName: "",
+      teamName: "",
+    });
+    assert.deepEqual(suggestManualsForMagento(form, [form, manual]), []);
+  });
+
+  it("dance still matches on school/program only, not a coincidental team", () => {
+    const form = baseOrder({
+      id: "f1",
+      formType: "school-all-star-dance",
+      cheerFormSubtype: undefined,
+      danceFormSubtype: "pom",
+      schoolProgramName: "Westside Dance",
+      teamName: "Open",
+    });
+    const manual = baseOrder({
+      id: "m1",
+      formType: "school-all-star-dance",
+      cheerFormSubtype: undefined,
+      danceFormSubtype: "pom",
+      isManualEntry: true,
+      schoolProgramName: "",
+      teamName: "Open",
     });
     assert.deepEqual(suggestManualsForMagento(form, [form, manual]), []);
   });
