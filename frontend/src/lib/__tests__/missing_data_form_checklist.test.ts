@@ -114,10 +114,11 @@ describe("Missing-data Form checklist", () => {
     } as Order;
 
     assert.ok(!missingLabels(matched, linked).includes("COMPLETED ORDER FORM"));
-    assert.ok(
-      !getOrderRequirements(
+    assert.strictEqual(
+      getOrderRequirements(
         { ...matched, mergedFormOrderId: "form-99" } as MTDRecord
-      ).collections.some((r) => r.id === "form")
+      ).collections.find((r) => r.id === "form")?.state,
+      "green"
     );
   });
 
@@ -133,10 +134,18 @@ describe("Missing-data Form checklist", () => {
       { id: "ord-1", isManualEntry: true } as Order,
       "coach@example.com"
     );
+    assert.equal(manualDraft.missingItems.length, 0);
     assert.ok(
-      manualDraft.missingItems.some((line) =>
-        line.startsWith("COMPLETED ORDER FORM")
+      !manualDraft.bodyPlainText.includes("COMPLETED ORDER FORM")
+    );
+    assert.ok(
+      manualDraft.bodyPlainText.includes(
+        "We're still waiting on your completed order form"
       )
+    );
+    assert.ok(manualDraft.bodyPlainText.includes("moved forward to"));
+    assert.ok(
+      manualDraft.subject.startsWith("Still Waiting on Your Order Form")
     );
 
     const magentoDraft = buildCollectionEmailDraft(

@@ -258,8 +258,22 @@ describe("Marching Band parity: Magento form fields + SoT", () => {
       mergedFormOrderId: "form-1",
       timeLengthOfMix: "",
     });
-    assert.ok(
-      !getOrderRequirements(matched).collections.some((r) => r.id === "form")
+    assert.strictEqual(
+      getOrderRequirements(matched).collections.find((r) => r.id === "form")
+        ?.state,
+      "green"
+    );
+
+    const unmatched = mbOrder({
+      isManualEntry: true,
+      mergedFormOrderId: undefined,
+      manualOverlapSnapshot: undefined,
+      timeLengthOfMix: "",
+    });
+    assert.strictEqual(
+      getOrderRequirements(unmatched).collections.find((r) => r.id === "form")
+        ?.state,
+      "red"
     );
   });
 });

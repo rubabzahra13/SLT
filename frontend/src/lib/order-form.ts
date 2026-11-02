@@ -1,5 +1,5 @@
 import type { CheerFormSubtype, DanceFormSubtype, MTDRecord, Order, OrderFormType } from "@/types";
-import { parsePackage } from "@/lib/package";
+import { packageTierOnly, parsePackage } from "@/lib/package";
 import { titleCase } from "@/lib/data";
 import { resolveOrderPriceCompliance } from "@/lib/pricing";
 import {
@@ -62,7 +62,8 @@ export const SCHOOL_ANTHEM_PACKAGE = "SCHOOL ANTHEMS";
 export const SCHOOL_ANTHEM_PRICE = 1250;
 
 export function buildLegacyPackage(packageType: string, timeLengthOfMix: string): string {
-  const pkg = packageType.trim();
+  // Tier only on the left: never keep a leaked "TBD 1:00" as the package type.
+  const pkg = packageTierOnly(packageType) || packageType.trim();
   const time = timeLengthOfMix.trim();
   if (!pkg) return "TBD";
   if (!time) return pkg;
@@ -240,13 +241,14 @@ export function normalizeOrder(
       : /^(contact|customer)$/i.test(rawContact)
         ? coachPerson
         : rawContact;
-  const { tier, limit } = parsePackage(raw.package || raw.packageType || "");
+  const { tier } = parsePackage(raw.package || raw.packageType || "");
 
   const formType = inferFormType(raw);
   const cheerFormSubtype = inferCheerFormSubtype({ ...raw, formType });
   const danceFormSubtype = inferDanceFormSubtype({ ...raw, formType });
+  const isCheerForm = formType === "school-all-star-cheer";
 
-  const packageType =
+  const packageTypeRaw =
     formType === "school-anthem"
       ? SCHOOL_ANTHEM_PACKAGE
       : raw.packageType?.trim() ||
@@ -254,14 +256,18 @@ export function normalizeOrder(
         raw.package?.split(/\d+:\d+/)[0]?.trim() ||
         raw.package ||
         "";
+  // package_type is tier only; mix length belongs on time_length_of_mix.
+  const packageType =
+    formType === "school-anthem"
+      ? SCHOOL_ANTHEM_PACKAGE
+      : packageTierOnly(packageTypeRaw) || packageTypeRaw;
 
-  // Cheer packages encode mix length in the label (e.g. GOLD 2:00). Other forms
-  // keep Magento package labels flat: never refill Time Length from package, or
-  // clearing the field "comes back" after save/normalize.
-  const isCheerForm = formType === "school-all-star-cheer";
-  const timeLengthOfMix = isCheerForm
-    ? raw.timeLengthOfMix?.trim() || (limit !== "-" ? limit : "") || ""
-    : raw.timeLengthOfMix?.trim() || "";
+  // Never refill Time Length from package on any form: an explicit clear ("")
+  // must stick, or Mix Time cannot be removed after a manual add.
+  const timeLengthOfMix =
+    raw.timeLengthOfMix !== undefined && raw.timeLengthOfMix !== null
+      ? String(raw.timeLengthOfMix).trim()
+      : "";
 
   // Anthem style preference / MB instrumentation share song_list_suggestions.
   const songListEarly =
@@ -447,6 +453,8 @@ export function normalizeOrder(
     // Alias of routine_notes (Anthem lyrical / MB fight-alma).
     lyricalNotes: routineNotes,
     couponCode: raw.couponCode?.trim() || "",
+    // Local mirror of MTD invoice (orders API has no invoice column).
+    invoice: String(raw.invoice || "").trim() || "",
     howDidYouFindOut: raw.howDidYouFindOut?.trim() || "",
     city: raw.city?.trim() || "",
     stateProvince: raw.stateProvince?.trim() || "",
@@ -608,7 +616,7 @@ export function orderToMTDRecord(order: Order): MTDRecord {
     musicTheme: order.musicTheme || "",
     price: order.price ?? 0,
     priceCompliance: resolveOrderPriceCompliance(order),
-    invoice: "",
+    invoice: String(order.invoice || "").trim() || "",
     mixStartDate: (order as any).mixStartDate || "",
     mixEndDate: (order as any).mixEndDate || undefined,
     eightCountSheet,

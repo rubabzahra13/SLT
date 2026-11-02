@@ -9,6 +9,11 @@ import {
   placeholderFieldErrorMessage,
   resolveCollectionPlaceholderOnFile,
 } from "@/lib/empty-field-tokens";
+import {
+  formatMixDuration,
+  isValidMixDuration,
+  parseMixDurationParts,
+} from "@/lib/mix-duration";
 
 export type SongsNotesToggleKind = "songs" | "notes" | "mix";
 export type SongsNotesToggleDirection = "to_red" | "to_green";
@@ -69,7 +74,10 @@ export function SongsNotesToggleModal({
         ? "Song list/suggestions"
         : "Routine notes");
   const removing = direction === "to_red";
-  const canConfirmGreen = hasMeaningfulFieldValue(draft);
+  const mixParts = parseMixDurationParts(draft);
+  const canConfirmGreen = isMix
+    ? isValidMixDuration(draft)
+    : hasMeaningfulFieldValue(draft);
   // Same amber UI for Songs / Notes / Mix on every category when a
   // dictionary placeholder is on file (none, N/A, TBD, labeled Dance covers, …).
   const placeholderStored = resolveCollectionPlaceholderOnFile(currentText);
@@ -87,17 +95,17 @@ export function SongsNotesToggleModal({
         : "Add notes?";
 
   const pillName = isMix ? "Mix Time" : isSongs ? "Songs" : "Notes";
+  // When a placeholder is on file, the amber panel carries that detail — keep
+  // the subtitle short so the same warning is not repeated twice.
   const body = removing
     ? currentText.trim()
       ? `The text below is currently stored in ${fieldLabel}. Confirm to remove it and mark ${pillName} as missing (red).`
       : `Confirm to clear ${fieldLabel} and mark ${pillName} as missing (red).`
-    : placeholderStored
-      ? `${fieldLabel} currently has a placeholder (“${placeholderStored}”), which does not count as collected. Enter real content to mark ${pillName} green.`
-      : isMix
-        ? `Enter ${fieldLabel} to mark Mix Time as collected. This updates the form field and turns the pill green.`
-        : isSongs
-          ? `Enter ${fieldLabel} to mark Songs as have. This updates the form field and turns the pill green.`
-          : `Enter ${fieldLabel} to mark Notes as have. This updates the form field and turns the pill green.`;
+    : isMix
+      ? `Enter ${fieldLabel} to mark Mix Time as collected. This updates the form field and turns the pill green.`
+      : isSongs
+        ? `Enter ${fieldLabel} to mark Songs as have. This updates the form field and turns the pill green.`
+        : `Enter ${fieldLabel} to mark Notes as have. This updates the form field and turns the pill green.`;
 
   const confirmLabel = removing
     ? isMix
@@ -164,14 +172,11 @@ export function SongsNotesToggleModal({
           {!removing && placeholderStored ? (
             <div className="mt-4 rounded-xl border border-amber-300/70 bg-amber-50 px-3.5 py-3 text-left">
               <p className="text-[10px] font-semibold uppercase tracking-[0.06em] text-amber-800/80">
-                Placeholder on file (not collected)
-              </p>
-              <p className="mt-1 font-mono text-[13px] font-semibold text-amber-950">
-                {placeholderStored}
+                Needs a real answer
               </p>
               <p className="mt-1 text-[11px] leading-snug text-amber-900/80">
-                Values like none, N/A, TBD, or null do not satisfy this requirement.
-                Replace with real {fieldLabel.toLowerCase()} below.
+                Right now this is set to “{placeholderStored}”. Enter a real{" "}
+                {fieldLabel.toLowerCase()} below to mark this complete.
               </p>
             </div>
           ) : null}
@@ -184,18 +189,85 @@ export function SongsNotesToggleModal({
               >
                 {fieldLabel}
               </label>
-              <textarea
-                id="songs-notes-toggle-input"
-                rows={4}
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                placeholder={`Enter ${fieldLabel.toLowerCase()}…`}
-                className="mt-1.5 w-full resize-y rounded-xl border border-brand-line/60 bg-white px-3 py-2.5 text-[13px] text-brand-ink shadow-[0_1px_1px_rgba(15,30,45,0.04)] outline-none transition-colors hover:border-brand-line-strong focus:border-brand-blue/50 focus:ring-2 focus:ring-brand-blue/15"
-                autoFocus
-              />
-              {draft.trim() && !canConfirmGreen ? (
+              {isMix ? (
+                <div className="mt-1.5 flex items-center gap-2">
+                  <label className="sr-only" htmlFor="songs-notes-toggle-minutes">
+                    Minutes
+                  </label>
+                  <input
+                    id="songs-notes-toggle-minutes"
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    max={99}
+                    step={1}
+                    value={mixParts.minutes}
+                    onChange={(e) => {
+                      const nextMins = e.target.value.replace(/[^\d]/g, "").slice(0, 3);
+                      setDraft(
+                        formatMixDuration(nextMins, mixParts.seconds || "00")
+                      );
+                    }}
+                    placeholder="0"
+                    className="h-10 w-[88px] rounded-xl border border-brand-line/60 bg-white px-3 text-center text-[13px] tabular-nums text-brand-ink shadow-[0_1px_1px_rgba(15,30,45,0.04)] outline-none transition-colors hover:border-brand-line-strong focus:border-brand-blue/50 focus:ring-2 focus:ring-brand-blue/15"
+                    autoFocus
+                  />
+                  <span
+                    className="text-[15px] font-semibold text-brand-ink-secondary"
+                    aria-hidden
+                  >
+                    :
+                  </span>
+                  <label className="sr-only" htmlFor="songs-notes-toggle-seconds">
+                    Seconds
+                  </label>
+                  <input
+                    id="songs-notes-toggle-seconds"
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    max={59}
+                    step={1}
+                    value={mixParts.seconds}
+                    onChange={(e) => {
+                      const raw = e.target.value.replace(/[^\d]/g, "").slice(0, 2);
+                      const capped =
+                        raw === ""
+                          ? ""
+                          : String(Math.min(59, Number(raw))).padStart(
+                              raw.length >= 2 ? 2 : raw.length,
+                              "0"
+                            );
+                      setDraft(
+                        formatMixDuration(mixParts.minutes || "0", capped)
+                      );
+                    }}
+                    placeholder="00"
+                    className="h-10 w-[88px] rounded-xl border border-brand-line/60 bg-white px-3 text-center text-[13px] tabular-nums text-brand-ink shadow-[0_1px_1px_rgba(15,30,45,0.04)] outline-none transition-colors hover:border-brand-line-strong focus:border-brand-blue/50 focus:ring-2 focus:ring-brand-blue/15"
+                  />
+                  <span className="text-[11px] text-brand-ink-tertiary">
+                    min : sec
+                  </span>
+                </div>
+              ) : (
+                <textarea
+                  id="songs-notes-toggle-input"
+                  rows={4}
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  placeholder={`Enter ${fieldLabel.toLowerCase()}…`}
+                  className="mt-1.5 w-full resize-y rounded-xl border border-brand-line/60 bg-white px-3 py-2.5 text-[13px] text-brand-ink shadow-[0_1px_1px_rgba(15,30,45,0.04)] outline-none transition-colors hover:border-brand-line-strong focus:border-brand-blue/50 focus:ring-2 focus:ring-brand-blue/15"
+                  autoFocus
+                />
+              )}
+              {!isMix && draft.trim() && !canConfirmGreen ? (
                 <p className="mt-1.5 text-[11px] text-[#901313]">
                   {placeholderFieldErrorMessage(draft)}
+                </p>
+              ) : null}
+              {isMix && draft.trim() && !canConfirmGreen ? (
+                <p className="mt-1.5 text-[11px] text-[#901313]">
+                  Enter a time greater than 0:00.
                 </p>
               ) : null}
             </div>

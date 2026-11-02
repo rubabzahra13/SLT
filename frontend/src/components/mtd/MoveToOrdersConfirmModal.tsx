@@ -65,7 +65,9 @@ export function MoveToOrdersConfirmModal({
           <p className="mt-2 text-[13px] leading-relaxed text-brand-ink-secondary">
             {titleCase(record.programName)} will move to{" "}
             <span className="font-semibold text-brand-ink">Reassign: Rush order</span>{" "}
-            on the Orders tab. Assignment and schedule will be cleared.
+            on the Orders tab. Assignment and schedule will be cleared. The
+            invoice number stays as-is — you can set a new one when you move it
+            back to MTD after reassigning.
           </p>
         </div>
 

@@ -1009,58 +1009,7 @@ export function MTDOrderDetails({
               }
 
               if (field.key === "timeLengthOfMix") {
-                // Non-cheer forms use free-text mix length (not rate-card SoftSelect).
-                if (order.formType !== "school-all-star-cheer") {
-                  const isGameday = order.danceFormSubtype === "gameday";
-                  return (
-                    <div
-                      key={field.key}
-                      className={clsx("flex min-w-0 flex-col", spanClass)}
-                    >
-                      <FieldLabel
-                        label={field.label}
-                        optional={optional}
-                        requiredMark={requiredMark}
-                        missing={missing || placeholderInvalid}
-                        provenance={fieldSources?.[field.key]}
-                      />
-                      <div className="mt-1">
-                        {editable && onFieldChange ? (
-                          <DetailInput
-                            value={rawValue}
-                            placeholder={
-                              isGameday
-                                ? "This mix can be max 1:00"
-                                : "1:50-1:55"
-                            }
-                            onChange={(value) =>
-                              onFieldChange(field.key, value)
-                            }
-                            className={
-                              missing || placeholderInvalid
-                                ? "border-red-400 focus:border-red-500 focus:ring-red-200"
-                                : undefined
-                            }
-                          />
-                        ) : displayValue ? (
-                          <p className="text-[13px] font-normal tabular-nums text-brand-ink">
-                            {displayValue}
-                          </p>
-                        ) : (
-                          <p className="text-[13px] text-brand-ink-tertiary">
-                            Not set
-                          </p>
-                        )}
-                        {editable && placeholderInvalid ? (
-                          <p className="mt-1 text-[11px] text-[#901313]">
-                            {placeholderFieldErrorMessage(rawValue)}
-                          </p>
-                        ) : null}
-                      </div>
-                    </div>
-                  );
-                }
-
+                const isGameday = order.danceFormSubtype === "gameday";
                 const fromPackage = parsePackage(
                   order.package || order.packageType || ""
                 ).limit;
@@ -1090,19 +1039,35 @@ export function MTDOrderDetails({
                       label={field.label}
                       optional={optional}
                       requiredMark={requiredMark}
-                      missing={missing}
+                      missing={missing || placeholderInvalid}
                       provenance={fieldSources?.[field.key]}
                     />
                     <div className="mt-1">
                       {editable && onFieldChange ? (
-                        <MixLengthField
-                          value={mixLengthValue}
-                          originalValue={originalMixLength}
-                          formType={order.formType || "school-all-star-cheer"}
-                          cheerSubtype={order.cheerFormSubtype}
-                          danceSubtype={order.danceFormSubtype}
-                          onChange={(value) => onFieldChange(field.key, value)}
-                        />
+                        <>
+                          <MixLengthField
+                            value={mixLengthValue}
+                            originalValue={originalMixLength}
+                            formType={
+                              order.formType || "school-all-star-cheer"
+                            }
+                            cheerSubtype={order.cheerFormSubtype}
+                            danceSubtype={order.danceFormSubtype}
+                            onChange={(value) =>
+                              onFieldChange(field.key, value)
+                            }
+                          />
+                          {isGameday ? (
+                            <p className="mt-1 text-[11px] text-brand-ink-tertiary">
+                              This mix can be max 1:00
+                            </p>
+                          ) : null}
+                          {placeholderInvalid ? (
+                            <p className="mt-1 text-[11px] text-[#901313]">
+                              {placeholderFieldErrorMessage(rawValue)}
+                            </p>
+                          ) : null}
+                        </>
                       ) : mixLengthValue ? (
                         <p className="text-[13px] font-normal tabular-nums text-brand-ink">
                           {mixLengthValue}

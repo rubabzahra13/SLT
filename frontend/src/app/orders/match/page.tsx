@@ -46,6 +46,10 @@ import {
   filterMTDRecords,
   sortMTDRecordsBySortKey,
 } from "@/lib/mtd-filters";
+import {
+  buildOrdersReturnHref,
+  loadOrdersViewState,
+} from "@/lib/orders-view-state";
 import { stagingRecordFromOrder } from "@/lib/order-staging";
 import {
   CHEER_FORM_SUBTABS,
@@ -612,11 +616,6 @@ export default function MatchOrdersPage() {
     manualFilters.sortBy,
   ]);
 
-  const manualsOrdered = useMemo(
-    () => [...suggestedManuals, ...otherManuals],
-    [suggestedManuals, otherManuals]
-  );
-
   const magentoTotalPages = Math.max(
     1,
     Math.ceil(magentoFiltered.length / MATCH_PAGE_SIZE)
@@ -627,21 +626,35 @@ export default function MatchOrdersPage() {
     magentoSafePage * MATCH_PAGE_SIZE + MATCH_PAGE_SIZE
   );
 
+  // Suggested stay visible in full; paginate only non-suggested manuals so
+  // name matches don't push "All other manuals" onto later pages.
+  const paginateOthersOnly =
+    otherManuals.length > 0 && suggestedManuals.length > 0;
+  const manualPageSource = paginateOthersOnly
+    ? otherManuals
+    : otherManuals.length > 0
+      ? otherManuals
+      : suggestedManuals;
   const manualTotalPages = Math.max(
     1,
-    Math.ceil(manualsOrdered.length / MATCH_PAGE_SIZE)
+    Math.ceil(manualPageSource.length / MATCH_PAGE_SIZE)
   );
   const manualSafePage = Math.min(manualPage, manualTotalPages - 1);
-  const manualPageItems = manualsOrdered.slice(
+  const manualPageSlice = manualPageSource.slice(
     manualSafePage * MATCH_PAGE_SIZE,
     manualSafePage * MATCH_PAGE_SIZE + MATCH_PAGE_SIZE
   );
-  const pageSuggestedManuals = manualPageItems.filter((m) =>
-    suggestionIds.has(m.id)
-  );
-  const pageOtherManuals = manualPageItems.filter(
-    (m) => !suggestionIds.has(m.id)
-  );
+  const pageSuggestedForRender = paginateOthersOnly
+    ? suggestedManuals
+    : otherManuals.length === 0
+      ? manualPageSlice
+      : [];
+  const pageOtherManuals = paginateOthersOnly
+    ? manualPageSlice
+    : otherManuals.length > 0
+      ? manualPageSlice
+      : [];
+  const manualsOrderedCount = suggestedManuals.length + otherManuals.length;
 
   const programHeader = getProgramColumnHeader(
     form,
@@ -657,15 +670,20 @@ export default function MatchOrdersPage() {
     setMatchPair({ magento, manual });
   };
 
+  const ordersReturnHref = useMemo(
+    () => buildOrdersReturnHref(loadOrdersViewState() || {}),
+    []
+  );
+
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <PageHeader
         title="Match Orders"
-        badge={`${magentoFiltered.length} Magento · ${suggestedManuals.length + otherManuals.length} manual`}
+        badge={`${magentoFiltered.length} Magento · ${manualsOrderedCount} manual`}
         subtitle={`Pick a Magento form, then link it to a manual ${programHeader.toLowerCase()} when names look alike`}
         headerActions={
           <Link
-            href="/orders"
+            href={ordersReturnHref}
             className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-brand-line/70 bg-white px-3 text-[13px] font-semibold text-brand-ink shadow-sm transition hover:border-brand-line hover:bg-brand-bg/60"
           >
             <ArrowLeft className="h-4 w-4" strokeWidth={2} />
@@ -869,7 +887,7 @@ export default function MatchOrdersPage() {
                   </div>
                 </header>
                 <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-2">
-                  {manualsOrdered.length === 0 ? (
+                  {manualsOrderedCount === 0 ? (
                     <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
                       <Search className="h-5 w-5 text-brand-ink-tertiary" />
                       <p className="text-[13px] text-brand-ink-secondary">
@@ -879,13 +897,13 @@ export default function MatchOrdersPage() {
                     </div>
                   ) : (
                     <>
-                      {pageSuggestedManuals.length > 0 ? (
+                      {pageSuggestedForRender.length > 0 ? (
                         <div>
                           <p className="mb-1 px-3 text-[10px] font-bold uppercase tracking-wider text-brand-signature">
                             Suggested for you · {suggestedManuals.length}
                           </p>
                           <div className="space-y-0.5">
-                            {pageSuggestedManuals.map((m) => (
+                            {pageSuggestedForRender.map((m) => (
                               <SideRow
                                 key={m.id}
                                 order={m}
@@ -949,7 +967,7 @@ export default function MatchOrdersPage() {
                 <ListPagination
                   page={manualSafePage}
                   pageSize={MATCH_PAGE_SIZE}
-                  total={manualsOrdered.length}
+                  total={manualPageSource.length}
                   onPageChange={setManualPage}
                 />
               </section>
@@ -960,8 +978,16 @@ export default function MatchOrdersPage() {
 
       <MatchConfirmModal
         open={Boolean(matchPair)}
-        magento={matchPair?.magento ?? null}
-        manual={matchPair?.manual ?? null}
+        magento={
+          matchPair
+            ? orderById.get(matchPair.magento.id) ?? matchPair.magento
+            : null
+        }
+        manual={
+          matchPair
+            ? orderById.get(matchPair.manual.id) ?? matchPair.manual
+            : null
+        }
         onClose={() => setMatchPair(null)}
         onMatched={() => setSelectedMagentoId(null)}
       />

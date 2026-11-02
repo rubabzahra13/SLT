@@ -174,21 +174,40 @@ export function mergeLocalMtdRecordFields(
   }
 
   if (localRecord) {
+    // Assignment is Order SoT. While awaiting reassign, never resurrect a
+    // stale local producer (Move to Orders / Unassign cleared it). Backend
+    // completing reassign (flag cleared + producer set) wins over local flag.
+    const backendAssigned = merged.assignedProducer?.trim() || null;
+    const backendAwaiting = Boolean(merged.isReassigned);
+    const localAwaiting = Boolean(localRecord.isReassigned);
+    const backendCompletedReassign =
+      localAwaiting && !backendAwaiting && Boolean(backendAssigned);
+    const awaitingReassign =
+      backendAwaiting || (localAwaiting && !backendCompletedReassign);
     merged = {
       ...merged,
-      assignedProducer:
-        merged.assignedProducer?.trim() ||
-        localRecord.assignedProducer?.trim() ||
-        null,
+      assignedProducer: awaitingReassign
+        ? null
+        : backendAssigned ||
+          localRecord.assignedProducer?.trim() ||
+          null,
       editorRequest: localRecord.editorRequest ?? merged.editorRequest,
-      mixStartDate: localRecord.mixStartDate || merged.mixStartDate,
-      mixEndDate: localRecord.mixEndDate || merged.mixEndDate,
-      // Prefer whichever side has a real invoice: never let empty SSE wipe local.
+      mixStartDate: awaitingReassign
+        ? merged.mixStartDate || ""
+        : localRecord.mixStartDate || merged.mixStartDate,
+      mixEndDate: awaitingReassign
+        ? merged.mixEndDate || undefined
+        : localRecord.mixEndDate || merged.mixEndDate,
+      isReassigned: awaitingReassign ? true : false,
+      orderStatus: awaitingReassign
+        ? merged.orderStatus || localRecord.orderStatus
+        : merged.orderStatus ?? localRecord.orderStatus,
+      // Invoice is mtd_records SoT: prefer backend when present so edits stick.
+      // Fall back to local only when SSE/boot returns empty (anti-wipe).
       invoice:
-        (localRecord.invoice || "").trim() ||
         (merged.invoice || "").trim() ||
-        localRecord.invoice ||
-        merged.invoice,
+        (localRecord.invoice || "").trim() ||
+        "",
       status: localRecord.status ?? merged.status,
       recordStatus: localRecord.recordStatus ?? merged.recordStatus,
     };

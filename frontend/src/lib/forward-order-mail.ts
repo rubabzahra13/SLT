@@ -825,6 +825,43 @@ export function buildCustomerAffiliateClarificationDraft(
   };
 }
 
+/** Unmatched Manual / New Order still waiting on a Magento form. */
+function isUnmatchedManualCustomerMail(record: MTDRecord): boolean {
+  const mergedId = String(
+    (record as MTDRecord & { mergedFormOrderId?: string | null })
+      .mergedFormOrderId || ""
+  ).trim();
+  if (mergedId) return false;
+  return Boolean(record.isManualScheduleEntry);
+}
+
+function addDaysLocal(date: Date, days: number): Date {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function resolveMixForwardDate(record: MTDRecord, deadline: Date): Date {
+  const iso = String(record.mixStartDate || "").trim();
+  if (iso) {
+    const [y, m, d] = iso.split("-").map(Number);
+    if (y && m && d) return addDaysLocal(new Date(y, m - 1, d), 7);
+  }
+  return addDaysLocal(deadline, 7);
+}
+
+const MANUAL_WAITING_FORM_TEMPLATE: EmailTemplateCopy = {
+  subject:
+    "{{programName}} Still Waiting on Your Order Form - Action Required by {{day}}",
+  greeting: "Hi there!!!",
+  // No {{requiredData}}: missing-item checklist is Form-order only.
+  intro: `We're still waiting on your completed order form, and your mix date is arriving. Please submit the form by {{completeDate}}. If we don't receive it by that date, your mix will be moved forward to {{forwardDate}}.`,
+  footer: `Please send the completed order form as soon as you can so we can keep your mix on schedule.
+
+Thank you so much for choosing us for your music needs. We're excited to work with you!`,
+  signature: DEFAULT_EMAIL_TEMPLATES.customer_missing_data.signature,
+};
+
 export function buildCustomerMissingDataDraft(
   record: MTDRecord,
   contact: CustomerMailContact | undefined,
@@ -837,15 +874,33 @@ export function buildCustomerMissingDataDraft(
     options?.deadline ?? resolveCustomerSubmissionDeadline(record);
   const completeDate = formatCustomerDeadline(deadline, "long");
   const day = formatCustomerDeadline(deadline, "short");
+  const forwardDate = formatCustomerDeadline(
+    resolveMixForwardDate(record, deadline),
+    "long"
+  );
   const programLine = buildCustomerProgramLine(record);
   const sectionTitle = options?.sectionTitle ?? "Missing items";
-  const requiredData = formatCustomerRequiredData(
-    selectedFields,
-    programLine,
-    sectionTitle
-  );
+  const unmatchedManual = isUnmatchedManualCustomerMail(record);
+  // Missing-data checklist only for Form orders (never for unmatched manuals).
+  const requiredData = unmatchedManual
+    ? ""
+    : formatCustomerRequiredData(selectedFields, programLine, sectionTitle);
+  // Manual unmatched rows use wait-on-form copy (not the Magento "scheduled next week" template).
+  const effectiveTemplate = unmatchedManual
+    ? {
+        ...MANUAL_WAITING_FORM_TEMPLATE,
+        // Keep admin-edited signature from Settings when present.
+        signature: template.signature || MANUAL_WAITING_FORM_TEMPLATE.signature,
+      }
+    : template;
   const embedsRequiredData = /\{\{\s*requiredData\s*\}\}/i.test(
-    [template.subject, template.greeting, template.intro, template.footer, template.signature]
+    [
+      effectiveTemplate.subject,
+      effectiveTemplate.greeting,
+      effectiveTemplate.intro,
+      effectiveTemplate.footer,
+      effectiveTemplate.signature,
+    ]
       .filter((part): part is string => typeof part === "string")
       .join("\n")
   );
@@ -853,6 +908,7 @@ export function buildCustomerMissingDataDraft(
     programName,
     day,
     completeDate,
+    forwardDate,
     programLine,
     contactName: contact?.name ?? "",
     requiredData,
@@ -862,25 +918,26 @@ export function buildCustomerMissingDataDraft(
   return {
     to: contact?.email ?? "",
     toName: contact?.name ?? "",
-    subject: applyEmailTemplate(template.subject, vars),
+    subject: applyEmailTemplate(effectiveTemplate.subject, vars),
     programName,
     programLine,
     variant: "customer",
-    greeting: applyEmailTemplate(template.greeting, vars),
-    intro: applyEmailTemplate(template.intro, vars),
-    sections: embedsRequiredData
-      ? []
-      : [
-          {
-            title: sectionTitle,
-            fields: selectedFields.map((field) => ({
-              label: formatMailText(field.label),
-              value: formatMailText(field.value),
-            })),
-          },
-        ],
-    footer: formatMailText(applyEmailTemplate(template.footer, vars)),
-    signature: applyEmailTemplate(template.signature, vars),
+    greeting: applyEmailTemplate(effectiveTemplate.greeting, vars),
+    intro: applyEmailTemplate(effectiveTemplate.intro, vars),
+    sections:
+      unmatchedManual || embedsRequiredData
+        ? []
+        : [
+            {
+              title: sectionTitle,
+              fields: selectedFields.map((field) => ({
+                label: formatMailText(field.label),
+                value: formatMailText(field.value),
+              })),
+            },
+          ],
+    footer: formatMailText(applyEmailTemplate(effectiveTemplate.footer, vars)),
+    signature: applyEmailTemplate(effectiveTemplate.signature, vars),
   };
 }
 

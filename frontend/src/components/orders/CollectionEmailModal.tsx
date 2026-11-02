@@ -106,36 +106,15 @@ function CollectionEmailPreview({
         {/* Greeting */}
         <p className="text-[14px] font-semibold text-brand-ink">Hi there!!!</p>
 
-        {/* Intro */}
-        <p className="text-[13px] leading-relaxed text-brand-ink-secondary">
-          This is your only reminder that your mix is scheduled for production
-          next week. Yay! 🎉 To ensure we stay on track for your mix&apos;s
-          completion, I&apos;ll need the following items submitted by{" "}
-          <strong className="text-brand-ink">{draft.deadlineLabel}</strong>.
-        </p>
-
-        {/* Missing Items */}
-        <div className="overflow-hidden rounded-xl border border-brand-danger/20 bg-brand-danger/5">
-          <p className="border-b border-brand-danger/15 bg-brand-danger/8 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.1em] text-brand-danger">
-            Missing Items
-          </p>
-          <ul className="divide-y divide-brand-line/40">
-            {draft.missingItems.map((item, idx) => {
-              const dashIdx = item.indexOf(" - ");
-              const label =
-                dashIdx === -1 ? item.trim() : item.slice(0, dashIdx).trim();
-              const desc =
-                dashIdx === -1 ? "" : item.slice(dashIdx + 3).trim();
-              return (
-                <li key={idx} className="px-3 py-2.5 text-[12px]">
-                  <span className="font-bold text-brand-danger">{label}</span>
-                  {desc && (
-                    <span className="text-brand-ink-secondary"> - {desc}</span>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+        {/* Body from draft (manual wait-on-form vs Magento scheduled copy). */}
+        <div className="whitespace-pre-wrap text-[13px] leading-relaxed text-brand-ink-secondary">
+          {draft.bodyPlainText
+            .replace(/^Hi there!!!\s*/i, "")
+            .replace(
+              /\nCheerfully,[\s\S]*www\.soundslikethat\.com\s*$/i,
+              ""
+            )
+            .trim()}
         </div>
 
         {/* Attachment indicator */}
@@ -148,24 +127,6 @@ function CollectionEmailPreview({
             </span>
           </div>
         )}
-
-        {/* Body continuation */}
-        <p className="text-[13px] leading-relaxed text-brand-ink-secondary">
-          All items must be submitted by this date to keep your mix on next
-          week&apos;s production schedule. If you&apos;re unable to meet the
-          deadline or complete the tasks listed, please let me know as soon as
-          possible. Our schedule is very tight during the busy season, and
-          delays may result in your mix being moved to the end of our calendar.
-          If we&apos;re able to shift it back by one week, we&apos;ll certainly
-          try-but unfortunately, we can&apos;t guarantee availability.
-        </p>
-
-        <p className="text-[13px] leading-relaxed text-brand-ink-secondary">
-          Once everything is received, I&apos;ll confirm your invoice and make
-          sure the editor has all the necessary details to move forward. Thank
-          you so much for choosing us for your music needs. We&apos;re excited
-          to work with you! Wishing you a fantastic week ahead!
-        </p>
 
         {/* Signature */}
         <div className="border-t border-brand-line/40 pt-3">

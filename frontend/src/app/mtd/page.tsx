@@ -160,7 +160,7 @@ const tableStatusSelectClass =
   "!h-8 !min-h-0 !w-auto min-w-[132px] max-w-full !py-0";
 const compactCellClass = "!px-1 !py-1 overflow-hidden";
 const compactHeaderClass = "!px-2";
-const compactTextClass = "text-[12px] leading-none text-brand-ink";
+const compactTextClass = "text-[12px] leading-tight text-brand-ink";
 
 function MTDPageContent() {
   const {
@@ -1664,7 +1664,11 @@ function MTDPageContent() {
         allOrders={allOrders}
         producers={producers}
         schedule={schedule}
-        readOnly={isViewOnly || Boolean(assignRecord?.assignedProducer?.trim())}
+        readOnly={
+          isViewOnly ||
+          (Boolean(assignRecord?.assignedProducer?.trim()) &&
+            !assignRecord?.isReassigned)
+        }
         onClose={() => setAssignRecordId(null)}
         onAssign={handleAssign}
       />

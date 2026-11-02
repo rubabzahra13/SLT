@@ -99,14 +99,13 @@ import {
   type ScheduleEntry,
 } from "@/types";
 import { useAppState } from "@/context/AppStateContext";
-import { isManualOrderRecord } from "@/lib/order-source";
-
+import { canSetInvoiceOnAssign } from "@/lib/order-source";
 export type EditorAssignmentResult = {
   editorRequest: string;
   assignedProducer: string | null;
   mixStartDate?: string;
   mixEndDate?: string;
-  /** Manual orders only: written to MTD invoice column. */
+  /** Manual / matched-booking only: written to MTD invoice column. */
   invoice?: string;
   recordStatus?: MTDRecordStatus;
   status?: MTDRecord["status"];
@@ -273,16 +272,33 @@ export function AssignEditorModal({
   const [deleteProducerConfirmOpen, setDeleteProducerConfirmOpen] =
     useState(false);
 
+  const linkedOrder = useMemo(
+    () => (record ? findLinkedOrder(record, allOrders) : undefined),
+    [record, allOrders]
+  );
+
   const displayAssigned = record ? getDisplayAssignedProducer(record) : null;
-  const formalAssigned = record?.assignedProducer?.trim() || null;
-  const isAssignmentLocked = Boolean(formalAssigned);
+  // Order SoT: prefer linked Order producer so a cleared Order unlocks reassign
+  // even when the board still carries a stale CH key.
+  const formalAssigned = linkedOrder
+    ? linkedOrder.assignedProducer?.trim() || null
+    : record?.assignedProducer?.trim() || null;
+  const awaitingReassign = record
+    ? getOrderStatus(linkedOrder ?? record).needsReassign
+    : false;
+  // Reassign must open unlocked even if a stale producer key is still on the row.
+  const isAssignmentLocked = Boolean(formalAssigned) && !awaitingReassign;
 
   const pendingDeletedProducer = useMemo(() => {
     if (!record) return null;
-    const { needsReassign, reassignReason } = getOrderStatus(record);
+    const { needsReassign, reassignReason } = getOrderStatus(
+      linkedOrder ?? record
+    );
     if (!needsReassign || reassignReason !== "producer_deletion") return null;
-    return parsePendingDeletedProducer(record.orderStatus);
-  }, [record]);
+    return parsePendingDeletedProducer(
+      (linkedOrder ?? record).orderStatus
+    );
+  }, [record, linkedOrder]);
 
   /** Only prompt to delete while the producer is still on the roster. */
   const pendingDeletedProducerOnRoster = useMemo(() => {
@@ -302,13 +318,9 @@ export function AssignEditorModal({
   const draftStartIso = toIsoDateString(draftMixStartDate);
   const draftEndIso = toIsoDateString(draftMixEndDate);
 
-  const linkedOrder = useMemo(
-    () => (record ? findLinkedOrder(record, allOrders) : undefined),
-    [record, allOrders]
-  );
-
-  const isManualAssign = useMemo(
-    () => (record ? isManualOrderRecord(record, allOrders) : false),
+  // Unmatched manuals + matched booking slots only — not pure Magento forms.
+  const showAssignInvoice = useMemo(
+    () => (record ? canSetInvoiceOnAssign(record, allOrders) : false),
     [record, allOrders]
   );
 
@@ -840,9 +852,9 @@ export function AssignEditorModal({
   if (!isPage && !open) return null;
 
   const activeRecord = record;
-  const displayInvoice = (
-    (activeRecord?.invoice || "").trim() || draftInvoice.trim()
-  );
+  // Prefer draft (set on Save) so a lagging record prop cannot flash the old #.
+  const displayInvoice =
+    draftInvoice.trim() || (activeRecord?.invoice || "").trim();
   const isViewOnly = readOnly;
   const showCompactAssigned = isViewOnly || isAssignmentLocked;
   const genreLabel =
@@ -946,8 +958,8 @@ export function AssignEditorModal({
       assignedProducer: selectedEditor,
       mixStartDate: draftStartIso,
       mixEndDate: draftEndIso,
-      ...(isManualAssign
-        ? { invoice: draftInvoice.trim() || displayInvoice }
+      ...(showAssignInvoice
+        ? { invoice: draftInvoice.trim() || displayInvoice || undefined }
         : {}),
     });
 
@@ -1121,7 +1133,8 @@ export function AssignEditorModal({
                   </div>
                 ) : null}
 
-                {isManualAssign ? (
+                {/* Manual + matched booking only — pure Magento forms invoice on MTD. */}
+                {showAssignInvoice ? (
                   <div>
                     <p className="text-label">Invoice #</p>
                     {invoiceEditing && !isViewOnly ? (
@@ -1164,13 +1177,15 @@ export function AssignEditorModal({
                               activeRecord.id ||
                               activeRecord.orderId;
                             if (!mtdId) return;
-                            setInvoiceSaving(true);
+                            // Optimistic: close editor immediately; persist in background.
                             setDraftInvoice(next);
+                            setInvoiceEditing(false);
+                            setInvoiceSaving(true);
                             void live
                               .updateMTD(mtdId, { invoice: next })
-                              .then(() => setInvoiceEditing(false))
                               .catch(() => {
-                                // Keep editor open with the typed value on failure.
+                                setDraftInvoice(next);
+                                setInvoiceEditing(true);
                               })
                               .finally(() => setInvoiceSaving(false));
                           }}
@@ -1309,7 +1324,8 @@ export function AssignEditorModal({
                             />
                           </div>
                         </div>
-                        {isManualAssign && selectedEditor ? (
+                        {/* Manual / matched booking only — not pure Magento forms. */}
+                        {showAssignInvoice ? (
                           <div className="sm:col-span-2">
                             <label
                               htmlFor="assign-manual-invoice"
@@ -1326,7 +1342,9 @@ export function AssignEditorModal({
                               className="mt-1 w-full rounded-xl border border-brand-line/70 bg-white px-3 py-2 text-[13px] font-medium tabular-nums text-brand-ink placeholder:text-brand-ink-tertiary focus:border-brand-signature focus:outline-none focus:ring-2 focus:ring-brand-signature/20"
                             />
                             <p className="mt-1 text-[11px] text-brand-ink-tertiary">
-                              Saved to the MTD invoice column when you assign.
+                              {selectedEditor
+                                ? "Saved to the MTD invoice column when you assign."
+                                : "You can set this before choosing a producer. Saved when you assign."}
                             </p>
                           </div>
                         ) : null}

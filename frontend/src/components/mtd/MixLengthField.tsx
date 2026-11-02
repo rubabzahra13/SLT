@@ -3,7 +3,13 @@
 import { useMemo, useRef, useState } from "react";
 import { SoftSelect } from "@/components/ui/SoftSelect";
 import {
-  isSchoolCheerSubtype,
+  formatMixDuration,
+  isValidMixDuration,
+  MIX_LENGTH_OTHER_OPTION,
+  parseMixDurationParts,
+} from "@/lib/mix-duration";
+import {
+  isCheerOtherMixLength,
   mixLengthsForOrderForm,
   SCHOOL_CHEER_MAGENTO_MIX_OTHER,
   YOUTH_REC_MIX_OTHER,
@@ -29,25 +35,23 @@ function sameOption(a: string, b: string): boolean {
   return a.trim().toLowerCase() === b.trim().toLowerCase();
 }
 
+function isOtherCatalogLabel(raw: string): boolean {
+  const trimmed = raw.trim();
+  if (!trimmed) return false;
+  if (sameOption(trimmed, MIX_LENGTH_OTHER_OPTION)) return true;
+  if (sameOption(trimmed, YOUTH_REC_MIX_OTHER)) return true;
+  if (trimmed === SCHOOL_CHEER_MAGENTO_MIX_OTHER) return true;
+  return /^other\b/i.test(trimmed);
+}
+
 function normalizeMixLength(
   raw: string,
   cheerSubtype?: CheerFormSubtype | null
 ): string {
   const trimmed = raw.trim();
   if (!trimmed) return "";
-  // Magento SoftSelect "Other…": keep full label when already stored.
-  if (
-    isSchoolCheerSubtype(cheerSubtype) &&
-    (trimmed === SCHOOL_CHEER_MAGENTO_MIX_OTHER ||
-      /^other\b/i.test(trimmed))
-  ) {
-    return SCHOOL_CHEER_MAGENTO_MIX_OTHER;
-  }
-  if (
-    cheerSubtype === "youth-rec-cheer" &&
-    (trimmed === YOUTH_REC_MIX_OTHER || /^other\b/i.test(trimmed))
-  ) {
-    return YOUTH_REC_MIX_OTHER;
+  if (isOtherCatalogLabel(trimmed)) {
+    return MIX_LENGTH_OTHER_OPTION;
   }
   const match = trimmed.match(/\d+:\d{2}/);
   if (match) {
@@ -61,22 +65,21 @@ function normalizeMixLength(
   return trimmed;
 }
 
-function resolveCustomMixLength(
-  typed: string,
+function presetLengths(
+  catalog: string[],
   cheerSubtype?: CheerFormSubtype | null
-): string {
-  const trimmed = typed.trim();
-  if (!trimmed) return "";
-  if (/^other\b/i.test(trimmed)) {
-    return cheerSubtype === "youth-rec-cheer"
-      ? YOUTH_REC_MIX_OTHER
-      : isSchoolCheerSubtype(cheerSubtype)
-        ? SCHOOL_CHEER_MAGENTO_MIX_OTHER
-        : trimmed;
+): string[] {
+  const list: string[] = [];
+  const seen = new Set<string>();
+  for (const length of catalog) {
+    const normalized = normalizeMixLength(length, cheerSubtype);
+    if (!normalized || isOtherCatalogLabel(normalized)) continue;
+    const key = normalized.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    list.push(normalized);
   }
-  const match = trimmed.match(/\d+:\d{2}/);
-  if (match) return match[0];
-  return trimmed;
+  return list;
 }
 
 export function MixLengthField({
@@ -88,6 +91,8 @@ export function MixLengthField({
   onChange,
 }: MixLengthFieldProps) {
   const [open, setOpen] = useState(false);
+  // True after user picks Other before a custom duration is saved.
+  const [otherPicked, setOtherPicked] = useState(false);
 
   const originalRawRef = useRef<string | null>(null);
   if (originalRawRef.current === null) {
@@ -102,75 +107,166 @@ export function MixLengthField({
     [formType, cheerSubtype, danceSubtype]
   );
 
-  const allowCustom =
-    cheerSubtype === "youth-rec-cheer" || isSchoolCheerSubtype(cheerSubtype);
+  const presets = useMemo(
+    () => presetLengths(catalog, cheerSubtype),
+    [catalog, cheerSubtype]
+  );
+
+  const valueIsPreset = presets.some((length) =>
+    sameOption(length, currentNormalized)
+  );
+  const valueIsCustomDuration = isValidMixDuration(currentNormalized);
+  const valueIsOtherToken =
+    isCheerOtherMixLength(value) ||
+    isOtherCatalogLabel(currentNormalized) ||
+    currentNormalized === MIX_LENGTH_OTHER_OPTION;
+
+  const showCustomTime =
+    otherPicked ||
+    valueIsOtherToken ||
+    (Boolean(currentNormalized) && !valueIsPreset && valueIsCustomDuration);
 
   const options = useMemo(() => {
     const seen = new Set<string>();
     const list: SoftOption[] = [];
-    const push = (length: string) => {
+    const push = (length: string, label = length) => {
       const key = length.trim().toLowerCase();
       if (!key || seen.has(key)) return;
       seen.add(key);
-      list.push({ value: length, label: length });
+      list.push({ value: length, label });
     };
 
-    for (const length of catalog) push(length);
+    for (const length of presets) push(length);
 
     if (
       originalNormalized &&
-      !catalog.some((length) => sameOption(length, originalNormalized))
+      !isOtherCatalogLabel(originalNormalized) &&
+      !presets.some((length) => sameOption(length, originalNormalized)) &&
+      !isValidMixDuration(originalNormalized)
     ) {
+      // Keep non-duration originals (e.g. TBD) selectable.
       list.unshift({ value: originalNormalized, label: originalNormalized });
     }
 
-    if (
-      currentNormalized &&
-      !list.some((opt) => sameOption(opt.value, currentNormalized))
-    ) {
-      list.unshift({ value: currentNormalized, label: currentNormalized });
-    }
-
+    push(MIX_LENGTH_OTHER_OPTION, MIX_LENGTH_OTHER_OPTION);
     return list;
-  }, [catalog, originalNormalized, currentNormalized]);
+  }, [presets, originalNormalized]);
 
-  const selectValue = (() => {
-    if (!currentNormalized) return "";
-    const matched = catalog.find((length) =>
-      sameOption(length, currentNormalized)
-    );
-    if (matched) return matched;
-    return currentNormalized;
-  })();
+  const selectValue = showCustomTime
+    ? MIX_LENGTH_OTHER_OPTION
+    : valueIsPreset
+      ? presets.find((length) => sameOption(length, currentNormalized)) ||
+        currentNormalized
+      : currentNormalized && !isOtherCatalogLabel(currentNormalized)
+        ? currentNormalized
+        : "";
+
+  const durationOnly = formType === "marching-band";
+  const mixParts = parseMixDurationParts(
+    durationOnly || valueIsCustomDuration ? currentNormalized : ""
+  );
+
+  const durationInputs = (
+    <div className="flex items-center gap-2">
+      <label className="sr-only" htmlFor="mix-length-other-minutes">
+        Minutes
+      </label>
+      <input
+        id="mix-length-other-minutes"
+        type="number"
+        inputMode="numeric"
+        min={0}
+        max={99}
+        step={1}
+        value={mixParts.minutes}
+        onChange={(e) => {
+          const nextMins = e.target.value.replace(/[^\d]/g, "").slice(0, 3);
+          onChange(formatMixDuration(nextMins, mixParts.seconds || "00"));
+        }}
+        placeholder="0"
+        className="h-10 w-[88px] rounded-xl border border-brand-line/60 bg-white px-3 text-center text-[13px] tabular-nums text-brand-ink shadow-[0_1px_1px_rgba(15,30,45,0.04)] outline-none transition-colors hover:border-brand-line-strong focus:border-brand-blue/50 focus:ring-2 focus:ring-brand-blue/15"
+        autoFocus={durationOnly || showCustomTime}
+      />
+      <span
+        className="text-[15px] font-semibold text-brand-ink-secondary"
+        aria-hidden
+      >
+        :
+      </span>
+      <label className="sr-only" htmlFor="mix-length-other-seconds">
+        Seconds
+      </label>
+      <input
+        id="mix-length-other-seconds"
+        type="number"
+        inputMode="numeric"
+        min={0}
+        max={59}
+        step={1}
+        value={mixParts.seconds}
+        onChange={(e) => {
+          const raw = e.target.value.replace(/[^\d]/g, "").slice(0, 2);
+          const capped =
+            raw === ""
+              ? ""
+              : String(Math.min(59, Number(raw))).padStart(
+                  raw.length >= 2 ? 2 : raw.length,
+                  "0"
+                );
+          onChange(formatMixDuration(mixParts.minutes || "0", capped));
+        }}
+        placeholder="00"
+        className="h-10 w-[88px] rounded-xl border border-brand-line/60 bg-white px-3 text-center text-[13px] tabular-nums text-brand-ink shadow-[0_1px_1px_rgba(15,30,45,0.04)] outline-none transition-colors hover:border-brand-line-strong focus:border-brand-blue/50 focus:ring-2 focus:ring-brand-blue/15"
+      />
+      <span className="text-[11px] text-brand-ink-tertiary">min : sec</span>
+    </div>
+  );
+
+  if (durationOnly) {
+    return durationInputs;
+  }
 
   return (
-    <SoftSelect
-      aria-label="Length of Mix"
-      size="md"
-      placeholder="Select length…"
-      placement="below"
-      searchable={allowCustom}
-      searchPlaceholder={
-        allowCustom ? "Search or type a custom limit…" : "Search…"
-      }
-      allowCustomValue={allowCustom}
-      resolveCustomValue={(typed) =>
-        resolveCustomMixLength(typed, cheerSubtype)
-      }
-      value={selectValue}
-      options={options}
-      open={open}
-      onOpenChange={setOpen}
-      onChange={(next) => {
-        const resolved = normalizeMixLength(next, cheerSubtype) || next;
-        if (originalNormalized && sameOption(resolved, originalNormalized)) {
-          onChange(originalNormalized);
-        } else {
-          onChange(resolved);
-        }
-        setOpen(false);
-      }}
-      className="w-full"
-    />
+    <div className="space-y-2">
+      <SoftSelect
+        aria-label="Length of Mix"
+        size="md"
+        placeholder="Select length…"
+        placement="auto"
+        searchable={false}
+        allowCustomValue={false}
+        value={selectValue}
+        options={options}
+        open={open}
+        onOpenChange={setOpen}
+        onChange={(next) => {
+          const resolved = normalizeMixLength(next, cheerSubtype) || next;
+          if (sameOption(resolved, MIX_LENGTH_OTHER_OPTION)) {
+            setOtherPicked(true);
+            // Clear Magento "Other…" placeholder so Mix Time stays incomplete
+            // until a real duration is entered.
+            if (
+              isCheerOtherMixLength(value) ||
+              isOtherCatalogLabel(value) ||
+              !isValidMixDuration(value)
+            ) {
+              onChange("");
+            }
+            setOpen(false);
+            return;
+          }
+          setOtherPicked(false);
+          if (originalNormalized && sameOption(resolved, originalNormalized)) {
+            onChange(originalNormalized);
+          } else {
+            onChange(resolved);
+          }
+          setOpen(false);
+        }}
+        className="w-full"
+      />
+
+      {showCustomTime ? durationInputs : null}
+    </div>
   );
 }

@@ -241,18 +241,19 @@ export function transformOrder(bo: BackendOrder): Order {
         : bo.package_type || "",
     requestedEditor,
     // Client form "Length of Mix" → time_length_of_mix.
-    // Cheer may fall back to time encoded in package (GOLD 2:00); other forms
-    // must not: package-time refill makes a cleared SE Time Length reappear.
+    // Explicit "" must win: `||` would treat clear as missing and refill cheer
+    // from package (GOLD 2:00), making removed Mix Time come back.
     timeLengthOfMix:
-      bo.time_length_of_mix ||
-      (formType === "school-all-star-cheer"
-        ? (() => {
-            const fromPkg = String(bo.package || bo.package_type || "").match(
-              /\d+:\d{2}/
-            );
-            return fromPkg ? fromPkg[0] : "";
-          })()
-        : ""),
+      bo.time_length_of_mix !== undefined && bo.time_length_of_mix !== null
+        ? String(bo.time_length_of_mix)
+        : formType === "school-all-star-cheer"
+          ? (() => {
+              const fromPkg = String(bo.package || bo.package_type || "").match(
+                /\d+:\d{2}/
+              );
+              return fromPkg ? fromPkg[0] : "";
+            })()
+          : "",
     musicAffiliate: bo.music_affiliate || "",
     affiliateFlagStatus:
       bo.affiliate_flag_status === "open" ||
@@ -776,6 +777,12 @@ export async function updateOrderApi(
     // Never fake success: callers must handle failure or the UI lies.
     throw err;
   }
+}
+
+/** Fresh single-order read (e.g. Match confirm after out-of-band PATCH). */
+export async function fetchOrderApi(id: string): Promise<Order> {
+  const res = await apiClient.get<BackendOrder>(`/api/orders/${id}`);
+  return transformOrder(res);
 }
 
 /**

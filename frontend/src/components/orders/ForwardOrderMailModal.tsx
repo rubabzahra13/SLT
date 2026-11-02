@@ -28,11 +28,14 @@ import {
   type ForwardMailField,
 } from "@/lib/forward-order-mail";
 import { findLinkedOrder } from "@/lib/editor-assignment";
+import { getOrderStatus } from "@/lib/order-requirements";
+import { producerKeysMatch } from "@/lib/producer-keys";
 import { getGmailStatus, sendGmailEmail } from "@/lib/api/gmail";
 import { ApiClientError } from "@/lib/api/client";
 import { useAuth } from "@/context/AuthContext";
 import { useAppState } from "@/context/AppStateContext";
 import { PdfImageViewer } from "@/components/ui/PdfCanvasViewer";
+import { MailRecipientSelect } from "@/components/ui/MailRecipientSelect";
 import { InlineDateInput } from "@/components/mtd/InlineFields";
 import { parseFlexibleDate, toIsoDateString } from "@/lib/dates";
 import {
@@ -288,6 +291,7 @@ export function ForwardOrderMailModal({
   const [isSending, setIsSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
+  const [markedAlreadySent, setMarkedAlreadySent] = useState(false);
   const [pdfPreviewOpen, setPdfPreviewOpen] = useState(false);
 
   const isCustomer = recipient === "customer";
@@ -304,9 +308,20 @@ export function ForwardOrderMailModal({
     [record, linkedOrder]
   );
 
+  const isUnmatchedManualCustomer =
+    isCustomer &&
+    Boolean(record?.isManualScheduleEntry) &&
+    !String(
+      (record as { mergedFormOrderId?: string | null } | null)?.mergedFormOrderId ||
+        linkedOrder?.mergedFormOrderId ||
+        ""
+    ).trim();
+
   const fieldGroups = useMemo(() => {
     if (!record) return [];
     if (isCustomer) {
+      // Manual wait-on-form emails omit the missing-data checklist (Form only).
+      if (isUnmatchedManualCustomer) return [];
       const groups = buildMissingDataMailFieldGroups(record, linkedOrder);
       if (!isCustomerResend) return groups;
       return groups.map((group) => ({
@@ -324,7 +339,15 @@ export function ForwardOrderMailModal({
       orderById,
       producers
     );
-  }, [record, linkedOrder, orderById, producers, isCustomer, isCustomerResend]);
+  }, [
+    record,
+    linkedOrder,
+    orderById,
+    producers,
+    isCustomer,
+    isCustomerResend,
+    isUnmatchedManualCustomer,
+  ]);
 
   const allFields = useMemo(
     () => flattenForwardMailFields(fieldGroups),
@@ -381,6 +404,7 @@ export function ForwardOrderMailModal({
     setSelectedKeys(defaultSelectedForwardMailKeys(fieldGroups));
     setSendError(null);
     setSent(false);
+    setMarkedAlreadySent(false);
     setPdfPreviewOpen(false);
   }, [
     open,
@@ -485,8 +509,34 @@ export function ForwardOrderMailModal({
     return null;
   })();
   const canContinue =
-    hasRecipient && selectedFields.length > 0 && hasCustomerDeadline;
+    hasRecipient &&
+    hasCustomerDeadline &&
+    (isUnmatchedManualCustomer || selectedFields.length > 0);
   const canSend = canContinue && gmailConnected && !isViewOnly && !sent;
+
+  const { needsReassign } = getOrderStatus(linkedOrder ?? record);
+  const assignedProducerKey =
+    record.assignedProducer?.trim() || editor?.name?.trim() || "";
+  const lastSentTo = record.producerEmailSentTo?.trim() || "";
+  const sameProducerAsLastSend = Boolean(
+    assignedProducerKey &&
+      lastSentTo &&
+      producerKeysMatch(assignedProducerKey, lastSentTo)
+  );
+  // Reassign clears the sent stamp; also cover post-reassign assign where the
+  // flag is gone but the producer still needs a send (or mark-as-sent) for MTD.
+  const isReassignProducerMailContext =
+    needsReassign ||
+    Boolean(record.isReassigned) ||
+    (Boolean(lastSentTo) && !sameProducerAsLastSend) ||
+    !record.producerEmailSentAt;
+  const canMarkProducerAlreadySent =
+    !isCustomer &&
+    isReassignProducerMailContext &&
+    !isViewOnly &&
+    !sent &&
+    !record.producerEmailSentAt &&
+    Boolean(assignedProducerKey || editor);
 
   function toggleField(key: string) {
     setSelectedKeys((current) =>
@@ -504,6 +554,34 @@ export function ForwardOrderMailModal({
         return current.filter((key) => !keys.includes(key));
       }
       return Array.from(new Set([...current, ...keys]));
+    });
+  }
+
+  function resolveProducerSentTo(): string | null {
+    return (
+      record?.assignedProducer?.trim() ||
+      draft.toName?.trim() ||
+      editor?.name?.trim() ||
+      null
+    );
+  }
+
+  function handleMarkProducerAlreadySent() {
+    if (isCustomer || isViewOnly || !record || sent) return;
+    const sentTo = resolveProducerSentTo();
+    if (!sentTo && !editor) return;
+    updateMTD(record.id, {
+      producerEmailSentAt: new Date().toISOString(),
+      producerEmailSentTo: sentTo,
+    });
+    setMarkedAlreadySent(true);
+    setSent(true);
+    setSendError(null);
+    const toLabel = draft.toName?.trim() || sentTo || "producer";
+    addAlert({
+      tone: "info",
+      title: "Marked as sent",
+      message: `Producer email marked as already sent to ${toLabel}.`,
     });
   }
 
@@ -532,14 +610,9 @@ export function ForwardOrderMailModal({
           missingDataEmailSentAt: new Date().toISOString(),
         });
       } else if (!isCustomer && record) {
-        const sentTo =
-          record.assignedProducer?.trim() ||
-          draft.toName?.trim() ||
-          editor?.name?.trim() ||
-          null;
         updateMTD(record.id, {
           producerEmailSentAt: new Date().toISOString(),
-          producerEmailSentTo: sentTo,
+          producerEmailSentTo: resolveProducerSentTo(),
         });
       }
       setSent(true);
@@ -566,12 +639,16 @@ export function ForwardOrderMailModal({
   const composeTitle = isCustomer
     ? isCustomerResend
       ? "Request corrected materials"
-      : "Email customer about missing data"
+      : isUnmatchedManualCustomer
+        ? "Email customer about missing form"
+        : "Email customer about missing data"
     : "Send mail to editor";
   const composeEyebrow = isCustomer
     ? isCustomerResend
       ? "Incorrect data"
-      : "Missing data"
+      : isUnmatchedManualCustomer
+        ? "Missing form"
+        : "Missing data"
     : "Forward order";
   const includeLabel = isCustomer
     ? isCustomerResend
@@ -674,7 +751,9 @@ export function ForwardOrderMailModal({
 
               {isCustomer && allFields.length === 0 ? (
                 <div className="rounded-xl border border-brand-line/60 bg-brand-bg/40 px-3.5 py-3 text-[12px] leading-relaxed text-brand-ink-secondary">
-                  No missing API data is flagged on this order right now.
+                  {isUnmatchedManualCustomer
+                    ? "Manual orders only ask for the completed order form. Missing-data details are for Form orders."
+                    : "No missing API data is flagged on this order right now."}
                 </div>
               ) : null}
 
@@ -689,35 +768,58 @@ export function ForwardOrderMailModal({
                 </div>
               ) : null}
 
+              {canMarkProducerAlreadySent ? (
+                <div className="rounded-xl border border-brand-info/25 bg-brand-info/8 px-3.5 py-3">
+                  <p className="text-[12px] leading-relaxed text-brand-ink-secondary">
+                    {needsReassign || record.isReassigned
+                      ? "Already emailed this producer about the reassignment?"
+                      : "Already emailed this producer?"}{" "}
+                    Mark the email as sent without sending again — required
+                    before moving to MTD.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleMarkProducerAlreadySent}
+                    className="mt-2 text-[12px] font-semibold text-brand-signature hover:underline"
+                  >
+                    Mark as already sent to this producer
+                  </button>
+                </div>
+              ) : null}
+
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-brand-ink-tertiary">
                   {recipientLabel}
                 </p>
                 {isCustomer ? (
-                  <select
+                  <MailRecipientSelect
+                    aria-label={recipientLabel}
+                    className="mt-1.5"
                     value={customerContactId}
-                    onChange={(event) => setCustomerContactId(event.target.value)}
+                    onChange={setCustomerContactId}
                     disabled={customerContacts.length === 0}
-                    className="mt-1.5 w-full rounded-xl border border-brand-line/80 bg-brand-surface px-3 py-2.5 text-[13px] font-medium text-brand-ink outline-none transition focus:border-brand-signature/50 focus:ring-2 focus:ring-brand-signature/15 disabled:opacity-60"
-                  >
-                    {customerContacts.map((contact) => (
-                      <option key={contact.id} value={contact.id}>
-                        {contact.role} · {contact.name} · {contact.email}
-                      </option>
-                    ))}
-                  </select>
+                    placeholder="Select customer contact"
+                    options={customerContacts.map((contact) => ({
+                      id: contact.id,
+                      name: contact.name,
+                      email: contact.email,
+                      role: contact.role,
+                    }))}
+                  />
                 ) : (
-                  <select
+                  <MailRecipientSelect
+                    aria-label={recipientLabel}
+                    className="mt-1.5"
                     value={editorId}
-                    onChange={(event) => setEditorId(event.target.value)}
-                    className="mt-1.5 w-full rounded-xl border border-brand-line/80 bg-brand-surface px-3 py-2.5 text-[13px] font-medium text-brand-ink outline-none transition focus:border-brand-signature/50 focus:ring-2 focus:ring-brand-signature/15"
-                  >
-                    {producers.map((producer) => (
-                      <option key={producer.id} value={producer.id}>
-                        {producer.name} · {producer.email}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={setEditorId}
+                    placeholder="Select editor"
+                    options={producers.map((producer) => ({
+                      id: producer.id,
+                      name: producer.name,
+                      email: producer.email,
+                      role: "Editor",
+                    }))}
+                  />
                 )}
               </div>
 
@@ -748,6 +850,7 @@ export function ForwardOrderMailModal({
                 </div>
               ) : null}
 
+              {!isUnmatchedManualCustomer ? (
               <div>
                 <div className="mb-2 flex items-center justify-between gap-3">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-brand-ink-tertiary">
@@ -852,6 +955,7 @@ export function ForwardOrderMailModal({
                   })}
                 </div>
               </div>
+              ) : null}
 
               {isCustomer && eightCountAttachment ? (
                 <button
@@ -879,9 +983,15 @@ export function ForwardOrderMailModal({
                 <Check className="h-7 w-7" strokeWidth={2} />
               </div>
               <p className="mt-4 text-[15px] font-semibold text-brand-ink">
-                Email sent to {draft.toName}
+                {markedAlreadySent
+                  ? `Marked as sent to ${draft.toName || "producer"}`
+                  : `Email sent to ${draft.toName}`}
               </p>
-              <p className="mt-1 text-[13px] text-brand-ink-secondary">{draft.to}</p>
+              <p className="mt-1 text-[13px] text-brand-ink-secondary">
+                {markedAlreadySent
+                  ? "No email was sent from Studio"
+                  : draft.to}
+              </p>
             </div>
           ) : (
             <>
@@ -933,6 +1043,17 @@ export function ForwardOrderMailModal({
                 )}
                 {isSending ? "Sending…" : "Send via Gmail"}
               </button>
+              {canMarkProducerAlreadySent ? (
+                <button
+                  type="button"
+                  onClick={handleMarkProducerAlreadySent}
+                  disabled={isSending}
+                  className="inline-flex items-center justify-center gap-2 border-b border-black/[0.08] py-3.5 text-[15px] font-semibold text-brand-ink transition hover:bg-brand-bg disabled:cursor-not-allowed disabled:text-brand-ink-tertiary"
+                >
+                  <Check className="h-4 w-4" />
+                  Mark as already sent
+                </button>
+              ) : null}
               <button
                 type="button"
                 onClick={() => {

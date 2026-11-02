@@ -54,6 +54,7 @@ import {
   isPersistedMtdRecord,
   mergeCollectionStateFromOrder,
   mtdRecordCoversOrder,
+  stagingRecordFromOrder,
 } from "@/lib/order-staging";
 import { getOrderIdentityName } from "@/lib/order-detail-sections";
 import { overlayMergedFormForDisplay } from "@/lib/manual-form-merge";
@@ -88,6 +89,8 @@ import { countProducerMixesThisWeek } from "@/lib/producer-availability";
 import { normalizeDiscountCode } from "@/lib/discount-codes";
 import { isOutsourcedRecord } from "@/lib/mtd-filters";
 import { mergeLocalMtdRecordFields } from "@/lib/mtd-completion";
+import { mergeIncomingOrderReassignFields } from "@/lib/order-reassign";
+import { pickInvoice } from "@/lib/invoice";
 import { orderPatchFromMTD } from "@/lib/mtd-order-sync";
 import { inferMTDRecordStatus } from "@/lib/mtd-status";
 import { dedupePayrollAddons } from "@/lib/misc-payroll-adjustment";
@@ -182,7 +185,12 @@ type AppStateContextValue = {
   matchManualWithMagento: (
     manualId: string,
     formId: string,
-    options?: { overwrite?: boolean }
+    options?: {
+      overwrite?: boolean;
+      /** Prefer these over activeOrders (e.g. MatchConfirmModal drafts). */
+      manualOverride?: Order;
+      formOverride?: Order;
+    }
   ) => Promise<void>;
   addProducer: (producer: Producer) => Promise<Producer>;
   updateProducer: (id: string, patch: Partial<Producer>) => Promise<Producer>;
@@ -295,7 +303,7 @@ function setLocalItem<T>(key: string, value: T): void {
 // 1) Version the key: bump to invalidate everyone's old blobs after schema/data resets
 // 2) Always paint any snapshot; always revalidate from the network (SWR)
 // 3) Drop only absurdly old blobs (safety); rewrite cache after successful sync / mutations
-const CACHE_VERSION = "v2";
+const CACHE_VERSION = "v3";
 const CACHE_ORDERS_KEY = `slt_cache_orders_${CACHE_VERSION}`;
 const CACHE_MTD_KEY = `slt_cache_mtd_${CACHE_VERSION}`;
 const CACHE_PRODUCERS_KEY = `slt_cache_producers_${CACHE_VERSION}`;
@@ -439,12 +447,40 @@ function orderLiveSyncKey(o: Order): string {
     o.assignedProducer || "",
     o.mixStartDate || "",
     o.mixEndDate || "",
+    // Reassign flag + reason: without these, SSE/boot can skip or flicker
+    // Reassign ↔ Assigned when only isReassigned/orderStatus changed.
+    o.isReassigned ? "1" : "0",
+    o.orderStatus || "",
     // Magento↔manual link: must invalidate live sync or Form filter stays stale.
     o.mergedFormOrderId || "",
     o.mergedIntoManualOrderId || "",
     o.isManualEntry ? "1" : "0",
     snapKey,
     (o as Order & { updatedAt?: string }).updatedAt || "",
+    // Form fields: without these, PATCH/SSE that only fill Magento details
+    // (billing, team, city, songs, …) are treated as no-ops and Match keeps "-".
+    o.programName || "",
+    o.gymBillingAddress || "",
+    o.teamName || "",
+    o.division || "",
+    o.coachName || "",
+    o.coachPhone || "",
+    o.coachEmail || "",
+    o.billingPersonName || "",
+    o.billingPersonEmail || "",
+    o.city || "",
+    o.stateProvince || "",
+    o.zipPostalCode || "",
+    o.teamCoedAllGirl || "",
+    o.teamColors || "",
+    o.numberOfCopies || "",
+    o.musicAffiliate || "",
+    o.sendingEightCountSheets || "",
+    o.songListSuggestions || "",
+    o.routineNotes || "",
+    o.package || "",
+    o.packageType || "",
+    o.timeLengthOfMix || "",
   ].join("|");
 }
 
@@ -960,6 +996,13 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         return "CHEERLEADING MUSIC";
       };
 
+      const coveringInvoice = pickInvoice(
+        order.invoice,
+        ...mtdRecords
+          .filter((r) => mtdRecordCoversOrder(r, order))
+          .map((r) => r.invoice)
+      );
+
       // Mirror Orders-tab staging display: Order remains SoT; do not null
       // assignment/identity onto the create payload (that wiped Order fields).
       const draftRecord: MTDRecord = mergeCollectionStateFromOrder(
@@ -977,7 +1020,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           musicTheme: order.musicTheme || "",
         price,
         priceCompliance: compliance,
-        invoice: "",
+        invoice: coveringInvoice,
           mixStartDate: order.mixStartDate || "",
           mixEndDate: order.mixEndDate || undefined,
           eightCountSheet: order.eightCountSheet || "",
@@ -1089,6 +1132,146 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
   const updateMTD = useCallback(async (id: string, patch: Partial<MTDRecord>) => {
     if (isViewOnly) return;
+
+    // Fast path: invoice-only edits skip assignment/identity machinery and
+    // never wait on an Orders PATCH (invoice is mtd_records SoT).
+    const patchKeys = Object.keys(patch);
+    if (patchKeys.length === 1 && patch.invoice !== undefined) {
+      mtdMutatedAtRef.current = Date.now();
+      ordersMutatedAtRef.current = Date.now();
+      const invoiceNext = String(patch.invoice ?? "").trim();
+      const existing = mtdRecords.find(
+        (r) =>
+          r.id === id || r.orderId === id || r.uuid === id || r.legacyId === id
+      );
+      const earlyOrderLookupIds = new Set(
+        [
+          id,
+          existing?.orderId,
+          existing?.id,
+          existing?.uuid,
+          existing?.legacyId,
+        ].filter((value): value is string => Boolean(value))
+      );
+      const linkedOrder = activeOrders.find(
+        (o) =>
+          earlyOrderLookupIds.has(o.id) ||
+          (o.legacyId && earlyOrderLookupIds.has(o.legacyId)) ||
+          (o.uuid && earlyOrderLookupIds.has(o.uuid)) ||
+          (o.mtdId && earlyOrderLookupIds.has(o.mtdId))
+      );
+      const coveringPersisted =
+        (existing && isPersistedMtdRecord(existing) ? existing : undefined) ||
+        (linkedOrder
+          ? mtdRecords.find(
+              (r) =>
+                isPersistedMtdRecord(r) && mtdRecordCoversOrder(r, linkedOrder)
+            )
+          : undefined);
+
+      if (linkedOrder) {
+        setActiveOrders((prev) =>
+          prev.map((o) =>
+            o.id === linkedOrder.id ? { ...o, invoice: invoiceNext } : o
+          )
+        );
+      }
+      setMtdRecords((prev) => {
+        let matched = false;
+        const next = prev.map((r) => {
+          if (
+            r.id !== id &&
+            r.orderId !== id &&
+            r.uuid !== id &&
+            r.legacyId !== id &&
+            !(
+              coveringPersisted &&
+              (r.id === coveringPersisted.id ||
+                r.uuid === coveringPersisted.uuid)
+            )
+          ) {
+            return r;
+          }
+          matched = true;
+          return { ...r, invoice: invoiceNext };
+        });
+        if (!matched && linkedOrder) {
+          const staged = stagingRecordFromOrder({
+            ...linkedOrder,
+            invoice: invoiceNext,
+          });
+          next.unshift({
+            ...staged,
+            ...(existing && !isPersistedMtdRecord(existing) ? existing : {}),
+            invoice: invoiceNext,
+            orderId: linkedOrder.uuid || linkedOrder.id,
+            inMTD: Boolean(existing?.inMTD || coveringPersisted?.inMTD),
+          });
+        }
+        writeTimedCache(CACHE_MTD_KEY, next);
+        return next;
+      });
+
+      const prevActive = activeOrders;
+      const prevMtd = mtdRecords;
+      try {
+        if (coveringPersisted && isPersistedMtdRecord(coveringPersisted)) {
+          const apiId = coveringPersisted.uuid || coveringPersisted.id;
+          const saved = await updateMTDRecordApi(apiId, {
+            invoice: invoiceNext,
+          });
+          setMtdRecords((prev) =>
+            prev.map((r) =>
+              r.id === coveringPersisted.id ||
+              r.uuid === coveringPersisted.uuid
+                ? {
+                    ...r,
+                    // Explicit edit wins over a stale API echo / prior local value.
+                    invoice: pickInvoice(invoiceNext, saved.invoice, r.invoice),
+                  }
+                : r
+            )
+          );
+        } else if (linkedOrder) {
+          const orderWithInvoice = {
+            ...linkedOrder,
+            invoice: invoiceNext,
+          };
+          const seeded = mergeCollectionStateFromOrder(
+            {
+              ...stagingRecordFromOrder(orderWithInvoice),
+              ...(existing && !isPersistedMtdRecord(existing) ? existing : {}),
+              invoice: invoiceNext,
+              orderId: linkedOrder.uuid || linkedOrder.id,
+              inMTD: false,
+            },
+            orderWithInvoice
+          );
+          const saved = await createMTDRecordApi(seeded);
+          const mergedSaved = mergeCollectionStateFromOrder(
+            {
+              ...seeded,
+              ...saved,
+              id: saved.id,
+              uuid: saved.uuid,
+              orderId: saved.orderId || seeded.orderId,
+              invoice: pickInvoice(invoiceNext, saved.invoice),
+            },
+            orderWithInvoice
+          );
+          setMtdRecords((prev) =>
+            collapsePreMtdClonesForOrder(prev, mergedSaved, linkedOrder)
+          );
+        }
+      } catch (err) {
+        setActiveOrders(prevActive);
+        setMtdRecords(prevMtd);
+        notifySaveError("Could not save invoice", err);
+        throw err;
+      }
+      return;
+    }
+
     let apiPatch = patch;
 
     const existing = mtdRecords.find(
@@ -1111,9 +1294,26 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       });
         }
 
+    // Resolve linked order before the optimistic write so Move to MTD can
+    // seed a board row even when the Orders tab row was synthetic-only.
+    const earlyOrderLookupIds = new Set(
+      [id, existing?.orderId, existing?.id, existing?.uuid, existing?.legacyId].filter(
+        (value): value is string => Boolean(value)
+      )
+    );
+    const earlyLinkedOrder = activeOrders.find(
+      (o) =>
+        earlyOrderLookupIds.has(o.id) ||
+        (o.legacyId && earlyOrderLookupIds.has(o.legacyId)) ||
+        (o.uuid && earlyOrderLookupIds.has(o.uuid)) ||
+        (o.mtdId && earlyOrderLookupIds.has(o.mtdId))
+    );
+
     setMtdRecords((prev) => {
+      let matched = false;
       const next = prev.map((r) => {
         if (r.id !== id && r.orderId !== id && r.uuid !== id && r.legacyId !== id) return r;
+        matched = true;
 
         const updated = { ...r, ...patch };
 
@@ -1221,6 +1421,65 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
         return updated;
       });
+
+      // Synthetic Orders rows are not in mtdRecords: insert immediately so MTD
+      // / Assign invoice UI does not flash empty while createMTDRecordApi runs.
+      if (
+        !matched &&
+        (patch.inMTD === true ||
+          (patch.invoice !== undefined && String(patch.invoice).trim() !== ""))
+      ) {
+        const seedOrder = earlyLinkedOrder;
+        const staged = seedOrder
+          ? stagingRecordFromOrder(seedOrder)
+          : null;
+        const optimistic: MTDRecord = {
+          ...(staged ||
+            ({
+              id,
+              orderId: id,
+              section: "CHEERLEADING MUSIC",
+              assignedProducer: null,
+              category: "Cheer",
+              editorRequest: "FA",
+              contactName: "",
+              editorInitials: "",
+              programName: "",
+              package: "",
+              musicTheme: "",
+              price: 0,
+              priceCompliance: "compliant",
+              invoice: "",
+              mixStartDate: "",
+              eightCountSheet: "",
+              haveSongs: "",
+              needsAttention: false,
+              status: "active",
+              recordStatus: "Ongoing",
+              inMTD: false,
+            } satisfies MTDRecord)),
+          ...patch,
+          id: staged?.id || id,
+          orderId:
+            seedOrder?.uuid ||
+            seedOrder?.id ||
+            staged?.orderId ||
+            id,
+          invoice: pickInvoice(
+            patch.invoice,
+            staged?.invoice,
+            seedOrder?.invoice
+          ),
+          inMTD: patch.inMTD === true ? true : Boolean(staged?.inMTD),
+          status: patch.status || staged?.status || "active",
+          recordStatus:
+            patch.recordStatus ||
+            staged?.recordStatus ||
+            "Ongoing",
+        };
+        next.unshift(optimistic);
+      }
+
       // Cache immediately so other tabs pick Paid / board moves via storage.
       writeTimedCache(CACHE_MTD_KEY, next);
       return next;
@@ -1246,6 +1505,11 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       if (patch.assignedProducer !== undefined) {
         orderPatch.assignedProducer =
           apiPatch.assignedProducer ?? patch.assignedProducer;
+      }
+      // Local Order mirror only (API has no invoice column) so Match can keep
+      // an invoice that was set on Assign before Magento is linked.
+      if (patch.invoice !== undefined) {
+        orderPatch.invoice = pickInvoice(patch.invoice, linkedOrder.invoice);
       }
       if (patch.mixStartDate !== undefined) {
         orderPatch.mixStartDate = apiPatch.mixStartDate ?? patch.mixStartDate;
@@ -1290,6 +1554,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         orderPatch.orderStatus = (patch as { orderStatus?: string }).orderStatus;
       }
       if (Object.keys(orderPatch).length > 0) {
+        // Block slower boot/SSE from wiping Move-to-Orders reassign before PATCH lands.
+        ordersMutatedAtRef.current = Date.now();
         setActiveOrders((prev) =>
           prev.map((o) =>
             o.id === linkedOrder.id ? { ...o, ...orderPatch } : o
@@ -1328,8 +1594,26 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     // Persist: order shared fields first (canonical), then MTD board row.
       try {
         if (linkedOrder && Object.keys(orderPatch).length > 0) {
-          await updateOrderApi(linkedOrder.id, orderPatch);
+          // Invoice is mtd_records SoT — keep it on the Order in memory only.
+          const { invoice: _invoiceMirror, ...orderApiPatch } = orderPatch as {
+            invoice?: string;
+          } & Record<string, unknown>;
+          if (Object.keys(orderApiPatch).length > 0) {
+            await updateOrderApi(linkedOrder.id, orderApiPatch);
+          }
         }
+
+        // Prefer an existing persisted mtd_records row for this order so invoice
+        // / board fields survive Assign → Match → Move → Payroll without clones.
+        const coveringPersisted =
+          (existing && isPersistedMtdRecord(existing) ? existing : undefined) ||
+          (linkedOrder
+            ? mtdRecords.find(
+                (r) =>
+                  isPersistedMtdRecord(r) &&
+                  mtdRecordCoversOrder(r, linkedOrder)
+              )
+            : undefined);
 
         if (patch.inMTD === true) {
           const targetRecord = mtdRecords.find(
@@ -1344,6 +1628,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           const orderRef =
             linkedOrder?.uuid ||
             linkedOrder?.id ||
+            coveringPersisted?.orderId ||
             targetRecord?.orderId ||
             (existing && !isPersistedMtdRecord(existing) ? existing.id : null) ||
             null;
@@ -1352,53 +1637,96 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
               "Cannot move to MTD without a linked order_id"
             );
           }
-          const updatedRecord: MTDRecord = {
-            ...(targetRecord || existing || ({} as MTDRecord)),
+          const invoiceSeed = pickInvoice(
+            (apiPatch as MTDRecord).invoice,
+            patch.invoice,
+            coveringPersisted?.invoice,
+            targetRecord?.invoice,
+            existing?.invoice,
+            linkedOrder?.invoice
+          );
+          const boardPatch: Partial<MTDRecord> = {
             ...apiPatch,
             orderId: orderRef,
             inMTD: true,
-            collectionStates:
-              (apiPatch as MTDRecord).collectionStates ??
-              targetRecord?.collectionStates ??
-              linkedOrder?.collectionStates,
-            haveSongs:
-              (apiPatch as MTDRecord).haveSongs ||
-              targetRecord?.haveSongs ||
-              linkedOrder?.haveSongs ||
-              "",
-            eightCountSheet:
-              (apiPatch as MTDRecord).eightCountSheet ||
-              targetRecord?.eightCountSheet ||
-              linkedOrder?.eightCountSheet ||
-              "",
+            ...(invoiceSeed ? { invoice: invoiceSeed } : {}),
             recordStatus:
               (apiPatch as MTDRecord).recordStatus ||
+              coveringPersisted?.recordStatus ||
               targetRecord?.recordStatus ||
               "Ongoing",
             status: (apiPatch as MTDRecord).status || "active",
           };
-          const saved = await createMTDRecordApi({
-            ...updatedRecord,
-            orderId: orderRef,
-            inMTD: true,
-          });
-          const nextRow = mergeCollectionStateFromOrder(
-            {
-              ...(targetRecord || existing || updatedRecord),
-              ...apiPatch,
-              ...saved,
-                      id: saved.id,
-                      uuid: saved.uuid,
-                      legacyId: saved.legacyId,
-              orderId: saved.orderId || orderRef,
-                      inMTD: true,
-              recordStatus:
-                saved.recordStatus ||
-                updatedRecord.recordStatus ||
-                "Ongoing",
-            },
-            linkedOrder
-          );
+
+          let nextRow: MTDRecord;
+          if (coveringPersisted && isPersistedMtdRecord(coveringPersisted)) {
+            const realApiId = coveringPersisted.uuid || coveringPersisted.id;
+            const saved = await updateMTDRecordApi(realApiId, boardPatch);
+            nextRow = mergeCollectionStateFromOrder(
+              {
+                ...coveringPersisted,
+                ...boardPatch,
+                ...saved,
+                id: saved.id || coveringPersisted.id,
+                uuid: saved.uuid || coveringPersisted.uuid,
+                legacyId: saved.legacyId || coveringPersisted.legacyId,
+                orderId: saved.orderId || orderRef,
+                inMTD: true,
+                invoice: pickInvoice(
+                  saved.invoice,
+                  invoiceSeed,
+                  coveringPersisted.invoice
+                ),
+              },
+              linkedOrder
+            );
+          } else {
+            const updatedRecord: MTDRecord = {
+              ...(targetRecord || existing || ({} as MTDRecord)),
+              ...boardPatch,
+              orderId: orderRef,
+              inMTD: true,
+              collectionStates:
+                (apiPatch as MTDRecord).collectionStates ??
+                targetRecord?.collectionStates ??
+                linkedOrder?.collectionStates,
+              haveSongs:
+                (apiPatch as MTDRecord).haveSongs ||
+                targetRecord?.haveSongs ||
+                linkedOrder?.haveSongs ||
+                "",
+              eightCountSheet:
+                (apiPatch as MTDRecord).eightCountSheet ||
+                targetRecord?.eightCountSheet ||
+                linkedOrder?.eightCountSheet ||
+                "",
+              invoice: invoiceSeed,
+            };
+            const saved = await createMTDRecordApi({
+              ...updatedRecord,
+              orderId: orderRef,
+              inMTD: true,
+              invoice: invoiceSeed,
+            });
+            nextRow = mergeCollectionStateFromOrder(
+              {
+                ...(targetRecord || existing || updatedRecord),
+                ...boardPatch,
+                ...saved,
+                id: saved.id,
+                uuid: saved.uuid,
+                legacyId: saved.legacyId,
+                orderId: saved.orderId || orderRef,
+                inMTD: true,
+                invoice: pickInvoice(saved.invoice, invoiceSeed),
+                recordStatus:
+                  saved.recordStatus ||
+                  updatedRecord.recordStatus ||
+                  "Ongoing",
+              },
+              linkedOrder
+            );
+          }
           setMtdRecords((prev) => {
             const match = (r: MTDRecord) =>
               r.id === id ||
@@ -1406,54 +1734,93 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
               r.uuid === id ||
               r.legacyId === id ||
               r.orderId === orderRef ||
-              r.id === orderRef;
+              r.id === orderRef ||
+              (coveringPersisted != null &&
+                (r.id === coveringPersisted.id ||
+                  r.uuid === coveringPersisted.uuid));
             if (prev.some(match)) {
               return prev.map((r) => (match(r) ? { ...r, ...nextRow } : r));
             }
             return [nextRow, ...prev];
           });
-        } else {
-          const isRealMtdRecord = Boolean(
-            existing &&
-            isPersistedMtdRecord(existing) &&
-              (existing.inMTD === true ||
-                existing.isManualScheduleEntry === true ||
-                !linkedOrder)
-          );
-        if (isRealMtdRecord && existing && isPersistedMtdRecord(existing)) {
-          const realApiId = existing.uuid || existing.id;
-          await updateMTDRecordApi(realApiId, apiPatch);
-        } else if (existing && Object.keys(apiPatch).length > 0) {
-          // Orders-board virtual row: create a real MTD row so MTD-only
-          // fields (payroll, invoice, etc.) survive hard refresh.
-          // Never create a second staging row for the same order.
-          const alreadyLinked =
-            linkedOrder &&
-            mtdRecords.find(
-              (r) =>
-                isPersistedMtdRecord(r) && mtdRecordCoversOrder(r, linkedOrder)
+        } else if (Object.keys(apiPatch).length > 0) {
+          // Invoice / payroll / waiting_on live on mtd_records. Persist even
+          // when the Orders board row is still synthetic (Assign invoice).
+          if (coveringPersisted && isPersistedMtdRecord(coveringPersisted)) {
+            const linkedApiId = coveringPersisted.uuid || coveringPersisted.id;
+            const invoiceSeed = pickInvoice(
+              (apiPatch as MTDRecord).invoice,
+              coveringPersisted.invoice,
+              linkedOrder?.invoice
             );
-          if (alreadyLinked && isPersistedMtdRecord(alreadyLinked)) {
-            const linkedApiId = alreadyLinked.uuid || alreadyLinked.id;
-            await updateMTDRecordApi(linkedApiId, apiPatch);
+            const saved = await updateMTDRecordApi(linkedApiId, {
+              ...apiPatch,
+              ...(invoiceSeed && (apiPatch as MTDRecord).invoice !== undefined
+                ? { invoice: invoiceSeed }
+                : {}),
+            });
             setMtdRecords((prev) =>
               prev.map((r) =>
-                r.id === alreadyLinked.id ||
-                r.uuid === alreadyLinked.uuid ||
-                (alreadyLinked.orderId && r.orderId === alreadyLinked.orderId)
-                  ? { ...r, ...apiPatch }
+                r.id === coveringPersisted.id ||
+                r.uuid === coveringPersisted.uuid ||
+                (coveringPersisted.orderId &&
+                  r.orderId === coveringPersisted.orderId)
+                  ? {
+                      ...r,
+                      ...apiPatch,
+                      ...saved,
+                      invoice: pickInvoice(
+                        (apiPatch as MTDRecord).invoice,
+                        saved.invoice,
+                        r.invoice
+                      ),
+                    }
                   : r
               )
             );
           } else if (linkedOrder) {
-            // No persisted mtd_records row yet: order PATCH is enough for
-            // form fields. Skip createMTD here to avoid clones; assign/move
-            // flows create the board row when needed.
-          } else {
+            const invoiceSeed = pickInvoice(
+              (apiPatch as MTDRecord).invoice,
+              linkedOrder.invoice,
+              existing?.invoice
+            );
+            const seeded = mergeCollectionStateFromOrder(
+              {
+                ...stagingRecordFromOrder(linkedOrder),
+                ...(existing && !isPersistedMtdRecord(existing) ? existing : {}),
+                ...apiPatch,
+                orderId: linkedOrder.uuid || linkedOrder.id,
+                inMTD: false,
+                invoice: invoiceSeed,
+              },
+              linkedOrder
+            );
+            const saved = await createMTDRecordApi(seeded);
+            const mergedSaved: MTDRecord = mergeCollectionStateFromOrder(
+              {
+                ...seeded,
+                ...apiPatch,
+                ...saved,
+                id: saved.id,
+                uuid: saved.uuid,
+                orderId: saved.orderId || seeded.orderId,
+                invoice: pickInvoice(saved.invoice, invoiceSeed),
+              },
+              linkedOrder
+            );
+            setMtdRecords((prev) =>
+              collapsePreMtdClonesForOrder(prev, mergedSaved, linkedOrder)
+            );
+          } else if (existing) {
+            const invoiceSeed = pickInvoice(
+              (apiPatch as MTDRecord).invoice,
+              existing.invoice
+            );
             const seeded: MTDRecord = {
               ...existing,
               ...apiPatch,
               orderId: existing.orderId || existing.id,
+              invoice: invoiceSeed,
               collectionStates:
                 (apiPatch as MTDRecord).collectionStates ??
                 existing.collectionStates,
@@ -1471,19 +1838,19 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
               id: saved.id,
               uuid: saved.uuid,
               orderId: saved.orderId || seeded.orderId,
+              invoice: pickInvoice(saved.invoice, invoiceSeed),
             };
             setMtdRecords((prev) =>
               collapsePreMtdClonesForOrder(prev, mergedSaved, null)
             );
-          }
           }
         }
       } catch (err) {
         setActiveOrders(prevActive);
         setMtdRecords(prevMtd);
         notifySaveError("Could not save MTD changes", err);
-      throw err;
-    }
+        throw err;
+      }
   }, [
     activeOrders,
     addAlert,
@@ -1773,6 +2140,9 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         if (patch.collectionStates !== undefined) {
           normalized.collectionStates = patch.collectionStates;
         }
+        if (patch.timeLengthOfMix !== undefined) {
+          normalized.timeLengthOfMix = patch.timeLengthOfMix;
+        }
         // Manual Add Order + Magento: affiliate free text drives compliance.
         if (patch.priceCompliance !== undefined) {
           normalized.priceCompliance = patch.priceCompliance;
@@ -1861,6 +2231,10 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       }
       if (patch.routineNotes !== undefined) {
         mtdPatch.routineNotes = patch.routineNotes;
+      }
+      if (patch.timeLengthOfMix !== undefined) {
+        // Include "" so Mix Time clear is not revived from stale MTD staging.
+        mtdPatch.timeLengthOfMix = patch.timeLengthOfMix;
       }
       if (patch.powerMusicCovers !== undefined) {
         (mtdPatch as { powerMusicCovers?: string }).powerMusicCovers =
@@ -2035,17 +2409,38 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     async (
       manualId: string,
       formId: string,
-      options?: { overwrite?: boolean }
+      options?: {
+        overwrite?: boolean;
+        manualOverride?: Order;
+        formOverride?: Order;
+      }
     ) => {
       if (isViewOnly) {
         throw new Error("View-only accounts cannot match orders.");
       }
-      const manual = activeOrders.find(
+      // Prefer MatchConfirmModal drafts: updateOrder ahead of match does not
+      // refresh this callback's activeOrders closure, so notes/songs filled in
+      // the modal would otherwise never copy onto the manual booking row.
+      const manualFromState = activeOrders.find(
         (o) => o.id === manualId || o.uuid === manualId || o.legacyId === manualId
       );
-      const form = activeOrders.find(
+      const formFromState = activeOrders.find(
         (o) => o.id === formId || o.uuid === formId || o.legacyId === formId
       );
+      const manual = options?.manualOverride
+        ? normalizeOrder({
+            ...(manualFromState || {}),
+            ...options.manualOverride,
+            id: manualFromState?.id || options.manualOverride.id || manualId,
+          })
+        : manualFromState;
+      const form = options?.formOverride
+        ? normalizeOrder({
+            ...(formFromState || {}),
+            ...options.formOverride,
+            id: formFromState?.id || options.formOverride.id || formId,
+          })
+        : formFromState;
       if (!manual || !form) {
         throw new Error("Could not find both orders to match.");
       }
@@ -2108,23 +2503,154 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       });
 
       const prevActive = activeOrders;
+      const prevMtd = mtdRecords;
+      // Keep pre-MTD / schedule rows' assignment + invoice with the manual slot
+      // (Match must not hide Assign or drop invoice that was already set).
+      // Exception: awaiting reassign — never revive a cleared producer from MTD.
+      const awaitingReassign = Boolean(
+        manualNext.isReassigned || manual.isReassigned
+      );
+      const matchAssignment =
+        manualNext.assignedProducer?.trim() ||
+        manual.assignedProducer?.trim() ||
+        "";
+      const coveringBeforeMatch = mtdRecords.find(
+        (r) =>
+          mtdRecordCoversOrder(r, manual) || mtdRecordCoversOrder(r, manualNext)
+      );
+      const matchInvoice = pickInvoice(
+        manualNext.invoice,
+        manual.invoice,
+        coveringBeforeMatch?.invoice
+      );
+      const manualWithInvoice = matchInvoice
+        ? normalizeOrder({ ...manualNext, invoice: matchInvoice })
+        : manualNext;
+      const matchCs =
+        String(manualNext.eightCountSheet || manual.eightCountSheet || "").trim();
+      const matchCsIsStatus =
+        matchCs &&
+        !/^(YES|Y|NO|N)\b/i.test(matchCs);
+      const matchHaveSongs = String(
+        manualNext.haveSongs || manual.haveSongs || ""
+      ).trim();
+      const matchCollectionStates = {
+        ...(manual.collectionStates || {}),
+        ...(manualNext.collectionStates || {}),
+      };
       setActiveOrders((prev) =>
         prev.map((o) => {
-          if (o.id === manual.id) return manualNext;
+          if (o.id === manual.id) return manualWithInvoice;
           if (o.id === form.id) return taggedForm;
           return o;
         })
       );
+      setMtdRecords((prev) =>
+        prev.map((rec) => {
+          if (!mtdRecordCoversOrder(rec, manual) && !mtdRecordCoversOrder(rec, manualNext)) {
+            return rec;
+          }
+          const nextAssigned = awaitingReassign
+            ? matchAssignment || null
+            : matchAssignment ||
+              rec.assignedProducer?.trim() ||
+              rec.assignedProducer ||
+              null;
+          const nextInvoice = pickInvoice(matchInvoice, rec.invoice);
+          const nextCs =
+            (matchCsIsStatus ? matchCs : "") ||
+            rec.eightCountSheet ||
+            "";
+          const nextHaveSongs = matchHaveSongs || rec.haveSongs || "";
+          const nextStates = {
+            ...(rec.collectionStates || {}),
+            ...matchCollectionStates,
+          };
+          return {
+            ...rec,
+            assignedProducer: nextAssigned || null,
+            ...(awaitingReassign
+              ? {
+                  mixStartDate: matchAssignment ? rec.mixStartDate : "",
+                  mixEndDate: matchAssignment ? rec.mixEndDate : undefined,
+                  isReassigned: true,
+                }
+              : {}),
+            invoice: nextInvoice,
+            eightCountSheet: nextCs,
+            haveSongs: nextHaveSongs,
+            collectionStates:
+              Object.keys(nextStates).length > 0
+                ? nextStates
+                : rec.collectionStates,
+          };
+        })
+      );
       ordersMutatedAtRef.current = Date.now();
+      mtdMutatedAtRef.current = Date.now();
 
       try {
         await Promise.all([
           updateOrderApi(manual.id, {
             ...combinedManualPatch,
             ...(flagPatch || {}),
+            ...(matchAssignment
+              ? { assignedProducer: matchAssignment }
+              : {}),
           }),
           updateOrderApi(form.id, combinedFormPatch),
         ]);
+        // Invoice SoT is mtd_records: persist after match so payroll still sees it.
+        if (matchInvoice) {
+          const covering =
+            mtdRecords.find(
+              (r) =>
+                isPersistedMtdRecord(r) &&
+                (mtdRecordCoversOrder(r, manual) ||
+                  mtdRecordCoversOrder(r, manualNext))
+            ) || null;
+          if (covering) {
+            const apiId = covering.uuid || covering.id;
+            const saved = await updateMTDRecordApi(apiId, {
+              invoice: matchInvoice,
+            });
+            setMtdRecords((prev) =>
+              prev.map((r) =>
+                r.id === covering.id || r.uuid === covering.uuid
+                  ? {
+                      ...r,
+                      invoice: pickInvoice(saved.invoice, matchInvoice, r.invoice),
+                    }
+                  : r
+              )
+            );
+          } else {
+            const seeded = mergeCollectionStateFromOrder(
+              {
+                ...stagingRecordFromOrder(manualWithInvoice),
+                invoice: matchInvoice,
+                inMTD: false,
+                orderId: manualWithInvoice.uuid || manualWithInvoice.id,
+              },
+              manualWithInvoice
+            );
+            const saved = await createMTDRecordApi(seeded);
+            const mergedSaved = mergeCollectionStateFromOrder(
+              {
+                ...seeded,
+                ...saved,
+                id: saved.id,
+                uuid: saved.uuid,
+                orderId: saved.orderId || seeded.orderId,
+                invoice: pickInvoice(saved.invoice, matchInvoice),
+              },
+              manualWithInvoice
+            );
+            setMtdRecords((prev) =>
+              collapsePreMtdClonesForOrder(prev, mergedSaved, manualWithInvoice)
+            );
+          }
+        }
         if (flagPatch) {
           addNotification({
             type: "flagged_order",
@@ -2159,12 +2685,14 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         }
       } catch (err) {
         setActiveOrders(prevActive);
+        setMtdRecords(prevMtd);
         notifySaveError("Could not match Magento form to manual order", err);
         throw err;
       }
     },
     [
       activeOrders,
+      mtdRecords,
       isViewOnly,
       addNotification,
       addAlert,
@@ -2952,12 +3480,14 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           if (!peer) return local;
           if (orderLiveSyncKey(peer) === orderLiveSyncKey(local)) return local;
           changed = true;
-          return {
+          const reassignFields = mergeIncomingOrderReassignFields(peer, local);
+          return normalizeOrder({
             ...local,
             ...peer,
+            ...reassignFields,
             id: local.id,
             uuid: local.uuid || peer.uuid,
-          };
+          });
         });
         for (const peer of incoming) {
           if (next.some((o) => ordersReferToSame(o, peer))) continue;
@@ -3130,9 +3660,11 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         local.affiliateFlagStatus === "resolved"
           ? local.affiliateFlagStatus
           : (incoming.affiliateFlagStatus ?? local.affiliateFlagStatus);
+      const reassignFields = mergeIncomingOrderReassignFields(incoming, local);
       const merged = normalizeOrder({
         ...local,
         ...incoming,
+        ...reassignFields,
         id: local.id,
         uuid: local.uuid || incoming.uuid,
         affiliateFlagStatus: keptFlag,

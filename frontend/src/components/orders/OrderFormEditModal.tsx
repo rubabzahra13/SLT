@@ -12,6 +12,7 @@ import {
   resolveManualFormPair,
   splitManualFormPatches,
 } from "@/lib/manual-form-merge";
+import { resolveFinalMatchedOrder } from "@/lib/order-form-missing";
 import { ManualFormPairBar } from "@/components/orders/ManualFormPairBar";
 import { orderFromMTDRecord, rawFieldValue } from "@/lib/order-detail-fields";
 import {
@@ -20,6 +21,7 @@ import {
 } from "@/lib/order-detail-sections";
 import {
   buildLinkedFormSyncPatch,
+  buildOrderFormDirtyPatch,
   mtdPatchFromOrderField,
   orderPatchFromOrderField,
 } from "@/lib/mtd-order-sync";
@@ -38,6 +40,13 @@ type OrderFormEditModalProps = {
   allOrders: Order[];
   /** Optional board row index: unused in the header (no IDs in UI). */
   rowId?: number | null;
+  /**
+   * Match Orders: show the full Magento field set even on unmatched manuals
+   * so required Magento form fields (city, ZIP, …) can be filled before match.
+   */
+  fullFormFields?: boolean;
+  /** Render above another modal (e.g. Match confirm). */
+  elevated?: boolean;
   onClose: () => void;
 };
 
@@ -45,6 +54,8 @@ export function OrderFormEditModal({
   open,
   record,
   allOrders,
+  fullFormFields = false,
+  elevated = false,
   onClose,
 }: OrderFormEditModalProps) {
   const {
@@ -59,6 +70,7 @@ export function OrderFormEditModal({
 
   const [mounted, setMounted] = useState(false);
   const [orderDraft, setOrderDraft] = useState<Order | null>(null);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -76,10 +88,13 @@ export function OrderFormEditModal({
 
   const displayOrder = useMemo(() => {
     if (!linkedBase) return null;
-    const enriched = enrichOrderWithMatchingForm(linkedBase, allOrders);
+    // Matched: Magento-wins finals (same as MTD gate). Unmatched: soft enrich.
+    const enriched = pair
+      ? resolveFinalMatchedOrder(linkedBase, allOrders)
+      : enrichOrderWithMatchingForm(linkedBase, allOrders);
     // Same form sections as Add New Order: formType wins over stale subtypes.
     return resolveOrderFormDisplay(enriched, record);
-  }, [linkedBase, allOrders, record]);
+  }, [linkedBase, allOrders, record, pair]);
 
   const handleSplitPair = useCallback(async () => {
     if (!pair || isViewOnly) return;
@@ -110,11 +125,13 @@ export function OrderFormEditModal({
   useEffect(() => {
     if (!open || !displayOrder) {
       setOrderDraft(null);
+      setSaving(false);
       return;
     }
     // Same SoT columns as Add New: keep existing values; do not blank form-
     // specific Magento fields (that would wipe power_music_covers / voiceovers
     // on save when this form does not show those inputs).
+    setSaving(false);
     setOrderDraft({
       ...displayOrder,
       songListSuggestions: String(displayOrder.songListSuggestions || "").trim(),
@@ -143,31 +160,50 @@ export function OrderFormEditModal({
   }, []);
 
   const handleSave = useCallback(async () => {
-    if (!displayOrder || !orderDraft || !record || isViewOnly || !isDirty) return;
+    if (
+      !displayOrder ||
+      !orderDraft ||
+      !record ||
+      isViewOnly ||
+      !isDirty ||
+      saving
+    ) {
+      return;
+    }
 
-    // Order is source of truth for form fields. Same column mapping as Add New
-    // (updateOrder → updateOrderApi). Only patch a real mtd_records row when one
-    // already covers this order: never PATCH /api/mtd/{orderId} (synthetic
-    // staging rows use the order UUID as id → 404).
-    const editorInitials =
-      orderDraft.requestedEditor === "First Available" ||
-      !orderDraft.requestedEditor
-        ? "FA"
-        : orderDraft.editorRequest || orderDraft.requestedEditor;
-    const savePatch: Partial<Order> = {
-      ...orderDraft,
-      editorRequest: editorInitials,
-      requestedProducer: orderDraft.requestedEditor || "",
-      sendingEightCountSheets:
+    // Only changed form fields — spreading the whole draft made Save wait on a
+    // fat PATCH (and optional second paired-form write).
+    const savePatch = buildOrderFormDirtyPatch(displayOrder, orderDraft);
+    if (Object.keys(savePatch).length === 0) {
+      onClose();
+      return;
+    }
+
+    if (
+      savePatch.requestedEditor !== undefined ||
+      savePatch.requestedProducer !== undefined
+    ) {
+      const editorInitials =
+        orderDraft.requestedEditor === "First Available" ||
+        !orderDraft.requestedEditor
+          ? "FA"
+          : orderDraft.editorRequest || orderDraft.requestedEditor;
+      savePatch.editorRequest = editorInitials;
+      savePatch.requestedProducer = orderDraft.requestedEditor || "";
+    }
+    if (
+      savePatch.sendingEightCountSheets !== undefined ||
+      savePatch.usingEightCountSheets !== undefined
+    ) {
+      const eight =
         orderDraft.sendingEightCountSheets ||
         orderDraft.usingEightCountSheets ||
-        "",
-      usingEightCountSheets:
-        orderDraft.sendingEightCountSheets ||
-        orderDraft.usingEightCountSheets ||
-        "",
-    };
+        "";
+      savePatch.sendingEightCountSheets = eight;
+      savePatch.usingEightCountSheets = eight;
+    }
 
+    setSaving(true);
     try {
       await updateOrder(displayOrder.id, savePatch, displayOrder);
 
@@ -182,6 +218,7 @@ export function OrderFormEditModal({
       }
     } catch {
       // updateOrder already notifies on failure.
+      setSaving(false);
       return;
     }
 
@@ -194,13 +231,20 @@ export function OrderFormEditModal({
       : null;
 
     if (mtdTargetId) {
-      const sections = getOrderDetailSections(displayOrder);
-      for (const section of sections) {
+      // One combined MTD write for changed fields (was N sequential patches).
+      const combinedMtd: Partial<MTDRecord> = {};
+      let nextStates:
+        | Record<string, unknown>
+        | undefined;
+      for (const section of getOrderDetailSections(displayOrder)) {
         for (const field of section.fields) {
           const nextValue = rawFieldValue(orderDraft, field.key);
           const prevValue = rawFieldValue(displayOrder, field.key);
           if (nextValue === prevValue) continue;
-          const mtdPatch = mtdPatchFromOrderField(field.key, nextValue);
+          Object.assign(
+            combinedMtd,
+            mtdPatchFromOrderField(field.key, nextValue)
+          );
           if (
             field.key === "songListSuggestions" ||
             field.key === "powerMusicCovers" ||
@@ -210,13 +254,17 @@ export function OrderFormEditModal({
             field.key === "additionalNotes" ||
             field.key === "timeLengthOfMix"
           ) {
-            const prevStates =
-              (coveringMtd?.collectionStates as
-                | Record<string, unknown>
-                | undefined) ||
-              (record.collectionStates as Record<string, unknown> | undefined) ||
-              {};
-            const nextStates = { ...prevStates };
+            if (!nextStates) {
+              nextStates = {
+                ...((coveringMtd?.collectionStates as
+                  | Record<string, unknown>
+                  | undefined) ||
+                  (record.collectionStates as
+                    | Record<string, unknown>
+                    | undefined) ||
+                  {}),
+              };
+            }
             if (
               field.key === "songListSuggestions" ||
               field.key === "powerMusicCovers" ||
@@ -235,18 +283,19 @@ export function OrderFormEditModal({
               delete nextStates.mix;
               delete nextStates.time_of_mix;
             }
-            void updateMTD(mtdTargetId, {
-              ...mtdPatch,
-              collectionStates: nextStates as MTDRecord["collectionStates"],
-            });
-          } else if (Object.keys(mtdPatch).length > 0) {
-            void updateMTD(mtdTargetId, mtdPatch);
           }
         }
       }
 
       if ((orderDraft.package || "") !== (displayOrder.package || "")) {
-        void updateMTD(mtdTargetId, { package: orderDraft.package || "" });
+        combinedMtd.package = orderDraft.package || "";
+      }
+      if (nextStates) {
+        combinedMtd.collectionStates =
+          nextStates as MTDRecord["collectionStates"];
+      }
+      if (Object.keys(combinedMtd).length > 0) {
+        void updateMTD(mtdTargetId, combinedMtd);
       }
     }
 
@@ -264,6 +313,7 @@ export function OrderFormEditModal({
     mtdRecords,
     isViewOnly,
     isDirty,
+    saving,
     updateOrder,
     updateMTD,
     addAlert,
@@ -284,11 +334,22 @@ export function OrderFormEditModal({
     "Customer";
   const createdLabel = formatDisplayDateTime(displayOrder.createdAt);
 
+  const useSlimManualFields =
+    !fullFormFields && isManualSlimFormOrder(orderDraft);
+
   return createPortal(
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      <div
+    <div
+      className={
+        fullFormFields || elevated
+          ? "fixed inset-0 z-[110] flex items-center justify-center p-4"
+          : "fixed inset-0 z-[100] flex items-center justify-center p-4"
+      }
+    >
+      <button
+        type="button"
         className="absolute inset-0 bg-black/45 backdrop-blur-[2px]"
-        aria-hidden="true"
+        onClick={onClose}
+        aria-label="Close"
       />
 
       <div
@@ -348,7 +409,7 @@ export function OrderFormEditModal({
             producers={producers}
             editable={!isViewOnly}
             onFieldChange={handleFieldChange}
-            manualAddSlim={isManualSlimFormOrder(orderDraft)}
+            manualAddSlim={useSlimManualFields}
             // Admin edit: never show the old "- required" / identity star cues.
             highlightMissing={false}
             requiredFieldKeys={[]}
@@ -359,18 +420,19 @@ export function OrderFormEditModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl border border-brand-line/70 bg-white px-4 py-2 text-[13px] font-semibold text-brand-ink-secondary shadow-sm transition hover:bg-brand-bg"
+            disabled={saving}
+            className="rounded-xl border border-brand-line/70 bg-white px-4 py-2 text-[13px] font-semibold text-brand-ink-secondary shadow-sm transition hover:bg-brand-bg disabled:opacity-50"
           >
             {isViewOnly ? "Close" : "Cancel"}
           </button>
           {!isViewOnly ? (
             <button
               type="button"
-              onClick={handleSave}
-              disabled={!isDirty}
+              onClick={() => void handleSave()}
+              disabled={!isDirty || saving}
               className="rounded-xl bg-brand-orange px-4 py-2 text-[13px] font-semibold text-white shadow-sm transition hover:bg-brand-orange-hover disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-brand-orange"
             >
-              Save
+              {saving ? "Saving…" : "Save"}
             </button>
           ) : null}
         </div>

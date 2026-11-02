@@ -5,6 +5,7 @@ import { useMemo } from "react";
 import clsx from "clsx";
 import { useAppState } from "@/context/AppStateContext";
 import { findLinkedOrder } from "@/lib/editor-assignment";
+import { resolveFinalMatchedOrder } from "@/lib/order-form-missing";
 import {
   getOrderAssignmentStatus,
   getOrderRequirements,
@@ -21,7 +22,10 @@ function useRequirementsRecord(record: Order | MTDRecord): Order | MTDRecord {
   const { allOrders } = useAppState();
   return useMemo(() => {
     const linked = findLinkedOrder(record as MTDRecord, allOrders);
-    return mergeOrderFormFieldsForRequirements(record, linked);
+    const finalized = linked
+      ? resolveFinalMatchedOrder(linked, allOrders)
+      : null;
+    return mergeOrderFormFieldsForRequirements(record, finalized);
   }, [record, allOrders]);
 }
 

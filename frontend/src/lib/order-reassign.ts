@@ -1,4 +1,4 @@
-import type { MTDRecord } from "@/types";
+import type { MTDRecord, Order } from "@/types";
 
 /** Mark all collection toggles collected so Data lands as Complete on Orders. */
 function completeDataFields(): Partial<MTDRecord> {
@@ -48,6 +48,7 @@ export function patchForReassignLeave(): Partial<MTDRecord> {
     mixStartDate: "",
     mixEndDate: "",
     producerEmailSentAt: null,
+    producerEmailSentTo: null,
     status: "active",
     ...completeDataFields(),
   };
@@ -64,6 +65,7 @@ export function patchForReassignRush(): Partial<MTDRecord> {
     mixStartDate: "",
     mixEndDate: "",
     producerEmailSentAt: null,
+    producerEmailSentTo: null,
     status: "active",
     ...completeDataFields(),
   };
@@ -122,6 +124,7 @@ export function patchForReassignProducerDeletion(
     mixStartDate: "",
     mixEndDate: "",
     producerEmailSentAt: null,
+    producerEmailSentTo: null,
     status: "active",
     ...completeDataFields(),
   };
@@ -139,6 +142,7 @@ export function patchForReassignProducerRemoved(): Partial<MTDRecord> {
     mixStartDate: "",
     mixEndDate: "",
     producerEmailSentAt: null,
+    producerEmailSentTo: null,
     status: "active",
     ...completeDataFields(),
   };
@@ -160,7 +164,81 @@ export function patchForReassignCategoryRemoved(
     mixStartDate: "",
     mixEndDate: "",
     producerEmailSentAt: null,
+    producerEmailSentTo: null,
     status: "active",
     ...completeDataFields(),
+  };
+}
+
+function orderUpdatedAtMs(order: Order): number {
+  const raw = (order as Order & { updatedAt?: string | null }).updatedAt;
+  if (!raw) return 0;
+  const ms = Date.parse(String(raw));
+  return Number.isFinite(ms) ? ms : 0;
+}
+
+/**
+ * SSE / peer / boot merges must not flicker Reassign rows.
+ * - Incoming reassign wins (cleared producer + flag).
+ * - Local reassign wins over a stale peer that still has the old producer.
+ * - Completing reassign only when peer cleared the flag, set a producer, and
+ *   is at least as new as the local row.
+ */
+export function mergeIncomingOrderReassignFields(
+  incoming: Order,
+  local: Order
+): Partial<Order> {
+  const incomingAssigned = String(incoming.assignedProducer || "").trim();
+  const incomingAwaiting = Boolean(incoming.isReassigned);
+  const localAwaiting = Boolean(local.isReassigned);
+
+  if (incomingAwaiting) {
+    return {
+      isReassigned: true,
+      assignedProducer: null,
+      mixStartDate: incoming.mixStartDate || "",
+      mixEndDate: incoming.mixEndDate || undefined,
+      orderStatus: incoming.orderStatus || local.orderStatus,
+      producerEmailSentAt: null,
+      producerEmailSentTo: null,
+    };
+  }
+
+  if (localAwaiting) {
+    const peerCompleted =
+      Boolean(incomingAssigned) &&
+      orderUpdatedAtMs(incoming) >= orderUpdatedAtMs(local);
+    if (peerCompleted) {
+      return {
+        isReassigned: false,
+        assignedProducer: incomingAssigned,
+        mixStartDate: incoming.mixStartDate || "",
+        mixEndDate: incoming.mixEndDate || undefined,
+        orderStatus: incoming.orderStatus,
+      };
+    }
+    return {
+      isReassigned: true,
+      assignedProducer: null,
+      mixStartDate: "",
+      mixEndDate: undefined,
+      orderStatus: local.orderStatus || incoming.orderStatus,
+      producerEmailSentAt: null,
+      producerEmailSentTo: null,
+    };
+  }
+
+  return {
+    isReassigned: false,
+    assignedProducer: incomingAssigned || null,
+    mixStartDate:
+      incoming.mixStartDate !== undefined && incoming.mixStartDate !== null
+        ? incoming.mixStartDate
+        : local.mixStartDate,
+    mixEndDate:
+      incoming.mixEndDate !== undefined && incoming.mixEndDate !== null
+        ? incoming.mixEndDate
+        : local.mixEndDate,
+    orderStatus: incoming.orderStatus ?? local.orderStatus,
   };
 }

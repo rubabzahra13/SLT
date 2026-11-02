@@ -6,6 +6,7 @@ import {
   parseDanceSongCovers,
 } from "@/lib/dance-song-covers";
 import { getOrderDetailSections } from "@/lib/order-detail-sections";
+import { overlayMergedFormForDisplay } from "@/lib/manual-form-merge";
 export type RequirementCategory = "collections" | "songs";
 export type RequirementState = "green" | "red" | "white";
 
@@ -673,39 +674,35 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
   const needCompliancy = false;
 
   // --- COLLECTIONS GROUP ---
-  // Form pill: unmatched Manual / New Order rows only. Once Magento matches,
-  // the row is treated as a Form order (no Form pill).
+  // Form pill: Manual / New Order rows only. Green after admin Match Orders
+  // links a Magento form; red again when unmatched.
   const hasMatchedMagentoForm = Boolean(
     (order as Order).mergedFormOrderId ||
       ((order as Order).manualOverlapSnapshot &&
         Object.keys((order as Order).manualOverlapSnapshot || {}).length > 0) ||
       (order as { merged_form_order_id?: string }).merged_form_order_id
   );
-  const isManualOrder =
-    !hasMatchedMagentoForm &&
-    (Boolean((order as MTDRecord).isManualScheduleEntry) ||
-      Boolean((order as Order).isManualEntry) ||
-      (order as MTDRecord).orderId === null);
+  // Matched booking rows always show Form (even if isManualEntry was cleared by
+  // a bad overwrite path — mergedFormOrderId means this is the manual slot).
+  const isManualOrigin =
+    Boolean((order as MTDRecord).isManualScheduleEntry) ||
+    Boolean((order as Order).isManualEntry) ||
+    hasMatchedMagentoForm ||
+    (order as MTDRecord).orderId === null;
 
   // 1. MIX / TIME OF MIX
   // SoT = Time Length of Mix field only (every category). Empty → red, filled →
   // green. Never stay green from collectionStates.mix / package label leftovers.
   {
-    const rawFieldTime = String(
+    // SoT = Time Length of Mix only. Never stay green from package label
+    // leftovers (e.g. GOLD 2:00) after the field was cleared.
+    const rawTime = String(
       (order as Order).timeLengthOfMix ??
         (order as { time_length_of_mix?: string }).time_length_of_mix ??
         ""
     ).trim();
-    // Cheer Magento often encodes length in package (GOLD 2:00) when the SoftSelect
-    // column was never written: use that only if the dedicated field is absent.
-    const cheerPackageTime =
-      isCheer && !isSports && !isDance && !isMarchingBand && !isAnthem
-        ? String(parsedPkg.limit || "").trim()
-        : "";
-    const rawTime =
-      rawFieldTime ||
-      (cheerPackageTime && cheerPackageTime !== "-" ? cheerPackageTime : "");
-    const defaultProvided = isPresent(rawTime) && rawTime !== "-";
+    const defaultProvided =
+      isPresent(rawTime) && rawTime !== "-" && rawTime !== "0:00";
     const isApplicable = needTimeOfMix;
     let state: RequirementState = "white";
     if (isApplicable) {
@@ -791,16 +788,19 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
     });
   }
 
-  if (isManualOrder) {
-    // Form pill: automatic red until Magento matches (then row becomes Form order).
+  if (isManualOrigin) {
+    // Form pill: Match Orders only (not automatic name match).
+    const formState: RequirementState = hasMatchedMagentoForm
+      ? "green"
+      : "red";
     requirements.push({
       id: "form",
       label: "Form",
       category: "collections",
-      state: "red",
+      state: formState,
       isApplicable: true,
-      provided: false,
-      status: "red",
+      provided: formState === "green",
+      status: formState === "green" ? "green" : "red",
     });
   }
 
@@ -944,86 +944,124 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
   };
 }
 
-/** Merge linked order form fields (e.g. sending 8-count Yes/No) onto an MTD row. */
+/**
+ * Merge linked order form fields (e.g. sending 8-count Yes/No) onto an MTD row.
+ * When `allOrders` is provided, empty Magento-only fields on the linked manual
+ * are filled from the absorbed Magento form (Match SoT).
+ */
 export function mergeOrderFormFieldsForRequirements(
   record: Order | MTDRecord,
-  linkedOrder?: Order | null
+  linkedOrder?: Order | null,
+  allOrders?: Order[]
 ): Order | MTDRecord {
   if (!linkedOrder) return record;
+  const linked =
+    allOrders && allOrders.length > 0
+      ? overlayMergedFormForDisplay(linkedOrder, allOrders)
+      : linkedOrder;
   const rec = record as Order & MTDRecord;
   return {
     ...record,
-    formType: linkedOrder.formType || (rec as Order).formType,
+    formType: linked.formType || (rec as Order).formType,
     cheerFormSubtype:
-      linkedOrder.cheerFormSubtype || (rec as Order).cheerFormSubtype,
+      linked.cheerFormSubtype || (rec as Order).cheerFormSubtype,
     danceFormSubtype:
-      linkedOrder.danceFormSubtype || (rec as Order).danceFormSubtype,
+      linked.danceFormSubtype || (rec as Order).danceFormSubtype,
     // Package column already prefers linked order: requirements must too
     // (stale MTD "HALFTIME SHOW" must not override Band Chant → Song).
-    package: linkedOrder.package || rec.package,
+    package: linked.package || rec.package,
     packageType:
-      linkedOrder.packageType ||
-      linkedOrder.package ||
+      linked.packageType ||
+      linked.package ||
       (rec as Order).packageType ||
       rec.package,
     sendingEightCountSheets:
-      linkedOrder.sendingEightCountSheets ||
-      linkedOrder.usingEightCountSheets ||
+      linked.sendingEightCountSheets ||
+      linked.usingEightCountSheets ||
       rec.sendingEightCountSheets ||
       rec.usingEightCountSheets,
     usingEightCountSheets:
-      linkedOrder.sendingEightCountSheets ||
-      linkedOrder.usingEightCountSheets ||
+      linked.sendingEightCountSheets ||
+      linked.usingEightCountSheets ||
       rec.sendingEightCountSheets ||
       rec.usingEightCountSheets,
+    // Collection status from either side (manual HAVE CS must survive Match).
+    eightCountSheet: (() => {
+      const linkedCs = String(linked.eightCountSheet || "").trim();
+      const recCs = String(rec.eightCountSheet || "").trim();
+      const isIntent = (v: string) => {
+        const u = v.toUpperCase();
+        return (
+          !v ||
+          u === "YES" ||
+          u === "Y" ||
+          u === "NO" ||
+          u === "N" ||
+          u.startsWith("YES") ||
+          u.startsWith("NO")
+        );
+      };
+      if (linkedCs && !isIntent(linkedCs)) return linkedCs;
+      if (recCs && !isIntent(recCs)) return recCs;
+      return rec.eightCountSheet || linked.eightCountSheet || "";
+    })(),
+    haveSongs:
+      String(linked.haveSongs || "").trim() ||
+      String(rec.haveSongs || "").trim() ||
+      rec.haveSongs ||
+      linked.haveSongs ||
+      "",
     // Prefer linked order form fields; empty string must win over MTD leftovers
     // (e.g. musicTheme copied into songListSuggestions).
     songListSuggestions:
-      linkedOrder.songListSuggestions ?? rec.songListSuggestions,
-    powerMusicCovers: linkedOrder.powerMusicCovers ?? rec.powerMusicCovers,
+      linked.songListSuggestions ?? rec.songListSuggestions,
+    powerMusicCovers: linked.powerMusicCovers ?? rec.powerMusicCovers,
     unleashTheBeatsCovers:
-      linkedOrder.unleashTheBeatsCovers ??
+      linked.unleashTheBeatsCovers ??
       (rec as Order).unleashTheBeatsCovers,
-    customerSongs: linkedOrder.customerSongs ?? (rec as Order).customerSongs,
+    customerSongs: linked.customerSongs ?? (rec as Order).customerSongs,
     instrumentationNotes:
-      linkedOrder.instrumentationNotes ?? (rec as Order).instrumentationNotes,
-    lyricalNotes: linkedOrder.lyricalNotes ?? (rec as Order).lyricalNotes,
+      linked.instrumentationNotes ?? (rec as Order).instrumentationNotes,
+    lyricalNotes: linked.lyricalNotes ?? (rec as Order).lyricalNotes,
     // Prefer linked order musicTheme, including explicit "" after Songs remove.
     // Do not use ||: empty string must win over stale MTD theme text.
-    musicTheme: linkedOrder.musicTheme ?? rec.musicTheme,
-    routineNotes: linkedOrder.routineNotes ?? (rec as Order).routineNotes,
-    // Cleared Time Length must turn Mix red: do not keep stale staging values.
+    musicTheme: linked.musicTheme ?? rec.musicTheme,
+    routineNotes: linked.routineNotes ?? (rec as Order).routineNotes,
+    // Cleared Time Length must turn Mix red: explicit "" on the order wins
+    // over stale MTD staging (same rule as mergeCollectionStateFromOrder).
     timeLengthOfMix:
-      linkedOrder.timeLengthOfMix ?? (rec as Order).timeLengthOfMix,
+      linked.timeLengthOfMix !== undefined &&
+      linked.timeLengthOfMix !== null
+        ? linked.timeLengthOfMix
+        : (rec as Order).timeLengthOfMix,
     clientRequestedRushOrder:
-      linkedOrder.clientRequestedRushOrder ??
+      linked.clientRequestedRushOrder ??
       (rec as Order).clientRequestedRushOrder,
-    isRushOrder: linkedOrder.isRushOrder ?? (rec as Order).isRushOrder,
+    isRushOrder: linked.isRushOrder ?? (rec as Order).isRushOrder,
     isManualEntry:
-      Boolean(rec.isManualEntry) || Boolean(linkedOrder.isManualEntry),
+      Boolean(rec.isManualEntry) || Boolean(linked.isManualEntry),
     isManualScheduleEntry:
-      Boolean(rec.isManualScheduleEntry) || Boolean(linkedOrder.isManualEntry),
+      Boolean(rec.isManualScheduleEntry) || Boolean(linked.isManualEntry),
     mergedFormOrderId:
-      linkedOrder.mergedFormOrderId ||
+      linked.mergedFormOrderId ||
       (rec as Order).mergedFormOrderId ||
       undefined,
-    // Drop stale Mix green overrides when Time Length is empty on the order.
+    // Merge collection toggles (Order wins per key). Drop stale Mix green
+    // overrides when Time Length is empty on the order.
     collectionStates: (() => {
-      const linkedTime = String(linkedOrder.timeLengthOfMix ?? "").trim();
-      const states =
-        (rec.collectionStates as Record<string, unknown> | null | undefined) ||
-        {};
-      if (linkedTime) return rec.collectionStates;
-      if (
-        typeof states.mix !== "boolean" &&
-        typeof states.time_of_mix !== "boolean"
-      ) {
-        return rec.collectionStates;
+      const linkedTime = String(linked.timeLengthOfMix ?? "").trim();
+      const merged: Record<string, unknown> = {
+        ...((rec.collectionStates as Record<string, unknown> | null) || {}),
+        ...((linked.collectionStates as Record<string, unknown> | null) ||
+          {}),
+      };
+      if (!linkedTime) {
+        delete merged.mix;
+        delete merged.time_of_mix;
       }
-      const next = { ...states };
-      delete next.mix;
-      delete next.time_of_mix;
-      return next as Order["collectionStates"];
+      return Object.keys(merged).length > 0
+        ? (merged as Order["collectionStates"])
+        : rec.collectionStates;
     })(),
   };
 }
@@ -1051,8 +1089,9 @@ export function getOrderAssignmentStatus(
   // Only a real assignedProducer counts: requested producer / FA do not.
   const assigned = Boolean((order as MTDRecord).assignedProducer?.trim());
   const { needsReassign, reassignReason } = getOrderStatus(order);
-  // Reassign rows stay in Leave/Rush until a producer is assigned again.
-  if (needsReassign && !assigned) {
+  // Reassign flag wins even if a stale producer key is still on the row
+  // (Move to Orders clears assignment; merge must not keep the row in Assigned).
+  if (needsReassign) {
     return reassignReason === "leave" ? "reassign_leave" : "reassign_rush";
   }
   return assigned ? "assigned" : "not_assigned";

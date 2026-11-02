@@ -91,6 +91,7 @@ const PROTECTED_ORDER_KEYS = new Set<string>([
   "createdAt",
   "status",
   "assignedProducer",
+  "invoice",
   "mixStartDate",
   "mixEndDate",
   "isReassigned",
@@ -98,6 +99,9 @@ const PROTECTED_ORDER_KEYS = new Set<string>([
   "producerEmailSentAt",
   "producerEmailSentTo",
   "collectionStates",
+  // Collection status (HAVE CS / NEED CS) — never let Magento Yes/No intent wipe it.
+  "eightCountSheet",
+  "haveSongs",
   "orderStatus",
   "mergedFormOrderId",
   "mergedIntoManualOrderId",
@@ -816,11 +820,14 @@ export type MatchDiffRow = {
 };
 
 /**
- * Every New Order / Magento form field for this category (and cheer/dance
- * subtype): Match UI compares Manual vs Magento side by side.
+ * Match confirm field comparison.
+ * Lists the full Magento form field set for this category/subtype. Manual
+ * values stay "-" when the slim Add Order slot never collected that field.
  */
 export function buildMatchDiffRows(manual: Order, form: Order): MatchDiffRow[] {
-  // Magento form defines the expected field set for this category/subtype.
+  // Labels / order from Magento form sections for this category/subtype.
+  // Always show the full Magento set (not only slim Add Order overlap) so
+  // Magento-only fields are visible before Confirm match.
   const sections = getOrderDetailSections(form);
   const seen = new Set<string>();
   const rows: MatchDiffRow[] = [];
@@ -914,13 +921,22 @@ export function overwriteManualWithFormPatches(
         })
         .map((key) => [key, merged[key]])
     ),
-    isManualEntry: false,
+    // Booking row stays a manual New Order slot (Form pill + Split + Orders SoT).
+    isManualEntry: true,
     manualOverlapSnapshot: null,
     mergedFormOrderId: formId || manual.mergedFormOrderId || null,
     suppressManualFormMerge: false,
   };
   (manualPatch as Record<string, unknown>).manualOverlapSnapshot = null;
-  (manualPatch as Record<string, unknown>).isManualEntry = false;
+  (manualPatch as Record<string, unknown>).isManualEntry = true;
+  // Assignment + invoice set before Match stay on the booking row (Magento
+  // never owns these; empty form values must not wipe them).
+  if (manual.assignedProducer?.trim()) {
+    manualPatch.assignedProducer = manual.assignedProducer;
+  }
+  if (String(manual.invoice || "").trim()) {
+    manualPatch.invoice = manual.invoice;
+  }
 
   const formPatch: Partial<Order> = {
     mergedIntoManualOrderId: manualId || form.mergedIntoManualOrderId || null,
@@ -1001,7 +1017,9 @@ export function applyManualFormMerges(orders: Order[]): Order[] {
         (o) =>
           o.isManualEntry && ordersMatchId(o, order.mergedIntoManualOrderId)
       );
-    if (!manual || !canMergeMagentoFormIntoManual(order, manual)) continue;
+    // Honor an existing absorb link even when category soft-mismatch would
+    // block a fresh merge — otherwise Source flips back to Manual after MTD.
+    if (!manual) continue;
     const manualId = orderKey(manual);
     if (!manualId || manualToForm.has(manualId)) continue;
     manualToForm.set(manualId, order);
@@ -1012,16 +1030,22 @@ export function applyManualFormMerges(orders: Order[]): Order[] {
     const id = orderKey(order);
     if (order.isManualEntry && manualToForm.has(id)) {
       const form = manualToForm.get(id)!;
+      const linkedManual = order.mergedFormOrderId
+        ? order
+        : {
+            ...order,
+            mergedFormOrderId: orderKey(form) || order.mergedFormOrderId,
+          };
       // Initial match uses form-wins. Once a snapshot exists, keep persisted
       // manual values (edit-modal saves) and only fill empties from the form -
       // hard form-wins on every board load was wiping those edits.
       if (
-        order.manualOverlapSnapshot &&
-        Object.keys(order.manualOverlapSnapshot).length > 0
+        linkedManual.manualOverlapSnapshot &&
+        Object.keys(linkedManual.manualOverlapSnapshot).length > 0
       ) {
-        return mergeFormIntoManualOrder(order, form);
+        return mergeFormIntoManualOrder(linkedManual, form);
       }
-      return mergeFormWinsIntoManualOrder(order, form);
+      return mergeFormWinsIntoManualOrder(linkedManual, form);
     }
     if (isMagentoFormOrder(order) && formToManual.has(id)) {
       return {
@@ -1129,12 +1153,33 @@ export function overlayMergedFormForDisplay(
     out.assignedProducer = form.assignedProducer;
     changed = true;
   }
+  // Invoice: keep manual booking invoice; only fill from form when empty.
+  if (!String(order.invoice || "").trim() && String(form.invoice || "").trim()) {
+    out.invoice = form.invoice;
+    changed = true;
+  }
   if (!String(order.mixStartDate || "").trim() && form.mixStartDate) {
     out.mixStartDate = form.mixStartDate;
     changed = true;
   }
   if (!String(order.mixEndDate || "").trim() && form.mixEndDate) {
     out.mixEndDate = form.mixEndDate;
+    changed = true;
+  }
+
+  // Magento is SoT after Match. Prefer form values on matched pairs (not only
+  // fill-empty): booking rows can keep stale leftovers like musicTheme "(BMI)"
+  // that block overlay of the real Magento song list "m · (BMI)".
+  const matched = Boolean(
+    order.mergedFormOrderId || form.mergedIntoManualOrderId
+  );
+  for (const key of Object.keys(form) as (keyof Order)[]) {
+    if (PROTECTED_ORDER_KEYS.has(key as string)) continue;
+    if (SPLIT_PRESERVE_KEYS.has(key as string)) continue;
+    if (isEmptyValue(form[key])) continue;
+    if (!matched && !isEmptyValue(out[key])) continue;
+    if (out[key] === form[key]) continue;
+    (out as Record<string, unknown>)[key as string] = form[key];
     changed = true;
   }
 
@@ -1146,18 +1191,24 @@ export function enrichOrderWithMatchingForm(
   order: Order,
   allOrders: Order[]
 ): Order {
-  // Always apply linked-form display overlay first (covers in_mtd / non-manual).
+  // Magento is SoT on form fields after Match. Overlay prefers Magento values
+  // when matched; manualOverlapSnapshot stays on the order for Split restore
+  // and must not freeze the editor on pre-match manual leftovers.
   const overlaid = overlayMergedFormForDisplay(order, allOrders);
 
   if (!overlaid.isManualEntry) return overlaid;
   const pair = resolveManualFormPair(overlaid, allOrders);
   if (!pair) return overlaid;
-  // Form already applied as SoT (snapshot frozen at match time).
+  // Snapshot already frozen at match: display overlay is enough (form-wins).
   if (
     overlaid.manualOverlapSnapshot &&
     Object.keys(overlaid.manualOverlapSnapshot).length > 0
   ) {
-    return overlaid;
+    return {
+      ...overlaid,
+      // Keep Split restore payload even when display shows Magento SoT.
+      manualOverlapSnapshot: overlaid.manualOverlapSnapshot,
+    };
   }
   // Pair exists but not yet form-wins persisted: show form SoT in the editor.
   return mergeFormWinsIntoManualOrder(overlaid, pair.form);

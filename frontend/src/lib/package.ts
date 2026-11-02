@@ -6,6 +6,18 @@ export type ParsedPackage = {
   split: string;
 };
 
+/**
+ * Package type column is tier only (e.g. Gold / TBD). Strip mix length like
+ * "1:00" that sometimes leaked into package_type from the legacy composed label.
+ */
+export function packageTierOnly(packageStr?: string | null): string {
+  const value = String(packageStr ?? "").trim();
+  if (!value) return "";
+  const parsed = parsePackage(value);
+  if (parsed.tier && parsed.tier !== "-") return parsed.tier;
+  return value.replace(/\s+\d+:\d{2}\b/g, "").trim();
+}
+
 /** Split values like "PLATINUM 2:30 NO SPLIT" into tier, limit, and split. */
 export function parsePackage(packageStr?: string | null): ParsedPackage {
   const value = String(packageStr ?? "").trim();

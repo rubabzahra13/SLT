@@ -945,6 +945,8 @@ export type Order = {
   orderStatus?: string;
   eightCountSheet?: string;
   haveSongs?: string;
+  /** Optional invoice # (also stored on MTD; keep in sync when set). */
+  invoice?: string;
   mixStartDate?: string;
   mixEndDate?: string;
   /** Sports Ent Magento client-requested due date (DB: client_requested_mix_due_date). */

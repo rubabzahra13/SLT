@@ -358,9 +358,21 @@ describe("SLT Implementation 2: Magento form-field Collections / Songs", () => {
       ...manual,
       mergedFormOrderId: "form-anthem-1",
     } as Order);
-    assert.ok(
-      !matched.collections.some((r) => r.id === "form"),
-      "matched Magento form → Form order, no Form collection pill"
+    assert.strictEqual(
+      matched.collections.find((r) => r.id === "form")?.state,
+      "green",
+      "Match Orders link turns Form green"
+    );
+
+    const unmatched = getOrderRequirements({
+      ...manual,
+      mergedFormOrderId: undefined,
+      manualOverlapSnapshot: undefined,
+    } as Order);
+    assert.strictEqual(
+      unmatched.collections.find((r) => r.id === "form")?.state,
+      "red",
+      "unmatch turns Form red again"
     );
   });
 
@@ -452,9 +464,34 @@ describe("SLT Implementation 2: Magento form-field Collections / Songs", () => {
       ...manualOrder,
       mergedFormOrderId: "form-auto-1",
     } as Order);
-    assert.ok(
-      !matched.collections.some((r) => r.id === "form"),
-      "matched Magento form → Form order, no Form collection pill"
+    assert.strictEqual(
+      matched.collections.find((r) => r.id === "form")?.state,
+      "green",
+      "Match Orders link turns Form green"
+    );
+
+    const unmatched = getOrderRequirements({
+      ...manualOrder,
+      mergedFormOrderId: undefined,
+      manualOverlapSnapshot: undefined,
+    } as Order);
+    assert.strictEqual(
+      unmatched.collections.find((r) => r.id === "form")?.state,
+      "red",
+      "unmatch turns Form red again"
+    );
+
+    // Matched booking with isManualEntry cleared still shows green Form
+    // (legacy overwrite path wiped the flag but kept mergedFormOrderId).
+    const matchedWithoutFlag = getOrderRequirements({
+      ...manualOrder,
+      isManualEntry: false,
+      mergedFormOrderId: "form-auto-1",
+    } as Order);
+    assert.strictEqual(
+      matchedWithoutFlag.collections.find((r) => r.id === "form")?.state,
+      "green",
+      "mergedFormOrderId alone is enough for green Form"
     );
   });
 
@@ -736,5 +773,59 @@ describe("SLT Implementation 2: Magento form-field Collections / Songs", () => {
     assert.strictEqual(merged.musicTheme, "");
     assert.strictEqual(merged.songListSuggestions, "");
     assert.strictEqual(getFormSongListColumnText(merged), "");
+  });
+
+  it("mergeOrderFormFieldsForRequirements overlays Magento notes after Match", () => {
+    const mtd = {
+      id: "mtd-1",
+      orderId: "manual-1",
+      package: "GAME DAY",
+    } as MTDRecord;
+    const manual = {
+      id: "manual-1",
+      isManualEntry: true,
+      mergedFormOrderId: "form-1",
+      formType: "school-all-star-cheer",
+      cheerFormSubtype: "all-star-cheer",
+      package: "GAME DAY",
+      packageType: "GAME DAY",
+      routineNotes: "",
+      songListSuggestions: "",
+    } as Order;
+    const form = {
+      id: "form-1",
+      isManualEntry: false,
+      mergedIntoManualOrderId: "manual-1",
+      formType: "school-all-star-cheer",
+      cheerFormSubtype: "all-star-cheer",
+      package: "GAME DAY",
+      packageType: "GAME DAY",
+      routineNotes: "keep the stunt hits crisp",
+      songListSuggestions: "Song A\nSong B",
+    } as Order;
+
+    const withoutOverlay = mergeOrderFormFieldsForRequirements(mtd, manual);
+    assert.strictEqual((withoutOverlay as Order).routineNotes, "");
+    assert.equal(
+      getOrderRequirements(withoutOverlay).songsArea.find((r) => r.id === "notes")
+        ?.state,
+      "red"
+    );
+
+    const withOverlay = mergeOrderFormFieldsForRequirements(mtd, manual, [
+      manual,
+      form,
+    ]);
+    assert.strictEqual(
+      (withOverlay as Order).routineNotes,
+      "keep the stunt hits crisp"
+    );
+    assert.strictEqual(
+      (withOverlay as Order).songListSuggestions,
+      "Song A\nSong B"
+    );
+    const songs = getOrderRequirements(withOverlay).songsArea;
+    assert.equal(songs.find((r) => r.id === "notes")?.state, "green");
+    assert.equal(songs.find((r) => r.id === "songs")?.state, "green");
   });
 });

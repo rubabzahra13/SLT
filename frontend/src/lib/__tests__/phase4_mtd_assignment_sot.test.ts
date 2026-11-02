@@ -22,6 +22,11 @@ describe("Phase 4: MTD assignment SoT is Orders", () => {
     assert.equal(patch.package, "SILVER");
   });
 
+  it("invoice board edits mirror onto Order for journey display", () => {
+    const patch = orderPatchFromMTD({ invoice: "INV-778" });
+    assert.equal(patch.invoice, "INV-778");
+  });
+
   it("collection / songs still sync to MTD ops fields", () => {
     const songs = mtdPatchFromOrderField("songListSuggestions", "Song 1");
     assert.equal(songs.haveSongs, "HAVE SONGS");

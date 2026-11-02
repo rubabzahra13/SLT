@@ -150,7 +150,13 @@ const FIELD_GETTERS: Record<string, (order: Order) => string | undefined> = {
     coalesceFieldAliases(o.virocChoreographerName, o.choreographerName),
   virocChoreographerEmail: (o) =>
     coalesceFieldAliases(o.virocChoreographerEmail, o.choreographerEmail),
-  packageType: (o) => o.packageType,
+  packageType: (o) => {
+    // Never show leaked mix length ("TBD 1:00") as Package Type.
+    const raw = String(o.packageType || "").trim();
+    if (!raw) return "";
+    const { tier } = parsePackage(raw);
+    return tier && tier !== "-" ? tier : raw;
+  },
   requestedEditor: (o) =>
     coalesceFieldAliases(o.requestedEditor, o.requestedProducer),
   timeLengthOfMix: (o) => o.timeLengthOfMix,

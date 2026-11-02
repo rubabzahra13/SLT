@@ -6,6 +6,7 @@ import {
   mergeCollectionStateFromOrder,
 } from "../order-staging";
 import { mergeLocalMtdRecordFields } from "../mtd-completion";
+import { mergeIncomingOrderReassignFields } from "../order-reassign";
 import { getOrderDetailSections } from "../order-detail-sections";
 import {
   getOrderAssignmentStatus,
@@ -125,6 +126,111 @@ describe("Orders Tab & Workflow Separation", () => {
     assert.equal(merged.assignedProducer, "CM");
     assert.equal(merged.inMTD, false);
     assert.equal(isPreMTDOrderRecord(merged), true);
+  });
+
+  it("Reassign merge clears stale local producer instead of resurrecting CH", () => {
+    const backendCleared = makeRecord({
+      assignedProducer: null,
+      isReassigned: true,
+      mixStartDate: "",
+      mixEndDate: "",
+    });
+    const staleLocal = makeRecord({
+      assignedProducer: "CH",
+      isReassigned: true,
+      mixStartDate: "2026-09-10",
+      mixEndDate: "2026-09-17",
+    });
+
+    const merged = mergeLocalMtdRecordFields(backendCleared, staleLocal);
+    assert.equal(merged.assignedProducer, null);
+    assert.equal(merged.isReassigned, true);
+    assert.equal(merged.mixStartDate, "");
+  });
+
+  it("MTD merge accepts backend completed reassign (flag cleared + producer)", () => {
+    const backendDone = makeRecord({
+      assignedProducer: "CM",
+      isReassigned: false,
+      mixStartDate: "2026-09-20",
+      mixEndDate: "2026-09-27",
+    });
+    const localAwaiting = makeRecord({
+      assignedProducer: null,
+      isReassigned: true,
+      mixStartDate: "",
+      mixEndDate: "",
+      orderStatus: "Reassign: rush order",
+    });
+    const merged = mergeLocalMtdRecordFields(backendDone, localAwaiting);
+    assert.equal(merged.assignedProducer, "CM");
+    assert.equal(merged.isReassigned, false);
+  });
+
+  it("Incoming order merge keeps local Reassign over stale peer producer", () => {
+    const local = {
+      id: "ord-1",
+      isReassigned: true,
+      assignedProducer: null,
+      mixStartDate: "",
+      mixEndDate: "",
+      orderStatus: "Reassign: rush order",
+      updatedAt: "2026-11-02T14:00:00.000Z",
+    } as unknown as Order;
+    const stalePeer = {
+      id: "ord-1",
+      isReassigned: false,
+      assignedProducer: "CH",
+      mixStartDate: "2026-09-10",
+      mixEndDate: "2026-09-17",
+      orderStatus: "Complete",
+      updatedAt: "2026-11-02T13:00:00.000Z",
+    } as unknown as Order;
+    const fields = mergeIncomingOrderReassignFields(stalePeer, local);
+    assert.equal(fields.isReassigned, true);
+    assert.equal(fields.assignedProducer, null);
+    assert.equal(fields.mixStartDate, "");
+  });
+
+  it("Incoming order merge accepts newer completed reassign", () => {
+    const local = {
+      id: "ord-1",
+      isReassigned: true,
+      assignedProducer: null,
+      mixStartDate: "",
+      orderStatus: "Reassign: rush order",
+      updatedAt: "2026-11-02T14:00:00.000Z",
+    } as unknown as Order;
+    const peerDone = {
+      id: "ord-1",
+      isReassigned: false,
+      assignedProducer: "CM",
+      mixStartDate: "2026-09-20",
+      mixEndDate: "2026-09-27",
+      updatedAt: "2026-11-02T15:00:00.000Z",
+    } as unknown as Order;
+    const fields = mergeIncomingOrderReassignFields(peerDone, local);
+    assert.equal(fields.isReassigned, false);
+    assert.equal(fields.assignedProducer, "CM");
+  });
+
+  it("Order SoT empty assignment wins over stale board producer", () => {
+    const board = makeRecord({
+      assignedProducer: "CH",
+      mixStartDate: "2026-09-10",
+      mixEndDate: "2026-09-17",
+    });
+    const order: Order = {
+      id: "ord-reassign-1",
+      assignedProducer: null,
+      isReassigned: false,
+      editorRequest: "FA",
+      mixStartDate: "",
+      mixEndDate: "",
+    } as Order;
+
+    const merged = mergeCollectionStateFromOrder(board, order);
+    assert.equal(merged.assignedProducer, null);
   });
 
   it("Local inPayroll survives a stale backend/SSE payload missing payroll flags", () => {
@@ -471,6 +577,19 @@ describe("Orders Tab & Workflow Separation", () => {
       "reassign_leave"
     );
     assert.equal(getDisplayAssignedProducer(reassignWithRequested), null);
+
+    // Stale producer key must not hide a reassign row from the Reassign tab.
+    const reassignWithStaleProducer = makeRecord({
+      programName: "Beta Academy",
+      isReassigned: true,
+      orderStatus: "Reassign: rush order",
+      assignedProducer: "CH",
+      editorRequest: "FA",
+    });
+    assert.equal(
+      getOrderAssignmentStatus(reassignWithStaleProducer),
+      "reassign_rush"
+    );
 
     const requestedOnly = makeRecord({
       assignedProducer: null,

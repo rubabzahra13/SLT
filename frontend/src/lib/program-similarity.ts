@@ -1,12 +1,14 @@
-/** Normalize program labels for fuzzy matching. */
+/**
+ * Normalize program labels for fuzzy matching.
+ * Spacing is ignored: "Thunder Elite" and "ThunderElite" both → "thunderelite".
+ */
 export function normalizeProgramName(name: string | null | undefined): string {
   return String(name || "")
     .toLowerCase()
     .normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim()
-    .replace(/\s+/g, " ");
+    .replace(/[^a-z0-9]+/g, "")
+    .trim();
 }
 
 function levenshtein(a: string, b: string): number {

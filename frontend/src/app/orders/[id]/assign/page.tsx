@@ -9,6 +9,9 @@ import {
 } from "@/components/mtd/AssignEditorModal";
 import { useAppState } from "@/context/AppStateContext";
 import { orderToMTDRecord } from "@/lib/order-form";
+import { findLinkedOrder } from "@/lib/editor-assignment";
+import { mergeCollectionStateFromOrder } from "@/lib/order-staging";
+import { safeReturnHref } from "@/lib/nav-return";
 
 function OrderAssignPageContent({ id }: { id: string }) {
   const searchParams = useSearchParams();
@@ -22,19 +25,23 @@ function OrderAssignPageContent({ id }: { id: string }) {
   } = useAppState();
 
   const returnHref = useMemo(() => {
-    const raw = searchParams.get("return");
-    if (raw && raw.startsWith("/")) return raw;
-    return `/orders/${id}`;
-  }, [searchParams, id]);
+    return safeReturnHref(searchParams.get("return"), "/orders") || "/orders";
+  }, [searchParams]);
 
   const record = useMemo(() => {
     const directMatch = mtdRecords.find(
       (r) => r.id === id || r.orderId === id || r.uuid === id || r.legacyId === id
     );
+    const orderMatch =
+      allOrders.find(
+        (o) => o.id === id || o.uuid === id || o.legacyId === id
+      ) ||
+      (directMatch ? findLinkedOrder(directMatch, allOrders) : undefined);
+    // Order SoT for assignment: empty Order producer wins over stale MTD CH.
+    if (directMatch && orderMatch) {
+      return mergeCollectionStateFromOrder(directMatch, orderMatch);
+    }
     if (directMatch) return directMatch;
-    const orderMatch = allOrders.find(
-      (o) => o.id === id || o.uuid === id || o.legacyId === id
-    );
     if (orderMatch) return orderToMTDRecord(orderMatch);
     return null;
   }, [mtdRecords, allOrders, id]);
@@ -68,7 +75,7 @@ function OrderAssignPageContent({ id }: { id: string }) {
       <div className="px-6 py-10 lg:px-8">
         <p className="text-[13px] text-brand-ink-secondary">Order not found.</p>
         <Link
-          href="/orders"
+          href={returnHref}
           className="mt-3 inline-block text-[13px] font-semibold text-brand-info"
         >
           ← Back to orders

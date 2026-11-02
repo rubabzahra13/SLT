@@ -1,7 +1,26 @@
 import { getOrderDetailSections } from "@/lib/order-detail-sections";
 import { rawFieldValue } from "@/lib/order-detail-fields";
 import { hasMeaningfulFieldValue } from "@/lib/empty-field-tokens";
+import {
+  overlayMergedFormForDisplay,
+  resolveManualFormPair,
+} from "@/lib/manual-form-merge";
+import { getFormSongListColumnText } from "@/lib/order-requirements";
 import type { Order } from "@/types";
+
+const SONG_FORM_FIELD_KEYS = new Set([
+  "songListSuggestions",
+  "powerMusicCovers",
+  "unleashTheBeatsCovers",
+  "customerSongs",
+]);
+
+function songFieldRaw(order: Order, key: string): string {
+  if (SONG_FORM_FIELD_KEYS.has(key)) {
+    return getFormSongListColumnText(order) || rawFieldValue(order, key);
+  }
+  return rawFieldValue(order, key);
+}
 
 /** Keep in sync with ADD_ORDER_MANUAL_FIELD_KEYS in add-order-mixes.ts. */
 const MANUAL_SLIM_MTD_FIELD_KEYS = new Set<string>([
@@ -211,6 +230,19 @@ function fieldHasConditionalPass(order: Order, key: string): boolean {
 function isEmptyFormValue(order: Order, key: string): boolean {
   if (isOptionalOrderFormField(key, order)) return false;
   if (fieldHasConditionalPass(order, key)) return false;
+  // Song list SoT matches the Songs pill: Cheer often stores the typed list in
+  // musicTheme (e.g. "m · (BMI)") while songListSuggestions stays "".
+  // rawFieldValue short-circuits on explicit "" and misses that fallback.
+  if (
+    key === "songListSuggestions" ||
+    key === "powerMusicCovers" ||
+    key === "unleashTheBeatsCovers" ||
+    key === "customerSongs"
+  ) {
+    return !hasMeaningfulFieldValue(getFormSongListColumnText(order), {
+      fieldKey: key,
+    });
+  }
   const raw = rawFieldValue(order, key);
   // Shared sentinel dictionary (none, N/A, TBD, null, select…, …).
   // Choreographer fields may use N/A when Magento says "put N/A".
@@ -230,6 +262,51 @@ export type OrderFormMtdGap = {
 };
 
 /**
+ * Final order values after Match for MTD / Form UI.
+ * Magento wins on filled form fields; blank Magento keeps manual.
+ * Booking-row assignment, invoice, dates, and the manual overlap snapshot
+ * stay on the manual slot so Split can restore pre-match manual values.
+ */
+export function resolveFinalMatchedOrder(
+  order: Order,
+  allOrders: Order[]
+): Order {
+  const pair = resolveManualFormPair(order, allOrders);
+  if (!pair) {
+    return overlayMergedFormForDisplay(order, allOrders);
+  }
+
+  const preview = previewMatchFormWinsOrder(pair.manual, pair.form);
+  return {
+    ...preview,
+    id: pair.manual.id,
+    uuid: pair.manual.uuid,
+    legacyId: pair.manual.legacyId,
+    isManualEntry: true,
+    mergedFormOrderId:
+      pair.manual.mergedFormOrderId ||
+      pair.form.id ||
+      pair.form.uuid ||
+      pair.form.legacyId,
+    manualOverlapSnapshot: pair.manual.manualOverlapSnapshot ?? null,
+    assignedProducer: pair.manual.assignedProducer,
+    invoice: pair.manual.invoice,
+    mixStartDate: pair.manual.mixStartDate,
+    mixEndDate: pair.manual.mixEndDate,
+    isReassigned: pair.manual.isReassigned,
+    eightCountSheet: pair.manual.eightCountSheet || preview.eightCountSheet,
+    haveSongs: pair.manual.haveSongs || preview.haveSongs,
+    collectionStates: {
+      ...(preview.collectionStates || {}),
+      ...(pair.manual.collectionStates || {}),
+    },
+    missingDataEmailSentAt: pair.manual.missingDataEmailSentAt,
+    producerEmailSentAt: pair.manual.producerEmailSentAt,
+    producerEmailSentTo: pair.manual.producerEmailSentTo,
+  };
+}
+
+/**
  * Empty form / table fields that should block Move to MTD.
  * Coupon, invoice, howDidYouFindOut, and dance Power/Unleash cover boxes
  * may stay empty. Youth Rec "Email Address" is optional.
@@ -237,16 +314,24 @@ export type OrderFormMtdGap = {
  * Manual School Anthem stays blocked until a Magento form is matched.
  */
 export function getOrderFormFieldsBlockingMtd(
-  order: Order
+  order: Order,
+  allOrders?: Order[]
 ): OrderFormMtdGap[] {
+  // After Match, gate against finalized Magento-wins values (manual snapshot
+  // kept for Split only — not what Move to MTD should re-ask for).
+  const source =
+    allOrders && allOrders.length > 0
+      ? resolveFinalMatchedOrder(order, allOrders)
+      : order;
+
   const gaps: OrderFormMtdGap[] = [];
   const seen = new Set<string>();
 
   // Manual School Anthem: wait for Magento match before MTD (form is SoT).
   if (
-    isSchoolAnthemOrder(order) &&
-    order.isManualEntry &&
-    !orderHasMatchedMagentoForm(order)
+    isSchoolAnthemOrder(source) &&
+    source.isManualEntry &&
+    !orderHasMatchedMagentoForm(source)
   ) {
     gaps.push({
       key: "mergedFormOrderId",
@@ -258,9 +343,9 @@ export function getOrderFormFieldsBlockingMtd(
   // Unmatched manuals: only slim Add Order fields can block MTD. Magento fills
   // city/zip/affiliate/songs after Match (old full-form gate was wrong here).
   const unmatchedManual = Boolean(
-    order.isManualEntry && !order.mergedFormOrderId
+    source.isManualEntry && !source.mergedFormOrderId
   );
-  const sections = getOrderDetailSections(order);
+  const sections = getOrderDetailSections(source);
 
   for (const section of sections) {
     for (const field of section.fields) {
@@ -269,7 +354,7 @@ export function getOrderFormFieldsBlockingMtd(
       if (unmatchedManual && !MANUAL_SLIM_MTD_FIELD_KEYS.has(field.key)) {
         continue;
       }
-      if (!isEmptyFormValue(order, field.key)) continue;
+      if (!isEmptyFormValue(source, field.key)) continue;
       gaps.push({ key: field.key, label: field.label });
     }
   }
@@ -289,6 +374,58 @@ export function formatOrderFormMtdBlockReason(gaps: OrderFormMtdGap[]): string {
     "Fill missing data before moving to MTD:",
     shown.join(", ") + (extra > 0 ? ` (+${extra} more)` : ""),
   ].join("\n");
+}
+
+/**
+ * Post-match preview: Magento wins when filled; blank Magento keeps manual.
+ * Used to decide which required fields would still be empty after Confirm match,
+ * and as the finalized value set Move to MTD / Form read after Match.
+ */
+export function previewMatchFormWinsOrder(manual: Order, form: Order): Order {
+  const sections = getOrderDetailSections(form);
+  const preview: Order = {
+    ...manual,
+    ...form,
+    isManualEntry: false,
+    mergedFormOrderId: form.id || form.uuid || form.legacyId || "match-preview",
+  };
+
+  for (const section of sections) {
+    for (const field of section.fields) {
+      const formRaw = songFieldRaw(form, field.key);
+      const manualRaw = songFieldRaw(manual, field.key);
+      const formHas = hasMeaningfulFieldValue(formRaw, {
+        fieldKey: field.key,
+      });
+      const manualHas = hasMeaningfulFieldValue(manualRaw, {
+        fieldKey: field.key,
+      });
+      const next = formHas ? formRaw : manualHas ? manualRaw : "";
+      (preview as Record<string, unknown>)[field.key] = next;
+    }
+  }
+
+  return preview;
+}
+
+/**
+ * Required Magento form fields that are empty on both Manual and Magento
+ * (so Confirm match would leave them blank). Coupon / how-found stay optional.
+ */
+export function getMatchBlockingMissingFields(
+  manual: Order,
+  form: Order
+): OrderFormMtdGap[] {
+  return getOrderFormFieldsBlockingMtd(
+    previewMatchFormWinsOrder(manual, form)
+  );
+}
+
+export function formatMatchMissingFieldsReason(
+  gaps: OrderFormMtdGap[]
+): string {
+  if (gaps.length === 0) return "";
+  return "Fill the highlighted fields before matching. They are mandatory on the Magento form but missing here.";
 }
 
 /** Marketing-only Magento fields: alone they do not unlock Add New Order save. */

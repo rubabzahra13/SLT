@@ -11,6 +11,7 @@ import {
   buildSplitPreviewRows,
   mergeFormIntoManualOrder,
   mergeFormWinsIntoManualOrder,
+  overwriteManualWithFormPatches,
   reconcileUnlinkedManualFormPairs,
   repairCorruptCrossCategoryFormMerge,
   resolveManualFormPair,
@@ -60,8 +61,18 @@ describe("program name similarity", () => {
   it("normalizes case, punctuation, and whitespace", () => {
     assert.equal(
       normalizeProgramName("  Thunder-Elite!! "),
-      "thunder elite"
+      "thunderelite"
     );
+  });
+
+  it("treats spacing differences as the same name", () => {
+    assert.equal(programNameSimilarity("ming", "mi ng"), 1);
+    assert.equal(programNameSimilarity("Thunder Elite", "ThunderElite"), 1);
+    assert.equal(
+      programNameSimilarity("Thunder Elite Cheer", "ThunderEliteCheer"),
+      1
+    );
+    assert.ok(programNamesMatch("MING", "m i n g"));
   });
 
   it("scores exact and near matches at ≥ 90%", () => {
@@ -237,6 +248,52 @@ describe("manual ↔ form merge", () => {
     assert.equal(isManualOrderRecord(rows[0], [linkedManual, linkedForm]), false);
     assert.equal(rows[0].songListSuggestions, "Song A");
     assert.equal(rows[0].timeLengthOfMix, "2:00");
+
+    // After MTD → Orders, a stale Manual schedule flag must not beat the match link.
+    const staleMtdRow = {
+      ...rows[0],
+      isManualScheduleEntry: true,
+      mergedFormOrderId: undefined,
+      manualOverlapSnapshot: undefined,
+    };
+    assert.equal(
+      isManualOrderRecord(staleMtdRow, [linkedManual, linkedForm]),
+      false
+    );
+
+    // Manual lost mergedFormOrderId but absorbed Magento form still points here.
+    const unlinkedManual = {
+      ...manual,
+      mergedFormOrderId: undefined,
+      manualOverlapSnapshot: undefined,
+    };
+    const staleBoard = {
+      id: "manual-1",
+      orderId: "manual-1",
+      isManualScheduleEntry: true,
+      programName: "Victory Cheer",
+      package: "SILVER 2:00",
+      assignedProducer: null,
+      section: "CHEERLEADING MUSIC",
+      category: "Cheer",
+      editorRequest: "FA",
+      contactName: "Coach",
+      editorInitials: "Coach",
+      musicTheme: "",
+      price: 0,
+      priceCompliance: "compliant" as const,
+      invoice: "",
+      mixStartDate: "",
+      eightCountSheet: "",
+      haveSongs: "",
+      needsAttention: false,
+      status: "active" as const,
+      inMTD: false,
+    };
+    assert.equal(
+      isManualOrderRecord(staleBoard, [unlinkedManual, linkedForm]),
+      false
+    );
 
     const enriched = enrichOrderWithMatchingForm(linkedManual, [
       linkedManual,
@@ -689,6 +746,36 @@ describe("manual ↔ form merge", () => {
     const pair = resolveManualFormPair(linkedManual, orders);
     assert.ok(pair);
     assert.equal(pair!.form.id, "f-se");
+  });
+
+  it("overwriteManualWithFormPatches keeps isManualEntry on the booking row", () => {
+    const manual = baseOrder({
+      id: "m1",
+      isManualEntry: true,
+      programName: "Thunder Elite",
+      gymName: "Thunder Elite",
+      city: "Manual City",
+      assignedProducer: "BE",
+      invoice: "INV-BEFORE-MATCH",
+    });
+    const form = baseOrder({
+      id: "f1",
+      isManualEntry: false,
+      programName: "Thunder Elite",
+      gymName: "Thunder Elite",
+      city: "Form City",
+      assignedProducer: null,
+      invoice: "",
+    });
+    const { manualPatch, formPatch } = overwriteManualWithFormPatches(
+      manual,
+      form
+    );
+    assert.equal(manualPatch.isManualEntry, true);
+    assert.equal(manualPatch.mergedFormOrderId, "f1");
+    assert.equal(manualPatch.assignedProducer, "BE");
+    assert.equal(manualPatch.invoice, "INV-BEFORE-MATCH");
+    assert.equal(formPatch.mergedIntoManualOrderId, "m1");
   });
 
   it("reconcileUnlinkedManualFormPairs is idempotent for already-linked pairs", () => {

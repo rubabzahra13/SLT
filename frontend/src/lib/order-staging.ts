@@ -7,7 +7,25 @@ import {
 import { getOrderIdentityName } from "@/lib/order-detail-sections";
 import { resolveStoredOrEngineCustomerPrice } from "@/lib/order-package-price";
 import { resolveOrderPriceCompliance } from "@/lib/pricing";
+import { pickInvoice } from "@/lib/invoice";
 import type { MTDRecord, Order } from "@/types";
+
+function orderLooksMatchedToMagento(
+  order:
+    | Pick<
+        Order,
+        | "mergedFormOrderId"
+        | "manualOverlapSnapshot"
+        | "mergedIntoManualOrderId"
+      >
+    | null
+    | undefined
+): boolean {
+  if (!order) return false;
+  if (order.mergedFormOrderId || order.mergedIntoManualOrderId) return true;
+  const snap = order.manualOverlapSnapshot;
+  return Boolean(snap && Object.keys(snap).length > 0);
+}
 
 /** HAVE/NEED CS only: form Yes/No send-intent must not populate received_eight_count_sheet. */
 function collectionCsFromOrder(order: Order): string {
@@ -113,7 +131,7 @@ export function stagingRecordFromOrder(order: Order): MTDRecord {
     finalCustomerPrice: order.finalCustomerPrice ?? null,
     finalCustomerPriceOverridden: Boolean(order.finalCustomerPriceOverridden),
     finalPayrollPrice: order.finalPayrollPrice ?? null,
-    invoice: "",
+    invoice: pickInvoice(order.invoice),
     mixStartDate: order.mixStartDate || "",
     mixEndDate: order.mixEndDate || "",
     // Collection status only: never seed from form Yes/No send-intent.
@@ -201,10 +219,14 @@ export function mergeCollectionStateFromOrder(
   const orderStates =
     order.collectionStates || (order as { collection_states?: Record<string, boolean> }).collection_states;
   const recordStates = record.collectionStates;
-  let nextStates = hasCollectionStates(recordStates)
-    ? recordStates
-    : hasCollectionStates(orderStates)
-      ? orderStates
+  // Merge toggles from both sides; Order keys win when set, else keep MTD.
+  // (After Match, Magento must not drop a manual HAVE CS / Songs toggle.)
+  let nextStates: Record<string, boolean> | null | undefined =
+    hasCollectionStates(recordStates) || hasCollectionStates(orderStates)
+      ? {
+          ...(recordStates || {}),
+          ...(orderStates || {}),
+        }
       : recordStates;
   // Cleared Time Length must drop stale Mix green overrides on staging/MTD rows.
   if (
@@ -287,23 +309,52 @@ export function mergeCollectionStateFromOrder(
       "",
     editorRequest: order.editorRequest || record.editorRequest || "FA",
     // --- Order SoT assignment (Phase 4) ---
-    assignedProducer:
-      order.assignedProducer !== undefined
-        ? order.assignedProducer
-        : record.assignedProducer,
-    mixStartDate:
-      order.mixStartDate !== undefined && order.mixStartDate !== null
-        ? order.mixStartDate || ""
-        : record.mixStartDate || "",
-    mixEndDate:
-      order.mixEndDate !== undefined && order.mixEndDate !== null
-        ? order.mixEndDate || undefined
-        : record.mixEndDate,
-    isReassigned: order.isReassigned ?? record.isReassigned,
+    // Reassign: Order SoT for the flag, but if the board still has the flag and
+    // Order has no producer yet, keep reassign (Move to Orders / merge races).
+    // Never resurrect a stale producer while awaiting reassignment.
+    ...(() => {
+      const orderAssigned = String(order.assignedProducer || "").trim();
+      const isReassigned = Boolean(order.isReassigned)
+        ? true
+        : Boolean(record.isReassigned) && !orderAssigned;
+      if (isReassigned) {
+        return {
+          assignedProducer: null as string | null,
+          mixStartDate: "",
+          mixEndDate: undefined as string | undefined,
+          isReassigned: true,
+        };
+      }
+      // Order SoT: empty Order assignment wins over a stale board producer
+      // (reassign/unassign clears Order; Match must not leave CH locked).
+      return {
+        assignedProducer: orderAssigned || null,
+        mixStartDate:
+          order.mixStartDate !== undefined && order.mixStartDate !== null
+            ? order.mixStartDate || ""
+            : record.mixStartDate || "",
+        mixEndDate:
+          order.mixEndDate !== undefined && order.mixEndDate !== null
+            ? order.mixEndDate || undefined
+            : record.mixEndDate,
+        isReassigned: false,
+      };
+    })(),
+    // Invoice is mtd_records SoT: prefer board value, fall back to Order mirror.
+    // (Order-first pickInvoice trapped the first # and ignored later MTD edits.)
+    invoice: pickInvoice(record.invoice, order.invoice),
     // --- Order SoT collection (Phase 5) ---
-    haveSongs: pickFilled(record.haveSongs, orderHaveSongs) || record.haveSongs,
+    haveSongs:
+      pickFilled(orderHaveSongs, record.haveSongs) ||
+      record.haveSongs ||
+      orderHaveSongs ||
+      "",
+    // Prefer real HAVE/NEED CS from either side (never Magento Yes/No intent).
     eightCountSheet:
-      pickFilled(record.eightCountSheet, orderCs) || record.eightCountSheet,
+      pickFilled(orderCs, collectionCsFromOrder(record as unknown as Order)) ||
+      pickFilled(record.eightCountSheet, orderCs) ||
+      record.eightCountSheet ||
+      "",
     sendingEightCountSheets: pickFilled(
       record.sendingEightCountSheets || record.usingEightCountSheets,
       order.sendingEightCountSheets || order.usingEightCountSheets
@@ -365,9 +416,34 @@ export function mergeCollectionStateFromOrder(
     producerEmailSentTo:
       order.producerEmailSentTo ?? record.producerEmailSentTo,
     needsAttention: order.needsAttention ?? record.needsAttention,
-    // Prefer true from either side: MTD default false must not hide Form pill.
-    isManualScheduleEntry:
-      Boolean(record.isManualScheduleEntry) || Boolean(order.isManualEntry),
+    // Keep match link on the board row so Source stays Form after MTD ↔ Orders.
+    mergedFormOrderId:
+      order.mergedFormOrderId || record.mergedFormOrderId || undefined,
+    manualOverlapSnapshot:
+      order.manualOverlapSnapshot ||
+      record.manualOverlapSnapshot ||
+      undefined,
+    // Matched / Magento bookings are Form — do not keep a stale Manual flag.
+    isManualScheduleEntry: (() => {
+      if (order.isManualEntry === false) return false;
+      if (orderLooksMatchedToMagento(order)) return false;
+      if (
+        orderLooksMatchedToMagento(
+          record as MTDRecord &
+            Pick<
+              Order,
+              | "mergedFormOrderId"
+              | "manualOverlapSnapshot"
+              | "mergedIntoManualOrderId"
+            >
+        )
+      ) {
+        return false;
+      }
+      return (
+        Boolean(record.isManualScheduleEntry) || Boolean(order.isManualEntry)
+      );
+    })(),
   } as MTDRecord;
 }
 

@@ -1,5 +1,5 @@
 import type { MTDRecord, Order } from "@/types";
-import { parsePackage } from "@/lib/package";
+import { packageTierOnly, parsePackage } from "@/lib/package";
 import { rawFieldValue } from "@/lib/order-detail-fields";
 import { getOrderDetailSections } from "@/lib/order-detail-sections";
 import { buildLegacyMusicTheme } from "@/lib/order-form";
@@ -120,6 +120,11 @@ export function orderPatchFromMTD(
   if (patch.priceCompliance !== undefined) {
     orderPatch.priceCompliance = patch.priceCompliance;
   }
+  // Invoice is MTD SoT in DB, but keep a mirror on the Order so Match /
+  // staging / payroll can resolve it when the MTD row is thin.
+  if (patch.invoice !== undefined) {
+    orderPatch.invoice = patch.invoice;
+  }
   // eightCountSheet → received_eight_count_sheet (HAVE CS / NEED CS).
   // Do not copy onto sendingEightCountSheets (Magento Yes/No send-intent).
   if (patch.section !== undefined) {
@@ -216,11 +221,7 @@ export function orderPatchFromOrderField(
     patch.schoolOrganizationName = value;
   }
   if (key === "packageType") {
-    const parsed = parsePackage(value);
-    const tier =
-      parsed.tier && parsed.tier !== "-"
-        ? parsed.tier
-        : value.replace(/\s+\d+:\d{2}\b/g, "").replace(/\s+TBD\b/i, "").trim();
+    const tier = packageTierOnly(value) || value.trim();
     // Store package type as tier only; mix length is a separate field.
     patch.packageType = tier;
     // Cheer packages compose tier + mix length; other forms keep package flat.
@@ -235,11 +236,7 @@ export function orderPatchFromOrderField(
     if (current?.formType === "school-all-star-cheer") {
       const packageSource = current?.packageType || current?.package || "";
       if (packageSource.trim()) {
-        const parsed = parsePackage(packageSource);
-        const tier =
-          parsed.tier && parsed.tier !== "-"
-            ? parsed.tier
-            : packageSource.trim();
+        const tier = packageTierOnly(packageSource) || packageSource.trim();
         patch.packageType = tier;
         patch.package = composePackageLabel(tier, value);
       }
@@ -476,5 +473,28 @@ export function buildLinkedFormSyncPatch(draft: Order): Partial<Order> {
   delete patch.mixEndDate;
   delete patch.status;
   delete patch.orderStatus;
+  return patch;
+}
+
+/**
+ * Only changed order-form section fields (plus alias fan-out). Avoids PATCHing
+ * the entire Order blob on Save, which was slow for full Magento forms.
+ */
+export function buildOrderFormDirtyPatch(
+  original: Order,
+  draft: Order
+): Partial<Order> {
+  const patch: Partial<Order> = {};
+  for (const section of getOrderDetailSections(draft)) {
+    for (const field of section.fields) {
+      const prev = rawFieldValue(original, field.key).trim();
+      const next = rawFieldValue(draft, field.key).trim();
+      if (prev === next) continue;
+      Object.assign(
+        patch,
+        orderPatchFromOrderField(field.key, next, draft)
+      );
+    }
+  }
   return patch;
 }

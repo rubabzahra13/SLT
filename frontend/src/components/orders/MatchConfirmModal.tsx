@@ -1,15 +1,29 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Link2, Loader2, X } from "lucide-react";
+import { Eye, Link2, Loader2, X } from "lucide-react";
 import { useAppState } from "@/context/AppStateContext";
 import {
+  getOrderDetailSections,
   getOrderIdentityName,
   getFormTypeLabel,
 } from "@/lib/order-detail-sections";
+import { rawFieldValue } from "@/lib/order-detail-fields";
 import { buildMatchDiffRows } from "@/lib/manual-form-merge";
+import {
+  formatMatchMissingFieldsReason,
+  getMatchBlockingMissingFields,
+} from "@/lib/order-form-missing";
+import {
+  buildOrderFormDirtyPatch,
+  orderPatchFromOrderField,
+} from "@/lib/mtd-order-sync";
+import { stagingRecordFromOrder } from "@/lib/order-staging";
 import { packageTypeDisplayValue } from "@/components/mtd/PackageTypeField";
+import { OrderFormFieldControl } from "@/components/mtd/OrderFormFieldControl";
+import { OrderFormEditModal } from "@/components/orders/OrderFormEditModal";
+import { fetchOrderApi } from "@/lib/api/orders";
 import type { Order } from "@/types";
 
 type MatchConfirmModalProps = {
@@ -27,43 +41,231 @@ export function MatchConfirmModal({
   onClose,
   onMatched,
 }: MatchConfirmModalProps) {
-  const { matchManualWithMagento, isViewOnly } = useAppState();
+  const {
+    matchManualWithMagento,
+    updateOrder,
+    isViewOnly,
+    producers,
+    discountCodes,
+    allOrders,
+  } = useAppState();
   const [mounted, setMounted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [viewFull, setViewFull] = useState<{
+    order: Order;
+    fullFormFields: boolean;
+  } | null>(null);
+  const [showMissingValidation, setShowMissingValidation] = useState(false);
+  const [validatedMissingKeys, setValidatedMissingKeys] = useState<string[]>(
+    []
+  );
+  /** Magento-only gaps stay in the table after fill so rows don't vanish mid-edit. */
+  const [revealedGapKeys, setRevealedGapKeys] = useState<string[]>([]);
+  const [magentoDraft, setMagentoDraft] = useState<Order | null>(null);
+  const [manualDraft, setManualDraft] = useState<Order | null>(null);
+  const confirmLockRef = useRef(false);
+  const pairKey =
+    magento && manual ? `${magento.id}::${manual.id}` : "";
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
+  // Seed drafts only when the modal opens or the pair changes — not when
+  // updateOrder refreshes live props mid-confirm (that re-enabled the button
+  // and could match twice). Re-fetch so out-of-band API fills aren't stuck as "-".
   useEffect(() => {
-    if (!open) {
+    if (!open || !magento || !manual) {
+      confirmLockRef.current = false;
       setSaving(false);
       setError(null);
+      setShowMissingValidation(false);
+      setValidatedMissingKeys([]);
+      setRevealedGapKeys([]);
+      setViewFull(null);
+      setMagentoDraft(null);
+      setManualDraft(null);
+      return;
     }
-  }, [open]);
+    const magentoId = magento.id;
+    const manualId = manual.id;
+    confirmLockRef.current = false;
+    setSaving(false);
+    setError(null);
+    setShowMissingValidation(false);
+    setValidatedMissingKeys([]);
+    setRevealedGapKeys([]);
+    setViewFull(null);
+    setMagentoDraft({ ...magento });
+    setManualDraft({ ...manual });
+    let cancelled = false;
+    void (async () => {
+      try {
+        const [freshMagento, freshManual] = await Promise.all([
+          fetchOrderApi(magentoId),
+          fetchOrderApi(manualId),
+        ]);
+        if (cancelled) return;
+        setMagentoDraft(freshMagento);
+        setManualDraft(freshManual);
+      } catch {
+        // Keep prop-seeded drafts if the refresh fails.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- pairKey gates identity; ignore live field churn
+  }, [open, pairKey]);
 
+  const fieldMetaByKey = useMemo(() => {
+    if (!magentoDraft) return new Map<string, { multiline: boolean }>();
+    const map = new Map<string, { multiline: boolean }>();
+    for (const section of getOrderDetailSections(magentoDraft)) {
+      for (const field of section.fields) {
+        map.set(field.key, { multiline: Boolean(field.multiline) });
+      }
+    }
+    return map;
+  }, [magentoDraft]);
+
+  const viewFullRecord = useMemo(
+    () => (viewFull ? stagingRecordFromOrder(viewFull.order) : null),
+    [viewFull]
+  );
+
+  const missingRequired = useMemo(() => {
+    if (!magentoDraft || !manualDraft) return [];
+    return getMatchBlockingMissingFields(manualDraft, magentoDraft);
+  }, [magentoDraft, manualDraft]);
+
+  const fieldLabelByKey = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const gap of missingRequired) map.set(gap.key, gap.label);
+    if (!magentoDraft) return map;
+    for (const section of getOrderDetailSections(magentoDraft)) {
+      for (const field of section.fields) {
+        if (!map.has(field.key)) map.set(field.key, field.label);
+      }
+    }
+    return map;
+  }, [magentoDraft, missingRequired]);
+
+  // Slim manuals hide Magento-only fields from the comparison — but those same
+  // fields still block Confirm match when empty on both sides. Append them so
+  // admins can fill the gate without hunting through View full.
   const diffRows = useMemo(() => {
-    if (!magento || !manual) return [];
-    return buildMatchDiffRows(manual, magento);
-  }, [magento, manual]);
+    if (!magentoDraft || !manualDraft) return [];
+    const base = buildMatchDiffRows(manualDraft, magentoDraft);
+    const seen = new Set(base.map((row) => row.key));
+    const extras = revealedGapKeys
+      .filter((key) => !seen.has(key))
+      .map((key) => {
+        const manualRaw = rawFieldValue(manualDraft, key).trim();
+        const formRaw = rawFieldValue(magentoDraft, key).trim();
+        return {
+          key,
+          label: fieldLabelByKey.get(key) || key,
+          manualValue: manualRaw || "-",
+          formValue: formRaw || "-",
+          differs: false,
+          willOverwrite: Boolean(formRaw) && formRaw !== manualRaw,
+        };
+      });
+    return extras.length > 0 ? [...base, ...extras] : base;
+  }, [
+    magentoDraft,
+    manualDraft,
+    revealedGapKeys,
+    fieldLabelByKey,
+  ]);
 
-  if (!mounted || !open || !magento || !manual) return null;
+  useEffect(() => {
+    if (missingRequired.length === 0) {
+      setShowMissingValidation(false);
+      setValidatedMissingKeys([]);
+    }
+  }, [missingRequired.length]);
+
+  const missingRequiredKeys = useMemo(
+    () => new Set(missingRequired.map((gap) => gap.key)),
+    [missingRequired]
+  );
+
+  const revealedGapKeySet = useMemo(
+    () => new Set(revealedGapKeys),
+    [revealedGapKeys]
+  );
+
+  const enterValueKeys = useMemo(
+    () => new Set(validatedMissingKeys),
+    [validatedMissingKeys]
+  );
+
+  const matchBlockedReason = useMemo(
+    () => formatMatchMissingFieldsReason(missingRequired),
+    [missingRequired]
+  );
+
+  const handleEnterValue = useCallback((key: string, value: string) => {
+    // Magento is SoT on match; filling here clears the both-empty gap.
+    setMagentoDraft((prev) => {
+      if (!prev) return prev;
+      return { ...prev, ...orderPatchFromOrderField(key, value, prev) };
+    });
+  }, []);
+
+  if (!mounted || !open || !magento || !manual || !magentoDraft || !manualDraft) {
+    return null;
+  }
 
   const magentoName =
-    getOrderIdentityName(magento).trim() || magento.programName || "Magento form";
+    getOrderIdentityName(magentoDraft).trim() ||
+    magentoDraft.programName ||
+    "Magento form";
   const manualName =
-    getOrderIdentityName(manual).trim() || manual.programName || "Manual order";
+    getOrderIdentityName(manualDraft).trim() ||
+    manualDraft.programName ||
+    "Manual order";
 
   const handleConfirm = async () => {
-    if (isViewOnly || saving) return;
+    if (isViewOnly || saving || confirmLockRef.current) return;
+    if (missingRequired.length > 0) {
+      const gapKeys = missingRequired.map((gap) => gap.key);
+      setShowMissingValidation(true);
+      setValidatedMissingKeys(gapKeys);
+      // Keep Magento-only gap rows visible after fill (don't vanish mid-edit).
+      setRevealedGapKeys((prev) => Array.from(new Set([...prev, ...gapKeys])));
+      setError(null);
+      return;
+    }
+    confirmLockRef.current = true;
+    setShowMissingValidation(false);
+    setValidatedMissingKeys([]);
+    setViewFull(null);
     setSaving(true);
     setError(null);
     try {
-      await matchManualWithMagento(manual.id, magento.id);
+      const magentoPatch = buildOrderFormDirtyPatch(magento, magentoDraft);
+      if (Object.keys(magentoPatch).length > 0) {
+        await updateOrder(magento.id, magentoPatch, magento);
+      }
+      const manualPatch = buildOrderFormDirtyPatch(manual, manualDraft);
+      if (Object.keys(manualPatch).length > 0) {
+        await updateOrder(manual.id, manualPatch, manual);
+      }
+      // Pass drafts so Magento notes/songs filled in this modal copy onto the
+      // manual even though updateOrder hasn't refreshed match's order snapshot.
+      await matchManualWithMagento(manual.id, magento.id, {
+        overwrite: true,
+        manualOverride: manualDraft,
+        formOverride: magentoDraft,
+      });
       onMatched?.();
       onClose();
     } catch (err) {
+      confirmLockRef.current = false;
       setError(
         err instanceof Error ? err.message : "Could not match these orders."
       );
@@ -71,7 +273,9 @@ export function MatchConfirmModal({
     }
   };
 
-  return createPortal(
+  return (
+    <>
+    {createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <div
         className="absolute inset-0 bg-black/40"
@@ -81,7 +285,7 @@ export function MatchConfirmModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="match-confirm-title"
-        className="relative flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-[22px] bg-brand-elevated shadow-[0_24px_80px_rgba(0,0,0,0.28)]"
+        className="relative flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-[22px] bg-brand-elevated shadow-[0_24px_80px_rgba(0,0,0,0.28)]"
       >
         <div className="flex shrink-0 items-start justify-between gap-3 border-b border-brand-line/40 px-5 py-4">
           <div className="flex items-start gap-3">
@@ -113,32 +317,74 @@ export function MatchConfirmModal({
         <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-4">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="rounded-xl border border-brand-line/50 bg-white p-3">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-brand-ink-tertiary">
-                Magento form
-              </p>
-              <p className="mt-1 text-[13px] font-semibold text-brand-ink">
-                {magentoName}
-              </p>
-              <p className="mt-0.5 text-[11px] text-brand-ink-secondary">
-                {getFormTypeLabel(magento.formType)}
-                {magento.packageType
-                  ? ` · ${packageTypeDisplayValue(magento.packageType)}`
-                  : ""}
-              </p>
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-brand-ink-tertiary">
+                    Magento form
+                  </p>
+                  <p className="mt-1 text-[13px] font-semibold text-brand-ink">
+                    {magentoName}
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-brand-ink-secondary">
+                    {getFormTypeLabel(magentoDraft.formType)}
+                    {magentoDraft.packageType
+                      ? ` · ${packageTypeDisplayValue(magentoDraft.packageType)}`
+                      : ""}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => {
+                    if (saving) return;
+                    setViewFull({
+                      order: magentoDraft,
+                      fullFormFields: true,
+                    });
+                  }}
+                  className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full border border-brand-line/60 bg-white px-2.5 text-[11px] font-semibold text-brand-ink-secondary shadow-sm transition hover:border-brand-line hover:bg-brand-bg hover:text-brand-ink disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-brand-line/60 disabled:hover:bg-white disabled:hover:text-brand-ink-secondary"
+                  title="View full Magento form"
+                  aria-label={`View full ${magentoName}`}
+                >
+                  <Eye className="h-3.5 w-3.5" strokeWidth={2} />
+                  View full
+                </button>
+              </div>
             </div>
             <div className="rounded-xl border border-brand-line/50 bg-white p-3">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-brand-ink-tertiary">
-                Manual order
-              </p>
-              <p className="mt-1 text-[13px] font-semibold text-brand-ink">
-                {manualName}
-              </p>
-              <p className="mt-0.5 text-[11px] text-brand-ink-secondary">
-                {getFormTypeLabel(manual.formType)}
-                {manual.packageType
-                  ? ` · ${packageTypeDisplayValue(manual.packageType)}`
-                  : ""}
-              </p>
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-brand-ink-tertiary">
+                    Manual order
+                  </p>
+                  <p className="mt-1 text-[13px] font-semibold text-brand-ink">
+                    {manualName}
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-brand-ink-secondary">
+                    {getFormTypeLabel(manualDraft.formType)}
+                    {manualDraft.packageType
+                      ? ` · ${packageTypeDisplayValue(manualDraft.packageType)}`
+                      : ""}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => {
+                    if (saving) return;
+                    setViewFull({
+                      order: manualDraft,
+                      fullFormFields: false,
+                    });
+                  }}
+                  className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full border border-brand-line/60 bg-white px-2.5 text-[11px] font-semibold text-brand-ink-secondary shadow-sm transition hover:border-brand-line hover:bg-brand-bg hover:text-brand-ink disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-brand-line/60 disabled:hover:bg-white disabled:hover:text-brand-ink-secondary"
+                  title="View full manual order"
+                  aria-label={`View full ${manualName}`}
+                >
+                  <Eye className="h-3.5 w-3.5" strokeWidth={2} />
+                  View full
+                </button>
+              </div>
             </div>
           </div>
 
@@ -146,66 +392,114 @@ export function MatchConfirmModal({
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-brand-line/40 px-3 py-2">
               <div>
                 <p className="text-[11px] font-bold uppercase tracking-wider text-brand-ink-tertiary">
-                  Form fields
+                  Field comparison
                 </p>
                 <p className="text-[11px] text-brand-ink-secondary">
-                  All New Order / Magento fields for this form
+                  Manual vs Magento
                   {diffRows.filter((r) => r.willOverwrite).length > 0
-                    ? ` · ${diffRows.filter((r) => r.willOverwrite).length} overwrite`
+                    ? ` · ${diffRows.filter((r) => r.willOverwrite).length} Magento updates`
                     : ""}
                 </p>
               </div>
-              <span className="text-[11px] font-semibold tabular-nums text-brand-ink-secondary">
-                {diffRows.length}
-              </span>
             </div>
             {diffRows.length === 0 ? (
               <p className="px-3 py-4 text-[12px] text-brand-ink-secondary">
                 No form fields for this category.
               </p>
             ) : (
-              <div className="max-h-[320px] overflow-y-auto">
-                <table className="w-full text-left text-[12px]">
+              <div className="max-h-[min(420px,50vh)] overflow-y-auto">
+                {/* table-fixed + max-w-0 on value cols: long SoftSelect labels
+                    otherwise force the cell wider/taller (td min-width:auto).
+                    Magento column is widest so enter-value placeholders stay readable. */}
+                <table className="w-full table-fixed text-left text-[12px]">
                   <thead className="sticky top-0 bg-brand-bg/95 text-[10px] font-bold uppercase tracking-wider text-brand-ink-tertiary">
                     <tr>
-                      <th className="px-3 py-2 font-bold">Field</th>
-                      <th className="px-3 py-2 font-bold">Manual</th>
-                      <th className="px-3 py-2 font-bold">Magento</th>
+                      <th className="w-[24%] px-3 py-2 font-bold">Field</th>
+                      <th className="w-[28%] px-3 py-2 font-bold">Manual</th>
+                      <th className="w-[48%] px-3 py-2 font-bold">Magento</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {diffRows.map((row) => (
-                      <tr
-                        key={row.key}
-                        className={
-                          row.differs
-                            ? "border-t border-brand-line/30 align-top bg-brand-orange/5"
-                            : "border-t border-brand-line/30 align-top"
-                        }
-                      >
-                        <td className="px-3 py-2 font-medium text-brand-ink">
-                          {row.label}
-                        </td>
-                        <td
+                    {diffRows.map((row) => {
+                      const stillMissing = missingRequiredKeys.has(row.key);
+                      // Editors appear after Confirm match fails validation
+                      // (same as before); revealed keys stay editable after fill.
+                      const showEnterValue =
+                        showMissingValidation &&
+                        (enterValueKeys.has(row.key) ||
+                          revealedGapKeySet.has(row.key));
+                      const multiline =
+                        fieldMetaByKey.get(row.key)?.multiline ?? false;
+                      const canEdit = !isViewOnly && !saving;
+
+                      return (
+                        <tr
+                          key={row.key}
                           className={
-                            row.differs
-                              ? "px-3 py-2 text-amber-900"
-                              : "px-3 py-2 text-brand-ink-secondary"
+                            showEnterValue && stillMissing
+                              ? "border-t border-brand-line/30 align-top bg-rose-50/80"
+                              : showEnterValue
+                                ? "border-t border-brand-line/30 align-top bg-rose-50/35"
+                                : row.differs
+                                  ? "border-t border-brand-line/30 align-top bg-brand-orange/5"
+                                  : "border-t border-brand-line/30 align-top"
                           }
                         >
-                          {row.manualValue}
-                        </td>
-                        <td
-                          className={
-                            row.differs
-                              ? "px-3 py-2 text-sky-800"
-                              : "px-3 py-2 text-brand-ink-secondary"
-                          }
-                        >
-                          {row.formValue}
-                        </td>
-                      </tr>
-                    ))}
+                          <td className="px-3 py-2 font-medium text-brand-ink">
+                            <span className="line-clamp-2 break-words">
+                              {row.label}
+                            </span>
+                            {showEnterValue && stillMissing ? (
+                              <span className="mt-0.5 block text-[10px] font-semibold uppercase tracking-wider text-rose-700">
+                                Required · empty on both
+                              </span>
+                            ) : null}
+                          </td>
+                          <td
+                            className={
+                              row.differs
+                                ? "max-w-0 px-3 py-2 text-amber-900"
+                                : "max-w-0 px-3 py-2 text-brand-ink-secondary"
+                            }
+                          >
+                            <span className="block truncate" title={row.manualValue}>
+                              {row.manualValue}
+                            </span>
+                          </td>
+                          <td
+                            className={
+                              row.differs
+                                ? "max-w-0 px-3 py-2 text-sky-800"
+                                : "max-w-0 px-3 py-2 text-brand-ink-secondary"
+                            }
+                          >
+                            {showEnterValue && canEdit ? (
+                              <OrderFormFieldControl
+                                fieldKey={row.key}
+                                order={magentoDraft}
+                                value={rawFieldValue(magentoDraft, row.key)}
+                                multiline={multiline}
+                                producers={producers}
+                                discountCodes={discountCodes}
+                                compact
+                                emphasized={stillMissing}
+                                readOnly={saving}
+                                onChange={(value) =>
+                                  handleEnterValue(row.key, value)
+                                }
+                              />
+                            ) : (
+                              <span
+                                className="block truncate"
+                                title={row.formValue}
+                              >
+                                {row.formValue}
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -213,13 +507,15 @@ export function MatchConfirmModal({
           </div>
 
           <p className="rounded-lg border border-brand-line/50 bg-brand-bg/70 px-3 py-2.5 text-[12px] leading-relaxed text-brand-ink-secondary">
-            <span className="font-semibold text-brand-ink">Confirm match</span>{" "}
-            overwrites the manual order with Magento values wherever Magento is
-            filled. Fields Magento left blank keep the manual values. If you{" "}
-            <span className="font-semibold text-brand-ink">Split</span> later on
-            Orders, the manual order’s original data comes back as its own row
-            again (while the order is still on Orders).
+            Magento overwrites overlapping fields. Blank Magento fields keep
+            the manual values. Split later restores the original manual row.
           </p>
+
+          {showMissingValidation && matchBlockedReason ? (
+            <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5 text-[12px] leading-relaxed text-rose-800">
+              {matchBlockedReason}
+            </p>
+          ) : null}
 
           {error ? (
             <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[12px] font-medium text-rose-700">
@@ -254,5 +550,20 @@ export function MatchConfirmModal({
       </div>
     </div>,
     document.body
+  )}
+    <OrderFormEditModal
+      open={Boolean(viewFull)}
+      record={viewFullRecord}
+      allOrders={allOrders}
+      fullFormFields={Boolean(viewFull?.fullFormFields)}
+      elevated
+      onClose={() => {
+        setViewFull(null);
+        // Pull any edits made in View full back into the comparison drafts.
+        if (magento) setMagentoDraft({ ...magento });
+        if (manual) setManualDraft({ ...manual });
+      }}
+    />
+    </>
   );
 }

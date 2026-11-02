@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Suspense,
   useCallback,
@@ -61,6 +61,7 @@ import {
   formatOrderFormMtdBlockReason,
   getOrderFormFieldsBlockingMtd,
   orderHasSplitField,
+  resolveFinalMatchedOrder,
 } from "@/lib/order-form-missing";
 import {
   buildRecordPriceSavePatch,
@@ -105,9 +106,17 @@ import {
 } from "@/lib/mtd-filters";
 import { listPreMtdOrderRecords } from "@/lib/order-staging";
 import {
-  canAssignManualDespiteMissingData,
   filterRecordsByOrderSource,
+  isManualOrderRecord,
 } from "@/lib/order-source";
+import {
+  applyTableFilterDefaults,
+  buildOrdersReturnHref,
+  loadOrdersViewState,
+  mergeOrdersViewState,
+  parseOrdersViewFromSearchParams,
+  saveOrdersViewState,
+} from "@/lib/orders-view-state";
 import type {
   CheerFormSubtypeFilter,
   DanceFormSubtypeFilter,
@@ -178,7 +187,6 @@ function OrdersPageContent() {
     DEFAULT_DANCE_SUBTYPE
   );
   const router = useRouter();
-  const pathname = usePathname();
   const searchParams = useSearchParams();
   const assignedParam = searchParams.get("assigned");
   const scheduleParam = searchParams.get("schedule");
@@ -328,6 +336,33 @@ function OrdersPageContent() {
   }, [assignedParam, scheduleParam]);
 
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Restore tabs / range / filters / sort after Assign (or Match) Back.
+  useEffect(() => {
+    const fromUrl = parseOrdersViewFromSearchParams(
+      new URLSearchParams(Array.from(searchParams.entries()))
+    );
+    const fromStore = loadOrdersViewState();
+    // URL wins over session snapshot (Back link carries the exact return qs).
+    const restored = mergeOrdersViewState(fromStore, fromUrl);
+    if (restored.form) setFormState(restored.form);
+    if (restored.cheerSubtype) setCheerSubtypeState(restored.cheerSubtype);
+    if (restored.danceSubtype) setDanceSubtypeState(restored.danceSubtype);
+    if (restored.rangeFilter && restored.rangeFilter !== "flagged") {
+      setRangeFilter(restored.rangeFilter);
+    }
+    if (restored.sourceFilter) setSourceFilter(restored.sourceFilter);
+    if (restored.searchQuery !== undefined) {
+      setSearchQuery(restored.searchQuery);
+    }
+    if (restored.tableFilters) {
+      setTableFilters(applyTableFilterDefaults(restored.tableFilters));
+    }
+    // Only on first mount / when returning with query — not on every keystroke.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+
   const [validationModalRecord, setValidationModalRecord] = useState<MTDRecord | null>(null);
   const [pricingOpen, setPricingOpen] = useState(false);
   const [pricingFocusRecord, setPricingFocusRecord] = useState<MTDRecord | null>(
@@ -511,18 +546,54 @@ function OrdersPageContent() {
   }, [router]);
 
   const goToMatchPage = useCallback(() => {
+    saveOrdersViewState({
+      form,
+      cheerSubtype,
+      danceSubtype,
+      rangeFilter,
+      sourceFilter,
+      searchQuery,
+      tableFilters,
+    });
     router.push("/orders/match");
-  }, [router]);
+  }, [
+    router,
+    form,
+    cheerSubtype,
+    danceSubtype,
+    rangeFilter,
+    sourceFilter,
+    searchQuery,
+    tableFilters,
+  ]);
 
   const openAssignPage = useCallback(
     (recordId: string) => {
-      const query = searchParams.toString();
-      const returnTo = query ? `${pathname}?${query}` : pathname;
+      const viewState = {
+        form,
+        cheerSubtype,
+        danceSubtype,
+        rangeFilter,
+        sourceFilter,
+        searchQuery,
+        tableFilters,
+      };
+      saveOrdersViewState(viewState);
+      const returnTo = buildOrdersReturnHref(viewState);
       router.push(
         `/orders/${recordId}/assign?return=${encodeURIComponent(returnTo)}`
       );
     },
-    [pathname, router, searchParams]
+    [
+      router,
+      form,
+      cheerSubtype,
+      danceSubtype,
+      rangeFilter,
+      sourceFilter,
+      searchQuery,
+      tableFilters,
+    ]
   );
 
   const { isViewOnly } = useAppState();
@@ -535,12 +606,15 @@ function OrdersPageContent() {
       if (isViewOnly) return;
 
       const linkedOrder = findLinkedOrder(rec, allOrders);
-      const reqSource = linkedOrder
-        ? mergeOrderFormFieldsForRequirements(rec, linkedOrder)
+      const finalized = linkedOrder
+        ? resolveFinalMatchedOrder(linkedOrder, allOrders)
+        : null;
+      const reqSource = finalized
+        ? mergeOrderFormFieldsForRequirements(rec, finalized)
         : rec;
       if (
         linkedOrder &&
-        getOrderFormFieldsBlockingMtd(linkedOrder).length > 0
+        getOrderFormFieldsBlockingMtd(linkedOrder, allOrders).length > 0
       ) {
         setValidationModalRecord(rec);
         return;
@@ -576,6 +650,10 @@ function OrdersPageContent() {
         mixStartDate: rec.mixStartDate,
         mixEndDate: rec.mixEndDate,
         assignedProducer: rec.assignedProducer,
+        invoice:
+          (rec.invoice || "").trim() ||
+          (linkedOrder?.invoice || "").trim() ||
+          "",
       });
       // Jump to the MTD tab and highlight the row we just moved.
       router.push(`/mtd?focus=${encodeURIComponent(rec.id)}`);
@@ -861,6 +939,39 @@ function OrdersPageContent() {
             <span className="tabular-nums text-[11px] text-brand-ink-secondary whitespace-nowrap">
               {formatDisplayDateTime(stamp)}
             </span>
+          );
+        },
+      },
+      {
+        key: "orderSource",
+        header: "Source",
+        width: "72px",
+        align: "center" as const,
+        nowrap: true,
+        cellClassName: compactCellClass,
+        headerClassName: compactHeaderClass,
+        render: (rec) => {
+          const isManual = isManualOrderRecord(rec, orderById);
+          const badge = (
+            <span
+              className={clsx(
+                "inline-flex items-center justify-center rounded-full px-2 py-0.5 text-[10px] font-semibold leading-none",
+                isManual
+                  ? "border border-brand-orange/35 bg-brand-orange/10 text-brand-orange-deep"
+                  : "border border-brand-blue/30 bg-brand-blue-soft/70 text-brand-signature"
+              )}
+            >
+              {isManual ? "Manual" : "Form"}
+            </span>
+          );
+          if (!isManual) return badge;
+          return (
+            <HoverTip
+              label="Becomes Form once you match it with a Magento form in Match Orders"
+              placement="top"
+            >
+              {badge}
+            </HoverTip>
           );
         },
       },
@@ -1333,26 +1444,18 @@ function OrdersPageContent() {
         cellClassName: clsx(compactCellClass, "max-w-[130px]"),
         headerClassName: compactHeaderClass,
         render: (rec) => {
-          const isMissingDataRow = rangeFilter === "waiting_for_data" || getOrderStatus(rec).status === "Missing Data";
-          const assigned = getDisplayAssignedProducer(rec);
+          const { needsReassign, reassignReason } = getOrderStatus(rec);
+          const awaitingReassign =
+            needsReassign || Boolean(rec.isReassigned);
+          const assigned = awaitingReassign
+            ? null
+            : getDisplayAssignedProducer(rec);
           const producer = assigned
             ? findProducerByAssignmentKey(assigned, producers)
             : undefined;
-          const { missingCount, needsReassign, reassignReason } =
-            getOrderStatus(rec);
-          // Manual mixes: package filled unlocks Assign even with red collection pills.
-          const allowManualAssign = canAssignManualDespiteMissingData(
-            rec,
-            orderById
-          );
-          const assignBlockedByMissingData =
-            !allowManualAssign && missingCount > 0;
-          const blockAssignCell = !allowManualAssign && isMissingDataRow;
-          const assignBlockedReason = assignBlockedByMissingData
-            ? "Resolve missing data\nbefore assigning"
-            : null;
+          // Assign is always available (missing data does not block).
           const assignLabel =
-            rec.isReassigned ||
+            awaitingReassign ||
             rangeFilter === "reassigned" ||
             rangeFilter === "reassign_leave" ||
             rangeFilter === "reassign_rush"
@@ -1364,18 +1467,16 @@ function OrdersPageContent() {
               : null;
 
           return (
-            <div className={clsx("flex justify-center", blockAssignCell && "opacity-40 pointer-events-none cursor-not-allowed")} onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
               {assigned ? (
                 <button
                   type="button"
-                  disabled={blockAssignCell}
                   onMouseDown={(e) => e.stopPropagation()}
                   onClick={(e) => {
-                    if (blockAssignCell) return;
                     e.stopPropagation();
                     openAssignPage(rec.id);
                   }}
-                  title={blockAssignCell ? "Scheduling disabled in Missing Data" : "Assign producer"}
+                  title="Assign producer"
                   aria-label={`Assign producer for ${assigned}`}
                   className={clsx(
                     clickableChipClass,
@@ -1388,35 +1489,24 @@ function OrdersPageContent() {
                 <div className="flex flex-col items-center gap-1">
                   <HoverTip
                     label={
-                      assignBlockedReason ??
-                      (reassignReasonLabel
+                      reassignReasonLabel
                         ? `${assignLabel}: ${reassignReasonLabel}`
-                        : assignLabel)
+                        : assignLabel
                     }
                     placement="top"
                   >
                     <button
                       type="button"
-                      disabled={assignBlockedByMissingData}
-                      aria-disabled={assignBlockedByMissingData}
                       onMouseDown={(e) => e.stopPropagation()}
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (assignBlockedByMissingData) {
-                          e.preventDefault();
-                          return;
-                        }
                         openAssignPage(rec.id);
                       }}
-                      className={actionButtonClass(
-                        false,
-                        assignBlockedByMissingData
-                      )}
+                      className={actionButtonClass(false, false)}
                       aria-label={
-                        assignBlockedReason ??
-                        (reassignReasonLabel
+                        reassignReasonLabel
                           ? `${assignLabel}: ${reassignReasonLabel}`
-                          : assignLabel)
+                          : assignLabel
                       }
                     >
                       {assignLabel}
@@ -1592,7 +1682,15 @@ function OrdersPageContent() {
         cellClassName: compactCellClass,
         headerClassName: compactHeaderClass,
         render: (rec) => {
-          const { needsReassign, missingCount } = getOrderStatus(rec);
+          // Same SoT as Songs/Notes/Mix Time pills + MTD gate: merge linked Magento.
+          const linkedForMail = findLinkedOrder(rec, allOrders);
+          const finalizedMail = linkedForMail
+            ? resolveFinalMatchedOrder(linkedForMail, allOrders)
+            : null;
+          const reqSource = finalizedMail
+            ? mergeOrderFormFieldsForRequirements(rec, finalizedMail)
+            : rec;
+          const { needsReassign, missingCount } = getOrderStatus(reqSource);
           const blockedByMissingData = missingCount > 0;
           const assignedProducer =
             getDisplayAssignedProducer(rec) ||
@@ -1711,13 +1809,16 @@ function OrdersPageContent() {
         headerClassName: compactHeaderClass,
         render: (rec, index) => {
           const linkedForForm = findLinkedOrder(rec, allOrders);
-          const reqSource = linkedForForm
-            ? mergeOrderFormFieldsForRequirements(rec, linkedForForm)
+          const finalizedForm = linkedForForm
+            ? resolveFinalMatchedOrder(linkedForForm, allOrders)
+            : null;
+          const reqSource = finalizedForm
+            ? mergeOrderFormFieldsForRequirements(rec, finalizedForm)
             : rec;
           const { needsReassign, missingCount } = getOrderStatus(reqSource);
           const blockedByMissingData = missingCount > 0;
           const formMtdGaps = linkedForForm
-            ? getOrderFormFieldsBlockingMtd(linkedForForm)
+            ? getOrderFormFieldsBlockingMtd(linkedForForm, allOrders)
             : [];
           const blockedByFormGaps = formMtdGaps.length > 0;
           const assignedProducer =
@@ -1749,13 +1850,17 @@ function OrdersPageContent() {
             !blockedByMissingData &&
             !blockedByFormGaps &&
             !producerMailSatisfied;
+          const isUnmatchedManual = isManualOrderRecord(rec, allOrders);
           const ready =
+            !isUnmatchedManual &&
             isAssigned &&
             isScheduled &&
             !blockedByMissingData &&
             !blockedByFormGaps &&
             producerMailSatisfied;
-          const mtdBlockedReason = blockedByFormGaps
+          const mtdBlockedReason = isUnmatchedManual
+            ? "Match form order to send"
+            : blockedByFormGaps
             ? formatOrderFormMtdBlockReason(formMtdGaps)
             : blockedByMissingData
             ? "Resolve missing data\nbefore moving to MTD"

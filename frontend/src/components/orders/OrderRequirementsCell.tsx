@@ -5,6 +5,8 @@ import clsx from "clsx";
 import type { MTDRecord, Order } from "@/types";
 import { useAppState } from "@/context/AppStateContext";
 import { findLinkedOrder } from "@/lib/editor-assignment";
+import { findLinkedFormOrderForDisplay } from "@/lib/manual-form-merge";
+import { resolveFinalMatchedOrder } from "@/lib/order-form-missing";
 import {
   getDanceSongsConfirmText,
   getFormNotesText,
@@ -27,6 +29,7 @@ import {
   orderPatchFromOrderField,
 } from "@/lib/mtd-order-sync";
 import { mtdRecordCoversOrder } from "@/lib/order-staging";
+import { isManualSlimFormOrder } from "@/lib/add-order-mixes";
 import { HoverTip } from "@/components/ui/HoverTip";
 import {
   SongsNotesToggleModal,
@@ -41,9 +44,18 @@ function requirementPillTip(
     isWhite: boolean;
     lockedGreen: boolean;
     lockReason?: string | null;
+    /** Unmatched New Order: Songs/Notes come from Magento after Match. */
+    manualSongsNotesLocked?: boolean;
   }
 ): string {
-  const { isGreen, isWhite, lockedGreen, lockReason } = opts;
+  const { isGreen, isWhite, lockedGreen, lockReason, manualSongsNotesLocked } =
+    opts;
+  if (
+    manualSongsNotesLocked &&
+    (item.id === "songs" || item.id === "notes")
+  ) {
+    return `${item.label}: Available after matching a Magento form`;
+  }
   if (item.label === "CS") {
     if (isWhite) {
       return "CS: Not applicable, client did not agree to send 8CS";
@@ -74,8 +86,8 @@ function requirementPillTip(
   }
   if (item.id === "form") {
     return isGreen
-      ? "Form: Matched Magento form (automatic)"
-      : "Form: Waiting for Magento form name match (automatic)";
+      ? "Form: Matched Magento form (Match Orders)"
+      : "Form: Unmatched. Link a Magento form in Match Orders";
   }
   if (isWhite) return `${item.label}: Not applicable`;
   if (lockedGreen) return `${item.label}: Collected. ${lockReason}`;
@@ -87,20 +99,30 @@ export function OrderRequirementPill({
   onToggle,
   disabled = false,
   lockReason,
+  manualSongsNotesLocked = false,
 }: {
   item: OrderRequirementItem;
   onToggle?: (item: OrderRequirementItem) => void;
   disabled?: boolean;
   /** When set, green pills cannot be flipped to red. */
   lockReason?: string | null;
+  /** Unmatched manual: Songs/Notes not on Add Order — disable until Match. */
+  manualSongsNotesLocked?: boolean;
 }) {
   const isGreen = item.state === "green";
   const isRed = item.state === "red";
   const isWhite = item.state === "white";
   const lockedGreen = Boolean(lockReason) && isGreen;
+  const songsNotesLocked =
+    manualSongsNotesLocked &&
+    (item.id === "songs" || item.id === "notes");
 
   const isInteractive =
-    !disabled && !lockedGreen && (isGreen || isRed) && Boolean(onToggle);
+    !disabled &&
+    !songsNotesLocked &&
+    !lockedGreen &&
+    (isGreen || isRed) &&
+    Boolean(onToggle);
 
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -115,6 +137,7 @@ export function OrderRequirementPill({
     isWhite,
     lockedGreen,
     lockReason,
+    manualSongsNotesLocked: songsNotesLocked,
   });
 
   return (
@@ -132,7 +155,8 @@ export function OrderRequirementPill({
             "bg-white text-slate-400 border border-slate-200/80 opacity-85",
           isInteractive
             ? "cursor-pointer hover:brightness-95 active:scale-95"
-            : "cursor-default"
+            : "cursor-default",
+          songsNotesLocked && "opacity-55"
         )}
       >
         <span>{item.label}</span>
@@ -357,13 +381,20 @@ export function OrderRequirementsCell({
     allOrders,
     mtdRecords,
   } = useAppState();
-  const requirementsRecord = useMemo(() => {
-    const linked = findLinkedOrder(record as MTDRecord, allOrders);
-    return mergeOrderFormFieldsForRequirements(record, linked);
-  }, [record, allOrders]);
   const linkedOrder = useMemo(
     () => findLinkedOrder(record as MTDRecord, allOrders),
     [record, allOrders]
+  );
+  const requirementsRecord = useMemo(() => {
+    // Same Magento-wins finals as Move to MTD (manual snapshot kept for Split).
+    const finalized = linkedOrder
+      ? resolveFinalMatchedOrder(linkedOrder, allOrders)
+      : null;
+    return mergeOrderFormFieldsForRequirements(record, finalized);
+  }, [record, linkedOrder, allOrders]);
+  // Songs/Notes are Magento fields — not on Add New Order. Lock until Match.
+  const manualSongsNotesLocked = isManualSlimFormOrder(
+    linkedOrder || (requirementsRecord as Order)
   );
   const reqs = getOrderRequirements(requirementsRecord);
   const items = (
@@ -447,6 +478,7 @@ export function OrderRequirementsCell({
     if (item.id === "form") return;
 
     if (item.id === "songs" || item.id === "notes") {
+      if (manualSongsNotesLocked) return;
       const direction: SongsNotesToggleDirection =
         item.state === "green" ? "to_red" : "to_green";
       // Include placeholder tokens (none, N/A, …) so the amber
@@ -556,10 +588,16 @@ export function OrderRequirementsCell({
       nextText
     );
 
-    // Order is source of truth for song list / notes. Only patch an existing MTD
-    // staging row: never createMTD via updateMTD (that cloned Orders rows).
+    // Magento form is SoT for songs/notes after Match — write there when linked.
+    // Also keep the booking/manual row in sync so pills stay green without overlay.
+    const formPeer = linkedOrder
+      ? findLinkedFormOrderForDisplay(linkedOrder, allOrders)
+      : null;
     if (orderId) {
       void updateOrder(orderId, orderPatch, linkedOrder || undefined);
+    }
+    if (formPeer?.id && formPeer.id !== orderId) {
+      void updateOrder(formPeer.id, orderPatch, formPeer);
     }
     const coveringMtd = resolveCoveringMtd(orderId);
     if (coveringMtd?.id) {
@@ -616,6 +654,7 @@ export function OrderRequirementsCell({
             onToggle={item.id === "form" ? undefined : handleToggle}
             disabled={isViewOnly || item.id === "form"}
             lockReason={reassignLockReason}
+            manualSongsNotesLocked={manualSongsNotesLocked}
           />
         ))}
       </div>

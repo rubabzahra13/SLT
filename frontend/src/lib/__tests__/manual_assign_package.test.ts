@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert";
 import {
   canAssignManualDespiteMissingData,
+  canSetInvoiceOnAssign,
   orderPackageIsFilled,
 } from "../order-source";
 import type { MTDRecord, Order } from "../../types";
@@ -56,7 +57,7 @@ function baseOrder(overrides: Partial<Order> = {}): Order {
   };
 }
 
-describe("manual Assign unlock when package filled", () => {
+describe("manual Assign unlock", () => {
   it("treats empty / TBD package as not filled", () => {
     assert.equal(orderPackageIsFilled(baseRecord({ package: "" })), false);
     assert.equal(orderPackageIsFilled(baseRecord({ package: "TBD" })), false);
@@ -81,9 +82,19 @@ describe("manual Assign unlock when package filled", () => {
     );
   });
 
-  it("allows Assign for manual + package even when collections would be missing", () => {
-    const rec = baseRecord({ package: "SCHOOL ANTHEMS" });
-    assert.equal(canAssignManualDespiteMissingData(rec), true);
+  it("allows Assign for unmatched manuals even with empty package / missing data", () => {
+    assert.equal(
+      canAssignManualDespiteMissingData(baseRecord({ package: "" }), [
+        baseOrder({ package: "", packageType: "" }),
+      ]),
+      true
+    );
+    assert.equal(
+      canAssignManualDespiteMissingData(
+        baseRecord({ package: "SCHOOL ANTHEMS" })
+      ),
+      true
+    );
   });
 
   it("does not unlock Assign for form orders with package but missing data", () => {
@@ -118,12 +129,39 @@ describe("manual Assign unlock when package filled", () => {
     assert.equal(canAssignManualDespiteMissingData(rec, [matched]), false);
   });
 
-  it("keeps Assign locked for manual rows until package is set", () => {
+  it("shows Assign invoice for manuals and matched bookings, not pure Magento forms", () => {
     assert.equal(
-      canAssignManualDespiteMissingData(baseRecord({ package: "" }), [
-        baseOrder({ package: "", packageType: "" }),
+      canSetInvoiceOnAssign(baseRecord(), [baseOrder()]),
+      true,
+      "unmatched manual"
+    );
+    assert.equal(
+      canSetInvoiceOnAssign(baseRecord({ isManualScheduleEntry: false }), [
+        baseOrder({
+          isManualEntry: true,
+          mergedFormOrderId: "form-1",
+        }),
       ]),
-      false
+      true,
+      "matched booking (Source Form)"
+    );
+    assert.equal(
+      canSetInvoiceOnAssign(
+        baseRecord({
+          isManualScheduleEntry: false,
+          formType: "school-all-star-cheer",
+        }),
+        [
+          baseOrder({
+            isManualEntry: false,
+            formType: "school-all-star-cheer",
+            cheerFormSubtype: "all-star-cheer",
+            package: "GOLD 2:00",
+          }),
+        ]
+      ),
+      false,
+      "pure Magento form invoices on MTD only"
     );
   });
 });

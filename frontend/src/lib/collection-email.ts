@@ -10,6 +10,7 @@ import {
   getOrderRequirements,
   mergeOrderFormFieldsForRequirements,
 } from "@/lib/order-requirements";
+import { resolveCustomerSubmissionDeadline } from "@/lib/forward-order-mail";
 import type { MTDRecord, Order } from "@/types";
 
 // ---------------------------------------------------------------------------
@@ -71,6 +72,35 @@ const ITEM_WORDING: Record<string, string> = {
   compliancy: `COMPLIANCY - Please provide the Music Affiliate/compliancy information for this mix.`,
 };
 
+function addDays(date: Date, days: number): Date {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function parseMixStartDate(record: MTDRecord): Date | null {
+  const iso = String(record.mixStartDate || "").trim();
+  if (!iso) return null;
+  const [y, m, d] = iso.split("-").map(Number);
+  if (!y || !m || !d) return null;
+  return new Date(y, m - 1, d);
+}
+
+/** Unmatched Manual / New Order still waiting on Magento form. */
+function isUnmatchedManualCollectionMail(
+  record: MTDRecord,
+  linkedOrder: Order | null | undefined
+): boolean {
+  if (linkedOrder?.isManualEntry && !linkedOrder.mergedFormOrderId) return true;
+  if (
+    record.isManualScheduleEntry &&
+    !(record as MTDRecord & { mergedFormOrderId?: string }).mergedFormOrderId
+  ) {
+    return true;
+  }
+  return false;
+}
+
 // ---------------------------------------------------------------------------
 // Draft Type
 // ---------------------------------------------------------------------------
@@ -118,9 +148,19 @@ export function buildCollectionEmailDraft(
   linkedOrder: Order | null | undefined,
   coachEmail: string
 ): CollectionEmailDraft {
-  const deadline = getNextSunday();
+  const unmatchedManual = isUnmatchedManualCollectionMail(record, linkedOrder);
+  const deadline = unmatchedManual
+    ? resolveCustomerSubmissionDeadline(record)
+    : getNextSunday();
   const deadlineLabel = formatDeadline(deadline);
-  const subject = `Your Mix is Scheduled for Next Week - Action Required by ${deadlineLabel}`;
+  const mixStart = parseMixStartDate(record);
+  const forwardDate = mixStart
+    ? addDays(mixStart, 7)
+    : addDays(deadline, 7);
+  const forwardLabel = formatDeadline(forwardDate);
+  const subject = unmatchedManual
+    ? `Still Waiting on Your Order Form - Action Required by ${deadlineLabel}`
+    : `Your Mix is Scheduled for Next Week - Action Required by ${deadlineLabel}`;
 
   // Same requirements engine as the UI: Form only for unmatched manuals.
   const reqs = getOrderRequirements(
@@ -152,26 +192,33 @@ export function buildCollectionEmailDraft(
     }
   }
 
-  // Deduplicate and map to wording
+  // Deduplicate and map to wording. Manual emails skip the missing-item
+  // checklist (Form orders only).
   const seen = new Set<string>();
   const missingItems: string[] = [];
   let needs8CountPdf = false;
 
-  for (const id of missingIds) {
-    if (seen.has(id)) continue;
-    seen.add(id);
+  if (!unmatchedManual) {
+    for (const id of missingIds) {
+      if (seen.has(id)) continue;
+      seen.add(id);
 
-    const wording = ITEM_WORDING[id];
-    if (wording) {
-      missingItems.push(wording);
-    }
-    if (id === "cs") {
-      needs8CountPdf = true;
+      const wording = ITEM_WORDING[id];
+      if (wording) {
+        missingItems.push(wording);
+      }
+      if (id === "cs") {
+        needs8CountPdf = true;
+      }
     }
   }
 
-  const bodyPlainText = buildPlainText(deadlineLabel, missingItems);
-  const bodyHtml = buildSimpleHtml(subject, deadlineLabel, missingItems);
+  const bodyPlainText = unmatchedManual
+    ? buildManualPlainText(deadlineLabel, forwardLabel)
+    : buildPlainText(deadlineLabel, missingItems);
+  const bodyHtml = unmatchedManual
+    ? buildManualHtml(subject, deadlineLabel, forwardLabel)
+    : buildSimpleHtml(subject, deadlineLabel, missingItems);
 
   return {
     to: coachEmail,
@@ -213,6 +260,18 @@ function buildPlainText(deadline: string, items: string[]): string {
   ].join("\n");
 }
 
+function buildManualPlainText(deadline: string, forwardDate: string): string {
+  return [
+    "Hi there!!!",
+    "",
+    `We're still waiting on your completed order form, and your mix date is arriving. Please submit the form by ${deadline}. If we don't receive it by that date, your mix will be moved forward to ${forwardDate}.`,
+    "",
+    `Please send the completed order form as soon as you can so we can keep your mix on schedule. Thank you so much for choosing us for your music needs-we're excited to work with you!`,
+    "",
+    SIGNATURE,
+  ].join("\n");
+}
+
 // ---------------------------------------------------------------------------
 // Simple plain-style HTML body (no card layout, no colour headers)
 // ---------------------------------------------------------------------------
@@ -236,13 +295,17 @@ function splitItemWording(item: string): [string, string] {
   return [item.slice(0, idx).trim(), item.slice(idx + 3).trim()];
 }
 
-function buildSimpleHtml(subject: string, deadline: string, items: string[]): string {
-  const itemsHtml = items
+function renderItemsHtml(items: string[]): string {
+  return items
     .map((item) => {
       const [label, desc] = splitItemWording(item);
       return `<p style="margin:0 0 12px;"><strong>${escapeHtml(label)}</strong>${desc ? ` - ${escapeHtml(desc)}` : ""}</p>`;
     })
     .join("\n");
+}
+
+function buildSimpleHtml(subject: string, deadline: string, items: string[]): string {
+  const itemsHtml = renderItemsHtml(items);
 
   const signatureLines = SIGNATURE.split("\n")
     .map((line) => escapeHtml(line))
@@ -269,6 +332,38 @@ function buildSimpleHtml(subject: string, deadline: string, items: string[]): st
     <p style="margin:0 0 16px;">All items must be submitted by this date to keep your mix on next week's production schedule. If you're unable to meet the deadline or complete the tasks listed, please let me know as soon as possible. Our schedule is very tight during the busy season, and delays may result in your mix being moved to the end of our calendar. If we're able to shift it back by one week, we'll certainly try-but unfortunately, we can't guarantee availability.</p>
 
     <p style="margin:0 0 24px;">Once everything is received, I'll confirm your invoice and make sure the editor has all the necessary details to move forward. Thank you so much for choosing us for your music needs-we're excited to work with you! Wishing you a fantastic week ahead!</p>
+
+    <p style="margin:0;line-height:1.8;">${signatureLines}</p>
+
+  </div>
+</body>
+</html>`;
+}
+
+function buildManualHtml(
+  subject: string,
+  deadline: string,
+  forwardDate: string
+): string {
+  const signatureLines = SIGNATURE.split("\n")
+    .map((line) => escapeHtml(line))
+    .join("<br>");
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${escapeHtml(subject)}</title>
+</head>
+<body style="margin:0;padding:0;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.65;color:#222222;">
+  <div style="max-width:600px;padding:24px;">
+
+    <p style="margin:0 0 16px;">Hi there!!!</p>
+
+    <p style="margin:0 0 16px;">We're still waiting on your completed order form, and your mix date is arriving. Please submit the form by <strong>${escapeHtml(deadline)}</strong>. If we don't receive it by that date, your mix will be moved forward to <strong>${escapeHtml(forwardDate)}</strong>.</p>
+
+    <p style="margin:0 0 24px;">Please send the completed order form as soon as you can so we can keep your mix on schedule. Thank you so much for choosing us for your music needs-we're excited to work with you!</p>
 
     <p style="margin:0;line-height:1.8;">${signatureLines}</p>
 
