@@ -1827,6 +1827,27 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
                         saved.invoice,
                         r.invoice
                       ),
+                      // Order SoT fields are stripped from mtd API patches —
+                      // keep Move-to-Orders reassign / cleared assignment locally
+                      // so Reassign tab does not flash empty before Order merges.
+                      ...(patch.isReassigned !== undefined
+                        ? { isReassigned: Boolean(patch.isReassigned) }
+                        : {}),
+                      ...(patch.inMTD !== undefined
+                        ? { inMTD: Boolean(patch.inMTD) }
+                        : {}),
+                      ...(patch.orderStatus !== undefined
+                        ? { orderStatus: patch.orderStatus }
+                        : {}),
+                      ...(patch.assignedProducer !== undefined
+                        ? { assignedProducer: patch.assignedProducer }
+                        : {}),
+                      ...(patch.mixStartDate !== undefined
+                        ? { mixStartDate: patch.mixStartDate || "" }
+                        : {}),
+                      ...(patch.mixEndDate !== undefined
+                        ? { mixEndDate: patch.mixEndDate || "" }
+                        : {}),
                     }
                   : r
               )

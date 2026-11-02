@@ -51,9 +51,10 @@ function OrderAssignPageContent({ id }: { id: string }) {
       updateMTD(recordId, {
         editorRequest: result.editorRequest,
         assignedProducer: result.assignedProducer,
-        // Completing reassignment: clear so the row moves to Assigned
+        // Completing reassignment: clear so the row moves to Assigned.
+        // Keep orderStatus (Reassign:*) until producer mail is marked/sent so
+        // mark-as-sent stays available after MTD → Orders returns.
         isReassigned: false,
-        orderStatus: "",
         ...(result.mixStartDate ? { mixStartDate: result.mixStartDate } : {}),
         ...(result.mixEndDate ? { mixEndDate: result.mixEndDate } : {}),
         ...(result.invoice !== undefined ? { invoice: result.invoice } : {}),

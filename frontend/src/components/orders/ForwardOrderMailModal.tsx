@@ -28,6 +28,7 @@ import {
   type ForwardMailField,
 } from "@/lib/forward-order-mail";
 import { findLinkedOrder } from "@/lib/editor-assignment";
+import { orderAllowsProducerMailMarkAsSent } from "@/lib/order-reassign";
 import { producerKeysMatch } from "@/lib/producer-keys";
 import { getGmailStatus, sendGmailEmail } from "@/lib/api/gmail";
 import { ApiClientError } from "@/lib/api/client";
@@ -521,15 +522,15 @@ export function ForwardOrderMailModal({
       lastSentTo &&
       producerKeysMatch(assignedProducerKey, lastSentTo)
   );
-  // Reassign clears producerEmailSentAt but keeps producerEmailSentTo when the
-  // producer is still the same. Mark-as-sent is only for that case (skip a
-  // redundant resend when producer/dates did not change), never first Assign.
+  // Mark-as-sent: same-producer reassign, OR any MTD→Orders reassign return
+  // (rush / leave / …) even after a new producer is assigned. Never first Assign.
   const canMarkProducerAlreadySent =
     !isCustomer &&
     !isViewOnly &&
     !sent &&
     !record.producerEmailSentAt &&
-    sameProducerAsLastSend;
+    Boolean(assignedProducerKey) &&
+    (sameProducerAsLastSend || orderAllowsProducerMailMarkAsSent(record));
 
   function toggleField(key: string) {
     setSelectedKeys((current) =>
@@ -566,6 +567,8 @@ export function ForwardOrderMailModal({
     updateMTD(record.id, {
       producerEmailSentAt: new Date().toISOString(),
       producerEmailSentTo: sentTo,
+      // Clear Reassign:* label once mail is stamped (assign keeps it until then).
+      orderStatus: "",
     });
     setMarkedAlreadySent(true);
     setSent(true);
@@ -606,6 +609,7 @@ export function ForwardOrderMailModal({
         updateMTD(record.id, {
           producerEmailSentAt: new Date().toISOString(),
           producerEmailSentTo: resolveProducerSentTo(),
+          orderStatus: "",
         });
       }
       setSent(true);
@@ -764,9 +768,9 @@ export function ForwardOrderMailModal({
               {canMarkProducerAlreadySent ? (
                 <div className="rounded-xl border border-brand-info/25 bg-brand-info/8 px-3.5 py-3">
                   <p className="text-[12px] leading-relaxed text-brand-ink-secondary">
-                    Reassigned to the same producer with the same dates? Mark
-                    the email as sent without sending again. Required before
-                    moving to MTD.
+                    {orderAllowsProducerMailMarkAsSent(record)
+                      ? "This order returned from MTD for reassign. Mark the producer email as sent without sending again if they already have the details. Required before moving to MTD."
+                      : "Reassigned to the same producer with the same dates? Mark the email as sent without sending again. Required before moving to MTD."}
                   </p>
                   <button
                     type="button"

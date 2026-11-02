@@ -30,7 +30,11 @@ import {
   orderCategoryToProducerCategory,
   recordHasRequestedProducer,
 } from "@/lib/editor-assignment";
-import { getOrderStatus } from "@/lib/order-requirements";
+import {
+  getOrderStatus,
+  ordersRangeTabToFilter,
+} from "@/lib/order-requirements";
+import { titleCase } from "@/lib/data";
 import { parsePendingDeletedProducer } from "@/lib/order-reassign";
 import { resolveMTDFormMeta } from "@/lib/mtd-filters";
 import { normalizeProducerKey, producerKeysMatch } from "@/lib/producer-keys";
@@ -888,6 +892,18 @@ export function AssignEditorModal({
     setDraftMixStartDate("");
     setDraftMixEndDate("");
     setSelectedEditor("");
+    // Assign page is outside the Orders tab watcher — alert here so Back
+    // doesn't look like the row vanished from Assigned.
+    const name =
+      titleCase(activeRecord.programName || "").trim() ||
+      titleCase(activeRecord.contactName || "").trim() ||
+      "Order";
+    live.addAlert({
+      tone: "info",
+      title: "Moved to Not assigned",
+      message: `${name} left Assigned and is now under Not assigned.`,
+      href: `/orders?range=${ordersRangeTabToFilter("Not assigned")}`,
+    });
   }
 
   /**

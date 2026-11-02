@@ -44,9 +44,13 @@ import { formatPrice, titleCase } from "@/lib/data";
 import {
   getOrderAssignmentStatus,
   getOrderRequirements,
+  getOrdersRangeTabLabel,
   getOrderStatus,
   mergeOrderFormFieldsForRequirements,
   ORDER_RESELECTION_REASON_LABEL,
+  orderMatchesOrdersRangeFilter,
+  ordersRangeTabToFilter,
+  type OrdersRangeTabLabel,
 } from "@/lib/order-requirements";
 import { isValidDiscountCode } from "@/lib/discount-codes";
 import {
@@ -186,6 +190,7 @@ function OrdersPageContent() {
     isLoading,
     unseenSuggestedMatchCount,
     markMatchOrdersSeen,
+    addAlert,
   } = useAppState();
 
   const [formState, setFormState] = useState<OrderFormType>(DEFAULT_FORM);
@@ -283,6 +288,14 @@ function OrdersPageContent() {
       );
     }
   }, [rangeParam, router]);
+
+  // Move-to-Orders / deep links: apply source= from the URL (Manual filter hides Form reassigns).
+  useEffect(() => {
+    const source = searchParams.get("source");
+    if (source === "manual" || source === "form" || source === "both") {
+      setSourceFilter(source);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (!formParam) return;
@@ -449,12 +462,9 @@ function OrdersPageContent() {
 
   const needToBeScheduledCount = useMemo(
     () =>
-      categoryFilteredBoard.filter((r) => {
-        if (r.isReassigned) return false;
-        if (getOrderRequirements(r).missingCount > 0) return false;
-        // Complete data = ready to assign (no producer yet)
-        return getOrderAssignmentStatus(r) !== "assigned";
-      }).length,
+      categoryFilteredBoard.filter((r) =>
+        orderMatchesOrdersRangeFilter(r, "need_to_be_scheduled")
+      ).length,
     [categoryFilteredBoard]
   );
 
@@ -462,33 +472,32 @@ function OrdersPageContent() {
 
   const assignedOrdersCount = useMemo(
     () =>
-      categoryFilteredBoard.filter(
-        (r) => getOrderAssignmentStatus(r) === "assigned"
+      categoryFilteredBoard.filter((r) =>
+        orderMatchesOrdersRangeFilter(r, "assigned")
       ).length,
     [categoryFilteredBoard]
   );
 
   const notAssignedOrdersCount = useMemo(
     () =>
-      categoryFilteredBoard.filter(
-        (r) => getOrderAssignmentStatus(r) === "not_assigned"
+      categoryFilteredBoard.filter((r) =>
+        orderMatchesOrdersRangeFilter(r, "not_assigned")
       ).length,
     [categoryFilteredBoard]
   );
 
   const reassignedOrdersCount = useMemo(
     () =>
-      categoryFilteredBoard.filter((r) => {
-        const status = getOrderAssignmentStatus(r);
-        return status === "reassign_leave" || status === "reassign_rush";
-      }).length,
+      categoryFilteredBoard.filter((r) =>
+        orderMatchesOrdersRangeFilter(r, "reassigned")
+      ).length,
     [categoryFilteredBoard]
   );
 
   const waitingForDataCount = useMemo(
     () =>
-      categoryFilteredBoard.filter(
-        (r) => getOrderRequirements(r).missingCount > 0
+      categoryFilteredBoard.filter((r) =>
+        orderMatchesOrdersRangeFilter(r, "waiting_for_data")
       ).length,
     [categoryFilteredBoard]
   );
@@ -502,31 +511,49 @@ function OrdersPageContent() {
     [allOrders]
   );
 
-  const matchesRangeFilter = useCallback(
-    (rec: MTDRecord) => {
-      if (rangeFilter === "all") return true;
-      if (rangeFilter === "assigned")
-        return getOrderAssignmentStatus(rec) === "assigned";
-      if (rangeFilter === "not_assigned")
-        return getOrderAssignmentStatus(rec) === "not_assigned";
+  // Alert when a row changes Orders status tab so it doesn't look like it vanished.
+  const ordersTabByIdRef = useRef<Map<string, OrdersRangeTabLabel> | null>(
+    null
+  );
+  useEffect(() => {
+    if (isLoading) return;
+    const next = new Map<string, OrdersRangeTabLabel>();
+    for (const rec of categoryFilteredBoard) {
+      next.set(rec.id, getOrdersRangeTabLabel(rec));
+    }
+    const prev = ordersTabByIdRef.current;
+    if (prev === null) {
+      ordersTabByIdRef.current = next;
+      return;
+    }
+    for (const rec of categoryFilteredBoard) {
+      let to = next.get(rec.id);
+      const from = prev.get(rec.id);
+      if (!to || !from || from === to) continue;
+      // Unassign leaves Assigned → Not assigned (not Missing/Complete data).
       if (
-        rangeFilter === "reassigned" ||
-        rangeFilter === "reassign_leave" ||
-        rangeFilter === "reassign_rush"
+        from === "Assigned" &&
+        to !== "Assigned" &&
+        to !== "Reassign"
       ) {
-        const status = getOrderAssignmentStatus(rec);
-        return status === "reassign_leave" || status === "reassign_rush";
+        to = "Not assigned";
       }
-      if (rangeFilter === "waiting_for_data")
-        return getOrderRequirements(rec).missingCount > 0;
-      if (rangeFilter === "flagged") return false;
-      // Complete data: data complete and not yet assigned / reassigned
-      return (
-        !rec.isReassigned &&
-        getOrderRequirements(rec).missingCount === 0 &&
-        getOrderAssignmentStatus(rec) !== "assigned"
-      );
-    },
+      const name =
+        titleCase(rec.programName || "").trim() ||
+        titleCase(rec.contactName || "").trim() ||
+        "Order";
+      addAlert({
+        tone: "info",
+        title: `Moved to ${to}`,
+        message: `${name} left ${from} and is now under ${to}.`,
+        href: `/orders?range=${ordersRangeTabToFilter(to)}`,
+      });
+    }
+    ordersTabByIdRef.current = next;
+  }, [categoryFilteredBoard, isLoading, addAlert]);
+
+  const matchesRangeFilter = useCallback(
+    (rec: MTDRecord) => orderMatchesOrdersRangeFilter(rec, rangeFilter),
     [rangeFilter]
   );
 

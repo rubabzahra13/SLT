@@ -1,5 +1,31 @@
 import type { MTDRecord, Order } from "@/types";
 
+/** True when orderStatus still carries a Reassign:* reason label. */
+export function isReassignOrderStatus(
+  orderStatus?: string | null
+): boolean {
+  const raw = String(orderStatus || "").trim().toLowerCase();
+  return Boolean(raw) && raw.startsWith("reassign");
+}
+
+/**
+ * MTD → Orders reassign (and other reassign returns) clear producerEmailSentAt.
+ * After a producer is assigned, mark-as-sent must stay available until mail is
+ * stamped — even when the new producer differs from the last recipient.
+ */
+export function orderAllowsProducerMailMarkAsSent(
+  record: Pick<
+    MTDRecord,
+    "isReassigned" | "orderStatus" | "producerEmailSentAt"
+  > | null
+    | undefined
+): boolean {
+  if (!record) return false;
+  if (record.producerEmailSentAt) return false;
+  if (record.isReassigned) return true;
+  return isReassignOrderStatus(record.orderStatus);
+}
+
 /** Mark all collection toggles collected so Data lands as Complete on Orders. */
 function completeDataFields(): Partial<MTDRecord> {
   const collectionStates = {

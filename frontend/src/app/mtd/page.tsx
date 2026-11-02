@@ -172,6 +172,7 @@ function MTDPageContent() {
     schedule,
     discountCodes,
     isViewOnly,
+    addAlert,
   } = useAppState();
   const [formState, setFormState] = useState<OrderFormType>(DEFAULT_FORM);
   const [cheerSubtypeState, setCheerSubtypeState] = useState<CheerFormSubtypeFilter>(
@@ -418,9 +419,41 @@ function MTDPageContent() {
       // assignment/schedule cleared until the order is reassigned.
       updateMTD(rec.id, patchForReassignRush());
       setMoveToOrdersRecord(null);
-      router.push(`/orders?focus=${encodeURIComponent(rec.id)}`);
+      const meta = resolveMTDFormMeta(rec, orderById);
+      const params = new URLSearchParams({
+        range: "reassigned",
+        source: "both",
+        focus: rec.id,
+        form: meta.formType,
+      });
+      if (meta.formType === "school-all-star-cheer") {
+        params.set("cheer", meta.cheerFormSubtype);
+      }
+      if (meta.formType === "school-all-star-dance") {
+        params.set("dance", meta.danceFormSubtype);
+      }
+      const href = `/orders?${params.toString()}`;
+      const name =
+        titleCase(rec.programName || "").trim() ||
+        titleCase(rec.contactName || "").trim() ||
+        "Order";
+      addAlert({
+        tone: "info",
+        title: "Moved to Reassign",
+        message: `${name} left MTD and is now under Reassign.`,
+        href,
+      });
+      // Reassign + All sources + matching form so the row is visible immediately.
+      router.push(href);
     },
-    [isViewOnly, moveToOrdersRecord, router, updateMTD]
+    [
+      isViewOnly,
+      moveToOrdersRecord,
+      router,
+      updateMTD,
+      addAlert,
+      orderById,
+    ]
   );
 
   const openInvoiceModal = useCallback(

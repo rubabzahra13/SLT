@@ -6,12 +6,17 @@ import {
   mergeCollectionStateFromOrder,
 } from "../order-staging";
 import { mergeLocalMtdRecordFields } from "../mtd-completion";
-import { mergeIncomingOrderReassignFields } from "../order-reassign";
+import {
+  mergeIncomingOrderReassignFields,
+  orderAllowsProducerMailMarkAsSent,
+} from "../order-reassign";
 import { getOrderDetailSections } from "../order-detail-sections";
 import {
   getOrderAssignmentStatus,
   getOrderRequirements,
+  getOrdersRangeTabLabel,
   getOrderStatus,
+  orderMatchesOrdersRangeFilter,
 } from "../order-requirements";
 import { getDisplayAssignedProducer } from "../editor-assignment";
 import type { MTDRecord, Order } from "../../types";
@@ -715,5 +720,179 @@ describe("Orders Tab & Workflow Separation", () => {
     });
     assert.equal(getOrderAssignmentStatus(assigned), "assigned");
     assert.equal(getDisplayAssignedProducer(assigned), "CP");
+  });
+
+  it("Orders range-tab labels follow Reassign → Assigned → Missing → Complete", () => {
+    const missing = makeRecord({
+      assignedProducer: null,
+      haveSongs: "NEED SONGS",
+      eightCountSheet: "NEED CS",
+    });
+    assert.ok(getOrderRequirements(missing).missingCount > 0);
+    assert.equal(getOrdersRangeTabLabel(missing), "Missing data");
+
+    // Assigned wins over Missing so Unassign still changes the tab label.
+    const assignedMissing = makeRecord({
+      assignedProducer: "CP",
+      haveSongs: "NEED SONGS",
+      eightCountSheet: "NEED CS",
+      isReassigned: false,
+    });
+    assert.ok(getOrderRequirements(assignedMissing).missingCount > 0);
+    assert.equal(getOrdersRangeTabLabel(assignedMissing), "Assigned");
+
+    const reassign = makeRecord({
+      isReassigned: true,
+      orderStatus: "Reassign: Off day",
+      assignedProducer: null,
+      haveSongs: "NEED SONGS",
+    });
+    // Reassign wins even when data is still missing.
+    assert.equal(getOrdersRangeTabLabel(reassign), "Reassign");
+
+    const order: Order = {
+      id: "ord-tab-complete-1",
+      customerName: "Coach",
+      contactName: "Coach",
+      programName: "Tab Gym",
+      category: "Cheer",
+      package: "PLATINUM 2:30",
+      musicTheme: "",
+      editorRequest: "FA",
+      requestedProducer: "",
+      price: 1400,
+      status: "new",
+      createdAt: "2026-01-01",
+      needsAttention: false,
+      attentionReason: null,
+      formType: "school-all-star-cheer",
+      cheerFormSubtype: "all-star-cheer",
+      songListSuggestions: "Song A",
+      timeLengthOfMix: "2:30",
+      routineNotes: "Notes",
+      haveSongs: "HAVE SONGS",
+      eightCountSheet: "HAVE CS",
+      sendingEightCountSheets: "Yes",
+    };
+    const completeRow = mergeCollectionStateFromOrder(
+      makeRecord({
+        id: "mtd-tab-complete-1",
+        orderId: order.id,
+        assignedProducer: null,
+        isReassigned: false,
+        haveSongs: "",
+        eightCountSheet: "",
+      }),
+      order
+    );
+    assert.equal(getOrderRequirements(completeRow).status, "Complete data");
+    assert.equal(getOrdersRangeTabLabel(completeRow), "Complete data");
+
+    const assignedRow = {
+      ...completeRow,
+      id: "mtd-tab-assigned-1",
+      assignedProducer: "CP",
+      isReassigned: false,
+    };
+    assert.equal(getOrderAssignmentStatus(assignedRow), "assigned");
+    assert.equal(getOrdersRangeTabLabel(assignedRow), "Assigned");
+  });
+
+  it("Orders range filters overlap for Assigned + Complete data", () => {
+    const assignedComplete = makeRecord({
+      assignedProducer: "CP",
+      isReassigned: false,
+      haveSongs: "HAVE SONGS",
+      eightCountSheet: "HAVE CS",
+      songListSuggestions: "Song A",
+      timeLengthOfMix: "2:30",
+      routineNotes: "Notes",
+      sendingEightCountSheets: "Yes",
+    });
+    assert.equal(getOrderRequirements(assignedComplete).missingCount, 0);
+    assert.equal(
+      orderMatchesOrdersRangeFilter(assignedComplete, "need_to_be_scheduled"),
+      true
+    );
+    assert.equal(
+      orderMatchesOrdersRangeFilter(assignedComplete, "assigned"),
+      true
+    );
+    assert.equal(
+      orderMatchesOrdersRangeFilter(assignedComplete, "waiting_for_data"),
+      false
+    );
+    assert.equal(
+      orderMatchesOrdersRangeFilter(assignedComplete, "not_assigned"),
+      false
+    );
+
+    const assignedMissing = makeRecord({
+      assignedProducer: "CP",
+      haveSongs: "NEED SONGS",
+      eightCountSheet: "NEED CS",
+    });
+    assert.ok(getOrderRequirements(assignedMissing).missingCount > 0);
+    assert.equal(
+      orderMatchesOrdersRangeFilter(assignedMissing, "assigned"),
+      true
+    );
+    assert.equal(
+      orderMatchesOrdersRangeFilter(assignedMissing, "waiting_for_data"),
+      true
+    );
+    assert.equal(
+      orderMatchesOrdersRangeFilter(assignedMissing, "need_to_be_scheduled"),
+      false
+    );
+  });
+});
+
+describe("orderAllowsProducerMailMarkAsSent", () => {
+  it("allows mark-as-sent for MTD reassign returns even after assign", () => {
+    assert.equal(
+      orderAllowsProducerMailMarkAsSent({
+        isReassigned: true,
+        orderStatus: "Reassign: rush order",
+        producerEmailSentAt: null,
+      }),
+      true
+    );
+    // After Assign: isReassigned cleared, Reassign:* status kept until mail stamped
+    assert.equal(
+      orderAllowsProducerMailMarkAsSent({
+        isReassigned: false,
+        orderStatus: "Reassign: rush order",
+        producerEmailSentAt: null,
+      }),
+      true
+    );
+    assert.equal(
+      orderAllowsProducerMailMarkAsSent({
+        isReassigned: false,
+        orderStatus: "Reassign: Off day",
+        producerEmailSentAt: null,
+      }),
+      true
+    );
+  });
+
+  it("blocks mark-as-sent once stamped or for non-reassign orders", () => {
+    assert.equal(
+      orderAllowsProducerMailMarkAsSent({
+        isReassigned: false,
+        orderStatus: "Reassign: rush order",
+        producerEmailSentAt: "2026-11-01T12:00:00.000Z",
+      }),
+      false
+    );
+    assert.equal(
+      orderAllowsProducerMailMarkAsSent({
+        isReassigned: false,
+        orderStatus: "",
+        producerEmailSentAt: null,
+      }),
+      false
+    );
   });
 });

@@ -1096,3 +1096,104 @@ export function getOrderAssignmentStatus(
   }
   return assigned ? "assigned" : "not_assigned";
 }
+
+/** Exclusive Orders range-tab label for move alerts (matches range toggle copy). */
+export type OrdersRangeTabLabel =
+  | "Complete data"
+  | "Missing data"
+  | "Assigned"
+  | "Not assigned"
+  | "Reassign";
+
+/**
+ * Primary Orders status tab for move alerts only.
+ * Priority: Reassign → Assigned → Missing data → Complete data.
+ * Assigned beats Missing so Unassign (Assigned → Missing/Complete) still alerts.
+ * Range toggles themselves are overlapping filters — see
+ * {@link orderMatchesOrdersRangeFilter}.
+ */
+export function getOrdersRangeTabLabel(
+  order: Order | MTDRecord
+): OrdersRangeTabLabel {
+  const assignment = getOrderAssignmentStatus(order);
+  if (assignment === "reassign_leave" || assignment === "reassign_rush") {
+    return "Reassign";
+  }
+  if (assignment === "assigned") {
+    return "Assigned";
+  }
+  if (getOrderRequirements(order).missingCount > 0) {
+    return "Missing data";
+  }
+  return "Complete data";
+}
+
+/** Query `range=` value for an Orders status tab label. */
+export function ordersRangeTabToFilter(
+  label: OrdersRangeTabLabel
+): "need_to_be_scheduled" | "waiting_for_data" | "assigned" | "not_assigned" | "reassigned" {
+  switch (label) {
+    case "Missing data":
+      return "waiting_for_data";
+    case "Assigned":
+      return "assigned";
+    case "Not assigned":
+      return "not_assigned";
+    case "Reassign":
+      return "reassigned";
+    case "Complete data":
+    default:
+      return "need_to_be_scheduled";
+  }
+}
+
+export type OrdersRangeFilterId =
+  | "all"
+  | "need_to_be_scheduled"
+  | "waiting_for_data"
+  | "assigned"
+  | "not_assigned"
+  | "reassigned"
+  | "reassign_leave"
+  | "reassign_rush"
+  | "flagged"
+  | "new_orders";
+
+/**
+ * Orders range toggles are filters, not partitions.
+ * A row can match more than one (e.g. Assigned + Complete data).
+ * Contradictory pairs stay exclusive by state: Complete↔Missing,
+ * Assigned↔Not assigned, Assigned↔Reassign.
+ */
+export function orderMatchesOrdersRangeFilter(
+  order: Order | MTDRecord,
+  rangeFilter: OrdersRangeFilterId | string
+): boolean {
+  if (rangeFilter === "all") return true;
+  if (rangeFilter === "flagged") return false;
+
+  const assignment = getOrderAssignmentStatus(order);
+  const isReassign =
+    assignment === "reassign_leave" || assignment === "reassign_rush";
+  const missingCount = getOrderRequirements(order).missingCount;
+
+  if (rangeFilter === "assigned") return assignment === "assigned";
+  if (rangeFilter === "not_assigned") return assignment === "not_assigned";
+  if (
+    rangeFilter === "reassigned" ||
+    rangeFilter === "reassign_leave" ||
+    rangeFilter === "reassign_rush"
+  ) {
+    return isReassign;
+  }
+  if (rangeFilter === "waiting_for_data") return missingCount > 0;
+  // Complete data (and legacy new_orders): any row with complete materials,
+  // including already-assigned or reassign returns.
+  if (
+    rangeFilter === "need_to_be_scheduled" ||
+    rangeFilter === "new_orders"
+  ) {
+    return missingCount === 0;
+  }
+  return true;
+}
