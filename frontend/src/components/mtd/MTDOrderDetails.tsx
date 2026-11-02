@@ -799,8 +799,7 @@ export function MTDOrderDetails({
 
               if (
                 field.key === "mixEndDate" ||
-                field.key === "clientRequestedMixDueDate" ||
-                field.key === "choreographyCompletionDate"
+                field.key === "clientRequestedMixDueDate"
               ) {
                 return (
                   <div

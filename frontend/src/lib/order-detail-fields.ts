@@ -251,8 +251,6 @@ const FIELD_GETTERS: Record<string, (order: Order) => string | undefined> = {
   mixEndDate: (o) => coalesceFieldAliases(o.mixEndDate),
   clientRequestedMixDueDate: (o) =>
     coalesceFieldAliases(o.clientRequestedMixDueDate),
-  choreographyCompletionDate: (o) =>
-    coalesceFieldAliases(o.choreographyCompletionDate),
   customerSongs: (o) =>
     coalesceFieldAliases(o.customerSongs, o.songListSuggestions),
   additionalNotes: (o) =>

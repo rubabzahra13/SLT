@@ -70,7 +70,7 @@ describe("add-order-mixes", () => {
     );
   });
 
-  it("All Star cheer: editor, division, team, package, length, choreo date", () => {
+  it("All Star cheer: editor, division, team, package, length", () => {
     assert.equal(isAddOrderPerMixFieldKey("musicAffiliate"), false);
     assert.deepEqual(getAddOrderMultiMixFieldKeys(baseOrder()), [
       "requestedEditor",
@@ -78,7 +78,6 @@ describe("add-order-mixes", () => {
       "teamName",
       "packageType",
       "timeLengthOfMix",
-      "choreographyCompletionDate",
     ]);
   });
 
@@ -89,7 +88,6 @@ describe("add-order-mixes", () => {
       "division",
       "packageType",
       "timeLengthOfMix",
-      "choreographyCompletionDate",
     ]);
   });
 
@@ -99,11 +97,10 @@ describe("add-order-mixes", () => {
       "teamName",
       "packageType",
       "timeLengthOfMix",
-      "choreographyCompletionDate",
     ]);
   });
 
-  it("POM dance: package + editor + choreo date (no style on Magento form)", () => {
+  it("POM dance: package + editor (no style on Magento form)", () => {
     const pom = baseOrder({
       formType: "school-all-star-dance",
       danceFormSubtype: "pom",
@@ -113,7 +110,6 @@ describe("add-order-mixes", () => {
     assert.deepEqual(getAddOrderMultiMixFieldKeys(pom), [
       "packageType",
       "requestedEditor",
-      "choreographyCompletionDate",
     ]);
   });
 
@@ -321,7 +317,7 @@ describe("add-order-mixes", () => {
     assert.notEqual(orders[0].programName, "Open");
   });
 
-  it("Jazz/Kick dance: style + package + editor + choreo date are per-mix", () => {
+  it("Jazz/Kick dance: style + package + editor are per-mix", () => {
     const jazz = baseOrder({
       formType: "school-all-star-dance",
       danceFormSubtype: "jazz-kick",
@@ -332,11 +328,10 @@ describe("add-order-mixes", () => {
       "style",
       "packageType",
       "requestedEditor",
-      "choreographyCompletionDate",
     ]);
   });
 
-  it("Marching Band: package + mix length + choreo date are per-mix", () => {
+  it("Marching Band: package + mix length are per-mix", () => {
     const mb = baseOrder({
       formType: "marching-band",
       cheerFormSubtype: undefined,
@@ -345,7 +340,6 @@ describe("add-order-mixes", () => {
     assert.deepEqual(getAddOrderMultiMixFieldKeys(mb), [
       "packageType",
       "timeLengthOfMix",
-      "choreographyCompletionDate",
     ]);
   });
 
@@ -484,34 +478,4 @@ describe("add-order-mixes", () => {
     assert.equal(orders[1].gymName || "", "");
   });
 
-  it("Save N Orders: choreographyCompletionDate is unique per mix", () => {
-    const draft = baseOrder({
-      gymName: "Spirit Elite",
-    });
-    const orders = buildManualOrdersFromMixes({
-      orderDraft: draft,
-      mixes: [
-        {
-          teamName: "Open",
-          packageType: "GOLD",
-          timeLengthOfMix: "2:00",
-          choreographyCompletionDate: "2026-11-10",
-        },
-        {
-          teamName: "Elite",
-          packageType: "PLATINUM",
-          timeLengthOfMix: "2:30",
-          choreographyCompletionDate: "2026-11-20",
-        },
-      ],
-      formType: "school-all-star-cheer",
-      cheerSubtype: "all-star-cheer",
-      danceSubtype: "pom",
-      category: "All Star Cheer",
-    });
-    assert.equal(orders[0].choreographyCompletionDate, "2026-11-10");
-    assert.equal(orders[1].choreographyCompletionDate, "2026-11-20");
-    assert.equal(orders[0].gymName, "Spirit Elite");
-    assert.equal(orders[1].gymName, "Spirit Elite");
-  });
 });
