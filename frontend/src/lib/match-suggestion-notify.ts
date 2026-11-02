@@ -21,9 +21,29 @@ export type IncomingOrderBell =
   | {
       kind: "match_suggestion";
       formId: string;
+      /** Top Suggested-for-You manual (open Match Confirm with this pair). */
+      manualId: string;
       notification: Omit<AppNotification, "id" | "read" | "createdAt">;
     }
   | { kind: "none" };
+
+export type MatchSuggestionPair = {
+  formId: string;
+  manualId: string;
+};
+
+/** Deep-link Match Orders and open Confirm for a Magento↔manual pair. */
+export function matchOrdersConfirmHref(
+  formId: string,
+  manualId: string
+): string {
+  const params = new URLSearchParams({
+    form: String(formId || "").trim(),
+    manual: String(manualId || "").trim(),
+    confirm: "1",
+  });
+  return `/orders/match?${params.toString()}`;
+}
 
 let matchOrdersPageOpen = false;
 
@@ -157,6 +177,7 @@ export function incomingOrderBellEvent(
   return {
     kind: "match_suggestion",
     formId: stamped.id,
+    manualId: suggestions[0].manual.id,
     notification: matchSuggestionNotificationPayload(stamped, suggestions),
   };
 }

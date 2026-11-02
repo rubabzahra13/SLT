@@ -731,12 +731,9 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
       (order as MTDRecord).eightCountSheet ||
       (order as any).received_eight_count_sheet;
     const defaultProvided = isEightCountCollected(sheetVal);
-    const isApplicable =
-      sendIntent === "yes"
-        ? true
-        : sendIntent === "no"
-          ? false
-          : needEightCount;
+    // Form must expose the 8CS question first. Stale sending=Yes on School
+    // Anthem / other non-CS forms must not resurrect a CS pill.
+    const isApplicable = needEightCount && sendIntent !== "no";
     let state: RequirementState = "white";
     if (isApplicable) {
       const isCollected = override !== undefined ? override : defaultProvided;
@@ -908,12 +905,16 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
   }
 
   const applicableItems = requirements.filter((r) => r.isApplicable);
+  // Form pill is Match Orders only — still shown red/green, but must not push
+  // unmatched manuals into Missing data / out of Complete data. Customer mail
+  // still reads the Form pill directly from collections.
+  const dataItems = applicableItems.filter((r) => r.id !== "form");
   const effectiveCompliancyMet = needsReassign ? true : compliancyMet;
   const hasRed =
-    applicableItems.some((r) => r.state === "red") || !effectiveCompliancyMet;
+    dataItems.some((r) => r.state === "red") || !effectiveCompliancyMet;
   const missingCount = needsReassign
     ? 0
-    : applicableItems.filter((r) => r.state === "red").length +
+    : dataItems.filter((r) => r.state === "red").length +
       (!compliancyMet ? 1 : 0);
   const allMet = !hasRed;
 
@@ -975,16 +976,23 @@ export function mergeOrderFormFieldsForRequirements(
       linked.package ||
       (rec as Order).packageType ||
       rec.package,
+    // Prefer linked; keep explicit "" so a cleared Yes/No is not revived from MTD.
     sendingEightCountSheets:
-      linked.sendingEightCountSheets ||
-      linked.usingEightCountSheets ||
-      rec.sendingEightCountSheets ||
-      rec.usingEightCountSheets,
+      linked.sendingEightCountSheets !== undefined &&
+      linked.sendingEightCountSheets !== null
+        ? linked.sendingEightCountSheets
+        : linked.usingEightCountSheets !== undefined &&
+            linked.usingEightCountSheets !== null
+          ? linked.usingEightCountSheets
+          : rec.sendingEightCountSheets || rec.usingEightCountSheets,
     usingEightCountSheets:
-      linked.sendingEightCountSheets ||
-      linked.usingEightCountSheets ||
-      rec.sendingEightCountSheets ||
-      rec.usingEightCountSheets,
+      linked.usingEightCountSheets !== undefined &&
+      linked.usingEightCountSheets !== null
+        ? linked.usingEightCountSheets
+        : linked.sendingEightCountSheets !== undefined &&
+            linked.sendingEightCountSheets !== null
+          ? linked.sendingEightCountSheets
+          : rec.usingEightCountSheets || rec.sendingEightCountSheets,
     // Collection status from either side (manual HAVE CS must survive Match).
     eightCountSheet: (() => {
       const linkedCs = String(linked.eightCountSheet || "").trim();

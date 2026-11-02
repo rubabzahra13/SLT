@@ -10,8 +10,8 @@ import {
   COMPLIANT_AFFILIATE_OPTIONS,
   getCategoryPricingSnapshot,
   getRuntimeMusicAffiliateSoftSelect,
-  isTitaniumCheerPackage,
   loadPricingReferenceStore,
+  mergeCheerMusicAffiliateSoftSelect,
   NON_COMPLIANT_AFFILIATE_OPTIONS,
   SCHOOL_CHEER_VIROC_MUSIC_AFFILIATE_OPTIONS,
   schoolCheerVirocMusicAffiliateOptionsForPackage,
@@ -22,6 +22,7 @@ import {
   affiliateTextSimilarity,
   affiliateTextsFuzzyMatch,
 } from "@/lib/pricing-engine";
+import { DANCE_MUSIC_AFFILIATE_OPTIONS } from "@/lib/dance-music-affiliate";
 
 /** School Cheer / V!ROC SoftSelect catalog (3 Magento options: no Songs for Cheer). */
 export const SCHOOL_CHEER_MUSIC_AFFILIATE_OPTIONS =
@@ -37,25 +38,6 @@ function defaultCheerAffiliateOptions(): string[] {
     ...COMPLIANT_AFFILIATE_OPTIONS.filter((o) => !o.danceOnly).map((o) => o.label),
     ...NON_COMPLIANT_AFFILIATE_OPTIONS.map((o) => o.label),
   ];
-}
-
-function filterSoftSelectByTitaniumPackage(
-  labels: string[],
-  packageTypeOrName?: string | null
-): string[] {
-  const pkg = String(packageTypeOrName || "").trim();
-  // Until a package is chosen, show the full Pricing Reference SoftSelect set.
-  if (!pkg) return [...labels];
-  const titanium = isTitaniumCheerPackage(pkg);
-  const nonTitaniumOnly =
-    "Power Music & Unleash the Beats Covers (can not be used for a Titanium Package)";
-  const titaniumOnly =
-    "100% original custom music (titanium package only)";
-  return labels.filter((label) => {
-    if (label === nonTitaniumOnly) return !titanium;
-    if (label === titaniumOnly) return titanium;
-    return true;
-  });
 }
 
 /** SoftSelect labels from DB runtime, then Pricing Reference store, else null. */
@@ -107,32 +89,39 @@ export function musicAffiliateOptionsForOrder(order: {
   if (order.formType === "school-all-star-cheer") {
     const category = cheerCategoryForSubtype(order.cheerFormSubtype);
     const pkg = order.packageType || order.package;
-    // Prefer DB / Pricing Reference SoftSelect catalog when hydrated.
-    if (category) {
-      const labels = softSelectLabelsForCategory(category);
-      if (labels?.length) {
-        return filterSoftSelectByTitaniumPackage(labels, pkg);
-      }
-    }
     // V!ROC + School Cheer Magento set: 3 options (no Songs for Cheer).
     if (
       order.cheerFormSubtype === "school-cheer-viroc-yes" ||
       order.cheerFormSubtype === "school-cheer-viroc-no"
     ) {
-      return schoolCheerVirocMusicAffiliateOptionsForPackage(pkg);
+      const magento = schoolCheerVirocMusicAffiliateOptionsForPackage(pkg);
+      if (category) {
+        return mergeCheerMusicAffiliateSoftSelect(
+          softSelectLabelsForCategory(category),
+          magento
+        );
+      }
+      return magento;
     }
-    // All-Star Cheer Magento set: 4 options (includes Songs for Cheer).
+    // All-Star Cheer Magento set: 4 options (includes Songs for Cheer + titanium).
     if (
       !order.cheerFormSubtype ||
       order.cheerFormSubtype === "all-star-cheer" ||
       String(order.cheerFormSubtype) === "all"
     ) {
-      return allStarCheerMusicAffiliateOptionsForPackage(pkg);
+      const magento = allStarCheerMusicAffiliateOptionsForPackage(pkg);
+      if (category) {
+        return mergeCheerMusicAffiliateSoftSelect(
+          softSelectLabelsForCategory(category),
+          magento
+        );
+      }
+      return magento;
     }
     return [];
   }
   if (order.formType === "school-all-star-dance") {
-    return defaultCheerAffiliateOptions();
+    return [...DANCE_MUSIC_AFFILIATE_OPTIONS];
   }
   return defaultCheerAffiliateOptions();
 }
@@ -265,15 +254,8 @@ export function MusicAffiliateField({
       size="md"
       placeholder="Select…"
       placement="below"
-      searchable
-      searchPlaceholder="Search affiliates…"
-      filterOption={(opt, query) =>
-        musicAffiliateOptionMatchesQuery(opt.label, query)
-      }
-      allowCustomValue
-      resolveCustomValue={(typed) =>
-        normalizeMusicAffiliateOption(typed, catalog) || typed.trim()
-      }
+      searchable={false}
+      allowCustomValue={false}
       value={normalized || value}
       options={options}
       open={open}

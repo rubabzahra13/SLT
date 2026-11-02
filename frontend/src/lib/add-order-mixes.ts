@@ -6,7 +6,10 @@ import {
   type OrderDetailField,
 } from "@/lib/order-detail-sections";
 import { hasMeaningfulFieldValue } from "@/lib/empty-field-tokens";
-import { isAddOrderPrefillValue } from "@/lib/order-form-missing";
+import {
+  ADD_ORDER_NON_UNLOCK_FIELD_KEYS,
+  isAddOrderPrefillValue,
+} from "@/lib/order-form-missing";
 import { parsePackage } from "@/lib/package";
 import type {
   CheerFormSubtype,
@@ -319,13 +322,34 @@ export function pickMixFieldValues(
   return out as Partial<Order>;
 }
 
-export function blankAddOrderPerMixValues(): Partial<Order> {
+/** Default Package on Add New Order (and empty save fallback). */
+export function defaultAddOrderPackageType(
+  formType?: OrderFormType | null,
+  _cheerSubtype?: CheerFormSubtype | null,
+  _danceSubtype?: DanceFormSubtype | null
+): string {
+  if (formType === "school-anthem") return "SCHOOL ANTHEMS";
+  return "TBD";
+}
+
+/** Default Length of Mix on Add New Order (and empty save fallback). */
+export function defaultAddOrderMixLength(
+  formType?: OrderFormType | null
+): string {
+  // School Anthem has no mix-length SoftSelect on Add Order.
+  if (formType === "school-anthem") return "";
+  return "TBD";
+}
+
+export function blankAddOrderPerMixValues(
+  formType?: OrderFormType | null
+): Partial<Order> {
   return {
     requestedEditor: "First Available",
     division: "",
     teamName: "",
-    packageType: "",
-    timeLengthOfMix: "",
+    packageType: defaultAddOrderPackageType(formType),
+    timeLengthOfMix: defaultAddOrderMixLength(formType),
     style: "",
     styleOfGamedayMix: "",
   };
@@ -447,11 +471,17 @@ export function buildManualOrdersFromMixes(
     const tier =
       packageTypeDisplayValue(draft.packageType || "") ||
       packageTypeDisplayValue(draft.package || "");
-    const mixLength = (draft.timeLengthOfMix || "").trim();
+    const fallbackLength = defaultAddOrderMixLength(formType);
+    const mixLength =
+      (draft.timeLengthOfMix || "").trim() || fallbackLength;
+    const fallbackPkg = defaultAddOrderPackageType(formType);
     const selectedPkg =
       formType === "school-all-star-cheer"
-        ? composeCheerPackageLabel(tier, mixLength)
-        : tier || (draft.packageType || draft.package || "").trim();
+        ? composeCheerPackageLabel(tier || fallbackPkg, mixLength) ||
+          fallbackPkg
+        : tier ||
+          (draft.packageType || draft.package || "").trim() ||
+          fallbackPkg;
 
     const contact =
       draft.coachName ||
@@ -481,7 +511,7 @@ export function buildManualOrdersFromMixes(
       packageType:
         formType === "school-anthem"
           ? "SCHOOL ANTHEMS"
-          : tier || draft.packageType,
+          : tier || draft.packageType || fallbackPkg,
       price: formType === "school-anthem" ? 1250 : draft.price,
       timeLengthOfMix: mixLength,
       contactName: contact,
@@ -522,7 +552,10 @@ function mixHasMeaningfulContent(
   order: Order
 ): boolean {
   for (const key of mixKeys) {
+    if (!ADD_ORDER_MANUAL_FIELD_KEYS.has(key)) continue;
     if (ADD_ORDER_NON_CONTENT_KEYS.has(key)) continue;
+    // Package / FA / Division / Team Name / mix length never unlock save.
+    if (ADD_ORDER_NON_UNLOCK_FIELD_KEYS.has(key)) continue;
     const raw = String((mix as Record<string, unknown>)[key] ?? "").trim();
     if (isAddOrderPrefillValue(key, raw, order)) continue;
     if (hasMeaningfulFieldValue(raw, { fieldKey: key })) return true;
@@ -530,45 +563,24 @@ function mixHasMeaningfulContent(
   return false;
 }
 
-function cheerDraftHasTeamName(
-  order: Order,
-  mixes: Partial<Order>[]
-): boolean {
-  if (mixHasTeamName(order)) return true;
-  return mixes.some(mixHasTeamName);
-}
-
 /**
- * Add New Order save gate:
- * - All-Star Cheer / Youth Rec: gym/program identity OR a team name (per mix).
- * - Other Cheer, Dance, Marching Band: identity required.
- * - Other forms: at least one user-entered field (not coupon / how-found / defaults).
+ * Add New Order save gate: any one Gym / address / coach / billing field.
+ * Team Name (even on every duplicated mix), Division, package, and mix
+ * length never unlock save.
  */
 export function addOrderDraftHasContent(
   order: Order,
   mixes: Partial<Order>[],
   mixKeys: string[]
 ): boolean {
-  const identity = manualOrderIdentityName(order);
-  if (cheerSubtypeHasTeamName(order)) {
-    return Boolean(identity) || cheerDraftHasTeamName(order, mixes);
-  }
-  if (order.formType === "school-all-star-cheer") {
-    return Boolean(identity);
-  }
-  if (
-    order.formType === "school-all-star-dance" ||
-    order.formType === "marching-band"
-  ) {
-    return Boolean(identity);
-  }
-
   const shared = orderWithoutMixFields(order, mixKeys);
   const mixKeySet = new Set(mixKeys);
   for (const section of getOrderDetailSections(order)) {
     for (const field of section.fields) {
       if (mixKeySet.has(field.key)) continue;
+      if (!ADD_ORDER_MANUAL_FIELD_KEYS.has(field.key)) continue;
       if (ADD_ORDER_NON_CONTENT_KEYS.has(field.key)) continue;
+      if (ADD_ORDER_NON_UNLOCK_FIELD_KEYS.has(field.key)) continue;
       const raw = rawFieldValue(shared, field.key);
       if (isAddOrderPrefillValue(field.key, raw, order)) continue;
       if (hasMeaningfulFieldValue(raw, { fieldKey: field.key })) return true;
@@ -586,17 +598,5 @@ export function addOrderSaveBlockReason(
   mixKeys: string[]
 ): string {
   if (addOrderDraftHasContent(order, mixes, mixKeys)) return "";
-  if (cheerSubtypeHasTeamName(order)) {
-    return "Add a gym or program name — or a team name — to save.";
-  }
-  if (order.formType === "school-all-star-cheer") {
-    return "Add a school name to save.";
-  }
-  if (
-    order.formType === "school-all-star-dance" ||
-    order.formType === "marching-band"
-  ) {
-    return "Add a school/program name to save.";
-  }
-  return "Add at least one order detail to save. Defaults, coupon codes, and “how did you find us?” don’t count on their own.";
+  return "Add at least 1 field from Gym or Coach / Billing. Division and Team Name do not count.";
 }

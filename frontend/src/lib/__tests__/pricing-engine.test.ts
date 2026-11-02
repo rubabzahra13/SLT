@@ -75,6 +75,34 @@ describe("Central Pricing Engine: Core Rules Unit Tests (Prompt 8)", () => {
     assert.equal(result.complianceStatus, "non-compliant");
   });
 
+  it("GOLD without mix length does not default to GOLD 1:30 ($700)", () => {
+    const missing = calculateCheerOrderPricing({
+      cheerFormSubtype: "all-star-cheer",
+      packageType: "GOLD",
+      timeLengthOfMix: "",
+      musicAffiliate: "Power Music",
+    });
+    assert.equal(missing.customerFacingPrice, 0);
+    assert.equal(missing.matchedEntry, null);
+
+    const tbd = calculateCheerOrderPricing({
+      cheerFormSubtype: "all-star-cheer",
+      packageType: "GOLD",
+      timeLengthOfMix: "TBD",
+      musicAffiliate: "Power Music",
+    });
+    assert.equal(tbd.customerFacingPrice, 0);
+    assert.equal(tbd.matchedEntry, null);
+
+    const withLimit = calculateCheerOrderPricing({
+      cheerFormSubtype: "all-star-cheer",
+      packageType: "GOLD",
+      timeLengthOfMix: "2:30",
+      musicAffiliate: "Power Music",
+    });
+    assert.equal(withLimit.customerFacingPrice, 1100);
+  });
+
   it("School Cheer / VIROC 2:00 prices by package tier + mix length", () => {
     const silver = calculateCheerOrderPricing({
       cheerFormSubtype: "school-cheer-viroc-yes",

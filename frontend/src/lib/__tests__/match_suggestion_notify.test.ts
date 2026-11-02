@@ -5,6 +5,7 @@ import {
   clearUnseenMatchFormIds,
   incomingOrderBellEvent,
   isMatchOrdersPageOpen,
+  matchOrdersConfirmHref,
   matchSuggestionNotificationPayload,
   setMatchOrdersPageOpen,
 } from "../match-suggestion-notify";
@@ -61,10 +62,36 @@ describe("incoming Magento match suggestion notify", () => {
     assert.equal(event.kind, "match_suggestion");
     if (event.kind !== "match_suggestion") return;
     assert.equal(event.formId, "f1");
+    assert.equal(event.manualId, "m1");
     assert.equal(event.notification.type, "match_suggestion");
     assert.equal(event.notification.href, "/orders/match");
     assert.match(event.notification.message, /Thunder Gym/);
     assert.equal(event.notification.dedupeKey, "match_suggestion:f1");
+    assert.equal(
+      matchOrdersConfirmHref(event.formId, event.manualId),
+      "/orders/match?form=f1&manual=m1&confirm=1"
+    );
+  });
+
+  it("after Flagged release, suggests match like a single-affiliate form", () => {
+    const form = baseOrder({
+      id: "f1",
+      gymName: "Thunder Gym",
+      programName: "Thunder Gym",
+      affiliateFlagStatus: "released",
+      musicAffiliate: "Power Music Covers",
+      musicAffiliateSelections: "Power Music Covers, Unleash the Beats Covers",
+    });
+    const manual = baseOrder({
+      id: "m1",
+      isManualEntry: true,
+      gymName: "Thunder Gym",
+      programName: "Thunder Gym",
+    });
+    const event = incomingOrderBellEvent(form, [form, manual]);
+    assert.equal(event.kind, "match_suggestion");
+    if (event.kind !== "match_suggestion") return;
+    assert.equal(event.manualId, "m1");
   });
 
   it("does not notify for a Magento form with no suggested manual", () => {

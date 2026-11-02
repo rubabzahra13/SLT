@@ -12,6 +12,7 @@ import {
 import { rawFieldValue } from "@/lib/order-detail-fields";
 import { buildMatchDiffRows } from "@/lib/manual-form-merge";
 import { isMatchBasisFieldKey } from "@/lib/manual-form-match-score";
+import { normalizedTextEqual } from "@/lib/program-similarity";
 import {
   formatMatchMissingFieldsReason,
   getMatchBlockingMissingFields,
@@ -25,6 +26,7 @@ import { packageTypeDisplayValue } from "@/components/mtd/PackageTypeField";
 import { OrderFormFieldControl } from "@/components/mtd/OrderFormFieldControl";
 import { OrderFormEditModal } from "@/components/orders/OrderFormEditModal";
 import { fetchOrderApi } from "@/lib/api/orders";
+import { normalizeOrder } from "@/lib/order-form";
 import type { Order } from "@/types";
 
 type MatchConfirmModalProps = {
@@ -98,8 +100,9 @@ export function MatchConfirmModal({
     setValidatedMissingKeys([]);
     setRevealedGapKeys([]);
     setViewFull(null);
-    setMagentoDraft({ ...magento });
-    setManualDraft({ ...manual });
+    // Same normalize as AppState so open doesn't invent / drop defaults vs list.
+    setMagentoDraft(normalizeOrder({ ...magento }));
+    setManualDraft(normalizeOrder({ ...manual }));
     let cancelled = false;
     void (async () => {
       try {
@@ -108,8 +111,8 @@ export function MatchConfirmModal({
           fetchOrderApi(manualId),
         ]);
         if (cancelled) return;
-        setMagentoDraft(freshMagento);
-        setManualDraft(freshManual);
+        setMagentoDraft(normalizeOrder(freshMagento));
+        setManualDraft(normalizeOrder(freshManual));
       } catch {
         // Keep prop-seeded drafts if the refresh fails.
       }
@@ -174,9 +177,11 @@ export function MatchConfirmModal({
             isMatchBasisFieldKey(key) &&
             Boolean(manualRaw) &&
             Boolean(formRaw) &&
-            manualRaw === formRaw,
+            normalizedTextEqual(manualRaw, formRaw),
           differs: false,
-          willOverwrite: Boolean(formRaw) && formRaw !== manualRaw,
+          willOverwrite:
+            Boolean(formRaw) &&
+            (!manualRaw || !normalizedTextEqual(formRaw, manualRaw)),
         };
       });
     return extras.length > 0 ? [...base, ...extras] : base;

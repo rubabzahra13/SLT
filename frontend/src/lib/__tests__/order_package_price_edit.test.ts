@@ -4,6 +4,7 @@ import {
   buildRecordPriceSavePatch,
   pricingPatchAfterAffiliateResolve,
   resolveLiveOrderPricing,
+  resolveOrderPackageDisplayPrice,
 } from "../order-package-price";
 import { ALL_STAR_CHEER_MUSIC_AFFILIATE_OPTIONS } from "../pricing-reference";
 import { resolveAffiliateFlagPatch } from "../affiliate-flag";
@@ -32,6 +33,38 @@ function baseOrder(overrides: Partial<Order> = {}): Order {
     ...overrides,
   } as Order;
 }
+
+describe("package price requires tier + mix length", () => {
+  it("does not show GOLD 1:30 ($700) when Length of Mix is missing or TBD", () => {
+    const rec = baseRec({ package: "GOLD", price: 0 });
+    const missing = baseOrder({
+      packageType: "GOLD",
+      package: "GOLD",
+      timeLengthOfMix: "",
+      price: 0,
+    });
+    assert.equal(resolveOrderPackageDisplayPrice(rec, missing), 0);
+
+    const tbd = baseOrder({
+      packageType: "GOLD",
+      package: "GOLD",
+      timeLengthOfMix: "TBD",
+      price: 0,
+    });
+    assert.equal(resolveOrderPackageDisplayPrice(rec, tbd), 0);
+  });
+
+  it("prices GOLD with Length of Mix 2:30 as $1,100", () => {
+    const rec = baseRec({ package: "GOLD", price: 0 });
+    const order = baseOrder({
+      packageType: "GOLD",
+      package: "GOLD",
+      timeLengthOfMix: "2:30",
+      price: 0,
+    });
+    assert.equal(resolveOrderPackageDisplayPrice(rec, order), 1100);
+  });
+});
 
 describe("payroll/cost uses compliant rate card, not edited customer price", () => {
   it("package-chip edit updates customer only; payroll stays engine/reference", () => {

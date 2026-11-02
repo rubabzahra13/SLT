@@ -579,6 +579,7 @@ export function ForwardOrderMailModal({
       title: "Marked as sent",
       message: `Producer email marked as already sent to ${toLabel}.`,
     });
+    onClose();
   }
 
   async function handleSend() {

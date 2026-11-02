@@ -335,6 +335,48 @@ describe("SLT Implementation 2: Magento form-field Collections / Songs", () => {
     assert.ok(!reqs.collections.some((r) => r.id === "form"));
   });
 
+  it("School Anthem ignores stale sendingEightCountSheets Yes (no CS pill)", () => {
+    const order: Partial<Order> = {
+      formType: "school-anthem",
+      category: "School Anthem",
+      package: "SCHOOL ANTHEMS",
+      isManualEntry: false,
+      sendingEightCountSheets: "Yes",
+      eightCountSheet: "HAVE CS",
+      collectionStates: { cs: true },
+      instrumentationNotes: "style",
+      lyricalNotes: "lyrics",
+    };
+    const reqs = getOrderRequirements(order as Order);
+    assert.equal(
+      reqs.collections.find((r) => r.id === "cs")?.isApplicable,
+      false,
+      "Stale CS Yes must not force CS on School Anthem"
+    );
+    assert.equal(reqs.missingCount, 0);
+    assert.equal(reqs.status, "Complete data");
+  });
+
+  it("Form red does not keep unmatched manuals out of Complete data", () => {
+    const manual: Partial<Order> = {
+      formType: "school-all-star-cheer",
+      category: "Cheer",
+      package: "PLATINUM 2:30",
+      isManualEntry: true,
+      timeLengthOfMix: "2:30",
+      songListSuggestions: "Song A",
+      routineNotes: "Notes",
+      sendingEightCountSheets: "No",
+    };
+    const reqs = getOrderRequirements(manual as Order);
+    assert.equal(
+      reqs.collections.find((r) => r.id === "form")?.state,
+      "red"
+    );
+    assert.equal(reqs.missingCount, 0);
+    assert.equal(reqs.status, "Complete data");
+  });
+
   it("School Anthem manual New Order shows Form red until admin Match", () => {
     const manual: Partial<Order> = {
       formType: "school-anthem",

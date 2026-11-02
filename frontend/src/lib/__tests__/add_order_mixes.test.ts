@@ -2,8 +2,12 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   addOrderDraftHasContent,
+  addOrderSaveBlockReason,
   applyMixFieldValues,
+  blankAddOrderPerMixValues,
   buildManualOrdersFromMixes,
+  defaultAddOrderMixLength,
+  defaultAddOrderPackageType,
   getAddOrderMultiMixFieldKeys,
   isAddOrderPerMixFieldKey,
   MAX_ADD_ORDER_MIXES,
@@ -170,12 +174,24 @@ describe("add-order-mixes", () => {
     assert.equal(addOrderDraftHasContent(order, [{}], keys), true);
   });
 
-  it("content rule: cheer team name alone unlocks save", () => {
+  it("content rule: cheer team name alone does not unlock save", () => {
     const order = baseOrder();
     const keys = getAddOrderMultiMixFieldKeys(order);
     assert.equal(
       addOrderDraftHasContent(order, [{ teamName: "Open" }], keys),
-      true
+      false
+    );
+    assert.equal(
+      addOrderDraftHasContent(
+        order,
+        [{ teamName: "Open" }, { teamName: "Elite" }],
+        keys
+      ),
+      false
+    );
+    assert.match(
+      addOrderSaveBlockReason(order, [{ teamName: "Open" }], keys),
+      /Gym or Coach \/ Billing\. Division and Team Name do not count/i
     );
   });
 
@@ -186,9 +202,59 @@ describe("add-order-mixes", () => {
       addOrderDraftHasContent(order, [{ packageType: "GOLD" }], keys),
       false
     );
+    assert.equal(
+      addOrderDraftHasContent(order, [{ packageType: "TBD" }], keys),
+      false
+    );
   });
 
-  it("content rule: dance/MB require school/program identity", () => {
+  it("default package type is TBD (School Anthems for anthem)", () => {
+    assert.equal(defaultAddOrderPackageType("school-all-star-cheer"), "TBD");
+    assert.equal(defaultAddOrderPackageType("school-all-star-dance"), "TBD");
+    assert.equal(defaultAddOrderPackageType("marching-band"), "TBD");
+    assert.equal(defaultAddOrderPackageType("school-anthem"), "SCHOOL ANTHEMS");
+    assert.equal(blankAddOrderPerMixValues().packageType, "TBD");
+  });
+
+  it("default mix length is TBD", () => {
+    assert.equal(defaultAddOrderMixLength("school-all-star-cheer"), "TBD");
+    assert.equal(defaultAddOrderMixLength("marching-band"), "TBD");
+    assert.equal(defaultAddOrderMixLength("school-anthem"), "");
+    assert.equal(blankAddOrderPerMixValues().timeLengthOfMix, "TBD");
+    assert.equal(
+      addOrderDraftHasContent(
+        baseOrder({ timeLengthOfMix: "TBD" }),
+        [{ timeLengthOfMix: "TBD" }],
+        getAddOrderMultiMixFieldKeys(baseOrder())
+      ),
+      false
+    );
+  });
+
+  it("content rule: Time Length of Mix alone does not unlock save", () => {
+    const cheer = baseOrder();
+    const cheerKeys = getAddOrderMultiMixFieldKeys(cheer);
+    assert.equal(
+      addOrderDraftHasContent(cheer, [{ timeLengthOfMix: "2:30" }], cheerKeys),
+      false
+    );
+    const mb = baseOrder({
+      formType: "marching-band",
+      cheerFormSubtype: undefined,
+      category: "Marching Band",
+    });
+    const mbKeys = getAddOrderMultiMixFieldKeys(mb);
+    assert.equal(
+      addOrderDraftHasContent(mb, [{ timeLengthOfMix: "7:00" }], mbKeys),
+      false
+    );
+    assert.match(
+      addOrderSaveBlockReason(mb, [{ timeLengthOfMix: "7:00" }], mbKeys),
+      /Gym or Coach \/ Billing\. Division and Team Name do not count/i
+    );
+  });
+
+  it("content rule: dance/MB unlock on any one non-default field", () => {
     const dance = baseOrder({
       formType: "school-all-star-dance",
       danceFormSubtype: "pom",
@@ -203,6 +269,14 @@ describe("add-order-mixes", () => {
     assert.equal(
       addOrderDraftHasContent(
         { ...dance, schoolProgramName: "Westside Dance" },
+        [{}],
+        danceKeys
+      ),
+      true
+    );
+    assert.equal(
+      addOrderDraftHasContent(
+        { ...dance, coachPhone: "512-555-0199" },
         [{}],
         danceKeys
       ),
@@ -237,6 +311,16 @@ describe("add-order-mixes", () => {
         [{ requestedEditor: "First Available" }],
         keys
       ),
+      false
+    );
+  });
+
+  it("content rule: Division alone does not unlock save", () => {
+    const order = baseOrder({ divisionOfTeam: "Level 5" });
+    const keys = getAddOrderMultiMixFieldKeys(order);
+    assert.equal(addOrderDraftHasContent(order, [{}], keys), false);
+    assert.equal(
+      addOrderDraftHasContent(order, [{ division: "Level 5" }], keys),
       false
     );
   });

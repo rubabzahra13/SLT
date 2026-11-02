@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
+import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   Check,
@@ -23,6 +24,7 @@ import {
   getAffiliateSelections,
   resolveAffiliateFlagPatch,
 } from "@/lib/affiliate-flag";
+import { matchOrdersConfirmHref } from "@/lib/match-suggestion-notify";
 import { pricingPatchAfterAffiliateResolve } from "@/lib/order-package-price";
 import {
   buildCustomerAffiliateClarificationDraft,
@@ -48,6 +50,7 @@ export function ResolveAffiliateFlagModal({
   mode,
   onClose,
 }: ResolveAffiliateFlagModalProps) {
+  const router = useRouter();
   const { token, isViewOnly } = useAuth();
   const { emailTemplates, updateOrder, addAlert, maybeNotifyMatchSuggestion } =
     useAppState();
@@ -191,15 +194,25 @@ export function ResolveAffiliateFlagModal({
         ...pricingPatchAfterAffiliateResolve(nextOrder),
       };
       await updateOrder(linkedOrder.id, patch, linkedOrder);
-      // Flagged is cleared: now run Suggested for You (bell + Match Orders "N new").
-      maybeNotifyMatchSuggestion({ ...linkedOrder, ...patch });
+      // Flagged cleared: Suggested for You → open Match Confirm when a pair exists.
+      const pair = maybeNotifyMatchSuggestion({ ...linkedOrder, ...patch });
+      const matchHref = pair
+        ? matchOrdersConfirmHref(pair.formId, pair.manualId)
+        : null;
       addAlert({
         tone: "success",
         title: "Affiliate resolved",
-        message: `${titleCase(linkedOrder.programName)} → ${selectedAffiliate}. Now on Orders.`,
-        href: "/orders",
+        message: matchHref
+          ? `${titleCase(linkedOrder.programName)} → ${selectedAffiliate}. Opening Match Orders.`
+          : `${titleCase(linkedOrder.programName)} → ${selectedAffiliate}. Now on Orders.`,
+        href: matchHref || "/orders",
       });
       onClose();
+      if (matchHref) {
+        router.push(matchHref);
+      } else {
+        router.push("/orders");
+      }
     } catch (err) {
       setIsSaving(false);
       setSendError(

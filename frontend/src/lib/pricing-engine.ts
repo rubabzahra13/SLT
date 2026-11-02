@@ -737,6 +737,11 @@ export function lookupRateCardEntry(
     targetLimit && targetLimit !== "-" && !/^other\b/i.test(targetLimit)
   );
 
+  // TBD / placeholder length is not a priced SoftSelect limit.
+  if (/^tbd$/i.test(targetLimit)) {
+    return null;
+  }
+
   // Find exact match first
   let matched = priced.find(
     (entry) =>
@@ -751,11 +756,15 @@ export function lookupRateCardEntry(
     return null;
   }
 
-  // Fallback: match by tier when mix length is missing / Rally Mix "-".
-  matched = priced.find((entry) => entry.tier.toUpperCase() === targetTier);
+  // Missing mix length: only Rally Mix (limit "-") is priced without a time.
+  // Never pick the first GOLD/SILVER/… row (e.g. GOLD 1:30 = $700) as a default.
+  matched = priced.find(
+    (entry) =>
+      entry.tier.toUpperCase() === targetTier && entry.limit === "-"
+  );
   if (matched) return matched;
 
-  // Fallback 2: substring match on raw packageType
+  // Fallback: substring match on raw packageType when both tier + limit appear.
   const upperPkg = fullPkg.toUpperCase();
   matched = priced.find(
     (entry) =>

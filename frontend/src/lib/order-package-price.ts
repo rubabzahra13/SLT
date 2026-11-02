@@ -153,8 +153,18 @@ function findReferenceRow(
   }
   if (best) return best;
 
-  for (const row of rows) {
-    if (row.kind === "tier-time" && row.tier.toUpperCase() === tier) return row;
+  // Missing / TBD length: only Rally Mix (limit "-") is valid without a time.
+  // Never fall back to the first timed row for the tier (GOLD → $700 / 1:30).
+  if (!limit || limit === "-" || /^tbd$/i.test(limit)) {
+    for (const row of rows) {
+      if (
+        row.kind === "tier-time" &&
+        row.tier.toUpperCase() === tier &&
+        row.limit === "-"
+      ) {
+        return row;
+      }
+    }
   }
   return null;
 }

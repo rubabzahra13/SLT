@@ -75,6 +75,16 @@ describe("program name similarity", () => {
     assert.ok(programNamesMatch("MING", "m i n g"));
   });
 
+  it("treats symbol differences as the same (name / address / phone)", () => {
+    assert.equal(programNameSimilarity("O'Brien", "OBrien"), 1);
+    assert.equal(programNameSimilarity("100 Main St.", "100 Main St"), 1);
+    assert.equal(
+      programNameSimilarity("(512) 555-0100", "5125550100"),
+      1
+    );
+    assert.ok(programNamesMatch("Pat-Lee", "Pat Lee"));
+  });
+
   it("scores exact and near matches at ≥ 90%", () => {
     assert.equal(
       programNameSimilarity("Thunder Elite", "thunder elite"),
@@ -698,6 +708,29 @@ describe("manual ↔ form merge", () => {
       gymName: "",
     });
     assert.equal(findMatchingManualOrder(hipHopForm, [pomManual]), null);
+  });
+
+  it("does not auto-merge Magento forms held on an open affiliate flag", () => {
+    const manual = baseOrder({
+      id: "m-flag",
+      isManualEntry: true,
+      gymName: "QA FLAG NABS · All Star Cheer",
+      programName: "QA FLAG NABS · All Star Cheer",
+      schoolProgramName: "QA FLAG NABS · All Star Cheer",
+    });
+    const form = baseOrder({
+      id: "f-flag",
+      isManualEntry: false,
+      gymName: "QA FLAG NABS · All Star Cheer",
+      programName: "QA FLAG NABS · All Star Cheer",
+      schoolProgramName: "QA FLAG NABS · All Star Cheer",
+      affiliateFlagStatus: "open",
+      musicAffiliateSelections:
+        "Songs for Cheer, Non compliant",
+      musicAffiliate: "Songs for Cheer, Non compliant",
+    });
+    const { merges } = reconcileUnlinkedManualFormPairs([manual, form]);
+    assert.equal(merges.length, 0);
   });
 
   it("reconcileUnlinkedManualFormPairs links Sports Entertainment by organization name", () => {

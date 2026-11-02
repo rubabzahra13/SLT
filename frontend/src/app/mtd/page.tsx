@@ -1109,36 +1109,41 @@ function MTDPageContent() {
                 className="mx-auto flex w-full flex-col items-center"
                 onClick={(e) => e.stopPropagation()}
               >
-                <button
-                  type="button"
-                  onClick={(e) => openRecordPricingModal(rec, e)}
-                  title={
+                <HoverTip
+                  label={
                     showNeedsQuote
                       ? "Set package price for this order"
                       : "Edit package price for this order"
                   }
-                  aria-label={
-                    showNeedsQuote
-                      ? "Set package price: Needs Quote"
-                      : `Edit package price ${formatPrice(displayPrice)}`
-                  }
-                  className={clsx(
-                    clickableChipClass,
-                    "flex w-full flex-col items-center rounded-lg px-2 py-1 text-center",
-                    showNeedsQuote &&
-                      "border-brand-warning/35 bg-brand-warning/10"
-                  )}
+                  placement="top"
+                  className="w-full"
                 >
-                  {showNeedsQuote ? (
-                    <span className="text-[11px] font-semibold text-brand-warning whitespace-nowrap">
-                      Needs Quote
-                    </span>
-                  ) : (
-                    <p className="font-semibold tabular-nums text-[12px] text-brand-ink hover:text-brand-orange">
-                      {formatPrice(displayPrice)}
-                    </p>
-                  )}
-                </button>
+                  <button
+                    type="button"
+                    onClick={(e) => openRecordPricingModal(rec, e)}
+                    aria-label={
+                      showNeedsQuote
+                        ? "Set package price: Needs Quote"
+                        : `Edit package price ${formatPrice(displayPrice)}`
+                    }
+                    className={clsx(
+                      clickableChipClass,
+                      "flex w-full flex-col items-center rounded-lg px-2 py-1 text-center",
+                      showNeedsQuote &&
+                        "border-brand-warning/35 bg-brand-warning/10"
+                    )}
+                  >
+                    {showNeedsQuote ? (
+                      <span className="text-[11px] font-semibold text-brand-warning whitespace-nowrap">
+                        Needs Quote
+                      </span>
+                    ) : (
+                      <p className="font-semibold tabular-nums text-[12px] text-brand-ink hover:text-brand-orange">
+                        {formatPrice(displayPrice)}
+                      </p>
+                    )}
+                  </button>
+                </HoverTip>
               </div>
             );
           }
@@ -1148,20 +1153,25 @@ function MTDPageContent() {
               className="mx-auto flex w-full flex-col items-center"
               onClick={(e) => e.stopPropagation()}
             >
-              <button
-                type="button"
-                onClick={(e) => openPricingModal(rec, e)}
-                title="Open Pricing rate card"
-                aria-label={`Open Pricing ${formatPrice(displayPrice)}`}
-                className={clsx(
-                  clickableChipClass,
-                  "flex w-full flex-col items-center rounded-lg px-2 py-1 text-center"
-                )}
+              <HoverTip
+                label="Open Pricing rate card"
+                placement="top"
+                className="w-full"
               >
-                <p className="font-semibold tabular-nums text-[12px] text-brand-ink hover:text-brand-orange">
-                  {formatPrice(displayPrice)}
-                </p>
-              </button>
+                <button
+                  type="button"
+                  onClick={(e) => openPricingModal(rec, e)}
+                  aria-label={`Open Pricing ${formatPrice(displayPrice)}`}
+                  className={clsx(
+                    clickableChipClass,
+                    "flex w-full flex-col items-center rounded-lg px-2 py-1 text-center"
+                  )}
+                >
+                  <p className="font-semibold tabular-nums text-[12px] text-brand-ink hover:text-brand-orange">
+                    {formatPrice(displayPrice)}
+                  </p>
+                </button>
+              </HoverTip>
             </div>
           );
         },

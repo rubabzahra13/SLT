@@ -235,9 +235,12 @@ type AppStateContextValue = {
   markMatchOrdersSeen: () => void;
   /**
    * After a Magento form leaves Flagged (Resolve), check Suggested for You and
-   * raise a bell + "N new" badge when a manual match exists.
+   * raise a bell + "N new" badge when a manual match exists. Returns the top
+   * pair so Resolve can open Match Confirm (same as a single-affiliate form).
    */
-  maybeNotifyMatchSuggestion: (order: Order) => void;
+  maybeNotifyMatchSuggestion: (
+    order: Order
+  ) => { formId: string; manualId: string } | null;
   isInMTD: (orderId: string) => boolean;
 };
 
@@ -973,16 +976,17 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const maybeNotifyMatchSuggestion = useCallback(
-    (order: Order) => {
+    (order: Order): { formId: string; manualId: string } | null => {
       const stamped = normalizeOrder(order);
       const catalog = [
         stamped,
         ...activeOrders.filter((o) => o.id !== stamped.id),
       ];
       const event = incomingOrderBellEvent(stamped, catalog);
-      if (event.kind !== "match_suggestion") return;
+      if (event.kind !== "match_suggestion") return null;
       addNotification(event.notification);
       recordUnseenSuggestedMatch(event.formId);
+      return { formId: event.formId, manualId: event.manualId };
     },
     [activeOrders, addNotification, recordUnseenSuggestedMatch]
   );
@@ -3313,11 +3317,11 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!isBackendConnected) return;
     const payload = { active: activeOrders, past: pastOrders };
-    writeTimedCache(CACHE_ORDERS_KEY, payload);
     if (applyingPeerOrdersRef.current) {
       applyingPeerOrdersRef.current = false;
       return;
     }
+    writeTimedCache(CACHE_ORDERS_KEY, payload);
     try {
       if (!ordersChannelRef.current) {
         ordersChannelRef.current = new BroadcastChannel(ORDERS_SYNC_CHANNEL);
@@ -3333,12 +3337,15 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!isBackendConnected) return;
-    writeTimedCache(CACHE_MTD_KEY, mtdRecords);
-    // Instant same-browser fan-out (Payroll Paid visible in other tabs).
+    // Peer apply already mirrored this tab's view from another tab's cache /
+    // BroadcastChannel. Rewriting localStorage here re-fires `storage` on the
+    // peer and can ping-pong setMtdRecords until max update depth.
     if (applyingPeerMtdRef.current) {
       applyingPeerMtdRef.current = false;
       return;
     }
+    writeTimedCache(CACHE_MTD_KEY, mtdRecords);
+    // Instant same-browser fan-out (Payroll Paid visible in other tabs).
     try {
       if (!mtdChannelRef.current) {
         mtdChannelRef.current = new BroadcastChannel(MTD_SYNC_CHANNEL);
@@ -3354,12 +3361,12 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!isBackendConnected) return;
-    writeTimedCache(CACHE_PRODUCERS_KEY, producers);
-    // Instant same-browser fan-out (Schedule open in another tab).
     if (applyingPeerProducersRef.current) {
       applyingPeerProducersRef.current = false;
       return;
     }
+    writeTimedCache(CACHE_PRODUCERS_KEY, producers);
+    // Instant same-browser fan-out (Schedule open in another tab).
     try {
       if (!producersChannelRef.current) {
         producersChannelRef.current = new BroadcastChannel(PRODUCERS_SYNC_CHANNEL);
@@ -3513,9 +3520,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         if (!changed) return prev;
         applyingPeerProducersRef.current = true;
         producersMutatedAtRef.current = Date.now();
-        const nextList = normalizeProducerList(next);
-        writeTimedCache(CACHE_PRODUCERS_KEY, nextList);
-        return nextList;
+        return normalizeProducerList(next);
       });
     };
 
@@ -3542,9 +3547,10 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           changed = true;
         }
         if (!changed) return prev;
+        // Do not writeTimedCache here: this path is fed by storage/BroadcastChannel.
+        // Rewriting the same key re-notifies peers and can infinite-loop setState.
         applyingPeerMtdRef.current = true;
         mtdMutatedAtRef.current = Date.now();
-        writeTimedCache(CACHE_MTD_KEY, next);
         return next;
       });
     };
@@ -3577,6 +3583,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       setActiveOrders((prev) => {
         const { next, changed } = mergeSide(prev, normalizeOrders(active));
         if (!changed) return prev;
+        // Peer path: no cache rewrite (avoids storage ↔ setState loops).
         applyingPeerOrdersRef.current = true;
         ordersMutatedAtRef.current = Date.now();
         return next;

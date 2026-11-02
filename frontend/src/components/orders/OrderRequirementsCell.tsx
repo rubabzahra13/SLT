@@ -56,12 +56,27 @@ function requirementPillTip(
   ) {
     return `${item.label}: Available after matching a Magento form`;
   }
+  // Reassign off day / rush: green pills stay locked — say so before "click to remove".
+  if (lockedGreen) {
+    const reason =
+      lockReason?.trim() || "Can't be removed on Reassign orders";
+    if (item.label === "CS") {
+      return `CS: Client agreed to send 8CS, collected. ${reason}`;
+    }
+    if (item.id === "songs" || item.id === "notes") {
+      return `${item.label}: Have. ${reason}`;
+    }
+    if (item.id === "mix" || item.id === "time_of_mix") {
+      return `${item.label}: Collected. ${reason}`;
+    }
+    if (item.id === "form") {
+      return `Form: Matched Magento form. ${reason}`;
+    }
+    return `${item.label}: Collected. ${reason}`;
+  }
   if (item.label === "CS") {
     if (isWhite) {
       return "CS: Not applicable, client did not agree to send 8CS";
-    }
-    if (lockedGreen) {
-      return `CS: Client agreed to send 8CS, collected. ${lockReason}`;
     }
     if (isGreen) {
       return "CS: Client agreed to send 8CS, collected";
@@ -90,7 +105,6 @@ function requirementPillTip(
       : "Form: Unmatched. Link a Magento form in Match Orders";
   }
   if (isWhite) return `${item.label}: Not applicable`;
-  if (lockedGreen) return `${item.label}: Collected. ${lockReason}`;
   return `${item.label}: ${isGreen ? "Collected" : "Missing"}`;
 }
 
@@ -402,7 +416,7 @@ export function OrderRequirementsCell({
   ).filter((item) => item.isApplicable && item.state !== "white");
   const isReassign = reqs.needsReassign;
   const reassignLockReason = isReassign
-    ? "Can't mark missing on Reassign off day/rush orders"
+    ? "Can't be removed on Reassign orders"
     : null;
 
   const [confirm, setConfirm] = useState<{

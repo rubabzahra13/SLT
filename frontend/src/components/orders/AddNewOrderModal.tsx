@@ -14,6 +14,8 @@ import {
   addOrderSaveBlockReason,
   blankAddOrderPerMixValues,
   buildManualOrdersFromMixes,
+  defaultAddOrderMixLength,
+  defaultAddOrderPackageType,
   getAddOrderMultiMixFieldKeys,
   MAX_ADD_ORDER_MIXES,
   pickMixFieldValues,
@@ -138,9 +140,13 @@ function blankOrderDraft(
     routineNotes: "",
     additionalNotes: "",
     division: "",
-    package: "",
-    packageType: "",
-    timeLengthOfMix: "",
+    package: defaultAddOrderPackageType(formType, cheerSubtype, danceSubtype),
+    packageType: defaultAddOrderPackageType(
+      formType,
+      cheerSubtype,
+      danceSubtype
+    ),
+    timeLengthOfMix: defaultAddOrderMixLength(formType),
     // Identity / contact aliases empty so clearable coalesced getters stay blank.
     schoolOrganizationName: "",
     organizationName: "",
@@ -236,7 +242,7 @@ export function AddNewOrderModal({
   useEffect(() => {
     if (!open) {
       setOrderDraft(null);
-      setMixes([{}]);
+      setMixes([blankAddOrderPerMixValues()]);
       setError(null);
       setSaving(false);
       setShowValidation(false);
@@ -265,7 +271,7 @@ export function AddNewOrderModal({
     setMixes(
       keys.length > 0
         ? [pickMixFieldValues(blank, keys)]
-        : [blankAddOrderPerMixValues()]
+        : [blankAddOrderPerMixValues(nextForm)]
     );
     setError(null);
     setSaving(false);
@@ -312,9 +318,10 @@ export function AddNewOrderModal({
           stateProvince: prev.stateProvince,
           zipPostalCode: prev.zipPostalCode,
           country: prev.country || base.country,
-          packageType: base.packageType || "",
-          package: base.package || "",
-          timeLengthOfMix: "",
+          packageType:
+            base.packageType || defaultAddOrderPackageType(nextForm),
+          package: base.package || defaultAddOrderPackageType(nextForm),
+          timeLengthOfMix: defaultAddOrderMixLength(nextForm),
         };
       });
       // Reset per-mix slots when form/subtype changes.
@@ -323,7 +330,7 @@ export function AddNewOrderModal({
       setMixes(
         keys.length > 0
           ? [pickMixFieldValues(baseForMix, keys)]
-          : [blankAddOrderPerMixValues()]
+          : [blankAddOrderPerMixValues(nextForm)]
       );
     },
     []
@@ -404,10 +411,10 @@ export function AddNewOrderModal({
     // Add another empty mix slot (cheer/dance/MB per-mix keys only).
     setMixes((prev) => {
       if (prev.length >= MAX_ADD_ORDER_MIXES) return prev;
-      return [...prev, blankAddOrderPerMixValues()];
+      return [...prev, blankAddOrderPerMixValues(formType)];
     });
     setError(null);
-  }, []);
+  }, [formType]);
 
   const handleRemoveMix = useCallback((mixIndex: number) => {
     setMixes((prev) => {

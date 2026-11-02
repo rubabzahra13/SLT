@@ -138,19 +138,24 @@ export function MixLengthField({
 
     for (const length of presets) push(length);
 
-    if (
-      originalNormalized &&
-      !isOtherCatalogLabel(originalNormalized) &&
-      !presets.some((length) => sameOption(length, originalNormalized)) &&
-      !isValidMixDuration(originalNormalized)
-    ) {
-      // Keep non-duration originals (e.g. TBD) selectable.
-      list.unshift({ value: originalNormalized, label: originalNormalized });
+    // Always offer TBD (Add Order default); keep other non-duration labels too.
+    push("TBD", "TBD");
+    for (const label of [originalNormalized, currentNormalized]) {
+      if (
+        label &&
+        !isOtherCatalogLabel(label) &&
+        !presets.some((length) => sameOption(length, label)) &&
+        !isValidMixDuration(label) &&
+        !sameOption(label, "TBD")
+      ) {
+        list.unshift({ value: label, label });
+        break;
+      }
     }
 
     push(MIX_LENGTH_OTHER_OPTION, MIX_LENGTH_OTHER_OPTION);
     return list;
-  }, [presets, originalNormalized]);
+  }, [presets, originalNormalized, currentNormalized]);
 
   const selectValue = showCustomTime
     ? MIX_LENGTH_OTHER_OPTION

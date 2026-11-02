@@ -260,6 +260,7 @@ function SideRow({
       order.cheerFormSubtype === "youth-rec-cheer" ||
       !order.cheerFormSubtype);
   const displayName = identity || (showTeam ? teamName : "") || "No name yet";
+  const isPlaceholderName = displayName === "No name yet";
   const meta = [
     contact || null,
     showTeam && teamName && teamName !== displayName ? teamName : null,
@@ -316,10 +317,16 @@ function SideRow({
               onOpen();
             }}
             className={clsx(
-              "truncate text-left text-[14px] font-semibold text-brand-ink underline-offset-2 hover:underline",
-              !identity && "text-brand-ink-tertiary"
+              "truncate text-left text-[14px] font-semibold underline-offset-2 hover:underline",
+              // Team-only manuals (no gym yet) still use full ink — only the
+              // empty placeholder stays tertiary grey.
+              isPlaceholderName ? "text-brand-ink-tertiary" : "text-brand-ink"
             )}
-            title={identity ? `View ${displayName}` : "View order details"}
+            title={
+              isPlaceholderName
+                ? "View order details"
+                : `View ${displayName}`
+            }
           >
             {displayName}
           </button>
@@ -378,6 +385,8 @@ function MatchOrdersPageContent() {
   const searchParams = useSearchParams();
   const focusManualId = searchParams.get("manual");
   const focusFormId = searchParams.get("form");
+  /** From Flagged Resolve (or notify): open Match Confirm for this pair. */
+  const openConfirmOnFocus = searchParams.get("confirm") === "1";
   const {
     activeOrders,
     allOrders,
@@ -498,12 +507,26 @@ function MatchOrdersPageContent() {
       setMagentoSearch(identity || formOrder.id);
       setSelectedMagentoId(formOrder.id);
     }
+    // Post-Flagged Resolve (and deep links): open Confirm like a new
+    // single-affiliate Magento form that already has a Suggested manual.
+    if (
+      openConfirmOnFocus &&
+      formOrder &&
+      manual &&
+      !formOrder.isManualEntry &&
+      manual.isManualEntry &&
+      !formOrder.mergedIntoManualOrderId &&
+      !manual.mergedFormOrderId
+    ) {
+      setMatchPair({ magento: formOrder, manual });
+    }
     setFocusSeedApplied(true);
   }, [
     focusSeedApplied,
     isLoading,
     focusManualId,
     focusFormId,
+    openConfirmOnFocus,
     unmatchedManuals,
     unmatchedMagento,
     allOrders,

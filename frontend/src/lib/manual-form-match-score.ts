@@ -5,7 +5,10 @@ import {
   cheerSubtypeHasTeamName,
   orderTeamName,
 } from "@/lib/add-order-mixes";
-import { programNameSimilarity } from "@/lib/program-similarity";
+import {
+  normalizeProgramName,
+  programNameSimilarity,
+} from "@/lib/program-similarity";
 
 /** Same threshold historically used by automatic name-merge. */
 export const MANUAL_FORM_MATCH_THRESHOLD = 0.9;
@@ -82,20 +85,50 @@ const BILLING_ADDRESS_KEYS = new Set<string>([
   "organizationBillingAddress",
 ]);
 
-const CONTACT_KEYS = new Set<string>([
+/** Coach / music contact name aliases — compare as one group. */
+const COACH_NAME_KEYS = new Set<string>([
   "coachName",
   "coachContactFullName",
   "musicContactName",
   "contactName",
-  "coachPhone",
-  "coachEmail",
-  "billingPersonName",
-  "billingPersonEmail",
+]);
+
+const COACH_PHONE_KEYS = new Set<string>(["coachPhone"]);
+const COACH_EMAIL_KEYS = new Set<string>(["coachEmail"]);
+
+const BILLING_NAME_KEYS = new Set<string>(["billingPersonName"]);
+const BILLING_EMAIL_KEYS = new Set<string>(["billingPersonEmail"]);
+
+const CHOREOGRAPHER_NAME_KEYS = new Set<string>([
   "choreographerName",
-  "choreographerEmail",
   "virocChoreographerName",
+]);
+const CHOREOGRAPHER_EMAIL_KEYS = new Set<string>([
+  "choreographerEmail",
   "virocChoreographerEmail",
 ]);
+
+/** Rank lookup for any contact-ish key. */
+const CONTACT_KEYS = new Set<string>([
+  ...COACH_NAME_KEYS,
+  ...COACH_PHONE_KEYS,
+  ...COACH_EMAIL_KEYS,
+  ...BILLING_NAME_KEYS,
+  ...BILLING_EMAIL_KEYS,
+  ...CHOREOGRAPHER_NAME_KEYS,
+  ...CHOREOGRAPHER_EMAIL_KEYS,
+]);
+
+/** Same-role contact groups scored like org name / billing address. */
+const CONTACT_MATCH_GROUPS: Array<{ keys: Set<string>; reportKey: string }> = [
+  { keys: COACH_NAME_KEYS, reportKey: "coachName" },
+  { keys: COACH_PHONE_KEYS, reportKey: "coachPhone" },
+  { keys: COACH_EMAIL_KEYS, reportKey: "coachEmail" },
+  { keys: BILLING_NAME_KEYS, reportKey: "billingPersonName" },
+  { keys: BILLING_EMAIL_KEYS, reportKey: "billingPersonEmail" },
+  { keys: CHOREOGRAPHER_NAME_KEYS, reportKey: "choreographerName" },
+  { keys: CHOREOGRAPHER_EMAIL_KEYS, reportKey: "choreographerEmail" },
+];
 
 export type ManualFormMatchHit = {
   score: number;
@@ -198,7 +231,8 @@ function valuesForKeys(
   const seen = new Set<string>();
   for (const field of fields) {
     if (!keys.has(field.key)) continue;
-    const norm = field.value.trim().toLowerCase();
+    // Same normalize as program/team: case, spacing, and symbols ignored.
+    const norm = normalizeProgramName(field.value);
     if (!norm || seen.has(norm)) continue;
     seen.add(norm);
     out.push(field.value);
@@ -278,19 +312,25 @@ export function scoreManualFormIdentityMatch(
     considerHit(state, addrScore, "gymBillingAddress", manualAddrs[0]);
   }
 
-  // Team + contacts: same-key only (no cross-key false friends).
-  const manualByKey = new Map(manualFields.map((f) => [f.key, f.value]));
-  for (const field of formFields) {
-    if (ORG_IDENTITY_KEYS.has(field.key) || BILLING_ADDRESS_KEYS.has(field.key)) {
-      continue;
+  // Coach / billing / choreographer: same rules (case / spacing / symbols).
+  for (const group of CONTACT_MATCH_GROUPS) {
+    const formVals = valuesForKeys(formFields, group.keys);
+    const manualVals = valuesForKeys(manualFields, group.keys);
+    const score = bestCrossScore(formVals, manualVals);
+    if (score > 0 && manualVals[0]) {
+      considerHit(state, score, group.reportKey, manualVals[0]);
     }
-    const manualValue = manualByKey.get(field.key);
-    if (!manualValue) continue;
+  }
+
+  // Team Name: same-key only (All-Star / Youth Rec), same normalize rules.
+  const formTeam = formFields.find((f) => f.key === "teamName");
+  const manualTeam = manualFields.find((f) => f.key === "teamName");
+  if (formTeam && manualTeam) {
     considerHit(
       state,
-      programNameSimilarity(field.value, manualValue),
-      field.key,
-      manualValue
+      programNameSimilarity(formTeam.value, manualTeam.value),
+      "teamName",
+      manualTeam.value
     );
   }
 

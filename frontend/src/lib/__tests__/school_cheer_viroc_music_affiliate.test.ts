@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   SCHOOL_CHEER_VIROC_MUSIC_AFFILIATE_OPTIONS,
+  mergeCheerMusicAffiliateSoftSelect,
   normalizeSchoolCheerVirocMusicAffiliateLabel,
   schoolCheerVirocMusicAffiliateOptionsForPackage,
 } from "../pricing-reference";
@@ -18,23 +19,15 @@ describe("School Cheer / V!ROC Music Affiliate options", () => {
     ]);
   });
 
-  it("non-Titanium packages hide titanium-only original custom music", () => {
+  it("SoftSelect always lists all three Magento V!ROC options", () => {
+    const expected = [...SCHOOL_CHEER_VIROC_MUSIC_AFFILIATE_OPTIONS];
     assert.deepEqual(
       schoolCheerVirocMusicAffiliateOptionsForPackage("GOLD 2:00"),
-      [
-        "Power Music & Unleash the Beats Covers (can not be used for a Titanium Package)",
-        "Non compliant",
-      ]
+      expected
     );
-  });
-
-  it("Titanium packages hide Power Music & Unleash covers and keep original custom", () => {
     assert.deepEqual(
       schoolCheerVirocMusicAffiliateOptionsForPackage("TITANIUM 2:30"),
-      [
-        "100% original custom music (titanium package only)",
-        "Non compliant",
-      ]
+      expected
     );
   });
 
@@ -48,6 +41,7 @@ describe("School Cheer / V!ROC Music Affiliate options", () => {
       [
         "Power Music & Unleash the Beats Covers (can not be used for a Titanium Package)",
         "Songs for Cheer",
+        "100% original custom music (titanium package only)",
         "Non compliant",
       ]
     );
@@ -59,6 +53,7 @@ describe("School Cheer / V!ROC Music Affiliate options", () => {
       }),
       [
         "Power Music & Unleash the Beats Covers (can not be used for a Titanium Package)",
+        "100% original custom music (titanium package only)",
         "Non compliant",
       ]
     );
@@ -69,10 +64,25 @@ describe("School Cheer / V!ROC Music Affiliate options", () => {
         packageType: "TITANIUM 2:00",
       }),
       [
+        "Power Music & Unleash the Beats Covers (can not be used for a Titanium Package)",
         "100% original custom music (titanium package only)",
         "Non compliant",
       ]
     );
+  });
+
+  it("V!ROC SoftSelect never gains Songs for Cheer from Pricing Reference extras", () => {
+    const merged = mergeCheerMusicAffiliateSoftSelect(
+      [
+        "Power Music & Unleash the Beats Covers (can not be used for a Titanium Package)",
+        "Songs for Cheer",
+        "100% original custom music (titanium package only)",
+        "Non compliant",
+      ],
+      [...SCHOOL_CHEER_VIROC_MUSIC_AFFILIATE_OPTIONS]
+    );
+    assert.deepEqual(merged, [...SCHOOL_CHEER_VIROC_MUSIC_AFFILIATE_OPTIONS]);
+    assert.ok(!merged.includes("Songs for Cheer"));
   });
 
   it("incoming Magento short forms normalize onto the three V!ROC labels", () => {

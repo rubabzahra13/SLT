@@ -8,6 +8,11 @@ import {
   isMatchBasisFieldKey,
   scoreManualFormIdentityMatch,
 } from "@/lib/manual-form-match-score";
+import {
+  FIRST_AVAILABLE_LABEL,
+  isFirstAvailableRequest,
+} from "@/lib/editor-assignment";
+import { normalizedTextEqual } from "@/lib/program-similarity";
 
 function resolveCheerSubtype(order: Order): string {
   if (order.cheerFormSubtype) return order.cheerFormSubtype;
@@ -70,6 +75,9 @@ export function canPairMagentoFormWithManual(
   if (form.suppressManualFormMerge || manual.suppressManualFormMerge) {
     return false;
   }
+  // Flagged multi-affiliate Magento forms stay on Flagged Orders until Resolve.
+  // Auto-merge would absorb them into the manual and hide the flag row.
+  if (form.affiliateFlagStatus === "open") return false;
   if (manual.status === "completed") return false;
   return sameOrderCategory(form, manual);
 }
@@ -402,11 +410,14 @@ function fieldValueAsText(value: unknown): string {
   }
 }
 
+/** Same normalize as program/team name: ignore case, spacing, and symbols. */
 function fieldValuesEqual(a: unknown, b: unknown): boolean {
-  return (
-    fieldValueAsText(a).replace(/\s+/g, " ").toLowerCase() ===
-    fieldValueAsText(b).replace(/\s+/g, " ").toLowerCase()
-  );
+  const left = fieldValueAsText(a);
+  const right = fieldValueAsText(b);
+  if (isFirstAvailableRequest(left) && isFirstAvailableRequest(right)) {
+    return Boolean(left.trim()) && Boolean(right.trim());
+  }
+  return normalizedTextEqual(left, right);
 }
 
 /**
@@ -837,7 +848,24 @@ export type MatchDiffRow = {
  * values stay "-" when the slim Add Order slot never collected that field.
  */
 function matchDiffValuesEqual(a: string, b: string): boolean {
-  return a.trim().toLowerCase() === b.trim().toLowerCase();
+  if (!a.trim() || !b.trim()) return false;
+  // Magento "FA" === Add Order "First Available".
+  if (isFirstAvailableRequest(a) && isFirstAvailableRequest(b)) return true;
+  // Same rules as program/team name pairing: case, spacing, and symbols ignored.
+  return normalizedTextEqual(a, b);
+}
+
+function matchDiffDisplayValue(key: string, raw: string): string {
+  if (!raw.trim()) return "-";
+  if (
+    (key === "requestedEditor" ||
+      key === "requestedProducer" ||
+      key === "editorRequest") &&
+    isFirstAvailableRequest(raw)
+  ) {
+    return FIRST_AVAILABLE_LABEL;
+  }
+  return raw;
 }
 
 export function buildMatchDiffRows(manual: Order, form: Order): MatchDiffRow[] {
@@ -854,26 +882,26 @@ export function buildMatchDiffRows(manual: Order, form: Order): MatchDiffRow[] {
       seen.add(field.key);
       const manualRaw = rawFieldValue(manual, field.key).trim();
       const formRaw = rawFieldValue(form, field.key).trim();
-      const sameIgnoringCase =
+      const sameNormalized =
         Boolean(manualRaw) &&
         Boolean(formRaw) &&
         matchDiffValuesEqual(manualRaw, formRaw);
       // Green only for pairing-basis fields (gym/school/address/contacts/team),
       // not coincidental shared Mix/geo values like country or package.
-      // Case-insensitive: "Thunder Elite" vs "thunder elite" still greens.
-      const matches = isMatchBasisFieldKey(field.key) && sameIgnoringCase;
-      // Conflict highlight: both sides filled and disagree (ignore casing).
+      // Spacing/case-insensitive: "Thunder Elite" vs "ThunderElite" greens.
+      const matches = isMatchBasisFieldKey(field.key) && sameNormalized;
+      // Conflict highlight: both sides filled and disagree after normalize.
       const differs =
-        Boolean(manualRaw) && Boolean(formRaw) && !sameIgnoringCase;
-      // Overwrite on match: Magento filled and not the same value (ignore casing).
+        Boolean(manualRaw) && Boolean(formRaw) && !sameNormalized;
+      // Overwrite on match: Magento filled and not the same normalized value.
       const willOverwrite =
         Boolean(formRaw) &&
         (!manualRaw || !matchDiffValuesEqual(formRaw, manualRaw));
       rows.push({
         key: field.key,
         label: field.label,
-        manualValue: manualRaw || "-",
-        formValue: formRaw || "-",
+        manualValue: matchDiffDisplayValue(field.key, manualRaw),
+        formValue: matchDiffDisplayValue(field.key, formRaw),
         matches,
         differs,
         willOverwrite,

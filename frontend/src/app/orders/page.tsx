@@ -460,12 +460,27 @@ function OrdersPageContent() {
     [categoryFilteredBoard]
   );
 
+  // Same Magento-merged SoT as Form data / Collections pills (avoids Complete↔Missing flicker).
+  const requirementsRecordFor = useCallback(
+    (rec: MTDRecord) => {
+      const linked = findLinkedOrder(rec, allOrders);
+      const finalized = linked
+        ? resolveFinalMatchedOrder(linked, allOrders)
+        : null;
+      return mergeOrderFormFieldsForRequirements(rec, finalized);
+    },
+    [allOrders]
+  );
+
   const needToBeScheduledCount = useMemo(
     () =>
       categoryFilteredBoard.filter((r) =>
-        orderMatchesOrdersRangeFilter(r, "need_to_be_scheduled")
+        orderMatchesOrdersRangeFilter(
+          requirementsRecordFor(r),
+          "need_to_be_scheduled"
+        )
       ).length,
-    [categoryFilteredBoard]
+    [categoryFilteredBoard, requirementsRecordFor]
   );
 
   const newOrdersCount = needToBeScheduledCount;
@@ -473,33 +488,36 @@ function OrdersPageContent() {
   const assignedOrdersCount = useMemo(
     () =>
       categoryFilteredBoard.filter((r) =>
-        orderMatchesOrdersRangeFilter(r, "assigned")
+        orderMatchesOrdersRangeFilter(requirementsRecordFor(r), "assigned")
       ).length,
-    [categoryFilteredBoard]
+    [categoryFilteredBoard, requirementsRecordFor]
   );
 
   const notAssignedOrdersCount = useMemo(
     () =>
       categoryFilteredBoard.filter((r) =>
-        orderMatchesOrdersRangeFilter(r, "not_assigned")
+        orderMatchesOrdersRangeFilter(requirementsRecordFor(r), "not_assigned")
       ).length,
-    [categoryFilteredBoard]
+    [categoryFilteredBoard, requirementsRecordFor]
   );
 
   const reassignedOrdersCount = useMemo(
     () =>
       categoryFilteredBoard.filter((r) =>
-        orderMatchesOrdersRangeFilter(r, "reassigned")
+        orderMatchesOrdersRangeFilter(requirementsRecordFor(r), "reassigned")
       ).length,
-    [categoryFilteredBoard]
+    [categoryFilteredBoard, requirementsRecordFor]
   );
 
   const waitingForDataCount = useMemo(
     () =>
       categoryFilteredBoard.filter((r) =>
-        orderMatchesOrdersRangeFilter(r, "waiting_for_data")
+        orderMatchesOrdersRangeFilter(
+          requirementsRecordFor(r),
+          "waiting_for_data"
+        )
       ).length,
-    [categoryFilteredBoard]
+    [categoryFilteredBoard, requirementsRecordFor]
   );
 
   /** Badge always reflects every flagged booking (not the active form only). */
@@ -512,49 +530,88 @@ function OrdersPageContent() {
   );
 
   // Alert when a row changes Orders status tab so it doesn't look like it vanished.
+  // Debounce so SSE/optimistic Complete↔Missing races do not spam or "disappear" rows.
   const ordersTabByIdRef = useRef<Map<string, OrdersRangeTabLabel> | null>(
     null
   );
+  const ordersTabPendingRef = useRef<Map<
+    string,
+    { from: OrdersRangeTabLabel; to: OrdersRangeTabLabel }
+  > | null>(null);
   useEffect(() => {
     if (isLoading) return;
     const next = new Map<string, OrdersRangeTabLabel>();
     for (const rec of categoryFilteredBoard) {
-      next.set(rec.id, getOrdersRangeTabLabel(rec));
+      next.set(rec.id, getOrdersRangeTabLabel(requirementsRecordFor(rec)));
     }
     const prev = ordersTabByIdRef.current;
     if (prev === null) {
       ordersTabByIdRef.current = next;
       return;
     }
+
+    const pending =
+      ordersTabPendingRef.current ??
+      new Map<string, { from: OrdersRangeTabLabel; to: OrdersRangeTabLabel }>();
     for (const rec of categoryFilteredBoard) {
-      let to = next.get(rec.id);
+      const to = next.get(rec.id);
       const from = prev.get(rec.id);
-      if (!to || !from || from === to) continue;
-      // Unassign leaves Assigned → Not assigned (not Missing/Complete data).
-      if (
-        from === "Assigned" &&
-        to !== "Assigned" &&
-        to !== "Reassign"
-      ) {
-        to = "Not assigned";
+      if (!to || !from || from === to) {
+        pending.delete(rec.id);
+        continue;
       }
-      const name =
-        titleCase(rec.programName || "").trim() ||
-        titleCase(rec.contactName || "").trim() ||
-        "Order";
-      addAlert({
-        tone: "info",
-        title: `Moved to ${to}`,
-        message: `${name} left ${from} and is now under ${to}.`,
-        href: `/orders?range=${ordersRangeTabToFilter(to)}`,
+      const existing = pending.get(rec.id);
+      pending.set(rec.id, {
+        from: existing?.from ?? from,
+        to,
       });
     }
+    // Drop ids that left this category board.
+    for (const id of [...pending.keys()]) {
+      if (!next.has(id)) pending.delete(id);
+    }
+    ordersTabPendingRef.current = pending;
     ordersTabByIdRef.current = next;
-  }, [categoryFilteredBoard, isLoading, addAlert]);
+
+    const timer = window.setTimeout(() => {
+      const settled = ordersTabPendingRef.current;
+      ordersTabPendingRef.current = null;
+      if (!settled || settled.size === 0) return;
+      const latest = ordersTabByIdRef.current;
+      for (const rec of categoryFilteredBoard) {
+        const change = settled.get(rec.id);
+        if (!change) continue;
+        // Only toast if the settled label still matches the pending "to".
+        let to = latest?.get(rec.id) ?? change.to;
+        if (to !== change.to) continue;
+        if (to === change.from) continue;
+        if (
+          change.from === "Assigned" &&
+          to !== "Assigned" &&
+          to !== "Reassign"
+        ) {
+          to = "Not assigned";
+        }
+        const name =
+          titleCase(rec.programName || "").trim() ||
+          titleCase(rec.contactName || "").trim() ||
+          "Order";
+        addAlert({
+          tone: "info",
+          title: `Moved to ${to}`,
+          message: `${name} left ${change.from} and is now under ${to}.`,
+          href: `/orders?range=${ordersRangeTabToFilter(to)}`,
+        });
+      }
+    }, 450);
+
+    return () => window.clearTimeout(timer);
+  }, [categoryFilteredBoard, isLoading, addAlert, requirementsRecordFor]);
 
   const matchesRangeFilter = useCallback(
-    (rec: MTDRecord) => orderMatchesOrdersRangeFilter(rec, rangeFilter),
-    [rangeFilter]
+    (rec: MTDRecord) =>
+      orderMatchesOrdersRangeFilter(requirementsRecordFor(rec), rangeFilter),
+    [rangeFilter, requirementsRecordFor]
   );
 
   // Rows for the table: source + category/subcategory + range.
@@ -1320,36 +1377,41 @@ function OrdersPageContent() {
                 className="mx-auto flex w-full flex-col items-center"
                 onClick={(e) => e.stopPropagation()}
               >
-                <button
-                  type="button"
-                  onClick={(e) => openRecordPricingModal(rec, e)}
-                  title={
+                <HoverTip
+                  label={
                     showNeedsQuote
                       ? "Set package price for this order"
                       : "Edit package price for this order"
                   }
-                  aria-label={
-                    showNeedsQuote
-                      ? "Set package price: Needs Quote"
-                      : `Edit package price ${formatPrice(displayPrice)}`
-                  }
-                  className={clsx(
-                    clickableChipClass,
-                    "flex w-full flex-col items-center rounded-lg px-2 py-1 text-center",
-                    showNeedsQuote &&
-                      "border-brand-warning/35 bg-brand-warning/10"
-                  )}
+                  placement="top"
+                  className="w-full"
                 >
-                  {showNeedsQuote ? (
-                    <span className="text-[11px] font-semibold text-brand-warning whitespace-nowrap">
-                      Needs Quote
-                    </span>
-                  ) : (
-                    <p className="font-semibold tabular-nums text-[12px] text-brand-ink hover:text-brand-orange">
-                      {formatPrice(displayPrice)}
-                    </p>
-                  )}
-                </button>
+                  <button
+                    type="button"
+                    onClick={(e) => openRecordPricingModal(rec, e)}
+                    aria-label={
+                      showNeedsQuote
+                        ? "Set package price: Needs Quote"
+                        : `Edit package price ${formatPrice(displayPrice)}`
+                    }
+                    className={clsx(
+                      clickableChipClass,
+                      "flex w-full flex-col items-center rounded-lg px-2 py-1 text-center",
+                      showNeedsQuote &&
+                        "border-brand-warning/35 bg-brand-warning/10"
+                    )}
+                  >
+                    {showNeedsQuote ? (
+                      <span className="text-[11px] font-semibold text-brand-warning whitespace-nowrap">
+                        Needs Quote
+                      </span>
+                    ) : (
+                      <p className="font-semibold tabular-nums text-[12px] text-brand-ink hover:text-brand-orange">
+                        {formatPrice(displayPrice)}
+                      </p>
+                    )}
+                  </button>
+                </HoverTip>
               </div>
             );
           }
@@ -1359,20 +1421,25 @@ function OrdersPageContent() {
               className="mx-auto flex w-full flex-col items-center"
               onClick={(e) => e.stopPropagation()}
             >
-              <button
-                type="button"
-                onClick={(e) => openPricingModal(rec, e)}
-                title="Open Pricing rate card"
-                aria-label={`Open Pricing ${formatPrice(displayPrice)}`}
-                className={clsx(
-                  clickableChipClass,
-                  "flex w-full flex-col items-center rounded-lg px-2 py-1 text-center"
-                )}
+              <HoverTip
+                label="Open Pricing rate card"
+                placement="top"
+                className="w-full"
               >
-                <p className="font-semibold tabular-nums text-[12px] text-brand-ink hover:text-brand-orange">
-                  {formatPrice(displayPrice)}
-                </p>
-              </button>
+                <button
+                  type="button"
+                  onClick={(e) => openPricingModal(rec, e)}
+                  aria-label={`Open Pricing ${formatPrice(displayPrice)}`}
+                  className={clsx(
+                    clickableChipClass,
+                    "flex w-full flex-col items-center rounded-lg px-2 py-1 text-center"
+                  )}
+                >
+                  <p className="font-semibold tabular-nums text-[12px] text-brand-ink hover:text-brand-orange">
+                    {formatPrice(displayPrice)}
+                  </p>
+                </button>
+              </HoverTip>
             </div>
           );
         },

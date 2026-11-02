@@ -166,43 +166,42 @@ export function isTitaniumCheerPackage(
   return /\bTITANIUM\b/.test(raw);
 }
 
-function filterCheerAffiliatesByTitaniumPackage(
-  catalog: readonly string[],
-  packageTypeOrName?: string | null
-): string[] {
-  const titanium = isTitaniumCheerPackage(packageTypeOrName);
-  return catalog.filter((label) => {
-    if (label === CHEER_NON_TITANIUM_ONLY_AFFILIATE) return !titanium;
-    if (label === CHEER_TITANIUM_ONLY_AFFILIATE) return titanium;
-    return true;
-  });
-}
-
 /**
- * All-Star Cheer SoftSelect filtered by package tier:
- * - Power Music & Unleash… cannot be used on Titanium
- * - 100% original custom music is Titanium-only
- * - Songs for Cheer available on both
+ * Magento SoftSelect always lists every option (restrictions live in the
+ * label text). Do not hide Titanium / non-Titanium choices by package.
  */
 export function allStarCheerMusicAffiliateOptionsForPackage(
-  packageTypeOrName?: string | null
+  _packageTypeOrName?: string | null
 ): string[] {
-  return filterCheerAffiliatesByTitaniumPackage(
-    ALL_STAR_CHEER_MUSIC_AFFILIATE_OPTIONS,
-    packageTypeOrName
-  );
+  return [...ALL_STAR_CHEER_MUSIC_AFFILIATE_OPTIONS];
 }
 
 /**
- * School Cheer / V!ROC SoftSelect filtered by package tier (3 Magento options).
+ * School Cheer / V!ROC SoftSelect: full Magento set (3 options).
  */
 export function schoolCheerVirocMusicAffiliateOptionsForPackage(
-  packageTypeOrName?: string | null
+  _packageTypeOrName?: string | null
 ): string[] {
-  return filterCheerAffiliatesByTitaniumPackage(
-    SCHOOL_CHEER_VIROC_MUSIC_AFFILIATE_OPTIONS,
-    packageTypeOrName
+  return [...SCHOOL_CHEER_VIROC_MUSIC_AFFILIATE_OPTIONS];
+}
+
+/**
+ * SoftSelect = Magento catalog only (All-Star 4 / V!ROC 3). Prefer store
+ * wording when it matches a Magento choice; never append store-only extras
+ * (e.g. Songs for Cheer must not bleed into V!ROC).
+ */
+export function mergeCheerMusicAffiliateSoftSelect(
+  storeLabels: readonly string[] | null | undefined,
+  magentoCatalog: readonly string[]
+): string[] {
+  if (!storeLabels?.length) return [...magentoCatalog];
+  const byLower = new Map(
+    storeLabels.map((label) => [label.trim().toLowerCase(), label.trim()])
   );
+  return magentoCatalog.map((label) => {
+    const hit = byLower.get(label.trim().toLowerCase());
+    return hit || label;
+  });
 }
 
 /**

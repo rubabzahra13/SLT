@@ -422,34 +422,46 @@ export function isAddOrderPrefillValue(
   ) {
     return true;
   }
+  // Add New Order defaults (saved when left unfilled).
+  if (
+    (key === "packageType" || key === "package") &&
+    (lower === "tbd" || lower === "school anthems")
+  ) {
+    return true;
+  }
+  if (key === "timeLengthOfMix" && lower === "tbd") {
+    return true;
+  }
   return false;
 }
 
 /**
- * Add New Order (admin):
- * Cheer — gym/school/program or team name.
- * Dance / Marching Band — school/program identity.
- * Other forms — any meaningful field except coupon / how-found / draft defaults.
+ * Per-mix / draft defaults that never unlock Add New Order save.
+ * Need Gym/School/Program, billing address, or a coach/billing contact field.
+ */
+export const ADD_ORDER_NON_UNLOCK_FIELD_KEYS = new Set([
+  "packageType",
+  "package",
+  "requestedEditor",
+  "editorRequest",
+  "requestedProducer",
+  "division",
+  "divisionOfTeam",
+  "timeLengthOfMix",
+  "teamName",
+]);
+
+/**
+ * Add New Order (admin): any one Gym / address / contact field with real
+ * content. Team Name, Division, package, mix length, and draft defaults do
+ * not count — even across duplicated mixes.
  */
 export function orderHasAddOrderContent(order: Order): boolean {
-  const identity = getOrderIdentityName(order).trim();
-  if (order.formType === "school-all-star-cheer") {
-    const sub = String(order.cheerFormSubtype || "all-star-cheer");
-    const teamOk =
-      (sub === "all-star-cheer" || sub === "youth-rec-cheer") &&
-      Boolean(String(order.teamName || "").trim());
-    return Boolean(identity) || teamOk;
-  }
-  if (
-    order.formType === "school-all-star-dance" ||
-    order.formType === "marching-band"
-  ) {
-    return Boolean(identity);
-  }
   const sections = getOrderDetailSections(order);
   for (const section of sections) {
     for (const field of section.fields) {
       if (ADD_ORDER_NON_CONTENT_KEYS.has(field.key)) continue;
+      if (ADD_ORDER_NON_UNLOCK_FIELD_KEYS.has(field.key)) continue;
       const raw = rawFieldValue(order, field.key);
       if (isAddOrderPrefillValue(field.key, raw, order)) continue;
       if (hasMeaningfulFieldValue(raw, { fieldKey: field.key })) return true;
@@ -465,5 +477,5 @@ export function getAddOrderRequiredGaps(order: Order): OrderFormMtdGap[] {
 
 export function formatAddOrderSaveBlockReason(gaps: OrderFormMtdGap[]): string {
   if (gaps.length === 0) return "";
-  return "Add at least one order detail to save. Defaults, coupon codes, and “how did you find us?” don’t count on their own.";
+  return "Add at least 1 field from Gym or Coach / Billing. Division and Team Name do not count.";
 }

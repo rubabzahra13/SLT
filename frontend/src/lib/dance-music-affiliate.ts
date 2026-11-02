@@ -28,13 +28,13 @@ export function parseDanceMusicAffiliates(value: string): string[] {
       }
       if (
         opt === "Power Music Covers" &&
-        /power\s*music\s*covers?/i.test(part)
+        /power\s*music(\s*covers?)?/i.test(part)
       ) {
         return true;
       }
       if (
         opt === "Unleash the Beats Covers" &&
-        /unleash.*covers?/i.test(part)
+        /unleash(\s+the\s+beats)?(\s*covers?)?/i.test(part)
       ) {
         return true;
       }
@@ -47,6 +47,47 @@ export function parseDanceMusicAffiliates(value: string): string[] {
 
 export function formatDanceMusicAffiliates(selected: string[]): string {
   return selected.join(", ");
+}
+
+const COVER_OPTIONS: ReadonlySet<string> = new Set([
+  "Power Music Covers",
+  "Unleash the Beats Covers",
+]);
+
+/**
+ * Power Music + Unleash may both be on. Non compliant is exclusive with either cover.
+ */
+export function normalizeDanceMusicAffiliates(selected: string[]): string[] {
+  const ordered = DANCE_MUSIC_AFFILIATE_OPTIONS.filter((opt) =>
+    selected.includes(opt)
+  );
+  const hasNonCompliant = ordered.includes("Non compliant");
+  const covers = ordered.filter((opt) => COVER_OPTIONS.has(opt));
+  if (hasNonCompliant && covers.length > 0) {
+    return ["Non compliant"];
+  }
+  return ordered;
+}
+
+/**
+ * Toggle one dance Music Affiliate checkbox with cover / Non compliant exclusivity.
+ */
+export function toggleDanceMusicAffiliate(
+  selected: string[],
+  option: DanceMusicAffiliateOption
+): string[] {
+  const current = normalizeDanceMusicAffiliates(selected);
+  const isOn = current.includes(option);
+  if (isOn) {
+    return current.filter((item) => item !== option);
+  }
+  if (option === "Non compliant") {
+    return ["Non compliant"];
+  }
+  return normalizeDanceMusicAffiliates([
+    ...current.filter((item) => item !== "Non compliant"),
+    option,
+  ]);
 }
 
 /**

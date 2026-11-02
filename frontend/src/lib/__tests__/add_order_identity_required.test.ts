@@ -49,7 +49,10 @@ describe("Add Order: identity (Cheer also team name)", () => {
       const gaps = getAddOrderRequiredGaps(empty);
       assert.equal(gaps.length, 1);
       assert.equal(gaps[0].key, "_anyField");
-      assert.match(formatAddOrderSaveBlockReason(gaps), /at least one order detail/i);
+      assert.match(
+        formatAddOrderSaveBlockReason(gaps),
+        /at least 1 field from Gym or Coach \/ Billing\. Division and Team Name do not count/i
+      );
 
       const filled = {
         ...empty,
@@ -60,30 +63,47 @@ describe("Add Order: identity (Cheer also team name)", () => {
     });
   }
 
-  it("cheer: coach phone alone does not unlock save; team name does", () => {
-    const empty = {
+  it("cheer: gym / coach / billing unlock; team name does not", () => {
+    const withPhone = {
       formType: "school-all-star-cheer",
       cheerFormSubtype: "all-star-cheer",
       coachPhone: "512-555-0100",
     } as Order;
-    assert.equal(orderHasAddOrderContent(empty), false);
-    const withTeam = { ...empty, teamName: "Open" } as Order;
-    assert.equal(orderHasAddOrderContent(withTeam), true);
+    assert.equal(orderHasAddOrderContent(withPhone), true);
+    const withBilling = {
+      formType: "school-all-star-cheer",
+      cheerFormSubtype: "all-star-cheer",
+      gymBillingAddress: "100 Main St",
+    } as Order;
+    assert.equal(orderHasAddOrderContent(withBilling), true);
+    const withTeam = {
+      formType: "school-all-star-cheer",
+      cheerFormSubtype: "all-star-cheer",
+      teamName: "Open",
+    } as Order;
+    assert.equal(orderHasAddOrderContent(withTeam), false);
   });
 
-  it("VIROC / School Cheer: team name alone does not unlock save", () => {
-    const viroc = {
+  it("VIROC / School Cheer: any one form field unlocks save (no Magento team name)", () => {
+    const virocEmpty = {
       formType: "school-all-star-cheer",
       cheerFormSubtype: "school-cheer-viroc-yes",
       teamName: "Open",
     } as Order;
-    assert.equal(orderHasAddOrderContent(viroc), false);
+    // Team Name is not on the VIROC Magento form, so it does not count.
+    assert.equal(orderHasAddOrderContent(virocEmpty), false);
+    const viroc = {
+      formType: "school-all-star-cheer",
+      cheerFormSubtype: "school-cheer-viroc-yes",
+      schoolName: "Lake Travis",
+    } as Order;
+    assert.equal(orderHasAddOrderContent(viroc), true);
     const school = {
       formType: "school-all-star-cheer",
       cheerFormSubtype: "school-cheer-viroc-no",
-      teamName: "Open",
+      coachPhone: "512-555-0100",
     } as Order;
-    assert.equal(orderHasAddOrderContent(school), false);
+    assert.equal(orderHasAddOrderContent(school), true);
   });
 
   it("coupon alone does not unlock save", () => {

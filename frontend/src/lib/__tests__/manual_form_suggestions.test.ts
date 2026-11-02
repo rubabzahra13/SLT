@@ -321,6 +321,61 @@ describe("manual Magento suggestions", () => {
     assert.equal(suggestions[0].manual.id, "m1");
   });
 
+  it("match-basis fields ignore case, spacing, and symbols (phone / address / name / team)", () => {
+    const form = baseOrder({
+      id: "f1",
+      gymName: "",
+      programName: "",
+      teamName: "Senior Black",
+      coachName: "O'Brien",
+      coachPhone: "(512) 555-0100",
+      gymBillingAddress: "100 Main St.",
+    });
+    const manuals = [
+      baseOrder({
+        id: "m-phone",
+        isManualEntry: true,
+        gymName: "Other",
+        programName: "Other",
+        teamName: "",
+        coachPhone: "5125550100",
+      }),
+      baseOrder({
+        id: "m-addr",
+        isManualEntry: true,
+        gymName: "Other2",
+        programName: "Other2",
+        teamName: "",
+        gymBillingAddress: "100 Main St",
+      }),
+      baseOrder({
+        id: "m-name",
+        isManualEntry: true,
+        gymName: "Other3",
+        programName: "Other3",
+        teamName: "",
+        coachName: "OBrien",
+      }),
+      baseOrder({
+        id: "m-team",
+        isManualEntry: true,
+        gymName: "",
+        programName: "",
+        teamName: "SeniorBlack",
+      }),
+    ];
+    const byId = new Map(
+      suggestManualsForMagento(form, [form, ...manuals]).map((s) => [
+        s.manual.id,
+        s,
+      ])
+    );
+    assert.ok(byId.has("m-phone"), "phone symbols should still pair");
+    assert.ok(byId.has("m-addr"), "address punctuation should still pair");
+    assert.ok(byId.has("m-name"), "name apostrophe should still pair");
+    assert.ok(byId.has("m-team"), "team spacing should still pair");
+  });
+
   it("does not match on Mix-only fields (package / length / division)", () => {
     const form = baseOrder({
       id: "f1",

@@ -94,6 +94,27 @@ describe("buildMatchDiffRows for unmatched manuals", () => {
     assert.equal(rows.find((r) => r.key === "coachEmail")?.matches, true);
   });
 
+  it("treats FA and First Available as the same requested editor", () => {
+    const manual = baseOrder({
+      id: "m1",
+      isManualEntry: true,
+      requestedEditor: "First Available",
+    });
+    const form = baseOrder({
+      id: "f1",
+      isManualEntry: false,
+      requestedEditor: "FA",
+      editorRequest: "FA",
+    });
+    const rows = buildMatchDiffRows(manual, form);
+    const editor = rows.find((r) => r.key === "requestedEditor");
+    assert.ok(editor, "requestedEditor row");
+    assert.equal(editor?.differs, false);
+    assert.equal(editor?.willOverwrite, false);
+    assert.equal(editor?.manualValue, "First Available");
+    assert.equal(editor?.formValue, "First Available");
+  });
+
   it("greens gym/program when only casing differs", () => {
     const manual = baseOrder({
       id: "m1",
@@ -112,5 +133,46 @@ describe("buildMatchDiffRows for unmatched manuals", () => {
     assert.equal(gym?.matches, true);
     assert.equal(gym?.differs, false);
     assert.equal(gym?.willOverwrite, false);
+  });
+
+  it("greens all pairing fields when only spacing / case / symbols differ", () => {
+    const manual = baseOrder({
+      id: "m1",
+      isManualEntry: true,
+      gymName: "ThunderElite!",
+      teamName: "Senior Black",
+      gymBillingAddress: "100 Main St., #2",
+      coachName: "O'Brien, Kim",
+      coachPhone: "512-555-0100",
+      coachEmail: "Kim@Example.COM",
+      billingPersonName: "Pat Lee",
+    });
+    const form = baseOrder({
+      id: "f1",
+      isManualEntry: false,
+      gymName: "Thunder Elite",
+      teamName: "SeniorBlack",
+      gymBillingAddress: "100 Main St #2",
+      coachName: "obrien kim",
+      coachPhone: "(512) 555 0100",
+      coachEmail: "kim@example.com",
+      billingPersonName: "Pat  Lee",
+    });
+    const rows = buildMatchDiffRows(manual, form);
+    for (const key of [
+      "gymName",
+      "teamName",
+      "gymBillingAddress",
+      "coachName",
+      "coachPhone",
+      "coachEmail",
+      "billingPersonName",
+    ]) {
+      const row = rows.find((r) => r.key === key);
+      assert.ok(row, key);
+      assert.equal(row?.matches, true, `${key} should match`);
+      assert.equal(row?.differs, false, `${key} should not differ`);
+      assert.equal(row?.willOverwrite, false, `${key} should not overwrite`);
+    }
   });
 });

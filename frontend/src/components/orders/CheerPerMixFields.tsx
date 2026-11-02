@@ -21,6 +21,7 @@ import {
 import { DetailInput, InlineDateInput } from "@/components/mtd/InlineFields";
 import { getAddOrderMultiMixFields } from "@/lib/add-order-mixes";
 import { rawFieldValue } from "@/lib/order-detail-fields";
+import { parsePackage } from "@/lib/package";
 import type { Order, Producer } from "@/types";
 
 type CheerPerMixFieldsProps = {
@@ -176,18 +177,28 @@ export function CheerPerMixFields({
         }
 
         if (field.key === "timeLengthOfMix") {
+          const fromPackage = parsePackage(
+            display.package || display.packageType || ""
+          ).limit;
+          const mixLengthValue =
+            raw.trim() ||
+            (fromPackage && fromPackage !== "-" ? fromPackage : "") ||
+            "";
           return (
             <FieldShell key={field.key} label={field.label}>
               {editable ? (
                 <MixLengthField
-                  value={raw}
+                  value={mixLengthValue}
+                  originalValue={mixLengthValue}
                   formType={display.formType || "school-all-star-cheer"}
                   cheerSubtype={display.cheerFormSubtype}
                   danceSubtype={display.danceFormSubtype}
                   onChange={(value) => onChange(field.key, value)}
                 />
               ) : (
-                <p className="text-[13px] text-brand-ink">{raw || "-"}</p>
+                <p className="text-[13px] text-brand-ink">
+                  {mixLengthValue || "-"}
+                </p>
               )}
             </FieldShell>
           );

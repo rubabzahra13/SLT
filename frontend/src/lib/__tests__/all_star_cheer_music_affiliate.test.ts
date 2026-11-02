@@ -19,24 +19,18 @@ describe("All-Star Cheer Music Affiliate options", () => {
     ]);
   });
 
-  it("non-Titanium packages hide titanium-only original custom music", () => {
-    const opts = allStarCheerMusicAffiliateOptionsForPackage("GOLD 2:00");
-    assert.deepEqual(opts, [
-      "Power Music & Unleash the Beats Covers (can not be used for a Titanium Package)",
-      "Songs for Cheer",
-      "Non compliant",
-    ]);
-  });
-
-  it("Titanium packages hide Power Music & Unleash covers and keep original custom", () => {
+  it("SoftSelect always lists all four Magento options (package filter removed)", () => {
     assert.equal(isTitaniumCheerPackage("TITANIUM 2:30"), true);
     assert.equal(isTitaniumCheerPackage("GOLD 2:00"), false);
-    const opts = allStarCheerMusicAffiliateOptionsForPackage("TITANIUM 2:30");
-    assert.deepEqual(opts, [
-      "Songs for Cheer",
-      "100% original custom music (titanium package only)",
-      "Non compliant",
-    ]);
+    const expected = [...ALL_STAR_CHEER_MUSIC_AFFILIATE_OPTIONS];
+    assert.deepEqual(
+      allStarCheerMusicAffiliateOptionsForPackage("GOLD 2:00"),
+      expected
+    );
+    assert.deepEqual(
+      allStarCheerMusicAffiliateOptionsForPackage("TITANIUM 2:30"),
+      expected
+    );
   });
 
   it("keeps Magento multi-select intact (does not collapse to Non compliant)", () => {

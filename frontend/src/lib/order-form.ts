@@ -7,6 +7,11 @@ import {
   parseDanceSongCovers,
 } from "@/lib/dance-song-covers";
 import {
+  formatDanceMusicAffiliates,
+  normalizeDanceMusicAffiliates,
+  parseDanceMusicAffiliates,
+} from "@/lib/dance-music-affiliate";
+import {
   ALL_STAR_CHEER_MUSIC_AFFILIATE_OPTIONS,
   normalizeAllStarCheerMusicAffiliateLabel,
   normalizeSchoolCheerVirocMusicAffiliateLabel,
@@ -280,7 +285,14 @@ export function normalizeOrder(
     inferMusicAffiliate(raw.musicTheme || "");
   const pkgForAffiliate = raw.packageType || raw.package;
   let musicAffiliate = musicAffiliateRaw;
-  if (formType === "school-all-star-cheer") {
+  if (formType === "school-all-star-dance" && musicAffiliateRaw) {
+    // Power/Unleash may both stay; Non compliant cannot pair with either cover.
+    musicAffiliate = formatDanceMusicAffiliates(
+      normalizeDanceMusicAffiliates(
+        parseDanceMusicAffiliates(musicAffiliateRaw)
+      )
+    );
+  } else if (formType === "school-all-star-cheer") {
     if (
       cheerFormSubtype === "school-cheer-viroc-yes" ||
       cheerFormSubtype === "school-cheer-viroc-no"
@@ -516,9 +528,11 @@ export function normalizeOrder(
       (formType === "sports-entertainment" ? routineNotes : "") ||
       "",
     // Custom voiceovers (+ script/guidance) are dance Magento fields only.
+    // Do not invent "No - None" when empty — that made Match Confirm / lists
+    // show a value the customer never submitted.
     customVoiceovers:
       formType === "school-all-star-dance"
-        ? raw.customVoiceovers?.trim() || "No - None"
+        ? raw.customVoiceovers?.trim() || ""
         : "",
     voiceoverScript:
       formType === "school-all-star-dance"

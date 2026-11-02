@@ -1,6 +1,9 @@
 /**
- * Normalize program labels for fuzzy matching.
- * Spacing is ignored: "Thunder Elite" and "ThunderElite" both → "thunderelite".
+ * Normalize labels for fuzzy matching (program/team/name/address/phone/…).
+ * Case, spacing, and symbols are ignored:
+ * "Thunder Elite" / "ThunderElite" → "thunderelite"
+ * "O'Brien" / "OBrien" → "obrien"
+ * "(512) 555-0100" / "5125550100" → "5125550100"
  */
 export function normalizeProgramName(name: string | null | undefined): string {
   return String(name || "")
@@ -9,6 +12,17 @@ export function normalizeProgramName(name: string | null | undefined): string {
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]+/g, "")
     .trim();
+}
+
+/** True when two strings match after stripping case, spacing, and symbols. */
+export function normalizedTextEqual(
+  a: string | null | undefined,
+  b: string | null | undefined
+): boolean {
+  const left = normalizeProgramName(a);
+  const right = normalizeProgramName(b);
+  if (!left && !right) return true;
+  return left.length > 0 && left === right;
 }
 
 function levenshtein(a: string, b: string): number {
