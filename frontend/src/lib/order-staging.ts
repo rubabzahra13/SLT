@@ -323,6 +323,8 @@ export function mergeCollectionStateFromOrder(
           mixStartDate: "",
           mixEndDate: undefined as string | undefined,
           isReassigned: true,
+          // Order SoT reassign wins over a stale board inMTD:true flip.
+          inMTD: false,
         };
       }
       // Order SoT: empty Order assignment wins over a stale board producer
@@ -578,7 +580,19 @@ export function listPreMtdOrderRecords(
   // differences (e.g. musicTheme), so the wrong clone won.
   const fromMtd = dedupePreMtdOrderRecords(
     mtdRecords
-      .filter(isPreMTDOrderRecord)
+      .filter((rec) => {
+        // Normal pre-MTD board rows.
+        if (isPreMTDOrderRecord(rec)) return true;
+        // Stale inMTD:true while the Order is still awaiting reassign: keep the
+        // row on Orders so Reassign does not flicker to 0.
+        const linked =
+          (rec.orderId && orderById.get(rec.orderId)) ||
+          orderById.get(rec.id) ||
+          (rec.uuid && orderById.get(rec.uuid)) ||
+          (rec.legacyId && orderById.get(rec.legacyId)) ||
+          null;
+        return Boolean(linked?.isReassigned);
+      })
       .filter((rec) => {
         // Hide MTD staging rows that belong only to an absorbed form order.
         const ids = [rec.orderId, rec.id, rec.uuid, rec.legacyId].filter(Boolean);

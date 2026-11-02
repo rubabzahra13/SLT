@@ -174,6 +174,7 @@ class OrderSchema(BaseModel):
     producer_payout: Optional[float] = None
     status: str = "new"
     created_at: datetime
+    updated_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     needs_attention: bool = False
     attention_reason: Optional[str] = None

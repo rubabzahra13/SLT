@@ -47,8 +47,9 @@ export function patchForReassignLeave(): Partial<MTDRecord> {
     // Empty clears local UI; API layers coerce "" → null for Date columns.
     mixStartDate: "",
     mixEndDate: "",
+    // Clear sent stamp only; keep producerEmailSentTo so same-producer
+    // reassign can mark-as-sent without a redundant email.
     producerEmailSentAt: null,
-    producerEmailSentTo: null,
     status: "active",
     ...completeDataFields(),
   };
@@ -65,7 +66,6 @@ export function patchForReassignRush(): Partial<MTDRecord> {
     mixStartDate: "",
     mixEndDate: "",
     producerEmailSentAt: null,
-    producerEmailSentTo: null,
     status: "active",
     ...completeDataFields(),
   };
@@ -164,7 +164,6 @@ export function patchForReassignCategoryRemoved(
     mixStartDate: "",
     mixEndDate: "",
     producerEmailSentAt: null,
-    producerEmailSentTo: null,
     status: "active",
     ...completeDataFields(),
   };
@@ -179,35 +178,64 @@ function orderUpdatedAtMs(order: Order): number {
 
 /**
  * SSE / peer / boot merges must not flicker Reassign rows.
- * - Incoming reassign wins (cleared producer + flag).
- * - Local reassign wins over a stale peer that still has the old producer.
+ * - Incoming reassign wins when it is at least as new as local (or local has
+ *   no stamp yet).
+ * - Local completed assign wins over a stale awaiting peer (post-assign flicker).
+ * - Local awaiting wins over a stale peer that still has the old producer.
  * - Completing reassign only when peer cleared the flag, set a producer, and
- *   is at least as new as the local row.
+ *   is at least as new as the local row (or local has no stamp).
  */
 export function mergeIncomingOrderReassignFields(
   incoming: Order,
   local: Order
 ): Partial<Order> {
   const incomingAssigned = String(incoming.assignedProducer || "").trim();
+  const localAssigned = String(local.assignedProducer || "").trim();
   const incomingAwaiting = Boolean(incoming.isReassigned);
   const localAwaiting = Boolean(local.isReassigned);
+  const incomingMs = orderUpdatedAtMs(incoming);
+  const localMs = orderUpdatedAtMs(local);
+  // Missing local stamp → accept peer. Optimistic local stamps block older SSE.
+  const incomingAsNewAsLocal = localMs === 0 || incomingMs >= localMs;
 
   if (incomingAwaiting) {
+    // Fresh assign on this client: keep CH / dates until a newer awaiting
+    // event (real Move-to-Orders) arrives.
+    if (!localAwaiting && localAssigned && !incomingAsNewAsLocal) {
+      return {
+        isReassigned: false,
+        assignedProducer: localAssigned,
+        mixStartDate: local.mixStartDate || "",
+        mixEndDate: local.mixEndDate || undefined,
+        orderStatus: local.orderStatus,
+        producerEmailSentAt: local.producerEmailSentAt ?? null,
+        producerEmailSentTo: local.producerEmailSentTo ?? null,
+        updatedAt: local.updatedAt ?? null,
+      };
+    }
     return {
       isReassigned: true,
       assignedProducer: null,
       mixStartDate: incoming.mixStartDate || "",
       mixEndDate: incoming.mixEndDate || undefined,
       orderStatus: incoming.orderStatus || local.orderStatus,
+      status: "active",
       producerEmailSentAt: null,
-      producerEmailSentTo: null,
+      // Preserve last emailed producer unless the peer cleared it (deletion).
+      producerEmailSentTo:
+        incoming.producerEmailSentTo !== undefined
+          ? incoming.producerEmailSentTo
+          : local.producerEmailSentTo ?? null,
     };
   }
 
   if (localAwaiting) {
+    // Stale pre-reassign echoes often still say status=in_mtd with the old
+    // producer; that must not "complete" a local Move-to-Orders.
+    const peerStillInMtd =
+      String(incoming.status || "").toLowerCase() === "in_mtd";
     const peerCompleted =
-      Boolean(incomingAssigned) &&
-      orderUpdatedAtMs(incoming) >= orderUpdatedAtMs(local);
+      Boolean(incomingAssigned) && incomingAsNewAsLocal && !peerStillInMtd;
     if (peerCompleted) {
       return {
         isReassigned: false,
@@ -223,8 +251,11 @@ export function mergeIncomingOrderReassignFields(
       mixStartDate: "",
       mixEndDate: undefined,
       orderStatus: local.orderStatus || incoming.orderStatus,
+      // Drop stale in_mtd so Match / pre-MTD soft gate still see this manual.
+      status: "active",
       producerEmailSentAt: null,
-      producerEmailSentTo: null,
+      producerEmailSentTo: local.producerEmailSentTo ?? null,
+      updatedAt: local.updatedAt ?? null,
     };
   }
 

@@ -1587,6 +1587,15 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       if (patch.producerEmailSentTo !== undefined) {
         orderPatch.producerEmailSentTo = patch.producerEmailSentTo;
       }
+      // Stamp so stale awaiting SSE cannot wipe a fresh assign / reassign.
+      if (
+        patch.isReassigned !== undefined ||
+        patch.assignedProducer !== undefined ||
+        patch.mixStartDate !== undefined ||
+        patch.mixEndDate !== undefined
+      ) {
+        orderPatch.updatedAt = new Date().toISOString();
+      }
       if (patch.collectionStates !== undefined) {
         orderPatch.collectionStates = patch.collectionStates;
       }
@@ -2135,7 +2144,19 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       // caller explicitly clears song fields / musicTheme (Songs pill remove),
       // re-apply those patch values so clears actually stick.
       const merge = (order: Order) => {
-        const normalized = normalizeOrder({ ...order, ...patch, id });
+        const assignmentTouched =
+          patch.isReassigned !== undefined ||
+          patch.assignedProducer !== undefined ||
+          patch.mixStartDate !== undefined ||
+          patch.mixEndDate !== undefined;
+        const normalized = normalizeOrder({
+          ...order,
+          ...patch,
+          id,
+          ...(assignmentTouched && patch.updatedAt === undefined
+            ? { updatedAt: new Date().toISOString() }
+            : {}),
+        });
         // Re-apply explicit empty-string clears. normalizeOrder folds aliases with
         // fallbacks; a cleared primary can otherwise be revived from a sibling.
         for (const [key, value] of Object.entries(patch)) {

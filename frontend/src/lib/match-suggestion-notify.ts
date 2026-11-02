@@ -3,6 +3,7 @@ import { isHeldOnAffiliateFlag } from "@/lib/affiliate-flag";
 import { getOrderIdentityName } from "@/lib/order-detail-sections";
 import {
   suggestManualsForMagento,
+  suggestionMatchedOnLabel,
   type ManualFormSuggestion,
 } from "@/lib/manual-form-suggestions";
 
@@ -107,10 +108,14 @@ export function matchSuggestionNotificationPayload(
   const extra =
     suggestions.length > 1 ? ` (+${suggestions.length - 1} more)` : "";
   const matchName = top?.identityName?.trim() || "a manual order";
+  const matchedOn = suggestionMatchedOnLabel(
+    matchName,
+    top?.matchedFieldKey
+  );
   return {
     type: "match_suggestion",
-    title: "Suggested match found",
-    message: `${formName} · ${matchName}${extra}`,
+    title: "New form matches a manual",
+    message: `${formName} · ${matchedOn}${extra}`,
     href: "/orders/match",
     dedupeKey: `match_suggestion:${form.id}`,
   };

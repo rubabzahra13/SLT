@@ -72,4 +72,45 @@ describe("buildMatchDiffRows for unmatched manuals", () => {
     const rows = buildMatchDiffRows(manual, form);
     assert.ok(rows.some((r) => r.key === "city" || r.key === "songListSuggestions"));
   });
+
+  it("greens only pairing-basis fields that agree (not country/ZIP)", () => {
+    const manual = baseOrder({
+      id: "m1",
+      isManualEntry: true,
+      country: "United States",
+      gymName: "Spirit Athletics",
+      coachEmail: "same@example.com",
+    });
+    const form = baseOrder({
+      id: "f1",
+      isManualEntry: false,
+      country: "United States",
+      gymName: "Spirit Athletics",
+      coachEmail: "same@example.com",
+    });
+    const rows = buildMatchDiffRows(manual, form);
+    assert.equal(rows.find((r) => r.key === "country")?.matches, false);
+    assert.equal(rows.find((r) => r.key === "gymName")?.matches, true);
+    assert.equal(rows.find((r) => r.key === "coachEmail")?.matches, true);
+  });
+
+  it("greens gym/program when only casing differs", () => {
+    const manual = baseOrder({
+      id: "m1",
+      isManualEntry: true,
+      gymName: "thunder elite cheer",
+      programName: "thunder elite cheer",
+    });
+    const form = baseOrder({
+      id: "f1",
+      isManualEntry: false,
+      gymName: "Thunder Elite Cheer",
+      programName: "Thunder Elite Cheer",
+    });
+    const rows = buildMatchDiffRows(manual, form);
+    const gym = rows.find((r) => r.key === "gymName");
+    assert.equal(gym?.matches, true);
+    assert.equal(gym?.differs, false);
+    assert.equal(gym?.willOverwrite, false);
+  });
 });

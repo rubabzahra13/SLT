@@ -23,6 +23,7 @@ import { CompletionBlockedModal } from "@/components/mtd/CompletionBlockedModal"
 import { InlineTwoStateToggle } from "@/components/mtd/InlineFields";
 import { ForwardOrderMailModal } from "@/components/orders/ForwardOrderMailModal";
 import { AddNewOrderModal } from "@/components/orders/AddNewOrderModal";
+import { MatchBeforeMtdModal } from "@/components/orders/MatchBeforeMtdModal";
 import { OrderFormEditModal } from "@/components/orders/OrderFormEditModal";
 import { DeleteOrderConfirmModal } from "@/components/orders/DeleteOrderConfirmModal";
 import { OrderRequirementsCell } from "@/components/orders/OrderRequirementsCell";
@@ -56,14 +57,16 @@ import {
   getProgramColumnHeader,
 } from "@/lib/order-detail-sections";
 import { orderFromMTDRecord } from "@/lib/order-detail-fields";
-import { countMagentoFormsWithSuggestions } from "@/lib/manual-form-suggestions";
+import {
+  countMagentoFormsWithSuggestions,
+  matchCandidatesBeforeMtd,
+  type MatchBeforeMtdCandidate,
+} from "@/lib/manual-form-suggestions";
 import {
   formatOrderFormMtdBlockReason,
   getOrderFormFieldsBlockingMtd,
-  MAGENTO_MATCH_BEFORE_MTD_REASON,
   orderHasSplitField,
   resolveFinalMatchedOrder,
-  unmatchedManualNeedsMagentoMatch,
 } from "@/lib/order-form-missing";
 import {
   buildRecordPriceSavePatch,
@@ -180,6 +183,7 @@ function OrdersPageContent() {
     discountCodes,
     isLoading,
     unseenSuggestedMatchCount,
+    markMatchOrdersSeen,
   } = useAppState();
 
   const [formState, setFormState] = useState<OrderFormType>(DEFAULT_FORM);
@@ -367,6 +371,10 @@ function OrdersPageContent() {
 
 
   const [validationModalRecord, setValidationModalRecord] = useState<MTDRecord | null>(null);
+  const [matchBeforeMtd, setMatchBeforeMtd] = useState<{
+    record: MTDRecord;
+    suggestions: MatchBeforeMtdCandidate[];
+  } | null>(null);
   const [pricingOpen, setPricingOpen] = useState(false);
   const [pricingFocusRecord, setPricingFocusRecord] = useState<MTDRecord | null>(
     null
@@ -548,7 +556,10 @@ function OrdersPageContent() {
     router.push("/orders/flagged");
   }, [router]);
 
-  const goToMatchPage = useCallback(() => {
+  const goToMatchPage = useCallback((opts?: {
+    manualId?: string;
+    formId?: string;
+  }) => {
     saveOrdersViewState({
       form,
       cheerSubtype,
@@ -558,7 +569,11 @@ function OrdersPageContent() {
       searchQuery,
       tableFilters,
     });
-    router.push("/orders/match");
+    const params = new URLSearchParams();
+    if (opts?.manualId) params.set("manual", opts.manualId);
+    if (opts?.formId) params.set("form", opts.formId);
+    const qs = params.toString();
+    router.push(qs ? `/orders/match?${qs}` : "/orders/match");
   }, [
     router,
     form,
@@ -601,6 +616,28 @@ function OrdersPageContent() {
 
   const { isViewOnly } = useAppState();
 
+  const commitMoveToMTD = useCallback(
+    (rec: MTDRecord) => {
+      const linkedOrder = findLinkedOrder(rec, allOrders);
+      updateMTD(rec.id, {
+        inMTD: true,
+        isReassigned: false,
+        orderStatus: "",
+        status: "active",
+        recordStatus: "Ongoing",
+        mixStartDate: rec.mixStartDate,
+        mixEndDate: rec.mixEndDate,
+        assignedProducer: rec.assignedProducer,
+        invoice:
+          (rec.invoice || "").trim() ||
+          (linkedOrder?.invoice || "").trim() ||
+          "",
+      });
+      router.push(`/mtd?focus=${encodeURIComponent(rec.id)}`);
+    },
+    [allOrders, router, updateMTD]
+  );
+
   const handleMoveToMTD = useCallback(
     (rec: MTDRecord, e: React.MouseEvent) => {
       e.preventDefault();
@@ -631,11 +668,6 @@ function OrdersPageContent() {
         return;
       }
 
-      if (unmatchedManualNeedsMagentoMatch(linkedOrder)) {
-        setValidationModalRecord(rec);
-        return;
-      }
-
       const assigned =
         getDisplayAssignedProducer(rec) || rec.assignedProducer?.trim() || "";
       const sentTo = rec.producerEmailSentTo?.trim() || "";
@@ -649,24 +681,18 @@ function OrdersPageContent() {
         return;
       }
 
-      updateMTD(rec.id, {
-        inMTD: true,
-        isReassigned: false,
-        orderStatus: "",
-        status: "active",
-        recordStatus: "Ongoing",
-        mixStartDate: rec.mixStartDate,
-        mixEndDate: rec.mixEndDate,
-        assignedProducer: rec.assignedProducer,
-        invoice:
-          (rec.invoice || "").trim() ||
-          (linkedOrder?.invoice || "").trim() ||
-          "",
-      });
-      // Jump to the MTD tab and highlight the row we just moved.
-      router.push(`/mtd?focus=${encodeURIComponent(rec.id)}`);
+      // Soft gate: unmatched manual↔form lookalikes get a chooser before MTD.
+      if (linkedOrder) {
+        const suggestions = matchCandidatesBeforeMtd(linkedOrder, allOrders);
+        if (suggestions.length > 0) {
+          setMatchBeforeMtd({ record: rec, suggestions });
+          return;
+        }
+      }
+
+      commitMoveToMTD(rec);
     },
-    [isViewOnly, router, updateMTD, allOrders]
+    [isViewOnly, allOrders, commitMoveToMTD]
   );
 
   useEffect(() => {
@@ -1858,17 +1884,13 @@ function OrdersPageContent() {
             !blockedByMissingData &&
             !blockedByFormGaps &&
             !producerMailSatisfied;
-          const isUnmatchedManual = isManualOrderRecord(rec, allOrders);
           const ready =
-            !isUnmatchedManual &&
             isAssigned &&
             isScheduled &&
             !blockedByMissingData &&
             !blockedByFormGaps &&
             producerMailSatisfied;
-          const mtdBlockedReason = isUnmatchedManual
-            ? MAGENTO_MATCH_BEFORE_MTD_REASON
-            : blockedByFormGaps
+          const mtdBlockedReason = blockedByFormGaps
             ? formatOrderFormMtdBlockReason(formMtdGaps)
             : blockedByMissingData
             ? "Resolve missing data\nbefore moving to MTD"
@@ -2018,7 +2040,10 @@ function OrdersPageContent() {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={goToMatchPage}
+              onClick={() => {
+                markMatchOrdersSeen();
+                goToMatchPage();
+              }}
               title={
                 unseenSuggestedMatchCount > 0
                   ? `Open Match Orders (${matchOrdersCount}), ${unseenSuggestedMatchCount} new`
@@ -2034,17 +2059,26 @@ function OrdersPageContent() {
                     : "Open Match Orders"
               }
               className={clsx(
-                "flex h-9 items-center gap-1.5 rounded-xl border bg-white px-3 text-[13px] font-semibold shadow-sm transition focus-visible:outline-none focus-visible:ring-2",
+                "relative flex h-9 items-center gap-1.5 rounded-xl border bg-white px-3 text-[13px] font-semibold shadow-sm transition focus-visible:outline-none focus-visible:ring-2",
                 unseenSuggestedMatchCount > 0
-                  ? "border-rose-300 text-brand-ink hover:border-rose-400 hover:bg-rose-50/80 hover:text-rose-800 focus-visible:ring-rose-300/40"
+                  ? "animate-match-orders-attention border-brand-orange/50 text-brand-ink hover:border-brand-orange hover:bg-brand-orange-soft/60 hover:text-brand-orange-deep focus-visible:ring-brand-orange/30"
                   : "border-brand-line/70 text-brand-ink hover:border-brand-line hover:bg-brand-bg/60 hover:text-brand-orange focus-visible:ring-brand-orange/20"
               )}
             >
+              {unseenSuggestedMatchCount > 0 ? (
+                <span
+                  className="absolute -right-0.5 -top-0.5 flex h-2.5 w-2.5"
+                  aria-hidden
+                >
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand-orange opacity-75" />
+                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-brand-orange ring-2 ring-white" />
+                </span>
+              ) : null}
               <Link2
                 className={clsx(
                   "h-4 w-4",
                   unseenSuggestedMatchCount > 0
-                    ? "text-rose-600"
+                    ? "text-brand-orange"
                     : "text-brand-ink-secondary"
                 )}
                 strokeWidth={2}
@@ -2056,7 +2090,7 @@ function OrdersPageContent() {
                 </span>
               ) : null}
               {unseenSuggestedMatchCount > 0 ? (
-                <span className="rounded-full bg-rose-600 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide tabular-nums text-white">
+                <span className="rounded-full bg-brand-orange px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide tabular-nums text-white">
                   {unseenSuggestedMatchCount} new
                 </span>
               ) : null}
@@ -2210,6 +2244,29 @@ function OrdersPageContent() {
         record={validationModalRecord}
         reason="moveToMtd"
         onClose={() => setValidationModalRecord(null)}
+      />
+
+      <MatchBeforeMtdModal
+        open={Boolean(matchBeforeMtd)}
+        record={matchBeforeMtd?.record ?? null}
+        suggestions={matchBeforeMtd?.suggestions ?? []}
+        onClose={() => setMatchBeforeMtd(null)}
+        onOpenMatchOrders={() => {
+          const linked = matchBeforeMtd
+            ? findLinkedOrder(matchBeforeMtd.record, allOrders)
+            : null;
+          setMatchBeforeMtd(null);
+          markMatchOrdersSeen();
+          // Focus this order on Match Orders (Form section when it's a Magento form).
+          goToMatchPage({
+            manualId: linked?.isManualEntry ? linked.id : undefined,
+            formId:
+              linked && !linked.isManualEntry ? linked.id : undefined,
+          });
+        }}
+        onMoveToMtd={() => {
+          if (matchBeforeMtd) commitMoveToMTD(matchBeforeMtd.record);
+        }}
       />
 
       <ForwardOrderMailModal

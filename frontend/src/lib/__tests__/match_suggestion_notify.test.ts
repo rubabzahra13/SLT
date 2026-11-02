@@ -95,7 +95,7 @@ describe("incoming Magento match suggestion notify", () => {
     assert.equal(event.notification.href, "/orders");
   });
 
-  it("payload names the suggested identity", () => {
+  it("payload names the suggested identity and matched field", () => {
     const form = baseOrder({
       id: "f1",
       gymName: "Spirit Elite",
@@ -107,10 +107,12 @@ describe("incoming Magento match suggestion notify", () => {
         identityName: "Spirit Elite",
         score: 1,
         matchKind: "identity",
+        matchedFieldKey: "gymName",
       },
     ]);
-    assert.equal(payload.title, "Suggested match found");
-    assert.equal(payload.message, "Spirit Elite · Spirit Elite");
+    assert.equal(payload.title, "New form matches a manual");
+    assert.match(payload.message, /Spirit Elite/);
+    assert.match(payload.message, /Matched on Gym Name/);
   });
 
   it("tracks unseen form ids until cleared", () => {

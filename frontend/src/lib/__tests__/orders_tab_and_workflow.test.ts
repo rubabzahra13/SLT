@@ -214,6 +214,114 @@ describe("Orders Tab & Workflow Separation", () => {
     assert.equal(fields.assignedProducer, "CM");
   });
 
+  it("Incoming awaiting does not wipe a fresher local completed assign", () => {
+    const local = {
+      id: "ord-1",
+      isReassigned: false,
+      assignedProducer: "CH",
+      mixStartDate: "2026-09-20",
+      mixEndDate: "2026-09-27",
+      orderStatus: "",
+      updatedAt: "2026-11-02T15:00:00.000Z",
+    } as unknown as Order;
+    const staleAwaiting = {
+      id: "ord-1",
+      isReassigned: true,
+      assignedProducer: null,
+      mixStartDate: "",
+      mixEndDate: "",
+      orderStatus: "Reassign: Off day",
+      updatedAt: "2026-11-02T14:00:00.000Z",
+    } as unknown as Order;
+    const fields = mergeIncomingOrderReassignFields(staleAwaiting, local);
+    assert.equal(fields.isReassigned, false);
+    assert.equal(fields.assignedProducer, "CH");
+    assert.equal(fields.mixStartDate, "2026-09-20");
+  });
+
+  it("MTD merge keeps local completed assign over stale awaiting backend", () => {
+    const staleAwaiting = makeRecord({
+      assignedProducer: null,
+      isReassigned: true,
+      mixStartDate: "",
+      mixEndDate: "",
+      orderStatus: "Reassign: Off day",
+    });
+    const localDone = makeRecord({
+      assignedProducer: "CH",
+      isReassigned: false,
+      mixStartDate: "2026-09-20",
+      mixEndDate: "2026-09-27",
+      orderStatus: "",
+    });
+    const merged = mergeLocalMtdRecordFields(staleAwaiting, localDone);
+    assert.equal(merged.assignedProducer, "CH");
+    assert.equal(merged.isReassigned, false);
+    assert.equal(merged.mixStartDate, "2026-09-20");
+  });
+
+  it("MTD merge does not bounce Move-to-Orders back onto the board", () => {
+    const staleOnBoard = makeRecord({
+      assignedProducer: "CH",
+      isReassigned: false,
+      inMTD: true,
+      mixStartDate: "2026-09-10",
+      mixEndDate: "2026-09-17",
+      orderStatus: "",
+    });
+    const localAwaiting = makeRecord({
+      assignedProducer: null,
+      isReassigned: true,
+      inMTD: false,
+      mixStartDate: "",
+      mixEndDate: "",
+      orderStatus: "Reassign: rush order",
+    });
+    const merged = mergeLocalMtdRecordFields(staleOnBoard, localAwaiting);
+    assert.equal(merged.inMTD, false);
+    assert.equal(merged.isReassigned, true);
+    assert.equal(merged.assignedProducer, null);
+    assert.equal(merged.mixStartDate, "");
+    assert.equal(isPreMTDOrderRecord(merged), true);
+    assert.equal(isMTDRecord(merged), false);
+  });
+
+  it("isMTDRecord treats any isReassigned row as Orders-side", () => {
+    const stuck = makeRecord({
+      assignedProducer: "CH",
+      isReassigned: true,
+      inMTD: true,
+      mixStartDate: "2026-09-10",
+      mixEndDate: "2026-09-17",
+    });
+    assert.equal(isMTDRecord(stuck), false);
+    assert.equal(isPreMTDOrderRecord(stuck), true);
+  });
+
+  it("Incoming in_mtd peer does not complete local reassign", () => {
+    const local = {
+      id: "ord-1",
+      isReassigned: true,
+      assignedProducer: null,
+      mixStartDate: "",
+      orderStatus: "Reassign: rush order",
+      status: "active",
+      updatedAt: "2026-11-02T14:00:00.000Z",
+    } as unknown as Order;
+    const staleInMtd = {
+      id: "ord-1",
+      isReassigned: false,
+      assignedProducer: "CH",
+      mixStartDate: "2026-09-10",
+      mixEndDate: "2026-09-17",
+      status: "in_mtd",
+      updatedAt: "2026-11-02T15:00:00.000Z",
+    } as unknown as Order;
+    const fields = mergeIncomingOrderReassignFields(staleInMtd, local);
+    assert.equal(fields.isReassigned, true);
+    assert.equal(fields.assignedProducer, null);
+  });
+
   it("Order SoT empty assignment wins over stale board producer", () => {
     const board = makeRecord({
       assignedProducer: "CH",

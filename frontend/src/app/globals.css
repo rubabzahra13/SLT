@@ -1841,3 +1841,17 @@ main.app-canvas {
   font-feature-settings: "ss01" 1, "kern" 1;
   transform: translateY(0.5px);
 }
+
+/* Match Orders attention: blink while unseen suggested matches exist */
+@keyframes match-orders-attention-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(240, 120, 64, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgba(240, 120, 64, 0);
+  }
+}
+
+.animate-match-orders-attention {
+  animation: match-orders-attention-pulse 1.25s ease-in-out infinite;
+}

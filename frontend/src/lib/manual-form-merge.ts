@@ -4,7 +4,10 @@ import {
   getOrderDetailSections,
   getOrderIdentityName,
 } from "@/lib/order-detail-sections";
-import { programNameSimilarity, programNamesMatch } from "@/lib/program-similarity";
+import {
+  isMatchBasisFieldKey,
+  scoreManualFormIdentityMatch,
+} from "@/lib/manual-form-match-score";
 
 function resolveCheerSubtype(order: Order): string {
   if (order.cheerFormSubtype) return order.cheerFormSubtype;
@@ -54,10 +57,11 @@ export function isMagentoFormOrder(order: Order): boolean {
 }
 
 /**
- * Only Magento forms may merge into a manual slot-holder, and only when
- * category + subcategory match. Manual↔manual and cross-category never merge.
+ * Category/subtype pair check for suggestions. Allows manuals whose status is
+ * still wrongly `in_mtd` after Move-to-Orders / reassign races so Match and the
+ * pre-MTD soft gate can still surface lookalikes.
  */
-export function canMergeMagentoFormIntoManual(
+export function canPairMagentoFormWithManual(
   form: Order,
   manual: Order
 ): boolean {
@@ -66,20 +70,22 @@ export function canMergeMagentoFormIntoManual(
   if (form.suppressManualFormMerge || manual.suppressManualFormMerge) {
     return false;
   }
-  if (manual.status === "completed" || manual.status === "in_mtd") return false;
+  if (manual.status === "completed") return false;
   return sameOrderCategory(form, manual);
 }
 
-function identityNamesMatch(a: Order, b: Order, threshold = 0.9): boolean {
-  return programNamesMatch(
-    getOrderIdentityName(a),
-    getOrderIdentityName(b),
-    threshold
-  );
-}
-
-function identityNameSimilarity(a: Order, b: Order): number {
-  return programNameSimilarity(getOrderIdentityName(a), getOrderIdentityName(b));
+/**
+ * Only Magento forms may merge into a manual slot-holder, and only when
+ * category + subcategory match. Manual↔manual and cross-category never merge.
+ * Blocks manuals already moved to MTD from a real Confirm match.
+ */
+export function canMergeMagentoFormIntoManual(
+  form: Order,
+  manual: Order
+): boolean {
+  if (!canPairMagentoFormWithManual(form, manual)) return false;
+  if (manual.status === "in_mtd") return false;
+  return true;
 }
 
 /** Keys never overwritten from a form order onto a manual order. */
@@ -174,7 +180,7 @@ export function isAbsorbedFormOrder(order: Order): boolean {
   return Boolean(order.mergedIntoManualOrderId) && !order.isManualEntry;
 }
 
-/** Best manual slot whose program matches this Magento form at ≥ threshold. */
+/** Best manual slot matching Magento on identity/contact fields (≥ threshold). */
 export function findMatchingManualOrder(
   formOrder: Order,
   orders: Order[],
@@ -191,9 +197,13 @@ export function findMatchingManualOrder(
     if (!canMergeMagentoFormIntoManual(formOrder, candidate)) continue;
     // Already paired with a Magento form: one form per manual slot.
     if (candidate.mergedFormOrderId) continue;
-    const score = identityNameSimilarity(formOrder, candidate);
-    if (score >= bestScore) {
-      bestScore = score;
+    const hit = scoreManualFormIdentityMatch(
+      formOrder,
+      candidate,
+      threshold
+    );
+    if (hit && hit.score >= bestScore) {
+      bestScore = hit.score;
       best = candidate;
     }
   }
@@ -813,6 +823,8 @@ export type MatchDiffRow = {
   label: string;
   manualValue: string;
   formValue: string;
+  /** Both sides agree on a pairing-basis field (green highlight). */
+  matches: boolean;
   /** Both sides filled and disagree (conflict highlight). */
   differs: boolean;
   /** Magento has a value that will replace the manual on match. */
@@ -824,6 +836,10 @@ export type MatchDiffRow = {
  * Lists the full Magento form field set for this category/subtype. Manual
  * values stay "-" when the slim Add Order slot never collected that field.
  */
+function matchDiffValuesEqual(a: string, b: string): boolean {
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
 export function buildMatchDiffRows(manual: Order, form: Order): MatchDiffRow[] {
   // Labels / order from Magento form sections for this category/subtype.
   // Always show the full Magento set (not only slim Add Order overlap) so
@@ -838,16 +854,27 @@ export function buildMatchDiffRows(manual: Order, form: Order): MatchDiffRow[] {
       seen.add(field.key);
       const manualRaw = rawFieldValue(manual, field.key).trim();
       const formRaw = rawFieldValue(form, field.key).trim();
-      // Conflict highlight: both sides filled and disagree.
+      const sameIgnoringCase =
+        Boolean(manualRaw) &&
+        Boolean(formRaw) &&
+        matchDiffValuesEqual(manualRaw, formRaw);
+      // Green only for pairing-basis fields (gym/school/address/contacts/team),
+      // not coincidental shared Mix/geo values like country or package.
+      // Case-insensitive: "Thunder Elite" vs "thunder elite" still greens.
+      const matches = isMatchBasisFieldKey(field.key) && sameIgnoringCase;
+      // Conflict highlight: both sides filled and disagree (ignore casing).
       const differs =
-        Boolean(manualRaw) && Boolean(formRaw) && manualRaw !== formRaw;
-      // Overwrite on match: Magento filled and not equal to current manual.
-      const willOverwrite = Boolean(formRaw) && formRaw !== manualRaw;
+        Boolean(manualRaw) && Boolean(formRaw) && !sameIgnoringCase;
+      // Overwrite on match: Magento filled and not the same value (ignore casing).
+      const willOverwrite =
+        Boolean(formRaw) &&
+        (!manualRaw || !matchDiffValuesEqual(formRaw, manualRaw));
       rows.push({
         key: field.key,
         label: field.label,
         manualValue: manualRaw || "-",
         formValue: formRaw || "-",
+        matches,
         differs,
         willOverwrite,
       });

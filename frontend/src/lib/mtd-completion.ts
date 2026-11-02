@@ -176,31 +176,45 @@ export function mergeLocalMtdRecordFields(
   if (localRecord) {
     // Assignment is Order SoT. While awaiting reassign, never resurrect a
     // stale local producer (Move to Orders / Unassign cleared it). Backend
-    // completing reassign (flag cleared + producer set) wins over local flag.
+    // completing reassign (flag cleared + producer set) wins over local flag
+    // only when the peer is also off the MTD board — a stale inMTD:true row
+    // with the old producer must not bounce the booking back onto MTD.
+    // Inverse: a fresh local assign must not be wiped by a stale awaiting SSE.
     const backendAssigned = merged.assignedProducer?.trim() || null;
+    const localAssigned = localRecord.assignedProducer?.trim() || null;
     const backendAwaiting = Boolean(merged.isReassigned);
     const localAwaiting = Boolean(localRecord.isReassigned);
+    const localMovedToOrders = localAwaiting && localRecord.inMTD === false;
+    const backendStillOnBoard = backendRecord.inMTD === true;
     const backendCompletedReassign =
-      localAwaiting && !backendAwaiting && Boolean(backendAssigned);
+      localAwaiting &&
+      !backendAwaiting &&
+      Boolean(backendAssigned) &&
+      !backendStillOnBoard;
+    const localCompletedAssign = !localAwaiting && Boolean(localAssigned);
     const awaitingReassign =
-      backendAwaiting || (localAwaiting && !backendCompletedReassign);
+      (backendAwaiting && !localCompletedAssign) ||
+      (localAwaiting && !backendCompletedReassign);
     merged = {
       ...merged,
+      // Keep Move-to-Orders sticky until a real off-board re-assign lands.
+      inMTD:
+        localMovedToOrders && !backendCompletedReassign
+          ? false
+          : merged.inMTD,
       assignedProducer: awaitingReassign
         ? null
-        : backendAssigned ||
-          localRecord.assignedProducer?.trim() ||
-          null,
+        : backendAssigned || localAssigned || null,
       editorRequest: localRecord.editorRequest ?? merged.editorRequest,
       mixStartDate: awaitingReassign
-        ? merged.mixStartDate || ""
+        ? ""
         : localRecord.mixStartDate || merged.mixStartDate,
       mixEndDate: awaitingReassign
-        ? merged.mixEndDate || undefined
+        ? undefined
         : localRecord.mixEndDate || merged.mixEndDate,
       isReassigned: awaitingReassign ? true : false,
       orderStatus: awaitingReassign
-        ? merged.orderStatus || localRecord.orderStatus
+        ? localRecord.orderStatus || merged.orderStatus
         : merged.orderStatus ?? localRecord.orderStatus,
       // Invoice is mtd_records SoT: prefer backend when present so edits stick.
       // Fall back to local only when SSE/boot returns empty (anti-wipe).

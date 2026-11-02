@@ -120,6 +120,7 @@ export interface BackendOrder {
   price_compliance?: string | null;
   status: "new" | "active" | "needs_attention" | "completed" | "in_mtd";
   created_at: string;
+  updated_at?: string | null;
   completed_at?: string | null;
   needs_attention: boolean;
   attention_reason?: string | null;
@@ -336,6 +337,7 @@ export function transformOrder(bo: BackendOrder): Order {
     priceCompliance: (bo.price_compliance as any) || "compliant",
     status: bo.status || "new",
     createdAt: bo.created_at || new Date().toISOString(),
+    updatedAt: bo.updated_at || null,
     completedAt: bo.completed_at || null,
     needsAttention: Boolean(bo.needs_attention),
     attentionReason: bo.attention_reason || null,

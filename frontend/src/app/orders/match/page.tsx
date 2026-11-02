@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
   ChevronLeft,
@@ -373,7 +374,10 @@ function SideRow({
   );
 }
 
-export default function MatchOrdersPage() {
+function MatchOrdersPageContent() {
+  const searchParams = useSearchParams();
+  const focusManualId = searchParams.get("manual");
+  const focusFormId = searchParams.get("form");
   const {
     activeOrders,
     allOrders,
@@ -405,6 +409,7 @@ export default function MatchOrdersPage() {
   const [selectedMagentoId, setSelectedMagentoId] = useState<string | null>(null);
   const [magentoPage, setMagentoPage] = useState(0);
   const [manualPage, setManualPage] = useState(0);
+  const [focusSeedApplied, setFocusSeedApplied] = useState(false);
 
   const orderById = useMemo(() => {
     const map = new Map<string, Order>();
@@ -433,6 +438,76 @@ export default function MatchOrdersPage() {
     () => listUnmatchedManualOrders(activeOrders),
     [activeOrders]
   );
+
+  // Deep-link from Orders MTD soft gate: focus a manual (+ optional form).
+  useEffect(() => {
+    if (focusSeedApplied || isLoading) return;
+    if (!focusManualId && !focusFormId) {
+      setFocusSeedApplied(true);
+      return;
+    }
+    const manual =
+      unmatchedManuals.find(
+        (o) =>
+          o.id === focusManualId ||
+          o.uuid === focusManualId ||
+          o.legacyId === focusManualId
+      ) ||
+      allOrders.find(
+        (o) =>
+          o.id === focusManualId ||
+          o.uuid === focusManualId ||
+          o.legacyId === focusManualId
+      );
+    const formOrder =
+      unmatchedMagento.find(
+        (o) =>
+          o.id === focusFormId ||
+          o.uuid === focusFormId ||
+          o.legacyId === focusFormId
+      ) ||
+      allOrders.find(
+        (o) =>
+          o.id === focusFormId ||
+          o.uuid === focusFormId ||
+          o.legacyId === focusFormId
+      );
+
+    const seed = formOrder || manual;
+    if (seed?.formType && supportsManualMatchForm(seed.formType)) {
+      setForm(seed.formType);
+      if (seed.formType === "school-all-star-cheer") {
+        setCheerSubtype(
+          (seed.cheerFormSubtype as CheerFormSubtypeFilter) ||
+            DEFAULT_CHEER_SUBTYPE
+        );
+      }
+      if (seed.formType === "school-all-star-dance") {
+        setDanceSubtype(
+          (seed.danceFormSubtype as DanceFormSubtypeFilter) ||
+            DEFAULT_DANCE_SUBTYPE
+        );
+      }
+    }
+    if (manual) {
+      const identity = getOrderIdentityName(manual).trim();
+      setManualSearch(identity || manual.id);
+    }
+    if (formOrder) {
+      const identity = getOrderIdentityName(formOrder).trim();
+      setMagentoSearch(identity || formOrder.id);
+      setSelectedMagentoId(formOrder.id);
+    }
+    setFocusSeedApplied(true);
+  }, [
+    focusSeedApplied,
+    isLoading,
+    focusManualId,
+    focusFormId,
+    unmatchedManuals,
+    unmatchedMagento,
+    allOrders,
+  ]);
 
   const formCounts = useMemo(() => {
     const counts = Object.fromEntries(
@@ -1019,5 +1094,19 @@ export default function MatchOrdersPage() {
         onClose={() => setEditOrder(null)}
       />
     </div>
+  );
+}
+
+export default function MatchOrdersPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="p-8 text-[13px] text-brand-ink-tertiary">
+          Loading match orders…
+        </div>
+      }
+    >
+      <MatchOrdersPageContent />
+    </Suspense>
   );
 }

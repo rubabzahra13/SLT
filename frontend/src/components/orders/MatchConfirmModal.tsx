@@ -11,6 +11,7 @@ import {
 } from "@/lib/order-detail-sections";
 import { rawFieldValue } from "@/lib/order-detail-fields";
 import { buildMatchDiffRows } from "@/lib/manual-form-merge";
+import { isMatchBasisFieldKey } from "@/lib/manual-form-match-score";
 import {
   formatMatchMissingFieldsReason,
   getMatchBlockingMissingFields,
@@ -169,6 +170,11 @@ export function MatchConfirmModal({
           label: fieldLabelByKey.get(key) || key,
           manualValue: manualRaw || "-",
           formValue: formRaw || "-",
+          matches:
+            isMatchBasisFieldKey(key) &&
+            Boolean(manualRaw) &&
+            Boolean(formRaw) &&
+            manualRaw === formRaw,
           differs: false,
           willOverwrite: Boolean(formRaw) && formRaw !== manualRaw,
         };
@@ -442,7 +448,9 @@ export function MatchConfirmModal({
                                 ? "border-t border-brand-line/30 align-top bg-rose-50/35"
                                 : row.differs
                                   ? "border-t border-brand-line/30 align-top bg-brand-orange/5"
-                                  : "border-t border-brand-line/30 align-top"
+                                  : row.matches
+                                    ? "border-t border-brand-line/30 align-top bg-emerald-50/70"
+                                    : "border-t border-brand-line/30 align-top"
                           }
                         >
                           <td className="px-3 py-2 font-medium text-brand-ink">
@@ -459,7 +467,9 @@ export function MatchConfirmModal({
                             className={
                               row.differs
                                 ? "max-w-0 px-3 py-2 text-amber-900"
-                                : "max-w-0 px-3 py-2 text-brand-ink-secondary"
+                                : row.matches
+                                  ? "max-w-0 px-3 py-2 text-emerald-800"
+                                  : "max-w-0 px-3 py-2 text-brand-ink-secondary"
                             }
                           >
                             <span className="block truncate" title={row.manualValue}>
@@ -470,7 +480,9 @@ export function MatchConfirmModal({
                             className={
                               row.differs
                                 ? "max-w-0 px-3 py-2 text-sky-800"
-                                : "max-w-0 px-3 py-2 text-brand-ink-secondary"
+                                : row.matches
+                                  ? "max-w-0 px-3 py-2 text-emerald-800"
+                                  : "max-w-0 px-3 py-2 text-brand-ink-secondary"
                             }
                           >
                             {showEnterValue && canEdit ? (

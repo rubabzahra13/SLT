@@ -28,7 +28,6 @@ import {
   type ForwardMailField,
 } from "@/lib/forward-order-mail";
 import { findLinkedOrder } from "@/lib/editor-assignment";
-import { getOrderStatus } from "@/lib/order-requirements";
 import { producerKeysMatch } from "@/lib/producer-keys";
 import { getGmailStatus, sendGmailEmail } from "@/lib/api/gmail";
 import { ApiClientError } from "@/lib/api/client";
@@ -514,7 +513,6 @@ export function ForwardOrderMailModal({
     (isUnmatchedManualCustomer || selectedFields.length > 0);
   const canSend = canContinue && gmailConnected && !isViewOnly && !sent;
 
-  const { needsReassign } = getOrderStatus(linkedOrder ?? record);
   const assignedProducerKey =
     record.assignedProducer?.trim() || editor?.name?.trim() || "";
   const lastSentTo = record.producerEmailSentTo?.trim() || "";
@@ -523,20 +521,15 @@ export function ForwardOrderMailModal({
       lastSentTo &&
       producerKeysMatch(assignedProducerKey, lastSentTo)
   );
-  // Reassign clears the sent stamp; also cover post-reassign assign where the
-  // flag is gone but the producer still needs a send (or mark-as-sent) for MTD.
-  const isReassignProducerMailContext =
-    needsReassign ||
-    Boolean(record.isReassigned) ||
-    (Boolean(lastSentTo) && !sameProducerAsLastSend) ||
-    !record.producerEmailSentAt;
+  // Reassign clears producerEmailSentAt but keeps producerEmailSentTo when the
+  // producer is still the same. Mark-as-sent is only for that case (skip a
+  // redundant resend when producer/dates did not change), never first Assign.
   const canMarkProducerAlreadySent =
     !isCustomer &&
-    isReassignProducerMailContext &&
     !isViewOnly &&
     !sent &&
     !record.producerEmailSentAt &&
-    Boolean(assignedProducerKey || editor);
+    sameProducerAsLastSend;
 
   function toggleField(key: string) {
     setSelectedKeys((current) =>
@@ -771,11 +764,9 @@ export function ForwardOrderMailModal({
               {canMarkProducerAlreadySent ? (
                 <div className="rounded-xl border border-brand-info/25 bg-brand-info/8 px-3.5 py-3">
                   <p className="text-[12px] leading-relaxed text-brand-ink-secondary">
-                    {needsReassign || record.isReassigned
-                      ? "Already emailed this producer about the reassignment?"
-                      : "Already emailed this producer?"}{" "}
-                    Mark the email as sent without sending again — required
-                    before moving to MTD.
+                    Reassigned to the same producer with the same dates? Mark
+                    the email as sent without sending again. Required before
+                    moving to MTD.
                   </p>
                   <button
                     type="button"

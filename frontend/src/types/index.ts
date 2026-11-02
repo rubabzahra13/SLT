@@ -29,6 +29,8 @@ export type MTDRecord = {
   contactName: string;
   editorInitials: string;
   programName: string;
+  /** Cheer/Dance Magento team name — searchable on Orders. */
+  teamName?: string;
   package: string;
   musicTheme: string;
   price: number;
@@ -907,6 +909,8 @@ export type Order = {
   priceCompliance?: PriceCompliance;
   status: "new" | "active" | "needs_attention" | "completed" | "in_mtd";
   createdAt: string;
+  /** Server/optimistic version for live sync merge (reassign vs assign). */
+  updatedAt?: string | null;
   completedAt?: string | null;
   needsAttention: boolean;
   attentionReason: string | null;
