@@ -55,6 +55,7 @@ const FIELD_GETTERS: Record<string, (order: Order) => string | undefined> = {
       o.schoolGymAddress,
       o.schoolAddress
     ),
+  gymBillingAddressLine2: (o) => o.gymBillingAddressLine2 || "",
   schoolName: (o) =>
     coalesceFieldAliases(
       o.schoolName,
@@ -115,6 +116,8 @@ const FIELD_GETTERS: Record<string, (order: Order) => string | undefined> = {
   coachContactFullName: (o) =>
     coalesceFieldAliases(o.coachContactFullName, o.coachName, o.musicContactName),
   coachPhone: (o) => coalesceFieldAliases(o.coachPhone, o.musicContactPhone),
+  contactPhoneForYouthRecCheer: (o) =>
+    coalesceFieldAliases(o.contactPhoneForYouthRecCheer),
   coachEmail: (o) =>
     coalesceFieldAliases(o.coachEmail, o.coachEmailAddress, o.musicContactEmail),
   coachEmailAddress: (o) =>
@@ -353,6 +356,7 @@ export function orderFromMTDRecord(
     division: rec.section,
     coachName: rec.contactName,
     coachPhone: "",
+    contactPhoneForYouthRecCheer: "",
     coachEmail: "",
     billingPersonName: rec.contactName,
     billingPersonEmail: "",

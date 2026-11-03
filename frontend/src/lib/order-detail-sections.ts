@@ -32,6 +32,11 @@ const ALL_STAR_CHEER_FIELDS: { title: string; fields: FieldDef[] }[] = [
     fields: [
       { key: "gymName", label: "Gym Name" },
       { key: "gymBillingAddress", label: "Gym Billing Address", multiline: true },
+      {
+        key: "gymBillingAddressLine2",
+        label: "Gym Billing Address Line 2",
+        multiline: true,
+      },
       { key: "city", label: "City" },
       { key: "stateProvince", label: "Gym State/Province" },
       { key: "zipPostalCode", label: "ZIP/Postal Code", preserveCase: true },
@@ -283,6 +288,11 @@ const YOUTH_REC_CHEER_FIELDS: { title: string; fields: FieldDef[] }[] = [
         label: "Billing Address",
         multiline: true,
       },
+      {
+        key: "gymBillingAddressLine2",
+        label: "Billing Address Line 2",
+        multiline: true,
+      },
       { key: "city", label: "City" },
       { key: "stateProvince", label: "State/Province" },
       { key: "zipPostalCode", label: "ZIP/Postal Code", preserveCase: true },
@@ -299,6 +309,11 @@ const YOUTH_REC_CHEER_FIELDS: { title: string; fields: FieldDef[] }[] = [
         preserveCase: true,
       },
       { key: "coachPhone", label: "Phone #" },
+      {
+        key: "contactPhoneForYouthRecCheer",
+        label: "Contact Phone",
+        preserveCase: true,
+      },
       {
         // Magento label "Email Address": SoT is billing_person_email.
         key: "billingPersonEmail",
@@ -351,6 +366,11 @@ const POM_DANCE_FIELDS: { title: string; fields: FieldDef[] }[] = [
     fields: [
       { key: "schoolProgramName", label: "School/Program Name" },
       { key: "schoolGymAddress", label: "School/Gym Address", multiline: true },
+      {
+        key: "gymBillingAddressLine2",
+        label: "School/Gym Address Line 2",
+        multiline: true,
+      },
       { key: "city", label: "City" },
       { key: "stateProvince", label: "State/Province" },
       { key: "zipPostalCode", label: "ZIP/Postal Code", preserveCase: true },
@@ -449,6 +469,11 @@ const HIP_HOP_DANCE_FIELDS: { title: string; fields: FieldDef[] }[] = [
     fields: [
       { key: "schoolProgramName", label: "School/Program Name" },
       { key: "schoolGymAddress", label: "School/Gym Address", multiline: true },
+      {
+        key: "gymBillingAddressLine2",
+        label: "School/Gym Address Line 2",
+        multiline: true,
+      },
       { key: "city", label: "City" },
       { key: "stateProvince", label: "State/Province" },
       { key: "zipPostalCode", label: "ZIP/Postal Code", preserveCase: true },
@@ -547,6 +572,11 @@ const TEAM_PERFORMANCE_VARIETY_DANCE_FIELDS: { title: string; fields: FieldDef[]
     fields: [
       { key: "schoolProgramName", label: "School/Program Name" },
       { key: "schoolGymAddress", label: "School/Gym Address", multiline: true },
+      {
+        key: "gymBillingAddressLine2",
+        label: "School/Gym Address Line 2",
+        multiline: true,
+      },
       { key: "city", label: "City" },
       { key: "stateProvince", label: "State/Province" },
       { key: "zipPostalCode", label: "ZIP/Postal Code", preserveCase: true },
@@ -648,6 +678,11 @@ const GAMEDAY_DANCE_FIELDS: { title: string; fields: FieldDef[] }[] = [
     fields: [
       { key: "schoolProgramName", label: "School/Program Name" },
       { key: "schoolGymAddress", label: "School/Gym Address", multiline: true },
+      {
+        key: "gymBillingAddressLine2",
+        label: "School/Gym Address Line 2",
+        multiline: true,
+      },
       { key: "city", label: "City" },
       { key: "stateProvince", label: "State/Province" },
       { key: "zipPostalCode", label: "ZIP/Postal Code", preserveCase: true },
@@ -746,6 +781,11 @@ const JAZZ_KICK_DANCE_FIELDS: { title: string; fields: FieldDef[] }[] = [
     fields: [
       { key: "schoolProgramName", label: "School/Program Name" },
       { key: "schoolGymAddress", label: "School/Gym Address", multiline: true },
+      {
+        key: "gymBillingAddressLine2",
+        label: "School/Gym Address Line 2",
+        multiline: true,
+      },
       { key: "city", label: "City" },
       { key: "stateProvince", label: "State/Province" },
       { key: "zipPostalCode", label: "ZIP/Postal Code", preserveCase: true },
@@ -851,6 +891,11 @@ const MARCHING_BAND_FIELDS: { title: string; fields: FieldDef[] }[] = [
     fields: [
       { key: "schoolProgramName", label: "School/Program Name" },
       { key: "schoolGymAddress", label: "School/Gym Address", multiline: true },
+      {
+        key: "gymBillingAddressLine2",
+        label: "School/Gym Address Line 2",
+        multiline: true,
+      },
       { key: "city", label: "City" },
       { key: "stateProvince", label: "State/Province" },
       { key: "zipPostalCode", label: "ZIP/Postal Code", preserveCase: true },
@@ -1357,7 +1402,9 @@ export function getOrderIdentityName(order: Order): string {
 
 /**
  * Person name for Orders/MTD contact columns (Coach / Music Contact).
- * Reads coach_name SoT aliases only: never school_gym_name identity.
+ * Coach / music-contact values are returned as stored, even when they
+ * match the gym or school name. Fallback contact fields still skip a
+ * value that is only the organization name.
  */
 export function getOrderContactPersonName(
   order?: Order | null,
@@ -1372,21 +1419,27 @@ export function getOrderContactPersonName(
     .trim()
     .toLowerCase();
 
-  const candidates = [
+  const usable = (raw: unknown, allowSameAsIdentity: boolean) => {
+    const name = String(raw || "").trim();
+    if (!name) return "";
+    if (/^(contact|customer)$/i.test(name)) return "";
+    if (!allowSameAsIdentity && identity && name.toLowerCase() === identity) {
+      return "";
+    }
+    return name;
+  };
+
+  for (const raw of [
     order?.coachName,
     order?.musicContactName,
     order?.coachContactFullName,
-    order?.contactName,
-    recordContactName,
-    order?.customerName,
-  ];
-
-  for (const raw of candidates) {
-    const name = String(raw || "").trim();
-    if (!name) continue;
-    if (/^(contact|customer)$/i.test(name)) continue;
-    if (identity && name.toLowerCase() === identity) continue;
-    return name;
+  ]) {
+    const name = usable(raw, true);
+    if (name) return name;
+  }
+  for (const raw of [order?.contactName, recordContactName, order?.customerName]) {
+    const name = usable(raw, false);
+    if (name) return name;
   }
   return "";
 }

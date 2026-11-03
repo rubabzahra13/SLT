@@ -365,6 +365,7 @@ export type BaseOrderAdminFields = {
 export type AllStarCheerCustomerFields = {
   gymName: string;
   gymBillingAddress: string;
+  gymBillingAddressLine2?: string;
   city: string;
   stateProvince: string;
   zipPostalCode: string;
@@ -469,6 +470,8 @@ export type YouthRecCheerCustomerFields = {
   coachContactFullName: string;
   coachEmailAddress: string;
   coachPhone: string;
+  /** Youth Rec Magento contact-phone (field 69). Not coach Phone #. */
+  contactPhoneForYouthRecCheer: string;
   /** @deprecated alias of billingPersonEmail (Youth Rec Magento label). */
   youthRecExtraEmailAddress: string;
   /** @deprecated alias of billingPersonEmail */
@@ -848,6 +851,8 @@ export type Order = {
   /** Contact */
   coachName?: string;
   coachPhone?: string;
+  /** Youth Rec Magento contact-phone (orders.contact_phone_for_youth_rec_cheer). */
+  contactPhoneForYouthRecCheer?: string;
   coachEmail?: string;
   billingPersonName?: string;
   billingPersonEmail?: string;
@@ -866,6 +871,7 @@ export type Order = {
   /** All Star Cheer */
   gymName?: string;
   gymBillingAddress?: string;
+  gymBillingAddressLine2?: string;
   teamName?: string;
   teamCoedAllGirl?: string;
   teamColors?: string;

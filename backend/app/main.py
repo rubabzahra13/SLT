@@ -65,7 +65,77 @@ async def lifespan(app: FastAPI):
         finally:
             db.close()
 
+    try:
+        from sqlalchemy import text
+
+        with engine.begin() as conn:
+            if engine.dialect.name == "sqlite":
+                for stmt in (
+                    "ALTER TABLE orders ADD COLUMN school_gym_billing_address_line_2 TEXT",
+                    "ALTER TABLE orders ADD COLUMN magento_form_id VARCHAR",
+                    "ALTER TABLE orders ADD COLUMN magento_result_id VARCHAR",
+                    "ALTER TABLE orders ADD COLUMN contact_phone_for_youth_rec_cheer VARCHAR",
+                ):
+                    try:
+                        conn.execute(text(stmt))
+                    except Exception:
+                        pass
+            else:
+                conn.execute(text(
+                    "ALTER TABLE orders ADD COLUMN IF NOT EXISTS school_gym_billing_address_line_2 TEXT;"
+                ))
+                conn.execute(text(
+                    "ALTER TABLE orders ADD COLUMN IF NOT EXISTS magento_form_id VARCHAR;"
+                ))
+                conn.execute(text(
+                    "ALTER TABLE orders ADD COLUMN IF NOT EXISTS magento_result_id VARCHAR;"
+                ))
+                conn.execute(text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uq_orders_magento_result_id ON orders (magento_result_id);"
+                ))
+                conn.execute(text(
+                    "CREATE INDEX IF NOT EXISTS ix_orders_magento_form_id ON orders (magento_form_id);"
+                ))
+                conn.execute(text(
+                    "ALTER TABLE orders ADD COLUMN IF NOT EXISTS contact_phone_for_youth_rec_cheer VARCHAR;"
+                ))
+                conn.execute(text(
+                    """
+                    CREATE TABLE IF NOT EXISTS magento_poll_cursor (
+                        id INTEGER PRIMARY KEY,
+                        import_after TIMESTAMPTZ NOT NULL
+                    )
+                    """
+                ))
+    except Exception as exc:
+        logger.warning("Magento intake columns were not added: %s", exc)
+
+    magento_stop = None
+    try:
+        from app.services.magento_poll import start_magento_poller
+
+        # Use uvicorn's console logger: app.* INFO is often invisible locally.
+        logging.getLogger("uvicorn.error").info(
+            "Starting Magento poller (enabled=%s forms=%s interval=%ss token=%s)",
+            settings.MAGENTO_POLL_ENABLED,
+            settings.MAGENTO_POLL_FORM_IDS,
+            settings.MAGENTO_POLL_INTERVAL_SECONDS,
+            "set" if (settings.WF_ACCESS_TOKEN or "").strip() else "MISSING",
+        )
+        magento_stop = start_magento_poller()
+    except Exception as exc:
+        logging.getLogger("uvicorn.error").warning(
+            "Magento poller did not start: %s", exc
+        )
+
     yield
+
+    try:
+        from app.services.magento_poll import stop_magento_poller
+
+        await stop_magento_poller(magento_stop)
+    except Exception as exc:
+        logger.warning("Magento poller shutdown failed: %s", exc)
 
 app = FastAPI(
     title=settings.PROJECT_NAME,

@@ -170,6 +170,7 @@ function blankOrderDraft(
     coachName: "",
     coachContactFullName: "",
     coachPhone: "",
+    contactPhoneForYouthRecCheer: "",
     coachEmail: "",
     coachEmailAddress: "",
     contactName: "",

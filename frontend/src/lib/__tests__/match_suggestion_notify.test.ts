@@ -94,7 +94,7 @@ describe("incoming Magento match suggestion notify", () => {
     assert.equal(event.manualId, "m1");
   });
 
-  it("does not notify for a Magento form with no suggested manual", () => {
+  it("notifies new_order for a Magento form with no suggested manual", () => {
     const form = baseOrder({
       id: "f1",
       gymName: "Alpha Gym",
@@ -106,7 +106,12 @@ describe("incoming Magento match suggestion notify", () => {
       gymName: "Beta Gym",
       programName: "Beta Gym",
     });
-    assert.equal(incomingOrderBellEvent(form, [form, manual]).kind, "none");
+    const event = incomingOrderBellEvent(form, [form, manual]);
+    assert.equal(event.kind, "new_order");
+    if (event.kind !== "new_order") return;
+    assert.equal(event.notification.type, "new_order");
+    assert.equal(event.notification.href, "/orders");
+    assert.equal(event.notification.dedupeKey, "new_order:f1");
   });
 
   it("still notifies new_order for a manual booking", () => {

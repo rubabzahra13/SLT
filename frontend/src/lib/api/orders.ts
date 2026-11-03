@@ -12,6 +12,9 @@ export interface BackendOrder {
   school_program_name?: string | null;
   school_gym_name?: string | null;
   school_gym_billing_address?: string | null;
+  school_gym_billing_address_line_2?: string | null;
+  magento_form_id?: string | null;
+  magento_result_id?: string | null;
   /** @deprecated alias of school_gym_billing_address */
   school_address?: string | null;
   city?: string | null;
@@ -21,6 +24,7 @@ export interface BackendOrder {
   division?: string | null;
   coach_name?: string | null;
   coach_phone?: string | null;
+  contact_phone_for_youth_rec_cheer?: string | null;
   coach_email?: string | null;
   billing_person_name?: string | null;
   billing_person_email?: string | null;
@@ -172,9 +176,13 @@ export function transformOrder(bo: BackendOrder): Order {
     return v;
   };
 
-  // Board contact / Magento Coach / Music Contact → coach_name SoT.
+  // coach_name is shown as submitted, including when it matches the gym name.
+  // Identity filter applies only to contact/customer fallbacks so an empty
+  // coach does not get replaced by the gym name.
+  const coachAsSubmitted =
+    coach && !/^(contact|customer)$/i.test(coach) ? coach : "";
   const personName =
-    personNotIdentity(coach) ||
+    coachAsSubmitted ||
     personNotIdentity(bo.contact_name) ||
     personNotIdentity(bo.customer_name);
 
@@ -206,6 +214,8 @@ export function transformOrder(bo: BackendOrder): Order {
     schoolAddress: billing,
     schoolGymAddress: billing || undefined,
     gymBillingAddress: billing || undefined,
+    gymBillingAddressLine2:
+      String(bo.school_gym_billing_address_line_2 || "").trim() || undefined,
     schoolBillingAddress: billing || undefined,
     youthRecBillingAddress: billing || undefined,
     organizationBillingAddress: billing || undefined,
@@ -220,6 +230,7 @@ export function transformOrder(bo: BackendOrder): Order {
     coachContactFullName: personName || undefined,
     musicContactName: personName || undefined,
     coachPhone: bo.coach_phone || "",
+    contactPhoneForYouthRecCheer: bo.contact_phone_for_youth_rec_cheer || "",
     coachEmail,
     coachEmailAddress: coachEmail || undefined,
     billingPersonName: bo.billing_person_name || "",
@@ -446,6 +457,9 @@ export function orderPatchToApiPayload(
   if (billingAliases.some((v) => v !== undefined)) {
     payload.school_gym_billing_address = firstDefined(billingAliases) ?? "";
   }
+  if (patch.gymBillingAddressLine2 !== undefined) {
+    payload.school_gym_billing_address_line_2 = patch.gymBillingAddressLine2;
+  }
   if (patch.teamName !== undefined) {
     payload.team_name = patch.teamName;
   }
@@ -577,6 +591,9 @@ export function orderPatchToApiPayload(
     if (patch.customerName === undefined) payload.customer_name = coach;
   }
   if (patch.coachPhone !== undefined) payload.coach_phone = patch.coachPhone;
+  if (patch.contactPhoneForYouthRecCheer !== undefined) {
+    payload.contact_phone_for_youth_rec_cheer = patch.contactPhoneForYouthRecCheer;
+  }
   const coachEmailAliases = [patch.coachEmail, patch.coachEmailAddress];
   if (coachEmailAliases.some((v) => v !== undefined)) {
     payload.coach_email = firstDefined(coachEmailAliases) ?? "";

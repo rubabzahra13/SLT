@@ -228,7 +228,8 @@ export function normalizeOrder(
     raw.organizationName,
     raw.programName
   );
-  // Person SoT = coach_name: never copy school/org identity into contact.
+  // Person SoT = coach_name, kept even when it matches the gym/school name.
+  // An empty coach still does not fall back to the organization name.
   const coachPerson = coalesceAliasesAllowClear(
     raw.coachName,
     raw.coachContactFullName,
@@ -239,12 +240,13 @@ export function normalizeOrder(
     raw.customerName
   );
   const rawContact = coachPerson || boardContact;
-  const contactName =
-    programName &&
-    rawContact.toLowerCase() === programName.toLowerCase()
-      ? coachPerson
+  const contactName = coachPerson
+    ? coachPerson
+    : programName &&
+        rawContact.toLowerCase() === programName.toLowerCase()
+      ? ""
       : /^(contact|customer)$/i.test(rawContact)
-        ? coachPerson
+        ? ""
         : rawContact;
   const { tier } = parsePackage(raw.package || raw.packageType || "");
 
@@ -386,6 +388,7 @@ export function normalizeOrder(
       );
       return {
         gymBillingAddress: billing,
+        gymBillingAddressLine2: raw.gymBillingAddressLine2?.trim() || "",
         schoolBillingAddress: billing,
         youthRecBillingAddress: billing,
         organizationBillingAddress: billing,

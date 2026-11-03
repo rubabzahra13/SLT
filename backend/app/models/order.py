@@ -37,6 +37,8 @@ class Order(Base):
     # School/Gym Billing Address: also Gym Billing, School Billing, Billing Address,
     # Organization Billing, School/Gym Address.
     school_gym_billing_address = Column(Text, nullable=True)
+    # Magento address line 2 (All Star Cheer field 3). Own column; not folded into line 1.
+    school_gym_billing_address_line_2 = Column(Text, nullable=True)
     city = Column(String, nullable=True)
     state_province = Column(String, nullable=True)
     zip_postal_code = Column(String, nullable=True)
@@ -57,6 +59,8 @@ class Order(Base):
     # "Coach Email Address" are aliases (Youth Rec field keys).
     coach_name = Column(String, nullable=True)
     coach_phone = Column(String, nullable=True)
+    # Youth Rec Magento field 69 (contact-phone). Separate from coach_phone (field 67).
+    contact_phone_for_youth_rec_cheer = Column(String, nullable=True)
     coach_email = Column(String, nullable=True)
     billing_person_name = Column(String, nullable=True)
     # Magento "Billing Person Email" / Youth Rec "Email Address": one SoT.
@@ -141,6 +145,10 @@ class Order(Base):
     missing_data_email_sent_at = Column(DateTime(timezone=True), nullable=True)
     producer_email_sent_at = Column(DateTime(timezone=True), nullable=True)
     producer_email_sent_to = Column(String, nullable=True)
+    # Magento WebForms submission identity. result_id is unique across forms.
+    # Nullable so manually created orders are unaffected (Postgres allows many NULLs).
+    magento_form_id = Column(String, nullable=True, index=True)
+    magento_result_id = Column(String, nullable=True, unique=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     completed_at = Column(DateTime(timezone=True), nullable=True)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)

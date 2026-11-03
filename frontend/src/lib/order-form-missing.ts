@@ -69,6 +69,8 @@ const ALWAYS_OPTIONAL_FORM_FIELD_KEYS = new Set([
   // Youth Rec Magento "Email Address" aliases (form key is billingPersonEmail).
   "youthRecExtraEmailAddress",
   "emailAddress",
+  // Youth Rec Magento contact-phone (field 69). Coach Phone # is separate.
+  "contactPhoneForYouthRecCheer",
   // Dance Magento cover boxes: optional even when that affiliate is selected.
   "powerMusicCovers",
   "unleashTheBeatsCovers",
@@ -126,6 +128,15 @@ export function isOptionalOrderFormField(
   if (
     (key === "billingPersonEmail" || key === "billingContactEmail") &&
     isYouthRecCheerSubtype(order)
+  ) {
+    return true;
+  }
+  // Youth Rec and POM address line 2 are often blank. All Star still treats its line 2 as required.
+  if (
+    key === "gymBillingAddressLine2" &&
+    (isYouthRecCheerSubtype(order) ||
+      String(order?.formType || "").trim() === "school-all-star-dance" ||
+      isMarchingBandOrder(order))
   ) {
     return true;
   }

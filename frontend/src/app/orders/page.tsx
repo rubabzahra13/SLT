@@ -1114,12 +1114,10 @@ function OrdersPageContent() {
         ),
         render: (rec) => {
           const linked = findLinkedOrder(rec, allOrders);
-          const name = titleCase(
-            getOrderContactPersonName(
-              linked || orderFromMTDRecord(rec),
-              rec.contactName,
-              rec.programName
-            )
+          const name = getOrderContactPersonName(
+            linked || orderFromMTDRecord(rec),
+            rec.contactName,
+            rec.programName
           ).trim();
           return (
             <TruncatedText

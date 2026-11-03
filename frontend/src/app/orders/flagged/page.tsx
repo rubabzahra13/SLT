@@ -25,7 +25,6 @@ import {
   isInvalidMultiAffiliateSelection,
   recordHeldOnAffiliateFlag,
 } from "@/lib/affiliate-flag";
-import { titleCase } from "@/lib/data";
 import { formatDisplayDateTime } from "@/lib/dates";
 import {
   findLinkedOrder,
@@ -262,12 +261,10 @@ export default function FlaggedOrdersPage() {
         ),
         render: (rec) => {
           const linked = findLinkedOrder(rec, allOrders);
-          const name = titleCase(
-            getOrderContactPersonName(
-              linked || orderFromMTDRecord(rec),
-              rec.contactName,
-              rec.programName
-            )
+          const name = getOrderContactPersonName(
+            linked || orderFromMTDRecord(rec),
+            rec.contactName,
+            rec.programName
           ).trim();
           return (
             <TruncatedText

@@ -142,8 +142,9 @@ export function matchSuggestionNotificationPayload(
 }
 
 /**
- * Incoming Magento/manual bell: Flagged first, then Suggested for You.
- * Magento forms without a suggested manual do not create a bell item.
+ * Incoming Magento/manual bell: Flagged first, then Suggested for You,
+ * then a plain new-order bell for Magento forms with no suggested match
+ * (including poll-imported WebForms submissions).
  */
 export function incomingOrderBellEvent(
   stamped: Order,
@@ -173,11 +174,22 @@ export function incomingOrderBellEvent(
     };
   }
   const suggestions = suggestManualsForMagento(stamped, catalog);
-  if (suggestions.length === 0) return { kind: "none" };
+  if (suggestions.length > 0) {
+    return {
+      kind: "match_suggestion",
+      formId: stamped.id,
+      manualId: suggestions[0].manual.id,
+      notification: matchSuggestionNotificationPayload(stamped, suggestions),
+    };
+  }
   return {
-    kind: "match_suggestion",
-    formId: stamped.id,
-    manualId: suggestions[0].manual.id,
-    notification: matchSuggestionNotificationPayload(stamped, suggestions),
+    kind: "new_order",
+    notification: {
+      type: "new_order",
+      title: "New Magento form received",
+      message: `${orderNotifyLabel(stamped)} · ${orderCustomerLabel(stamped)}`,
+      href: "/orders",
+      dedupeKey: `new_order:${stamped.id}`,
+    },
   };
 }

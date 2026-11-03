@@ -71,6 +71,9 @@ class OrderSchema(BaseModel):
 
     school_gym_name: Optional[str] = None
     school_gym_billing_address: Optional[str] = None
+    school_gym_billing_address_line_2: Optional[str] = None
+    magento_form_id: Optional[str] = None
+    magento_result_id: Optional[str] = None
     # Legacy aliases (filled from school_gym_* for FE compat)
     school_program_name: Optional[str] = None
     school_gym_billing_address: Optional[str] = None
@@ -83,6 +86,7 @@ class OrderSchema(BaseModel):
 
     coach_name: Optional[str] = None
     coach_phone: Optional[str] = None
+    contact_phone_for_youth_rec_cheer: Optional[str] = None
     coach_email: Optional[str] = None
     billing_person_name: Optional[str] = None
     billing_person_email: Optional[str] = None
@@ -221,8 +225,8 @@ class OrderCreateSchema(BaseModel):
 
     school_gym_name: Optional[str] = None
     school_gym_billing_address: Optional[str] = None
+    school_gym_billing_address_line_2: Optional[str] = None
     school_program_name: Optional[str] = None
-    school_gym_billing_address: Optional[str] = None
     school_address: Optional[str] = None
     city: Optional[str] = None
     state_province: Optional[str] = None
@@ -232,6 +236,7 @@ class OrderCreateSchema(BaseModel):
 
     coach_name: Optional[str] = None
     coach_phone: Optional[str] = None
+    contact_phone_for_youth_rec_cheer: Optional[str] = None
     coach_email: Optional[str] = None
     billing_person_name: Optional[str] = None
     billing_person_email: Optional[str] = None
@@ -319,6 +324,7 @@ class OrderUpdateSchema(BaseModel):
     song_list_suggestions: Optional[str] = None
     school_gym_name: Optional[str] = None
     school_gym_billing_address: Optional[str] = None
+    school_gym_billing_address_line_2: Optional[str] = None
     school_program_name: Optional[str] = None
     school_gym_billing_address: Optional[str] = None
     school_address: Optional[str] = None
@@ -329,6 +335,7 @@ class OrderUpdateSchema(BaseModel):
     division: Optional[str] = None
     coach_name: Optional[str] = None
     coach_phone: Optional[str] = None
+    contact_phone_for_youth_rec_cheer: Optional[str] = None
     coach_email: Optional[str] = None
     billing_person_name: Optional[str] = None
     billing_person_email: Optional[str] = None

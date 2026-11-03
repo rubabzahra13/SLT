@@ -64,6 +64,18 @@ function addressCols(prefix: "gym" | "school" | "billing", includeName = true): 
 
   cols.push(
     textCol(addrKey, prefix === "billing" ? "Billing Address" : prefix === "gym" ? "Gym Billing Address" : "School Billing Address", (o) => (o[addrKey as keyof Order] as string) || o.schoolAddress, "160px"),
+  );
+  if (prefix === "gym" || prefix === "billing") {
+    cols.push(
+      textCol(
+        "gymBillingAddressLine2",
+        prefix === "billing" ? "Billing Address Line 2" : "Gym Billing Address Line 2",
+        (o) => o.gymBillingAddressLine2,
+        "160px"
+      )
+    );
+  }
+  cols.push(
     textCol("city", "City", (o) => o.city, "100px"),
     textCol("stateProvince", "State/Province", (o) => o.stateProvince, "90px"),
     {
@@ -212,6 +224,14 @@ function youthRecCheerColumns(): Column<Order>[] {
       header: "Phone #",
       width: "110px",
       render: (o) => <span className="tabular-nums">{o.coachPhone || "-"}</span>,
+    },
+    {
+      key: "contactPhoneForYouthRecCheer",
+      header: "Contact Phone",
+      width: "120px",
+      render: (o) => (
+        <span className="tabular-nums">{o.contactPhoneForYouthRecCheer || "-"}</span>
+      ),
     },
     textCol(
       "billingPersonEmail",
