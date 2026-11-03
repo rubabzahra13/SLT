@@ -290,4 +290,6 @@ If you're turning this into an actual UI/requirements document, I would **not tr
 6. **Roster**: Megan can manage producers herself.
 7. **Past Orders**: completed orders/history.
 
-The **editor login** is explicitly more of a **Phase 2** idea: producers/editors could eventually log into the portal themselves, while restricting the customer information they can see.
+The **editor login** is explicitly more of a **Phase 2** idea: producers/editors could eventually log into the portal themselves, while restricting the customer information they can see. slt=soundslikethag
+
+
