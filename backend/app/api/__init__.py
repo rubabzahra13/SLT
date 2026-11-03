@@ -13,6 +13,7 @@ from app.api.bootstrap import router as bootstrap_router
 from app.api.catalog_pricing import router as catalog_pricing_router
 from app.api.pricing_rules import router as pricing_rules_router
 from app.api.music_affiliates import router as music_affiliates_router
+from app.api.magento_ingest import router as magento_ingest_router
 
 api_router = APIRouter()
 api_router.include_router(health_router, tags=["health"])
@@ -30,3 +31,4 @@ api_router.include_router(music_affiliates_router, prefix="/api", tags=["music_a
 api_router.include_router(gmail_router, prefix="/api", tags=["gmail"])
 api_router.include_router(payroll_addons_router, prefix="/api", tags=["payroll_addons"])
 api_router.include_router(studio_settings_router, prefix="/api", tags=["studio_settings"])
+api_router.include_router(magento_ingest_router, prefix="/api", tags=["magento_ingest"])

@@ -28,6 +28,8 @@ class Settings(BaseSettings):
     MAGENTO_POLL_FORM_IDS: str = "1,2,3,4,5,6,7,8,9,10,11,14"
     WF_BASE: str = "https://staging.powermusiccheer.com/rest"
     WF_ACCESS_TOKEN: str = ""
+    # Shared secret for Lightsail VPS → POST /api/magento/ingest (not a user token).
+    MAGENTO_INGEST_SECRET: str = ""
 
     # Google OAuth Configuration
     GOOGLE_CLIENT_ID: str = ""

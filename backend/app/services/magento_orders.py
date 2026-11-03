@@ -10,8 +10,9 @@ import json
 import logging
 import urllib.error
 import urllib.request
+from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any, Literal, Optional, Set
 
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
@@ -20,7 +21,27 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.models.order import Order
 from app.schemas.order import OrderSchema
+from app.services.board_events import board_event_hub
 from app.services.dance_song_covers import pack_dance_song_covers
+
+MagentoIngestStatus = Literal[
+    "created",
+    "skipped_duplicate",
+    "skipped_cutoff",
+    "skipped_form_mismatch",
+    "skipped_unroutable",
+    "skipped_missing_result_id",
+]
+
+
+@dataclass(frozen=True)
+class MagentoIngestResult:
+    """Outcome of ingesting one Magento WebForms result into ``orders``."""
+
+    status: MagentoIngestStatus
+    result_id: Optional[str] = None
+    order: Optional[dict[str, Any]] = None
+    message: Optional[str] = None
 
 # Same console as uvicorn so poll results are visible in the server terminal.
 logger = logging.getLogger("uvicorn.error")
@@ -672,6 +693,114 @@ def fetch_form_results(form_id: int, timeout: int = 120) -> list[dict[str, Any]]
     return extract_results(json.loads(body))
 
 
+def _publish_magento_order_created(order_payload: dict[str, Any]) -> None:
+    """Same board event shape as ``POST /api/orders`` / the local Magento poller."""
+    board_event_hub.publish({"type": "order.updated", "order": order_payload})
+
+
+def ingest_magento_result(
+    db: Session,
+    form_id: int,
+    result: dict[str, Any],
+    *,
+    cutoff: Optional[datetime] = None,
+    known_result_ids: Optional[Set[str]] = None,
+    publish_board_event: bool = False,
+) -> MagentoIngestResult:
+    """Insert one Magento WebForms result using the existing CRM mapping rules.
+
+    Designed for reuse by the local poller and a future VPS→Vercel ingest endpoint.
+
+    When ``cutoff`` is omitted, loads (or creates once) the shared forward-only
+    cursor via ``ensure_import_cutoff``. Pass an explicit cutoff from batch
+    pollers to avoid repeated cursor reads.
+
+    When ``known_result_ids`` is provided it is treated as an authoritative
+    in-memory duplicate set (and updated by the caller on create/duplicate).
+    When omitted, duplicates are detected with a per-id DB lookup plus the
+    unique constraint on ``orders.magento_result_id``.
+
+    Dashboard publishing defaults off so the existing poller can keep publishing
+    once per tick; set ``publish_board_event=True`` for single-shot ingest paths.
+    """
+    result_id = str(result.get("result_id") or "").strip() or None
+    if not result_id:
+        return MagentoIngestResult(status="skipped_missing_result_id")
+
+    if known_result_ids is not None:
+        if result_id in known_result_ids:
+            return MagentoIngestResult(
+                status="skipped_duplicate",
+                result_id=result_id,
+            )
+    else:
+        existing = (
+            db.query(Order.id)
+            .filter(Order.magento_result_id == result_id)
+            .first()
+        )
+        if existing:
+            return MagentoIngestResult(
+                status="skipped_duplicate",
+                result_id=result_id,
+            )
+
+    resolved_cutoff = cutoff if cutoff is not None else ensure_import_cutoff(db)
+    if not submission_is_after_cutoff(result, resolved_cutoff):
+        return MagentoIngestResult(
+            status="skipped_cutoff",
+            result_id=result_id,
+        )
+
+    incoming_form = result.get("form_id")
+    if incoming_form is not None and str(incoming_form) != str(form_id):
+        return MagentoIngestResult(
+            status="skipped_form_mismatch",
+            result_id=result_id,
+            message=f"result form_id {incoming_form!r} != requested {form_id}",
+        )
+
+    values = order_values_from_result(result, form_id)
+    if not values:
+        logger.warning(
+            "Magento form %s result %s has no CRM route (page URL missing or unknown); skipping",
+            form_id,
+            result_id,
+        )
+        return MagentoIngestResult(
+            status="skipped_unroutable",
+            result_id=result_id,
+            message="no CRM route (page URL missing or unknown)",
+        )
+    if not values.get("magento_result_id"):
+        return MagentoIngestResult(
+            status="skipped_missing_result_id",
+            result_id=result_id,
+        )
+
+    order = Order(**values)
+    db.add(order)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        return MagentoIngestResult(
+            status="skipped_duplicate",
+            result_id=result_id,
+            message="unique magento_result_id conflict",
+        )
+
+    db.refresh(order)
+    payload = OrderSchema.model_validate(order).model_dump(mode="json")
+    if publish_board_event:
+        _publish_magento_order_created(payload)
+    return MagentoIngestResult(
+        status="created",
+        result_id=result_id,
+        order=payload,
+    )
+
+
 def upsert_form_results(
     db: Session,
     form_id: int,
@@ -691,36 +820,24 @@ def upsert_form_results(
     }
     created: list[dict[str, Any]] = []
     for result in results:
-        result_id = str(result.get("result_id") or "").strip()
-        if not result_id or result_id in known:
-            continue
-        if not submission_is_after_cutoff(result, cutoff):
+        outcome = ingest_magento_result(
+            db,
+            form_id,
+            result,
+            cutoff=cutoff,
+            known_result_ids=known,
+            publish_board_event=False,
+        )
+        if outcome.status == "skipped_cutoff":
             before_cutoff += 1
             continue
-        incoming_form = result.get("form_id")
-        if incoming_form is not None and str(incoming_form) != str(form_id):
+        if outcome.status == "created" and outcome.order is not None:
+            if outcome.result_id:
+                known.add(outcome.result_id)
+            created.append(outcome.order)
             continue
-        values = order_values_from_result(result, form_id)
-        if not values:
-            logger.warning(
-                "Magento form %s result %s has no CRM route (page URL missing or unknown); skipping",
-                form_id,
-                result_id,
-            )
-            continue
-        if not values.get("magento_result_id"):
-            continue
-        order = Order(**values)
-        db.add(order)
-        try:
-            db.commit()
-        except IntegrityError:
-            db.rollback()
-            known.add(result_id)
-            continue
-        db.refresh(order)
-        known.add(result_id)
-        created.append(OrderSchema.model_validate(order).model_dump(mode="json"))
+        if outcome.status == "skipped_duplicate" and outcome.result_id:
+            known.add(outcome.result_id)
     return created, before_cutoff
 
 
