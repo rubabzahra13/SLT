@@ -18,6 +18,7 @@ import {
   collectUnpaidPayrollMixesForProducer,
 } from "@/lib/producer-assigned-mixes";
 import { getProducerCategories, normalizeProducerList } from "@/lib/producers";
+import { DISPLAY_TIME_ZONE } from "@/lib/dates";
 import { countProducerMixesThisWeek } from "@/lib/producer-availability";
 import type { MTDRecord, Producer, Weekday } from "@/types";
 import { useAppState } from "@/context/AppStateContext";
@@ -37,10 +38,12 @@ function formatProducerAddedAt(value?: string | null): string | null {
     month: "short",
     day: "numeric",
     year: "numeric",
+    timeZone: DISPLAY_TIME_ZONE,
   });
   const time = date.toLocaleTimeString("en-US", {
     hour: "numeric",
     minute: "2-digit",
+    timeZone: DISPLAY_TIME_ZONE,
   });
   return `${day} · ${time}`;
 }

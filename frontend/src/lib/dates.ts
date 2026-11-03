@@ -40,6 +40,9 @@ export function toIsoDateString(value?: string | null): string {
   return `${y}-${m}-${d}`;
 }
 
+/** Order clocks are shown in US Central Time (CST/CDT). */
+export const DISPLAY_TIME_ZONE = "America/Chicago";
+
 export function formatDisplayDate(value?: string | null): string {
   const iso = toIsoDateString(value);
   if (!iso || !/^\d{4}-\d{2}-\d{2}/.test(iso)) return value?.trim() || "-";
@@ -70,6 +73,7 @@ export function formatDisplayDateTime(value?: string | null): string {
     year: "numeric",
     hour: "numeric",
     minute: "2-digit",
+    timeZone: DISPLAY_TIME_ZONE,
   });
 }
 

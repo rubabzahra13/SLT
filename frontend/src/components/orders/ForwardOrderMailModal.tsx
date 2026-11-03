@@ -37,7 +37,7 @@ import { useAppState } from "@/context/AppStateContext";
 import { PdfImageViewer } from "@/components/ui/PdfCanvasViewer";
 import { MailRecipientSelect } from "@/components/ui/MailRecipientSelect";
 import { InlineDateInput } from "@/components/mtd/InlineFields";
-import { parseFlexibleDate, toIsoDateString } from "@/lib/dates";
+import { formatDisplayDateTime, parseFlexibleDate, toIsoDateString } from "@/lib/dates";
 import {
   DEFAULT_EMAIL_TEMPLATES,
   emailTemplateUsesAnyPlaceholder,
@@ -759,7 +759,7 @@ export function ForwardOrderMailModal({
                 <div className="rounded-xl border border-brand-warning/30 bg-brand-warning/8 px-3.5 py-3 text-[12px] leading-relaxed text-brand-ink-secondary">
                   A missing-data email was already sent
                   {record.missingDataEmailSentAt
-                    ? ` on ${new Date(record.missingDataEmailSentAt).toLocaleString()}`
+                    ? ` on ${formatDisplayDateTime(record.missingDataEmailSentAt)}`
                     : ""}
                   . Use this follow-up to ask the customer to resubmit anything
                   that came back incorrect.
