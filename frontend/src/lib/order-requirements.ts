@@ -1067,9 +1067,12 @@ export function mergeOrderFormFieldsForRequirements(
         delete merged.mix;
         delete merged.time_of_mix;
       }
-      return Object.keys(merged).length > 0
-        ? (merged as Order["collectionStates"])
-        : rec.collectionStates;
+      if (Object.keys(merged).length > 0) {
+        return merged as Order["collectionStates"];
+      }
+      // Empty after dropping Mix: do not revive staging { mix: true }.
+      if (!linkedTime) return undefined;
+      return rec.collectionStates;
     })(),
   };
 }

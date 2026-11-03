@@ -5,6 +5,7 @@ import type {
   OrderFormType,
 } from "../types";
 import { parsePackage } from "./package";
+import { isRushOrderFlag } from "./forward-order-mail";
 
 export type ComplianceStatus =
   | "compliant"
@@ -711,6 +712,21 @@ export function determineComplianceStatus(
     : "non-compliant";
 }
 
+/** Magento SoftSelect cheer package → rate-card tier (e.g. Rally Mix paren text). */
+export function canonicalizeCheerPackageTier(rawTier: string): string {
+  let tier = String(rawTier || "")
+    .trim()
+    .toUpperCase()
+    .replace(/\s*\([^)]*\)\s*$/g, "")
+    .replace(/\s+PACKAGE$/i, "")
+    .trim();
+  // Magento School Cheer SoftSelect: "Rally Mix (without 8 count sheets)".
+  if (tier.startsWith("RALLY MIX") || /\bRALLY\s+MIX\b/.test(tier)) {
+    return "RALLY MIX";
+  }
+  return tier;
+}
+
 export function lookupRateCardEntry(
   cheerFormSubtype: CheerFormSubtype,
   packageType: string,
@@ -720,7 +736,7 @@ export function lookupRateCardEntry(
   const fullPkg = [packageType, timeLengthOfMix].filter(Boolean).join(" ");
   const parsed = parsePackage(fullPkg);
 
-  let targetTier = parsed.tier.toUpperCase().replace(/\s+PACKAGE$/i, "").trim();
+  let targetTier = canonicalizeCheerPackageTier(parsed.tier);
   let targetLimit = parsed.limit.trim();
 
   if (targetLimit === "-" && timeLengthOfMix?.trim()) {
@@ -730,6 +746,13 @@ export function lookupRateCardEntry(
   // Magento SoftSelect has no 2:15: map legacy Youth Rec 2:15 → 2:30.
   if (cheerFormSubtype === "youth-rec-cheer" && targetLimit === "2:15") {
     targetLimit = "2:30";
+  }
+
+  // Rally Mix is a flat package (limit "-"). Magento still collects mix length;
+  // ignore that length so SoftSelect "Rally Mix (without 8 count sheets)" + 1:45
+  // does not look for a non-existent RALLY MIX 1:45 row ($0).
+  if (targetTier === "RALLY MIX") {
+    targetLimit = "-";
   }
 
   const priced = rateCard.filter((entry) => !entry.isUnpriced);
@@ -796,6 +819,16 @@ function isJazzSimpleCutByFirstThreeWords(raw: string): boolean {
   );
 }
 
+/** Magento SoftSelect "Non compliant (for DTU)" ↔ rate-card "NON-COMPLIANT (FOR DTU)". */
+export function isJazzKickDtuPackage(raw: string): boolean {
+  const compact = String(raw || "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "");
+  return compact.includes("NONCOMPLIANT") && compact.includes("DTU");
+}
+
+export const JAZZ_KICK_DTU_PACKAGE = "NON-COMPLIANT (FOR DTU)";
+
 /** Form / subcategory / placeholder labels: never Magento package prices. */
 const DANCE_NON_PACKAGE_LABELS = new Set([
   "POM",
@@ -838,11 +871,26 @@ export function lookupDanceRateCardEntry(
   ) {
     target = "JAZZ SIMPLE CUT";
   }
+  // Magento uses "Non compliant (for DTU)"; rate card uses hyphenated key.
+  if (danceFormSubtype === "jazz-kick" && isJazzKickDtuPackage(packageType)) {
+    target = JAZZ_KICK_DTU_PACKAGE;
+  }
 
   let matched = rateCard.find(
     (entry) => entry.package.toUpperCase() === target
   );
   if (matched) return matched;
+
+  // Compact alphanumeric match covers hyphen/space differences
+  // ("Non compliant (for DTU)" ↔ "NON-COMPLIANT (FOR DTU)").
+  const compactTarget = target.replace(/[^A-Z0-9]/g, "");
+  if (compactTarget.length >= 8) {
+    matched = rateCard.find(
+      (entry) =>
+        entry.package.toUpperCase().replace(/[^A-Z0-9]/g, "") === compactTarget
+    );
+    if (matched) return matched;
+  }
 
   // Substring match for long Magento SoftSelect labels only. Require the
   // shorter side to be a real package phrase (≥ 8 chars) so subtype labels
@@ -1537,18 +1585,12 @@ function isSportsEntertainmentRushYes(
   input: SportsEntertainmentPricingEngineInput | null | undefined
 ): boolean {
   if (!input) return false;
+  // Prefer Magento SE client answer (may be "Yes +$100").
   const client = input.clientRequestedRushOrder;
   if (client !== undefined && client !== null && String(client).trim() !== "") {
-    const c = String(client).trim().toLowerCase();
-    return c === "yes" || client === true;
+    return isRushOrderFlag(client);
   }
-  return (
-    input.isRushOrder === "yes" ||
-    input.isRushOrder === true ||
-    String(input.isRushOrder || "")
-      .trim()
-      .toLowerCase() === "yes"
-  );
+  return isRushOrderFlag(input.isRushOrder);
 }
 
 export function calculateSportsEntertainmentOrderPricing(

@@ -4,6 +4,7 @@ import {
   calculateMarchingBandOrderPricing,
   calculateSchoolAnthemOrderPricing,
   calculateSportsEntertainmentOrderPricing,
+  canonicalizeCheerPackageTier,
   isCheerOtherMixLength,
   isSchoolCheerSubtype,
   SPORTS_ENTERTAINMENT_CUSTOMER_RUSH_FEE,
@@ -88,8 +89,13 @@ function categoryKeyForMeta(meta: MTDFormMeta): CategoryKey {
 }
 
 function normalizeFlatPackageQuery(value: string): string {
-  return value
-    .toUpperCase()
+  const upper = value.toUpperCase();
+  // Jazz/Kick Magento SoftSelect: keep "(FOR DTU)" — stripping it leaves
+  // "NON COMPLIANT" and breaks the $200 rate-card / pricing_rules row.
+  if (/NON[\s-]*COMPLIANT/.test(upper) && /\bDTU\b/.test(upper)) {
+    return "NON-COMPLIANT (FOR DTU)";
+  }
+  return upper
     .replace(/\$[\d,]+(?:\.\d+)?/g, " ")
     .replace(/\([^)]*\)/g, " ")
     .replace(/\s+/g, " ")
@@ -122,9 +128,11 @@ function findReferenceRow(
 ): PricingReferenceRow | null {
   const fullPkg = [packageType, timeLengthOfMix].filter(Boolean).join(" ");
   const parsed = parsePackage(fullPkg);
-  const tier = parsed.tier.toUpperCase().replace(/\s+PACKAGE$/i, "").trim();
+  const tier = canonicalizeCheerPackageTier(parsed.tier);
   let limit = parsed.limit.trim();
   if (limit === "-" && timeLengthOfMix?.trim()) limit = timeLengthOfMix.trim();
+  // Rally Mix is flat (limit "-") even when Magento also sent a mix length.
+  if (tier === "RALLY MIX") limit = "-";
   const upperPkg = normalizeFlatPackageQuery(fullPkg);
 
   for (const row of rows) {

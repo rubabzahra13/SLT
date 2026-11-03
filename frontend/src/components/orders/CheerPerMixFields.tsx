@@ -10,6 +10,7 @@ import {
   packageTypeDisplayValue,
 } from "@/components/mtd/PackageTypeField";
 import { MixLengthField } from "@/components/mtd/MixLengthField";
+import { displayMixLengthLabel } from "@/lib/mix-duration";
 import {
   DanceStyleField,
   normalizeDanceStyle,
@@ -180,10 +181,11 @@ export function CheerPerMixFields({
           const fromPackage = parsePackage(
             display.package || display.packageType || ""
           ).limit;
-          const mixLengthValue =
+          const mixLengthValue = displayMixLengthLabel(
             raw.trim() ||
-            (fromPackage && fromPackage !== "-" ? fromPackage : "") ||
-            "";
+              (fromPackage && fromPackage !== "-" ? fromPackage : "") ||
+              ""
+          );
           return (
             <FieldShell key={field.key} label={field.label}>
               {editable ? (

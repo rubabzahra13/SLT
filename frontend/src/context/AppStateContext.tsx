@@ -54,6 +54,7 @@ import {
   clearUnseenMatchFormIds,
   incomingOrderBellEvent,
   isMatchOrdersPageOpen,
+  listMatchSuggestionBellEvents,
   readUnseenMatchFormIds,
 } from "@/lib/match-suggestion-notify";
 import {
@@ -214,7 +215,7 @@ type AppStateContextValue = {
   addManualScheduleEntry: (order: Partial<Order>) => Promise<Order>;
   addNotification: (
     notification: Omit<AppNotification, "id" | "read" | "createdAt">
-  ) => void;
+  ) => boolean;
   addAlert: (alert: Omit<AppAlert, "id" | "createdAt">) => void;
   addPersonalReason: (reason: StudioPersonalReason) => void;
   updatePersonalReason: (
@@ -580,6 +581,10 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const mtdChannelRef = useRef<BroadcastChannel | null>(null);
   const applyingPeerOrdersRef = useRef(false);
   const ordersChannelRef = useRef<BroadcastChannel | null>(null);
+  /** Latest match-suggestion flush (bootstrap effect is mount-only). */
+  const flushMatchSuggestionNoticesRef = useRef<(orders: Order[]) => void>(
+    () => undefined
+  );
 
   // Drop legacy cache keys so hard-to-clear v1 blobs (e.g. 439 deleted orders)
   // can never hydrate again.
@@ -725,6 +730,9 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           });
         }
       }
+      // Magento↔manual Suggested-for-You: catch matches that arrived while the
+      // tab was closed, or SSE that landed before manuals were in state.
+      flushMatchSuggestionNoticesRef.current(loadedActiveOrders);
       }
 
       const orderById = new Map<string, Order>();
@@ -935,24 +943,28 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const addNotification = useCallback(
-    (n: Omit<AppNotification, "id" | "read" | "createdAt">) => {
-      if (!isNotificationTypeEnabled(n.type)) return;
+    (n: Omit<AppNotification, "id" | "read" | "createdAt">): boolean => {
+      if (!isNotificationTypeEnabled(n.type)) return false;
       if (n.dedupeKey && !claimNotificationDedupeKey(n.dedupeKey)) {
-        return;
+        return false;
       }
       // Also skip if an unread/read copy with the same dedupe key is already in the inbox.
       if (n.dedupeKey) {
+        let added = true;
         setNotifications((prev) => {
-          if (prev.some((x) => x.dedupeKey === n.dedupeKey)) return prev;
-      const notification: AppNotification = {
-        ...n,
-        id: `notif-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-        read: false,
-        createdAt: new Date().toISOString(),
-      };
+          if (prev.some((x) => x.dedupeKey === n.dedupeKey)) {
+            added = false;
+            return prev;
+          }
+          const notification: AppNotification = {
+            ...n,
+            id: `notif-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            read: false,
+            createdAt: new Date().toISOString(),
+          };
           return [notification, ...prev].slice(0, 30);
         });
-        return;
+        return added;
       }
       const notification: AppNotification = {
         ...n,
@@ -961,6 +973,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         createdAt: new Date().toISOString(),
       };
       setNotifications((prev) => [notification, ...prev].slice(0, 30));
+      return true;
     },
     []
   );
@@ -975,6 +988,31 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     setUnseenMatchFormIds([]);
   }, []);
 
+  /**
+   * Raise match_suggestion bells + Match Orders "N new" blink for every
+   * Magento↔manual pair that is Suggested for You. Safe to call after
+   * bootstrap / SSE: session dedupe prevents repeats.
+   * Catches the race where Magento SSE lands before manuals are in state
+   * (first paint would otherwise only fire a plain new_order bell).
+   */
+  const flushMatchSuggestionNotices = useCallback(
+    (orders: Order[]) => {
+      for (const event of listMatchSuggestionBellEvents(orders)) {
+        const added = addNotification(event.notification);
+        if (!added) continue;
+        recordUnseenSuggestedMatch(event.formId);
+        addAlert({
+          tone: "info",
+          title: event.notification.title,
+          message: event.notification.message,
+          href: event.notification.href,
+        });
+      }
+    },
+    [addAlert, addNotification, recordUnseenSuggestedMatch]
+  );
+  flushMatchSuggestionNoticesRef.current = flushMatchSuggestionNotices;
+
   const maybeNotifyMatchSuggestion = useCallback(
     (order: Order): { formId: string; manualId: string } | null => {
       const stamped = normalizeOrder(order);
@@ -984,11 +1022,19 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       ];
       const event = incomingOrderBellEvent(stamped, catalog);
       if (event.kind !== "match_suggestion") return null;
-      addNotification(event.notification);
-      recordUnseenSuggestedMatch(event.formId);
+      const added = addNotification(event.notification);
+      if (added) {
+        recordUnseenSuggestedMatch(event.formId);
+        addAlert({
+          tone: "info",
+          title: event.notification.title,
+          message: event.notification.message,
+          href: event.notification.href,
+        });
+      }
       return { formId: event.formId, manualId: event.manualId };
     },
-    [activeOrders, addNotification, recordUnseenSuggestedMatch]
+    [activeOrders, addAlert, addNotification, recordUnseenSuggestedMatch]
   );
 
   const notifySaveError = useCallback(
@@ -2474,16 +2520,22 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
       const alreadyPresent = prevActive.some((o) => o.id === stamped.id);
       if (!alreadyPresent) {
-        const event = incomingOrderBellEvent(stamped, [stamped, ...prevActive]);
-        if (event.kind !== "none") {
+        const catalog = [stamped, ...prevActive];
+        const event = incomingOrderBellEvent(stamped, catalog);
+        // Flagged / plain new-order bells fire immediately. Match suggestions
+        // go through flush so toast + blink stay consistent with SSE/bootstrap.
+        if (event.kind === "flagged" || event.kind === "new_order") {
           addNotification(event.notification);
         }
-        if (event.kind === "match_suggestion") {
-          recordUnseenSuggestedMatch(event.formId);
-        }
+        flushMatchSuggestionNotices(catalog);
       }
     },
-    [addNotification, activeOrders, notifySaveError, recordUnseenSuggestedMatch]
+    [
+      addNotification,
+      activeOrders,
+      flushMatchSuggestionNotices,
+      notifySaveError,
+    ]
   );
 
   const matchManualWithMagento = useCallback(
@@ -3716,12 +3768,12 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           });
         }
         if (notify) {
-          const event = incomingOrderBellEvent(stamped, [stamped, ...prev]);
-          if (event.kind !== "none") {
+          const catalog = [stamped, ...prev];
+          const event = incomingOrderBellEvent(stamped, catalog);
+          // Immediate flagged / unmatched new-order bells only. Match
+          // suggestions flush after the list updates (handles empty-catalog race).
+          if (event.kind === "flagged" || event.kind === "new_order") {
             addNotification(event.notification);
-          }
-          if (event.kind === "match_suggestion") {
-            recordUnseenSuggestedMatch(event.formId);
           }
         }
         return [stamped, ...prev];
@@ -3765,7 +3817,15 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       }
       return next;
     };
-    setActiveOrders((prev) => mergeList(prev, true));
+    setActiveOrders((prev) => {
+      const next = mergeList(prev, true);
+      // Always reconcile Suggested-for-You after live order fan-out (create or
+      // update). Session dedupe keeps bells/toasts from repeating.
+      if (next !== prev) {
+        Promise.resolve().then(() => flushMatchSuggestionNotices(next));
+      }
+      return next;
+    });
     setPastOrders((prev) => mergeList(prev, false));
 
     // Keep linked MTD chip/base in sync when order price lands first.
@@ -3803,7 +3863,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       writeTimedCache(CACHE_MTD_KEY, next);
       return next;
     });
-  }, [addNotification, notifySaveError, recordUnseenSuggestedMatch]);
+  }, [addNotification, flushMatchSuggestionNotices, notifySaveError]);
 
   const applyIncomingMtd = useCallback((incoming: MTDRecord) => {
     setMtdRecords((prev) => {

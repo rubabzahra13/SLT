@@ -1203,6 +1203,27 @@ export function overlayMergedFormForDisplay(
     changed = true;
   }
 
+  // Magento Requested Editor / producer — form SoftSelect SoT.
+  const req =
+    String(order.requestedEditor || order.requestedProducer || "").trim();
+  const formReq =
+    String(form.requestedEditor || form.requestedProducer || "").trim();
+  const reqIsFa =
+    !req ||
+    req.toLowerCase() === "fa" ||
+    req.toLowerCase() === "first available";
+  if (reqIsFa && formReq && formReq.toLowerCase() !== "first available") {
+    out.requestedEditor = form.requestedEditor || formReq;
+    out.requestedProducer = form.requestedProducer || formReq;
+    if (
+      !String(out.editorRequest || "").trim() ||
+      String(out.editorRequest).toUpperCase() === "FA"
+    ) {
+      out.editorRequest = formReq;
+    }
+    changed = true;
+  }
+
   // Preserve booking-row assignment; only fill when the booking row is empty.
   if (!order.assignedProducer?.trim() && form.assignedProducer?.trim()) {
     out.assignedProducer = form.assignedProducer;

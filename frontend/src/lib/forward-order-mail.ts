@@ -236,13 +236,17 @@ function groupSelectedFields(selectedFields: ForwardMailField[]): ForwardMailSec
   return sections;
 }
 
-/** True for yes / Yes / true (Orders tab + API casing variants). */
+/**
+ * True for Magento / admin rush Yes answers.
+ * Magento SE often stores "Yes +$100" — same intent as YesNoField.normalizeYesNo.
+ */
 export function isRushOrderFlag(value: unknown): boolean {
   if (value === true) return true;
-  if (typeof value === "string" && value.trim().toLowerCase() === "yes") {
-    return true;
-  }
-  return false;
+  if (typeof value !== "string") return false;
+  const lower = value.trim().toLowerCase();
+  if (!lower) return false;
+  // Exact or Magento fee-suffixed: "yes", "yes +$100", "y".
+  return lower === "y" || lower.startsWith("yes");
 }
 
 type RushOrderLike = {

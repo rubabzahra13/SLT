@@ -111,6 +111,18 @@ describe("Prompt 6: Sports Entertainment Pricing Engine Unit Tests", () => {
     assert.equal(res.payrollBasePrice, 350);
   });
 
+  it("Magento Yes +$100 client answer applies the $100 rush fee", () => {
+    const res = calculateSportsEntertainmentOrderPricing({
+      packageType: "PRE-GAME / HALFTIME REMIXED",
+      clientRequestedRushOrder: "Yes +$100",
+      isRushOrder: "no",
+    });
+    assert.equal(res.hasRushFee, true);
+    assert.equal(res.rushFeeAmount, 100);
+    assert.equal(res.customerFacingPrice, 250);
+    assert.equal(res.payrollBasePrice, 350);
+  });
+
   it("does not use Cheer/Dance $150 misc rush: SE customer rush is always $100", () => {
     const res = calculateSportsEntertainmentOrderPricing({
       packageType: "QUARTER BREAK / TIMEOUT REMIXED",

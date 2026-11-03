@@ -25,6 +25,7 @@ import {
   PackageTypeField,
 } from "@/components/mtd/PackageTypeField";
 import { MixLengthField } from "@/components/mtd/MixLengthField";
+import { displayMixLengthLabel } from "@/lib/mix-duration";
 import {
   normalizeTeamCoedAllGirl,
   TeamCoedField,
@@ -1012,22 +1013,25 @@ export function MTDOrderDetails({
                 const fromPackage = parsePackage(
                   order.package || order.packageType || ""
                 ).limit;
-                const mixLengthValue =
+                const mixLengthValue = displayMixLengthLabel(
                   rawValue.trim() ||
-                  (fromPackage && fromPackage !== "-" ? fromPackage : "") ||
-                  "";
-                const originalMixLength = originalOrder
-                  ? rawFieldValue(originalOrder, field.key).trim() ||
-                    (() => {
-                      const limit = parsePackage(
-                        originalOrder.package ||
-                          originalOrder.packageType ||
-                          ""
-                      ).limit;
-                      return limit && limit !== "-" ? limit : "";
-                    })() ||
-                    mixLengthValue
-                  : mixLengthValue;
+                    (fromPackage && fromPackage !== "-" ? fromPackage : "") ||
+                    ""
+                );
+                const originalMixLength = displayMixLengthLabel(
+                  originalOrder
+                    ? rawFieldValue(originalOrder, field.key).trim() ||
+                        (() => {
+                          const limit = parsePackage(
+                            originalOrder.package ||
+                              originalOrder.packageType ||
+                              ""
+                          ).limit;
+                          return limit && limit !== "-" ? limit : "";
+                        })() ||
+                        mixLengthValue
+                    : mixLengthValue
+                );
 
                 return (
                   <div

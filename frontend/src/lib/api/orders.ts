@@ -1,6 +1,10 @@
 import { apiClient } from "./client";
 import { fetchAllListPages } from "./pagination";
 import { parseDanceSongCovers } from "@/lib/dance-song-covers";
+import {
+  isValidMixDuration,
+  normalizeMixDurationValue,
+} from "@/lib/mix-duration";
 import type { Order, OrderFormType, CheerFormSubtype, DanceFormSubtype } from "@/types";
 
 export interface BackendOrder {
@@ -254,17 +258,23 @@ export function transformOrder(bo: BackendOrder): Order {
     // Client form "Length of Mix" → time_length_of_mix.
     // Explicit "" must win: `||` would treat clear as missing and refill cheer
     // from package (GOLD 2:00), making removed Mix Time come back.
-    timeLengthOfMix:
-      bo.time_length_of_mix !== undefined && bo.time_length_of_mix !== null
-        ? String(bo.time_length_of_mix)
-        : formType === "school-all-star-cheer"
-          ? (() => {
-              const fromPkg = String(bo.package || bo.package_type || "").match(
-                /\d+:\d{2}/
-              );
-              return fromPkg ? fromPkg[0] : "";
-            })()
-          : "",
+    // Magento bare minutes ("1") normalize to "1:00" for every form category.
+    timeLengthOfMix: (() => {
+      const raw =
+        bo.time_length_of_mix !== undefined && bo.time_length_of_mix !== null
+          ? String(bo.time_length_of_mix)
+          : formType === "school-all-star-cheer"
+            ? (() => {
+                const fromPkg = String(
+                  bo.package || bo.package_type || ""
+                ).match(/\d+:\d{2}/);
+                return fromPkg ? fromPkg[0] : "";
+              })()
+            : "";
+      if (!String(raw).trim()) return "";
+      const normalized = normalizeMixDurationValue(raw);
+      return isValidMixDuration(normalized) ? normalized : String(raw).trim();
+    })(),
     musicAffiliate: bo.music_affiliate || "",
     affiliateFlagStatus:
       bo.affiliate_flag_status === "open" ||
@@ -334,7 +344,8 @@ export function transformOrder(bo: BackendOrder): Order {
         ? "SCHOOL ANTHEMS"
         : bo.package || bo.package_type || "TBD",
     musicTheme: bo.music_theme || "",
-    // editor_initials = FA / short code; requested_editor = Magento producer name.
+    // editor_initials = FA / short code; requested_editor = Magento producer name
+    // (also set as requestedEditor above for the form SoftSelect).
     editorRequest: bo.editor_initials || "FA",
     requestedProducer: requestedEditor,
     assignedProducer: bo.assigned_producer || null,

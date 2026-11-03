@@ -89,6 +89,7 @@ import {
 } from "@/lib/dates";
 import { todayIso } from "@/lib/date-filters";
 import { generateOrdersCsv, triggerCsvDownload } from "@/lib/export-csv";
+import { displayMixLengthLabel } from "@/lib/mix-duration";
 import { parsePackage } from "@/lib/package";
 import {
   magentoPackageBoardLabel,
@@ -1213,7 +1214,9 @@ function OrdersPageContent() {
               render: (rec: MTDRecord) => {
                 const linked = findLinkedOrder(rec, allOrders);
                 const meta = resolveMTDFormMeta(rec, orderById);
-                const fromOrder = (linked?.timeLengthOfMix || "").trim();
+                const fromOrder = displayMixLengthLabel(
+                  linked?.timeLengthOfMix || ""
+                );
                 const fromPackage = parsePackage(
                   packageTypeDisplayValue(rec.package)
                     ? rec.package
@@ -1221,7 +1224,9 @@ function OrdersPageContent() {
                 ).limit;
                 let limit =
                   fromOrder ||
-                  (fromPackage && fromPackage !== "-" ? fromPackage : "");
+                  displayMixLengthLabel(
+                    fromPackage && fromPackage !== "-" ? fromPackage : ""
+                  );
                 // Magento SoftSelect Mix Length has no 2:15 for Youth Rec.
                 if (
                   meta.cheerFormSubtype === "youth-rec-cheer" &&

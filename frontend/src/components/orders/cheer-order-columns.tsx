@@ -1,6 +1,7 @@
 import type { Order } from "@/types";
 import type { Column } from "@/components/ui/DataTable";
 import type { CheerFormSubtype } from "@/types";
+import { displayMixLengthLabel } from "@/lib/mix-duration";
 import { displayMultiline, displayText } from "@/lib/order-form";
 
 function textCol(
@@ -148,7 +149,12 @@ function mixInfoCols(options: {
   }
   cols.push(
     multiCol("packageType", "Package Type", (o) => o.packageType, "160px"),
-    textCol("timeLengthOfMix", "Length of Mix", (o) => o.timeLengthOfMix, "100px")
+    textCol(
+      "timeLengthOfMix",
+      "Length of Mix",
+      (o) => displayMixLengthLabel(o.timeLengthOfMix),
+      "100px"
+    )
   );
   if (options.split) {
     cols.push(textCol("splitOrNoSplit", "Split or No Split", (o) => o.splitOrNoSplit || "", "110px"));

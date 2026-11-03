@@ -5,6 +5,7 @@ import {
   clearUnseenMatchFormIds,
   incomingOrderBellEvent,
   isMatchOrdersPageOpen,
+  listMatchSuggestionBellEvents,
   matchOrdersConfirmHref,
   matchSuggestionNotificationPayload,
   setMatchOrdersPageOpen,
@@ -64,13 +65,40 @@ describe("incoming Magento match suggestion notify", () => {
     assert.equal(event.formId, "f1");
     assert.equal(event.manualId, "m1");
     assert.equal(event.notification.type, "match_suggestion");
-    assert.equal(event.notification.href, "/orders/match");
+    assert.equal(
+      event.notification.href,
+      "/orders/match?form=f1&manual=m1&confirm=1"
+    );
     assert.match(event.notification.message, /Thunder Gym/);
     assert.equal(event.notification.dedupeKey, "match_suggestion:f1");
     assert.equal(
       matchOrdersConfirmHref(event.formId, event.manualId),
       "/orders/match?form=f1&manual=m1&confirm=1"
     );
+  });
+
+  it("lists match bells for reconcile after bootstrap / SSE race", () => {
+    const form = baseOrder({
+      id: "f1",
+      gymName: "Thunder Gym",
+      programName: "Thunder Gym",
+    });
+    const manual = baseOrder({
+      id: "m1",
+      isManualEntry: true,
+      gymName: "Thunder Gym",
+      programName: "Thunder Gym",
+    });
+    const other = baseOrder({
+      id: "f2",
+      gymName: "No Match Gym",
+      programName: "No Match Gym",
+    });
+    const events = listMatchSuggestionBellEvents([form, manual, other]);
+    assert.equal(events.length, 1);
+    assert.equal(events[0].formId, "f1");
+    assert.equal(events[0].manualId, "m1");
+    assert.equal(events[0].notification.type, "match_suggestion");
   });
 
   it("after Flagged release, suggests match like a single-affiliate form", () => {
@@ -145,6 +173,10 @@ describe("incoming Magento match suggestion notify", () => {
     assert.equal(payload.title, "New form matches a manual");
     assert.match(payload.message, /Spirit Elite/);
     assert.match(payload.message, /Matched on Gym Name/);
+    assert.equal(
+      payload.href,
+      "/orders/match?form=f1&manual=m1&confirm=1"
+    );
   });
 
   it("tracks unseen form ids until cleared", () => {

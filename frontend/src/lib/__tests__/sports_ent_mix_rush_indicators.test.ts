@@ -114,6 +114,18 @@ describe("Sports Entertainment Rush Order indicator", () => {
     );
   });
 
+  it("treats Magento Yes +$100 as rush Yes for the board toggle", () => {
+    assert.equal(
+      recordIsRushOrder(
+        seOrder({
+          clientRequestedRushOrder: "Yes +$100",
+          isRushOrder: "no",
+        })
+      ),
+      true
+    );
+  });
+
   it("syncs isRushOrder when Magento rush field is edited", () => {
     const current = seOrder({
       clientRequestedRushOrder: "No",

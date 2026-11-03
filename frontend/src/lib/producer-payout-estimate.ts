@@ -11,6 +11,7 @@ import {
   loadDailyCostSettings,
   type DailyCostSettings,
 } from "@/lib/daily-cost-settings";
+import { recordIsRushOrder } from "@/lib/forward-order-mail";
 
 function rushFeeQuantity(rec: MTDRecord): number {
   if (typeof rec.rushFeeQuantity === "number") return rec.rushFeeQuantity;
@@ -72,9 +73,14 @@ export function estimateRecordProducerPayoutDetail(
   const isSportsEntertainment = meta.formType === "sports-entertainment";
   const seRushYes =
     isSportsEntertainment &&
-    (String(order?.clientRequestedRushOrder || "").toLowerCase() === "yes" ||
-      String(rec.isRushOrder || "").toLowerCase() === "yes" ||
-      rec.isRushOrder === true);
+    recordIsRushOrder({
+      formType: meta.formType,
+      category: order?.category || rec.category,
+      clientRequestedRushOrder: order?.clientRequestedRushOrder,
+      isRushOrder: order?.isRushOrder ?? rec.isRushOrder,
+      rushFeeQuantity: rec.rushFeeQuantity,
+      rushFeeOption: rec.rushFeeOption,
+    });
   const calc = computeClientPayroll(
     producer,
     packagePrice ?? 0,

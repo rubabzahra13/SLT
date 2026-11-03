@@ -110,6 +110,17 @@ describe("Prompt 6: Dance Pricing Engine Unit Tests", () => {
     assert.equal(nonCompliantRes.payrollBasePrice, 200);
   });
 
+  it("6c. Jazz/Kick Magento SoftSelect 'Non compliant (for DTU)' prices at $200", () => {
+    const res = calculateDanceOrderPricing({
+      danceFormSubtype: "jazz-kick",
+      packageType: "Non compliant (for DTU)",
+      musicAffiliate: "Power Music Covers",
+    });
+    assert.equal(res.customerFacingPrice, 200);
+    assert.equal(res.payrollBasePrice, 150);
+    assert.equal(res.matchedEntry?.package, "NON-COMPLIANT (FOR DTU)");
+  });
+
   it("7. Invalid / Unrecognized package name (e.g. 'DANCE SUPREME' for POM) → returns 0 price and null entry", () => {
     const res = calculateDanceOrderPricing({
       danceFormSubtype: "pom",

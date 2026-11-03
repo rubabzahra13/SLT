@@ -38,6 +38,7 @@ import {
   matchesFormFilter,
   resolveMTDFormMeta,
 } from "@/lib/mtd-filters";
+import { displayMixLengthLabel } from "@/lib/mix-duration";
 import { parsePackage } from "@/lib/package";
 import { listPreMtdOrderRecords } from "@/lib/order-staging";
 import {
@@ -359,7 +360,9 @@ export default function FlaggedOrdersPage() {
               render: (rec: MTDRecord) => {
                 const linked = findLinkedOrder(rec, allOrders);
                 const meta = resolveMTDFormMeta(rec, orderById);
-                const fromOrder = (linked?.timeLengthOfMix || "").trim();
+                const fromOrder = displayMixLengthLabel(
+                  linked?.timeLengthOfMix || ""
+                );
                 const fromPackage = parsePackage(
                   packageTypeDisplayValue(rec.package)
                     ? rec.package
@@ -367,7 +370,9 @@ export default function FlaggedOrdersPage() {
                 ).limit;
                 let limit =
                   fromOrder ||
-                  (fromPackage && fromPackage !== "-" ? fromPackage : "");
+                  displayMixLengthLabel(
+                    fromPackage && fromPackage !== "-" ? fromPackage : ""
+                  );
                 if (
                   meta.cheerFormSubtype === "youth-rec-cheer" &&
                   limit === "2:15"

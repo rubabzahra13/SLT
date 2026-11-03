@@ -189,6 +189,19 @@ describe("Central Pricing Engine: Core Rules Unit Tests (Prompt 8)", () => {
       assert.equal(rallyResult.packageName, "RALLY MIX");
     });
 
+    it("School Cheer Magento SoftSelect Rally Mix (without 8 count sheets) prices at $350 even with mix length", () => {
+      const rallyResult = calculateCheerOrderPricing({
+        cheerFormSubtype: "school-cheer-viroc-yes",
+        packageType: "Rally Mix (without 8 count sheets)",
+        timeLengthOfMix: "1:45",
+        musicAffiliate: "Power Music",
+      });
+      assert.equal(rallyResult.customerFacingPrice, 350);
+      assert.equal(rallyResult.payrollBasePrice, 350);
+      assert.equal(rallyResult.packageName, "RALLY MIX");
+      assert.notEqual(rallyResult.isUnpriced, true);
+    });
+
     it("School Cheer GOLD 2:15 with Rush Fee (Single) adds $150 to payroll base price", () => {
       const baseResult = calculateCheerOrderPricing({
         cheerFormSubtype: "school-cheer-viroc-yes",

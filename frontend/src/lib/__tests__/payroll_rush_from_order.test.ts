@@ -16,6 +16,24 @@ describe("Payroll rush from Orders tab", () => {
     assert.equal(isRushOrderFlag(false), false);
   });
 
+  it("accepts Magento SE fee-suffixed Yes answers", () => {
+    assert.equal(isRushOrderFlag("Yes +$100"), true);
+    assert.equal(isRushOrderFlag("yes +$100"), true);
+    assert.equal(isRushOrderFlag("Yes+$100"), true);
+    assert.equal(isRushOrderFlag("No +$0"), false);
+  });
+
+  it("SE board toggle follows Magento Yes +$100 client answer", () => {
+    assert.equal(
+      recordIsRushOrder({
+        formType: "sports-entertainment",
+        clientRequestedRushOrder: "Yes +$100",
+        isRushOrder: "no",
+      }),
+      true
+    );
+  });
+
   it("uses linked order rush when mix record has no rush fields", () => {
     const mix = { isRushOrder: "no", rushFeeQuantity: 0, rushFeeOption: "none" };
     const order = { isRushOrder: "Yes" };

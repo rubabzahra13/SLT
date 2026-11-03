@@ -132,13 +132,48 @@ export function matchSuggestionNotificationPayload(
     matchName,
     top?.matchedFieldKey
   );
+  const manualId = top?.manual?.id || "";
   return {
     type: "match_suggestion",
     title: "New form matches a manual",
     message: `${formName} · ${matchedOn}${extra}`,
-    href: "/orders/match",
+    href: manualId
+      ? matchOrdersConfirmHref(form.id, manualId)
+      : "/orders/match",
     dedupeKey: `match_suggestion:${form.id}`,
   };
+}
+
+export type MatchSuggestionBellEvent = {
+  formId: string;
+  manualId: string;
+  notification: Omit<AppNotification, "id" | "read" | "createdAt">;
+};
+
+/**
+ * Every unmatched Magento form that currently has a Suggested-for-You manual.
+ * Used to catch match bells after bootstrap / SSE races (empty catalog on first paint).
+ */
+export function listMatchSuggestionBellEvents(
+  orders: Order[]
+): MatchSuggestionBellEvent[] {
+  const events: MatchSuggestionBellEvent[] = [];
+  const seen = new Set<string>();
+  for (const form of orders) {
+    const formId = String(form.id || "").trim();
+    if (!formId || seen.has(formId)) continue;
+    if (form.isManualEntry) continue;
+    const suggestions = suggestManualsForMagento(form, orders);
+    if (suggestions.length === 0) continue;
+    seen.add(formId);
+    const top = suggestions[0];
+    events.push({
+      formId,
+      manualId: top.manual.id,
+      notification: matchSuggestionNotificationPayload(form, suggestions),
+    });
+  }
+  return events;
 }
 
 /**

@@ -167,45 +167,54 @@ export function resolveProducerKey(
   return null;
 }
 
+/**
+ * Magento / form "Requested Editor" candidates on the linked order + board row.
+ * Skips FA / empty placeholders.
+ */
+export function collectRequestedEditorCandidates(
+  record: MTDRecord,
+  linkedOrder?: Order | null
+): string[] {
+  const candidates: string[] = [];
+  const push = (raw: string | null | undefined) => {
+    const value = String(raw || "").trim();
+    if (!value || isFirstAvailableRequest(value)) return;
+    if (!candidates.some((c) => c.toLowerCase() === value.toLowerCase())) {
+      candidates.push(value);
+    }
+  };
+
+  if (linkedOrder) {
+    push(linkedOrder.requestedEditor);
+    push(linkedOrder.requestedProducer);
+    // editorRequest "FA" is the First-available *request code*, not a producer.
+    push(linkedOrder.editorRequest);
+  }
+
+  push(record.editorRequest);
+  // Staging / thin MTD rows may only carry Magento request on these aliases.
+  push((record as { requestedEditor?: string }).requestedEditor);
+  push((record as { requestedProducer?: string }).requestedProducer);
+
+  return candidates;
+}
+
 export function getRequestedEditorFromRecord(
   record: MTDRecord,
   producers: Producer[],
   linkedOrder?: Order | null
 ): string | null {
-  const candidates: string[] = [];
+  const candidates = collectRequestedEditorCandidates(record, linkedOrder);
 
-  if (linkedOrder) {
-    if (
-      linkedOrder.requestedEditor &&
-      !isFirstAvailableRequest(linkedOrder.requestedEditor)
-    ) {
-      candidates.push(linkedOrder.requestedEditor);
-    }
-    if (
-      linkedOrder.requestedProducer &&
-      !isFirstAvailableRequest(linkedOrder.requestedProducer)
-    ) {
-      candidates.push(linkedOrder.requestedProducer);
-    }
-    // editorRequest "FA" is the First-available *request code*, not a producer.
-    if (
-      linkedOrder.editorRequest &&
-      !isFirstAvailableRequest(linkedOrder.editorRequest)
-    ) {
-      candidates.push(linkedOrder.editorRequest);
-    }
-  }
-
-  if (record.editorRequest && !isFirstAvailableRequest(record.editorRequest)) {
-    candidates.push(record.editorRequest);
-  }
-
+  // Prefer a roster match (canonical key) when Magento name resolves.
   for (const raw of candidates) {
     const resolved = resolveProducerKey(raw, producers, record.category);
     if (resolved) return resolved;
   }
 
-  return null;
+  // Magento often names producers not yet on this category's roster (Josh,
+  // Brent, Lauren, …). Still return the raw request — never invent FA.
+  return candidates[0] || null;
 }
 
 /** Display label for requested/form producer: first name or "First Available". */
@@ -216,9 +225,18 @@ export function formatRequestedEditorLabel(
 ): string {
   // Forms without a Magento Requested Editor must not imply First Available.
   if (!recordHasRequestedProducer(record, linkedOrder)) return "";
-  const requested = getRequestedEditorFromRecord(record, producers, linkedOrder);
-  if (!requested) return FIRST_AVAILABLE_LABEL;
-  return formatRequestedProducerDisplay(requested, producers);
+  const candidates = collectRequestedEditorCandidates(record, linkedOrder);
+  // Explicit Magento / form request → show that name even if not on roster.
+  if (candidates.length > 0) {
+    const resolved = getRequestedEditorFromRecord(
+      record,
+      producers,
+      linkedOrder
+    );
+    return formatRequestedProducerDisplay(resolved || candidates[0], producers);
+  }
+  // Cheer/Dance Magento default when the field is blank / FA.
+  return FIRST_AVAILABLE_LABEL;
 }
 
 /** Normalize a stored requested-editor value for UI (first name / First Available). */

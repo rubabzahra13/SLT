@@ -12,6 +12,7 @@ import {
 import {
   formatMixDuration,
   isValidMixDuration,
+  normalizeMixDurationValue,
   parseMixDurationParts,
 } from "@/lib/mix-duration";
 
@@ -50,17 +51,22 @@ export function SongsNotesToggleModal({
   useEffect(() => {
     if (!open) return;
     // Red→green: never prefill placeholder tokens (none, N/A, …): blank draft.
-    setDraft(
+    // Mix: normalize Magento bare minutes ("1" → "1:00") so min:sec inputs fill.
+    const seed =
       direction === "to_green"
         ? initialCollectionGreenDraft(currentText)
-        : currentText
-    );
+        : currentText;
+    const mixSeed =
+      kind === "mix" && seed.trim()
+        ? normalizeMixDurationValue(seed) || seed
+        : seed;
+    setDraft(mixSeed);
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = previousOverflow;
     };
-  }, [open, direction, currentText]);
+  }, [open, direction, currentText, kind]);
 
   if (!mounted || !open) return null;
 

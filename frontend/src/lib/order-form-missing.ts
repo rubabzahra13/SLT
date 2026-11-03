@@ -74,6 +74,8 @@ const ALWAYS_OPTIONAL_FORM_FIELD_KEYS = new Set([
   // Dance Magento cover boxes: optional even when that affiliate is selected.
   "powerMusicCovers",
   "unleashTheBeatsCovers",
+  // Magento address line 2 is often blank; never blocks Move to MTD.
+  "gymBillingAddressLine2",
 ]);
 
 /**
@@ -128,15 +130,6 @@ export function isOptionalOrderFormField(
   if (
     (key === "billingPersonEmail" || key === "billingContactEmail") &&
     isYouthRecCheerSubtype(order)
-  ) {
-    return true;
-  }
-  // Youth Rec and POM address line 2 are often blank. All Star still treats its line 2 as required.
-  if (
-    key === "gymBillingAddressLine2" &&
-    (isYouthRecCheerSubtype(order) ||
-      String(order?.formType || "").trim() === "school-all-star-dance" ||
-      isMarchingBandOrder(order))
   ) {
     return true;
   }

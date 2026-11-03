@@ -5,6 +5,7 @@ import {
   isAbsorbedFormOrder,
 } from "@/lib/manual-form-merge";
 import { getOrderIdentityName } from "@/lib/order-detail-sections";
+import { displayMixLengthLabel } from "@/lib/mix-duration";
 import { resolveStoredOrEngineCustomerPrice } from "@/lib/order-package-price";
 import { resolveOrderPriceCompliance } from "@/lib/pricing";
 import { pickInvoice } from "@/lib/invoice";
@@ -107,7 +108,15 @@ export function stagingRecordFromOrder(order: Order): MTDRecord {
     formType: order.formType,
     cheerFormSubtype: order.cheerFormSubtype,
     danceFormSubtype: order.danceFormSubtype,
-    editorRequest: order.editorRequest || "FA",
+    // Prefer Magento requested_editor name over FA editor_initials code.
+    editorRequest: (() => {
+      const requested =
+        String(order.requestedEditor || order.requestedProducer || "").trim();
+      if (requested && requested.toLowerCase() !== "first available") {
+        return requested;
+      }
+      return order.editorRequest || "FA";
+    })(),
     // Person contact only: never copy school/org identity into contactName.
     contactName:
       order.musicContactName ||
@@ -156,7 +165,7 @@ export function stagingRecordFromOrder(order: Order): MTDRecord {
     orderStatus: (order as any).orderStatus || (order as any).order_status,
     musicAffiliate: order.musicAffiliate || (order as any).music_affiliate,
     routineNotes: order.routineNotes,
-    timeLengthOfMix: order.timeLengthOfMix,
+    timeLengthOfMix: displayMixLengthLabel(order.timeLengthOfMix),
     songListSuggestions: order.songListSuggestions,
     customVoiceovers: order.customVoiceovers,
     // School Anthem Song/Notes pills (and Marching Band instrumentation).
@@ -371,10 +380,15 @@ export function mergeCollectionStateFromOrder(
         ? order.songListSuggestions
         : pickFilled(record.songListSuggestions, orderSongs),
     // Cleared Time Length must win over stale staging/MTD mix length.
+    // Magento bare minutes ("1") normalize to "1:00" for every category.
     timeLengthOfMix:
       order.timeLengthOfMix !== undefined && order.timeLengthOfMix !== null
-        ? order.timeLengthOfMix
-        : pickFilled(record.timeLengthOfMix, orderMixLen),
+        ? String(order.timeLengthOfMix).trim() === ""
+          ? ""
+          : displayMixLengthLabel(order.timeLengthOfMix)
+        : displayMixLengthLabel(
+            pickFilled(record.timeLengthOfMix, orderMixLen)
+          ),
     musicAffiliate: pickFilled(record.musicAffiliate, orderAffiliate),
     routineNotes:
       order.routineNotes !== undefined && order.routineNotes !== null

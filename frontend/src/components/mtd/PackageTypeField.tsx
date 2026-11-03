@@ -4,7 +4,11 @@ import { useMemo, useRef, useState } from "react";
 import { SoftSelect } from "@/components/ui/SoftSelect";
 import { titleCase } from "@/lib/data";
 import { parsePackage } from "@/lib/package";
-import { packagesForOrderForm } from "@/lib/pricing-engine";
+import {
+  isJazzKickDtuPackage,
+  JAZZ_KICK_DTU_PACKAGE,
+  packagesForOrderForm,
+} from "@/lib/pricing-engine";
 import {
   CHEER_FORM_SUBTABS,
   DANCE_FORM_SUBTABS,
@@ -110,6 +114,8 @@ function sportsEntertainmentOtherPackageKey(raw: string): string | null {
 export function packageTypeDisplayValue(raw: string): string {
   const trimmed = raw.trim();
   if (!trimmed || isFormCategoryLabel(trimmed)) return "";
+  // Magento SoftSelect: keep "(for DTU)" — stripping it collapses to "Non compliant".
+  if (isJazzKickDtuPackage(trimmed)) return JAZZ_KICK_DTU_PACKAGE;
   // Do not let parsePackage treat "2:30" inside SE OTHER SoftSelect as mix length.
   const seOther = sportsEntertainmentOtherPackageKey(trimmed);
   if (seOther) return seOther;
@@ -133,6 +139,14 @@ function matchPackageOption(raw: string, catalog: string[]): string | null {
 
   const exact = catalog.find((pkg) => sameOption(pkg, trimmed));
   if (exact) return exact;
+
+  // Magento "Non compliant (for DTU)" ↔ catalog "NON-COMPLIANT (FOR DTU)".
+  if (isJazzKickDtuPackage(trimmed)) {
+    const dtu = catalog.find(
+      (pkg) => pkg.trim().toUpperCase() === JAZZ_KICK_DTU_PACKAGE
+    );
+    if (dtu) return dtu;
+  }
 
   // Jazz Simple Cut SoftSelect: match on first 3 words only (ignore paren body).
   if (isJazzSimpleCutByFirstThreeWords(trimmed)) {
@@ -393,9 +407,12 @@ function dancePackageLabel(
   danceSubtype?: DanceFormSubtype | string | null
 ): string {
   // Jazz Simple Cut: Magento paren body is long: key off first 3 words only.
+  // DTU: Magento SoftSelect uses space + paren; catalog key is hyphenated.
   const key = isJazzSimpleCutByFirstThreeWords(pkg)
     ? "JAZZ SIMPLE CUT"
-    : pkg.trim().toUpperCase();
+    : isJazzKickDtuPackage(pkg)
+      ? JAZZ_KICK_DTU_PACKAGE
+      : pkg.trim().toUpperCase();
   const sub = String(danceSubtype || "").toLowerCase();
   if (sub === "hip-hop") {
     return HIP_HOP_PACKAGE_LABELS[key] || DANCE_PACKAGE_LABELS[key] || pkg;

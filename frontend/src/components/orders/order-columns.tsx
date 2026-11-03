@@ -2,6 +2,7 @@ import type { Order } from "@/types";
 import type { Column } from "@/components/ui/DataTable";
 import type { CheerFormSubtype, DanceFormSubtype, OrderFormType } from "@/types";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { displayMixLengthLabel } from "@/lib/mix-duration";
 import { displayMultiline, displayText } from "@/lib/order-form";
 import { getCheerOrderColumns } from "@/components/orders/cheer-order-columns";
 import { formatDisplayDateTime } from "@/lib/dates";
@@ -157,7 +158,10 @@ function pomFormColumns(): Column<Order>[] {
       key: "timeLengthOfMix",
       header: "Mix Length",
       width: "100px",
-      render: (o) => <span>{o.timeLengthOfMix || "-"}</span>,
+      render: (o) => (
+        <span>{displayMixLengthLabel(o.timeLengthOfMix) || "-"}</span>
+      ),
+
     },
     {
       key: "musicAffiliate",

@@ -6,6 +6,8 @@ import {
   formatMixDuration,
   isValidMixDuration,
   MIX_LENGTH_OTHER_OPTION,
+  mixLengthUsesDurationInputsOnly,
+  normalizeMixDurationValue,
   parseMixDurationParts,
 } from "@/lib/mix-duration";
 import {
@@ -53,13 +55,14 @@ function normalizeMixLength(
   if (isOtherCatalogLabel(trimmed)) {
     return MIX_LENGTH_OTHER_OPTION;
   }
-  const match = trimmed.match(/\d+:\d{2}/);
-  if (match) {
+  // Prefer a leading m:ss (or Magento bare minutes) via shared normalizer.
+  const asDuration = normalizeMixDurationValue(trimmed);
+  if (asDuration && isValidMixDuration(asDuration)) {
     // Magento SoftSelect has no 2:15: map legacy Youth Rec 2:15 → 2:30.
-    if (cheerSubtype === "youth-rec-cheer" && match[0] === "2:15") {
+    if (cheerSubtype === "youth-rec-cheer" && asDuration === "2:15") {
       return "2:30";
     }
-    return match[0];
+    return asDuration;
   }
   if (/^tbd$/i.test(trimmed)) return "TBD";
   return trimmed;
@@ -166,9 +169,13 @@ export function MixLengthField({
         ? currentNormalized
         : "";
 
-  const durationOnly = formType === "marching-band";
+  // MB + SE: Magento freeform Time Length (often bare minutes).
+  // Cheer/Dance: SoftSelect presets; custom/bare minutes open min:sec under Other.
+  const durationOnly = mixLengthUsesDurationInputsOnly(formType);
   const mixParts = parseMixDurationParts(
-    durationOnly || valueIsCustomDuration ? currentNormalized : ""
+    durationOnly || valueIsCustomDuration || showCustomTime
+      ? currentNormalized
+      : ""
   );
 
   const durationInputs = (
