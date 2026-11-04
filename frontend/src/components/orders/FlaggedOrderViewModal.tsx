@@ -4,7 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { Eye, Flag, X } from "lucide-react";
 import { MTDOrderDetails } from "@/components/mtd/MTDOrderDetails";
-import { useAppState } from "@/context/AppStateContext";
+import {
+  useAppDiscountCodes,
+  useAppProducers,
+} from "@/context/AppStateContext";
 import { findLinkedOrder } from "@/lib/editor-assignment";
 import { orderFromMTDRecord } from "@/lib/order-detail-fields";
 import { resolveOrderFormDisplay } from "@/lib/order-form-display";
@@ -30,7 +33,8 @@ export function FlaggedOrderViewModal({
   onClose,
   onResolve,
 }: FlaggedOrderViewModalProps) {
-  const { discountCodes, producers } = useAppState();
+  const { producers } = useAppProducers();
+  const { discountCodes } = useAppDiscountCodes();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {

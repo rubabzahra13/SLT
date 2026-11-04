@@ -7,7 +7,10 @@ import clsx from "clsx";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { MTDOrderDetails } from "@/components/mtd/MTDOrderDetails";
 import { SetPricingModal } from "@/components/mtd/SetPricingModal";
-import { useAppState } from "@/context/AppStateContext";
+import {
+  useAppBoardMutations,
+  useAppState,
+} from "@/context/AppStateContext";
 import { orderFromMTDRecord, rawFieldValue } from "@/lib/order-detail-fields";
 import { orderToMTDRecord } from "@/lib/order-form";
 import { getOrderDetailSections } from "@/lib/order-detail-sections";
@@ -287,7 +290,7 @@ function DetailSectionActions({
   onSave: () => void;
   editLabel: string;
 }) {
-  const { isViewOnly } = useAppState();
+  const { isViewOnly } = useAppBoardMutations();
 
   if (isViewOnly) return null;
 

@@ -122,6 +122,17 @@ class Settings(BaseSettings):
         if "pooler.supabase.com:5432" in url:
             url = url.replace("pooler.supabase.com:5432", "pooler.supabase.com:6543", 1)
 
+        # Serverless (Vercel): never keep a direct db.*:5432 runtime URL — it
+        # pins backends and exhausts free-tier pools. Normalize already maps our
+        # project host → pooler; this catches any leftover direct port.
+        if os.getenv("VERCEL") and "db." in url and ".supabase.co:5432" in url:
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "RUNTIME DB URL still looks like a direct Supabase host on Vercel; "
+                "prefer the transaction pooler (:6543)."
+            )
+
         return url
 
 settings = Settings()

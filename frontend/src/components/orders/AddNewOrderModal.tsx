@@ -5,7 +5,10 @@ import { createPortal } from "react-dom";
 import { X, Calendar, Loader2, AlertCircle } from "lucide-react";
 import { FilterMenu } from "@/components/ui/FilterMenu";
 import { MTDOrderDetails } from "@/components/mtd/MTDOrderDetails";
-import { useAppState } from "@/context/AppStateContext";
+import {
+  useAppDiscountCodes,
+  useAppProducers,
+} from "@/context/AppStateContext";
 import { formatApiClientError } from "@/lib/api/client";
 import { orderPatchFromOrderField } from "@/lib/mtd-order-sync";
 import { normalizeOrder } from "@/lib/order-form";
@@ -209,7 +212,8 @@ export function AddNewOrderModal({
   initialDanceSubtype = "pom",
   onAdd,
 }: AddNewOrderModalProps) {
-  const { discountCodes, producers } = useAppState();
+  const { producers } = useAppProducers();
+  const { discountCodes } = useAppDiscountCodes();
   const [mounted, setMounted] = useState(false);
 
   const [formType, setFormType] = useState<OrderFormType>(() =>

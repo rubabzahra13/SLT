@@ -33,7 +33,7 @@ import {
   MTDTableFilterPanel,
   type MTDTableFilterState,
 } from "@/components/mtd/MTDTableFilters";
-import { useAppState } from "@/context/AppStateContext";
+import { useAppProducers } from "@/context/AppStateContext";
 import {
   prefetchOrdersMatchPoolQuery,
   refreshMatchCounts,
@@ -585,7 +585,7 @@ function MatchOrdersPageContent() {
   const focusFormId = searchParams.get("form");
   /** From Flagged Resolve (or notify): open Match Confirm for this pair. */
   const openConfirmOnFocus = searchParams.get("confirm") === "1";
-  const { producers, isViewOnly } = useAppState();
+  const { producers, isViewOnly } = useAppProducers();
 
   const [form, setFormState] = useState<OrderFormType>(() =>
     typeof window !== "undefined" ? readStoredMatchFilters().form : DEFAULT_FORM

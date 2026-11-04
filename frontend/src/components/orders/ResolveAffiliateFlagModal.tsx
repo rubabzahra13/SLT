@@ -15,7 +15,11 @@ import {
 import clsx from "clsx";
 import { SoftSelect } from "@/components/ui/SoftSelect";
 import { useAuth } from "@/context/AuthContext";
-import { useAppState } from "@/context/AppStateContext";
+import {
+  useAppBoardMutations,
+  useAppEmailTemplates,
+  useAppNotices,
+} from "@/context/AppStateContext";
 import { getGmailStatus, sendGmailEmail } from "@/lib/api/gmail";
 import { ApiClientError } from "@/lib/api/client";
 import { titleCase } from "@/lib/data";
@@ -53,8 +57,9 @@ export function ResolveAffiliateFlagModal({
 }: ResolveAffiliateFlagModalProps) {
   const router = useRouter();
   const { token, isViewOnly } = useAuth();
-  const { emailTemplates, updateOrder, addAlert, maybeNotifyMatchSuggestion } =
-    useAppState();
+  const { emailTemplates } = useAppEmailTemplates();
+  const { updateOrder, maybeNotifyMatchSuggestion } = useAppBoardMutations();
+  const { addAlert } = useAppNotices();
   const [mounted, setMounted] = useState(false);
   const [selectedAffiliate, setSelectedAffiliate] = useState("");
   const [selectOpen, setSelectOpen] = useState(false);

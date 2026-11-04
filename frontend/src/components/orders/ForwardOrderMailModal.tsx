@@ -34,7 +34,11 @@ import { producerKeysMatch } from "@/lib/producer-keys";
 import { getGmailStatus, sendGmailEmail } from "@/lib/api/gmail";
 import { ApiClientError } from "@/lib/api/client";
 import { useAuth } from "@/context/AuthContext";
-import { useAppState } from "@/context/AppStateContext";
+import {
+  useAppBoardMutations,
+  useAppEmailTemplates,
+  useAppNotices,
+} from "@/context/AppStateContext";
 import { PdfImageViewer } from "@/components/ui/PdfCanvasViewer";
 import { MailRecipientSelect } from "@/components/ui/MailRecipientSelect";
 import { InlineDateInput } from "@/components/mtd/InlineFields";
@@ -280,7 +284,9 @@ export function ForwardOrderMailModal({
   onClose,
 }: ForwardOrderMailModalProps) {
   const { token, isViewOnly } = useAuth();
-  const { emailTemplates, updateMTD, updateOrder, addAlert } = useAppState();
+  const { emailTemplates } = useAppEmailTemplates();
+  const { updateMTD, updateOrder } = useAppBoardMutations();
+  const { addAlert } = useAppNotices();
   const [mounted, setMounted] = useState(false);
   const [step, setStep] = useState<ModalStep>("compose");
   const [editorId, setEditorId] = useState("");

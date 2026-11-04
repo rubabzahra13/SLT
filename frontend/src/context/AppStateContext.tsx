@@ -353,6 +353,16 @@ export type AppEmailTemplatesSlice = {
 export type AppBoardMutationsSlice = {
   updateMTD: AppStateContextValue["updateMTD"];
   updateOrder: AppStateContextValue["updateOrder"];
+  maybeNotifyMatchSuggestion: AppStateContextValue["maybeNotifyMatchSuggestion"];
+  isViewOnly: boolean;
+};
+
+/** Coupon codes settings — ignores board churn. */
+export type AppDiscountCodesSlice = {
+  discountCodes: DiscountCode[];
+  addDiscountCode: AppStateContextValue["addDiscountCode"];
+  updateDiscountCode: AppStateContextValue["updateDiscountCode"];
+  removeDiscountCode: AppStateContextValue["removeDiscountCode"];
   isViewOnly: boolean;
 };
 
@@ -362,6 +372,8 @@ const AppEmailTemplatesContext =
   createContext<AppEmailTemplatesSlice | null>(null);
 const AppBoardMutationsContext =
   createContext<AppBoardMutationsSlice | null>(null);
+const AppDiscountCodesContext =
+  createContext<AppDiscountCodesSlice | null>(null);
 
 function normalizeOrders(orders: Order[]): Order[] {
   return orders.map((o) => {
@@ -5261,9 +5273,27 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     () => ({
       updateMTD,
       updateOrder,
+      maybeNotifyMatchSuggestion,
       isViewOnly,
     }),
-    [updateMTD, updateOrder, isViewOnly]
+    [updateMTD, updateOrder, maybeNotifyMatchSuggestion, isViewOnly]
+  );
+
+  const discountCodesSlice = useMemo<AppDiscountCodesSlice>(
+    () => ({
+      discountCodes,
+      addDiscountCode,
+      updateDiscountCode,
+      removeDiscountCode,
+      isViewOnly,
+    }),
+    [
+      discountCodes,
+      addDiscountCode,
+      updateDiscountCode,
+      removeDiscountCode,
+      isViewOnly,
+    ]
   );
 
   return (
@@ -5272,7 +5302,9 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         <AppNoticesContext.Provider value={noticesSlice}>
           <AppEmailTemplatesContext.Provider value={emailTemplatesSlice}>
             <AppBoardMutationsContext.Provider value={boardMutationsSlice}>
-              {children}
+              <AppDiscountCodesContext.Provider value={discountCodesSlice}>
+                {children}
+              </AppDiscountCodesContext.Provider>
             </AppBoardMutationsContext.Provider>
           </AppEmailTemplatesContext.Provider>
         </AppNoticesContext.Provider>
@@ -5318,6 +5350,16 @@ export function useAppBoardMutations() {
   if (!ctx) {
     throw new Error(
       "useAppBoardMutations must be used within AppStateProvider"
+    );
+  }
+  return ctx;
+}
+
+export function useAppDiscountCodes() {
+  const ctx = useContext(AppDiscountCodesContext);
+  if (!ctx) {
+    throw new Error(
+      "useAppDiscountCodes must be used within AppStateProvider"
     );
   }
   return ctx;

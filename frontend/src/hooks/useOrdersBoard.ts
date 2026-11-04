@@ -133,6 +133,9 @@ export async function prefetchOrdersBoardCounts(
   }
 }
 
+/** Coalesce identical hover/idle warms so rapid pointer moves don't stack fetches. */
+const ordersBoardPrefetchInflight = new Map<string, Promise<void>>();
+
 /** Warm cache for a form tab so the next click is instant. */
 export async function prefetchOrdersBoard(
   query: OrdersBoardQuery,
@@ -141,6 +144,10 @@ export async function prefetchOrdersBoard(
   const key = ordersBoardQueryKey(query);
   const hit = readOrdersBoardCache(key);
   if (hit?.fresh) return;
+  const existing = ordersBoardPrefetchInflight.get(key);
+  if (existing) return existing;
+
+  const run = (async () => {
   const flaggedOnly = (query.range || "") === "flagged";
   const countsKey = ordersBoardCountsQueryKey({
     category: query.category,
@@ -188,6 +195,14 @@ export async function prefetchOrdersBoard(
     }
   } catch {
     /* prefetch is best-effort */
+  }
+  })();
+
+  ordersBoardPrefetchInflight.set(key, run);
+  try {
+    await run;
+  } finally {
+    ordersBoardPrefetchInflight.delete(key);
   }
 }
 

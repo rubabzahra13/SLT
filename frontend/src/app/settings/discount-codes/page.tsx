@@ -7,7 +7,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { DeleteDiscountCodeModal } from "@/components/discount-codes/DeleteDiscountCodeModal";
 import { DiscountCodeFormModal } from "@/components/discount-codes/DiscountCodeFormModal";
 import { DataTable, type Column } from "@/components/ui/DataTable";
-import { useAppState } from "@/context/AppStateContext";
+import { useAppDiscountCodes } from "@/context/AppStateContext";
 import type { DiscountCode } from "@/types";
 
 export default function DiscountCodesPage() {
@@ -17,7 +17,7 @@ export default function DiscountCodesPage() {
     updateDiscountCode,
     removeDiscountCode,
     isViewOnly,
-  } = useAppState();
+  } = useAppDiscountCodes();
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<DiscountCode | null>(null);
   const [deleting, setDeleting] = useState<DiscountCode | null>(null);

@@ -226,6 +226,8 @@ export async function prefetchOrdersMatchPoolQuery(opts: {
   }
 }
 
+const matchPrefetchInflight = new Map<string, Promise<void>>();
+
 export async function prefetchOrdersMatchData(opts?: {
   formType?: string;
   cheerFormSubtype?: string;
@@ -233,19 +235,32 @@ export async function prefetchOrdersMatchData(opts?: {
 }): Promise<void> {
   // Prefer Match page session filters so the warm key matches first paint.
   const q = resolveMatchPrefetchQuery(opts);
-  const countsHit = readMatchCountsCache();
+  const key = matchPoolQueryKey(q);
+  const existing = matchPrefetchInflight.get(key);
+  if (existing) return existing;
+
+  const run = (async () => {
+    const countsHit = readMatchCountsCache();
+    try {
+      // Pool + counts in parallel — awaiting counts first delayed warm completion.
+      const countsPromise = countsHit?.fresh
+        ? Promise.resolve(null)
+        : fetchOrdersMatchCountsApi({ timeoutMs: 8_000 }).catch(() => null);
+      const [, counts] = await Promise.all([
+        prefetchOrdersMatchPoolQuery(q),
+        countsPromise,
+      ]);
+      if (counts) writeMatchCountsCache(counts);
+    } catch {
+      /* prefetch is best-effort */
+    }
+  })();
+
+  matchPrefetchInflight.set(key, run);
   try {
-    // Pool + counts in parallel — awaiting counts first delayed warm completion.
-    const countsPromise = countsHit?.fresh
-      ? Promise.resolve(null)
-      : fetchOrdersMatchCountsApi({ timeoutMs: 8_000 }).catch(() => null);
-    const [, counts] = await Promise.all([
-      prefetchOrdersMatchPoolQuery(q),
-      countsPromise,
-    ]);
-    if (counts) writeMatchCountsCache(counts);
-  } catch {
-    /* prefetch is best-effort */
+    await run;
+  } finally {
+    matchPrefetchInflight.delete(key);
   }
 }
 

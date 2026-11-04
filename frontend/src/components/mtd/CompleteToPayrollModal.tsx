@@ -17,7 +17,7 @@ import {
   getSubtypeLabel,
   computeClientPayroll,
 } from "@/lib/pricing-display";
-import { useAppState } from "@/context/AppStateContext";
+import { useAppBoardMutations } from "@/context/AppStateContext";
 import { resolveMTDFormMeta } from "@/lib/mtd-filters";
 import {
   PRICING_REFERENCE_CHANGED_EVENT,
@@ -85,7 +85,7 @@ export function CompleteToPayrollModal({
   onClose,
   onConfirm,
 }: CompleteToPayrollModalProps) {
-  const { isViewOnly } = useAppState();
+  const { isViewOnly } = useAppBoardMutations();
   const [mounted, setMounted] = useState(false);
   const [step, setStep] = useState<1 | 2>(1);
   const [loading, setLoading] = useState(false);
