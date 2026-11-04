@@ -20,6 +20,7 @@ import {
   EIGHT_COUNT_SHEETS_PREVIEW_MANIFEST,
   flattenForwardMailFields,
   tryLoadEightCountSheetsAttachment,
+  type EightCountSheetsAttachment,
   renderForwardMailHtml,
   renderForwardMailPlainText,
   resolveCustomerMailContacts,
@@ -627,9 +628,7 @@ export function ForwardOrderMailModal({
     setIsSending(true);
     setSendError(null);
     try {
-      let attachments:
-        | Awaited<ReturnType<typeof tryLoadEightCountSheetsAttachment>>[]
-        | undefined;
+      let attachments: EightCountSheetsAttachment[] | undefined;
       let missingEightCountPdf = false;
       if (isCustomer && customerMailIncludesEightCountSheets(selectedKeys)) {
         const pdf = await tryLoadEightCountSheetsAttachment();
