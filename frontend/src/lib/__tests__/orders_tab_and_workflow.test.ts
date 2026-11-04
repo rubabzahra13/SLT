@@ -879,6 +879,7 @@ describe("orderAllowsProducerMailMarkAsSent", () => {
         isReassigned: true,
         orderStatus: "Reassign: rush order",
         producerEmailSentAt: null,
+        assignedProducer: null,
       }),
       true
     );
@@ -888,6 +889,7 @@ describe("orderAllowsProducerMailMarkAsSent", () => {
         isReassigned: false,
         orderStatus: "Reassign: rush order",
         producerEmailSentAt: null,
+        assignedProducer: "CH",
       }),
       true
     );
@@ -896,6 +898,7 @@ describe("orderAllowsProducerMailMarkAsSent", () => {
         isReassigned: false,
         orderStatus: "Reassign: Off day",
         producerEmailSentAt: null,
+        assignedProducer: "CH",
       }),
       true
     );
@@ -928,6 +931,7 @@ describe("orderAllowsProducerMailMarkAsSent", () => {
         isReassigned: false,
         orderStatus: "",
         producerEmailSentAt: null,
+        assignedProducer: null,
       }),
       false
     );

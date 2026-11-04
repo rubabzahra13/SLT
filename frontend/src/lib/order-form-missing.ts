@@ -4,11 +4,15 @@ import {
 } from "@/lib/order-detail-sections";
 import { rawFieldValue } from "@/lib/order-detail-fields";
 import { hasMeaningfulFieldValue } from "@/lib/empty-field-tokens";
+import { isFirstAvailableRequest } from "@/lib/editor-assignment";
 import {
   overlayMergedFormForDisplay,
   resolveManualFormPair,
 } from "@/lib/manual-form-merge";
-import { getFormSongListColumnText } from "@/lib/order-requirements";
+import {
+  getFormNotesText,
+  getFormSongListColumnText,
+} from "@/lib/order-requirements";
 import type { Order } from "@/types";
 
 const SONG_FORM_FIELD_KEYS = new Set([
@@ -213,6 +217,28 @@ function isEmptyFormValue(order: Order, key: string): boolean {
       fieldKey: key,
     });
   }
+  // Requested producer: board shows "First Available" for blank / FA /
+  // editorRequest:"FA", but raw requestedEditor is often "". That is a valid
+  // Magento choice — never block Move to MTD as "missing Requested producer".
+  if (
+    key === "requestedEditor" ||
+    key === "requestedProducer" ||
+    key === "editorRequest"
+  ) {
+    const requested = rawFieldValue(order, "requestedEditor");
+    const producer = rawFieldValue(order, "requestedProducer");
+    const editorReq = rawFieldValue(order, "editorRequest");
+    const any = requested || producer || editorReq;
+    if (
+      isFirstAvailableRequest(requested) ||
+      isFirstAvailableRequest(producer) ||
+      isFirstAvailableRequest(editorReq) ||
+      isFirstAvailableRequest(any)
+    ) {
+      return false;
+    }
+    return !hasMeaningfulFieldValue(any, { fieldKey: key });
+  }
   const raw = rawFieldValue(order, key);
   // Shared sentinel dictionary (none, N/A, TBD, null, select…, …).
   // Choreographer fields may use N/A when Magento says "put N/A".
@@ -359,6 +385,20 @@ export function previewMatchFormWinsOrder(manual: Order, form: Order): Order {
       (preview as Record<string, unknown>)[field.key] = next;
     }
   }
+
+  // Notes SoT is routine_notes, but SE sections key additionalNotes and Anthem
+  // lyricalNotes. Spreading empty Magento form must not wipe manual notes on
+  // the other aliases — keep all three aligned with Magento-filled-wins.
+  const formNotes = getFormNotesText(form);
+  const manualNotes = getFormNotesText(manual);
+  const notes = hasMeaningfulFieldValue(formNotes)
+    ? formNotes
+    : hasMeaningfulFieldValue(manualNotes)
+      ? manualNotes
+      : "";
+  preview.routineNotes = notes;
+  preview.additionalNotes = notes;
+  preview.lyricalNotes = notes;
 
   return preview;
 }

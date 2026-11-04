@@ -75,6 +75,7 @@ import {
 } from "@/lib/mtd-filters";
 import { parsePackage } from "@/lib/package";
 import { findLinkedOrder, findProducerByAssignmentKey } from "@/lib/editor-assignment";
+import { resolveMtdTimestamp } from "@/lib/mtd-timestamp";
 import { payrollRowIsRushOrder } from "@/lib/forward-order-mail";
 import type {
   CheerFormSubtype,
@@ -1327,14 +1328,11 @@ export default function PayrollPage() {
         nowrap: true,
         cellClassName: "!px-2 !py-1.5",
         headerClassName: "!px-2 !py-2",
-        render: (rec) => {
-          const linked = findLinkedOrder(rec, allOrders);
-          return (
-            <span className="whitespace-nowrap text-[11px] tabular-nums text-brand-ink-secondary">
-              {formatDisplayDateTime(linked?.createdAt || "")}
-            </span>
-          );
-        },
+        render: (rec) => (
+          <span className="whitespace-nowrap text-[11px] tabular-nums text-brand-ink-secondary">
+            {formatDisplayDateTime(resolveMtdTimestamp(rec, allOrders))}
+          </span>
+        ),
       },
       {
         key: "contact",

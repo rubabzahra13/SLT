@@ -257,6 +257,34 @@ function mtdRowMatchesId(r: MTDRecord, id: string): boolean {
   );
 }
 
+/** True when two MTD payloads are the same mix (any shared id / order / uuid). */
+export function mtdRecordsReferToSame(
+  a: Pick<MTDRecord, "id" | "uuid" | "orderId" | "legacyId">,
+  b: Pick<MTDRecord, "id" | "uuid" | "orderId" | "legacyId">
+): boolean {
+  const aKeys = [a.id, a.uuid, a.orderId, a.legacyId].filter(
+    (value): value is string => Boolean(value)
+  );
+  const bKeys = new Set(
+    [b.id, b.uuid, b.orderId, b.legacyId].filter(
+      (value): value is string => Boolean(value)
+    )
+  );
+  return aKeys.some((key) => bKeys.has(key));
+}
+
+/** Find a cached row by patch id OR by the merged record's identities. */
+function findMtdRowIndex(
+  records: MTDRecord[],
+  id: string,
+  merged?: MTDRecord | null
+): number {
+  const byId = records.findIndex((r) => mtdRowMatchesId(r, id));
+  if (byId >= 0) return byId;
+  if (!merged) return -1;
+  return records.findIndex((r) => mtdRecordsReferToSame(r, merged));
+}
+
 /** Deduped MTD/payroll rows currently in board caches (for VO program lists). */
 export function collectMtdBoardCachedRecords(): MTDRecord[] {
   const byId = new Map<string, MTDRecord>();
@@ -367,6 +395,42 @@ function isMusicBoardScope(scope: string): boolean {
   return scope === "board" || scope === "live" || scope === "all" || !scope;
 }
 
+/** Don't drop a Cheer row into a Dance (or mismatched subtype) cache key. */
+function mtdCacheKeyMatchesRow(
+  key: string,
+  row: Pick<MTDRecord, "formType" | "cheerFormSubtype" | "danceFormSubtype">
+): boolean {
+  try {
+    const q = JSON.parse(key) as {
+      formType?: string;
+      cheerFormSubtype?: string;
+      danceFormSubtype?: string;
+    };
+    if (q.formType && row.formType && q.formType !== row.formType) {
+      return false;
+    }
+    if (
+      q.cheerFormSubtype &&
+      row.cheerFormSubtype &&
+      q.cheerFormSubtype !== "all" &&
+      q.cheerFormSubtype !== row.cheerFormSubtype
+    ) {
+      return false;
+    }
+    if (
+      q.danceFormSubtype &&
+      row.danceFormSubtype &&
+      q.danceFormSubtype !== "all" &&
+      q.danceFormSubtype !== row.danceFormSubtype
+    ) {
+      return false;
+    }
+    return true;
+  } catch {
+    return true;
+  }
+}
+
 function writeBoardEntry(key: string, entry: MtdBoardCacheEntry): void {
   boardCache.set(key, entry);
   const storageKey = ssKey(MTD_BOARD_SS_PREFIX, key);
@@ -406,7 +470,7 @@ export function readCachedMtdBoardRow(id: string): MTDRecord | null {
  * left Archive at chip=0, which deleted the optimistic Mark Paid row.
  */
 function bumpScopeCountsCache(
-  scope: "payroll" | "archive",
+  scope: "payroll" | "archive" | "board",
   delta: 1 | -1,
   row?: Pick<
     MTDRecord,
@@ -415,13 +479,16 @@ function bumpScopeCountsCache(
 ): void {
   const key = mtdBoardCountsQueryKey({ scope });
   const hit = readMtdBoardCountsCache(key);
-  const base = hit?.counts;
+  // Never invent a fresh {all:1} counts doc — that zeros every other form
+  // chip and trustEmptyZero then wipes MTD. Wait for /mtd/counts instead.
+  if (!hit?.counts) return;
+  const base = hit.counts;
   const next: MtdBoardCounts = {
-    all: Math.max(0, (base?.all || 0) + delta),
-    by_form_type: { ...(base?.by_form_type || {}) },
-    by_category: { ...(base?.by_category || {}) },
-    by_cheer_form_subtype: { ...(base?.by_cheer_form_subtype || {}) },
-    by_dance_form_subtype: { ...(base?.by_dance_form_subtype || {}) },
+    all: Math.max(0, (base.all || 0) + delta),
+    by_form_type: { ...(base.by_form_type || {}) },
+    by_category: { ...(base.by_category || {}) },
+    by_cheer_form_subtype: { ...(base.by_cheer_form_subtype || {}) },
+    by_dance_form_subtype: { ...(base.by_dance_form_subtype || {}) },
   };
   const form = row?.formType ? String(row.formType) : "";
   if (form) {
@@ -453,6 +520,13 @@ function bumpScopeCountsCache(
     );
   }
   writeMtdBoardCountsCache(key, next);
+  // Optimistic chip bump must not stay "fresh" — otherwise reload skips
+  // /mtd/counts and a leave-without-formType drift (all=1, cheer=2) sticks.
+  const entry = countsCache.get(key);
+  if (entry) {
+    entry.updatedAt = Date.now() - MTD_BOARD_STALE_MS - 1;
+    countsCache.set(key, entry);
+  }
 }
 
 const LOCAL_WRITE_ECHO_MS = 15_000;
@@ -482,30 +556,57 @@ export function isRecentLocalMtdWrite(
  */
 export function patchMtdBoardRecordInCaches(
   id: string,
-  patch: Partial<MTDRecord>
+  patch: Partial<MTDRecord>,
+  seed?: MTDRecord | null
 ): void {
   if (!id) return;
   const markedPaid = Boolean(patch.paidAt);
   const returnedFromPayroll = patch.inPayroll === false;
   const movedToPayroll = patch.inPayroll === true && !markedPaid;
-  const leftMusicBoard =
-    patch.inMTD === false || movedToPayroll || markedPaid;
-  const leftPayroll = markedPaid || returnedFromPayroll;
-
   // Mark Paid may pre-seed archive with paidAt — prefer the unpaid payroll
   // copy so membership bumps still fire (Orders: shift from the "from" bucket).
-  const before = findCachedMtdRow(
-    id,
-    markedPaid ? "payroll" : returnedFromPayroll ? "archive" : undefined
-  );
+  const before =
+    findCachedMtdRow(
+      id,
+      markedPaid ? "payroll" : returnedFromPayroll ? "archive" : undefined
+    ) ??
+    seed ??
+    null;
   const merged: MTDRecord | null = before
     ? ({ ...before, ...patch } as MTDRecord)
-    : null;
+    : seed
+      ? ({ ...seed, ...patch } as MTDRecord)
+      : null;
+  // Membership from cache presence — seed.inMTD can lag after Move-to-Orders.
+  let wasOnMusic = false;
+  for (const [key, entry] of boardCache) {
+    if (!isMusicBoardScope(mtdCacheScope(key))) continue;
+    if (entry.records.some((r) => mtdRowMatchesId(r, id))) {
+      wasOnMusic = true;
+      break;
+    }
+  }
+  // Only treat as enter/leave when membership actually changes — routine
+  // patches with inMTD:true must not re-seed or re-bump form chips.
+  const enteredMusicBoard =
+    patch.inMTD === true && !movedToPayroll && !markedPaid && !wasOnMusic;
+  const leftMusicBoard =
+    (patch.inMTD === false || movedToPayroll || markedPaid) && wasOnMusic;
+  const leftPayroll = markedPaid || returnedFromPayroll;
 
   let anyChanged = false;
   let removedFromPayroll = false;
   let insertedIntoArchive = false;
   let insertedIntoPayroll = false;
+  let insertedIntoMusic = false;
+  let removedFromMusic = false;
+  // Prefer form chips from the row we actually remove — seed/before often
+  // lack formType after Move-to-Orders, which left all=N-1 but cheer=N
+  // (UI "2" with one painted row).
+  let musicLeaveMeta: Pick<
+    MTDRecord,
+    "formType" | "cheerFormSubtype" | "danceFormSubtype"
+  > | null = null;
 
   for (const [key, entry] of boardCache) {
     const scope = mtdCacheScope(key);
@@ -515,19 +616,48 @@ export function patchMtdBoardRecordInCaches(
     if (leftMusicBoard && isMusicBoardScope(scope)) {
       records = entry.records.filter((r) => {
         if (!mtdRowMatchesId(r, id)) return true;
+        if (!musicLeaveMeta) {
+          musicLeaveMeta = {
+            formType: r.formType,
+            cheerFormSubtype: r.cheerFormSubtype,
+            danceFormSubtype: r.danceFormSubtype,
+          };
+        }
         changed = true;
+        removedFromMusic = true;
         return false;
       });
+    } else if (enteredMusicBoard && isMusicBoardScope(scope) && merged) {
+      if (!mtdCacheKeyMatchesRow(key, merged)) {
+        // Wrong form/subtype page — leave untouched.
+      } else {
+        // Match by patch id OR merged identities — alias re-patches
+        // (orderId / stale order.mtdId) must update, not prepend a twin.
+        const idx = findMtdRowIndex(entry.records, id, merged);
+        if (idx >= 0) {
+          records = entry.records.map((r, i) => (i === idx ? merged : r));
+          changed = true;
+        } else {
+          records = [merged, ...entry.records];
+          changed = true;
+          insertedIntoMusic = true;
+        }
+      }
     } else if (scope === "payroll") {
       if (leftPayroll) {
         records = entry.records.filter((r) => {
-          if (!mtdRowMatchesId(r, id)) return true;
+          if (
+            !mtdRowMatchesId(r, id) &&
+            !(merged && mtdRecordsReferToSame(r, merged))
+          ) {
+            return true;
+          }
           changed = true;
           removedFromPayroll = true;
           return false;
         });
       } else if (movedToPayroll && merged) {
-        const idx = entry.records.findIndex((r) => mtdRowMatchesId(r, id));
+        const idx = findMtdRowIndex(entry.records, id, merged);
         if (idx >= 0) {
           records = entry.records.map((r, i) =>
             i === idx ? merged : r
@@ -547,7 +677,7 @@ export function patchMtdBoardRecordInCaches(
       }
     } else if (scope === "archive") {
       if (markedPaid && merged) {
-        const idx = entry.records.findIndex((r) => mtdRowMatchesId(r, id));
+        const idx = findMtdRowIndex(entry.records, id, merged);
         if (idx >= 0) {
           records = entry.records.map((r, i) =>
             i === idx ? merged : r
@@ -560,7 +690,12 @@ export function patchMtdBoardRecordInCaches(
         }
       } else if (returnedFromPayroll || patch.paidAt === null) {
         records = entry.records.filter((r) => {
-          if (!mtdRowMatchesId(r, id)) return true;
+          if (
+            !mtdRowMatchesId(r, id) &&
+            !(merged && mtdRecordsReferToSame(r, merged))
+          ) {
+            return true;
+          }
           changed = true;
           return false;
         });
@@ -607,7 +742,7 @@ export function patchMtdBoardRecordInCaches(
     for (const key of archiveKeys) {
       const prev = boardCache.get(key);
       const prevRecords = prev?.records ?? [];
-      if (prevRecords.some((r) => mtdRowMatchesId(r, merged.id))) continue;
+      if (prevRecords.some((r) => mtdRecordsReferToSame(r, merged))) continue;
       writeMtdBoardCache(key, {
         records: [merged, ...prevRecords],
         nextPageToken: prev?.nextPageToken ?? null,
@@ -631,7 +766,7 @@ export function patchMtdBoardRecordInCaches(
     for (const key of payrollKeys) {
       const prev = boardCache.get(key);
       const prevRecords = prev?.records ?? [];
-      if (prevRecords.some((r) => mtdRowMatchesId(r, merged.id))) continue;
+      if (prevRecords.some((r) => mtdRecordsReferToSame(r, merged))) continue;
       writeMtdBoardCache(key, {
         records: [merged, ...prevRecords],
         nextPageToken: prev?.nextPageToken ?? null,
@@ -639,6 +774,33 @@ export function patchMtdBoardRecordInCaches(
       });
       anyChanged = true;
       insertedIntoPayroll = true;
+    }
+  }
+  if (enteredMusicBoard && merged) {
+    const preferredMusicKey = mtdBoardQueryKey({
+      scope: "board",
+      formType: merged.formType || undefined,
+      cheerFormSubtype: merged.cheerFormSubtype || undefined,
+    });
+    const musicKeys = new Set(
+      [...boardCache.keys()].filter((k) =>
+        isMusicBoardScope(mtdCacheScope(k))
+      )
+    );
+    musicKeys.add(preferredMusicKey);
+    musicKeys.add(mtdBoardQueryKey({ scope: "board" }));
+    for (const key of musicKeys) {
+      const prev = boardCache.get(key);
+      const prevRecords = prev?.records ?? [];
+      if (prevRecords.some((r) => mtdRecordsReferToSame(r, merged))) continue;
+      if (!mtdCacheKeyMatchesRow(key, merged)) continue;
+      writeMtdBoardCache(key, {
+        records: [merged, ...prevRecords],
+        nextPageToken: prev?.nextPageToken ?? null,
+        counts: prev?.counts,
+      });
+      anyChanged = true;
+      insertedIntoMusic = true;
     }
   }
 
@@ -671,11 +833,56 @@ export function patchMtdBoardRecordInCaches(
     if (insertedIntoPayroll) {
       bumpScopeCountsCache("payroll", 1, chipRow);
       noteLocalMtdWrite(id, merged?.id, merged?.uuid, merged?.orderId);
+    } else if (movedToPayroll) {
+      // Always guard SSE/soft-reload echos for Move-to-Payroll, even when the
+      // payroll cache already had the row (update-only / double patch).
+      noteLocalMtdWrite(
+        id,
+        before?.id,
+        before?.uuid,
+        before?.orderId,
+        merged?.id,
+        merged?.uuid,
+        merged?.orderId
+      );
+    }
+    if (removedFromMusic || (leftMusicBoard && wasOnMusic)) {
+      if (removedFromMusic) {
+        bumpScopeCountsCache(
+          "board",
+          -1,
+          musicLeaveMeta ?? before ?? chipRow
+        );
+      }
+      noteLocalMtdWrite(
+        id,
+        before?.id,
+        before?.uuid,
+        before?.orderId,
+        merged?.id,
+        merged?.uuid,
+        merged?.orderId
+      );
+    }
+    if (insertedIntoMusic || enteredMusicBoard) {
+      // Only bump when the row is newly present — never when an update-only
+      // patch re-enters while server counts already include it.
+      if (insertedIntoMusic) bumpScopeCountsCache("board", 1, chipRow);
+      noteLocalMtdWrite(
+        id,
+        before?.id,
+        before?.uuid,
+        before?.orderId,
+        merged?.id,
+        merged?.uuid,
+        merged?.orderId
+      );
     }
   }
 
   if (typeof window === "undefined") return;
-  if (!anyChanged && !leftMusicBoard && !leftPayroll) return;
+  if (!anyChanged && !leftMusicBoard && !leftPayroll && !enteredMusicBoard)
+    return;
   window.dispatchEvent(
     new CustomEvent<MtdBoardPatchDetail>(MTD_BOARD_PATCH_EVENT, {
       detail: {

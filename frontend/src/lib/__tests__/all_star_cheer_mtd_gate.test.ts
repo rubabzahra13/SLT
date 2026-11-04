@@ -4,6 +4,7 @@ import {
   getMatchBlockingMissingFields,
   getOrderFormFieldsBlockingMtd,
   isOptionalOrderFormField,
+  previewMatchFormWinsOrder,
   resolveFinalMatchedOrder,
 } from "../order-form-missing";
 import { normalizeOrder } from "../order-form";
@@ -36,6 +37,29 @@ describe("All-Star Cheer Move-to-MTD form gate", () => {
     const order = allStarCheer();
     assert.equal(isOptionalOrderFormField("couponCode", order), true);
     assert.equal(isOptionalOrderFormField("howDidYouFindOut", order), true);
+  });
+
+  it("previewMatchFormWinsOrder keeps manual Notes when Magento Notes are blank", () => {
+    const manual = allStarCheer({
+      id: "manual-notes",
+      isManualEntry: true,
+      mergedFormOrderId: "form-notes",
+      routineNotes: "Just typed notes",
+      additionalNotes: "Just typed notes",
+      lyricalNotes: "Just typed notes",
+    });
+    const form = allStarCheer({
+      id: "form-notes",
+      isManualEntry: false,
+      mergedIntoManualOrderId: "manual-notes",
+      routineNotes: "",
+      additionalNotes: "",
+      lyricalNotes: "",
+    });
+    const preview = previewMatchFormWinsOrder(manual, form);
+    assert.equal(preview.routineNotes, "Just typed notes");
+    assert.equal(preview.additionalNotes, "Just typed notes");
+    assert.equal(preview.lyricalNotes, "Just typed notes");
   });
 
   it("resolveFinalMatchedOrder prefers Magento and keeps manual snapshot for Split", () => {

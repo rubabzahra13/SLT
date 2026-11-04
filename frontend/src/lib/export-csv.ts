@@ -10,6 +10,7 @@ import {
   findProducerByAssignmentKey,
   formatRequestedEditorLabel,
 } from "./editor-assignment";
+import { resolveMtdTimestamp } from "./mtd-timestamp";
 import { isPreMTDOrderRecord, resolveMTDFormMeta } from "./mtd-filters";
 import { orderFromMTDRecord } from "./order-detail-fields";
 import { getOrderDetailSections, getFormTypeLabel } from "./order-detail-sections";
@@ -217,7 +218,10 @@ export function generateOrdersCsv(records: MTDRecord[], allOrders: Order[]): str
     const row: Record<string, unknown> = {
       id: rec.orderId || rec.id,
       createdAt: formatDisplayDateTime(
-        linked?.createdAt || order.createdAt || ""
+        resolveMtdTimestamp(rec, allOrders) ||
+          linked?.createdAt ||
+          order.createdAt ||
+          ""
       ),
       formType: getFormTypeLabel(meta.formType),
       subtype: meta.canonicalSubtypeId,
@@ -314,7 +318,10 @@ export function generateMTDCsv(
     const row: Record<string, unknown> = {
       id: rec.id,
       createdAt: formatDisplayDateTime(
-        linked?.createdAt || order.createdAt || ""
+        resolveMtdTimestamp(rec, allOrders) ||
+          linked?.createdAt ||
+          order.createdAt ||
+          ""
       ),
       formType: getFormTypeLabel(meta.formType),
       subtype: meta.canonicalSubtypeId,
@@ -479,7 +486,10 @@ export function generatePayrollCsv(
     const row: Record<string, unknown> = {
       id: rec.id,
       createdAt: formatDisplayDateTime(
-        linked?.createdAt || order.createdAt || ""
+        resolveMtdTimestamp(rec, allOrders) ||
+          linked?.createdAt ||
+          order.createdAt ||
+          ""
       ),
       completedDate:
         toIsoDateString(rec.completedAt) || toIsoDateString(rec.mixEndDate) || "",

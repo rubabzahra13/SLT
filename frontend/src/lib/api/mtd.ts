@@ -47,6 +47,7 @@ export interface BackendMTDRecord {
   extra_song_editing_time_quantity?: number;
   final_customer_price?: number | null;
   final_customer_price_overridden?: boolean;
+  created_at?: string | null;
   updated_at?: string | null;
 }
 
@@ -111,6 +112,7 @@ export function transformMTDRecord(bm: BackendMTDRecord): MTDRecord {
     ),
     finalCustomerPrice: bm.final_customer_price ?? null,
     finalCustomerPriceOverridden: Boolean(bm.final_customer_price_overridden),
+    createdAt: bm.created_at || null,
     updatedAt: bm.updated_at || null,
   };
 }

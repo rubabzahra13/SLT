@@ -855,6 +855,11 @@ function recordCreatedMs(
   rec: MTDRecord,
   orderById?: Map<string, Order> | null
 ): number {
+  const fromRec = rec.createdAt;
+  if (fromRec) {
+    const ms = Date.parse(fromRec);
+    if (!Number.isNaN(ms)) return ms;
+  }
   if (orderById) {
     const linked =
       (rec.orderId && orderById.get(rec.orderId)) ||

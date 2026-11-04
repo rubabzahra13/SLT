@@ -13,6 +13,7 @@ import {
   mtdActiveChipTotal,
   mtdBoardCountsQueryKey,
   mtdBoardQueryKey,
+  mtdRecordsReferToSame,
   MTD_BOARD_PATCH_EVENT,
   type MtdBoardPatchDetail,
   isRecentLocalMtdWrite,
@@ -24,6 +25,7 @@ import {
   writeMtdBoardCountsCache,
   writeMtdChipCountsCache,
 } from "@/lib/mtd-board-cache";
+import { mergeLocalMtdRecordFields } from "@/lib/mtd-completion";
 import type { MTDRecord } from "@/types";
 
 /** Coalesce off-page MTD inserts into one background board reload. */
@@ -302,8 +304,10 @@ export function useMtdBoard(
     } else if (
       !archive &&
       knownTotal === 0 &&
+      countsAll === 0 &&
       !searching &&
-      !searchOnlyChange
+      !searchOnlyChange &&
+      !(hit && hit.entry.records.some((r) => isRecentLocalMtdWrite(r)))
     ) {
       setRecords([]);
       setNextPageToken(null);
@@ -404,7 +408,11 @@ export function useMtdBoard(
       setNextPageToken(null);
     }
 
-    if (knownTotal === 0 && !searching) {
+    // Form-chip 0 with scope all>0 (or a just-seeded Move-to-MTD row) must
+    // not wipe the page — that locked MTD at "0 orders" after round-trips.
+    const seededLocal =
+      Boolean(hit?.entry.records.some((r) => isRecentLocalMtdWrite(r)));
+    if (knownTotal === 0 && !searching && countsAll === 0 && !seededLocal) {
       setRecords([]);
       pageIdsRef.current = new Set();
       setLoading(false);
@@ -415,14 +423,14 @@ export function useMtdBoard(
       setRecords([]);
       pageIdsRef.current = new Set();
       paintedRef.current = false;
-      setLoading(knownTotal !== 0);
+      setLoading(knownTotal !== 0 || countsAll !== 0 || seededLocal);
     } else if (searching || searchOnlyChange || paintedRef.current) {
       setLoading(false);
     } else if (!trusted) {
       setRecords([]);
       pageIdsRef.current = new Set();
       paintedRef.current = false;
-      setLoading(knownTotal !== 0);
+      setLoading(knownTotal !== 0 || countsAll !== 0 || seededLocal);
     }
   }, [queryKey, badgeCountsKey, chipKey]);
 
@@ -489,20 +497,29 @@ export function useMtdBoard(
           const scope = String(q.scope || "live").toLowerCase();
           const prevCached =
             readMtdBoardCache(queryKey)?.entry.records ?? [];
-          // Drop rows this tab just deleted / moved — slow /mtd/board must not
-          // resurrect Archive Delete forever or Mark Paid payroll echoes.
-          const serverRecords = board.records.filter(
-            (r) => !isRecentLocalMtdWrite(r)
-          );
+          const sameRow = (a: MTDRecord, b: MTDRecord) =>
+            a.id === b.id ||
+            (Boolean(a.uuid) && a.uuid === b.uuid) ||
+            (Boolean(a.orderId) && a.orderId === b.orderId) ||
+            a.uuid === b.id ||
+            b.uuid === a.id;
+          // Keep correct destination rows from the server even when this tab
+          // just wrote them. Only suppress lagging membership echoes.
+          const onMusicBoard = (r: MTDRecord) =>
+            Boolean(r.inMTD) && !r.inPayroll && !r.paidAt;
+          const serverRecords = board.records.filter((r) => {
+            if (!isRecentLocalMtdWrite(r)) return true;
+            if (scope === "payroll") return Boolean(r.inPayroll) && !r.paidAt;
+            if (scope === "archive") return Boolean(r.paidAt);
+            // Music: keep Move-to-MTD echoes; drop Move-to-Orders ghosts.
+            // (Older code always returned false — that hid the returned row
+            // while optimistic form chips still said 2.)
+            return onMusicBoard(r);
+          });
           const keepLocal = prevCached.filter(
             (r) =>
               isRecentLocalMtdWrite(r) &&
-              !serverRecords.some(
-                (s) =>
-                  s.id === r.id ||
-                  s.uuid === r.id ||
-                  (r.uuid && s.uuid === r.uuid)
-              )
+              !serverRecords.some((s) => sameRow(r, s))
           );
           const mergedRecords =
             keepLocal.length === 0
@@ -516,7 +533,11 @@ export function useMtdBoard(
                     ),
                     ...serverRecords,
                   ]
-                : serverRecords;
+                : [
+                    // Optimistic Move-to-MTD seed until /mtd/board catches up.
+                    ...keepLocal.filter(onMusicBoard),
+                    ...serverRecords,
+                  ];
           setRecords(mergedRecords);
           pageIdsRef.current = new Set(mergedRecords.map((r) => r.id));
           setNextPageToken(board.nextPageToken);
@@ -755,6 +776,25 @@ export function useMtdBoard(
         detail.patch.inPayroll === true &&
         !detail.patch.paidAt &&
         Boolean(detail.record);
+      // Enter music board on Move-to-MTD (Orders → Music To Do).
+      // Require an explicit membership flip — not every inMTD:true field patch.
+      const enterMusic =
+        isMusicBoard &&
+        detail.patch.inMTD === true &&
+        detail.patch.inPayroll !== true &&
+        !detail.patch.paidAt &&
+        Boolean(detail.record) &&
+        detail.removed !== true;
+
+      // Keep chip totals in sync with optimistic enter/leave bumps.
+      if (leaveMusic || enterMusic || enterPayroll || leavePayroll) {
+        const countsHit = readMtdBoardCountsCache(badgeCountsKey);
+        if (countsHit?.counts) {
+          lastGoodCountsRef.current = countsHit.counts;
+          setCounts(mergeMtdStickyChips(countsHit.counts, chipKey));
+          setCountsReady(true);
+        }
+      }
 
       setRecords((prev) => {
         if (leaveMusic || leavePayroll || leaveArchive) {
@@ -768,10 +808,50 @@ export function useMtdBoard(
           });
           return next;
         }
-        if (enterArchive || enterPayroll) {
+        if (enterArchive || enterPayroll || enterMusic) {
           const row = detail.record as MTDRecord;
-          const next = prev.some(match)
-            ? prev.map((r) => (match(r) ? { ...r, ...row } : r))
+          // Wrong form/subtype page — leave this board alone (cache seed
+          // already skipped mismatched keys; hook must match).
+          if (enterMusic) {
+            try {
+              const q = JSON.parse(queryKey) as {
+                formType?: string;
+                cheerFormSubtype?: string;
+                danceFormSubtype?: string;
+              };
+              if (
+                q.formType &&
+                row.formType &&
+                q.formType !== row.formType
+              ) {
+                return prev;
+              }
+              if (
+                q.cheerFormSubtype &&
+                row.cheerFormSubtype &&
+                q.cheerFormSubtype !== "all" &&
+                q.cheerFormSubtype !== row.cheerFormSubtype
+              ) {
+                return prev;
+              }
+              if (
+                q.danceFormSubtype &&
+                row.danceFormSubtype &&
+                q.danceFormSubtype !== "all" &&
+                q.danceFormSubtype !== row.danceFormSubtype
+              ) {
+                return prev;
+              }
+            } catch {
+              /* insert anyway */
+            }
+          }
+          // Alias re-patches (orderId / stale order.mtdId) must not prepend
+          // a second copy of the same mix onto Payroll / Archive / Music.
+          const sameRow = (r: MTDRecord) =>
+            match(r) || mtdRecordsReferToSame(r, row);
+          const next = prev.some(sameRow)
+            ? prev.map((r) => (sameRow(r) ? { ...r, ...row } : r))
             : [row, ...prev];
           pageIdsRef.current = new Set(next.map((r) => r.id));
           writeMtdBoardCache(queryKey, {
@@ -798,7 +878,7 @@ export function useMtdBoard(
     };
     window.addEventListener(MTD_BOARD_PATCH_EVENT, onPatch);
     return () => window.removeEventListener(MTD_BOARD_PATCH_EVENT, onPatch);
-  }, [enabled, queryKey]);
+  }, [enabled, queryKey, badgeCountsKey, chipKey]);
 
   // SSE-first: patch rows in place; full reload only on stream reconnect or
   // off-page inserts that need board/count catch-up. No focus poll.
@@ -854,29 +934,34 @@ export function useMtdBoard(
       })();
       const isPayrollBoard = scope === "payroll";
       const isMusicBoard = scope !== "payroll" && scope !== "archive";
-      const inPayroll =
-        event.record.inPayroll === true ||
-        (event.record as { in_payroll?: boolean }).in_payroll === true;
-      const leftMusic =
-        event.record.inMTD === false ||
-        (event.record as { in_mtd?: boolean }).in_mtd === false ||
-        inPayroll;
-      const leftPayroll =
-        Boolean(event.record.paidAt) ||
-        event.record.inPayroll === false ||
-        (event.record as { in_payroll?: boolean }).in_payroll === false;
       const isArchiveBoard = scope === "archive";
       if (pageIdsRef.current.has(id)) {
         setRecords((prev) => {
+          const local = prev.find((r) => r.id === id);
+          // Sticky Move-to-Payroll / Mark Paid: don't let a stale SSE echo with
+          // inPayroll:false yank the optimistic payroll row (then reappear later).
+          const incoming =
+            local && isRecentLocalMtdWrite(local)
+              ? mergeLocalMtdRecordFields(event.record as MTDRecord, local)
+              : (event.record as MTDRecord);
+          const inPayroll =
+            incoming.inPayroll === true ||
+            (incoming as { in_payroll?: boolean }).in_payroll === true;
+          const leftMusic =
+            incoming.inMTD === false ||
+            (incoming as { in_mtd?: boolean }).in_mtd === false ||
+            inPayroll;
+          const leftPayroll =
+            Boolean(incoming.paidAt) ||
+            incoming.inPayroll === false ||
+            (incoming as { in_payroll?: boolean }).in_payroll === false;
           const drop =
             (isMusicBoard && leftMusic) ||
             (isPayrollBoard && leftPayroll) ||
-            (isArchiveBoard && !event.record.paidAt);
+            (isArchiveBoard && !incoming.paidAt);
           const next = drop
             ? prev.filter((r) => r.id !== id)
-            : prev.map((r) =>
-                r.id === id ? { ...r, ...event.record } : r
-              );
+            : prev.map((r) => (r.id === id ? { ...r, ...incoming } : r));
           pageIdsRef.current = new Set(next.map((r) => r.id));
           writeMtdBoardCache(queryKey, {
             records: next,
@@ -889,8 +974,17 @@ export function useMtdBoard(
         // Skip recount when this tab just wrote (badges already shifted).
         // Archive: in-place patch only — no board refetch.
         if (
-          ((isMusicBoard && leftMusic) || (isPayrollBoard && leftPayroll)) &&
-          !isRecentLocalMtdWrite(event.record)
+          !isRecentLocalMtdWrite(event.record) &&
+          ((isMusicBoard &&
+            (event.record.inMTD === false ||
+              event.record.inPayroll === true ||
+              (event.record as { in_payroll?: boolean }).in_payroll ===
+                true)) ||
+            (isPayrollBoard &&
+              (Boolean(event.record.paidAt) ||
+                event.record.inPayroll === false ||
+                (event.record as { in_payroll?: boolean }).in_payroll ===
+                  false)))
         ) {
           scheduleOffPageReload({ forceCounts: true });
         }
@@ -900,6 +994,9 @@ export function useMtdBoard(
       if (isRecentLocalMtdWrite(event.record)) return;
       // Entered this board off-page — one deferred board+counts fetch.
       // Archive: patch-in via enterArchive event path; skip full board reload.
+      const inPayroll =
+        event.record.inPayroll === true ||
+        (event.record as { in_payroll?: boolean }).in_payroll === true;
       const enteredMusic =
         isMusicBoard &&
         (event.record.inMTD === true ||

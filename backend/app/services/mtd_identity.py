@@ -228,11 +228,15 @@ def collection_from_order(order: Optional[Order]) -> dict[str, Any]:
 
 def order_projection_for_mtd(order: Optional[Order]) -> dict[str, Any]:
     """Full Order-SoT projection for MTD serialize."""
-    return {
+    projected: dict[str, Any] = {
         **identity_from_order(order),
         **assignment_from_order(order),
         **collection_from_order(order),
     }
+    # Board Timestamp column: prefer order intake time over MTD row created_at.
+    if order is not None and getattr(order, "created_at", None) is not None:
+        projected["created_at"] = order.created_at
+    return projected
 
 
 def apply_identity_writes_to_order(

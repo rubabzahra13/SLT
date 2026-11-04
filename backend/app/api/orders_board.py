@@ -207,8 +207,10 @@ def _missing_data_expr():
         or_(sending.in_(("YES", "Y")), sending.like("YES%")),
         ~sheet_u.like("%HAVE%"),
     )
+    # Field SoT only — do not OR needs_attention. That flag stays true after
+    # Notes/Songs fills (PATCH often never resyncs it) and kept rows on
+    # Missing data while every collection pill was green.
     return or_(
-        Order.needs_attention.is_(True),
         sheet.ilike("%NEED%"),
         songs.ilike("%NEED%"),
         pkg.in_(("", "TBD")),

@@ -51,6 +51,8 @@ class MTDRecordSchema(BaseModel):
     extra_song_editing_time_quantity: int = 0
     final_customer_price: Optional[float] = None
     final_customer_price_overridden: bool = False
+    # Order intake time when linked; else MTD row created_at (board Timestamp).
+    created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)

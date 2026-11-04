@@ -670,48 +670,57 @@ function isBlankText(v: unknown): boolean {
 
 const upperTrim = (v: unknown) => String(v ?? "").trim().toUpperCase();
 
-/** Backend `_sync_order_needs_attention` (no explicit value). */
-function serverNeedsAttention(o: Order): boolean {
-  const pkg = upperTrim(o.packageType);
-  const mix = upperTrim(o.timeLengthOfMix);
-  return (
-    upperTrim(o.eightCountSheet).includes("NEED") ||
-    upperTrim(o.haveSongs).includes("NEED") ||
-    pkg === "" ||
-    pkg === "TBD" ||
-    mix === "" ||
-    mix === "TBD"
-  );
-}
-
-/** PATCH keys that make the backend recompute needs_attention. */
-const NEEDS_ATTENTION_KEYS: (keyof Order)[] = [
-  "eightCountSheet",
-  "haveSongs",
-  "collectionStates",
-  "packageType",
-  "timeLengthOfMix",
-];
-
 /**
- * Backend `_missing_data_expr` — badge counts are server SQL, so local shifts
- * must use the same rule or the next recount would snap badges back.
+ * Field SoT for Missing/Complete (matches board pills + `_missing_data_expr`
+ * without stale `needs_attention`). Used for optimistic badge shifts.
  */
-function isCompleteDataOrder(o: Order): boolean {
+function deriveMissingDataFields(o: Order): boolean {
   const sheet = upperTrim(o.eightCountSheet);
   const sending = upperTrim(o.sendingEightCountSheets);
   const csOutstanding =
     (sending === "Y" || sending.startsWith("YES")) && !sheet.includes("HAVE");
-  const missing =
-    Boolean(o.needsAttention) ||
+  return (
     sheet.includes("NEED") ||
     upperTrim(o.haveSongs).includes("NEED") ||
     ["", "TBD"].includes(upperTrim(o.packageType)) ||
     isBlankText(o.timeLengthOfMix) ||
     (isBlankText(o.songListSuggestions) && isBlankText(o.musicTheme)) ||
     isBlankText(o.routineNotes) ||
-    csOutstanding;
-  return !missing;
+    csOutstanding
+  );
+}
+
+/** Optimistic `needs_attention` after a collection / Songs / Notes patch. */
+function serverNeedsAttention(o: Order): boolean {
+  return deriveMissingDataFields(o);
+}
+
+/** PATCH keys that recompute optimistic needs_attention + Complete/Missing. */
+const NEEDS_ATTENTION_KEYS: (keyof Order)[] = [
+  "eightCountSheet",
+  "haveSongs",
+  "collectionStates",
+  "packageType",
+  "timeLengthOfMix",
+  "routineNotes",
+  "additionalNotes",
+  "lyricalNotes",
+  "songListSuggestions",
+  "musicTheme",
+  "powerMusicCovers",
+  "unleashTheBeatsCovers",
+  "customerSongs",
+  "instrumentationNotes",
+  "sendingEightCountSheets",
+];
+
+/**
+ * Backend `_missing_data_expr` field checks — badge counts are server SQL, so
+ * local shifts must match. Do not OR stale needsAttention (Notes fills often
+ * leave it true while pills are green).
+ */
+function isCompleteDataOrder(o: Order): boolean {
+  return !deriveMissingDataFields(o);
 }
 
 type OrderBadgeState = {
@@ -980,11 +989,48 @@ export const ORDERS_BOARD_PATCH_EVENT = "slt-orders-board-patch";
  */
 /** Ids this tab just wrote: their SSE echo needs no board/count catch-up. */
 const localOrderWriteAt = new Map<string, number>();
+/** Songs/Notes (etc.) keys from the optimistic patch — keep over empty SSE/paint. */
+const localOrderWriteKeys = new Map<string, Set<string>>();
 const LOCAL_WRITE_ECHO_MS = 15_000;
 
-function noteLocalOrderWrite(...ids: Array<string | null | undefined>) {
+/** Fields admin Songs/Notes/Mix edits touch; Magento-empty must not wipe them mid-echo. */
+const LOCAL_PRESERVE_FIELD_KEYS = new Set([
+  "routineNotes",
+  "additionalNotes",
+  "lyricalNotes",
+  "songListSuggestions",
+  "powerMusicCovers",
+  "unleashTheBeatsCovers",
+  "customerSongs",
+  "instrumentationNotes",
+  "instrumentalStylePreference",
+  "musicTheme",
+  "haveSongs",
+  "collectionStates",
+  "timeLengthOfMix",
+]);
+
+function noteLocalOrderWrite(
+  ...args: Array<string | null | undefined | Partial<Order>>
+) {
   const now = Date.now();
-  for (const id of ids) if (id) localOrderWriteAt.set(id, now);
+  const ids: string[] = [];
+  let patch: Partial<Order> | undefined;
+  for (const arg of args) {
+    if (arg == null) continue;
+    if (typeof arg === "string") ids.push(arg);
+    else patch = arg;
+  }
+  const preserveKeys = patch
+    ? Object.keys(patch).filter((k) => LOCAL_PRESERVE_FIELD_KEYS.has(k))
+    : [];
+  for (const id of ids) {
+    localOrderWriteAt.set(id, now);
+    if (preserveKeys.length === 0) continue;
+    const prev = localOrderWriteKeys.get(id) ?? new Set<string>();
+    for (const k of preserveKeys) prev.add(k);
+    localOrderWriteKeys.set(id, prev);
+  }
 }
 
 export function isRecentLocalOrderWrite(
@@ -996,6 +1042,42 @@ export function isRecentLocalOrderWrite(
     if (at && now - at < LOCAL_WRITE_ECHO_MS) return true;
   }
   return false;
+}
+
+function recentLocalPreserveKeys(
+  order: Pick<Order, "id" | "uuid" | "legacyId">
+): Set<string> | null {
+  if (!isRecentLocalOrderWrite(order)) return null;
+  const keys = new Set<string>();
+  const now = Date.now();
+  for (const id of [order.id, order.uuid, order.legacyId]) {
+    if (!id) continue;
+    const at = localOrderWriteAt.get(id);
+    if (!at || now - at >= LOCAL_WRITE_ECHO_MS) continue;
+    const set = localOrderWriteKeys.get(id);
+    if (set) for (const k of set) keys.add(k);
+  }
+  return keys.size > 0 ? keys : null;
+}
+
+/**
+ * After a local Songs/Notes save, SSE / board paint can briefly echo Magento
+ * with empty routine_notes. Keep the optimistic field values for those keys.
+ */
+export function mergeIncomingOrderPreservingRecentLocalFields(
+  local: Order,
+  incoming: Order
+): Order {
+  const merged: Order = { ...local, ...incoming };
+  const keys =
+    recentLocalPreserveKeys(local) || recentLocalPreserveKeys(incoming);
+  if (!keys) return merged;
+  for (const key of keys) {
+    const locVal = (local as Record<string, unknown>)[key];
+    if (locVal === undefined) continue;
+    (merged as Record<string, unknown>)[key] = locVal;
+  }
+  return merged;
 }
 
 export function readOrdersBoardOrder(orderId: string): Order | null {
@@ -1103,7 +1185,9 @@ export function applyPeerOrderUpdate(order: Order): "shifted" | "recount" | null
     const next = {
       ...entry,
       orders: entry.orders.map((o) =>
-        orderMatchesId(o, order.id) ? { ...o, ...order } : o
+        orderMatchesId(o, order.id)
+          ? mergeIncomingOrderPreservingRecentLocalFields(o, order)
+          : o
       ),
     };
     boardCache.set(key, next);
@@ -1113,7 +1197,7 @@ export function applyPeerOrderUpdate(order: Order): "shifted" | "recount" | null
       /* ignore */
     }
   }
-  const next = { ...before, ...order };
+  const next = mergeIncomingOrderPreservingRecentLocalFields(before, order);
   if (!sameCountsScopes(before, next)) {
     return onBoardCounts(before) || onBoardCounts(next) ? "recount" : null;
   }
@@ -1431,7 +1515,6 @@ export function syncOrdersBoardOrderPatch(
   }
 ): void {
   if (!orderId || !patch || Object.keys(patch).length === 0) return;
-  noteLocalOrderWrite(orderId);
   const before = readOrdersBoardOrder(orderId);
   // The PATCH recomputes needs_attention server-side and our own SSE echo is
   // skipped, so store that value on the row now.
@@ -1441,6 +1524,7 @@ export function syncOrdersBoardOrderPatch(
     NEEDS_ATTENTION_KEYS.some((k) => k in patch)
       ? { ...patch, needsAttention: serverNeedsAttention({ ...before, ...patch }) }
       : patch;
+  noteLocalOrderWrite(orderId, before?.uuid, before?.legacyId, rowPatch);
 
   // Move to MTD: drop the row from every Orders page (same ghost class as
   // Move-to-Orders leaving MTD). Keep a patched copy for match-pool sync.
@@ -1450,7 +1534,7 @@ export function syncOrdersBoardOrderPatch(
     const idx = entry.orders.findIndex((o) => orderMatchesId(o, orderId));
     if (idx < 0) continue;
     const row = entry.orders[idx];
-    noteLocalOrderWrite(row.id, row.uuid, row.legacyId);
+    noteLocalOrderWrite(row.id, row.uuid, row.legacyId, rowPatch);
     const nextOrders = leftForMtd
       ? entry.orders.filter((o) => !orderMatchesId(o, orderId))
       : entry.orders.map((o) =>
@@ -1609,12 +1693,23 @@ export function syncOrdersBoardAfterReassign(
   }
 ): void {
   const id = order.id;
+  // Prefer any prior board stamp so Timestamp doesn't blank for a frame.
+  const prior =
+    readOrdersBoardOrder(id) ||
+    (order.uuid ? readOrdersBoardOrder(order.uuid) : null) ||
+    (order.legacyId ? readOrdersBoardOrder(order.legacyId) : null);
+  const createdAt =
+    String(order.createdAt || "").trim() ||
+    String(prior?.createdAt || "").trim() ||
+    "";
   const nextOrder: Order = {
+    ...prior,
     ...order,
     id,
     isReassigned: true,
     status: "active",
     assignedProducer: null,
+    ...(createdAt ? { createdAt } : {}),
   };
   const formType = opts?.formType ?? order.formType ?? null;
   const cheerFormSubtype =
@@ -1622,6 +1717,57 @@ export function syncOrdersBoardAfterReassign(
   const danceFormSubtype =
     opts?.danceFormSubtype ?? order.danceFormSubtype ?? null;
   const complete = isCompleteDataOrder(nextOrder);
+
+  const emptyCounts = (): OrdersBoardCounts => ({
+    all: 0,
+    complete_data: 0,
+    missing_data: 0,
+    assigned: 0,
+    not_assigned: 0,
+    reassigned: 0,
+    flagged: 0,
+    form: 0,
+    manual: 0,
+    by_form_type: {},
+    by_cheer_form_subtype: {},
+    by_dance_form_subtype: {},
+  });
+
+  let insertedIntoReassign = false;
+
+  const writeEntry = (
+    key: string,
+    entry: {
+      orders: Order[];
+      nextPageToken: string | null;
+      counts?: OrdersBoardCounts;
+    },
+    nextOrders: Order[],
+    opts?: { bump?: boolean }
+  ) => {
+    const bump = opts?.bump !== false;
+    const next: OrdersBoardCacheEntry = {
+      orders: nextOrders,
+      nextPageToken: entry.nextPageToken,
+      counts: bump
+        ? bumpReassignCounts(entry.counts ?? emptyCounts(), {
+            formType,
+            cheerFormSubtype,
+            danceFormSubtype,
+            delta: 1,
+            complete,
+          })
+        : entry.counts ?? emptyCounts(),
+      updatedAt: Date.now(),
+      queryKey: key,
+    };
+    boardCache.set(key, next);
+    try {
+      writeBoardSession(ssKey(BOARD_SS_PREFIX, key), next);
+    } catch {
+      /* ignore */
+    }
+  };
 
   for (const [key, entry] of [...boardCache.entries()]) {
     let range = "all";
@@ -1633,6 +1779,7 @@ export function syncOrdersBoardAfterReassign(
     }
     const idx = entry.orders.findIndex((o) => orderMatchesId(o, id));
     let nextOrders = entry.orders;
+    let bump = true;
 
     if (
       range === "reassigned" ||
@@ -1641,62 +1788,110 @@ export function syncOrdersBoardAfterReassign(
     ) {
       // Only keep real reassign rows — never inherit All/Assigned keepPrevious.
       const scoped = entry.orders.filter((o) => Boolean(o.isReassigned));
-      nextOrders =
-        idx >= 0
-          ? scoped.map((o) =>
-              orderMatchesId(o, id) ? { ...o, ...nextOrder } : o
-            )
-          : [nextOrder, ...scoped.filter((o) => !orderMatchesId(o, id))];
+      if (idx >= 0) {
+        const wasReassigned = Boolean(entry.orders[idx]?.isReassigned);
+        nextOrders = scoped.map((o) =>
+          orderMatchesId(o, id)
+            ? {
+                ...o,
+                ...nextOrder,
+                createdAt: nextOrder.createdAt || o.createdAt,
+              }
+            : o
+        );
+        bump = !wasReassigned;
+        if (!wasReassigned) insertedIntoReassign = true;
+      } else {
+        nextOrders = [
+          nextOrder,
+          ...scoped.filter((o) => !orderMatchesId(o, id)),
+        ];
+        insertedIntoReassign = true;
+      }
     } else if (range === "assigned" || range === "not_assigned") {
       if (idx < 0) continue;
       nextOrders = entry.orders.filter((o) => !orderMatchesId(o, id));
+      bump = false;
     } else if (idx >= 0) {
+      const wasReassigned = Boolean(entry.orders[idx]?.isReassigned);
       nextOrders = entry.orders.map((o) =>
-        orderMatchesId(o, id) ? { ...o, ...nextOrder } : o
+        orderMatchesId(o, id)
+          ? {
+              ...o,
+              ...nextOrder,
+              createdAt: nextOrder.createdAt || o.createdAt,
+            }
+          : o
       );
+      bump = !wasReassigned;
+      if (!wasReassigned) insertedIntoReassign = true;
     } else if (range === "all") {
       // Was hidden while status=in_mtd — surface it again on All.
       nextOrders = [nextOrder, ...entry.orders];
+      insertedIntoReassign = true;
     } else {
       continue;
     }
 
-    const next = {
-      ...entry,
-      orders: nextOrders,
-      counts: bumpReassignCounts(entry.counts, {
-        formType,
-        cheerFormSubtype,
-        danceFormSubtype,
-        delta: 1,
-        complete,
-      }),
-      updatedAt: Date.now(),
-    };
-    boardCache.set(key, next);
-    try {
-      writeBoardSession(ssKey(BOARD_SS_PREFIX, key), next);
-    } catch {
-      /* ignore */
-    }
+    writeEntry(key, entry, nextOrders, { bump });
   }
 
-  for (const [key, entry] of countsCache) {
-    const next = {
-      counts: bumpReassignCounts(entry.counts, {
-        formType,
-        cheerFormSubtype,
-        danceFormSubtype,
-        delta: 1,
-        complete,
-      }),
-      updatedAt: Date.now(),
-    };
-    countsCache.set(key, next);
-    try {
-      writeCountsSession(ssKey(COUNTS_SS_PREFIX, key), next);
-    } catch {
-      /* ignore */
+  // Always seed the form's Reassign (+ All) keys so Move-to-Orders →
+  // ?range=reassigned paints without waiting on /orders/board.
+  const preferredKeys = [
+    ordersBoardQueryKey({
+      formType: formType || undefined,
+      cheerFormSubtype: cheerFormSubtype || undefined,
+      danceFormSubtype: danceFormSubtype || undefined,
+      range: "reassigned",
+      excludeFlagged: true,
+    }),
+    ordersBoardQueryKey({
+      formType: formType || undefined,
+      cheerFormSubtype: cheerFormSubtype || undefined,
+      danceFormSubtype: danceFormSubtype || undefined,
+      range: "all",
+      excludeFlagged: true,
+    }),
+  ];
+  for (const key of preferredKeys) {
+    const prev = boardCache.get(key);
+    if (prev?.orders.some((o) => orderMatchesId(o, id))) continue;
+    const scoped =
+      (JSON.parse(key) as { range?: string }).range === "reassigned"
+        ? (prev?.orders || []).filter((o) => Boolean(o.isReassigned))
+        : prev?.orders || [];
+    insertedIntoReassign = true;
+    writeEntry(
+      key,
+      {
+        orders: scoped,
+        nextPageToken: prev?.nextPageToken ?? null,
+        counts: prev?.counts,
+      },
+      [nextOrder, ...scoped.filter((o) => !orderMatchesId(o, id))],
+      { bump: true }
+    );
+  }
+
+  if (insertedIntoReassign) {
+    for (const [key, entry] of countsCache) {
+      const next = {
+        counts: bumpReassignCounts(entry.counts, {
+          formType,
+          cheerFormSubtype,
+          danceFormSubtype,
+          delta: 1,
+          complete,
+        }),
+        updatedAt: Date.now(),
+      };
+      countsCache.set(key, next);
+      try {
+        writeCountsSession(ssKey(COUNTS_SS_PREFIX, key), next);
+      } catch {
+        /* ignore */
+      }
     }
   }
 

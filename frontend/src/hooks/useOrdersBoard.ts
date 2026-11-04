@@ -11,6 +11,7 @@ import {
 import {
   applyPeerOrderUpdate,
   isRecentLocalOrderWrite,
+  mergeIncomingOrderPreservingRecentLocalFields,
   mergeStickyChipCounts,
   ORDERS_BOARD_PATCH_EVENT,
   ordersBoardCountsQueryKey,
@@ -741,14 +742,30 @@ export function useOrdersBoard(
           });
           if (gen !== genRef.current) return;
           const scoped = filterOrdersForBoardRange(board.orders, q.range);
-          setOrders(scoped);
-          pageIdsRef.current = new Set(scoped.map((o) => o.id));
+          // Keep just-saved Songs/Notes when the board refetch still has blanks.
+          setOrders((prev) => {
+            const merged = scoped.map((server) => {
+              const local = prev.find(
+                (o) =>
+                  o.id === server.id ||
+                  (server.uuid != null && o.uuid === server.uuid) ||
+                  (server.legacyId != null && o.legacyId === server.legacyId) ||
+                  (server.uuid != null && o.id === server.uuid) ||
+                  (server.legacyId != null && o.id === server.legacyId)
+              );
+              return local
+                ? mergeIncomingOrderPreservingRecentLocalFields(local, server)
+                : server;
+            });
+            pageIdsRef.current = new Set(merged.map((o) => o.id));
+            writeOrdersBoardCache(queryKey, {
+              orders: merged,
+              nextPageToken: board.nextPageToken,
+            });
+            return merged;
+          });
           setNextPageToken(board.nextPageToken);
           paintedRef.current = true;
-          writeOrdersBoardCache(queryKey, {
-            orders: scoped,
-            nextPageToken: board.nextPageToken,
-          });
           if (gen === genRef.current) setLoading(false);
         } catch (err) {
           if (gen !== genRef.current) return;
@@ -1106,8 +1123,16 @@ export function useOrdersBoard(
           }
           setOrders((prev) => {
             // Assigned rows must leave Not assigned (don't just patch the avatar).
+            // Preserve just-saved Songs/Notes over Magento-empty SSE echoes.
             const next = onThisBoard
-              ? prev.map((o) => (o.id === id ? { ...o, ...event.order } : o))
+              ? prev.map((o) =>
+                  o.id === id
+                    ? mergeIncomingOrderPreservingRecentLocalFields(
+                        o,
+                        event.order as Order
+                      )
+                    : o
+                )
               : prev.filter((o) => o.id !== id);
             pageIdsRef.current = new Set(next.map((o) => o.id));
             writeOrdersBoardCache(queryKey, {

@@ -341,7 +341,6 @@ export function orderFromMTDRecord(
   if (linked) return linked;
 
   const meta = resolveMTDFormMeta(rec, orderById ?? new Map());
-
   return normalizeOrder({
     id: rec.orderId || rec.id,
     formType: meta.formType,
@@ -380,7 +379,8 @@ export function orderFromMTDRecord(
     requestedProducer: String(rec.editorRequest),
     price: rec.price,
     status: "in_mtd",
-    createdAt: "",
+    // Keep intake stamp — empty createdAt flashes Timestamp on Move-to-Orders.
+    createdAt: String(rec.createdAt || "").trim(),
     needsAttention: rec.needsAttention,
     attentionReason: null,
     ...enrichOrderFromMTD(rec),

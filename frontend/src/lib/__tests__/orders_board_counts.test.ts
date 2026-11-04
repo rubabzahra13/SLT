@@ -8,6 +8,7 @@ import {
   dropRecentlyMatched,
   markMatchPoolLiveGap,
   matchPoolQueryKey,
+  mergeIncomingOrderPreservingRecentLocalFields,
   ordersBoardCountsQueryKey,
   ordersBoardQueryKey,
   ordersRangeFilterTotal,
@@ -129,6 +130,40 @@ describe("badge counts follow data changes", () => {
     assert.equal(c.complete_data, 2);
     assert.equal(c.missing_data, 189);
     assert.equal(c.complete_not_assigned, 1);
+  });
+
+  it("keeps optimistic Notes over Magento-empty SSE/paint echo", () => {
+    patchOrdersBoardRowOptimistic(row.id, {
+      routineNotes: "Count 8",
+      additionalNotes: "Count 8",
+      lyricalNotes: "Count 8",
+    });
+    const local = readOrdersBoardOrder(row.id)!;
+    assert.equal(local.routineNotes, "Count 8");
+    const echoed = mergeIncomingOrderPreservingRecentLocalFields(local, {
+      ...local,
+      routineNotes: "",
+      additionalNotes: "",
+      lyricalNotes: "",
+    });
+    assert.equal(echoed.routineNotes, "Count 8");
+    assert.equal(echoed.additionalNotes, "Count 8");
+    assert.equal(echoed.lyricalNotes, "Count 8");
+  });
+
+  it("Notes fill clears stale needsAttention so Complete badge counts move", () => {
+    syncOrdersBoardOrderPatch(row.id, { needsAttention: true });
+    assert.equal(readOrdersBoardOrder(row.id)!.needsAttention, true);
+    patchOrdersBoardRowOptimistic(row.id, {
+      routineNotes: "Count 8",
+      additionalNotes: "Count 8",
+      lyricalNotes: "Count 8",
+    });
+    const after = readOrdersBoardOrder(row.id)!;
+    assert.equal(after.routineNotes, "Count 8");
+    assert.equal(after.needsAttention, false);
+    assert.equal(counts().complete_data, 3);
+    assert.equal(counts().missing_data, 188);
   });
 
   it("shifts search badges only when the row is in that search's results", () => {

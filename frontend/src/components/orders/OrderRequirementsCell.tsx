@@ -7,7 +7,6 @@ import { useAppState } from "@/context/AppStateContext";
 import { useOrdersLookup } from "@/context/OrdersLookupContext";
 import { findLinkedOrder } from "@/lib/editor-assignment";
 import { findLinkedFormOrderForDisplay } from "@/lib/manual-form-merge";
-import { resolveFinalMatchedOrder } from "@/lib/order-form-missing";
 import {
   getDanceSongsConfirmText,
   getFormNotesText,
@@ -15,10 +14,10 @@ import {
   getOrderRequirements,
   isAllStarDanceOrder,
   isMarchingBandOrder,
-  mergeOrderFormFieldsForRequirements,
   type OrderRequirementItem,
   type RequirementCategory,
 } from "@/lib/order-requirements";
+import { resolveRequirementsRecord } from "@/lib/requirements-record";
 import { buildLegacyMusicTheme } from "@/lib/order-form";
 import {
   packDanceSongCovers,
@@ -400,13 +399,10 @@ export function OrderRequirementsCell({
     () => findLinkedOrder(record as MTDRecord, lookupOrders),
     [record, lookupOrders]
   );
-  const requirementsRecord = useMemo(() => {
-    // Same Magento-wins finals as Move to MTD (manual snapshot kept for Split).
-    const finalized = linkedOrder
-      ? resolveFinalMatchedOrder(linkedOrder, lookupOrders)
-      : null;
-    return mergeOrderFormFieldsForRequirements(record, finalized);
-  }, [record, linkedOrder, lookupOrders]);
+  const requirementsRecord = useMemo(
+    () => resolveRequirementsRecord(record, lookupOrders),
+    [record, lookupOrders]
+  );
   // Songs/Notes are Magento fields — not on Add New Order. Lock until Match.
   const manualSongsNotesLocked = isManualSlimFormOrder(
     linkedOrder || (requirementsRecord as Order)

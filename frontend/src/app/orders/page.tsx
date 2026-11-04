@@ -127,6 +127,7 @@ import {
   ordersRangeFilterTotal,
   ordersRangeTabTotal,
   ordersSourceMenuCounts,
+  readOrdersBoardOrder,
 } from "@/lib/orders-board-cache";
 import {
   prefetchOrdersMatchData,
@@ -191,16 +192,28 @@ const VALID_DANCE_SUBTYPES: DanceFormSubtypeFilter[] = [
 ];
 
 /** Sync read so the first board query matches last visit (no default→restore refetch flash). */
-function readStoredOrdersFilters(formParam: string | null): {
+function readStoredOrdersFilters(searchParams: URLSearchParams | null): {
   form: OrderFormType;
   cheerSubtype: CheerFormSubtypeFilter;
   danceSubtype: DanceFormSubtypeFilter;
 } {
+  const formParam = searchParams?.get("form") ?? null;
+  const cheerParam = searchParams?.get("cheer") ?? null;
+  const danceParam = searchParams?.get("dance") ?? null;
   if (typeof window === "undefined") {
     return {
-      form: DEFAULT_FORM,
-      cheerSubtype: DEFAULT_CHEER_SUBTYPE,
-      danceSubtype: DEFAULT_DANCE_SUBTYPE,
+      form:
+        formParam && VALID_ORDER_FORMS.includes(formParam as OrderFormType)
+          ? (formParam as OrderFormType)
+          : DEFAULT_FORM,
+      cheerSubtype:
+        cheerParam && VALID_CHEER_SUBTYPES.includes(cheerParam as CheerFormSubtypeFilter)
+          ? (cheerParam as CheerFormSubtypeFilter)
+          : DEFAULT_CHEER_SUBTYPE,
+      danceSubtype:
+        danceParam && VALID_DANCE_SUBTYPES.includes(danceParam as DanceFormSubtypeFilter)
+          ? (danceParam as DanceFormSubtypeFilter)
+          : DEFAULT_DANCE_SUBTYPE,
     };
   }
   const stored = loadOrdersViewState();
@@ -214,14 +227,26 @@ function readStoredOrdersFilters(formParam: string | null): {
     if (stored?.form && VALID_ORDER_FORMS.includes(stored.form)) return stored.form;
     return null;
   })();
+  const cheerFromUrl =
+    cheerParam && VALID_CHEER_SUBTYPES.includes(cheerParam as CheerFormSubtypeFilter)
+      ? (cheerParam as CheerFormSubtypeFilter)
+      : null;
+  const danceFromUrl =
+    danceParam && VALID_DANCE_SUBTYPES.includes(danceParam as DanceFormSubtypeFilter)
+      ? (danceParam as DanceFormSubtypeFilter)
+      : null;
   const cheerRaw =
+    cheerFromUrl ||
     (sessionStorage.getItem(
       "slt_orders_cheer_subtype"
-    ) as CheerFormSubtypeFilter | null) || stored?.cheerSubtype;
+    ) as CheerFormSubtypeFilter | null) ||
+    stored?.cheerSubtype;
   const danceRaw =
+    danceFromUrl ||
     (sessionStorage.getItem(
       "slt_orders_dance_subtype"
-    ) as DanceFormSubtypeFilter | null) || stored?.danceSubtype;
+    ) as DanceFormSubtypeFilter | null) ||
+    stored?.danceSubtype;
   return {
     form: formFromUrl || formFromSession || DEFAULT_FORM,
     cheerSubtype:
@@ -256,14 +281,23 @@ function readInitialOrdersBoardView(
   const fromUrl = parseOrdersViewFromSearchParams(searchParams);
   const fromStore = loadOrdersViewState();
   const restored = mergeOrdersViewState(fromStore, fromUrl);
+  // Move-to-Orders / focus deep links: never let a leftover session search
+  // force All (search clears range in boardQuery) or delay Reassign.
+  const deepLinkRange =
+    Boolean(fromUrl.rangeFilters?.length) ||
+    Boolean(fromUrl.rangeFilter && fromUrl.rangeFilter !== "flagged") ||
+    (initialRangeFromUrl !== "all" && initialRangeFromUrl !== "flagged");
+  const deepLinkFocus = Boolean(searchParams.get("focus"));
   const restoredSearch =
-    restored.searchQuery !== undefined ? restored.searchQuery : "";
+    deepLinkRange || deepLinkFocus
+      ? ""
+      : restored.searchQuery !== undefined
+        ? restored.searchQuery
+        : "";
   // Range chips: URL deep-link only. Do not restore Complete/Assigned (etc.)
   // from session — that made soft returns land on empty combo views.
   let rangeFilters: OrderViewRangeFilter[] = [];
-  if (restoredSearch.trim()) {
-    rangeFilters = [];
-  } else if (fromUrl.rangeFilters?.length) {
+  if (fromUrl.rangeFilters?.length) {
     rangeFilters = fromUrl.rangeFilters;
   } else if (fromUrl.rangeFilter && fromUrl.rangeFilter !== "flagged") {
     rangeFilters = coerceOrdersRangeFilters(fromUrl.rangeFilter);
@@ -273,6 +307,9 @@ function readInitialOrdersBoardView(
     initialRangeFromUrl !== "flagged"
   ) {
     rangeFilters = coerceOrdersRangeFilters(initialRangeFromUrl);
+  } else if (restoredSearch.trim()) {
+    // Searching ⇒ All (same as boardQuery), but never override a URL range.
+    rangeFilters = [];
   }
   return {
     sourceFilter: (restored.sourceFilter as OrderSourceFilter) || "both",
@@ -370,21 +407,21 @@ function OrdersPageContent() {
     () => typeof window !== "undefined"
   );
   const [formState, setFormState] = useState<OrderFormType>(() =>
-    typeof window !== "undefined"
-      ? readStoredOrdersFilters(formParam).form
-      : DEFAULT_FORM
+    readStoredOrdersFilters(
+      new URLSearchParams(Array.from(searchParams.entries()))
+    ).form
   );
   const [cheerSubtypeState, setCheerSubtypeState] =
     useState<CheerFormSubtypeFilter>(() =>
-      typeof window !== "undefined"
-        ? readStoredOrdersFilters(formParam).cheerSubtype
-        : DEFAULT_CHEER_SUBTYPE
+      readStoredOrdersFilters(
+        new URLSearchParams(Array.from(searchParams.entries()))
+      ).cheerSubtype
     );
   const [danceSubtypeState, setDanceSubtypeState] =
     useState<DanceFormSubtypeFilter>(() =>
-      typeof window !== "undefined"
-        ? readStoredOrdersFilters(formParam).danceSubtype
-        : DEFAULT_DANCE_SUBTYPE
+      readStoredOrdersFilters(
+        new URLSearchParams(Array.from(searchParams.entries()))
+      ).danceSubtype
     );
   const initialBoardView = useMemo(
     () =>
@@ -474,6 +511,24 @@ function OrdersPageContent() {
       setForm(formParam as OrderFormType);
     }
   }, [formParam]);
+
+  // Deep-link subtypes without switchForm (that resets range → All flicker).
+  useEffect(() => {
+    const cheer = searchParams.get("cheer");
+    if (
+      cheer &&
+      VALID_CHEER_SUBTYPES.includes(cheer as CheerFormSubtypeFilter)
+    ) {
+      setCheerSubtype(cheer as CheerFormSubtypeFilter);
+    }
+    const dance = searchParams.get("dance");
+    if (
+      dance &&
+      VALID_DANCE_SUBTYPES.includes(dance as DanceFormSubtypeFilter)
+    ) {
+      setDanceSubtype(dance as DanceFormSubtypeFilter);
+    }
+  }, [searchParams, setCheerSubtype, setDanceSubtype]);
 
   const clearHighlight = useCallback(() => {
     setHighlightId(null);
@@ -877,6 +932,17 @@ function OrdersPageContent() {
         ) {
           to = "Not assigned";
         }
+        // Dedicated flows already toast these (Move to Orders / Assign).
+        // Emitting again stacked "Moved to Reassign" + "Producer assigned" +
+        // "Moved to Assigned" on every MTD ↔ Orders round-trip.
+        if (
+          (change.from === "Assigned" && to === "Reassign") ||
+          (change.from === "Reassign" && to === "Assigned") ||
+          (change.from === "Reassign" && to === "Not assigned") ||
+          (change.from === "Not assigned" && to === "Assigned")
+        ) {
+          continue;
+        }
         const name =
           titleCase(rec.programName || "").trim() ||
           titleCase(rec.contactName || "").trim() ||
@@ -1102,6 +1168,22 @@ function OrdersPageContent() {
         (rec.invoice || "").trim() ||
         (covering?.invoice || "").trim() ||
         (linkedOrder?.invoice || "").trim();
+      const seedBase = covering || rec;
+      const meta = resolveMTDFormMeta(seedBase, orderById);
+      const seed: MTDRecord = {
+        ...seedBase,
+        formType: seedBase.formType || meta.formType,
+        cheerFormSubtype:
+          seedBase.cheerFormSubtype || meta.cheerFormSubtype,
+        danceFormSubtype:
+          seedBase.danceFormSubtype || meta.danceFormSubtype,
+        createdAt:
+          seedBase.createdAt ||
+          linkedOrder?.createdAt ||
+          readOrdersBoardOrder(linkedOrder?.id || rec.orderId || rec.id)
+            ?.createdAt ||
+          null,
+      };
       updateMTD(
         covering?.id || rec.id,
         {
@@ -1113,16 +1195,17 @@ function OrdersPageContent() {
           mixStartDate: rec.mixStartDate,
           mixEndDate: rec.mixEndDate,
           assignedProducer: rec.assignedProducer,
+          formType: seed.formType,
+          cheerFormSubtype: seed.cheerFormSubtype,
+          danceFormSubtype: seed.danceFormSubtype,
           // Omit empty invoice so mtd_records SoT is never wiped on return.
           ...(keptInvoice ? { invoice: keptInvoice } : {}),
         },
-        covering || rec
+        seed
       );
-      router.push(
-        `/mtd?focus=${encodeURIComponent(covering?.id || rec.orderId || rec.id)}`
-      );
+      // Stay on Orders — toast only (same as Move to Payroll from MTD).
     },
-    [boardOrders, mtdRecords, ordersForUi, router, updateMTD]
+    [mtdRecords, ordersForUi, orderById, updateMTD]
   );
 
   const handleMoveToMTD = useCallback(
@@ -1577,7 +1660,14 @@ function OrdersPageContent() {
         headerClassName: compactHeaderClass,
         render: (rec) => {
           const linked = findLinkedOrder(rec, ordersForUi);
-          const stamp = linked?.createdAt || "";
+          const stamp =
+            linked?.createdAt ||
+            rec.createdAt ||
+            (rec.orderId
+              ? readOrdersBoardOrder(rec.orderId)?.createdAt
+              : null) ||
+            readOrdersBoardOrder(rec.id)?.createdAt ||
+            "";
           return (
             <span className="tabular-nums text-[11px] text-brand-ink-secondary whitespace-nowrap">
               {formatDisplayDateTime(stamp)}

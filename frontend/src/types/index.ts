@@ -108,6 +108,8 @@ export type MTDRecord = {
   /** Copied from linked order for Source · Form classification. */
   mergedFormOrderId?: string | null;
   manualOverlapSnapshot?: Record<string, unknown> | null;
+  /** Order intake time (preferred) or MTD row created_at — board Timestamp. */
+  createdAt?: string | null;
   /** Server version for live sync / merge (ISO). */
   updatedAt?: string | null;
 };

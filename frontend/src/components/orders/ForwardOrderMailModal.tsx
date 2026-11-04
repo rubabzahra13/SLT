@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { AlertCircle, ArrowLeft, Check, Loader2, Mail, Paperclip, Plus, Send, X } from "lucide-react";
+import { AlertCircle, ArrowLeft, Check, Loader2, Mail, Paperclip, Send, X } from "lucide-react";
 import clsx from "clsx";
 import { titleCase } from "@/lib/data";
 import {
@@ -405,14 +405,10 @@ export function ForwardOrderMailModal({
       producers,
       linkedOrder
     );
-    const defaultContactId = customerContacts[0]?.id ?? "";
     setEditorId(defaultEditorId);
-    setCustomerContactId(defaultContactId);
-    const defaultEmail =
-      recipient === "customer"
-        ? customerContacts[0]?.email ?? ""
-        : producers.find((p) => p.id === defaultEditorId)?.email ?? "";
-    setToEmails([defaultEmail]);
+    setCustomerContactId(customerContacts[0]?.id ?? "");
+    // Customer To is typed in manually — never prefill from billing/coach.
+    setToEmails([""]);
     setCustomerDeadlineIso(
       record ? customerSubmissionDeadlineIso(record) : ""
     );
@@ -509,17 +505,24 @@ export function ForwardOrderMailModal({
         emailTemplates.producer_order
       );
 
-  const deliveryEmails = Array.from(
-    new Set(
-      toEmails
-        .map((email) => email.trim())
-        .filter((email) => isValidEmailFormat(email))
-        .map((email) => email.toLowerCase())
-    )
-  ).map((lower) => {
-    const original = toEmails.find((e) => e.trim().toLowerCase() === lower);
-    return original?.trim() || lower;
-  });
+  // Producer mail always uses the roster email — no manual To overrides.
+  const deliveryEmails = isCustomer
+    ? Array.from(
+        new Set(
+          toEmails
+            .map((email) => email.trim())
+            .filter((email) => isValidEmailFormat(email))
+            .map((email) => email.toLowerCase())
+        )
+      ).map((lower) => {
+        const original = toEmails.find(
+          (e) => e.trim().toLowerCase() === lower
+        );
+        return original?.trim() || lower;
+      })
+    : editor?.email && isValidEmailFormat(editor.email)
+      ? [editor.email.trim()]
+      : [];
 
   const draft: ForwardMailDraft = {
     ...baseDraft,
@@ -812,16 +815,6 @@ export function ForwardOrderMailModal({
                 </p>
               ) : null}
 
-              {isCustomer && customerContacts.length === 0 ? (
-                <div className="flex items-start gap-2.5 rounded-xl border border-brand-warning/30 bg-brand-warning/8 px-3.5 py-3">
-                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-brand-warning" />
-                  <p className="text-[12px] leading-relaxed text-brand-ink-secondary">
-                    No billing email was found on this order. Enter an address
-                    below, or add a billing person email in the order details.
-                  </p>
-                </div>
-              ) : null}
-
               {isCustomer && allFields.length === 0 ? (
                 <div className="rounded-xl border border-brand-line/60 bg-brand-bg/40 px-3.5 py-3 text-[12px] leading-relaxed text-brand-ink-secondary">
                   {isUnmatchedManualCustomer
@@ -861,43 +854,47 @@ export function ForwardOrderMailModal({
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-brand-ink-tertiary">
                   {recipientLabel}
+                  {isCustomer ? (
+                    <span className="text-brand-danger" aria-hidden="true">
+                      {" "}
+                      *
+                    </span>
+                  ) : null}
                 </p>
                 {isCustomer ? (
-                  customerContacts.length > 0 ? (
-                    <MailRecipientSelect
-                      aria-label={recipientLabel}
-                      className="mt-1.5"
-                      value={customerContactId}
-                      onChange={(id) => {
-                        setCustomerContactId(id);
-                        const contact = customerContacts.find((c) => c.id === id);
-                        setToEmails((prev) => [
-                          contact?.email ?? "",
-                          ...prev.slice(1),
-                        ]);
-                      }}
-                      placeholder="Select customer contact"
-                      options={customerContacts.map((contact) => ({
-                        id: contact.id,
-                        name: contact.name,
-                        email: contact.email,
-                        role: contact.role,
-                      }))}
+                  <div className="mt-1.5">
+                    <input
+                      type="email"
+                      required
+                      value={toEmails[0] ?? ""}
+                      onChange={(e) => setToEmails([e.target.value])}
+                      placeholder="customer@example.com"
+                      aria-label="Recipient email (required)"
+                      aria-required="true"
+                      className={clsx(
+                        "w-full rounded-xl border bg-brand-surface px-3 py-2.5 text-[13px] text-brand-ink outline-none transition placeholder:text-brand-ink-tertiary",
+                        !(toEmails[0] ?? "").trim() ||
+                          !isValidEmailFormat((toEmails[0] ?? "").trim())
+                          ? "border-brand-danger/50 focus-visible:border-brand-danger focus-visible:ring-2 focus-visible:ring-brand-danger/15"
+                          : "border-brand-line/80 hover:border-brand-line-strong focus-visible:border-brand-signature/50 focus-visible:ring-2 focus-visible:ring-brand-signature/15"
+                      )}
                     />
-                  ) : null
+                    {!(toEmails[0] ?? "").trim() ? (
+                      <p className="mt-1.5 text-[11px] text-brand-ink-tertiary">
+                        Email address is required to send.
+                      </p>
+                    ) : !isValidEmailFormat((toEmails[0] ?? "").trim()) ? (
+                      <p className="mt-1.5 text-[11px] text-brand-danger">
+                        Enter a valid email address.
+                      </p>
+                    ) : null}
+                  </div>
                 ) : (
                   <MailRecipientSelect
                     aria-label={recipientLabel}
                     className="mt-1.5"
                     value={editorId}
-                    onChange={(id) => {
-                      setEditorId(id);
-                      const producer = producers.find((p) => p.id === id);
-                      setToEmails((prev) => [
-                        producer?.email ?? "",
-                        ...prev.slice(1),
-                      ]);
-                    }}
+                    onChange={setEditorId}
                     placeholder="Select editor"
                     options={producers.map((producer) => ({
                       id: producer.id,
@@ -907,71 +904,6 @@ export function ForwardOrderMailModal({
                     }))}
                   />
                 )}
-
-                <div className="mt-2 space-y-2">
-                  <p className="text-[11px] font-medium text-brand-ink-tertiary">
-                    Email address{toEmails.length > 1 ? "es" : ""}
-                  </p>
-                  {toEmails.map((email, index) => {
-                    const trimmed = email.trim();
-                    const invalid =
-                      trimmed.length > 0 && !isValidEmailFormat(trimmed);
-                    return (
-                      <div key={index} className="flex items-center gap-2">
-                        <input
-                          type="email"
-                          value={email}
-                          onChange={(e) => {
-                            const next = e.target.value;
-                            setToEmails((prev) =>
-                              prev.map((row, i) => (i === index ? next : row))
-                            );
-                          }}
-                          placeholder={
-                            index === 0
-                              ? isCustomer
-                                ? "billing@example.com"
-                                : "editor@example.com"
-                              : "another@example.com"
-                          }
-                          aria-label={
-                            index === 0
-                              ? "Primary recipient email"
-                              : `Additional recipient email ${index}`
-                          }
-                          className={clsx(
-                            "min-w-0 flex-1 rounded-xl border bg-brand-surface px-3 py-2.5 text-[13px] text-brand-ink outline-none transition placeholder:text-brand-ink-tertiary",
-                            invalid
-                              ? "border-brand-danger/50 focus-visible:border-brand-danger focus-visible:ring-2 focus-visible:ring-brand-danger/15"
-                              : "border-brand-line/80 hover:border-brand-line-strong focus-visible:border-brand-signature/50 focus-visible:ring-2 focus-visible:ring-brand-signature/15"
-                          )}
-                        />
-                        {index > 0 ? (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setToEmails((prev) =>
-                                prev.filter((_, i) => i !== index)
-                              )
-                            }
-                            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-brand-ink-tertiary transition hover:bg-brand-bg hover:text-brand-ink"
-                            aria-label={`Remove email ${index + 1}`}
-                          >
-                            <X className="h-4 w-4" strokeWidth={2} />
-                          </button>
-                        ) : null}
-                      </div>
-                    );
-                  })}
-                  <button
-                    type="button"
-                    onClick={() => setToEmails((prev) => [...prev, ""])}
-                    className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-brand-signature transition hover:underline"
-                  >
-                    <Plus className="h-3.5 w-3.5" strokeWidth={2.5} />
-                    Add another email
-                  </button>
-                </div>
               </div>
 
               {isCustomer && needsSubmissionDeadline ? (

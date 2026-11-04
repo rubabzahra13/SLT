@@ -1243,6 +1243,31 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         )
       );
 
+      // Orders + MTD boards: drop from Orders / seed music board immediately
+      // so ?focus= lands on a painted row (same class as Move-to-Payroll).
+      patchOrdersBoardRowOptimistic(orderId, {
+        status: "in_mtd",
+        mtdId: newRecord.id,
+      });
+      if (order.uuid && order.uuid !== orderId) {
+        patchOrdersBoardRowOptimistic(order.uuid, {
+          status: "in_mtd",
+          mtdId: newRecord.id,
+        });
+      }
+      patchMtdBoardRecordInCaches(
+        newRecord.id,
+        { inMTD: true },
+        newRecord
+      );
+      if (newRecord.orderId) {
+        patchMtdBoardRecordInCaches(
+          newRecord.orderId,
+          { inMTD: true },
+          newRecord
+        );
+      }
+
       // Persist board row only: Order SoT stays on the Order (no wipe on create).
       void (async () => {
         try {
@@ -1263,12 +1288,27 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
             {
               ...saved,
               orderId: saved.orderId || order.uuid || order.id,
+              formType: saved.formType || newRecord.formType,
+              cheerFormSubtype:
+                saved.cheerFormSubtype || newRecord.cheerFormSubtype,
+              danceFormSubtype:
+                saved.danceFormSubtype || newRecord.danceFormSubtype,
+              inMTD: true,
             },
             order
           );
             setMtdRecords((prev) =>
             prev.map((r) => (r.id === draftId ? hydrated : r))
           );
+          // Re-seed under server id if it differs from the draft key.
+          patchMtdBoardRecordInCaches(hydrated.id, { inMTD: true }, hydrated);
+          if (hydrated.orderId) {
+            patchMtdBoardRecordInCaches(
+              hydrated.orderId,
+              { inMTD: true },
+              hydrated
+            );
+          }
           await updateOrderApi(orderId, {
             status: "in_mtd",
             mtdId: saved.id || newRecord.id,
@@ -1547,17 +1587,33 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     ordersMutatedAtRef.current = Date.now();
 
     // Toast immediately on action: do not wait for the API round-trip.
+    // Do not navigate — same pattern for Payroll and Music To Do.
     if (patch.inPayroll === true && existing && !existing.inPayroll) {
       const producer = existing.assignedProducer?.trim();
       addAlert({
         tone: "success",
-            title: "Moved to payroll",
-            message: producer
+        title: "Moved to payroll",
+        message: producer
           ? `${existing.programName} · ${producer}`
           : existing.programName,
-            href: "/payroll",
+        href: "/payroll",
       });
-        }
+    }
+    if (patch.inMTD === true && existing && !existing.inMTD) {
+      const label =
+        existing.programName?.trim() ||
+        existing.contactName?.trim() ||
+        "Order";
+      const producer = (
+        patch.assignedProducer ?? existing.assignedProducer
+      )?.trim();
+      addAlert({
+        tone: "success",
+        title: "Moved to MTD",
+        message: producer ? `${label} · ${producer}` : label,
+        href: `/mtd?focus=${encodeURIComponent(existing.id)}`,
+      });
+    }
 
     // Resolve linked order before the optimistic write so Move to MTD can
     // seed a board row even when the Orders tab row was synthetic-only.
@@ -1583,22 +1639,23 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         (o.mtdId && earlyOrderLookupIds.has(o.mtdId))
     );
 
-    // Board-first MTD / Payroll paint from useMtdBoard cache — patch it now
-    // (status dropdown etc.) instead of waiting for SSE.
+    // Board-first MTD / Payroll paint — one canonical patch. Re-patching every
+    // alias id used to prepend duplicate Payroll rows when an alias (e.g. stale
+    // order.mtdId) did not match the cached row via mtdRowMatchesId.
     {
-      const boardIds = [
-        id,
-        existing?.id,
-        existing?.uuid,
-        existing?.orderId,
-        seed?.id,
-        seed?.uuid,
-        seed?.orderId,
-        earlyLinkedOrder?.id,
-        earlyLinkedOrder?.mtdId,
-      ];
-      for (const key of boardIds) {
-        if (key) patchMtdBoardRecordInCaches(key, patch);
+      const boardId =
+        existing?.uuid ||
+        existing?.id ||
+        seed?.uuid ||
+        seed?.id ||
+        id ||
+        existing?.orderId ||
+        seed?.orderId ||
+        earlyLinkedOrder?.mtdId ||
+        earlyLinkedOrder?.id ||
+        null;
+      if (boardId) {
+        patchMtdBoardRecordInCaches(boardId, patch, existing ?? seed);
       }
     }
 
@@ -1945,6 +2002,53 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           orderIdForApi,
           orderPatch as Partial<Order>
         );
+        // Paint Reassign before the Order PATCH so ?range=reassigned lands
+        // on a seeded row (and keeps createdAt — no Timestamp blink).
+        if (patch.isReassigned === true && patch.inMTD === false) {
+          const mtdSeed = existing || seed;
+          const seedForBoard =
+            seedOrder ||
+            (mtdSeed ? orderFromMTDRecord(mtdSeed) : null);
+          if (seedForBoard || orderIdForApi) {
+            const meta = mtdSeed
+              ? resolveMTDFormMeta(mtdSeed, new Map())
+              : null;
+            const stamp =
+              String(
+                (seedForBoard as Order | null)?.createdAt ||
+                  linkedOrder?.createdAt ||
+                  mtdSeed?.createdAt ||
+                  ""
+              ).trim() ||
+              readOrdersBoardOrder(orderIdForApi)?.createdAt ||
+              "";
+            syncOrdersBoardAfterReassign(
+              {
+                ...(seedForBoard || ({ id: orderIdForApi } as Order)),
+                ...orderPatch,
+                id: orderIdForApi,
+                isReassigned: true,
+                status: "active",
+                assignedProducer: null,
+                ...(stamp ? { createdAt: stamp } : {}),
+                ...(meta
+                  ? {
+                      formType: meta.formType,
+                      cheerFormSubtype: meta.cheerFormSubtype,
+                      danceFormSubtype: meta.danceFormSubtype,
+                    }
+                  : {}),
+              } as Order,
+              meta
+                ? {
+                    formType: meta.formType,
+                    cheerFormSubtype: meta.cheerFormSubtype,
+                    danceFormSubtype: meta.danceFormSubtype,
+                  }
+                : undefined
+            );
+          }
+        }
       }
     }
 
@@ -1992,42 +2096,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           if (Object.keys(orderApiPatch).length > 0) {
             await updateOrderApi(orderIdForApi, orderApiPatch);
           }
-          // Move-to-Orders: paint Reassign immediately (bootstrap orders are empty).
-          if (patch.isReassigned === true && patch.inMTD === false) {
-            const mtdSeed = existing || seed;
-            const seedForBoard =
-              linkedOrder ||
-              (mtdSeed ? orderFromMTDRecord(mtdSeed) : null);
-            if (seedForBoard || orderIdForApi) {
-              const meta = mtdSeed
-                ? resolveMTDFormMeta(mtdSeed, new Map())
-                : null;
-              syncOrdersBoardAfterReassign(
-                {
-                  ...(seedForBoard || ({ id: orderIdForApi } as Order)),
-                  ...orderPatch,
-                  id: orderIdForApi,
-                  isReassigned: true,
-                  status: "active",
-                  assignedProducer: null,
-                  ...(meta
-                    ? {
-                        formType: meta.formType,
-                        cheerFormSubtype: meta.cheerFormSubtype,
-                        danceFormSubtype: meta.danceFormSubtype,
-                      }
-                    : {}),
-                } as Order,
-                meta
-                  ? {
-                      formType: meta.formType,
-                      cheerFormSubtype: meta.cheerFormSubtype,
-                      danceFormSubtype: meta.danceFormSubtype,
-                    }
-                  : undefined
-              );
-            }
-          }
+          // Reassign board seed runs optimistically above (before await).
         }
 
         // Prefer an existing persisted mtd_records row for this order so invoice

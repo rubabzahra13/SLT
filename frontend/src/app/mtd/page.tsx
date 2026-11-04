@@ -44,6 +44,7 @@ import { prefetchMtdBoard, useMtdBoard } from "@/hooks/useMtdBoard";
 import {
   mtdActiveChipTotal,
   patchMtdBoardRecordInCaches,
+  readCachedMtdBoardRow,
 } from "@/lib/mtd-board-cache";
 import { idlePrefetchSiblingBoard } from "@/lib/board-nav-prefetch";
 import { formatPrice, titleCase } from "@/lib/data";
@@ -100,6 +101,7 @@ import {
   getDisplayAssignedProducer,
   mixWorkDaysForRecord,
 } from "@/lib/editor-assignment";
+import { resolveMtdTimestamp } from "@/lib/mtd-timestamp";
 import { overlayMergedFormForDisplay } from "@/lib/manual-form-merge";
 import { mergeCollectionStateFromOrder } from "@/lib/order-staging";
 import {
@@ -522,6 +524,85 @@ function MTDPageContent() {
     switchForm,
   ]);
 
+  // Deep-link / Move-to-MTD: switch Dance↔Cheer (and subtype) so ?focus= is
+  // visible — sticky form filter otherwise leaves the row "missing".
+  useEffect(() => {
+    if (!focusParam) return;
+    const match = (r: MTDRecord) =>
+      r.id === focusParam ||
+      r.orderId === focusParam ||
+      r.uuid === focusParam ||
+      r.legacyId === focusParam;
+    const focused =
+      mtdBoardRecords.find(match) ??
+      mtdRecords.find(match) ??
+      readCachedMtdBoardRow(focusParam) ??
+      null;
+    if (!focused) {
+      // Order-only focus (rare): form from linked order.
+      const order =
+        orderById.get(focusParam) ??
+        allOrders.find(
+          (o) =>
+            o.id === focusParam ||
+            o.uuid === focusParam ||
+            o.legacyId === focusParam ||
+            o.mtdId === focusParam
+        );
+      if (!order?.formType) return;
+      const alreadyVisible =
+        order.formType === form &&
+        (form !== "school-all-star-cheer" ||
+          cheerSubtype === "all" ||
+          !order.cheerFormSubtype ||
+          order.cheerFormSubtype === cheerSubtype) &&
+        (form !== "school-all-star-dance" ||
+          danceSubtype === "all" ||
+          !order.danceFormSubtype ||
+          order.danceFormSubtype === danceSubtype);
+      if (alreadyVisible) return;
+      switchForm(order.formType);
+      if (
+        order.formType === "school-all-star-cheer" &&
+        order.cheerFormSubtype
+      ) {
+        setCheerSubtype(order.cheerFormSubtype as CheerFormSubtypeFilter);
+      }
+      if (
+        order.formType === "school-all-star-dance" &&
+        order.danceFormSubtype
+      ) {
+        setDanceSubtype(order.danceFormSubtype as DanceFormSubtypeFilter);
+      }
+      return;
+    }
+    if (
+      matchesFormFilter(focused, orderById, form, cheerSubtype, danceSubtype)
+    ) {
+      return;
+    }
+    const meta = resolveMTDFormMeta(focused, orderById);
+    switchForm(meta.formType);
+    if (meta.formType === "school-all-star-cheer" && meta.cheerFormSubtype) {
+      setCheerSubtype(meta.cheerFormSubtype as CheerFormSubtypeFilter);
+    }
+    if (meta.formType === "school-all-star-dance" && meta.danceFormSubtype) {
+      setDanceSubtype(meta.danceFormSubtype as DanceFormSubtypeFilter);
+    }
+  }, [
+    focusParam,
+    mtdBoardRecords,
+    mtdRecords,
+    allOrders,
+    orderById,
+    form,
+    cheerSubtype,
+    danceSubtype,
+    switchForm,
+    setCheerSubtype,
+    setDanceSubtype,
+  ]);
+
   const handleAssign = useCallback(
     (recordId: string, result: EditorAssignmentResult) => {
       updateMTD(recordId, {
@@ -868,10 +949,9 @@ function MTDPageContent() {
             }
           : {}),
       };
-      patchMtdBoardRecordInCaches(recordId, payrollPatch);
-      if (orderId && orderId !== recordId) {
-        patchMtdBoardRecordInCaches(orderId, payrollPatch);
-      }
+      // One patch only — alias re-patches (orderId) used to duplicate Payroll.
+      // updateMTD patches the board cache again with the canonical id.
+      patchMtdBoardRecordInCaches(recordId, payrollPatch, seed);
       // Phase 2: lifecycle flags stay on MTD; pricing/payout SoT is Orders.
       // Persist inPayroll first so SSE cannot briefly clear Payroll membership.
       // Fire without blocking UI — pricing already finalized in the modal.
@@ -1023,15 +1103,11 @@ function MTDPageContent() {
         nowrap: true,
         cellClassName: compactCellClass,
         headerClassName: compactHeaderClass,
-        render: (rec) => {
-          const linked = findLinkedOrder(rec, allOrders);
-          const stamp = linked?.createdAt || "";
-          return (
-            <span className="tabular-nums text-[11px] text-brand-ink-secondary whitespace-nowrap">
-              {formatDisplayDateTime(stamp)}
-            </span>
-          );
-        },
+        render: (rec) => (
+          <span className="tabular-nums text-[11px] text-brand-ink-secondary whitespace-nowrap">
+            {formatDisplayDateTime(resolveMtdTimestamp(rec, allOrders))}
+          </span>
+        ),
       },
       {
         key: "contactC",

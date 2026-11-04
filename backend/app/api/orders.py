@@ -562,13 +562,18 @@ def create_order(
     return order
 
 
+def _blank_order_text(value: Any) -> bool:
+    text = str(value or "").strip()
+    return text == "" or text.upper() == "TBD"
+
+
 def _sync_order_needs_attention(
     order: Order, *, explicit: Any | None = None
 ) -> None:
     """Keep board missing/complete tabs honest on every write.
 
-    Prefer an explicit client/API value; otherwise derive from collection
-    NEED markers plus TBD/empty package or mix length (board Missing data).
+    Prefer an explicit client/API value; otherwise mirror board Missing data
+    field SoT (Mix / Songs / Notes / CS) — same shape as `_missing_data_expr`.
     """
     from app.services.mtd_identity import _needs_attention_from_collection
 
@@ -576,13 +581,24 @@ def _sync_order_needs_attention(
         order.needs_attention = bool(explicit)
         return
     pkg = str(order.package_type or "").strip().upper()
-    mix = str(order.time_length_of_mix or "").strip().upper()
+    sheet = str(order.received_eight_count_sheet or "")
+    sheet_u = sheet.strip().upper()
+    sending = str(order.sending_eight_count_sheets or "").strip().upper()
+    cs_outstanding = (
+        sending in ("YES", "Y") or sending.startswith("YES")
+    ) and ("HAVE" not in sheet_u)
     order.needs_attention = (
         _needs_attention_from_collection(
             order.received_eight_count_sheet, order.have_songs
         )
         or pkg in ("", "TBD")
-        or mix in ("", "TBD")
+        or _blank_order_text(order.time_length_of_mix)
+        or (
+            _blank_order_text(order.song_list_suggestions)
+            and _blank_order_text(order.music_theme)
+        )
+        or _blank_order_text(order.routine_notes)
+        or cs_outstanding
     )
 
 
@@ -648,6 +664,14 @@ def update_order(
             "collection_states",
             "package_type",
             "time_length_of_mix",
+            "routine_notes",
+            "song_list_suggestions",
+            "music_theme",
+            "sending_eight_count_sheets",
+            "power_music_covers",
+            "unleash_the_beats_covers",
+            "customer_songs",
+            "instrumentation_notes",
         )
     ):
         _sync_order_needs_attention(order, explicit=None)
