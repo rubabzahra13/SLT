@@ -286,6 +286,9 @@ type AppStateContextValue = {
   maybeNotifyMatchSuggestion: (
     order: Order
   ) => { formId: string; manualId: string } | null;
+  /** Magento forms with Suggested-for-You that haven’t been opened on Match yet. */
+  unseenSuggestedMatchCount: number;
+  markMatchOrdersSeen: () => void;
   isInMTD: (orderId: string) => boolean;
 };
 
@@ -655,6 +658,9 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     cachedOrders || cachedMtd || (cachedProducers && cachedProducers.length > 0)
   );
 
+  const [unseenMatchFormIds, setUnseenMatchFormIds] = useState<string[]>(() =>
+    readUnseenMatchFormIds()
+  );
   const [activeOrders, setActiveOrders] = useState<Order[]>(
     () => readActiveOrdersFromCache(cachedOrders)
   );
@@ -4796,6 +4802,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     markNotificationRead,
     markAllNotificationsRead,
     maybeNotifyMatchSuggestion,
+    unseenSuggestedMatchCount: unseenMatchFormIds.length,
+    markMatchOrdersSeen,
     isInMTD,
   };
 
