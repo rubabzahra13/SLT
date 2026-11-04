@@ -60,6 +60,8 @@ type MTDPageToolbarProps = {
   formCounts: Record<OrderFormType, number>;
   cheerCounts: Record<CheerFormSubtypeFilter, number>;
   danceCounts: Record<DanceFormSubtypeFilter, number>;
+  /** Hide Form/Cheer/Dance option counts (Payroll). Default true. */
+  showFormOptionCounts?: boolean;
   records: MTDRecord[];
   producers: Producer[];
   orderById: Map<string, Order>;
@@ -101,6 +103,7 @@ export function MTDPageToolbar({
   formCounts,
   cheerCounts,
   danceCounts,
+  showFormOptionCounts = true,
   records,
   producers,
   orderById,
@@ -150,6 +153,7 @@ export function MTDPageToolbar({
             formCounts={formCounts}
             cheerCounts={cheerCounts}
             danceCounts={danceCounts}
+            showOptionCounts={showFormOptionCounts}
           />
           <span
             className="mx-0.5 hidden h-5 w-px shrink-0 bg-brand-line/45 sm:block"

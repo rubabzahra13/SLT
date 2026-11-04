@@ -17,12 +17,39 @@ function authHeaders(token?: string | null): Record<string, string> {
   return { Authorization: `Bearer ${token}` };
 }
 
-export async function getGmailStatus(token?: string | null): Promise<GmailStatusResponse> {
-  return apiClient.get<GmailStatusResponse>("/api/gmail/status", {
+/** Avoid re-hitting /gmail/status every time Send Statements remounts. */
+const GMAIL_STATUS_TTL_MS = 5 * 60_000;
+let gmailStatusCache: {
+  tokenKey: string;
+  at: number;
+  status: GmailStatusResponse;
+} | null = null;
+
+export function clearGmailStatusCache(): void {
+  gmailStatusCache = null;
+}
+
+export async function getGmailStatus(
+  token?: string | null
+): Promise<GmailStatusResponse> {
+  const tokenKey = token || "";
+  if (
+    gmailStatusCache &&
+    gmailStatusCache.tokenKey === tokenKey &&
+    Date.now() - gmailStatusCache.at < GMAIL_STATUS_TTL_MS
+  ) {
+    return gmailStatusCache.status;
+  }
+  const status = await apiClient.get<GmailStatusResponse>("/api/gmail/status", {
     headers: authHeaders(token),
     // Status probes should fail fast: don’t leave Settings stuck on “Checking…”.
     timeoutMs: 8000,
   });
+  // Only cache a connected result — so Settings connect can refresh immediately.
+  gmailStatusCache = status.connected
+    ? { tokenKey, at: Date.now(), status }
+    : null;
+  return status;
 }
 
 export async function getGmailConnectUrl(token?: string | null): Promise<{ url: string }> {
@@ -32,6 +59,7 @@ export async function getGmailConnectUrl(token?: string | null): Promise<{ url: 
 }
 
 export async function disconnectGmail(token?: string | null): Promise<GenericResponse> {
+  clearGmailStatusCache();
   return apiClient.post<GenericResponse>("/api/gmail/disconnect", undefined, {
     headers: authHeaders(token),
   });

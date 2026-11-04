@@ -106,10 +106,15 @@ import {
   isRecentLocalOrderWrite,
   patchOrdersBoardRowOptimistic,
   readOrdersBoardOrder,
+  removeOrdersBoardOrderFromCaches,
   syncOrdersAfterMatch,
   syncOrdersBoardAfterReassign,
 } from "@/lib/orders-board-cache";
-import { patchMtdBoardRecordInCaches } from "@/lib/mtd-board-cache";
+import {
+  patchMtdBoardRecordInCaches,
+  readCachedMtdBoardRow,
+  removeMtdBoardRecordsFromCaches,
+} from "@/lib/mtd-board-cache";
 import { orderFromMTDRecord } from "@/lib/order-detail-fields";
 import { resolveMTDFormMeta } from "@/lib/mtd-filters";
 import { inferMTDRecordStatus } from "@/lib/mtd-status";
@@ -149,7 +154,9 @@ import {
   fetchMTDRecordsApi,
   fetchArchivedPayrollApi,
   fetchDiscountCodesApi,
-  fetchPayrollAddonsApi,
+  fetchPayrollAddonsForMtdIdsApi,
+  fetchPayrollLinkedAddonsApi,
+  fetchVoiceoverAddonsApi,
   fetchStudioPersonalReasonsApi,
   fetchEmailTemplatesApi,
   saveSecretMenuPricingApi,
@@ -230,6 +237,24 @@ type AppStateContextValue = {
   ensureArchivedPayrollLoaded: () => Promise<void>;
   /** Drop paid archive from memory when leaving Payroll Archive. */
   releaseArchivedPayroll: () => void;
+  /**
+   * Rush/misc for unpaid payroll only. Call from Payroll.
+   * Not part of bootstrap — keeps app warm-start constant-size.
+   */
+  ensurePayrollLinkedAddonsLoaded: (opts?: {
+    force?: boolean;
+  }) => Promise<void>;
+  /**
+   * Rush/misc for visible archive (or board) MTD ids only.
+   */
+  ensureAddonsForMtdIdsLoaded: (mtdIds: string[]) => Promise<void>;
+  /**
+   * Recent voiceovers only (default last 42 days). Call from VO / Send tabs.
+   */
+  ensureVoiceoverAddonsLoaded: (opts?: {
+    force?: boolean;
+    sinceDays?: number;
+  }) => Promise<void>;
   /**
    * Admin Match Orders: link a Magento form into an unmatched manual slot
    * (form SoT). Replaces the old automatic name-merge.
@@ -683,6 +708,12 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   >([]);
   const archivedPayrollLoadedRef = useRef(false);
   const archivedPayrollLoadPromiseRef = useRef<Promise<void> | null>(null);
+  const payrollLinkedAddonsLoadedRef = useRef(false);
+  const payrollLinkedAddonsLoadPromiseRef = useRef<Promise<void> | null>(null);
+  const voiceoverAddonsLoadedRef = useRef(false);
+  const voiceoverAddonsSinceDaysRef = useRef<number | null>(null);
+  const voiceoverAddonsLoadPromiseRef = useRef<Promise<void> | null>(null);
+  const loadedAddonMtdIdsRef = useRef<Set<string>>(new Set());
 
   const [secretMenuPrices, setSecretMenuPricesState] = useState<SecretMenuPricing>(
     () => getDefaultSecretMenuPricing()
@@ -848,8 +879,13 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       }
 
       setDiscountCodes(boot.discountCodes);
-      const nextAddons = dedupePayrollAddons(boot.payrollAddons);
-      setPayrollAddons(nextAddons);
+      // Bootstrap returns payroll_addons: [] (hydrated on Payroll). Never wipe
+      // a faster ensureVoiceover/Linked load or optimistic adds with empty boot.
+      if (boot.payrollAddons.length > 0) {
+        setPayrollAddons((prev) =>
+          dedupePayrollAddons([...boot.payrollAddons, ...prev])
+        );
+      }
 
       if (boot.personalReasons.length > 0) {
         setPersonalReasons(ensurePersonalReasonsList(boot.personalReasons));
@@ -870,17 +906,16 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
      * (those stay on paged boards + ensureLiveMtdLoaded / ensurePastOrdersLoaded).
      */
     async function fetchLegacyBootstrap(): Promise<BootstrapPayload> {
+      // Match modern bootstrap: no unbounded payroll_addons (Payroll hydrates).
       const [
         producers,
         discountCodes,
-        payrollAddons,
         personalReasons,
         emailTemplates,
         secretMenuPricing,
       ] = await Promise.all([
         fetchProducersApi().catch(() => [] as Producer[]),
         fetchDiscountCodesApi().catch(() => [] as DiscountCode[]),
-        fetchPayrollAddonsApi().catch(() => [] as PayrollAddon[]),
         fetchStudioPersonalReasonsApi().catch(
           () => [] as StudioPersonalReason[]
         ),
@@ -891,7 +926,6 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       if (
         producers.length === 0 &&
         discountCodes.length === 0 &&
-        payrollAddons.length === 0 &&
         personalReasons.length === 0 &&
         !emailTemplates &&
         !secretMenuPricing
@@ -905,7 +939,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         pastOrders: [] as Order[],
         mtdRecords: [] as MTDRecord[],
         discountCodes,
-        payrollAddons,
+        payrollAddons: [] as PayrollAddon[],
         personalReasons,
         emailTemplates,
         secretMenuPricing,
@@ -928,21 +962,9 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         }
         if (!isMounted || gen !== loadGen) return;
         applyBoot(boot, fetchedAt);
-        // Bootstrap omits orders/mtd (paged boards). Live MTD stays on SWR paint
-        // until a page calls ensureLiveMtdLoaded — KPIs use /dashboard/pulse.
-        // Bootstrap can race a backend restart and omit add-ons while MTD still
-        // paints from cache: re-fetch the dedicated list when the boot was empty.
-        if (boot.payrollAddons.length === 0) {
-          void fetchPayrollAddonsApi()
-            .then((addons) => {
-              if (!isMounted || gen !== loadGen || addons.length === 0) return;
-              const next = dedupePayrollAddons(addons);
-              setPayrollAddons(next);
-            })
-            .catch(() => {
-              /* keep cache / empty */
-            });
-        }
+        // Bootstrap omits orders/mtd/payroll_addons (paged boards). Live MTD
+        // stays on SWR paint until ensureLiveMtdLoaded; add-ons hydrate on
+        // Payroll via ensurePayrollLinkedAddonsLoaded / ensureVoiceoverAddonsLoaded.
         // Package prices + SoftSelect affiliate catalogs from DB.
         void fetchPricingRulesApi()
           .then((rules) => {
@@ -1515,7 +1537,11 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       mtdRecords.find(
         (r) =>
           r.id === id || r.orderId === id || r.uuid === id || r.legacyId === id
-      ) || seed;
+      ) ||
+      seed ||
+      // Payroll/MTD are board-first — Mark Paid must still PATCH paid_at.
+      readCachedMtdBoardRow(id) ||
+      null;
     const apiId = existing?.uuid || existing?.id || seed?.uuid || seed?.id || id;
     mtdMutatedAtRef.current = Date.now();
     ordersMutatedAtRef.current = Date.now();
@@ -2445,30 +2471,67 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       if (isViewOnly) {
         throw new Error("View-only accounts cannot delete payroll records.");
       }
-      let removed: MTDRecord | undefined;
-      let removedOrder: Order | undefined;
       mtdMutatedAtRef.current = Date.now();
+
+      const matches = (r: MTDRecord) =>
+        r.id === id ||
+        r.orderId === id ||
+        r.uuid === id ||
+        r.legacyId === id;
+
+      // Resolve before relying on setState side effects — Strict Mode re-runs
+      // updaters and can clear a `let removed` assigned inside setMtdRecords,
+      // which crashed setPayrollAddons on removed!.id.
+      let removed: MTDRecord | undefined =
+        readCachedMtdBoardRow(id) ?? undefined;
       setMtdRecords((prev) => {
-        removed = prev.find(
-          (r) => r.id === id || r.orderId === id || r.uuid === id || r.legacyId === id
-        );
+        const hit = prev.find(matches);
+        // Prefer the in-memory row when present; never clear a prior find.
+        if (hit) removed = hit;
+        const drop = hit ?? removed;
+        if (!drop) return prev;
         const next = prev.filter(
           (r) =>
-            r.id !== id &&
-            r.orderId !== id &&
-            r.uuid !== id &&
-            r.legacyId !== id &&
-            !(removed?.orderId && (r.orderId === removed.orderId || r.id === removed.orderId))
+            !matches(r) &&
+            !(drop.orderId && (r.orderId === drop.orderId || r.id === drop.orderId))
         );
         writeTimedCache(CACHE_MTD_KEY, next);
         return next;
       });
-      if (!removed) return;
+
+      const deleteId = removed?.uuid || removed?.id || id;
+      if (!removed) {
+        removeMtdBoardRecordsFromCaches([id]);
+        try {
+          await deleteMTDRecordApi(deleteId);
+          setIsBackendConnected(true);
+        } catch (err) {
+          if (
+            err instanceof ApiClientError &&
+            (err.status === 0 || err.status >= 500)
+          ) {
+            setIsBackendConnected(false);
+          }
+          notifySaveError("Could not delete payroll record", err);
+          throw err;
+        }
+        return;
+      }
+
+      // Freeze ids so later updaters cannot see a cleared `removed`.
+      const removedRow = removed;
+      const removedId = removedRow.id;
+      const removedOrderId = removedRow.orderId || "";
       const orderIds = new Set(
-        [removed.orderId, removed.id, removed.uuid, removed.legacyId].filter(
-          Boolean
-        ) as string[]
+        [
+          removedRow.orderId,
+          removedRow.id,
+          removedRow.uuid,
+          removedRow.legacyId,
+        ].filter(Boolean) as string[]
       );
+
+      let removedOrder: Order | undefined;
       setActiveOrders((prev) => {
         removedOrder = prev.find(
           (o) =>
@@ -2487,25 +2550,38 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
             !(o.legacyId && orderIds.has(o.legacyId))
         )
       );
-      setPayrollAddons((prev) => {
-        const next = prev.filter(
+      setPayrollAddons((prev) =>
+        prev.filter(
           (a) =>
-            a.mtdId !== removed!.id &&
-            !(removed!.orderId && a.orderId === removed!.orderId)
-        );
-        return next;
-      });
+            a.mtdId !== removedId &&
+            !(removedOrderId && a.orderId === removedOrderId)
+        )
+      );
+
+      removeMtdBoardRecordsFromCaches([
+        removedId,
+        removedRow.uuid || "",
+        removedOrderId,
+        removedRow.legacyId || "",
+      ]);
+      if (removedOrder) {
+        removeOrdersBoardOrderFromCaches(removedOrder.id);
+        if (removedOrder.uuid) {
+          removeOrdersBoardOrderFromCaches(removedOrder.uuid);
+        }
+      } else if (removedOrderId) {
+        removeOrdersBoardOrderFromCaches(removedOrderId);
+      }
+
       try {
-        await deleteMTDRecordApi(removed.uuid || removed.id);
+        await deleteMTDRecordApi(deleteId);
         setMtdRecords((prev) => {
           writeTimedCache(CACHE_MTD_KEY, prev);
           return prev;
         });
         setIsBackendConnected(true);
       } catch (err) {
-        if (removed) {
-          setMtdRecords((prev) => [removed!, ...prev]);
-        }
+        setMtdRecords((prev) => [removedRow, ...prev]);
         if (removedOrder) {
           setActiveOrders((prev) => [removedOrder!, ...prev]);
         }
@@ -2902,6 +2978,84 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     archivedPayrollLoadPromiseRef.current = null;
     setArchivedPayrollRecords([]);
   }, []);
+
+  const ensurePayrollLinkedAddonsLoaded = useCallback(
+    async (opts?: { force?: boolean }) => {
+      if (opts?.force) {
+        payrollLinkedAddonsLoadedRef.current = false;
+        payrollLinkedAddonsLoadPromiseRef.current = null;
+      }
+      if (payrollLinkedAddonsLoadedRef.current) return;
+      if (payrollLinkedAddonsLoadPromiseRef.current) {
+        await payrollLinkedAddonsLoadPromiseRef.current;
+        return;
+      }
+      const loadPromise = (async () => {
+        const linked = await fetchPayrollLinkedAddonsApi();
+        payrollLinkedAddonsLoadedRef.current = true;
+        if (linked.length === 0) return;
+        setPayrollAddons((prev) => dedupePayrollAddons([...prev, ...linked]));
+      })();
+      payrollLinkedAddonsLoadPromiseRef.current = loadPromise;
+      try {
+        await loadPromise;
+      } catch (err) {
+        payrollLinkedAddonsLoadPromiseRef.current = null;
+        throw err;
+      }
+    },
+    []
+  );
+
+  const ensureAddonsForMtdIdsLoaded = useCallback(
+    async (mtdIds: string[]) => {
+      const missing = [
+        ...new Set(mtdIds.map((id) => String(id || "").trim()).filter(Boolean)),
+      ].filter((id) => !loadedAddonMtdIdsRef.current.has(id));
+      if (missing.length === 0) return;
+      const linked = await fetchPayrollAddonsForMtdIdsApi(missing);
+      for (const id of missing) loadedAddonMtdIdsRef.current.add(id);
+      if (linked.length === 0) return;
+      setPayrollAddons((prev) => dedupePayrollAddons([...prev, ...linked]));
+    },
+    []
+  );
+
+  const ensureVoiceoverAddonsLoaded = useCallback(
+    async (opts?: { force?: boolean; sinceDays?: number }) => {
+      const sinceDays = opts?.sinceDays ?? 42;
+      if (opts?.force || voiceoverAddonsSinceDaysRef.current !== sinceDays) {
+        voiceoverAddonsLoadedRef.current = false;
+        voiceoverAddonsLoadPromiseRef.current = null;
+      }
+      if (voiceoverAddonsLoadedRef.current) return;
+      if (voiceoverAddonsLoadPromiseRef.current) {
+        await voiceoverAddonsLoadPromiseRef.current;
+        return;
+      }
+      const loadPromise = (async () => {
+        const voiceovers = await fetchVoiceoverAddonsApi(undefined, {
+          sinceDays,
+        });
+        voiceoverAddonsLoadedRef.current = true;
+        voiceoverAddonsSinceDaysRef.current = sinceDays;
+        if (voiceovers.length === 0) return;
+        setPayrollAddons((prev) => {
+          // Replace older VO window with the requested window; keep rush/misc.
+          const keep = prev.filter((a) => a.addonType !== "voiceover");
+          return dedupePayrollAddons([...keep, ...voiceovers]);
+        });
+      })();
+      voiceoverAddonsLoadPromiseRef.current = loadPromise;
+      try {
+        await loadPromise;
+      } catch (err) {
+        voiceoverAddonsLoadPromiseRef.current = null;
+        throw err;
+      }
+    },
+    []
+  );
 
   const receiveOrder = useCallback(
     (order: Order) => {
@@ -4665,6 +4819,20 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       if (isViewOnly) {
         throw new Error("View-only accounts cannot edit payroll items.");
       }
+      // Optimistic temp ids are not on the server — patch local only.
+      if (id.startsWith("pending-addon-")) {
+        let local: PayrollAddon | undefined;
+        setPayrollAddons((prev) => {
+          const next = prev.map((addon) => {
+            if (addon.id !== id) return addon;
+            local = mergePayrollAddonPatch(addon, patch);
+            return local;
+          });
+          return next;
+        });
+        if (!local) throw new Error("Payroll add-on not found.");
+        return local;
+      }
       setPayrollAddons((prev) => {
         const next = prev.map((addon) =>
           addon.id === id ? mergePayrollAddonPatch(addon, patch) : addon
@@ -4684,6 +4852,11 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
   const removePayrollAddon = useCallback(
     async (id: string): Promise<void> => {
       if (isViewOnly) throw new Error("View-only accounts cannot delete payroll items.");
+      // Drop optimistic rows locally — they were never POSTed (or failed).
+      if (id.startsWith("pending-addon-")) {
+        setPayrollAddons((prev) => prev.filter((a) => a.id !== id));
+        return;
+      }
       await deletePayrollAddonApi(id);
       setPayrollAddons((prev) => {
         const next = prev.filter((a) => a.id !== id);
@@ -4859,6 +5032,9 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     ensureLiveMtdLoaded,
     ensureArchivedPayrollLoaded,
     releaseArchivedPayroll,
+    ensurePayrollLinkedAddonsLoaded,
+    ensureAddonsForMtdIdsLoaded,
+    ensureVoiceoverAddonsLoaded,
     matchManualWithMagento,
     addProducer,
     updateProducer,

@@ -25,6 +25,7 @@ import {
   generateProducerFacingPayrollCsv,
   getProducerFacingPayrollRows,
   triggerCsvDownload,
+  type ProducerFacingPayrollRow,
 } from "@/lib/export-csv";
 import {
   buildPayrollMailDraft,
@@ -101,6 +102,8 @@ export function PayrollSendPanel({
   const [isSending, setIsSending] = useState(false);
   const [feedback, setFeedback] = useState<SendFeedback | null>(null);
   const [mailModalOpen, setMailModalOpen] = useState(false);
+  /** null = use toolbar targets (Send all); otherwise one/few names from preview. */
+  const [modalTargets, setModalTargets] = useState<string[] | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
   const [sentSummary, setSentSummary] = useState<string | null>(null);
@@ -140,6 +143,7 @@ export function PayrollSendPanel({
   const canExport = targetCount > 0;
   const categoryEditorCount = categoryProducers.length;
   const statementCount = producerNames.length;
+  const activeSendTargets = modalTargets ?? targetProducerNames;
 
   const activeProducerName = viewingAll
     ? producerNames[0] ?? ""
@@ -174,36 +178,46 @@ export function PayrollSendPanel({
 
   const canSend = canExport && gmailConnected && !isViewOnly && !isSending;
 
-  const mixCountByProducer = useMemo(() => {
-    const counts = new Map<string, number>();
+  const orderById = useMemo(
+    () => new Map(allOrders.map((order) => [order.id, order])),
+    [allOrders]
+  );
+
+  // Build statement rows once per producer — preview/send reuse this map.
+  const rowsByProducer = useMemo(() => {
+    const map = new Map<string, ProducerFacingPayrollRow[]>();
     for (const name of producerNames) {
-      const rows = getProducerFacingPayrollRows(
-        payrollRecords,
-        allOrders,
-        producers,
+      map.set(
         name,
-        filterPeriod,
-        payrollAddons
+        getProducerFacingPayrollRows(
+          payrollRecords,
+          allOrders,
+          producers,
+          name,
+          filterPeriod,
+          payrollAddons,
+          orderById
+        )
       );
-      counts.set(name, rows.length);
     }
-    return counts;
-  }, [producerNames, payrollRecords, allOrders, producers, filterPeriod, payrollAddons]);
+    return map;
+  }, [
+    producerNames,
+    payrollRecords,
+    allOrders,
+    producers,
+    filterPeriod,
+    payrollAddons,
+    orderById,
+  ]);
 
   const previewItems = useMemo<PayrollSendPreviewItem[]>(() => {
-    return targetProducerNames.flatMap((producerName) => {
+    return activeSendTargets.flatMap((producerName) => {
       const producer = findProducerByName(producerName, producers);
       if (!producer) return [];
 
-      const mixCount = mixCountByProducer.get(producerName) ?? 0;
-      const rows = getProducerFacingPayrollRows(
-        payrollRecords,
-        allOrders,
-        producers,
-        producerName,
-        filterPeriod,
-        payrollAddons
-      );
+      const rows = rowsByProducer.get(producerName) ?? [];
+      const mixCount = rows.length;
       const draft = buildPayrollMailDraft(
         producer,
         mixCount,
@@ -223,22 +237,18 @@ export function PayrollSendPanel({
       ];
     });
   }, [
-    targetProducerNames,
+    activeSendTargets,
     producers,
-    mixCountByProducer,
+    rowsByProducer,
     periodLabel,
     categoryLabel,
-    payrollRecords,
     emailTemplates.producer_payroll,
-    allOrders,
-    filterPeriod,
-    payrollAddons,
   ]);
 
-  const missingEmailNames = useMemo(
-    () => previewItems.filter((item) => !item.email).map((item) => item.producerName),
-    [previewItems]
-  );
+  const missingEmailNames = useMemo(() => {
+    const names = modalTargets ?? targetProducerNames;
+    return names.filter((name) => !findProducerByName(name, producers)?.email);
+  }, [modalTargets, targetProducerNames, producers]);
 
   const downloadTargets = useCallback(
     (targets: string[]) => {
@@ -278,15 +288,8 @@ export function PayrollSendPanel({
         throw new Error(`${producerName} has no email on file.`);
       }
 
-      const mixCount = mixCountByProducer.get(producerName) ?? 0;
-      const rows = getProducerFacingPayrollRows(
-        payrollRecords,
-        allOrders,
-        producers,
-        producerName,
-        filterPeriod,
-        payrollAddons
-      );
+      const rows = rowsByProducer.get(producerName) ?? [];
+      const mixCount = rows.length;
       const draft = buildPayrollMailDraft(
         producer,
         mixCount,
@@ -315,10 +318,7 @@ export function PayrollSendPanel({
     },
     [
       producers,
-      mixCountByProducer,
-      payrollRecords,
-      allOrders,
-      filterPeriod,
+      rowsByProducer,
       periodLabel,
       categoryLabel,
       token,
@@ -371,24 +371,36 @@ export function PayrollSendPanel({
     [canSend, sendStatementToProducer]
   );
 
+  const openSendModalFor = useCallback(
+    (names: string[]) => {
+      setFeedback(null);
+      const missing = names.filter(
+        (name) => !findProducerByName(name, producers)?.email
+      );
+      if (missing.length > 0) {
+        setFeedback({
+          type: "error",
+          message: `Missing email for: ${missing.join(", ")}.`,
+        });
+        return;
+      }
+      setModalTargets(names);
+      setSendError(null);
+      setSent(false);
+      setSentSummary(null);
+      setMailModalOpen(true);
+    },
+    [producers]
+  );
+
   const openSendModal = useCallback(() => {
-    setFeedback(null);
-    if (missingEmailNames.length > 0) {
-      setFeedback({
-        type: "error",
-        message: `Missing email for: ${missingEmailNames.join(", ")}.`,
-      });
-      return;
-    }
-    setSendError(null);
-    setSent(false);
-    setSentSummary(null);
-    setMailModalOpen(true);
-  }, [missingEmailNames]);
+    openSendModalFor(targetProducerNames);
+  }, [openSendModalFor, targetProducerNames]);
 
   const closeSendModal = useCallback(() => {
     if (isSending) return;
     setMailModalOpen(false);
+    setModalTargets(null);
     setSendError(null);
     setSent(false);
     setSentSummary(null);
@@ -396,16 +408,14 @@ export function PayrollSendPanel({
   }, [isSending]);
 
   const handleConfirmSend = useCallback(() => {
-    void handleSendTargets(targetProducerNames);
-  }, [handleSendTargets, targetProducerNames]);
+    void handleSendTargets(activeSendTargets);
+  }, [handleSendTargets, activeSendTargets]);
 
   const sendDisabledReason = isViewOnly
     ? "View-only users cannot send email"
     : !gmailConnected
       ? "Connect Gmail in Settings first"
-      : missingEmailNames.length > 0
-        ? `Missing email for: ${missingEmailNames.join(", ")}`
-        : undefined;
+      : undefined;
 
   const downloadLabel = viewingAll ? "Download all" : "Download";
   const sendLabel = viewingAll ? "Send all" : "Send";
@@ -526,6 +536,16 @@ export function PayrollSendPanel({
               allOrders={allOrders}
               producers={producers}
               payrollAddons={payrollAddons}
+              onSendToProducer={(name) => openSendModalFor([name])}
+              canSendToProducer={canSend}
+              isSending={isSending}
+              sendDisabledReason={
+                isViewOnly
+                  ? "View-only users cannot send email"
+                  : !gmailConnected
+                    ? "Connect Gmail in Settings first"
+                    : undefined
+              }
             />
           ) : (
             <div className="flex items-start gap-2.5 rounded-xl border border-brand-warning/25 bg-brand-warning/8 px-3.5 py-3">

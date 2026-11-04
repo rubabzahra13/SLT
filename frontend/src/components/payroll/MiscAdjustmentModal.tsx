@@ -48,9 +48,17 @@ export function MiscAdjustmentModal({
 
   const category = useMemo(() => {
     if (!record) return "Other";
+    // Prefer fields already on the payroll row — avoid scanning allOrders.
+    if (record.formType) {
+      return categoryLabelForMiscAdjustment(record.formType);
+    }
+    const linked =
+      (record.orderId && allOrders.find((o) => o.id === record.orderId)) ||
+      allOrders.find((o) => o.id === record.id) ||
+      null;
     const meta = resolveMTDFormMeta(
       record,
-      new Map(allOrders.map((o) => [o.id, o]))
+      linked ? new Map([[linked.id, linked]]) : new Map()
     );
     return categoryLabelForMiscAdjustment(meta.formType);
   }, [record, allOrders]);
@@ -92,8 +100,12 @@ export function MiscAdjustmentModal({
 
     setSaving(true);
     try {
+      // Never send record.id as orderId — that UUID is the MTD row, not orders.
+      const orderId =
+        record.orderId && record.orderId !== record.id ? record.orderId : null;
+
       await onSave({
-        orderId: record.orderId || record.id,
+        orderId,
         mtdId: record.id,
         programName: record.programName || "Program",
         teamName: (record as { teamName?: string }).teamName || null,

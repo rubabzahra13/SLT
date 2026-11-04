@@ -788,9 +788,12 @@ export function getProducerFacingPayrollRows(
   producers: Producer[],
   targetProducerName: string,
   filterPeriod?: { start?: string; end?: string },
-  payrollAddons?: PayrollAddon[]
+  payrollAddons?: PayrollAddon[],
+  /** Reuse across producers on Send — avoids rebuilding Map per call. */
+  orderById?: Map<string, Order>
 ): ProducerFacingPayrollRow[] {
-  const orderById = new Map(allOrders.map((o) => [o.id, o]));
+  const orderMap =
+    orderById ?? new Map(allOrders.map((o) => [o.id, o]));
 
   // Filter for completed mixes assigned to target producer
   let filtered = records.filter((rec) => {
@@ -817,12 +820,12 @@ export function getProducerFacingPayrollRows(
 
   for (const rec of filtered) {
     const linked = findLinkedOrder(rec, allOrders);
-    const order = orderFromMTDRecord(rec, linked, orderById);
-    const meta = resolveMTDFormMeta(rec, orderById);
+    const order = orderFromMTDRecord(rec, linked, orderMap);
+    const meta = resolveMTDFormMeta(rec, orderMap);
     const producerObj = findProducerByAssignmentKey(rec.assignedProducer, producers);
     const parsedPkg = parsePackage(rec.package);
 
-    const priced = payrollAmountsForRow(rec, order, meta, orderById);
+    const priced = payrollAmountsForRow(rec, order, meta, orderMap);
     const custPrice = priced.customerPrice;
     const payrollPrice = priced.payrollPrice;
     const rowRushAddon = payrollAddons?.find((a) =>
@@ -1006,7 +1009,7 @@ export function getProducerFacingPayrollRows(
       // Same order/mix as the editor row: fill package & dates from that mix
       const linkedMix = findMixForPayrollAddon(addon, records);
       const mixMeta = linkedMix
-        ? resolveMTDFormMeta(linkedMix, orderById)
+        ? resolveMTDFormMeta(linkedMix, orderMap)
         : null;
       const parsedPkg = linkedMix ? parsePackage(linkedMix.package) : null;
       const standaloneRush =

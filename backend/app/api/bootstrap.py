@@ -14,13 +14,11 @@ from app.api.catalog_pricing import (
 )
 from app.core.database import get_db
 from app.models.discount_code import DiscountCode
-from app.models.payroll_addon import PayrollAddon
 from app.models.producer import Producer
 from app.models.studio_settings import EmailTemplate
 from app.schemas.discount_code import DiscountCodeSchema
 from app.schemas.mtd_record import MTDRecordSchema
 from app.schemas.order import OrderSchema
-from app.schemas.payroll_addon import PayrollAddonOut
 from app.schemas.producer import ProducerSchema
 from app.schemas.studio_settings import (
     EmailTemplateSchema,
@@ -45,7 +43,6 @@ def bootstrap(db: Session = Depends(get_db)) -> Dict[str, Any]:
     orders: list = []
     mtd: list = []
     codes = db.query(DiscountCode).order_by(DiscountCode.code.asc()).all()
-    addons = db.query(PayrollAddon).order_by(PayrollAddon.created_at.desc()).all()
     holidays = _ensure_default_holidays(db)
     reasons = _ensure_default_reasons(db)
     templates = db.query(EmailTemplate).order_by(EmailTemplate.id.asc()).all()
@@ -60,9 +57,8 @@ def bootstrap(db: Session = Depends(get_db)) -> Dict[str, Any]:
         "discount_codes": [
             DiscountCodeSchema.model_validate(c).model_dump(mode="json") for c in codes
         ],
-        "payroll_addons": [
-            PayrollAddonOut.model_validate(a).model_dump(mode="json") for a in addons
-        ],
+        # Paged via /payroll-addons — never ship unbounded VO/rush history here.
+        "payroll_addons": [],
         "studio_holidays": [
             StudioHolidaySchema.model_validate(h).model_dump(mode="json") for h in holidays
         ],

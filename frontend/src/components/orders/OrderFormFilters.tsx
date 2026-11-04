@@ -26,6 +26,8 @@ type OrderFormFiltersProps = {
   formCounts: Record<OrderFormType, number>;
   cheerCounts: Record<CheerFormSubtypeFilter, number>;
   danceCounts: Record<DanceFormSubtypeFilter, number>;
+  /** When false, dropdown options are labels only (Payroll). Default true. */
+  showOptionCounts?: boolean;
   grouped?: boolean;
   portalMenus?: boolean;
 };
@@ -44,6 +46,7 @@ export function OrderFormFilters({
   formCounts,
   cheerCounts,
   danceCounts,
+  showOptionCounts = true,
   grouped = false,
   portalMenus = false,
 }: OrderFormFiltersProps) {
@@ -62,7 +65,7 @@ export function OrderFormFilters({
         options={ORDER_FORM_TABS.map(({ id, label }) => ({
           value: id,
           label,
-          count: formCounts[id] ?? 0,
+          ...(showOptionCounts ? { count: formCounts[id] ?? 0 } : {}),
         }))}
       />
 
@@ -81,7 +84,7 @@ export function OrderFormFilters({
           options={CHEER_FORM_SUBTABS.map(({ id, label }) => ({
             value: id,
             label,
-            count: cheerCounts[id] ?? 0,
+            ...(showOptionCounts ? { count: cheerCounts[id] ?? 0 } : {}),
           }))}
         />
       ) : null}
@@ -101,7 +104,7 @@ export function OrderFormFilters({
           options={DANCE_FORM_SUBTABS.map(({ id, label }) => ({
             value: id,
             label,
-            count: danceCounts[id] ?? 0,
+            ...(showOptionCounts ? { count: danceCounts[id] ?? 0 } : {}),
           }))}
         />
       ) : null}

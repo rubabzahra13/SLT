@@ -15,6 +15,7 @@ import {
   mtdBoardQueryKey,
   MTD_BOARD_PATCH_EVENT,
   type MtdBoardPatchDetail,
+  isRecentLocalMtdWrite,
   readMtdBoardCache,
   readMtdBoardCountsCache,
   patchMtdBoardCountsOnBoardCache,
@@ -91,23 +92,39 @@ function resolveInitialCounts(
   };
 }
 
+function isArchiveBoardScope(scope: string | undefined): boolean {
+  return String(scope || "").toLowerCase() === "archive";
+}
+
 /**
  * Empty board pages are only trusted when the badge says 0.
  * After Move-to-Orders the cache can stay empty while counts still show rows
  * (or the reverse after a return) — never paint that as a finished page.
+ *
+ * Non-empty pages: trust when the active chip OR scope `all` says rows exist.
+ * Mark Paid used to bump only `all` (not form chips) — cheer filter then saw
+ * knownTotal=0 and deleted the optimistic Archive row.
+ *
+ * Archive has no badge/counts — trust the cached page itself so tab flips
+ * don't delete the cache and refetch /mtd/board all day.
  */
 function trustedMtdHit(
   hit: ReturnType<typeof readMtdBoardCache>,
-  knownTotal: number
+  knownTotal: number,
+  countsAll = 0,
+  opts?: { archive?: boolean }
 ): NonNullable<ReturnType<typeof readMtdBoardCache>> | null {
   if (!hit) return null;
+  if (opts?.archive) {
+    if (hit.entry.records.length > 0) return hit;
+    return hit.fresh ? hit : null;
+  }
   if (hit.entry.records.length > 0) {
-    // Badge 0 but rows present → distrust (stale sibling / hash collision).
-    if (knownTotal === 0) return null;
+    if (knownTotal === 0 && countsAll === 0) return null;
     return hit;
   }
   // Empty page: only trust when badge is also 0.
-  if (knownTotal === 0) return hit;
+  if (knownTotal === 0 && countsAll === 0) return hit;
   return null;
 }
 
@@ -115,6 +132,8 @@ function trustedMtdHit(
 export async function prefetchMtdBoardCounts(
   query: Pick<MtdBoardQuery, "scope" | "search" | "category"> = {}
 ): Promise<void> {
+  // Archive has no tab badge / chip totals — never hit /mtd/counts for it.
+  if (String(query.scope || "").toLowerCase() === "archive") return;
   const countsKey = mtdBoardCountsQueryKey({
     scope: query.scope,
     search: query.search,
@@ -137,6 +156,9 @@ export async function prefetchMtdBoardCounts(
 export async function prefetchMtdBoard(query: MtdBoardQuery): Promise<void> {
   const key = mtdBoardQueryKey(query);
   const hit = readMtdBoardCache(key);
+  const archive = isArchiveBoardScope(query.scope);
+  // Archive: any in-session page is enough — never prefetch-refetch on hover.
+  if (archive && hit && hit.entry.records.length > 0) return;
   if (hit?.fresh && hit.entry.records.length > 0) return;
   const countsKey = mtdBoardCountsQueryKey({
     scope: query.scope,
@@ -149,13 +171,15 @@ export async function prefetchMtdBoard(query: MtdBoardQuery): Promise<void> {
       pageSize: 50,
       pageToken: null,
     });
-    const countsPromise = countsFresh
-      ? Promise.resolve(null)
-      : fetchMtdCountsApi({
-          scope: query.scope,
-          search: query.search,
-          category: query.category,
-        }).catch(() => null);
+    // Archive has no badge/chips — never hit /mtd/counts.
+    const countsPromise =
+      archive || countsFresh
+        ? Promise.resolve(null)
+        : fetchMtdCountsApi({
+            scope: query.scope,
+            search: query.search,
+            category: query.category,
+          }).catch(() => null);
     const [board, counts] = await Promise.all([boardPromise, countsPromise]);
     // Never cache empty pages that thrash later paints when badge > 0.
     if (board.records.length > 0) {
@@ -251,10 +275,9 @@ export function useMtdBoard(
     const hit = readMtdBoardCache(queryKey);
     const q = JSON.parse(queryKey) as MtdBoardQuery;
     const countsHit = readMtdBoardCountsCache(badgeCountsKey);
-    const knownTotal = knownMtdTotal(
-      countsHit?.counts ?? lastGoodCountsRef.current,
-      q
-    );
+    const countsForTrust = countsHit?.counts ?? lastGoodCountsRef.current;
+    const knownTotal = knownMtdTotal(countsForTrust, q);
+    const countsAll = countsForTrust?.all ?? 0;
     const searching = Boolean((q.search || "").trim());
     const wasSearching = Boolean((prevQ.search || "").trim());
     const searchOnlyChange =
@@ -262,7 +285,13 @@ export function useMtdBoard(
       (prevQ.formType || "") === (q.formType || "") &&
       (prevQ.cheerFormSubtype || "") === (q.cheerFormSubtype || "") &&
       (prevQ.scope || "live") === (q.scope || "live");
-    const trusted = trustedMtdHit(hit, knownTotal);
+    const archive = isArchiveBoardScope(q.scope);
+    const trusted =
+      trustedMtdHit(hit, knownTotal, countsAll, { archive }) ||
+      (hit &&
+      hit.entry.records.some((r) => isRecentLocalMtdWrite(r))
+        ? hit
+        : null);
 
     if (trusted && trusted.entry.records.length > 0) {
       setRecords(trusted.entry.records);
@@ -270,7 +299,12 @@ export function useMtdBoard(
       pageIdsRef.current = new Set(trusted.entry.records.map((r) => r.id));
       paintedRef.current = true;
       setLoading(false);
-    } else if (knownTotal === 0 && !searching && !searchOnlyChange) {
+    } else if (
+      !archive &&
+      knownTotal === 0 &&
+      !searching &&
+      !searchOnlyChange
+    ) {
       setRecords([]);
       setNextPageToken(null);
       pageIdsRef.current = new Set();
@@ -339,14 +373,21 @@ export function useMtdBoard(
       (prevQ.formType || "") === (q.formType || "") &&
       (prevQ.cheerFormSubtype || "") === (q.cheerFormSubtype || "") &&
       (prevQ.scope || "live") === (q.scope || "live");
-    const knownTotal = knownMtdTotal(
-      lastGoodCountsRef.current ?? next.counts,
-      q
-    );
-    const trusted = trustedMtdHit(hit, knownTotal);
+    const countsForTrust = lastGoodCountsRef.current ?? next.counts;
+    const knownTotal = knownMtdTotal(countsForTrust, q);
+    const countsAll = countsForTrust?.all ?? 0;
+    const archive = isArchiveBoardScope(q.scope);
+    const trusted =
+      trustedMtdHit(hit, knownTotal, countsAll, { archive }) ||
+      (hit &&
+      hit.entry.records.some((r) => isRecentLocalMtdWrite(r))
+        ? hit
+        : null);
 
     // Drop poisoned empty pages from memory so a later remount cannot skip fetch.
-    if (hit && !trusted) {
+    // Keep Mark Paid / Move optimistic pages even if chips briefly lag.
+    // Never wipe Archive — it has no counts to validate against.
+    if (hit && !trusted && !archive) {
       deleteMtdBoardCache(queryKey);
     }
 
@@ -412,13 +453,17 @@ export function useMtdBoard(
       else setLoading(false);
 
       // Badge/chip totals never include search — keep Form chips sticky.
+      // Archive: no badge and no chip totals — skip /mtd/counts entirely.
       const cKey = mtdBoardCountsQueryKey({ scope: q.scope });
       const countsHit = readMtdBoardCountsCache(cKey);
+      const skipArchiveCounts =
+        String(q.scope || "").toLowerCase() === "archive";
       // Search typing: board rows matter; full /counts is the slow path.
       const skipCountsForSearch =
         Boolean(q.search?.trim()) && !forceCounts;
       // Counts are form/subtype-agnostic — never pass form filters or search.
       const countsPromise =
+        skipArchiveCounts ||
         skipCountsForSearch ||
         (background && countsHit?.fresh && !forceCounts)
           ? Promise.resolve(null)
@@ -439,12 +484,45 @@ export function useMtdBoard(
             pageToken: null,
           });
           if (gen !== genRef.current) return;
-          setRecords(board.records);
-          pageIdsRef.current = new Set(board.records.map((r) => r.id));
+          // Orders-style: don't let a slow /mtd/board wipe Mark Paid /
+          // Move-to-Payroll rows this tab just moved (server may lag).
+          const scope = String(q.scope || "live").toLowerCase();
+          const prevCached =
+            readMtdBoardCache(queryKey)?.entry.records ?? [];
+          // Drop rows this tab just deleted / moved — slow /mtd/board must not
+          // resurrect Archive Delete forever or Mark Paid payroll echoes.
+          const serverRecords = board.records.filter(
+            (r) => !isRecentLocalMtdWrite(r)
+          );
+          const keepLocal = prevCached.filter(
+            (r) =>
+              isRecentLocalMtdWrite(r) &&
+              !serverRecords.some(
+                (s) =>
+                  s.id === r.id ||
+                  s.uuid === r.id ||
+                  (r.uuid && s.uuid === r.uuid)
+              )
+          );
+          const mergedRecords =
+            keepLocal.length === 0
+              ? serverRecords
+              : scope === "archive" || scope === "payroll"
+                ? [
+                    ...keepLocal.filter((r) =>
+                      scope === "archive"
+                        ? Boolean(r.paidAt)
+                        : Boolean(r.inPayroll) && !r.paidAt
+                    ),
+                    ...serverRecords,
+                  ]
+                : serverRecords;
+          setRecords(mergedRecords);
+          pageIdsRef.current = new Set(mergedRecords.map((r) => r.id));
           setNextPageToken(board.nextPageToken);
           paintedRef.current = true;
           writeMtdBoardCache(queryKey, {
-            records: board.records,
+            records: mergedRecords,
             nextPageToken: board.nextPageToken,
           });
           if (gen === genRef.current) setLoading(false);
@@ -502,10 +580,18 @@ export function useMtdBoard(
       ? next.counts
       : countsHit?.counts ?? lastGoodCountsRef.current;
     const knownTotal = knownMtdTotal(countsForBadge, q);
+    const countsAll = countsForBadge?.all ?? 0;
     const hit = readMtdBoardCache(queryKey);
-    const trusted = trustedMtdHit(hit, knownTotal);
+    const archive = isArchiveBoardScope(q.scope);
+    const trusted =
+      trustedMtdHit(hit, knownTotal, countsAll, { archive }) ||
+      (hit &&
+      hit.entry.records.some((r) => isRecentLocalMtdWrite(r))
+        ? hit
+        : null);
 
-    if (hit && !trusted) {
+    // Never wipe Archive — no counts to validate; Mark Paid keeps it honest.
+    if (hit && !trusted && !archive) {
       deleteMtdBoardCache(queryKey);
     }
 
@@ -523,8 +609,16 @@ export function useMtdBoard(
       pageIdsRef.current = new Set(trusted.entry.records.map((r) => r.id));
       paintedRef.current = true;
       setLoading(false);
+      // Archive: sticky session paint — no soft /mtd/board on every tab open.
+      // Live sync is Mark Paid optimistic + SSE; Delete forever patches locally.
+      if (archive) return;
       // Fresh non-empty cache → paint only. Live sync is SSE.
-      if (trusted.fresh && countsHit?.fresh) return;
+      // Recent local Mark Paid: skip soft-refresh that would flash empty.
+      if (
+        (trusted.fresh && countsHit?.fresh) ||
+        trusted.entry.records.some((r) => isRecentLocalMtdWrite(r))
+      )
+        return;
       const t = window.setTimeout(() => {
         void reload({
           background: true,
@@ -532,6 +626,16 @@ export function useMtdBoard(
         });
       }, 0);
       return () => window.clearTimeout(t);
+    }
+
+    // Trusted empty Archive (fresh) — stay empty without refetch thrash.
+    if (archive && trusted && trusted.entry.records.length === 0) {
+      setRecords([]);
+      pageIdsRef.current = new Set();
+      setNextPageToken(null);
+      setLoading(false);
+      setCountsReady(true);
+      return;
     }
 
     // Board cold / empty-but-badge>0 — still paint badge counts if we have them.
@@ -549,7 +653,8 @@ export function useMtdBoard(
     }
 
     // Fresh badge 0 → empty now. Stale 0 must recount + fetch.
-    if (knownTotal === 0 && countsHit?.fresh) {
+    // Archive has no counts — don't treat missing counts as "badge 0 empty".
+    if (!archive && knownTotal === 0 && countsHit?.fresh) {
       setRecords([]);
       pageIdsRef.current = new Set();
       setNextPageToken(null);
@@ -563,7 +668,10 @@ export function useMtdBoard(
     const t = window.setTimeout(() => {
       void reload({
         background: paintedRef.current || knownTotal === 0 || searching,
-        forceCounts: !searching && (!countsHit?.fresh || knownTotal === 0),
+        forceCounts:
+          !archive &&
+          !searching &&
+          (!countsHit?.fresh || knownTotal === 0),
       });
     }, 0);
     return () => window.clearTimeout(t);
@@ -628,14 +736,43 @@ export function useMtdBoard(
         (detail.removed ||
           detail.patch.inMTD === false ||
           detail.patch.inPayroll === true);
-      // Leave unpaid payroll when marked paid / returned to MTD.
+      // Leave unpaid payroll when marked paid / returned to MTD / deleted.
       const leavePayroll =
         isPayrollBoard &&
-        (Boolean(detail.patch.paidAt) || detail.patch.inPayroll === false);
+        (detail.removed ||
+          Boolean(detail.patch.paidAt) ||
+          detail.patch.inPayroll === false);
+      // Leave Archive on Delete forever (board cache dispatches removed:true).
+      const leaveArchive = isArchiveBoard && detail.removed;
+      // Enter Archive immediately on Mark Paid (Orders-style optimistic paint).
+      const enterArchive =
+        isArchiveBoard &&
+        Boolean(detail.patch.paidAt) &&
+        Boolean(detail.record);
+      // Enter unpaid payroll on Move-to-Payroll.
+      const enterPayroll =
+        isPayrollBoard &&
+        detail.patch.inPayroll === true &&
+        !detail.patch.paidAt &&
+        Boolean(detail.record);
+
       setRecords((prev) => {
-        if (leaveMusic || leavePayroll) {
+        if (leaveMusic || leavePayroll || leaveArchive) {
           if (!prev.some(match)) return prev;
           const next = prev.filter((r) => !match(r));
+          pageIdsRef.current = new Set(next.map((r) => r.id));
+          writeMtdBoardCache(queryKey, {
+            records: next,
+            nextPageToken:
+              readMtdBoardCache(queryKey)?.entry.nextPageToken ?? null,
+          });
+          return next;
+        }
+        if (enterArchive || enterPayroll) {
+          const row = detail.record as MTDRecord;
+          const next = prev.some(match)
+            ? prev.map((r) => (match(r) ? { ...r, ...row } : r))
+            : [row, ...prev];
           pageIdsRef.current = new Set(next.map((r) => r.id));
           writeMtdBoardCache(queryKey, {
             records: next,
@@ -685,6 +822,19 @@ export function useMtdBoard(
     void subscribeBoardStream((event) => {
       if (event.type === "ready") {
         if (event.reconnect) {
+          const scope = (() => {
+            try {
+              return (
+                (JSON.parse(queryKey) as MtdBoardQuery).scope || "live"
+              ).toLowerCase();
+            } catch {
+              return "live";
+            }
+          })();
+          // Archive is session-sticky — stream flaps must not refetch all day.
+          if (isArchiveBoardScope(scope) && pageIdsRef.current.size > 0) {
+            return;
+          }
           // Match Orders: board catch-up only — don't force /mtd/counts every
           // stream drop (Orders↔MTD remounts recreate the stream often).
           void reloadRef.current({ background: true });
@@ -715,10 +865,13 @@ export function useMtdBoard(
         Boolean(event.record.paidAt) ||
         event.record.inPayroll === false ||
         (event.record as { in_payroll?: boolean }).in_payroll === false;
+      const isArchiveBoard = scope === "archive";
       if (pageIdsRef.current.has(id)) {
         setRecords((prev) => {
           const drop =
-            (isMusicBoard && leftMusic) || (isPayrollBoard && leftPayroll);
+            (isMusicBoard && leftMusic) ||
+            (isPayrollBoard && leftPayroll) ||
+            (isArchiveBoard && !event.record.paidAt);
           const next = drop
             ? prev.filter((r) => r.id !== id)
             : prev.map((r) =>
@@ -733,12 +886,20 @@ export function useMtdBoard(
           return next;
         });
         // Membership change — recount chips once (not on every field patch).
-        if ((isMusicBoard && leftMusic) || (isPayrollBoard && leftPayroll)) {
+        // Skip recount when this tab just wrote (badges already shifted).
+        // Archive: in-place patch only — no board refetch.
+        if (
+          ((isMusicBoard && leftMusic) || (isPayrollBoard && leftPayroll)) &&
+          !isRecentLocalMtdWrite(event.record)
+        ) {
           scheduleOffPageReload({ forceCounts: true });
         }
         return;
       }
+      // Echo of this tab's own Mark Paid / Move — rows + badges already moved.
+      if (isRecentLocalMtdWrite(event.record)) return;
       // Entered this board off-page — one deferred board+counts fetch.
+      // Archive: patch-in via enterArchive event path; skip full board reload.
       const enteredMusic =
         isMusicBoard &&
         (event.record.inMTD === true ||
@@ -747,6 +908,19 @@ export function useMtdBoard(
       const enteredPayroll = isPayrollBoard && inPayroll && !event.record.paidAt;
       if (enteredMusic || enteredPayroll) {
         scheduleOffPageReload({ forceCounts: true });
+      } else if (isArchiveBoard && Boolean(event.record.paidAt)) {
+        // Off-page Mark Paid while Archive is open — append locally, no fetch.
+        setRecords((prev) => {
+          if (prev.some((r) => r.id === id || r.uuid === id)) return prev;
+          const next = [event.record as MTDRecord, ...prev];
+          pageIdsRef.current = new Set(next.map((r) => r.id));
+          writeMtdBoardCache(queryKey, {
+            records: next,
+            nextPageToken:
+              readMtdBoardCache(queryKey)?.entry.nextPageToken ?? null,
+          });
+          return next;
+        });
       }
       // Other off-page field noise: ignore — no board/counts refetch (egress).
     }, ac.signal).catch(() => {

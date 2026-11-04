@@ -4,6 +4,29 @@ import type { MTDRecord } from "@/types";
 /** Align with Orders: 90s fresh; live updates come from SSE. */
 export const MTD_BOARD_STALE_MS = 90_000;
 export const MTD_BOARD_GC_MS = 5 * 60_000;
+/**
+ * Payroll Archive has no badge/counts and changes rarely (Mark Paid / Delete).
+ * Keep the page sticky for a work session so tab flips don't burn egress.
+ */
+export const MTD_ARCHIVE_GC_MS = 12 * 60 * 60_000;
+
+function mtdCacheScopeFromKey(key: string): string {
+  try {
+    return String(
+      (JSON.parse(key) as { scope?: string }).scope || "live"
+    ).toLowerCase();
+  } catch {
+    return "live";
+  }
+}
+
+export function isMtdArchiveCacheKey(key: string): boolean {
+  return mtdCacheScopeFromKey(key) === "archive";
+}
+
+function mtdBoardGcMsForKey(key: string): number {
+  return isMtdArchiveCacheKey(key) ? MTD_ARCHIVE_GC_MS : MTD_BOARD_GC_MS;
+}
 
 export type MtdBoardCacheEntry = {
   records: MTDRecord[];
@@ -85,7 +108,7 @@ function writeMtdBoardSession(
 
 function gc(now = Date.now()) {
   for (const [key, entry] of boardCache) {
-    if (now - entry.updatedAt > MTD_BOARD_GC_MS) boardCache.delete(key);
+    if (now - entry.updatedAt > mtdBoardGcMsForKey(key)) boardCache.delete(key);
   }
 }
 
@@ -172,18 +195,21 @@ export function readMtdBoardCache(
     if (
       persisted?.records &&
       Array.isArray(persisted.records) &&
-      Date.now() - (persisted.updatedAt || 0) <= MTD_BOARD_GC_MS &&
+      Date.now() - (persisted.updatedAt || 0) <= mtdBoardGcMsForKey(key) &&
       persisted.queryKey === key
     ) {
-      // Session is last-visit paint — soft-refresh on open.
+      // Session is last-visit paint — soft-refresh on open (Archive stays sticky).
       entry = { ...persisted, updatedAt: persisted.updatedAt };
       boardCache.set(key, entry);
     }
   }
   if (!entry) return null;
+  const archive = isMtdArchiveCacheKey(key);
   return {
     entry,
-    fresh: Date.now() - entry.updatedAt < MTD_BOARD_STALE_MS,
+    // Archive: treat in-session pages as fresh — tab flips must not refetch.
+    fresh:
+      archive || Date.now() - entry.updatedAt < MTD_BOARD_STALE_MS,
   };
 }
 
@@ -231,14 +257,99 @@ function mtdRowMatchesId(r: MTDRecord, id: string): boolean {
   );
 }
 
+/** Deduped MTD/payroll rows currently in board caches (for VO program lists). */
+export function collectMtdBoardCachedRecords(): MTDRecord[] {
+  const byId = new Map<string, MTDRecord>();
+  for (const entry of boardCache.values()) {
+    for (const rec of entry.records) {
+      if (!rec?.id || byId.has(rec.id)) continue;
+      byId.set(rec.id, rec);
+    }
+  }
+  return [...byId.values()];
+}
+
+/**
+ * Hard-remove MTD/payroll rows from every board/archive/payroll cache page.
+ * Call when an order or MTD record is deleted so pickers cannot keep ghosts.
+ */
+export function removeMtdBoardRecordsFromCaches(ids: string[]): void {
+  const idSet = new Set(ids.filter(Boolean));
+  if (idSet.size === 0) return;
+
+  let anyChanged = false;
+  const removedIds: string[] = [];
+  // Payroll badge only — Archive has no count to shift.
+  let payrollBumpRow:
+    | Pick<MTDRecord, "formType" | "cheerFormSubtype" | "danceFormSubtype">
+    | null = null;
+
+  for (const [key, entry] of boardCache) {
+    let changed = false;
+    const scope = mtdCacheScope(key);
+    const records = entry.records.filter((r) => {
+      for (const id of idSet) {
+        if (mtdRowMatchesId(r, id)) {
+          changed = true;
+          if (!removedIds.includes(r.id)) removedIds.push(r.id);
+          if (scope === "payroll" && !payrollBumpRow) {
+            payrollBumpRow = {
+              formType: r.formType,
+              cheerFormSubtype: r.cheerFormSubtype,
+              danceFormSubtype: r.danceFormSubtype,
+            };
+          }
+          noteLocalMtdWrite(r.id, r.uuid, r.orderId, r.legacyId);
+          return false;
+        }
+      }
+      return true;
+    });
+    if (!changed) continue;
+    anyChanged = true;
+    const next: MtdBoardCacheEntry = {
+      ...entry,
+      records,
+      updatedAt: Date.now(),
+      queryKey: entry.queryKey ?? key,
+    };
+    boardCache.set(key, next);
+    const storageKey = ssKey(MTD_BOARD_SS_PREFIX, key);
+    if (records.length === 0) {
+      try {
+        sessionStorage.removeItem(storageKey);
+      } catch {
+        /* ignore */
+      }
+    } else {
+      writeMtdBoardSession(storageKey, next);
+    }
+  }
+
+  if (payrollBumpRow) {
+    bumpScopeCountsCache("payroll", -1, payrollBumpRow);
+  }
+
+  if (typeof window === "undefined" || !anyChanged) return;
+  for (const id of removedIds) {
+    window.dispatchEvent(
+      new CustomEvent<MtdBoardPatchDetail>(MTD_BOARD_PATCH_EVENT, {
+        detail: { id, patch: {}, removed: true },
+      })
+    );
+  }
+}
+
 /** Same pattern as ORDERS_BOARD_PATCH_EVENT — keep useMtdBoard React state in sync. */
 export const MTD_BOARD_PATCH_EVENT = "slt-mtd-board-patch";
 
 export type MtdBoardPatchDetail = {
   id: string;
   patch: Partial<MTDRecord>;
-  /** True when the row left the live MTD board (Move to Orders). */
+  /** True when the row left the live MTD / unpaid payroll board. */
   removed: boolean;
+  /** Full merged row when entering a board (e.g. Mark Paid → archive). */
+  record?: MTDRecord;
 };
 
 function mtdCacheScope(key: string): string {
@@ -256,19 +367,146 @@ function isMusicBoardScope(scope: string): boolean {
   return scope === "board" || scope === "live" || scope === "all" || !scope;
 }
 
+function writeBoardEntry(key: string, entry: MtdBoardCacheEntry): void {
+  boardCache.set(key, entry);
+  const storageKey = ssKey(MTD_BOARD_SS_PREFIX, key);
+  if (entry.records.length === 0) {
+    try {
+      sessionStorage.removeItem(storageKey);
+    } catch {
+      /* ignore */
+    }
+  } else {
+    writeMtdBoardSession(storageKey, entry);
+  }
+}
+
+function findCachedMtdRow(
+  id: string,
+  preferScope?: "payroll" | "archive" | "board"
+): MTDRecord | null {
+  let fallback: MTDRecord | null = null;
+  for (const [key, entry] of boardCache) {
+    const hit = entry.records.find((r) => mtdRowMatchesId(r, id));
+    if (!hit) continue;
+    if (preferScope && mtdCacheScope(key) === preferScope) return hit;
+    if (!fallback) fallback = hit;
+  }
+  return fallback;
+}
+
+/** Board-first lookup for updateMTD when AppState mtdRecords is cold. */
+export function readCachedMtdBoardRow(id: string): MTDRecord | null {
+  return findCachedMtdRow(id);
+}
+
 /**
- * Optimistic invoice / status / Move-to-Orders / Move-to-Payroll patch.
- * Leaves music-board caches on inMTD:false or inPayroll:true (same ghost-row
- * class as Move to Orders).
+ * Orders-style badge shift: bump `all` AND form/subtype chips.
+ * Tab trust uses mtdActiveChipTotal (form chips) — bumping only `all`
+ * left Archive at chip=0, which deleted the optimistic Mark Paid row.
+ */
+function bumpScopeCountsCache(
+  scope: "payroll" | "archive",
+  delta: 1 | -1,
+  row?: Pick<
+    MTDRecord,
+    "formType" | "cheerFormSubtype" | "danceFormSubtype"
+  > | null
+): void {
+  const key = mtdBoardCountsQueryKey({ scope });
+  const hit = readMtdBoardCountsCache(key);
+  const base = hit?.counts;
+  const next: MtdBoardCounts = {
+    all: Math.max(0, (base?.all || 0) + delta),
+    by_form_type: { ...(base?.by_form_type || {}) },
+    by_category: { ...(base?.by_category || {}) },
+    by_cheer_form_subtype: { ...(base?.by_cheer_form_subtype || {}) },
+    by_dance_form_subtype: { ...(base?.by_dance_form_subtype || {}) },
+  };
+  const form = row?.formType ? String(row.formType) : "";
+  if (form) {
+    next.by_form_type[form] = Math.max(
+      0,
+      (next.by_form_type[form] || 0) + delta
+    );
+  }
+  const cheer = row?.cheerFormSubtype ? String(row.cheerFormSubtype) : "";
+  if (
+    form === "school-all-star-cheer" &&
+    cheer &&
+    cheer.toLowerCase() !== "all"
+  ) {
+    next.by_cheer_form_subtype![cheer] = Math.max(
+      0,
+      (next.by_cheer_form_subtype![cheer] || 0) + delta
+    );
+  }
+  const dance = row?.danceFormSubtype ? String(row.danceFormSubtype) : "";
+  if (
+    form === "school-all-star-dance" &&
+    dance &&
+    dance.toLowerCase() !== "all"
+  ) {
+    next.by_dance_form_subtype![dance] = Math.max(
+      0,
+      (next.by_dance_form_subtype![dance] || 0) + delta
+    );
+  }
+  writeMtdBoardCountsCache(key, next);
+}
+
+const LOCAL_WRITE_ECHO_MS = 15_000;
+const localMtdWriteAt = new Map<string, number>();
+
+function noteLocalMtdWrite(...ids: Array<string | null | undefined>) {
+  const now = Date.now();
+  for (const id of ids) if (id) localMtdWriteAt.set(id, now);
+}
+
+/** True when this tab just moved the row (ignore SSE/board echo clobber). */
+export function isRecentLocalMtdWrite(
+  row: Pick<MTDRecord, "id" | "uuid" | "orderId" | "legacyId">
+): boolean {
+  const now = Date.now();
+  for (const id of [row.id, row.uuid, row.orderId, row.legacyId]) {
+    const at = id ? localMtdWriteAt.get(id) : undefined;
+    if (at && now - at < LOCAL_WRITE_ECHO_MS) return true;
+  }
+  return false;
+}
+
+/**
+ * Optimistic invoice / status / Move-to-Orders / Move-to-Payroll / Mark Paid.
+ * Same ghost-row class as Orders: leave the old board + paint the destination
+ * cache immediately (no forced /mtd/board round-trip).
  */
 export function patchMtdBoardRecordInCaches(
   id: string,
   patch: Partial<MTDRecord>
 ): void {
   if (!id) return;
+  const markedPaid = Boolean(patch.paidAt);
+  const returnedFromPayroll = patch.inPayroll === false;
+  const movedToPayroll = patch.inPayroll === true && !markedPaid;
   const leftMusicBoard =
-    patch.inMTD === false || patch.inPayroll === true;
+    patch.inMTD === false || movedToPayroll || markedPaid;
+  const leftPayroll = markedPaid || returnedFromPayroll;
+
+  // Mark Paid may pre-seed archive with paidAt — prefer the unpaid payroll
+  // copy so membership bumps still fire (Orders: shift from the "from" bucket).
+  const before = findCachedMtdRow(
+    id,
+    markedPaid ? "payroll" : returnedFromPayroll ? "archive" : undefined
+  );
+  const merged: MTDRecord | null = before
+    ? ({ ...before, ...patch } as MTDRecord)
+    : null;
+
   let anyChanged = false;
+  let removedFromPayroll = false;
+  let insertedIntoArchive = false;
+  let insertedIntoPayroll = false;
+
   for (const [key, entry] of boardCache) {
     const scope = mtdCacheScope(key);
     let changed = false;
@@ -280,13 +518,59 @@ export function patchMtdBoardRecordInCaches(
         changed = true;
         return false;
       });
-    } else if (leftMusicBoard && scope === "payroll") {
-      // Keep payroll pages in sync so sidebar→Payroll paints the new row.
-      records = entry.records.map((r) => {
-        if (!mtdRowMatchesId(r, id)) return r;
-        changed = true;
-        return { ...r, ...patch };
-      });
+    } else if (scope === "payroll") {
+      if (leftPayroll) {
+        records = entry.records.filter((r) => {
+          if (!mtdRowMatchesId(r, id)) return true;
+          changed = true;
+          removedFromPayroll = true;
+          return false;
+        });
+      } else if (movedToPayroll && merged) {
+        const idx = entry.records.findIndex((r) => mtdRowMatchesId(r, id));
+        if (idx >= 0) {
+          records = entry.records.map((r, i) =>
+            i === idx ? merged : r
+          );
+          changed = true;
+        } else {
+          records = [merged, ...entry.records];
+          changed = true;
+          insertedIntoPayroll = true;
+        }
+      } else {
+        records = entry.records.map((r) => {
+          if (!mtdRowMatchesId(r, id)) return r;
+          changed = true;
+          return { ...r, ...patch };
+        });
+      }
+    } else if (scope === "archive") {
+      if (markedPaid && merged) {
+        const idx = entry.records.findIndex((r) => mtdRowMatchesId(r, id));
+        if (idx >= 0) {
+          records = entry.records.map((r, i) =>
+            i === idx ? merged : r
+          );
+          changed = true;
+        } else {
+          records = [merged, ...entry.records];
+          changed = true;
+          insertedIntoArchive = true;
+        }
+      } else if (returnedFromPayroll || patch.paidAt === null) {
+        records = entry.records.filter((r) => {
+          if (!mtdRowMatchesId(r, id)) return true;
+          changed = true;
+          return false;
+        });
+      } else {
+        records = entry.records.map((r) => {
+          if (!mtdRowMatchesId(r, id)) return r;
+          changed = true;
+          return { ...r, ...patch };
+        });
+      }
     } else if (!leftMusicBoard) {
       records = entry.records.map((r) => {
         if (!mtdRowMatchesId(r, id)) return r;
@@ -297,31 +581,109 @@ export function patchMtdBoardRecordInCaches(
 
     if (changed) {
       anyChanged = true;
-      const next: MtdBoardCacheEntry = {
+      writeBoardEntry(key, {
         ...entry,
         records,
         updatedAt: Date.now(),
         queryKey: entry.queryKey ?? key,
-      };
-      boardCache.set(key, next);
-      // Session must drop the row too — remount otherwise resurrects it.
-      const storageKey = ssKey(MTD_BOARD_SS_PREFIX, key);
-      if (records.length === 0) {
-        try {
-          sessionStorage.removeItem(storageKey);
-        } catch {
-          /* ignore */
-        }
-      } else {
-        writeMtdBoardSession(storageKey, next);
-      }
+      });
     }
   }
+
+  // Destination board may have no warm cache yet (first Archive visit) —
+  // seed the SAME form-scoped key the Payroll page query uses, otherwise
+  // tab switch misses the seed and flashes empty until /mtd/board returns.
+  if (markedPaid && merged) {
+    const preferredArchiveKey = mtdBoardQueryKey({
+      scope: "archive",
+      formType: merged.formType || undefined,
+      cheerFormSubtype: merged.cheerFormSubtype || undefined,
+    });
+    const archiveKeys = new Set(
+      [...boardCache.keys()].filter((k) => mtdCacheScope(k) === "archive")
+    );
+    archiveKeys.add(preferredArchiveKey);
+    archiveKeys.add(mtdBoardQueryKey({ scope: "archive" }));
+    for (const key of archiveKeys) {
+      const prev = boardCache.get(key);
+      const prevRecords = prev?.records ?? [];
+      if (prevRecords.some((r) => mtdRowMatchesId(r, merged.id))) continue;
+      writeMtdBoardCache(key, {
+        records: [merged, ...prevRecords],
+        nextPageToken: prev?.nextPageToken ?? null,
+        counts: prev?.counts,
+      });
+      anyChanged = true;
+      insertedIntoArchive = true;
+    }
+  }
+  if (movedToPayroll && merged) {
+    const preferredPayrollKey = mtdBoardQueryKey({
+      scope: "payroll",
+      formType: merged.formType || undefined,
+      cheerFormSubtype: merged.cheerFormSubtype || undefined,
+    });
+    const payrollKeys = new Set(
+      [...boardCache.keys()].filter((k) => mtdCacheScope(k) === "payroll")
+    );
+    payrollKeys.add(preferredPayrollKey);
+    payrollKeys.add(mtdBoardQueryKey({ scope: "payroll" }));
+    for (const key of payrollKeys) {
+      const prev = boardCache.get(key);
+      const prevRecords = prev?.records ?? [];
+      if (prevRecords.some((r) => mtdRowMatchesId(r, merged.id))) continue;
+      writeMtdBoardCache(key, {
+        records: [merged, ...prevRecords],
+        nextPageToken: prev?.nextPageToken ?? null,
+        counts: prev?.counts,
+      });
+      anyChanged = true;
+      insertedIntoPayroll = true;
+    }
+  }
+
+  // Orders-style: shift Payroll badge totals once per membership change.
+  // Archive has no tab count — never bump /mtd/counts for archive.
+  const chipRow = merged ?? before;
+  if (markedPaid) {
+    if (removedFromPayroll || (Boolean(before?.inPayroll) && !before?.paidAt)) {
+      bumpScopeCountsCache("payroll", -1, before ?? chipRow);
+      noteLocalMtdWrite(
+        id,
+        before?.id,
+        before?.uuid,
+        before?.orderId,
+        merged?.id,
+        merged?.uuid,
+        merged?.orderId
+      );
+    } else if (insertedIntoArchive) {
+      noteLocalMtdWrite(id, merged?.id, merged?.uuid, merged?.orderId);
+    }
+  } else {
+    if (removedFromPayroll) {
+      bumpScopeCountsCache("payroll", -1, before ?? chipRow);
+      noteLocalMtdWrite(id, before?.id, before?.uuid, before?.orderId);
+    }
+    if (insertedIntoArchive) {
+      noteLocalMtdWrite(id, merged?.id, merged?.uuid, merged?.orderId);
+    }
+    if (insertedIntoPayroll) {
+      bumpScopeCountsCache("payroll", 1, chipRow);
+      noteLocalMtdWrite(id, merged?.id, merged?.uuid, merged?.orderId);
+    }
+  }
+
   if (typeof window === "undefined") return;
-  if (!anyChanged && !leftMusicBoard) return;
+  if (!anyChanged && !leftMusicBoard && !leftPayroll) return;
   window.dispatchEvent(
     new CustomEvent<MtdBoardPatchDetail>(MTD_BOARD_PATCH_EVENT, {
-      detail: { id, patch, removed: leftMusicBoard },
+      detail: {
+        id,
+        patch,
+        removed: leftMusicBoard || leftPayroll,
+        record: merged ?? undefined,
+      },
     })
   );
 }

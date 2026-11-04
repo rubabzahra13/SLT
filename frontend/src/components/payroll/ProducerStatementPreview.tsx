@@ -41,6 +41,11 @@ type ProducerStatementPreviewProps = {
   embedded?: boolean;
   allowedProducerNames?: string[];
   sendLayout?: "together" | "separate";
+  /** Per-producer send under each statement preview (Send tab). */
+  onSendToProducer?: (producerName: string) => void;
+  canSendToProducer?: boolean;
+  isSending?: boolean;
+  sendDisabledReason?: string;
 };
 
 
@@ -157,6 +162,10 @@ export function ProducerStatementPreview({
   embedded = false,
   allowedProducerNames,
   sendLayout = "separate",
+  onSendToProducer,
+  canSendToProducer = false,
+  isSending = false,
+  sendDisabledReason,
 }: ProducerStatementPreviewProps) {
   const [activeTabProducer, setActiveTabProducer] = useState("");
   const [collapsedProducers, setCollapsedProducers] = useState<Set<string>>(
@@ -170,6 +179,11 @@ export function ProducerStatementPreview({
       end: bounds.end ? toCanonicalIsoDate(bounds.end) : "",
     };
   }, [selectedPeriod]);
+
+  const orderById = useMemo(
+    () => new Map(allOrders.map((order) => [order.id, order])),
+    [allOrders]
+  );
 
   const activeProducerSummaries = useMemo(() => {
     const dateMatching = payrollRecords.filter((rec) => {
@@ -250,7 +264,8 @@ export function ProducerStatementPreview({
           producers,
           name,
           filterPeriod,
-          payrollAddons
+          payrollAddons,
+          orderById
         );
         const voiceoverCount = rows.filter(isVoiceoverStatementRow).length;
         const total = rows.reduce((sum, row) => sum + row.rawTotalPayout, 0);
@@ -270,6 +285,7 @@ export function ProducerStatementPreview({
     filterPeriod,
     allowedProducerNames,
     payrollAddons,
+    orderById,
   ]);
 
   const activeProducersInPeriod = useMemo(
@@ -311,21 +327,42 @@ export function ProducerStatementPreview({
     return activeProducersInPeriod[0] || producers[0]?.name || "";
   }, [selectedProducer, activeTabProducer, activeProducersInPeriod, producers]);
 
+  // Reuse rows already built in activeProducerSummaries — don't rebuild.
   const currentRows = useMemo(() => {
+    const cached = activeProducerSummaries.find(
+      (entry) =>
+        entry.name.toUpperCase() === currentProducerToView.toUpperCase()
+    );
+    if (cached) return cached.rows;
+    if (!currentProducerToView) return [];
     return getProducerFacingPayrollRows(
       payrollRecords,
       allOrders,
       producers,
       currentProducerToView,
       filterPeriod,
-      payrollAddons
+      payrollAddons,
+      orderById
     );
-  }, [payrollRecords, allOrders, producers, currentProducerToView, filterPeriod, payrollAddons]);
+  }, [
+    activeProducerSummaries,
+    currentProducerToView,
+    payrollRecords,
+    allOrders,
+    producers,
+    filterPeriod,
+    payrollAddons,
+    orderById,
+  ]);
 
-  const currentProducerTotal = useMemo(
-    () => currentRows.reduce((sum, row) => sum + row.rawTotalPayout, 0),
-    [currentRows]
-  );
+  const currentProducerTotal = useMemo(() => {
+    const cached = activeProducerSummaries.find(
+      (entry) =>
+        entry.name.toUpperCase() === currentProducerToView.toUpperCase()
+    );
+    if (cached) return cached.total;
+    return currentRows.reduce((sum, row) => sum + row.rawTotalPayout, 0);
+  }, [activeProducerSummaries, currentProducerToView, currentRows]);
 
   const currentProducerObj = useMemo(() => {
     return (
@@ -583,6 +620,25 @@ export function ProducerStatementPreview({
                 {!isCollapsed ? (
                   <div className="border-t border-brand-line/60 px-3 pb-3">
                     <StatementPreviewTable rows={rows} />
+                    {onSendToProducer ? (
+                      <div className="mt-3 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => onSendToProducer(name)}
+                          disabled={!canSendToProducer || isSending}
+                          title={sendDisabledReason}
+                          className={clsx(
+                            "inline-flex h-9 items-center gap-1.5 rounded-lg px-3.5 text-[12px] font-semibold transition active:scale-[0.98]",
+                            canSendToProducer
+                              ? "bg-brand-signature text-white hover:bg-brand-signature/90"
+                              : "cursor-not-allowed bg-brand-signature/45 text-white/90"
+                          )}
+                        >
+                          <Send className="h-3.5 w-3.5" strokeWidth={2} />
+                          Send to {name}
+                        </button>
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
               </section>
@@ -614,6 +670,25 @@ export function ProducerStatementPreview({
               </div>
             </div>
             <StatementPreviewTable rows={currentRows} />
+            {embedded && onSendToProducer && currentProducerToView ? (
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => onSendToProducer(currentProducerToView)}
+                  disabled={!canSendToProducer || isSending}
+                  title={sendDisabledReason}
+                  className={clsx(
+                    "inline-flex h-9 items-center gap-1.5 rounded-lg px-3.5 text-[12px] font-semibold transition active:scale-[0.98]",
+                    canSendToProducer
+                      ? "bg-brand-signature text-white hover:bg-brand-signature/90"
+                      : "cursor-not-allowed bg-brand-signature/45 text-white/90"
+                  )}
+                >
+                  <Send className="h-3.5 w-3.5" strokeWidth={2} />
+                  Send to {currentProducerToView}
+                </button>
+              </div>
+            ) : null}
           </>
         )}
       </div>

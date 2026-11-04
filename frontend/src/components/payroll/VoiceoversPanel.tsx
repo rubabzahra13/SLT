@@ -2,7 +2,16 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { Loader2, Mic, Pencil, Plus, Trash2, X } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  Mic,
+  Pencil,
+  Plus,
+  Trash2,
+  X,
+} from "lucide-react";
 import { OrderFormFilters } from "@/components/orders/OrderFormFilters";
 import { Avatar } from "@/components/ui/Avatar";
 import { SoftSelect, type SoftSelectOption } from "@/components/ui/SoftSelect";
@@ -20,6 +29,8 @@ import {
   findVoiceoverProgramMatch,
   voiceoverProgramNames,
 } from "@/lib/voiceover-program-options";
+import { ORDERS_BOARD_PATCH_EVENT } from "@/lib/orders-board-cache";
+import { MTD_BOARD_PATCH_EVENT } from "@/lib/mtd-board-cache";
 import {
   filterPayrollAddonsForForm,
   voiceoverCategoryBucketForForm,
@@ -46,6 +57,9 @@ const DANCE_RATES = [
   { label: "$75", value: 75, source: "predefined" as const },
   { label: "Manual", value: null, source: "manual" as const },
 ];
+
+/** Same page size as Payroll board DataTable. */
+const VOICEOVER_PAGE_SIZE = 15;
 
 function categoryFromForm(form: OrderFormType): "Cheer" | "Dance" {
   return voiceoverCategoryBucketForForm(form) ?? "Cheer";
@@ -78,13 +92,17 @@ export function VoiceoversPanel({
 }: VoiceoversPanelProps) {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<PayrollAddon | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<PayrollAddon | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
 
-  async function handleDelete(id: string) {
-    if (deletingId) return;
+  async function confirmDelete() {
+    if (!deleteTarget || deletingId) return;
+    const id = deleteTarget.id;
     setDeletingId(id);
     try {
       await onDelete(id);
+      setDeleteTarget(null);
     } finally {
       setDeletingId(null);
     }
@@ -120,10 +138,30 @@ export function VoiceoversPanel({
     orderById,
   ]);
 
-  const total = useMemo(
-    () => voiceovers.reduce((sum, a) => sum + a.amount, 0),
-    [voiceovers]
+  const totalPages = Math.max(
+    1,
+    Math.ceil(voiceovers.length / VOICEOVER_PAGE_SIZE)
   );
+  const safePage = Math.min(page, totalPages - 1);
+  const pageStart = safePage * VOICEOVER_PAGE_SIZE;
+  const pageVoiceovers = voiceovers.slice(
+    pageStart,
+    pageStart + VOICEOVER_PAGE_SIZE
+  );
+  const rangeEnd = Math.min(
+    voiceovers.length,
+    pageStart + pageVoiceovers.length
+  );
+  const showPager = voiceovers.length > VOICEOVER_PAGE_SIZE;
+
+  // Reset to first page when form filters change or list shrinks past current page.
+  useEffect(() => {
+    setPage(0);
+  }, [pageForm, pageCheerSubtype, pageDanceSubtype]);
+
+  useEffect(() => {
+    if (page > totalPages - 1) setPage(Math.max(0, totalPages - 1));
+  }, [page, totalPages]);
 
   function producerFor(addon: PayrollAddon): Producer | null {
     if (addon.producerId) {
@@ -139,26 +177,19 @@ export function VoiceoversPanel({
     <div className="dashboard-panel dashboard-panel-framed overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-brand-line/50 px-4 py-3">
         <p className="text-[13px] font-semibold text-brand-ink">Voiceovers</p>
-        <div className="flex items-center gap-3">
-          {voiceovers.length > 0 ? (
-            <p className="text-[12px] tabular-nums text-brand-ink-secondary">
-              {voiceovers.length} · {formatPrice(total)}
-            </p>
-          ) : null}
-          {!readOnly ? (
-            <button
-              type="button"
-              onClick={() => {
-                setEditing(null);
-                setFormOpen(true);
-              }}
-              className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-brand-orange px-3 text-[12px] font-semibold text-white transition hover:bg-brand-orange/90"
-            >
-              <Plus className="h-3.5 w-3.5" strokeWidth={2.5} />
-              Add voiceover
-            </button>
-          ) : null}
-        </div>
+        {!readOnly ? (
+          <button
+            type="button"
+            onClick={() => {
+              setEditing(null);
+              setFormOpen(true);
+            }}
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-brand-orange px-3 text-[12px] font-semibold text-white transition hover:bg-brand-orange/90"
+          >
+            <Plus className="h-3.5 w-3.5" strokeWidth={2.5} />
+            Add voiceover
+          </button>
+        ) : null}
       </div>
 
       {voiceovers.length === 0 ? (
@@ -170,139 +201,221 @@ export function VoiceoversPanel({
           </p>
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-max border-collapse text-left">
-            <thead>
-              <tr className="table-header-row">
-                <th className="table-header-label table-header-cell px-4 py-2.5">
-                  VO producer
-                </th>
-                <th className="table-header-label table-header-cell px-4 py-2.5">
-                  School / program
-                </th>
-                <th className="table-header-label table-header-cell px-4 py-2.5">
-                  Category
-                </th>
-                <th className="table-header-label table-header-cell px-4 py-2.5 text-right">
-                  Amount
-                </th>
-                <th className="table-header-label table-header-cell px-4 py-2.5">
-                  Added
-                </th>
-                {!readOnly ? (
-                  <th className="table-header-label table-header-cell px-4 py-2.5 text-center">
-                    Actions
+        <>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-max border-collapse text-left">
+              <thead>
+                <tr className="table-header-row">
+                  <th className="table-header-label table-header-cell px-4 py-2.5">
+                    VO producer
                   </th>
-                ) : null}
-              </tr>
-            </thead>
-            <tbody>
-              {voiceovers.map((addon) => {
-                const producer = producerFor(addon);
-                return (
-                  <tr
-                    key={addon.id}
-                    className="border-b border-brand-line-strong last:border-b-0"
-                  >
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <Avatar
-                          producer={producer ?? undefined}
-                          initials={addon.producerInitials ?? "?"}
-                          size="xs"
-                        />
-                        <div className="min-w-0">
-                          <p className="truncate text-[13px] font-medium text-brand-ink">
-                            {producer?.name ||
-                              addon.producerInitials ||
-                              "Unknown"}
-                          </p>
-                          {producer?.initials ? (
-                            <p className="text-[11px] text-brand-ink-tertiary">
-                              {producer.initials}
-                            </p>
-                          ) : null}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="max-w-[200px] truncate px-4 py-3 text-[13px] text-brand-ink">
-                      {titleCase(addon.programName)}
-                    </td>
-                    <td className="px-4 py-3 text-[13px] text-brand-ink-secondary">
-                      {addon.category}
-                    </td>
-                    <td className="px-4 py-3 text-right text-[13px] font-semibold tabular-nums text-brand-ink">
-                      {formatPrice(addon.amount)}
-                    </td>
-                    <td className="px-4 py-3 text-[12px] tabular-nums text-brand-ink-secondary">
-                      {addon.createdAt
-                        ? formatDisplayDate(addon.createdAt.slice(0, 10))
-                        : "-"}
-                    </td>
-                    {!readOnly ? (
+                  <th className="table-header-label table-header-cell px-4 py-2.5">
+                    School / program
+                  </th>
+                  <th className="table-header-label table-header-cell px-4 py-2.5">
+                    Category
+                  </th>
+                  <th className="table-header-label table-header-cell px-4 py-2.5 text-right">
+                    Amount
+                  </th>
+                  <th className="table-header-label table-header-cell px-4 py-2.5">
+                    Added
+                  </th>
+                  {!readOnly ? (
+                    <th className="table-header-label table-header-cell px-4 py-2.5 text-center">
+                      Actions
+                    </th>
+                  ) : null}
+                </tr>
+              </thead>
+              <tbody>
+                {pageVoiceovers.map((addon) => {
+                  const producer = producerFor(addon);
+                  return (
+                    <tr
+                      key={addon.id}
+                      className="border-b border-brand-line-strong last:border-b-0"
+                    >
                       <td className="px-4 py-3">
-                        <div className="flex items-center justify-center gap-1">
-                          <button
-                            type="button"
-                            title="Edit"
-                            disabled={Boolean(deletingId)}
-                            onClick={() => {
-                              setEditing(addon);
-                              setFormOpen(true);
-                            }}
-                            className="inline-flex h-7 w-7 items-center justify-center rounded-full text-brand-ink-tertiary transition hover:bg-brand-signature/10 hover:text-brand-signature disabled:pointer-events-none disabled:opacity-40"
-                          >
-                            <Pencil className="h-3.5 w-3.5" strokeWidth={2} />
-                          </button>
-                          <button
-                            type="button"
-                            title="Delete"
-                            disabled={Boolean(deletingId)}
-                            onClick={() => void handleDelete(addon.id)}
-                            className="inline-flex h-7 w-7 items-center justify-center rounded-full text-brand-ink-tertiary transition hover:bg-brand-danger/10 hover:text-brand-danger disabled:pointer-events-none disabled:opacity-40"
-                          >
-                            {deletingId === addon.id ? (
-                              <Loader2
-                                className="h-3.5 w-3.5 animate-spin text-brand-danger"
-                                strokeWidth={2}
-                              />
-                            ) : (
-                              <Trash2 className="h-3.5 w-3.5" strokeWidth={2} />
-                            )}
-                          </button>
+                        <div className="flex items-center gap-2">
+                          <Avatar
+                            producer={producer ?? undefined}
+                            initials={addon.producerInitials ?? "?"}
+                            size="xs"
+                          />
+                          <div className="min-w-0">
+                            <p className="truncate text-[13px] font-medium text-brand-ink">
+                              {producer?.name ||
+                                addon.producerInitials ||
+                                "Unknown"}
+                            </p>
+                            {producer?.initials ? (
+                              <p className="text-[11px] text-brand-ink-tertiary">
+                                {producer.initials}
+                              </p>
+                            ) : null}
+                          </div>
                         </div>
                       </td>
-                    ) : null}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                      <td className="max-w-[200px] truncate px-4 py-3 text-[13px] text-brand-ink">
+                        {titleCase(addon.programName)}
+                      </td>
+                      <td className="px-4 py-3 text-[13px] text-brand-ink-secondary">
+                        {addon.category}
+                      </td>
+                      <td className="px-4 py-3 text-right text-[13px] font-semibold tabular-nums text-brand-ink">
+                        {formatPrice(addon.amount)}
+                      </td>
+                      <td className="px-4 py-3 text-[12px] tabular-nums text-brand-ink-secondary">
+                        {addon.createdAt
+                          ? formatDisplayDate(addon.createdAt.slice(0, 10))
+                          : "-"}
+                      </td>
+                      {!readOnly ? (
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              type="button"
+                              title="Edit"
+                              disabled={Boolean(deletingId)}
+                              onClick={() => {
+                                setEditing(addon);
+                                setFormOpen(true);
+                              }}
+                              className="inline-flex h-7 w-7 items-center justify-center rounded-full text-brand-ink-tertiary transition hover:bg-brand-signature/10 hover:text-brand-signature disabled:pointer-events-none disabled:opacity-40"
+                            >
+                              <Pencil className="h-3.5 w-3.5" strokeWidth={2} />
+                            </button>
+                            <button
+                              type="button"
+                              title="Delete"
+                              disabled={Boolean(deletingId)}
+                              onClick={() => setDeleteTarget(addon)}
+                              className="inline-flex h-7 w-7 items-center justify-center rounded-full text-brand-ink-tertiary transition hover:bg-brand-danger/10 hover:text-brand-danger disabled:pointer-events-none disabled:opacity-40"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" strokeWidth={2} />
+                            </button>
+                          </div>
+                        </td>
+                      ) : null}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          {showPager ? (
+            <div className="flex items-center justify-between gap-3 border-t border-brand-line-strong bg-brand-elevated/50 px-4 py-3">
+              <p className="text-[12px] font-medium text-brand-ink-tertiary">
+                {pageStart + 1}-{rangeEnd} of {voiceovers.length}
+              </p>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  disabled={safePage === 0}
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-brand-ink-secondary transition hover:bg-brand-bg hover:text-brand-ink disabled:opacity-30"
+                  aria-label="Previous page"
+                >
+                  <ChevronLeft className="h-4 w-4" strokeWidth={2} />
+                </button>
+                <span className="min-w-[4.5rem] text-center text-[12px] font-semibold tabular-nums text-brand-ink-secondary">
+                  {safePage + 1} / {totalPages}
+                </span>
+                <button
+                  type="button"
+                  disabled={safePage >= totalPages - 1}
+                  onClick={() =>
+                    setPage((p) => Math.min(totalPages - 1, p + 1))
+                  }
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-brand-ink-secondary transition hover:bg-brand-bg hover:text-brand-ink disabled:opacity-30"
+                  aria-label="Next page"
+                >
+                  <ChevronRight className="h-4 w-4" strokeWidth={2} />
+                </button>
+              </div>
+            </div>
+          ) : null}
+        </>
       )}
 
-      <VoiceoverEntryModal
-        open={formOpen}
-        editing={editing}
-        producers={producers}
-        mtdRecords={mtdRecords}
-        allOrders={allOrders}
-        initialForm={pageForm}
-        initialCheerSubtype={pageCheerSubtype}
-        initialDanceSubtype={pageDanceSubtype}
-        onClose={() => {
-          setFormOpen(false);
-          setEditing(null);
-        }}
-        onSave={async (payload) => {
-          if (editing) {
-            await onDelete(editing.id);
-          }
-          await onAdd(payload);
-          setFormOpen(false);
-          setEditing(null);
-        }}
-      />
+      {/* Mount only while open — avoid allOrders program scan when closed. */}
+      {(formOpen || editing) && (
+        <VoiceoverEntryModal
+          open={formOpen || Boolean(editing)}
+          editing={editing}
+          producers={producers}
+          mtdRecords={mtdRecords}
+          allOrders={allOrders}
+          initialForm={pageForm}
+          initialCheerSubtype={pageCheerSubtype}
+          initialDanceSubtype={pageDanceSubtype}
+          onClose={() => {
+            setFormOpen(false);
+            setEditing(null);
+          }}
+          onSave={async (payload) => {
+            if (editing) {
+              await onDelete(editing.id);
+            }
+            await onAdd(payload);
+            setFormOpen(false);
+            setEditing(null);
+          }}
+        />
+      )}
+
+      {deleteTarget && typeof document !== "undefined"
+        ? createPortal(
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+              <div
+                className="absolute inset-0 bg-brand-scrim backdrop-blur-sm"
+                aria-hidden="true"
+              />
+              <div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="delete-voiceover-title"
+                className="relative w-full max-w-[400px] overflow-hidden rounded-[22px] bg-brand-elevated shadow-[0_24px_80px_rgba(0,0,0,0.28)]"
+              >
+                <div className="px-6 pb-5 pt-7 text-center">
+                  <h2
+                    id="delete-voiceover-title"
+                    className="text-[18px] font-semibold tracking-[-0.02em] text-brand-ink"
+                  >
+                    Delete voiceover?
+                  </h2>
+                  <p className="mt-1.5 text-[13px] leading-relaxed text-brand-ink-secondary">
+                    {titleCase(deleteTarget.programName)}
+                    {deleteTarget.amount != null
+                      ? ` · ${formatPrice(deleteTarget.amount)}`
+                      : ""}{" "}
+                    will be removed. This cannot be undone.
+                  </p>
+                </div>
+                <div className="flex flex-col border-t border-black/[0.08]">
+                  <button
+                    type="button"
+                    disabled={Boolean(deletingId)}
+                    onClick={() => void confirmDelete()}
+                    className="border-b border-black/[0.08] py-3.5 text-[15px] font-semibold text-brand-danger transition hover:bg-brand-orange-soft/60 disabled:opacity-60"
+                  >
+                    {deletingId ? "Deleting…" : "Delete"}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={Boolean(deletingId)}
+                    onClick={() => setDeleteTarget(null)}
+                    className="py-3.5 text-[15px] font-medium text-brand-ink transition hover:bg-brand-bg disabled:opacity-60"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
     </div>
   );
 }
@@ -345,6 +458,20 @@ function VoiceoverEntryModal({
   const [saving, setSaving] = useState(false);
   const [producerMenuOpen, setProducerMenuOpen] = useState(false);
   const [programMenuOpen, setProgramMenuOpen] = useState(false);
+  /** Bumps when Orders/MTD board caches change so program names stay live. */
+  const [cacheTick, setCacheTick] = useState(0);
+
+  useEffect(() => {
+    if (!open) return;
+    const bump = () => setCacheTick((n) => n + 1);
+    bump();
+    window.addEventListener(ORDERS_BOARD_PATCH_EVENT, bump);
+    window.addEventListener(MTD_BOARD_PATCH_EVENT, bump);
+    return () => {
+      window.removeEventListener(ORDERS_BOARD_PATCH_EVENT, bump);
+      window.removeEventListener(MTD_BOARD_PATCH_EVENT, bump);
+    };
+  }, [open]);
 
   const orderById = useMemo(
     () => new Map(allOrders.map((o) => [o.id, o])),
@@ -403,7 +530,7 @@ function VoiceoverEntryModal({
       names.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
     }
     return names.map((name) => ({ value: name, label: titleCase(name) }));
-  }, [allOrders, mtdRecords, programName]);
+  }, [allOrders, mtdRecords, programName, cacheTick]);
 
   function switchForm(next: OrderFormType) {
     setForm(next);
@@ -512,11 +639,16 @@ function VoiceoverEntryModal({
       mtdRecords
     );
 
+    // Only attach FKs that exist in the client lists. Never send a record's
+    // orderId/id as order_id — that UUID may be gone from `orders` (FK 500).
+    const orderId = linked.order?.id ?? null;
+    const mtdId = linked.record?.id ?? null;
+
     setSaving(true);
     try {
       await onSave({
-        orderId: linked.order?.id || linked.record?.orderId || linked.record?.id || null,
-        mtdId: linked.record?.id || null,
+        orderId,
+        mtdId,
         programName: programName.trim(),
         teamName:
           linked.order?.teamName?.trim() ||
@@ -586,6 +718,7 @@ function VoiceoverEntryModal({
                 formCounts={formCounts}
                 cheerCounts={cheerCounts}
                 danceCounts={danceCounts}
+                showOptionCounts={false}
               />
             </div>
           </div>

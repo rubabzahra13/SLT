@@ -1,16 +1,13 @@
 import type { MTDRecord, Order } from "@/types";
 import { getOrderIdentityName } from "@/lib/order-detail-sections";
+import { collectOrdersBoardCachedOrders } from "@/lib/orders-board-cache";
+import { collectMtdBoardCachedRecords } from "@/lib/mtd-board-cache";
 
 /**
  * School / program names for Add voiceover.
  *
- * Every category stores the identity in orders.school_gym_name. The form
- * label differs (Gym Name, School Name, Program Name, School/Program Name,
- * Organization Name, School/Organization Name). getOrderIdentityName reads
- * that column through the field for the order's category.
- *
- * The list is the whole system: Orders, MTD, and Payroll. It is not limited
- * to the Payroll tab or to the form selected in the modal.
+ * Built from live AppState orders + Orders/MTD board caches. Names whose
+ * linked order was deleted are dropped (no dangling orderId ghosts).
  */
 function remember(seen: Map<string, string>, raw: string | null | undefined) {
   const name = String(raw || "").trim();
@@ -35,20 +32,59 @@ function linkedOrder(rec: MTDRecord, byKey: Map<string, Order>): Order | null {
   return null;
 }
 
+function mergeOrders(primary: Order[], secondary: Order[]): Order[] {
+  const byId = new Map<string, Order>();
+  for (const order of [...secondary, ...primary]) {
+    if (!order?.id) continue;
+    byId.set(order.id, order);
+  }
+  return [...byId.values()];
+}
+
+function mergeRecords(primary: MTDRecord[], secondary: MTDRecord[]): MTDRecord[] {
+  const byId = new Map<string, MTDRecord>();
+  for (const rec of [...secondary, ...primary]) {
+    if (!rec?.id) continue;
+    byId.set(rec.id, rec);
+  }
+  return [...byId.values()];
+}
+
+/** Live orders: AppState + whatever the Orders board cache still holds. */
+export function liveOrdersForVoiceover(appOrders: Order[]): Order[] {
+  return mergeOrders(appOrders, collectOrdersBoardCachedOrders());
+}
+
+/** Live MTD/payroll rows: props + board caches. */
+export function liveRecordsForVoiceover(appRecords: MTDRecord[]): MTDRecord[] {
+  return mergeRecords(appRecords, collectMtdBoardCachedRecords());
+}
+
 export function voiceoverProgramNames(
   orders: Order[],
   records: MTDRecord[] = []
 ): string[] {
+  const liveOrders = liveOrdersForVoiceover(orders);
+  const liveRecords = liveRecordsForVoiceover(records);
   const seen = new Map<string, string>();
-  const byKey = ordersByKey(orders);
-  for (const order of orders) {
+  const byKey = ordersByKey(liveOrders);
+
+  for (const order of liveOrders) {
     remember(seen, getOrderIdentityName(order));
   }
-  for (const rec of records) {
+
+  for (const rec of liveRecords) {
     const linked = linkedOrder(rec, byKey);
-    if (linked) remember(seen, getOrderIdentityName(linked));
-    else remember(seen, rec.programName);
+    if (linked) {
+      remember(seen, getOrderIdentityName(linked));
+      continue;
+    }
+    // Linked order gone from every cache → skip (deleted/stale).
+    // Standalone payroll-only names (no orderId) can still appear.
+    if (rec.orderId) continue;
+    remember(seen, rec.programName);
   }
+
   return [...seen.values()].sort((a, b) =>
     a.localeCompare(b, undefined, { sensitivity: "base" })
   );
@@ -61,18 +97,25 @@ export function findVoiceoverProgramMatch(
 ): { order: Order | null; record: MTDRecord | null } {
   const needle = programName.trim().toLowerCase();
   if (!needle) return { order: null, record: null };
-  const byKey = ordersByKey(orders);
+
+  const liveOrders = liveOrdersForVoiceover(orders);
+  const liveRecords = liveRecordsForVoiceover(records);
+  const byKey = ordersByKey(liveOrders);
+
   const record =
-    records.find((rec) => {
+    liveRecords.find((rec) => {
       const linked = linkedOrder(rec, byKey);
+      if (!linked && rec.orderId) return false;
       const name = linked ? getOrderIdentityName(linked) : rec.programName || "";
       return name.trim().toLowerCase() === needle;
     }) ?? null;
+
   const order =
     (record ? linkedOrder(record, byKey) : null) ??
-    orders.find(
+    liveOrders.find(
       (item) => getOrderIdentityName(item).trim().toLowerCase() === needle
     ) ??
     null;
+
   return { order, record };
 }

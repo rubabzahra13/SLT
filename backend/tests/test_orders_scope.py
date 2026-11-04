@@ -111,6 +111,7 @@ def test_bootstrap_returns_empty_orders_and_mtd(db: Session, monkeypatch):
     payload = bootstrap_mod.bootstrap(db=db)
     assert payload["orders"] == []
     assert payload["mtd"] == []
+    assert payload["payroll_addons"] == []
 
 
 def test_since_days_limits_past_orders_to_chart_window(db: Session):

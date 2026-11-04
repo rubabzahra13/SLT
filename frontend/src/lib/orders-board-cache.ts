@@ -1006,6 +1006,90 @@ export function readOrdersBoardOrder(orderId: string): Order | null {
   return null;
 }
 
+/** Deduped orders currently held in board/session caches (for VO program lists). */
+export function collectOrdersBoardCachedOrders(): Order[] {
+  const byId = new Map<string, Order>();
+  for (const entry of boardCache.values()) {
+    for (const order of entry.orders) {
+      if (!order?.id || byId.has(order.id)) continue;
+      byId.set(order.id, order);
+    }
+  }
+  return [...byId.values()];
+}
+
+/**
+ * Hard-delete an order from every Orders board page + badge counts + match pool.
+ * Call from AppState.deleteOrder so VO/program pickers cannot keep a ghost row.
+ */
+export function removeOrdersBoardOrderFromCaches(orderId: string): void {
+  if (!orderId) return;
+  const before = readOrdersBoardOrder(orderId);
+  let anyChanged = false;
+  for (const [key, entry] of boardCache) {
+    const nextOrders = entry.orders.filter((o) => !orderMatchesId(o, orderId));
+    if (nextOrders.length === entry.orders.length) continue;
+    anyChanged = true;
+    const next = {
+      ...entry,
+      orders: nextOrders,
+      updatedAt: Date.now(),
+    };
+    boardCache.set(key, next);
+    try {
+      writeBoardSession(ssKey(BOARD_SS_PREFIX, key), next);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  let countsChanged = false;
+  if (before) {
+    for (const [key, entry] of countsCache) {
+      let flaggedOnly = false;
+      try {
+        flaggedOnly = Boolean(
+          (JSON.parse(key) as { flaggedOnly?: boolean }).flaggedOnly
+        );
+      } catch {
+        /* keep */
+      }
+      if (flaggedOnly) continue;
+      const next = {
+        counts: bumpNormalBoardPresence(entry.counts, before, -1),
+        updatedAt: Date.now(),
+      };
+      countsCache.set(key, next);
+      try {
+        writeCountsSession(ssKey(COUNTS_SS_PREFIX, key), next);
+      } catch {
+        /* ignore */
+      }
+      countsChanged = true;
+    }
+  }
+
+  noteLocalOrderWrite(
+    orderId,
+    before?.uuid ?? undefined,
+    before?.legacyId ?? undefined
+  );
+  applyMatchPoolLiveDelete(orderId);
+
+  if (typeof window !== "undefined" && (anyChanged || before)) {
+    window.dispatchEvent(
+      new CustomEvent(ORDERS_BOARD_PATCH_EVENT, {
+        detail: {
+          orderId,
+          patch: { id: orderId } as Partial<Order>,
+          removed: true,
+          countsChanged,
+        },
+      })
+    );
+  }
+}
+
 /**
  * Another tab / user saved a cached row (SSE): patch it in every cached page
  * and move badges by its bucket change. "recount" when the row entered or

@@ -90,6 +90,7 @@ export function PayrollSendToolbar({
             formCounts={formCounts}
             cheerCounts={cheerCounts}
             danceCounts={danceCounts}
+            showOptionCounts={false}
           />
           {sendEditorProducers.length > 0 ? (
             <>

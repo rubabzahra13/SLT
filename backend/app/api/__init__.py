@@ -19,10 +19,12 @@ from app.api.music_affiliates import router as music_affiliates_router
 from app.api.studio_stream import router as studio_stream_router
 from app.api.dashboard import router as dashboard_router
 from app.api.magento_ingest import router as magento_ingest_router
+from app.api.dev_seed import router as dev_seed_router
 
 api_router = APIRouter()
 api_router.include_router(health_router, tags=["health"])
 api_router.include_router(health_router, prefix="/api", tags=["health"])
+api_router.include_router(dev_seed_router, prefix="/api", tags=["dev"])
 api_router.include_router(auth_router, prefix="/api", tags=["auth"])
 api_router.include_router(bootstrap_router, prefix="/api", tags=["bootstrap"])
 api_router.include_router(studio_stream_router, prefix="/api", tags=["studio"])

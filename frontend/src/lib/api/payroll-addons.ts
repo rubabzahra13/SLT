@@ -58,13 +58,84 @@ function normalizePayrollAddon(raw: BackendPayrollAddon): PayrollAddon {
   };
 }
 
+type FetchPayrollAddonsOptions = {
+  token?: string | null;
+  /** voiceover | rush_fee | misc_adjustment */
+  addonType?: "voiceover" | "rush_fee" | "misc_adjustment";
+  /** unpaid_linked / payroll_linked = rush/misc for unpaid payroll only */
+  scope?: "unpaid_linked" | "payroll_linked";
+  /** Rush/misc for these MTD ids only (archive page). */
+  mtdIds?: string[];
+  /** Only rows created within the last N days. */
+  sinceDays?: number;
+  pageSize?: number;
+};
+
+function payrollAddonsListPath(options?: FetchPayrollAddonsOptions): string {
+  const qs = new URLSearchParams();
+  if (options?.addonType) qs.set("addon_type", options.addonType);
+  if (options?.scope) qs.set("scope", options.scope);
+  if (options?.mtdIds?.length) {
+    qs.set("mtd_ids", options.mtdIds.filter(Boolean).slice(0, 100).join(","));
+  }
+  if (options?.sinceDays != null) {
+    qs.set("since_days", String(options.sinceDays));
+  }
+  const q = qs.toString();
+  return q ? `/api/payroll-addons?${q}` : "/api/payroll-addons";
+}
+
+/** Full walk — prefer scoped helpers; kept for rare admin/export paths. */
 export async function fetchPayrollAddonsApi(
   token?: string | null
 ): Promise<PayrollAddon[]> {
+  return fetchPayrollAddonsScopedApi({ token });
+}
+
+/** Rush/misc for unpaid payroll mixes only (not paid archive history). */
+export async function fetchPayrollLinkedAddonsApi(
+  token?: string | null
+): Promise<PayrollAddon[]> {
+  return fetchPayrollAddonsScopedApi({ token, scope: "unpaid_linked" });
+}
+
+/** Rush/misc for the visible archive/board page ids only. */
+export async function fetchPayrollAddonsForMtdIdsApi(
+  mtdIds: string[],
+  token?: string | null
+): Promise<PayrollAddon[]> {
+  const ids = [...new Set(mtdIds.filter(Boolean))].slice(0, 100);
+  if (ids.length === 0) return [];
+  return fetchPayrollAddonsScopedApi({ token, mtdIds: ids });
+}
+
+/**
+ * Voiceovers within a recent window (Send / VO tabs).
+ * Default 42 days = widest pay period (6 weeks).
+ */
+export async function fetchVoiceoverAddonsApi(
+  token?: string | null,
+  opts?: { sinceDays?: number }
+): Promise<PayrollAddon[]> {
+  return fetchPayrollAddonsScopedApi({
+    token,
+    addonType: "voiceover",
+    sinceDays: opts?.sinceDays ?? 42,
+  });
+}
+
+export async function fetchPayrollAddonsScopedApi(
+  options?: FetchPayrollAddonsOptions
+): Promise<PayrollAddon[]> {
   const data = await fetchAllListPages<BackendPayrollAddon>(
-    "/api/payroll-addons",
+    payrollAddonsListPath(options),
     "payroll_addons",
-    token ? { headers: { Authorization: `Bearer ${token}` } } : undefined
+    {
+      ...(options?.token
+        ? { headers: { Authorization: `Bearer ${options.token}` } }
+        : undefined),
+      pageSize: options?.pageSize,
+    }
   );
   return data.map(normalizePayrollAddon);
 }
