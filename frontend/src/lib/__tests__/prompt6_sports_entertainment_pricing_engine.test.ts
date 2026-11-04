@@ -7,7 +7,7 @@ import {
 } from "../pricing-engine";
 
 describe("Prompt 6: Sports Entertainment Pricing Engine Unit Tests", () => {
-  it("Rate Card completeness: contains all 3 Sports Entertainment packages", () => {
+  it("Rate Card completeness: contains Remixed packages and OTHER (no BASIC)", () => {
     assert.equal(SPORTS_ENTERTAINMENT_RATE_CARD.length, 3);
     assert.deepEqual(
       SPORTS_ENTERTAINMENT_RATE_CARD.map((e) => e.package),

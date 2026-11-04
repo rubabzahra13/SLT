@@ -258,16 +258,25 @@ export function normalizeOrder(
   const packageTypeRaw =
     formType === "school-anthem"
       ? SCHOOL_ANTHEM_PACKAGE
-      : raw.packageType?.trim() ||
-        tier ||
-        raw.package?.split(/\d+:\d+/)[0]?.trim() ||
-        raw.package ||
-        "";
-  // package_type is tier only; mix length belongs on time_length_of_mix.
+      : formType === "sports-entertainment"
+        ? // Magento SoftSelect embeds "1:15" / "2:30" in the option label —
+          // never cheer-style split/tier strip (that drops REMIXED and breaks pricing).
+          raw.packageType?.trim() || raw.package?.trim() || ""
+        : raw.packageType?.trim() ||
+          tier ||
+          raw.package?.split(/\d+:\d+/)[0]?.trim() ||
+          raw.package ||
+          "";
+  // Cheer: package_type is tier only; mix length belongs on time_length_of_mix.
+  // SE / Dance / Band: keep Magento SoftSelect package text intact.
   const packageType =
     formType === "school-anthem"
       ? SCHOOL_ANTHEM_PACKAGE
-      : packageTierOnly(packageTypeRaw) || packageTypeRaw;
+      : formType === "sports-entertainment"
+        ? packageTypeRaw
+        : formType === "school-all-star-cheer"
+          ? packageTierOnly(packageTypeRaw) || packageTypeRaw
+          : packageTypeRaw;
 
   // Never refill Time Length from package on any form: an explicit clear ("")
   // must stick, or Mix Time cannot be removed after a manual add.

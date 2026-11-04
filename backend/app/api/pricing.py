@@ -196,7 +196,7 @@ def complete_pricing(
         form_type=order.form_type or "school-all-star-cheer",
         cheer_subtype=payload.cheer_form_subtype or order.cheer_form_subtype,
         dance_subtype=payload.dance_form_subtype or order.dance_form_subtype,
-        package_name=order.package,
+        package_name=order.package or order.package_type or "",
         music_affiliate=music,
         addons_input=addons_dict,
         affiliate_flag_status=flag_status,

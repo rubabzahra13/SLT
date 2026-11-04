@@ -5,6 +5,8 @@ import { SoftSelect } from "@/components/ui/SoftSelect";
 import { titleCase } from "@/lib/data";
 import { parsePackage } from "@/lib/package";
 import {
+  canonicalizeSportsEntertainmentPackage,
+  canonicalizeTeamPerformancePackage,
   isJazzKickDtuPackage,
   JAZZ_KICK_DTU_PACKAGE,
   packagesForOrderForm,
@@ -96,15 +98,8 @@ function cheerTierKey(raw: string): string {
 
 /** Sports Entertainment Magento SoftSelect OTHER → rate-card package key. */
 function sportsEntertainmentOtherPackageKey(raw: string): string | null {
-  const upper = raw.trim().toUpperCase();
-  if (!upper) return null;
-  if (
-    upper === "OTHER (MIXES LONGER THAN 2:30)" ||
-    upper === "OTHER (MIXES LONGER THAN 2:30" ||
-    upper.startsWith("OTHER (MIXES LONGER") ||
-    upper.includes("SPECIFY IN NOTES SECTION OF THE ORDER FORM") ||
-    (upper.startsWith("OTHER") && upper.includes("MIXES LONGER"))
-  ) {
+  const canonical = canonicalizeSportsEntertainmentPackage(raw);
+  if (canonical.toUpperCase() === "OTHER (MIXES LONGER THAN 2:30)") {
     return "OTHER (mixes longer than 2:30)";
   }
   return null;
@@ -116,9 +111,28 @@ export function packageTypeDisplayValue(raw: string): string {
   if (!trimmed || isFormCategoryLabel(trimmed)) return "";
   // Magento SoftSelect: keep "(for DTU)" — stripping it collapses to "Non compliant".
   if (isJazzKickDtuPackage(trimmed)) return JAZZ_KICK_DTU_PACKAGE;
-  // Do not let parsePackage treat "2:30" inside SE OTHER SoftSelect as mix length.
-  const seOther = sportsEntertainmentOtherPackageKey(trimmed);
-  if (seOther) return seOther;
+  // Magento SE SoftSelect long/truncated labels → rate-card keys (display/lookup only).
+  // Must run before parsePackage: SE labels embed "1:15"/"2:30" as option text.
+  const seCanonical = canonicalizeSportsEntertainmentPackage(trimmed);
+  if (
+    seCanonical !== trimmed ||
+    /QUARTER BREAK|PRE-GAME|HALFTIME MIX|TIMEOUT MIX|OTHER \(MIXES LONGER/i.test(
+      trimmed
+    )
+  ) {
+    const seKey = seCanonical.trim().toUpperCase();
+    if (
+      seKey === "QUARTER BREAK / TIMEOUT REMIXED" ||
+      seKey === "PRE-GAME / HALFTIME REMIXED" ||
+      seKey === "OTHER (MIXES LONGER THAN 2:30)"
+    ) {
+      return seCanonical;
+    }
+  }
+  // Form 6 SoftSelect → TP MIX / TP PLUS MIX rate-card keys (display/lookup only).
+  if (/\bTP\s+(PLUS|MIX)\b/i.test(trimmed)) {
+    return canonicalizeTeamPerformancePackage(trimmed);
+  }
   const parsed = parsePackage(trimmed);
   if (parsed.tier && parsed.tier !== "-") {
     // Magento SoftSelect: "Gold Package" / "Rally Mix (…)" → catalog key.
@@ -255,6 +269,7 @@ const HIP_HOP_PACKAGE_LABELS: Record<string, string> = {
 const TP_PACKAGE_LABELS: Record<string, string> = {
   "TP MIX": "TP Mix (up to 5 songs)",
   "TP PLUS MIX": "TP Plus (6-8 songs)",
+  "TP PLUS": "TP Plus (6-8 songs)",
 };
 
 /** Magento SoftSelect for Gameday: ALL CAPS + song counts + prices. */
@@ -292,6 +307,7 @@ const HIP_HOP_PRICING_LABELS: Record<string, string> = {
 const TP_PRICING_LABELS: Record<string, string> = {
   "TP MIX": "TP Mix (up to 5 songs)",
   "TP PLUS MIX": "TP Plus (6-8 songs)",
+  "TP PLUS": "TP Plus (6-8 songs)",
 };
 
 const GAMEDAY_PRICING_LABELS: Record<string, string> = {
@@ -408,19 +424,21 @@ function dancePackageLabel(
 ): string {
   // Jazz Simple Cut: Magento paren body is long: key off first 3 words only.
   // DTU: Magento SoftSelect uses space + paren; catalog key is hyphenated.
+  const sub = String(danceSubtype || "").toLowerCase();
   const key = isJazzSimpleCutByFirstThreeWords(pkg)
     ? "JAZZ SIMPLE CUT"
     : isJazzKickDtuPackage(pkg)
       ? JAZZ_KICK_DTU_PACKAGE
-      : pkg.trim().toUpperCase();
-  const sub = String(danceSubtype || "").toLowerCase();
+      : sub.includes("team-performance") || sub === "tp" || /\bTP\s+(PLUS|MIX)\b/i.test(pkg)
+        ? canonicalizeTeamPerformancePackage(pkg).toUpperCase()
+        : pkg.trim().toUpperCase();
   if (sub === "hip-hop") {
     return HIP_HOP_PACKAGE_LABELS[key] || DANCE_PACKAGE_LABELS[key] || pkg;
   }
   if (sub === "pom") {
     return POM_PACKAGE_LABELS[key] || DANCE_PACKAGE_LABELS[key] || pkg;
   }
-  if (sub.includes("team-performance") || sub === "tp") {
+  if (sub.includes("team-performance") || sub === "tp" || /\bTP\s+(PLUS|MIX)\b/i.test(pkg)) {
     return TP_PACKAGE_LABELS[key] || DANCE_PACKAGE_LABELS[key] || pkg;
   }
   if (sub === "gameday") {
@@ -433,17 +451,19 @@ function dancePricingLabel(
   pkg: string,
   categoryOrSubtype?: string | null
 ): string {
+  const cat = String(categoryOrSubtype || "").toLowerCase();
   const key = isJazzSimpleCutByFirstThreeWords(pkg)
     ? "JAZZ SIMPLE CUT"
-    : pkg.trim().toUpperCase();
-  const cat = String(categoryOrSubtype || "").toLowerCase();
+    : cat.includes("team") || /\bTP\s+(PLUS|MIX)\b/i.test(pkg)
+      ? canonicalizeTeamPerformancePackage(pkg).toUpperCase()
+      : pkg.trim().toUpperCase();
   if (cat.includes("hip")) {
     if (HIP_HOP_PRICING_LABELS[key]) return HIP_HOP_PRICING_LABELS[key];
   }
   if (cat.includes("pom") && !cat.includes("team")) {
     if (POM_PRICING_LABELS[key]) return POM_PRICING_LABELS[key];
   }
-  if (cat.includes("team") || cat.includes("tp ")) {
+  if (cat.includes("team") || cat.includes("tp ") || /\bTP\s+(PLUS|MIX)\b/i.test(pkg)) {
     if (TP_PRICING_LABELS[key]) return TP_PRICING_LABELS[key];
   }
   if (cat.includes("gameday")) {
@@ -460,7 +480,7 @@ function marchingBandPackageLabel(pkg: string): string {
 }
 
 function sportsEntertainmentPackageLabel(pkg: string): string {
-  const canonical = sportsEntertainmentOtherPackageKey(pkg) || pkg;
+  const canonical = canonicalizeSportsEntertainmentPackage(pkg);
   const key = canonical.trim().toUpperCase();
   return (
     SPORTS_ENTERTAINMENT_PACKAGE_LABELS[key] ||

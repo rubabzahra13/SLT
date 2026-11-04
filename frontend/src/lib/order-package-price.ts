@@ -5,6 +5,7 @@ import {
   calculateSchoolAnthemOrderPricing,
   calculateSportsEntertainmentOrderPricing,
   canonicalizeCheerPackageTier,
+  canonicalizeTeamPerformancePackage,
   isCheerOtherMixLength,
   isSchoolCheerSubtype,
   SPORTS_ENTERTAINMENT_CUSTOMER_RUSH_FEE,
@@ -94,6 +95,10 @@ function normalizeFlatPackageQuery(value: string): string {
   // "NON COMPLIANT" and breaks the $200 rate-card / pricing_rules row.
   if (/NON[\s-]*COMPLIANT/.test(upper) && /\bDTU\b/.test(upper)) {
     return "NON-COMPLIANT (FOR DTU)";
+  }
+  // Form 6 SoftSelect → rate-card keys before paren/$ strip ("TP PLUS" ≠ "TP PLUS MIX").
+  if (/\bTP\s+(PLUS|MIX)\b/.test(upper)) {
+    return canonicalizeTeamPerformancePackage(value).toUpperCase();
   }
   return upper
     .replace(/\$[\d,]+(?:\.\d+)?/g, " ")

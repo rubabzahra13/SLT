@@ -846,6 +846,45 @@ const DANCE_NON_PACKAGE_LABELS = new Set([
   "TBD",
 ]);
 
+/**
+ * Magento Form 6 SoftSelect → rate-card keys.
+ * SoftSelect: "TP Mix (up to 5 songs)" / "TP Plus (6-8 songs)" (+ legacy $prices).
+ * Rate card: "TP MIX" / "TP PLUS MIX".
+ */
+const TEAM_PERFORMANCE_PACKAGE_ALIASES: Record<string, string> = {
+  "TP MIX": "TP MIX",
+  "TP MIX (UP TO 5 SONGS)": "TP MIX",
+  "TP MIX (UP TO 5 SONGS) $475": "TP MIX",
+  "TP PLUS MIX": "TP PLUS MIX",
+  "TP PLUS": "TP PLUS MIX",
+  "TP PLUS (6-8 SONGS)": "TP PLUS MIX",
+  "TP PLUS (6-8 SONGS) $570": "TP PLUS MIX",
+};
+
+/**
+ * Map Magento SoftSelect Team Performance package wording onto rate-card keys
+ * without rewriting stored order rows.
+ */
+export function canonicalizeTeamPerformancePackage(raw: string): string {
+  const cleaned = String(raw || "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const upper = cleaned.toUpperCase();
+  if (!upper) return cleaned;
+
+  const withoutPrice = upper.replace(/\s*\$[\d,]+(?:\.\d{2})?\s*$/u, "").trim();
+  const aliased =
+    TEAM_PERFORMANCE_PACKAGE_ALIASES[upper] ||
+    TEAM_PERFORMANCE_PACKAGE_ALIASES[withoutPrice];
+  if (aliased) return aliased;
+
+  // Fingerprints — PLUS before MIX so "TP Plus …" never hits TP MIX.
+  if (/\bTP\s+PLUS\b/.test(upper)) return "TP PLUS MIX";
+  if (/\bTP\s+MIX\b/.test(upper)) return "TP MIX";
+
+  return cleaned;
+}
+
 export function lookupDanceRateCardEntry(
   danceFormSubtype: DanceFormSubtype,
   packageType: string
@@ -874,6 +913,14 @@ export function lookupDanceRateCardEntry(
   // Magento uses "Non compliant (for DTU)"; rate card uses hyphenated key.
   if (danceFormSubtype === "jazz-kick" && isJazzKickDtuPackage(packageType)) {
     target = JAZZ_KICK_DTU_PACKAGE;
+  }
+  // Form 6 SoftSelect → TP MIX / TP PLUS MIX (rate-card keys are short; SoftSelect
+  // paren bodies fail the ≥8-char substring gate).
+  if (
+    danceFormSubtype === "team-performance-variety" ||
+    String(danceFormSubtype || "").startsWith("team-performance")
+  ) {
+    target = canonicalizeTeamPerformancePackage(packageType).toUpperCase();
   }
 
   let matched = rateCard.find(
@@ -1490,6 +1537,11 @@ export const SPORTS_ENTERTAINMENT_RATE_CARD: SportsEntertainmentRateCardEntry[] 
 let sportsEntertainmentRateCardOverride: SportsEntertainmentRateCardEntry[] | null =
   null;
 
+/** Not a customer SoftSelect option — drop if leftover in pricing_rules. */
+function isRetiredSportsEntertainmentBasicPackage(packageName: string): boolean {
+  return /TIMEOUT\s*BASIC|BASIC\s*PACKAGE/i.test(packageName);
+}
+
 export function getSportsEntertainmentRateCard(): SportsEntertainmentRateCardEntry[] {
   return sportsEntertainmentRateCardOverride ?? SPORTS_ENTERTAINMENT_RATE_CARD;
 }
@@ -1497,15 +1549,32 @@ export function getSportsEntertainmentRateCard(): SportsEntertainmentRateCardEnt
 export function setSportsEntertainmentRateCardFromDb(
   entries: SportsEntertainmentRateCardEntry[]
 ): void {
-  sportsEntertainmentRateCardOverride = entries.map((e) => ({ ...e }));
+  sportsEntertainmentRateCardOverride = entries
+    .filter((e) => !isRetiredSportsEntertainmentBasicPackage(e.package))
+    .map((e) => ({ ...e }));
 }
 
+/**
+ * Exact Magento SoftSelect / SoftSelect-short / legacy labels → rate-card keys.
+ * Stored order.package_type stays as Magento sent it; lookup only canonicalizes.
+ */
 const SPORTS_ENTERTAINMENT_PACKAGE_ALIASES: Record<string, string> = {
-  // Magento dropdown labels → rate-card keys
+  // Magento SoftSelect short labels (Pricing Reference SoftSelect)
   "QUARTER BREAK/TIMEOUT REMIXED PACKAGE": "QUARTER BREAK / TIMEOUT REMIXED",
   "PRE-GAME/HALFTIME REMIXED PACKAGE": "PRE-GAME / HALFTIME REMIXED",
   "OTHER - SPECIFY IN NOTES SECTION OF THE ORDER FORM":
     "OTHER (mixes longer than 2:30)",
+  "OTHER (SPECIFY IN NOTES SECTION)": "OTHER (mixes longer than 2:30)",
+  // Magento Form 10 SoftSelect option text (legacy long labels with price/body)
+  "QUARTER BREAK/TIMEOUT MIX UP TO 1:15 - REMIXED PACKAGE $150.00 - 1-3 SONGS TOTALLY REMIXED - JAZZED UP WITH STOPS AND TWEAKS!":
+    "QUARTER BREAK / TIMEOUT REMIXED",
+  "PRE-GAME MIX/HALFTIME MIX UP TO 2:30 - REMIXED PACKAGE $250.00 - 2-5 SONGS TOTALLY REMIXED - JAZZED UP WITH STOPS AND TWEAKS!":
+    "PRE-GAME / HALFTIME REMIXED",
+  // Truncated by cheer-style packageTierOnly (cuts at embedded 1:15 / 2:30)
+  "QUARTER BREAK/TIMEOUT MIX UP TO": "QUARTER BREAK / TIMEOUT REMIXED",
+  "QUARTER BREAK/TIMEOUT MIX UP TO 1:15": "QUARTER BREAK / TIMEOUT REMIXED",
+  "PRE-GAME MIX/HALFTIME MIX UP TO": "PRE-GAME / HALFTIME REMIXED",
+  "PRE-GAME MIX/HALFTIME MIX UP TO 2:30": "PRE-GAME / HALFTIME REMIXED",
   // Legacy / bad demo
   "TIMEOUT REMIX": "QUARTER BREAK / TIMEOUT REMIXED",
   "TIMEOUT REMIXED": "QUARTER BREAK / TIMEOUT REMIXED",
@@ -1513,17 +1582,67 @@ const SPORTS_ENTERTAINMENT_PACKAGE_ALIASES: Record<string, string> = {
   "ARENA HYPE SUITE": "PRE-GAME / HALFTIME REMIXED",
 };
 
+/**
+ * Map Magento SoftSelect package wording onto rate-card keys without rewriting
+ * stored order rows. Prefer exact aliases; fall back to SoftSelect fingerprints
+ * (Quarter / Pre-Game Remixed). Never treat embedded "2:30" as OTHER.
+ */
+export function canonicalizeSportsEntertainmentPackage(raw: string): string {
+  const cleaned = String(raw || "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const upper = cleaned.toUpperCase();
+  if (!upper) return cleaned;
+
+  const aliased = SPORTS_ENTERTAINMENT_PACKAGE_ALIASES[upper];
+  if (aliased) return aliased;
+
+  // Already a rate-card key
+  if (
+    upper === "QUARTER BREAK / TIMEOUT REMIXED" ||
+    upper === "PRE-GAME / HALFTIME REMIXED" ||
+    upper === "OTHER (MIXES LONGER THAN 2:30)"
+  ) {
+    return upper === "OTHER (MIXES LONGER THAN 2:30)"
+      ? "OTHER (mixes longer than 2:30)"
+      : upper;
+  }
+
+  const isOther =
+    upper.startsWith("OTHER (MIXES LONGER") ||
+    upper.includes("SPECIFY IN NOTES SECTION OF THE ORDER FORM") ||
+    (upper.startsWith("OTHER") &&
+      (upper.includes("SPECIFY IN NOTES") || upper.includes("MIXES LONGER")));
+  if (isOther) return "OTHER (mixes longer than 2:30)";
+
+  // Magento SoftSelect fingerprints — not substring fuzzy against "2:30".
+  const isQuarter =
+    upper.includes("QUARTER BREAK") || upper.includes("TIMEOUT MIX");
+  const isPreGame =
+    upper.includes("PRE-GAME") ||
+    upper.includes("PREGAME") ||
+    upper.includes("HALFTIME MIX");
+
+  // Retired Magento BASIC SoftSelect is not a rate-card option → leave unmatched.
+  if (isQuarter && /\bBASIC\b/.test(upper)) {
+    return cleaned;
+  }
+  if (isQuarter && (/\bREMIXED\b/.test(upper) || /MIX UP TO/.test(upper))) {
+    return "QUARTER BREAK / TIMEOUT REMIXED";
+  }
+  if (isPreGame && (/\bREMIXED\b/.test(upper) || /MIX UP TO/.test(upper))) {
+    return "PRE-GAME / HALFTIME REMIXED";
+  }
+
+  // Unknown / non-SE label — leave unchanged (do not uppercase callers' data).
+  return cleaned;
+}
+
 export function lookupSportsEntertainmentRateCardEntry(
   packageType?: string
 ): SportsEntertainmentRateCardEntry | null {
   if (!packageType || !packageType.trim()) return null;
-  let target = packageType
-    .toUpperCase()
-    .replace(/\s+/g, " ")
-    .trim();
-  target = SPORTS_ENTERTAINMENT_PACKAGE_ALIASES[target] ?? target;
-  // Alias map may keep mixed-case rate-card key for OTHER
-  const targetUpper = target.toUpperCase();
+  const targetUpper = canonicalizeSportsEntertainmentPackage(packageType).toUpperCase();
   const card = getSportsEntertainmentRateCard();
 
   // Direct exact match first
@@ -1532,22 +1651,31 @@ export function lookupSportsEntertainmentRateCardEntry(
   );
   if (matched) return matched;
 
-  // Substring or prefix match
-  const sorted = [...card].sort(
-    (a, b) => b.package.length - a.package.length
-  );
+  // Prefix/contains only against priced packages — never use "2:30" to force OTHER
+  // (Pre-Game Remixed SoftSelect includes "up to 2:30" and was false-matching).
+  const sorted = [...card]
+    .filter((entry) => !entry.isUnpriced)
+    .sort((a, b) => b.package.length - a.package.length);
 
   matched = sorted.find((entry) => {
     const pkgUpper = entry.package.toUpperCase();
-    return (
-      targetUpper.includes(pkgUpper) ||
-      pkgUpper.includes(targetUpper) ||
-      (entry.isUnpriced &&
-        (targetUpper.includes("OTHER") || targetUpper.includes("2:30")))
-    );
+    return targetUpper.includes(pkgUpper) || pkgUpper.includes(targetUpper);
   });
 
-  return matched ?? null;
+  if (matched) return matched;
+
+  if (targetUpper === "OTHER (MIXES LONGER THAN 2:30)".toUpperCase()) {
+    return (
+      card.find((entry) => entry.isUnpriced) ??
+      card.find(
+        (entry) =>
+          entry.package.toUpperCase() === "OTHER (MIXES LONGER THAN 2:30)"
+      ) ??
+      null
+    );
+  }
+
+  return null;
 }
 
 /**

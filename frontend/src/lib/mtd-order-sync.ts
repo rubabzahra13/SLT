@@ -221,14 +221,21 @@ export function orderPatchFromOrderField(
     patch.schoolOrganizationName = value;
   }
   if (key === "packageType") {
-    const tier = packageTierOnly(value) || value.trim();
-    // Store package type as tier only; mix length is a separate field.
-    patch.packageType = tier;
-    // Cheer packages compose tier + mix length; other forms keep package flat.
-    if (current?.formType === "school-all-star-cheer") {
-      patch.package = composePackageLabel(tier, current?.timeLengthOfMix);
+    // SE Magento SoftSelect embeds "1:15"/"2:30" in the option label — keep intact.
+    if (current?.formType === "sports-entertainment") {
+      const flat = value.trim();
+      patch.packageType = flat;
+      patch.package = flat;
     } else {
-      patch.package = tier;
+      const tier = packageTierOnly(value) || value.trim();
+      // Cheer: store package type as tier only; mix length is a separate field.
+      patch.packageType = tier;
+      // Cheer packages compose tier + mix length; other forms keep package flat.
+      if (current?.formType === "school-all-star-cheer") {
+        patch.package = composePackageLabel(tier, current?.timeLengthOfMix);
+      } else {
+        patch.package = tier;
+      }
     }
   }
   if (key === "timeLengthOfMix") {
@@ -240,8 +247,17 @@ export function orderPatchFromOrderField(
         patch.packageType = tier;
         patch.package = composePackageLabel(tier, value);
       }
+    } else if (current?.formType === "sports-entertainment") {
+      // SoftSelect option text may include "1:15"/"2:30" — never strip those.
+      const flat =
+        String(current.packageType || "").trim() ||
+        String(current.package || "").trim();
+      if (flat) {
+        patch.packageType = flat;
+        patch.package = flat;
+      }
     } else if (current?.formType && current.formType !== "school-anthem") {
-      // SE / Dance / Band: keep Magento PACKAGE TYPE flat. Strip any legacy
+      // Dance / Band: keep Magento PACKAGE TYPE flat. Strip any legacy
       // " … 2:00" so clearing Time Length cannot be revived from package.
       const flat =
         String(current.packageType || "").trim() ||

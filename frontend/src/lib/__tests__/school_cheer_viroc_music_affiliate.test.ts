@@ -82,7 +82,7 @@ describe("School Cheer / V!ROC Music Affiliate options", () => {
       [...SCHOOL_CHEER_VIROC_MUSIC_AFFILIATE_OPTIONS]
     );
     assert.deepEqual(merged, [...SCHOOL_CHEER_VIROC_MUSIC_AFFILIATE_OPTIONS]);
-    assert.ok(!merged.includes("Songs for Cheer"));
+    assert.ok(!merged.includes("Songs for Cheer" as (typeof merged)[number]));
   });
 
   it("incoming Magento short forms normalize onto the three V!ROC labels", () => {
