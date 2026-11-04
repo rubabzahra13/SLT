@@ -107,17 +107,9 @@ function mtdWorkflowFields(
     },
     {
       key: "mtd-mix-start",
-      label: "Mix start date",
+      label: "Mix due date",
       value: record.mixStartDate
         ? formatDisplayDate(toIsoDateString(record.mixStartDate) ?? record.mixStartDate)
-        : "",
-      section: "Assignment & scheduling",
-    },
-    {
-      key: "mtd-mix-end",
-      label: "Mix end date",
-      value: record.mixEndDate
-        ? formatDisplayDate(toIsoDateString(record.mixEndDate) ?? record.mixEndDate)
         : "",
       section: "Assignment & scheduling",
     },
@@ -527,7 +519,10 @@ function pushUniqueContact(
 ) {
   const trimmed = email?.trim();
   if (!trimmed || !trimmed.includes("@")) return;
-  if (contacts.some((c) => c.id === id)) return;
+  const emailKey = trimmed.toLowerCase();
+  if (contacts.some((c) => c.id === id || c.email.toLowerCase() === emailKey)) {
+    return;
+  }
   contacts.push({
     id,
     name: name.trim() || role,
@@ -536,9 +531,12 @@ function pushUniqueContact(
   });
 }
 
-/** Override all customer mail recipients for local send testing. */
-const CUSTOMER_MAIL_OVERRIDE_EMAIL = "rubabzahra248@gmail.com";
-
+/**
+ * Customer mail recipients from the linked order.
+ * Default / first entry is billing (`orders.billing_person_email` SoT, including
+ * Sports Entertainment `billingContactEmail` and Youth Rec Email Address aliases).
+ * Coach / music / choreographer contacts are included when they have distinct emails.
+ */
 export function resolveCustomerMailContacts(
   record: MTDRecord,
   linkedOrder?: Order | null
@@ -546,26 +544,46 @@ export function resolveCustomerMailContacts(
   const order = (linkedOrder ?? {}) as Order & Record<string, string | undefined>;
   const contacts: CustomerMailContact[] = [];
 
+  const billingEmail =
+    order.billingPersonEmail ||
+    order.billingContactEmail ||
+    order.youthRecExtraEmailAddress ||
+    order.emailAddress;
+  const billingName =
+    order.billingPersonName ||
+    order.billingContactName ||
+    record.contactName ||
+    "Billing";
+
+  // Billing first — modal defaults to contacts[0].
+  pushUniqueContact(contacts, "billing", billingName, billingEmail, "Billing");
+
+  const coachEmail =
+    order.coachEmail || order.coachEmailAddress || order.musicContactEmail;
+  const coachName =
+    order.coachName ||
+    order.musicContactName ||
+    record.contactName ||
+    "Coach";
+  pushUniqueContact(contacts, "coach", coachName, coachEmail, "Coach");
+
+  // Sports Entertainment / Anthem music contact when distinct from coach.
   pushUniqueContact(
     contacts,
-    "billing",
-    order.billingPersonName || record.contactName || "Demo Billing",
-    CUSTOMER_MAIL_OVERRIDE_EMAIL,
-    "Billing"
+    "music",
+    order.musicContactName || "Music contact",
+    order.musicContactEmail,
+    "Music"
   );
+
   pushUniqueContact(
     contacts,
-    "coach",
-    order.coachName || record.contactName || "Demo Coach",
-    CUSTOMER_MAIL_OVERRIDE_EMAIL,
-    "Coach"
-  );
-  pushUniqueContact(
-    contacts,
-    "contact",
-    record.contactName || "Demo Contact",
-    CUSTOMER_MAIL_OVERRIDE_EMAIL,
-    "Contact"
+    "choreographer",
+    order.choreographerName ||
+      order.virocChoreographerName ||
+      "Choreographer",
+    order.choreographerEmail || order.virocChoreographerEmail,
+    "Choreographer"
   );
 
   return contacts;
@@ -758,6 +776,11 @@ export function customerMailIncludesEightCountSheets(
 }
 
 export const EIGHT_COUNT_SHEETS_PDF_PATH = "/slt-8-count-sheets.pdf";
+/** Alternate public path used by the render script / older copies. */
+export const EIGHT_COUNT_SHEETS_PDF_PATH_ALIASES = [
+  "/slt-8-count-sheets.pdf",
+  "/SLT%208%20count%20sheets.pdf",
+];
 export const EIGHT_COUNT_SHEETS_PDF_FILENAME = "SLT 8 count sheets.pdf";
 /** Pre-rendered page images for the in-app preview (see scripts/render-eight-count.mjs). */
 export const EIGHT_COUNT_SHEETS_PREVIEW_MANIFEST =
@@ -773,22 +796,44 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
   return btoa(binary);
 }
 
-/** Load the public 8-count sheets PDF for Gmail attachment. */
-export async function loadEightCountSheetsAttachment(): Promise<{
+export type EightCountSheetsAttachment = {
   filename: string;
   content_base64: string;
   mime_type: string;
-}> {
-  const response = await fetch(EIGHT_COUNT_SHEETS_PDF_PATH);
-  if (!response.ok) {
-    throw new Error("Could not load the 8 count sheets PDF.");
+};
+
+/** Load the public 8-count sheets PDF for Gmail attachment. */
+export async function loadEightCountSheetsAttachment(): Promise<EightCountSheetsAttachment> {
+  let lastStatus = 0;
+  for (const path of EIGHT_COUNT_SHEETS_PDF_PATH_ALIASES) {
+    const response = await fetch(path);
+    lastStatus = response.status;
+    if (!response.ok) continue;
+    const buffer = await response.arrayBuffer();
+    if (!buffer.byteLength) continue;
+    return {
+      filename: EIGHT_COUNT_SHEETS_PDF_FILENAME,
+      content_base64: arrayBufferToBase64(buffer),
+      mime_type: "application/pdf",
+    };
   }
-  const buffer = await response.arrayBuffer();
-  return {
-    filename: EIGHT_COUNT_SHEETS_PDF_FILENAME,
-    content_base64: arrayBufferToBase64(buffer),
-    mime_type: "application/pdf",
-  };
+  throw new Error(
+    `Could not load the 8 count sheets PDF (HTTP ${lastStatus || "error"}). Place it at frontend/public/slt-8-count-sheets.pdf.`
+  );
+}
+
+/**
+ * Best-effort attachment load for customer mail. Returns null when the PDF is
+ * missing so the email can still send (body only) instead of failing entirely.
+ */
+export async function tryLoadEightCountSheetsAttachment(): Promise<
+  EightCountSheetsAttachment | null
+> {
+  try {
+    return await loadEightCountSheetsAttachment();
+  } catch {
+    return null;
+  }
 }
 
 /** Customer email asking which music affiliate to use (Flagged orders). */

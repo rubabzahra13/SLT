@@ -968,9 +968,10 @@ export function useOrdersBoard(
           patch?: Partial<Order>;
           inPlaceOnly?: boolean;
           countsChanged?: boolean;
+          deleted?: boolean;
         }>
       ).detail;
-      // Assign / reassign / flag resolve bumped the counts cache — show it now.
+      // Assign / reassign / flag resolve / delete bumped the counts cache — show it now.
       // Always prefer unsearched badge totals while searching (Flagged/Match dots).
       if (detail?.countsChanged) {
         const hit = readOrdersBoardCountsCache(badgeCountsKey);
@@ -983,7 +984,24 @@ export function useOrdersBoard(
       }
       const orderId = detail?.orderId;
       const patch = detail?.patch;
-      if (!orderId || !patch) return;
+      if (!orderId) return;
+      if (detail?.deleted) {
+        setOrders((prev) => {
+          const match = (o: Order) =>
+            o.id === orderId || o.uuid === orderId || o.legacyId === orderId;
+          if (!prev.some(match)) return prev;
+          const next = prev.filter((o) => !match(o));
+          pageIdsRef.current = new Set(next.map((o) => o.id));
+          writeOrdersBoardCache(queryKey, {
+            orders: next,
+            nextPageToken:
+              readOrdersBoardCache(queryKey)?.entry.nextPageToken ?? null,
+          });
+          return next;
+        });
+        return;
+      }
+      if (!patch) return;
       setOrders((prev) => {
         const match = (o: Order) =>
           o.id === orderId || o.uuid === orderId || o.legacyId === orderId;

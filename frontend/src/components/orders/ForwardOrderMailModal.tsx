@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { AlertCircle, ArrowLeft, Check, Loader2, Mail, Paperclip, Send, X } from "lucide-react";
+import { AlertCircle, ArrowLeft, Check, Loader2, Mail, Paperclip, Plus, Send, X } from "lucide-react";
 import clsx from "clsx";
 import { titleCase } from "@/lib/data";
 import {
@@ -19,7 +19,7 @@ import {
   EIGHT_COUNT_SHEETS_PDF_FILENAME,
   EIGHT_COUNT_SHEETS_PREVIEW_MANIFEST,
   flattenForwardMailFields,
-  loadEightCountSheetsAttachment,
+  tryLoadEightCountSheetsAttachment,
   renderForwardMailHtml,
   renderForwardMailPlainText,
   resolveCustomerMailContacts,
@@ -43,6 +43,7 @@ import {
   emailTemplateUsesAnyPlaceholder,
 } from "@/lib/email-templates";
 import { splitMailTextWithLinks } from "@/lib/music-resource-links";
+import { isValidEmailFormat } from "@/lib/email-format";
 import type { MTDRecord, Order, Producer } from "@/types";
 
 export type ForwardOrderMailRecipient = "producer" | "customer";
@@ -283,6 +284,8 @@ export function ForwardOrderMailModal({
   const [step, setStep] = useState<ModalStep>("compose");
   const [editorId, setEditorId] = useState("");
   const [customerContactId, setCustomerContactId] = useState("");
+  /** Primary + optional extra To addresses (editable; defaults from selection). */
+  const [toEmails, setToEmails] = useState<string[]>([""]);
   const [customerDeadlineIso, setCustomerDeadlineIso] = useState("");
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   const [gmailConnected, setGmailConnected] = useState(false);
@@ -396,8 +399,19 @@ export function ForwardOrderMailModal({
   useEffect(() => {
     if (!open || !record) return;
     setStep("compose");
-    setEditorId(resolveDefaultEditorKey(record, producers, linkedOrder));
-    setCustomerContactId(customerContacts[0]?.id ?? "");
+    const defaultEditorId = resolveDefaultEditorKey(
+      record,
+      producers,
+      linkedOrder
+    );
+    const defaultContactId = customerContacts[0]?.id ?? "";
+    setEditorId(defaultEditorId);
+    setCustomerContactId(defaultContactId);
+    const defaultEmail =
+      recipient === "customer"
+        ? customerContacts[0]?.email ?? ""
+        : producers.find((p) => p.id === defaultEditorId)?.email ?? "";
+    setToEmails([defaultEmail]);
     setCustomerDeadlineIso(
       record ? customerSubmissionDeadlineIso(record) : ""
     );
@@ -471,7 +485,7 @@ export function ForwardOrderMailModal({
     activeCustomerTemplate ??
     DEFAULT_EMAIL_TEMPLATES.customer_missing_data;
 
-  const draft = isCustomer
+  const baseDraft = isCustomer
     ? buildCustomerMissingDataDraft(
         record,
         customerContact,
@@ -493,9 +507,27 @@ export function ForwardOrderMailModal({
         selectedFields,
         emailTemplates.producer_order
       );
-  const hasRecipient = isCustomer
-    ? Boolean(customerContact?.email)
-    : Boolean(editor?.email);
+
+  const deliveryEmails = Array.from(
+    new Set(
+      toEmails
+        .map((email) => email.trim())
+        .filter((email) => isValidEmailFormat(email))
+        .map((email) => email.toLowerCase())
+    )
+  ).map((lower) => {
+    const original = toEmails.find((e) => e.trim().toLowerCase() === lower);
+    return original?.trim() || lower;
+  });
+
+  const draft: ForwardMailDraft = {
+    ...baseDraft,
+    to: deliveryEmails.join(", ") || baseDraft.to,
+    toName:
+      baseDraft.toName ||
+      (isCustomer ? "Customer" : editor?.name || "Editor"),
+  };
+  const hasRecipient = deliveryEmails.length > 0;
   const hasCustomerDeadline =
     !isCustomer ||
     !needsSubmissionDeadline ||
@@ -595,21 +627,33 @@ export function ForwardOrderMailModal({
     setIsSending(true);
     setSendError(null);
     try {
-      const attachments =
-        isCustomer && customerMailIncludesEightCountSheets(selectedKeys)
-          ? [await loadEightCountSheetsAttachment()]
-          : undefined;
+      let attachments:
+        | Awaited<ReturnType<typeof tryLoadEightCountSheetsAttachment>>[]
+        | undefined;
+      let missingEightCountPdf = false;
+      if (isCustomer && customerMailIncludesEightCountSheets(selectedKeys)) {
+        const pdf = await tryLoadEightCountSheetsAttachment();
+        if (pdf) {
+          attachments = [pdf];
+        } else {
+          missingEightCountPdf = true;
+        }
+      }
 
-      await sendGmailEmail(
-        {
-          to_email: draft.to,
-          subject: draft.subject,
-          body: renderForwardMailPlainText(draft),
-          html_body: renderForwardMailHtml(draft),
-          attachments,
-        },
-        token
-      );
+      const plain = renderForwardMailPlainText(draft);
+      const html = renderForwardMailHtml(draft);
+      for (const toEmail of deliveryEmails) {
+        await sendGmailEmail(
+          {
+            to_email: toEmail,
+            subject: draft.subject,
+            body: plain,
+            html_body: html,
+            attachments,
+          },
+          token
+        );
+      }
       if (isCustomer && record) {
         void updateMTD(
           record.id,
@@ -634,13 +678,25 @@ export function ForwardOrderMailModal({
         void updateMTD(record.id, stamp, record);
       }
       setSent(true);
-      const toLabel = draft.toName?.trim() || draft.to;
+      const toLabel = draft.toName?.trim() || deliveryEmails[0];
+      const extras =
+        deliveryEmails.length > 1
+          ? ` (+${deliveryEmails.length - 1} more)`
+          : "";
       addAlert({
-        tone: "info",
-        title: "Email sent",
-        message: toLabel
-          ? `Sent to ${toLabel}${draft.to && draft.to !== toLabel ? ` (${draft.to})` : ""}.`
-          : "Your email was sent successfully.",
+        tone: missingEightCountPdf ? "warning" : "info",
+        title: missingEightCountPdf
+          ? "Email sent without 8-count PDF"
+          : "Email sent",
+        message: missingEightCountPdf
+          ? `Sent to ${toLabel || deliveryEmails[0] || "recipient"}, but the 8-count sheets PDF was missing locally so it was not attached.`
+          : toLabel
+            ? `Sent to ${toLabel}${
+                deliveryEmails[0] && deliveryEmails[0] !== toLabel
+                  ? ` (${deliveryEmails[0]})`
+                  : ""
+              }${extras}.`
+            : "Your email was sent successfully.",
       });
     } catch (err) {
       setSendError(
@@ -761,8 +817,8 @@ export function ForwardOrderMailModal({
                 <div className="flex items-start gap-2.5 rounded-xl border border-brand-warning/30 bg-brand-warning/8 px-3.5 py-3">
                   <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-brand-warning" />
                   <p className="text-[12px] leading-relaxed text-brand-ink-secondary">
-                    No customer email was found on this order. Add a coach or
-                    billing email in the order details first.
+                    No billing email was found on this order. Enter an address
+                    below, or add a billing person email in the order details.
                   </p>
                 </div>
               ) : null}
@@ -808,26 +864,41 @@ export function ForwardOrderMailModal({
                   {recipientLabel}
                 </p>
                 {isCustomer ? (
-                  <MailRecipientSelect
-                    aria-label={recipientLabel}
-                    className="mt-1.5"
-                    value={customerContactId}
-                    onChange={setCustomerContactId}
-                    disabled={customerContacts.length === 0}
-                    placeholder="Select customer contact"
-                    options={customerContacts.map((contact) => ({
-                      id: contact.id,
-                      name: contact.name,
-                      email: contact.email,
-                      role: contact.role,
-                    }))}
-                  />
+                  customerContacts.length > 0 ? (
+                    <MailRecipientSelect
+                      aria-label={recipientLabel}
+                      className="mt-1.5"
+                      value={customerContactId}
+                      onChange={(id) => {
+                        setCustomerContactId(id);
+                        const contact = customerContacts.find((c) => c.id === id);
+                        setToEmails((prev) => [
+                          contact?.email ?? "",
+                          ...prev.slice(1),
+                        ]);
+                      }}
+                      placeholder="Select customer contact"
+                      options={customerContacts.map((contact) => ({
+                        id: contact.id,
+                        name: contact.name,
+                        email: contact.email,
+                        role: contact.role,
+                      }))}
+                    />
+                  ) : null
                 ) : (
                   <MailRecipientSelect
                     aria-label={recipientLabel}
                     className="mt-1.5"
                     value={editorId}
-                    onChange={setEditorId}
+                    onChange={(id) => {
+                      setEditorId(id);
+                      const producer = producers.find((p) => p.id === id);
+                      setToEmails((prev) => [
+                        producer?.email ?? "",
+                        ...prev.slice(1),
+                      ]);
+                    }}
                     placeholder="Select editor"
                     options={producers.map((producer) => ({
                       id: producer.id,
@@ -837,6 +908,71 @@ export function ForwardOrderMailModal({
                     }))}
                   />
                 )}
+
+                <div className="mt-2 space-y-2">
+                  <p className="text-[11px] font-medium text-brand-ink-tertiary">
+                    Email address{toEmails.length > 1 ? "es" : ""}
+                  </p>
+                  {toEmails.map((email, index) => {
+                    const trimmed = email.trim();
+                    const invalid =
+                      trimmed.length > 0 && !isValidEmailFormat(trimmed);
+                    return (
+                      <div key={index} className="flex items-center gap-2">
+                        <input
+                          type="email"
+                          value={email}
+                          onChange={(e) => {
+                            const next = e.target.value;
+                            setToEmails((prev) =>
+                              prev.map((row, i) => (i === index ? next : row))
+                            );
+                          }}
+                          placeholder={
+                            index === 0
+                              ? isCustomer
+                                ? "billing@example.com"
+                                : "editor@example.com"
+                              : "another@example.com"
+                          }
+                          aria-label={
+                            index === 0
+                              ? "Primary recipient email"
+                              : `Additional recipient email ${index}`
+                          }
+                          className={clsx(
+                            "min-w-0 flex-1 rounded-xl border bg-brand-surface px-3 py-2.5 text-[13px] text-brand-ink outline-none transition placeholder:text-brand-ink-tertiary",
+                            invalid
+                              ? "border-brand-danger/50 focus-visible:border-brand-danger focus-visible:ring-2 focus-visible:ring-brand-danger/15"
+                              : "border-brand-line/80 hover:border-brand-line-strong focus-visible:border-brand-signature/50 focus-visible:ring-2 focus-visible:ring-brand-signature/15"
+                          )}
+                        />
+                        {index > 0 ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setToEmails((prev) =>
+                                prev.filter((_, i) => i !== index)
+                              )
+                            }
+                            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-brand-ink-tertiary transition hover:bg-brand-bg hover:text-brand-ink"
+                            aria-label={`Remove email ${index + 1}`}
+                          >
+                            <X className="h-4 w-4" strokeWidth={2} />
+                          </button>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                  <button
+                    type="button"
+                    onClick={() => setToEmails((prev) => [...prev, ""])}
+                    className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-brand-signature transition hover:underline"
+                  >
+                    <Plus className="h-3.5 w-3.5" strokeWidth={2.5} />
+                    Add another email
+                  </button>
+                </div>
               </div>
 
               {isCustomer && needsSubmissionDeadline ? (

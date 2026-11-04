@@ -652,14 +652,25 @@ function OrdersPageContent() {
   useEffect(() => {
     const onPatch = (ev: Event) => {
       const detail = (
-        ev as CustomEvent<{ orderId?: string; patch?: Partial<Order> }>
+        ev as CustomEvent<{
+          orderId?: string;
+          patch?: Partial<Order>;
+          deleted?: boolean;
+        }>
       ).detail;
       const orderId = detail?.orderId;
+      if (!orderId) return;
+      const match = (o: Order) =>
+        o.id === orderId || o.uuid === orderId || o.legacyId === orderId;
+      if (detail?.deleted) {
+        setOrderCache((prev) =>
+          prev.some(match) ? prev.filter((o) => !match(o)) : prev
+        );
+        return;
+      }
       const patch = detail?.patch;
-      if (!orderId || !patch) return;
+      if (!patch) return;
       setOrderCache((prev) => {
-        const match = (o: Order) =>
-          o.id === orderId || o.uuid === orderId || o.legacyId === orderId;
         if (!prev.some(match)) return prev;
         return prev.map((o) => (match(o) ? { ...o, ...patch } : o));
       });

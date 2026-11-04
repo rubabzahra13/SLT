@@ -102,7 +102,10 @@ import { mergeIncomingOrderReassignFields } from "@/lib/order-reassign";
 import { pickInvoice } from "@/lib/invoice";
 import { orderPatchFromMTD } from "@/lib/mtd-order-sync";
 import {
+  applyOrdersBoardLiveDelete,
+  isRecentLocalOrderWrite,
   patchOrdersBoardRowOptimistic,
+  readOrdersBoardOrder,
   syncOrdersAfterMatch,
   syncOrdersBoardAfterReassign,
 } from "@/lib/orders-board-cache";
@@ -2296,17 +2299,20 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         order.uuid === target ||
         order.legacyId === target;
 
+      // Board-first: AppState.activeOrders is often empty — board cache is SoT.
       const removedOrder =
         activeOrders.find((o) => matchesOrderId(o, id)) ||
-        pastOrders.find((o) => matchesOrderId(o, id));
-      if (!removedOrder) {
+        pastOrders.find((o) => matchesOrderId(o, id)) ||
+        readOrdersBoardOrder(id);
+      const apiId = removedOrder?.uuid || removedOrder?.id || id;
+      if (!apiId) {
         throw new Error("Order not found");
       }
 
       const orderIds = new Set(
-        [removedOrder.id, removedOrder.uuid, removedOrder.legacyId].filter(
-          Boolean
-        ) as string[]
+        [apiId, removedOrder?.id, removedOrder?.uuid, removedOrder?.legacyId]
+          .filter(Boolean)
+          .map(String)
       );
 
       const clearPeerLinks = (order: Order): Order => {
@@ -2348,12 +2354,32 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           (a.mtdId && removedMtdIds.has(a.mtdId))
       );
 
-      setActiveOrders((prev) =>
-        prev.filter((o) => o.id !== removedOrder.id).map(clearPeerLinks)
-      );
-      setPastOrders((prev) =>
-        prev.filter((o) => o.id !== removedOrder.id).map(clearPeerLinks)
-      );
+      const label =
+        (removedOrder
+          ? getOrderIdentityName(removedOrder).trim() || removedOrder.programName
+          : "") || "Order";
+
+      // Drop from board/match caches first so the Orders tab updates immediately
+      // even when AppState has no copy of this Magento/board-only row.
+      for (const oid of orderIds) {
+        applyOrdersBoardLiveDelete(oid);
+      }
+
+      if (removedOrder) {
+        setActiveOrders((prev) =>
+          prev.filter((o) => !matchesOrderId(o, removedOrder.id)).map(clearPeerLinks)
+        );
+        setPastOrders((prev) =>
+          prev.filter((o) => !matchesOrderId(o, removedOrder.id)).map(clearPeerLinks)
+        );
+      } else {
+        setActiveOrders((prev) =>
+          prev.filter((o) => !matchesOrderId(o, apiId)).map(clearPeerLinks)
+        );
+        setPastOrders((prev) =>
+          prev.filter((o) => !matchesOrderId(o, apiId)).map(clearPeerLinks)
+        );
+      }
 
       mtdMutatedAtRef.current = Date.now();
       setMtdRecords((prev) => {
@@ -2364,20 +2390,12 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
       setPayrollAddons((prev) => {
         const removedAddonIds = new Set(removedAddons.map((a) => a.id));
-        const next = prev.filter((a) => !removedAddonIds.has(a.id));
-        return next;
+        return prev.filter((a) => !removedAddonIds.has(a.id));
       });
-
-      const label =
-        getOrderIdentityName(removedOrder).trim() ||
-        removedOrder.programName ||
-        "Order";
 
       try {
         // UI delete is declarative ("ensure gone") → AIP-135 allow_missing.
-        await deleteOrderApi(removedOrder.uuid || removedOrder.id, {
-          allowMissing: true,
-        });
+        await deleteOrderApi(apiId, { allowMissing: true });
         setIsBackendConnected(true);
         addAlert({
           tone: "success",
@@ -2385,10 +2403,12 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           message: `${label} was removed.`,
         });
       } catch (err) {
-        setActiveOrders((prev) => {
-          if (prev.some((o) => o.id === removedOrder.id)) return prev;
-          return [removedOrder, ...prev];
-        });
+        if (removedOrder) {
+          setActiveOrders((prev) => {
+            if (prev.some((o) => o.id === removedOrder.id)) return prev;
+            return [removedOrder, ...prev];
+          });
+        }
         if (removedMtd.length) {
           setMtdRecords((prev) => {
             const next = [...removedMtd, ...prev];
@@ -2397,10 +2417,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           });
         }
         if (removedAddons.length) {
-          setPayrollAddons((prev) => {
-            const next = [...removedAddons, ...prev];
-            return next;
-          });
+          setPayrollAddons((prev) => [...removedAddons, ...prev]);
         }
         if (
           err instanceof ApiClientError &&
@@ -4390,6 +4407,11 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       }
       if (event.type === "order.deleted") {
         const deletedId = event.id;
+        // Other tabs / Magento poller: drop board rows. Skip this tab's own
+        // delete echo — applyOrdersBoardLiveDelete already ran locally.
+        if (!isRecentLocalOrderWrite({ id: deletedId })) {
+          applyOrdersBoardLiveDelete(deletedId);
+        }
         setActiveOrders((prev) =>
           prev.filter(
             (o) =>

@@ -2490,6 +2490,73 @@ export function applyMatchPoolLiveDelete(
 }
 
 /**
+ * Drop an order from every cached Orders board page + badge counts (this tab's
+ * Delete, or SSE echo). Board-first AppState often has no activeOrders copy.
+ */
+export function applyOrdersBoardLiveDelete(orderId: string): void {
+  if (!orderId) return;
+  noteLocalOrderWrite(orderId);
+  const before = readOrdersBoardOrder(orderId);
+  if (before) {
+    noteLocalOrderWrite(before.id, before.uuid, before.legacyId);
+  }
+
+  let changed = false;
+  for (const [key, entry] of boardCache) {
+    const orders = entry.orders.filter((o) => !orderMatchesId(o, orderId));
+    if (orders.length === entry.orders.length) continue;
+    const next = { ...entry, orders, updatedAt: Date.now() };
+    boardCache.set(key, next);
+    try {
+      writeBoardSession(ssKey(BOARD_SS_PREFIX, key), next);
+    } catch {
+      /* ignore */
+    }
+    changed = true;
+  }
+
+  let countsChanged = false;
+  if (before && before.status !== "in_mtd") {
+    for (const [key, entry] of countsCache) {
+      let flaggedOnly = false;
+      try {
+        flaggedOnly = Boolean(
+          (JSON.parse(key) as { flaggedOnly?: boolean }).flaggedOnly
+        );
+      } catch {
+        /* keep */
+      }
+      if (flaggedOnly) continue;
+      const next = {
+        counts: bumpNormalBoardPresence(entry.counts, before, -1),
+        updatedAt: Date.now(),
+      };
+      countsCache.set(key, next);
+      try {
+        writeCountsSession(ssKey(COUNTS_SS_PREFIX, key), next);
+      } catch {
+        /* ignore */
+      }
+    }
+    countsChanged = true;
+  }
+
+  applyMatchPoolLiveDelete(orderId);
+
+  if (typeof window !== "undefined" && (changed || countsChanged || before)) {
+    window.dispatchEvent(
+      new CustomEvent(ORDERS_BOARD_PATCH_EVENT, {
+        detail: {
+          orderId: before?.id || orderId,
+          deleted: true,
+          countsChanged,
+        },
+      })
+    );
+  }
+}
+
+/**
  * Live updates stopped or dropped: keep painting cached Match lists + badges,
  * but revalidate them before trusting them again.
  */
