@@ -23,6 +23,7 @@ export function openBookingsToStubMtd(
       editorInitials: producer,
       programName: "",
       package: "",
+      musicTheme: "",
       price: 0,
       priceCompliance: "compliant",
       invoice: "",
