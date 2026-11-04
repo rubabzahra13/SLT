@@ -6,7 +6,7 @@ import { calculateDanceOrderPricing, calculateMiscellaneousPayrollAddons } from 
 import type { Producer } from "../../types";
 
 describe("Voiceover & Rush Fee Producer Compensation End-to-End Test Suite", () => {
-  // Mock Producers with custom rates
+  // Mock Producers — VO rates on producers are ignored (deprecated; full VO amount paid)
   const mockProducerCassie: Producer = normalizeProducer({
     id: "prod-cassie",
     name: "Cassie Marlow",
@@ -74,8 +74,8 @@ describe("Voiceover & Rush Fee Producer Compensation End-to-End Test Suite", () 
     });
   });
 
-  describe("Section 3, 4, 5, 6: Payroll Voiceover Calculation & Producer-Specific Rates", () => {
-    it("Dance Traditional VO ($25) uses producer's danceVoiceoverRate (80% -> $20)", () => {
+  describe("Section 3, 4, 5, 6: Payroll Voiceover Calculation (full amount, no producer %)", () => {
+    it("Dance Traditional VO pays full $25 regardless of producer danceVoiceoverRate", () => {
       const computed = computeClientPayroll(
         mockProducerCassie,
         475,
@@ -87,12 +87,12 @@ describe("Voiceover & Rush Fee Producer Compensation End-to-End Test Suite", () 
         { hasTraditionalVoiceover: true }
       );
 
-      assert.equal(computed.voiceoverPayout, 20); // 25 * 80% = 20
-      // Category payout: 475 * 80% = 380 + VO 20 = 400
-      assert.equal(computed.producerPayout, 400);
+      assert.equal(computed.voiceoverPayout, 25);
+      // Category payout: 475 * 80% = 380 + VO 25 = 405
+      assert.equal(computed.producerPayout, 405);
     });
 
-    it("Dance Themed VO ($75) uses producer's danceVoiceoverRate (60% for mockProducerOther -> $45)", () => {
+    it("Dance Themed VO pays full $75 regardless of producer danceVoiceoverRate", () => {
       const computed = computeClientPayroll(
         mockProducerOther,
         475,
@@ -104,10 +104,10 @@ describe("Voiceover & Rush Fee Producer Compensation End-to-End Test Suite", () 
         { hasThemedVoiceover: true }
       );
 
-      assert.equal(computed.voiceoverPayout, 45); // 75 * 60% = 45
+      assert.equal(computed.voiceoverPayout, 75);
     });
 
-    it("Dance Both VO ($100) uses producer's danceVoiceoverRate (80% -> $80)", () => {
+    it("Dance Both VO pays full $100 regardless of producer danceVoiceoverRate", () => {
       const computed = computeClientPayroll(
         mockProducerCassie,
         850,
@@ -119,10 +119,10 @@ describe("Voiceover & Rush Fee Producer Compensation End-to-End Test Suite", () 
         { hasTraditionalVoiceover: true, hasThemedVoiceover: true }
       );
 
-      assert.equal(computed.voiceoverPayout, 80); // 100 * 80% = 80
+      assert.equal(computed.voiceoverPayout, 100);
     });
 
-    it("Cheer Voiceover: Cheer $20 VO and Cheer $40 VO use producer's cheerVoiceoverRate (100% -> $20, $40, $60)", () => {
+    it("Cheer Voiceover: Cheer $20 VO and Cheer $40 VO pay full amounts", () => {
       let computed = computeClientPayroll(
         mockProducerCassie,
         700,
@@ -133,7 +133,7 @@ describe("Voiceover & Rush Fee Producer Compensation End-to-End Test Suite", () 
         700,
         { cheerVoiceover20: true, cheerVoiceover40: false }
       );
-      assert.equal(computed.voiceoverPayout, 20); // 20 * 100% = 20
+      assert.equal(computed.voiceoverPayout, 20);
 
       computed = computeClientPayroll(
         mockProducerCassie,
@@ -145,7 +145,7 @@ describe("Voiceover & Rush Fee Producer Compensation End-to-End Test Suite", () 
         700,
         { cheerVoiceover20: false, cheerVoiceover40: true }
       );
-      assert.equal(computed.voiceoverPayout, 40); // 40 * 100% = 40
+      assert.equal(computed.voiceoverPayout, 40);
 
       computed = computeClientPayroll(
         mockProducerCassie,
@@ -157,11 +157,11 @@ describe("Voiceover & Rush Fee Producer Compensation End-to-End Test Suite", () 
         700,
         { cheerVoiceover20: true, cheerVoiceover40: true }
       );
-      assert.equal(computed.voiceoverPayout, 60); // (20 + 40) * 100% = 60
+      assert.equal(computed.voiceoverPayout, 60);
     });
 
-    it("Voiceover uses specific VO rate even if general category rate is different", () => {
-      // mockProducerOther has cheer general rate = 70%, but cheerVoiceoverRate = 50%
+    it("Voiceover is NOT scaled by category rate or deprecated producer VO rate", () => {
+      // mockProducerOther has cheer general rate = 70%, cheerVoiceoverRate = 50% (ignored)
       const computed = computeClientPayroll(
         mockProducerOther,
         700,
@@ -174,7 +174,7 @@ describe("Voiceover & Rush Fee Producer Compensation End-to-End Test Suite", () 
       );
 
       assert.equal(computed.rateUsed, 70); // General cheer rate
-      assert.equal(computed.voiceoverPayout, 20); // $40 * 50% = $20 (NOT 40 * 70% = 28!)
+      assert.equal(computed.voiceoverPayout, 40); // full $40, not 50% or 70%
     });
   });
 
@@ -229,8 +229,8 @@ describe("Voiceover & Rush Fee Producer Compensation End-to-End Test Suite", () 
 
       assert.equal(computed.rushFeePayout, 216); // $150 * 2 * 72% = $216
 
-      // Verify Cassie's global settings remain 100%
-      assert.equal(mockProducerCassie.rushFeeRate, 100);
+      // Verify Cassie's global settings remain 100% (stored as fraction)
+      assert.equal(mockProducerCassie.rushFeeRate, 1);
     });
 
     it("includeRushFeeInPayout false excludes rush from producerPayout but keeps rushFeePayout info", () => {
@@ -253,7 +253,7 @@ describe("Voiceover & Rush Fee Producer Compensation End-to-End Test Suite", () 
   });
 
   describe("Section 14 & 16: Data Persistence & Negative Checks", () => {
-    it("Normalizing producer preserves all voiceover and rush fee rates", () => {
+    it("Normalizing producer still maps legacy voiceover rate fields (unused by payroll)", () => {
       const raw = {
         id: "prod-test",
         name: "Test",
@@ -262,9 +262,10 @@ describe("Voiceover & Rush Fee Producer Compensation End-to-End Test Suite", () 
         rushFeeRate: 75,
       };
       const normalized = normalizeProducer(raw);
-      assert.equal(normalized.danceVoiceoverRate, 85);
-      assert.equal(normalized.cheerVoiceoverRate, 95);
-      assert.equal(normalized.rushFeeRate, 75);
+      // Percent inputs are stored as fractions
+      assert.equal(normalized.danceVoiceoverRate, 0.85);
+      assert.equal(normalized.cheerVoiceoverRate, 0.95);
+      assert.equal(normalized.rushFeeRate, 0.75);
     });
   });
 });

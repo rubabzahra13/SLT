@@ -113,8 +113,8 @@ describe("Coupon Code as Display-Only Customer Pricing Information Test Suite", 
   });
 
   describe("Requirement 8: Combined End-to-End Test (Coupon + Voiceover + Rush Fee)", () => {
-    it("Coupon does NOT alter Rush fee payout ($150) or Voiceover payout ($20)", () => {
-      // Order with Package Price = 500, Rush Qty = 1 ($150), Dance Trad VO = $25 (80% -> $20 payout)
+    it("Coupon does NOT alter Rush fee payout ($150) or Voiceover payout ($25)", () => {
+      // Order with Package Price = 500, Rush Qty = 1 ($150), Dance Trad VO = $25 (full amount)
       // Total Payroll Base = 650
       const computed = computeClientPayroll(
         mockProducer,
@@ -130,10 +130,10 @@ describe("Coupon Code as Display-Only Customer Pricing Information Test Suite", 
         }
       );
 
-      assert.equal(computed.voiceoverPayout, 20); // $25 * 80% = $20
+      assert.equal(computed.voiceoverPayout, 25); // full $25 (producer VO % deprecated)
       assert.equal(computed.rushFeePayout, 150); // $150 * 1 * 100% = $150
-      // Base package payout: (650 - 150) * 80% = 400. Total payout = 400 + 150 + 20 = 570
-      assert.equal(computed.producerPayout, 570);
+      // Base package payout: (650 - 150) * 80% = 400. Total payout = 400 + 150 + 25 = 575
+      assert.equal(computed.producerPayout, 575);
     });
   });
 });

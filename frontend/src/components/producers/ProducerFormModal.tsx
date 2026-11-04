@@ -57,13 +57,12 @@ function ratesPatchFromForm(form: FormState): Partial<Producer> {
         typeof val === "number" && val > 1 ? val / 100 : val,
       ])
     ),
-    danceVoiceoverRate: toFractionRate(form.danceVoiceoverRate),
-    cheerVoiceoverRate: toFractionRate(form.cheerVoiceoverRate),
+    // Deprecated: clear on every save so old DB values stop affecting payroll.
+    danceVoiceoverRate: null,
+    cheerVoiceoverRate: null,
     rushFeeRate: toFractionRate(form.rushFeeRate),
   };
 }
-
-type VoiceoverKind = "dance" | "cheer";
 
 type FormState = {
   name: string;
@@ -74,8 +73,6 @@ type FormState = {
   avatar: string;
   color: string;
   workDays: Weekday[];
-  danceVoiceoverRate: number | null;
-  cheerVoiceoverRate: number | null;
   rushFeeRate: number | null;
 };
 
@@ -87,11 +84,6 @@ function weekdayPill(day: Weekday): string {
   const match = WEEKDAYS.find((entry) => entry.id === day);
   return match?.short.charAt(0) ?? day.charAt(0).toUpperCase();
 }
-
-const VOICEOVER_OPTIONS: { id: VoiceoverKind; label: string; defaultRate: number }[] = [
-  { id: "dance", label: "Dance Voiceover", defaultRate: 100 },
-  { id: "cheer", label: "Cheer Voiceover", defaultRate: 100 },
-];
 
 const rowInput =
   "w-full bg-transparent text-right text-[15px] text-brand-ink outline-none placeholder:text-brand-ink-tertiary";
@@ -111,8 +103,6 @@ function emptyForm(): FormState {
     avatar: "",
     color: resolveProducerColor(null),
     workDays: [...DEFAULT_WORK_DAYS],
-    danceVoiceoverRate: null,
-    cheerVoiceoverRate: null,
     rushFeeRate: null,
   };
 }
@@ -127,8 +117,6 @@ function fromProducer(producer: Producer): FormState {
     categoryRates[cat] = raw <= 1 ? Math.round(raw * 100) : raw;
   }
 
-  const dVo = toPercentOrNull(norm.danceVoiceoverRate, null);
-  const cVo = toPercentOrNull(norm.cheerVoiceoverRate, null);
   const rFee = toPercentOrNull(norm.rushFeeRate, null);
 
   return {
@@ -144,8 +132,6 @@ function fromProducer(producer: Producer): FormState {
     ),
     workDays:
       norm.workDays?.length > 0 ? [...norm.workDays] : [...DEFAULT_WORK_DAYS],
-    danceVoiceoverRate: dVo,
-    cheerVoiceoverRate: cVo,
     rushFeeRate: rFee,
   };
 }
@@ -431,51 +417,6 @@ export function ProducerFormModal({
     }));
   }
 
-  function addVoiceover(kind: VoiceoverKind) {
-    const option = VOICEOVER_OPTIONS.find((entry) => entry.id === kind);
-    if (!option) return;
-    setForm((prev) => {
-      if (kind === "dance" && prev.danceVoiceoverRate != null) return prev;
-      if (kind === "cheer" && prev.cheerVoiceoverRate != null) return prev;
-      return {
-        ...prev,
-        danceVoiceoverRate:
-          kind === "dance" ? option.defaultRate : prev.danceVoiceoverRate,
-        cheerVoiceoverRate:
-          kind === "cheer" ? option.defaultRate : prev.cheerVoiceoverRate,
-      };
-    });
-  }
-
-  function applyRemoveVoiceover(kind: VoiceoverKind) {
-    setForm((prev) => ({
-      ...prev,
-      danceVoiceoverRate: kind === "dance" ? null : prev.danceVoiceoverRate,
-      cheerVoiceoverRate: kind === "cheer" ? null : prev.cheerVoiceoverRate,
-    }));
-  }
-
-  function requestRemoveVoiceover(kind: VoiceoverKind) {
-    if (readOnly) return;
-    const addonKind: ProducerAddonRateKind =
-      kind === "dance" ? "dance_voiceover" : "cheer_voiceover";
-    if (!producer?.id) {
-      applyRemoveVoiceover(kind);
-      return;
-    }
-    const blocking = collectMixesUsingProducerAddonRate(
-      producer,
-      addonKind,
-      activeOrders,
-      mtdRecords
-    );
-    if (blocking.length === 0) {
-      applyRemoveVoiceover(kind);
-      return;
-    }
-    setPendingRemoveAddon(addonKind);
-  }
-
   function addRushFee() {
     setForm((prev) =>
       prev.rushFeeRate != null ? prev : { ...prev, rushFeeRate: 100 }
@@ -530,22 +471,6 @@ export function ProducerFormModal({
         setValidationError(`Invalid compensation percentage for category "${cat}". Must be between 0% and 100%.`);
         return;
       }
-    }
-
-    if (
-      form.danceVoiceoverRate != null &&
-      (form.danceVoiceoverRate < 0 || form.danceVoiceoverRate > 100)
-    ) {
-      setValidationError("Dance Voiceover rate must be between 0% and 100%.");
-      return;
-    }
-
-    if (
-      form.cheerVoiceoverRate != null &&
-      (form.cheerVoiceoverRate < 0 || form.cheerVoiceoverRate > 100)
-    ) {
-      setValidationError("Cheer Voiceover rate must be between 0% and 100%.");
-      return;
     }
 
     if (
@@ -958,108 +883,6 @@ export function ProducerFormModal({
                   })}
                 </ul>
               )}
-            </div>
-
-            <div className="mt-4 rounded-2xl bg-brand-bg px-4 py-3 ring-1 ring-inset ring-black/[0.06]">
-              <div className="min-w-0">
-                <p className="text-[13px] font-semibold text-brand-ink">
-                  Voiceover compensation
-                </p>
-                <p className="mt-0.5 text-[12px] text-brand-ink-tertiary">
-                  Specific rates for Voiceover payouts.
-                </p>
-              </div>
-
-              <ul className="mt-3 divide-y divide-black/[0.06]">
-                {(
-                  [
-                    {
-                      kind: "dance" as const,
-                      label: "Dance Voiceover",
-                      value: form.danceVoiceoverRate,
-                      aria: "Dance Voiceover compensation percentage",
-                    },
-                    {
-                      kind: "cheer" as const,
-                      label: "Cheer Voiceover",
-                      value: form.cheerVoiceoverRate,
-                      aria: "Cheer Voiceover compensation percentage",
-                    },
-                  ] as const
-                ).map((row) => (
-                  <li
-                    key={row.kind}
-                    className="flex items-center gap-2 py-2.5 text-[13px] first:pt-0 last:pb-0"
-                  >
-                    <span className="min-w-0 flex-1 font-medium text-brand-ink-secondary">
-                      {row.label}
-                    </span>
-                    {row.value != null ? (
-                      <>
-                        <div className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-brand-elevated px-2 py-1 ring-1 ring-inset ring-black/[0.06] focus-within:ring-brand-blue/30">
-                          <input
-                            type="number"
-                            min={0}
-                            max={100}
-                            step={1}
-                            value={row.value}
-                            onChange={(e) => {
-                              const val = parseFloat(e.target.value);
-                              setForm((prev) => ({
-                                ...prev,
-                                ...(row.kind === "dance"
-                                  ? {
-                                      danceVoiceoverRate: isNaN(val)
-                                        ? 0
-                                        : val,
-                                    }
-                                  : {
-                                      cheerVoiceoverRate: isNaN(val)
-                                        ? 0
-                                        : val,
-                                    }),
-                              }));
-                            }}
-                            disabled={readOnly}
-                            className="w-10 bg-transparent text-right text-[13px] font-semibold tabular-nums text-brand-ink outline-none disabled:opacity-60"
-                            aria-label={row.aria}
-                          />
-                          <span className="text-[12px] font-semibold text-brand-ink-tertiary">
-                            %
-                          </span>
-                        </div>
-                        {!readOnly ? (
-                          <button
-                            type="button"
-                            onClick={() => requestRemoveVoiceover(row.kind)}
-                            className="shrink-0 rounded-full p-1.5 text-brand-ink-tertiary transition hover:bg-brand-elevated hover:text-brand-danger"
-                            aria-label={`Remove ${row.label}`}
-                          >
-                            <Trash2
-                              className="h-3.5 w-3.5"
-                              strokeWidth={1.75}
-                            />
-                          </button>
-                        ) : null}
-                      </>
-                    ) : readOnly ? (
-                      <span className="text-[12px] text-brand-ink-tertiary">
-                        Not set
-                      </span>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => addVoiceover(row.kind)}
-                        className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full bg-brand-elevated px-3 text-[12px] font-semibold text-brand-blue ring-1 ring-inset ring-black/[0.06] transition hover:bg-brand-bg-subtle"
-                        aria-label={`Add ${row.label}`}
-                      >
-                        <Plus className="h-3.5 w-3.5" strokeWidth={2.5} />
-                        Add
-                      </button>
-                    )}
-                  </li>
-                ))}
-              </ul>
             </div>
 
             <div className="mt-4 rounded-2xl bg-brand-bg px-4 py-3 ring-1 ring-inset ring-black/[0.06]">

@@ -193,9 +193,9 @@ def calculate_compensation(
             flag=f"Rate manually overridden to {float(rate)*100:.1f}%.",
         )
 
-    # Category % from rates_by_category. Voiceover/rush addon % are applied
-    # separately by the payroll UI (dance_voiceover_rate / cheer_voiceover_rate /
-    # rush_fee_rate): not as a substitute for the package rate here.
+    # Category % from rates_by_category. Rush addon % is applied separately by
+    # the payroll UI (rush_fee_rate). Dance/Cheer voiceover % rates are deprecated;
+    # voiceovers pay at full amount in the frontend payroll calculator.
     rate, rate_source = _determine_rate_for_subtype(producer, subtype_id)
 
     if rate is None:

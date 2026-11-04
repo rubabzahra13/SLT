@@ -312,9 +312,10 @@ export function computeClientPayroll(
     seRushFee > 0 ? seRushFeePayout : cheerRushFeePayoutComputed;
   const rushFeePayout = seRushFee > 0 ? seRushFeePayout : cheerRushFeePayout;
 
-  // Calculate Voiceover payout based on producer's specific VO rates
+  // Voiceover payout is the full customer VO charge. Per-producer Dance/Cheer
+  // voiceover % rates are deprecated and no longer applied.
   let voiceoverPayout = 0;
-  let voiceoverRateUsed: number | undefined;
+  const voiceoverRateUsed = 1;
 
   const isDance =
     options?.formType === "school-all-star-dance" ||
@@ -323,31 +324,20 @@ export function computeClientPayroll(
     Boolean(options?.hasThemedVoiceover);
 
   if (isDance) {
-    const rawDanceVo = producer.danceVoiceoverRate ?? 1.0;
-    voiceoverRateUsed = rawDanceVo > 1 ? rawDanceVo / 100 : rawDanceVo;
-
-    let voBase = 0;
     const danceVo = options?.danceVoiceover;
     const trad = Boolean(options?.hasTraditionalVoiceover);
     const themed = Boolean(options?.hasThemedVoiceover);
 
     if (danceVo === "100" || (trad && themed)) {
-      voBase = 100;
+      voiceoverPayout = 100;
     } else if (danceVo === "75" || themed) {
-      voBase = 75;
+      voiceoverPayout = 75;
     } else if (danceVo === "25" || trad) {
-      voBase = 25;
+      voiceoverPayout = 25;
     }
-    voiceoverPayout = Math.round(voBase * voiceoverRateUsed * 100) / 100;
   } else {
-    // Cheer Voiceover
-    const rawCheerVo = producer.cheerVoiceoverRate ?? 1.0;
-    voiceoverRateUsed = rawCheerVo > 1 ? rawCheerVo / 100 : rawCheerVo;
-
-    let voBase = 0;
-    if (options?.cheerVoiceover20) voBase += 20;
-    if (options?.cheerVoiceover40) voBase += 40;
-    voiceoverPayout = Math.round(voBase * voiceoverRateUsed * 100) / 100;
+    if (options?.cheerVoiceover20) voiceoverPayout += 20;
+    if (options?.cheerVoiceover40) voiceoverPayout += 40;
   }
 
   // Package payroll base excludes Cheer $150×qty and/or SE Magento $100 rush

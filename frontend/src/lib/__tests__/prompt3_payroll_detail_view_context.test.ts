@@ -121,9 +121,9 @@ describe("Prompt 3: Detail View Context & Payroll Detail View Tests", () => {
       }
     );
 
-    // Base payout: 70% of $850 = $595. Dance VO ($100 * 80% producer rate) = $80. Total = $675
+    // Base payout: 70% of $850 = $595. Dance VO full $100. Total = $695
     assert.equal(calcDance.categoryPayout, 595);
-    assert.equal(calcDance.voiceoverPayout, 80);
-    assert.equal(calcDance.producerPayout, 675);
+    assert.equal(calcDance.voiceoverPayout, 100);
+    assert.equal(calcDance.producerPayout, 695);
   });
 });
