@@ -63,6 +63,8 @@ type PipelineChartProps = {
   href?: string;
   compact?: boolean;
   limit?: number;
+  /** Server open-MTD count when local category rows briefly lag. */
+  openTotal?: number;
 };
 
 export function PipelineChart({
@@ -70,11 +72,14 @@ export function PipelineChart({
   href = "/mtd",
   compact = false,
   limit,
+  openTotal,
 }: PipelineChartProps) {
-  const total = pipeline.reduce((sum, slice) => sum + slice.count, 0);
+  const sliceTotal = pipeline.reduce((sum, slice) => sum + slice.count, 0);
+  const total =
+    typeof openTotal === "number" ? openTotal : sliceTotal;
   const visible = limit ? pipeline.slice(0, limit) : pipeline;
 
-  if (total === 0) {
+  if (sliceTotal === 0 && total === 0) {
     return (
       <p
         className={
@@ -126,18 +131,36 @@ export function PipelineChart({
             role="img"
             aria-label={`Pipeline breakdown, ${total} total mixes`}
           >
-            {arcs.map(({ category, count, startAngle, endAngle, index }) => (
+            {arcs.length === 0 ? (
               <path
-                key={category}
-                d={describeDonutSlice(cx, cy, outerR, innerR, startAngle, endAngle)}
-                fill={pipelineColor(index)}
+                d={describeDonutSlice(cx, cy, outerR, innerR, 0, 360)}
+                fill={pipelineColor(0)}
                 stroke="#ffffff"
                 strokeWidth={1.5}
-                className="transition-opacity hover:opacity-90"
               >
-                <title>{`${category}: ${count}`}</title>
+                <title>{`${total} open mixes`}</title>
               </path>
-            ))}
+            ) : (
+              arcs.map(({ category, count, startAngle, endAngle, index }) => (
+                <path
+                  key={category}
+                  d={describeDonutSlice(
+                    cx,
+                    cy,
+                    outerR,
+                    innerR,
+                    startAngle,
+                    endAngle
+                  )}
+                  fill={pipelineColor(index)}
+                  stroke="#ffffff"
+                  strokeWidth={1.5}
+                  className="transition-opacity hover:opacity-90"
+                >
+                  <title>{`${category}: ${count}`}</title>
+                </path>
+              ))
+            )}
           </svg>
 
           <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">

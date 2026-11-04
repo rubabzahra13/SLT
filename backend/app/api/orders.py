@@ -1,6 +1,7 @@
 import asyncio
 import json
 import uuid
+from datetime import datetime, timedelta, timezone
 from typing import Any, List
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -9,7 +10,7 @@ from pydantic import BaseModel
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from app.api.auth import get_current_user, require_full_access
+from app.api.auth import get_current_user, get_stream_user, require_full_access
 from app.core.database import get_db
 from app.lib.delete_norm import allow_missing_query, missing_or_found
 from app.lib.pagination import page_size_query, page_token_query, paginate_query
@@ -334,17 +335,52 @@ def _mirror_shared_fields_to_mtd(db: Session, order: Order, changed: dict) -> No
             mtd.in_mtd = False
 
 
+def _apply_orders_scope(query, scope: str | None):
+    """scope=active|past|all (default all for backward compatibility)."""
+    normalized = (scope or "all").strip().lower()
+    if normalized == "active":
+        return query.filter(
+            or_(Order.is_past_order.is_(False), Order.is_past_order.is_(None)),
+            or_(Order.status.is_(None), Order.status != "completed"),
+        )
+    if normalized == "past":
+        return query.filter(
+            or_(Order.is_past_order.is_(True), Order.status == "completed")
+        )
+    return query
+
+
+def _apply_created_since_days(query, since_days: int | None):
+    """Optional created_at lower bound (Dashboard chart only needs ~14 days)."""
+    if since_days is None:
+        return query
+    try:
+        days = int(since_days)
+    except (TypeError, ValueError):
+        return query
+    if days <= 0:
+        return query
+    # Cap so a bad client cannot ask for unbounded "since" windows.
+    days = min(days, 366)
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    return query.filter(Order.created_at >= cutoff)
+
+
 @router.get("/orders", response_model=OrderListResponse)
 def get_orders(
     form_type: str | None = None,
     cheer_form_subtype: str | None = None,
     category: str | None = None,
     status: str | None = None,
+    scope: str | None = None,
+    since_days: int | None = None,
     page_size: int = Depends(page_size_query),
     page_token: str | None = Depends(page_token_query),
     db: Session = Depends(get_db),
 ):
     query = db.query(Order).order_by(Order.created_at.desc(), Order.id.asc())
+    query = _apply_orders_scope(query, scope)
+    query = _apply_created_since_days(query, since_days)
     if cheer_form_subtype and cheer_form_subtype != "all":
         query = query.filter(Order.cheer_form_subtype == cheer_form_subtype)
     elif form_type:
@@ -381,6 +417,10 @@ def _serialize_order(order: Order) -> dict[str, Any]:
 
 
 def _publish_order_updated(order: Order) -> None:
+    # Assignment / status writes must not leave Assigned badges on a 60s chip TTL.
+    from app.services.form_chip_cache import invalidate_order_read_caches
+
+    invalidate_order_read_caches()
     board_event_hub.publish(
         {
             "type": "order.updated",
@@ -409,7 +449,7 @@ def _publish_linked_mtd_rows(db: Session, order: Order) -> None:
 
 
 @router.get("/orders/stream")
-async def stream_orders(_: User = Depends(get_current_user)):
+async def stream_orders(_: User = Depends(get_stream_user)):
     """Authenticated SSE fan-out of order / MTD board changes."""
     queue = board_event_hub.subscribe()
 
@@ -514,11 +554,36 @@ def create_order(
         }
     )
     _apply_producer_assignment(db, order, data)
+    _sync_order_needs_attention(order, explicit=data.get("needs_attention"))
     db.add(order)
     db.commit()
     db.refresh(order)
     _publish_order_updated(order)
     return order
+
+
+def _sync_order_needs_attention(
+    order: Order, *, explicit: Any | None = None
+) -> None:
+    """Keep board missing/complete tabs honest on every write.
+
+    Prefer an explicit client/API value; otherwise derive from collection
+    NEED markers plus TBD/empty package or mix length (board Missing data).
+    """
+    from app.services.mtd_identity import _needs_attention_from_collection
+
+    if explicit is not None:
+        order.needs_attention = bool(explicit)
+        return
+    pkg = str(order.package_type or "").strip().upper()
+    mix = str(order.time_length_of_mix or "").strip().upper()
+    order.needs_attention = (
+        _needs_attention_from_collection(
+            order.received_eight_count_sheet, order.have_songs
+        )
+        or pkg in ("", "TBD")
+        or mix in ("", "TBD")
+    )
 
 
 @router.patch("/orders/{order_id}", response_model=OrderSchema)
@@ -571,6 +636,21 @@ def update_order(
     # Canonical sync: order first, then mirror shared fields onto linked MTD rows.
     changed = {k: v for k, v in update_data.items()}
     _mirror_shared_fields_to_mtd(db, order, changed)
+    if "needs_attention" in update_data:
+        _sync_order_needs_attention(
+            order, explicit=update_data.get("needs_attention")
+        )
+    elif any(
+        k in update_data
+        for k in (
+            "received_eight_count_sheet",
+            "have_songs",
+            "collection_states",
+            "package_type",
+            "time_length_of_mix",
+        )
+    ):
+        _sync_order_needs_attention(order, explicit=None)
 
     db.commit()
     db.refresh(order)
@@ -602,6 +682,9 @@ def delete_order(
     if missing_or_found(
         order, allow_missing=allow_missing, detail="Order not found"
     ):
+        from app.services.form_chip_cache import invalidate_order_read_caches
+
+        invalidate_order_read_caches()
         board_event_hub.publish({"type": "order.deleted", "id": order_id})
         return None
 
@@ -652,6 +735,9 @@ def delete_order(
     db.delete(order)
     db.commit()
 
+    from app.services.form_chip_cache import invalidate_order_read_caches
+
+    invalidate_order_read_caches()
     board_event_hub.publish(
         {
             "type": "order.deleted",

@@ -1097,8 +1097,19 @@ export function getOrderStatus(order: Order | MTDRecord): {
 export function getOrderAssignmentStatus(
   order: Order | MTDRecord
 ): OrderAssignmentStatus {
-  // Only a real assignedProducer counts: requested producer / FA do not.
-  const assigned = Boolean((order as MTDRecord).assignedProducer?.trim());
+  // Align with board SQL: real producer key / id only — not FA, blank, or "NA".
+  const raw = String(
+    (order as MTDRecord).assignedProducer ??
+      (order as Order).assignedProducer ??
+      ""
+  ).trim();
+  const assigned =
+    (Boolean(raw) && raw.toUpperCase() !== "NA") ||
+    Boolean(
+      (order as Order & { assignedProducerId?: string | null })
+        .assignedProducerId ||
+        (order as { assigned_producer_id?: string | null }).assigned_producer_id
+    );
   const { needsReassign, reassignReason } = getOrderStatus(order);
   // Reassign flag wins even if a stale producer key is still on the row
   // (Move to Orders clears assignment; merge must not keep the row in Assigned).

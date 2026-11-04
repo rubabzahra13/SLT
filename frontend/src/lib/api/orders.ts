@@ -358,6 +358,7 @@ export function transformOrder(bo: BackendOrder): Order {
     price: formType === "school-anthem" ? 1250 : bo.price ?? 0,
     priceCompliance: (bo.price_compliance as any) || "compliant",
     status: bo.status || "new",
+    isPastOrder: Boolean(bo.is_past_order),
     createdAt: bo.created_at || new Date().toISOString(),
     updatedAt: bo.updated_at || null,
     completedAt: bo.completed_at || null,
@@ -388,23 +389,26 @@ export function transformOrder(bo: BackendOrder): Order {
 }
 
 export async function fetchOrdersApi(): Promise<{ activeOrders: Order[]; pastOrders: Order[] }> {
+  // Active board only — past/completed history is loaded on demand (Dashboard).
   const backendOrders = await fetchAllListPages<BackendOrder>(
-    "/api/orders",
+    "/api/orders?scope=active",
     "orders"
   );
-  const activeOrders: Order[] = [];
-  const pastOrders: Order[] = [];
+  const activeOrders: Order[] = backendOrders.map((bo) => transformOrder(bo));
+  return { activeOrders, pastOrders: [] };
+}
 
-  for (const bo of backendOrders) {
-    const transformed = transformOrder(bo);
-    if (bo.is_past_order || bo.status === "completed") {
-      pastOrders.push(transformed);
-    } else {
-      activeOrders.push(transformed);
-    }
-  }
-
-  return { activeOrders, pastOrders };
+/**
+ * Completed / past orders for Dashboard charts — not kept in AppState by default.
+ * Defaults to the chart window (14 days) so Dashboard does not pull full history.
+ */
+export async function fetchPastOrdersApi(sinceDays = 14): Promise<Order[]> {
+  const days = Math.max(1, Math.min(366, Math.floor(sinceDays)));
+  const backendOrders = await fetchAllListPages<BackendOrder>(
+    `/api/orders?scope=past&since_days=${days}`,
+    "orders"
+  );
+  return backendOrders.map((bo) => transformOrder(bo));
 }
 
 /**

@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert";
 import {
   applyManualFormMerges,
+  buildFieldSourceMap,
   canSplitManualFormPair,
   classifyFieldProvenance,
   classifyFieldSources,
@@ -11,7 +12,9 @@ import {
   buildSplitPreviewRows,
   mergeFormIntoManualOrder,
   mergeFormWinsIntoManualOrder,
+  mergeFormWinsPatches,
   overwriteManualWithFormPatches,
+  overwriteSplitRestoreSnapshot,
   reconcileUnlinkedManualFormPairs,
   repairCorruptCrossCategoryFormMerge,
   resolveManualFormPair,
@@ -26,6 +29,7 @@ import { getOrderIdentityName } from "../order-detail-sections";
 import { listPreMtdOrderRecords } from "../order-staging";
 import { isManualOrderRecord } from "../order-source";
 import { getOrderRequirements } from "../order-requirements";
+import { normalizeOrder } from "../order-form";
 import type { Order } from "../../types";
 
 function baseOrder(overrides: Partial<Order>): Order {
@@ -516,6 +520,72 @@ describe("manual ↔ form merge", () => {
     const reapplied = applyManualFormMerges([splitManual, splitForm]);
     assert.equal(isAbsorbedFormOrder(reapplied.find((o) => o.id === "form-1")!), false);
     assert.equal(reapplied.find((o) => o.id === "manual-1")!.mergedFormOrderId, undefined);
+  });
+
+  it("split after an overwrite match (Confirm match) restores the original manual", () => {
+    const manual = baseOrder({
+      id: "m-ow",
+      isManualEntry: true,
+      programName: "ubav",
+      gymName: "ubav",
+      country: "United States",
+      city: "",
+      teamName: "",
+      assignedProducer: "BE",
+      updatedAt: "2026-11-01T00:00:00Z",
+    });
+    const form = baseOrder({
+      id: "f-ow",
+      isManualEntry: false,
+      programName: "NABEEHA TEST",
+      gymName: "NABEEHA TEST",
+      country: "US",
+      city: "Form City",
+      teamName: "Senior Black",
+      updatedAt: "2026-11-03T00:00:00Z",
+    });
+    const tagged = normalizeOrder({ ...form, mergedIntoManualOrderId: "m-ow" });
+    // Same steps as MatchConfirmModal + AppState.matchManualWithMagento({ overwrite }).
+    const manualEdits: Partial<Order> = { routineNotes: "Typed In Match Modal" };
+    const draft = normalizeOrder({ ...manual, ...manualEdits });
+    const { manualPatch } = mergeFormWinsPatches(draft, form);
+    const ow = overwriteManualWithFormPatches(
+      normalizeOrder({ ...draft, ...manualPatch }),
+      tagged
+    );
+    const combined: Partial<Order> = { ...manualPatch, ...ow.manualPatch };
+    combined.manualOverlapSnapshot = overwriteSplitRestoreSnapshot(
+      manual,
+      normalizeOrder({ ...draft, ...combined })
+    );
+    const matched = normalizeOrder({ ...draft, ...combined });
+    assert.equal(matched.gymName, "NABEEHA TEST");
+    assert.equal(matched.programName, "NABEEHA TEST");
+    assert.equal(matched.city, "Form City");
+    assert.equal(matched.routineNotes, "Typed In Match Modal");
+
+    // Restore data carries no Manual/Form cues: same as the old null snapshot.
+    const keys = ["city", "gymName", "country", "teamName"];
+    assert.deepEqual(
+      buildFieldSourceMap(matched, tagged, keys),
+      buildFieldSourceMap({ ...matched, manualOverlapSnapshot: null }, tagged, keys)
+    );
+    assert.equal(
+      applyManualFormMerges([matched, tagged]).find((o) => o.id === "m-ow")!.city,
+      "Form City"
+    );
+
+    const { manual: splitManual } = splitManualFormPair(matched, tagged);
+    assert.equal(splitManual.gymName, "ubav");
+    assert.equal(splitManual.programName, "ubav");
+    assert.equal(splitManual.country, "United States");
+    assert.equal(splitManual.city, "");
+    assert.equal(splitManual.teamName, "");
+    assert.equal(splitManual.assignedProducer, "BE");
+    assert.equal(splitManual.routineNotes, "");
+    assert.notEqual(splitManual.updatedAt, "2026-11-01T00:00:00Z");
+    assert.equal(splitManual.mergedFormOrderId, undefined);
+    assert.equal(splitManual.manualOverlapSnapshot, undefined);
   });
 
   it("canSplitManualFormPair only while both sides stay on Orders", () => {

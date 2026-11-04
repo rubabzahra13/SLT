@@ -25,8 +25,18 @@ type DataTableProps<T> = {
   href?: (row: T) => string;
   onRowClick?: (row: T) => void;
   emptyMessage?: string;
+  /** Cold load with no rows yet — show table-shaped skeleton instead of empty copy. */
+  loading?: boolean;
   variant?: "default" | "muted";
   pageSize?: number;
+  /** Server-known total (e.g. counts.all). Footer shows this instead of loaded length. */
+  totalCount?: number;
+  /** More server pages available — next page auto-fetches instead of a Load more button. */
+  hasMore?: boolean;
+  onLoadMore?: () => void;
+  loadingMore?: boolean;
+  /** Reset pager when this changes (filters), not when data.length grows from load-more. */
+  resetKey?: string | number;
   embedded?: boolean;
   compact?: boolean;
   showScrollIndicator?: boolean;
@@ -50,8 +60,14 @@ export function DataTable<T>({
   href,
   onRowClick,
   emptyMessage = "No results found.",
+  loading = false,
   variant = "default",
   pageSize,
+  totalCount,
+  hasMore = false,
+  onLoadMore,
+  loadingMore = false,
+  resetKey,
   embedded = false,
   compact = false,
   showScrollIndicator = true,
@@ -68,9 +84,28 @@ export function DataTable<T>({
   const theadRef = useRef<HTMLTableSectionElement>(null);
   const [layoutHeight, setLayoutHeight] = useState<number | null>(null);
   const [headerHeight, setHeaderHeight] = useState(0);
+  const loadMoreRequestedRef = useRef(false);
+  const prevLenRef = useRef(data.length);
+
+  // Render-phase reset so a filter change never paints one frame of the old page.
+  const [pageResetKey, setPageResetKey] = useState(`${pageSize}|${resetKey}`);
+  if (pageResetKey !== `${pageSize}|${resetKey}`) {
+    setPageResetKey(`${pageSize}|${resetKey}`);
+    setPage(0);
+  }
 
   useEffect(() => {
-    setPage(0);
+    loadMoreRequestedRef.current = false;
+  }, [pageSize, resetKey]);
+
+  // After an auto load-more, advance onto the newly fetched page.
+  useEffect(() => {
+    if (!pageSize || pageSize <= 0) return;
+    if (data.length > prevLenRef.current && loadMoreRequestedRef.current) {
+      loadMoreRequestedRef.current = false;
+      setPage(Math.floor(prevLenRef.current / pageSize));
+    }
+    prevLenRef.current = data.length;
   }, [data.length, pageSize]);
 
   // Jump to the page that contains the highlighted row so it is actually shown.
@@ -89,9 +124,22 @@ export function DataTable<T>({
     }
   }, [highlightRowKey, page]);
 
-  const totalPages =
+  const displayTotal =
+    typeof totalCount === "number" && totalCount >= 0
+      ? Math.max(totalCount, data.length)
+      : data.length;
+
+  const loadedPages =
     pageSize && pageSize > 0 ? Math.max(1, Math.ceil(data.length / pageSize)) : 1;
-  const safePage = Math.min(page, totalPages - 1);
+  const knownTotalPages =
+    pageSize && pageSize > 0
+      ? Math.max(1, Math.ceil(displayTotal / pageSize))
+      : 1;
+  // Until the next server page arrives, don't let pager jump past loaded rows.
+  const totalPages = hasMore
+    ? Math.max(loadedPages, Math.min(knownTotalPages, loadedPages + 1))
+    : Math.min(knownTotalPages, loadedPages);
+  const safePage = Math.min(page, Math.max(0, totalPages - 1));
 
   const visibleData = useMemo(() => {
     if (!pageSize || pageSize <= 0) return data;
@@ -99,15 +147,61 @@ export function DataTable<T>({
     return data.slice(start, start + pageSize);
   }, [data, pageSize, safePage]);
 
-  const rangeStart = pageSize && pageSize > 0 ? safePage * pageSize + 1 : 1;
+  const rangeStart =
+    data.length === 0
+      ? 0
+      : pageSize && pageSize > 0
+        ? safePage * pageSize + 1
+        : 1;
   const rangeEnd =
     pageSize && pageSize > 0
       ? Math.min(data.length, (safePage + 1) * pageSize)
       : data.length;
 
+  // Prefetch next server page when the user reaches the last loaded client page.
+  useEffect(() => {
+    if (!hasMore || !onLoadMore || loadingMore) return;
+    if (!pageSize || pageSize <= 0) return;
+    if (safePage < loadedPages - 1) return;
+    onLoadMore();
+  }, [hasMore, onLoadMore, loadingMore, pageSize, safePage, loadedPages]);
+
+  const goNext = () => {
+    if (!pageSize || pageSize <= 0) return;
+    if (safePage < loadedPages - 1) {
+      setPage((p) => p + 1);
+      return;
+    }
+    if (hasMore && onLoadMore && !loadingMore) {
+      loadMoreRequestedRef.current = true;
+      onLoadMore();
+      return;
+    }
+    if (safePage < totalPages - 1) setPage((p) => p + 1);
+  };
+
+  const showPager =
+    Boolean(pageSize && pageSize > 0) &&
+    (displayTotal > pageSize! || hasMore || data.length > pageSize!);
+
+  const canGoNext =
+    safePage < loadedPages - 1 ||
+    (hasMore && !loadingMore) ||
+    safePage < totalPages - 1;
+
   const cellClass = compact ? "px-3 py-2" : "px-4 py-3";
   const headerCellClass = compact ? "px-3 py-2.5" : "px-4 py-3";
   const textSize = compact ? "text-[12px]" : "text-[13px]";
+  const showSkeleton = loading && data.length === 0;
+  const skeletonRows = Math.min(
+    12,
+    Math.max(6, pageSize && pageSize > 0 ? Math.min(pageSize, 12) : 8)
+  );
+  // Varied widths so the skeleton reads like real columns, not a flat grid.
+  const skeletonBoneWidth = (colIndex: number, rowIndex: number) => {
+    const pattern = [42, 68, 54, 76, 62, 48, 58, 72, 50, 64];
+    return `${pattern[(colIndex + rowIndex) % pattern.length]}%`;
+  };
 
   const alignClass = (align?: Column<T>["align"]) =>
     clsx(
@@ -262,7 +356,34 @@ export function DataTable<T>({
             </tr>
           </thead>
           <tbody>
-            {data.length === 0 ? (
+            {showSkeleton ? (
+              Array.from({ length: skeletonRows }, (_, rowIndex) => (
+                <tr
+                  key={`skeleton-${rowIndex}`}
+                  className={clsx(
+                    "border-b border-brand-line-strong last:border-b-0",
+                    embedded ? "dashboard-table-row" : "bg-brand-elevated"
+                  )}
+                  aria-hidden
+                >
+                  {columns.map((col, colIndex) => (
+                    <td
+                      key={col.key}
+                      className={clsx(
+                        cellClass,
+                        "border-r border-brand-line-strong align-middle last:border-r-0",
+                        stickyClass(col.sticky)
+                      )}
+                    >
+                      <span
+                        className="block h-3.5 max-w-full animate-pulse rounded-md bg-brand-line/70"
+                        style={{ width: skeletonBoneWidth(colIndex, rowIndex) }}
+                      />
+                    </td>
+                  ))}
+                </tr>
+              ))
+            ) : data.length === 0 ? (
               <tr>
                 <td
                   colSpan={columns.length}
@@ -336,7 +457,7 @@ export function DataTable<T>({
         </table>
       </DottedScroll>
 
-      {pageSize && pageSize > 0 && data.length > pageSize ? (
+      {showPager ? (
         <div
           className={clsx(
             "flex items-center justify-between gap-3 border-t border-brand-line-strong px-4 py-3",
@@ -344,7 +465,12 @@ export function DataTable<T>({
           )}
         >
           <p className="text-[12px] font-medium text-brand-ink-tertiary">
-            {rangeStart}-{rangeEnd} of {data.length}
+            {showSkeleton
+              ? "Loading…"
+              : data.length === 0
+                ? `0 of ${displayTotal}`
+                : `${rangeStart}-${rangeEnd} of ${displayTotal}`}
+            {loadingMore ? " · loading…" : null}
           </p>
           <div className="flex items-center gap-1.5">
             <button
@@ -357,12 +483,12 @@ export function DataTable<T>({
               <ChevronLeft className="h-4 w-4" strokeWidth={2} />
             </button>
             <span className="min-w-[4.5rem] text-center text-[12px] font-semibold tabular-nums text-brand-ink-secondary">
-              {safePage + 1} / {totalPages}
+              {safePage + 1} / {knownTotalPages}
             </span>
             <button
               type="button"
-              disabled={safePage >= totalPages - 1}
-              onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+              disabled={!canGoNext}
+              onClick={goNext}
               aria-label="Next page"
               className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-brand-ink-secondary transition hover:bg-brand-bg hover:text-brand-ink disabled:opacity-30"
             >

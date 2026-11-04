@@ -20,6 +20,8 @@ type OrderFormSubtypeTabsProps = {
   danceCounts: Record<DanceFormSubtypeFilter, number>;
   /** Defaults to all cheer subtypes; Flagged Orders omits Youth Rec. */
   cheerTabs?: readonly { id: CheerFormSubtype; label: string }[];
+  onCheerIntent?: (subtype: CheerFormSubtypeFilter) => void;
+  onDanceIntent?: (subtype: DanceFormSubtypeFilter) => void;
 };
 
 /**
@@ -35,6 +37,8 @@ export function OrderFormSubtypeTabs({
   cheerCounts,
   danceCounts,
   cheerTabs = CHEER_FORM_SUBTABS,
+  onCheerIntent,
+  onDanceIntent,
 }: OrderFormSubtypeTabsProps) {
   if (form === "school-all-star-cheer") {
     return (
@@ -52,6 +56,8 @@ export function OrderFormSubtypeTabs({
               type="button"
               role="tab"
               aria-selected={active}
+              onPointerEnter={() => onCheerIntent?.(id)}
+              onPointerDown={() => onCheerIntent?.(id)}
               onClick={() => onCheerSubtypeChange(id)}
               className={clsx(
                 "group relative flex shrink-0 items-center gap-1.5 whitespace-nowrap px-3 py-2 text-[13px] font-medium transition-colors",
@@ -101,6 +107,8 @@ export function OrderFormSubtypeTabs({
               type="button"
               role="tab"
               aria-selected={active}
+              onPointerEnter={() => onDanceIntent?.(id)}
+              onPointerDown={() => onDanceIntent?.(id)}
               onClick={() => onDanceSubtypeChange(id)}
               className={clsx(
                 "group relative flex shrink-0 items-center gap-1.5 whitespace-nowrap px-3 py-2 text-[13px] font-medium transition-colors",

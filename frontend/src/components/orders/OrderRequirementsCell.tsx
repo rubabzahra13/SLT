@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import clsx from "clsx";
 import type { MTDRecord, Order } from "@/types";
 import { useAppState } from "@/context/AppStateContext";
+import { useOrdersLookup } from "@/context/OrdersLookupContext";
 import { findLinkedOrder } from "@/lib/editor-assignment";
 import { findLinkedFormOrderForDisplay } from "@/lib/manual-form-merge";
 import { resolveFinalMatchedOrder } from "@/lib/order-form-missing";
@@ -392,20 +393,20 @@ export function OrderRequirementsCell({
     updateOrder,
     addAlert,
     isViewOnly,
-    allOrders,
     mtdRecords,
   } = useAppState();
+  const { orders: lookupOrders } = useOrdersLookup();
   const linkedOrder = useMemo(
-    () => findLinkedOrder(record as MTDRecord, allOrders),
-    [record, allOrders]
+    () => findLinkedOrder(record as MTDRecord, lookupOrders),
+    [record, lookupOrders]
   );
   const requirementsRecord = useMemo(() => {
     // Same Magento-wins finals as Move to MTD (manual snapshot kept for Split).
     const finalized = linkedOrder
-      ? resolveFinalMatchedOrder(linkedOrder, allOrders)
+      ? resolveFinalMatchedOrder(linkedOrder, lookupOrders)
       : null;
     return mergeOrderFormFieldsForRequirements(record, finalized);
-  }, [record, linkedOrder, allOrders]);
+  }, [record, linkedOrder, lookupOrders]);
   // Songs/Notes are Magento fields — not on Add New Order. Lock until Match.
   const manualSongsNotesLocked = isManualSlimFormOrder(
     linkedOrder || (requirementsRecord as Order)
@@ -451,6 +452,10 @@ export function OrderRequirementsCell({
     const updatedCollectionStates = {
       ...parsedOverrides,
       [item.id]: nextCollected,
+      // Keep cs / eight_count aliases aligned for pill overrides.
+      ...(item.id === "cs" || item.id === "eight_count"
+        ? { cs: nextCollected, eight_count: nextCollected }
+        : {}),
     };
 
     const oldStatus = getOrderRequirements(requirementsRecord).status;
@@ -458,22 +463,42 @@ export function OrderRequirementsCell({
       ...requirementsRecord,
       collectionStates: updatedCollectionStates,
       collection_states: updatedCollectionStates,
+      ...(item.id === "cs" || item.id === "eight_count"
+        ? {
+            eightCountSheet: nextCollected ? "HAVE CS" : "NEED CS",
+          }
+        : {}),
       orderStatus: undefined,
       order_status: undefined,
     };
     const newStatus = getOrderRequirements(simulatedRecord).status;
     const statusChanged = oldStatus !== newStatus;
 
-    const patch: Record<string, unknown> = {
-      collectionStates: updatedCollectionStates,
-      collection_states: updatedCollectionStates,
+    // Phase 5: CS / collectionStates live on Orders SoT — not MTD.
+    // Orders board rows are often absent from AppState.activeOrders, so
+    // updateMTD(orderId) never found a linked order and the click no-oped.
+    const orderPatch: Partial<Order> = {
+      collectionStates:
+        updatedCollectionStates as Order["collectionStates"],
     };
-
     if (item.id === "cs" || item.id === "eight_count") {
-      patch.eightCountSheet = nextCollected ? "HAVE CS" : "NEED CS";
+      orderPatch.eightCountSheet = nextCollected ? "HAVE CS" : "NEED CS";
     }
 
-    void updateMTD(record.id, patch as Partial<MTDRecord>);
+    const orderId =
+      linkedOrder?.id ||
+      (record as MTDRecord).orderId ||
+      (record.id.startsWith("ord-") || record.id.includes("-")
+        ? record.id
+        : null);
+
+    if (orderId) {
+      void updateOrder(
+        orderId,
+        orderPatch,
+        linkedOrder || (record as Order)
+      );
+    }
 
     if (statusChanged) {
       addAlert({
@@ -605,7 +630,7 @@ export function OrderRequirementsCell({
     // Magento form is SoT for songs/notes after Match — write there when linked.
     // Also keep the booking/manual row in sync so pills stay green without overlay.
     const formPeer = linkedOrder
-      ? findLinkedFormOrderForDisplay(linkedOrder, allOrders)
+      ? findLinkedFormOrderForDisplay(linkedOrder, lookupOrders)
       : null;
     if (orderId) {
       void updateOrder(orderId, orderPatch, linkedOrder || undefined);

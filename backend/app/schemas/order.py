@@ -182,6 +182,7 @@ class OrderSchema(BaseModel):
     completed_at: Optional[datetime] = None
     needs_attention: bool = False
     attention_reason: Optional[str] = None
+    import_external_id: Optional[str] = None
     is_past_order: bool = False
     is_reassigned: bool = False
     is_manual_entry: bool = False

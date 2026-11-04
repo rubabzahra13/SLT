@@ -34,8 +34,10 @@ type MTDPageToolbarProps = {
   onSourceFilterChange?: (filter: OrderSourceFilterId) => void;
   /** Unfiltered-by-source pool used for Source menu counts. */
   sourceCountRecords?: MTDRecord[];
-  rangeFilter?: OrderViewRangeFilter;
-  onRangeFilterChange?: (filter: OrderViewRangeFilter) => void;
+  /** Server Source menu totals (All / Form / Manual). */
+  sourceServerCounts?: { both?: number; form?: number; manual?: number } | null;
+  rangeFilter?: OrderViewRangeFilter | OrderViewRangeFilter[];
+  onRangeFilterChange?: (filter: OrderViewRangeFilter[]) => void;
   viewOrder?: MTDViewOrder;
   onViewOrderChange?: (value: MTDViewOrder) => void;
   allOrdersCount?: number;
@@ -50,6 +52,11 @@ type MTDPageToolbarProps = {
   onFormChange: (form: OrderFormType) => void;
   onCheerSubtypeChange: (subtype: CheerFormSubtypeFilter) => void;
   onDanceSubtypeChange: (subtype: DanceFormSubtypeFilter) => void;
+  onFormMenuIntent?: () => void;
+  onFormOptionIntent?: (form: OrderFormType) => void;
+  onCheerOptionIntent?: (subtype: CheerFormSubtypeFilter) => void;
+  onDanceOptionIntent?: (subtype: DanceFormSubtypeFilter) => void;
+  onRangeIntent?: (filter: OrderViewRangeFilter) => void;
   formCounts: Record<OrderFormType, number>;
   cheerCounts: Record<CheerFormSubtypeFilter, number>;
   danceCounts: Record<DanceFormSubtypeFilter, number>;
@@ -69,6 +76,7 @@ export function MTDPageToolbar({
   sourceFilter,
   onSourceFilterChange,
   sourceCountRecords,
+  sourceServerCounts,
   rangeFilter,
   onRangeFilterChange,
   viewOrder,
@@ -85,6 +93,11 @@ export function MTDPageToolbar({
   onFormChange,
   onCheerSubtypeChange,
   onDanceSubtypeChange,
+  onFormMenuIntent,
+  onFormOptionIntent,
+  onCheerOptionIntent,
+  onDanceOptionIntent,
+  onRangeIntent,
   formCounts,
   cheerCounts,
   danceCounts,
@@ -114,6 +127,7 @@ export function MTDPageToolbar({
                 onChange={onSourceFilterChange}
                 records={sourceCountRecords ?? records}
                 orderById={orderById}
+                serverCounts={sourceServerCounts}
               />
               <span
                 className="mx-0.5 hidden h-5 w-px shrink-0 bg-brand-line/45 sm:block"
@@ -129,6 +143,10 @@ export function MTDPageToolbar({
             onFormChange={onFormChange}
             onCheerSubtypeChange={onCheerSubtypeChange}
             onDanceSubtypeChange={onDanceSubtypeChange}
+            onFormMenuIntent={onFormMenuIntent}
+            onFormOptionIntent={onFormOptionIntent}
+            onCheerOptionIntent={onCheerOptionIntent}
+            onDanceOptionIntent={onDanceOptionIntent}
             formCounts={formCounts}
             cheerCounts={cheerCounts}
             danceCounts={danceCounts}
@@ -172,6 +190,7 @@ export function MTDPageToolbar({
             <OrderRangeToggle
               value={rangeFilter}
               onChange={onRangeFilterChange}
+              onRangeIntent={onRangeIntent}
               counts={{
                 all: allOrdersCount,
                 needToBeScheduled: needToBeScheduledCount ?? newOrdersCount,

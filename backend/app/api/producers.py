@@ -12,12 +12,13 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy.orm.attributes import flag_modified
 
-from app.api.auth import get_current_user, require_full_access
+from app.api.auth import get_current_user, get_stream_user, require_full_access
 from app.core.database import get_db
 from app.lib.delete_norm import allow_missing_query, missing_or_found
 from app.lib.pagination import page_size_query, page_token_query, paginate_query
 from app.lib.producer_assignment import (
     canonical_producer_assignment_key,
+    invalidate_producer_assignment_roster_cache,
     normalize_producer_key,
     resolve_producer_by_assignment_key,
 )
@@ -353,7 +354,7 @@ def get_producers(
 
 
 @router.get("/producers/stream")
-async def stream_producers(_: User = Depends(get_current_user)):
+async def stream_producers(_: User = Depends(get_stream_user)):
     """Authenticated SSE fan-out of confirmed producer changes."""
     queue = producer_event_hub.subscribe()
 
@@ -429,6 +430,7 @@ def create_producer(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"A producer with initials “{initials}” already exists.",
         ) from None
+    invalidate_producer_assignment_roster_cache()
     loaded = _load_producer(db, producer.id)
     _publish_producer_updated(loaded)
     return loaded
@@ -519,6 +521,7 @@ def update_producer(
     # Fresh load so time_offs / extra_days are present in the response
     # (stale identity-map rows were omitting leave until a full page refresh).
     db.expire_all()
+    invalidate_producer_assignment_roster_cache()
     loaded = _load_producer(db, producer.id)
     _publish_producer_updated(loaded)
     return loaded
@@ -539,5 +542,6 @@ def delete_producer(
     deleted_id = producer.id
     db.delete(producer)
     db.commit()
+    invalidate_producer_assignment_roster_cache()
     _publish_producer_deleted(deleted_id)
     return None

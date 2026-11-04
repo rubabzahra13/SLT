@@ -49,8 +49,20 @@ function SchedulePageContent() {
   const searchParams = useSearchParams();
   const viewParam = searchParams.get("view") || searchParams.get("range");
 
-  const { producers, schedule, mtdRecords, allOrders, activeOrders } =
-    useAppState();
+  const {
+    producers,
+    schedule,
+    mtdRecords,
+    allOrders,
+    activeOrders,
+    ensureLiveMtdLoaded,
+  } = useAppState();
+
+  useEffect(() => {
+    void ensureLiveMtdLoaded().catch(() => {
+      /* keep SWR / empty */
+    });
+  }, [ensureLiveMtdLoaded]);
   const [pageTab, setPageTab] = useState<SchedulePageTab>("view");
   const [selectedEditor, setSelectedEditor] = useState("all");
   const [selectedSendEditor, setSelectedSendEditor] = useState("all");

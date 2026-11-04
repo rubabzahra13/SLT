@@ -9,6 +9,8 @@ type OrderFormTabsProps = {
   formCounts: Record<OrderFormType, number>;
   /** Defaults to all form tabs; Match passes manuals-only tabs. */
   tabs?: readonly { id: OrderFormType; label: string }[];
+  /** Warm pool/board for a form before click commits (pointerdown/enter). */
+  onFormIntent?: (form: OrderFormType) => void;
 };
 
 /**
@@ -20,6 +22,7 @@ export function OrderFormTabs({
   onFormChange,
   formCounts,
   tabs = ORDER_FORM_TABS,
+  onFormIntent,
 }: OrderFormTabsProps) {
   return (
     <div
@@ -37,6 +40,8 @@ export function OrderFormTabs({
             role="tab"
             aria-selected={active}
             title={label}
+            onPointerEnter={() => onFormIntent?.(id)}
+            onPointerDown={() => onFormIntent?.(id)}
             onClick={() => onFormChange(id)}
             className={clsx(
               "inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[12px] font-medium transition",

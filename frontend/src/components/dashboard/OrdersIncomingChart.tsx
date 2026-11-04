@@ -2,7 +2,10 @@
 
 import Link from "next/link";
 import type { IncomingOrdersPoint } from "@/lib/dashboard";
-import { ordersChartInsight } from "@/lib/dashboard-tooltips";
+import {
+  ordersChartInsight,
+  ordersChartVolumeInsight,
+} from "@/lib/dashboard-tooltips";
 import {
   BRAND_BLUE,
   BRAND_ORANGE,
@@ -62,7 +65,8 @@ export function OrdersIncomingChart({
 
   const width = 320;
   const height = compact ? 88 : 132;
-  const pad = { top: 10, right: 10, bottom: 24, left: 6 };
+  // Extra right pad so "Today" / end-dot aren't clipped by overflow-hidden.
+  const pad = { top: 10, right: 22, bottom: 24, left: 10 };
   const plotWidth = width - pad.left - pad.right;
   const plotHeight = height - pad.top - pad.bottom;
   const baseline = pad.top + plotHeight;
@@ -80,14 +84,37 @@ export function OrdersIncomingChart({
 
   const linePath = buildSmoothLinePath(plotPoints);
   const areaPath = buildAreaPath(plotPoints, baseline);
-  const labelStride = compact ? 3 : 2;
-  const peak = points.reduce<{ label: string; count: number } | null>((best, point) => {
-    if (!best || point.count > best.count) {
-      return { label: point.isToday ? "Today" : point.label, count: point.count };
-    }
+  // Every other day — stride 3 hid Monday forever in the 14-day window.
+  const labelStride = 2;
+  const peakPoint = points.reduce<(typeof points)[number] | null>((best, point) => {
+    if (!best || point.count > best.count) return point;
     return best;
   }, null);
-  const chartInsight = ordersChartInsight(total, todayCount, peak);
+  const peak = peakPoint
+    ? {
+        label: peakPoint.isToday
+          ? `Today (${peakPoint.label})`
+          : `${peakPoint.shortLabel} ${peakPoint.label}`,
+        count: peakPoint.count,
+        isToday: Boolean(peakPoint.isToday),
+      }
+    : null;
+  const activeDays = points.filter((p) => p.count > 0).length;
+  const todayIdx = points.findIndex((p) => p.isToday);
+  const yesterdayCount =
+    todayIdx > 0 ? points[todayIdx - 1]?.count ?? 0 : 0;
+  const insightStats = {
+    total,
+    todayCount,
+    peak,
+    activeDays,
+    yesterdayCount,
+  };
+  const chartInsight = ordersChartInsight(total, todayCount, peak, {
+    activeDays,
+    yesterdayCount,
+  });
+  const volumeInsight = ordersChartVolumeInsight(insightStats);
 
   return (
     <div className={compact ? "flex h-full min-h-0 flex-col px-3 py-2" : "px-5 py-4"}>
@@ -127,8 +154,8 @@ export function OrdersIncomingChart({
       </div>
 
       <DashboardTip
-        title="Daily volume"
-        body="Hover chart points for day-by-day order counts."
+        title={volumeInsight.title}
+        body={volumeInsight.body}
         className="block min-h-0 flex-1"
         placement="top"
       >
@@ -202,19 +229,27 @@ export function OrdersIncomingChart({
             </g>
           ))}
 
-          {plotPoints.map((point, index) =>
-            index % labelStride === 0 || point.isToday ? (
-              <text
-                key={`${point.iso}-label`}
-                x={point.x}
-                y={height - 6}
-                textAnchor="middle"
-                className="fill-brand-ink-tertiary text-[9px] font-semibold"
-              >
-                {point.isToday ? "Today" : point.shortLabel}
-              </text>
-            ) : null
-          )}
+          {(() => {
+            const todayIndex = plotPoints.findIndex((p) => p.isToday);
+            return plotPoints.map((point, index) => {
+              // Drop the tick before Today — adjacent labels collide (Tu + Today).
+              if (todayIndex >= 0 && index === todayIndex - 1) return null;
+              if (!(index % labelStride === 0 || point.isToday)) return null;
+              const isLast = index === plotPoints.length - 1 || point.isToday;
+              const isFirst = index === 0;
+              return (
+                <text
+                  key={`${point.iso}-label`}
+                  x={point.x}
+                  y={height - 6}
+                  textAnchor={isLast ? "end" : isFirst ? "start" : "middle"}
+                  className="fill-brand-ink-tertiary text-[9px] font-semibold"
+                >
+                  {point.isToday ? "Today" : point.shortLabel}
+                </text>
+              );
+            });
+          })()}
         </svg>
         </Link>
       </DashboardTip>

@@ -47,6 +47,7 @@ export interface BackendMTDRecord {
   extra_song_editing_time_quantity?: number;
   final_customer_price?: number | null;
   final_customer_price_overridden?: boolean;
+  updated_at?: string | null;
 }
 
 export function transformMTDRecord(bm: BackendMTDRecord): MTDRecord {
@@ -110,11 +111,26 @@ export function transformMTDRecord(bm: BackendMTDRecord): MTDRecord {
     ),
     finalCustomerPrice: bm.final_customer_price ?? null,
     finalCustomerPriceOverridden: Boolean(bm.final_customer_price_overridden),
+    updatedAt: bm.updated_at || null,
   };
 }
 
+/** Live MTD only: board + unpaid payroll (paid archive loaded on demand). */
 export async function fetchMTDRecordsApi(): Promise<MTDRecord[]> {
-  const backendMtd = await fetchAllListPages<BackendMTDRecord>("/api/mtd", "mtd");
+  const backendMtd = await fetchAllListPages<BackendMTDRecord>(
+    "/api/mtd?scope=live",
+    "mtd"
+  );
+  return backendMtd.map(transformMTDRecord);
+}
+
+/** Paid payroll archive for the Payroll Archive tab (paged board API). */
+export async function fetchArchivedPayrollApi(): Promise<MTDRecord[]> {
+  const backendMtd = await fetchAllListPages<BackendMTDRecord>(
+    "/api/mtd/board?scope=archive",
+    "mtd",
+    { pageSize: 50 }
+  );
   return backendMtd.map(transformMTDRecord);
 }
 

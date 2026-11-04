@@ -27,6 +27,7 @@ import { OrderFormFieldControl } from "@/components/mtd/OrderFormFieldControl";
 import { OrderFormEditModal } from "@/components/orders/OrderFormEditModal";
 import { fetchOrderApi } from "@/lib/api/orders";
 import { normalizeOrder } from "@/lib/order-form";
+import { isRecentLocalOrderWrite } from "@/lib/orders-board-cache";
 import type { Order } from "@/types";
 
 type MatchConfirmModalProps = {
@@ -46,7 +47,6 @@ export function MatchConfirmModal({
 }: MatchConfirmModalProps) {
   const {
     matchManualWithMagento,
-    updateOrder,
     isViewOnly,
     producers,
     discountCodes,
@@ -67,6 +67,13 @@ export function MatchConfirmModal({
   const [revealedGapKeys, setRevealedGapKeys] = useState<string[]>([]);
   const [magentoDraft, setMagentoDraft] = useState<Order | null>(null);
   const [manualDraft, setManualDraft] = useState<Order | null>(null);
+  /** Copies the drafts were seeded from — only real edits ride the match PATCH. */
+  const baseRef = useRef<{ magento: Order; manual: Order } | null>(null);
+  /** Props the drafts were last rebased on (identity changes = a saved edit). */
+  const propsRef = useRef<{ magento: Order | null; manual: Order | null }>({
+    magento: null,
+    manual: null,
+  });
   const confirmLockRef = useRef(false);
   const pairKey =
     magento && manual ? `${magento.id}::${manual.id}` : "";
@@ -74,6 +81,26 @@ export function MatchConfirmModal({
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  /** New saved copy of one side; values typed here but not saved stay on top. */
+  const rebaseDraft = useCallback(
+    (side: "magento" | "manual", latest: Order) => {
+      const base = baseRef.current;
+      if (!base) return;
+      const oldBase = base[side];
+      const nextBase = normalizeOrder({ ...latest });
+      baseRef.current = { ...base, [side]: nextBase };
+      const setDraft = side === "magento" ? setMagentoDraft : setManualDraft;
+      setDraft((draft) => {
+        if (!draft) return nextBase;
+        const pending = buildOrderFormDirtyPatch(oldBase, draft);
+        return Object.keys(pending).length > 0
+          ? normalizeOrder({ ...nextBase, ...pending })
+          : nextBase;
+      });
+    },
+    []
+  );
 
   // Seed drafts only when the modal opens or the pair changes — not when
   // updateOrder refreshes live props mid-confirm (that re-enabled the button
@@ -89,10 +116,9 @@ export function MatchConfirmModal({
       setViewFull(null);
       setMagentoDraft(null);
       setManualDraft(null);
+      baseRef.current = null;
       return;
     }
-    const magentoId = magento.id;
-    const manualId = manual.id;
     confirmLockRef.current = false;
     setSaving(false);
     setError(null);
@@ -101,27 +127,51 @@ export function MatchConfirmModal({
     setRevealedGapKeys([]);
     setViewFull(null);
     // Same normalize as AppState so open doesn't invent / drop defaults vs list.
-    setMagentoDraft(normalizeOrder({ ...magento }));
-    setManualDraft(normalizeOrder({ ...manual }));
+    const seedMagento = normalizeOrder({ ...magento });
+    const seedManual = normalizeOrder({ ...manual });
+    baseRef.current = { magento: seedMagento, manual: seedManual };
+    propsRef.current = { magento, manual };
+    setMagentoDraft(seedMagento);
+    setManualDraft(seedManual);
+    // A list row can lag another server instance's cache; re-read it — except
+    // one this tab just saved, whose PATCH may not have landed yet (the GET
+    // would bring the old values back and Confirm would write them).
+    const sides = [
+      { side: "magento" as const, order: magento },
+      { side: "manual" as const, order: manual },
+    ].filter(({ order }) => !isRecentLocalOrderWrite(order));
     let cancelled = false;
-    void (async () => {
-      try {
-        const [freshMagento, freshManual] = await Promise.all([
-          fetchOrderApi(magentoId),
-          fetchOrderApi(manualId),
-        ]);
-        if (cancelled) return;
-        setMagentoDraft(normalizeOrder(freshMagento));
-        setManualDraft(normalizeOrder(freshManual));
-      } catch {
-        // Keep prop-seeded drafts if the refresh fails.
-      }
-    })();
+    void Promise.all(
+      sides.map(async ({ side, order }) => {
+        try {
+          const fresh = await fetchOrderApi(order.id);
+          if (cancelled || isRecentLocalOrderWrite(order)) return;
+          const freshAt = Date.parse(fresh.updatedAt || "") || 0;
+          const shownAt = Date.parse(order.updatedAt || "") || 0;
+          if (freshAt < shownAt) return;
+          rebaseDraft(side, fresh);
+        } catch {
+          // Keep prop-seeded drafts if the refresh fails.
+        }
+      })
+    );
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- pairKey gates identity; ignore live field churn
   }, [open, pairKey]);
+
+  // Saves from View / View full (and other users' edits) reach the props:
+  // follow them, keeping anything typed in the comparison. Never mid-confirm.
+  useEffect(() => {
+    if (!open || !magento || !manual || !baseRef.current) return;
+    if (saving || confirmLockRef.current) return;
+    const prev = propsRef.current;
+    if (prev.magento === magento && prev.manual === manual) return;
+    propsRef.current = { magento, manual };
+    if (prev.magento && prev.magento !== magento) rebaseDraft("magento", magento);
+    if (prev.manual && prev.manual !== manual) rebaseDraft("manual", manual);
+  }, [open, magento, manual, saving, rebaseDraft]);
 
   const fieldMetaByKey = useMemo(() => {
     if (!magentoDraft) return new Map<string, { multiline: boolean }>();
@@ -258,23 +308,20 @@ export function MatchConfirmModal({
     setSaving(true);
     setError(null);
     try {
-      const magentoPatch = buildOrderFormDirtyPatch(magento, magentoDraft);
-      if (Object.keys(magentoPatch).length > 0) {
-        await updateOrder(magento.id, magentoPatch, magento);
-      }
-      const manualPatch = buildOrderFormDirtyPatch(manual, manualDraft);
-      if (Object.keys(manualPatch).length > 0) {
-        await updateOrder(manual.id, manualPatch, manual);
-      }
-      // Pass drafts so Magento notes/songs filled in this modal copy onto the
-      // manual even though updateOrder hasn't refreshed match's order snapshot.
+      const base = baseRef.current;
+      // Drafts carry Magento notes/songs filled in this modal onto the manual.
       await matchManualWithMagento(manual.id, magento.id, {
         overwrite: true,
         manualOverride: manualDraft,
         formOverride: magentoDraft,
+        manualEdits: buildOrderFormDirtyPatch(base?.manual ?? manual, manualDraft),
+        manualBefore: base?.manual ?? manual,
+        formEdits: buildOrderFormDirtyPatch(base?.magento ?? magento, magentoDraft),
+        onApplied: () => {
+          onMatched?.();
+          onClose();
+        },
       });
-      onMatched?.();
-      onClose();
     } catch (err) {
       confirmLockRef.current = false;
       setError(
@@ -574,12 +621,7 @@ export function MatchConfirmModal({
       allOrders={allOrders}
       fullFormFields={Boolean(viewFull?.fullFormFields)}
       elevated
-      onClose={() => {
-        setViewFull(null);
-        // Pull any edits made in View full back into the comparison drafts.
-        if (magento) setMagentoDraft({ ...magento });
-        if (manual) setManualDraft({ ...manual });
-      }}
+      onClose={() => setViewFull(null)}
     />
     </>
   );

@@ -17,6 +17,12 @@ type OrderFormFiltersProps = {
   onFormChange: (form: OrderFormType) => void;
   onCheerSubtypeChange: (subtype: CheerFormSubtypeFilter) => void;
   onDanceSubtypeChange: (subtype: DanceFormSubtypeFilter) => void;
+  /** Warm sibling form boards when the Form menu opens. */
+  onFormMenuIntent?: () => void;
+  /** Warm a specific form/subtype board before the selection commits. */
+  onFormOptionIntent?: (form: OrderFormType) => void;
+  onCheerOptionIntent?: (subtype: CheerFormSubtypeFilter) => void;
+  onDanceOptionIntent?: (subtype: DanceFormSubtypeFilter) => void;
   formCounts: Record<OrderFormType, number>;
   cheerCounts: Record<CheerFormSubtypeFilter, number>;
   danceCounts: Record<DanceFormSubtypeFilter, number>;
@@ -31,6 +37,10 @@ export function OrderFormFilters({
   onFormChange,
   onCheerSubtypeChange,
   onDanceSubtypeChange,
+  onFormMenuIntent,
+  onFormOptionIntent,
+  onCheerOptionIntent,
+  onDanceOptionIntent,
   formCounts,
   cheerCounts,
   danceCounts,
@@ -46,6 +56,8 @@ export function OrderFormFilters({
         portal={portalMenus}
         value={form}
         onChange={(v) => onFormChange(v as OrderFormType)}
+        onOpenIntent={onFormMenuIntent}
+        onOptionIntent={(v) => onFormOptionIntent?.(v as OrderFormType)}
         accent="blue"
         options={ORDER_FORM_TABS.map(({ id, label }) => ({
           value: id,
@@ -62,6 +74,9 @@ export function OrderFormFilters({
           portal={portalMenus}
           value={cheerSubtype}
           onChange={(v) => onCheerSubtypeChange(v as CheerFormSubtypeFilter)}
+          onOptionIntent={(v) =>
+            onCheerOptionIntent?.(v as CheerFormSubtypeFilter)
+          }
           accent="orange"
           options={CHEER_FORM_SUBTABS.map(({ id, label }) => ({
             value: id,
@@ -79,6 +94,9 @@ export function OrderFormFilters({
           portal={portalMenus}
           value={danceSubtype}
           onChange={(v) => onDanceSubtypeChange(v as DanceFormSubtypeFilter)}
+          onOptionIntent={(v) =>
+            onDanceOptionIntent?.(v as DanceFormSubtypeFilter)
+          }
           accent="orange"
           options={DANCE_FORM_SUBTABS.map(({ id, label }) => ({
             value: id,

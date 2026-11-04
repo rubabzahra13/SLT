@@ -166,11 +166,48 @@ export type ApiRequestOptions = RequestInit & {
   retry?: boolean;
 };
 
+/**
+ * Identical concurrent GETs (prefetch + mount reload, sibling warms) share one
+ * round-trip. In-flight only — nothing is cached after the response lands.
+ */
+const inflightGets = new Map<string, Promise<unknown>>();
+
+/** Server state changed (mutation / live event): later GETs must not join older ones. */
+export function invalidateInflightGets(): void {
+  inflightGets.clear();
+}
+
 async function request<T>(
   endpoint: string,
   options: ApiRequestOptions = {}
 ): Promise<T> {
   const method = String(options.method || "GET").toUpperCase();
+  if (method === "GET" && !options.signal && typeof window !== "undefined") {
+    const key = `${authHeaderFromStorage()} ${endpoint}`;
+    const existing = inflightGets.get(key);
+    if (existing) return existing as Promise<T>;
+    const pending = requestWithRetry<T>(endpoint, options, method).finally(() => {
+      if (inflightGets.get(key) === pending) inflightGets.delete(key);
+    });
+    inflightGets.set(key, pending);
+    return pending;
+  }
+  if (method === "GET" || method === "HEAD") {
+    return requestWithRetry<T>(endpoint, options, method);
+  }
+  invalidateInflightGets();
+  try {
+    return await requestWithRetry<T>(endpoint, options, method);
+  } finally {
+    invalidateInflightGets();
+  }
+}
+
+async function requestWithRetry<T>(
+  endpoint: string,
+  options: ApiRequestOptions,
+  method: string
+): Promise<T> {
   const isMutation = method !== "GET" && method !== "HEAD";
   const {
     timeoutMs = isMutation ? API_MUTATION_TIMEOUT_MS : API_TIMEOUT_MS,
@@ -183,13 +220,12 @@ async function request<T>(
     // One retry for cold-start / uvicorn reload / transient network failures.
     // Mutations also retry once on timeout: Add Order is create+patch and often
     // races a backend reload; a second attempt usually succeeds quickly.
+    // GETs: retry network/503 only — not timeouts (badge counts use a short
+    // budget; retrying doubles wait and can trip Next's error overlay).
     const timedOut =
       err instanceof ApiClientError && /timed out/i.test(err.message);
     if (retry && timedOut && isMutation) {
       return requestOnce<T>(endpoint, init, timeoutMs);
-    }
-    if (retry && timedOut) {
-      throw err;
     }
     if (
       retry &&

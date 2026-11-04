@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useMemo } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Calendar,
   LayoutDashboard,
@@ -17,17 +17,21 @@ import {
 import clsx from "clsx";
 import { LogOut } from "lucide-react";
 import { useSidebar } from "@/context/SidebarContext";
-import { useAppState } from "@/context/AppStateContext";
 import { useAuth } from "@/context/AuthContext";
-import { isMTDRecord } from "@/lib/mtd-filters";
-import { getMTDBoardRecords, getPayrollRecords } from "@/lib/mtd-completion";
-import { recordHeldOnAffiliateFlag } from "@/lib/affiliate-flag";
-import { listPreMtdOrderRecords } from "@/lib/order-staging";
 import { BrandMonogram } from "@/components/layout/BrandMonogram";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { HoverTip } from "@/components/ui/HoverTip";
 import { DottedScroll } from "@/components/ui/DottedScroll";
-import type { Order } from "@/types";
+import { subscribeBoardStream } from "@/lib/api/board-stream";
+import {
+  fetchDashboardPulseApi,
+  readDashboardPulseCache,
+  type DashboardPulseApi,
+} from "@/lib/api/dashboard";
+import {
+  ORDERS_BOARD_PATCH_EVENT,
+} from "@/lib/orders-board-cache";
+import type { CheerFormSubtypeFilter, OrderFormType } from "@/types";
 
 import type { LucideIcon } from "lucide-react";
 
@@ -35,8 +39,117 @@ type NavItem = {
   href: string;
   label: string;
   icon: LucideIcon;
-  badge?: number;
+  /** Brand dot — something new since last visit (not a live total). */
+  hasNew?: boolean;
 };
+
+const BOARD_NAV_HREFS = ["/orders", "/mtd", "/payroll"] as const;
+
+const NAV_SEEN_KEYS: Record<(typeof BOARD_NAV_HREFS)[number], string> = {
+  "/orders": "slt_nav_seen_orders",
+  "/mtd": "slt_nav_seen_mtd",
+  "/payroll": "slt_nav_seen_payroll",
+};
+
+function readNavSeen(href: (typeof BOARD_NAV_HREFS)[number]): number | null {
+  if (typeof window === "undefined") return null;
+  const raw = sessionStorage.getItem(NAV_SEEN_KEYS[href]);
+  if (raw == null || raw === "") return null;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;
+}
+
+function writeNavSeen(href: (typeof BOARD_NAV_HREFS)[number], count: number) {
+  if (typeof window === "undefined") return;
+  sessionStorage.setItem(NAV_SEEN_KEYS[href], String(count));
+}
+
+function pulseCountForNav(
+  href: (typeof BOARD_NAV_HREFS)[number],
+  pulse: DashboardPulseApi | null
+): number {
+  if (!pulse) return 0;
+  if (href === "/orders") return pulse.orders_tab ?? 0;
+  if (href === "/mtd") return pulse.mtd_open ?? 0;
+  return pulse.payroll_open ?? 0;
+}
+
+function sessionForm(key: string, fallback: OrderFormType = "school-all-star-cheer") {
+  if (typeof window === "undefined") return fallback;
+  const raw = sessionStorage.getItem(key) as OrderFormType | null;
+  return raw || fallback;
+}
+
+function sessionCheer(key: string) {
+  if (typeof window === "undefined") return "all-star-cheer" as CheerFormSubtypeFilter;
+  return (
+    (sessionStorage.getItem(key) as CheerFormSubtypeFilter | null) ||
+    "all-star-cheer"
+  );
+}
+
+const boardPrefetchInflight = new Set<string>();
+
+/**
+ * Warm board data off the critical path (idle / after pointerdown).
+ * Never run this on mouseenter — competing fetches made clicks feel late.
+ */
+function scheduleBoardPrefetch(href: string) {
+  if (!BOARD_NAV_HREFS.includes(href as (typeof BOARD_NAV_HREFS)[number])) {
+    return;
+  }
+  if (boardPrefetchInflight.has(href)) return;
+  const run = () => {
+    if (boardPrefetchInflight.has(href)) return;
+    boardPrefetchInflight.add(href);
+    void (async () => {
+      try {
+        if (href === "/orders") {
+          const { prefetchOrdersBoard } = await import("@/hooks/useOrdersBoard");
+          const form = sessionForm("slt_orders_form");
+          const cheer = sessionCheer("slt_orders_cheer_subtype");
+          await prefetchOrdersBoard({
+            formType: form,
+            cheerFormSubtype:
+              form === "school-all-star-cheer" ? cheer : undefined,
+            excludeFlagged: true,
+            range: "all",
+            sortBy: "newest",
+          });
+          return;
+        }
+        const { prefetchMtdBoard } = await import("@/hooks/useMtdBoard");
+        if (href === "/mtd") {
+          const form = sessionForm("slt_mtd_form");
+          const cheer = sessionCheer("slt_mtd_cheer_subtype");
+          await prefetchMtdBoard({
+            scope: "live",
+            formType: form,
+            cheerFormSubtype:
+              form === "school-all-star-cheer" ? cheer : undefined,
+          });
+          return;
+        }
+        const form = sessionForm("slt_payroll_form");
+        const cheer = sessionCheer("slt_payroll_cheer_subtype");
+        await prefetchMtdBoard({
+          scope: "payroll",
+          formType: form,
+          cheerFormSubtype:
+            form === "school-all-star-cheer" ? cheer : undefined,
+          search:
+            sessionStorage.getItem("slt_payroll_search")?.trim() || undefined,
+        });
+      } catch {
+        /* best-effort */
+      } finally {
+        boardPrefetchInflight.delete(href);
+      }
+    })();
+  };
+  // Pointerdown must start the board fetch now — idle loses to the click/nav.
+  run();
+}
 
 const baseNavItems: NavItem[] = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -50,10 +163,118 @@ const baseNavItems: NavItem[] = [
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { activeOrders, mtdRecords } = useAppState();
+  const router = useRouter();
   const { user, logout } = useAuth();
   const { expanded, toggleExpanded, setExpanded, mobileOpen, setMobileOpen } =
     useSidebar();
+  const routesPrefetched = useRef(false);
+  const [pulse, setPulse] = useState<DashboardPulseApi | null>(() =>
+    readDashboardPulseCache()
+  );
+  /** SSE/patch hint before the next pulse reconcile — show dot without recounting. */
+  const [navDirty, setNavDirty] = useState<
+    Record<(typeof BOARD_NAV_HREFS)[number], boolean>
+  >({
+    "/orders": false,
+    "/mtd": false,
+    "/payroll": false,
+  });
+
+  // Prefetch route JS/RSC for the three boards so clicks aren't waiting on chunks.
+  useEffect(() => {
+    if (routesPrefetched.current) return;
+    routesPrefetched.current = true;
+    for (const href of BOARD_NAV_HREFS) {
+      try {
+        router.prefetch(href);
+      } catch {
+        /* ignore */
+      }
+    }
+  }, [router]);
+
+  // One pulse read (shared cache with Dashboard). SSE only flips dirty dots —
+  // no invalidate/recount storm just for sidebar badges.
+  useEffect(() => {
+    let cancelled = false;
+
+    const hit = readDashboardPulseCache();
+    if (hit) setPulse(hit);
+    void fetchDashboardPulseApi()
+      .then((next) => {
+        if (cancelled) return;
+        setPulse(next);
+        // First paint: seed "seen" so existing backlog (e.g. 1744) isn't "new".
+        for (const href of BOARD_NAV_HREFS) {
+          if (readNavSeen(href) == null) {
+            writeNavSeen(href, pulseCountForNav(href, next));
+          }
+        }
+      })
+      .catch(() => {
+        /* keep last */
+      });
+
+    const markDirty = (href: (typeof BOARD_NAV_HREFS)[number]) => {
+      setNavDirty((prev) => (prev[href] ? prev : { ...prev, [href]: true }));
+    };
+
+    const onPatch = (event: Event) => {
+      const detail = (event as CustomEvent<{ countsChanged?: boolean }>).detail;
+      if (!detail?.countsChanged) return;
+      markDirty("/orders");
+    };
+    window.addEventListener(ORDERS_BOARD_PATCH_EVENT, onPatch);
+
+    const ac = new AbortController();
+    void subscribeBoardStream((event) => {
+      if (cancelled) return;
+      if (event.type === "order.deleted" || event.type === "order.updated") {
+        markDirty("/orders");
+      }
+      if (event.type === "mtd.updated") {
+        markDirty("/mtd");
+        markDirty("/payroll");
+      }
+    }, ac.signal);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener(ORDERS_BOARD_PATCH_EVENT, onPatch);
+      ac.abort();
+    };
+  }, []);
+
+  // Visiting a board clears its "new" dot and remembers the current total.
+  // Orders Match / Flagged / [id] are separate workspaces — do not clear the
+  // Orders novelty dot just because the path starts with /orders/.
+  useEffect(() => {
+    const board = BOARD_NAV_HREFS.find((href) => {
+      if (pathname === href) return true;
+      if (href === "/orders") return false;
+      return pathname.startsWith(`${href}/`);
+    });
+    if (!board) return;
+
+    const applySeen = (p: DashboardPulseApi | null) => {
+      writeNavSeen(board, pulseCountForNav(board, p));
+      setNavDirty((prev) =>
+        prev[board] ? { ...prev, [board]: false } : prev
+      );
+    };
+
+    applySeen(pulse ?? readDashboardPulseCache());
+
+    // Soft reconcile count after visit (uses cache when Dashboard already warm).
+    void fetchDashboardPulseApi()
+      .then((next) => {
+        setPulse(next);
+        applySeen(next);
+      })
+      .catch(() => {
+        /* keep dirty/seen */
+      });
+  }, [pathname]);
 
   const currentUser = user || {
     name: "Megan",
@@ -61,57 +282,41 @@ export function Sidebar() {
     access_level: "Full Access",
   };
 
-  // Same universe as the Orders tab board (excludes Flagged multi-affiliate holds).
-  const ordersCount = useMemo(() => {
-    const orderById = new Map<string, Order>();
-    for (const order of activeOrders) {
-      if (order.id) orderById.set(order.id, order);
-      if (order.legacyId) orderById.set(order.legacyId, order);
-      if (order.uuid) orderById.set(order.uuid, order);
-    }
-    return listPreMtdOrderRecords(activeOrders, mtdRecords).filter(
-      (rec) => !recordHeldOnAffiliateFlag(rec, orderById)
-    ).length;
-  }, [activeOrders, mtdRecords]);
-
-  // Same universe as the MTD tab board (all categories / statuses on MTD).
-  const mtdCount = useMemo(
-    () => getMTDBoardRecords(mtdRecords).filter(isMTDRecord).length,
-    [mtdRecords]
-  );
-
-  const payrollCount = useMemo(
-    () => getPayrollRecords(mtdRecords).length,
-    [mtdRecords]
-  );
-
   const navItems = useMemo(
     () =>
       baseNavItems.map((item) => {
-        if (item.href === "/orders") {
-          return {
-            ...item,
-            badge: ordersCount > 0 ? ordersCount : undefined,
-          };
+        if (!BOARD_NAV_HREFS.includes(item.href as (typeof BOARD_NAV_HREFS)[number])) {
+          return item;
         }
-        if (item.href === "/mtd") {
-          return {
-            ...item,
-            badge: mtdCount > 0 ? mtdCount : undefined,
-          };
-        }
-        if (item.href === "/payroll") {
-          return {
-            ...item,
-            badge: payrollCount > 0 ? payrollCount : undefined,
-          };
-        }
-        return item;
+        const href = item.href as (typeof BOARD_NAV_HREFS)[number];
+        const count = pulseCountForNav(href, pulse);
+        const seen = readNavSeen(href);
+        const grew = seen != null && count > seen;
+        return {
+          ...item,
+          hasNew: Boolean(navDirty[href] || grew),
+        };
       }),
-    [ordersCount, mtdCount, payrollCount]
+    [pulse, navDirty]
   );
 
   const showExpanded = expanded || mobileOpen;
+
+  const onBoardPointerDown = useCallback(
+    (href: string) => {
+      if (!BOARD_NAV_HREFS.includes(href as (typeof BOARD_NAV_HREFS)[number])) {
+        return;
+      }
+      // Route first (instant nav), board data second (idle — doesn't block click).
+      try {
+        router.prefetch(href);
+      } catch {
+        /* ignore */
+      }
+      scheduleBoardPrefetch(href);
+    },
+    [router]
+  );
 
   const navItemClass = (active: boolean) =>
     clsx(
@@ -196,7 +401,7 @@ export function Sidebar() {
       {/* Navigation */}
       <DottedScroll className="min-h-0 flex-1 px-3 py-3">
         <nav className="space-y-1" aria-label="Main menu">
-          {navItems.map(({ href, label, icon: Icon, badge }) => {
+          {navItems.map(({ href, label, icon: Icon, hasNew }) => {
             const active =
               href === "/"
                 ? pathname === "/"
@@ -211,8 +416,11 @@ export function Sidebar() {
               >
                 <Link
                   href={href}
+                  prefetch
                   onClick={() => setMobileOpen(false)}
+                  onPointerDown={() => onBoardPointerDown(href)}
                   className={navItemClass(active)}
+                  aria-label={hasNew ? `${label} (new activity)` : label}
                 >
                   <Icon
                     className={clsx(
@@ -226,14 +434,16 @@ export function Sidebar() {
                   {showExpanded ? (
                     <>
                       <span className="truncate text-[13px] flex-1 text-left">{label}</span>
-                      {badge ? (
-                        <span className="min-w-[22px] rounded-md bg-brand-sidebar-active px-1.5 py-0.5 text-center text-[11px] font-semibold tabular-nums text-brand-blue">
-                          {badge}
-                        </span>
+                      {hasNew ? (
+                        <span
+                          className="h-2 w-2 shrink-0 rounded-full bg-brand-blue"
+                          title="New since last visit"
+                          aria-hidden
+                        />
                       ) : null}
                     </>
-                  ) : badge ? (
-                    <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-brand-orange" />
+                  ) : hasNew ? (
+                    <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-brand-blue" />
                   ) : null}
                 </Link>
               </HoverTip>

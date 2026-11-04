@@ -34,6 +34,8 @@ import { DataTable, type Column } from "@/components/ui/DataTable";
 import { Avatar } from "@/components/ui/Avatar";
 import { Tabs } from "@/components/ui/Tabs";
 import { useAppState } from "@/context/AppStateContext";
+import { useMtdBoard } from "@/hooks/useMtdBoard";
+import { mtdActiveChipTotal } from "@/lib/mtd-board-cache";
 import {
   formatDisplayDate,
   formatDisplayDateTime,
@@ -49,14 +51,10 @@ import {
 import { generatePayrollCsv, triggerCsvDownload } from "@/lib/export-csv";
 import { formatPrice, titleCase } from "@/lib/data";
 import {
-  getArchivedPayrollRecords,
   getPayrollRecords,
   patchMarkPayrollPaid,
 } from "@/lib/mtd-completion";
 import {
-  countMTDByCheerSubtype,
-  countMTDByDanceSubtype,
-  countMTDByForm,
   filterMTDRecords,
   matchesFormFilter,
   matchesMTDSearch,
@@ -124,6 +122,84 @@ type PayrollPageTab = "view" | "archive" | "voiceovers" | "send";
 const DEFAULT_CHEER_SUBTYPE: CheerFormSubtypeFilter = "all-star-cheer";
 const DEFAULT_DANCE_SUBTYPE: DanceFormSubtypeFilter = "pom";
 
+const VALID_PAYROLL_FORMS: OrderFormType[] = [
+  "school-all-star-cheer",
+  "school-all-star-dance",
+  "marching-band",
+  "sports-entertainment",
+  "school-anthem",
+];
+const VALID_PAYROLL_CHEER: CheerFormSubtypeFilter[] = [
+  "all-star-cheer",
+  "school-cheer-viroc-yes",
+  "school-cheer-viroc-no",
+  "youth-rec-cheer",
+];
+const VALID_PAYROLL_DANCE: DanceFormSubtypeFilter[] = [
+  "pom",
+  "hip-hop",
+  "team-performance-variety",
+  "gameday",
+  "jazz-kick",
+];
+
+/** Read on first paint so sidebar return hits the warm board cache key. */
+function readStoredPayrollFilters(): {
+  form: OrderFormType;
+  cheerSubtype: CheerFormSubtypeFilter;
+  danceSubtype: DanceFormSubtypeFilter;
+  search: string;
+  tableFilters: MTDTableFilterState;
+} {
+  if (typeof window === "undefined") {
+    return {
+      form: DEFAULT_FORM,
+      cheerSubtype: DEFAULT_CHEER_SUBTYPE,
+      danceSubtype: DEFAULT_DANCE_SUBTYPE,
+      search: "",
+      tableFilters: DEFAULT_MTD_TABLE_FILTERS,
+    };
+  }
+  const savedForm = sessionStorage.getItem(
+    "slt_payroll_form"
+  ) as OrderFormType | null;
+  const savedCheer = sessionStorage.getItem(
+    "slt_payroll_cheer_subtype"
+  ) as CheerFormSubtypeFilter | null;
+  const savedDance = sessionStorage.getItem(
+    "slt_payroll_dance_subtype"
+  ) as DanceFormSubtypeFilter | null;
+  const savedSearch = sessionStorage.getItem("slt_payroll_search");
+  let tableFilters = DEFAULT_MTD_TABLE_FILTERS;
+  const savedTableFilters = sessionStorage.getItem("slt_payroll_table_filters");
+  if (savedTableFilters) {
+    try {
+      const parsed = JSON.parse(savedTableFilters);
+      if (parsed && typeof parsed === "object") {
+        tableFilters = { ...DEFAULT_MTD_TABLE_FILTERS, ...parsed };
+      }
+    } catch {
+      /* keep defaults */
+    }
+  }
+  return {
+    form:
+      savedForm && VALID_PAYROLL_FORMS.includes(savedForm)
+        ? savedForm
+        : DEFAULT_FORM,
+    cheerSubtype:
+      savedCheer && VALID_PAYROLL_CHEER.includes(savedCheer)
+        ? savedCheer
+        : DEFAULT_CHEER_SUBTYPE,
+    danceSubtype:
+      savedDance && VALID_PAYROLL_DANCE.includes(savedDance)
+        ? savedDance
+        : DEFAULT_DANCE_SUBTYPE,
+    search: savedSearch ?? "",
+    tableFilters,
+  };
+}
+
 const paidBtnClass =
   "inline-flex h-7 items-center gap-1 rounded-md border border-brand-success/35 bg-brand-success/10 px-2.5 text-[11px] font-semibold text-brand-success transition hover:bg-brand-success/18";
 const deleteForeverBtnClass =
@@ -145,7 +221,14 @@ export default function PayrollPage() {
     updateMTD,
     removeMTDRecord,
     isViewOnly,
+    ensureLiveMtdLoaded,
   } = useAppState();
+
+  useEffect(() => {
+    void ensureLiveMtdLoaded().catch(() => {
+      /* keep SWR / empty */
+    });
+  }, [ensureLiveMtdLoaded]);
   const [pageTab, setPageTab] = useState<PayrollPageTab>("view");
   const [rushOverlay, setRushOverlay] = useState<Record<string, RushFeeOverlay>>({});
   const rushOverlayRef = useRef<Record<string, RushFeeOverlay>>({});
@@ -163,17 +246,32 @@ export default function PayrollPage() {
   );
   const [viewOrder, setViewOrder] = useState<MTDViewOrder>("sequence");
 
-  const [formState, setFormState] = useState<OrderFormType>(DEFAULT_FORM);
-  const [cheerSubtypeState, setCheerSubtypeState] = useState<CheerFormSubtypeFilter>(
-    DEFAULT_CHEER_SUBTYPE
+  const [formState, setFormState] = useState<OrderFormType>(() =>
+    typeof window !== "undefined"
+      ? readStoredPayrollFilters().form
+      : DEFAULT_FORM
   );
-  const [danceSubtypeState, setDanceSubtypeState] = useState<DanceFormSubtypeFilter>(
-    DEFAULT_DANCE_SUBTYPE
+  const [cheerSubtypeState, setCheerSubtypeState] =
+    useState<CheerFormSubtypeFilter>(() =>
+      typeof window !== "undefined"
+        ? readStoredPayrollFilters().cheerSubtype
+        : DEFAULT_CHEER_SUBTYPE
+    );
+  const [danceSubtypeState, setDanceSubtypeState] =
+    useState<DanceFormSubtypeFilter>(() =>
+      typeof window !== "undefined"
+        ? readStoredPayrollFilters().danceSubtype
+        : DEFAULT_DANCE_SUBTYPE
+    );
+  const [tableFiltersState, setTableFiltersState] =
+    useState<MTDTableFilterState>(() =>
+      typeof window !== "undefined"
+        ? readStoredPayrollFilters().tableFilters
+        : DEFAULT_MTD_TABLE_FILTERS
+    );
+  const [searchQueryState, setSearchQueryState] = useState(() =>
+    typeof window !== "undefined" ? readStoredPayrollFilters().search : ""
   );
-  const [tableFiltersState, setTableFiltersState] = useState<MTDTableFilterState>(
-    DEFAULT_MTD_TABLE_FILTERS
-  );
-  const [searchQueryState, setSearchQueryState] = useState("");
 
   const [sendPayPeriod, setSendPayPeriod] = useState<PayPeriodRange>("2weeks");
 
@@ -222,65 +320,49 @@ export default function PayrollPage() {
     },
   ];
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const savedForm = sessionStorage.getItem("slt_payroll_form") as OrderFormType | null;
-    const savedCheer = sessionStorage.getItem("slt_payroll_cheer_subtype") as CheerFormSubtypeFilter | null;
-    const savedDance = sessionStorage.getItem("slt_payroll_dance_subtype") as DanceFormSubtypeFilter | null;
-    const savedTableFilters = sessionStorage.getItem("slt_payroll_table_filters");
-    const savedSearch = sessionStorage.getItem("slt_payroll_search");
-
-    const validForms: OrderFormType[] = [
-      "school-all-star-cheer",
-      "school-all-star-dance",
-      "marching-band",
-      "sports-entertainment",
-      "school-anthem",
-    ];
-    const validCheerSubtypes: CheerFormSubtypeFilter[] = [
-      "all-star-cheer",
-      "school-cheer-viroc-yes",
-      "school-cheer-viroc-no",
-      "youth-rec-cheer",
-    ];
-    const validDanceSubtypes: DanceFormSubtypeFilter[] = [
-      "pom",
-      "hip-hop",
-      "team-performance-variety",
-      "gameday",
-      "jazz-kick",
-    ];
-
-    if (savedForm && validForms.includes(savedForm)) setFormState(savedForm);
-    if (savedCheer && validCheerSubtypes.includes(savedCheer)) setCheerSubtypeState(savedCheer);
-    if (savedDance && validDanceSubtypes.includes(savedDance)) setDanceSubtypeState(savedDance);
-    if (savedSearch !== null) setSearchQueryState(savedSearch);
-    if (savedTableFilters) {
-      try {
-        const parsed = JSON.parse(savedTableFilters);
-        if (parsed && typeof parsed === "object") {
-          setTableFiltersState({ ...DEFAULT_MTD_TABLE_FILTERS, ...parsed });
-        }
-      } catch {}
-    }
-  }, []);
+  const payrollBoardQuery = useMemo(
+    () => ({
+      scope: (pageTab === "archive" ? "archive" : "payroll") as
+        | "archive"
+        | "payroll",
+      formType: form,
+      cheerFormSubtype:
+        form === "school-all-star-cheer" ? cheerSubtype : undefined,
+      search: searchQuery.trim() || undefined,
+    }),
+    [pageTab, form, cheerSubtype, searchQuery]
+  );
+  const {
+    records: payrollBoardRecords,
+    counts: payrollBoardCounts,
+    nextPageToken: payrollNextPageToken,
+    loading: payrollBoardLoading,
+    loadingMore: payrollBoardLoadingMore,
+    countsReady: payrollCountsReady,
+    loadMore: loadMorePayrollBoard,
+    reload: reloadPayrollBoard,
+  } = useMtdBoard(payrollBoardQuery);
 
   const payrollRecords = useMemo(
     () =>
-      [...getPayrollRecords(mtdRecords)].sort((a, b) =>
-        (b.completedAt ?? "").localeCompare(a.completedAt ?? "")
-      ),
-    [mtdRecords]
+      pageTab === "archive"
+        ? []
+        : [...payrollBoardRecords].sort((a, b) =>
+            (b.completedAt ?? "").localeCompare(a.completedAt ?? "")
+          ),
+    [pageTab, payrollBoardRecords]
   );
 
-  const archivedPayrollRecords = useMemo(
+  const sortedArchivedPayrollRecords = useMemo(
     () =>
-      [...getArchivedPayrollRecords(mtdRecords)].sort((a, b) =>
-        (b.paidAt ?? b.completedAt ?? "").localeCompare(
-          a.paidAt ?? a.completedAt ?? ""
-        )
-      ),
-    [mtdRecords]
+      pageTab === "archive"
+        ? [...payrollBoardRecords].sort((a, b) =>
+            (b.paidAt ?? b.completedAt ?? "").localeCompare(
+              a.paidAt ?? a.completedAt ?? ""
+            )
+          )
+        : [],
+    [pageTab, payrollBoardRecords]
   );
 
   const orderById = useMemo(
@@ -291,7 +373,7 @@ export default function PayrollPage() {
   // No Source filter here: manuals are merged/split on Orders/MTD before
   // completion, so Payroll rows are effectively form-sourced.
   const sourceRecords =
-    pageTab === "archive" ? archivedPayrollRecords : payrollRecords;
+    pageTab === "archive" ? sortedArchivedPayrollRecords : payrollRecords;
 
   const markPaid = useCallback(
     (rec: MTDRecord) => {
@@ -311,8 +393,9 @@ export default function PayrollPage() {
       setHighlightId(rec.id);
       setPageTab("archive");
       setMarkPaidRecord(null);
+      void reloadPayrollBoard();
     },
-    [isViewOnly, updateMTD, allOrders]
+    [isViewOnly, updateMTD, allOrders, reloadPayrollBoard]
   );
 
   const clearHighlight = useCallback(() => {
@@ -335,12 +418,19 @@ export default function PayrollPage() {
     try {
       await removeMTDRecord(deleteForeverRecord.id);
       setDeleteForeverRecord(null);
+      void reloadPayrollBoard();
     } catch {
       // Error toast from removeMTDRecord
     } finally {
       setDeletingForever(false);
     }
-  }, [isViewOnly, deleteForeverRecord, deletingForever, removeMTDRecord]);
+  }, [
+    isViewOnly,
+    deleteForeverRecord,
+    deletingForever,
+    removeMTDRecord,
+    reloadPayrollBoard,
+  ]);
 
   useEffect(() => {
     if (!focusParam) return;
@@ -573,23 +663,32 @@ export default function PayrollPage() {
   );
 
   const formCounts = useMemo(
-    () => countMTDByForm(sourceRecords, orderById),
-    [sourceRecords, orderById]
+    () =>
+      (payrollBoardCounts.by_form_type || {}) as Record<OrderFormType, number>,
+    [payrollBoardCounts.by_form_type]
   );
 
   const cheerSubtypeCounts = useMemo(
-    () => countMTDByCheerSubtype(sourceRecords, orderById),
-    [sourceRecords, orderById]
+    () =>
+      (payrollBoardCounts.by_cheer_form_subtype || {}) as Record<
+        CheerFormSubtypeFilter,
+        number
+      >,
+    [payrollBoardCounts.by_cheer_form_subtype]
   );
 
   const danceSubtypeCounts = useMemo(
-    () => countMTDByDanceSubtype(sourceRecords, orderById),
-    [sourceRecords, orderById]
+    () =>
+      (payrollBoardCounts.by_dance_form_subtype || {}) as Record<
+        DanceFormSubtypeFilter,
+        number
+      >,
+    [payrollBoardCounts.by_dance_form_subtype]
   );
 
   const emptyMessage = useMemo(() => {
     if (pageTab === "archive") {
-      if (archivedPayrollRecords.length === 0) {
+      if (sortedArchivedPayrollRecords.length === 0) {
         return "No paid mixes in archive yet. Mark a mix as Paid on Payroll to move it here.";
       }
       if (filtered.length === 0) {
@@ -606,7 +705,7 @@ export default function PayrollPage() {
     return "No mixes to show.";
   }, [
     pageTab,
-    archivedPayrollRecords.length,
+    sortedArchivedPayrollRecords.length,
     payrollRecords.length,
     filtered.length,
   ]);
@@ -1640,7 +1739,7 @@ export default function PayrollPage() {
           pageTab === "view"
             ? `${filtered.length} of ${payrollRecords.length} · ${formatPrice(totalPayroll)}`
             : pageTab === "archive"
-              ? `${filtered.length} of ${archivedPayrollRecords.length}`
+              ? `${filtered.length} of ${sortedArchivedPayrollRecords.length}`
               : pageTab === "voiceovers" && voiceoverCount > 0
                 ? `${voiceoverCount}`
                 : undefined
@@ -1668,7 +1767,7 @@ export default function PayrollPage() {
               {
                 value: "archive",
                 label: "Archive",
-                count: archivedPayrollRecords.length || undefined,
+                count: sortedArchivedPayrollRecords.length || undefined,
               },
               {
                 value: "voiceovers",
@@ -1786,7 +1885,27 @@ export default function PayrollPage() {
               data={filtered}
               rowKey={(rec) => rec.id}
               emptyMessage={emptyMessage}
+              loading={payrollBoardLoading && filtered.length === 0}
               pageSize={15}
+              totalCount={
+                payrollCountsReady
+                  ? mtdActiveChipTotal(payrollBoardCounts, {
+                      formType: form,
+                      cheerFormSubtype:
+                        form === "school-all-star-cheer"
+                          ? cheerSubtype
+                          : undefined,
+                      danceFormSubtype:
+                        form === "school-all-star-dance"
+                          ? danceSubtype
+                          : undefined,
+                    })
+                  : undefined
+              }
+              hasMore={Boolean(payrollNextPageToken)}
+              onLoadMore={loadMorePayrollBoard}
+              loadingMore={payrollBoardLoadingMore}
+              resetKey={`${pageTab}-${viewOrder}-${form}-${cheerSubtype}-${searchQuery}`}
               embedded
               showScrollIndicator={false}
               highlightRowKey={highlightId}

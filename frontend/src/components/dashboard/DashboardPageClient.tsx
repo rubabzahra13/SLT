@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { DashboardPanel } from "@/components/dashboard/DashboardPanel";
 import { PipelineChart } from "@/components/dashboard/PipelineChart";
 import { OrdersIncomingChart } from "@/components/dashboard/OrdersIncomingChart";
@@ -8,6 +8,7 @@ import { ScheduleWeekChart } from "@/components/dashboard/ScheduleWeekChart";
 import { MixOpsChart } from "@/components/dashboard/MixOpsChart";
 import { TeamRosterMarquee } from "@/components/dashboard/TeamRosterMarquee";
 import { useAppState } from "@/context/AppStateContext";
+import type { DashboardPulseApi } from "@/lib/api/dashboard";
 import {
   buildCategoryPipeline,
   buildDashboardPulse,
@@ -15,6 +16,8 @@ import {
   buildMixOpsSlices,
   buildWeeklyCapacity,
   sortProducersForCapacity,
+  weekdayShortLabel,
+  type IncomingOrdersPoint,
 } from "@/lib/dashboard";
 import {
   mixTimelineInsight,
@@ -23,8 +26,52 @@ import {
   weekCapacityPanelInsight,
 } from "@/lib/dashboard-tooltips";
 
-export function DashboardPageClient() {
-  const { activeOrders, pastOrders, producers, mtdRecords, schedule } = useAppState();
+function pulseOrdersInPoints(
+  byDay: { iso: string; count: number; is_today?: boolean }[] | undefined,
+  anchor: Date
+): IncomingOrdersPoint[] | null {
+  if (!byDay?.length) return null;
+  return byDay.map((d) => {
+    const day = new Date(`${d.iso}T12:00:00`);
+    return {
+      iso: d.iso,
+      label: day.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      shortLabel: weekdayShortLabel(day),
+      count: d.count,
+      isToday:
+        Boolean(d.is_today) ||
+        d.iso ===
+          `${anchor.getFullYear()}-${String(anchor.getMonth() + 1).padStart(2, "0")}-${String(anchor.getDate()).padStart(2, "0")}`,
+    };
+  });
+}
+
+export function DashboardPageClient({
+  pulseApi,
+}: {
+  pulseApi: DashboardPulseApi | null;
+}) {
+  const {
+    activeOrders,
+    pastOrders,
+    producers,
+    mtdRecords,
+    schedule,
+    ensurePastOrdersLoaded,
+    releasePastOrders,
+  } = useAppState();
+
+  useEffect(() => {
+    // Fallback only — preferred series comes from /dashboard/pulse.
+    if ((pulseApi?.orders_in_by_day?.length || 0) > 0) return;
+    void ensurePastOrdersLoaded().catch(() => {
+      /* chart stays on active-only until retry */
+    });
+    return () => {
+      releasePastOrders();
+    };
+  }, [ensurePastOrdersLoaded, releasePastOrders, pulseApi?.orders_in_by_day]);
+
   const currentDate = new Date();
 
   const pulse = useMemo(
@@ -39,9 +86,16 @@ export function DashboardPageClient() {
     [producers, mtdRecords, schedule]
   );
 
+  const incomingFromPulse = useMemo(
+    () => pulseOrdersInPoints(pulseApi?.orders_in_by_day, currentDate),
+    [pulseApi?.orders_in_by_day]
+  );
+
   const incomingOrders = useMemo(
-    () => buildIncomingOrdersSeries(activeOrders, pastOrders, currentDate),
-    [activeOrders, pastOrders]
+    () =>
+      incomingFromPulse ??
+      buildIncomingOrdersSeries(activeOrders, pastOrders, currentDate),
+    [incomingFromPulse, activeOrders, pastOrders]
   );
 
   const weekCapacity = useMemo(
@@ -49,14 +103,26 @@ export function DashboardPageClient() {
     [producers, schedule, mtdRecords, currentDate]
   );
 
-  const mixOps = useMemo(() => buildMixOpsSlices(pulse), [pulse]);
+  const mixOps = useMemo(
+    () => buildMixOpsSlices(mtdRecords, currentDate),
+    [mtdRecords, currentDate]
+  );
 
-  const pipelineTotal = pipeline.reduce((sum, slice) => sum + slice.count, 0);
-  const incomingTotal = incomingOrders.reduce((sum, point) => sum + point.count, 0);
+  const pipelineFromRecords = pipeline.reduce((sum, slice) => sum + slice.count, 0);
+  const incomingTotal =
+    pulseApi?.orders_in_total ??
+    incomingOrders.reduce((sum, point) => sum + point.count, 0);
+  // Prefer server open count so Music to do matches Mix timeline / pulse
+  // even if a sticky local payroll merge briefly hides a row.
+  const openOnTimeline =
+    pulseApi?.mtd_open ??
+    mtdRecords.filter((r) => r.status !== "completed" && !r.inPayroll).length;
+  const pipelineTotal =
+    typeof pulseApi?.mtd_open === "number" ? pulseApi.mtd_open : pipelineFromRecords;
   const teamTip = teamPanelInsight(pulse);
   const weekTip = weekCapacityPanelInsight(pulse);
   const pipelineTip = pipelinePanelInsight(pipelineTotal);
-  const mixTip = mixTimelineInsight(pulse, mixOps.reduce((s, x) => s + x.count, 0));
+  const mixTip = mixTimelineInsight(pulse, openOnTimeline);
 
   return (
     <div className="dashboard-body-grid min-h-0">
@@ -100,7 +166,12 @@ export function DashboardPageClient() {
           linkLabel="MTD"
           tip={pipelineTip}
         >
-          <PipelineChart pipeline={pipeline} compact limit={4} />
+          <PipelineChart
+            pipeline={pipeline}
+            openTotal={pipelineTotal}
+            compact
+            limit={4}
+          />
         </DashboardPanel>
 
         <DashboardPanel
@@ -117,6 +188,7 @@ export function DashboardPageClient() {
         <DashboardPanel fill className="min-h-0" title="Mix timeline" href="/mtd" linkLabel="MTD" tip={mixTip}>
           <MixOpsChart
             slices={mixOps}
+            openTotal={openOnTimeline}
             compact
             summary={{
               dueThisWeek: pulse.dueThisWeek,

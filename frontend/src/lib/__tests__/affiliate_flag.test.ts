@@ -8,6 +8,7 @@ import {
   isMultiAffiliateSelection,
   openAffiliateFlagPatch,
   parseSelectedMusicAffiliates,
+  ordersHrefAfterFlagResolve,
   resolveAffiliateFlagPatch,
 } from "../affiliate-flag";
 import { isAllowedAllStarDanceCoverPair } from "../dance-music-affiliate";
@@ -142,6 +143,28 @@ describe("affiliate flag detection", () => {
     assert.equal(isHeldOnAffiliateFlag(released), false);
     assert.equal(isInvalidMultiAffiliateSelection(released), false);
     assert.equal(formatMusicAffiliateDisplay(released), "Power Music");
+  });
+
+  it("ordersHrefAfterFlagResolve opens the row's form and chips", () => {
+    const href = ordersHrefAfterFlagResolve(
+      cheerOrder({
+        formType: "school-all-star-dance",
+        danceFormSubtype: "pom",
+        assignedProducer: null,
+        needsAttention: false,
+        packageType: "GOLD",
+        timeLengthOfMix: "2:00",
+        songListSuggestions: "A",
+        routineNotes: "B",
+        haveSongs: "HAVE SONGS",
+        eightCountSheet: "HAVE CS",
+        affiliateFlagStatus: "released",
+        musicAffiliate: "Power Music Covers",
+      }) as any
+    );
+    assert.match(href, /form=school-all-star-dance/);
+    assert.match(href, /dance=pom/);
+    assert.match(href, /range=need_to_be_scheduled%2Cnot_assigned|range=need_to_be_scheduled,not_assigned/);
   });
 
   it("openAffiliateFlagPatch only applies to multi cheer selections", () => {

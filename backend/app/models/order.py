@@ -132,6 +132,8 @@ class Order(Base):
     collection_states = Column(JSON, nullable=True)
     needs_attention = Column(Boolean, default=False, nullable=False)
     attention_reason = Column(Text, nullable=True)
+    # Sheet-import idempotency key (unique when set).
+    import_external_id = Column(String, nullable=True, unique=True, index=True)
     is_past_order = Column(Boolean, default=False, nullable=False)
     is_manual_entry = Column(Boolean, default=False, nullable=False)
     is_placeholder = Column(Boolean, default=False, nullable=True)

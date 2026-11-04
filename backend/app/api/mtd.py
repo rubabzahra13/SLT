@@ -2,6 +2,7 @@ import uuid
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
+from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 from app.core.database import get_db
@@ -104,12 +105,49 @@ def _pop_order_sot_updates(data: dict) -> tuple[dict, dict, dict]:
     return identity, assignment, collection
 
 
+def _mtd_live_filter():
+    """Board + unpaid payroll (excludes paid archive)."""
+    return MTDRecord.paid_at.is_(None)
+
+
+def _mtd_board_filter():
+    return MTDRecord.in_payroll.is_(False)
+
+
+def _mtd_payroll_unpaid_filter():
+    """Unpaid payroll members — mirrors client isPayrollMember && !paid."""
+    return (
+        or_(MTDRecord.in_payroll.is_(True), MTDRecord.status == "completed"),
+        MTDRecord.paid_at.is_(None),
+    )
+
+
+def _mtd_archive_filter():
+    return MTDRecord.paid_at.isnot(None)
+
+
+def _apply_mtd_scope(query, scope: str | None):
+    """scope=live|board|payroll|archive|all (default all for compatibility)."""
+    normalized = (scope or "all").strip().lower()
+    if normalized == "live":
+        return query.filter(_mtd_live_filter())
+    if normalized == "board":
+        return query.filter(_mtd_board_filter())
+    if normalized == "payroll":
+        unpaid = _mtd_payroll_unpaid_filter()
+        return query.filter(unpaid[0], unpaid[1])
+    if normalized == "archive":
+        return query.filter(_mtd_archive_filter())
+    return query
+
+
 @router.get("/mtd", response_model=MtdListResponse)
 def get_mtd_records(
     form_type: str | None = None,
     cheer_form_subtype: str | None = None,
     category: str | None = None,
     status: str | None = None,
+    scope: str | None = None,
     page_size: int = Depends(page_size_query),
     page_token: str | None = Depends(page_token_query),
     db: Session = Depends(get_db)
@@ -117,6 +155,7 @@ def get_mtd_records(
     query = db.query(MTDRecord).options(*_mtd_load_options()).order_by(
         MTDRecord.created_at.desc(), MTDRecord.id.asc()
     )
+    query = _apply_mtd_scope(query, scope)
     needs_order_join = bool(
         (cheer_form_subtype and cheer_form_subtype != "all")
         or form_type
@@ -288,6 +327,9 @@ def update_mtd_record(mtd_id: str, payload: MTDRecordUpdateSchema, db: Session =
 
 
 def _publish_mtd_updated(mtd: MTDRecord) -> None:
+    from app.services.dashboard_pulse import invalidate_dashboard_pulse_cache
+
+    invalidate_dashboard_pulse_cache()
     board_event_hub.publish(
         {
             "type": "mtd.updated",

@@ -756,7 +756,11 @@ export function filterMTDRecords(
   });
 }
 
-export function matchesMTDSearch(rec: MTDRecord, query: string): boolean {
+export function matchesMTDSearch(
+  rec: MTDRecord,
+  query: string,
+  linked?: Order | null
+): boolean {
   const q = query.trim().toLowerCase();
   if (!q) return true;
 
@@ -764,14 +768,33 @@ export function matchesMTDSearch(rec: MTDRecord, query: string): boolean {
   const invoice = (rec.invoice || "").toLowerCase();
   const program = (rec.programName || "").toLowerCase();
   const team = (rec.teamName || "").toLowerCase();
-  const id = (rec.id || "").toLowerCase();
+  const id = (rec.id || rec.orderId || "").toLowerCase();
+  // Orders table Coach / Gym columns read the linked Order — search those too.
+  const coach = (
+    linked?.coachName ||
+    linked?.coachContactFullName ||
+    linked?.musicContactName ||
+    linked?.contactName ||
+    linked?.customerName ||
+    ""
+  ).toLowerCase();
+  const gym = (
+    linked?.gymName ||
+    linked?.schoolProgramName ||
+    linked?.schoolName ||
+    linked?.programName ||
+    linked?.organizationName ||
+    ""
+  ).toLowerCase();
 
   return (
     contact.includes(q) ||
     invoice.includes(q) ||
     program.includes(q) ||
     team.includes(q) ||
-    id.includes(q)
+    id.includes(q) ||
+    coach.includes(q) ||
+    gym.includes(q)
   );
 }
 

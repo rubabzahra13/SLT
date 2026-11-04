@@ -2,7 +2,10 @@ from fastapi import APIRouter
 from app.api.health import router as health_router
 from app.api.auth import router as auth_router
 from app.api.producers import router as producers_router
+from app.api.orders_board import router as orders_board_router
+from app.api.orders_import import router as orders_import_router
 from app.api.orders import router as orders_router
+from app.api.mtd_board import router as mtd_board_router
 from app.api.mtd import router as mtd_router
 from app.api.discount_codes import router as discount_codes_router
 from app.api.pricing import router as pricing_router
@@ -13,6 +16,8 @@ from app.api.bootstrap import router as bootstrap_router
 from app.api.catalog_pricing import router as catalog_pricing_router
 from app.api.pricing_rules import router as pricing_rules_router
 from app.api.music_affiliates import router as music_affiliates_router
+from app.api.studio_stream import router as studio_stream_router
+from app.api.dashboard import router as dashboard_router
 from app.api.magento_ingest import router as magento_ingest_router
 
 api_router = APIRouter()
@@ -20,9 +25,15 @@ api_router.include_router(health_router, tags=["health"])
 api_router.include_router(health_router, prefix="/api", tags=["health"])
 api_router.include_router(auth_router, prefix="/api", tags=["auth"])
 api_router.include_router(bootstrap_router, prefix="/api", tags=["bootstrap"])
+api_router.include_router(studio_stream_router, prefix="/api", tags=["studio"])
 api_router.include_router(producers_router, prefix="/api", tags=["producers"])
+# Board/import routes before /orders/{id} and /mtd/{id} so path segments match.
+api_router.include_router(orders_board_router, prefix="/api", tags=["orders"])
+api_router.include_router(orders_import_router, prefix="/api", tags=["orders"])
 api_router.include_router(orders_router, prefix="/api", tags=["orders"])
+api_router.include_router(mtd_board_router, prefix="/api", tags=["mtd"])
 api_router.include_router(mtd_router, prefix="/api", tags=["mtd"])
+api_router.include_router(dashboard_router, prefix="/api", tags=["dashboard"])
 api_router.include_router(discount_codes_router, prefix="/api", tags=["discount_codes"])
 api_router.include_router(pricing_router, prefix="/api", tags=["pricing"])
 api_router.include_router(catalog_pricing_router, prefix="/api", tags=["catalog_pricing"])

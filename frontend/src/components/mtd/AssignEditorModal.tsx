@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
   Check,
   ChevronDown,
@@ -104,6 +103,7 @@ import {
 } from "@/types";
 import { useAppState } from "@/context/AppStateContext";
 import { canSetInvoiceOnAssign } from "@/lib/order-source";
+import { syncOrdersBoardAfterAssignment } from "@/lib/orders-board-cache";
 export type EditorAssignmentResult = {
   editorRequest: string;
   assignedProducer: string | null;
@@ -129,7 +129,10 @@ type AssignEditorModalProps = {
   /** Where back / cancel / success should return. */
   returnHref?: string;
   onClose: () => void;
-  onAssign: (recordId: string, result: EditorAssignmentResult) => void;
+  onAssign: (
+    recordId: string,
+    result: EditorAssignmentResult
+  ) => void | Promise<void>;
 };
 
 /**
@@ -196,20 +199,43 @@ export function AssignEditorModal({
   onAssign,
 }: AssignEditorModalProps) {
   const isPage = variant === "page";
-  const router = useRouter();
   // Always prefer live studio state so leave / Extra days / mix bookings
   // paint on the calendars immediately after save (not only after refresh).
   const live = useAppState();
   const producers = live.producers;
   const mtdRecords = live.mtdRecords;
-  const allOrders = live.allOrders;
   const activeOrders = live.activeOrders;
   const schedule = live.schedule.length > 0 ? live.schedule : scheduleProp;
+  // Page open: don't scan the full studio order list on first paint — use the
+  // seeded/prop order, then merge the live copy of that same id.
+  const allOrders = useMemo(() => {
+    if (!isPage) return live.allOrders;
+    if (allOrdersProp.length === 0) return live.allOrders;
+    const map = new Map<string, Order>();
+    for (const order of allOrdersProp) {
+      map.set(order.id, order);
+    }
+    for (const order of live.activeOrders) {
+      if (map.has(order.id)) map.set(order.id, order);
+    }
+    return [...map.values()];
+  }, [isPage, allOrdersProp, live.allOrders, live.activeOrders]);
+
+  // Page: defer mix-bookings scan one frame so the producer strip paints first.
+  const [bookingReady, setBookingReady] = useState(!isPage);
+  useEffect(() => {
+    if (!isPage || bookingReady) return;
+    const t = window.requestAnimationFrame(() => setBookingReady(true));
+    return () => window.cancelAnimationFrame(t);
+  }, [isPage, bookingReady]);
 
   /** Orders + MTD assigned mixes (excludes payroll/completed) for limit comparison. */
   const bookingRecords = useMemo(
-    () => collectOpenAssignedMixRecords(activeOrders, mtdRecords),
-    [activeOrders, mtdRecords]
+    () =>
+      bookingReady
+        ? collectOpenAssignedMixRecords(activeOrders, mtdRecords)
+        : [],
+    [activeOrders, mtdRecords, bookingReady]
   );
 
   const orderById = useMemo(() => {
@@ -281,12 +307,15 @@ export function AssignEditorModal({
     [record, allOrders]
   );
 
-  const displayAssigned = record ? getDisplayAssignedProducer(record) : null;
   // Order SoT: prefer linked Order producer so a cleared Order unlocks reassign
   // even when the board still carries a stale CH key.
   const formalAssigned = linkedOrder
     ? linkedOrder.assignedProducer?.trim() || null
     : record?.assignedProducer?.trim() || null;
+  // Live linked order wins — board `record` can lag right after save and paint
+  // "View assignment" + "No producer assigned".
+  const displayAssigned =
+    (record ? getDisplayAssignedProducer(record) : null) || formalAssigned;
   const awaitingReassign = record
     ? getOrderStatus(linkedOrder ?? record).needsReassign
     : false;
@@ -677,43 +706,53 @@ export function AssignEditorModal({
     record?.id,
   ]);
 
-  // Hydrate draft from a locked assignment. Do NOT clear draft whenever an
-  // unassigned record object refreshes: that wiped first-available picks
-  // right after Unassign while the parent re-synced MTD/order.
+  // Hydrate draft from a locked assignment (Order SoT). Do NOT hydrate from a
+  // stale board/seed CH after Unassign cleared the Order.
   useEffect(() => {
     if (!record) return;
     if (!isPage && !open) return;
 
-    const assignedKey = record.assignedProducer?.trim();
+    const assignedKey = formalAssigned;
     if (!assignedKey) return;
 
     const match = categoryEditors.find((name) =>
       producerKeysMatch(name, assignedKey)
     );
     setSelectedEditor(match ?? assignedKey.toUpperCase());
-    setDraftMixStartDate(toIsoDateString(record.mixStartDate) || "");
-    setDraftMixEndDate(toIsoDateString(record.mixEndDate) || "");
+    const startSrc =
+      linkedOrder?.mixStartDate !== undefined && linkedOrder?.mixStartDate !== null
+        ? linkedOrder.mixStartDate
+        : record.mixStartDate;
+    const endSrc =
+      linkedOrder?.mixEndDate !== undefined && linkedOrder?.mixEndDate !== null
+        ? linkedOrder.mixEndDate
+        : record.mixEndDate;
+    setDraftMixStartDate(toIsoDateString(startSrc) || "");
+    setDraftMixEndDate(toIsoDateString(endSrc) || "");
   }, [
     open,
     isPage,
     record?.id,
-    record?.assignedProducer,
+    formalAssigned,
+    linkedOrder?.mixStartDate,
+    linkedOrder?.mixEndDate,
     record?.mixStartDate,
     record?.mixEndDate,
     categoryEditors,
   ]);
 
-  // Fresh open / switch to a different unassigned record: leave dates empty
-  // until a producer is selected. Do not touch invoice here (separate sync).
+  // Unassigned (or just unassigned): clear draft so CH + dates don't stick
+  // after Unassign. Depend on assignedProducer — record.id alone never re-ran.
   useEffect(() => {
     if (!record) return;
     if (!isPage && !open) return;
-    if (record.assignedProducer?.trim()) return;
+    // Prefer Order SoT — seed/board record can still carry a stale CH key.
+    if (formalAssigned) return;
 
     setSelectedEditor("");
     setDraftMixStartDate("");
     setDraftMixEndDate("");
-  }, [open, isPage, record?.id]);
+  }, [open, isPage, record?.id, formalAssigned]);
 
   // Invoice draft ↔ record. Never clobber while the user is editing/saving,
   // and never wipe a non-empty draft with an empty prop (SSE/merge races).
@@ -882,18 +921,50 @@ export function AssignEditorModal({
     !showCompactAssigned &&
     !isAssignmentLocked;
 
-  function handleUnassign() {
-    onAssign(activeRecord.id, {
-      editorRequest: "FA",
+  async function handleUnassign() {
+    const clearedId = linkedOrder?.id || activeRecord.orderId || activeRecord.id;
+    const clearedOrder = {
+      ...(linkedOrder || ({ id: clearedId } as Order)),
+      id: clearedId || activeRecord.id,
       assignedProducer: null,
       mixStartDate: "",
       mixEndDate: "",
-    });
+      isReassigned: false,
+    };
+    // Optimistic board sync first — Back is instant; toast only after persist.
+    if (clearedId) {
+      syncOrdersBoardAfterAssignment(clearedOrder, {
+        formType: formMeta?.formType,
+        cheerFormSubtype: formMeta?.cheerFormSubtype,
+        danceFormSubtype: formMeta?.danceFormSubtype,
+        assigned: false,
+      });
+    }
     setDraftMixStartDate("");
     setDraftMixEndDate("");
     setSelectedEditor("");
-    // Assign page is outside the Orders tab watcher — alert here so Back
-    // doesn't look like the row vanished from Assigned.
+    try {
+      await onAssign(activeRecord.id, {
+        editorRequest: "FA",
+        assignedProducer: null,
+        mixStartDate: "",
+        mixEndDate: "",
+      });
+    } catch {
+      // Roll board back; updateOrder already toasts.
+      if (clearedId && linkedOrder) {
+        syncOrdersBoardAfterAssignment(
+          { ...linkedOrder, id: clearedId },
+          {
+            formType: formMeta?.formType,
+            cheerFormSubtype: formMeta?.cheerFormSubtype,
+            danceFormSubtype: formMeta?.danceFormSubtype,
+            assigned: Boolean(linkedOrder.assignedProducer?.trim()),
+          }
+        );
+      }
+      return;
+    }
     const name =
       titleCase(activeRecord.programName || "").trim() ||
       titleCase(activeRecord.contactName || "").trim() ||
@@ -960,76 +1031,124 @@ export function AssignEditorModal({
     commitAssignment();
   }
 
-  function commitAssignment() {
+  async function commitAssignment() {
     setDeleteProducerConfirmOpen(false);
     setLimitConfirmOpen(false);
     const toDelete = pendingDeletedProducerOnRoster;
     const programLabel = activeRecord?.programName || "this mix";
-    onAssign(activeRecord.id, {
-      editorRequest: editorRequestForAssignment(
-        selectedEditor,
-        requestedEditor,
-        availableNames
-      ),
+    const backHref = (isPage && returnHref) || "/orders";
+    const savedId = linkedOrder?.id || activeRecord.orderId || activeRecord.id;
+    const assignedOrder = {
+      ...(linkedOrder || ({ id: savedId } as Order)),
+      id: savedId || activeRecord.id,
       assignedProducer: selectedEditor,
       mixStartDate: draftStartIso,
       mixEndDate: draftEndIso,
-      ...(showAssignInvoice
-        ? { invoice: draftInvoice.trim() || displayInvoice || undefined }
-        : {}),
-    });
+      isReassigned: false,
+    };
+    // Optimistic: bump badges / move row before network so Back feels instant.
+    if (savedId) {
+      syncOrdersBoardAfterAssignment(assignedOrder, {
+        formType: formMeta?.formType,
+        cheerFormSubtype: formMeta?.cheerFormSubtype,
+        danceFormSubtype: formMeta?.danceFormSubtype,
+        assigned: true,
+      });
+    }
 
-    if (toDelete) {
-      const deletedName =
-        toDelete.name?.trim() || toDelete.initials?.trim() || "Producer";
-      void live.removeProducer(toDelete.id).then(
-        () => {
-          live.addAlert({
-            tone: "info",
-            title: `${deletedName} deleted`,
-            message: `${deletedName} was removed from the producer roster.`,
-          });
+    // Page: stay on locked "View assignment" — user leaves with ← Back.
+    // Modal: close after save. Board already synced; persist in background.
+    if (!isPage) {
+      onClose();
+    }
+
+    void Promise.resolve(
+      onAssign(activeRecord.id, {
+        editorRequest: editorRequestForAssignment(
+          selectedEditor,
+          requestedEditor,
+          availableNames
+        ),
+        assignedProducer: selectedEditor,
+        mixStartDate: draftStartIso,
+        mixEndDate: draftEndIso,
+        ...(showAssignInvoice
+          ? { invoice: draftInvoice.trim() || displayInvoice || undefined }
+          : {}),
+      })
+    )
+      .then(() => {
+        if (toDelete) {
+          const deletedName =
+            toDelete.name?.trim() || toDelete.initials?.trim() || "Producer";
+          void live.removeProducer(toDelete.id).then(
+            () => {
+              live.addAlert({
+                tone: "info",
+                title: `${deletedName} deleted`,
+                message: `${deletedName} was removed from the producer roster.`,
+              });
+              live.addAlert({
+                tone: "info",
+                title: "New producer assigned to mix",
+                message: `${selectedEditor} assigned to ${programLabel}.`,
+                href: backHref,
+              });
+            },
+            () => {
+              // removeProducer already surfaces its own error notification
+            }
+          );
+          return;
+        }
+        if (pendingDeletedProducer) {
           live.addAlert({
             tone: "info",
             title: "New producer assigned to mix",
             message: `${selectedEditor} assigned to ${programLabel}.`,
-            href: `/orders/${activeRecord.id}`,
+            href: backHref,
           });
-        },
-        () => {
-          // removeProducer already surfaces its own error notification
+          return;
         }
-      );
-    } else if (pendingDeletedProducer) {
-      live.addAlert({
-        tone: "info",
-        title: "New producer assigned to mix",
-        message: `${selectedEditor} assigned to ${programLabel}.`,
-        href: `/orders/${activeRecord.id}`,
+        if (
+          getOrderStatus(activeRecord).reassignReason === "category_removed"
+        ) {
+          live.addAlert({
+            tone: "info",
+            title: "Reassigned after category change",
+            message: `${selectedEditor} assigned to ${programLabel}.`,
+            href: backHref,
+          });
+          return;
+        }
+        live.addAlert({
+          tone: "success",
+          title: "Producer assigned",
+          message: `${selectedEditor} assigned to ${programLabel}.`,
+          href: backHref,
+        });
+      })
+      .catch(() => {
+        // Roll board back on failure; updateOrder already toasts.
+        if (savedId) {
+          syncOrdersBoardAfterAssignment(
+            {
+              ...(linkedOrder || ({ id: savedId } as Order)),
+              id: savedId,
+              assignedProducer: null,
+              mixStartDate: "",
+              mixEndDate: "",
+              isReassigned: false,
+            },
+            {
+              formType: formMeta?.formType,
+              cheerFormSubtype: formMeta?.cheerFormSubtype,
+              danceFormSubtype: formMeta?.danceFormSubtype,
+              assigned: false,
+            }
+          );
+        }
       });
-    } else if (
-      getOrderStatus(activeRecord).reassignReason === "category_removed"
-    ) {
-      live.addAlert({
-        tone: "info",
-        title: "Reassigned after category change",
-        message: `${selectedEditor} assigned to ${programLabel}.`,
-        href: `/orders/${activeRecord.id}`,
-      });
-    } else {
-      live.addAlert({
-        tone: "success",
-        title: "Producer assigned",
-        message: `${selectedEditor} assigned to ${programLabel}.`,
-        href: `/orders/${activeRecord.id}`,
-      });
-    }
-
-    if (isPage && returnHref) {
-      router.push(returnHref);
-    } else {
-      onClose();
-    }
   }
 
   function confirmDeleteProducerAssign() {
@@ -1198,7 +1317,7 @@ export function AssignEditorModal({
                             setInvoiceEditing(false);
                             setInvoiceSaving(true);
                             void live
-                              .updateMTD(mtdId, { invoice: next })
+                              .updateMTD(mtdId, { invoice: next }, activeRecord)
                               .catch(() => {
                                 setDraftInvoice(next);
                                 setInvoiceEditing(true);

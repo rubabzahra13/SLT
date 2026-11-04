@@ -30,6 +30,7 @@ import {
   mtdRecordCoversOrder,
 } from "@/lib/order-staging";
 import { resolveOrderFormDisplay } from "@/lib/order-form-display";
+import { syncOrdersAfterSplit } from "@/lib/orders-board-cache";
 import { isManualSlimFormOrder } from "@/lib/add-order-mixes";
 import { formatDisplayDateTime } from "@/lib/dates";
 import type { MTDRecord, Order } from "@/types";
@@ -103,8 +104,19 @@ export function OrderFormEditModal({
       pair.manual,
       pair.form
     );
-    await updateOrder(pair.manual.id, manualPatch, pair.manual);
-    await updateOrder(pair.form.id, formPatch, pair.form);
+    const undoSplitCaches = syncOrdersAfterSplit({
+      manual: { ...pair.manual, ...manualPatch },
+      form: { ...pair.form, ...formPatch },
+    });
+    try {
+      await Promise.all([
+        updateOrder(pair.manual.id, manualPatch, pair.manual),
+        updateOrder(pair.form.id, formPatch, pair.form),
+      ]);
+    } catch (err) {
+      undoSplitCaches();
+      throw err;
+    }
     setOrderDraft((prev) =>
       prev
         ? {
@@ -203,25 +215,6 @@ export function OrderFormEditModal({
       savePatch.usingEightCountSheets = eight;
     }
 
-    setSaving(true);
-    try {
-      await updateOrder(displayOrder.id, savePatch, displayOrder);
-
-      // Paired Magento form is SoT on reload (form-wins). Keep it in sync so
-      // edits on the manual slot are not revived from the stale form row.
-      if (pair?.form?.id && pair.form.id !== displayOrder.id) {
-        await updateOrder(
-          pair.form.id,
-          buildLinkedFormSyncPatch(orderDraft),
-          pair.form
-        );
-      }
-    } catch {
-      // updateOrder already notifies on failure.
-      setSaving(false);
-      return;
-    }
-
     const coveringMtd = mtdRecords.find(
       (rec) =>
         isPersistedMtdRecord(rec) && mtdRecordCoversOrder(rec, displayOrder)
@@ -230,9 +223,9 @@ export function OrderFormEditModal({
       ? coveringMtd.uuid || coveringMtd.id
       : null;
 
+    // One combined MTD write for changed fields (was N sequential patches).
+    const combinedMtd: Partial<MTDRecord> = {};
     if (mtdTargetId) {
-      // One combined MTD write for changed fields (was N sequential patches).
-      const combinedMtd: Partial<MTDRecord> = {};
       let nextStates:
         | Record<string, unknown>
         | undefined;
@@ -294,10 +287,27 @@ export function OrderFormEditModal({
         combinedMtd.collectionStates =
           nextStates as MTDRecord["collectionStates"];
       }
-      if (Object.keys(combinedMtd).length > 0) {
-        void updateMTD(mtdTargetId, combinedMtd);
-      }
     }
+
+    // Table rows patch optimistically inside updateOrder; close now and let
+    // the writes finish in the background (failures roll back + toast).
+    const linkedFormPatch =
+      pair?.form?.id && pair.form.id !== displayOrder.id
+        ? buildLinkedFormSyncPatch(orderDraft)
+        : null;
+    void (async () => {
+      await updateOrder(displayOrder.id, savePatch, displayOrder);
+      // Paired Magento form is SoT on reload (form-wins). Keep it in sync so
+      // edits on the manual slot are not revived from the stale form row.
+      if (pair?.form && linkedFormPatch) {
+        await updateOrder(pair.form.id, linkedFormPatch, pair.form);
+      }
+      if (mtdTargetId && Object.keys(combinedMtd).length > 0) {
+        await updateMTD(mtdTargetId, combinedMtd);
+      }
+    })().catch(() => {
+      /* updateOrder / updateMTD already notify on failure */
+    });
 
     addAlert({
       tone: "success",

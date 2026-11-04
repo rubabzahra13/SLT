@@ -1,5 +1,9 @@
 import type { MTDTableFilterState } from "@/components/mtd/MTDTableFilters";
 import { DEFAULT_MTD_TABLE_FILTERS } from "@/components/mtd/MTDTableFilters";
+import {
+  coerceOrdersRangeFilters,
+  serializeOrdersRangeFilters,
+} from "@/lib/orders-range-filters";
 import type {
   CheerFormSubtypeFilter,
   DanceFormSubtypeFilter,
@@ -14,6 +18,9 @@ export type OrdersViewState = {
   form?: OrderFormType;
   cheerSubtype?: CheerFormSubtypeFilter;
   danceSubtype?: DanceFormSubtypeFilter;
+  /** Active range filters (empty / omitted = All). Legacy single value still accepted. */
+  rangeFilters?: OrderViewRangeFilter[];
+  /** @deprecated Prefer rangeFilters — kept for older sessionStorage. */
   rangeFilter?: OrderViewRangeFilter;
   sourceFilter?: OrderSourceFilter;
   searchQuery?: string;
@@ -90,11 +97,12 @@ export function buildOrdersReturnHref(state: OrdersViewState): string {
   if (state.danceSubtype && state.danceSubtype !== "all") {
     params.set("dance", state.danceSubtype);
   }
-  if (state.rangeFilter && state.rangeFilter !== "all") {
-    params.set(
-      "range",
-      state.rangeFilter === "flagged" ? "all" : state.rangeFilter
-    );
+  {
+    const ranges =
+      state.rangeFilters ??
+      coerceOrdersRangeFilters(state.rangeFilter);
+    const serialized = serializeOrdersRangeFilters(ranges);
+    if (serialized) params.set("range", serialized);
   }
   if (state.sourceFilter && state.sourceFilter !== "both") {
     params.set("source", state.sourceFilter);
@@ -158,11 +166,21 @@ export function parseOrdersViewFromSearchParams(
     state.danceSubtype = dance as DanceFormSubtypeFilter;
   }
   const range = searchParams.get("range");
-  if (range && VALID_RANGE.includes(range as OrderViewRangeFilter)) {
-    state.rangeFilter =
-      range === "reassign_leave" || range === "reassign_rush"
-        ? "reassigned"
-        : (range as OrderViewRangeFilter);
+  if (range) {
+    const parsed = coerceOrdersRangeFilters(range);
+    if (parsed.length) {
+      state.rangeFilters = parsed;
+      state.rangeFilter = parsed[0];
+    } else if (VALID_RANGE.includes(range as OrderViewRangeFilter)) {
+      const single =
+        range === "reassign_leave" || range === "reassign_rush"
+          ? "reassigned"
+          : (range as OrderViewRangeFilter);
+      if (single !== "flagged" && single !== "all") {
+        state.rangeFilters = [single];
+        state.rangeFilter = single;
+      }
+    }
   }
   const source = searchParams.get("source");
   if (source === "manual" || source === "form" || source === "both") {
@@ -204,7 +222,13 @@ export function mergeOrdersViewState(
     if (part.form) out.form = part.form;
     if (part.cheerSubtype) out.cheerSubtype = part.cheerSubtype;
     if (part.danceSubtype) out.danceSubtype = part.danceSubtype;
-    if (part.rangeFilter) out.rangeFilter = part.rangeFilter;
+    if (part.rangeFilters?.length) {
+      out.rangeFilters = part.rangeFilters;
+      out.rangeFilter = part.rangeFilters[0];
+    } else if (part.rangeFilter) {
+      out.rangeFilter = part.rangeFilter;
+      out.rangeFilters = coerceOrdersRangeFilters(part.rangeFilter);
+    }
     if (part.sourceFilter) out.sourceFilter = part.sourceFilter;
     if (part.searchQuery !== undefined) out.searchQuery = part.searchQuery;
     if (part.tableFilters) {

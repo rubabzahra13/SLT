@@ -40,6 +40,12 @@ import {
 } from "@/components/mtd/MTDTableFilters";
 import { MTDPageToolbar } from "@/components/mtd/MTDPageToolbar";
 import { useAppState } from "@/context/AppStateContext";
+import { useMtdBoard } from "@/hooks/useMtdBoard";
+import {
+  mtdActiveChipTotal,
+  patchMtdBoardRecordInCaches,
+} from "@/lib/mtd-board-cache";
+import { idlePrefetchSiblingBoard } from "@/lib/board-nav-prefetch";
 import { formatPrice, titleCase } from "@/lib/data";
 import { displayMixLengthLabel } from "@/lib/mix-duration";
 import { parsePackage } from "@/lib/package";
@@ -97,12 +103,8 @@ import {
 import { overlayMergedFormForDisplay } from "@/lib/manual-form-merge";
 import { mergeCollectionStateFromOrder } from "@/lib/order-staging";
 import {
-  countMTDByCheerSubtype,
-  countMTDByDanceSubtype,
-  countMTDByForm,
   filterMTDRecords,
   getRecordMusicAffiliateInfo,
-  isMTDRecord,
   matchesAssignedProducerFilter,
   matchesFormFilter,
   matchesMTDSearch,
@@ -137,6 +139,63 @@ import clsx from "clsx";
 const DEFAULT_FORM: OrderFormType = "school-all-star-cheer";
 const DEFAULT_CHEER_SUBTYPE: CheerFormSubtype = "all-star-cheer";
 const DEFAULT_DANCE_SUBTYPE: DanceFormSubtypeFilter = "pom";
+
+const VALID_MTD_FORMS: OrderFormType[] = [
+  "school-all-star-cheer",
+  "school-all-star-dance",
+  "marching-band",
+  "sports-entertainment",
+  "school-anthem",
+];
+const VALID_MTD_CHEER: CheerFormSubtypeFilter[] = [
+  "all-star-cheer",
+  "school-cheer-viroc-yes",
+  "school-cheer-viroc-no",
+  "youth-rec-cheer",
+];
+const VALID_MTD_DANCE: DanceFormSubtypeFilter[] = [
+  "pom",
+  "hip-hop",
+  "team-performance-variety",
+  "gameday",
+  "jazz-kick",
+];
+
+/** Read on first paint so sidebar return hits the warm board cache key. */
+function readStoredMtdFilters(): {
+  form: OrderFormType;
+  cheerSubtype: CheerFormSubtypeFilter;
+  danceSubtype: DanceFormSubtypeFilter;
+} {
+  if (typeof window === "undefined") {
+    return {
+      form: DEFAULT_FORM,
+      cheerSubtype: DEFAULT_CHEER_SUBTYPE,
+      danceSubtype: DEFAULT_DANCE_SUBTYPE,
+    };
+  }
+  const savedForm = sessionStorage.getItem("slt_mtd_form") as OrderFormType | null;
+  const savedCheer = sessionStorage.getItem(
+    "slt_mtd_cheer_subtype"
+  ) as CheerFormSubtypeFilter | null;
+  const savedDance = sessionStorage.getItem(
+    "slt_mtd_dance_subtype"
+  ) as DanceFormSubtypeFilter | null;
+  return {
+    form:
+      savedForm && VALID_MTD_FORMS.includes(savedForm)
+        ? savedForm
+        : DEFAULT_FORM,
+    cheerSubtype:
+      savedCheer && VALID_MTD_CHEER.includes(savedCheer)
+        ? savedCheer
+        : DEFAULT_CHEER_SUBTYPE,
+    danceSubtype:
+      savedDance && VALID_MTD_DANCE.includes(savedDance)
+        ? savedDance
+        : DEFAULT_DANCE_SUBTYPE,
+  };
+}
 
 const actionButtonClass = (filled: boolean) =>
   clsx(
@@ -174,14 +233,29 @@ function MTDPageContent() {
     discountCodes,
     isViewOnly,
     addAlert,
+    ensureLiveMtdLoaded,
   } = useAppState();
-  const [formState, setFormState] = useState<OrderFormType>(DEFAULT_FORM);
-  const [cheerSubtypeState, setCheerSubtypeState] = useState<CheerFormSubtypeFilter>(
-    DEFAULT_CHEER_SUBTYPE
+
+  useEffect(() => {
+    void ensureLiveMtdLoaded().catch(() => {
+      /* keep SWR / empty */
+    });
+  }, [ensureLiveMtdLoaded]);
+  const [formState, setFormState] = useState<OrderFormType>(() =>
+    typeof window !== "undefined" ? readStoredMtdFilters().form : DEFAULT_FORM
   );
-  const [danceSubtypeState, setDanceSubtypeState] = useState<DanceFormSubtypeFilter>(
-    DEFAULT_DANCE_SUBTYPE
-  );
+  const [cheerSubtypeState, setCheerSubtypeState] =
+    useState<CheerFormSubtypeFilter>(() =>
+      typeof window !== "undefined"
+        ? readStoredMtdFilters().cheerSubtype
+        : DEFAULT_CHEER_SUBTYPE
+    );
+  const [danceSubtypeState, setDanceSubtypeState] =
+    useState<DanceFormSubtypeFilter>(() =>
+      typeof window !== "undefined"
+        ? readStoredMtdFilters().danceSubtype
+        : DEFAULT_DANCE_SUBTYPE
+    );
 
   const [form, setForm] = [
     formState,
@@ -206,36 +280,6 @@ function MTDPageContent() {
       if (typeof window !== "undefined") sessionStorage.setItem("slt_mtd_dance_subtype", next);
     },
   ];
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const savedForm = sessionStorage.getItem("slt_mtd_form") as OrderFormType | null;
-    const savedCheer = sessionStorage.getItem("slt_mtd_cheer_subtype") as CheerFormSubtypeFilter | null;
-    const savedDance = sessionStorage.getItem("slt_mtd_dance_subtype") as DanceFormSubtypeFilter | null;
-    const validForms: OrderFormType[] = [
-      "school-all-star-cheer",
-      "school-all-star-dance",
-      "marching-band",
-      "sports-entertainment",
-      "school-anthem",
-    ];
-    const validCheerSubtypes: CheerFormSubtypeFilter[] = [
-      "all-star-cheer",
-      "school-cheer-viroc-yes",
-      "school-cheer-viroc-no",
-      "youth-rec-cheer",
-    ];
-    const validDanceSubtypes: DanceFormSubtypeFilter[] = [
-      "pom",
-      "hip-hop",
-      "team-performance-variety",
-      "gameday",
-      "jazz-kick",
-    ];
-    if (savedForm && validForms.includes(savedForm)) setFormState(savedForm);
-    if (savedCheer && validCheerSubtypes.includes(savedCheer)) setCheerSubtypeState(savedCheer);
-    if (savedDance && validDanceSubtypes.includes(savedDance)) setDanceSubtypeState(savedDance);
-  }, []);
 
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -272,15 +316,61 @@ function MTDPageContent() {
     }
   }, [assignedParam, scheduleParam]);
 
+  // Input updates instantly; board query waits so we don't thrash /mtd/board
+  // + /mtd/counts on every keystroke (Orders pattern).
+  const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+
+  useEffect(() => {
+    // Clear immediately so we don't keep search hits after X.
+    if (!searchInput.trim()) {
+      setSearchQuery("");
+      return;
+    }
+    const t = window.setTimeout(() => {
+      setSearchQuery(searchInput);
+    }, 220);
+    return () => window.clearTimeout(t);
+  }, [searchInput]);
+
+  const mtdBoardQuery = useMemo(
+    () => ({
+      scope: "live" as const,
+      formType: form,
+      cheerFormSubtype:
+        form === "school-all-star-cheer" ? cheerSubtype : undefined,
+      search: searchQuery.trim() || undefined,
+    }),
+    [form, cheerSubtype, searchQuery]
+  );
+  const {
+    records: pagedMtdRecords,
+    counts: mtdBoardCounts,
+    nextPageToken: mtdNextPageToken,
+    loading: mtdBoardLoading,
+    loadingMore: mtdBoardLoadingMore,
+    countsReady: mtdCountsReady,
+    loadMore: loadMoreMtd,
+    reload: reloadMtdBoard,
+    setRecords: setPagedMtdRecords,
+  } = useMtdBoard(mtdBoardQuery);
+
+  // Idle-warm Orders so Back / sidebar hop paints from cache (skip if fresh).
+  useEffect(() => {
+    if (mtdBoardLoading) return;
+    return idlePrefetchSiblingBoard("mtd");
+  }, [mtdBoardLoading]);
+
   const [viewOrder, setViewOrder] = useState<MTDViewOrder>("sequence");
   const [assignRecordId, setAssignRecordId] = useState<string | null>(null);
   const assignRecord = useMemo(
     () =>
       assignRecordId
-        ? mtdRecords.find((record) => record.id === assignRecordId) ?? null
+        ? pagedMtdRecords.find((record) => record.id === assignRecordId) ??
+          mtdRecords.find((record) => record.id === assignRecordId) ??
+          null
         : null,
-    [assignRecordId, mtdRecords]
+    [assignRecordId, pagedMtdRecords, mtdRecords]
   );
   const [invoiceRecord, setInvoiceRecord] = useState<MTDRecord | null>(null);
   const [pricingFocusRecord, setPricingFocusRecord] = useState<MTDRecord | null>(
@@ -311,19 +401,20 @@ function MTDPageContent() {
     return map;
   }, [allOrders]);
 
-  // Hydrate thin MTD rows from linked Orders (and linked Magento form identity)
-  // so table cells match the edit form.
+  // Server-paged live MTD board (identity projected on API).
+  // Trust the page scope — do not re-filter with isMTDRecord (explicit
+  // in_mtd:false rows still belong on the live board and match /mtd/counts).
   const mtdBoardRecords = useMemo(
     () =>
-      getMTDBoardRecords(mtdRecords)
-        .filter(isMTDRecord)
+      pagedMtdRecords
+        .filter((rec) => !rec.isReassigned)
         .map((rec) => {
           const linked = findLinkedOrder(rec, allOrders);
           if (!linked) return rec;
           const enriched = overlayMergedFormForDisplay(linked, allOrders);
           return mergeCollectionStateFromOrder(rec, enriched);
         }),
-    [mtdRecords, allOrders]
+    [pagedMtdRecords, allOrders]
   );
 
   const switchForm = useCallback((next: OrderFormType) => {
@@ -412,19 +503,27 @@ function MTDPageContent() {
   );
 
   const confirmMoveToOrders = useCallback(
-    () => {
+    async () => {
       const rec = moveToOrdersRecord;
       if (!rec || isViewOnly) return;
 
       // Move to Orders from MTD always lands as Reassign: rush order with
       // assignment/schedule cleared until the order is reassigned.
-      updateMTD(rec.id, patchForReassignRush());
+      // Pass the board row as seed — AppState mtd/orders caches are often empty
+      // (board-first), so updateMTD(id) alone used to no-op the Order PATCH.
       setMoveToOrdersRecord(null);
+      try {
+        await updateMTD(rec.id, patchForReassignRush(), rec);
+      } catch {
+        // updateMTD already surfaces save errors; still navigate so the user
+        // can recover from Reassign after a retry/refresh.
+      }
       const meta = resolveMTDFormMeta(rec, orderById);
+      const focusId = rec.orderId || rec.id;
       const params = new URLSearchParams({
         range: "reassigned",
         source: "both",
-        focus: rec.id,
+        focus: focusId,
         form: meta.formType,
       });
       if (meta.formType === "school-all-star-cheer") {
@@ -564,18 +663,57 @@ function MTDPageContent() {
 
   const handleInvoiceSave = useCallback(
     (recordId: string, invoice: string) => {
-      updateMTD(recordId, { invoice });
+      const seed =
+        invoiceRecord?.id === recordId
+          ? invoiceRecord
+          : mtdBoardRecords.find((r) => r.id === recordId) ??
+            pagedMtdRecords.find((r) => r.id === recordId);
+      // Board-first UI: paint + cache before AppState/API so the cell updates now.
+      const nextInvoice = invoice.trim();
+      patchMtdBoardRecordInCaches(recordId, { invoice: nextInvoice });
+      if (seed?.orderId) {
+        patchMtdBoardRecordInCaches(seed.orderId, { invoice: nextInvoice });
+      }
+      setPagedMtdRecords((prev) =>
+        prev.map((r) =>
+          r.id === recordId ||
+          r.uuid === recordId ||
+          r.orderId === recordId ||
+          (seed && (r.id === seed.id || r.uuid === seed.uuid))
+            ? { ...r, invoice: nextInvoice }
+            : r
+        )
+      );
+      void updateMTD(recordId, { invoice: nextInvoice }, seed);
     },
-    [updateMTD]
+    [
+      updateMTD,
+      invoiceRecord,
+      mtdBoardRecords,
+      pagedMtdRecords,
+      setPagedMtdRecords,
+    ]
   );
 
   const handleInvoicesSave = useCallback(
     (updates: Record<string, string>) => {
       for (const [id, invoice] of Object.entries(updates)) {
-        updateMTD(id, { invoice: invoice.trim() });
+        const seed =
+          mtdBoardRecords.find((r) => r.id === id) ??
+          pagedMtdRecords.find((r) => r.id === id);
+        const nextInvoice = invoice.trim();
+        patchMtdBoardRecordInCaches(id, { invoice: nextInvoice });
+        setPagedMtdRecords((prev) =>
+          prev.map((r) =>
+            r.id === id || r.uuid === id || r.orderId === id
+              ? { ...r, invoice: nextInvoice }
+              : r
+          )
+        );
+        void updateMTD(id, { invoice: nextInvoice }, seed);
       }
     },
-    [updateMTD]
+    [updateMTD, mtdBoardRecords, pagedMtdRecords, setPagedMtdRecords]
   );
 
   const handleRecordStatusChange = useCallback(
@@ -669,10 +807,12 @@ function MTDPageContent() {
   );
 
   const filtered = useMemo(() => {
-    const q = searchQuery.trim();
+    // Instant local filter while typing (searchInput). Server searchQuery
+    // catches up after debounce — same as Orders.
+    const q = searchInput.trim();
     if (!q) return tableFiltered;
     return tableFiltered.filter((rec) => matchesMTDSearch(rec, q));
-  }, [tableFiltered, searchQuery]);
+  }, [tableFiltered, searchInput]);
 
   const displayedRecords = useMemo(() => {
     const sorted = sortMTDRecordsBySortKey(
@@ -684,19 +824,29 @@ function MTDPageContent() {
     return sortMTDRecordsByViewOrder(sorted, viewOrder, producers);
   }, [filtered, tableFilters.sortBy, viewOrder, producers, orderById]);
 
+  // Form / subtype menu: server chip totals only (sticky via useMtdBoard).
   const formCounts = useMemo(
-    () => countMTDByForm(mtdBoardRecords, orderById),
-    [mtdBoardRecords, orderById]
+    () =>
+      (mtdBoardCounts.by_form_type || {}) as Record<OrderFormType, number>,
+    [mtdBoardCounts.by_form_type]
   );
 
   const cheerSubtypeCounts = useMemo(
-    () => countMTDByCheerSubtype(mtdBoardRecords, orderById),
-    [mtdBoardRecords, orderById]
+    () =>
+      (mtdBoardCounts.by_cheer_form_subtype || {}) as Record<
+        CheerFormSubtypeFilter,
+        number
+      >,
+    [mtdBoardCounts.by_cheer_form_subtype]
   );
 
   const danceSubtypeCounts = useMemo(
-    () => countMTDByDanceSubtype(mtdBoardRecords, orderById),
-    [mtdBoardRecords, orderById]
+    () =>
+      (mtdBoardCounts.by_dance_form_subtype || {}) as Record<
+        DanceFormSubtypeFilter,
+        number
+      >,
+    [mtdBoardCounts.by_dance_form_subtype]
   );
 
   const tableFilterKey = [
@@ -710,7 +860,7 @@ function MTDPageContent() {
     tableFilters.dateFilter.type,
     String(tableFilters.dateFilter.value),
     tableFilters.sortBy,
-    searchQuery,
+    searchInput,
   ].join("-");
 
   const columns: Column<MTDRecord>[] = useMemo(() => {
@@ -1184,10 +1334,10 @@ function MTDPageContent() {
             {
               key: "couponCodeCol",
               header: "Coupon Code",
-              width: "110px",
-              align: "center" as const,
+              width: "100px",
+              align: "left" as const,
               nowrap: false,
-              cellClassName: clsx(compactCellClass, "max-w-[110px]"),
+              cellClassName: clsx(compactCellClass, "max-w-[100px]"),
               headerClassName: compactHeaderClass,
               render: (rec: MTDRecord) => {
                 const linked = findLinkedOrder(rec, allOrders);
@@ -1198,31 +1348,27 @@ function MTDPageContent() {
                 ).trim();
                 if (!coupon) {
                   return (
-                    <span
+                    <TruncatedText
+                      text="None"
                       className={clsx(
-                        "mx-auto block text-center text-brand-ink-tertiary",
+                        "w-full min-w-0 text-left text-brand-ink-tertiary",
                         compactTextClass
                       )}
-                    >
-                      None
-                    </span>
+                      style={{ maxWidth: "100%" }}
+                    />
                   );
                 }
                 const matched = isValidDiscountCode(coupon, discountCodes);
                 return (
-                  <span
+                  <TruncatedText
+                    text={matched ? `${coupon} · Match` : coupon}
                     className={clsx(
-                      "mx-auto flex flex-col items-center gap-0.5 text-center font-semibold tracking-wide text-brand-ink",
-                      compactTextClass
+                      "w-full min-w-0 text-left",
+                      compactTextClass,
+                      matched && "text-brand-success"
                     )}
-                  >
-                    <span>{coupon}</span>
-                    {matched ? (
-                      <span className="text-[9px] font-semibold uppercase tracking-wide text-brand-success">
-                        Match
-                      </span>
-                    ) : null}
-                  </span>
+                    style={{ maxWidth: "100%" }}
+                  />
                 );
               },
             },
@@ -1632,7 +1778,6 @@ function MTDPageContent() {
       <ReturnNavBanner />
       <PageHeader
         title="Music To Do"
-        badge={`${displayedRecords.length} of ${mtdBoardRecords.length}`}
         subtitle="Complete mixes, pricing, and invoicing"
         action={{
           label: "Pricing",
@@ -1647,8 +1792,8 @@ function MTDPageContent() {
           },
         }}
         search={{
-          value: searchQuery,
-          onChange: setSearchQuery,
+          value: searchInput,
+          onChange: setSearchInput,
           placeholder: `${getContactColumnHeader(
             form,
             cheerSubtype === "all" ? undefined : cheerSubtype,
@@ -1694,7 +1839,27 @@ function MTDPageContent() {
             data={displayedRecords}
             rowKey={(rec) => rec.id}
             emptyMessage="No MTD entries match this filter."
+            loading={mtdBoardLoading && displayedRecords.length === 0}
             pageSize={15}
+            totalCount={
+              mtdCountsReady
+                ? mtdActiveChipTotal(mtdBoardCounts, {
+                    formType: form,
+                    cheerFormSubtype:
+                      form === "school-all-star-cheer"
+                        ? cheerSubtype
+                        : undefined,
+                    danceFormSubtype:
+                      form === "school-all-star-dance"
+                        ? danceSubtype
+                        : undefined,
+                  })
+                : undefined
+            }
+            hasMore={Boolean(mtdNextPageToken)}
+            onLoadMore={loadMoreMtd}
+            loadingMore={mtdBoardLoadingMore}
+            resetKey={`${form}-${cheerSubtype}-${danceSubtype}-${tableFilterKey}-${viewOrder}`}
             embedded
             showScrollIndicator={true}
             highlightRowKey={highlightId}

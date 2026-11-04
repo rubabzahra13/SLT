@@ -1,8 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
-  addUnseenMatchFormId,
-  clearUnseenMatchFormIds,
   incomingOrderBellEvent,
   isMatchOrdersPageOpen,
   listMatchSuggestionBellEvents,
@@ -177,16 +175,6 @@ describe("incoming Magento match suggestion notify", () => {
       payload.href,
       "/orders/match?form=f1&manual=m1&confirm=1"
     );
-  });
-
-  it("tracks unseen form ids until cleared", () => {
-    const once = addUnseenMatchFormId("f1", []);
-    assert.deepEqual(once, ["f1"]);
-    const twice = addUnseenMatchFormId("f1", once);
-    assert.deepEqual(twice, ["f1"]);
-    const two = addUnseenMatchFormId("f2", once);
-    assert.deepEqual(two, ["f1", "f2"]);
-    assert.deepEqual(clearUnseenMatchFormIds(), []);
   });
 
   it("match page open flag can be toggled", () => {

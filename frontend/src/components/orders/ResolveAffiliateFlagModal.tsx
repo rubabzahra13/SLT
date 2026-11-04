@@ -22,6 +22,7 @@ import { titleCase } from "@/lib/data";
 import { findLinkedOrder } from "@/lib/editor-assignment";
 import {
   getAffiliateSelections,
+  ordersHrefAfterFlagResolve,
   resolveAffiliateFlagPatch,
 } from "@/lib/affiliate-flag";
 import { matchOrdersConfirmHref } from "@/lib/match-suggestion-notify";
@@ -194,24 +195,28 @@ export function ResolveAffiliateFlagModal({
         ...pricingPatchAfterAffiliateResolve(nextOrder),
       };
       await updateOrder(linkedOrder.id, patch, linkedOrder);
+      const resolved = { ...linkedOrder, ...patch };
       // Flagged cleared: Suggested for You → open Match Confirm when a pair exists.
-      const pair = maybeNotifyMatchSuggestion({ ...linkedOrder, ...patch });
+      const pair = maybeNotifyMatchSuggestion(resolved);
       const matchHref = pair
         ? matchOrdersConfirmHref(pair.formId, pair.manualId)
         : null;
+      // Land on this order's form + chips — bare /orders keeps Cheer+Assigned and
+      // the resolved row looks like it vanished.
+      const ordersHref = ordersHrefAfterFlagResolve(resolved);
       addAlert({
         tone: "success",
         title: "Affiliate resolved",
         message: matchHref
           ? `${titleCase(linkedOrder.programName)} → ${selectedAffiliate}. Opening Match Orders.`
           : `${titleCase(linkedOrder.programName)} → ${selectedAffiliate}. Now on Orders.`,
-        href: matchHref || "/orders",
+        href: matchHref || ordersHref,
       });
       onClose();
       if (matchHref) {
         router.push(matchHref);
       } else {
-        router.push("/orders");
+        router.push(ordersHref);
       }
     } catch (err) {
       setIsSaving(false);

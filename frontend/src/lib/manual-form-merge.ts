@@ -166,6 +166,75 @@ function isEmptyValue(value: unknown): boolean {
 /** Reserved snapshot key listing fields that were empty on manual at match time. */
 const FORM_ONLY_KEYS_SNAP = "__formOnlyKeys";
 
+/**
+ * Reserved snapshot key: pre-match manual values an overwrite match replaced
+ * (`values`) or filled from empty (`clear`). Split-only — invisible to cues,
+ * so an overwrite match still reads as "no snapshot" everywhere else.
+ */
+const SPLIT_RESTORE_SNAP = "__splitRestore";
+
+type SplitRestore = { values: Record<string, unknown>; clear: string[] };
+
+function readSplitRestore(
+  snapshot: Record<string, unknown> | null | undefined
+): SplitRestore | null {
+  const raw = snapshot?.[SPLIT_RESTORE_SNAP] as Partial<SplitRestore> | undefined;
+  if (!raw || typeof raw !== "object") return null;
+  return {
+    values: raw.values && typeof raw.values === "object" ? raw.values : {},
+    clear: Array.isArray(raw.clear) ? raw.clear : [],
+  };
+}
+
+function isSplitRestoreKey(key: string): boolean {
+  return key !== "updatedAt" && !PROTECTED_ORDER_KEYS.has(key);
+}
+
+/** Split may put an old name back but never blanks one. */
+function isSplitClearKey(key: string): boolean {
+  return isSplitRestoreKey(key) && !SPLIT_PRESERVE_KEYS.has(key);
+}
+
+/** Snapshot carries match cues / frozen values (not just Split restore data). */
+function hasMatchSnapshot(
+  snapshot: Record<string, unknown> | null | undefined
+): boolean {
+  return Boolean(
+    snapshot && Object.keys(snapshot).some((k) => k !== SPLIT_RESTORE_SNAP)
+  );
+}
+
+function sameFieldValue(a: unknown, b: unknown): boolean {
+  if (a === b || (isEmptyValue(a) && isEmptyValue(b))) return true;
+  return (
+    typeof a === "object" &&
+    typeof b === "object" &&
+    JSON.stringify(a) === JSON.stringify(b)
+  );
+}
+
+/**
+ * Overwrite match: record what Split must put back on the manual — every field
+ * the match changed, including ones normalizeOrder derives (programName), so
+ * diff the final matched row, not the patch.
+ */
+export function overwriteSplitRestoreSnapshot(
+  before: Order,
+  after: Order
+): Record<string, unknown> | null {
+  const b = before as Record<string, unknown>;
+  const a = after as Record<string, unknown>;
+  const values: Record<string, unknown> = {};
+  const clear: string[] = [];
+  for (const key of new Set([...Object.keys(b), ...Object.keys(a)])) {
+    if (!isSplitRestoreKey(key) || sameFieldValue(b[key], a[key])) continue;
+    if (!isEmptyValue(b[key])) values[key] = b[key];
+    else if (isSplitClearKey(key)) clear.push(key);
+  }
+  if (Object.keys(values).length === 0 && clear.length === 0) return null;
+  return { [SPLIT_RESTORE_SNAP]: { values, clear } };
+}
+
 /** Keys that define the order category: never blanked on Split or form-wins. */
 const SPLIT_PRESERVE_KEYS = new Set<string>([
   "formType",
@@ -442,7 +511,10 @@ function snapshotHasFieldValues(
 ): boolean {
   if (!snapshot) return false;
   return Object.keys(snapshot).some(
-    (k) => k !== FORM_ONLY_KEYS_SNAP && !isEmptyValue(snapshot[k])
+    (k) =>
+      k !== FORM_ONLY_KEYS_SNAP &&
+      k !== SPLIT_RESTORE_SNAP &&
+      !isEmptyValue(snapshot[k])
   );
 }
 
@@ -537,7 +609,7 @@ export function repairCorruptCrossCategoryFormMerge(order: Order): Order {
     suppressManualFormMerge: false,
   };
   for (const [key, value] of Object.entries(snap)) {
-    if (key === FORM_ONLY_KEYS_SNAP) continue;
+    if (key === FORM_ONLY_KEYS_SNAP || key === SPLIT_RESTORE_SNAP) continue;
     (restored as Record<string, unknown>)[key] = value;
   }
   return restored;
@@ -552,11 +624,7 @@ export function ensureManualFormSnapshot(manual: Order, form: Order): Order {
     return manual;
   }
   // Already linked / snapshotted (even if only form-only fills, no overlaps).
-  if (
-    manual.mergedFormOrderId ||
-    (manual.manualOverlapSnapshot &&
-      Object.keys(manual.manualOverlapSnapshot).length > 0)
-  ) {
+  if (manual.mergedFormOrderId || hasMatchSnapshot(manual.manualOverlapSnapshot)) {
     return manual;
   }
   return mergeFormWinsIntoManualOrder(manual, form);
@@ -684,6 +752,9 @@ export function mergeFormWinsIntoManualOrder(manual: Order, form: Order): Order 
   if (!hasFrozen && formOnlyKeys.size > 0) {
     snapshot[FORM_ONLY_KEYS_SNAP] = [...formOnlyKeys];
   }
+  if (!hasFrozen && existingSnap?.[SPLIT_RESTORE_SNAP]) {
+    snapshot[SPLIT_RESTORE_SNAP] = existingSnap[SPLIT_RESTORE_SNAP];
+  }
 
   out.manualOverlapSnapshot = hasFrozen
     ? existingSnap
@@ -774,7 +845,9 @@ export function splitManualFormPair(
       ? (snapshot[FORM_ONLY_KEYS_SNAP] as string[])
       : []
   );
+  const restore = readSplitRestore(snapshot);
   delete snapshot[FORM_ONLY_KEYS_SNAP];
+  delete snapshot[SPLIT_RESTORE_SNAP];
 
   const nextManual: Order = {
     ...manual,
@@ -784,7 +857,17 @@ export function splitManualFormPair(
     isManualEntry: true,
   };
 
-  for (const key of Object.keys(form) as (keyof Order)[]) {
+  if (restore) {
+    const out = nextManual as Record<string, unknown>;
+    for (const [key, value] of Object.entries(restore.values)) {
+      if (isSplitRestoreKey(key)) out[key] = value;
+    }
+    for (const key of restore.clear) {
+      if (isSplitClearKey(key)) out[key] = typeof out[key] === "string" ? "" : null;
+    }
+  }
+
+  for (const key of restore ? [] : (Object.keys(form) as (keyof Order)[])) {
     if (PROTECTED_ORDER_KEYS.has(key as string)) continue;
     if (SPLIT_PRESERVE_KEYS.has(key as string)) continue;
     const formVal = form[key];
@@ -1094,10 +1177,7 @@ export function applyManualFormMerges(orders: Order[]): Order[] {
       // Initial match uses form-wins. Once a snapshot exists, keep persisted
       // manual values (edit-modal saves) and only fill empties from the form -
       // hard form-wins on every board load was wiping those edits.
-      if (
-        linkedManual.manualOverlapSnapshot &&
-        Object.keys(linkedManual.manualOverlapSnapshot).length > 0
-      ) {
+      if (hasMatchSnapshot(linkedManual.manualOverlapSnapshot)) {
         return mergeFormIntoManualOrder(linkedManual, form);
       }
       return mergeFormWinsIntoManualOrder(linkedManual, form);
@@ -1276,10 +1356,7 @@ export function enrichOrderWithMatchingForm(
   const pair = resolveManualFormPair(overlaid, allOrders);
   if (!pair) return overlaid;
   // Snapshot already frozen at match: display overlay is enough (form-wins).
-  if (
-    overlaid.manualOverlapSnapshot &&
-    Object.keys(overlaid.manualOverlapSnapshot).length > 0
-  ) {
+  if (hasMatchSnapshot(overlaid.manualOverlapSnapshot)) {
     return {
       ...overlaid,
       // Keep Split restore payload even when display shows Magento SoT.
@@ -1296,10 +1373,7 @@ export function enrichOrderWithMatchingForm(
  */
 export function mergePatchFromForm(manual: Order, form: Order): Partial<Order> {
   // Do not rewrite an existing frozen snapshot on later form refreshes.
-  if (
-    manual.manualOverlapSnapshot &&
-    Object.keys(manual.manualOverlapSnapshot).length > 0
-  ) {
+  if (hasMatchSnapshot(manual.manualOverlapSnapshot)) {
     const soft = mergeFormIntoManualOrder(manual, form);
     const patch: Partial<Order> = {
       mergedFormOrderId: soft.mergedFormOrderId,

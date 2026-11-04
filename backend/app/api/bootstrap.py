@@ -14,8 +14,6 @@ from app.api.catalog_pricing import (
 )
 from app.core.database import get_db
 from app.models.discount_code import DiscountCode
-from app.models.mtd_record import MTDRecord
-from app.models.order import Order
 from app.models.payroll_addon import PayrollAddon
 from app.models.producer import Producer
 from app.models.studio_settings import EmailTemplate
@@ -35,15 +33,17 @@ router = APIRouter()
 
 @router.get("/bootstrap")
 def bootstrap(db: Session = Depends(get_db)) -> Dict[str, Any]:
-    """Load all primary lists in a single serverless invocation."""
+    """Load primary board lists (no past orders, no paid MTD archive)."""
     producers = (
         db.query(Producer)
         .options(selectinload(Producer.time_offs))
         .order_by(Producer.name.asc())
         .all()
     )
-    orders = db.query(Order).order_by(Order.created_at.desc()).all()
-    mtd = db.query(MTDRecord).order_by(MTDRecord.created_at.desc()).all()
+    # Orders / MTD boards are paged via /orders/board and /mtd/board —
+    # never return unbounded live lists in bootstrap.
+    orders: list = []
+    mtd: list = []
     codes = db.query(DiscountCode).order_by(DiscountCode.code.asc()).all()
     addons = db.query(PayrollAddon).order_by(PayrollAddon.created_at.desc()).all()
     holidays = _ensure_default_holidays(db)

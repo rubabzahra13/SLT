@@ -93,16 +93,11 @@ export async function fetchBootstrapApi(): Promise<BootstrapPayload> {
     (raw.producers || []).map((p) => normalizeProducer(transformProducer(p)))
   );
 
-  const activeOrders: Order[] = [];
+  // Bootstrap is active-board only (server filters past/completed).
+  const activeOrders: Order[] = (raw.orders || []).map((bo) =>
+    normalizeOrder(transformOrder(bo))
+  );
   const pastOrders: Order[] = [];
-  for (const bo of raw.orders || []) {
-    const transformed = normalizeOrder(transformOrder(bo));
-    if (bo.is_past_order || bo.status === "completed") {
-      pastOrders.push(transformed);
-    } else {
-      activeOrders.push(transformed);
-    }
-  }
 
   let emailTemplates: EmailTemplatesState | null = null;
   if (raw.email_templates && raw.email_templates.length > 0) {

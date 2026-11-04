@@ -1,10 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Suspense,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -40,6 +42,8 @@ import {
 } from "@/components/mtd/MTDTableFilters";
 import { MTDPageToolbar } from "@/components/mtd/MTDPageToolbar";
 import { useAppState } from "@/context/AppStateContext";
+import { OrdersLookupProvider } from "@/context/OrdersLookupContext";
+import { fetchOrderApi } from "@/lib/api/orders";
 import { formatPrice, titleCase } from "@/lib/data";
 import {
   getOrderAssignmentStatus,
@@ -47,8 +51,8 @@ import {
   getOrdersRangeTabLabel,
   getOrderStatus,
   mergeOrderFormFieldsForRequirements,
-  ORDER_RESELECTION_REASON_LABEL,
   orderMatchesOrdersRangeFilter,
+  ORDER_RESELECTION_REASON_LABEL,
   ordersRangeTabToFilter,
   type OrdersRangeTabLabel,
 } from "@/lib/order-requirements";
@@ -62,7 +66,6 @@ import {
 } from "@/lib/order-detail-sections";
 import { orderFromMTDRecord } from "@/lib/order-detail-fields";
 import {
-  countMagentoFormsWithSuggestions,
   matchCandidatesBeforeMtd,
   type MatchBeforeMtdCandidate,
 } from "@/lib/manual-form-suggestions";
@@ -105,22 +108,41 @@ import {
   producerKeysMatch,
 } from "@/lib/editor-assignment";
 import {
-  countMTDByCheerSubtype,
-  countMTDByDanceSubtype,
-  countMTDByForm,
   filterMTDRecords,
   getRecordMusicAffiliateInfo,
   isOrderScheduledAndAssigned,
-  matchesFormFilter,
   matchesMTDSearch,
   resolveMTDFormMeta,
   sortMTDRecordsBySortKey,
 } from "@/lib/mtd-filters";
 import { listPreMtdOrderRecords } from "@/lib/order-staging";
 import {
+  prefetchOrdersBoard,
+  useOrdersBoard,
+} from "@/hooks/useOrdersBoard";
+import { downloadOrdersBoardCsv } from "@/lib/api/orders-board";
+import {
+  ORDERS_BOARD_PATCH_EVENT,
+  ordersActiveFormTotal,
+  ordersRangeFilterTotal,
+  ordersRangeTabTotal,
+  ordersSourceMenuCounts,
+} from "@/lib/orders-board-cache";
+import {
+  prefetchOrdersMatchData,
+  useOrdersMatchPool,
+} from "@/hooks/useOrdersMatchPool";
+import {
   filterRecordsByOrderSource,
   isManualOrderRecord,
 } from "@/lib/order-source";
+import { seedAssignPage } from "@/lib/assign-page-seed";
+import { idlePrefetchSiblingBoard } from "@/lib/board-nav-prefetch";
+import {
+  coerceOrdersRangeFilters,
+  isOrdersRangeFilterActive,
+  serializeOrdersRangeFilters,
+} from "@/lib/orders-range-filters";
 import {
   applyTableFilterDefaults,
   buildOrdersReturnHref,
@@ -129,20 +151,132 @@ import {
   parseOrdersViewFromSearchParams,
   saveOrdersViewState,
 } from "@/lib/orders-view-state";
-import type {
-  CheerFormSubtypeFilter,
-  DanceFormSubtypeFilter,
-  MTDRecord,
-  Order,
-  OrderFormType,
-  OrderSourceFilter,
-  OrderViewRangeFilter,
-  PriceCompliance,
+import {
+  CHEER_FORM_SUBTABS,
+  DANCE_FORM_SUBTABS,
+  MANUAL_MATCH_FORM_TABS,
+  type CheerFormSubtypeFilter,
+  type DanceFormSubtypeFilter,
+  type MTDRecord,
+  type Order,
+  type OrderFormType,
+  type OrderSourceFilter,
+  type OrderViewRangeFilter,
+  type PriceCompliance,
 } from "@/types";
 
 const DEFAULT_FORM: OrderFormType = "school-all-star-cheer";
 const DEFAULT_CHEER_SUBTYPE: CheerFormSubtypeFilter = "all-star-cheer";
 const DEFAULT_DANCE_SUBTYPE: DanceFormSubtypeFilter = "pom";
+
+const VALID_ORDER_FORMS: OrderFormType[] = [
+  "school-all-star-cheer",
+  "school-all-star-dance",
+  "marching-band",
+  "sports-entertainment",
+  "school-anthem",
+];
+const VALID_CHEER_SUBTYPES: CheerFormSubtypeFilter[] = [
+  "all-star-cheer",
+  "school-cheer-viroc-yes",
+  "school-cheer-viroc-no",
+  "youth-rec-cheer",
+];
+const VALID_DANCE_SUBTYPES: DanceFormSubtypeFilter[] = [
+  "pom",
+  "hip-hop",
+  "team-performance-variety",
+  "gameday",
+  "jazz-kick",
+];
+
+/** Sync read so the first board query matches last visit (no default→restore refetch flash). */
+function readStoredOrdersFilters(formParam: string | null): {
+  form: OrderFormType;
+  cheerSubtype: CheerFormSubtypeFilter;
+  danceSubtype: DanceFormSubtypeFilter;
+} {
+  if (typeof window === "undefined") {
+    return {
+      form: DEFAULT_FORM,
+      cheerSubtype: DEFAULT_CHEER_SUBTYPE,
+      danceSubtype: DEFAULT_DANCE_SUBTYPE,
+    };
+  }
+  const stored = loadOrdersViewState();
+  const formFromUrl =
+    formParam && VALID_ORDER_FORMS.includes(formParam as OrderFormType)
+      ? (formParam as OrderFormType)
+      : null;
+  const formFromSession = (() => {
+    const raw = sessionStorage.getItem("slt_orders_form") as OrderFormType | null;
+    if (raw && VALID_ORDER_FORMS.includes(raw)) return raw;
+    if (stored?.form && VALID_ORDER_FORMS.includes(stored.form)) return stored.form;
+    return null;
+  })();
+  const cheerRaw =
+    (sessionStorage.getItem(
+      "slt_orders_cheer_subtype"
+    ) as CheerFormSubtypeFilter | null) || stored?.cheerSubtype;
+  const danceRaw =
+    (sessionStorage.getItem(
+      "slt_orders_dance_subtype"
+    ) as DanceFormSubtypeFilter | null) || stored?.danceSubtype;
+  return {
+    form: formFromUrl || formFromSession || DEFAULT_FORM,
+    cheerSubtype:
+      cheerRaw && VALID_CHEER_SUBTYPES.includes(cheerRaw)
+        ? cheerRaw
+        : DEFAULT_CHEER_SUBTYPE,
+    danceSubtype:
+      danceRaw && VALID_DANCE_SUBTYPES.includes(danceRaw)
+        ? danceRaw
+        : DEFAULT_DANCE_SUBTYPE,
+  };
+}
+
+/** Same restore as layoutEffect — keep the first board queryKey stable on refresh. */
+function readInitialOrdersBoardView(
+  searchParams: URLSearchParams,
+  initialRangeFromUrl: OrderViewRangeFilter
+): {
+  sourceFilter: OrderSourceFilter;
+  rangeFilters: OrderViewRangeFilter[];
+  searchQuery: string;
+  tableFilters: ReturnType<typeof applyTableFilterDefaults>;
+} {
+  if (typeof window === "undefined") {
+    return {
+      sourceFilter: "both",
+      rangeFilters: coerceOrdersRangeFilters(initialRangeFromUrl),
+      searchQuery: "",
+      tableFilters: DEFAULT_MTD_TABLE_FILTERS,
+    };
+  }
+  const fromUrl = parseOrdersViewFromSearchParams(searchParams);
+  const fromStore = loadOrdersViewState();
+  const restored = mergeOrdersViewState(fromStore, fromUrl);
+  const restoredSearch =
+    restored.searchQuery !== undefined ? restored.searchQuery : "";
+  let rangeFilters: OrderViewRangeFilter[] = [];
+  if (restoredSearch.trim()) {
+    rangeFilters = [];
+  } else if (fromUrl.rangeFilters?.length) {
+    rangeFilters = fromUrl.rangeFilters;
+  } else if (fromUrl.rangeFilter && fromUrl.rangeFilter !== "flagged") {
+    rangeFilters = coerceOrdersRangeFilters(fromUrl.rangeFilter);
+  } else {
+    rangeFilters = coerceOrdersRangeFilters(
+      restored.rangeFilters ?? initialRangeFromUrl
+    );
+  }
+  return {
+    sourceFilter: (restored.sourceFilter as OrderSourceFilter) || "both",
+    rangeFilters,
+    searchQuery: restoredSearch,
+    tableFilters: applyTableFilterDefaults(restored.tableFilters),
+  };
+}
 
 const actionButtonClass = (filled: boolean, disabled = false) =>
   clsx(
@@ -177,8 +311,6 @@ const compactTextClass = "text-[12px] leading-snug text-brand-ink";
 function OrdersPageContent() {
   const {
     mtdRecords,
-    activeOrders,
-    allOrders,
     updateMTD,
     updateOrder,
     deleteOrder,
@@ -189,18 +321,16 @@ function OrdersPageContent() {
     setSecretMenuPrices,
     discountCodes,
     isLoading,
-    unseenSuggestedMatchCount,
-    markMatchOrdersSeen,
     addAlert,
+    ensureLiveMtdLoaded,
   } = useAppState();
 
-  const [formState, setFormState] = useState<OrderFormType>(DEFAULT_FORM);
-  const [cheerSubtypeState, setCheerSubtypeState] = useState<CheerFormSubtypeFilter>(
-    DEFAULT_CHEER_SUBTYPE
-  );
-  const [danceSubtypeState, setDanceSubtypeState] = useState<DanceFormSubtypeFilter>(
-    DEFAULT_DANCE_SUBTYPE
-  );
+  useEffect(() => {
+    void ensureLiveMtdLoaded().catch(() => {
+      /* keep SWR / empty */
+    });
+  }, [ensureLiveMtdLoaded]);
+
   const router = useRouter();
   const searchParams = useSearchParams();
   const assignedParam = searchParams.get("assigned");
@@ -209,13 +339,7 @@ function OrdersPageContent() {
   const rangeParam = searchParams.get("range");
   const formParam = searchParams.get("form");
 
-  const validOrderForms: OrderFormType[] = [
-    "school-all-star-cheer",
-    "school-all-star-dance",
-    "marching-band",
-    "sports-entertainment",
-    "school-anthem",
-  ];
+  const validOrderForms = VALID_ORDER_FORMS;
 
   const allowedRangeFilters: OrderViewRangeFilter[] = [
     "all",
@@ -229,6 +353,8 @@ function OrdersPageContent() {
     "flagged",
   ];
   const initialRangeFilter: OrderViewRangeFilter = (() => {
+    const parsed = coerceOrdersRangeFilters(rangeParam);
+    if (parsed.length) return parsed[0]!;
     if (!rangeParam || !allowedRangeFilters.includes(rangeParam as OrderViewRangeFilter)) {
       return "all";
     }
@@ -238,10 +364,47 @@ function OrdersPageContent() {
     }
     return rangeParam as OrderViewRangeFilter;
   })();
-  const [rangeFilter, setRangeFilter] =
-    useState<OrderViewRangeFilter>(initialRangeFilter);
-  const [sourceFilter, setSourceFilter] =
-    useState<OrderSourceFilter>("both");
+
+  // Client navigations can read sessionStorage on first paint; SSR waits for layout hydrate.
+  const [filtersReady, setFiltersReady] = useState(
+    () => typeof window !== "undefined"
+  );
+  const [formState, setFormState] = useState<OrderFormType>(() =>
+    typeof window !== "undefined"
+      ? readStoredOrdersFilters(formParam).form
+      : DEFAULT_FORM
+  );
+  const [cheerSubtypeState, setCheerSubtypeState] =
+    useState<CheerFormSubtypeFilter>(() =>
+      typeof window !== "undefined"
+        ? readStoredOrdersFilters(formParam).cheerSubtype
+        : DEFAULT_CHEER_SUBTYPE
+    );
+  const [danceSubtypeState, setDanceSubtypeState] =
+    useState<DanceFormSubtypeFilter>(() =>
+      typeof window !== "undefined"
+        ? readStoredOrdersFilters(formParam).danceSubtype
+        : DEFAULT_DANCE_SUBTYPE
+    );
+  const initialBoardView = useMemo(
+    () =>
+      readInitialOrdersBoardView(
+        new URLSearchParams(Array.from(searchParams.entries())),
+        initialRangeFilter
+      ),
+    // First paint only — URL sync effects handle later deep links.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
+
+  const [rangeFilters, setRangeFilters] = useState<OrderViewRangeFilter[]>(
+    () => initialBoardView.rangeFilters
+  );
+  /** First active filter — legacy single-range call sites / empty-state copy. */
+  const rangeFilter: OrderViewRangeFilter = rangeFilters[0] ?? "all";
+  const [sourceFilter, setSourceFilter] = useState<OrderSourceFilter>(
+    () => initialBoardView.sourceFilter
+  );
 
   const [form, setForm] = [
     formState,
@@ -281,11 +444,18 @@ function OrdersPageContent() {
       return;
     }
     if (!rangeParam) return;
+    const parsed = coerceOrdersRangeFilters(rangeParam);
+    if (parsed.length) {
+      setRangeFilters(parsed);
+      return;
+    }
     if (allowedRangeFilters.includes(rangeParam as OrderViewRangeFilter)) {
-      setRangeFilter(
-        rangeParam === "reassign_leave" || rangeParam === "reassign_rush"
-          ? "reassigned"
-          : (rangeParam as OrderViewRangeFilter)
+      setRangeFilters(
+        coerceOrdersRangeFilters(
+          rangeParam === "reassign_leave" || rangeParam === "reassign_rush"
+            ? "reassigned"
+            : (rangeParam as OrderViewRangeFilter)
+        )
       );
     }
   }, [rangeParam, router]);
@@ -315,36 +485,9 @@ function OrdersPageContent() {
     }
   }, [focusParam, router, searchParams]);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    // URL ?form= wins over the last-used Orders form in sessionStorage.
-    if (formParam && validOrderForms.includes(formParam as OrderFormType)) {
-      return;
-    }
-    const savedForm = sessionStorage.getItem("slt_orders_form") as OrderFormType | null;
-    const savedCheer = sessionStorage.getItem("slt_orders_cheer_subtype") as CheerFormSubtypeFilter | null;
-    const savedDance = sessionStorage.getItem("slt_orders_dance_subtype") as DanceFormSubtypeFilter | null;
-    const validCheerSubtypes: CheerFormSubtypeFilter[] = [
-      "all-star-cheer",
-      "school-cheer-viroc-yes",
-      "school-cheer-viroc-no",
-      "youth-rec-cheer",
-    ];
-    const validDanceSubtypes: DanceFormSubtypeFilter[] = [
-      "pom",
-      "hip-hop",
-      "team-performance-variety",
-      "gameday",
-      "jazz-kick",
-    ];
-    if (savedForm && validOrderForms.includes(savedForm)) setFormState(savedForm);
-    if (savedCheer && validCheerSubtypes.includes(savedCheer)) setCheerSubtypeState(savedCheer);
-    if (savedDance && validDanceSubtypes.includes(savedDance)) setDanceSubtypeState(savedDance);
-  }, [formParam]);
-
   // Newest first so newly added / incoming orders get ID 1 (latest at top).
   const [tableFilters, setTableFilters] = useState<MTDTableFilterState>(
-    DEFAULT_MTD_TABLE_FILTERS
+    () => initialBoardView.tableFilters
   );
 
   useEffect(() => {
@@ -358,33 +501,97 @@ function OrdersPageContent() {
     }
   }, [assignedParam, scheduleParam]);
 
-  const [searchQuery, setSearchQuery] = useState("");
+  // Input updates instantly; board query waits so we don't thrash /orders/board
+  // + /orders/counts on every keystroke.
+  const [searchInput, setSearchInputState] = useState(
+    () => initialBoardView.searchQuery
+  );
+  const [searchQuery, setSearchQueryState] = useState(
+    () => initialBoardView.searchQuery
+  );
 
-  // Restore tabs / range / filters / sort after Assign (or Match) Back.
-  useEffect(() => {
-    const fromUrl = parseOrdersViewFromSearchParams(
-      new URLSearchParams(Array.from(searchParams.entries()))
-    );
-    const fromStore = loadOrdersViewState();
-    // URL wins over session snapshot (Back link carries the exact return qs).
-    const restored = mergeOrdersViewState(fromStore, fromUrl);
-    if (restored.form) setFormState(restored.form);
-    if (restored.cheerSubtype) setCheerSubtypeState(restored.cheerSubtype);
-    if (restored.danceSubtype) setDanceSubtypeState(restored.danceSubtype);
-    if (restored.rangeFilter && restored.rangeFilter !== "flagged") {
-      setRangeFilter(restored.rangeFilter);
-    }
-    if (restored.sourceFilter) setSourceFilter(restored.sourceFilter);
-    if (restored.searchQuery !== undefined) {
-      setSearchQuery(restored.searchQuery);
-    }
-    if (restored.tableFilters) {
-      setTableFilters(applyTableFilterDefaults(restored.tableFilters));
-    }
-    // Only on first mount / when returning with query — not on every keystroke.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // Jump to All immediately on first character so range+search don't change in
+  // the same board queryKey (that wiped rows and left a stuck skeleton).
+  const setSearchInput = useCallback((next: string) => {
+    setSearchInputState(next);
   }, []);
 
+  useEffect(() => {
+    // Clear immediately so we don't keep search hits for 220ms after X.
+    // Debounce only when typing a non-empty query.
+    if (!searchInput.trim()) {
+      setSearchQueryState("");
+      return;
+    }
+    const t = window.setTimeout(() => {
+      setSearchQueryState(searchInput);
+    }, 220);
+    return () => window.clearTimeout(t);
+  }, [searchInput]);
+
+  // Filters already restored in useState — only mark ready (no queryKey churn).
+  useLayoutEffect(() => {
+    setFiltersReady(true);
+  }, []);
+
+  const boardQuery = useMemo(() => {
+    const search = searchQuery.trim() || undefined;
+    return {
+      formType: form,
+      cheerFormSubtype:
+        form === "school-all-star-cheer" ? cheerSubtype : undefined,
+      danceFormSubtype:
+        form === "school-all-star-dance" ? danceSubtype : undefined,
+      source: sourceFilter === "both" ? undefined : sourceFilter,
+      search,
+      // Status chips scope the board query (Assigned isn't on the first All
+      // pages). Paint stays optimistic via keep-previous + client filter.
+      range: search
+        ? undefined
+        : serializeOrdersRangeFilters(rangeFilters),
+      sortBy: tableFilters.sortBy ?? "newest",
+      excludeFlagged: true as boolean,
+    };
+  }, [
+    form,
+    cheerSubtype,
+    danceSubtype,
+    sourceFilter,
+    searchQuery,
+    rangeFilters,
+    tableFilters.sortBy,
+  ]);
+  const {
+    orders: boardOrders,
+    counts: boardCounts,
+    nextPageToken: boardNextPageToken,
+    loading: boardLoading,
+    loadingMore: boardLoadingMore,
+    refreshing: boardRefreshing,
+    countsReady: boardCountsReady,
+    reload: reloadBoard,
+    loadMore: loadMoreBoard,
+  } = useOrdersBoard(boardQuery, { enabled: filtersReady });
+
+  // Match pool is secondary — wait until the board has painted, then a short
+  // beat, so first-load board/counts own the DB connection.
+  const [matchPoolEnabled, setMatchPoolEnabled] = useState(false);
+  useEffect(() => {
+    if (boardLoading) {
+      setMatchPoolEnabled(false);
+      return;
+    }
+    const t = window.setTimeout(() => setMatchPoolEnabled(true), 1500);
+    return () => window.clearTimeout(t);
+  }, [boardLoading]);
+  const { orders: matchPool } = useOrdersMatchPool({
+    enabled: matchPoolEnabled,
+    formType: form,
+    cheerFormSubtype:
+      form === "school-all-star-cheer" ? cheerSubtype : undefined,
+    danceFormSubtype:
+      form === "school-all-star-dance" ? danceSubtype : undefined,
+  });
 
   const [validationModalRecord, setValidationModalRecord] = useState<MTDRecord | null>(null);
   const [matchBeforeMtd, setMatchBeforeMtd] = useState<{
@@ -410,20 +617,72 @@ function OrdersPageContent() {
   );
   const [deletingOrder, setDeletingOrder] = useState(false);
 
+  /** Extra orders fetched by id for modals (not on current page). */
+  const [orderCache, setOrderCache] = useState<Order[]>([]);
+  const ordersForUi = useMemo(() => {
+    if (orderCache.length === 0 && matchPool.length === 0) return boardOrders;
+    const map = new Map<string, Order>();
+    for (const o of [...boardOrders, ...matchPool, ...orderCache]) {
+      map.set(o.id, o);
+    }
+    return [...map.values()];
+  }, [boardOrders, matchPool, orderCache]);
+
+  const ensureOrderInCache = useCallback(
+    async (id: string | null | undefined) => {
+      if (!id) return null;
+      const hit = ordersForUi.find(
+        (o) => o.id === id || o.legacyId === id || o.uuid === id
+      );
+      if (hit) return hit;
+      try {
+        const order = await fetchOrderApi(id);
+        setOrderCache((prev) =>
+          prev.some((o) => o.id === order.id) ? prev : [...prev, order]
+        );
+        return order;
+      } catch {
+        return null;
+      }
+    },
+    [ordersForUi]
+  );
+
+  // Optimistic saves also land on by-id fetched peers (matched Magento forms).
+  useEffect(() => {
+    const onPatch = (ev: Event) => {
+      const detail = (
+        ev as CustomEvent<{ orderId?: string; patch?: Partial<Order> }>
+      ).detail;
+      const orderId = detail?.orderId;
+      const patch = detail?.patch;
+      if (!orderId || !patch) return;
+      setOrderCache((prev) => {
+        const match = (o: Order) =>
+          o.id === orderId || o.uuid === orderId || o.legacyId === orderId;
+        if (!prev.some(match)) return prev;
+        return prev.map((o) => (match(o) ? { ...o, ...patch } : o));
+      });
+    };
+    window.addEventListener(ORDERS_BOARD_PATCH_EVENT, onPatch);
+    return () => window.removeEventListener(ORDERS_BOARD_PATCH_EVENT, onPatch);
+  }, []);
+
+  // Server-paged board (50/page) — never scan the full AppState order list.
   const preMtdRecords = useMemo(
-    () => listPreMtdOrderRecords(activeOrders, mtdRecords),
-    [activeOrders, mtdRecords]
+    () => listPreMtdOrderRecords(boardOrders, mtdRecords),
+    [boardOrders, mtdRecords]
   );
 
   const orderById = useMemo(() => {
     const map = new Map<string, Order>();
-    for (const order of allOrders) {
+    for (const order of ordersForUi) {
       if (order.id) map.set(order.id, order);
       if (order.legacyId) map.set(order.legacyId, order);
       if (order.uuid) map.set(order.uuid, order);
     }
     return map;
-  }, [allOrders]);
+  }, [ordersForUi]);
 
   const sourceFilteredRecords = useMemo(
     () => filterRecordsByOrderSource(preMtdRecords, sourceFilter, orderById),
@@ -447,88 +706,102 @@ function OrdersPageContent() {
     [sourceFilteredRecords, orderById]
   );
 
-  // Source → category → subcategory. Range toggles and the table share this pool.
-  const categoryFilteredBoard = useMemo(
-    () =>
-      boardRecords.filter((rec) =>
-        matchesFormFilter(rec, orderById, form, cheerSubtype, danceSubtype)
-      ),
-    [boardRecords, orderById, form, cheerSubtype, danceSubtype]
-  );
+  // Board API already scopes form + subtype. Re-filtering here wiped keepPreviousData
+  // on form/subtype switches (old rows failed the new form check → "0 of N" empty flash).
+  const categoryFilteredBoard = boardRecords;
 
+  // Form/subtype "All" from chips — counts fetch is form-agnostic (no refetch on tab switch).
   const allOrdersCount = useMemo(
-    () => categoryFilteredBoard.length,
-    [categoryFilteredBoard]
+    () =>
+      ordersActiveFormTotal(boardCounts, {
+        formType: form,
+        cheerFormSubtype:
+          form === "school-all-star-cheer" ? cheerSubtype : undefined,
+        danceFormSubtype:
+          form === "school-all-star-dance" ? danceSubtype : undefined,
+      }),
+    [boardCounts, form, cheerSubtype, danceSubtype]
   );
 
   // Same Magento-merged SoT as Form data / Collections pills (avoids Complete↔Missing flicker).
   const requirementsRecordFor = useCallback(
     (rec: MTDRecord) => {
-      const linked = findLinkedOrder(rec, allOrders);
+      const linked = findLinkedOrder(rec, ordersForUi);
       const finalized = linked
-        ? resolveFinalMatchedOrder(linked, allOrders)
+        ? resolveFinalMatchedOrder(linked, ordersForUi)
         : null;
       return mergeOrderFormFieldsForRequirements(rec, finalized);
     },
-    [allOrders]
+    [ordersForUi]
   );
 
-  const needToBeScheduledCount = useMemo(
-    () =>
-      categoryFilteredBoard.filter((r) =>
-        orderMatchesOrdersRangeFilter(
-          requirementsRecordFor(r),
-          "need_to_be_scheduled"
-        )
-      ).length,
-    [categoryFilteredBoard, requirementsRecordFor]
-  );
-
+  // Range badges: form maps capped by active subtype All (board is subtype-scoped).
+  const rangeBadgeOpts = {
+    formType: form,
+    cheerFormSubtype:
+      form === "school-all-star-cheer" ? cheerSubtype : undefined,
+    danceFormSubtype:
+      form === "school-all-star-dance" ? danceSubtype : undefined,
+  };
+  // Badges are fixed per-chip totals: selecting chips never changes them —
+  // only data edits / assigns / new orders do. The pager shows the AND total.
+  const chipTotal = (chip: OrderViewRangeFilter) =>
+    ordersRangeTabTotal(boardCounts, chip, rangeBadgeOpts);
+  const needToBeScheduledCount = chipTotal("need_to_be_scheduled");
   const newOrdersCount = needToBeScheduledCount;
+  const assignedOrdersCount = chipTotal("assigned");
+  const notAssignedOrdersCount = chipTotal("not_assigned");
+  const reassignedOrdersCount = chipTotal("reassigned");
+  const waitingForDataCount = chipTotal("waiting_for_data");
 
-  const assignedOrdersCount = useMemo(
-    () =>
-      categoryFilteredBoard.filter((r) =>
-        orderMatchesOrdersRangeFilter(requirementsRecordFor(r), "assigned")
-      ).length,
-    [categoryFilteredBoard, requirementsRecordFor]
-  );
+  /** Presence only — any open flag across forms (not the active form only). */
+  const hasFlaggedOrders = boardCounts.flagged > 0;
 
-  const notAssignedOrdersCount = useMemo(
-    () =>
-      categoryFilteredBoard.filter((r) =>
-        orderMatchesOrdersRangeFilter(requirementsRecordFor(r), "not_assigned")
-      ).length,
-    [categoryFilteredBoard, requirementsRecordFor]
-  );
+  /**
+   * Match needs manuals; Magento/form-only queues get no dot. Scoped to
+   * match-eligible forms (Sports Ent / Anthem are Magento-only).
+   */
+  const hasMatchManuals = useMemo(() => {
+    const byForm = boardCounts.manual_by_form_type ?? {};
+    let n = 0;
+    for (const tab of MANUAL_MATCH_FORM_TABS) {
+      n += byForm[tab.id] ?? 0;
+    }
+    if (n > 0) return true;
+    // Maps empty / not yet hydrated — fall back to board total manuals.
+    if (Object.keys(byForm).length === 0) {
+      return (boardCounts.manual ?? 0) > 0;
+    }
+    return false;
+  }, [boardCounts.manual, boardCounts.manual_by_form_type]);
 
-  const reassignedOrdersCount = useMemo(
-    () =>
-      categoryFilteredBoard.filter((r) =>
-        orderMatchesOrdersRangeFilter(requirementsRecordFor(r), "reassigned")
-      ).length,
-    [categoryFilteredBoard, requirementsRecordFor]
-  );
-
-  const waitingForDataCount = useMemo(
-    () =>
-      categoryFilteredBoard.filter((r) =>
-        orderMatchesOrdersRangeFilter(
-          requirementsRecordFor(r),
-          "waiting_for_data"
-        )
-      ).length,
-    [categoryFilteredBoard, requirementsRecordFor]
-  );
-
-  /** Badge always reflects every flagged booking (not the active form only). */
-  const flaggedOrdersCount = flaggedRecords.length;
-
-  /** Magento forms with ≥1 identity-similar unmatched manual. */
-  const matchOrdersCount = useMemo(
-    () => countMagentoFormsWithSuggestions(allOrders),
-    [allOrders]
-  );
+  /** Pager "of N" for the active chips (exact for combined chips too). */
+  const boardTotalCount = useMemo(() => {
+    // Search scopes rows the counts don't know about — loaded rows are the total.
+    if (searchInput.trim()) return undefined;
+    if (rangeFilters.length === 0) return allOrdersCount;
+    return (
+      ordersRangeFilterTotal(
+        boardCounts,
+        serializeOrdersRangeFilters(rangeFilters),
+        {
+          formType: form,
+          cheerFormSubtype:
+            form === "school-all-star-cheer" ? cheerSubtype : undefined,
+          danceFormSubtype:
+            form === "school-all-star-dance" ? danceSubtype : undefined,
+        }
+      ) ?? undefined
+    );
+  }, [
+    searchInput,
+    rangeFilters,
+    allOrdersCount,
+    boardCounts,
+    form,
+    cheerSubtype,
+    danceSubtype,
+  ]);
 
   // Alert when a row changes Orders status tab so it doesn't look like it vanished.
   // Debounce so SSE/optimistic Complete↔Missing races do not spam or "disappear" rows.
@@ -609,39 +882,100 @@ function OrdersPageContent() {
     return () => window.clearTimeout(timer);
   }, [categoryFilteredBoard, isLoading, addAlert, requirementsRecordFor]);
 
-  const matchesRangeFilter = useCallback(
-    (rec: MTDRecord) =>
-      orderMatchesOrdersRangeFilter(requirementsRecordFor(rec), rangeFilter),
-    [rangeFilter, requirementsRecordFor]
-  );
+  // Range/form/source already applied by /orders/board — do not re-filter with
+  // getOrderRequirements here (that disagreed with needs_attention and wiped rows).
+  const typeFilteredPreMtdRecords = categoryFilteredBoard;
 
-  // Rows for the table: source + category/subcategory + range.
-  const typeFilteredPreMtdRecords = useMemo(() => {
-    return categoryFilteredBoard.filter(matchesRangeFilter);
-  }, [categoryFilteredBoard, matchesRangeFilter]);
+  // Form / subtype dropdown counts: page rows + server by_form overlays.
+  const formCountRecords = boardRecords;
 
-  // Form / subtype dropdown counts stay range-scoped but not category-scoped
-  // so admins can still see other categories while a form is selected.
-  const formCountRecords = useMemo(() => {
-    return boardRecords.filter(matchesRangeFilter);
-  }, [boardRecords, matchesRangeFilter]);
+  const scheduleIdle = useCallback((run: () => void) => {
+    if (
+      typeof window !== "undefined" &&
+      typeof window.requestIdleCallback === "function"
+    ) {
+      window.requestIdleCallback(() => run(), { timeout: 900 });
+    } else {
+      window.setTimeout(run, 0);
+    }
+  }, []);
 
-  const switchForm = useCallback(
-    (next: OrderFormType) => {
-      setForm(next);
-      if (next !== "school-all-star-cheer") {
-        setCheerSubtype(DEFAULT_CHEER_SUBTYPE);
-      }
-      if (next !== "school-all-star-dance") {
-        setDanceSubtype(DEFAULT_DANCE_SUBTYPE);
-      }
-    },
-    [setForm, setCheerSubtype, setDanceSubtype]
-  );
-
-  const goToFlaggedPage = useCallback(() => {
-    router.push("/orders/flagged");
+  /** Route + data warm on pointerdown — must start now (idle loses to navigation). */
+  const warmFlaggedData = useCallback(() => {
+    router.prefetch("/orders/flagged");
+    void prefetchOrdersBoard({
+      range: "flagged",
+      excludeFlagged: false,
+      sortBy: "newest",
+    });
   }, [router]);
+
+  const warmMatchData = useCallback(() => {
+    // Route chunk first — heavy match-pool fetch on pointerdown stole bandwidth
+    // from Next navigation and made the click feel late.
+    router.prefetch("/orders/match");
+    window.setTimeout(() => {
+      void prefetchOrdersMatchData({
+        formType: form,
+        cheerFormSubtype:
+          form === "school-all-star-cheer" ? cheerSubtype : undefined,
+        danceFormSubtype:
+          form === "school-all-star-dance" ? danceSubtype : undefined,
+      });
+    }, 0);
+  }, [router, form, cheerSubtype, danceSubtype]);
+
+  const warmBoardQuery = useCallback(
+    (patch: {
+      formType?: OrderFormType;
+      cheerFormSubtype?: string;
+      danceFormSubtype?: string;
+      range?: string;
+    }) => {
+      const nextForm = patch.formType ?? form;
+      const search = searchQuery.trim() || undefined;
+      const nextRange =
+        patch.range ?? serializeOrdersRangeFilters(rangeFilters);
+      const run = () => {
+        void prefetchOrdersBoard({
+          formType: nextForm,
+          cheerFormSubtype:
+            patch.cheerFormSubtype !== undefined
+              ? patch.cheerFormSubtype || undefined
+              : nextForm === "school-all-star-cheer"
+                ? cheerSubtype
+                : undefined,
+          danceFormSubtype:
+            patch.danceFormSubtype !== undefined
+              ? patch.danceFormSubtype || undefined
+              : nextForm === "school-all-star-dance"
+                ? danceSubtype
+                : undefined,
+          source: sourceFilter === "both" ? undefined : sourceFilter,
+          search,
+          range: search ? undefined : nextRange,
+          sortBy: tableFilters.sortBy ?? "newest",
+          excludeFlagged: true,
+        });
+      };
+      // Range/form pointerdown must start fetch now — idle callback loses the race.
+      if (patch.range != null || patch.formType != null) {
+        run();
+        return;
+      }
+      scheduleIdle(run);
+    },
+    [
+      form,
+      cheerSubtype,
+      danceSubtype,
+      sourceFilter,
+      searchQuery,
+      rangeFilters,
+      tableFilters.sortBy,
+      scheduleIdle,
+    ]
+  );
 
   const goToMatchPage = useCallback((opts?: {
     manualId?: string;
@@ -651,6 +985,7 @@ function OrdersPageContent() {
       form,
       cheerSubtype,
       danceSubtype,
+      rangeFilters,
       rangeFilter,
       sourceFilter,
       searchQuery,
@@ -666,6 +1001,7 @@ function OrdersPageContent() {
     form,
     cheerSubtype,
     danceSubtype,
+    rangeFilters,
     rangeFilter,
     sourceFilter,
     searchQuery,
@@ -673,11 +1009,20 @@ function OrdersPageContent() {
   ]);
 
   const openAssignPage = useCallback(
-    (recordId: string) => {
+    (rec: MTDRecord) => {
+      const recordId = rec.id;
+      const linked = findLinkedOrder(rec, ordersForUi);
+      // Board row is not in AppState — seed so Assign paints before fetch.
+      seedAssignPage(recordId, rec, linked ?? null);
+      if (linked?.id && linked.id !== recordId) {
+        seedAssignPage(linked.id, rec, linked);
+      }
+      void import("@/components/mtd/AssignEditorModal");
       const viewState = {
         form,
         cheerSubtype,
         danceSubtype,
+        rangeFilters,
         rangeFilter,
         sourceFilter,
         searchQuery,
@@ -685,15 +1030,16 @@ function OrdersPageContent() {
       };
       saveOrdersViewState(viewState);
       const returnTo = buildOrdersReturnHref(viewState);
-      router.push(
-        `/orders/${recordId}/assign?return=${encodeURIComponent(returnTo)}`
-      );
+      const href = `/orders/${recordId}/assign?return=${encodeURIComponent(returnTo)}`;
+      router.push(href);
     },
     [
       router,
+      ordersForUi,
       form,
       cheerSubtype,
       danceSubtype,
+      rangeFilters,
       rangeFilter,
       sourceFilter,
       searchQuery,
@@ -701,11 +1047,39 @@ function OrdersPageContent() {
     ]
   );
 
+  const warmAssignPage = useCallback(
+    (rec: MTDRecord) => {
+      const linked = findLinkedOrder(rec, ordersForUi);
+      seedAssignPage(rec.id, rec, linked ?? null);
+      if (linked?.id && linked.id !== rec.id) {
+        seedAssignPage(linked.id, rec, linked);
+      }
+      router.prefetch(`/orders/${rec.id}/assign`);
+      // Warm the heavy assign chunk before click (route prefetch alone is not enough).
+      void import("@/components/mtd/AssignEditorModal");
+    },
+    [ordersForUi, router]
+  );
+
+  // Idle-preload Assign so the first Assign click is not a cold JS parse.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const warm = () => {
+      void import("@/components/mtd/AssignEditorModal");
+    };
+    if (typeof window.requestIdleCallback === "function") {
+      const id = window.requestIdleCallback(warm, { timeout: 2500 });
+      return () => window.cancelIdleCallback(id);
+    }
+    const t = window.setTimeout(warm, 800);
+    return () => window.clearTimeout(t);
+  }, []);
+
   const { isViewOnly } = useAppState();
 
   const commitMoveToMTD = useCallback(
     (rec: MTDRecord) => {
-      const linkedOrder = findLinkedOrder(rec, allOrders);
+      const linkedOrder = findLinkedOrder(rec, ordersForUi);
       updateMTD(rec.id, {
         inMTD: true,
         isReassigned: false,
@@ -722,7 +1096,7 @@ function OrdersPageContent() {
       });
       router.push(`/mtd?focus=${encodeURIComponent(rec.id)}`);
     },
-    [allOrders, router, updateMTD]
+    [boardOrders, router, updateMTD]
   );
 
   const handleMoveToMTD = useCallback(
@@ -732,9 +1106,9 @@ function OrdersPageContent() {
 
       if (isViewOnly) return;
 
-      const linkedOrder = findLinkedOrder(rec, allOrders);
+      const linkedOrder = findLinkedOrder(rec, ordersForUi);
       const finalized = linkedOrder
-        ? resolveFinalMatchedOrder(linkedOrder, allOrders)
+        ? resolveFinalMatchedOrder(linkedOrder, ordersForUi)
         : null;
       const reqSource = finalized
         ? mergeOrderFormFieldsForRequirements(rec, finalized)
@@ -742,7 +1116,7 @@ function OrdersPageContent() {
 
       // Manuals must Match Orders first. Soft-gate when lookalike forms exist.
       if (linkedOrder && unmatchedManualNeedsMagentoMatch(linkedOrder)) {
-        const suggestions = matchCandidatesBeforeMtd(linkedOrder, allOrders);
+        const suggestions = matchCandidatesBeforeMtd(linkedOrder, matchPool);
         if (suggestions.length > 0) {
           setMatchBeforeMtd({ record: rec, suggestions });
           return;
@@ -753,7 +1127,7 @@ function OrdersPageContent() {
 
       if (
         linkedOrder &&
-        getOrderFormFieldsBlockingMtd(linkedOrder, allOrders).length > 0
+        getOrderFormFieldsBlockingMtd(linkedOrder, ordersForUi).length > 0
       ) {
         setValidationModalRecord(rec);
         return;
@@ -782,7 +1156,7 @@ function OrdersPageContent() {
 
       commitMoveToMTD(rec);
     },
-    [isViewOnly, allOrders, commitMoveToMTD]
+    [isViewOnly, boardOrders, matchPool, commitMoveToMTD]
   );
 
   useEffect(() => {
@@ -825,7 +1199,7 @@ function OrdersPageContent() {
           : preMtdRecords.find((r) => r.id === recordId) ??
             mtdRecords.find((r) => r.id === recordId);
       if (!rec) return;
-      const order = findLinkedOrder(rec, allOrders);
+      const order = findLinkedOrder(rec, ordersForUi);
       const meta = resolveMTDFormMeta(rec, orderById);
       const fullPatch = buildRecordPriceSavePatch(
         rec,
@@ -846,7 +1220,7 @@ function OrdersPageContent() {
       recordPricingRecord,
       preMtdRecords,
       mtdRecords,
-      allOrders,
+      boardOrders,
       orderById,
       updateOrder,
       updateMTD,
@@ -856,17 +1230,17 @@ function OrdersPageContent() {
   const pricingFocusOrder = useMemo(
     () =>
       pricingFocusRecord
-        ? findLinkedOrder(pricingFocusRecord, allOrders)
+        ? findLinkedOrder(pricingFocusRecord, ordersForUi)
         : undefined,
-    [pricingFocusRecord, allOrders]
+    [pricingFocusRecord, ordersForUi]
   );
 
   const recordPricingOrder = useMemo(
     () =>
       recordPricingRecord
-        ? findLinkedOrder(recordPricingRecord, allOrders)
+        ? findLinkedOrder(recordPricingRecord, ordersForUi)
         : null,
-    [recordPricingRecord, allOrders]
+    [recordPricingRecord, ordersForUi]
   );
 
   const recordPricingInitialPrice = useMemo(() => {
@@ -879,7 +1253,8 @@ function OrdersPageContent() {
     );
   }, [recordPricingRecord, recordPricingOrder, orderById]);
 
-  // Filtered dataset for table
+  // Filtered dataset for table. Form/subtype stay on the server board query —
+  // re-applying them here wiped keepPreviousData rows on every Form/Hip Hop switch.
   const tableFiltered = useMemo(
     () =>
       filterMTDRecords(typeFilteredPreMtdRecords, {
@@ -891,28 +1266,43 @@ function OrdersPageContent() {
         dateFilter: tableFilters.dateFilter,
         scheduleFilter: tableFilters.scheduleFilter,
         infoFilter: tableFilters.infoFilter ?? "all",
-        form,
-        cheerSubtype,
-        danceSubtype,
         orderById,
         producers,
       }),
-    [
-      typeFilteredPreMtdRecords,
-      tableFilters,
-      form,
-      cheerSubtype,
-      danceSubtype,
-      orderById,
-      producers,
-    ]
+    [typeFilteredPreMtdRecords, tableFilters, orderById, producers]
   );
 
   const filtered = useMemo(() => {
-    const q = searchQuery.trim();
-    const searched = !q
-      ? tableFiltered
-      : tableFiltered.filter((rec) => matchesMTDSearch(rec, q));
+    // Instant client filter (search-like) while the ranged board fetch catches up.
+    // Assignment chips use the row SoT; Complete/Missing use Magento-merged pills.
+    let rows = tableFiltered;
+    if (rangeFilters.length > 0) {
+      rows = rows.filter((rec) => {
+        const reqRec = requirementsRecordFor(rec);
+        return rangeFilters.every((rf) => {
+          if (
+            rf === "assigned" ||
+            rf === "not_assigned" ||
+            rf === "reassigned" ||
+            rf === "reassign_leave" ||
+            rf === "reassign_rush"
+          ) {
+            return orderMatchesOrdersRangeFilter(rec, rf);
+          }
+          return orderMatchesOrdersRangeFilter(reqRec, rf);
+        });
+      });
+    }
+    const q = searchInput.trim();
+    const searched = q
+      ? rows.filter((rec) => {
+          const linked =
+            (rec.orderId && orderById.get(rec.orderId)) ||
+            orderById.get(rec.id) ||
+            null;
+          return matchesMTDSearch(rec, q, linked);
+        })
+      : rows;
     const sorted = sortMTDRecordsBySortKey(
       searched,
       tableFilters.sortBy ?? "newest",
@@ -925,29 +1315,142 @@ function OrdersPageContent() {
       const bRe = b.isReassigned ? 1 : 0;
       return bRe - aRe;
     });
-  }, [tableFiltered, searchQuery, tableFilters.sortBy, producers, orderById]);
+  }, [
+    tableFiltered,
+    rangeFilters,
+    requirementsRecordFor,
+    searchInput,
+    tableFilters.sortBy,
+    producers,
+    orderById,
+  ]);
 
-  const formCounts = useMemo(
-    () => countMTDByForm(formCountRecords, orderById),
-    [formCountRecords, orderById]
+  /** CSV respects active status chips (server AND) even though the table filters locally. */
+  const exportFilteredOrdersCsv = useCallback(() => {
+    void downloadOrdersBoardCsv({
+      ...boardQuery,
+      range: serializeOrdersRangeFilters(rangeFilters),
+    }).catch(() => {
+      /* user can retry */
+    });
+  }, [boardQuery, rangeFilters]);
+
+  // Form / subtype menu chips: server totals only. Mixing page-local rows
+  // zeroed other forms on every tab switch (184↔0↔185 flicker).
+  const formCounts = useMemo(() => {
+    return (boardCounts.by_form_type || {}) as Record<OrderFormType, number>;
+  }, [boardCounts.by_form_type]);
+
+  const cheerSubtypeCounts = useMemo(() => {
+    return (boardCounts.by_cheer_form_subtype || {}) as Record<
+      CheerFormSubtypeFilter,
+      number
+    >;
+  }, [boardCounts.by_cheer_form_subtype]);
+
+  const danceSubtypeCounts = useMemo(() => {
+    return (boardCounts.by_dance_form_subtype || {}) as Record<
+      DanceFormSubtypeFilter,
+      number
+    >;
+  }, [boardCounts.by_dance_form_subtype]);
+
+  // Land on a subtype that actually has rows (POM default is often empty).
+  const switchForm = useCallback(
+    (next: OrderFormType) => {
+      setForm(next);
+      if (next === "school-all-star-cheer") {
+        const nextCheer =
+          CHEER_FORM_SUBTABS.find((t) => (cheerSubtypeCounts[t.id] ?? 0) > 0)
+            ?.id ?? DEFAULT_CHEER_SUBTYPE;
+        setCheerSubtype(nextCheer);
+        setDanceSubtype(DEFAULT_DANCE_SUBTYPE);
+        return;
+      }
+      if (next === "school-all-star-dance") {
+        const nextDance =
+          DANCE_FORM_SUBTABS.find((t) => (danceSubtypeCounts[t.id] ?? 0) > 0)
+            ?.id ?? DEFAULT_DANCE_SUBTYPE;
+        setDanceSubtype(nextDance);
+        setCheerSubtype(DEFAULT_CHEER_SUBTYPE);
+        return;
+      }
+      setCheerSubtype(DEFAULT_CHEER_SUBTYPE);
+      setDanceSubtype(DEFAULT_DANCE_SUBTYPE);
+    },
+    [
+      setForm,
+      setCheerSubtype,
+      setDanceSubtype,
+      cheerSubtypeCounts,
+      danceSubtypeCounts,
+    ]
   );
 
-  const cheerSubtypeCounts = useMemo(
-    () => countMTDByCheerSubtype(formCountRecords, orderById),
-    [formCountRecords, orderById]
-  );
+  // Prefetch Match/Flagged routes only (cheap). Data warm is hover + deferred idle.
+  useEffect(() => {
+    router.prefetch("/orders/match");
+    router.prefetch("/orders/flagged");
+  }, [router]);
 
-  const danceSubtypeCounts = useMemo(
-    () => countMTDByDanceSubtype(formCountRecords, orderById),
-    [formCountRecords, orderById]
-  );
+  // First: idle-warm MTD so the next sidebar hop paints from cache (no dual
+  // board fetch on click). Then Match/Flagged/siblings — lower priority.
+  useEffect(() => {
+    if (boardLoading) return;
+    return idlePrefetchSiblingBoard("orders");
+  }, [boardLoading]);
+
+  // After the Orders board paints: warm Match, then Flagged + sibling boards.
+  // Never race Match pool (1.5s+ each) against the first board fetch — that was
+  // why Orders stayed on skeleton while Match warm stole the connection.
+  const idleWarmFormRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (boardLoading) return;
+    if (idleWarmFormRef.current === form) return;
+    let cancelled = false;
+    const run = () => {
+      if (cancelled || idleWarmFormRef.current === form) return;
+      idleWarmFormRef.current = form;
+      void (async () => {
+        await prefetchOrdersMatchData({
+          formType: form,
+          cheerFormSubtype:
+            form === "school-all-star-cheer" ? cheerSubtype : undefined,
+          danceFormSubtype:
+            form === "school-all-star-dance" ? danceSubtype : undefined,
+        });
+        if (cancelled) return;
+        // Subtype tabs / other Match keys warm on hover intent instead — an
+        // eager fan-out here was 4–6 extra function calls per Orders visit.
+        await prefetchOrdersBoard({
+          range: "flagged",
+          excludeFlagged: false,
+          sortBy: "newest",
+        });
+      })();
+    };
+    // Delay so MTD sibling prefetch gets the idle slot first.
+    const t = window.setTimeout(run, 1200);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t);
+    };
+  }, [boardLoading, form, cheerSubtype, danceSubtype]);
 
   // Default form is Cheer; demo/live boards often only have Dance/Anthem.
   // Once per load (when URL doesn't pin ?form=), land on a form that has rows.
+  // Skip when session already restored a form (filtersReady + stored preference).
   const didAutoSelectForm = useRef(false);
   useEffect(() => {
-    if (didAutoSelectForm.current || isLoading) return;
+    // Prefer board counts over waiting on full AppState bootstrap (isLoading).
+    if (didAutoSelectForm.current || !filtersReady) return;
+    if (!boardCountsReady && isLoading) return;
     if (formParam && validOrderForms.includes(formParam as OrderFormType)) {
+      didAutoSelectForm.current = true;
+      return;
+    }
+    // Respect last-used form/subtype from session — don't bounce to another tab.
+    if (typeof window !== "undefined" && sessionStorage.getItem("slt_orders_form")) {
       didAutoSelectForm.current = true;
       return;
     }
@@ -990,6 +1493,8 @@ function OrdersPageContent() {
     didAutoSelectForm.current = true;
   }, [
     isLoading,
+    boardCountsReady,
+    filtersReady,
     formParam,
     formCountRecords.length,
     formCounts,
@@ -1001,9 +1506,10 @@ function OrdersPageContent() {
     setCheerSubtype,
   ]);
 
+  // Status chips filter client-side — leave them out of resetKey so toggling
+  // doesn't remount the table / flash a loading empty state.
   const tableFilterKey = [
     sourceFilter,
-    rangeFilter,
     tableFilters.packageTier,
     tableFilters.timeLimit,
     tableFilters.split,
@@ -1057,7 +1563,7 @@ function OrdersPageContent() {
         cellClassName: compactCellClass,
         headerClassName: compactHeaderClass,
         render: (rec) => {
-          const linked = findLinkedOrder(rec, allOrders);
+          const linked = findLinkedOrder(rec, ordersForUi);
           const stamp = linked?.createdAt || "";
           return (
             <span className="tabular-nums text-[11px] text-brand-ink-secondary whitespace-nowrap">
@@ -1114,11 +1620,13 @@ function OrdersPageContent() {
           contactHeader.length > 14 && "whitespace-normal leading-tight"
         ),
         render: (rec) => {
-          const linked = findLinkedOrder(rec, allOrders);
-          const name = getOrderContactPersonName(
-            linked || orderFromMTDRecord(rec),
-            rec.contactName,
-            rec.programName
+          const linked = findLinkedOrder(rec, ordersForUi);
+          const name = titleCase(
+            getOrderContactPersonName(
+              linked || orderFromMTDRecord(rec),
+              rec.contactName,
+              rec.programName
+            )
           ).trim();
           return (
             <TruncatedText
@@ -1145,7 +1653,7 @@ function OrdersPageContent() {
         ),
         headerClassName: clsx(compactHeaderClass, "whitespace-normal leading-tight"),
         render: (rec) => {
-          const linked = findLinkedOrder(rec, allOrders);
+          const linked = findLinkedOrder(rec, ordersForUi);
           const identityOrder = linked || orderFromMTDRecord(rec);
           // Same value as the edit-form identity field (Gym Name / School Name / …).
           const name = getOrderIdentityName(identityOrder).trim();
@@ -1171,7 +1679,7 @@ function OrdersPageContent() {
         cellClassName: clsx(compactCellClass, "max-w-[100px]"),
         headerClassName: compactHeaderClass,
         render: (rec) => {
-          const linked = findLinkedOrder(rec, allOrders);
+          const linked = findLinkedOrder(rec, ordersForUi);
           const meta = resolveMTDFormMeta(rec, orderById);
           const raw =
             linked?.packageType ||
@@ -1212,7 +1720,7 @@ function OrdersPageContent() {
                 "whitespace-normal leading-tight"
               ),
               render: (rec: MTDRecord) => {
-                const linked = findLinkedOrder(rec, allOrders);
+                const linked = findLinkedOrder(rec, ordersForUi);
                 const meta = resolveMTDFormMeta(rec, orderById);
                 const fromOrder = displayMixLengthLabel(
                   linked?.timeLengthOfMix || ""
@@ -1307,7 +1815,7 @@ function OrdersPageContent() {
               cellClassName: clsx(compactCellClass, "max-w-[120px]"),
               headerClassName: compactHeaderClass,
               render: (rec: MTDRecord) => {
-                const linked = findLinkedOrder(rec, allOrders);
+                const linked = findLinkedOrder(rec, ordersForUi);
                 const display = formatMusicAffiliateDisplay(linked, rec);
                 if (!display) {
                   return (
@@ -1351,7 +1859,7 @@ function OrdersPageContent() {
         cellClassName: "!px-2",
         headerClassName: "!px-2",
         render: (rec) => {
-          const order = findLinkedOrder(rec, allOrders);
+          const order = findLinkedOrder(rec, ordersForUi);
           const meta = resolveMTDFormMeta(rec, orderById);
           const engineCustomerPrice = resolveEngineCustomerPrice(
             rec,
@@ -1452,13 +1960,13 @@ function OrdersPageContent() {
             {
               key: "couponCodeCol",
               header: "Coupon Code",
-              width: "110px",
-              align: "center" as const,
+              width: "100px",
+              align: "left" as const,
               nowrap: false,
-              cellClassName: clsx(compactCellClass, "max-w-[110px]"),
+              cellClassName: clsx(compactCellClass, "max-w-[100px]"),
               headerClassName: compactHeaderClass,
               render: (rec: MTDRecord) => {
-                const linked = findLinkedOrder(rec, allOrders);
+                const linked = findLinkedOrder(rec, ordersForUi);
                 const coupon = (
                   linked?.couponCode ||
                   rec.couponCode ||
@@ -1466,31 +1974,27 @@ function OrdersPageContent() {
                 ).trim();
                 if (!coupon) {
                   return (
-                    <span
+                    <TruncatedText
+                      text="None"
                       className={clsx(
-                        "mx-auto block text-center text-brand-ink-tertiary",
+                        "w-full min-w-0 text-left text-brand-ink-tertiary",
                         compactTextClass
                       )}
-                    >
-                      None
-                    </span>
+                      style={{ maxWidth: "100%" }}
+                    />
                   );
                 }
                 const matched = isValidDiscountCode(coupon, discountCodes);
                 return (
-                  <span
+                  <TruncatedText
+                    text={matched ? `${coupon} · Match` : coupon}
                     className={clsx(
-                      "mx-auto flex flex-col items-center gap-0.5 text-center font-semibold tracking-wide text-brand-ink",
-                      compactTextClass
+                      "w-full min-w-0 text-left",
+                      compactTextClass,
+                      matched && "text-brand-success"
                     )}
-                  >
-                    <span>{coupon}</span>
-                    {matched ? (
-                      <span className="text-[9px] font-semibold uppercase tracking-wide text-brand-success">
-                        Match
-                      </span>
-                    ) : null}
-                  </span>
+                    style={{ maxWidth: "100%" }}
+                  />
                 );
               },
             },
@@ -1540,7 +2044,7 @@ function OrdersPageContent() {
                 "whitespace-pre-line leading-tight"
               ),
               render: (rec: MTDRecord) => {
-                const linked = findLinkedOrder(rec, allOrders);
+                const linked = findLinkedOrder(rec, ordersForUi);
                 const label = formatRequestedEditorLabel(rec, producers, linked);
                 if (!label.trim()) {
                   return (
@@ -1592,9 +2096,7 @@ function OrdersPageContent() {
           // Assign is always available (missing data does not block).
           const assignLabel =
             awaitingReassign ||
-            rangeFilter === "reassigned" ||
-            rangeFilter === "reassign_leave" ||
-            rangeFilter === "reassign_rush"
+            isOrdersRangeFilterActive(rangeFilters, "reassigned")
               ? "Reassign"
               : "Assign";
           const reassignReasonLabel =
@@ -1607,10 +2109,14 @@ function OrdersPageContent() {
               {assigned ? (
                 <button
                   type="button"
-                  onMouseDown={(e) => e.stopPropagation()}
+                  onMouseEnter={() => warmAssignPage(rec)}
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                    warmAssignPage(rec);
+                  }}
                   onClick={(e) => {
                     e.stopPropagation();
-                    openAssignPage(rec.id);
+                    openAssignPage(rec);
                   }}
                   title="Assign producer"
                   aria-label={`Assign producer for ${assigned}`}
@@ -1633,10 +2139,14 @@ function OrdersPageContent() {
                   >
                     <button
                       type="button"
-                      onMouseDown={(e) => e.stopPropagation()}
+                      onMouseEnter={() => warmAssignPage(rec)}
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        warmAssignPage(rec);
+                      }}
                       onClick={(e) => {
                         e.stopPropagation();
-                        openAssignPage(rec.id);
+                        openAssignPage(rec);
                       }}
                       className={actionButtonClass(false, false)}
                       aria-label={
@@ -1767,7 +2277,7 @@ function OrdersPageContent() {
         cellClassName: compactCellClass,
         headerClassName: clsx(compactHeaderClass, "whitespace-pre-line leading-tight"),
         render: (rec: MTDRecord) => {
-          const linked = findLinkedOrder(rec, allOrders);
+          const linked = findLinkedOrder(rec, ordersForUi);
           const rushSource = linked
             ? { ...rec, ...linked, formType: linked.formType || rec.formType }
             : rec;
@@ -1819,9 +2329,9 @@ function OrdersPageContent() {
         headerClassName: compactHeaderClass,
         render: (rec) => {
           // Same SoT as Songs/Notes/Mix Time pills + MTD gate: merge linked Magento.
-          const linkedForMail = findLinkedOrder(rec, allOrders);
+          const linkedForMail = findLinkedOrder(rec, ordersForUi);
           const finalizedMail = linkedForMail
-            ? resolveFinalMatchedOrder(linkedForMail, allOrders)
+            ? resolveFinalMatchedOrder(linkedForMail, ordersForUi)
             : null;
           const reqSource = finalizedMail
             ? mergeOrderFormFieldsForRequirements(rec, finalizedMail)
@@ -1941,9 +2451,9 @@ function OrdersPageContent() {
         cellClassName: compactCellClass,
         headerClassName: compactHeaderClass,
         render: (rec, index) => {
-          const linkedForForm = findLinkedOrder(rec, allOrders);
+          const linkedForForm = findLinkedOrder(rec, ordersForUi);
           const finalizedForm = linkedForForm
-            ? resolveFinalMatchedOrder(linkedForForm, allOrders)
+            ? resolveFinalMatchedOrder(linkedForForm, ordersForUi)
             : null;
           const reqSource = finalizedForm
             ? mergeOrderFormFieldsForRequirements(rec, finalizedForm)
@@ -1955,14 +2465,14 @@ function OrdersPageContent() {
             : Boolean(rec.isManualScheduleEntry);
           const matchSuggestions =
             needsMagentoMatch && linkedForForm
-              ? matchCandidatesBeforeMtd(linkedForForm, allOrders)
+              ? matchCandidatesBeforeMtd(linkedForForm, matchPool)
               : [];
           // Lookalike soft-gate stays clickable; otherwise Match Orders first.
           const hardBlockMagentoMatch =
             needsMagentoMatch && matchSuggestions.length === 0;
           const formMtdGaps =
             !needsMagentoMatch && linkedForForm
-              ? getOrderFormFieldsBlockingMtd(linkedForForm, allOrders)
+              ? getOrderFormFieldsBlockingMtd(linkedForForm, ordersForUi)
               : [];
           const blockedByFormGaps = formMtdGaps.length > 0;
           const assignedProducer =
@@ -2039,7 +2549,14 @@ function OrdersPageContent() {
                   onClick={(e) => {
                     e.stopPropagation();
                     setOrderFormRowId(index + 1);
-                    setOrderFormRecord(rec);
+                    const id =
+                      findLinkedOrder(rec, ordersForUi)?.id ||
+                      rec.orderId ||
+                      rec.uuid ||
+                      rec.id;
+                    void ensureOrderInCache(id).finally(() => {
+                      setOrderFormRecord(rec);
+                    });
                   }}
                   className={clsx(ordersMailTextButtonClass, "!px-1.5")}
                   aria-label={
@@ -2114,9 +2631,10 @@ function OrdersPageContent() {
     form,
     cheerSubtype,
     danceSubtype,
-    rangeFilter,
+    rangeFilters,
     producers,
-    allOrders,
+    boardOrders,
+    matchPool,
     mtdRecords,
     orderById,
     discountCodes,
@@ -2126,16 +2644,17 @@ function OrdersPageContent() {
     openPricingModal,
     openRecordPricingModal,
     openAssignPage,
+    warmAssignPage,
     isViewOnly,
     pricingRevision,
   ]);
 
   return (
+    <OrdersLookupProvider orders={ordersForUi}>
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <ReturnNavBanner />
       <PageHeader
         title="Orders"
-        badge={`${filtered.length} of ${typeFilteredPreMtdRecords.length}`}
         subtitle="Assign orders to producers"
         action={{
           label: "New Order",
@@ -2149,101 +2668,85 @@ function OrdersPageContent() {
         }}
         exportAction={{
           label: "CSV",
-          onClick: () => {
-            const csv = generateOrdersCsv(filtered, allOrders);
-            triggerCsvDownload(`Orders_Export_${todayIso()}.csv`, csv);
-          },
+          title:
+            "Export current Orders filters to CSV (server query: search, form, range)",
+          onClick: exportFilteredOrdersCsv,
         }}
         headerActions={
           <div className="flex items-center gap-2">
-            <button
-              type="button"
+            <Link
+              href="/orders/match"
+              prefetch
+              onPointerDown={warmMatchData}
               onClick={() => {
-                markMatchOrdersSeen();
-                goToMatchPage();
+                saveOrdersViewState({
+                  form,
+                  cheerSubtype,
+                  danceSubtype,
+                  rangeFilters,
+                  rangeFilter,
+                  sourceFilter,
+                  searchQuery,
+                  tableFilters,
+                });
               }}
               title={
-                unseenSuggestedMatchCount > 0
-                  ? `Open Match Orders (${matchOrdersCount}), ${unseenSuggestedMatchCount} new`
-                  : matchOrdersCount > 0
-                    ? `Open Match Orders (${matchOrdersCount})`
-                    : "Open Match Orders"
+                hasMatchManuals
+                  ? "Open Match Orders — manuals waiting to match"
+                  : "Open Match Orders"
               }
               aria-label={
-                unseenSuggestedMatchCount > 0
-                  ? `Open Match Orders, ${matchOrdersCount}, ${unseenSuggestedMatchCount} new`
-                  : matchOrdersCount > 0
-                    ? `Open Match Orders, ${matchOrdersCount}`
-                    : "Open Match Orders"
+                hasMatchManuals
+                  ? "Open Match Orders, manuals waiting to match"
+                  : "Open Match Orders"
               }
-              className={clsx(
-                "relative flex h-9 items-center gap-1.5 rounded-xl border bg-white px-3 text-[13px] font-semibold shadow-sm transition focus-visible:outline-none focus-visible:ring-2",
-                unseenSuggestedMatchCount > 0
-                  ? "animate-match-orders-attention border-brand-orange/50 text-brand-ink hover:border-brand-orange hover:bg-brand-orange-soft/60 hover:text-brand-orange-deep focus-visible:ring-brand-orange/30"
-                  : "border-brand-line/70 text-brand-ink hover:border-brand-line hover:bg-brand-bg/60 hover:text-brand-orange focus-visible:ring-brand-orange/20"
-              )}
+              className="relative flex h-9 items-center gap-1.5 rounded-xl border border-brand-line/70 bg-white px-3 text-[13px] font-semibold text-brand-ink shadow-sm transition hover:border-brand-line hover:bg-brand-bg/60 hover:text-brand-orange focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange/20"
             >
-              {unseenSuggestedMatchCount > 0 ? (
-                <span
-                  className="absolute -right-0.5 -top-0.5 flex h-2.5 w-2.5"
-                  aria-hidden
-                >
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand-orange opacity-75" />
-                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-brand-orange ring-2 ring-white" />
-                </span>
-              ) : null}
               <Link2
-                className={clsx(
-                  "h-4 w-4",
-                  unseenSuggestedMatchCount > 0
-                    ? "text-brand-orange"
-                    : "text-brand-ink-secondary"
-                )}
+                className="h-4 w-4 text-brand-ink-secondary"
                 strokeWidth={2}
               />
               <span className="hidden sm:inline">Match Orders</span>
-              {matchOrdersCount > 0 ? (
-                <span className="rounded-full bg-brand-orange/10 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-brand-orange">
-                  {matchOrdersCount}
-                </span>
+              {hasMatchManuals ? (
+                <span
+                  className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-brand-blue"
+                  aria-hidden
+                />
               ) : null}
-              {unseenSuggestedMatchCount > 0 ? (
-                <span className="rounded-full bg-brand-orange px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide tabular-nums text-white">
-                  {unseenSuggestedMatchCount} new
-                </span>
-              ) : null}
-            </button>
-            <button
-              type="button"
-              onClick={goToFlaggedPage}
+            </Link>
+            <Link
+              href="/orders/flagged"
+              prefetch
+              onPointerDown={warmFlaggedData}
               title={
-                flaggedOrdersCount > 0
-                  ? `Open Flagged Orders (${flaggedOrdersCount})`
+                hasFlaggedOrders
+                  ? "Open Flagged Orders — unresolved flags"
                   : "Open Flagged Orders"
               }
               aria-label={
-                flaggedOrdersCount > 0
-                  ? `Open Flagged Orders, ${flaggedOrdersCount}`
+                hasFlaggedOrders
+                  ? "Open Flagged Orders, unresolved flags"
                   : "Open Flagged Orders"
               }
-              className="flex h-9 items-center gap-1.5 rounded-xl border border-brand-line/70 bg-white px-3 text-[13px] font-semibold text-brand-ink shadow-sm transition hover:border-brand-line hover:bg-brand-bg/60 hover:text-brand-orange focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange/20"
+              className="relative flex h-9 items-center gap-1.5 rounded-xl border border-brand-line/70 bg-white px-3 text-[13px] font-semibold text-brand-ink shadow-sm transition hover:border-brand-line hover:bg-brand-bg/60 hover:text-brand-orange focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange/20"
             >
               <Flag
                 className="h-4 w-4 text-brand-ink-secondary"
                 strokeWidth={2}
               />
               <span className="hidden sm:inline">Flagged Orders</span>
-              {flaggedOrdersCount > 0 ? (
-                <span className="rounded-full bg-rose-50 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-rose-600">
-                  {flaggedOrdersCount}
-                </span>
+              {hasFlaggedOrders ? (
+                <span
+                  className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-brand-blue"
+                  aria-hidden
+                />
               ) : null}
-            </button>
+            </Link>
           </div>
         }
         search={{
-          value: searchQuery,
-          onChange: setSearchQuery,
+          value: searchInput,
+          onChange: setSearchInput,
           placeholder: `${getContactColumnHeader(
             form,
             cheerSubtype === "all" ? undefined : cheerSubtype,
@@ -2258,18 +2761,129 @@ function OrdersPageContent() {
             sourceFilter={sourceFilter}
             onSourceFilterChange={setSourceFilter}
             sourceCountRecords={preMtdRecords}
-            rangeFilter={rangeFilter === "flagged" ? "all" : rangeFilter}
-            onRangeFilterChange={setRangeFilter}
-            allOrdersCount={allOrdersCount}
-            needToBeScheduledCount={needToBeScheduledCount}
-            newOrdersCount={newOrdersCount}
-            assignedOrdersCount={assignedOrdersCount}
-            notAssignedOrdersCount={notAssignedOrdersCount}
-            reassignedOrdersCount={reassignedOrdersCount}
-            waitingForDataCount={waitingForDataCount}
+            sourceServerCounts={
+              boardCountsReady
+                ? ordersSourceMenuCounts(boardCounts, {
+                    formType: form,
+                    cheerFormSubtype:
+                      form === "school-all-star-cheer"
+                        ? cheerSubtype
+                        : undefined,
+                    danceFormSubtype:
+                      form === "school-all-star-dance"
+                        ? danceSubtype
+                        : undefined,
+                  })
+                : null
+            }
+            rangeFilter={rangeFilters}
+            onRangeFilterChange={setRangeFilters}
+            allOrdersCount={boardCountsReady ? allOrdersCount : undefined}
+            needToBeScheduledCount={
+              boardCountsReady ? needToBeScheduledCount : undefined
+            }
+            newOrdersCount={boardCountsReady ? newOrdersCount : undefined}
+            assignedOrdersCount={
+              boardCountsReady ? assignedOrdersCount : undefined
+            }
+            notAssignedOrdersCount={
+              boardCountsReady ? notAssignedOrdersCount : undefined
+            }
+            reassignedOrdersCount={
+              boardCountsReady ? reassignedOrdersCount : undefined
+            }
+            waitingForDataCount={
+              boardCountsReady ? waitingForDataCount : undefined
+            }
             onFormChange={switchForm}
             onCheerSubtypeChange={setCheerSubtype}
             onDanceSubtypeChange={setDanceSubtype}
+            onFormMenuIntent={() => {
+              // Warm the busiest other form at the subtype switchForm will land on.
+              const peer = (
+                [
+                  "school-all-star-cheer",
+                  "school-all-star-dance",
+                  "school-anthem",
+                  "marching-band",
+                  "sports-entertainment",
+                ] as OrderFormType[]
+              )
+                .filter((id) => id !== form)
+                .sort(
+                  (a, b) => (formCounts[b] ?? 0) - (formCounts[a] ?? 0)
+                )[0];
+              if (!peer || (formCounts[peer] ?? 0) <= 0) return;
+              if (peer === "school-all-star-cheer") {
+                const nextCheer =
+                  CHEER_FORM_SUBTABS.find(
+                    (t) => (cheerSubtypeCounts[t.id] ?? 0) > 0
+                  )?.id ?? DEFAULT_CHEER_SUBTYPE;
+                warmBoardQuery({
+                  formType: peer,
+                  cheerFormSubtype: nextCheer,
+                });
+                return;
+              }
+              if (peer === "school-all-star-dance") {
+                const nextDance =
+                  DANCE_FORM_SUBTABS.find(
+                    (t) => (danceSubtypeCounts[t.id] ?? 0) > 0
+                  )?.id ?? DEFAULT_DANCE_SUBTYPE;
+                warmBoardQuery({
+                  formType: peer,
+                  danceFormSubtype: nextDance,
+                });
+                return;
+              }
+              warmBoardQuery({
+                formType: peer,
+                cheerFormSubtype: "",
+                danceFormSubtype: "",
+              });
+            }}
+            onFormOptionIntent={(next) => {
+              // Must match switchForm's landing subtype or prefetch misses the real key.
+              if (next === "school-all-star-cheer") {
+                const nextCheer =
+                  CHEER_FORM_SUBTABS.find(
+                    (t) => (cheerSubtypeCounts[t.id] ?? 0) > 0
+                  )?.id ?? DEFAULT_CHEER_SUBTYPE;
+                warmBoardQuery({
+                  formType: next,
+                  cheerFormSubtype: nextCheer,
+                });
+                return;
+              }
+              if (next === "school-all-star-dance") {
+                const nextDance =
+                  DANCE_FORM_SUBTABS.find(
+                    (t) => (danceSubtypeCounts[t.id] ?? 0) > 0
+                  )?.id ?? DEFAULT_DANCE_SUBTYPE;
+                warmBoardQuery({
+                  formType: next,
+                  danceFormSubtype: nextDance,
+                });
+                return;
+              }
+              warmBoardQuery({
+                formType: next,
+                cheerFormSubtype: "",
+                danceFormSubtype: "",
+              });
+            }}
+            onCheerOptionIntent={(next) =>
+              warmBoardQuery({
+                formType: "school-all-star-cheer",
+                cheerFormSubtype: next,
+              })
+            }
+            onDanceOptionIntent={(next) =>
+              warmBoardQuery({
+                formType: "school-all-star-dance",
+                danceFormSubtype: next,
+              })
+            }
             formCounts={formCounts}
             cheerCounts={cheerSubtypeCounts}
             danceCounts={danceSubtypeCounts}
@@ -2312,11 +2926,27 @@ function OrdersPageContent() {
               );
             }}
             emptyMessage={
-              isLoading
-                ? "Loading orders…"
-                : "No pending pre-MTD orders found."
+              searchInput.trim()
+                ? "No orders match this search."
+                : rangeFilters.length > 0
+                  ? "No orders match these filters."
+                  : "No pending pre-MTD orders found."
+            }
+            loading={
+              // Rows stay painted during chip fetches. Skeleton only when the
+              // instant client seed is empty but counts say rows are coming —
+              // never a false "No orders match" flash.
+              filtered.length === 0 &&
+              ((boardLoading && boardOrders.length === 0) ||
+                (boardRefreshing && (boardTotalCount ?? 1) > 0))
             }
             pageSize={15}
+            totalCount={boardTotalCount}
+            hasMore={Boolean(boardNextPageToken)}
+            onLoadMore={loadMoreBoard}
+            loadingMore={boardLoadingMore}
+            // Chips reset to page 1 without remounting (key excludes them).
+            resetKey={`${tableFilterKey}|${rangeFilters.join(",")}`}
             embedded
             showScrollIndicator={true}
             highlightRowKey={highlightId}
@@ -2348,7 +2978,7 @@ function OrdersPageContent() {
             ? getRecordMusicAffiliateInfo(
                 recordPricingRecord,
                 orderById,
-                allOrders
+                boardOrders
               )
             : null
         }
@@ -2371,10 +3001,9 @@ function OrdersPageContent() {
         onClose={() => setMatchBeforeMtd(null)}
         onOpenMatchOrders={() => {
           const linked = matchBeforeMtd
-            ? findLinkedOrder(matchBeforeMtd.record, allOrders)
+            ? findLinkedOrder(matchBeforeMtd.record, ordersForUi)
             : null;
           setMatchBeforeMtd(null);
-          markMatchOrdersSeen();
           // Focus this order on Match Orders (Form section when it's a Magento form).
           goToMatchPage({
             manualId: linked?.isManualEntry ? linked.id : undefined,
@@ -2391,7 +3020,7 @@ function OrdersPageContent() {
         open={Boolean(mailRecord)}
         record={mailRecord}
         orderById={orderById}
-        allOrders={allOrders}
+        allOrders={ordersForUi}
         producers={producers}
         recipient={mailRecipient}
         onClose={() => setMailRecord(null)}
@@ -2403,13 +3032,19 @@ function OrdersPageContent() {
         initialFormType={form}
         initialCheerSubtype={cheerSubtype}
         initialDanceSubtype={danceSubtype}
-        onAdd={addManualScheduleEntry}
+        onAdd={async (draft) => {
+          const created = await addManualScheduleEntry(draft);
+          // New Order always creates Manual rows; Form filter would hide them.
+          setSourceFilter("both");
+          await reloadBoard();
+          return created;
+        }}
       />
 
       <OrderFormEditModal
         open={Boolean(orderFormRecord)}
         record={orderFormRecord}
-        allOrders={allOrders}
+        allOrders={ordersForUi}
         rowId={orderFormRowId}
         onClose={() => {
           setOrderFormRecord(null);
@@ -2422,7 +3057,7 @@ function OrdersPageContent() {
         record={deleteOrderRecord}
         linkedOrder={
           deleteOrderRecord
-            ? findLinkedOrder(deleteOrderRecord, allOrders)
+            ? findLinkedOrder(deleteOrderRecord, boardOrders)
             : null
         }
         busy={deletingOrder}
@@ -2434,7 +3069,7 @@ function OrdersPageContent() {
           const rec = deleteOrderRecord;
           if (!rec || deletingOrder) return;
           const orderId =
-            findLinkedOrder(rec, allOrders)?.id ||
+            findLinkedOrder(rec, ordersForUi)?.id ||
             rec.orderId ||
             rec.uuid ||
             rec.id;
@@ -2448,12 +3083,13 @@ function OrdersPageContent() {
         }}
       />
     </div>
+    </OrdersLookupProvider>
   );
 }
 
 export default function OrdersPage() {
   return (
-    <Suspense fallback={<div className="p-8 text-[13px] text-brand-ink-tertiary">Loading orders...</div>}>
+    <Suspense fallback={null}>
       <OrdersPageContent />
     </Suspense>
   );

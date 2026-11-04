@@ -24,6 +24,7 @@ import {
   orderPatchFromOrderField,
 } from "@/lib/mtd-order-sync";
 import { resolveOrderFormDisplay } from "@/lib/order-form-display";
+import { syncOrdersAfterSplit } from "@/lib/orders-board-cache";
 import { isManualSlimFormOrder } from "@/lib/add-order-mixes";
 import { formatDisplayDateTime } from "@/lib/dates";
 import type { Order } from "@/types";
@@ -85,8 +86,19 @@ export default function OrderDetailPage({
       pair.manual,
       pair.form
     );
-    await updateOrder(pair.manual.id, manualPatch, pair.manual);
-    await updateOrder(pair.form.id, formPatch, pair.form);
+    const undoSplitCaches = syncOrdersAfterSplit({
+      manual: { ...pair.manual, ...manualPatch },
+      form: { ...pair.form, ...formPatch },
+    });
+    try {
+      await Promise.all([
+        updateOrder(pair.manual.id, manualPatch, pair.manual),
+        updateOrder(pair.form.id, formPatch, pair.form),
+      ]);
+    } catch (err) {
+      undoSplitCaches();
+      throw err;
+    }
     setOrderDraft((prev) =>
       prev
         ? {

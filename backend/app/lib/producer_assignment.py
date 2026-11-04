@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import time
+from dataclasses import dataclass
+
 from sqlalchemy.orm import Session
 
 from app.models.producer import Producer
+
 
 LEGACY_PRODUCER_KEYS: dict[str, str] = {
     "MATT": "MS",
@@ -50,6 +54,25 @@ FIRST_AVAILABLE_VALUES = frozenset(
 )
 
 
+@dataclass(frozen=True)
+class _ProducerRosterRow:
+    id: str
+    initials: str
+    name: str
+    first_name: str
+
+
+# Process-local roster snapshot — avoids Producer.all() on every assign PATCH.
+# Short TTL keeps memory safe across roster edits without wiring every CRUD path.
+_ROSTER_TTL_S = 45.0
+_roster_cache: tuple[float, list[_ProducerRosterRow]] | None = None
+
+
+def invalidate_producer_assignment_roster_cache() -> None:
+    global _roster_cache
+    _roster_cache = None
+
+
 def normalize_producer_key(raw: str | None) -> str:
     if not raw:
         return ""
@@ -63,31 +86,54 @@ def is_first_available_request(raw: str | None) -> bool:
     return normalize_producer_key(raw) in FIRST_AVAILABLE_VALUES
 
 
+def _roster_rows(db: Session) -> list[_ProducerRosterRow]:
+    global _roster_cache
+    now = time.monotonic()
+    if _roster_cache and now - _roster_cache[0] < _ROSTER_TTL_S:
+        return _roster_cache[1]
+    rows: list[_ProducerRosterRow] = []
+    for producer in db.query(Producer).all():
+        name = (producer.name or "").strip().upper()
+        rows.append(
+            _ProducerRosterRow(
+                id=str(producer.id),
+                initials=(producer.initials or "").strip().upper(),
+                name=name,
+                first_name=name.split()[0] if name else "",
+            )
+        )
+    _roster_cache = (now, rows)
+    return rows
+
+
 def resolve_producer_by_assignment_key(db: Session, key: str | None) -> Producer | None:
     if not key or not key.strip():
         return None
 
     normalized = normalize_producer_key(key)
-    producers = db.query(Producer).all()
 
     # Roster match wins over reserved request codes ("FA" = First available).
     # A producer whose initials are FA must still resolve for assignment.
-    for producer in producers:
-        initials = (producer.initials or "").strip().upper()
-        name = (producer.name or "").strip().upper()
-        first_name = name.split()[0] if name else ""
-        producer_id = str(producer.id).upper()
+    matched_id: str | None = None
+    for row in _roster_rows(db):
+        if row.id.upper() == normalized:
+            matched_id = row.id
+            break
+        if row.initials == normalized:
+            matched_id = row.id
+            break
+        if normalize_producer_key(row.initials) == normalized:
+            matched_id = row.id
+            break
+        if row.name == normalized:
+            matched_id = row.id
+            break
+        if row.first_name == normalized:
+            matched_id = row.id
+            break
 
-        if producer_id == normalized:
-            return producer
-        if initials == normalized:
-            return producer
-        if normalize_producer_key(initials) == normalized:
-            return producer
-        if name == normalized:
-            return producer
-        if first_name == normalized:
-            return producer
+    if matched_id:
+        return db.get(Producer, matched_id)
 
     if is_first_available_request(key):
         return None

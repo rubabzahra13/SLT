@@ -6,9 +6,6 @@ import {
   suggestionMatchedOnLabel,
   type ManualFormSuggestion,
 } from "@/lib/manual-form-suggestions";
-
-const UNSEEN_MATCH_STORAGE_KEY = "slt_unseen_match_form_ids";
-
 export type IncomingOrderBell =
   | {
       kind: "flagged";
@@ -53,57 +50,6 @@ export function setMatchOrdersPageOpen(open: boolean): void {
 
 export function isMatchOrdersPageOpen(): boolean {
   return matchOrdersPageOpen;
-}
-
-function sessionStore(): Storage | null {
-  if (typeof window === "undefined") return null;
-  try {
-    return window.sessionStorage;
-  } catch {
-    return null;
-  }
-}
-
-export function readUnseenMatchFormIds(): string[] {
-  const store = sessionStore();
-  if (!store) return [];
-  try {
-    const raw = store.getItem(UNSEEN_MATCH_STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) return [];
-    return parsed
-      .map((id) => String(id || "").trim())
-      .filter(Boolean);
-  } catch {
-    return [];
-  }
-}
-
-export function writeUnseenMatchFormIds(ids: string[]): void {
-  const store = sessionStore();
-  if (!store) return;
-  try {
-    store.setItem(UNSEEN_MATCH_STORAGE_KEY, JSON.stringify(ids));
-  } catch {
-    /* ignore quota / private mode */
-  }
-}
-
-export function addUnseenMatchFormId(
-  id: string,
-  prev: string[] = readUnseenMatchFormIds()
-): string[] {
-  const key = String(id || "").trim();
-  if (!key || prev.includes(key)) return prev;
-  const next = [...prev, key];
-  writeUnseenMatchFormIds(next);
-  return next;
-}
-
-export function clearUnseenMatchFormIds(): string[] {
-  writeUnseenMatchFormIds([]);
-  return [];
 }
 
 function orderNotifyLabel(order: Order): string {

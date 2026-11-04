@@ -1,6 +1,13 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useState,
+} from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
@@ -28,6 +35,13 @@ import {
   type MTDTableFilterState,
 } from "@/components/mtd/MTDTableFilters";
 import { useAppState } from "@/context/AppStateContext";
+import { prefetchOrdersBoard } from "@/hooks/useOrdersBoard";
+import {
+  prefetchOrdersMatchPoolQuery,
+  refreshMatchCounts,
+  useOrdersMatchPool,
+} from "@/hooks/useOrdersMatchPool";
+import type { OrdersMatchCounts } from "@/lib/api/orders-board";
 import { titleCase } from "@/lib/data";
 import { formatDisplayDateTime } from "@/lib/dates";
 import { rawFieldValue } from "@/lib/order-detail-fields";
@@ -52,6 +66,10 @@ import {
   buildOrdersReturnHref,
   loadOrdersViewState,
 } from "@/lib/orders-view-state";
+import {
+  MATCH_POOL_SYNC_EVENT,
+  readMatchCountsCache,
+} from "@/lib/orders-board-cache";
 import { stagingRecordFromOrder } from "@/lib/order-staging";
 import {
   CHEER_FORM_SUBTABS,
@@ -70,29 +88,117 @@ import type {
 const DEFAULT_FORM: OrderFormType = "school-all-star-cheer";
 const DEFAULT_CHEER_SUBTYPE: CheerFormSubtypeFilter = "all-star-cheer";
 const DEFAULT_DANCE_SUBTYPE: DanceFormSubtypeFilter = "pom";
+const MATCH_FORM_KEY = "slt_match_form";
+const MATCH_CHEER_KEY = "slt_match_cheer_subtype";
+const MATCH_DANCE_KEY = "slt_match_dance_subtype";
 /** Rows per Match panel page: small enough that dual panes page quickly. */
 const MATCH_PAGE_SIZE = 5;
+
+const VALID_MATCH_FORMS = MANUAL_MATCH_FORM_TABS.map((t) => t.id);
+const VALID_CHEER: CheerFormSubtypeFilter[] = [
+  "all-star-cheer",
+  "school-cheer-viroc-yes",
+  "school-cheer-viroc-no",
+  "youth-rec-cheer",
+];
+const VALID_DANCE: DanceFormSubtypeFilter[] = [
+  "pom",
+  "hip-hop",
+  "team-performance-variety",
+  "gameday",
+  "jazz-kick",
+];
+
+function readStoredMatchFilters(): {
+  form: OrderFormType;
+  cheerSubtype: CheerFormSubtypeFilter;
+  danceSubtype: DanceFormSubtypeFilter;
+} {
+  if (typeof window === "undefined") {
+    return {
+      form: DEFAULT_FORM,
+      cheerSubtype: DEFAULT_CHEER_SUBTYPE,
+      danceSubtype: DEFAULT_DANCE_SUBTYPE,
+    };
+  }
+  const formRaw = sessionStorage.getItem(MATCH_FORM_KEY) as OrderFormType | null;
+  const cheerRaw = sessionStorage.getItem(
+    MATCH_CHEER_KEY
+  ) as CheerFormSubtypeFilter | null;
+  const danceRaw = sessionStorage.getItem(
+    MATCH_DANCE_KEY
+  ) as DanceFormSubtypeFilter | null;
+  return {
+    form:
+      formRaw && VALID_MATCH_FORMS.includes(formRaw) ? formRaw : DEFAULT_FORM,
+    cheerSubtype:
+      cheerRaw && VALID_CHEER.includes(cheerRaw)
+        ? cheerRaw
+        : DEFAULT_CHEER_SUBTYPE,
+    danceSubtype:
+      danceRaw && VALID_DANCE.includes(danceRaw)
+        ? danceRaw
+        : DEFAULT_DANCE_SUBTYPE,
+  };
+}
 
 function ListPagination({
   page,
   pageSize,
   total,
+  displayTotal,
+  hasMore = false,
+  loadingMore = false,
   onPageChange,
+  onLoadMore,
 }: {
   page: number;
   pageSize: number;
+  /** Rows currently loaded in memory. */
   total: number;
+  /** Server-known total (Orders-style "of N"). */
+  displayTotal?: number;
+  hasMore?: boolean;
+  loadingMore?: boolean;
   onPageChange: (page: number) => void;
+  onLoadMore?: () => void;
 }) {
-  if (pageSize <= 0 || total <= 0) return null;
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const safePage = Math.min(Math.max(0, page), totalPages - 1);
-  const rangeStart = safePage * pageSize + 1;
+  const knownTotal =
+    typeof displayTotal === "number" && displayTotal >= 0
+      ? Math.max(displayTotal, total)
+      : total;
+  if (pageSize <= 0 || knownTotal <= 0) return null;
+  const loadedPages = Math.max(1, Math.ceil(total / pageSize));
+  const knownTotalPages = Math.max(1, Math.ceil(knownTotal / pageSize));
+  const safePage = Math.min(Math.max(0, page), Math.max(0, knownTotalPages - 1));
+  const rangeStart = total === 0 ? 0 : safePage * pageSize + 1;
   const rangeEnd = Math.min(total, (safePage + 1) * pageSize);
+
+  const goNext = () => {
+    if (safePage < loadedPages - 1) {
+      onPageChange(safePage + 1);
+      return;
+    }
+    if (hasMore && onLoadMore && !loadingMore) {
+      onLoadMore();
+      onPageChange(safePage + 1);
+      return;
+    }
+    if (safePage < knownTotalPages - 1) onPageChange(safePage + 1);
+  };
+
+  const canGoNext =
+    safePage < loadedPages - 1 ||
+    (hasMore && !loadingMore) ||
+    safePage < knownTotalPages - 1;
+
   return (
     <div className="flex shrink-0 items-center justify-between gap-3 border-t border-brand-line/40 bg-brand-elevated/40 px-4 py-2.5">
       <p className="text-[12px] font-medium text-brand-ink-tertiary">
-        {rangeStart}-{rangeEnd} of {total}
+        {total === 0
+          ? `0 of ${knownTotal}`
+          : `${rangeStart}-${rangeEnd} of ${knownTotal}`}
+        {loadingMore ? " · loading…" : null}
       </p>
       <div className="flex items-center gap-1.5">
         <button
@@ -105,12 +211,12 @@ function ListPagination({
           <ChevronLeft className="h-4 w-4" strokeWidth={2} />
         </button>
         <span className="min-w-[4.5rem] text-center text-[12px] font-semibold tabular-nums text-brand-ink-secondary">
-          {safePage + 1} / {totalPages}
+          {safePage + 1} / {knownTotalPages}
         </span>
         <button
           type="button"
-          disabled={safePage >= totalPages - 1}
-          onClick={() => onPageChange(Math.min(totalPages - 1, safePage + 1))}
+          disabled={!canGoNext}
+          onClick={goNext}
           aria-label="Next page"
           className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-brand-ink-secondary transition hover:bg-brand-bg hover:text-brand-ink disabled:opacity-30"
         >
@@ -121,15 +227,29 @@ function ListPagination({
   );
 }
 
-/** Same Filters + Sort pipeline as Orders (via staging MTD rows). */
+/** Any Filters choice that can hide rows (Sort only reorders). */
+function narrowsMatchList(filters: MTDTableFilterState): boolean {
+  return (
+    filters.packageTier !== "All" ||
+    filters.timeLimit !== "All" ||
+    filters.split !== "all" ||
+    filters.assignedProducer !== "All" ||
+    filters.requestedProducer !== "All" ||
+    (filters.scheduleFilter ?? "all") !== "all" ||
+    (filters.infoFilter ?? "all") !== "all" ||
+    filters.dateFilter.type !== "all"
+  );
+}
+
+/** Same Filters + Sort pipeline as Orders (via staging MTD rows).
+ * Form/subtype are already applied by /orders/match-pool — do not re-filter
+ * here (wiped keepPreviousData on Jazz/Kick switches → false empty state).
+ */
 function filterAndSortMatchOrders(
   orders: Order[],
   filters: MTDTableFilterState,
   producers: Producer[],
-  orderById: Map<string, Order>,
-  form: OrderFormType,
-  cheerSubtype: CheerFormSubtypeFilter,
-  danceSubtype: DanceFormSubtypeFilter
+  orderById: Map<string, Order>
 ): Order[] {
   if (orders.length === 0) return [];
   const records = orders.map(stagingRecordFromOrder);
@@ -144,9 +264,6 @@ function filterAndSortMatchOrders(
     infoFilter: filters.infoFilter,
     producers,
     orderById,
-    form,
-    cheerSubtype,
-    danceSubtype,
   });
   const sorted = sortMTDRecordsBySortKey(
     filtered,
@@ -210,6 +327,73 @@ function packageLabel(o: Order): string {
     packageTypeDisplayValue(o.packageType || "") ||
     o.package ||
     "No package"
+  );
+}
+
+function MatchSideColumnSkeleton({ title, subtitle }: { title: string; subtitle: string }) {
+  const widths = [72, 54, 66, 48, 60, 58, 70, 52];
+  return (
+    <section className="dashboard-panel dashboard-panel-framed flex min-h-0 flex-col overflow-hidden">
+      <header className="space-y-2 border-b border-brand-line/40 px-4 py-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0 space-y-1.5">
+            <h3 className="text-[13px] font-bold tracking-wide text-brand-ink">
+              {title}
+            </h3>
+            <p className="text-[11px] text-brand-ink-secondary">{subtitle}</p>
+          </div>
+          <span className="h-5 w-8 animate-pulse rounded-full bg-brand-line/70" />
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="h-8 min-w-0 flex-1 animate-pulse rounded-lg bg-brand-line/55" />
+          <div className="h-8 w-20 shrink-0 animate-pulse rounded-xl bg-brand-line/55" />
+        </div>
+      </header>
+      <div className="min-h-0 flex-1 space-y-1 overflow-hidden p-2" aria-hidden>
+        {widths.map((w, i) => (
+          <div
+            key={i}
+            className="flex items-center gap-3 rounded-xl px-3 py-2.5"
+          >
+            <span className="h-8 w-8 shrink-0 animate-pulse rounded-full bg-brand-line/65" />
+            <div className="min-w-0 flex-1 space-y-2">
+              <span
+                className="block h-3.5 animate-pulse rounded-md bg-brand-line/70"
+                style={{ width: `${w}%` }}
+              />
+              <span
+                className="block h-3 animate-pulse rounded-md bg-brand-line/50"
+                style={{ width: `${Math.max(32, w - 18)}%` }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function MatchPoolSkeleton() {
+  return (
+    <div
+      className="flex h-full min-h-0 flex-col gap-3"
+      role="status"
+      aria-label="Loading match pool"
+    >
+      <div className="shrink-0 border-b border-brand-line/50 pb-2">
+        <div className="h-4 w-3/4 max-w-md animate-pulse rounded-md bg-brand-line/60" />
+      </div>
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-2">
+        <MatchSideColumnSkeleton
+          title="Incoming form data"
+          subtitle="Customer submissions waiting to link"
+        />
+        <MatchSideColumnSkeleton
+          title="Manually added order"
+          subtitle="New Orders waiting for a Magento form"
+        />
+      </div>
+    </div>
   );
 }
 
@@ -387,26 +571,97 @@ function MatchOrdersPageContent() {
   const focusFormId = searchParams.get("form");
   /** From Flagged Resolve (or notify): open Match Confirm for this pair. */
   const openConfirmOnFocus = searchParams.get("confirm") === "1";
-  const {
-    activeOrders,
-    allOrders,
-    producers,
-    isLoading,
-    isViewOnly,
-    markMatchOrdersSeen,
-  } = useAppState();
+  const { producers, isViewOnly } = useAppState();
 
+  const [form, setFormState] = useState<OrderFormType>(() =>
+    typeof window !== "undefined" ? readStoredMatchFilters().form : DEFAULT_FORM
+  );
+  const [cheerSubtype, setCheerSubtypeState] =
+    useState<CheerFormSubtypeFilter>(() =>
+      typeof window !== "undefined"
+        ? readStoredMatchFilters().cheerSubtype
+        : DEFAULT_CHEER_SUBTYPE
+    );
+  const [danceSubtype, setDanceSubtypeState] =
+    useState<DanceFormSubtypeFilter>(() =>
+      typeof window !== "undefined"
+        ? readStoredMatchFilters().danceSubtype
+        : DEFAULT_DANCE_SUBTYPE
+    );
+  const [filtersReady, setFiltersReady] = useState(
+    () => typeof window !== "undefined"
+  );
+
+  const setForm = useCallback((next: OrderFormType) => {
+    setFormState(next);
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem(MATCH_FORM_KEY, next);
+    }
+  }, []);
+  const setCheerSubtype = useCallback((next: CheerFormSubtypeFilter) => {
+    setCheerSubtypeState(next);
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem(MATCH_CHEER_KEY, next);
+    }
+  }, []);
+  const setDanceSubtype = useCallback((next: DanceFormSubtypeFilter) => {
+    setDanceSubtypeState(next);
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem(MATCH_DANCE_KEY, next);
+    }
+  }, []);
+
+  useLayoutEffect(() => {
+    const stored = readStoredMatchFilters();
+    setFormState(stored.form);
+    setCheerSubtypeState(stored.cheerSubtype);
+    setDanceSubtypeState(stored.danceSubtype);
+    setFiltersReady(true);
+  }, []);
+
+  const {
+    orders: matchPool,
+    nextPageToken: matchPoolNextPageToken,
+    loading: matchPoolLoading,
+    loadingMore: matchPoolLoadingMore,
+    loadMore: loadMoreMatchPool,
+  } = useOrdersMatchPool({
+    enabled: filtersReady,
+    formType: form,
+    cheerFormSubtype:
+      form === "school-all-star-cheer" ? cheerSubtype : undefined,
+    danceFormSubtype:
+      form === "school-all-star-dance" ? danceSubtype : undefined,
+  });
+
+  const [matchCounts, setMatchCounts] = useState<OrdersMatchCounts | null>(
+    () => readMatchCountsCache()?.counts ?? null
+  );
+  // Live updates keep fresh badges current — only a stale / cold cache refetches.
+  useEffect(() => {
+    const cached = readMatchCountsCache();
+    if (cached) setMatchCounts(cached.counts);
+    if (!cached?.fresh) void refreshMatchCounts();
+  }, []);
+  // Matches, splits, edits and live updates move the cached badges.
+  useEffect(() => {
+    const onSync = () => {
+      const hit = readMatchCountsCache();
+      if (hit) setMatchCounts(hit.counts);
+    };
+    window.addEventListener(MATCH_POOL_SYNC_EVENT, onSync);
+    return () => window.removeEventListener(MATCH_POOL_SYNC_EVENT, onSync);
+  }, []);
   useEffect(() => {
     setMatchOrdersPageOpen(true);
-    markMatchOrdersSeen();
     return () => setMatchOrdersPageOpen(false);
-  }, [markMatchOrdersSeen]);
+  }, []);
 
-  const [form, setForm] = useState<OrderFormType>(DEFAULT_FORM);
-  const [cheerSubtype, setCheerSubtype] =
-    useState<CheerFormSubtypeFilter>(DEFAULT_CHEER_SUBTYPE);
-  const [danceSubtype, setDanceSubtype] =
-    useState<DanceFormSubtypeFilter>(DEFAULT_DANCE_SUBTYPE);
+  const activeOrders = matchPool;
+  const allOrders = matchPool;
+  // Do not wait on AppState bootstrap — orders are paged via match-pool.
+  const matchLoading = matchPoolLoading && matchPool.length === 0;
+
   const [magentoSearch, setMagentoSearch] = useState("");
   const [manualSearch, setManualSearch] = useState("");
   const [magentoFilters, setMagentoFilters] = useState<MTDTableFilterState>(
@@ -450,7 +705,7 @@ function MatchOrdersPageContent() {
 
   // Deep-link from Orders MTD soft gate: focus a manual (+ optional form).
   useEffect(() => {
-    if (focusSeedApplied || isLoading) return;
+    if (focusSeedApplied || matchLoading) return;
     if (!focusManualId && !focusFormId) {
       setFocusSeedApplied(true);
       return;
@@ -483,7 +738,7 @@ function MatchOrdersPageContent() {
       );
 
     const seed = formOrder || manual;
-    if (seed?.formType && supportsManualMatchForm(seed.formType)) {
+    if (seed?.formType && VALID_MATCH_FORMS.includes(seed.formType)) {
       setForm(seed.formType);
       if (seed.formType === "school-all-star-cheer") {
         setCheerSubtype(
@@ -523,7 +778,7 @@ function MatchOrdersPageContent() {
     setFocusSeedApplied(true);
   }, [
     focusSeedApplied,
-    isLoading,
+    matchLoading,
     focusManualId,
     focusFormId,
     openConfirmOnFocus,
@@ -532,58 +787,37 @@ function MatchOrdersPageContent() {
     allOrders,
   ]);
 
+  // Server chip totals only (sticky via match-counts cache) — no pool-local merge.
   const formCounts = useMemo(() => {
     const counts = Object.fromEntries(
       MANUAL_MATCH_FORM_TABS.map(({ id }) => [id, 0])
     ) as Record<OrderFormType, number>;
-    for (const o of unmatchedMagento) {
-      if (counts[o.formType] !== undefined) counts[o.formType] += 1;
+    if (!matchCounts?.by_form_type) return counts;
+    for (const tab of MANUAL_MATCH_FORM_TABS) {
+      counts[tab.id] = matchCounts.by_form_type[tab.id] ?? 0;
     }
     return counts;
-  }, [unmatchedMagento]);
+  }, [matchCounts]);
 
   const cheerSubtypeCounts = useMemo(() => {
-    const cheer = unmatchedMagento.filter(
-      (o) => o.formType === "school-all-star-cheer"
-    );
-    const counts = {
-      all: cheer.length,
+    const fromServer = matchCounts?.by_cheer_form_subtype || {};
+    return {
+      all: Object.values(fromServer).reduce((a, b) => a + b, 0),
       ...Object.fromEntries(CHEER_FORM_SUBTABS.map(({ id }) => [id, 0])),
+      ...fromServer,
     } as Record<CheerFormSubtypeFilter, number>;
-    for (const o of cheer) {
-      for (const tab of CHEER_FORM_SUBTABS) {
-        if (
-          orderMatchesFormFilter(o, "school-all-star-cheer", tab.id, "all")
-        ) {
-          counts[tab.id] = (counts[tab.id] || 0) + 1;
-        }
-      }
-    }
-    return counts;
-  }, [unmatchedMagento]);
+  }, [matchCounts]);
 
   const danceSubtypeCounts = useMemo(() => {
-    const dance = unmatchedMagento.filter(
-      (o) => o.formType === "school-all-star-dance"
-    );
-    const counts = {
-      all: dance.length,
+    const fromServer = matchCounts?.by_dance_form_subtype || {};
+    return {
+      all: Object.values(fromServer).reduce((a, b) => a + b, 0),
       ...Object.fromEntries(DANCE_FORM_SUBTABS.map(({ id }) => [id, 0])),
+      ...fromServer,
     } as Record<DanceFormSubtypeFilter, number>;
-    for (const o of dance) {
-      for (const tab of DANCE_FORM_SUBTABS) {
-        if (
-          orderMatchesFormFilter(o, "school-all-star-dance", "all", tab.id)
-        ) {
-          counts[tab.id] = (counts[tab.id] || 0) + 1;
-        }
-      }
-    }
-    return counts;
-  }, [unmatchedMagento]);
+  }, [matchCounts]);
 
   const switchForm = useCallback((next: OrderFormType) => {
-    if (!supportsManualMatchForm(next)) return;
     setForm(next);
     setSelectedMagentoId(null);
     setMagentoPage(0);
@@ -596,6 +830,121 @@ function MatchOrdersPageContent() {
     }
   }, []);
 
+  const warmMatchForm = useCallback((next: OrderFormType) => {
+    if (next === form) return;
+    if (next === "school-all-star-cheer") {
+      void prefetchOrdersMatchPoolQuery({
+        formType: next,
+        cheerFormSubtype: cheerSubtype,
+      });
+      return;
+    }
+    if (next === "school-all-star-dance") {
+      void prefetchOrdersMatchPoolQuery({
+        formType: next,
+        danceFormSubtype: danceSubtype,
+      });
+      return;
+    }
+    void prefetchOrdersMatchPoolQuery({ formType: next });
+  }, [form, cheerSubtype, danceSubtype]);
+
+  const warmMatchCheer = useCallback(
+    (next: CheerFormSubtypeFilter) => {
+      if (next === cheerSubtype) return;
+      void prefetchOrdersMatchPoolQuery({
+        formType: "school-all-star-cheer",
+        cheerFormSubtype: next,
+      });
+    },
+    [cheerSubtype]
+  );
+
+  const warmMatchDance = useCallback(
+    (next: DanceFormSubtypeFilter) => {
+      if (next === danceSubtype) return;
+      void prefetchOrdersMatchPoolQuery({
+        formType: "school-all-star-dance",
+        danceFormSubtype: next,
+      });
+    },
+    [danceSubtype]
+  );
+
+  // Warm sibling tabs as soon as counts exist (don't wait for the active pool).
+  // Parallel top jobs so Cheer↔MB / All Star↔School Cheer aren't cold on click.
+  useEffect(() => {
+    if (!matchCounts) return;
+    let cancelled = false;
+    const run = async () => {
+      const jobs: {
+        formType: OrderFormType;
+        cheerFormSubtype?: string;
+        danceFormSubtype?: string;
+      }[] = [];
+      for (const tab of MANUAL_MATCH_FORM_TABS) {
+        const magento = matchCounts.by_form_type[tab.id] ?? 0;
+        const manual = matchCounts.manual_by_form_type[tab.id] ?? 0;
+        if (magento + manual <= 0) continue;
+        if (tab.id === "school-all-star-cheer") {
+          for (const st of VALID_CHEER) {
+            if (
+              (matchCounts.by_cheer_form_subtype[st] ?? 0) +
+                (matchCounts.manual_by_cheer_form_subtype[st] ?? 0) <=
+              0
+            ) {
+              continue;
+            }
+            if (form === tab.id && cheerSubtype === st) continue;
+            jobs.push({ formType: tab.id, cheerFormSubtype: st });
+          }
+        } else if (tab.id === "school-all-star-dance") {
+          for (const st of VALID_DANCE) {
+            if (
+              (matchCounts.by_dance_form_subtype[st] ?? 0) +
+                (matchCounts.manual_by_dance_form_subtype[st] ?? 0) <=
+              0
+            ) {
+              continue;
+            }
+            if (form === tab.id && danceSubtype === st) continue;
+            jobs.push({ formType: tab.id, danceFormSubtype: st });
+          }
+        } else if (form !== tab.id) {
+          jobs.push({ formType: tab.id });
+        }
+      }
+      // Prefer the default Cheer landing + other forms first.
+      jobs.sort((a, b) => {
+        const rank = (j: (typeof jobs)[number]) => {
+          if (
+            j.formType === "school-all-star-cheer" &&
+            j.cheerFormSubtype === "all-star-cheer"
+          ) {
+            return 0;
+          }
+          if (j.formType === "marching-band") return 1;
+          if (j.formType === "school-all-star-dance") return 2;
+          return 3;
+        };
+        return rank(a) - rank(b);
+      });
+      if (cancelled) return;
+      await Promise.all(
+        jobs.slice(0, 4).map((job) => prefetchOrdersMatchPoolQuery(job))
+      );
+    };
+    const t = window.setTimeout(() => {
+      void run();
+    }, 200);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t);
+    };
+  }, [matchCounts, form, cheerSubtype, danceSubtype]);
+
+  // Pool is API-scoped; still filter client-side so a stale previous tab never
+  // paints under Gameday (0) / empty subtypes.
   const magentoInCategory = useMemo(
     () =>
       unmatchedMagento.filter((o) =>
@@ -603,7 +952,6 @@ function MatchOrdersPageContent() {
       ),
     [unmatchedMagento, form, cheerSubtype, danceSubtype]
   );
-
   const manualsInCategory = useMemo(
     () =>
       unmatchedManuals.filter((o) =>
@@ -611,6 +959,29 @@ function MatchOrdersPageContent() {
       ),
     [unmatchedManuals, form, cheerSubtype, danceSubtype]
   );
+
+  /** Header badge: server totals for the active form/subtype (Orders-style). */
+  const headerMagentoCount = useMemo(() => {
+    if (!matchCounts) return magentoInCategory.length;
+    if (form === "school-all-star-cheer" && cheerSubtype !== "all") {
+      return matchCounts.by_cheer_form_subtype[cheerSubtype] ?? 0;
+    }
+    if (form === "school-all-star-dance" && danceSubtype !== "all") {
+      return matchCounts.by_dance_form_subtype[danceSubtype] ?? 0;
+    }
+    return matchCounts.by_form_type[form] ?? 0;
+  }, [matchCounts, form, cheerSubtype, danceSubtype, magentoInCategory.length]);
+
+  const headerManualCount = useMemo(() => {
+    if (!matchCounts) return manualsInCategory.length;
+    if (form === "school-all-star-cheer" && cheerSubtype !== "all") {
+      return matchCounts.manual_by_cheer_form_subtype[cheerSubtype] ?? 0;
+    }
+    if (form === "school-all-star-dance" && danceSubtype !== "all") {
+      return matchCounts.manual_by_dance_form_subtype[danceSubtype] ?? 0;
+    }
+    return matchCounts.manual_by_form_type[form] ?? 0;
+  }, [matchCounts, form, cheerSubtype, danceSubtype, manualsInCategory.length]);
 
   const mq = magentoSearch.trim().toLowerCase();
   const nq = manualSearch.trim().toLowerCase();
@@ -631,21 +1002,9 @@ function MatchOrdersPageContent() {
       list,
       magentoFilters,
       producers,
-      orderById,
-      form,
-      cheerSubtype,
-      danceSubtype
+      orderById
     );
-  }, [
-    magentoInCategory,
-    mq,
-    magentoFilters,
-    producers,
-    orderById,
-    form,
-    cheerSubtype,
-    danceSubtype,
-  ]);
+  }, [magentoInCategory, mq, magentoFilters, producers, orderById]);
 
   const manualsFiltered = useMemo(() => {
     let list = manualsInCategory;
@@ -654,21 +1013,9 @@ function MatchOrdersPageContent() {
       list,
       manualFilters,
       producers,
-      orderById,
-      form,
-      cheerSubtype,
-      danceSubtype
+      orderById
     );
-  }, [
-    manualsInCategory,
-    nq,
-    manualFilters,
-    producers,
-    orderById,
-    form,
-    cheerSubtype,
-    danceSubtype,
-  ]);
+  }, [manualsInCategory, nq, manualFilters, producers, orderById]);
 
   const selectedMagento = useMemo(() => {
     if (!selectedMagentoId) return null;
@@ -734,15 +1081,31 @@ function MatchOrdersPageContent() {
     manualFilters.sortBy,
   ]);
 
-  const magentoTotalPages = Math.max(
+  const magentoLoadedPages = Math.max(
     1,
-    Math.ceil(magentoFiltered.length / MATCH_PAGE_SIZE)
+    Math.ceil(Math.max(magentoFiltered.length, 1) / MATCH_PAGE_SIZE)
   );
-  const magentoSafePage = Math.min(magentoPage, magentoTotalPages - 1);
+  const magentoSafePage = Math.min(
+    magentoPage,
+    Math.max(0, magentoLoadedPages - 1)
+  );
   const magentoPageItems = magentoFiltered.slice(
     magentoSafePage * MATCH_PAGE_SIZE,
     magentoSafePage * MATCH_PAGE_SIZE + MATCH_PAGE_SIZE
   );
+
+  // Prefetch next server page when the Magento pager reaches the last loaded page.
+  useEffect(() => {
+    if (!matchPoolNextPageToken || matchPoolLoadingMore) return;
+    if (magentoSafePage < magentoLoadedPages - 1) return;
+    void loadMoreMatchPool();
+  }, [
+    magentoSafePage,
+    magentoLoadedPages,
+    matchPoolNextPageToken,
+    matchPoolLoadingMore,
+    loadMoreMatchPool,
+  ]);
 
   // Suggested stay visible in full; paginate only non-suggested manuals so
   // name matches don't push "All other manuals" onto later pages.
@@ -774,6 +1137,23 @@ function MatchOrdersPageContent() {
       : [];
   const manualsOrderedCount = suggestedManuals.length + otherManuals.length;
 
+  // Server totals only describe the unfiltered tab; a search or filter shows
+  // what matched in the loaded rows instead.
+  const magentoNarrowed = Boolean(mq) || narrowsMatchList(magentoFilters);
+  const manualNarrowed = Boolean(nq) || narrowsMatchList(manualFilters);
+  const magentoPanelCount = magentoNarrowed
+    ? magentoFiltered.length
+    : headerMagentoCount;
+  const manualPanelCount = manualNarrowed
+    ? manualsOrderedCount
+    : headerManualCount;
+  const magentoPagerTotal = magentoNarrowed ? undefined : headerMagentoCount;
+  const manualPagerTotal = manualNarrowed
+    ? undefined
+    : paginateOthersOnly
+      ? Math.max(0, headerManualCount - suggestedManuals.length)
+      : headerManualCount;
+
   const programHeader = getProgramColumnHeader(
     form,
     cheerSubtype === "all" ? undefined : cheerSubtype,
@@ -788,20 +1168,46 @@ function MatchOrdersPageContent() {
     setMatchPair({ magento, manual });
   };
 
-  const ordersReturnHref = useMemo(
-    () => buildOrdersReturnHref(loadOrdersViewState() || {}),
-    []
-  );
+  const ordersReturnHref = useMemo(() => {
+    const stored = loadOrdersViewState() || {};
+    // Keep form/subtype; open All so Back never lands on an empty Missing/Assigned tab.
+    return buildOrdersReturnHref({
+      ...stored,
+      rangeFilter: "all",
+      searchQuery: "",
+    });
+  }, []);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <PageHeader
         title="Match Orders"
-        badge={`${magentoFiltered.length} Magento · ${manualsOrderedCount} manual`}
+        badge={`${headerMagentoCount} Magento · ${headerManualCount} manual`}
         subtitle={`Pick a Magento form, then link it to a manual ${programHeader.toLowerCase()} when names look alike`}
         headerActions={
           <Link
             href={ordersReturnHref}
+            prefetch
+            onPointerDown={() => {
+              const stored = loadOrdersViewState();
+              void prefetchOrdersBoard({
+                formType: stored?.form,
+                cheerFormSubtype:
+                  stored?.form === "school-all-star-cheer"
+                    ? stored.cheerSubtype
+                    : undefined,
+                danceFormSubtype:
+                  stored?.form === "school-all-star-dance"
+                    ? stored.danceSubtype
+                    : undefined,
+                range:
+                  !stored?.rangeFilter || stored.rangeFilter === "all"
+                    ? undefined
+                    : stored.rangeFilter,
+                sortBy: "newest",
+                excludeFlagged: true,
+              });
+            }}
             className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-brand-line/70 bg-white px-3 text-[13px] font-semibold text-brand-ink shadow-sm transition hover:border-brand-line hover:bg-brand-bg/60"
           >
             <ArrowLeft className="h-4 w-4" strokeWidth={2} />
@@ -813,6 +1219,7 @@ function MatchOrdersPageContent() {
             <OrderFormTabs
               form={form}
               onFormChange={switchForm}
+              onFormIntent={warmMatchForm}
               formCounts={formCounts}
               tabs={MANUAL_MATCH_FORM_TABS}
             />
@@ -823,11 +1230,17 @@ function MatchOrdersPageContent() {
               onCheerSubtypeChange={(s) => {
                 setCheerSubtype(s);
                 setSelectedMagentoId(null);
+                setMagentoPage(0);
+                setManualPage(0);
               }}
               onDanceSubtypeChange={(s) => {
                 setDanceSubtype(s);
                 setSelectedMagentoId(null);
+                setMagentoPage(0);
+                setManualPage(0);
               }}
+              onCheerIntent={warmMatchCheer}
+              onDanceIntent={warmMatchDance}
               cheerCounts={cheerSubtypeCounts}
               danceCounts={danceSubtypeCounts}
             />
@@ -836,9 +1249,15 @@ function MatchOrdersPageContent() {
       />
 
       <div className="min-h-0 flex-1 overflow-hidden px-2 pb-4 pt-4 lg:px-3">
-        {isLoading ? (
-          <p className="px-4 text-[13px] text-brand-ink-secondary">Loading…</p>
-        ) : magentoFiltered.length === 0 && manualsFiltered.length === 0 ? (
+        {matchLoading ? (
+          <MatchPoolSkeleton />
+        ) : magentoFiltered.length === 0 &&
+          manualsFiltered.length === 0 &&
+          !matchPoolNextPageToken &&
+          // Counts can say "1" while the new subtype pool is still in flight —
+          // don't flash the empty state over real Jazz/Kick (etc.) rows.
+          headerMagentoCount === 0 &&
+          headerManualCount === 0 ? (
           <div className="mx-auto flex max-w-md flex-col items-center gap-3 px-6 py-16 text-center">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-bg text-brand-ink-tertiary ring-1 ring-inset ring-brand-line/50">
               <Link2 className="h-5 w-5" />
@@ -875,7 +1294,7 @@ function MatchOrdersPageContent() {
                       </p>
                     </div>
                     <span className="rounded-full bg-brand-bg px-2 py-0.5 text-[11px] font-semibold tabular-nums text-brand-ink-secondary ring-1 ring-inset ring-brand-line/40">
-                      {magentoFiltered.length}
+                      {magentoPanelCount}
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
@@ -919,12 +1338,24 @@ function MatchOrdersPageContent() {
                 </header>
                 <div className="min-h-0 flex-1 space-y-0.5 overflow-y-auto p-2">
                   {magentoFiltered.length === 0 ? (
-                    <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
-                      <Search className="h-5 w-5 text-brand-ink-tertiary" />
-                      <p className="text-[13px] text-brand-ink-secondary">
-                        No Magento forms in this tab
-                      </p>
-                    </div>
+                    matchPoolLoading ? (
+                      <div className="space-y-1 p-1" aria-busy="true">
+                        {[72, 54, 66].map((w, i) => (
+                          <div
+                            key={i}
+                            className="h-14 animate-pulse rounded-xl bg-brand-line/45"
+                            style={{ width: `${w}%` }}
+                          />
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
+                        <Search className="h-5 w-5 text-brand-ink-tertiary" />
+                        <p className="text-[13px] text-brand-ink-secondary">
+                          No Magento forms in this tab
+                        </p>
+                      </div>
+                    )
                   ) : (
                     magentoPageItems.map((o) => (
                       <SideRow
@@ -945,7 +1376,11 @@ function MatchOrdersPageContent() {
                   page={magentoSafePage}
                   pageSize={MATCH_PAGE_SIZE}
                   total={magentoFiltered.length}
+                  displayTotal={magentoPagerTotal}
+                  hasMore={Boolean(matchPoolNextPageToken)}
+                  loadingMore={matchPoolLoadingMore}
                   onPageChange={setMagentoPage}
+                  onLoadMore={loadMoreMatchPool}
                 />
               </section>
 
@@ -962,7 +1397,7 @@ function MatchOrdersPageContent() {
                       </p>
                     </div>
                     <span className="rounded-full bg-brand-bg px-2 py-0.5 text-[11px] font-semibold tabular-nums text-brand-ink-secondary ring-1 ring-inset ring-brand-line/40">
-                      {suggestedManuals.length + otherManuals.length}
+                      {manualPanelCount}
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
@@ -1009,8 +1444,12 @@ function MatchOrdersPageContent() {
                     <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
                       <Search className="h-5 w-5 text-brand-ink-tertiary" />
                       <p className="text-[13px] text-brand-ink-secondary">
-                        No unmatched manuals in this tab. Add a New Order on
-                        Orders first.
+                        {supportsManualMatchForm(form)
+                          ? "No unmatched manuals in this tab. Add a New Order on Orders first."
+                          : `${
+                              MANUAL_MATCH_FORM_TABS.find((t) => t.id === form)
+                                ?.label ?? "This form"
+                            } comes from Magento only — New Order can't create a manual for it, so there's nothing to link.`}
                       </p>
                     </div>
                   ) : (
@@ -1086,7 +1525,11 @@ function MatchOrdersPageContent() {
                   page={manualSafePage}
                   pageSize={MATCH_PAGE_SIZE}
                   total={manualPageSource.length}
+                  displayTotal={manualPagerTotal}
+                  hasMore={Boolean(matchPoolNextPageToken)}
+                  loadingMore={matchPoolLoadingMore}
                   onPageChange={setManualPage}
+                  onLoadMore={loadMoreMatchPool}
                 />
               </section>
             </div>
@@ -1122,13 +1565,7 @@ function MatchOrdersPageContent() {
 
 export default function MatchOrdersPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="p-8 text-[13px] text-brand-ink-tertiary">
-          Loading match orders…
-        </div>
-      }
-    >
+    <Suspense fallback={null}>
       <MatchOrdersPageContent />
     </Suspense>
   );

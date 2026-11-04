@@ -39,19 +39,20 @@ export function PageHeader({
   return (
     <header className="sticky top-0 z-30 shrink-0 border-b border-brand-line-strong/50 bg-white">
       <div className={compact ? "px-6 py-3 lg:px-8" : "px-6 py-4 lg:px-8"}>
-        <div className="flex items-center justify-between gap-4 sm:gap-6">
-          <div className="flex min-w-0 flex-1 items-center gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 sm:gap-x-6">
+          {/* Title must not shrink: a crowded action row was crushing "Orders" into a 1-char column. */}
+          <div className="flex min-w-[10rem] shrink-0 items-center gap-3">
             <span
               className="hidden h-8 w-1 shrink-0 rounded-full bg-gradient-to-b from-brand-signature to-brand-blue/40 sm:block"
               aria-hidden
             />
             <div className="min-w-0">
-              <div className="flex min-w-0 flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
+              <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
                 <h1
                   className={
                     compact
-                      ? "truncate text-[22px] font-bold tracking-[-0.04em] text-brand-ink"
-                      : "truncate text-[26px] font-bold tracking-[-0.04em] text-brand-ink"
+                      ? "whitespace-nowrap text-[22px] font-bold tracking-[-0.04em] text-brand-ink"
+                      : "whitespace-nowrap text-[26px] font-bold tracking-[-0.04em] text-brand-ink"
                   }
                 >
                   {title}
@@ -66,8 +67,8 @@ export function PageHeader({
                 <p
                   className={
                     compact
-                      ? "mt-0.5 text-[12px] leading-snug text-brand-ink-tertiary"
-                      : "mt-1 text-[13px] leading-relaxed text-brand-ink-tertiary"
+                      ? "mt-0.5 whitespace-nowrap text-[12px] leading-snug text-brand-ink-tertiary"
+                      : "mt-1 whitespace-nowrap text-[13px] leading-relaxed text-brand-ink-tertiary"
                   }
                 >
                   {subtitle}
@@ -75,13 +76,13 @@ export function PageHeader({
               ) : null}
             </div>
             {meta ? (
-              <div className="ml-auto hidden min-w-0 shrink-0 sm:block">
+              <div className="ml-auto hidden shrink-0 sm:block">
                 {meta}
               </div>
             ) : null}
           </div>
 
-          <div className="flex shrink-0 items-center gap-2.5">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2.5">
             {search ? (
               <div className="relative hidden md:block">
                 <Search

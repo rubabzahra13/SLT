@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Header, status
 from sqlalchemy.orm import Session
 from typing import Optional
-from app.core.database import get_db
+from app.core.database import SessionLocal, get_db, get_db_config_error
 from app.core.security import verify_password
 from app.models.user import User
 from app.schemas.user import UserSchema, LoginRequestSchema, TokenResponseSchema
@@ -52,6 +52,26 @@ def get_current_user(
             detail="User account inactive or not found"
         )
     return user
+
+def get_stream_user(authorization: Optional[str] = Header(None)) -> User:
+    """Auth for long-lived SSE endpoints.
+
+    Yield-based get_db stays checked out until the response finishes, so a
+    stream would pin one pooled DB connection for its whole lifetime.
+    """
+    config_error = get_db_config_error()
+    if config_error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=config_error,
+        )
+    db = SessionLocal()
+    try:
+        user = get_current_user(authorization=authorization, db=db)
+        db.expunge(user)
+        return user
+    finally:
+        db.close()
 
 def get_optional_current_user(
     authorization: Optional[str] = Header(None),

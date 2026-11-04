@@ -278,7 +278,7 @@ export function ForwardOrderMailModal({
   onClose,
 }: ForwardOrderMailModalProps) {
   const { token, isViewOnly } = useAuth();
-  const { emailTemplates, updateMTD, addAlert } = useAppState();
+  const { emailTemplates, updateMTD, updateOrder, addAlert } = useAppState();
   const [mounted, setMounted] = useState(false);
   const [step, setStep] = useState<ModalStep>("compose");
   const [editorId, setEditorId] = useState("");
@@ -564,13 +564,21 @@ export function ForwardOrderMailModal({
     if (isCustomer || isViewOnly || !record || sent) return;
     const sentTo = resolveProducerSentTo();
     if (!sentTo && !editor) return;
-    updateMTD(record.id, {
+    const stamp = {
       producerEmailSentAt: new Date().toISOString(),
       producerEmailSentTo: sentTo,
       // Clear Reassign:* label once mail is stamped (assign keeps it until then).
       orderStatus: "",
-    });
-    setMarkedAlreadySent(true);
+    };
+    const orderId =
+      linkedOrder?.id ||
+      record.orderId ||
+      (record.id.includes("-") ? record.id : null);
+    // Orders SoT for mail stamps — board rows often aren't in AppState MTD.
+    if (orderId) {
+      void updateOrder(orderId, stamp, linkedOrder || undefined);
+    }
+    void updateMTD(record.id, stamp, record);
     setSent(true);
     setSendError(null);
     const toLabel = draft.toName?.trim() || sentTo || "producer";
@@ -603,15 +611,27 @@ export function ForwardOrderMailModal({
         token
       );
       if (isCustomer && record) {
-        updateMTD(record.id, {
-          missingDataEmailSentAt: new Date().toISOString(),
-        });
+        void updateMTD(
+          record.id,
+          {
+            missingDataEmailSentAt: new Date().toISOString(),
+          },
+          record
+        );
       } else if (!isCustomer && record) {
-        updateMTD(record.id, {
+        const stamp = {
           producerEmailSentAt: new Date().toISOString(),
           producerEmailSentTo: resolveProducerSentTo(),
           orderStatus: "",
-        });
+        };
+        const orderId =
+          linkedOrder?.id ||
+          record.orderId ||
+          (record.id.includes("-") ? record.id : null);
+        if (orderId) {
+          void updateOrder(orderId, stamp, linkedOrder || undefined);
+        }
+        void updateMTD(record.id, stamp, record);
       }
       setSent(true);
       const toLabel = draft.toName?.trim() || draft.to;

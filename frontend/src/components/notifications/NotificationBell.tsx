@@ -61,7 +61,12 @@ export function NotificationBell({
     <div className="relative">
       <button
         type="button"
-        onClick={() => setOpen(!open)}
+        onClick={() => {
+          const next = !open;
+          setOpen(next);
+          // Novelty: opening clears the bell dot (same as viewing the inbox).
+          if (next && unreadCount > 0) markAllNotificationsRead();
+        }}
         className={clsx(
           "relative flex h-8 w-8 items-center justify-center rounded-xl border transition",
           tone === "glass" &&
@@ -71,7 +76,11 @@ export function NotificationBell({
           tone === "light" &&
             "border-brand-line bg-brand-elevated/90 hover:bg-brand-elevated"
         )}
-        aria-label="Notifications"
+        aria-label={
+          unreadCount > 0
+            ? `Notifications, ${unreadCount} new`
+            : "Notifications"
+        }
       >
         <Bell
           className={clsx(
@@ -83,9 +92,10 @@ export function NotificationBell({
           strokeWidth={1.75}
         />
         {unreadCount > 0 ? (
-          <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#f07840] px-1 text-[9px] font-bold text-white shadow-[0_2px_6px_rgba(240,120,64,0.45)]">
-            {unreadCount > 9 ? "9+" : unreadCount}
-          </span>
+          <span
+            className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-brand-blue"
+            aria-hidden
+          />
         ) : null}
       </button>
 

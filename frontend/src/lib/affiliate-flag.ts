@@ -12,6 +12,7 @@ import {
   isAllowedAllStarDanceCoverPair,
   parseDanceMusicAffiliates,
 } from "@/lib/dance-music-affiliate";
+import { getOrderRequirements } from "@/lib/order-requirements";
 
 export type AffiliateFlagStatus = "open" | "resolved" | "released";
 
@@ -417,4 +418,32 @@ export function releaseAffiliateFlagPatch(): Partial<Order> {
   return {
     affiliateFlagStatus: "released",
   };
+}
+
+/**
+ * After Resolve: land on Orders already filtered to this row's form / subtype
+ * and Complete|Missing × assignment chips — bare `/orders` restores the old
+ * Cheer + Assigned view and the row looks "missing".
+ */
+export function ordersHrefAfterFlagResolve(order: Order): string {
+  const params = new URLSearchParams();
+  const form = order.formType || "school-all-star-cheer";
+  params.set("form", form);
+  if (form === "school-all-star-cheer" && order.cheerFormSubtype) {
+    params.set("cheer", String(order.cheerFormSubtype));
+  }
+  if (form === "school-all-star-dance" && order.danceFormSubtype) {
+    params.set("dance", String(order.danceFormSubtype));
+  }
+  const missing = getOrderRequirements(order).missingCount > 0;
+  const producer = String(order.assignedProducer || "").trim();
+  const assigned = Boolean(producer && producer !== "NA");
+  const data = missing ? "waiting_for_data" : "need_to_be_scheduled";
+  const assign = order.isReassigned
+    ? "reassigned"
+    : assigned
+      ? "assigned"
+      : "not_assigned";
+  params.set("range", `${data},${assign}`);
+  return `/orders?${params.toString()}`;
 }

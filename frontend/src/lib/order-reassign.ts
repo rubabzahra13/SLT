@@ -1,4 +1,5 @@
 import type { MTDRecord, Order } from "@/types";
+import { producerKeysMatch } from "@/lib/producer-keys";
 
 /** True when orderStatus still carries a Reassign:* reason label. */
 export function isReassignOrderStatus(
@@ -11,19 +12,42 @@ export function isReassignOrderStatus(
 /**
  * MTD → Orders reassign (and other reassign returns) clear producerEmailSentAt.
  * After a producer is assigned, mark-as-sent must stay available until mail is
- * stamped — even when the new producer differs from the last recipient.
+ * stamped for *that* producer — even when a stale stamp for a prior producer
+ * survived the move (or Assign cleared isReassigned but left Reassign:* status).
  */
 export function orderAllowsProducerMailMarkAsSent(
   record: Pick<
     MTDRecord,
-    "isReassigned" | "orderStatus" | "producerEmailSentAt"
+    | "isReassigned"
+    | "orderStatus"
+    | "producerEmailSentAt"
+    | "producerEmailSentTo"
+    | "assignedProducer"
   > | null
-    | undefined
+    | undefined,
+  assignedProducerKey?: string | null
 ): boolean {
   if (!record) return false;
-  if (record.producerEmailSentAt) return false;
-  if (record.isReassigned) return true;
-  return isReassignOrderStatus(record.orderStatus);
+  const isReassignReturn =
+    Boolean(record.isReassigned) || isReassignOrderStatus(record.orderStatus);
+  if (!isReassignReturn) return false;
+
+  const assigned = String(
+    assignedProducerKey || record.assignedProducer || ""
+  ).trim();
+  const sentTo = String(record.producerEmailSentTo || "").trim();
+  // Stamped for the current producer — mark-as-sent is done.
+  if (
+    record.producerEmailSentAt &&
+    assigned &&
+    sentTo &&
+    producerKeysMatch(assigned, sentTo)
+  ) {
+    return false;
+  }
+  // Reassign return: show mark-as-sent whenever current producer isn't stamped
+  // (including stale BE stamp after assigning CH).
+  return true;
 }
 
 /** Mark all collection toggles collected so Data lands as Complete on Orders. */

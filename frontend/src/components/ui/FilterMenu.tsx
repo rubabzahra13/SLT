@@ -23,6 +23,10 @@ type FilterMenuProps = {
   value: string;
   options: FilterMenuOption[];
   onChange: (value: string) => void;
+  /** Fired when the menu is about to open (pointerdown) — warm sibling caches. */
+  onOpenIntent?: () => void;
+  /** Fired on pointerdown of an option before onChange (warm that tab's board). */
+  onOptionIntent?: (value: string) => void;
   accent?: FilterMenuAccent;
   className?: string;
   hideLabel?: boolean;
@@ -65,6 +69,8 @@ export function FilterMenu({
   value,
   options,
   onChange,
+  onOpenIntent,
+  onOptionIntent,
   accent = "blue",
   className,
   hideLabel = false,
@@ -138,6 +144,10 @@ export function FilterMenu({
             type="button"
             disabled={isOptionDisabled}
             aria-disabled={isOptionDisabled || undefined}
+            onPointerDown={() => {
+              if (isOptionDisabled || active) return;
+              onOptionIntent?.(opt.value);
+            }}
             onClick={() => {
               if (isOptionDisabled) return;
               onChange(opt.value);
@@ -231,6 +241,9 @@ export function FilterMenu({
         ref={buttonRef}
         type="button"
         aria-label={hideLabel ? label : undefined}
+        onPointerDown={() => {
+          if (!open) onOpenIntent?.();
+        }}
         onClick={() => setOpen((v) => !v)}
         style={
           typeof triggerWidth === "number"

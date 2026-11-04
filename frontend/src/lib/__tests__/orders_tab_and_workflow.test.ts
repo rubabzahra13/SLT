@@ -352,6 +352,7 @@ describe("Orders Tab & Workflow Separation", () => {
       status: "active",
       completedAt: undefined,
       finalCustomerPrice: undefined,
+      updatedAt: "2026-10-13T00:00:00Z",
     });
     const localPayroll = makeRecord({
       inPayroll: true,
@@ -359,12 +360,35 @@ describe("Orders Tab & Workflow Separation", () => {
       recordStatus: "Completed",
       completedAt: "2026-10-13T00:00:00Z",
       finalCustomerPrice: 808.5,
+      updatedAt: "2026-10-13T01:00:00Z",
     });
 
     const merged = mergeLocalMtdRecordFields(staleIncoming, localPayroll);
     assert.equal(merged.inPayroll, true);
     assert.equal(merged.finalCustomerPrice, 808.5);
     assert.equal(merged.completedAt, "2026-10-13T00:00:00Z");
+  });
+
+  it("Newer backend return-from-payroll clears sticky local inPayroll", () => {
+    const backendReturned = makeRecord({
+      inPayroll: false,
+      status: "active",
+      recordStatus: "Ongoing",
+      completedAt: undefined,
+      updatedAt: "2026-11-04T12:00:00Z",
+    });
+    const localPayroll = makeRecord({
+      inPayroll: true,
+      status: "completed",
+      recordStatus: "Completed",
+      completedAt: "2026-11-04T11:00:00Z",
+      updatedAt: "2026-11-04T11:00:00Z",
+    });
+
+    const merged = mergeLocalMtdRecordFields(backendReturned, localPayroll);
+    assert.equal(merged.inPayroll, false);
+    assert.equal(merged.status, "active");
+    assert.equal(merged.recordStatus, "Ongoing");
   });
 
   it("Thin assigned MTD rows keep order songs/mix fields so Data stays Complete", () => {
@@ -877,14 +901,27 @@ describe("orderAllowsProducerMailMarkAsSent", () => {
     );
   });
 
-  it("blocks mark-as-sent once stamped or for non-reassign orders", () => {
+  it("blocks mark-as-sent once stamped for the current producer, or non-reassign", () => {
     assert.equal(
       orderAllowsProducerMailMarkAsSent({
         isReassigned: false,
         orderStatus: "Reassign: rush order",
         producerEmailSentAt: "2026-11-01T12:00:00.000Z",
+        producerEmailSentTo: "CH",
+        assignedProducer: "CH",
       }),
       false
+    );
+    // Stale stamp for a prior producer after MTD→Orders reassign + new assign.
+    assert.equal(
+      orderAllowsProducerMailMarkAsSent({
+        isReassigned: false,
+        orderStatus: "Reassign: rush order",
+        producerEmailSentAt: "2026-11-01T12:00:00.000Z",
+        producerEmailSentTo: "BE",
+        assignedProducer: "CH",
+      }),
+      true
     );
     assert.equal(
       orderAllowsProducerMailMarkAsSent({

@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import { useMemo } from "react";
 import clsx from "clsx";
-import { useAppState } from "@/context/AppStateContext";
+import { useOrdersLookup } from "@/context/OrdersLookupContext";
 import { findLinkedOrder } from "@/lib/editor-assignment";
 import { resolveFinalMatchedOrder } from "@/lib/order-form-missing";
 import {
@@ -19,14 +19,12 @@ import { HoverTip } from "@/components/ui/HoverTip";
 import type { MTDRecord, Order } from "@/types";
 
 function useRequirementsRecord(record: Order | MTDRecord): Order | MTDRecord {
-  const { allOrders } = useAppState();
+  const { orders } = useOrdersLookup();
   return useMemo(() => {
-    const linked = findLinkedOrder(record as MTDRecord, allOrders);
-    const finalized = linked
-      ? resolveFinalMatchedOrder(linked, allOrders)
-      : null;
+    const linked = findLinkedOrder(record as MTDRecord, orders);
+    const finalized = linked ? resolveFinalMatchedOrder(linked, orders) : null;
     return mergeOrderFormFieldsForRequirements(record, finalized);
-  }, [record, allOrders]);
+  }, [record, orders]);
 }
 
 const DATA_STATUS_LABEL: Record<OrderDataStatus, string> = {
@@ -66,7 +64,7 @@ function requirementLabels(
   record: Order | MTDRecord,
   state: "red" | "green"
 ): string[] {
-  const reqs = getOrderRequirements(record); // caller passes merged record
+  const reqs = getOrderRequirements(record);
   const labels = [
     ...reqs.collections
       .filter((item) => item.isApplicable && item.state === state)
@@ -96,7 +94,17 @@ function dataStatusTooltip(
   return `We have all we need:\n${labels.join(", ")}`;
 }
 
-/** Derived from Mix/CS/Video + Songs/Notes: not manually editable. */
+function boardNeedsAttention(record: Order | MTDRecord): boolean | null {
+  if (typeof (record as Order).needsAttention === "boolean") {
+    return Boolean((record as Order).needsAttention);
+  }
+  if (typeof (record as MTDRecord).needsAttention === "boolean") {
+    return Boolean((record as MTDRecord).needsAttention);
+  }
+  return null;
+}
+
+/** Derived status; badge follows board needsAttention when present (tab-aligned). */
 export function OrderDataStatusBadge({
   record,
 }: {
@@ -104,8 +112,13 @@ export function OrderDataStatusBadge({
 }) {
   const requirementsRecord = useRequirementsRecord(record);
   const reqs = getOrderRequirements(requirementsRecord);
+  // Pills are SoT: never let a stale needsAttention=false paint "Complete data"
+  // while Mix Time / Songs / Notes are still red.
+  const flag = boardNeedsAttention(requirementsRecord);
   const status: OrderDataStatus =
-    reqs.missingCount > 0 ? "Missing Data" : "Complete data";
+    reqs.missingCount > 0 || flag === true
+      ? "Missing Data"
+      : "Complete data";
   const label = DATA_STATUS_LABEL[status];
   const tip = dataStatusTooltip(requirementsRecord, status);
 

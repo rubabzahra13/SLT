@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { getDashboardMixStatus, buildDashboardPulse } from "../dashboard";
+import {
+  getDashboardMixStatus,
+  buildDashboardPulse,
+  buildMixOpsSlices,
+} from "../dashboard";
 import type { MTDRecord } from "@/types";
 
 function createMockRecord(overrides: Partial<MTDRecord> = {}): MTDRecord {
@@ -197,5 +201,45 @@ test("Dashboard Status & Date-Aware Classification", async (t) => {
 
     const outsourcedTip = kpiInsight("Outsourced", {} as any);
     assert.equal(outsourcedTip.body, "Mixes that have been assigned to outsourced producers.");
+  });
+
+  await t.test("buildMixOpsSlices counts each open mix once", () => {
+    const records: MTDRecord[] = [
+      createMockRecord({
+        id: "due",
+        mixStartDate: "2026-11-05",
+        mixEndDate: "2026-11-09",
+        eightCountSheet: "NEED CS",
+        haveSongs: "HAVE SONGS",
+      }),
+      createMockRecord({
+        id: "missing",
+        mixStartDate: "2026-11-05",
+        mixEndDate: "2026-11-19",
+        eightCountSheet: "NEED CS",
+        haveSongs: "",
+        invoice: "",
+        price: 0,
+      }),
+      createMockRecord({
+        id: "done",
+        status: "completed",
+        mixStartDate: "2026-10-01",
+        mixEndDate: "2026-10-05",
+      }),
+    ];
+
+    const slices = buildMixOpsSlices(records, "2026-11-04");
+    const total = slices.reduce((sum, s) => sum + s.count, 0);
+    assert.equal(total, 2);
+    assert.equal(
+      slices.find((s) => s.label === "Due this week")?.count,
+      1
+    );
+    assert.equal(
+      slices.find((s) => s.label === "Missing data")?.count,
+      1
+    );
+    assert.equal(slices.find((s) => s.label === "Assigned"), undefined);
   });
 });

@@ -146,7 +146,8 @@ export function getMTDBoardRecords(records: MTDRecord[]): MTDRecord[] {
 /** Keep local MTD edits when backend reload races or has not persisted yet. */
 export function mergeLocalMtdRecordFields(
   backendRecord: MTDRecord,
-  localRecord: MTDRecord | undefined
+  localRecord: MTDRecord | undefined,
+  options?: { trustBackendBoardMembership?: boolean }
 ): MTDRecord {
   let merged = backendRecord;
 
@@ -157,7 +158,23 @@ export function mergeLocalMtdRecordFields(
     };
   }
 
-  if (localRecord?.inPayroll && !backendRecord.inPayroll) {
+  // Protect a local Move-to-Payroll from a stale SSE that still says
+  // inPayroll:false. If the backend row is newer, trust it (return from
+  // payroll / API restore) so Dashboard Music to do / timeline stay honest.
+  // Full list hydrates pass trustBackendBoardMembership to skip this sticky.
+  const backendUpdatedMs = Date.parse(backendRecord.updatedAt || "");
+  const localUpdatedMs = Date.parse(localRecord?.updatedAt || "");
+  const backendIsNewer =
+    Number.isFinite(backendUpdatedMs) &&
+    Number.isFinite(localUpdatedMs) &&
+    backendUpdatedMs > localUpdatedMs;
+
+  if (
+    localRecord?.inPayroll &&
+    !backendRecord.inPayroll &&
+    !backendIsNewer &&
+    !options?.trustBackendBoardMembership
+  ) {
     merged = {
       ...merged,
       inPayroll: true,
@@ -206,12 +223,15 @@ export function mergeLocalMtdRecordFields(
         ? null
         : backendAssigned || localAssigned || null,
       editorRequest: localRecord.editorRequest ?? merged.editorRequest,
+      // Dates are Order SoT: prefer backend so peer/API patches update the
+      // Dashboard (team mixes today, timeline). Fall back to local only when
+      // the peer omitted dates (anti-wipe on partial SSE).
       mixStartDate: awaitingReassign
         ? ""
-        : localRecord.mixStartDate || merged.mixStartDate,
+        : merged.mixStartDate || localRecord.mixStartDate || "",
       mixEndDate: awaitingReassign
         ? undefined
-        : localRecord.mixEndDate || merged.mixEndDate,
+        : merged.mixEndDate || localRecord.mixEndDate,
       isReassigned: awaitingReassign ? true : false,
       orderStatus: awaitingReassign
         ? localRecord.orderStatus || merged.orderStatus
@@ -222,8 +242,9 @@ export function mergeLocalMtdRecordFields(
         (merged.invoice || "").trim() ||
         (localRecord.invoice || "").trim() ||
         "",
-      status: localRecord.status ?? merged.status,
-      recordStatus: localRecord.recordStatus ?? merged.recordStatus,
+      // Prefer backend board status unless we just stuck local payroll above.
+      status: merged.status ?? localRecord.status,
+      recordStatus: merged.recordStatus ?? localRecord.recordStatus,
     };
   }
 

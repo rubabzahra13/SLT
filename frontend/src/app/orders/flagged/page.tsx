@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Eye, Flag, Mail } from "lucide-react";
 import clsx from "clsx";
@@ -19,11 +19,16 @@ import {
   packageTypeDisplayValue,
 } from "@/components/mtd/PackageTypeField";
 import { useAppState } from "@/context/AppStateContext";
+import { OrdersLookupProvider } from "@/context/OrdersLookupContext";
+import {
+  prefetchOrdersBoard,
+  useOrdersBoard,
+} from "@/hooks/useOrdersBoard";
+import { loadOrdersViewState } from "@/lib/orders-view-state";
 import {
   formatMusicAffiliateDisplay,
   getAffiliateSelections,
   isInvalidMultiAffiliateSelection,
-  recordHeldOnAffiliateFlag,
 } from "@/lib/affiliate-flag";
 import { formatDisplayDateTime } from "@/lib/dates";
 import {
@@ -32,9 +37,6 @@ import {
   formatRequestedEditorLabel,
 } from "@/lib/editor-assignment";
 import {
-  countMTDByCheerSubtype,
-  countMTDByDanceSubtype,
-  countMTDByForm,
   matchesFormFilter,
   resolveMTDFormMeta,
 } from "@/lib/mtd-filters";
@@ -51,6 +53,7 @@ import { orderFromMTDRecord } from "@/lib/order-detail-fields";
 import {
   AFFILIATE_FLAG_CHEER_SUBTABS,
   AFFILIATE_FLAG_FORM_TABS,
+  DANCE_FORM_SUBTABS,
   type CheerFormSubtypeFilter,
   type DanceFormSubtypeFilter,
   type MTDRecord,
@@ -85,14 +88,14 @@ const ordersMailCustomerButtonClass =
   "inline-flex h-7 items-center justify-center gap-0.5 rounded-md border border-brand-warning/35 bg-brand-warning/8 px-2 text-[10px] font-semibold leading-none text-brand-warning shadow-sm transition hover:border-brand-warning/50 hover:bg-brand-warning/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-warning/20";
 
 export default function FlaggedOrdersPage() {
-  const {
-    mtdRecords,
-    activeOrders,
-    allOrders,
-    producers,
-    isLoading,
-    isViewOnly,
-  } = useAppState();
+  const { mtdRecords, producers, isViewOnly, ensureLiveMtdLoaded } =
+    useAppState();
+
+  useEffect(() => {
+    void ensureLiveMtdLoaded().catch(() => {
+      /* keep SWR / empty */
+    });
+  }, [ensureLiveMtdLoaded]);
 
   const [form, setForm] = useState<OrderFormType>(DEFAULT_FORM);
   const [cheerSubtype, setCheerSubtype] =
@@ -107,69 +110,111 @@ export default function FlaggedOrdersPage() {
   const [viewRecord, setViewRecord] = useState<MTDRecord | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
+  // One board fetch for all open flags — form/subtype tabs filter client-side.
+  // (Flagged volume is small; per-tab fetches made the page feel slow on open.)
+  const boardQuery = useMemo(
+    () => ({
+      range: "flagged" as const,
+      excludeFlagged: false as boolean,
+      search: searchQuery.trim() || undefined,
+      sortBy: "newest",
+    }),
+    [searchQuery]
+  );
+
+  const {
+    orders: boardOrders,
+    counts: boardCounts,
+    nextPageToken,
+    loading: boardLoading,
+    loadingMore: boardLoadingMore,
+    loadMore,
+  } = useOrdersBoard(boardQuery);
+
+  const allOrders = boardOrders;
+
   const orderById = useMemo(() => {
     const map = new Map<string, Order>();
-    for (const order of allOrders) {
+    for (const order of boardOrders) {
       map.set(order.id, order);
       if (order.legacyId) map.set(order.legacyId, order);
       if (order.uuid) map.set(order.uuid, order);
     }
     return map;
-  }, [allOrders]);
+  }, [boardOrders]);
 
-  const flaggedRecords = useMemo(() => {
-    const preMtd = listPreMtdOrderRecords(activeOrders, mtdRecords);
-    return preMtd.filter((rec) => recordHeldOnAffiliateFlag(rec, orderById));
-  }, [activeOrders, mtdRecords, orderById]);
-
-  const formCounts = useMemo(
-    () => countMTDByForm(flaggedRecords, orderById),
-    [flaggedRecords, orderById]
+  // Server already filters affiliate_flag_status=open for range=flagged.
+  const flaggedRecords = useMemo(
+    () => listPreMtdOrderRecords(boardOrders, mtdRecords),
+    [boardOrders, mtdRecords]
   );
 
-  const cheerSubtypeCounts = useMemo(
-    () =>
-      countMTDByCheerSubtype(
-        flaggedRecords.filter((rec) =>
-          matchesFormFilter(
-            rec,
-            orderById,
-            "school-all-star-cheer",
-            "all",
-            danceSubtype
-          )
-        ),
-        orderById
-      ),
-    [flaggedRecords, orderById, danceSubtype]
-  );
+  // Server chip totals only (sticky via useOrdersBoard) — no page-local merge.
+  const formCounts = useMemo(() => {
+    return (boardCounts.by_form_type || {}) as Record<OrderFormType, number>;
+  }, [boardCounts.by_form_type]);
 
-  const danceSubtypeCounts = useMemo(
-    () =>
-      countMTDByDanceSubtype(
-        flaggedRecords.filter((rec) =>
-          matchesFormFilter(
-            rec,
-            orderById,
-            "school-all-star-dance",
-            cheerSubtype,
-            "all"
-          )
-        ),
-        orderById
-      ),
-    [flaggedRecords, orderById, cheerSubtype]
-  );
+  const cheerSubtypeCounts = useMemo(() => {
+    return (boardCounts.by_cheer_form_subtype || {}) as Record<
+      CheerFormSubtypeFilter,
+      number
+    >;
+  }, [boardCounts.by_cheer_form_subtype]);
 
-  const switchForm = useCallback((next: OrderFormType) => {
-    setForm(next);
-    if (next !== "school-all-star-cheer") {
+  const danceSubtypeCounts = useMemo(() => {
+    return (boardCounts.by_dance_form_subtype || {}) as Record<
+      DanceFormSubtypeFilter,
+      number
+    >;
+  }, [boardCounts.by_dance_form_subtype]);
+
+  const switchForm = useCallback(
+    (next: OrderFormType) => {
+      setForm(next);
+      if (next === "school-all-star-cheer") {
+        const nextCheer =
+          AFFILIATE_FLAG_CHEER_SUBTABS.find(
+            (t) => (cheerSubtypeCounts[t.id] ?? 0) > 0
+          )?.id ?? DEFAULT_CHEER_SUBTYPE;
+        setCheerSubtype(nextCheer);
+        setDanceSubtype(DEFAULT_DANCE_SUBTYPE);
+        return;
+      }
+      if (next === "school-all-star-dance") {
+        const nextDance =
+          DANCE_FORM_SUBTABS.find((t) => (danceSubtypeCounts[t.id] ?? 0) > 0)
+            ?.id ?? DEFAULT_DANCE_SUBTYPE;
+        setDanceSubtype(nextDance);
+        setCheerSubtype(DEFAULT_CHEER_SUBTYPE);
+        return;
+      }
       setCheerSubtype(DEFAULT_CHEER_SUBTYPE);
-    }
-    if (next !== "school-all-star-dance") {
       setDanceSubtype(DEFAULT_DANCE_SUBTYPE);
+    },
+    [cheerSubtypeCounts, danceSubtypeCounts]
+  );
+
+  // Land on a form/subtype that actually has open flags (Cheer default is often 0).
+  // Only lock once some form badge is > 0 — never lock on empty pre-counts state.
+  const didAutoSelectForm = useRef(false);
+  useEffect(() => {
+    if (didAutoSelectForm.current) return;
+    const nextForm = AFFILIATE_FLAG_FORM_TABS.find(
+      (t) => (formCounts[t.id] ?? 0) > 0
+    )?.id;
+    if (!nextForm) return;
+    didAutoSelectForm.current = true;
+    if (nextForm !== form) {
+      switchForm(nextForm);
+      return;
     }
-  }, []);
+    if (form === "school-all-star-dance") {
+      const nextDance =
+        DANCE_FORM_SUBTABS.find((t) => (danceSubtypeCounts[t.id] ?? 0) > 0)
+          ?.id ?? danceSubtype;
+      if (nextDance !== danceSubtype) setDanceSubtype(nextDance);
+    }
+  }, [form, formCounts, danceSubtype, danceSubtypeCounts, switchForm]);
 
   const categoryFiltered = useMemo(
     () =>
@@ -633,13 +678,16 @@ export default function FlaggedOrdersPage() {
     producers,
   ]);
 
+  const totalFlagged = boardCounts.flagged || flaggedRecords.length;
+
   return (
+    <OrdersLookupProvider orders={boardOrders}>
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <PageHeader
         title="Flagged orders"
         badge={
-          flaggedRecords.length > 0
-            ? `${filtered.length} of ${flaggedRecords.length}`
+          totalFlagged > 0
+            ? `${filtered.length} of ${totalFlagged}`
             : undefined
         }
         subtitle="Resolve an affiliate to move the order to the Orders tab"
@@ -651,6 +699,27 @@ export default function FlaggedOrdersPage() {
         headerActions={
           <Link
             href="/orders"
+            prefetch
+            onPointerDown={() => {
+              const stored = loadOrdersViewState();
+              void prefetchOrdersBoard({
+                formType: stored?.form ?? form,
+                cheerFormSubtype:
+                  (stored?.form ?? form) === "school-all-star-cheer"
+                    ? stored?.cheerSubtype ?? cheerSubtype
+                    : undefined,
+                danceFormSubtype:
+                  (stored?.form ?? form) === "school-all-star-dance"
+                    ? stored?.danceSubtype ?? danceSubtype
+                    : undefined,
+                range:
+                  !stored?.rangeFilter || stored.rangeFilter === "all"
+                    ? undefined
+                    : stored.rangeFilter,
+                sortBy: "newest",
+                excludeFlagged: true,
+              });
+            }}
             className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-brand-line/60 bg-white px-3 text-[12px] font-medium text-brand-ink-secondary shadow-sm transition hover:border-brand-line hover:bg-brand-bg hover:text-brand-ink"
           >
             <ArrowLeft className="h-3.5 w-3.5" strokeWidth={2.25} />
@@ -689,10 +758,14 @@ export default function FlaggedOrdersPage() {
               const linked = findLinkedOrder(rec, allOrders);
               return linked?.id || rec.orderId || rec.id;
             }}
-            emptyMessage={
-              isLoading ? "Loading flagged orders…" : "Nothing to resolve."
-            }
+            emptyMessage="Nothing to resolve."
+            loading={boardLoading && filtered.length === 0}
             pageSize={15}
+            totalCount={boardCounts.flagged}
+            hasMore={Boolean(nextPageToken)}
+            onLoadMore={loadMore}
+            loadingMore={boardLoadingMore}
+            resetKey={`${form}-${cheerSubtype}-${danceSubtype}-${searchQuery}`}
             embedded
             showScrollIndicator
           />
@@ -722,5 +795,6 @@ export default function FlaggedOrdersPage() {
         }
       />
     </div>
+    </OrdersLookupProvider>
   );
 }

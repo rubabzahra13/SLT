@@ -108,6 +108,8 @@ export type MTDRecord = {
   /** Copied from linked order for Source · Form classification. */
   mergedFormOrderId?: string | null;
   manualOverlapSnapshot?: Record<string, unknown> | null;
+  /** Server version for live sync / merge (ISO). */
+  updatedAt?: string | null;
 };
 
 export type Weekday =
@@ -320,6 +322,8 @@ export type BaseOrderAdminFields = {
   price: number;
   priceCompliance?: PriceCompliance;
   status: "new" | "active" | "needs_attention" | "completed" | "in_mtd";
+  /** Server past/history flag — completed board rows also count as past. */
+  isPastOrder?: boolean;
   createdAt: string;
   completedAt?: string | null;
   needsAttention: boolean;
@@ -914,6 +918,8 @@ export type Order = {
   price: number;
   priceCompliance?: PriceCompliance;
   status: "new" | "active" | "needs_attention" | "completed" | "in_mtd";
+  /** Server past/history flag — completed board rows also count as past. */
+  isPastOrder?: boolean;
   createdAt: string;
   /** Server/optimistic version for live sync merge (reassign vs assign). */
   updatedAt?: string | null;

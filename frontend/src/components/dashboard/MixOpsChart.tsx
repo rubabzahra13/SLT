@@ -9,6 +9,8 @@ import { DashboardTip } from "@/components/dashboard/DashboardTip";
 type MixOpsChartProps = {
   slices: MixOpsSlice[];
   compact?: boolean;
+  /** Distinct open mixes — matches sum of exclusive timeline slices. */
+  openTotal?: number;
   summary?: { dueThisWeek: number; overdue: number; startingToday: number };
 };
 
@@ -19,9 +21,13 @@ function isOverdue(label: string) {
 export function MixOpsChart({
   slices,
   compact = false,
+  openTotal,
   summary,
 }: MixOpsChartProps) {
-  const total = slices.reduce((sum, slice) => sum + slice.count, 0);
+  const total =
+    typeof openTotal === "number"
+      ? openTotal
+      : slices.reduce((sum, slice) => sum + slice.count, 0);
   const urgent = slices.find((slice) => isOverdue(slice.label))?.count ?? 0;
 
   if (slices.length === 0) {

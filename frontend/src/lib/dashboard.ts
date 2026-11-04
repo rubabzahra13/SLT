@@ -529,6 +529,14 @@ export function buildRevenueStages(pulse: DashboardPulse): RevenueStage[] {
   ];
 }
 
+/** Two-letter weekday — narrow "T" collides for Tue/Thu. */
+export function weekdayShortLabel(day: Date): string {
+  return (
+    ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"][day.getDay()] ??
+    day.toLocaleDateString("en-US", { weekday: "short" }).slice(0, 2)
+  );
+}
+
 export function buildIncomingOrdersSeries(
   orders: Order[],
   pastOrders: Order[] = [],
@@ -551,7 +559,7 @@ export function buildIncomingOrdersSeries(
     return {
       iso,
       label: day.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-      shortLabel: day.toLocaleDateString("en-US", { weekday: "narrow" }),
+      shortLabel: weekdayShortLabel(day),
       count,
       isToday: iso === anchorIso,
     };
@@ -626,33 +634,80 @@ export function buildWeeklyCapacity(
   });
 }
 
-export function buildMixOpsSlices(pulse: DashboardPulse): MixOpsSlice[] {
+/**
+ * Mutually exclusive mix-timeline buckets (each open mix counted once).
+ * Priority: Overdue → Start today → Due this week → Missing data → On track.
+ */
+export function buildMixOpsSlices(
+  mtdRecords: MTDRecord[],
+  todayInput: Date | string = new Date()
+): MixOpsSlice[] {
+  const anchorDate =
+    typeof todayInput === "string"
+      ? parseFlexibleDate(todayInput) ?? new Date()
+      : todayInput;
+
+  let overdue = 0;
+  let startToday = 0;
+  let dueThisWeek = 0;
+  let missingData = 0;
+  let onTrack = 0;
+
+  for (const rec of mtdRecords) {
+    if (!isOpenBoardRecord(rec)) continue;
+
+    const endOffset = rec.mixEndDate
+      ? dayOffsetFromAnchor(rec.mixEndDate, anchorDate)
+      : null;
+    const startOffset = rec.mixStartDate
+      ? dayOffsetFromAnchor(rec.mixStartDate, anchorDate)
+      : null;
+
+    if (endOffset != null && endOffset < 0) {
+      overdue += 1;
+    } else if (startOffset === 0) {
+      startToday += 1;
+    } else if (endOffset != null && endOffset <= 7) {
+      dueThisWeek += 1;
+    } else if (!canCompleteForPayroll(rec).ready) {
+      missingData += 1;
+    } else {
+      onTrack += 1;
+    }
+  }
+
   return [
     {
-      label: "Missing data",
-      count: pulse.missingData,
+      label: "Overdue",
+      count: overdue,
       color: "#f07840",
       href: "/mtd",
     },
     {
-      label: "Assigned",
-      count: pulse.assigned,
-      color: "#1f8fb3",
-      href: "/mtd",
-    },
-    {
-      label: "Due this week",
-      count: pulse.dueThisWeek,
-      color: "#1f8fb3",
-      href: "/mtd",
-    },
-    {
       label: "Start today",
-      count: pulse.startingToday,
+      count: startToday,
       color: "#52c8ee",
       href: "/schedule",
     },
-  ];
+    {
+      label: "Due this week",
+      count: dueThisWeek,
+      color: "#1f8fb3",
+      href: "/mtd",
+    },
+    {
+      label: "Missing data",
+      count: missingData,
+      color: "#f07840",
+      href: "/mtd",
+    },
+    {
+      label: "On track",
+      count: onTrack,
+      color: "#1f8fb3",
+      href: "/mtd",
+    },
+  ].filter((slice) => slice.count > 0);
 }
 
 export function toBarChartRows(
