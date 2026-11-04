@@ -28,6 +28,7 @@ import { AddNewOrderModal } from "@/components/orders/AddNewOrderModal";
 import { MatchBeforeMtdModal } from "@/components/orders/MatchBeforeMtdModal";
 import { OrderFormEditModal } from "@/components/orders/OrderFormEditModal";
 import { DeleteOrderConfirmModal } from "@/components/orders/DeleteOrderConfirmModal";
+import { OrdersCsvExportModal } from "@/components/orders/OrdersCsvExportModal";
 import { OrderRequirementsCell } from "@/components/orders/OrderRequirementsCell";
 import { OrderDataStatusBadge, OrderAssignmentStatusBadge } from "@/components/orders/OrderStatusDropdown";
 import { recordIsRushOrder } from "@/lib/forward-order-mail";
@@ -91,7 +92,6 @@ import {
   toIsoDateString,
 } from "@/lib/dates";
 import { todayIso } from "@/lib/date-filters";
-import { generateOrdersCsv, triggerCsvDownload } from "@/lib/export-csv";
 import { displayMixLengthLabel } from "@/lib/mix-duration";
 import { parsePackage } from "@/lib/package";
 import {
@@ -136,6 +136,7 @@ import {
 import {
   filterRecordsByOrderSource,
   isManualOrderRecord,
+  ORDER_SOURCE_OPTIONS,
 } from "@/lib/order-source";
 import { seedAssignPage } from "@/lib/assign-page-seed";
 import { idlePrefetchSiblingBoard } from "@/lib/board-nav-prefetch";
@@ -156,6 +157,7 @@ import {
   CHEER_FORM_SUBTABS,
   DANCE_FORM_SUBTABS,
   MANUAL_MATCH_FORM_TABS,
+  ORDER_FORM_TABS,
   type CheerFormSubtypeFilter,
   type DanceFormSubtypeFilter,
   type MTDRecord,
@@ -165,6 +167,19 @@ import {
   type OrderViewRangeFilter,
   type PriceCompliance,
 } from "@/types";
+
+const ORDERS_CSV_RANGE_LABELS: Record<OrderViewRangeFilter, string> = {
+  all: "All",
+  need_to_be_scheduled: "Complete data",
+  new_orders: "Complete data",
+  waiting_for_data: "Missing data",
+  assigned: "Assigned",
+  not_assigned: "Not assigned",
+  reassigned: "Reassign",
+  reassign_leave: "Reassign",
+  reassign_rush: "Reassign",
+  flagged: "Flagged",
+};
 
 const DEFAULT_FORM: OrderFormType = "school-all-star-cheer";
 const DEFAULT_CHEER_SUBTYPE: CheerFormSubtypeFilter = "all-star-cheer";
@@ -671,6 +686,8 @@ function OrdersPageContent() {
     null
   );
   const [deletingOrder, setDeletingOrder] = useState(false);
+  const [csvExportOpen, setCsvExportOpen] = useState(false);
+  const [csvExportBusy, setCsvExportBusy] = useState(false);
 
   /** Extra orders fetched by id for modals (not on current page). */
   const [orderCache, setOrderCache] = useState<Order[]>([]);
@@ -867,6 +884,52 @@ function OrdersPageContent() {
     form,
     cheerSubtype,
     danceSubtype,
+  ]);
+
+  const csvExportFilters = useMemo(() => {
+    const lines: { label: string; value: string }[] = [];
+    const formLabel =
+      ORDER_FORM_TABS.find((tab) => tab.id === form)?.label ?? form;
+    lines.push({ label: "Form", value: formLabel });
+
+    if (form === "school-all-star-cheer" && cheerSubtype !== "all") {
+      const subtypeLabel =
+        CHEER_FORM_SUBTABS.find((tab) => tab.id === cheerSubtype)?.label ??
+        cheerSubtype;
+      lines.push({ label: "Subtype", value: subtypeLabel });
+    } else if (form === "school-all-star-dance" && danceSubtype !== "all") {
+      const subtypeLabel =
+        DANCE_FORM_SUBTABS.find((tab) => tab.id === danceSubtype)?.label ??
+        danceSubtype;
+      lines.push({ label: "Subtype", value: subtypeLabel });
+    }
+
+    const sourceLabel =
+      ORDER_SOURCE_OPTIONS.find((opt) => opt.id === sourceFilter)?.label ??
+      "All orders";
+    lines.push({ label: "Source", value: sourceLabel });
+
+    const statusLabel =
+      rangeFilters.length === 0
+        ? "All"
+        : rangeFilters
+            .map((id) => ORDERS_CSV_RANGE_LABELS[id] ?? id)
+            .join(" + ");
+    lines.push({ label: "Status", value: statusLabel });
+
+    const search = searchQuery.trim();
+    if (search) {
+      lines.push({ label: "Search", value: search });
+    }
+
+    return lines;
+  }, [
+    form,
+    cheerSubtype,
+    danceSubtype,
+    sourceFilter,
+    rangeFilters,
+    searchQuery,
   ]);
 
   // Alert when a row changes Orders status tab so it doesn't look like it vanished.
@@ -1435,13 +1498,17 @@ function OrdersPageContent() {
   ]);
 
   /** CSV respects active status chips (server AND) even though the table filters locally. */
-  const exportFilteredOrdersCsv = useCallback(() => {
+  const confirmExportFilteredOrdersCsv = useCallback(() => {
+    setCsvExportBusy(true);
     void downloadOrdersBoardCsv({
       ...boardQuery,
       range: serializeOrdersRangeFilters(rangeFilters),
-    }).catch(() => {
-      /* user can retry */
-    });
+    })
+      .then(() => setCsvExportOpen(false))
+      .catch(() => {
+        /* user can retry */
+      })
+      .finally(() => setCsvExportBusy(false));
   }, [boardQuery, rangeFilters]);
 
   // Form / subtype menu chips: server totals only. Mixing page-local rows
@@ -2773,7 +2840,7 @@ function OrdersPageContent() {
           label: "CSV",
           title:
             "Export current Orders filters to CSV (server query: search, form, range)",
-          onClick: exportFilteredOrdersCsv,
+          onClick: () => setCsvExportOpen(true),
         }}
         headerActions={
           <div className="flex items-center gap-2">
@@ -3199,6 +3266,18 @@ function OrdersPageContent() {
             .finally(() => setDeletingOrder(false));
         }}
       />
+
+      <OrdersCsvExportModal
+        open={csvExportOpen}
+        filters={csvExportFilters}
+        busy={csvExportBusy}
+        onClose={() => {
+          if (csvExportBusy) return;
+          setCsvExportOpen(false);
+        }}
+        onConfirm={confirmExportFilteredOrdersCsv}
+      />
+
     </div>
     </OrdersLookupProvider>
   );

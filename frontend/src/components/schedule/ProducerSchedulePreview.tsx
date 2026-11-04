@@ -15,13 +15,11 @@ import { ProducerSelect } from "@/components/ui/ProducerSelect";
 import { Avatar } from "@/components/ui/Avatar";
 import { matchesProducerSearch } from "@/lib/producers";
 import { todayIso } from "@/lib/date-filters";
-import { doDateRangesOverlap } from "@/lib/dates";
 import {
   PRODUCER_SCHEDULE_COLUMNS,
   getProducerFacingScheduleRows,
   generateScheduleCsv,
   triggerCsvDownload,
-  isEligibleProducerScheduleRecord,
   type ProducerFacingScheduleRow,
 } from "@/lib/export-csv";
 import { findProducerByAssignmentKey } from "@/lib/editor-assignment";
@@ -140,43 +138,46 @@ export function ProducerSchedulePreview({
     () => new Set()
   );
 
-  const activeProducerSummaries = useMemo(() => {
-    const eligibleRecords = mtdRecords.filter((r) => {
-      if (!isEligibleProducerScheduleRecord(r)) return false;
-      if (!filterPeriod) return true;
-      const recStart = r.mixStartDate || r.completedAt || "";
-      const recEnd = r.mixEndDate || r.mixStartDate || r.completedAt || "";
-      return doDateRangesOverlap(
-        { start: recStart, end: recEnd },
+  // One facing-row collect for the whole Send preview (not per-producer).
+  const allFacingRows = useMemo(
+    () =>
+      getProducerFacingScheduleRows(
+        mtdRecords,
+        allOrders,
+        producers,
+        undefined,
         filterPeriod
-      );
-    });
-    const mixCounts = new Map<string, number>();
+      ),
+    [mtdRecords, allOrders, producers, filterPeriod]
+  );
 
-    for (const r of eligibleRecords) {
-      if (!r.assignedProducer) continue;
-      const prodObj = findProducerByAssignmentKey(r.assignedProducer, producers);
-      const name = prodObj?.name || r.assignedProducer;
-      if (!name) continue;
-      mixCounts.set(name, (mixCounts.get(name) ?? 0) + 1);
+  const rowsByProducer = useMemo(() => {
+    const map = new Map<string, ProducerFacingScheduleRow[]>();
+    for (const row of allFacingRows) {
+      const list = map.get(row.assignedProducer);
+      if (list) list.push(row);
+      else map.set(row.assignedProducer, [row]);
     }
+    return map;
+  }, [allFacingRows]);
 
+  const activeProducerSummaries = useMemo(() => {
     const allowed =
       allowedProducerNames && allowedProducerNames.length > 0
         ? new Set(allowedProducerNames.map((name) => name.toUpperCase()))
         : null;
 
-    return Array.from(mixCounts.entries())
-      .map(([name, mixCount]) => {
+    return Array.from(rowsByProducer.entries())
+      .map(([name, rows]) => {
         const producerObj =
           producers.find(
             (p) => p.name.toUpperCase() === name.toUpperCase() || p.id === name
           ) || findProducerByAssignmentKey(name, producers);
-        return { name, mixCount, producerObj };
+        return { name, mixCount: rows.length, producerObj };
       })
       .filter((entry) => !allowed || allowed.has(entry.name.toUpperCase()))
       .sort((a, b) => b.mixCount - a.mixCount || a.name.localeCompare(b.name));
-  }, [mtdRecords, producers, allowedProducerNames, filterPeriod]);
+  }, [rowsByProducer, producers, allowedProducerNames]);
 
   const activeProducersInSchedule = useMemo(
     () => activeProducerSummaries.map((entry) => entry.name),
@@ -238,33 +239,10 @@ export function ProducerSchedulePreview({
     );
   }, [producers, currentProducerToView]);
 
-  // Get ongoing schedule rows for currently viewed producer
-  const currentRows = useMemo(() => {
-    return getProducerFacingScheduleRows(
-      mtdRecords,
-      allOrders,
-      producers,
-      currentProducerToView,
-      filterPeriod
-    );
-  }, [mtdRecords, allOrders, producers, currentProducerToView, filterPeriod]);
-
-  const rowsByProducer = useMemo(() => {
-    const map = new Map<string, ProducerFacingScheduleRow[]>();
-    for (const summary of activeProducerSummaries) {
-      map.set(
-        summary.name,
-        getProducerFacingScheduleRows(
-          mtdRecords,
-          allOrders,
-          producers,
-          summary.name,
-          filterPeriod
-        )
-      );
-    }
-    return map;
-  }, [activeProducerSummaries, mtdRecords, allOrders, producers, filterPeriod]);
+  const currentRows = useMemo(
+    () => rowsByProducer.get(currentProducerToView) ?? [],
+    [rowsByProducer, currentProducerToView]
+  );
 
   useEffect(() => {
     onViewingProducerChange?.(currentProducerToView);

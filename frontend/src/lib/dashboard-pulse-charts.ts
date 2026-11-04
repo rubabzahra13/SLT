@@ -13,8 +13,10 @@ export function openBookingsToStubMtd(
   if (!bookings?.length) return [];
   return bookings.map((b, index) => {
     const producer = (b.producer || "").trim();
+    const inMtd = String(b.in_mtd || "yes").toLowerCase() !== "no";
     return {
       id: `pulse-booking-${index}`,
+      orderId: inMtd ? undefined : `pulse-order-${index}`,
       section: "CHEERLEADING MUSIC",
       assignedProducer: producer || null,
       category: "Cheer",
@@ -34,7 +36,7 @@ export function openBookingsToStubMtd(
       needsAttention: false,
       status: "active",
       inPayroll: false,
-      inMTD: true,
+      inMTD: inMtd,
     };
   });
 }

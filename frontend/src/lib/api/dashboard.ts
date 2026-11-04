@@ -24,6 +24,8 @@ export type DashboardOpenBooking = {
   producer: string;
   start?: string;
   end?: string;
+  /** "yes" = Music To Do / live MTD; "no" = Orders-tab Assigned (pre-MTD). */
+  in_mtd?: "yes" | "no" | string;
 };
 
 export type DashboardPulseApi = {
@@ -34,6 +36,8 @@ export type DashboardPulseApi = {
   todays_mixes: number;
   outsourced: number;
   mtd_open?: number;
+  /** MTD open + Orders-tab Assigned with dates (capacity / timeline / today's mixes). */
+  open_assigned?: number;
   /** Unpaid payroll rows — sidebar badge. */
   payroll_open?: number;
   orders_in_total?: number;

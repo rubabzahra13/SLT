@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { ProducerAvailabilityModal } from "@/components/producers/ProducerAvailabilityModal";
 import { ProducerFormModal } from "@/components/producers/ProducerFormModal";
-import { useAppState } from "@/context/AppStateContext";
+import { useAppProducers } from "@/context/AppStateContext";
 import type { Producer, Weekday } from "@/types";
 
 /**
@@ -11,7 +11,7 @@ import type { Producer, Weekday } from "@/types";
  * Orders / MTD / Payroll assigned-producer cells.
  */
 export function useProducerEditModals() {
-  const { producers, updateProducer, isViewOnly } = useAppState();
+  const { producers, updateProducer, isViewOnly } = useAppProducers();
   const [profileOpen, setProfileOpen] = useState(false);
   const [editing, setEditing] = useState<Producer | null>(null);
   const [availabilityProducer, setAvailabilityProducer] =

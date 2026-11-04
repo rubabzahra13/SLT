@@ -11,7 +11,7 @@ import {
   Info,
   X,
 } from "lucide-react";
-import { useAppState } from "@/context/AppStateContext";
+import { useAppNotices } from "@/context/AppStateContext";
 import type { AppAlert, AppAlertTone } from "@/types";
 
 const AUTO_DISMISS_MS = 4500;
@@ -47,7 +47,7 @@ const toneByAlert: Record<
 };
 
 export function NotificationToaster() {
-  const { alerts } = useAppState();
+  const { alerts } = useAppNotices();
   const router = useRouter();
   const [toasts, setToasts] = useState<AppAlert[]>([]);
   const [mounted, setMounted] = useState(false);

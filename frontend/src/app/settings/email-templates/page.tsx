@@ -18,7 +18,7 @@ import {
 import clsx from "clsx";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { EmailTemplateDocumentPanel } from "@/components/settings/EmailTemplateDocumentPanel";
-import { useAppState } from "@/context/AppStateContext";
+import { useAppEmailTemplates } from "@/context/AppStateContext";
 import {
   DEFAULT_EMAIL_TEMPLATES,
   EMAIL_TEMPLATE_DEFINITIONS,
@@ -60,7 +60,7 @@ export default function EmailTemplatesSettingsPage() {
     updateEmailTemplate,
     resetEmailTemplate,
     isViewOnly,
-  } = useAppState();
+  } = useAppEmailTemplates();
   const [selectedId, setSelectedId] = useState<EmailTemplateId>(
     EMAIL_TEMPLATE_DEFINITIONS[0].id
   );

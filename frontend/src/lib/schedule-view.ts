@@ -1,11 +1,15 @@
 import type { MTDRecord, Producer, ScheduleEntry } from "@/types";
 import { parseFlexibleDate } from "@/lib/dates";
 import {
+  buildProducerDayMixCountIndex,
+  DAILY_LIMIT_FULL_RATIO,
+  DAILY_LIMIT_WARNING_RATIO,
   isProducerDailyLimitFull,
-  isProducerReachingDailyLimit,
   isProducerOnTimeOff,
   isProducerExtraDay,
+  isProducerReachingDailyLimit,
   isProducerWorkDay,
+  mixCountFromDayIndex,
 } from "@/lib/producer-availability";
 import { isEligibleProducerScheduleRecord } from "@/lib/export-csv";
 import { isMTDRecord } from "@/lib/mtd-filters";
@@ -339,12 +343,53 @@ function enumerateDays(start: Date, end: Date): Date[] {
   return dates;
 }
 
+function scheduleDayLimitStatus(
+  producer: Producer,
+  date: Date,
+  mtdRecords: MTDRecord[],
+  mixIndex: Map<string, number> | null
+): "limit_full" | "capacity" | "ok" {
+  const indexed = mixCountFromDayIndex(mixIndex, producer, date);
+  const maxMixes = producer.maxMixesPerDay;
+  // Prefer the precomputed mix index (Schedule matrix). Fall back to full
+  // scans only when cost caps matter and we have no index.
+  if (indexed != null && maxMixes != null && maxMixes > 0) {
+    const ratio = indexed / maxMixes;
+    if (indexed >= maxMixes || ratio >= DAILY_LIMIT_FULL_RATIO) {
+      return "limit_full";
+    }
+    if (ratio >= DAILY_LIMIT_WARNING_RATIO) return "capacity";
+    // Cost caps still need a scan when a max cost is set.
+    if (
+      producer.maxProducerCostPerDay != null &&
+      producer.maxProducerCostPerDay > 0 &&
+      isProducerDailyLimitFull(producer, date, mtdRecords)
+    ) {
+      return "limit_full";
+    }
+    if (
+      producer.maxProducerCostPerDay != null &&
+      producer.maxProducerCostPerDay > 0 &&
+      isProducerReachingDailyLimit(producer, date, mtdRecords)
+    ) {
+      return "capacity";
+    }
+    return "ok";
+  }
+  if (isProducerDailyLimitFull(producer, date, mtdRecords)) return "limit_full";
+  if (isProducerReachingDailyLimit(producer, date, mtdRecords)) {
+    return "capacity";
+  }
+  return "ok";
+}
+
 export function getScheduleCells(
   producer: Producer,
   schedule: ScheduleEntry[],
   range: ScheduleViewRange,
   anchorDate = new Date(),
-  mtdRecords: MTDRecord[] = []
+  mtdRecords: MTDRecord[] = [],
+  mixIndex: Map<string, number> | null = null
 ): ScheduleCell[] {
   const scheduleId = producerScheduleId(producer);
   const scheduleByDay = new Map(
@@ -362,17 +407,27 @@ export function getScheduleCells(
     );
 
     if (coveringBookings.length > 0 && status === "available") {
-      status = isProducerDailyLimitFull(producer, date, mtdRecords)
-        ? "limit_full"
-        : isProducerReachingDailyLimit(producer, date, mtdRecords)
-          ? "capacity"
-          : "mix";
+      const limit = scheduleDayLimitStatus(
+        producer,
+        date,
+        mtdRecords,
+        mixIndex
+      );
+      status =
+        limit === "limit_full"
+          ? "limit_full"
+          : limit === "capacity"
+            ? "capacity"
+            : "mix";
     } else if (status === "available") {
-      if (isProducerDailyLimitFull(producer, date, mtdRecords)) {
-        status = "limit_full";
-      } else if (isProducerReachingDailyLimit(producer, date, mtdRecords)) {
-        status = "capacity";
-      }
+      const limit = scheduleDayLimitStatus(
+        producer,
+        date,
+        mtdRecords,
+        mixIndex
+      );
+      if (limit === "limit_full") status = "limit_full";
+      else if (limit === "capacity") status = "capacity";
     }
 
     const bookings =
@@ -544,6 +599,8 @@ export function buildTeamSchedule(
   anchorDate = new Date(),
   mtdRecords: MTDRecord[] = []
 ): TeamScheduleRow[] {
+  // One pass over bookings for all producers×days (not P×D rescans).
+  const mixIndex = buildProducerDayMixCountIndex(mtdRecords);
   return producers.map((producer) => ({
     producer,
     cells: getScheduleCells(
@@ -551,7 +608,8 @@ export function buildTeamSchedule(
       schedule,
       range,
       anchorDate,
-      mtdRecords
+      mtdRecords,
+      mixIndex
     ),
   }));
 }

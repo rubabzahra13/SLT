@@ -10,7 +10,7 @@ import {
   type PayrollSendPreviewItem,
 } from "@/components/payroll/PayrollSendMailModal";
 import { useAuth } from "@/context/AuthContext";
-import { useAppState } from "@/context/AppStateContext";
+import { useAppEmailTemplates } from "@/context/AppStateContext";
 import {
   calculateDateBounds,
   payPeriodRangeLabel,
@@ -95,7 +95,7 @@ export function PayrollSendPanel({
   payrollAddons = [],
 }: PayrollSendPanelProps) {
   const { token, isViewOnly } = useAuth();
-  const { emailTemplates } = useAppState();
+  const { emailTemplates } = useAppEmailTemplates();
   const [gmailConnected, setGmailConnected] = useState(false);
   const [gmailFrom, setGmailFrom] = useState<string | null>(null);
   const [loadingGmail, setLoadingGmail] = useState(true);

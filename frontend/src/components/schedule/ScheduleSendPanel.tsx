@@ -10,7 +10,7 @@ import {
   type ScheduleSendPreviewItem,
 } from "@/components/schedule/ScheduleSendMailModal";
 import { useAuth } from "@/context/AuthContext";
-import { useAppState } from "@/context/AppStateContext";
+import { useAppEmailTemplates } from "@/context/AppStateContext";
 import { todayIso } from "@/lib/date-filters";
 import { ApiClientError } from "@/lib/api/client";
 import { getGmailStatus, sendGmailEmail } from "@/lib/api/gmail";
@@ -91,7 +91,7 @@ export function ScheduleSendPanel({
   sendView,
 }: ScheduleSendPanelProps) {
   const { token, isViewOnly } = useAuth();
-  const { emailTemplates } = useAppState();
+  const { emailTemplates } = useAppEmailTemplates();
   const [gmailConnected, setGmailConnected] = useState(false);
   const [gmailFrom, setGmailFrom] = useState<string | null>(null);
   const [loadingGmail, setLoadingGmail] = useState(true);
@@ -156,20 +156,37 @@ export function ScheduleSendPanel({
 
   const canSend = canExport && gmailConnected && !isViewOnly && !isSending;
 
-  const mixCountByProducer = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const name of producerNames) {
-      const rows = getProducerFacingScheduleRows(
+  // One collect for all producers — not N× getProducerFacingScheduleRows.
+  const allFacingRows = useMemo(
+    () =>
+      getProducerFacingScheduleRows(
         mtdRecords,
         allOrders,
         producers,
-        name,
+        undefined,
         filterPeriod
-      );
-      counts.set(name, rows.length);
+      ),
+    [mtdRecords, allOrders, producers, filterPeriod]
+  );
+
+  const rowsByProducer = useMemo(() => {
+    const map = new Map<string, typeof allFacingRows>();
+    for (const row of allFacingRows) {
+      const name = row.assignedProducer;
+      const list = map.get(name);
+      if (list) list.push(row);
+      else map.set(name, [row]);
+    }
+    return map;
+  }, [allFacingRows]);
+
+  const mixCountByProducer = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const name of producerNames) {
+      counts.set(name, rowsByProducer.get(name)?.length ?? 0);
     }
     return counts;
-  }, [producerNames, mtdRecords, allOrders, producers, filterPeriod]);
+  }, [producerNames, rowsByProducer]);
 
   const periodLabel = sendPeriodLabel(sendView);
 
@@ -178,14 +195,8 @@ export function ScheduleSendPanel({
       const producer = findProducerByName(producerName, producers);
       if (!producer) return [];
 
-      const mixCount = mixCountByProducer.get(producerName) ?? 0;
-      const rows = getProducerFacingScheduleRows(
-        mtdRecords,
-        allOrders,
-        producers,
-        producerName,
-        filterPeriod
-      );
+      const rows = rowsByProducer.get(producerName) ?? [];
+      const mixCount = rows.length;
       const draft = buildScheduleMailDraft(
         producer,
         mixCount,
@@ -206,11 +217,8 @@ export function ScheduleSendPanel({
   }, [
     targetProducerNames,
     producers,
-    mixCountByProducer,
+    rowsByProducer,
     categoryLabel,
-    mtdRecords,
-    allOrders,
-    filterPeriod,
     emailTemplates.producer_schedule,
   ]);
 
@@ -256,14 +264,8 @@ export function ScheduleSendPanel({
         throw new Error(`${producerName} has no email on file.`);
       }
 
-      const mixCount = mixCountByProducer.get(producerName) ?? 0;
-      const rows = getProducerFacingScheduleRows(
-        mtdRecords,
-        allOrders,
-        producers,
-        producerName,
-        filterPeriod
-      );
+      const rows = rowsByProducer.get(producerName) ?? [];
+      const mixCount = rows.length;
       const draft = buildScheduleMailDraft(
         producer,
         mixCount,
@@ -291,9 +293,7 @@ export function ScheduleSendPanel({
     },
     [
       producers,
-      mixCountByProducer,
-      mtdRecords,
-      allOrders,
+      rowsByProducer,
       categoryLabel,
       token,
       filterPeriod,

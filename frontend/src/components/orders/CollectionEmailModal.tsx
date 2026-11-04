@@ -25,7 +25,7 @@ import { findLinkedOrder } from "@/lib/editor-assignment";
 import { getGmailStatus, sendGmailEmail } from "@/lib/api/gmail";
 import { ApiClientError } from "@/lib/api/client";
 import { useAuth } from "@/context/AuthContext";
-import { useAppState } from "@/context/AppStateContext";
+import { useAppNotices } from "@/context/AppStateContext";
 import type { MTDRecord, Order } from "@/types";
 
 type CollectionEmailModalProps = {
@@ -151,7 +151,7 @@ export function CollectionEmailModal({
   onClose,
 }: CollectionEmailModalProps) {
   const { token, isViewOnly } = useAuth();
-  const { addAlert } = useAppState();
+  const { addAlert } = useAppNotices();
   const [mounted, setMounted] = useState(false);
   const [copied, setCopied] = useState(false);
   const [gmailConnected, setGmailConnected] = useState(false);

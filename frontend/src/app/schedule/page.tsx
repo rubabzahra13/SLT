@@ -10,10 +10,18 @@ import { Tabs } from "@/components/ui/Tabs";
 import { TeamScheduleMatrix } from "@/components/schedule/TeamScheduleMatrix";
 import { TeamScheduleTodayView } from "@/components/schedule/TeamScheduleTodayView";
 import { useAppState } from "@/context/AppStateContext";
+import {
+  fetchDashboardPulseApi,
+  isDashboardPulseFresh,
+  readDashboardPulseCache,
+  type DashboardPulseApi,
+} from "@/lib/api/dashboard";
+import { openBookingsToStubMtd } from "@/lib/dashboard-pulse-charts";
 import { todayIso } from "@/lib/date-filters";
 import { doDateRangesOverlap } from "@/lib/dates";
 import { isEligibleProducerScheduleRecord } from "@/lib/export-csv";
 import { findProducerByAssignmentKey } from "@/lib/editor-assignment";
+import { collectOrdersBoardCachedOrders } from "@/lib/orders-board-cache";
 import { collectOpenAssignedMixRecords } from "@/lib/producer-assigned-mixes";
 import {
   aggregateColumns,
@@ -38,8 +46,45 @@ import { DEFAULT_CHEER_SUBTYPE, DEFAULT_DANCE_SUBTYPE } from "@/lib/mtd-filters"
 import type {
   CheerFormSubtypeFilter,
   DanceFormSubtypeFilter,
+  Order,
   OrderFormType,
 } from "@/types";
+
+function mergeOrdersForSchedule(...lists: Order[][]): Order[] {
+  const byId = new Map<string, Order>();
+  for (const list of lists) {
+    for (const order of list) {
+      if (!order?.id || byId.has(order.id)) continue;
+      byId.set(order.id, order);
+    }
+  }
+  return [...byId.values()];
+}
+
+function bookingSpanKey(r: {
+  assignedProducer?: string | null;
+  mixStartDate?: string | null;
+  mixEndDate?: string | null;
+}): string {
+  return `${(r.assignedProducer || "").trim().toUpperCase()}|${r.mixStartDate || ""}|${r.mixEndDate || ""}`;
+}
+
+/** Prefer concrete Orders/MTD rows; fill gaps from slim pulse stubs. */
+function mergeScheduleBookings<T extends { assignedProducer?: string | null; mixStartDate?: string | null; mixEndDate?: string | null }>(
+  primary: T[],
+  pulseFill: T[]
+): T[] {
+  if (pulseFill.length === 0) return primary;
+  if (primary.length === 0) return pulseFill;
+  const seen = new Set(primary.map(bookingSpanKey));
+  const extras = pulseFill.filter((r) => {
+    const key = bookingSpanKey(r);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  return [...primary, ...extras];
+}
 
 const DEFAULT_FORM: OrderFormType = "school-all-star-cheer";
 
@@ -58,31 +103,40 @@ function SchedulePageContent() {
     ensureLiveMtdLoaded,
   } = useAppState();
 
-  // Schedule needs live mixes eventually — don't block first paint / nav.
-  useEffect(() => {
-    let idleId: number | null = null;
-    const t = window.setTimeout(() => {
-      const run = () => {
-        void ensureLiveMtdLoaded().catch(() => {
-          /* keep SWR / empty */
-        });
-      };
-      if (typeof window.requestIdleCallback === "function") {
-        idleId = window.requestIdleCallback(run, { timeout: 4000 });
-      } else {
-        run();
-      }
-    }, 1200);
-    return () => {
-      window.clearTimeout(t);
-      if (idleId != null && typeof window.cancelIdleCallback === "function") {
-        window.cancelIdleCallback(idleId);
-      }
-    };
-  }, [ensureLiveMtdLoaded]);
   const [pageTab, setPageTab] = useState<SchedulePageTab>("view");
   const [selectedEditor, setSelectedEditor] = useState("all");
   const [selectedSendEditor, setSelectedSendEditor] = useState("all");
+  const [pulse, setPulse] = useState<DashboardPulseApi | null>(
+    () => readDashboardPulseCache()
+  );
+
+  // View Schedule: slim pulse open_bookings (same as Dashboard capacity) —
+  // never pull full GET /api/mtd?scope=live on every Schedule visit.
+  useEffect(() => {
+    if (pageTab !== "view") return;
+    const cached = readDashboardPulseCache();
+    if (cached) setPulse(cached);
+    if (isDashboardPulseFresh()) return;
+    let cancelled = false;
+    void fetchDashboardPulseApi()
+      .then((next) => {
+        if (!cancelled) setPulse(next);
+      })
+      .catch(() => {
+        /* paint producers + any cached pulse */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [pageTab]);
+
+  // Send Schedule needs program/invoice detail — hydrate live MTD once then.
+  useEffect(() => {
+    if (pageTab !== "send") return;
+    void ensureLiveMtdLoaded().catch(() => {
+      /* keep pulse / SWR */
+    });
+  }, [pageTab, ensureLiveMtdLoaded]);
 
   const [view, setView] = useState<ScheduleViewRange>(() => {
     if (viewParam === "today") return "today";
@@ -157,12 +211,19 @@ function SchedulePageContent() {
     [currentDate]
   );
 
-  // Orders Assigned (pre-MTD) + MTD Ongoing/Outsourced. Assign on Orders only
-  // patches the order, so raw mtdRecords alone miss those bookings.
-  const scheduleBookings = useMemo(
-    () => collectOpenAssignedMixRecords(activeOrders, mtdRecords),
-    [activeOrders, mtdRecords]
-  );
+  // Orders-tab Assigned + MTD mixes. View uses pulse (both sources) + any
+  // in-memory board/MTD rows — no full live-MTD hydrate. Send uses full collect.
+  const scheduleBookings = useMemo(() => {
+    const orders = mergeOrdersForSchedule(
+      activeOrders,
+      allOrders,
+      collectOrdersBoardCachedOrders()
+    );
+    const fromMemory = collectOpenAssignedMixRecords(orders, mtdRecords);
+    if (pageTab === "send") return fromMemory;
+    const pulseStubs = openBookingsToStubMtd(pulse?.open_bookings);
+    return mergeScheduleBookings(fromMemory, pulseStubs);
+  }, [pageTab, activeOrders, allOrders, mtdRecords, pulse?.open_bookings]);
 
   const teamRows = useMemo(
     () =>

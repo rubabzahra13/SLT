@@ -12,7 +12,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { useAppState } from "@/context/AppStateContext";
+import { useAppNotices } from "@/context/AppStateContext";
 import { ApiClientError, formatApiClientError } from "@/lib/api/client";
 import {
   getGmailStatus,
@@ -92,7 +92,7 @@ function friendlyGmailError(err: unknown, fallback: string): string {
 
 export function EmailSendingSettingsCard() {
   const { isViewOnly, token } = useAuth();
-  const { addNotification, addAlert } = useAppState();
+  const { addNotification, addAlert } = useAppNotices();
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();

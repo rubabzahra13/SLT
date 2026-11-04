@@ -207,7 +207,12 @@ def _compute_pulse(db: Session, today: date) -> dict[str, Any]:
             producer_key = (assigned_producer or "").strip()
             if producer_key and producer_key.upper() != "NA":
                 open_bookings.append(
-                    {"producer": producer_key, "start": start, "end": end}
+                    {
+                        "producer": producer_key,
+                        "start": start,
+                        "end": end,
+                        "in_mtd": "yes",
+                    }
                 )
 
         if (
@@ -250,7 +255,92 @@ def _compute_pulse(db: Session, today: date) -> dict[str, Any]:
         )
     ]
 
+    # Orders-tab Assigned (pre-MTD) with mix dates — Schedule + Dashboard
+    # capacity / Today's mixes / Mix timeline must count these too.
+    # Music-to-do pipeline / mtd_open stay MTD-board-only.
+    seen_spans = {
+        (
+            (b.get("producer") or "").strip().upper(),
+            b.get("start") or "",
+            b.get("end") or "",
+        )
+        for b in open_bookings
+    }
+    order_booking_rows = (
+        db.query(
+            Order.assigned_producer,
+            Order.assigned_producer_id,
+            Order.mix_start_date,
+            Order.mix_end_date,
+            Order.invoice,
+            Order.needs_attention,
+        )
+        .filter(
+            pre_mtd,
+            _not_flagged(),
+            or_(Order.status.is_(None), Order.status != "completed"),
+            Order.mix_start_date.isnot(None),
+            or_(
+                Order.assigned_producer_id.isnot(None),
+                and_(
+                    Order.assigned_producer.isnot(None),
+                    Order.assigned_producer != "",
+                    Order.assigned_producer != "NA",
+                ),
+            ),
+        )
+        .all()
+    )
+    for (
+        assigned_producer,
+        assigned_producer_id,
+        mix_start,
+        mix_end,
+        invoice,
+        needs_attention,
+    ) in order_booking_rows:
+        if not _order_has_producer_row(assigned_producer, assigned_producer_id):
+            continue
+        producer_key = (assigned_producer or "").strip()
+        if not producer_key or producer_key.upper() == "NA":
+            continue
+        start = _iso_or_empty(mix_start)
+        end = _iso_or_empty(mix_end)
+        if not start:
+            continue
+        span = (producer_key.upper(), start, end)
+        if span in seen_spans:
+            continue
+        seen_spans.add(span)
+        open_bookings.append(
+            {
+                "producer": producer_key,
+                "start": start,
+                "end": end,
+                "in_mtd": "no",
+            }
+        )
+
+        waiting = bool(needs_attention)
+        if not waiting and start > today_s:
+            in_queue += 1
+        if start <= today_s and (not end or end >= today_s):
+            todays_mixes += 1
+
+        ready = bool((invoice or "").strip() and start and end)
+        if end and end < today_s:
+            overdue += 1
+        elif start == today_s:
+            starting_today += 1
+        elif end and end <= week_end_s:
+            due_this_week += 1
+        elif not ready:
+            missing_data += 1
+        else:
+            on_track += 1
+
     orders_in_total, orders_in_by_day = _orders_in_series(db, today)
+    open_assigned = len(open_bookings)
 
     return {
         "unassigned": unassigned,
@@ -259,6 +349,8 @@ def _compute_pulse(db: Session, today: date) -> dict[str, Any]:
         "todays_mixes": todays_mixes,
         "outsourced": outsourced,
         "mtd_open": mtd_open,
+        # MTD + Orders-tab Assigned with dates (Schedule / capacity / timeline).
+        "open_assigned": open_assigned,
         "payroll_open": payroll_open,
         "orders_in_total": orders_in_total,
         "orders_in_by_day": orders_in_by_day,

@@ -148,9 +148,10 @@ export function DashboardPageClient({
   const incomingTotal =
     pulseApi?.orders_in_total ??
     incomingOrders.reduce((sum, point) => sum + point.count, 0);
-  // Prefer server open count so Music to do matches Mix timeline / pulse
-  // even if a sticky local payroll merge briefly hides a row.
+  // Mix timeline / capacity: MTD + Orders-tab Assigned (open_assigned).
+  // Music to do panel stays MTD-board-only (mtd_open).
   const openOnTimeline =
+    pulseApi?.open_assigned ??
     pulseApi?.mtd_open ??
     bookingMtd.filter((r) => r.status !== "completed" && !r.inPayroll).length;
   const pipelineTotal =

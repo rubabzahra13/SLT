@@ -13,7 +13,7 @@ import {
   Package,
   UserCheck,
 } from "lucide-react";
-import { useAppState } from "@/context/AppStateContext";
+import { useAppNotices } from "@/context/AppStateContext";
 import { DottedScroll } from "@/components/ui/DottedScroll";
 import { useState } from "react";
 import type { AppNotificationType } from "@/types";
@@ -54,7 +54,7 @@ export function NotificationBell({
     unreadCount,
     markNotificationRead,
     markAllNotificationsRead,
-  } = useAppState();
+  } = useAppNotices();
   const [open, setOpen] = useState(false);
 
   return (

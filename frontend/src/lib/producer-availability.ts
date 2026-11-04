@@ -627,6 +627,55 @@ export function countProducerMixesOnDay(
   return count;
 }
 
+/**
+ * Precompute mix counts per producer×day so Schedule cells don't re-scan all
+ * bookings for every producer×day (P × D × B → ~B × span days).
+ * Key: `${producerAssignmentKey}|${YYYY-MM-DD}`.
+ */
+export function buildProducerDayMixCountIndex(
+  mtdRecords: MTDRecord[]
+): Map<string, number> {
+  const index = new Map<string, number>();
+  for (const rec of mtdRecords) {
+    if (!isProducerBookingRecord(rec)) continue;
+    const assigned = rec.assignedProducer?.trim();
+    if (!assigned) continue;
+    const window = mixWindowForRecord(rec);
+    if (!window) continue;
+    const prodKey = assigned.toUpperCase();
+    const cursor = toDayStart(window.start);
+    const last = toDayStart(window.end);
+    while (cursor.getTime() <= last.getTime()) {
+      const key = `${prodKey}|${dateToIsoLocal(cursor)}`;
+      index.set(key, (index.get(key) || 0) + 1);
+      cursor.setDate(cursor.getDate() + 1);
+    }
+  }
+  return index;
+}
+
+/** Look up a precomputed producer×day mix count (assignment key or name). */
+export function mixCountFromDayIndex(
+  index: Map<string, number> | null | undefined,
+  producer: Producer,
+  day: Date
+): number | null {
+  if (!index || index.size === 0) return null;
+  const dayIso = dateToIsoLocal(day);
+  const primary = producerAssignmentKey(producer);
+  if (primary) {
+    const n = index.get(`${primary}|${dayIso}`);
+    if (n != null) return n;
+  }
+  const name = producer.name.trim().toUpperCase();
+  if (name) {
+    const n = index.get(`${name}|${dayIso}`);
+    if (n != null) return n;
+  }
+  // Index exists: no bookings for this producer/day.
+  return 0;
+}
+
 /** Monday-start local week containing `anchorDate`. */
 export function startOfLocalWeek(anchorDate: Date = new Date()): Date {
   const day = toDayStart(anchorDate);

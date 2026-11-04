@@ -94,7 +94,6 @@ import {
   sameStringSet,
   sameTimeOffList,
 } from "@/lib/producers";
-import { countProducerMixesThisWeek } from "@/lib/producer-availability";
 import { normalizeDiscountCode } from "@/lib/discount-codes";
 import { isOutsourcedRecord } from "@/lib/mtd-filters";
 import { mergeLocalMtdRecordFields } from "@/lib/mtd-completion";
@@ -321,6 +320,39 @@ type AppStateContextValue = {
 };
 
 const AppStateContext = createContext<AppStateContextValue | null>(null);
+
+/** Producers roster only — ignores MTD/orders board churn. */
+export type AppProducersSlice = {
+  producers: Producer[];
+  addProducer: AppStateContextValue["addProducer"];
+  updateProducer: AppStateContextValue["updateProducer"];
+  removeProducer: AppStateContextValue["removeProducer"];
+  isViewOnly: boolean;
+};
+
+/** Bell + toast surface — ignores board/roster data churn. */
+export type AppNoticesSlice = {
+  notifications: AppNotification[];
+  alerts: AppAlert[];
+  unreadCount: number;
+  addNotification: AppStateContextValue["addNotification"];
+  addAlert: AppStateContextValue["addAlert"];
+  markNotificationRead: AppStateContextValue["markNotificationRead"];
+  markAllNotificationsRead: AppStateContextValue["markAllNotificationsRead"];
+};
+
+/** Email template editor — ignores board/roster/notification churn. */
+export type AppEmailTemplatesSlice = {
+  emailTemplates: EmailTemplatesState;
+  updateEmailTemplate: AppStateContextValue["updateEmailTemplate"];
+  resetEmailTemplate: AppStateContextValue["resetEmailTemplate"];
+  isViewOnly: boolean;
+};
+
+const AppProducersContext = createContext<AppProducersSlice | null>(null);
+const AppNoticesContext = createContext<AppNoticesSlice | null>(null);
+const AppEmailTemplatesContext =
+  createContext<AppEmailTemplatesSlice | null>(null);
 
 function normalizeOrders(orders: Order[]): Order[] {
   return orders.map((o) => {
@@ -4711,26 +4743,6 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     applyIncomingProducer,
   ]);
 
-  // Keep producers.mixesThisWeek aligned with live MTD bookings for this week.
-  // Display-only: MTD is paged, so a count from local rows must never be
-  // written back (it PATCHed every producer on each load, often with 0).
-  const producerSyncKey = producers.map((p) => p.id).join("|");
-
-  useEffect(() => {
-    if (!isBackendConnected || isViewOnly) return;
-
-    setProducers((prev) => {
-      let changed = false;
-      const next = prev.map((producer) => {
-        const mixesThisWeek = countProducerMixesThisWeek(producer, mtdRecords);
-        if (mixesThisWeek === (producer.mixesThisWeek ?? 0)) return producer;
-        changed = true;
-        return { ...producer, mixesThisWeek };
-      });
-      return changed ? next : prev;
-    });
-  }, [mtdRecords, producerSyncKey, isBackendConnected, isViewOnly]);
-
   useEffect(() => {
     setLocalItem(EMAIL_TEMPLATES_STORAGE_KEY, emailTemplates);
   }, [emailTemplates]);
@@ -5068,76 +5080,216 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
-  const value: AppStateContextValue = {
-    activeOrders,
-    pastOrders,
-    allOrders,
-    mtdRecords,
-    archivedPayrollRecords,
-    secretMenuPrices,
-    producers,
-    discountCodes,
-    payrollAddons,
-    personalReasons,
-    emailTemplates,
-    schedule,
-    notifications,
-    alerts,
-    unreadCount,
-    isBackendConnected,
-    isLoading,
-    isViewOnly,
-    moveOrderToMTD,
-    updateMTD,
-    removeMTDRecord,
-    updateOrder,
-    deleteOrder,
-    setSecretMenuPrices,
-    markComplete,
-    addPastOrder,
-    receiveOrder,
-    ensurePastOrdersLoaded,
-    releasePastOrders,
-    ensureLiveMtdLoaded,
-    ensureArchivedPayrollLoaded,
-    releaseArchivedPayroll,
-    ensurePayrollLinkedAddonsLoaded,
-    ensureAddonsForMtdIdsLoaded,
-    ensureVoiceoverAddonsLoaded,
-    matchManualWithMagento,
-    addProducer,
-    updateProducer,
-    removeProducer,
-    addDiscountCode,
-    updateDiscountCode,
-    removeDiscountCode,
-    addPayrollAddon,
-    updatePayrollAddon,
-    removePayrollAddon,
-    addManualScheduleEntry,
-    addNotification,
-    addAlert,
-    addPersonalReason,
-    updatePersonalReason,
-    removePersonalReason,
-    updateEmailTemplate,
-    resetEmailTemplate,
-    markNotificationRead,
-    markAllNotificationsRead,
-    maybeNotifyMatchSuggestion,
-    unseenSuggestedMatchCount: unseenMatchFormIds.length,
-    markMatchOrdersSeen,
-    isInMTD,
-  };
+  const value = useMemo<AppStateContextValue>(
+    () => ({
+      activeOrders,
+      pastOrders,
+      allOrders,
+      mtdRecords,
+      archivedPayrollRecords,
+      secretMenuPrices,
+      producers,
+      discountCodes,
+      payrollAddons,
+      personalReasons,
+      emailTemplates,
+      schedule,
+      notifications,
+      alerts,
+      unreadCount,
+      isBackendConnected,
+      isLoading,
+      isViewOnly,
+      moveOrderToMTD,
+      updateMTD,
+      removeMTDRecord,
+      updateOrder,
+      deleteOrder,
+      setSecretMenuPrices,
+      markComplete,
+      addPastOrder,
+      receiveOrder,
+      ensurePastOrdersLoaded,
+      releasePastOrders,
+      ensureLiveMtdLoaded,
+      ensureArchivedPayrollLoaded,
+      releaseArchivedPayroll,
+      ensurePayrollLinkedAddonsLoaded,
+      ensureAddonsForMtdIdsLoaded,
+      ensureVoiceoverAddonsLoaded,
+      matchManualWithMagento,
+      addProducer,
+      updateProducer,
+      removeProducer,
+      addDiscountCode,
+      updateDiscountCode,
+      removeDiscountCode,
+      addPayrollAddon,
+      updatePayrollAddon,
+      removePayrollAddon,
+      addManualScheduleEntry,
+      addNotification,
+      addAlert,
+      addPersonalReason,
+      updatePersonalReason,
+      removePersonalReason,
+      updateEmailTemplate,
+      resetEmailTemplate,
+      markNotificationRead,
+      markAllNotificationsRead,
+      maybeNotifyMatchSuggestion,
+      unseenSuggestedMatchCount: unseenMatchFormIds.length,
+      markMatchOrdersSeen,
+      isInMTD,
+    }),
+    [
+      activeOrders,
+      pastOrders,
+      allOrders,
+      mtdRecords,
+      archivedPayrollRecords,
+      secretMenuPrices,
+      producers,
+      discountCodes,
+      payrollAddons,
+      personalReasons,
+      emailTemplates,
+      schedule,
+      notifications,
+      alerts,
+      unreadCount,
+      isBackendConnected,
+      isLoading,
+      isViewOnly,
+      moveOrderToMTD,
+      updateMTD,
+      removeMTDRecord,
+      updateOrder,
+      deleteOrder,
+      setSecretMenuPrices,
+      markComplete,
+      addPastOrder,
+      receiveOrder,
+      ensurePastOrdersLoaded,
+      releasePastOrders,
+      ensureLiveMtdLoaded,
+      ensureArchivedPayrollLoaded,
+      releaseArchivedPayroll,
+      ensurePayrollLinkedAddonsLoaded,
+      ensureAddonsForMtdIdsLoaded,
+      ensureVoiceoverAddonsLoaded,
+      matchManualWithMagento,
+      addProducer,
+      updateProducer,
+      removeProducer,
+      addDiscountCode,
+      updateDiscountCode,
+      removeDiscountCode,
+      addPayrollAddon,
+      updatePayrollAddon,
+      removePayrollAddon,
+      addManualScheduleEntry,
+      addNotification,
+      addAlert,
+      addPersonalReason,
+      updatePersonalReason,
+      removePersonalReason,
+      updateEmailTemplate,
+      resetEmailTemplate,
+      markNotificationRead,
+      markAllNotificationsRead,
+      maybeNotifyMatchSuggestion,
+      unseenMatchFormIds.length,
+      markMatchOrdersSeen,
+      isInMTD,
+    ]
+  );
+
+  // Narrow slices: Settings / Producers / bell skip board re-renders.
+  const producersSlice = useMemo<AppProducersSlice>(
+    () => ({
+      producers,
+      addProducer,
+      updateProducer,
+      removeProducer,
+      isViewOnly,
+    }),
+    [producers, addProducer, updateProducer, removeProducer, isViewOnly]
+  );
+
+  const noticesSlice = useMemo<AppNoticesSlice>(
+    () => ({
+      notifications,
+      alerts,
+      unreadCount,
+      addNotification,
+      addAlert,
+      markNotificationRead,
+      markAllNotificationsRead,
+    }),
+    [
+      notifications,
+      alerts,
+      unreadCount,
+      addNotification,
+      addAlert,
+      markNotificationRead,
+      markAllNotificationsRead,
+    ]
+  );
+
+  const emailTemplatesSlice = useMemo<AppEmailTemplatesSlice>(
+    () => ({
+      emailTemplates,
+      updateEmailTemplate,
+      resetEmailTemplate,
+      isViewOnly,
+    }),
+    [emailTemplates, updateEmailTemplate, resetEmailTemplate, isViewOnly]
+  );
 
   return (
-    <AppStateContext.Provider value={value}>{children}</AppStateContext.Provider>
+    <AppStateContext.Provider value={value}>
+      <AppProducersContext.Provider value={producersSlice}>
+        <AppNoticesContext.Provider value={noticesSlice}>
+          <AppEmailTemplatesContext.Provider value={emailTemplatesSlice}>
+            {children}
+          </AppEmailTemplatesContext.Provider>
+        </AppNoticesContext.Provider>
+      </AppProducersContext.Provider>
+    </AppStateContext.Provider>
   );
 }
 
 export function useAppState() {
   const ctx = useContext(AppStateContext);
   if (!ctx) throw new Error("useAppState must be used within AppStateProvider");
+  return ctx;
+}
+
+export function useAppProducers() {
+  const ctx = useContext(AppProducersContext);
+  if (!ctx) {
+    throw new Error("useAppProducers must be used within AppStateProvider");
+  }
+  return ctx;
+}
+
+export function useAppNotices() {
+  const ctx = useContext(AppNoticesContext);
+  if (!ctx) {
+    throw new Error("useAppNotices must be used within AppStateProvider");
+  }
+  return ctx;
+}
+
+export function useAppEmailTemplates() {
+  const ctx = useContext(AppEmailTemplatesContext);
+  if (!ctx) {
+    throw new Error(
+      "useAppEmailTemplates must be used within AppStateProvider"
+    );
+  }
   return ctx;
 }
 
