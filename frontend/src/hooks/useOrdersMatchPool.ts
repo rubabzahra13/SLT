@@ -214,7 +214,13 @@ export async function prefetchOrdersMatchPoolQuery(opts: {
       danceFormSubtype: opts.danceFormSubtype,
       timeoutMs: opts.timeoutMs,
     });
-    writeMatchPoolCache(dropRecentlyMatched(page.orders), page.nextPageToken, key);
+    // Memory only — session persist is for the painted Match page.
+    writeMatchPoolCache(
+      dropRecentlyMatched(page.orders),
+      page.nextPageToken,
+      key,
+      { persist: false }
+    );
   } catch {
     /* prefetch is best-effort */
   }

@@ -24,7 +24,10 @@ class Settings(BaseSettings):
 
     # Magento WebForms poller (local process; not started on Vercel).
     MAGENTO_POLL_ENABLED: bool = True
-    MAGENTO_POLL_INTERVAL_SECONDS: int = 120
+    # Slightly slower default so board/counts are less often queued behind a tick.
+    MAGENTO_POLL_INTERVAL_SECONDS: int = 180
+    # Pause between forms inside one tick so the DB pool can serve user reads.
+    MAGENTO_POLL_FORM_GAP_SECONDS: float = 0.75
     MAGENTO_POLL_FORM_IDS: str = "1,2,3,4,5,6,7,8,9,10,11,14"
     WF_BASE: str = "https://staging.powermusiccheer.com/rest"
     WF_ACCESS_TOKEN: str = ""

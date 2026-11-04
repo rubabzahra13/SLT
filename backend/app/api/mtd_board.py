@@ -1,24 +1,29 @@
 """Paged MTD / payroll board + counts for unbounded growth."""
 from __future__ import annotations
 
+import time
+
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
-from app.api.auth import get_current_user
+from app.api.auth import get_current_user, get_stream_user
 from app.api.mtd import (
     MtdListResponse,
     _apply_mtd_scope,
     _mtd_load_options,
     _serialize_mtd,
 )
-from app.core.database import get_db
+from app.core.database import SessionLocal, get_db
 from app.lib.pagination import page_token_query, paginate_keyset_by_created
 from app.models.mtd_record import MTDRecord
 from app.models.order import Order
 from app.models.user import User
-from app.order_identity import category_from_form_type
+from app.services.form_chip_cache import (
+    MTD_COUNTS_TTL_S as _MTD_COUNTS_TTL_S,
+    mtd_counts_cache as _mtd_counts_cache,
+)
 
 router = APIRouter()
 
@@ -38,6 +43,7 @@ _CHEER_SUBTYPES = (
     "school-cheer-viroc-no",
     "youth-rec-cheer",
 )
+
 _DANCE_SUBTYPES = (
     "pom",
     "hip-hop",
@@ -120,6 +126,26 @@ def _mtd_board_query(
     return query
 
 
+def _mtd_counts_cache_key(
+    *,
+    scope: str,
+    form_type: str | None,
+    cheer_form_subtype: str | None,
+    category: str | None,
+    search: str | None,
+) -> str:
+    return "|".join(
+        [
+            "v1",
+            scope or "live",
+            form_type or "",
+            cheer_form_subtype or "",
+            category or "",
+            (search or "").strip().lower(),
+        ]
+    )
+
+
 @router.get("/mtd/board", response_model=MtdListResponse)
 def get_mtd_board(
     scope: str = "live",
@@ -163,8 +189,50 @@ def get_mtd_counts(
     cheer_form_subtype: str | None = None,
     category: str | None = None,
     search: str | None = None,
-    db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(get_stream_user),
+):
+    """Scope badges + form chips. Warm responses skip the DB pool entirely."""
+    search_q = (search or "").strip()
+    cache_key: str | None = None
+    if not search_q:
+        cache_key = _mtd_counts_cache_key(
+            scope=scope,
+            form_type=form_type,
+            cheer_form_subtype=cheer_form_subtype,
+            category=category,
+            search=None,
+        )
+        hit = _mtd_counts_cache.get(cache_key)
+        now = time.monotonic()
+        if hit and now - hit[0] < _MTD_COUNTS_TTL_S:
+            return MtdBoardCountsResponse(counts=MtdBoardCounts(**hit[1]))
+
+    db = SessionLocal()
+    try:
+        return _get_mtd_counts_db(
+            db,
+            scope=scope,
+            form_type=form_type,
+            cheer_form_subtype=cheer_form_subtype,
+            category=category,
+            search=search,
+            search_q=search_q,
+            cache_key=cache_key,
+        )
+    finally:
+        db.close()
+
+
+def _get_mtd_counts_db(
+    db: Session,
+    *,
+    scope: str,
+    form_type: str | None,
+    cheer_form_subtype: str | None,
+    category: str | None,
+    search: str | None,
+    search_q: str,
+    cache_key: str | None,
 ):
     base = _mtd_board_query(
         db,
@@ -177,16 +245,14 @@ def get_mtd_counts(
     )
 
     def _count(q) -> int:
-        return int(
-            q.with_entities(func.count(MTDRecord.id)).scalar() or 0
-        )
+        return int(q.with_entities(func.count(MTDRecord.id)).scalar() or 0)
 
     # Form / subtype chips are unscoped by the active tab (Orders pattern).
     chip_base = db.query(MTDRecord)
     chip_base = _apply_mtd_scope(chip_base, scope)
     chip_base = chip_base.outerjoin(Order, MTDRecord.order_id == Order.id)
-    if search and search.strip():
-        term = f"%{search.strip()}%"
+    if search_q:
+        term = f"%{search_q}%"
         chip_base = chip_base.filter(
             or_(
                 Order.school_gym_name.ilike(term),
@@ -227,25 +293,19 @@ def get_mtd_counts(
         if st in by_dance:
             by_dance[st] = int(n or 0)
 
-    by_cat: dict[str, int] = {}
-    for cat in _CATEGORY_FORM_TYPES:
-        q = _mtd_board_query(
-            db,
-            scope=scope,
-            form_type=None,
-            cheer_form_subtype=None,
-            category=cat,
-            search=search,
-            status=None,
-        )
-        by_cat[cat] = _count(q)
+    # Category totals = sum of form buckets (was 5 extra COUNT queries).
+    by_cat = {
+        cat: sum(by_form.get(ft, 0) for ft in forms)
+        for cat, forms in _CATEGORY_FORM_TYPES.items()
+    }
 
-    return MtdBoardCountsResponse(
-        counts=MtdBoardCounts(
-            all=_count(base),
-            by_form_type=by_form,
-            by_category=by_cat,
-            by_cheer_form_subtype=by_cheer,
-            by_dance_form_subtype=by_dance,
-        )
+    counts = MtdBoardCounts(
+        all=_count(base),
+        by_form_type=by_form,
+        by_category=by_cat,
+        by_cheer_form_subtype=by_cheer,
+        by_dance_form_subtype=by_dance,
     )
+    if cache_key is not None:
+        _mtd_counts_cache[cache_key] = (time.monotonic(), counts.model_dump())
+    return MtdBoardCountsResponse(counts=counts)

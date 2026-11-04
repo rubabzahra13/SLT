@@ -1554,13 +1554,37 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         (o.mtdId && earlyOrderLookupIds.has(o.mtdId))
     );
 
+    // Board-first MTD / Payroll paint from useMtdBoard cache — patch it now
+    // (status dropdown etc.) instead of waiting for SSE.
+    {
+      const boardIds = [
+        id,
+        existing?.id,
+        existing?.uuid,
+        existing?.orderId,
+        seed?.id,
+        seed?.uuid,
+        seed?.orderId,
+        earlyLinkedOrder?.id,
+        earlyLinkedOrder?.mtdId,
+      ];
+      for (const key of boardIds) {
+        if (key) patchMtdBoardRecordInCaches(key, patch);
+      }
+    }
+
     setMtdRecords((prev) => {
       let matched = false;
       const next = prev.map((r) => {
         if (r.id !== id && r.orderId !== id && r.uuid !== id && r.legacyId !== id) return r;
         matched = true;
 
-        const updated = { ...r, ...patch };
+        const updated = {
+          ...r,
+          ...patch,
+          // Never let an empty invoice wipe a saved # (Move to Orders / return).
+          invoice: pickInvoice(patch.invoice, r.invoice),
+        };
 
         if (patch.editorRequest === "NA" || patch.assignedProducer === null) {
           updated.assignedProducer = null;
@@ -1667,19 +1691,25 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         return updated;
       });
 
-      // Synthetic Orders rows are not in mtdRecords: insert immediately so MTD
-      // / Assign invoice UI does not flash empty while createMTDRecordApi runs.
+      // Synthetic / board-first rows are not in mtdRecords: insert immediately so
+      // MTD invoice UI, Move-to-Orders, and return-to-MTD keep the #.
       if (
         !matched &&
         (patch.inMTD === true ||
+          patch.inMTD === false ||
           (patch.invoice !== undefined && String(patch.invoice).trim() !== ""))
       ) {
         const seedOrder = earlyLinkedOrder;
         const staged = seedOrder
           ? stagingRecordFromOrder(seedOrder)
           : null;
+        const base =
+          seed && !isPersistedMtdRecord(seed)
+            ? seed
+            : staged ||
+              (seed && isPersistedMtdRecord(seed) ? seed : null);
         const optimistic: MTDRecord = {
-          ...(staged ||
+          ...(base ||
             ({
               id,
               orderId: id,
@@ -1704,21 +1734,32 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
               inMTD: false,
             } satisfies MTDRecord)),
           ...patch,
-          id: staged?.id || id,
+          id: (base && isPersistedMtdRecord(base) ? base.id : null) ||
+            seed?.id ||
+            staged?.id ||
+            id,
+          uuid: seed?.uuid || (base as MTDRecord | null)?.uuid,
           orderId:
             seedOrder?.uuid ||
             seedOrder?.id ||
+            seed?.orderId ||
             staged?.orderId ||
             id,
           invoice: pickInvoice(
             patch.invoice,
+            seed?.invoice,
             staged?.invoice,
-            seedOrder?.invoice
+            seedOrder?.invoice,
+            (base as MTDRecord | null)?.invoice
           ),
-          inMTD: patch.inMTD === true ? true : Boolean(staged?.inMTD),
-          status: patch.status || staged?.status || "active",
+          inMTD:
+            patch.inMTD !== undefined
+              ? Boolean(patch.inMTD)
+              : Boolean(seed?.inMTD ?? staged?.inMTD),
+          status: patch.status || seed?.status || staged?.status || "active",
           recordStatus:
             patch.recordStatus ||
+            seed?.recordStatus ||
             staged?.recordStatus ||
             "Ongoing",
         };
@@ -1788,13 +1829,18 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         orderPatch.assignedProducer =
           apiPatch.assignedProducer ?? patch.assignedProducer;
       }
-      // Local Order mirror only (API has no invoice column) so Match can keep
-      // an invoice that was set on Assign before Magento is linked.
-      if (patch.invoice !== undefined) {
-        orderPatch.invoice = pickInvoice(
+      // Local Order mirror only (API has no invoice column) so Match / Orders /
+      // return-to-MTD keep a # set on MTD or Assign (incl. after Move to Orders).
+      {
+        const mirroredInvoice = pickInvoice(
           patch.invoice,
+          existing?.invoice,
+          seed?.invoice,
           linkedOrder?.invoice
         );
+        if (patch.invoice !== undefined || patch.inMTD === false) {
+          if (mirroredInvoice) orderPatch.invoice = mirroredInvoice;
+        }
       }
       if (patch.mixStartDate !== undefined) {
         orderPatch.mixStartDate = apiPatch.mixStartDate ?? patch.mixStartDate;
@@ -1895,6 +1941,13 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     delete mtdApiPatch.missingDataEmailSentAt;
     delete mtdApiPatch.producerEmailSentAt;
     delete mtdApiPatch.producerEmailSentTo;
+    // Empty invoice must never wipe mtd_records SoT (Move to Orders → return).
+    if (
+      mtdApiPatch.invoice !== undefined &&
+      !String(mtdApiPatch.invoice ?? "").trim()
+    ) {
+      delete mtdApiPatch.invoice;
+    }
     apiPatch = mtdApiPatch;
 
     const prevActive = activeOrders;
@@ -1989,13 +2042,13 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
             coveringPersisted?.invoice,
             targetRecord?.invoice,
             existing?.invoice,
+            seed?.invoice,
             linkedOrder?.invoice
           );
           const boardPatch: Partial<MTDRecord> = {
             ...apiPatch,
             orderId: orderRef,
             inMTD: true,
-            ...(invoiceSeed ? { invoice: invoiceSeed } : {}),
             recordStatus:
               (apiPatch as MTDRecord).recordStatus ||
               coveringPersisted?.recordStatus ||
@@ -2003,6 +2056,9 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
               "Ongoing",
             status: (apiPatch as MTDRecord).status || "active",
           };
+          // Prefer kept #; never send blank invoice that clears DB.
+          if (invoiceSeed) boardPatch.invoice = invoiceSeed;
+          else delete boardPatch.invoice;
 
           let nextRow: MTDRecord;
           if (coveringPersisted && isPersistedMtdRecord(coveringPersisted)) {

@@ -20,6 +20,7 @@ import {
   syncMatchPoolOrderPatch,
   syncOrdersAfterMatch,
   syncOrdersAfterSplit,
+  syncOrdersBoardOrderPatch,
   writeMatchCountsCache,
   writeMatchPoolCache,
   writeOrdersBoardCache,
@@ -245,6 +246,14 @@ describe("badge counts follow data changes", () => {
     const moved = applyPeerOrderUpdate({ ...row, status: "in_mtd" } as Order);
     assert.equal(moved, "recount");
     assert.deepEqual(counts(), makeCounts());
+  });
+
+  it("drops the row from Orders pages on Move to MTD (status=in_mtd)", () => {
+    syncOrdersBoardOrderPatch(row.id, { status: "in_mtd" });
+    assert.equal(
+      readOrdersBoardCache(boardKey)!.entry.orders.some((o) => o.id === row.id),
+      false
+    );
   });
 });
 

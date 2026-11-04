@@ -81,6 +81,8 @@ function resolveInitialCounts(
 type ReloadOpts = {
   background?: boolean;
   forceCounts?: boolean;
+  /** Recount badges only — skip /orders/board (Fix 4 soft catch-up). */
+  countsOnly?: boolean;
 };
 
 /** Keep at most 3 pages in memory (TanStack maxPages pattern). */
@@ -96,9 +98,44 @@ const BOARD_RANGE_SIBLINGS: Array<string | undefined> = [
   "reassigned",
 ];
 
+/** Warm badge/chip totals only — no board page (nav hover / idle). */
+export async function prefetchOrdersBoardCounts(
+  query: Pick<
+    OrdersBoardQuery,
+    "category" | "source" | "search" | "excludeFlagged" | "range"
+  > = {}
+): Promise<void> {
+  const flaggedOnly = (query.range || "") === "flagged";
+  const countsKey = ordersBoardCountsQueryKey({
+    category: query.category,
+    source: query.source,
+    search: query.search,
+    excludeFlagged: query.excludeFlagged,
+    flaggedOnly: flaggedOnly || undefined,
+  });
+  if (readOrdersBoardCountsCache(countsKey)?.fresh) return;
+  try {
+    const counts = await fetchOrdersCountsApi(
+      {
+        category: query.category || undefined,
+        source: query.source || undefined,
+        search: query.search || undefined,
+        excludeFlagged: query.excludeFlagged,
+        flaggedOnly: flaggedOnly || undefined,
+      },
+      { timeoutMs: 8_000 }
+    );
+    writeOrdersBoardCountsOnlyCache(countsKey, counts);
+    writeOrdersBoardChipCountsCache(countsKey, counts);
+  } catch {
+    /* prefetch is best-effort */
+  }
+}
+
 /** Warm cache for a form tab so the next click is instant. */
 export async function prefetchOrdersBoard(
-  query: OrdersBoardQuery
+  query: OrdersBoardQuery,
+  opts?: { persist?: boolean }
 ): Promise<void> {
   const key = ordersBoardQueryKey(query);
   const hit = readOrdersBoardCache(key);
@@ -132,8 +169,8 @@ export async function prefetchOrdersBoard(
           { timeoutMs: 8_000 }
         ).catch(() => null);
     const [board, counts] = await Promise.all([boardPromise, countsPromise]);
-    // Memory only — session persist is reserved for the active board paint so
-    // empty sibling prefetches cannot evict a 50-row Cheer page on refresh.
+    // Default memory-only so sibling prefetches cannot evict the painted page.
+    // Back-to-Orders warm passes persist:true so the return key survives.
     writeOrdersBoardCache(
       key,
       {
@@ -141,7 +178,7 @@ export async function prefetchOrdersBoard(
         nextPageToken: board.nextPageToken,
         ...(counts ? { counts } : {}),
       },
-      { persist: false }
+      { persist: opts?.persist === true }
     );
     if (counts) {
       writeOrdersBoardCountsOnlyCache(countsKey, counts);
@@ -236,6 +273,37 @@ function rangeHasToken(range: string | undefined, ...ids: string[]): boolean {
   );
 }
 
+/** True when this order belongs on the active board query (form + range + source). */
+function orderMatchesActiveBoard(
+  order: Order,
+  q: OrdersBoardQuery
+): boolean {
+  if ((q.search || "").trim()) return false;
+  if (q.source === "manual" && !order.isManualEntry) return false;
+  if (q.source === "form" && order.isManualEntry) return false;
+  if (q.formType && (order.formType || "") !== q.formType) return false;
+  if (
+    q.cheerFormSubtype &&
+    (order.cheerFormSubtype || "") !== q.cheerFormSubtype
+  ) {
+    return false;
+  }
+  if (
+    q.danceFormSubtype &&
+    (order.danceFormSubtype || "") !== q.danceFormSubtype
+  ) {
+    return false;
+  }
+  if ((q.range || "") === "flagged") {
+    return order.affiliateFlagStatus === "open";
+  }
+  if (q.excludeFlagged !== false && order.affiliateFlagStatus === "open") {
+    return false;
+  }
+  if (order.status === "in_mtd") return false;
+  return filterOrdersForBoardRange([order], q.range).length > 0;
+}
+
 /**
  * Opt-in only (e.g. pointerdown on one chip). Do not call after every board
  * load — that fan-out was the main Orders egress waste.
@@ -302,8 +370,9 @@ export function useOrdersBoard(
     excludeFlagged: query.excludeFlagged,
     flaggedOnly: flaggedOnly || undefined,
   });
-  const chipKey = countsKey;
-  // Search skips /counts, so badges stay on the unsearched counts.
+  // Search skips /counts, so Match/Flagged dots + range chips stay on the
+  // unsearched totals. Using a search-scoped counts cache (flagged:0 among
+  // hits) was wiping the Flagged Orders header dot while manuals still showed.
   const unsearchedCountsKey = (query.search || "").trim()
     ? ordersBoardCountsQueryKey({
         category: query.category,
@@ -312,9 +381,11 @@ export function useOrdersBoard(
         flaggedOnly: flaggedOnly || undefined,
       })
     : countsKey;
+  const badgeCountsKey = unsearchedCountsKey;
+  const chipKey = badgeCountsKey;
 
   const cached = readOrdersBoardCache(queryKey);
-  const initial = resolveInitialCounts(queryKey, countsKey);
+  const initial = resolveInitialCounts(queryKey, badgeCountsKey);
   const initialKnownTotal = rangeBadgeTotal(
     initial.ready ? initial.counts : null,
     query.range,
@@ -358,7 +429,7 @@ export function useOrdersBoard(
     initial.ready ? initial.counts : null
   );
   const prevKeyRef = useRef(queryKey);
-  const prevCountsKeyRef = useRef(countsKey);
+  const prevCountsKeyRef = useRef(badgeCountsKey);
   const offPageReloadTimerRef = useRef<number | null>(null);
   const paintedRef = useRef(Boolean(initialEntry?.orders.length));
   const reloadRef = useRef<
@@ -374,8 +445,8 @@ export function useOrdersBoard(
     setPaintKey(queryKey);
     const hit = readOrdersBoardCache(queryKey);
     const q = JSON.parse(queryKey) as OrdersBoardQuery;
-    // Prefer countsCache (Move-to-Reassign bumps it) over a stale All-tab ref.
-    const countsHit = readOrdersBoardCountsCache(countsKey);
+    // Prefer unsearched badge counts (search must not zero Flagged/Match dots).
+    const countsHit = readOrdersBoardCountsCache(badgeCountsKey);
     const knownTotal = rangeBadgeTotal(
       countsHit?.counts ?? lastGoodCountsRef.current,
       q.range,
@@ -456,16 +527,17 @@ export function useOrdersBoard(
     const prevKey = prevKeyRef.current;
     prevKeyRef.current = queryKey;
     const hit = readOrdersBoardCache(queryKey);
-    const next = resolveInitialCounts(queryKey, countsKey);
-    // Never flash zeros when switching All ↔ Assigned (same countsKey).
+    const next = resolveInitialCounts(queryKey, badgeCountsKey);
+    // Never flash zeros when switching All ↔ Assigned (same badge key).
     // Form-menu chips stay via mergeStickyChipCounts across Cheer↔Dance.
+    // Searching keeps unsearched badgeCountsKey so Flagged/Match dots survive.
     if (next.ready) {
       const merged = mergeStickyChipCounts(next.counts, chipKey);
       setCounts(merged);
       lastGoodCountsRef.current = merged;
       setCountsReady(true);
     } else if (
-      prevCountsKeyRef.current === countsKey &&
+      prevCountsKeyRef.current === badgeCountsKey &&
       lastGoodCountsRef.current
     ) {
       setCounts(mergeStickyChipCounts(lastGoodCountsRef.current, chipKey));
@@ -477,7 +549,7 @@ export function useOrdersBoard(
       const hasChips = Object.keys(merged.by_form_type || {}).length > 0;
       setCountsReady(hasChips);
     }
-    prevCountsKeyRef.current = countsKey;
+    prevCountsKeyRef.current = badgeCountsKey;
     setError(null);
 
     // Drop in-flight fetches / page appends from the previous key (footer
@@ -586,7 +658,7 @@ export function useOrdersBoard(
       // Skeleton while fetching — badge>0 + blank table looks broken.
       setLoading(enabled && knownTotal !== 0);
     }
-  }, [queryKey, countsKey, chipKey, enabled]);
+  }, [queryKey, badgeCountsKey, chipKey, enabled]);
 
   const reload = useCallback(
     async (opts?: ReloadOpts) => {
@@ -599,6 +671,7 @@ export function useOrdersBoard(
         q
       );
       const forceCounts = Boolean(opts?.forceCounts);
+      const countsOnly = Boolean(opts?.countsOnly);
       const cachedScoped =
         cachedNow &&
         filterOrdersForBoardRange(cachedNow.entry.orders, q.range).length > 0
@@ -609,6 +682,7 @@ export function useOrdersBoard(
       // Silent refresh when rows are on screen, badge is 0, or searching
       // (client already filtered — never skeleton-block on slow Supabase search).
       const background =
+        countsOnly ||
         searching ||
         (Boolean(opts?.background) && hasPaintedRows) ||
         hasPaintedRows ||
@@ -635,7 +709,8 @@ export function useOrdersBoard(
       const skipCountsForSearch =
         Boolean(q.search?.trim()) && !forceCounts && !flagged;
       const countsPromise =
-        skipCountsForSearch || (background && countsHit?.fresh && !forceCounts)
+        skipCountsForSearch ||
+        (background && countsHit?.fresh && !forceCounts && !countsOnly)
           ? Promise.resolve(null)
           : fetchOrdersCountsApi(
               {
@@ -651,7 +726,10 @@ export function useOrdersBoard(
       // Badge 0 is only trusted while counts are fresh. Stale/forced recounts
       // must re-fetch — otherwise Assign stays empty after a producer assign.
       const trustEmptyZero =
-        knownTotal === 0 && Boolean(countsHit?.fresh) && !forceCounts;
+        !countsOnly &&
+        knownTotal === 0 &&
+        Boolean(countsHit?.fresh) &&
+        !forceCounts;
 
       const paintBoard = async () => {
         setRefreshing(true);
@@ -684,7 +762,10 @@ export function useOrdersBoard(
         }
       };
 
-      if (trustEmptyZero) {
+      if (countsOnly) {
+        // Soft catch-up: badges only — leave painted rows alone.
+        if (gen === genRef.current) setLoading(false);
+      } else if (trustEmptyZero) {
         setOrders([]);
         pageIdsRef.current = new Set();
         setNextPageToken(null);
@@ -738,8 +819,8 @@ export function useOrdersBoard(
       return;
     }
     const q = JSON.parse(queryKey) as OrdersBoardQuery;
-    const countsHit = readOrdersBoardCountsCache(countsKey);
-    const next = resolveInitialCounts(queryKey, countsKey);
+    const countsHit = readOrdersBoardCountsCache(badgeCountsKey);
+    const next = resolveInitialCounts(queryKey, badgeCountsKey);
     const countsForBadge =
       next.ready
         ? next.counts
@@ -846,7 +927,7 @@ export function useOrdersBoard(
       });
     }, 0);
     return () => window.clearTimeout(t);
-  }, [reload, query.search, queryKey, countsKey, chipKey, enabled, flaggedOnly]);
+  }, [reload, query.search, queryKey, badgeCountsKey, chipKey, enabled, flaggedOnly]);
 
   const loadMore = useCallback(async () => {
     if (!nextPageToken || loading || loadingMore) return;
@@ -890,14 +971,11 @@ export function useOrdersBoard(
         }>
       ).detail;
       // Assign / reassign / flag resolve bumped the counts cache — show it now.
+      // Always prefer unsearched badge totals while searching (Flagged/Match dots).
       if (detail?.countsChanged) {
-        const searchHit = readOrdersBoardCountsCache(countsKey);
-        const hit = searchHit ?? readOrdersBoardCountsCache(unsearchedCountsKey);
+        const hit = readOrdersBoardCountsCache(badgeCountsKey);
         if (hit) {
-          const merged = mergeStickyChipCounts(
-            hit.counts,
-            searchHit ? chipKey : unsearchedCountsKey
-          );
+          const merged = mergeStickyChipCounts(hit.counts, chipKey);
           setCounts(merged);
           lastGoodCountsRef.current = merged;
           setCountsReady(true);
@@ -943,7 +1021,9 @@ export function useOrdersBoard(
         } else {
           return prev;
         }
-        next = filterOrdersForBoardRange(next, range);
+        next = filterOrdersForBoardRange(next, range).filter(
+          (o) => o.status !== "in_mtd"
+        );
         pageIdsRef.current = new Set(next.map((o) => o.id));
         writeOrdersBoardCache(queryKey, {
           orders: next,
@@ -955,15 +1035,15 @@ export function useOrdersBoard(
     };
     window.addEventListener(ORDERS_BOARD_PATCH_EVENT, onPatch);
     return () => window.removeEventListener(ORDERS_BOARD_PATCH_EVENT, onPatch);
-  }, [enabled, queryKey, countsKey, chipKey, unsearchedCountsKey]);
+  }, [enabled, queryKey, badgeCountsKey, chipKey]);
 
-  // SSE-first: patch rows in place; full reload only on stream reconnect or
-  // off-page inserts (Magento) / deletes that need count catch-up. No focus poll.
+  // SSE-first: patch on-screen rows; full board reload only when a row should
+  // join this list. Other off-page noise → counts-only (or cache badge shift).
   useEffect(() => {
     if (!enabled) return;
     const ac = new AbortController();
 
-    const scheduleOffPageReload = () => {
+    const scheduleDeferredReload = (opts: ReloadOpts) => {
       if (offPageReloadTimerRef.current != null) {
         window.clearTimeout(offPageReloadTimerRef.current);
       }
@@ -972,23 +1052,25 @@ export function useOrdersBoard(
         void reloadRef.current({
           background: true,
           forceCounts: true,
+          ...opts,
         });
       }, SSE_OFF_PAGE_RELOAD_MS);
     };
+    const scheduleCountsOnlyReload = () =>
+      scheduleDeferredReload({ countsOnly: true });
+    const scheduleBoardReload = () => scheduleDeferredReload({});
 
     void subscribeBoardStream((event) => {
       if (event.type === "ready") {
         if (event.reconnect) {
-          void reloadRef.current({ background: true });
+          void reloadRef.current({ background: true, forceCounts: true });
         }
         return;
       }
       if (event.type === "order.updated") {
         const id = event.order.id;
         const q = JSON.parse(queryKey) as OrdersBoardQuery;
-        const range = q.range || "all";
-        const belongsHere =
-          filterOrdersForBoardRange([event.order as Order], range).length > 0;
+        const onThisBoard = orderMatchesActiveBoard(event.order as Order, q);
 
         if (pageIdsRef.current.has(id)) {
           // Peer save: badges move with the row (our own saves already did).
@@ -1002,11 +1084,11 @@ export function useOrdersBoard(
               })
             );
           } else if (moved === "recount") {
-            scheduleOffPageReload();
+            scheduleCountsOnlyReload();
           }
           setOrders((prev) => {
             // Assigned rows must leave Not assigned (don't just patch the avatar).
-            const next = belongsHere
+            const next = onThisBoard
               ? prev.map((o) => (o.id === id ? { ...o, ...event.order } : o))
               : prev.filter((o) => o.id !== id);
             pageIdsRef.current = new Set(next.map((o) => o.id));
@@ -1017,23 +1099,29 @@ export function useOrdersBoard(
             });
             return next;
           });
-          // No board+counts refetch for in-page rows — that doubled egress
-          // after every assign.
           return;
         }
         // Echo of this tab's own save: rows + badges were already moved.
         if (isRecentLocalOrderWrite(event.order)) return;
-        if (
-          belongsHere &&
-          rangeHasToken(range, "assigned", "not_assigned", "reassigned")
-        ) {
-          // Row entered this filter set from another view — pull a fresh page.
-          scheduleOffPageReload();
+
+        // Row should appear on this form/range — fetch the page (need the row).
+        if (onThisBoard) {
+          scheduleBoardReload();
           return;
         }
-        // Off-page status moves (e.g. reassign) — soft catch-up without
-        // invalidating every sticky chip first.
-        scheduleOffPageReload();
+
+        // Outside this view: shift cached badges if we know the row; else
+        // recount chips only (Form dropdown totals) — never re-fetch this board.
+        const moved = applyPeerOrderUpdate(event.order);
+        if (moved === "shifted") {
+          window.dispatchEvent(
+            new CustomEvent(ORDERS_BOARD_PATCH_EVENT, {
+              detail: { countsChanged: true },
+            })
+          );
+          return;
+        }
+        scheduleCountsOnlyReload();
         return;
       }
       if (event.type === "order.deleted") {
@@ -1049,7 +1137,7 @@ export function useOrdersBoard(
             return next;
           });
         }
-        scheduleOffPageReload();
+        scheduleCountsOnlyReload();
       }
     }, ac.signal).catch(() => {
       /* stream retries internally; cold load / remount still cover gaps */

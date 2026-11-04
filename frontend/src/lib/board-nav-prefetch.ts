@@ -1,29 +1,34 @@
 /**
- * Idle-warm the *other* board tab so Orders ↔ MTD feels instant without
- * racing the painted board for bandwidth. Skips when that cache is already fresh.
+ * Idle-warm the *other* board's counts so Orders ↔ MTD chip totals feel ready
+ * without racing the painted board for bandwidth. Board pages load on mount.
  */
 
-import type { CheerFormSubtypeFilter, OrderFormType } from "@/types";
+import {
+  buildOrdersReturnHref,
+  ordersBoardQueryForReturn,
+  ordersReturnViewState,
+  type OrdersViewState,
+} from "@/lib/orders-view-state";
 
-const DEFAULT_FORM: OrderFormType = "school-all-star-cheer";
-const DEFAULT_CHEER: CheerFormSubtypeFilter = "all-star-cheer";
-
-function sessionForm(key: string): OrderFormType {
-  if (typeof window === "undefined") return DEFAULT_FORM;
-  return (
-    (sessionStorage.getItem(key) as OrderFormType | null) || DEFAULT_FORM
-  );
+/** Warm the exact Orders board Back will open (persist so session keeps it). */
+export function warmOrdersReturnBoard(state?: OrdersViewState | null): void {
+  if (typeof window === "undefined") return;
+  const query = ordersBoardQueryForReturn(state);
+  void (async () => {
+    try {
+      const { prefetchOrdersBoard } = await import("@/hooks/useOrdersBoard");
+      await prefetchOrdersBoard(query, { persist: true });
+    } catch {
+      /* best-effort */
+    }
+  })();
 }
 
-function sessionCheer(key: string): CheerFormSubtypeFilter {
-  if (typeof window === "undefined") return DEFAULT_CHEER;
-  return (
-    (sessionStorage.getItem(key) as CheerFormSubtypeFilter | null) ||
-    DEFAULT_CHEER
-  );
+export function ordersReturnHref(state?: OrdersViewState | null): string {
+  return buildOrdersReturnHref(ordersReturnViewState(state));
 }
 
-/** Warm MTD while the user is on Orders (or vice versa). One key only. */
+/** Warm sibling counts while the user is on Orders (or vice versa). */
 export function idlePrefetchSiblingBoard(
   from: "orders" | "mtd"
 ): () => void {
@@ -38,29 +43,18 @@ export function idlePrefetchSiblingBoard(
     void (async () => {
       try {
         if (from === "orders") {
-          const { prefetchMtdBoard } = await import("@/hooks/useMtdBoard");
+          const { prefetchMtdBoardCounts } = await import("@/hooks/useMtdBoard");
           if (cancelled) return;
-          const form = sessionForm("slt_mtd_form");
-          const cheer = sessionCheer("slt_mtd_cheer_subtype");
-          await prefetchMtdBoard({
-            scope: "live",
-            formType: form,
-            cheerFormSubtype:
-              form === "school-all-star-cheer" ? cheer : undefined,
-          });
+          await prefetchMtdBoardCounts({ scope: "board" });
           return;
         }
-        const { prefetchOrdersBoard } = await import("@/hooks/useOrdersBoard");
+        const { prefetchOrdersBoardCounts } = await import(
+          "@/hooks/useOrdersBoard"
+        );
         if (cancelled) return;
-        const form = sessionForm("slt_orders_form");
-        const cheer = sessionCheer("slt_orders_cheer_subtype");
-        await prefetchOrdersBoard({
-          formType: form,
-          cheerFormSubtype:
-            form === "school-all-star-cheer" ? cheer : undefined,
+        await prefetchOrdersBoardCounts({
           excludeFlagged: true,
           range: "all",
-          sortBy: "newest",
         });
       } catch {
         /* best-effort */

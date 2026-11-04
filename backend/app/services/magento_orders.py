@@ -841,9 +841,9 @@ def upsert_form_results(
     return created, before_cutoff
 
 
-def sync_configured_forms(db: Session) -> list[dict[str, Any]]:
-    created: list[dict[str, Any]] = []
-    cutoff = ensure_import_cutoff(db)
+def configured_poll_form_ids() -> list[int]:
+    """Parsed MAGENTO_POLL_FORM_IDS that have a CRM route."""
+    out: list[int] = []
     for raw_id in settings.MAGENTO_POLL_FORM_IDS.split(","):
         form_text = raw_id.strip()
         if not form_text:
@@ -852,6 +852,62 @@ def sync_configured_forms(db: Session) -> list[dict[str, Any]]:
         if form_id not in SYNC_FORM_IDS:
             logger.warning("Magento form %s has no CRM route yet; skipping", form_id)
             continue
+        out.append(form_id)
+    return out
+
+
+def sync_one_form(form_id: int) -> list[dict[str, Any]]:
+    """Fetch Magento without holding a DB connection, then upsert briefly.
+
+    Keeps the pool free during the Magento HTTP wait so board/counts requests
+    are less likely to queue behind a long poll tick.
+    """
+    if form_id not in SYNC_FORM_IDS:
+        logger.warning("Magento form %s has no CRM route yet; skipping", form_id)
+        return []
+
+    results = fetch_form_results(form_id)
+
+    from app.core.database import SessionLocal
+
+    db = SessionLocal()
+    try:
+        cutoff = ensure_import_cutoff(db)
+        batch, before_cutoff = upsert_form_results(db, form_id, results, cutoff)
+        logger.info(
+            "Magento form %s: %s submissions, %s new orders, %s before cutoff",
+            form_id,
+            len(results),
+            len(batch),
+            before_cutoff,
+        )
+        if batch:
+            from app.services.form_chip_cache import invalidate_order_read_caches
+
+            invalidate_order_read_caches()
+        return batch
+    finally:
+        db.close()
+
+
+def sync_configured_forms(db: Session | None = None) -> list[dict[str, Any]]:
+    """Sync every configured form.
+
+    Prefer ``sync_one_form`` from the async poller (per-form session + gap).
+    When ``db`` is passed (tests / one-shot), Magento HTTP still runs outside
+    any caller-held connection per form; upserts reuse ``db``.
+    """
+    created: list[dict[str, Any]] = []
+    form_ids = configured_poll_form_ids()
+    if db is None:
+        for form_id in form_ids:
+            created.extend(sync_one_form(form_id))
+        return created
+
+    cutoff = ensure_import_cutoff(db)
+    for form_id in form_ids:
+        # Fetch while not needing the session for network I/O; expire so the
+        # connection can be checked in between forms when the pool is tight.
         results = fetch_form_results(form_id)
         batch, before_cutoff = upsert_form_results(db, form_id, results, cutoff)
         logger.info(
@@ -862,4 +918,10 @@ def sync_configured_forms(db: Session) -> list[dict[str, Any]]:
             before_cutoff,
         )
         created.extend(batch)
+        db.commit()
+        db.expire_all()
+    if created:
+        from app.services.form_chip_cache import invalidate_order_read_caches
+
+        invalidate_order_read_caches()
     return created

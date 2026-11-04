@@ -34,8 +34,16 @@ import { DataTable, type Column } from "@/components/ui/DataTable";
 import { Avatar } from "@/components/ui/Avatar";
 import { Tabs } from "@/components/ui/Tabs";
 import { useAppState } from "@/context/AppStateContext";
-import { useMtdBoard } from "@/hooks/useMtdBoard";
-import { mtdActiveChipTotal } from "@/lib/mtd-board-cache";
+import {
+  prefetchMtdBoard,
+  prefetchMtdBoardCounts,
+  useMtdBoard,
+} from "@/hooks/useMtdBoard";
+import {
+  mtdActiveChipTotal,
+  mtdBoardCountsQueryKey,
+  readMtdBoardCountsCache,
+} from "@/lib/mtd-board-cache";
 import {
   formatDisplayDate,
   formatDisplayDateTime,
@@ -74,6 +82,7 @@ import type {
   OrderFormType,
   PayrollAddon,
 } from "@/types";
+import { CHEER_FORM_SUBTABS, DANCE_FORM_SUBTABS } from "@/types";
 
 import { payrollAmountsForRow } from "@/lib/order-package-price";
 import {
@@ -211,7 +220,6 @@ export default function PayrollPage() {
   const searchParams = useSearchParams();
   const focusParam = searchParams.get("focus");
   const {
-    mtdRecords,
     allOrders,
     producers,
     payrollAddons,
@@ -221,14 +229,8 @@ export default function PayrollPage() {
     updateMTD,
     removeMTDRecord,
     isViewOnly,
-    ensureLiveMtdLoaded,
   } = useAppState();
 
-  useEffect(() => {
-    void ensureLiveMtdLoaded().catch(() => {
-      /* keep SWR / empty */
-    });
-  }, [ensureLiveMtdLoaded]);
   const [pageTab, setPageTab] = useState<PayrollPageTab>("view");
   const [rushOverlay, setRushOverlay] = useState<Record<string, RushFeeOverlay>>({});
   const rushOverlayRef = useRef<Record<string, RushFeeOverlay>>({});
@@ -269,11 +271,34 @@ export default function PayrollPage() {
         ? readStoredPayrollFilters().tableFilters
         : DEFAULT_MTD_TABLE_FILTERS
     );
-  const [searchQueryState, setSearchQueryState] = useState(() =>
+  const [searchInput, setSearchInput] = useState(() =>
+    typeof window !== "undefined" ? readStoredPayrollFilters().search : ""
+  );
+  const [searchQuery, setSearchQuery] = useState(() =>
     typeof window !== "undefined" ? readStoredPayrollFilters().search : ""
   );
 
   const [sendPayPeriod, setSendPayPeriod] = useState<PayPeriodRange>("2weeks");
+
+  // Sticky Payroll/Archive tab badges — never page-length (inactive tab → 0).
+  const [scopeBadgeTotals, setScopeBadgeTotals] = useState<{
+    payroll: number | null;
+    archive: number | null;
+  }>(() => {
+    if (typeof window === "undefined") {
+      return { payroll: null, archive: null };
+    }
+    const pay = readMtdBoardCountsCache(
+      mtdBoardCountsQueryKey({ scope: "payroll" })
+    );
+    const arch = readMtdBoardCountsCache(
+      mtdBoardCountsQueryKey({ scope: "archive" })
+    );
+    return {
+      payroll: pay ? pay.counts.all : null,
+      archive: arch ? arch.counts.all : null,
+    };
+  });
 
   const [form, setForm] = [
     formState,
@@ -312,14 +337,37 @@ export default function PayrollPage() {
     },
   ];
 
-  const [searchQuery, setSearchQuery] = [
-    searchQueryState,
-    (next: string) => {
-      setSearchQueryState(next);
-      if (typeof window !== "undefined") sessionStorage.setItem("slt_payroll_search", next);
-    },
-  ];
+  // Debounce board search like Orders/MTD — avoid /mtd/board per keystroke.
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("slt_payroll_search", searchInput);
+    }
+    if (!searchInput.trim()) {
+      setSearchQuery("");
+      return;
+    }
+    const t = window.setTimeout(() => setSearchQuery(searchInput), 220);
+    return () => window.clearTimeout(t);
+  }, [searchInput]);
 
+  // Warm both scope badge totals once (counts-only — cheap).
+  useEffect(() => {
+    let cancelled = false;
+    const warm = async (scope: "payroll" | "archive") => {
+      await prefetchMtdBoardCounts({ scope });
+      if (cancelled) return;
+      const hit = readMtdBoardCountsCache(mtdBoardCountsQueryKey({ scope }));
+      if (!hit) return;
+      setScopeBadgeTotals((prev) => ({ ...prev, [scope]: hit.counts.all }));
+    };
+    void warm("payroll");
+    void warm("archive");
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const boardTabActive = pageTab === "view" || pageTab === "archive";
   const payrollBoardQuery = useMemo(
     () => ({
       scope: (pageTab === "archive" ? "archive" : "payroll") as
@@ -341,16 +389,47 @@ export default function PayrollPage() {
     countsReady: payrollCountsReady,
     loadMore: loadMorePayrollBoard,
     reload: reloadPayrollBoard,
-  } = useMtdBoard(payrollBoardQuery);
+  } = useMtdBoard(payrollBoardQuery, { enabled: boardTabActive });
+
+  // Keep active-scope tab badge in sync with sticky unsearched counts.
+  useEffect(() => {
+    if (!boardTabActive || !payrollCountsReady) return;
+    const scope = pageTab === "archive" ? "archive" : "payroll";
+    setScopeBadgeTotals((prev) => ({
+      ...prev,
+      [scope]: payrollBoardCounts.all,
+    }));
+  }, [
+    boardTabActive,
+    pageTab,
+    payrollCountsReady,
+    payrollBoardCounts.all,
+  ]);
+
+  // Snapshot unpaid payroll for Voiceovers/Send — Archive freezes board on
+  // paid rows, and VO/Send pause fetch so they must not read that freeze.
+  const lastUnpaidPayrollRef = useRef<MTDRecord[]>([]);
+  useEffect(() => {
+    if (pageTab === "view") {
+      lastUnpaidPayrollRef.current = payrollBoardRecords;
+    }
+  }, [pageTab, payrollBoardRecords]);
+
+  const unpaidPayrollForPanels =
+    pageTab === "view" ? payrollBoardRecords : lastUnpaidPayrollRef.current;
 
   const payrollRecords = useMemo(
     () =>
       pageTab === "archive"
         ? []
-        : [...payrollBoardRecords].sort((a, b) =>
+        : [
+            ...(pageTab === "view"
+              ? payrollBoardRecords
+              : unpaidPayrollForPanels),
+          ].sort((a, b) =>
             (b.completedAt ?? "").localeCompare(a.completedAt ?? "")
           ),
-    [pageTab, payrollBoardRecords]
+    [pageTab, payrollBoardRecords, unpaidPayrollForPanels]
   );
 
   const sortedArchivedPayrollRecords = useMemo(
@@ -432,16 +511,15 @@ export default function PayrollPage() {
     reloadPayrollBoard,
   ]);
 
+  // Focus from board pages only — no full live-MTD hydrate for deep links.
   useEffect(() => {
     if (!focusParam) return;
-    const focused =
-      mtdRecords.find(
-        (r) =>
-          r.id === focusParam ||
-          r.orderId === focusParam ||
-          r.uuid === focusParam ||
-          r.legacyId === focusParam
-      ) ?? null;
+    const match = (r: MTDRecord) =>
+      r.id === focusParam ||
+      r.orderId === focusParam ||
+      r.uuid === focusParam ||
+      r.legacyId === focusParam;
+    const focused = payrollBoardRecords.find(match) ?? null;
     if (!focused) return;
     const paid = Boolean(focused.paidAt);
     setPageTab(paid ? "archive" : "view");
@@ -453,19 +531,54 @@ export default function PayrollPage() {
     if (meta.formType === "school-all-star-dance" && meta.danceFormSubtype) {
       setDanceSubtypeState(meta.danceFormSubtype as DanceFormSubtypeFilter);
     }
-  }, [focusParam, mtdRecords, orderById]);
+  }, [focusParam, payrollBoardRecords, orderById]);
 
   const switchForm = useCallback(
     (next: OrderFormType) => {
       setForm(next);
-      if (next !== "school-all-star-cheer") {
-        setCheerSubtype(DEFAULT_CHEER_SUBTYPE);
-      }
-      if (next !== "school-all-star-dance") {
+      if (next === "school-all-star-cheer") {
+        const byCheer = payrollBoardCounts.by_cheer_form_subtype || {};
+        const nextCheer =
+          CHEER_FORM_SUBTABS.find((t) => (byCheer[t.id] ?? 0) > 0)?.id ??
+          DEFAULT_CHEER_SUBTYPE;
+        setCheerSubtype(nextCheer);
         setDanceSubtype(DEFAULT_DANCE_SUBTYPE);
+        return;
       }
+      if (next === "school-all-star-dance") {
+        const byDance = payrollBoardCounts.by_dance_form_subtype || {};
+        const nextDance =
+          DANCE_FORM_SUBTABS.find((t) => (byDance[t.id] ?? 0) > 0)?.id ??
+          DEFAULT_DANCE_SUBTYPE;
+        setDanceSubtype(nextDance);
+        setCheerSubtype(DEFAULT_CHEER_SUBTYPE);
+        return;
+      }
+      setCheerSubtype(DEFAULT_CHEER_SUBTYPE);
+      setDanceSubtype(DEFAULT_DANCE_SUBTYPE);
     },
-    [setForm, setCheerSubtype, setDanceSubtype]
+    [setForm, setCheerSubtype, setDanceSubtype, payrollBoardCounts]
+  );
+
+  const warmBoardQuery = useCallback(
+    (patch: {
+      formType?: OrderFormType;
+      cheerFormSubtype?: string;
+    }) => {
+      const nextForm = patch.formType ?? form;
+      void prefetchMtdBoard({
+        scope: pageTab === "archive" ? "archive" : "payroll",
+        formType: nextForm,
+        cheerFormSubtype:
+          patch.cheerFormSubtype !== undefined
+            ? patch.cheerFormSubtype || undefined
+            : nextForm === "school-all-star-cheer"
+              ? cheerSubtype
+              : undefined,
+        search: searchQuery.trim() || undefined,
+      });
+    },
+    [form, cheerSubtype, searchQuery, pageTab]
   );
 
   useEffect(() => {
@@ -520,7 +633,8 @@ export default function PayrollPage() {
   );
 
   const filtered = useMemo(() => {
-    const q = searchQuery.trim();
+    // Instant client filter on keystrokes; debounced searchQuery drives /mtd/board.
+    const q = searchInput.trim();
     const searched = !q
       ? tableFiltered
       : tableFiltered.filter((rec) => matchesMTDSearch(rec, q));
@@ -533,7 +647,7 @@ export default function PayrollPage() {
     return sortMTDRecordsByViewOrder(sorted, viewOrder, producers);
   }, [
     tableFiltered,
-    searchQuery,
+    searchInput,
     tableFilters.sortBy,
     viewOrder,
     producers,
@@ -1735,15 +1849,6 @@ export default function PayrollPage() {
       <PageHeader
         compact
         title="Payroll"
-        badge={
-          pageTab === "view"
-            ? `${filtered.length} of ${payrollRecords.length} · ${formatPrice(totalPayroll)}`
-            : pageTab === "archive"
-              ? `${filtered.length} of ${sortedArchivedPayrollRecords.length}`
-              : pageTab === "voiceovers" && voiceoverCount > 0
-                ? `${voiceoverCount}`
-                : undefined
-        }
         subtitle={
           pageTab === "view"
             ? "Ready for payout"
@@ -1757,17 +1862,34 @@ export default function PayrollPage() {
           <Tabs
             accent="orange"
             value={pageTab}
-            onChange={(value) => setPageTab(value as PayrollPageTab)}
+            onChange={(value) => {
+              const next = value as PayrollPageTab;
+              setPageTab(next);
+              // Counts-only warm so Archive badge is ready before switch paints.
+              if (next === "archive") {
+                void prefetchMtdBoardCounts({ scope: "archive" }).then(() => {
+                  const hit = readMtdBoardCountsCache(
+                    mtdBoardCountsQueryKey({ scope: "archive" })
+                  );
+                  if (hit) {
+                    setScopeBadgeTotals((prev) => ({
+                      ...prev,
+                      archive: hit.counts.all,
+                    }));
+                  }
+                });
+              }
+            }}
             options={[
               {
                 value: "view",
                 label: "Payroll",
-                count: payrollRecords.length || undefined,
+                count: scopeBadgeTotals.payroll || undefined,
               },
               {
                 value: "archive",
                 label: "Archive",
-                count: sortedArchivedPayrollRecords.length || undefined,
+                count: scopeBadgeTotals.archive || undefined,
               },
               {
                 value: "voiceovers",
@@ -1805,8 +1927,8 @@ export default function PayrollPage() {
         search={
           pageTab === "view" || pageTab === "archive"
             ? {
-                value: searchQuery,
-                onChange: setSearchQuery,
+                value: searchInput,
+                onChange: setSearchInput,
                 placeholder: "Contact, invoice…",
               }
             : undefined
@@ -1820,6 +1942,61 @@ export default function PayrollPage() {
               onFormChange={switchForm}
               onCheerSubtypeChange={setCheerSubtype}
               onDanceSubtypeChange={setDanceSubtype}
+              onFormMenuIntent={() => {
+                const byForm = payrollBoardCounts.by_form_type || {};
+                const peer = (
+                  [
+                    "school-all-star-cheer",
+                    "school-all-star-dance",
+                    "school-anthem",
+                    "marching-band",
+                    "sports-entertainment",
+                  ] as OrderFormType[]
+                )
+                  .filter((id) => id !== form)
+                  .sort((a, b) => (byForm[b] ?? 0) - (byForm[a] ?? 0))[0];
+                if (!peer || (byForm[peer] ?? 0) <= 0) return;
+                if (peer === "school-all-star-cheer") {
+                  const byCheer =
+                    payrollBoardCounts.by_cheer_form_subtype || {};
+                  const nextCheer =
+                    CHEER_FORM_SUBTABS.find((t) => (byCheer[t.id] ?? 0) > 0)
+                      ?.id ?? DEFAULT_CHEER_SUBTYPE;
+                  warmBoardQuery({
+                    formType: peer,
+                    cheerFormSubtype: nextCheer,
+                  });
+                  return;
+                }
+                warmBoardQuery({
+                  formType: peer,
+                  cheerFormSubtype: "",
+                });
+              }}
+              onFormOptionIntent={(next) => {
+                if (next === "school-all-star-cheer") {
+                  const byCheer =
+                    payrollBoardCounts.by_cheer_form_subtype || {};
+                  const nextCheer =
+                    CHEER_FORM_SUBTABS.find((t) => (byCheer[t.id] ?? 0) > 0)
+                      ?.id ?? DEFAULT_CHEER_SUBTYPE;
+                  warmBoardQuery({
+                    formType: next,
+                    cheerFormSubtype: nextCheer,
+                  });
+                  return;
+                }
+                warmBoardQuery({
+                  formType: next,
+                  cheerFormSubtype: "",
+                });
+              }}
+              onCheerOptionIntent={(next) =>
+                warmBoardQuery({
+                  formType: "school-all-star-cheer",
+                  cheerFormSubtype: next,
+                })
+              }
               formCounts={formCounts}
               cheerCounts={cheerSubtypeCounts}
               danceCounts={danceSubtypeCounts}
@@ -1916,7 +2093,7 @@ export default function PayrollPage() {
           <VoiceoversPanel
             payrollAddons={payrollAddons}
             producers={producers}
-            mtdRecords={mtdRecords}
+            mtdRecords={unpaidPayrollForPanels}
             allOrders={allOrders}
             form={form}
             cheerSubtype={cheerSubtype}

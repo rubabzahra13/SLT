@@ -12,9 +12,9 @@ from pydantic import BaseModel, Field
 from sqlalchemy import Integer, and_, func, not_, or_
 from sqlalchemy.orm import Session
 
-from app.api.auth import get_current_user
+from app.api.auth import get_current_user, get_stream_user
 from app.api.orders import OrderListResponse, _apply_orders_scope, _serialize_order
-from app.core.database import get_db
+from app.core.database import SessionLocal, get_db
 from app.lib.pagination import (
     page_token_query,
     paginate_keyset_by_created,
@@ -26,9 +26,11 @@ from app.order_identity import category_from_form_type
 from app.schemas.order import OrderSchema
 from app.services.form_chip_cache import (
     FORM_CHIP_TTL_S as _FORM_CHIP_TTL_S,
+    ORDERS_COUNTS_TTL_S as _ORDERS_COUNTS_TTL_S,
     form_chip_cache as _form_chip_cache,
     match_counts_cache as _match_counts_cache,
     match_pool_page_cache as _match_pool_page_cache,
+    orders_counts_cache as _orders_counts_cache,
 )
 
 router = APIRouter()
@@ -391,6 +393,30 @@ def get_orders_board(
     return OrderListResponse(orders=page, next_page_token=next_token)
 
 
+def _orders_counts_cache_key(
+    *,
+    form_type: str | None,
+    cheer_form_subtype: str | None,
+    dance_form_subtype: str | None,
+    category: str | None,
+    source: str | None,
+    search: str | None,
+    flagged_only: bool,
+) -> str:
+    return "|".join(
+        [
+            "v1",
+            "flagged" if flagged_only else "board",
+            category or "",
+            source or "",
+            form_type or "",
+            cheer_form_subtype or "",
+            dance_form_subtype or "",
+            (search or "").strip().lower(),
+        ]
+    )
+
+
 @router.get("/orders/counts", response_model=OrdersBoardCountsResponse)
 def get_orders_counts(
     form_type: str | None = None,
@@ -400,10 +426,59 @@ def get_orders_counts(
     source: str | None = None,
     search: str | None = None,
     flagged_only: bool = False,
-    db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(get_stream_user),
 ):
     """Tab badges in one scan; form chips in one GROUP BY (no N+1)."""
+    # Full response cache (45s). Skip typing search — those keys churn and
+    # must stay live. Writes clear via invalidate_order_read_caches.
+    # Auth uses get_stream_user (short checkout). Open DB only on cache miss
+    # so warm badge clicks do not wait behind Magento for a pool slot.
+    search_q = (search or "").strip()
+    cache_key: str | None = None
+    if not search_q:
+        cache_key = _orders_counts_cache_key(
+            form_type=form_type,
+            cheer_form_subtype=cheer_form_subtype,
+            dance_form_subtype=dance_form_subtype,
+            category=category,
+            source=source,
+            search=None,
+            flagged_only=flagged_only,
+        )
+        hit = _orders_counts_cache.get(cache_key)
+        now = time.monotonic()
+        if hit and now - hit[0] < _ORDERS_COUNTS_TTL_S:
+            return OrdersBoardCountsResponse(counts=OrdersBoardCounts(**hit[1]))
+
+    db = SessionLocal()
+    try:
+        return _get_orders_counts_db(
+            db,
+            form_type=form_type,
+            cheer_form_subtype=cheer_form_subtype,
+            dance_form_subtype=dance_form_subtype,
+            category=category,
+            source=source,
+            search=search,
+            flagged_only=flagged_only,
+            cache_key=cache_key,
+        )
+    finally:
+        db.close()
+
+
+def _get_orders_counts_db(
+    db: Session,
+    *,
+    form_type: str | None,
+    cheer_form_subtype: str | None,
+    dance_form_subtype: str | None,
+    category: str | None,
+    source: str | None,
+    search: str | None,
+    flagged_only: bool,
+    cache_key: str | None,
+):
     if flagged_only:
         # Flagged Orders page: badges must count open flags only — never the full board.
         flagged_base = _board_base_query(
@@ -446,15 +521,19 @@ def get_orders_counts(
         ):
             if st in by_dance:
                 by_dance[st] = int(n or 0)
-        return OrdersBoardCountsResponse(
-            counts=OrdersBoardCounts(
-                all=flagged_total,
-                flagged=flagged_total,
-                by_form_type=by_form,
-                by_cheer_form_subtype=by_cheer,
-                by_dance_form_subtype=by_dance,
-            )
+        flagged_counts = OrdersBoardCounts(
+            all=flagged_total,
+            flagged=flagged_total,
+            by_form_type=by_form,
+            by_cheer_form_subtype=by_cheer,
+            by_dance_form_subtype=by_dance,
         )
+        if cache_key is not None:
+            _orders_counts_cache[cache_key] = (
+                time.monotonic(),
+                flagged_counts.model_dump(),
+            )
+        return OrdersBoardCountsResponse(counts=flagged_counts)
 
     # Include flagged rows so we can SUM flag status in the same pass.
     base = _board_base_query(
@@ -879,6 +958,11 @@ def get_orders_counts(
             {k: v[2] for k, v in cross_dance.items()}
         ),
     )
+    if cache_key is not None:
+        _orders_counts_cache[cache_key] = (
+            time.monotonic(),
+            counts.model_dump(),
+        )
     return OrdersBoardCountsResponse(counts=counts)
 
 
@@ -1066,8 +1150,7 @@ def _write_match_pool_page_cache(
 
 @router.get("/orders/match-counts", response_model=OrdersMatchCountsResponse)
 def get_orders_match_counts(
-    db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(get_stream_user),
 ):
     """True Match Orders badge totals (not limited to loaded pool pages)."""
     now = time.monotonic()
@@ -1075,6 +1158,15 @@ def get_orders_match_counts(
     if cached and now - cached[0] < _MATCH_COUNTS_TTL_S:
         return OrdersMatchCountsResponse(counts=cached[1])
 
+    db = SessionLocal()
+    try:
+        return _get_orders_match_counts_db(db)
+    finally:
+        db.close()
+
+
+def _get_orders_match_counts_db(db: Session) -> OrdersMatchCountsResponse:
+    now = time.monotonic()
     base = _match_pool_base_query(db)
     magento_q = base.filter(_unmatched_magento_expr())
     manual_q = base.filter(_unmatched_manual_expr())
@@ -1158,8 +1250,7 @@ def get_orders_match_pool(
     dance_form_subtype: str | None = None,
     page_size: int | None = Query(None, ge=1, le=500),
     page_token: str | None = Depends(page_token_query),
-    db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(get_stream_user),
 ):
     """Unmatched manuals + Magento forms for Match Orders (paged, optional form scope)."""
     size = page_size if page_size is not None else BOARD_DEFAULT_PAGE_SIZE
@@ -1177,6 +1268,31 @@ def get_orders_match_pool(
             orders, next_token = cached
             return OrderListResponse(orders=orders, next_page_token=next_token)
 
+    db = SessionLocal()
+    try:
+        return _get_orders_match_pool_db(
+            db,
+            form_type=form_type,
+            cheer_form_subtype=cheer_form_subtype,
+            dance_form_subtype=dance_form_subtype,
+            page_size=size,
+            page_token=page_token,
+            cache_key=cache_key,
+        )
+    finally:
+        db.close()
+
+
+def _get_orders_match_pool_db(
+    db: Session,
+    *,
+    form_type: str | None,
+    cheer_form_subtype: str | None,
+    dance_form_subtype: str | None,
+    page_size: int,
+    page_token: str | None,
+    cache_key: str,
+) -> OrderListResponse:
     query = _match_pool_base_query(db)
     if cheer_form_subtype and cheer_form_subtype not in ("all", "All"):
         query = query.filter(
@@ -1193,7 +1309,7 @@ def get_orders_match_pool(
     page, next_token = paginate_keyset_by_created(
         query,
         model=Order,
-        page_size=size,
+        page_size=page_size,
         page_token=page_token,
         sort="newest",
     )

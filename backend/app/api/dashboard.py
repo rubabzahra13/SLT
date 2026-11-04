@@ -19,6 +19,27 @@ class OrdersInDayOut(BaseModel):
     is_today: bool = False
 
 
+class CategoryPipelineOut(BaseModel):
+    category: str
+    count: int
+
+
+class MixOpsOut(BaseModel):
+    overdue: int = 0
+    starting_today: int = 0
+    due_this_week: int = 0
+    missing_data: int = 0
+    on_track: int = 0
+
+
+class OpenBookingOut(BaseModel):
+    """Slim booking span for team / week capacity (not a full MTD row)."""
+
+    producer: str
+    start: str = ""
+    end: str = ""
+
+
 class DashboardPulseOut(BaseModel):
     unassigned: int
     orders_tab: int = 0
@@ -29,6 +50,12 @@ class DashboardPulseOut(BaseModel):
     payroll_open: int = 0
     orders_in_total: int = 0
     orders_in_by_day: list[OrdersInDayOut] = []
+    overdue: int = 0
+    starting_today: int = 0
+    due_this_week: int = 0
+    mix_ops: MixOpsOut = MixOpsOut()
+    category_pipeline: list[CategoryPipelineOut] = []
+    open_bookings: list[OpenBookingOut] = []
     cached: bool = False
     as_of_day: str | None = None
 
@@ -38,5 +65,5 @@ def dashboard_pulse(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    """Home KPIs + orders-in series (cached; invalidate on order/MTD write)."""
+    """Home KPIs + chart aggregates (cached; invalidate on order/MTD write)."""
     return DashboardPulseOut(**get_dashboard_pulse(db))

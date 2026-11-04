@@ -166,7 +166,7 @@ def test_counts_mirror_range_filters(db: Session):
 
 
 def test_counts_complete_cross_matches_combined_range(db: Session):
-    from app.api.orders_board import get_orders_counts
+    from app.api.orders_board import _get_orders_counts_db
     from app.services.form_chip_cache import invalidate_order_read_caches
 
     def complete(**kw) -> Order:
@@ -187,7 +187,17 @@ def test_counts_complete_cross_matches_combined_range(db: Session):
     _order(db, needs_attention=True)
 
     invalidate_order_read_caches()
-    c = get_orders_counts(db=db, _=None).counts
+    c = _get_orders_counts_db(
+        db,
+        form_type=None,
+        cheer_form_subtype=None,
+        dance_form_subtype=None,
+        category=None,
+        source=None,
+        search=None,
+        flagged_only=False,
+        cache_key=None,
+    ).counts
 
     def combined(rng: str) -> int:
         return int(
@@ -211,7 +221,11 @@ def test_counts_complete_cross_matches_combined_range(db: Session):
 
 def test_match_write_clears_cached_match_pool_and_counts(db: Session):
     from app.api.orders import _publish_order_updated
-    from app.api.orders_board import get_orders_match_counts, get_orders_match_pool
+    from app.api.orders_board import (
+        _get_orders_match_counts_db,
+        _get_orders_match_pool_db,
+        _match_pool_cache_key,
+    )
     from app.services.form_chip_cache import invalidate_order_read_caches
 
     manual = _order(db)
@@ -221,19 +235,25 @@ def test_match_write_clears_cached_match_pool_and_counts(db: Session):
     db.commit()
 
     def pool_ids() -> set[str]:
-        page = get_orders_match_pool(
+        page = _get_orders_match_pool_db(
+            db,
             form_type=None,
             cheer_form_subtype=None,
             dance_form_subtype=None,
             page_size=25,
             page_token=None,
-            db=db,
-            _=None,
+            cache_key=_match_pool_cache_key(
+                form_type=None,
+                cheer_form_subtype=None,
+                dance_form_subtype=None,
+                page_size=25,
+                page_token=None,
+            ),
         )
         return {str(o.id) for o in page.orders}
 
     invalidate_order_read_caches()
-    before = get_orders_match_counts(db=db, _=None).counts
+    before = _get_orders_match_counts_db(db).counts
     assert (before.magento, before.manual) == (1, 1)
     assert pool_ids() == {str(manual.id), str(form.id)}
 
@@ -242,7 +262,7 @@ def test_match_write_clears_cached_match_pool_and_counts(db: Session):
     db.commit()
     _publish_order_updated(form)
 
-    after = get_orders_match_counts(db=db, _=None).counts
+    after = _get_orders_match_counts_db(db).counts
     assert (after.magento, after.manual) == (0, 0)
     assert pool_ids() == set()
 

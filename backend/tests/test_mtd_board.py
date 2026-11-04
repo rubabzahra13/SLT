@@ -8,7 +8,11 @@ import pytest
 from sqlalchemy import create_engine, func
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.api.mtd_board import BOARD_DEFAULT_PAGE_SIZE, _mtd_board_query
+from app.api.mtd_board import (
+    BOARD_DEFAULT_PAGE_SIZE,
+    _get_mtd_counts_db,
+    _mtd_board_query,
+)
 from app.lib.pagination import paginate_keyset_by_created
 from app.models.base import Base
 from app.models.mtd_record import MTDRecord
@@ -156,3 +160,40 @@ def test_mtd_board_form_filter_and_paging(db: Session):
     )
     assert len(page2) == 1
     assert token2 is None
+
+
+def test_mtd_counts_cache_and_category_from_forms(db: Session):
+    from app.services.form_chip_cache import (
+        invalidate_mtd_read_caches,
+        mtd_counts_cache,
+    )
+
+    cheer = _order(db, form_type="school-all-star-cheer")
+    dance = _order(db, form_type="school-all-star-dance")
+    band = _order(db, form_type="marching-band")
+    _mtd(db, order=cheer)
+    _mtd(db, order=dance)
+    _mtd(db, order=band)
+
+    invalidate_mtd_read_caches()
+    first = _get_mtd_counts_db(
+        db,
+        scope="live",
+        form_type=None,
+        cheer_form_subtype=None,
+        category=None,
+        search=None,
+        search_q="",
+        cache_key="test|live",
+    ).counts
+    assert first.all == 3
+    assert first.by_form_type["school-all-star-cheer"] == 1
+    assert first.by_form_type["school-all-star-dance"] == 1
+    assert first.by_form_type["marching-band"] == 1
+    assert first.by_category["Cheer"] == 1
+    assert first.by_category["Dance"] == 1
+    assert first.by_category["Marching Band"] == 1
+    assert "test|live" in mtd_counts_cache
+
+    invalidate_mtd_read_caches()
+    assert not mtd_counts_cache

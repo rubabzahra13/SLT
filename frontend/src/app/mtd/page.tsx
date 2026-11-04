@@ -40,7 +40,7 @@ import {
 } from "@/components/mtd/MTDTableFilters";
 import { MTDPageToolbar } from "@/components/mtd/MTDPageToolbar";
 import { useAppState } from "@/context/AppStateContext";
-import { useMtdBoard } from "@/hooks/useMtdBoard";
+import { prefetchMtdBoard, useMtdBoard } from "@/hooks/useMtdBoard";
 import {
   mtdActiveChipTotal,
   patchMtdBoardRecordInCaches,
@@ -133,7 +133,11 @@ import type {
   OrderFormType,
   PriceCompliance,
 } from "@/types";
-import { MTD_RECORD_STATUS_OPTIONS } from "@/types";
+import {
+  CHEER_FORM_SUBTABS,
+  DANCE_FORM_SUBTABS,
+  MTD_RECORD_STATUS_OPTIONS,
+} from "@/types";
 import clsx from "clsx";
 
 const DEFAULT_FORM: OrderFormType = "school-all-star-cheer";
@@ -236,10 +240,28 @@ function MTDPageContent() {
     ensureLiveMtdLoaded,
   } = useAppState();
 
+  // Board paints from /mtd/board. Full AppState MTD hydrate waits until idle
+  // so sidebar clicks aren't stuck behind a second heavy fetch.
   useEffect(() => {
-    void ensureLiveMtdLoaded().catch(() => {
-      /* keep SWR / empty */
-    });
+    let idleId: number | null = null;
+    const t = window.setTimeout(() => {
+      const run = () => {
+        void ensureLiveMtdLoaded().catch(() => {
+          /* keep SWR / empty */
+        });
+      };
+      if (typeof window.requestIdleCallback === "function") {
+        idleId = window.requestIdleCallback(run, { timeout: 4000 });
+      } else {
+        run();
+      }
+    }, 1200);
+    return () => {
+      window.clearTimeout(t);
+      if (idleId != null && typeof window.cancelIdleCallback === "function") {
+        window.cancelIdleCallback(idleId);
+      }
+    };
   }, [ensureLiveMtdLoaded]);
   const [formState, setFormState] = useState<OrderFormType>(() =>
     typeof window !== "undefined" ? readStoredMtdFilters().form : DEFAULT_FORM
@@ -333,9 +355,10 @@ function MTDPageContent() {
     return () => window.clearTimeout(t);
   }, [searchInput]);
 
+  // scope=board excludes in_payroll (live wrongly kept Completed rows on MTD).
   const mtdBoardQuery = useMemo(
     () => ({
-      scope: "live" as const,
+      scope: "board" as const,
       formType: form,
       cheerFormSubtype:
         form === "school-all-star-cheer" ? cheerSubtype : undefined,
@@ -401,31 +424,72 @@ function MTDPageContent() {
     return map;
   }, [allOrders]);
 
-  // Server-paged live MTD board (identity projected on API).
-  // Trust the page scope — do not re-filter with isMTDRecord (explicit
-  // in_mtd:false rows still belong on the live board and match /mtd/counts).
+  // Server-paged music board (identity projected on API).
+  // Filter AFTER Order merge — Move to Orders clears the producer on Order
+  // first; filtering before merge left a "No producer" + Orders ghost row.
+  // Also drop payroll members (scope=board should already exclude them).
   const mtdBoardRecords = useMemo(
     () =>
       pagedMtdRecords
-        .filter((rec) => !rec.isReassigned)
         .map((rec) => {
           const linked = findLinkedOrder(rec, allOrders);
           if (!linked) return rec;
           const enriched = overlayMergedFormForDisplay(linked, allOrders);
           return mergeCollectionStateFromOrder(rec, enriched);
-        }),
+        })
+        .filter((rec) => !rec.isReassigned && !rec.inPayroll),
     [pagedMtdRecords, allOrders]
   );
 
-  const switchForm = useCallback((next: OrderFormType) => {
-    setForm(next);
-    if (next !== "school-all-star-cheer") {
+  // Land on a subtype that actually has rows (same as Orders) so warm key matches paint.
+  const switchForm = useCallback(
+    (next: OrderFormType) => {
+      setForm(next);
+      if (next === "school-all-star-cheer") {
+        const byCheer = mtdBoardCounts.by_cheer_form_subtype || {};
+        const nextCheer =
+          CHEER_FORM_SUBTABS.find((t) => (byCheer[t.id] ?? 0) > 0)?.id ??
+          DEFAULT_CHEER_SUBTYPE;
+        setCheerSubtype(nextCheer);
+        setDanceSubtype(DEFAULT_DANCE_SUBTYPE);
+        return;
+      }
+      if (next === "school-all-star-dance") {
+        const byDance = mtdBoardCounts.by_dance_form_subtype || {};
+        const nextDance =
+          DANCE_FORM_SUBTABS.find((t) => (byDance[t.id] ?? 0) > 0)?.id ??
+          DEFAULT_DANCE_SUBTYPE;
+        setDanceSubtype(nextDance);
+        setCheerSubtype(DEFAULT_CHEER_SUBTYPE);
+        return;
+      }
       setCheerSubtype(DEFAULT_CHEER_SUBTYPE);
-    }
-    if (next !== "school-all-star-dance") {
       setDanceSubtype(DEFAULT_DANCE_SUBTYPE);
-    }
-  }, [setForm, setCheerSubtype, setDanceSubtype]);
+    },
+    [setForm, setCheerSubtype, setDanceSubtype, mtdBoardCounts]
+  );
+
+  /** Form/Cheer pointerdown warm — same pattern as Orders warmBoardQuery. */
+  const warmBoardQuery = useCallback(
+    (patch: {
+      formType?: OrderFormType;
+      cheerFormSubtype?: string;
+    }) => {
+      const nextForm = patch.formType ?? form;
+      void prefetchMtdBoard({
+        scope: "board",
+        formType: nextForm,
+        cheerFormSubtype:
+          patch.cheerFormSubtype !== undefined
+            ? patch.cheerFormSubtype || undefined
+            : nextForm === "school-all-star-cheer"
+              ? cheerSubtype
+              : undefined,
+        search: searchQuery.trim() || undefined,
+      });
+    },
+    [form, cheerSubtype, searchQuery]
+  );
 
   useEffect(() => {
     if (!assignedParam || assignedParam === "All") return;
@@ -512,8 +576,23 @@ function MTDPageContent() {
       // Pass the board row as seed — AppState mtd/orders caches are often empty
       // (board-first), so updateMTD(id) alone used to no-op the Order PATCH.
       setMoveToOrdersRecord(null);
+      // Drop the row immediately — do not wait for updateMTD / Order merge.
+      const leaveIds = new Set(
+        [rec.id, rec.uuid, rec.orderId, rec.legacyId].filter(Boolean) as string[]
+      );
+      const leftLive = (r: MTDRecord) =>
+        leaveIds.has(r.id) ||
+        (r.uuid != null && leaveIds.has(r.uuid)) ||
+        (r.orderId != null && leaveIds.has(r.orderId)) ||
+        (r.legacyId != null && leaveIds.has(r.legacyId));
+      setPagedMtdRecords((prev) => prev.filter((r) => !leftLive(r)));
+      const rush = patchForReassignRush();
+      patchMtdBoardRecordInCaches(rec.id, rush);
+      if (rec.orderId && rec.orderId !== rec.id) {
+        patchMtdBoardRecordInCaches(rec.orderId, rush);
+      }
       try {
-        await updateMTD(rec.id, patchForReassignRush(), rec);
+        await updateMTD(rec.id, rush, rec);
       } catch {
         // updateMTD already surfaces save errors; still navigate so the user
         // can recover from Reassign after a retry/refresh.
@@ -553,6 +632,7 @@ function MTDPageContent() {
       updateMTD,
       addAlert,
       orderById,
+      setPagedMtdRecords,
     ]
   );
 
@@ -737,9 +817,20 @@ function MTDPageContent() {
           return;
         }
       }
-      updateMTD(rec.id, patchFromRecordStatus(nextStatus));
+      // Paint board cache immediately — MTD table reads useMtdBoard, not AppState.
+      const statusPatch = patchFromRecordStatus(nextStatus);
+      patchMtdBoardRecordInCaches(rec.id, statusPatch);
+      if (rec.orderId) patchMtdBoardRecordInCaches(rec.orderId, statusPatch);
+      setPagedMtdRecords((prev) =>
+        prev.map((r) =>
+          r.id === rec.id || r.orderId === rec.id || r.uuid === rec.id
+            ? { ...r, ...statusPatch }
+            : r
+        )
+      );
+      void updateMTD(rec.id, statusPatch, rec);
     },
-    [updateMTD]
+    [updateMTD, setPagedMtdRecords]
   );
 
   const confirmCompleteToPayroll = useCallback(
@@ -748,34 +839,56 @@ function MTDPageContent() {
       const basePatch = patchMoveToPayroll();
       const recordId = completeRecord.id;
       const orderId = completeRecord.orderId;
+      const seed = completeRecord;
       setCompleteRecord(null);
+      // Drop from music board immediately — same ghost-row class as Move to Orders.
+      const leaveIds = new Set(
+        [seed.id, seed.uuid, seed.orderId, seed.legacyId].filter(
+          Boolean
+        ) as string[]
+      );
+      const leftBoard = (r: MTDRecord) =>
+        leaveIds.has(r.id) ||
+        (r.uuid != null && leaveIds.has(r.uuid)) ||
+        (r.orderId != null && leaveIds.has(r.orderId)) ||
+        (r.legacyId != null && leaveIds.has(r.legacyId));
+      setPagedMtdRecords((prev) => prev.filter((r) => !leftBoard(r)));
+      const payrollPatch = {
+        ...basePatch,
+        ...(mtdPatch?.finalPayrollPrice != null
+          ? { finalPayrollPrice: mtdPatch.finalPayrollPrice }
+          : {}),
+        ...(mtdPatch?.extraSongsQuantity != null
+          ? { extraSongsQuantity: mtdPatch.extraSongsQuantity }
+          : {}),
+        ...(mtdPatch?.extraSongEditingTimeQuantity != null
+          ? {
+              extraSongEditingTimeQuantity:
+                mtdPatch.extraSongEditingTimeQuantity,
+            }
+          : {}),
+      };
+      patchMtdBoardRecordInCaches(recordId, payrollPatch);
+      if (orderId && orderId !== recordId) {
+        patchMtdBoardRecordInCaches(orderId, payrollPatch);
+      }
       // Phase 2: lifecycle flags stay on MTD; pricing/payout SoT is Orders.
       // Persist inPayroll first so SSE cannot briefly clear Payroll membership.
-      if (orderId) {
-        // Keep board payroll cache + dance extras in sync (Send Statements).
-        await updateMTD(recordId, {
-          ...basePatch,
-          ...(mtdPatch?.finalPayrollPrice != null
-            ? { finalPayrollPrice: mtdPatch.finalPayrollPrice }
-            : {}),
-          ...(mtdPatch?.extraSongsQuantity != null
-            ? { extraSongsQuantity: mtdPatch.extraSongsQuantity }
-            : {}),
-          ...(mtdPatch?.extraSongEditingTimeQuantity != null
-            ? {
-                extraSongEditingTimeQuantity:
-                  mtdPatch.extraSongEditingTimeQuantity,
-              }
-            : {}),
-        });
-        if (orderPatch) {
-          await updateOrder(orderId, orderPatch);
+      // Fire without blocking UI — pricing already finalized in the modal.
+      try {
+        if (orderId) {
+          await updateMTD(recordId, payrollPatch, seed);
+          if (orderPatch) {
+            await updateOrder(orderId, orderPatch);
+          }
+        } else {
+          await updateMTD(recordId, { ...payrollPatch, ...mtdPatch }, seed);
         }
-      } else {
-        await updateMTD(recordId, { ...basePatch, ...mtdPatch });
+      } catch {
+        /* updateMTD / updateOrder already surface errors */
       }
     },
-    [completeRecord, updateMTD, updateOrder]
+    [completeRecord, updateMTD, updateOrder, setPagedMtdRecords]
   );
 
   const tableFiltered = useMemo(
@@ -1642,11 +1755,11 @@ function MTDPageContent() {
       {
         key: "invoiceAction",
         header: "Invoice #",
-        width: "100px",
+        width: "132px",
         align: "center",
-        nowrap: false,
-        cellClassName: clsx(compactCellClass, "max-w-[100px]"),
-        headerClassName: compactHeaderClass,
+        nowrap: true,
+        cellClassName: clsx(compactCellClass, "max-w-[132px] !px-1.5"),
+        headerClassName: clsx(compactHeaderClass, "!px-1.5"),
         render: (rec) => {
           const invoice = rec.invoice?.trim() ?? "";
           return (
@@ -1659,11 +1772,11 @@ function MTDPageContent() {
                   aria-label={`Edit invoice ${invoice}`}
                   className={clsx(
                     clickableChipClass,
-                    "max-w-full rounded-lg px-2 py-1 tabular-nums hover:text-brand-orange",
+                    "max-w-full rounded-lg px-2.5 pr-3 py-1 tabular-nums hover:text-brand-orange",
                     compactTextClass
                   )}
                 >
-                  <span className="truncate">{invoice}</span>
+                  <span className="block min-w-0 truncate">{invoice}</span>
                 </button>
               ) : (
                 <button
@@ -1808,6 +1921,59 @@ function MTDPageContent() {
             onFormChange={switchForm}
             onCheerSubtypeChange={setCheerSubtype}
             onDanceSubtypeChange={setDanceSubtype}
+            onFormMenuIntent={() => {
+              const byForm = mtdBoardCounts.by_form_type || {};
+              const peer = (
+                [
+                  "school-all-star-cheer",
+                  "school-all-star-dance",
+                  "school-anthem",
+                  "marching-band",
+                  "sports-entertainment",
+                ] as OrderFormType[]
+              )
+                .filter((id) => id !== form)
+                .sort((a, b) => (byForm[b] ?? 0) - (byForm[a] ?? 0))[0];
+              if (!peer || (byForm[peer] ?? 0) <= 0) return;
+              if (peer === "school-all-star-cheer") {
+                const byCheer = mtdBoardCounts.by_cheer_form_subtype || {};
+                const nextCheer =
+                  CHEER_FORM_SUBTABS.find((t) => (byCheer[t.id] ?? 0) > 0)
+                    ?.id ?? DEFAULT_CHEER_SUBTYPE;
+                warmBoardQuery({
+                  formType: peer,
+                  cheerFormSubtype: nextCheer,
+                });
+                return;
+              }
+              warmBoardQuery({
+                formType: peer,
+                cheerFormSubtype: "",
+              });
+            }}
+            onFormOptionIntent={(next) => {
+              if (next === "school-all-star-cheer") {
+                const byCheer = mtdBoardCounts.by_cheer_form_subtype || {};
+                const nextCheer =
+                  CHEER_FORM_SUBTABS.find((t) => (byCheer[t.id] ?? 0) > 0)
+                    ?.id ?? DEFAULT_CHEER_SUBTYPE;
+                warmBoardQuery({
+                  formType: next,
+                  cheerFormSubtype: nextCheer,
+                });
+                return;
+              }
+              warmBoardQuery({
+                formType: next,
+                cheerFormSubtype: "",
+              });
+            }}
+            onCheerOptionIntent={(next) =>
+              warmBoardQuery({
+                formType: "school-all-star-cheer",
+                cheerFormSubtype: next,
+              })
+            }
             formCounts={formCounts}
             cheerCounts={cheerSubtypeCounts}
             danceCounts={danceSubtypeCounts}

@@ -58,10 +58,27 @@ function SchedulePageContent() {
     ensureLiveMtdLoaded,
   } = useAppState();
 
+  // Schedule needs live mixes eventually — don't block first paint / nav.
   useEffect(() => {
-    void ensureLiveMtdLoaded().catch(() => {
-      /* keep SWR / empty */
-    });
+    let idleId: number | null = null;
+    const t = window.setTimeout(() => {
+      const run = () => {
+        void ensureLiveMtdLoaded().catch(() => {
+          /* keep SWR / empty */
+        });
+      };
+      if (typeof window.requestIdleCallback === "function") {
+        idleId = window.requestIdleCallback(run, { timeout: 4000 });
+      } else {
+        run();
+      }
+    }, 1200);
+    return () => {
+      window.clearTimeout(t);
+      if (idleId != null && typeof window.cancelIdleCallback === "function") {
+        window.cancelIdleCallback(idleId);
+      }
+    };
   }, [ensureLiveMtdLoaded]);
   const [pageTab, setPageTab] = useState<SchedulePageTab>("view");
   const [selectedEditor, setSelectedEditor] = useState("all");

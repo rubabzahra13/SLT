@@ -20,6 +20,11 @@ import {
   type IncomingOrdersPoint,
 } from "@/lib/dashboard";
 import {
+  categoryPipelineFromPulse,
+  mixOpsFromPulse,
+  openBookingsToStubMtd,
+} from "@/lib/dashboard-pulse-charts";
+import {
   mixTimelineInsight,
   pipelinePanelInsight,
   teamPanelInsight,
@@ -55,7 +60,6 @@ export function DashboardPageClient({
     activeOrders,
     pastOrders,
     producers,
-    mtdRecords,
     schedule,
     ensurePastOrdersLoaded,
     releasePastOrders,
@@ -74,38 +78,70 @@ export function DashboardPageClient({
 
   const currentDate = new Date();
 
-  const pulse = useMemo(
-    () => buildDashboardPulse(mtdRecords, producers, schedule, currentDate),
-    [mtdRecords, producers, schedule]
+  // Pulse bookings replace a full live-MTD hydrate for capacity / roster.
+  const bookingMtd = useMemo(
+    () => openBookingsToStubMtd(pulseApi?.open_bookings),
+    [pulseApi?.open_bookings]
   );
 
-  const pipeline = useMemo(() => buildCategoryPipeline(mtdRecords), [mtdRecords]);
+  const pulse = useMemo(() => {
+    const local = buildDashboardPulse(
+      bookingMtd,
+      producers,
+      schedule,
+      currentDate
+    );
+    return {
+      ...local,
+      overdue: pulseApi?.overdue ?? local.overdue,
+      startingToday: pulseApi?.starting_today ?? local.startingToday,
+      dueThisWeek: pulseApi?.due_this_week ?? local.dueThisWeek,
+      toAssign: pulseApi?.unassigned ?? local.toAssign,
+      inQueue: pulseApi?.in_queue ?? local.inQueue,
+      todaysMixes: pulseApi?.todays_mixes ?? local.todaysMixes,
+      outsourced: pulseApi?.outsourced ?? local.outsourced,
+    };
+  }, [bookingMtd, producers, schedule, pulseApi, currentDate]);
+
+  const pipelineFromPulse = useMemo(
+    () => categoryPipelineFromPulse(pulseApi?.category_pipeline),
+    [pulseApi?.category_pipeline]
+  );
+  const pipeline = useMemo(
+    () => pipelineFromPulse ?? buildCategoryPipeline(bookingMtd),
+    [pipelineFromPulse, bookingMtd]
+  );
 
   const team = useMemo(
-    () => sortProducersForCapacity(producers, mtdRecords, schedule, currentDate),
-    [producers, mtdRecords, schedule]
+    () =>
+      sortProducersForCapacity(producers, bookingMtd, schedule, currentDate),
+    [producers, bookingMtd, schedule, currentDate]
   );
 
   const incomingFromPulse = useMemo(
     () => pulseOrdersInPoints(pulseApi?.orders_in_by_day, currentDate),
-    [pulseApi?.orders_in_by_day]
+    [pulseApi?.orders_in_by_day, currentDate]
   );
 
   const incomingOrders = useMemo(
     () =>
       incomingFromPulse ??
       buildIncomingOrdersSeries(activeOrders, pastOrders, currentDate),
-    [incomingFromPulse, activeOrders, pastOrders]
+    [incomingFromPulse, activeOrders, pastOrders, currentDate]
   );
 
   const weekCapacity = useMemo(
-    () => buildWeeklyCapacity(producers, schedule, mtdRecords, currentDate),
-    [producers, schedule, mtdRecords, currentDate]
+    () => buildWeeklyCapacity(producers, schedule, bookingMtd, currentDate),
+    [producers, schedule, bookingMtd, currentDate]
   );
 
+  const mixOpsFromApi = useMemo(
+    () => mixOpsFromPulse(pulseApi?.mix_ops),
+    [pulseApi?.mix_ops]
+  );
   const mixOps = useMemo(
-    () => buildMixOpsSlices(mtdRecords, currentDate),
-    [mtdRecords, currentDate]
+    () => mixOpsFromApi ?? buildMixOpsSlices(bookingMtd, currentDate),
+    [mixOpsFromApi, bookingMtd, currentDate]
   );
 
   const pipelineFromRecords = pipeline.reduce((sum, slice) => sum + slice.count, 0);
@@ -116,7 +152,7 @@ export function DashboardPageClient({
   // even if a sticky local payroll merge briefly hides a row.
   const openOnTimeline =
     pulseApi?.mtd_open ??
-    mtdRecords.filter((r) => r.status !== "completed" && !r.inPayroll).length;
+    bookingMtd.filter((r) => r.status !== "completed" && !r.inPayroll).length;
   const pipelineTotal =
     typeof pulseApi?.mtd_open === "number" ? pulseApi.mtd_open : pipelineFromRecords;
   const teamTip = teamPanelInsight(pulse);
@@ -138,7 +174,7 @@ export function DashboardPageClient({
           <div className="flex min-h-0 flex-1 p-3">
             <TeamRosterMarquee
               team={team}
-              mtdRecords={mtdRecords}
+              mtdRecords={bookingMtd}
               currentDate={currentDate}
             />
           </div>

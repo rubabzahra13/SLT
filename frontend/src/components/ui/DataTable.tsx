@@ -158,11 +158,11 @@ export function DataTable<T>({
       ? Math.min(data.length, (safePage + 1) * pageSize)
       : data.length;
 
-  // Prefetch next server page when the user reaches the last loaded client page.
+  // Prefetch next server page one client page early so Next rarely waits on the network.
   useEffect(() => {
     if (!hasMore || !onLoadMore || loadingMore) return;
     if (!pageSize || pageSize <= 0) return;
-    if (safePage < loadedPages - 1) return;
+    if (safePage < loadedPages - 2) return;
     onLoadMore();
   }, [hasMore, onLoadMore, loadingMore, pageSize, safePage, loadedPages]);
 

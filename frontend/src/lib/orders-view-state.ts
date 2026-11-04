@@ -85,6 +85,68 @@ export function loadOrdersViewState(): OrdersViewState | null {
   }
 }
 
+/**
+ * Soft return from Match/Flagged/Assign: All range, no search — same board key
+ * Orders will request on first paint (must match Back warm).
+ */
+export function ordersReturnViewState(
+  state?: OrdersViewState | null
+): OrdersViewState {
+  const stored = state ?? loadOrdersViewState() ?? {};
+  let form = stored.form;
+  let cheerSubtype = stored.cheerSubtype;
+  let danceSubtype = stored.danceSubtype;
+  if (typeof window !== "undefined") {
+    const formRaw = sessionStorage.getItem("slt_orders_form") as OrderFormType | null;
+    if (formRaw && VALID_FORMS.includes(formRaw)) form = formRaw;
+    const cheerRaw = sessionStorage.getItem(
+      "slt_orders_cheer_subtype"
+    ) as CheerFormSubtypeFilter | null;
+    if (cheerRaw && VALID_CHEER.includes(cheerRaw)) cheerSubtype = cheerRaw;
+    const danceRaw = sessionStorage.getItem(
+      "slt_orders_dance_subtype"
+    ) as DanceFormSubtypeFilter | null;
+    if (danceRaw && VALID_DANCE.includes(danceRaw)) danceSubtype = danceRaw;
+  }
+  return {
+    ...stored,
+    form: form && VALID_FORMS.includes(form) ? form : undefined,
+    cheerSubtype,
+    danceSubtype,
+    rangeFilters: [],
+    rangeFilter: "all",
+    searchQuery: "",
+  };
+}
+
+/** Board query for Back-to-Orders warm — keep in lockstep with Orders page. */
+export function ordersBoardQueryForReturn(state?: OrdersViewState | null): {
+  formType?: OrderFormType;
+  cheerFormSubtype?: string;
+  danceFormSubtype?: string;
+  source?: OrderSourceFilter;
+  range?: undefined;
+  sortBy: string;
+  excludeFlagged: true;
+} {
+  const view = ordersReturnViewState(state);
+  const form = view.form;
+  return {
+    formType: form,
+    cheerFormSubtype:
+      form === "school-all-star-cheer" ? view.cheerSubtype : undefined,
+    danceFormSubtype:
+      form === "school-all-star-dance" ? view.danceSubtype : undefined,
+    source:
+      view.sourceFilter && view.sourceFilter !== "both"
+        ? view.sourceFilter
+        : undefined,
+    range: undefined,
+    sortBy: view.tableFilters?.sortBy ?? "newest",
+    excludeFlagged: true,
+  };
+}
+
 /** Build /orders?... that restores filters/tabs/search/sort after Assign Back. */
 export function buildOrdersReturnHref(state: OrdersViewState): string {
   const params = new URLSearchParams();

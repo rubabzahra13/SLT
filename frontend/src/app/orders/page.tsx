@@ -258,6 +258,8 @@ function readInitialOrdersBoardView(
   const restored = mergeOrdersViewState(fromStore, fromUrl);
   const restoredSearch =
     restored.searchQuery !== undefined ? restored.searchQuery : "";
+  // Range chips: URL deep-link only. Do not restore Complete/Assigned (etc.)
+  // from session — that made soft returns land on empty combo views.
   let rangeFilters: OrderViewRangeFilter[] = [];
   if (restoredSearch.trim()) {
     rangeFilters = [];
@@ -265,10 +267,12 @@ function readInitialOrdersBoardView(
     rangeFilters = fromUrl.rangeFilters;
   } else if (fromUrl.rangeFilter && fromUrl.rangeFilter !== "flagged") {
     rangeFilters = coerceOrdersRangeFilters(fromUrl.rangeFilter);
-  } else {
-    rangeFilters = coerceOrdersRangeFilters(
-      restored.rangeFilters ?? initialRangeFromUrl
-    );
+  } else if (
+    initialRangeFromUrl &&
+    initialRangeFromUrl !== "all" &&
+    initialRangeFromUrl !== "flagged"
+  ) {
+    rangeFilters = coerceOrdersRangeFilters(initialRangeFromUrl);
   }
   return {
     sourceFilter: (restored.sourceFilter as OrderSourceFilter) || "both",
@@ -322,14 +326,10 @@ function OrdersPageContent() {
     discountCodes,
     isLoading,
     addAlert,
-    ensureLiveMtdLoaded,
   } = useAppState();
 
-  useEffect(() => {
-    void ensureLiveMtdLoaded().catch(() => {
-      /* keep SWR / empty */
-    });
-  }, [ensureLiveMtdLoaded]);
+  // Do not hydrate full live MTD on Orders — board + counts are enough.
+  // (ensureLiveMtdLoaded here raced Magento and made sidebar clicks feel stuck.)
 
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -573,15 +573,15 @@ function OrdersPageContent() {
     loadMore: loadMoreBoard,
   } = useOrdersBoard(boardQuery, { enabled: filtersReady });
 
-  // Match pool is secondary — wait until the board has painted, then a short
-  // beat, so first-load board/counts own the DB connection.
+  // Match pool is only for Move-to-MTD lookalikes — keep it off until the
+  // board is quiet so Match/Flagged header warm owns the DB on click.
   const [matchPoolEnabled, setMatchPoolEnabled] = useState(false);
   useEffect(() => {
     if (boardLoading) {
       setMatchPoolEnabled(false);
       return;
     }
-    const t = window.setTimeout(() => setMatchPoolEnabled(true), 1500);
+    const t = window.setTimeout(() => setMatchPoolEnabled(true), 4000);
     return () => window.clearTimeout(t);
   }, [boardLoading]);
   const { orders: matchPool } = useOrdersMatchPool({
@@ -911,18 +911,15 @@ function OrdersPageContent() {
   }, [router]);
 
   const warmMatchData = useCallback(() => {
-    // Route chunk first — heavy match-pool fetch on pointerdown stole bandwidth
-    // from Next navigation and made the click feel late.
+    // Overlap route + match pool with the click (same idea as sidebar boards).
     router.prefetch("/orders/match");
-    window.setTimeout(() => {
-      void prefetchOrdersMatchData({
-        formType: form,
-        cheerFormSubtype:
-          form === "school-all-star-cheer" ? cheerSubtype : undefined,
-        danceFormSubtype:
-          form === "school-all-star-dance" ? danceSubtype : undefined,
-      });
-    }, 0);
+    void prefetchOrdersMatchData({
+      formType: form,
+      cheerFormSubtype:
+        form === "school-all-star-cheer" ? cheerSubtype : undefined,
+      danceFormSubtype:
+        form === "school-all-star-dance" ? danceSubtype : undefined,
+    });
   }, [router, form, cheerSubtype, danceSubtype]);
 
   const warmBoardQuery = useCallback(
@@ -1080,23 +1077,41 @@ function OrdersPageContent() {
   const commitMoveToMTD = useCallback(
     (rec: MTDRecord) => {
       const linkedOrder = findLinkedOrder(rec, ordersForUi);
-      updateMTD(rec.id, {
-        inMTD: true,
-        isReassigned: false,
-        orderStatus: "",
-        status: "active",
-        recordStatus: "Ongoing",
-        mixStartDate: rec.mixStartDate,
-        mixEndDate: rec.mixEndDate,
-        assignedProducer: rec.assignedProducer,
-        invoice:
-          (rec.invoice || "").trim() ||
-          (linkedOrder?.invoice || "").trim() ||
-          "",
-      });
-      router.push(`/mtd?focus=${encodeURIComponent(rec.id)}`);
+      const covering = mtdRecords.find(
+        (r) =>
+          r.id === rec.id ||
+          r.orderId === rec.orderId ||
+          r.orderId === rec.id ||
+          (linkedOrder &&
+            (r.orderId === linkedOrder.id ||
+              r.orderId === linkedOrder.uuid ||
+              r.id === linkedOrder.mtdId))
+      );
+      const keptInvoice =
+        (rec.invoice || "").trim() ||
+        (covering?.invoice || "").trim() ||
+        (linkedOrder?.invoice || "").trim();
+      updateMTD(
+        covering?.id || rec.id,
+        {
+          inMTD: true,
+          isReassigned: false,
+          orderStatus: "",
+          status: "active",
+          recordStatus: "Ongoing",
+          mixStartDate: rec.mixStartDate,
+          mixEndDate: rec.mixEndDate,
+          assignedProducer: rec.assignedProducer,
+          // Omit empty invoice so mtd_records SoT is never wiped on return.
+          ...(keptInvoice ? { invoice: keptInvoice } : {}),
+        },
+        covering || rec
+      );
+      router.push(
+        `/mtd?focus=${encodeURIComponent(covering?.id || rec.orderId || rec.id)}`
+      );
     },
-    [boardOrders, router, updateMTD]
+    [boardOrders, mtdRecords, ordersForUi, router, updateMTD]
   );
 
   const handleMoveToMTD = useCallback(
@@ -1355,9 +1370,32 @@ function OrdersPageContent() {
     >;
   }, [boardCounts.by_dance_form_subtype]);
 
+  // Form / subtype switches always land on All — don't keep Complete+Assigned
+  // (or any chip combo) from the previous tab when the new one has 0 there.
+  const resetRangeToAll = useCallback(() => {
+    setRangeFilters([]);
+  }, []);
+
+  const switchCheerSubtype = useCallback(
+    (next: CheerFormSubtypeFilter) => {
+      if (next !== cheerSubtype) resetRangeToAll();
+      setCheerSubtype(next);
+    },
+    [cheerSubtype, resetRangeToAll, setCheerSubtype]
+  );
+
+  const switchDanceSubtype = useCallback(
+    (next: DanceFormSubtypeFilter) => {
+      if (next !== danceSubtype) resetRangeToAll();
+      setDanceSubtype(next);
+    },
+    [danceSubtype, resetRangeToAll, setDanceSubtype]
+  );
+
   // Land on a subtype that actually has rows (POM default is often empty).
   const switchForm = useCallback(
     (next: OrderFormType) => {
+      resetRangeToAll();
       setForm(next);
       if (next === "school-all-star-cheer") {
         const nextCheer =
@@ -1379,6 +1417,7 @@ function OrdersPageContent() {
       setDanceSubtype(DEFAULT_DANCE_SUBTYPE);
     },
     [
+      resetRangeToAll,
       setForm,
       setCheerSubtype,
       setDanceSubtype,
@@ -1387,55 +1426,18 @@ function OrdersPageContent() {
     ]
   );
 
-  // Prefetch Match/Flagged routes only (cheap). Data warm is hover + deferred idle.
+  // Prefetch Match/Flagged route chunks only (cheap JS). Data warms on
+  // pointerdown of those buttons — not idle after every Orders visit.
   useEffect(() => {
     router.prefetch("/orders/match");
     router.prefetch("/orders/flagged");
   }, [router]);
 
-  // First: idle-warm MTD so the next sidebar hop paints from cache (no dual
-  // board fetch on click). Then Match/Flagged/siblings — lower priority.
+  // Idle-warm MTD counts so the next sidebar hop feels ready (counts only).
   useEffect(() => {
     if (boardLoading) return;
     return idlePrefetchSiblingBoard("orders");
   }, [boardLoading]);
-
-  // After the Orders board paints: warm Match, then Flagged + sibling boards.
-  // Never race Match pool (1.5s+ each) against the first board fetch — that was
-  // why Orders stayed on skeleton while Match warm stole the connection.
-  const idleWarmFormRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (boardLoading) return;
-    if (idleWarmFormRef.current === form) return;
-    let cancelled = false;
-    const run = () => {
-      if (cancelled || idleWarmFormRef.current === form) return;
-      idleWarmFormRef.current = form;
-      void (async () => {
-        await prefetchOrdersMatchData({
-          formType: form,
-          cheerFormSubtype:
-            form === "school-all-star-cheer" ? cheerSubtype : undefined,
-          danceFormSubtype:
-            form === "school-all-star-dance" ? danceSubtype : undefined,
-        });
-        if (cancelled) return;
-        // Subtype tabs / other Match keys warm on hover intent instead — an
-        // eager fan-out here was 4–6 extra function calls per Orders visit.
-        await prefetchOrdersBoard({
-          range: "flagged",
-          excludeFlagged: false,
-          sortBy: "newest",
-        });
-      })();
-    };
-    // Delay so MTD sibling prefetch gets the idle slot first.
-    const t = window.setTimeout(run, 1200);
-    return () => {
-      cancelled = true;
-      window.clearTimeout(t);
-    };
-  }, [boardLoading, form, cheerSubtype, danceSubtype]);
 
   // Default form is Cheer; demo/live boards often only have Dance/Anthem.
   // Once per load (when URL doesn't pin ?form=), land on a form that has rows.
@@ -2677,6 +2679,7 @@ function OrdersPageContent() {
             <Link
               href="/orders/match"
               prefetch
+              onMouseEnter={warmMatchData}
               onPointerDown={warmMatchData}
               onClick={() => {
                 saveOrdersViewState({
@@ -2717,7 +2720,20 @@ function OrdersPageContent() {
             <Link
               href="/orders/flagged"
               prefetch
+              onMouseEnter={warmFlaggedData}
               onPointerDown={warmFlaggedData}
+              onClick={() => {
+                saveOrdersViewState({
+                  form,
+                  cheerSubtype,
+                  danceSubtype,
+                  rangeFilters,
+                  rangeFilter,
+                  sourceFilter,
+                  searchQuery,
+                  tableFilters,
+                });
+              }}
               title={
                 hasFlaggedOrders
                   ? "Open Flagged Orders — unresolved flags"
@@ -2796,8 +2812,8 @@ function OrdersPageContent() {
               boardCountsReady ? waitingForDataCount : undefined
             }
             onFormChange={switchForm}
-            onCheerSubtypeChange={setCheerSubtype}
-            onDanceSubtypeChange={setDanceSubtype}
+            onCheerSubtypeChange={switchCheerSubtype}
+            onDanceSubtypeChange={switchDanceSubtype}
             onFormMenuIntent={() => {
               // Warm the busiest other form at the subtype switchForm will land on.
               const peer = (

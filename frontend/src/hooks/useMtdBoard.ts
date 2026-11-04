@@ -13,6 +13,8 @@ import {
   mtdActiveChipTotal,
   mtdBoardCountsQueryKey,
   mtdBoardQueryKey,
+  MTD_BOARD_PATCH_EVENT,
+  type MtdBoardPatchDetail,
   readMtdBoardCache,
   readMtdBoardCountsCache,
   patchMtdBoardCountsOnBoardCache,
@@ -109,6 +111,28 @@ function trustedMtdHit(
   return null;
 }
 
+/** Warm badge/chip totals only — no board page (nav hover / idle). */
+export async function prefetchMtdBoardCounts(
+  query: Pick<MtdBoardQuery, "scope" | "search" | "category"> = {}
+): Promise<void> {
+  const countsKey = mtdBoardCountsQueryKey({
+    scope: query.scope,
+    search: query.search,
+  });
+  if (readMtdBoardCountsCache(countsKey)?.fresh) return;
+  try {
+    const counts = await fetchMtdCountsApi({
+      scope: query.scope,
+      search: query.search,
+      category: query.category,
+    });
+    writeMtdBoardCountsCache(countsKey, counts);
+    writeMtdChipCountsCache(countsKey, counts);
+  } catch {
+    /* prefetch is best-effort */
+  }
+}
+
 /** Warm cache for MTD/Payroll so sidebar return is instant. */
 export async function prefetchMtdBoard(query: MtdBoardQuery): Promise<void> {
   const key = mtdBoardQueryKey(query);
@@ -135,11 +159,16 @@ export async function prefetchMtdBoard(query: MtdBoardQuery): Promise<void> {
     const [board, counts] = await Promise.all([boardPromise, countsPromise]);
     // Never cache empty pages that thrash later paints when badge > 0.
     if (board.records.length > 0) {
-      writeMtdBoardCache(key, {
-        records: board.records,
-        nextPageToken: board.nextPageToken,
-        ...(counts ? { counts } : {}),
-      });
+      // Memory only — session persist is for the painted MTD/Payroll page.
+      writeMtdBoardCache(
+        key,
+        {
+          records: board.records,
+          nextPageToken: board.nextPageToken,
+          ...(counts ? { counts } : {}),
+        },
+        { persist: false }
+      );
     }
     if (counts) {
       writeMtdBoardCountsCache(countsKey, counts);
@@ -153,16 +182,25 @@ export async function prefetchMtdBoard(query: MtdBoardQuery): Promise<void> {
   }
 }
 
-export function useMtdBoard(query: MtdBoardQuery) {
+export function useMtdBoard(
+  query: MtdBoardQuery,
+  opts?: { enabled?: boolean }
+) {
+  const enabled = opts?.enabled !== false;
   const queryKey = mtdBoardQueryKey(query);
   const countsKey = mtdBoardCountsQueryKey({
     scope: query.scope,
     search: query.search,
   });
-  const chipKey = countsKey;
+  // Search skips /counts — Form chips + tab badges stay on unsearched totals.
+  const unsearchedCountsKey = (query.search || "").trim()
+    ? mtdBoardCountsQueryKey({ scope: query.scope })
+    : countsKey;
+  const badgeCountsKey = unsearchedCountsKey;
+  const chipKey = badgeCountsKey;
 
   const cached = readMtdBoardCache(queryKey);
-  const initial = resolveInitialCounts(queryKey, countsKey, chipKey);
+  const initial = resolveInitialCounts(queryKey, badgeCountsKey, chipKey);
   const initialKnown = knownMtdTotal(initial.counts, query);
   const initialTrusted =
     cached && cached.entry.records.length > 0
@@ -179,6 +217,7 @@ export function useMtdBoard(query: MtdBoardQuery) {
     () => initialTrusted?.entry.nextPageToken ?? null
   );
   const [loading, setLoading] = useState(() => {
+    if (!enabled) return false;
     if (initialTrusted?.entry.records.length) return false;
     // Fresh badge 0 → empty table is correct; no skeleton.
     if (initial.ready && initialKnown === 0) return false;
@@ -195,7 +234,7 @@ export function useMtdBoard(query: MtdBoardQuery) {
     initial.ready ? initial.counts : null
   );
   const prevKeyRef = useRef(queryKey);
-  const prevCountsKeyRef = useRef(countsKey);
+  const prevCountsKeyRef = useRef(badgeCountsKey);
   const offPageReloadTimerRef = useRef<number | null>(null);
   const paintedRef = useRef(
     Boolean(initialTrusted?.entry.records.length)
@@ -211,7 +250,7 @@ export function useMtdBoard(query: MtdBoardQuery) {
     setPaintKey(queryKey);
     const hit = readMtdBoardCache(queryKey);
     const q = JSON.parse(queryKey) as MtdBoardQuery;
-    const countsHit = readMtdBoardCountsCache(countsKey);
+    const countsHit = readMtdBoardCountsCache(badgeCountsKey);
     const knownTotal = knownMtdTotal(
       countsHit?.counts ?? lastGoodCountsRef.current,
       q
@@ -264,13 +303,13 @@ export function useMtdBoard(query: MtdBoardQuery) {
     const prevKey = prevKeyRef.current;
     prevKeyRef.current = queryKey;
     const hit = readMtdBoardCache(queryKey);
-    const next = resolveInitialCounts(queryKey, countsKey, chipKey);
+    const next = resolveInitialCounts(queryKey, badgeCountsKey, chipKey);
     if (next.ready) {
       setCounts(next.counts);
       lastGoodCountsRef.current = next.counts;
       setCountsReady(true);
     } else if (
-      prevCountsKeyRef.current === countsKey &&
+      prevCountsKeyRef.current === badgeCountsKey &&
       lastGoodCountsRef.current
     ) {
       setCounts(mergeMtdStickyChips(lastGoodCountsRef.current, chipKey));
@@ -281,7 +320,7 @@ export function useMtdBoard(query: MtdBoardQuery) {
       const hasChips = Object.keys(merged.by_form_type || {}).length > 0;
       setCountsReady(hasChips);
     }
-    prevCountsKeyRef.current = countsKey;
+    prevCountsKeyRef.current = badgeCountsKey;
 
     setLoadingMore(false);
 
@@ -344,10 +383,14 @@ export function useMtdBoard(query: MtdBoardQuery) {
       paintedRef.current = false;
       setLoading(knownTotal !== 0);
     }
-  }, [queryKey, countsKey, chipKey]);
+  }, [queryKey, badgeCountsKey, chipKey]);
 
   const reload = useCallback(
     async (opts?: { background?: boolean; forceCounts?: boolean }) => {
+      if (!enabled) {
+        setLoading(false);
+        return;
+      }
       const gen = ++genRef.current;
       const cachedNow = readMtdBoardCache(queryKey);
       const q = JSON.parse(queryKey) as MtdBoardQuery;
@@ -368,22 +411,19 @@ export function useMtdBoard(query: MtdBoardQuery) {
       if (!background) setLoading(true);
       else setLoading(false);
 
-      const cKey = mtdBoardCountsQueryKey({
-        scope: q.scope,
-        search: q.search,
-      });
+      // Badge/chip totals never include search — keep Form chips sticky.
+      const cKey = mtdBoardCountsQueryKey({ scope: q.scope });
       const countsHit = readMtdBoardCountsCache(cKey);
       // Search typing: board rows matter; full /counts is the slow path.
       const skipCountsForSearch =
         Boolean(q.search?.trim()) && !forceCounts;
-      // Counts are form/subtype-agnostic — never pass form filters.
+      // Counts are form/subtype-agnostic — never pass form filters or search.
       const countsPromise =
         skipCountsForSearch ||
         (background && countsHit?.fresh && !forceCounts)
           ? Promise.resolve(null)
           : fetchMtdCountsApi({
               scope: q.scope,
-              search: q.search,
               category: q.category,
             }).catch(() => null);
 
@@ -445,15 +485,19 @@ export function useMtdBoard(query: MtdBoardQuery) {
         }
       }
     },
-    [queryKey]
+    [queryKey, enabled]
   );
 
   reloadRef.current = reload;
 
   useEffect(() => {
+    if (!enabled) {
+      setLoading(false);
+      return;
+    }
     const q = JSON.parse(queryKey) as MtdBoardQuery;
-    const countsHit = readMtdBoardCountsCache(countsKey);
-    const next = resolveInitialCounts(queryKey, countsKey, chipKey);
+    const countsHit = readMtdBoardCountsCache(badgeCountsKey);
+    const next = resolveInitialCounts(queryKey, badgeCountsKey, chipKey);
     const countsForBadge = next.ready
       ? next.counts
       : countsHit?.counts ?? lastGoodCountsRef.current;
@@ -523,10 +567,10 @@ export function useMtdBoard(query: MtdBoardQuery) {
       });
     }, 0);
     return () => window.clearTimeout(t);
-  }, [reload, query.search, queryKey, countsKey, chipKey]);
+  }, [reload, query.search, queryKey, badgeCountsKey, chipKey, enabled]);
 
   const loadMore = useCallback(async () => {
-    if (!nextPageToken || loading || loadingMore) return;
+    if (!enabled || !nextPageToken || loading || loadingMore) return;
     const gen = genRef.current;
     setLoadingMore(true);
     try {
@@ -552,11 +596,77 @@ export function useMtdBoard(query: MtdBoardQuery) {
     } finally {
       if (gen === genRef.current) setLoadingMore(false);
     }
-  }, [nextPageToken, loading, loadingMore, queryKey]);
+  }, [enabled, nextPageToken, loading, loadingMore, queryKey]);
+
+  // Optimistic patches from updateMTD / Move-to-Orders / Move-to-Payroll.
+  useEffect(() => {
+    if (!enabled) return;
+    const onPatch = (ev: Event) => {
+      const detail = (ev as CustomEvent<MtdBoardPatchDetail>).detail;
+      if (!detail?.id) return;
+      const scope = (() => {
+        try {
+          return (
+            (JSON.parse(queryKey) as MtdBoardQuery).scope || "live"
+          ).toLowerCase();
+        } catch {
+          return "live";
+        }
+      })();
+      const isPayrollBoard = scope === "payroll";
+      const isArchiveBoard = scope === "archive";
+      const isMusicBoard =
+        !isPayrollBoard && !isArchiveBoard;
+      const match = (r: MTDRecord) =>
+        r.id === detail.id ||
+        r.uuid === detail.id ||
+        r.orderId === detail.id ||
+        r.legacyId === detail.id;
+      // Leave music board on Move-to-Orders or Move-to-Payroll.
+      const leaveMusic =
+        isMusicBoard &&
+        (detail.removed ||
+          detail.patch.inMTD === false ||
+          detail.patch.inPayroll === true);
+      // Leave unpaid payroll when marked paid / returned to MTD.
+      const leavePayroll =
+        isPayrollBoard &&
+        (Boolean(detail.patch.paidAt) || detail.patch.inPayroll === false);
+      setRecords((prev) => {
+        if (leaveMusic || leavePayroll) {
+          if (!prev.some(match)) return prev;
+          const next = prev.filter((r) => !match(r));
+          pageIdsRef.current = new Set(next.map((r) => r.id));
+          writeMtdBoardCache(queryKey, {
+            records: next,
+            nextPageToken:
+              readMtdBoardCache(queryKey)?.entry.nextPageToken ?? null,
+          });
+          return next;
+        }
+        if (!prev.some(match)) return prev;
+        const next = prev.map((r) =>
+          match(r) ? { ...r, ...detail.patch } : r
+        );
+        pageIdsRef.current = new Set(next.map((r) => r.id));
+        writeMtdBoardCache(queryKey, {
+          records: next,
+          nextPageToken:
+            readMtdBoardCache(queryKey)?.entry.nextPageToken ?? null,
+        });
+        return next;
+      });
+      // Do not reload here — a premature /mtd/board would resurrect the row
+      // and burn egress. SSE schedules a deferred counts catch-up.
+    };
+    window.addEventListener(MTD_BOARD_PATCH_EVENT, onPatch);
+    return () => window.removeEventListener(MTD_BOARD_PATCH_EVENT, onPatch);
+  }, [enabled, queryKey]);
 
   // SSE-first: patch rows in place; full reload only on stream reconnect or
   // off-page inserts that need board/count catch-up. No focus poll.
   useEffect(() => {
+    if (!enabled) return;
     const ac = new AbortController();
 
     const scheduleOffPageReload = (opts?: { forceCounts?: boolean }) => {
@@ -583,13 +693,33 @@ export function useMtdBoard(query: MtdBoardQuery) {
       }
       if (event.type !== "mtd.updated") return;
       const id = event.record.id;
+      const scope = (() => {
+        try {
+          return (
+            (JSON.parse(queryKey) as MtdBoardQuery).scope || "live"
+          ).toLowerCase();
+        } catch {
+          return "live";
+        }
+      })();
+      const isPayrollBoard = scope === "payroll";
+      const isMusicBoard = scope !== "payroll" && scope !== "archive";
+      const inPayroll =
+        event.record.inPayroll === true ||
+        (event.record as { in_payroll?: boolean }).in_payroll === true;
+      const leftMusic =
+        event.record.inMTD === false ||
+        (event.record as { in_mtd?: boolean }).in_mtd === false ||
+        inPayroll;
+      const leftPayroll =
+        Boolean(event.record.paidAt) ||
+        event.record.inPayroll === false ||
+        (event.record as { in_payroll?: boolean }).in_payroll === false;
       if (pageIdsRef.current.has(id)) {
         setRecords((prev) => {
-          // Move-to-Orders clears inMTD — drop from the live MTD board.
-          const leftLive =
-            event.record.inMTD === false ||
-            (event.record as { in_mtd?: boolean }).in_mtd === false;
-          const next = leftLive
+          const drop =
+            (isMusicBoard && leftMusic) || (isPayrollBoard && leftPayroll);
+          const next = drop
             ? prev.filter((r) => r.id !== id)
             : prev.map((r) =>
                 r.id === id ? { ...r, ...event.record } : r
@@ -602,24 +732,23 @@ export function useMtdBoard(query: MtdBoardQuery) {
           });
           return next;
         });
-        // Membership left live — recount chips once (not on every field patch).
-        if (
-          event.record.inMTD === false ||
-          (event.record as { in_mtd?: boolean }).in_mtd === false
-        ) {
+        // Membership change — recount chips once (not on every field patch).
+        if ((isMusicBoard && leftMusic) || (isPayrollBoard && leftPayroll)) {
           scheduleOffPageReload({ forceCounts: true });
         }
         return;
       }
-      // Entered MTD off-page (e.g. assign + schedule) — catch up board + chips.
-      const enteredLive =
-        event.record.inMTD === true ||
-        (event.record as { in_mtd?: boolean }).in_mtd === true;
-      if (enteredLive) {
+      // Entered this board off-page — one deferred board+counts fetch.
+      const enteredMusic =
+        isMusicBoard &&
+        (event.record.inMTD === true ||
+          (event.record as { in_mtd?: boolean }).in_mtd === true) &&
+        !inPayroll;
+      const enteredPayroll = isPayrollBoard && inPayroll && !event.record.paidAt;
+      if (enteredMusic || enteredPayroll) {
         scheduleOffPageReload({ forceCounts: true });
-        return;
       }
-      scheduleOffPageReload();
+      // Other off-page field noise: ignore — no board/counts refetch (egress).
     }, ac.signal).catch(() => {
       /* stream retries internally; cold load / remount still cover gaps */
     });
@@ -631,14 +760,14 @@ export function useMtdBoard(query: MtdBoardQuery) {
         offPageReloadTimerRef.current = null;
       }
     };
-  }, [queryKey]);
+  }, [enabled, queryKey]);
 
   return {
     records,
     counts,
     nextPageToken,
-    loading,
-    loadingMore,
+    loading: enabled ? loading : false,
+    loadingMore: enabled ? loadingMore : false,
     countsReady,
     reload: () => reload({ forceCounts: true }),
     loadMore,

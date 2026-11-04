@@ -8,6 +8,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
@@ -22,8 +23,6 @@ import clsx from "clsx";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { OrderFormTabs } from "@/components/orders/OrderFormTabs";
 import { OrderFormSubtypeTabs } from "@/components/orders/OrderFormSubtypeTabs";
-import { MatchConfirmModal } from "@/components/orders/MatchConfirmModal";
-import { OrderFormEditModal } from "@/components/orders/OrderFormEditModal";
 import {
   magentoPackageBoardLabel,
   packageTypeDisplayValue,
@@ -35,12 +34,15 @@ import {
   type MTDTableFilterState,
 } from "@/components/mtd/MTDTableFilters";
 import { useAppState } from "@/context/AppStateContext";
-import { prefetchOrdersBoard } from "@/hooks/useOrdersBoard";
 import {
   prefetchOrdersMatchPoolQuery,
   refreshMatchCounts,
   useOrdersMatchPool,
 } from "@/hooks/useOrdersMatchPool";
+import {
+  ordersReturnHref,
+  warmOrdersReturnBoard,
+} from "@/lib/board-nav-prefetch";
 import type { OrdersMatchCounts } from "@/lib/api/orders-board";
 import { titleCase } from "@/lib/data";
 import { formatDisplayDateTime } from "@/lib/dates";
@@ -63,10 +65,6 @@ import {
   sortMTDRecordsBySortKey,
 } from "@/lib/mtd-filters";
 import {
-  buildOrdersReturnHref,
-  loadOrdersViewState,
-} from "@/lib/orders-view-state";
-import {
   MATCH_POOL_SYNC_EVENT,
   readMatchCountsCache,
 } from "@/lib/orders-board-cache";
@@ -84,6 +82,22 @@ import type {
   OrderFormType,
   Producer,
 } from "@/types";
+
+/** Heavy modals stay out of the first Match chunk (faster first paint). */
+const MatchConfirmModal = dynamic(
+  () =>
+    import("@/components/orders/MatchConfirmModal").then((m) => ({
+      default: m.MatchConfirmModal,
+    })),
+  { ssr: false }
+);
+const OrderFormEditModal = dynamic(
+  () =>
+    import("@/components/orders/OrderFormEditModal").then((m) => ({
+      default: m.OrderFormEditModal,
+    })),
+  { ssr: false }
+);
 
 const DEFAULT_FORM: OrderFormType = "school-all-star-cheer";
 const DEFAULT_CHEER_SUBTYPE: CheerFormSubtypeFilter = "all-star-cheer";
@@ -1168,15 +1182,7 @@ function MatchOrdersPageContent() {
     setMatchPair({ magento, manual });
   };
 
-  const ordersReturnHref = useMemo(() => {
-    const stored = loadOrdersViewState() || {};
-    // Keep form/subtype; open All so Back never lands on an empty Missing/Assigned tab.
-    return buildOrdersReturnHref({
-      ...stored,
-      rangeFilter: "all",
-      searchQuery: "",
-    });
-  }, []);
+  const backToOrdersHref = useMemo(() => ordersReturnHref(), []);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -1186,28 +1192,10 @@ function MatchOrdersPageContent() {
         subtitle={`Pick a Magento form, then link it to a manual ${programHeader.toLowerCase()} when names look alike`}
         headerActions={
           <Link
-            href={ordersReturnHref}
+            href={backToOrdersHref}
             prefetch
-            onPointerDown={() => {
-              const stored = loadOrdersViewState();
-              void prefetchOrdersBoard({
-                formType: stored?.form,
-                cheerFormSubtype:
-                  stored?.form === "school-all-star-cheer"
-                    ? stored.cheerSubtype
-                    : undefined,
-                danceFormSubtype:
-                  stored?.form === "school-all-star-dance"
-                    ? stored.danceSubtype
-                    : undefined,
-                range:
-                  !stored?.rangeFilter || stored.rangeFilter === "all"
-                    ? undefined
-                    : stored.rangeFilter,
-                sortBy: "newest",
-                excludeFlagged: true,
-              });
-            }}
+            onMouseEnter={() => warmOrdersReturnBoard()}
+            onPointerDown={() => warmOrdersReturnBoard()}
             className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-brand-line/70 bg-white px-3 text-[13px] font-semibold text-brand-ink shadow-sm transition hover:border-brand-line hover:bg-brand-bg/60"
           >
             <ArrowLeft className="h-4 w-4" strokeWidth={2} />
@@ -1565,7 +1553,7 @@ function MatchOrdersPageContent() {
 
 export default function MatchOrdersPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<MatchPoolSkeleton />}>
       <MatchOrdersPageContent />
     </Suspense>
   );

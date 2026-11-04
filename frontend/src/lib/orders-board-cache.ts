@@ -1358,14 +1358,20 @@ export function syncOrdersBoardOrderPatch(
       ? { ...patch, needsAttention: serverNeedsAttention({ ...before, ...patch }) }
       : patch;
 
+  // Move to MTD: drop the row from every Orders page (same ghost class as
+  // Move-to-Orders leaving MTD). Keep a patched copy for match-pool sync.
+  const leftForMtd = rowPatch.status === "in_mtd";
+
   for (const [key, entry] of boardCache) {
     const idx = entry.orders.findIndex((o) => orderMatchesId(o, orderId));
     if (idx < 0) continue;
     const row = entry.orders[idx];
     noteLocalOrderWrite(row.id, row.uuid, row.legacyId);
-    const nextOrders = entry.orders.map((o) =>
-      orderMatchesId(o, orderId) ? { ...o, ...rowPatch } : o
-    );
+    const nextOrders = leftForMtd
+      ? entry.orders.filter((o) => !orderMatchesId(o, orderId))
+      : entry.orders.map((o) =>
+          orderMatchesId(o, orderId) ? { ...o, ...rowPatch } : o
+        );
     const next = {
       ...entry,
       orders: nextOrders,
@@ -1387,6 +1393,31 @@ export function syncOrdersBoardOrderPatch(
         dataOnly: !opts?.shiftAssignment,
       })
     : false;
+  // Move to MTD leaves the Orders counts scope — bump badges down locally.
+  if (before && leftForMtd && before.status !== "in_mtd") {
+    for (const [key, entry] of countsCache) {
+      let flaggedOnly = false;
+      try {
+        flaggedOnly = Boolean(
+          (JSON.parse(key) as { flaggedOnly?: boolean }).flaggedOnly
+        );
+      } catch {
+        /* keep */
+      }
+      if (flaggedOnly) continue;
+      const next = {
+        counts: bumpNormalBoardPresence(entry.counts, before, -1),
+        updatedAt: Date.now(),
+      };
+      countsCache.set(key, next);
+      try {
+        writeCountsSession(ssKey(COUNTS_SS_PREFIX, key), next);
+      } catch {
+        /* ignore */
+      }
+    }
+    countsChanged = true;
+  }
   // Resolve / open affiliate flag: Flagged badge + board pages move locally
   // (our SSE echo is skipped, so there is no /counts catch-up otherwise).
   if (before && after && syncOrdersBoardFlagTransition(before, after)) {
@@ -1753,16 +1784,47 @@ export function ordersBoardQueryKey(
 /** Match-pool cache keyed by form/subtype (same stale/GC window as board). */
 const MATCH_POOL_STALE_MS = ORDERS_BOARD_STALE_MS;
 const MATCH_POOL_GC_MS = ORDERS_BOARD_GC_MS;
+const MATCH_POOL_SS_PREFIX = "slt_match_pool_v1:";
+const MATCH_COUNTS_SS_KEY = "slt_match_counts_v1";
+/** Few form/subtype tabs — keep last visits for instant first paint. */
+const MATCH_POOL_SS_MAX = 4;
 type MatchPoolCacheEntry = {
   orders: Order[];
   nextPageToken: string | null;
   updatedAt: number;
+  /** Full query key — rejects sessionStorage hash collisions on read. */
+  queryKey?: string;
   /** Live updates may have been missed (stream dropped): revalidate on next read. */
   stale?: boolean;
 };
 const matchPoolCache = new Map<string, MatchPoolCacheEntry>();
 /** Keys a mounted Match list paints from: live updates keep them current, so no GC. */
 const matchPoolKeysInUse = new Map<string, number>();
+
+function touchMatchPoolSessionIndex(storageKey: string, orderCount: number): void {
+  const indexKey = `${MATCH_POOL_SS_PREFIX}index`;
+  const raw = readSessionJson<SsIndexEntry[]>(indexKey) || [];
+  const next: SsIndexEntry[] = [
+    { key: storageKey, n: orderCount, at: Date.now() },
+    ...raw.filter((e) => e.key !== storageKey),
+  ];
+  while (next.length > MATCH_POOL_SS_MAX) {
+    const dropped = next.pop();
+    if (dropped) sessionStorage.removeItem(dropped.key);
+  }
+  sessionStorage.setItem(indexKey, JSON.stringify(next));
+}
+
+function writeMatchPoolSession(storageKey: string, entry: MatchPoolCacheEntry): void {
+  if (typeof window === "undefined") return;
+  if (!entry.orders.length) return;
+  try {
+    sessionStorage.setItem(storageKey, JSON.stringify(entry));
+    touchMatchPoolSessionIndex(storageKey, entry.orders.length);
+  } catch {
+    /* quota — memory cache still works */
+  }
+}
 
 export function retainMatchPoolKey(key: string): () => void {
   matchPoolKeysInUse.set(key, (matchPoolKeysInUse.get(key) ?? 0) + 1);
@@ -1805,6 +1867,19 @@ export function readMatchCountsCache(): {
   counts: OrdersMatchCounts;
   fresh: boolean;
 } | null {
+  if (!matchCountsCache) {
+    const persisted = readSessionJson<MatchCountsCacheEntry>(MATCH_COUNTS_SS_KEY);
+    if (
+      persisted?.counts &&
+      Date.now() - (persisted.updatedAt || 0) <= ORDERS_BOARD_GC_MS
+    ) {
+      matchCountsCache = {
+        counts: persisted.counts,
+        updatedAt: persisted.updatedAt,
+        stale: true, // session is a first-paint hint — soft-refresh on open
+      };
+    }
+  }
   if (!matchCountsCache) return null;
   if (Date.now() - matchCountsCache.updatedAt > ORDERS_BOARD_GC_MS) {
     matchCountsCache = null;
@@ -1820,10 +1895,26 @@ export function readMatchCountsCache(): {
 
 export function writeMatchCountsCache(counts: OrdersMatchCounts) {
   matchCountsCache = { counts, updatedAt: Date.now() };
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(
+      MATCH_COUNTS_SS_KEY,
+      JSON.stringify(matchCountsCache)
+    );
+  } catch {
+    /* quota */
+  }
 }
 
 export function invalidateMatchCountsCache() {
   matchCountsCache = null;
+  if (typeof window !== "undefined") {
+    try {
+      sessionStorage.removeItem(MATCH_COUNTS_SS_KEY);
+    } catch {
+      /* ignore */
+    }
+  }
 }
 
 export function matchPoolQueryKey(query: {
@@ -1842,7 +1933,22 @@ export function readMatchPoolCache(
   key = matchPoolQueryKey({})
 ): { entry: MatchPoolCacheEntry; fresh: boolean } | null {
   gcMatchPool();
-  const entry = matchPoolCache.get(key);
+  let entry = matchPoolCache.get(key);
+  if (!entry) {
+    const persisted = readSessionJson<MatchPoolCacheEntry>(
+      ssKey(MATCH_POOL_SS_PREFIX, key)
+    );
+    if (
+      persisted?.orders &&
+      Array.isArray(persisted.orders) &&
+      Date.now() - (persisted.updatedAt || 0) <= MATCH_POOL_GC_MS &&
+      persisted.queryKey === key
+    ) {
+      // Session is last-visit paint: mark stale so open soft-refreshes.
+      entry = { ...persisted, stale: true };
+      matchPoolCache.set(key, entry);
+    }
+  }
   if (!entry) return null;
   return {
     entry,
@@ -1853,13 +1959,20 @@ export function readMatchPoolCache(
 export function writeMatchPoolCache(
   orders: Order[],
   nextPageToken: string | null = null,
-  key = matchPoolQueryKey({})
+  key = matchPoolQueryKey({}),
+  opts?: { persist?: boolean }
 ) {
-  matchPoolCache.set(key, {
+  const entry: MatchPoolCacheEntry = {
     orders,
     nextPageToken,
     updatedAt: Date.now(),
-  });
+    queryKey: key,
+  };
+  matchPoolCache.set(key, entry);
+  // Prefetch may skip persist; live Match page writes persist for revisit paint.
+  if (opts?.persist !== false) {
+    writeMatchPoolSession(ssKey(MATCH_POOL_SS_PREFIX, key), entry);
+  }
 }
 
 /** Match pool rows left (`removeIds`) or came back (undo): re-sync live lists. */

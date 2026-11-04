@@ -315,6 +315,7 @@ function enrichOrderFromMTD(rec: {
   section?: string;
   eightCountSheet?: string;
   haveSongs?: string;
+  invoice?: string;
 }): Partial<Order> {
   const { limit } = parsePackage(rec.package);
   return {
@@ -327,6 +328,8 @@ function enrichOrderFromMTD(rec: {
     musicTheme: rec.musicTheme,
     musicAffiliate: "Power Music Covers",
     division: rec.section || rec.category,
+    // Local Order mirror only (Orders API has no invoice column).
+    invoice: String(rec.invoice || "").trim() || undefined,
   };
 }
 

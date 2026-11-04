@@ -2,7 +2,7 @@ import uuid
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
-from sqlalchemy import or_
+from sqlalchemy import and_, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 from app.core.database import get_db
@@ -111,7 +111,11 @@ def _mtd_live_filter():
 
 
 def _mtd_board_filter():
-    return MTDRecord.in_payroll.is_(False)
+    """Music-to-do only: on MTD and not yet moved to payroll."""
+    return and_(
+        MTDRecord.in_mtd.is_(True),
+        or_(MTDRecord.in_payroll.is_(False), MTDRecord.in_payroll.is_(None)),
+    )
 
 
 def _mtd_payroll_unpaid_filter():
@@ -327,9 +331,9 @@ def update_mtd_record(mtd_id: str, payload: MTDRecordUpdateSchema, db: Session =
 
 
 def _publish_mtd_updated(mtd: MTDRecord) -> None:
-    from app.services.dashboard_pulse import invalidate_dashboard_pulse_cache
+    from app.services.form_chip_cache import invalidate_mtd_read_caches
 
-    invalidate_dashboard_pulse_cache()
+    invalidate_mtd_read_caches()
     board_event_hub.publish(
         {
             "type": "mtd.updated",
@@ -369,6 +373,9 @@ def delete_mtd_record(
             db.delete(linked)
 
     db.commit()
+    from app.services.form_chip_cache import invalidate_order_read_caches
+
+    invalidate_order_read_caches()
     return None
 
 
@@ -463,4 +470,7 @@ def create_manual_schedule_entry(
     db.add(order)
     db.commit()
     db.refresh(order)
+    from app.services.form_chip_cache import invalidate_order_read_caches
+
+    invalidate_order_read_caches()
     return order

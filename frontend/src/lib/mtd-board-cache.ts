@@ -10,9 +10,78 @@ export type MtdBoardCacheEntry = {
   nextPageToken: string | null;
   counts: MtdBoardCounts;
   updatedAt: number;
+  /** Full query key — rejects sessionStorage hash collisions on read. */
+  queryKey?: string;
 };
 
 const boardCache = new Map<string, MtdBoardCacheEntry>();
+
+const MTD_BOARD_SS_PREFIX = "slt_mtd_board_v1:";
+const MTD_COUNTS_SS_PREFIX = "slt_mtd_counts_v1:";
+const MTD_SS_MAX = 6;
+
+type SsIndexEntry = { key: string; n: number; at: number };
+
+function ssKey(prefix: string, key: string): string {
+  let h1 = 2166136261;
+  let h2 = 0;
+  for (let i = 0; i < key.length; i++) {
+    const c = key.charCodeAt(i);
+    h1 ^= c;
+    h1 = Math.imul(h1, 16777619);
+    h2 = (h2 * 31 + c) | 0;
+  }
+  return `${prefix}${(h1 >>> 0).toString(36)}_${(h2 >>> 0).toString(36)}`;
+}
+
+function readSessionJson<T>(storageKey: string): T | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(storageKey);
+    if (!raw) return null;
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
+
+function touchMtdSessionIndex(
+  prefix: string,
+  storageKey: string,
+  orderCount: number,
+  max: number
+): void {
+  const indexKey = `${prefix}index`;
+  const raw = readSessionJson<SsIndexEntry[]>(indexKey) || [];
+  const next: SsIndexEntry[] = [
+    { key: storageKey, n: orderCount, at: Date.now() },
+    ...raw.filter((e) => e.key !== storageKey),
+  ];
+  while (next.length > max) {
+    const dropped = next.pop();
+    if (dropped) sessionStorage.removeItem(dropped.key);
+  }
+  sessionStorage.setItem(indexKey, JSON.stringify(next));
+}
+
+function writeMtdBoardSession(
+  storageKey: string,
+  entry: MtdBoardCacheEntry
+): void {
+  if (typeof window === "undefined") return;
+  if (!entry.records.length) return;
+  try {
+    sessionStorage.setItem(storageKey, JSON.stringify(entry));
+    touchMtdSessionIndex(
+      MTD_BOARD_SS_PREFIX,
+      storageKey,
+      entry.records.length,
+      MTD_SS_MAX
+    );
+  } catch {
+    /* quota */
+  }
+}
 
 function gc(now = Date.now()) {
   for (const [key, entry] of boardCache) {
@@ -95,7 +164,22 @@ export function readMtdBoardCache(
   key: string
 ): { entry: MtdBoardCacheEntry; fresh: boolean } | null {
   gc();
-  const entry = boardCache.get(key);
+  let entry = boardCache.get(key);
+  if (!entry) {
+    const persisted = readSessionJson<MtdBoardCacheEntry>(
+      ssKey(MTD_BOARD_SS_PREFIX, key)
+    );
+    if (
+      persisted?.records &&
+      Array.isArray(persisted.records) &&
+      Date.now() - (persisted.updatedAt || 0) <= MTD_BOARD_GC_MS &&
+      persisted.queryKey === key
+    ) {
+      // Session is last-visit paint — soft-refresh on open.
+      entry = { ...persisted, updatedAt: persisted.updatedAt };
+      boardCache.set(key, entry);
+    }
+  }
   if (!entry) return null;
   return {
     entry,
@@ -114,15 +198,23 @@ const EMPTY_COUNTS_SHAPE: MtdBoardCounts = {
 export function writeMtdBoardCache(
   key: string,
   patch: Partial<MtdBoardCacheEntry> &
-    Pick<MtdBoardCacheEntry, "records" | "nextPageToken">
+    Pick<MtdBoardCacheEntry, "records" | "nextPageToken">,
+  opts?: { persist?: boolean }
 ) {
   const prev = boardCache.get(key);
-  boardCache.set(key, {
+  const entry: MtdBoardCacheEntry = {
     records: patch.records,
     nextPageToken: patch.nextPageToken,
     counts: patch.counts ?? prev?.counts ?? { ...EMPTY_COUNTS_SHAPE },
     updatedAt: Date.now(),
-  });
+    queryKey: key,
+  };
+  boardCache.set(key, entry);
+  // Default persist so sidebar return / reload paints instantly (Orders pattern).
+  // Prefetch can pass persist:false so empty siblings do not thrash slots.
+  if (opts?.persist !== false) {
+    writeMtdBoardSession(ssKey(MTD_BOARD_SS_PREFIX, key), entry);
+  }
 }
 
 /** Drop a poisoned/empty page so the next mount cannot skip a needed refetch. */
@@ -130,30 +222,108 @@ export function deleteMtdBoardCache(key: string) {
   boardCache.delete(key);
 }
 
-/** Optimistic invoice (etc.) patch across every cached MTD board page. */
+function mtdRowMatchesId(r: MTDRecord, id: string): boolean {
+  return (
+    r.id === id ||
+    r.uuid === id ||
+    r.orderId === id ||
+    r.legacyId === id
+  );
+}
+
+/** Same pattern as ORDERS_BOARD_PATCH_EVENT — keep useMtdBoard React state in sync. */
+export const MTD_BOARD_PATCH_EVENT = "slt-mtd-board-patch";
+
+export type MtdBoardPatchDetail = {
+  id: string;
+  patch: Partial<MTDRecord>;
+  /** True when the row left the live MTD board (Move to Orders). */
+  removed: boolean;
+};
+
+function mtdCacheScope(key: string): string {
+  try {
+    return (
+      (JSON.parse(key) as { scope?: string }).scope || "live"
+    ).toLowerCase();
+  } catch {
+    return "live";
+  }
+}
+
+/** Music-to-do board pages (not unpaid payroll / paid archive). */
+function isMusicBoardScope(scope: string): boolean {
+  return scope === "board" || scope === "live" || scope === "all" || !scope;
+}
+
+/**
+ * Optimistic invoice / status / Move-to-Orders / Move-to-Payroll patch.
+ * Leaves music-board caches on inMTD:false or inPayroll:true (same ghost-row
+ * class as Move to Orders).
+ */
 export function patchMtdBoardRecordInCaches(
   id: string,
   patch: Partial<MTDRecord>
 ): void {
   if (!id) return;
+  const leftMusicBoard =
+    patch.inMTD === false || patch.inPayroll === true;
+  let anyChanged = false;
   for (const [key, entry] of boardCache) {
+    const scope = mtdCacheScope(key);
     let changed = false;
-    const records = entry.records.map((r) => {
-      if (
-        r.id === id ||
-        r.uuid === id ||
-        r.orderId === id ||
-        r.legacyId === id
-      ) {
+    let records = entry.records;
+
+    if (leftMusicBoard && isMusicBoardScope(scope)) {
+      records = entry.records.filter((r) => {
+        if (!mtdRowMatchesId(r, id)) return true;
+        changed = true;
+        return false;
+      });
+    } else if (leftMusicBoard && scope === "payroll") {
+      // Keep payroll pages in sync so sidebar→Payroll paints the new row.
+      records = entry.records.map((r) => {
+        if (!mtdRowMatchesId(r, id)) return r;
         changed = true;
         return { ...r, ...patch };
-      }
-      return r;
-    });
+      });
+    } else if (!leftMusicBoard) {
+      records = entry.records.map((r) => {
+        if (!mtdRowMatchesId(r, id)) return r;
+        changed = true;
+        return { ...r, ...patch };
+      });
+    }
+
     if (changed) {
-      boardCache.set(key, { ...entry, records, updatedAt: Date.now() });
+      anyChanged = true;
+      const next: MtdBoardCacheEntry = {
+        ...entry,
+        records,
+        updatedAt: Date.now(),
+        queryKey: entry.queryKey ?? key,
+      };
+      boardCache.set(key, next);
+      // Session must drop the row too — remount otherwise resurrects it.
+      const storageKey = ssKey(MTD_BOARD_SS_PREFIX, key);
+      if (records.length === 0) {
+        try {
+          sessionStorage.removeItem(storageKey);
+        } catch {
+          /* ignore */
+        }
+      } else {
+        writeMtdBoardSession(storageKey, next);
+      }
     }
   }
+  if (typeof window === "undefined") return;
+  if (!anyChanged && !leftMusicBoard) return;
+  window.dispatchEvent(
+    new CustomEvent<MtdBoardPatchDetail>(MTD_BOARD_PATCH_EVENT, {
+      detail: { id, patch, removed: leftMusicBoard },
+    })
+  );
 }
 
 const countsCache = new Map<
@@ -164,7 +334,20 @@ const countsCache = new Map<
 export function readMtdBoardCountsCache(
   key: string
 ): { counts: MtdBoardCounts; fresh: boolean } | null {
-  const entry = countsCache.get(key);
+  let entry = countsCache.get(key);
+  if (!entry) {
+    const persisted = readSessionJson<{
+      counts: MtdBoardCounts;
+      updatedAt: number;
+    }>(ssKey(MTD_COUNTS_SS_PREFIX, key));
+    if (
+      persisted?.counts &&
+      Date.now() - (persisted.updatedAt || 0) <= MTD_BOARD_GC_MS
+    ) {
+      countsCache.set(key, persisted);
+      entry = persisted;
+    }
+  }
   if (!entry) return null;
   if (Date.now() - entry.updatedAt > MTD_BOARD_GC_MS) {
     countsCache.delete(key);
@@ -177,7 +360,16 @@ export function readMtdBoardCountsCache(
 }
 
 export function writeMtdBoardCountsCache(key: string, counts: MtdBoardCounts) {
-  countsCache.set(key, { counts, updatedAt: Date.now() });
+  const entry = { counts, updatedAt: Date.now() };
+  countsCache.set(key, entry);
+  if (typeof window === "undefined") return;
+  try {
+    const storageKey = ssKey(MTD_COUNTS_SS_PREFIX, key);
+    sessionStorage.setItem(storageKey, JSON.stringify(entry));
+    touchMtdSessionIndex(MTD_COUNTS_SS_PREFIX, storageKey, 1, MTD_SS_MAX);
+  } catch {
+    /* quota */
+  }
 }
 
 export function patchMtdBoardCountsOnBoardCache(

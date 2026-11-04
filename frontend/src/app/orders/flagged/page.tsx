@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { ArrowLeft, Eye, Flag, Mail } from "lucide-react";
 import clsx from "clsx";
@@ -8,23 +9,37 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { TruncatedText } from "@/components/ui/TruncatedText";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import { HoverTip } from "@/components/ui/HoverTip";
-import { FlaggedOrderViewModal } from "@/components/orders/FlaggedOrderViewModal";
 import { OrderFormTabs } from "@/components/orders/OrderFormTabs";
 import { OrderFormSubtypeTabs } from "@/components/orders/OrderFormSubtypeTabs";
 import { OrderRequirementsCell } from "@/components/orders/OrderRequirementsCell";
 import { OrderDataStatusBadge } from "@/components/orders/OrderStatusDropdown";
-import { ResolveAffiliateFlagModal } from "@/components/orders/ResolveAffiliateFlagModal";
 import {
   magentoPackageBoardLabel,
   packageTypeDisplayValue,
 } from "@/components/mtd/PackageTypeField";
 import { useAppState } from "@/context/AppStateContext";
 import { OrdersLookupProvider } from "@/context/OrdersLookupContext";
+import { useOrdersBoard } from "@/hooks/useOrdersBoard";
 import {
-  prefetchOrdersBoard,
-  useOrdersBoard,
-} from "@/hooks/useOrdersBoard";
-import { loadOrdersViewState } from "@/lib/orders-view-state";
+  ordersReturnHref,
+  warmOrdersReturnBoard,
+} from "@/lib/board-nav-prefetch";
+
+/** Heavy modals stay out of the first Flagged chunk (faster first paint). */
+const ResolveAffiliateFlagModal = dynamic(
+  () =>
+    import("@/components/orders/ResolveAffiliateFlagModal").then((m) => ({
+      default: m.ResolveAffiliateFlagModal,
+    })),
+  { ssr: false }
+);
+const FlaggedOrderViewModal = dynamic(
+  () =>
+    import("@/components/orders/FlaggedOrderViewModal").then((m) => ({
+      default: m.FlaggedOrderViewModal,
+    })),
+  { ssr: false }
+);
 import {
   formatMusicAffiliateDisplay,
   getAffiliateSelections,
@@ -88,14 +103,9 @@ const ordersMailCustomerButtonClass =
   "inline-flex h-7 items-center justify-center gap-0.5 rounded-md border border-brand-warning/35 bg-brand-warning/8 px-2 text-[10px] font-semibold leading-none text-brand-warning shadow-sm transition hover:border-brand-warning/50 hover:bg-brand-warning/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-warning/20";
 
 export default function FlaggedOrdersPage() {
-  const { mtdRecords, producers, isViewOnly, ensureLiveMtdLoaded } =
-    useAppState();
-
-  useEffect(() => {
-    void ensureLiveMtdLoaded().catch(() => {
-      /* keep SWR / empty */
-    });
-  }, [ensureLiveMtdLoaded]);
+  // Do not ensureLiveMtdLoaded here — it raced Magento/board and made Flagged
+  // feel stuck. Board orders + synthetic staging are enough for open flags.
+  const { mtdRecords, producers, isViewOnly } = useAppState();
 
   const [form, setForm] = useState<OrderFormType>(DEFAULT_FORM);
   const [cheerSubtype, setCheerSubtype] =
@@ -679,6 +689,7 @@ export default function FlaggedOrdersPage() {
   ]);
 
   const totalFlagged = boardCounts.flagged || flaggedRecords.length;
+  const backToOrdersHref = useMemo(() => ordersReturnHref(), []);
 
   return (
     <OrdersLookupProvider orders={boardOrders}>
@@ -698,28 +709,10 @@ export default function FlaggedOrdersPage() {
         }}
         headerActions={
           <Link
-            href="/orders"
+            href={backToOrdersHref}
             prefetch
-            onPointerDown={() => {
-              const stored = loadOrdersViewState();
-              void prefetchOrdersBoard({
-                formType: stored?.form ?? form,
-                cheerFormSubtype:
-                  (stored?.form ?? form) === "school-all-star-cheer"
-                    ? stored?.cheerSubtype ?? cheerSubtype
-                    : undefined,
-                danceFormSubtype:
-                  (stored?.form ?? form) === "school-all-star-dance"
-                    ? stored?.danceSubtype ?? danceSubtype
-                    : undefined,
-                range:
-                  !stored?.rangeFilter || stored.rangeFilter === "all"
-                    ? undefined
-                    : stored.rangeFilter,
-                sortBy: "newest",
-                excludeFlagged: true,
-              });
-            }}
+            onMouseEnter={() => warmOrdersReturnBoard()}
+            onPointerDown={() => warmOrdersReturnBoard()}
             className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-brand-line/60 bg-white px-3 text-[12px] font-medium text-brand-ink-secondary shadow-sm transition hover:border-brand-line hover:bg-brand-bg hover:text-brand-ink"
           >
             <ArrowLeft className="h-3.5 w-3.5" strokeWidth={2.25} />

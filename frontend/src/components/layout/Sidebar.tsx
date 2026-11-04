@@ -32,7 +32,6 @@ import {
   ORDERS_BOARD_PATCH_EVENT,
 } from "@/lib/orders-board-cache";
 import type { CheerFormSubtypeFilter, OrderFormType } from "@/types";
-
 import type { LucideIcon } from "lucide-react";
 
 type NavItem = {
@@ -74,25 +73,26 @@ function pulseCountForNav(
   return pulse.payroll_open ?? 0;
 }
 
+const boardPrefetchInflight = new Set<string>();
+
 function sessionForm(key: string, fallback: OrderFormType = "school-all-star-cheer") {
   if (typeof window === "undefined") return fallback;
   const raw = sessionStorage.getItem(key) as OrderFormType | null;
   return raw || fallback;
 }
 
-function sessionCheer(key: string) {
-  if (typeof window === "undefined") return "all-star-cheer" as CheerFormSubtypeFilter;
+function sessionCheer(key: string): CheerFormSubtypeFilter {
+  if (typeof window === "undefined") return "all-star-cheer";
   return (
     (sessionStorage.getItem(key) as CheerFormSubtypeFilter | null) ||
     "all-star-cheer"
   );
 }
 
-const boardPrefetchInflight = new Set<string>();
-
 /**
- * Warm board data off the critical path (idle / after pointerdown).
- * Never run this on mouseenter — competing fetches made clicks feel late.
+ * Pointerdown on a board nav item: start THAT board's first page now so the
+ * click overlaps the fetch. Must match the form+subtype the page will open
+ * (Dance/POM miss used to warm the wrong key → second slow fetch).
  */
 function scheduleBoardPrefetch(href: string) {
   if (!BOARD_NAV_HREFS.includes(href as (typeof BOARD_NAV_HREFS)[number])) {
@@ -105,25 +105,20 @@ function scheduleBoardPrefetch(href: string) {
     void (async () => {
       try {
         if (href === "/orders") {
-          const { prefetchOrdersBoard } = await import("@/hooks/useOrdersBoard");
-          const form = sessionForm("slt_orders_form");
-          const cheer = sessionCheer("slt_orders_cheer_subtype");
-          await prefetchOrdersBoard({
-            formType: form,
-            cheerFormSubtype:
-              form === "school-all-star-cheer" ? cheer : undefined,
-            excludeFlagged: true,
-            range: "all",
-            sortBy: "newest",
-          });
+          // Same key Back-to-Orders uses (source/sort + session form).
+          const { warmOrdersReturnBoard } = await import(
+            "@/lib/board-nav-prefetch"
+          );
+          warmOrdersReturnBoard();
           return;
         }
         const { prefetchMtdBoard } = await import("@/hooks/useMtdBoard");
         if (href === "/mtd") {
           const form = sessionForm("slt_mtd_form");
           const cheer = sessionCheer("slt_mtd_cheer_subtype");
+          // Key matches useMtdBoard on /mtd (cheer only; dance not in cache key).
           await prefetchMtdBoard({
-            scope: "live",
+            scope: "board",
             formType: form,
             cheerFormSubtype:
               form === "school-all-star-cheer" ? cheer : undefined,
@@ -147,7 +142,7 @@ function scheduleBoardPrefetch(href: string) {
       }
     })();
   };
-  // Pointerdown must start the board fetch now — idle loses to the click/nav.
+  // Start now — idle loses the race to navigation/mount.
   run();
 }
 
@@ -180,13 +175,13 @@ export function Sidebar() {
     "/payroll": false,
   });
 
-  // Prefetch route JS/RSC for the three boards so clicks aren't waiting on chunks.
+  // Prefetch every sidebar route chunk once (cheap JS — not data).
   useEffect(() => {
     if (routesPrefetched.current) return;
     routesPrefetched.current = true;
-    for (const href of BOARD_NAV_HREFS) {
+    for (const item of baseNavItems) {
       try {
-        router.prefetch(href);
+        router.prefetch(item.href);
       } catch {
         /* ignore */
       }
@@ -263,9 +258,16 @@ export function Sidebar() {
       );
     };
 
-    applySeen(pulse ?? readDashboardPulseCache());
+    const cached = readDashboardPulseCache();
+    applySeen(cached ?? pulse);
 
-    // Soft reconcile count after visit (uses cache when Dashboard already warm).
+    // Any pulse in the GC window is enough for dots — don't re-hit /pulse
+    // on every Orders/MTD/Payroll visit (that made sidebar hops feel stuck).
+    if (cached) {
+      setPulse(cached);
+      return;
+    }
+
     void fetchDashboardPulseApi()
       .then((next) => {
         setPulse(next);
@@ -274,6 +276,7 @@ export function Sidebar() {
       .catch(() => {
         /* keep dirty/seen */
       });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- visit reconcile only
   }, [pathname]);
 
   const currentUser = user || {
@@ -302,16 +305,18 @@ export function Sidebar() {
 
   const showExpanded = expanded || mobileOpen;
 
-  const onBoardPointerDown = useCallback(
+  const onNavIntent = useCallback(
     (href: string) => {
-      if (!BOARD_NAV_HREFS.includes(href as (typeof BOARD_NAV_HREFS)[number])) {
-        return;
-      }
-      // Route first (instant nav), board data second (idle — doesn't block click).
       try {
         router.prefetch(href);
       } catch {
         /* ignore */
+      }
+      if (href === "/") {
+        void import("@/lib/api/dashboard").then(({ warmDashboardPulse }) => {
+          warmDashboardPulse();
+        });
+        return;
       }
       scheduleBoardPrefetch(href);
     },
@@ -418,7 +423,8 @@ export function Sidebar() {
                   href={href}
                   prefetch
                   onClick={() => setMobileOpen(false)}
-                  onPointerDown={() => onBoardPointerDown(href)}
+                  onMouseEnter={() => onNavIntent(href)}
+                  onPointerDown={() => onNavIntent(href)}
                   className={navItemClass(active)}
                   aria-label={hasNew ? `${label} (new activity)` : label}
                 >

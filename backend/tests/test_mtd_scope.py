@@ -87,6 +87,10 @@ def test_mtd_scope_archive_only_paid(db: Session):
 def test_mtd_scope_board_and_payroll(db: Session):
     board = _make_mtd(db, in_payroll=False)
     unpaid = _make_mtd(db, in_payroll=True, status="completed")
+    left_for_orders = _make_mtd(db, in_payroll=False)
+    left_for_orders.in_mtd = False
+    db.add(left_for_orders)
+    db.commit()
     _make_mtd(
         db,
         in_payroll=True,
@@ -100,6 +104,7 @@ def test_mtd_scope_board_and_payroll(db: Session):
     }
     assert str(board.id) in board_ids
     assert str(unpaid.id) not in board_ids
+    assert str(left_for_orders.id) not in board_ids
     assert str(unpaid.id) in payroll_ids
     assert str(board.id) not in payroll_ids
 

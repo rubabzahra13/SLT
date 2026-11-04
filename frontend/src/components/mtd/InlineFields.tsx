@@ -92,13 +92,12 @@ export function InlineSelect({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
+  // Client-only portal: skip a useEffect tick so the first open is same-frame.
+  const [mounted] = useState(() => typeof document !== "undefined");
   const [position, setPosition] = useState<MenuPosition | null>(null);
   const [activeIndex, setActiveIndex] = useState(() =>
     Math.max(0, options.indexOf(value))
   );
-
-  useEffect(() => setMounted(true), []);
 
   const updatePosition = () => {
     const el = triggerRef.current;
@@ -192,6 +191,7 @@ export function InlineSelect({
         onClick={(e) => {
           e.stopPropagation();
           if (readOnly) return;
+          if (!open) updatePosition();
           setOpen((v) => !v);
         }}
         onKeyDown={handleKeyDown}

@@ -116,10 +116,11 @@ async def lifespan(app: FastAPI):
 
         # Use uvicorn's console logger: app.* INFO is often invisible locally.
         logging.getLogger("uvicorn.error").info(
-            "Starting Magento poller (enabled=%s forms=%s interval=%ss token=%s)",
+            "Starting Magento poller (enabled=%s forms=%s interval=%ss form_gap=%ss token=%s)",
             settings.MAGENTO_POLL_ENABLED,
             settings.MAGENTO_POLL_FORM_IDS,
             settings.MAGENTO_POLL_INTERVAL_SECONDS,
+            settings.MAGENTO_POLL_FORM_GAP_SECONDS,
             "set" if (settings.WF_ACCESS_TOKEN or "").strip() else "MISSING",
         )
         magento_stop = start_magento_poller()

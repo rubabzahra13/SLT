@@ -3,12 +3,11 @@
 import { useEffect, useState } from "react";
 import { DashboardKpiStripLive } from "@/components/dashboard/DashboardKpiStripLive";
 import { DashboardPageClient } from "@/components/dashboard/DashboardPageClient";
-import { useAppState } from "@/context/AppStateContext";
 import { subscribeBoardStream } from "@/lib/api/board-stream";
 import {
   fetchDashboardPulseApi,
   invalidateDashboardPulseCache,
-  readDashboardPulseCache,
+  readDashboardPulseForPaint,
   type DashboardPulseApi,
 } from "@/lib/api/dashboard";
 import type { Order } from "@/types";
@@ -25,19 +24,11 @@ function boardKey(o: Order | null | undefined): string {
   return `${o?.status || ""}|${o?.affiliateFlagStatus || ""}`;
 }
 
-/** One pulse fetch for the whole Dashboard (KPIs + panels). */
+/** One pulse fetch for the whole Dashboard (KPIs + panels). No full MTD hydrate. */
 export function DashboardData() {
-  const { ensureLiveMtdLoaded } = useAppState();
-  const [pulseApi, setPulseApi] = useState<DashboardPulseApi | null>(() =>
-    readDashboardPulseCache()
+  const [pulseApi, setPulseApi] = useState<DashboardPulseApi | null>(
+    () => readDashboardPulseForPaint()?.pulse ?? null
   );
-
-  // Charts / capacity still need live rows; KPIs prefer pulse (not boot hydrate).
-  useEffect(() => {
-    void ensureLiveMtdLoaded().catch(() => {
-      /* keep SWR / empty */
-    });
-  }, [ensureLiveMtdLoaded]);
 
   useEffect(() => {
     let cancelled = false;
@@ -45,15 +36,13 @@ export function DashboardData() {
     const seen = new Map<string, { assigned: string; board: string }>();
 
     const load = (force = false) => {
-      if (!force) {
-        const hit = readDashboardPulseCache();
-        if (hit) setPulseApi(hit);
-      }
-      // Always revalidate — paint cache first; never skip setState on success
-      // (Strict Mode remounts must still receive the in-flight response).
+      const paint = readDashboardPulseForPaint();
+      if (!force && paint) setPulseApi(paint.pulse);
+      // Fresh pulse → paint only (return from Settings/Orders feels instant).
+      if (!force && paint?.fresh) return;
       void fetchDashboardPulseApi()
         .then((pulse) => {
-          setPulseApi(pulse);
+          if (!cancelled) setPulseApi(pulse);
         })
         .catch(() => {
           /* keep last */
@@ -82,6 +71,10 @@ export function DashboardData() {
     const ac = new AbortController();
     void subscribeBoardStream((event) => {
       if (cancelled) return;
+      if (event.type === "ready" && event.reconnect) {
+        scheduleRefresh();
+        return;
+      }
       if (event.type === "mtd.updated" || event.type === "order.deleted") {
         scheduleRefresh();
         return;
@@ -106,7 +99,9 @@ export function DashboardData() {
       }
       if (prev.assigned === next.assigned && prev.board === next.board) return;
       scheduleRefresh();
-    }, ac.signal);
+    }, ac.signal).catch(() => {
+      /* stream retries */
+    });
 
     return () => {
       cancelled = true;
