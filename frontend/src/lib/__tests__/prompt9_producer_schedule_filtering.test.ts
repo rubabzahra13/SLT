@@ -15,7 +15,9 @@ describe("Prompt 9: Producer Schedule Filtering & Individual Download Tests", ()
 
     const lines = csv.trim().split("\n");
     assert.ok(lines.length > 1, "Should contain header + rows");
-    assert.ok(lines[0].includes("Mix Start Date"));
+    assert.ok(lines[0].includes("Mix Due Date"));
+    assert.ok(!lines[0].includes("Mix Start Date"));
+    assert.ok(!lines[0].includes("Mix End Date"));
     assert.ok(lines[0].includes("Producer"));
   });
 
@@ -28,10 +30,11 @@ describe("Prompt 9: Producer Schedule Filtering & Individual Download Tests", ()
     const header = lines[0];
     const rowLines = lines.slice(1);
 
-    assert.ok(header.includes("Mix Start Date"));
+    assert.ok(header.includes("Mix Due Date"));
+    assert.ok(!header.includes("Mix Start Date"));
 
     rowLines.forEach((row) => {
-      // Producer column is column index 2
+      // Producer column is column index 1 (after Mix Due Date)
       assert.ok(row.includes("Nick"), `Row must belong to Nick: ${row}`);
       assert.strictEqual(row.includes("Andrea"), false, `Row must not contain Andrea's schedule`);
     });

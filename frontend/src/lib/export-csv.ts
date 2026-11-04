@@ -195,7 +195,7 @@ export function generateOrdersCsv(records: MTDRecord[], allOrders: Order[]): str
     { key: "programName", label: "Program Name" },
     { key: "assignedProducer", label: "Assigned Producer" },
     { key: "mixStartDate", label: "Mix Start Date" },
-    { key: "mixEndDate", label: "Mix End Date" },
+    { key: "mixEndDate", label: "Mix Due Date" },
     { key: "status", label: "Status" },
   ];
 
@@ -274,7 +274,7 @@ export function generateMTDCsv(
     { key: "assignedProducer", label: "Assigned Producer" },
     { key: "requestedProducer", label: "Requested Producer" },
     { key: "mixStartDate", label: "Mix Start Date" },
-    { key: "mixEndDate", label: "Mix End Date" },
+    { key: "mixEndDate", label: "Mix Due Date" },
     { key: "rushFee", label: "Rush Fee Option" },
     { key: "danceExtraSongs", label: "Dance Extra Songs ($15/ea)" },
     { key: "danceExtraSongTime", label: "Dance Extra Song Time ($30/ea)" },
@@ -1100,9 +1100,12 @@ export type ProducerFacingScheduleRow = {
   [key: string]: unknown;
 };
 
+/**
+ * Producer-facing schedule (Send Schedule preview, CSV attachment, schedule email).
+ * Only mixStartDate is shown, labeled Mix Due Date — mix end is never exposed to producers.
+ */
 export const PRODUCER_SCHEDULE_COLUMNS = [
-  { key: "mixStartDate", label: "Mix Start Date" },
-  { key: "mixEndDate", label: "Mix End Date" },
+  { key: "mixStartDate", label: "Mix Due Date" },
   { key: "assignedProducer", label: "Producer" },
   { key: "programName", label: "Program Name" },
   { key: "contactName", label: "Contact Name" },

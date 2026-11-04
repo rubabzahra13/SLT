@@ -37,7 +37,7 @@ describe("Prompt 6: Filter-Aware CSV Export Utility", () => {
     assert.ok(headerLine.includes("Order ID"));
     assert.ok(headerLine.includes("Assigned Producer"));
     assert.ok(headerLine.includes("Mix Start Date"));
-    assert.ok(headerLine.includes("Mix End Date"));
+    assert.ok(headerLine.includes("Mix Due Date"));
   });
 
   it("3. Orders Export: Unassigned and unscheduled fallback text check", () => {

@@ -1441,7 +1441,7 @@ export function AssignEditorModal({
                         </div>
                         <div>
                           <label className="text-[11px] font-medium text-brand-ink-tertiary">
-                            Mix end
+                            Mix due date
                           </label>
                           <div className="mt-1">
                             <InlineDateInput

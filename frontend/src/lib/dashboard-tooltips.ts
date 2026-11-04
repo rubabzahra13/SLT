@@ -103,9 +103,9 @@ export function pipelineCategoryInsight(slice: {
 
 export function mixOpsInsight(slice: MixOpsSlice): { title: string; body: string } {
   const tips: Record<string, string> = {
-    Overdue: "Past mix end date. Prioritize in MTD.",
+    Overdue: "Past mix due date. Prioritize in MTD.",
     "Start today": "Scheduled to begin mixing today.",
-    "Due this week": "Mix end date is within the next 7 days.",
+    "Due this week": "Mix due date is within the next 7 days.",
     "Missing data": "Invoice, pricing, or materials still needed before payroll.",
     "On track": "Dated and ready — no deadline pressure this week.",
   };

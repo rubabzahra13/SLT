@@ -169,19 +169,20 @@ describe("Producer Schedule Preparation Unit Tests", () => {
       "Casey Marlow"
     );
 
-    assert.ok(csv.includes("Mix Start Date,Mix End Date,Producer,Program Name,Contact Name,Invoice #,Category,Subtype,Package,Status"));
+    assert.ok(csv.includes("Mix Due Date,Producer,Program Name,Contact Name,Invoice #,Category,Subtype,Package,Status"));
+    assert.ok(!csv.includes("Mix Start Date"));
+    assert.ok(!csv.includes("Mix End Date"));
     assert.ok(csv.includes("2026-09-12"));
     assert.ok(csv.includes("Casey Marlow"));
     assert.ok(csv.includes("Alpha Cheer"));
     assert.ok(csv.includes("INV-101"));
   });
 
-  it("has exactly 10 defined producer schedule columns", () => {
-    assert.strictEqual(PRODUCER_SCHEDULE_COLUMNS.length, 10);
+  it("has exactly 9 defined producer schedule columns (no mix end)", () => {
+    assert.strictEqual(PRODUCER_SCHEDULE_COLUMNS.length, 9);
     const keys = PRODUCER_SCHEDULE_COLUMNS.map((c) => c.key);
     assert.deepStrictEqual(keys, [
       "mixStartDate",
-      "mixEndDate",
       "assignedProducer",
       "programName",
       "contactName",
@@ -191,5 +192,6 @@ describe("Producer Schedule Preparation Unit Tests", () => {
       "package",
       "status",
     ]);
+    assert.equal(PRODUCER_SCHEDULE_COLUMNS[0]?.label, "Mix Due Date");
   });
 });

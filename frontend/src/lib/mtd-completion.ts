@@ -29,7 +29,7 @@ export function getCompletionRequirements(rec: MTDRecord): CompletionRequirement
     },
     {
       key: "mixEndDate",
-      label: "Mix end date",
+      label: "Mix due date",
       met: Boolean(toIsoDateString(rec.mixEndDate ?? "")),
     },
   ];

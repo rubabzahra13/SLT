@@ -1512,7 +1512,7 @@ function MTDPageContent() {
       },
       {
         key: "mixEndDate",
-        header: "Mix end date",
+        header: "Mix due date",
         width: "128px",
         align: "center" as const,
         nowrap: false,
