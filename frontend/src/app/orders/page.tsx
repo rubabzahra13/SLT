@@ -303,12 +303,12 @@ function readInitialOrdersBoardView(
     Boolean(fromUrl.rangeFilter && fromUrl.rangeFilter !== "flagged") ||
     (initialRangeFromUrl !== "all" && initialRangeFromUrl !== "flagged");
   const deepLinkFocus = Boolean(searchParams.get("focus"));
+  // Search is sticky only via URL `q` (Assign Back). Session search is cleared
+  // on sidebar leave / clear — never restore a stale typed query.
   const restoredSearch =
     deepLinkRange || deepLinkFocus
       ? ""
-      : restored.searchQuery !== undefined
-        ? restored.searchQuery
-        : "";
+      : fromUrl.searchQuery?.trim() || "";
   // Range chips: URL deep-link only. Do not restore Complete/Assigned (etc.)
   // from session — that made soft returns land on empty combo views.
   let rangeFilters: OrderViewRangeFilter[] = [];
@@ -586,18 +586,38 @@ function OrdersPageContent() {
     setSearchInputState(next);
   }, []);
 
+  const clearOrdersSearchPersistence = useCallback(() => {
+    const stored = loadOrdersViewState() || {};
+    saveOrdersViewState({ ...stored, searchQuery: "" });
+    if (typeof window === "undefined") return;
+    if (!searchParams.get("q")) return;
+    const params = new URLSearchParams(Array.from(searchParams.entries()));
+    params.delete("q");
+    const qs = params.toString();
+    router.replace(`/orders${qs ? `?${qs}` : ""}`, { scroll: false });
+  }, [router, searchParams]);
+
   useEffect(() => {
     // Clear immediately so we don't keep search hits for 220ms after X.
     // Debounce only when typing a non-empty query.
     if (!searchInput.trim()) {
       setSearchQueryState("");
+      clearOrdersSearchPersistence();
       return;
     }
     const t = window.setTimeout(() => {
       setSearchQueryState(searchInput);
     }, 220);
     return () => window.clearTimeout(t);
-  }, [searchInput]);
+  }, [searchInput, clearOrdersSearchPersistence]);
+
+  // Sidebar leave (or any unmount): drop typed search so it does not come back.
+  useEffect(() => {
+    return () => {
+      const stored = loadOrdersViewState() || {};
+      saveOrdersViewState({ ...stored, searchQuery: "" });
+    };
+  }, []);
 
   // Filters already restored in useState — only mark ready (no queryKey churn).
   useLayoutEffect(() => {

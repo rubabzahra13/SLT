@@ -349,10 +349,19 @@ export type AppEmailTemplatesSlice = {
   isViewOnly: boolean;
 };
 
+/** Board write helpers — stable across MTD/orders array churn. */
+export type AppBoardMutationsSlice = {
+  updateMTD: AppStateContextValue["updateMTD"];
+  updateOrder: AppStateContextValue["updateOrder"];
+  isViewOnly: boolean;
+};
+
 const AppProducersContext = createContext<AppProducersSlice | null>(null);
 const AppNoticesContext = createContext<AppNoticesSlice | null>(null);
 const AppEmailTemplatesContext =
   createContext<AppEmailTemplatesSlice | null>(null);
+const AppBoardMutationsContext =
+  createContext<AppBoardMutationsSlice | null>(null);
 
 function normalizeOrders(orders: Order[]): Order[] {
   return orders.map((o) => {
@@ -5248,12 +5257,23 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     [emailTemplates, updateEmailTemplate, resetEmailTemplate, isViewOnly]
   );
 
+  const boardMutationsSlice = useMemo<AppBoardMutationsSlice>(
+    () => ({
+      updateMTD,
+      updateOrder,
+      isViewOnly,
+    }),
+    [updateMTD, updateOrder, isViewOnly]
+  );
+
   return (
     <AppStateContext.Provider value={value}>
       <AppProducersContext.Provider value={producersSlice}>
         <AppNoticesContext.Provider value={noticesSlice}>
           <AppEmailTemplatesContext.Provider value={emailTemplatesSlice}>
-            {children}
+            <AppBoardMutationsContext.Provider value={boardMutationsSlice}>
+              {children}
+            </AppBoardMutationsContext.Provider>
           </AppEmailTemplatesContext.Provider>
         </AppNoticesContext.Provider>
       </AppProducersContext.Provider>
@@ -5288,6 +5308,16 @@ export function useAppEmailTemplates() {
   if (!ctx) {
     throw new Error(
       "useAppEmailTemplates must be used within AppStateProvider"
+    );
+  }
+  return ctx;
+}
+
+export function useAppBoardMutations() {
+  const ctx = useContext(AppBoardMutationsContext);
+  if (!ctx) {
+    throw new Error(
+      "useAppBoardMutations must be used within AppStateProvider"
     );
   }
   return ctx;

@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, Plus, Download } from "lucide-react";
+import { Search, Plus, Download, X } from "lucide-react";
 
 type PageHeaderProps = {
   title: string;
@@ -95,8 +95,19 @@ export function PageHeader({
                   onChange={(event) => search.onChange(event.target.value)}
                   placeholder={search.placeholder ?? "Search..."}
                   aria-label={search.placeholder ?? "Search"}
-                  className="h-9 w-48 rounded-xl border border-brand-line/50 bg-white/80 pl-9 pr-3 text-[13px] text-brand-ink outline-none ring-0 transition placeholder:text-brand-ink-tertiary focus:border-brand-blue/45 focus:bg-white focus:ring-2 focus:ring-brand-blue/15 lg:w-56"
+                  className="h-9 w-48 rounded-xl border border-brand-line/50 bg-white/80 pl-9 pr-8 text-[13px] text-brand-ink outline-none ring-0 transition placeholder:text-brand-ink-tertiary focus:border-brand-blue/45 focus:bg-white focus:ring-2 focus:ring-brand-blue/15 lg:w-56 [&::-webkit-search-cancel-button]:hidden"
                 />
+                {search.value.trim() ? (
+                  <button
+                    type="button"
+                    onClick={() => search.onChange("")}
+                    className="absolute right-2 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-md text-brand-ink-tertiary transition hover:bg-brand-bg hover:text-brand-ink"
+                    aria-label="Clear search"
+                    title="Clear search"
+                  >
+                    <X className="h-3.5 w-3.5" strokeWidth={2} />
+                  </button>
+                ) : null}
               </div>
             ) : null}
 

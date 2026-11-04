@@ -242,29 +242,8 @@ function MTDPageContent() {
     ensureLiveMtdLoaded,
   } = useAppState();
 
-  // Board paints from /mtd/board. Full AppState MTD hydrate waits until idle
-  // so sidebar clicks aren't stuck behind a second heavy fetch.
-  useEffect(() => {
-    let idleId: number | null = null;
-    const t = window.setTimeout(() => {
-      const run = () => {
-        void ensureLiveMtdLoaded().catch(() => {
-          /* keep SWR / empty */
-        });
-      };
-      if (typeof window.requestIdleCallback === "function") {
-        idleId = window.requestIdleCallback(run, { timeout: 4000 });
-      } else {
-        run();
-      }
-    }, 1200);
-    return () => {
-      window.clearTimeout(t);
-      if (idleId != null && typeof window.cancelIdleCallback === "function") {
-        window.cancelIdleCallback(idleId);
-      }
-    };
-  }, [ensureLiveMtdLoaded]);
+  // Board paints from /mtd/board only. Full live-MTD hydrate waits until Assign
+  // (needs all open mixes for capacity) — not on every MTD visit.
   const [formState, setFormState] = useState<OrderFormType>(() =>
     typeof window !== "undefined" ? readStoredMtdFilters().form : DEFAULT_FORM
   );
@@ -631,8 +610,11 @@ function MTDPageContent() {
       e.preventDefault();
       e.stopPropagation();
       setAssignRecordId(rec.id);
+      void ensureLiveMtdLoaded().catch(() => {
+        /* Assign still works from paged board rows */
+      });
     },
-    []
+    [ensureLiveMtdLoaded]
   );
 
   const handleMoveToOrders = useCallback(

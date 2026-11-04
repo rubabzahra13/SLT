@@ -3,7 +3,10 @@
 import { useMemo, useState } from "react";
 import clsx from "clsx";
 import type { MTDRecord, Order } from "@/types";
-import { useAppState } from "@/context/AppStateContext";
+import {
+  useAppBoardMutations,
+  useAppNotices,
+} from "@/context/AppStateContext";
 import { useOrdersLookup } from "@/context/OrdersLookupContext";
 import { findLinkedOrder } from "@/lib/editor-assignment";
 import { findLinkedFormOrderForDisplay } from "@/lib/manual-form-merge";
@@ -28,7 +31,6 @@ import {
   mtdPatchFromOrderField,
   orderPatchFromOrderField,
 } from "@/lib/mtd-order-sync";
-import { mtdRecordCoversOrder } from "@/lib/order-staging";
 import { isManualSlimFormOrder } from "@/lib/add-order-mixes";
 import { HoverTip } from "@/components/ui/HoverTip";
 import {
@@ -387,13 +389,8 @@ export function OrderRequirementsCell({
   record: Order | MTDRecord;
   category: RequirementCategory;
 }) {
-  const {
-    updateMTD,
-    updateOrder,
-    addAlert,
-    isViewOnly,
-    mtdRecords,
-  } = useAppState();
+  const { updateMTD, updateOrder, isViewOnly } = useAppBoardMutations();
+  const { addAlert } = useAppNotices();
   const { orders: lookupOrders } = useOrdersLookup();
   const linkedOrder = useMemo(
     () => findLinkedOrder(record as MTDRecord, lookupOrders),
@@ -552,20 +549,19 @@ export function OrderRequirementsCell({
     applyCollectionToggle(item);
   };
 
-  const resolveCoveringMtd = (orderId: string | null) =>
-    (linkedOrder &&
-      mtdRecords.find((rec) => mtdRecordCoversOrder(rec, linkedOrder))) ||
-    mtdRecords.find(
-      (rec) =>
-        rec.id === record.id ||
-        rec.orderId === record.id ||
-        rec.uuid === record.id ||
-        rec.legacyId === record.id ||
-        (orderId &&
-          (rec.orderId === orderId ||
-            rec.id === orderId ||
-            rec.legacyId === orderId))
-    );
+  /** Prefer the row itself when already on MTD — avoid scanning AppState MTD. */
+  const resolveCoveringMtd = (_orderId: string | null): MTDRecord | null => {
+    const asMtd = record as MTDRecord & { onMtdBoard?: boolean };
+    if (asMtd.inMTD || asMtd.onMtdBoard) return asMtd;
+    if (
+      asMtd.section &&
+      asMtd.id &&
+      !String(asMtd.id).startsWith("ord-")
+    ) {
+      return asMtd;
+    }
+    return null;
+  };
 
   const handleSongsNotesConfirm = (text: string) => {
     if (!confirm) return;
