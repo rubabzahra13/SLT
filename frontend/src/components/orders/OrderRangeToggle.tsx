@@ -30,29 +30,15 @@ type RangeOption = {
   id: OrderViewRangeFilter;
   label: string;
   count?: number;
-  tone?: "default" | "warn" | "danger";
 };
 
-const ACTIVE_CHIP: Record<NonNullable<RangeOption["tone"]>, string> = {
-  default:
-    "border-brand-blue/40 bg-brand-blue-soft/55 text-brand-ink shadow-sm",
-  warn: "border-brand-orange/45 bg-brand-orange-soft/80 text-brand-ink shadow-sm",
-  danger: "border-rose-400/45 bg-rose-50 text-rose-700 shadow-sm",
-};
-
-const INACTIVE_CHIP: Record<NonNullable<RangeOption["tone"]>, string> = {
-  default:
-    "border-brand-line-strong/70 bg-white text-brand-ink-secondary hover:border-brand-line hover:bg-brand-bg-subtle/80",
-  warn: "border-brand-line-strong/70 bg-white text-brand-orange/90 hover:border-brand-orange/35 hover:bg-brand-orange-soft/40",
-  danger:
-    "border-brand-line-strong/70 bg-white text-rose-600/90 hover:border-rose-300 hover:bg-rose-50/70",
-};
-
-const ACTIVE_BADGE: Record<NonNullable<RangeOption["tone"]>, string> = {
-  default: "bg-brand-blue-soft text-brand-signature",
-  warn: "bg-white/70 text-brand-orange",
-  danger: "bg-white/70 text-rose-600",
-};
+/** One selected look for every chip so multi-select reads as the same filter set. */
+const ACTIVE_CHIP =
+  "border-brand-blue/40 bg-brand-blue-soft/55 text-brand-ink shadow-sm";
+const INACTIVE_CHIP =
+  "border-brand-line-strong/70 bg-white text-brand-ink-secondary hover:border-brand-line hover:bg-brand-bg-subtle/80";
+const ACTIVE_BADGE = "bg-brand-blue-soft text-brand-signature";
+const INACTIVE_BADGE = "bg-brand-bg-subtle text-brand-ink-tertiary";
 
 function asFilters(
   value: OrderViewRangeFilter | OrderViewRangeFilter[]
@@ -84,7 +70,6 @@ export function OrderRangeToggle({
       id: "waiting_for_data",
       label: "Missing data",
       count: counts?.waitingForData,
-      tone: "warn",
     },
     { id: "assigned", label: "Assigned", count: counts?.assigned },
     {
@@ -96,7 +81,6 @@ export function OrderRangeToggle({
       id: "reassigned",
       label: "Reassign",
       count: reselectCount,
-      tone: "danger",
     },
   ];
 
@@ -108,7 +92,6 @@ export function OrderRangeToggle({
     >
       {options.map((opt) => {
         const active = isOrdersRangeFilterActive(filters, opt.id);
-        const tone = opt.tone ?? "default";
 
         return (
           <button
@@ -123,7 +106,7 @@ export function OrderRangeToggle({
             }}
             className={clsx(
               "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-[12px] font-medium transition-colors",
-              active ? ACTIVE_CHIP[tone] : INACTIVE_CHIP[tone]
+              active ? ACTIVE_CHIP : INACTIVE_CHIP
             )}
           >
             <span>{opt.label}</span>
@@ -131,9 +114,7 @@ export function OrderRangeToggle({
               <span
                 className={clsx(
                   "rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums transition-colors",
-                  active
-                    ? ACTIVE_BADGE[tone]
-                    : "bg-brand-bg-subtle text-brand-ink-tertiary"
+                  active ? ACTIVE_BADGE : INACTIVE_BADGE
                 )}
               >
                 {opt.count}

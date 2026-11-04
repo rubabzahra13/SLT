@@ -81,8 +81,6 @@ function resolveInitialCounts(
 type ReloadOpts = {
   background?: boolean;
   forceCounts?: boolean;
-  /** Default true; live-event catch-ups pass false. */
-  warmSiblings?: boolean;
 };
 
 /** Keep at most 3 pages in memory (TanStack maxPages pattern). */
@@ -201,8 +199,9 @@ function readAllScopeOrders(q: OrdersBoardQuery): Order[] {
 
 /**
  * Instant chip paint: prefer the ranged cache, else scope the All page, else
- * scope the rows on screen (Not assigned / Missing feel like search). May be
- * empty for sparse chips — callers skeleton until the ranged page lands.
+ * scope the rows on screen (Not assigned / Missing feel like search). Empty
+ * seed is OK — callers keep the table up (no skeleton) while the ranged page
+ * loads in the background.
  */
 function seedOrdersOnRangeChange(
   q: OrdersBoardQuery,
@@ -237,7 +236,10 @@ function rangeHasToken(range: string | undefined, ...ids: string[]): boolean {
   );
 }
 
-/** Prefetch non-empty sibling ranges only; max 2 in flight (egress-friendly). */
+/**
+ * Opt-in only (e.g. pointerdown on one chip). Do not call after every board
+ * load — that fan-out was the main Orders egress waste.
+ */
 export function prefetchOrdersBoardRangeSiblings(
   query: OrdersBoardQuery,
   counts?: OrdersBoardCounts | null
@@ -431,14 +433,13 @@ export function useOrdersBoard(
       // Typing search (and form/subtype) keep rows — client filters instantly.
       setLoading(false);
     } else if (rangeChanged && paintedRef.current) {
-      // Status chips should feel like search: seed from cache / on-screen rows
-      // now, fetch the real ranged page in the background. Empty seed →
-      // skeleton (not a false "No orders match") until that page lands.
+      // Status chips feel like search: seed from cache / on-screen rows now;
+      // real ranged page loads in the background (no skeleton).
       const seeded = seedOrdersOnRangeChange(q, orders);
       setOrders(seeded.orders);
       setNextPageToken(seeded.nextPageToken);
       pageIdsRef.current = new Set(seeded.orders.map((o) => o.id));
-      setLoading(enabled && knownTotal !== 0 && seeded.orders.length === 0);
+      setLoading(false);
     } else {
       // Cold range switch with nothing painted — skeleton if badge says rows.
       setOrders([]);
@@ -576,8 +577,8 @@ export function useOrdersBoard(
       // Typing search: keep rows. Range tabs: never keep All on Reassign.
       setLoading(false);
     } else if (rangeChanged && paintedRef.current && !trustedHit) {
-      // Render-phase sync already seeded this chip; skeleton only if empty.
-      setLoading(enabled && knownTotal !== 0 && pageIdsRef.current.size === 0);
+      // Render-phase sync already seeded this chip — stay interactive.
+      setLoading(false);
     } else if (!trustedHit) {
       setOrders([]);
       pageIdsRef.current = new Set();
@@ -697,16 +698,14 @@ export function useOrdersBoard(
         await paintBoard();
       }
 
-      // Range siblings warm once per real load, after counts say which tabs
-      // have rows. SSE catch-ups skip it (stale sibling caches still paint).
-      const warmSiblings = opts?.warmSiblings !== false && !flagged && !q.search;
+      // Do not warm sibling ranges after load (egress). Chip clicks seed from
+      // All / on-screen rows, then fetch that range on demand (cached after).
       const boardCounts = await countsPromise;
       if (gen !== genRef.current) return;
       if (!boardCounts) {
         const known = lastGoodCountsRef.current;
-        if (warmSiblings && known) {
+        if (!flagged && !q.search && known) {
           seedEmptyRangeCaches(q, known);
-          window.setTimeout(() => prefetchOrdersBoardRangeSiblings(q, known), 0);
         }
         return;
       }
@@ -726,12 +725,6 @@ export function useOrdersBoard(
       }
       if (!flagged && !q.search) {
         seedEmptyRangeCaches(q, boardCounts);
-        if (warmSiblings) {
-          window.setTimeout(
-            () => prefetchOrdersBoardRangeSiblings(q, boardCounts),
-            0
-          );
-        }
       }
     },
     [queryKey]
@@ -799,9 +792,7 @@ export function useOrdersBoard(
       // Polluted-then-filtered caches must still refetch to get the real page.
       const cacheWasPolluted = hit!.entry.orders.length !== rangedOrders.length;
       if (trustedHit.fresh && countsHit?.fresh && !cacheWasPolluted) {
-        // Remount with warm cache: paint only — no sibling fan-out (that was
-        // 3–5 board GETs every Orders↔MTD hop). Sibling warm stays on idle
-        // after a real network load / first interactive session.
+        // Remount with warm cache: paint only — no sibling fan-out.
         if (!flaggedOnly && !q.search) {
           seedEmptyRangeCaches(q, countsHit.counts);
         }
@@ -840,10 +831,6 @@ export function useOrdersBoard(
       setLoading(false);
       if (!flaggedOnly && !q.search && countsForBadge) {
         seedEmptyRangeCaches(q, countsForBadge);
-        window.setTimeout(
-          () => prefetchOrdersBoardRangeSiblings(q, countsForBadge),
-          0
-        );
       }
       return;
     }
@@ -985,7 +972,6 @@ export function useOrdersBoard(
         void reloadRef.current({
           background: true,
           forceCounts: true,
-          warmSiblings: false,
         });
       }, SSE_OFF_PAGE_RELOAD_MS);
     };
@@ -993,7 +979,7 @@ export function useOrdersBoard(
     void subscribeBoardStream((event) => {
       if (event.type === "ready") {
         if (event.reconnect) {
-          void reloadRef.current({ background: true, warmSiblings: false });
+          void reloadRef.current({ background: true });
         }
         return;
       }
