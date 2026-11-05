@@ -15,6 +15,7 @@ import app.models  # noqa: F401
 from app.models.base import Base
 from app.models.order import Order
 from app.api.magento_ingest import (
+    MAX_INGEST_BATCH_SIZE,
     MagentoIngestRequest,
     ingest_magento_batch,
     require_magento_ingest_secret,
@@ -173,6 +174,79 @@ def test_form2_unroutable_skipped(db: Session):
     assert response.skipped_unroutable == 1
     assert response.created == 0
     assert publish.call_count == 0
+
+
+def test_batch_rejects_oversize(db: Session):
+    results = [
+        _form1_result(
+            result_id=f"api-over-{i}",
+            created_at="2026-11-03 06:00:00",
+        )
+        for i in range(MAX_INGEST_BATCH_SIZE + 1)
+    ]
+    payload = MagentoIngestRequest(form_id=1, results=results)
+    with patch(
+        "app.api.magento_ingest.ensure_import_cutoff", return_value=CUTOFF
+    ), patch("app.services.magento_orders.board_event_hub.publish"):
+        with pytest.raises(HTTPException) as exc:
+            ingest_magento_batch(payload, db=db, _=None)
+    assert exc.value.status_code == 400
+    assert db.query(Order).count() == 0
+
+
+def test_candidate_result_ids_from_batch_only():
+    from app.api.magento_ingest import _candidate_result_ids
+
+    assert _candidate_result_ids(
+        [
+            {"result_id": "a"},
+            "skip",
+            {"result_id": "  "},
+            {"result_id": "b"},
+            {"form_id": 1},
+        ]
+    ) == ["a", "b"]
+
+
+def test_batch_known_lookup_scopes_to_request_ids(db: Session):
+    """Many existing Magento ids must not block create; batch dup still skips."""
+    for i in range(40):
+        db.add(
+            Order(
+                school_gym_name=f"Other {i}",
+                form_type="school-all-star-cheer",
+                magento_result_id=f"noise-{i}",
+            )
+        )
+    db.add(
+        Order(
+            school_gym_name="Already In",
+            form_type="school-all-star-cheer",
+            magento_result_id="api-scoped-dup",
+        )
+    )
+    db.commit()
+
+    payload = MagentoIngestRequest(
+        form_id=1,
+        results=[
+            _form1_result(
+                result_id="api-scoped-1", created_at="2026-11-03 06:00:00"
+            ),
+            _form1_result(
+                result_id="api-scoped-dup", created_at="2026-11-03 06:30:00"
+            ),
+        ],
+    )
+    with patch(
+        "app.api.magento_ingest.ensure_import_cutoff", return_value=CUTOFF
+    ), patch("app.services.magento_orders.board_event_hub.publish"):
+        response = ingest_magento_batch(payload, db=db, _=None)
+
+    assert response.created == 1
+    assert response.skipped_duplicate == 1
+    assert response.created_result_ids == ["api-scoped-1"]
+    assert db.query(Order).count() == 42
 
 
 def test_mixed_batch_and_idempotent_retry(db: Session):

@@ -13,7 +13,7 @@ Python **3.12**. Standard library only.
 | `MAGENTO_INGEST_URL` | yes | Full ingest URL, `https://<vercel-domain>/api/magento/ingest` |
 | `MAGENTO_INGEST_SECRET` | yes | Shared secret sent as `X-Magento-Ingest-Secret` |
 | `MAGENTO_POLL_FORM_IDS` | yes | Comma-separated form ids the CRM already maps: `1,2,3,4,5,6,7,8,9,10,11,14` |
-| `MAGENTO_BATCH_SIZE` | no | Results per ingest POST. Default `50` |
+| `MAGENTO_BATCH_SIZE` | no | Results per ingest POST. Default `25` (hard-capped at 25 to match the API) |
 
 Copy `env.example` to `.env` and restrict it:
 

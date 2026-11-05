@@ -885,77 +885,8 @@ function MatchOrdersPageContent() {
     [danceSubtype]
   );
 
-  // Warm sibling tabs as soon as counts exist (don't wait for the active pool).
-  // Parallel top jobs so Cheer↔MB / All Star↔School Cheer aren't cold on click.
-  useEffect(() => {
-    if (!matchCounts) return;
-    let cancelled = false;
-    const run = async () => {
-      const jobs: {
-        formType: OrderFormType;
-        cheerFormSubtype?: string;
-        danceFormSubtype?: string;
-      }[] = [];
-      for (const tab of MANUAL_MATCH_FORM_TABS) {
-        const magento = matchCounts.by_form_type[tab.id] ?? 0;
-        const manual = matchCounts.manual_by_form_type[tab.id] ?? 0;
-        if (magento + manual <= 0) continue;
-        if (tab.id === "school-all-star-cheer") {
-          for (const st of VALID_CHEER) {
-            if (
-              (matchCounts.by_cheer_form_subtype[st] ?? 0) +
-                (matchCounts.manual_by_cheer_form_subtype[st] ?? 0) <=
-              0
-            ) {
-              continue;
-            }
-            if (form === tab.id && cheerSubtype === st) continue;
-            jobs.push({ formType: tab.id, cheerFormSubtype: st });
-          }
-        } else if (tab.id === "school-all-star-dance") {
-          for (const st of VALID_DANCE) {
-            if (
-              (matchCounts.by_dance_form_subtype[st] ?? 0) +
-                (matchCounts.manual_by_dance_form_subtype[st] ?? 0) <=
-              0
-            ) {
-              continue;
-            }
-            if (form === tab.id && danceSubtype === st) continue;
-            jobs.push({ formType: tab.id, danceFormSubtype: st });
-          }
-        } else if (form !== tab.id) {
-          jobs.push({ formType: tab.id });
-        }
-      }
-      // Prefer the default Cheer landing + other forms first.
-      jobs.sort((a, b) => {
-        const rank = (j: (typeof jobs)[number]) => {
-          if (
-            j.formType === "school-all-star-cheer" &&
-            j.cheerFormSubtype === "all-star-cheer"
-          ) {
-            return 0;
-          }
-          if (j.formType === "marching-band") return 1;
-          if (j.formType === "school-all-star-dance") return 2;
-          return 3;
-        };
-        return rank(a) - rank(b);
-      });
-      if (cancelled) return;
-      await Promise.all(
-        jobs.slice(0, 4).map((job) => prefetchOrdersMatchPoolQuery(job))
-      );
-    };
-    const t = window.setTimeout(() => {
-      void run();
-    }, 200);
-    return () => {
-      cancelled = true;
-      window.clearTimeout(t);
-    };
-  }, [matchCounts, form, cheerSubtype, danceSubtype]);
+  // Sibling Match tabs warm on form/subtype intent (hover/pointerdown) only —
+  // no idle multi-pool prefetch while sitting on Match.
 
   // Pool is API-scoped; still filter client-side so a stale previous tab never
   // paints under Gameday (0) / empty subtypes.

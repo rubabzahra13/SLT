@@ -11,7 +11,7 @@ type Listener = (event: LiveStreamEvent) => void;
  * One SSE per tab, shared by AppState + boards. Each open stream is a
  * long-running function (provisioned memory), so background tabs drop it.
  */
-const HIDDEN_DISCONNECT_MS = 30_000;
+const HIDDEN_DISCONNECT_MS = 8_000;
 /** Route remounts unsubscribe then resubscribe within a frame or two. */
 const IDLE_DISCONNECT_MS = 2_000;
 

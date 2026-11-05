@@ -25,6 +25,8 @@ router = APIRouter()
 
 # Dedicated header so VPS auth never collides with admin Bearer user tokens.
 INGEST_SECRET_HEADER = "X-Magento-Ingest-Secret"
+# Cap per POST so Hobby Fluid memory stays bounded; VPS chunks to this size.
+MAX_INGEST_BATCH_SIZE = 25
 
 
 class MagentoIngestRequest(BaseModel):
@@ -74,6 +76,18 @@ def require_magento_ingest_secret(
         )
 
 
+def _candidate_result_ids(results: List[Any]) -> List[str]:
+    """Collect non-empty Magento result_ids from this request only."""
+    ids: List[str] = []
+    for result in results:
+        if not isinstance(result, dict):
+            continue
+        result_id = str(result.get("result_id") or "").strip()
+        if result_id:
+            ids.append(result_id)
+    return ids
+
+
 @router.post(
     "/magento/ingest",
     response_model=MagentoIngestResponse,
@@ -85,13 +99,24 @@ def ingest_magento_batch(
     _: None = Depends(require_magento_ingest_secret),
 ) -> MagentoIngestResponse:
     """Accept a batch of Magento results from the Lightsail poller."""
+    if len(payload.results) > MAX_INGEST_BATCH_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Batch exceeds max of {MAX_INGEST_BATCH_SIZE} results",
+        )
+
     cutoff = ensure_import_cutoff(db)
-    known: set[str] = {
-        row[0]
-        for row in db.query(Order.magento_result_id)
-        .filter(Order.magento_result_id.isnot(None))
-        .all()
-    }
+    # Only look up IDs in this batch — never load the full magento_result_id set.
+    candidate_ids = _candidate_result_ids(payload.results)
+    known: set[str] = set()
+    if candidate_ids:
+        known = {
+            row[0]
+            for row in db.query(Order.magento_result_id)
+            .filter(Order.magento_result_id.in_(candidate_ids))
+            .all()
+            if row[0]
+        }
 
     counts: Dict[MagentoIngestStatus, int] = {
         "created": 0,

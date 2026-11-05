@@ -70,8 +70,21 @@ class ConfigTests(unittest.TestCase):
             }
         )
         self.assertEqual(config.form_ids, (1, 2, 14))
-        self.assertEqual(config.batch_size, 50)
+        self.assertEqual(config.batch_size, 25)
         self.assertEqual(config.wf_base, "https://magento.example/rest")
+
+    def test_batch_size_clamped_to_api_max(self):
+        config = load_config(
+            {
+                "WF_BASE": "https://magento.example/rest/",
+                "WF_ACCESS_TOKEN": "t",
+                "MAGENTO_INGEST_URL": "https://app.example/api/magento/ingest",
+                "MAGENTO_INGEST_SECRET": "s",
+                "MAGENTO_POLL_FORM_IDS": "1",
+                "MAGENTO_BATCH_SIZE": "50",
+            }
+        )
+        self.assertEqual(config.batch_size, 25)
 
 
 class HttpRetryTests(unittest.TestCase):

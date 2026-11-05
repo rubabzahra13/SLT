@@ -49,13 +49,17 @@ def parse_form_ids(raw: str) -> tuple[int, ...]:
 
 def load_config(environ: dict[str, str] | None = None) -> PollerConfig:
     source = dict(os.environ if environ is None else environ)
-    batch_raw = (source.get("MAGENTO_BATCH_SIZE") or "50").strip()
+    # Match API MAX_INGEST_BATCH_SIZE — keep each Vercel ingest POST small.
+    max_batch_size = 25
+    batch_raw = (source.get("MAGENTO_BATCH_SIZE") or str(max_batch_size)).strip()
     try:
         batch_size = int(batch_raw)
     except ValueError as exc:
         raise ConfigError("MAGENTO_BATCH_SIZE must be a positive integer") from exc
     if batch_size < 1:
         raise ConfigError("MAGENTO_BATCH_SIZE must be a positive integer")
+    if batch_size > max_batch_size:
+        batch_size = max_batch_size
     return PollerConfig(
         wf_base=_required(source, "WF_BASE").rstrip("/"),
         wf_access_token=_required(source, "WF_ACCESS_TOKEN"),

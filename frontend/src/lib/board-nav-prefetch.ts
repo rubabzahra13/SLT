@@ -1,6 +1,6 @@
 /**
- * Idle-warm the *other* board's counts so Orders ↔ MTD chip totals feel ready
- * without racing the painted board for bandwidth. Board pages load on mount.
+ * Intentional board warms (hover / Back). Avoid idle API prefetch — each call
+ * holds Vercel Fluid memory; boards load their own data on mount.
  */
 
 import {

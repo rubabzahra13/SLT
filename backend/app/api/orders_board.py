@@ -968,6 +968,27 @@ def _get_orders_counts_db(
     return OrdersBoardCountsResponse(counts=counts)
 
 
+# Hard caps so Hobby Fluid peak memory stays bounded during CSV export.
+_EXPORT_ROW_CAP = 5000
+_EXPORT_PAGE_SIZE = 250
+_EXPORT_CSV_HEADERS = [
+    "id",
+    "created_at",
+    "form_type",
+    "school_gym_name",
+    "team_name",
+    "coach_name",
+    "contact_name",
+    "package",
+    "music_affiliate",
+    "assigned_producer",
+    "status",
+    "is_manual_entry",
+    "needs_attention",
+    "price",
+]
+
+
 @router.get("/orders/export.csv")
 def export_orders_csv(
     form_type: str | None = None,
@@ -994,52 +1015,50 @@ def export_orders_csv(
         exclude_flagged=exclude_flagged,
     )
     query = _apply_sort(query, sort_by)
-    # Hard cap export rows per request on Hobby.
-    rows = query.limit(5000).all()
 
-    buf = io.StringIO()
-    writer = csv.writer(buf)
-    writer.writerow(
-        [
-            "id",
-            "created_at",
-            "form_type",
-            "school_gym_name",
-            "team_name",
-            "coach_name",
-            "contact_name",
-            "package",
-            "music_affiliate",
-            "assigned_producer",
-            "status",
-            "is_manual_entry",
-            "needs_attention",
-            "price",
-        ]
-    )
-    for o in rows:
-        writer.writerow(
-            [
-                str(o.id),
-                o.created_at.isoformat() if o.created_at else "",
-                o.form_type or "",
-                o.school_gym_name or "",
-                o.team_name or "",
-                o.coach_name or "",
-                o.contact_name or "",
-                o.package or "",
-                o.music_affiliate or "",
-                o.assigned_producer or "",
-                o.status or "",
-                "yes" if o.is_manual_entry else "no",
-                "yes" if o.needs_attention else "no",
-                str(o.price or 0),
-            ]
-        )
+    def iter_csv_chunks():
+        buf = io.StringIO()
+        writer = csv.writer(buf)
+        writer.writerow(_EXPORT_CSV_HEADERS)
+        yield buf.getvalue()
 
-    buf.seek(0)
+        fetched = 0
+        while fetched < _EXPORT_ROW_CAP:
+            take = min(_EXPORT_PAGE_SIZE, _EXPORT_ROW_CAP - fetched)
+            rows = query.offset(fetched).limit(take).all()
+            if not rows:
+                break
+            buf = io.StringIO()
+            writer = csv.writer(buf)
+            for o in rows:
+                writer.writerow(
+                    [
+                        str(o.id),
+                        o.created_at.isoformat() if o.created_at else "",
+                        o.form_type or "",
+                        o.school_gym_name or "",
+                        o.team_name or "",
+                        o.coach_name or "",
+                        o.contact_name or "",
+                        o.package or "",
+                        o.music_affiliate or "",
+                        o.assigned_producer or "",
+                        o.status or "",
+                        "yes" if o.is_manual_entry else "no",
+                        "yes" if o.needs_attention else "no",
+                        str(o.price or 0),
+                    ]
+                )
+            yield buf.getvalue()
+            n = len(rows)
+            fetched += n
+            # Drop ORM instances from the identity map between pages.
+            db.expire_all()
+            if n < take:
+                break
+
     return StreamingResponse(
-        iter([buf.getvalue()]),
+        iter_csv_chunks(),
         media_type="text/csv",
         headers={
             "Content-Disposition": 'attachment; filename="orders_export.csv"'

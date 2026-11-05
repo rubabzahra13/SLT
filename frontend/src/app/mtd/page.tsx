@@ -46,7 +46,6 @@ import {
   patchMtdBoardRecordInCaches,
   readCachedMtdBoardRow,
 } from "@/lib/mtd-board-cache";
-import { idlePrefetchSiblingBoard } from "@/lib/board-nav-prefetch";
 import { formatPrice, titleCase } from "@/lib/data";
 import { displayMixLengthLabel } from "@/lib/mix-duration";
 import { parsePackage } from "@/lib/package";
@@ -358,12 +357,6 @@ function MTDPageContent() {
     reload: reloadMtdBoard,
     setRecords: setPagedMtdRecords,
   } = useMtdBoard(mtdBoardQuery);
-
-  // Idle-warm Orders so Back / sidebar hop paints from cache (skip if fresh).
-  useEffect(() => {
-    if (mtdBoardLoading) return;
-    return idlePrefetchSiblingBoard("mtd");
-  }, [mtdBoardLoading]);
 
   const [viewOrder, setViewOrder] = useState<MTDViewOrder>("sequence");
   const [assignRecordId, setAssignRecordId] = useState<string | null>(null);
