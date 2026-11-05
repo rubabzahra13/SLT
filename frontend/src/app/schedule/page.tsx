@@ -21,6 +21,7 @@ import { todayIso } from "@/lib/date-filters";
 import { doDateRangesOverlap } from "@/lib/dates";
 import { isEligibleProducerScheduleRecord } from "@/lib/export-csv";
 import { findProducerByAssignmentKey } from "@/lib/editor-assignment";
+import { useOpenAssignedBookings } from "@/hooks/useOpenAssignedBookings";
 import { collectOrdersBoardCachedOrders } from "@/lib/orders-board-cache";
 import { collectOpenAssignedMixRecords } from "@/lib/producer-assigned-mixes";
 import {
@@ -108,6 +109,11 @@ function SchedulePageContent() {
   const [selectedSendEditor, setSelectedSendEditor] = useState("all");
   const [pulse, setPulse] = useState<DashboardPulseApi | null>(
     () => readDashboardPulseCache()
+  );
+  // Send Schedule needs real Assigned Orders + live MTD (program/invoice).
+  // View Schedule stays on pulse stubs for egress.
+  const { bookingRecords: sendHydratedBookings } = useOpenAssignedBookings(
+    pageTab === "send"
   );
 
   // View Schedule: slim pulse open_bookings (same as Dashboard capacity) —
@@ -212,7 +218,7 @@ function SchedulePageContent() {
   );
 
   // Orders-tab Assigned + MTD mixes. View uses pulse (both sources) + any
-  // in-memory board/MTD rows — no full live-MTD hydrate. Send uses full collect.
+  // in-memory board/MTD rows — no full live-MTD hydrate. Send uses hydrate.
   const scheduleBookings = useMemo(() => {
     const orders = mergeOrdersForSchedule(
       activeOrders,
@@ -220,10 +226,19 @@ function SchedulePageContent() {
       collectOrdersBoardCachedOrders()
     );
     const fromMemory = collectOpenAssignedMixRecords(orders, mtdRecords);
-    if (pageTab === "send") return fromMemory;
+    if (pageTab === "send") {
+      return mergeScheduleBookings(fromMemory, sendHydratedBookings);
+    }
     const pulseStubs = openBookingsToStubMtd(pulse?.open_bookings);
     return mergeScheduleBookings(fromMemory, pulseStubs);
-  }, [pageTab, activeOrders, allOrders, mtdRecords, pulse?.open_bookings]);
+  }, [
+    pageTab,
+    activeOrders,
+    allOrders,
+    mtdRecords,
+    pulse?.open_bookings,
+    sendHydratedBookings,
+  ]);
 
   const teamRows = useMemo(
     () =>

@@ -37,7 +37,7 @@ import {
   timeOffRangeCoversWorkDay,
   type ProducerMixDayBooking,
 } from "@/lib/producer-availability";
-import { collectAssignedMixesForProducer } from "@/lib/producer-assigned-mixes";
+import { useProducerAssignedConflictMixes } from "@/hooks/useProducerAssignedConflictMixes";
 import {
   patchForReassignExtraDayRemoved,
   patchForReassignLeave,
@@ -491,7 +491,11 @@ export function ProducerAvailabilityModal({
   readOnly = false,
 }: ProducerAvailabilityModalProps) {
   const router = useRouter();
-  const { mtdRecords, activeOrders, updateMTD, updateOrder } = useAppState();
+  const { mtdRecords, updateMTD, updateOrder } = useAppState();
+  const { assignedMixes: assignedMixRecords } = useProducerAssignedConflictMixes(
+    producer,
+    open
+  );
   const [workDays, setWorkDays] = useState<Weekday[]>([...DEFAULT_WORK_DAYS]);
   const [timeOff, setTimeOff] = useState<DraftTimeOff[]>([]);
   const [timeOffDraft, setTimeOffDraft] = useState<DraftTimeOff>(() =>
@@ -626,11 +630,6 @@ export function ProducerAvailabilityModal({
   const todayIso = isoFromLocalDate(new Date());
   const timeOffMinIso = todayIso;
   const timeOffMaxIso = `${Number(todayIso.slice(0, 4)) + 1}-12-31`;
-  const assignedMixRecords = collectAssignedMixesForProducer(
-    producer,
-    activeOrders,
-    mtdRecords
-  );
   const mixBlockedTimeOffDaySet = new Set(
     collectProducerMixBlockedDays(
       producer,
@@ -639,6 +638,10 @@ export function ProducerAvailabilityModal({
       timeOffMaxIso
     )
   );
+  const leaveCalendarRevision = `${assignedMixRecords
+    .map((r) => r.id)
+    .sort()
+    .join(",")}|${[...mixBlockedTimeOffDaySet].sort().join(",")}`;
 
   function applyWorkDayChange(
     nextWorkDays: Weekday[],
@@ -1537,19 +1540,23 @@ export function ProducerAvailabilityModal({
     if (iso < todayIso) {
       return "Past day";
     }
+    const mixTitle = mixLeaveDayTitle(iso);
     const outsideRange = disabled && isOutsideTimeOffFieldRange(iso);
     // Extra days are still non-work weekdays: canceling them doesn't enable leave.
     // Keep Extra day styling via tone; tooltip matches other non-work days.
+    // Mix bookings still show in the title so leave calendar surfaces conflicts
+    // even on weekends / days already marked off.
     if (extraDays.includes(iso) || isNonWorkTimeOffDay(iso)) {
-      if (outsideRange) {
-        return "Not a working day\nPick a work day for off day start/end";
-      }
-      return "Not a working day";
+      const base = outsideRange
+        ? "Not a working day\nPick a work day for off day start/end"
+        : "Not a working day";
+      return mixTitle ? `${mixTitle}\n\n${base}` : base;
     }
     if (existingTimeOffDays.includes(iso)) {
-      return "Already added as an off day";
+      return mixTitle
+        ? `Already added as an off day\n\n${mixTitle}`
+        : "Already added as an off day";
     }
-    const mixTitle = mixLeaveDayTitle(iso);
     if (mixTitle) {
       return mixTitle;
     }
@@ -1944,6 +1951,7 @@ export function ProducerAvailabilityModal({
                         }
                         dayTitle={timeOffStartDayTitle}
                         dayTone={timeOffDayTone}
+                        dataRevision={leaveCalendarRevision}
                         ariaLabel="Off day start date"
                         onSelect={(iso) => {
                           if (isBlockedTimeOffCalendarDay(iso)) return;
@@ -2039,6 +2047,7 @@ export function ProducerAvailabilityModal({
                         }
                         dayTitle={timeOffEndDayTitle}
                         dayTone={timeOffDayTone}
+                        dataRevision={leaveCalendarRevision}
                         ariaLabel="Off day end date"
                         onSelect={(iso) => {
                           if (isBlockedTimeOffCalendarDay(iso)) return;
@@ -2131,6 +2140,7 @@ export function ProducerAvailabilityModal({
                       }
                       dayTitle={timeOffDayTitle}
                       dayTone={timeOffDayTone}
+                      dataRevision={leaveCalendarRevision}
                       ariaLabel="Off day date"
                       onSelect={(iso) => {
                         if (isBlockedTimeOffCalendarDay(iso)) return;

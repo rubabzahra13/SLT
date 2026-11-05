@@ -266,13 +266,14 @@ def _compute_pulse(db: Session, today: date) -> dict[str, Any]:
         )
         for b in open_bookings
     }
+    # Orders have no invoice column (MTD does). Pre-MTD assigned rows still
+    # count for capacity / open_bookings; timeline treats them as not-ready.
     order_booking_rows = (
         db.query(
             Order.assigned_producer,
             Order.assigned_producer_id,
             Order.mix_start_date,
             Order.mix_end_date,
-            Order.invoice,
             Order.needs_attention,
         )
         .filter(
@@ -296,7 +297,6 @@ def _compute_pulse(db: Session, today: date) -> dict[str, Any]:
         assigned_producer_id,
         mix_start,
         mix_end,
-        invoice,
         needs_attention,
     ) in order_booking_rows:
         if not _order_has_producer_row(assigned_producer, assigned_producer_id):
@@ -327,17 +327,14 @@ def _compute_pulse(db: Session, today: date) -> dict[str, Any]:
         if start <= today_s and (not end or end >= today_s):
             todays_mixes += 1
 
-        ready = bool((invoice or "").strip() and start and end)
         if end and end < today_s:
             overdue += 1
         elif start == today_s:
             starting_today += 1
         elif end and end <= week_end_s:
             due_this_week += 1
-        elif not ready:
-            missing_data += 1
         else:
-            on_track += 1
+            missing_data += 1
 
     orders_in_total, orders_in_by_day = _orders_in_series(db, today)
     open_assigned = len(open_bookings)

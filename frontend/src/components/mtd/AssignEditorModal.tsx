@@ -63,7 +63,7 @@ import {
   type MixWindowBlocker,
   type RecordCostEstimator,
 } from "@/lib/producer-availability";
-import { collectOpenAssignedMixRecords } from "@/lib/producer-assigned-mixes";
+import { useOpenAssignedBookings } from "@/hooks/useOpenAssignedBookings";
 import {
   isProducerAvailableOnDate,
   calculateProducerNextOpening,
@@ -135,6 +135,17 @@ type AssignEditorModalProps = {
   ) => void | Promise<void>;
 };
 
+function mergeOrderLists(...lists: Order[][]): Order[] {
+  const byId = new Map<string, Order>();
+  for (const list of lists) {
+    for (const order of list) {
+      if (!order?.id) continue;
+      byId.set(order.id, order);
+    }
+  }
+  return [...byId.values()];
+}
+
 /**
  * Everything the UI needs to reason about one producer for this order:
  * their recommended first date, whether they can work the *selected* mix
@@ -203,40 +214,31 @@ export function AssignEditorModal({
   // paint on the calendars immediately after save (not only after refresh).
   const live = useAppState();
   const producers = live.producers;
-  const mtdRecords = live.mtdRecords;
-  const activeOrders = live.activeOrders;
   const schedule = live.schedule.length > 0 ? live.schedule : scheduleProp;
+  // Hydrate Assigned Orders + live MTD while Assign is open (boot no longer
+  // ships those lists — same gap that hid mixes on leave calendars).
+  const { bookingRecords, conflictOrders } = useOpenAssignedBookings(true);
   // Page open: don't scan the full studio order list on first paint — use the
   // seeded/prop order, then merge the live copy of that same id.
   const allOrders = useMemo(() => {
-    if (!isPage) return live.allOrders;
-    if (allOrdersProp.length === 0) return live.allOrders;
+    if (!isPage) {
+      return mergeOrderLists(live.allOrders, conflictOrders);
+    }
+    if (allOrdersProp.length === 0) {
+      return mergeOrderLists(live.allOrders, conflictOrders);
+    }
     const map = new Map<string, Order>();
     for (const order of allOrdersProp) {
       map.set(order.id, order);
+    }
+    for (const order of conflictOrders) {
+      if (map.has(order.id)) map.set(order.id, order);
     }
     for (const order of live.activeOrders) {
       if (map.has(order.id)) map.set(order.id, order);
     }
     return [...map.values()];
-  }, [isPage, allOrdersProp, live.allOrders, live.activeOrders]);
-
-  // Page: defer mix-bookings scan one frame so the producer strip paints first.
-  const [bookingReady, setBookingReady] = useState(!isPage);
-  useEffect(() => {
-    if (!isPage || bookingReady) return;
-    const t = window.requestAnimationFrame(() => setBookingReady(true));
-    return () => window.cancelAnimationFrame(t);
-  }, [isPage, bookingReady]);
-
-  /** Orders + MTD assigned mixes (excludes payroll/completed) for limit comparison. */
-  const bookingRecords = useMemo(
-    () =>
-      bookingReady
-        ? collectOpenAssignedMixRecords(activeOrders, mtdRecords)
-        : [],
-    [activeOrders, mtdRecords, bookingReady]
-  );
+  }, [isPage, allOrdersProp, live.allOrders, live.activeOrders, conflictOrders]);
 
   const orderById = useMemo(() => {
     const map = new Map<string, Order>();
@@ -363,19 +365,20 @@ export function AssignEditorModal({
     [record, producers, linkedOrder]
   );
 
+  // Use hydrated bookingRecords (Orders Assigned + live MTD), not cold AppState.
   const editorWorkload = useMemo(
-    () => getEditorWorkload(mtdRecords, record?.id),
-    [mtdRecords, record?.id]
+    () => getEditorWorkload(bookingRecords, record?.id),
+    [bookingRecords, record?.id]
   );
 
   const editorBookedUntil = useMemo(() => {
     const map = new Map<string, string>();
     for (const name of categoryEditors) {
-      const until = getEditorBookedUntilIso(name, mtdRecords, record?.id);
+      const until = getEditorBookedUntilIso(name, bookingRecords, record?.id);
       if (until) map.set(normalizeProducerKey(name), until);
     }
     return map;
-  }, [categoryEditors, mtdRecords, record?.id]);
+  }, [categoryEditors, bookingRecords, record?.id]);
 
   const assignedProducer = useMemo(
     () =>

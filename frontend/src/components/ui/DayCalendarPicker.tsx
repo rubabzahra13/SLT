@@ -627,10 +627,10 @@ export function DayCalendarPicker({
                         ? "cursor-not-allowed bg-brand-orange-muted text-brand-orange-deep opacity-80 ring-1 ring-inset ring-brand-orange-deep/35 hover:bg-brand-orange-muted"
                         : tone === "mix"
                           ? clsx(
-                              "text-rose-700 ring-1 ring-inset ring-rose-300/70",
+                              "bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-300/80",
                               disabled
-                                ? "cursor-not-allowed opacity-90"
-                                : "hover:bg-rose-50"
+                                ? "cursor-not-allowed opacity-95"
+                                : "hover:bg-rose-100"
                             )
                           : tone === "extra"
                             ? clsx(

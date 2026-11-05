@@ -38,6 +38,8 @@ class OpenBookingOut(BaseModel):
     producer: str
     start: str = ""
     end: str = ""
+    # "yes" = live MTD; "no" = Orders-tab Assigned (pre-MTD).
+    in_mtd: str = "yes"
 
 
 class DashboardPulseOut(BaseModel):
@@ -47,6 +49,8 @@ class DashboardPulseOut(BaseModel):
     todays_mixes: int
     outsourced: int
     mtd_open: int = 0
+    # MTD open + Orders-tab Assigned with dates (capacity / timeline).
+    open_assigned: int = 0
     payroll_open: int = 0
     orders_in_total: int = 0
     orders_in_by_day: list[OrdersInDayOut] = []

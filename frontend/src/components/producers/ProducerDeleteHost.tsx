@@ -1,14 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { DeleteProducerModal } from "@/components/producers/DeleteProducerModal";
 import { useAppState } from "@/context/AppStateContext";
+import { useProducerAssignedConflictMixes } from "@/hooks/useProducerAssignedConflictMixes";
 import { patchForReassignProducerRemoved } from "@/lib/order-reassign";
-import {
-  collectAssignedMixesForProducer,
-  collectUnpaidPayrollMixesForProducer,
-} from "@/lib/producer-assigned-mixes";
 import type { Producer } from "@/types";
 
 type ProducerDeleteHostProps = {
@@ -29,25 +26,15 @@ export function ProducerDeleteHost({
   const router = useRouter();
   const {
     mtdRecords,
-    activeOrders,
     updateMTD,
     updateOrder,
     removeProducer,
     addAlert,
     isViewOnly,
   } = useAppState();
+  const { assignedMixes: assignedMixRecords, unpaidPayrollMixes } =
+    useProducerAssignedConflictMixes(producer, true);
   const [busy, setBusy] = useState(false);
-
-  const assignedMixRecords = useMemo(
-    () =>
-      collectAssignedMixesForProducer(producer, activeOrders, mtdRecords),
-    [producer, activeOrders, mtdRecords]
-  );
-
-  const unpaidPayrollMixes = useMemo(
-    () => collectUnpaidPayrollMixesForProducer(producer, mtdRecords),
-    [producer, mtdRecords]
-  );
 
   async function confirmDelete() {
     if (isViewOnly || busy) return;

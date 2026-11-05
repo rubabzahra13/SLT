@@ -17,6 +17,7 @@ import {
   producerColorLabel,
   resolveProducerColor,
 } from "@/lib/producer-avatars";
+import { useProducerAssignedConflictMixes } from "@/hooks/useProducerAssignedConflictMixes";
 import { patchForReassignCategoryRemoved } from "@/lib/order-reassign";
 import {
   collectAssignedMixesForProducerCategory,
@@ -188,8 +189,11 @@ export function ProducerFormModal({
   readOnly = false,
 }: ProducerFormModalProps) {
   const router = useRouter();
-  const { mtdRecords, activeOrders, updateMTD, updateOrder, addAlert } =
-    useAppState();
+  const { updateMTD, updateOrder, addAlert } = useAppState();
+  const {
+    conflictOrders,
+    mtdRecords: conflictMtdRecords,
+  } = useProducerAssignedConflictMixes(producer, open && Boolean(producer));
   const [form, setForm] = useState<FormState>(emptyForm);
   const [initialsTouched, setInitialsTouched] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -246,29 +250,29 @@ export function ProducerFormModal({
     return collectAssignedMixesForProducerCategory(
       producer,
       pendingRemoveCategory,
-      activeOrders,
-      mtdRecords
+      conflictOrders,
+      conflictMtdRecords
     );
-  }, [producer, pendingRemoveCategory, activeOrders, mtdRecords]);
+  }, [producer, pendingRemoveCategory, conflictOrders, conflictMtdRecords]);
 
   const categoryUnpaidPayrollMixes = useMemo(() => {
     if (!producer || !pendingRemoveCategory) return [];
     return collectUnpaidPayrollMixesForProducerCategory(
       producer,
       pendingRemoveCategory,
-      mtdRecords
+      conflictMtdRecords
     );
-  }, [producer, pendingRemoveCategory, mtdRecords]);
+  }, [producer, pendingRemoveCategory, conflictMtdRecords]);
 
   const addonRateBlockingMixes = useMemo(() => {
     if (!producer || !pendingRemoveAddon) return [];
     return collectMixesUsingProducerAddonRate(
       producer,
       pendingRemoveAddon,
-      activeOrders,
-      mtdRecords
+      conflictOrders,
+      conflictMtdRecords
     );
-  }, [producer, pendingRemoveAddon, activeOrders, mtdRecords]);
+  }, [producer, pendingRemoveAddon, conflictOrders, conflictMtdRecords]);
 
   if (!open) return null;
 
@@ -329,13 +333,13 @@ export function ProducerFormModal({
     const assigned = collectAssignedMixesForProducerCategory(
       producer,
       cat,
-      activeOrders,
-      mtdRecords
+      conflictOrders,
+      conflictMtdRecords
     );
     const unpaid = collectUnpaidPayrollMixesForProducerCategory(
       producer,
       cat,
-      mtdRecords
+      conflictMtdRecords
     );
     if (assigned.length === 0 && unpaid.length === 0) {
       applyRemoveCategory(cat);
@@ -368,7 +372,7 @@ export function ProducerFormModal({
       return { mixCount: 0, labels: [] };
     }
     const mtdIds = new Set(
-      mtdRecords.flatMap((r) =>
+      conflictMtdRecords.flatMap((r) =>
         [r.id, r.orderId, r.uuid, r.legacyId].filter(Boolean)
       )
     );
@@ -436,8 +440,8 @@ export function ProducerFormModal({
     const blocking = collectMixesUsingProducerAddonRate(
       producer,
       "rush_fee",
-      activeOrders,
-      mtdRecords
+      conflictOrders,
+      conflictMtdRecords
     );
     if (blocking.length === 0) {
       applyRemoveRushFee();
