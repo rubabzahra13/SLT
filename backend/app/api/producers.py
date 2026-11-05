@@ -1,5 +1,6 @@
 import asyncio
 import json
+import time
 import uuid
 from datetime import date, datetime, timezone
 from typing import Any, List, Optional
@@ -22,6 +23,7 @@ from app.lib.producer_assignment import (
     normalize_producer_key,
     resolve_producer_by_assignment_key,
 )
+from app.lib.sse import SSE_KEEPALIVE_SECONDS, SSE_MAX_LIFETIME_SECONDS
 from app.models.mtd_record import MTDRecord
 from app.models.order import Order
 from app.models.producer import Producer, ProducerTimeOff
@@ -359,11 +361,14 @@ async def stream_producers(_: User = Depends(get_stream_user)):
     queue = producer_event_hub.subscribe()
 
     async def event_generator():
+        deadline = time.monotonic() + SSE_MAX_LIFETIME_SECONDS
         try:
             yield f"event: ready\ndata: {json.dumps({'ok': True})}\n\n"
-            while True:
+            while time.monotonic() < deadline:
                 try:
-                    event = await asyncio.wait_for(queue.get(), timeout=25.0)
+                    event = await asyncio.wait_for(
+                        queue.get(), timeout=SSE_KEEPALIVE_SECONDS
+                    )
                 except asyncio.TimeoutError:
                     yield ": keepalive\n\n"
                     continue

@@ -3,11 +3,13 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 
 from app.api.auth import get_stream_user
+from app.lib.sse import SSE_KEEPALIVE_SECONDS, SSE_MAX_LIFETIME_SECONDS
 from app.models.user import User
 from app.services.board_events import board_event_hub
 from app.services.producer_events import producer_event_hub
@@ -22,14 +24,15 @@ async def stream_studio(_: User = Depends(get_stream_user)):
     producer_queue = producer_event_hub.subscribe()
 
     async def event_generator():
+        deadline = time.monotonic() + SSE_MAX_LIFETIME_SECONDS
         try:
             yield f"event: ready\ndata: {json.dumps({'ok': True})}\n\n"
-            while True:
+            while time.monotonic() < deadline:
                 board_task = asyncio.create_task(board_queue.get())
                 producer_task = asyncio.create_task(producer_queue.get())
                 done, pending = await asyncio.wait(
                     {board_task, producer_task},
-                    timeout=25.0,
+                    timeout=SSE_KEEPALIVE_SECONDS,
                     return_when=asyncio.FIRST_COMPLETED,
                 )
                 for task in pending:
