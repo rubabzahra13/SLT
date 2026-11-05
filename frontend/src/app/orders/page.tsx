@@ -1306,15 +1306,21 @@ function OrdersPageContent() {
         ? mergeOrderFormFieldsForRequirements(rec, finalized)
         : rec;
 
-      // Manuals must Match Orders first. Soft-gate when lookalike forms exist.
-      if (linkedOrder && unmatchedManualNeedsMagentoMatch(linkedOrder)) {
-        const suggestions = matchCandidatesBeforeMtd(linkedOrder, matchPool);
+      // Soft-gate Magento↔manual lookalikes (either side). Unmatched manuals
+      // with no peers still hard-block until Match Orders.
+      if (linkedOrder) {
+        const suggestions = matchCandidatesBeforeMtd(
+          linkedOrder,
+          ordersForUi
+        );
         if (suggestions.length > 0) {
           setMatchBeforeMtd({ record: rec, suggestions });
           return;
         }
-        setValidationModalRecord(rec);
-        return;
+        if (unmatchedManualNeedsMagentoMatch(linkedOrder)) {
+          setValidationModalRecord(rec);
+          return;
+        }
       }
 
       if (
@@ -1348,7 +1354,7 @@ function OrdersPageContent() {
 
       commitMoveToMTD(rec);
     },
-    [isViewOnly, boardOrders, matchPool, commitMoveToMTD]
+    [isViewOnly, ordersForUi, commitMoveToMTD]
   );
 
   useEffect(() => {
@@ -2653,13 +2659,14 @@ function OrdersPageContent() {
           const needsMagentoMatch = linkedForForm
             ? unmatchedManualNeedsMagentoMatch(linkedForForm)
             : Boolean(rec.isManualScheduleEntry);
-          const matchSuggestions =
-            needsMagentoMatch && linkedForForm
-              ? matchCandidatesBeforeMtd(linkedForForm, matchPool)
-              : [];
+          // Soft-gate peers for either side (manual→form or Magento→manual).
+          const matchSuggestions = linkedForForm
+            ? matchCandidatesBeforeMtd(linkedForForm, ordersForUi)
+            : [];
           // Lookalike soft-gate stays clickable; otherwise Match Orders first.
           const hardBlockMagentoMatch =
             needsMagentoMatch && matchSuggestions.length === 0;
+          const hasLookalikeSoftGate = matchSuggestions.length > 0;
           const formMtdGaps =
             !needsMagentoMatch && linkedForForm
               ? getOrderFormFieldsBlockingMtd(linkedForForm, ordersForUi)
@@ -2720,10 +2727,13 @@ function OrdersPageContent() {
                           ? "Resend producer email\nbefore moving to MTD"
                           : "Email producer\nbefore moving to MTD"
                         : null;
-          // Soft-gate lookalikes: keep MTD clickable so MatchBeforeMtd can open.
-          const mtdDisabled = needsMagentoMatch
-            ? matchSuggestions.length === 0
-            : Boolean(mtdBlockedReason);
+          // Soft-gate lookalikes (manual or Magento): keep MTD clickable so
+          // MatchBeforeMtdModal can open.
+          const mtdDisabled = hardBlockMagentoMatch
+            ? true
+            : hasLookalikeSoftGate
+              ? false
+              : Boolean(mtdBlockedReason);
           return (
             <div
               className="flex items-center justify-center gap-1"
@@ -2824,6 +2834,7 @@ function OrdersPageContent() {
     rangeFilters,
     producers,
     boardOrders,
+    ordersForUi,
     matchPool,
     mtdRecords,
     orderById,

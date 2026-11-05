@@ -209,6 +209,9 @@ export function ProducerFormModal({
     useState<ProducerAddonRateKind | null>(null);
   const colorPickerRef = useRef<HTMLDivElement>(null);
   const isEdit = Boolean(producer);
+  // Reset only when the modal opens or switches producers — not on every
+  // live producers[] echo, or draft category removals get wiped before save.
+  const producerId = producer?.id ?? producer?.uuid ?? null;
   useEffect(() => {
     if (!open) return;
     setValidationError(null);
@@ -224,7 +227,8 @@ export function ProducerFormModal({
       setForm(emptyForm());
       setInitialsTouched(false);
     }
-  }, [open, producer]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally key off id, not full producer
+  }, [open, producerId]);
 
   // Hot reload / older form snapshots may omit workDays: keep the picker safe.
   useEffect(() => {
@@ -291,6 +295,13 @@ export function ProducerFormModal({
     }));
   }
 
+  function persistProducerForm(nextForm: FormState) {
+    if (!producer?.id) return Promise.resolve();
+    return Promise.resolve(
+      onSave(buildProducerPayload(nextForm, producer, true))
+    );
+  }
+
   function addCategory(cat: string) {
     if (readOnly || saveBusy) return;
     setPendingCategoryReassigns((prev) =>
@@ -310,17 +321,17 @@ export function ProducerFormModal({
       return nextForm;
     });
     // Persist immediately so Orders / MTD / Payroll see the new category.
-    if (nextForm && producer?.id) {
-      void Promise.resolve(
-        onSave(buildProducerPayload(nextForm, producer, true))
-      ).catch(() => {
+    if (nextForm) {
+      void persistProducerForm(nextForm).catch(() => {
         // Toast + rollback come from updateProducer.
       });
     }
   }
 
-  function applyRemoveCategory(cat: string) {
-    setForm((prev) => formWithoutCategory(prev, cat));
+  function applyRemoveCategory(cat: string): FormState {
+    const nextForm = formWithoutCategory(form, cat);
+    setForm(nextForm);
+    return nextForm;
   }
 
   function requestRemoveCategory(cat: string) {
@@ -342,25 +353,75 @@ export function ProducerFormModal({
       conflictMtdRecords
     );
     if (assigned.length === 0 && unpaid.length === 0) {
-      applyRemoveCategory(cat);
+      // Persist immediately (same as add) so reload does not restore the category.
+      const nextForm = applyRemoveCategory(cat);
+      void persistProducerForm(nextForm).catch(() => {
+        // Toast + rollback come from updateProducer.
+      });
       return;
     }
     setPendingRemoveCategory(cat);
   }
 
-  function confirmRemoveCategoryWithReassign() {
+  async function confirmRemoveCategoryWithReassign() {
     if (readOnly || saveBusy || !producer || !pendingRemoveCategory) {
       return;
     }
     if (categoryUnpaidPayrollMixes.length > 0) return;
     const category = pendingRemoveCategory;
-    // Bin only updates the draft. Reassign + persist happen on Save.
-    setPendingCategoryReassigns((prev) => [
-      ...prev.filter((row) => row.category !== category),
-      { category, mixes: categoryAssignedMixes },
-    ]);
-    applyRemoveCategory(category);
+    const mixes = [...categoryAssignedMixes];
+    const nextForm = applyRemoveCategory(category);
     setPendingRemoveCategory(null);
+    setSaveBusy(true);
+    try {
+      // Reassign mixes first, then persist the producer without this category.
+      const patch = patchForReassignCategoryRemoved(category);
+      const mtdIds = new Set(
+        conflictMtdRecords.flatMap((r) =>
+          [r.id, r.orderId, r.uuid, r.legacyId].filter(Boolean)
+        )
+      );
+      for (const rec of mixes) {
+        if (mtdIds.has(rec.id) || rec.onMtdBoard || rec.inMTD) {
+          await updateMTD(rec.id, patch);
+        } else {
+          await updateOrder(rec.id, {
+            assignedProducer: null,
+            editorRequest: "FA",
+            mixStartDate: "",
+            mixEndDate: "",
+            isReassigned: true,
+            orderStatus: patch.orderStatus,
+            producerEmailSentAt: null,
+            status: "active",
+            collectionStates: patch.collectionStates,
+            haveSongs: patch.haveSongs,
+            eightCountSheet: patch.eightCountSheet,
+          });
+        }
+      }
+      await persistProducerForm(nextForm);
+      if (mixes.length > 0) {
+        addAlert({
+          tone: "info",
+          title: `${category} removed`,
+          message:
+            mixes.length === 1
+              ? `${producer.name} no longer covers ${category}. 1 mix needs a new producer.`
+              : `${producer.name} no longer covers ${category}. ${mixes.length} mixes need a new producer.`,
+          href: "/orders?range=reassigned",
+        });
+        const params = new URLSearchParams();
+        params.set("range", "reassigned");
+        params.set("focus", mixes[0].id);
+        onClose();
+        router.push(`/orders?${params.toString()}`);
+      }
+    } catch {
+      // Toast + rollback come from updateMTD / updateOrder / updateProducer.
+    } finally {
+      setSaveBusy(false);
+    }
   }
 
   function flushPendingCategoryReassigns(): {
@@ -985,7 +1046,7 @@ export function ProducerFormModal({
               onClose={() => {
                 if (!saveBusy) setPendingRemoveCategory(null);
               }}
-              onSendToReassign={confirmRemoveCategoryWithReassign}
+              onSendToReassign={() => void confirmRemoveCategoryWithReassign()}
               busy={saveBusy}
             />
             <RemoveAddonRateModal

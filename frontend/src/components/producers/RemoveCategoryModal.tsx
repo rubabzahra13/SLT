@@ -197,14 +197,13 @@ export function RemoveCategoryModal({
             </p>
           ) : hasAssignedMixes ? (
             <p className="mt-1.5 text-[13px] leading-relaxed text-brand-ink-secondary">
-              Removes {category} from the draft. When you Save,{" "}
+              Removes {category} from{" "}
               {producer.name.charAt(0).toUpperCase() + producer.name.slice(1)}
-              &apos;s {category} mixes on Orders and MTD move to Reassign.
+              and moves their {category} mixes on Orders and MTD to Reassign.
             </p>
           ) : (
             <p className="mt-1.5 text-[13px] leading-relaxed text-brand-ink-secondary">
-              Removes {category} from {producer.name}&apos;s compensation when
-              you Save.
+              Removes {category} from {producer.name}&apos;s compensation.
             </p>
           )}
 
@@ -243,8 +242,8 @@ export function RemoveCategoryModal({
                     ? "Also moves to Reassign after payroll"
                     : `Also moves ${assignedMixesCount} mixes to Reassign after payroll`
                   : assignedMixesCount === 1
-                    ? "Moves to Reassign when you Save"
-                    : `Moves ${assignedMixesCount} mixes to Reassign when you Save`
+                    ? "Moves to Reassign"
+                    : `Moves ${assignedMixesCount} mixes to Reassign`
               }
             >
               <ul className="max-h-[140px] space-y-2 overflow-y-auto">
@@ -278,7 +277,7 @@ export function RemoveCategoryModal({
               onClick={onSendToReassign}
               className="border-b border-black/[0.08] py-3.5 text-[15px] font-semibold text-brand-blue transition hover:bg-brand-blue-soft/40 disabled:opacity-60"
             >
-              {busy ? "Saving…" : "Remove from draft"}
+              {busy ? "Saving…" : "Send to reassign & remove"}
             </button>
           ) : null}
           <button

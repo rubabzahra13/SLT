@@ -518,6 +518,28 @@ function pickAvailabilityPatch(patch: Partial<Producer>): Partial<Producer> {
   return next;
 }
 
+/** Profile fields that must still land after a stale if-match 409. */
+function pickProfilePatch(patch: Partial<Producer>): Partial<Producer> {
+  const next: Partial<Producer> = {};
+  if (patch.categories !== undefined) next.categories = patch.categories;
+  if (patch.ratesByCategory !== undefined) {
+    next.ratesByCategory = patch.ratesByCategory;
+  }
+  if (patch.danceVoiceoverRate !== undefined) {
+    next.danceVoiceoverRate = patch.danceVoiceoverRate;
+  }
+  if (patch.cheerVoiceoverRate !== undefined) {
+    next.cheerVoiceoverRate = patch.cheerVoiceoverRate;
+  }
+  if (patch.rushFeeRate !== undefined) next.rushFeeRate = patch.rushFeeRate;
+  if (patch.name !== undefined) next.name = patch.name;
+  if (patch.initials !== undefined) next.initials = patch.initials;
+  if (patch.email !== undefined) next.email = patch.email;
+  if (patch.avatar !== undefined) next.avatar = patch.avatar;
+  if (patch.color !== undefined) next.color = patch.color;
+  return next;
+}
+
 /** Same-browser instant sync (Schedule tab) while SSE covers other devices. */
 const PRODUCERS_SYNC_CHANNEL = "slt_producers_sync_v1";
 /** Same-browser instant sync for Payroll Paid / MTD board moves. */
@@ -3874,14 +3896,19 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       const conflictProducer = producerFromConflictError(err);
       if (conflictProducer) {
         // Background mixes_this_week (and peer tabs) bump updated_at and can
-        // 409 a leave/schedule save. Retry availability once on the newer stamp
-        // so Off days still land in the DB instead of rolling back.
+        // 409 a leave/schedule/profile save. Retry once on the newer stamp so
+        // Off days and category removals still land in the DB.
         const availabilityPatch = pickAvailabilityPatch(patch);
-        if (Object.keys(availabilityPatch).length > 0) {
+        const profilePatch = pickProfilePatch(patch);
+        const retryPatch: Partial<Producer> = {
+          ...availabilityPatch,
+          ...profilePatch,
+        };
+        if (Object.keys(retryPatch).length > 0) {
           try {
             let saved = await updateProducerApi(
               baseline.id,
-              availabilityPatch,
+              retryPatch,
               apiId,
               { ifMatchUpdatedAt: conflictProducer.updatedAt ?? null }
             );
