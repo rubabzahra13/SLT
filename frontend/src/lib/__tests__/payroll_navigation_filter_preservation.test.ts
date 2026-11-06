@@ -56,6 +56,27 @@ describe("Payroll Filter & Category Preservation on Detail Return", () => {
     assert.equal(savedCheerSubtype, "school-cheer-viroc-yes");
   });
 
+  it("Test 3b: Selecting School Cheer writes subtype so auto-land cannot revert", () => {
+    const sessionStorage = createMockSessionStorage();
+
+    // User opens Cheer menu and picks School Cheer (no prior form key).
+    sessionStorage.setItem(
+      "slt_payroll_cheer_subtype",
+      "school-cheer-viroc-no"
+    );
+
+    const shouldSkipAutoLand = Boolean(
+      sessionStorage.getItem("slt_payroll_form") ||
+        sessionStorage.getItem("slt_payroll_cheer_subtype") ||
+        sessionStorage.getItem("slt_payroll_dance_subtype")
+    );
+    assert.equal(shouldSkipAutoLand, true);
+    assert.equal(
+      sessionStorage.getItem("slt_payroll_cheer_subtype"),
+      "school-cheer-viroc-no"
+    );
+  });
+
   it("Test 4: Preserves applied producer, search, and date table filters", () => {
     const sessionStorage = createMockSessionStorage();
 

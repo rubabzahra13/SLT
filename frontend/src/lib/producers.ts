@@ -371,9 +371,9 @@ export function formatCategoryCompensationRate(
   if (producer.compensationModel === "not_paid_for_mixing") return "0%";
   if (producer.compensationModel === "hourly_manual") return "Hourly";
 
-  const rawRate =
-    producer.ratesByCategory?.[category] ?? 0.5;
-  return formatCompensationPercent(rawRate) ?? "0%";
+  const rawRate = producer.ratesByCategory?.[category];
+  if (rawRate == null) return "Not set";
+  return formatCompensationPercent(rawRate) ?? "Not set";
 }
 
 export function initialsFromName(name: string): string {

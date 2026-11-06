@@ -157,6 +157,11 @@ def calculate_compensation(
 
     model = producer.compensation_model
 
+    # A stored category rate is the compensation rule. A blank model with
+    # rates_by_category still pays from that map (same path as every producer).
+    if model is None and producer.rates_by_category:
+        model = "percentage_of_payroll_base"
+
     if model is None:
         return CompensationResult(
             status="needs_manual_review",

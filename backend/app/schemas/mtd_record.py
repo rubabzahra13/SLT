@@ -54,6 +54,12 @@ class MTDRecordSchema(BaseModel):
     # Order intake time when linked; else MTD row created_at (board Timestamp).
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    # Projected from linked Order so board-first pages can filter without
+    # hydrating allOrders.
+    form_type: Optional[str] = None
+    cheer_form_subtype: Optional[str] = None
+    dance_form_subtype: Optional[str] = None
+    varsity_viroc_customer: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 

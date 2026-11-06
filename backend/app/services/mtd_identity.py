@@ -236,6 +236,19 @@ def order_projection_for_mtd(order: Optional[Order]) -> dict[str, Any]:
     # Board Timestamp column: prefer order intake time over MTD row created_at.
     if order is not None and getattr(order, "created_at", None) is not None:
         projected["created_at"] = order.created_at
+    # Form chips / Payroll filters need these on the board row — AppState
+    # allOrders is board-paged and often missing the linked order.
+    if order is not None:
+        projected["form_type"] = getattr(order, "form_type", None)
+        projected["cheer_form_subtype"] = getattr(
+            order, "cheer_form_subtype", None
+        )
+        projected["dance_form_subtype"] = getattr(
+            order, "dance_form_subtype", None
+        )
+        projected["varsity_viroc_customer"] = getattr(
+            order, "varsity_viroc_customer", None
+        )
     return projected
 
 

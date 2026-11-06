@@ -69,16 +69,19 @@ export function resolveMTDFormMeta(
   let cheerFormSubtype: CheerFormSubtype = "all-star-cheer";
   let danceFormSubtype: DanceFormSubtype = "pom";
 
-  if (linked) {
-    formType = linked.formType || (rec as any).formType || "school-all-star-cheer";
+  // Prefer Order SoT when present; fall back to board-projected fields so
+  // Payroll/MTD still classify when allOrders is cold (paged boards).
+  const recFormType = rec.formType;
+  const recCheer = rec.cheerFormSubtype;
+  const recDance = rec.danceFormSubtype;
+
+  if (linked || recFormType || recCheer || recDance) {
+    formType =
+      linked?.formType || recFormType || "school-all-star-cheer";
     cheerFormSubtype =
-      linked.cheerFormSubtype || (rec as any).cheerFormSubtype || "all-star-cheer";
+      linked?.cheerFormSubtype || recCheer || "all-star-cheer";
     danceFormSubtype =
-      linked.danceFormSubtype || (rec as any).danceFormSubtype || "pom";
-  } else if ((rec as any).cheerFormSubtype || (rec as any).formType) {
-    formType = (rec as any).formType || "school-all-star-cheer";
-    cheerFormSubtype = (rec as any).cheerFormSubtype || "all-star-cheer";
-    danceFormSubtype = (rec as any).danceFormSubtype || "pom";
+      linked?.danceFormSubtype || recDance || "pom";
   } else {
     const partial: Partial<Order> = {
       category: rec.category,

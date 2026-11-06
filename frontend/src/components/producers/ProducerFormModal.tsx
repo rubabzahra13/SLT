@@ -114,7 +114,8 @@ function fromProducer(producer: Producer): FormState {
 
   const categoryRates: Record<string, number> = {};
   for (const cat of categories) {
-    const raw = norm.ratesByCategory?.[cat] ?? 0.5;
+    const raw = norm.ratesByCategory?.[cat];
+    if (raw == null || Number.isNaN(raw)) continue;
     categoryRates[cat] = raw <= 1 ? Math.round(raw * 100) : raw;
   }
 

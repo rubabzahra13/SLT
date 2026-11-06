@@ -699,17 +699,31 @@ export default function PayrollPage() {
     [form, cheerSubtype, searchQuery, pageTab]
   );
 
+  // One-shot land on a form that has rows. Never re-run after the user (or
+  // session restore) picks Cheer/Dance subtype — keepPrevious + empty School
+  // Cheer used to snap the dropdown back to All Star Cheer.
+  const didAutoLandFormRef = useRef(false);
   useEffect(() => {
+    if (didAutoLandFormRef.current) return;
     if (typeof window === "undefined") return;
-    const savedForm = sessionStorage.getItem("slt_payroll_form");
-    if (savedForm) return;
+    if (
+      sessionStorage.getItem("slt_payroll_form") ||
+      sessionStorage.getItem("slt_payroll_cheer_subtype") ||
+      sessionStorage.getItem("slt_payroll_dance_subtype")
+    ) {
+      didAutoLandFormRef.current = true;
+      return;
+    }
 
     if (sourceRecords.length === 0) return;
 
     const hasVisibleForForm = sourceRecords.some((rec) =>
       matchesFormFilter(rec, orderById, form, cheerSubtype, danceSubtype)
     );
-    if (hasVisibleForForm) return;
+    if (hasVisibleForForm) {
+      didAutoLandFormRef.current = true;
+      return;
+    }
 
     const latest = sourceRecords[0];
     const meta = resolveMTDFormMeta(latest, orderById);
@@ -720,6 +734,7 @@ export default function PayrollPage() {
     if (meta.formType === "school-all-star-dance" && meta.danceFormSubtype) {
       setDanceSubtypeState(meta.danceFormSubtype as DanceFormSubtypeFilter);
     }
+    didAutoLandFormRef.current = true;
   }, [sourceRecords, orderById, form, cheerSubtype, danceSubtype]);
 
   const tableFiltered = useMemo(() => {

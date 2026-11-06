@@ -49,6 +49,10 @@ export interface BackendMTDRecord {
   final_customer_price_overridden?: boolean;
   created_at?: string | null;
   updated_at?: string | null;
+  form_type?: string | null;
+  cheer_form_subtype?: string | null;
+  dance_form_subtype?: string | null;
+  varsity_viroc_customer?: string | null;
 }
 
 export function transformMTDRecord(bm: BackendMTDRecord): MTDRecord {
@@ -114,6 +118,15 @@ export function transformMTDRecord(bm: BackendMTDRecord): MTDRecord {
     finalCustomerPriceOverridden: Boolean(bm.final_customer_price_overridden),
     createdAt: bm.created_at || null,
     updatedAt: bm.updated_at || null,
+    formType: (bm.form_type as MTDRecord["formType"]) || undefined,
+    cheerFormSubtype:
+      (bm.cheer_form_subtype as MTDRecord["cheerFormSubtype"]) || undefined,
+    danceFormSubtype:
+      (bm.dance_form_subtype as MTDRecord["danceFormSubtype"]) || undefined,
+    varsityVirocCustomer:
+      bm.varsity_viroc_customer === "Yes" || bm.varsity_viroc_customer === "No"
+        ? bm.varsity_viroc_customer
+        : undefined,
   };
 }
 

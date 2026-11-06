@@ -63,6 +63,9 @@ def test_identity_falls_back_to_linked_form_school_gym_name():
 def test_order_projection_includes_assignment_from_order():
     order = SimpleNamespace(
         form_type="school-all-star-cheer",
+        cheer_form_subtype="school-cheer-viroc-no",
+        dance_form_subtype=None,
+        varsity_viroc_customer="No",
         contact_name="Coach",
         coach_name=None,
         customer_name=None,
@@ -91,3 +94,6 @@ def test_order_projection_includes_assignment_from_order():
     assert projected["assigned_producer"] == "CP"
     assert projected["mix_start_date"].isoformat() == "2026-10-18"
     assert projected["have_songs"] == "HAVE SONGS"
+    assert projected["form_type"] == "school-all-star-cheer"
+    assert projected["cheer_form_subtype"] == "school-cheer-viroc-no"
+    assert projected["varsity_viroc_customer"] == "No"
