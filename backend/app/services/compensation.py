@@ -79,14 +79,49 @@ def _payout(payroll_base: Decimal, rate: Decimal) -> Decimal:
     return (payroll_base * rate).quantize(Decimal("0.01"))
 
 
+# Order subtype ids → producer category labels stored on rates_by_category.
+_SUBTYPE_RATE_LABELS = {
+    "all-star-cheer": "All-Star Cheer",
+    "school-cheer-viroc-yes": "School Cheer",
+    "school-cheer-viroc-no": "School Cheer",
+    "youth-rec-cheer": "Youth Rec Cheer",
+    "pom": "Pom",
+    "hip-hop": "Hip Hop",
+    "hiphop": "Hip Hop",
+    "team-performance-variety": "Team Performance / Variety",
+    "team-performance": "Team Performance / Variety",
+    "gameday": "Gameday",
+    "jazz-kick": "Jazz / Kick",
+    "jazz/kick": "Jazz / Kick",
+    "marching-band": "Marching Band",
+    "sports-entertainment": "Sports Entertainment",
+    "school-anthem": "School Anthem",
+}
+
+
 def _determine_rate_for_subtype(
     producer: Producer, subtype_id: Optional[str]
 ) -> tuple[Optional[Decimal], str]:
-    """Look up rates_by_category for the order subtype/category."""
-    if subtype_id and producer.rates_by_category:
-        cat_rate = producer.rates_by_category.get(subtype_id)
-        if cat_rate is not None:
-            return _fraction_rate(cat_rate), f"rates_by_category[{subtype_id}]"
+    """Look up rates_by_category for the order subtype/category.
+
+    Accepts either the canonical subtype id (``pom``) or the producer label
+    stored in the database (``Pom``).
+    """
+    rates = producer.rates_by_category or {}
+    if not subtype_id or not rates:
+        return None, "no_rate_configured"
+
+    if subtype_id in rates and rates[subtype_id] is not None:
+        return _fraction_rate(rates[subtype_id]), f"rates_by_category[{subtype_id}]"
+
+    target = subtype_id.strip().lower()
+    label = _SUBTYPE_RATE_LABELS.get(target, "")
+    for key, val in rates.items():
+        if val is None:
+            continue
+        key_norm = str(key).strip().lower()
+        if key_norm == target or (label and key_norm == label.lower()):
+            return _fraction_rate(val), f"rates_by_category[{key}]"
 
     return None, "no_rate_configured"
 

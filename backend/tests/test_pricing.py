@@ -24,6 +24,7 @@ from app.services.pricing import (
     is_multi_music_affiliate_selection,
     PricingBreakdown,
 )
+from app.models.producer import Producer
 from app.services.compensation import calculate_compensation
 
 
@@ -501,6 +502,29 @@ class TestCaseyAmbiguity:
         assert comp.status == "needs_manual_review"
         assert comp.rate_source == "no_rate_configured"
         assert comp.producer_payout is None
+
+    def test_casey_category_label_rate_is_used(self, db):
+        casey = db.query(Producer).filter(Producer.initials == "CM").one()
+        casey.rates_by_category = {"All-Star Cheer": 0.7, "Pom": 0.7}
+        db.commit()
+        bd = calculate_pricing(
+            db=db,
+            form_type="school-all-star-cheer",
+            cheer_subtype="all-star-cheer",
+            dance_subtype=None,
+            package_name="GOLD 1:30",
+            music_affiliate="Power Music",
+        )
+        comp = calculate_compensation(
+            db=db,
+            producer_initials="CM",
+            pricing_breakdown=bd,
+            final_customer_price=bd.system_calculated_customer_price,
+        )
+        assert comp.status == "computed"
+        assert comp.rate_used == Decimal("0.7")
+        assert comp.rate_source == "rates_by_category[All-Star Cheer]"
+        assert comp.old_new_trigger_unconfirmed is False
 
     def test_casey_override_rate_bypasses_ambiguity(self, db):
         bd = calculate_pricing(

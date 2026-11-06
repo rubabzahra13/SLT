@@ -347,43 +347,10 @@ export function computeClientPayroll(
     payrollBase - rushCustomerCharge - seRushFee
   );
 
-  // Determine initial category rate if none selected
+  // Category % always comes from the producer row (rates_by_category).
+  // No producer gets a client-side old/new rate picker.
   let defaultRate: number | null = selectedRate;
   let source = "manual_override";
-  let isCasey = false;
-  let oldPayout: number | undefined;
-  let newPayout: number | undefined;
-
-  // Casey (CM): two historical rates: admin must pick one when no rate selected.
-  if (producer.initials === "CM") {
-    isCasey = true;
-    const oldRate = 0.72;
-    const newRate = 0.7;
-    const oldCatPayout = Math.round(basePackagePayrollPrice * oldRate * 100) / 100;
-    const newCatPayout = Math.round(basePackagePayrollPrice * newRate * 100) / 100;
-    oldPayout = Math.round((oldCatPayout + rushFeePayout + voiceoverPayout) * 100) / 100;
-    newPayout = Math.round((newCatPayout + rushFeePayout + voiceoverPayout) * 100) / 100;
-
-    if (selectedRate === null) {
-      // Unconfirmed trigger
-      return {
-        status: "computed",
-        producerPayout: null,
-        sltPortion: null,
-        rateUsed: null,
-        rateSource: "rate_overrides[old_pricing|new_pricing]",
-        isCaseyAmbiguous: true,
-        oldPricingPayout: oldPayout,
-        newPricingPayout: newPayout,
-        rushFeePayout: rushFeePayoutComputed,
-        rushFeeQuantity: rushQty,
-        rushFeeRateUsed,
-        voiceoverPayout,
-        voiceoverRateUsed,
-        message: "Casey has two rates: Old (72%) & New (70%). Select rate to finalize.",
-      };
-    }
-  }
 
   if (defaultRate === null) {
     const catOrSub = canonicalSubtypeId || breakdown?.canonical_subtype_id;
@@ -420,9 +387,7 @@ export function computeClientPayroll(
     sltPortion: slt,
     rateUsed: defaultRate,
     rateSource: source,
-    isCaseyAmbiguous: isCasey && selectedRate === null,
-    oldPricingPayout: oldPayout,
-    newPricingPayout: newPayout,
+    isCaseyAmbiguous: false,
     categoryPayout,
     rushFeePayout: rushFeePayoutComputed,
     rushFeeQuantity: rushQty,

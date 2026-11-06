@@ -98,8 +98,8 @@ export function CompleteToPayrollModal({
   const [calculatedEnginePricing, setCalculatedEnginePricing] = useState<any>(null);
   const [pricingRefOpen, setPricingRefOpen] = useState<boolean>(false);
 
-  // Step 2 Payroll state
-  const [selectedCaseyRate, setSelectedCaseyRate] = useState<number | null>(null); // 0.72 or 0.70
+  // Step 2 Payroll state. Rate comes from the producer category on file;
+  // this input only records an explicit one-off override that is saved.
   const [customRateInput, setCustomRateInput] = useState<string>(""); // e.g. "72"
   // While focused, allow empty/partial so clearing "53" to type "100" works
   // (empty otherwise snaps back to the default rate display).
@@ -137,7 +137,6 @@ export function CompleteToPayrollModal({
 
     setStep(1);
     setError(null);
-    setSelectedCaseyRate(null);
     setCustomRateInput("");
     setRateInputFocused(false);
     setManualPayoutInput("");
@@ -627,7 +626,7 @@ export function CompleteToPayrollModal({
     customRateInput.trim() !== "" ? parseFloat(customRateInput) : NaN;
   const activeRateNum = !Number.isNaN(parsedCustomRatePct)
     ? parsedCustomRatePct / 100
-    : selectedCaseyRate;
+    : null;
 
   const activeManualPayoutNum = manualPayoutInput !== "" ? parseFloat(manualPayoutInput) : null;
 
@@ -684,23 +683,20 @@ export function CompleteToPayrollModal({
 
   // Baseline ignores the text-field override so focus/blur can clear/retype
   // without snapping back to a rate that already includes the draft value.
-  const baselinePayrollRate =
-    selectedCaseyRate !== null
-      ? selectedCaseyRate
-      : computeClientPayroll(
-          assignedProducerObj,
-          finalCustomerPriceNum,
-          effectiveBreakdown,
-          selectedCaseyRate,
-          activeManualPayoutNum,
-          breakdown?.canonical_subtype_id,
-          finalPayrollPriceNum,
-          payrollOpts
-        ).rateUsed;
+  const baselinePayrollRate = computeClientPayroll(
+    assignedProducerObj,
+    finalCustomerPriceNum,
+    effectiveBreakdown,
+    null,
+    activeManualPayoutNum,
+    breakdown?.canonical_subtype_id,
+    finalPayrollPriceNum,
+    payrollOpts
+  ).rateUsed;
 
   const defaultRateDisplay = formatRatePercentStr(baselinePayrollRate);
 
-  const isRateOverridden = customRateInput !== "" || (selectedCaseyRate !== null && assignedProducerObj?.initials !== "CM");
+  const isRateOverridden = customRateInput !== "";
 
   // Step 1 confirm handler
   const handleProceedToPayroll = async () => {
@@ -781,11 +777,6 @@ export function CompleteToPayrollModal({
 
   // Step 2 finalization handler
   const handleFinalize = async () => {
-    if (clientPayroll.isCaseyAmbiguous && selectedCaseyRate === null) {
-      setError("Please select either Old Pricing (72%) or New Pricing (70%) for Casey before finalizing.");
-      return;
-    }
-
     if (clientPayroll.status === "needs_manual_review" && (clientPayroll.producerPayout === null || isNaN(clientPayroll.producerPayout))) {
       setError("Please enter a manual payout amount for this producer.");
       return;
@@ -796,10 +787,10 @@ export function CompleteToPayrollModal({
 
     const producerInitials = assignedProducerObj?.initials || record.assignedProducer || "CM";
     const finalRate = activeRateNum ?? clientPayroll.rateUsed ?? undefined;
-    // Any explicit rate at finalize (Casey pick, % edit, or resolved default)
-    // is locked so Payroll does not re-resolve the producer category rate.
+    // An edited % is locked. The category default is still sent so the saved
+    // payout matches the producer rate on file.
     const lockedRateSource =
-      finalRate != null ? "manual_override" : clientPayroll.rateSource;
+      activeRateNum != null ? "manual_override" : clientPayroll.rateSource;
 
     try {
       let finalizedPayout = clientPayroll.producerPayout ?? null;
@@ -810,7 +801,9 @@ export function CompleteToPayrollModal({
         const finalized = await finalizePayrollApi(linkedOrder.id, {
           producer_initials: producerInitials,
           final_customer_price: finalCustomerPriceNum,
-          overridden_rate: finalRate ?? undefined,
+          // Only an edited % is an override. Otherwise the server reads
+          // rates_by_category for this order's category and stores that.
+          overridden_rate: activeRateNum ?? undefined,
         });
         if (finalized.producer_payout != null) {
           finalizedPayout = finalized.producer_payout;
@@ -1316,64 +1309,7 @@ export function CompleteToPayrollModal({
                 </div>
               )}
 
-              {/* Casey dual rate choice card */}
-              {clientPayroll.isCaseyAmbiguous && (
-                <div className="rounded-xl border border-brand-signature/30 bg-brand-signature/8 p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[13px] font-bold text-brand-ink">
-                      Casey Pricing Tier Selection
-                    </span>
-                    <span className="rounded bg-brand-signature/20 px-2 py-0.5 text-[10px] font-bold uppercase text-brand-signature">
-                      Requires Choice
-                    </span>
-                  </div>
-                  <p className="text-[12px] text-brand-ink-secondary">
-                    Casey has two rates configured. Select the correct rate tier for this mix:
-                  </p>
-
-                  <div className="grid grid-cols-2 gap-3 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedCaseyRate(0.72);
-                        setCustomRateInput("");
-                      }}
-                      className={clsx(
-                        "rounded-xl border p-3 text-left transition shadow-sm",
-                        selectedCaseyRate === 0.72
-                          ? "border-brand-signature bg-brand-signature/15 text-brand-ink ring-2 ring-brand-signature/30"
-                          : "border-brand-line/70 bg-brand-elevated text-brand-ink hover:border-brand-line"
-                      )}
-                    >
-                      <p className="text-[12px] font-semibold text-brand-ink">Old Pricing (72%)</p>
-                      <p className="mt-1 text-[14px] font-bold text-brand-ink tabular-nums">
-                        {formatPrice(clientPayroll.oldPricingPayout ?? 0)}
-                      </p>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedCaseyRate(0.70);
-                        setCustomRateInput("");
-                      }}
-                      className={clsx(
-                        "rounded-xl border p-3 text-left transition shadow-sm",
-                        selectedCaseyRate === 0.70
-                          ? "border-brand-signature bg-brand-signature/15 text-brand-ink ring-2 ring-brand-signature/30"
-                          : "border-brand-line/70 bg-brand-elevated text-brand-ink hover:border-brand-line"
-                      )}
-                    >
-                      <p className="text-[12px] font-semibold text-brand-ink">New Pricing (70%)</p>
-                      <p className="mt-1 text-[14px] font-bold text-brand-ink tabular-nums">
-                        {formatPrice(clientPayroll.newPricingPayout ?? 0)}
-                      </p>
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Editable Compensation Percentage / Manual Dollar Input */}
+              {/* Compensation % — filled from the producer category rate. */}
               {clientPayroll.status === "computed" && (
                 <div className="rounded-xl border border-brand-line/70 bg-brand-elevated p-4 space-y-3">
                   <div className="flex items-center justify-between">

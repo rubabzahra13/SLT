@@ -151,10 +151,12 @@ describe("Producer Compensation: Final Payroll Price Basis Unit Tests", () => {
     assert.equal(res.sltPortion, 500);
   });
 
-  it("Test 7: Casey dual rate calculation uses Final Payroll Price ($850 Payroll -> Old $612 / New $595)", () => {
+  it("Test 7: Casey uses the category rate on file ($850 Payroll × 70% All-Star Cheer -> $595)", () => {
     const casey: Producer = {
       ...sampleProducer,
+      name: "Casey Marlow",
       initials: "CM",
+      ratesByCategory: { "All-Star Cheer": 0.7 },
     };
 
     const custPrice = 1000;
@@ -170,9 +172,10 @@ describe("Producer Compensation: Final Payroll Price Basis Unit Tests", () => {
       payrollPrice
     );
 
-    assert.equal(res.isCaseyAmbiguous, true);
-    assert.equal(res.oldPricingPayout, 612); // $850 * 72% = $612
-    assert.equal(res.newPricingPayout, 595); // $850 * 70% = $595
+    assert.equal(res.isCaseyAmbiguous, false);
+    assert.equal(res.rateUsed, 0.7);
+    assert.equal(res.rateSource, "rates_by_category[All-Star Cheer]");
+    assert.equal(res.producerPayout, 595);
   });
 
   it("Test 8: Steve not_paid_for_mixing ($100 Customer / $370 Payroll -> Payout $0 / SLT Portion $370)", () => {

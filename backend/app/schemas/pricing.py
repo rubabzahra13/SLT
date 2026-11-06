@@ -54,7 +54,7 @@ class FinalizePayrollRequest(BaseModel):
     producer_initials: str
     # Optional: override the auto-calculated final_customer_price for SLT portion
     final_customer_price: Optional[float] = None
-    # Optional: override the auto-calculated rate (e.g. Megan selects old vs new for Casey)
+    # Optional: one-off rate. Omit to use the producer category rate on file.
     overridden_rate: Optional[float] = None
 
 
