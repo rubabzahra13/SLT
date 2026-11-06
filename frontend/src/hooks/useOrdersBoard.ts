@@ -471,20 +471,25 @@ export function useOrdersBoard(
     const sameRange = (prevQ.range || "all") === (q.range || "all");
     const rangeChanged =
       (prevQ.range || "all") !== (q.range || "all");
+    // Form / subtype / source change must never keep the previous board's rows
+    // (Marching Band "Alma Mater Plus" was leaking into All-Star Cheer package
+    // filters while Cheer pages loaded).
+    const formScopeChanged =
+      (prevQ.formType || "") !== (q.formType || "") ||
+      (prevQ.cheerFormSubtype || "") !== (q.cheerFormSubtype || "") ||
+      (prevQ.danceFormSubtype || "") !== (q.danceFormSubtype || "") ||
+      (prevQ.source || "") !== (q.source || "");
     const searching = Boolean((q.search || "").trim());
     const wasSearching = Boolean((prevQ.search || "").trim());
     const searchOnlyChange =
       (prevQ.search || "") !== (q.search || "") &&
-      (prevQ.formType || "") === (q.formType || "") &&
-      (prevQ.cheerFormSubtype || "") === (q.cheerFormSubtype || "") &&
-      (prevQ.danceFormSubtype || "") === (q.danceFormSubtype || "") &&
-      (prevQ.source || "") === (q.source || "") &&
+      !formScopeChanged &&
       sameRange &&
       (prevQ.sortBy || "newest") === (q.sortBy || "newest");
-    // Never paint another range's rows into Reassign/Assigned/etc.
+    // Never paint another range's / form's rows into the active board.
     const trustedPaintOrders =
       hit && hit.entry.orders.length > 0
-        ? filterOrdersForBoardRange(hit.entry.orders, q.range)
+        ? hit.entry.orders.filter((o) => orderMatchesActiveBoard(o, q))
         : [];
     if (trustedPaintOrders.length > 0) {
       setOrders(trustedPaintOrders);
@@ -513,11 +518,19 @@ export function useOrdersBoard(
       pageIdsRef.current = new Set();
       paintedRef.current = false;
       setLoading(enabled && knownTotal !== 0);
+    } else if (formScopeChanged) {
+      // Drop other-form rows immediately so package / producer filters cannot
+      // list Alma Mater (MB) under All-Star Cheer while the new board loads.
+      setOrders([]);
+      setNextPageToken(null);
+      pageIdsRef.current = new Set();
+      paintedRef.current = false;
+      setLoading(enabled && knownTotal !== 0);
     } else if (
       paintedRef.current &&
       (searching || searchOnlyChange || (sameRange && !rangeChanged))
     ) {
-      // Typing search (and form/subtype) keep rows — client filters instantly.
+      // Typing search keeps rows — client filters instantly.
       setLoading(false);
     } else if (rangeChanged && paintedRef.current) {
       // Status chips feel like search: seed from cache / on-screen rows now;
@@ -592,12 +605,14 @@ export function useOrdersBoard(
     })();
     const searching = Boolean((q.search || "").trim());
     const wasSearching = Boolean((prevQ.search || "").trim());
+    const formScopeChanged =
+      (prevQ.formType || "") !== (q.formType || "") ||
+      (prevQ.cheerFormSubtype || "") !== (q.cheerFormSubtype || "") ||
+      (prevQ.danceFormSubtype || "") !== (q.danceFormSubtype || "") ||
+      (prevQ.source || "") !== (q.source || "");
     const searchOnlyChange =
       (prevQ.search || "") !== (q.search || "") &&
-      (prevQ.formType || "") === (q.formType || "") &&
-      (prevQ.cheerFormSubtype || "") === (q.cheerFormSubtype || "") &&
-      (prevQ.danceFormSubtype || "") === (q.danceFormSubtype || "") &&
-      (prevQ.source || "") === (q.source || "") &&
+      !formScopeChanged &&
       (prevQ.range || "all") === (q.range || "all") &&
       (prevQ.sortBy || "newest") === (q.sortBy || "newest");
     const knownTotal = rangeBadgeTotal(
@@ -606,7 +621,7 @@ export function useOrdersBoard(
       q
     );
     const rangedOrders = hit
-      ? filterOrdersForBoardRange(hit.entry.orders, q.range)
+      ? hit.entry.orders.filter((o) => orderMatchesActiveBoard(o, q))
       : [];
     // Badge 0 but cache has rows → distrust (hash collision / stale sibling).
     // Also distrust keepPrevious pollution (All rows cached under Reassign).
@@ -657,10 +672,16 @@ export function useOrdersBoard(
       pageIdsRef.current = new Set();
       paintedRef.current = false;
       setLoading(enabled && knownTotal !== 0);
+    } else if (formScopeChanged && !trustedHit) {
+      // Never keep Marching Band (etc.) rows under Cheer while the new form loads.
+      setOrders([]);
+      pageIdsRef.current = new Set();
+      paintedRef.current = false;
+      setLoading(enabled && knownTotal !== 0);
     } else if (
       searching ||
       searchOnlyChange ||
-      (paintedRef.current && !rangeChanged)
+      (paintedRef.current && !rangeChanged && !formScopeChanged)
     ) {
       // Typing search: keep rows. Range tabs: never keep All on Reassign.
       setLoading(false);

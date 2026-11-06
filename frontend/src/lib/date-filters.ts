@@ -79,6 +79,21 @@ function formatDisplayDate(iso: string): string {
   });
 }
 
+/**
+ * Map a table Date filter to ISO bounds for board APIs (`created_after` /
+ * `created_before`). Empty when the filter is "all" or has no resolvable window.
+ */
+export function dateFilterToCreatedAtBounds(
+  filter: DateFilterValue
+): { createdAfter?: string; createdBefore?: string } {
+  if (filter.type === "all") return {};
+  const bounds = calculateDateBounds(filter.type, filter.value);
+  const out: { createdAfter?: string; createdBefore?: string } = {};
+  if (bounds.start) out.createdAfter = bounds.start.toISOString();
+  if (bounds.end) out.createdBefore = bounds.end.toISOString();
+  return out;
+}
+
 export function calculateDateBounds(
   type: DateFilterValue["type"],
   value?: DateFilterValue["value"]
@@ -184,6 +199,22 @@ export function payPeriodRangeLabel(range: PayPeriodRange): string {
     case "6weeks":
       return "Last 6 weeks";
   }
+}
+
+/** Human range for chip tooltips / empty-state copy (Timestamp window). */
+export function getDateFilterBoundsLabel(
+  filter: DateFilterValue
+): string | null {
+  if (!filter || filter.type === "all") return null;
+  const bounds = calculateDateBounds(filter.type, filter.value);
+  if (!bounds.start || !bounds.end) return null;
+  const fmt = (d: Date) =>
+    d.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  return `${fmt(bounds.start)} – ${fmt(bounds.end)}`;
 }
 
 export function getDateFilterLabel(filter: DateFilterValue): string {

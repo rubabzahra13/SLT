@@ -1436,7 +1436,44 @@ const MARCHING_BAND_PACKAGE_ALIASES: Record<string, string> = {
   "FIGHT SONG PLUS (WRITTEN & RECORDED LYRICS)": "FIGHT SONG PLUS",
   "ALMA MATER PLUS (WRITTEN & RECORDED LYRICS)": "ALMA MATER PLUS",
   "DRUM CADENCE": "DRUM CADENCE ORIGINAL",
+  // Magento SoftSelect display labels (price stripped by normalize above).
+  "DRUM CADENCE ORIGINAL": "DRUM CADENCE ORIGINAL",
+  "BAND CHANT": "BAND CHANT",
+  "FIGHT SONG ORIGINAL": "FIGHT SONG ORIGINAL",
+  "FIGHT SONG PLUS": "FIGHT SONG PLUS",
+  "ALMA MATER ORIGINAL": "ALMA MATER ORIGINAL",
+  "ALMA MATER PLUS": "ALMA MATER PLUS",
 };
+
+/**
+ * Map Magento SoftSelect Marching Band package wording (incl. prices like
+ * "Alma Mater Plus ($2,250.00)") onto rate-card keys for storage / filters /
+ * Match overwrite — same role as canonicalizeSportsEntertainmentPackage.
+ */
+export function canonicalizeMarchingBandPackage(raw: string): string {
+  const cleaned = String(raw || "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!cleaned) return cleaned;
+
+  let target = normalizeMarchingBandPackageLabel(cleaned);
+  target = MARCHING_BAND_PACKAGE_ALIASES[target] ?? target;
+
+  const matched = getMarchingBandRateCard().find(
+    (entry) => entry.package.toUpperCase() === target
+  );
+  if (matched) return matched.package;
+
+  // SoftSelect fingerprint when price/paren noise left an almost-key.
+  if (/\bALMA\s+MATER\s+PLUS\b/.test(target)) return "ALMA MATER PLUS";
+  if (/\bALMA\s+MATER\b/.test(target)) return "ALMA MATER ORIGINAL";
+  if (/\bFIGHT\s+SONG\s+PLUS\b/.test(target)) return "FIGHT SONG PLUS";
+  if (/\bFIGHT\s+SONG\b/.test(target)) return "FIGHT SONG ORIGINAL";
+  if (/\bBAND\s+CHANT\b/.test(target)) return "BAND CHANT";
+  if (/\bDRUM\s+CADENCE\b/.test(target)) return "DRUM CADENCE ORIGINAL";
+
+  return cleaned;
+}
 
 export function lookupMarchingBandRateCardEntry(
   packageType: string
@@ -1445,8 +1482,7 @@ export function lookupMarchingBandRateCardEntry(
 
   // Dropdown names are fixed: exact match only (after normalize + aliases).
   // Never substring-match PLUS onto ORIGINAL (cheaper row).
-  let target = normalizeMarchingBandPackageLabel(packageType);
-  target = MARCHING_BAND_PACKAGE_ALIASES[target] ?? target;
+  const target = canonicalizeMarchingBandPackage(packageType).toUpperCase();
 
   return (
     getMarchingBandRateCard().find(

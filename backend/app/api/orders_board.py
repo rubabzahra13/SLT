@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from app.api.auth import get_current_user, get_stream_user
 from app.api.orders import OrderListResponse, _apply_orders_scope, _serialize_order
 from app.core.database import SessionLocal, get_db
+from app.lib.created_at_bounds import apply_created_at_bounds
 from app.lib.pagination import (
     page_token_query,
     paginate_keyset_by_created,
@@ -259,11 +260,16 @@ def _board_base_query(
     search: str | None,
     range_filter: str | None,
     exclude_flagged: bool,
+    created_after: str | None = None,
+    created_before: str | None = None,
 ):
     query = db.query(Order)
     query = _apply_orders_scope(query, "active")
     # Pre-MTD board: hide rows already moved into MTD.
     query = query.filter(or_(Order.status.is_(None), Order.status != "in_mtd"))
+    query = apply_created_at_bounds(
+        query, Order.created_at, created_after, created_before
+    )
 
     if exclude_flagged:
         query = query.filter(
@@ -360,6 +366,8 @@ def get_orders_board(
     range_filter: str | None = Query(None, alias="range"),
     sort_by: str | None = None,
     exclude_flagged: bool = True,
+    created_after: str | None = None,
+    created_before: str | None = None,
     page_size: int | None = Query(None, ge=1, le=500),
     page_token: str | None = Depends(page_token_query),
     db: Session = Depends(get_db),
@@ -376,6 +384,8 @@ def get_orders_board(
         search=search,
         range_filter=range_filter,
         exclude_flagged=exclude_flagged,
+        created_after=created_after,
+        created_before=created_before,
     )
     sort_key = (sort_by or "newest").strip().lower()
     if sort_key in ("name", "gym", "program"):
@@ -1000,6 +1010,8 @@ def export_orders_csv(
     range_filter: str | None = Query(None, alias="range"),
     sort_by: str | None = None,
     exclude_flagged: bool = True,
+    created_after: str | None = None,
+    created_before: str | None = None,
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
@@ -1013,6 +1025,8 @@ def export_orders_csv(
         search=search,
         range_filter=range_filter,
         exclude_flagged=exclude_flagged,
+        created_after=created_after,
+        created_before=created_before,
     )
     query = _apply_sort(query, sort_by)
 

@@ -79,6 +79,8 @@ def _base(
     exclude_flagged: bool = True,
     form_type: str | None = None,
     search: str | None = None,
+    created_after: str | None = None,
+    created_before: str | None = None,
 ):
     return _board_base_query(
         db,
@@ -90,6 +92,8 @@ def _base(
         search=search,
         range_filter=range_filter,
         exclude_flagged=exclude_flagged,
+        created_after=created_after,
+        created_before=created_before,
     )
 
 
@@ -125,6 +129,23 @@ def test_board_range_assigned_missing_and_flagged(db: Session):
         .all()
     )
     assert any(r.id == flagged.id for r in flagged_rows)
+
+
+def test_board_created_at_bounds_filter_timestamp_window(db: Session):
+    early = _order(
+        db, created_at=datetime(2025, 1, 15, tzinfo=timezone.utc)
+    )
+    mid = _order(db, created_at=datetime(2026, 8, 1, tzinfo=timezone.utc))
+    late = _order(db, created_at=datetime(2026, 11, 1, tzinfo=timezone.utc))
+    rows = _base(
+        db,
+        created_after="2026-05-06T00:00:00.000Z",
+        created_before="2026-11-06T23:59:59.999Z",
+    ).all()
+    ids = {r.id for r in rows}
+    assert mid.id in ids
+    assert late.id in ids
+    assert early.id not in ids
 
 
 def test_board_keyset_paging_advances(db: Session):

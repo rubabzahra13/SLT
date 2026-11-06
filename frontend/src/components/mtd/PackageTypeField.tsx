@@ -5,6 +5,7 @@ import { SoftSelect } from "@/components/ui/SoftSelect";
 import { titleCase } from "@/lib/data";
 import { parsePackage } from "@/lib/package";
 import {
+  canonicalizeMarchingBandPackage,
   canonicalizeSportsEntertainmentPackage,
   canonicalizeTeamPerformancePackage,
   isJazzKickDtuPackage,
@@ -127,6 +128,21 @@ export function packageTypeDisplayValue(raw: string): string {
       seKey === "OTHER (MIXES LONGER THAN 2:30)"
     ) {
       return seCanonical;
+    }
+  }
+  // Magento Marching Band SoftSelect: "Alma Mater Plus ($2,250.00)" → rate-card key.
+  if (
+    /ALMA\s+MATER|FIGHT\s+SONG|BAND\s+CHANT|DRUM\s+CADENCE/i.test(trimmed) ||
+    /\$[\d,]+(?:\.\d{2})?/.test(trimmed)
+  ) {
+    const mbCanonical = canonicalizeMarchingBandPackage(trimmed);
+    if (
+      mbCanonical &&
+      /^(DRUM CADENCE ORIGINAL|BAND CHANT|FIGHT SONG ORIGINAL|FIGHT SONG PLUS|ALMA MATER ORIGINAL|ALMA MATER PLUS)$/i.test(
+        mbCanonical
+      )
+    ) {
+      return mbCanonical;
     }
   }
   // Form 6 SoftSelect → TP MIX / TP PLUS MIX rate-card keys (display/lookup only).

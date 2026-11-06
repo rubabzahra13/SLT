@@ -18,6 +18,7 @@ import {
   reconcileUnlinkedManualFormPairs,
   repairCorruptCrossCategoryFormMerge,
   resolveManualFormPair,
+  sameOrderCategory,
   splitManualFormPair,
 } from "../manual-form-merge";
 import {
@@ -403,6 +404,32 @@ describe("manual ↔ form merge", () => {
     const rematched = mergeFormWinsIntoManualOrder(edited, form);
     assert.equal(rematched.manualOverlapSnapshot?.gymName, "Sample Demo Gym");
     assert.equal(rematched.manualOverlapSnapshot?.city, "Manual City");
+  });
+
+  it("refuses Cheer manual + Marching Band Magento (Alma Mater must not land on Cheer)", () => {
+    const cheerManual = baseOrder({
+      id: "manual-cheer",
+      isManualEntry: true,
+      formType: "school-all-star-cheer",
+      cheerFormSubtype: "all-star-cheer",
+      programName: "Spirit Pro",
+      gymName: "Spirit Pro",
+      package: "Gold Package",
+    });
+    const mbForm = baseOrder({
+      id: "form-mb-alma",
+      isManualEntry: false,
+      formType: "marching-band",
+      programName: "Spirit Pro",
+      gymName: "Spirit Pro",
+      package: "Alma Mater Plus ($2,250.00)",
+      packageType: "Alma Mater Plus ($2,250.00)",
+    });
+    assert.equal(sameOrderCategory(cheerManual, mbForm), false);
+    const blocked = mergeFormWinsIntoManualOrder(cheerManual, mbForm);
+    assert.equal(blocked.package, "Gold Package");
+    assert.equal(blocked.formType, "school-all-star-cheer");
+    assert.equal(blocked.mergedFormOrderId, undefined);
   });
 
   it("refuses cross-category form-wins and repairs corrupted taxonomy", () => {

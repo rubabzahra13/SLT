@@ -1,8 +1,10 @@
 import {
   calculateDateBounds,
+  isDateInBounds,
   type DateFilterValue,
 } from "./date-filters";
 import { doDateRangesOverlap, toIsoDateString } from "./dates";
+import { resolveMtdTimestamp } from "./mtd-timestamp";
 import {
   findLinkedOrder,
   findProducerByAssignmentKey,
@@ -22,6 +24,7 @@ import {
   inferDanceFormSubtype,
   inferFormType,
 } from "./order-form";
+import { displayMixLengthLabel } from "./mix-duration";
 import { parsePackage } from "./package";
 import type {
   CheerFormSubtype,
@@ -317,13 +320,61 @@ export function matchesRequestedProducerFilter(
 
 export type SplitFilter = "all" | "split" | "no_split";
 
+/** Package tier key for filters: strip Magento SoftSelect prices / paren noise. */
+function recordPackageTier(rec: MTDRecord): string {
+  const raw =
+    String(rec.package || "").trim() ||
+    String((rec as { packageType?: string }).packageType || "").trim();
+  const { tier } = parsePackage(raw);
+  if (!tier || tier === "-") return "";
+  return tier
+    .replace(/\s*\(\$[\d,]+(?:\.\d{2})?\)\s*$/g, "")
+    .replace(/\s*\$[\d,]+(?:\.\d{2})?\s*$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Mix length for cheer filters / chips.
+ * Prefer timeLengthOfMix (Magento SoftSelect + form field). Fall back to a
+ * legacy "GOLD 2:30" composed package string when still present.
+ */
+export function recordMixLength(rec: MTDRecord): string {
+  const fromField = displayMixLengthLabel(rec.timeLengthOfMix);
+  if (fromField) {
+    if (/^other\b/i.test(fromField) || /please specify/i.test(fromField)) {
+      return "Other";
+    }
+    return fromField;
+  }
+  const { limit } = parsePackage(rec.package || "");
+  if (!limit || limit === "-") return "";
+  if (/^other\b/i.test(limit) || /please specify/i.test(limit)) return "Other";
+  return limit;
+}
+
+function recordSplitLabel(rec: MTDRecord): "Split" | "No Split" | "-" {
+  const field = String(
+    (rec as { splitOrNoSplit?: string }).splitOrNoSplit || ""
+  )
+    .trim()
+    .toLowerCase();
+  if (field) {
+    if (/\bno\s*split\b/.test(field) || field === "no") return "No Split";
+    if (/\bsplit\b/.test(field) || field === "yes") return "Split";
+  }
+  const { split } = parsePackage(rec.package || "");
+  if (split === "Split" || split === "No Split") return split;
+  return "-";
+}
+
 export function matchesPackageTierFilter(
   rec: MTDRecord,
   tier: string
 ): boolean {
   if (tier === "All") return true;
-  const { tier: parsed } = parsePackage(rec.package);
-  return parsed.toUpperCase() === tier.toUpperCase();
+  const parsed = recordPackageTier(rec);
+  return Boolean(parsed) && parsed.toUpperCase() === tier.toUpperCase();
 }
 
 export function matchesTimeLimitFilter(
@@ -331,7 +382,11 @@ export function matchesTimeLimitFilter(
   limit: string
 ): boolean {
   if (limit === "All") return true;
-  const { limit: parsed } = parsePackage(rec.package);
+  const parsed = recordMixLength(rec);
+  if (!parsed) return false;
+  if (limit === "Other" || /^other\b/i.test(limit)) {
+    return parsed === "Other";
+  }
   return parsed === limit;
 }
 
@@ -340,7 +395,7 @@ export function matchesSplitFilter(
   filter: SplitFilter
 ): boolean {
   if (filter === "all") return true;
-  const { split } = parsePackage(rec.package);
+  const split = recordSplitLabel(rec);
   if (filter === "split") return split === "Split";
   return split === "No Split";
 }
@@ -364,8 +419,8 @@ function sortTiers(a: string, b: string): number {
 }
 
 function sortTimeLimits(a: string, b: string): number {
-  if (a === "TBD") return 1;
-  if (b === "TBD") return -1;
+  if (a === "TBD" || /^other\b/i.test(a)) return 1;
+  if (b === "TBD" || /^other\b/i.test(b)) return -1;
   const parse = (value: string) => {
     const [m, s] = value.split(":").map(Number);
     return (m || 0) * 60 + (s || 0);
@@ -376,9 +431,9 @@ function sortTimeLimits(a: string, b: string): number {
 export function buildPackageTierOptions(records: MTDRecord[]) {
   const counts = new Map<string, number>();
   for (const rec of records) {
-    const { tier } = parsePackage(rec.package);
-    if (!tier || tier === "-") continue;
-    const key = tier.toUpperCase();
+    const cleaned = recordPackageTier(rec);
+    if (!cleaned) continue;
+    const key = cleaned.toUpperCase();
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
 
@@ -388,7 +443,9 @@ export function buildPackageTierOptions(records: MTDRecord[]) {
       .sort(([a], [b]) => sortTiers(a, b))
       .map(([value, count]) => ({
         value,
-        label: value.charAt(0) + value.slice(1).toLowerCase(),
+        label: value
+          .toLowerCase()
+          .replace(/\b\w/g, (ch) => ch.toUpperCase()),
         count,
       })),
   ];
@@ -397,8 +454,8 @@ export function buildPackageTierOptions(records: MTDRecord[]) {
 export function buildTimeLimitOptions(records: MTDRecord[]) {
   const counts = new Map<string, number>();
   for (const rec of records) {
-    const { limit } = parsePackage(rec.package);
-    if (!limit || limit === "-") continue;
+    const limit = recordMixLength(rec);
+    if (!limit) continue;
     counts.set(limit, (counts.get(limit) ?? 0) + 1);
   }
 
@@ -418,7 +475,7 @@ export function buildSplitOptions(records: MTDRecord[]) {
   let split = 0;
   let noSplit = 0;
   for (const rec of records) {
-    const { split: parsed } = parsePackage(rec.package);
+    const parsed = recordSplitLabel(rec);
     if (parsed === "Split") split += 1;
     else if (parsed === "No Split") noSplit += 1;
   }
@@ -633,7 +690,12 @@ export function matchesCategoryFilter(
   return rec.category === category;
 }
 
-export function matchesDateFilter(
+/**
+ * Mix-schedule overlap (pay-period / calendar booking windows).
+ * Prefer {@link matchesDateFilter} for Orders/MTD/Payroll table Date filters —
+ * those follow the Timestamp column (createdAt), not mix start/end.
+ */
+export function matchesMixScheduleDateFilter(
   rec: MTDRecord,
   dateFilter: DateFilterValue
 ): boolean {
@@ -644,6 +706,38 @@ export function matchesDateFilter(
     { start: rec.mixStartDate, end: rec.mixEndDate },
     bounds
   );
+}
+
+/**
+ * Table Date filter: same clock as the Timestamp column (order createdAt).
+ * "Last 2 weeks" keeps rows whose TIMESTAMP falls in that window.
+ */
+export function matchesDateFilter(
+  rec: MTDRecord,
+  dateFilter: DateFilterValue,
+  orderById?: Map<string, Order> | null
+): boolean {
+  if (dateFilter.type === "all") return true;
+
+  const bounds = calculateDateBounds(dateFilter.type, dateFilter.value);
+  if (!bounds.start && !bounds.end) return true;
+
+  const stamp = resolveMtdTimestamp(
+    rec,
+    orderById ? Array.from(orderById.values()) : []
+  );
+  if (!stamp) return false;
+
+  const ms = Date.parse(stamp);
+  if (Number.isNaN(ms)) {
+    // Fall back to calendar-day compare when the stamp is date-only.
+    const iso = toIsoDateString(stamp);
+    return Boolean(iso) && isDateInBounds(iso, bounds);
+  }
+
+  if (bounds.start && ms < bounds.start.getTime()) return false;
+  if (bounds.end && ms > bounds.end.getTime()) return false;
+  return true;
 }
 
 export type MixScheduleFilter = "all" | "scheduled" | "not_scheduled";
@@ -744,7 +838,7 @@ export function filterMTDRecords(
     if (!matchesPackageTierFilter(rec, packageTier)) return false;
     if (!matchesTimeLimitFilter(rec, timeLimit)) return false;
     if (!matchesSplitFilter(rec, split)) return false;
-    if (!matchesDateFilter(rec, dateFilter)) return false;
+    if (!matchesDateFilter(rec, dateFilter, orderMap)) return false;
     if (!matchesMixScheduleFilter(rec, scheduleFilter)) return false;
     if (!matchesInfoFilter(rec, infoFilter)) return false;
     if (form && orderById) {

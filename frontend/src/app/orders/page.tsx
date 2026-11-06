@@ -91,7 +91,12 @@ import {
   formatMixBookedDaysLabel,
   toIsoDateString,
 } from "@/lib/dates";
-import { todayIso } from "@/lib/date-filters";
+import {
+  dateFilterToCreatedAtBounds,
+  getDateFilterBoundsLabel,
+  getDateFilterLabel,
+  todayIso,
+} from "@/lib/date-filters";
 import { displayMixLengthLabel } from "@/lib/mix-duration";
 import { parsePackage } from "@/lib/package";
 import {
@@ -623,6 +628,13 @@ function OrdersPageContent() {
     setFiltersReady(true);
   }, []);
 
+  // Timestamp window for /orders/board — compute once per filter selection so
+  // relative presets ("Last 6 months") don't thrash the query key every render.
+  const createdAtBounds = useMemo(
+    () => dateFilterToCreatedAtBounds(tableFilters.dateFilter),
+    [tableFilters.dateFilter]
+  );
+
   const boardQuery = useMemo(() => {
     const search = searchQuery.trim() || undefined;
     return {
@@ -640,6 +652,8 @@ function OrdersPageContent() {
         : serializeOrdersRangeFilters(rangeFilters),
       sortBy: tableFilters.sortBy ?? "newest",
       excludeFlagged: true as boolean,
+      createdAfter: createdAtBounds.createdAfter,
+      createdBefore: createdAtBounds.createdBefore,
     };
   }, [
     form,
@@ -649,6 +663,7 @@ function OrdersPageContent() {
     searchQuery,
     rangeFilters,
     tableFilters.sortBy,
+    createdAtBounds,
   ]);
   const {
     orders: boardOrders,
@@ -808,9 +823,33 @@ function OrdersPageContent() {
     [sourceFilteredRecords, orderById]
   );
 
-  // Board API already scopes form + subtype. Re-filtering here wiped keepPreviousData
-  // on form/subtype switches (old rows failed the new form check → "0 of N" empty flash).
-  const categoryFilteredBoard = boardRecords;
+  // Board API scopes form + subtype, but keepPrevious can briefly paint the prior
+  // form's rows. Drop those so package filters never list Marching Band packages
+  // (e.g. Alma Mater Plus) under All-Star Cheer.
+  const categoryFilteredBoard = useMemo(
+    () =>
+      boardRecords.filter((rec) => {
+        const linked =
+          (rec.orderId ? orderById.get(rec.orderId) : undefined) ||
+          orderById.get(rec.id);
+        const formType = linked?.formType || rec.formType;
+        if (formType && formType !== form) return false;
+        if (form === "school-all-star-cheer" && cheerSubtype !== "all") {
+          const sub =
+            linked?.cheerFormSubtype ||
+            (rec as { cheerFormSubtype?: string }).cheerFormSubtype;
+          if (sub && sub !== cheerSubtype) return false;
+        }
+        if (form === "school-all-star-dance" && danceSubtype !== "all") {
+          const sub =
+            linked?.danceFormSubtype ||
+            (rec as { danceFormSubtype?: string }).danceFormSubtype;
+          if (sub && sub !== danceSubtype) return false;
+        }
+        return true;
+      }),
+    [boardRecords, orderById, form, cheerSubtype, danceSubtype]
+  );
 
   // Form/subtype "All" from chips — counts fetch is form-agnostic (no refetch on tab switch).
   const allOrdersCount = useMemo(
@@ -879,8 +918,10 @@ function OrdersPageContent() {
 
   /** Pager "of N" for the active chips (exact for combined chips too). */
   const boardTotalCount = useMemo(() => {
-    // Search scopes rows the counts don't know about — loaded rows are the total.
+    // Search / Date filter scope rows the badge counts don't know about —
+    // loaded (+ hasMore) is the source of truth for the pager.
     if (searchInput.trim()) return undefined;
+    if (tableFilters.dateFilter.type !== "all") return undefined;
     if (rangeFilters.length === 0) return allOrdersCount;
     return (
       ordersRangeFilterTotal(
@@ -897,6 +938,7 @@ function OrdersPageContent() {
     );
   }, [
     searchInput,
+    tableFilters.dateFilter.type,
     rangeFilters,
     allOrdersCount,
     boardCounts,
@@ -1112,6 +1154,8 @@ function OrdersPageContent() {
           range: search ? undefined : nextRange,
           sortBy: tableFilters.sortBy ?? "newest",
           excludeFlagged: true,
+          createdAfter: createdAtBounds.createdAfter,
+          createdBefore: createdAtBounds.createdBefore,
         });
       };
       // Range/form pointerdown must start fetch now — idle callback loses the race.
@@ -1129,6 +1173,7 @@ function OrdersPageContent() {
       searchQuery,
       rangeFilters,
       tableFilters.sortBy,
+      createdAtBounds,
       scheduleIdle,
     ]
   );
@@ -3111,9 +3156,15 @@ function OrdersPageContent() {
             emptyMessage={
               searchInput.trim()
                 ? "No orders match this search."
-                : rangeFilters.length > 0
-                  ? "No orders match these filters."
-                  : "No pending pre-MTD orders found."
+                : tableFilters.dateFilter.type !== "all"
+                  ? `No orders with Timestamp in ${getDateFilterLabel(tableFilters.dateFilter)}${
+                      getDateFilterBoundsLabel(tableFilters.dateFilter)
+                        ? ` (${getDateFilterBoundsLabel(tableFilters.dateFilter)})`
+                        : ""
+                    }.`
+                  : rangeFilters.length > 0
+                    ? "No orders match these filters."
+                    : "No pending pre-MTD orders found."
             }
             loading={
               // Rows stay painted during chip fetches. Skeleton only when the

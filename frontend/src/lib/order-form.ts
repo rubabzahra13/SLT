@@ -11,6 +11,7 @@ import {
   normalizeDanceMusicAffiliates,
   parseDanceMusicAffiliates,
 } from "@/lib/dance-music-affiliate";
+import { canonicalizeMarchingBandPackage } from "@/lib/pricing-engine";
 import {
   ALL_STAR_CHEER_MUSIC_AFFILIATE_OPTIONS,
   normalizeAllStarCheerMusicAffiliateLabel,
@@ -268,15 +269,19 @@ export function normalizeOrder(
           raw.package ||
           "";
   // Cheer: package_type is tier only; mix length belongs on time_length_of_mix.
-  // SE / Dance / Band: keep Magento SoftSelect package text intact.
+  // SE: keep Magento SoftSelect package text intact (canonicalize at lookup).
+  // Marching Band: map SoftSelect labels (incl. prices) → rate-card keys so
+  // Match overwrite + Package filters never store "Alma Mater Plus ($2,250.00)".
   const packageType =
     formType === "school-anthem"
       ? SCHOOL_ANTHEM_PACKAGE
       : formType === "sports-entertainment"
         ? packageTypeRaw
-        : formType === "school-all-star-cheer"
-          ? packageTierOnly(packageTypeRaw) || packageTypeRaw
-          : packageTypeRaw;
+        : formType === "marching-band"
+          ? canonicalizeMarchingBandPackage(packageTypeRaw) || packageTypeRaw
+          : formType === "school-all-star-cheer"
+            ? packageTierOnly(packageTypeRaw) || packageTypeRaw
+            : packageTypeRaw;
 
   // Never refill Time Length from package on any form: an explicit clear ("")
   // must stick, or Mix Time cannot be removed after a manual add.

@@ -70,6 +70,9 @@ export type OrdersBoardQuery = {
   excludeFlagged?: boolean;
   /** Counts API: only open affiliate flags (Flagged Orders page). */
   flaggedOnly?: boolean;
+  /** Inclusive Timestamp window (ISO) — table Date filter. */
+  createdAfter?: string;
+  createdBefore?: string;
   pageSize?: number;
   pageToken?: string | null;
 };
@@ -86,6 +89,8 @@ function boardQueryString(q: OrdersBoardQuery): string {
   if (q.sortBy) qs.set("sort_by", q.sortBy);
   if (q.excludeFlagged === false) qs.set("exclude_flagged", "false");
   if (q.flaggedOnly) qs.set("flagged_only", "true");
+  if (q.createdAfter) qs.set("created_after", q.createdAfter);
+  if (q.createdBefore) qs.set("created_before", q.createdBefore);
   qs.set("page_size", String(q.pageSize ?? 50));
   if (q.pageToken) qs.set("page_token", q.pageToken);
   return qs.toString();

@@ -90,7 +90,12 @@ import {
   formatMixBookedDaysLabel,
   toIsoDateString,
 } from "@/lib/dates";
-import { todayIso } from "@/lib/date-filters";
+import {
+  dateFilterToCreatedAtBounds,
+  getDateFilterBoundsLabel,
+  getDateFilterLabel,
+  todayIso,
+} from "@/lib/date-filters";
 import { generateMTDCsv, triggerCsvDownload } from "@/lib/export-csv";
 import {
   findLinkedOrder,
@@ -335,6 +340,12 @@ function MTDPageContent() {
     return () => window.clearTimeout(t);
   }, [searchInput]);
 
+  // Timestamp window for /mtd/board — once per Date filter selection.
+  const createdAtBounds = useMemo(
+    () => dateFilterToCreatedAtBounds(tableFilters.dateFilter),
+    [tableFilters.dateFilter]
+  );
+
   // scope=board excludes in_payroll (live wrongly kept Completed rows on MTD).
   const mtdBoardQuery = useMemo(
     () => ({
@@ -343,8 +354,10 @@ function MTDPageContent() {
       cheerFormSubtype:
         form === "school-all-star-cheer" ? cheerSubtype : undefined,
       search: searchQuery.trim() || undefined,
+      createdAfter: createdAtBounds.createdAfter,
+      createdBefore: createdAtBounds.createdBefore,
     }),
-    [form, cheerSubtype, searchQuery]
+    [form, cheerSubtype, searchQuery, createdAtBounds]
   );
   const {
     records: pagedMtdRecords,
@@ -2055,23 +2068,34 @@ function MTDPageContent() {
             columns={columns}
             data={displayedRecords}
             rowKey={(rec) => rec.id}
-            emptyMessage="No MTD entries match this filter."
+            emptyMessage={
+              tableFilters.dateFilter.type !== "all"
+                ? `No MTD rows with Timestamp in ${getDateFilterLabel(tableFilters.dateFilter)}${
+                    getDateFilterBoundsLabel(tableFilters.dateFilter)
+                      ? ` (${getDateFilterBoundsLabel(tableFilters.dateFilter)})`
+                      : ""
+                  }.`
+                : "No MTD entries match this filter."
+            }
             loading={mtdBoardLoading && displayedRecords.length === 0}
             pageSize={15}
             totalCount={
-              mtdCountsReady
-                ? mtdActiveChipTotal(mtdBoardCounts, {
-                    formType: form,
-                    cheerFormSubtype:
-                      form === "school-all-star-cheer"
-                        ? cheerSubtype
-                        : undefined,
-                    danceFormSubtype:
-                      form === "school-all-star-dance"
-                        ? danceSubtype
-                        : undefined,
-                  })
-                : undefined
+              // Date filter scopes the board; badge counts stay unscoped.
+              tableFilters.dateFilter.type !== "all" || searchInput.trim()
+                ? undefined
+                : mtdCountsReady
+                  ? mtdActiveChipTotal(mtdBoardCounts, {
+                      formType: form,
+                      cheerFormSubtype:
+                        form === "school-all-star-cheer"
+                          ? cheerSubtype
+                          : undefined,
+                      danceFormSubtype:
+                        form === "school-all-star-dance"
+                          ? danceSubtype
+                          : undefined,
+                    })
+                  : undefined
             }
             hasMore={Boolean(mtdNextPageToken)}
             onLoadMore={loadMoreMtd}

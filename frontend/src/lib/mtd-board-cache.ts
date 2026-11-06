@@ -119,6 +119,8 @@ export function mtdBoardQueryKey(query: {
   category?: string;
   search?: string;
   status?: string;
+  createdAfter?: string;
+  createdBefore?: string;
 }): string {
   return JSON.stringify({
     scope: query.scope ?? "live",
@@ -127,6 +129,8 @@ export function mtdBoardQueryKey(query: {
     category: query.category ?? "",
     search: query.search ?? "",
     status: query.status ?? "",
+    createdAfter: query.createdAfter ?? "",
+    createdBefore: query.createdBefore ?? "",
   });
 }
 

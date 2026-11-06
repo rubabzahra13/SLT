@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   calculateMarchingBandOrderPricing,
+  canonicalizeMarchingBandPackage,
   determineComplianceStatus,
   lookupMarchingBandRateCardEntry,
   MARCHING_BAND_RATE_CARD,
@@ -222,6 +223,29 @@ describe("Prompt 5: Marching Band Pricing Engine Unit Tests", () => {
     assert.equal(plus?.customer, 2250);
     assert.equal(original?.package, "FIGHT SONG ORIGINAL");
     assert.equal(original?.customer, 1100);
+  });
+
+  it("Magento SoftSelect priced labels map to rate-card keys (not Plus→Original)", () => {
+    assert.equal(
+      canonicalizeMarchingBandPackage("Alma Mater Plus ($2,250.00)"),
+      "ALMA MATER PLUS"
+    );
+    assert.equal(
+      canonicalizeMarchingBandPackage("Fight Song Plus ($2,250.00)"),
+      "FIGHT SONG PLUS"
+    );
+    assert.equal(
+      canonicalizeMarchingBandPackage("Fight Song Original ($1,100.00)"),
+      "FIGHT SONG ORIGINAL"
+    );
+    assert.equal(
+      lookupMarchingBandRateCardEntry("Alma Mater Plus ($2,250.00)")?.package,
+      "ALMA MATER PLUS"
+    );
+    assert.equal(
+      lookupMarchingBandRateCardEntry("Alma Mater Plus ($2,250.00)")?.customer,
+      2250
+    );
   });
 
   it("Fight Song / Alma Mater packages ignore affiliates (always flat)", () => {

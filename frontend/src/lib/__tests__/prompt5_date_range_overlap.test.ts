@@ -5,7 +5,10 @@ import {
   extractDateRange,
   isRecordDateRangeOverlapping,
 } from "../dates";
-import { matchesDateFilter } from "../mtd-filters";
+import {
+  matchesDateFilter,
+  matchesMixScheduleDateFilter,
+} from "../mtd-filters";
 import type { MTDRecord } from "../../types";
 
 describe("Prompt 5: Shared Date-Range Overlap Filtering Utility", () => {
@@ -98,7 +101,7 @@ describe("Prompt 5: Shared Date-Range Overlap Filtering Utility", () => {
     assert.equal(doDateRangesOverlap(unscheduledRecord, null), true);
   });
 
-  it("11. Integration with MTD matchesDateFilter utility", () => {
+  it("11. Mix-schedule overlap helper (booking windows)", () => {
     const mockRec: MTDRecord = {
       id: "REC-TEST-OVERLAP",
       programName: "Overlap Cheer Team",
@@ -115,7 +118,7 @@ describe("Prompt 5: Shared Date-Range Overlap Filtering Utility", () => {
       value: { start: "2026-12-16", end: "2026-12-16" },
     };
 
-    assert.equal(matchesDateFilter(mockRec, singleDayFilter), true);
+    assert.equal(matchesMixScheduleDateFilter(mockRec, singleDayFilter), true);
 
     // Filter period for Dec 20-25
     const nonOverlappingFilter = {
@@ -123,7 +126,36 @@ describe("Prompt 5: Shared Date-Range Overlap Filtering Utility", () => {
       value: { start: "2026-12-20", end: "2026-12-25" },
     };
 
-    assert.equal(matchesDateFilter(mockRec, nonOverlappingFilter), false);
+    assert.equal(
+      matchesMixScheduleDateFilter(mockRec, nonOverlappingFilter),
+      false
+    );
+  });
+
+  it("11b. Table Date filter uses Timestamp (createdAt), not mix dates", () => {
+    const mockRec: MTDRecord = {
+      id: "REC-TEST-TS",
+      programName: "Timestamp Cheer",
+      createdAt: "2026-11-03T10:26:00.000Z",
+      mixStartDate: "2025-01-01",
+      mixEndDate: "2025-01-02",
+      assignedProducer: "Nick",
+      status: "active",
+      needsAttention: false,
+    } as any;
+
+    const aroundTimestamp = {
+      type: "custom" as const,
+      value: { start: "2026-11-01", end: "2026-11-05" },
+    };
+    assert.equal(matchesDateFilter(mockRec, aroundTimestamp), true);
+
+    // Mix dates are in 2025 — must NOT drive the table Date filter.
+    const aroundMix = {
+      type: "custom" as const,
+      value: { start: "2025-01-01", end: "2025-01-31" },
+    };
+    assert.equal(matchesDateFilter(mockRec, aroundMix), false);
   });
 
   it("12. Helper extractDateRange normalizes flexible inputs", () => {

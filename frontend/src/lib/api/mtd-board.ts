@@ -17,6 +17,9 @@ export type MtdBoardQuery = {
   category?: string;
   search?: string;
   status?: string;
+  /** Inclusive Timestamp window (ISO) — table Date filter. */
+  createdAfter?: string;
+  createdBefore?: string;
   pageSize?: number;
   pageToken?: string | null;
 };
@@ -29,6 +32,8 @@ function mtdQueryString(q: MtdBoardQuery): string {
   if (q.category) qs.set("category", q.category);
   if (q.search) qs.set("search", q.search);
   if (q.status) qs.set("status", q.status);
+  if (q.createdAfter) qs.set("created_after", q.createdAfter);
+  if (q.createdBefore) qs.set("created_before", q.createdBefore);
   qs.set("page_size", String(q.pageSize ?? 50));
   if (q.pageToken) qs.set("page_token", q.pageToken);
   return qs.toString();

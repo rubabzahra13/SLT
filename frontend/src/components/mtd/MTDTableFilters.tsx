@@ -6,7 +6,10 @@ import { ArrowUpDown, SlidersHorizontal, X } from "lucide-react";
 import clsx from "clsx";
 import { FilterMenu } from "@/components/ui/FilterMenu";
 import { DateFilter, type DateFilterValue } from "@/components/ui/DateFilter";
-import { getDateFilterLabel } from "@/lib/date-filters";
+import {
+  getDateFilterBoundsLabel,
+  getDateFilterLabel,
+} from "@/lib/date-filters";
 import {
   buildAssignedProducerOptions,
   buildInfoOptions,
@@ -14,6 +17,7 @@ import {
   buildRequestedProducerOptions,
   buildSplitOptions,
   buildTimeLimitOptions,
+  matchesFormFilter,
   MTD_SORT_BY_OPTIONS,
   producersForFormCategory,
   type InfoFilter,
@@ -147,36 +151,58 @@ export function MTDTableFilterPanel({
   const showDataFilter = variant !== "orders";
   const editorFilterLabel = "Assigned editor";
 
+  // Scope option chips to the active form so keepPrevious / mixed boards cannot
+  // surface Marching Band packages under All-Star Cheer (Alma Mater Plus, etc.).
+  const formScopedRecords = useMemo(() => {
+    if (!form) return records;
+    return records.filter((rec) =>
+      matchesFormFilter(
+        rec,
+        orderById,
+        form,
+        cheerSubtype ?? "all",
+        danceSubtype ?? "all"
+      )
+    );
+  }, [records, orderById, form, cheerSubtype, danceSubtype]);
+
   const packageOptions = useMemo(
-    () => buildPackageTierOptions(records),
-    [records]
+    () => buildPackageTierOptions(formScopedRecords),
+    [formScopedRecords]
   );
   const timeLimitOptions = useMemo(
-    () => buildTimeLimitOptions(records),
-    [records]
+    () => buildTimeLimitOptions(formScopedRecords),
+    [formScopedRecords]
   );
-  const splitOptions = useMemo(() => buildSplitOptions(records), [records]);
+  const splitOptions = useMemo(
+    () => buildSplitOptions(formScopedRecords),
+    [formScopedRecords]
+  );
   const categoryProducers = useMemo(
     () =>
       producersForFormCategory(producers, form, cheerSubtype, danceSubtype),
     [producers, form, cheerSubtype, danceSubtype]
   );
   const assignedOptions = useMemo(
-    () => buildAssignedProducerOptions(records, [], categoryProducers),
-    [records, categoryProducers]
+    () =>
+      buildAssignedProducerOptions(formScopedRecords, [], categoryProducers),
+    [formScopedRecords, categoryProducers]
   );
   const requestedOptions = useMemo(
     () =>
       buildRequestedProducerOptions(
-        records,
+        formScopedRecords,
         [],
         categoryProducers,
         orderById
       ),
-    [records, categoryProducers, orderById]
+    [formScopedRecords, categoryProducers, orderById]
   );
 
-  const infoOptions = useMemo(() => buildInfoOptions(records), [records]);
+  const infoOptions = useMemo(
+    () => buildInfoOptions(formScopedRecords),
+    [formScopedRecords]
+  );
 
   const isCheer = !form || form === "school-all-star-cheer";
   const showSplit = showCheerSplitFilter(form, cheerSubtype);
@@ -420,35 +446,55 @@ export function useMTDFilterChips(
   const showDataFilter = variant !== "orders";
   const editorFilterLabel = "Assigned editor";
 
+  const formScopedRecords = useMemo(() => {
+    if (!form) return records;
+    return records.filter((rec) =>
+      matchesFormFilter(
+        rec,
+        orderById,
+        form,
+        cheerSubtype ?? "all",
+        danceSubtype ?? "all"
+      )
+    );
+  }, [records, orderById, form, cheerSubtype, danceSubtype]);
+
   const packageOptions = useMemo(
-    () => buildPackageTierOptions(records),
-    [records]
+    () => buildPackageTierOptions(formScopedRecords),
+    [formScopedRecords]
   );
   const timeLimitOptions = useMemo(
-    () => buildTimeLimitOptions(records),
-    [records]
+    () => buildTimeLimitOptions(formScopedRecords),
+    [formScopedRecords]
   );
-  const splitOptions = useMemo(() => buildSplitOptions(records), [records]);
+  const splitOptions = useMemo(
+    () => buildSplitOptions(formScopedRecords),
+    [formScopedRecords]
+  );
   const categoryProducers = useMemo(
     () =>
       producersForFormCategory(producers, form, cheerSubtype, danceSubtype),
     [producers, form, cheerSubtype, danceSubtype]
   );
   const assignedOptions = useMemo(
-    () => buildAssignedProducerOptions(records, [], categoryProducers),
-    [records, categoryProducers]
+    () =>
+      buildAssignedProducerOptions(formScopedRecords, [], categoryProducers),
+    [formScopedRecords, categoryProducers]
   );
   const requestedOptions = useMemo(
     () =>
       buildRequestedProducerOptions(
-        records,
+        formScopedRecords,
         [],
         categoryProducers,
         orderById
       ),
-    [records, categoryProducers, orderById]
+    [formScopedRecords, categoryProducers, orderById]
   );
-  const infoOptions = useMemo(() => buildInfoOptions(records), [records]);
+  const infoOptions = useMemo(
+    () => buildInfoOptions(formScopedRecords),
+    [formScopedRecords]
+  );
 
   return useMemo(() => {
     const items: Array<{ key: string; label: string; onClear: () => void }> =
@@ -515,9 +561,11 @@ export function useMTDFilterChips(
       });
     }
     if (filters.dateFilter.type !== "all") {
+      const dateLabel = getDateFilterLabel(filters.dateFilter);
+      const bounds = getDateFilterBoundsLabel(filters.dateFilter);
       items.push({
         key: "dateFilter",
-        label: getDateFilterLabel(filters.dateFilter),
+        label: bounds ? `${dateLabel} · ${bounds}` : dateLabel,
         onClear: () => onChange({ dateFilter: { type: "all", value: null } }),
       });
     }

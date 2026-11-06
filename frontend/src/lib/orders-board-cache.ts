@@ -2045,6 +2045,8 @@ export function ordersBoardQueryKey(
     range?: string;
     sortBy?: string;
     excludeFlagged?: boolean;
+    createdAfter?: string;
+    createdBefore?: string;
   }
 ): string {
   return JSON.stringify({
@@ -2057,6 +2059,8 @@ export function ordersBoardQueryKey(
     range: query.range ?? "all",
     sortBy: query.sortBy ?? "newest",
     excludeFlagged: query.excludeFlagged !== false,
+    createdAfter: query.createdAfter ?? "",
+    createdBefore: query.createdBefore ?? "",
   });
 }
 

@@ -16,6 +16,7 @@ from app.api.mtd import (
     _serialize_mtd,
 )
 from app.core.database import SessionLocal, get_db
+from app.lib.created_at_bounds import apply_created_at_bounds
 from app.lib.pagination import page_token_query, paginate_keyset_by_created
 from app.models.mtd_record import MTDRecord
 from app.models.order import Order
@@ -82,9 +83,14 @@ def _mtd_board_query(
     category: str | None,
     search: str | None,
     status: str | None,
+    created_after: str | None = None,
+    created_before: str | None = None,
 ):
     query = db.query(MTDRecord).options(*_mtd_load_options())
     query = _apply_mtd_scope(query, scope)
+    query = apply_created_at_bounds(
+        query, MTDRecord.created_at, created_after, created_before
+    )
 
     needs_join = bool(
         (cheer_form_subtype and cheer_form_subtype not in ("all", "All"))
@@ -154,6 +160,8 @@ def get_mtd_board(
     category: str | None = None,
     search: str | None = None,
     status: str | None = None,
+    created_after: str | None = None,
+    created_before: str | None = None,
     page_size: int | None = Query(None, ge=1, le=500),
     page_token: str | None = Depends(page_token_query),
     db: Session = Depends(get_db),
@@ -168,6 +176,8 @@ def get_mtd_board(
         category=category,
         search=search,
         status=status,
+        created_after=created_after,
+        created_before=created_before,
     )
     page, next_token = paginate_keyset_by_created(
         query,
