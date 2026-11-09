@@ -1124,6 +1124,12 @@ def _match_pool_base_query(db: Session):
             Order.merged_form_order_id.is_(None),
             Order.merged_form_order_id == "",
         ),
+        # Overwrite match keeps the Magento form and discards the manual.
+        # suppress_manual_form_merge marks that form so it is not offered again.
+        or_(
+            Order.suppress_manual_form_merge.is_(False),
+            Order.suppress_manual_form_merge.is_(None),
+        ),
     )
 
 

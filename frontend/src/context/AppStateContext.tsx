@@ -102,6 +102,7 @@ import { pickInvoice } from "@/lib/invoice";
 import { orderPatchFromMTD } from "@/lib/mtd-order-sync";
 import {
   applyOrdersBoardLiveDelete,
+  isDiscardedOrder,
   isRecentLocalOrderWrite,
   patchOrdersBoardRowOptimistic,
   readOrdersBoardOrder,
@@ -3337,6 +3338,166 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         throw new Error("This Magento form is already matched to a manual order.");
       }
 
+      // Overwrite: the Magento form is the order that continues. Copy the
+      // manual's invoice onto that form, then delete the manual so it cannot
+      // come back as a new Manual order.
+      if (options?.overwrite) {
+        const coveringBeforeMatch =
+          mtdRecords.find((r) => mtdRecordCoversOrder(r, manual)) ||
+          collectMtdBoardCachedRecords().find((r) =>
+            mtdRecordCoversOrder(r, manual)
+          );
+        const matchInvoice = pickInvoice(
+          invoiceBeforeOverride,
+          manual.invoice,
+          coveringBeforeMatch?.invoice
+        );
+        const prevActive = activeOrders;
+        const prevMtd = mtdRecords;
+        const formNext: Order = {
+          ...form,
+          suppressManualFormMerge: true,
+          mergedIntoManualOrderId: undefined,
+          ...(matchInvoice ? { invoice: matchInvoice } : {}),
+        };
+        const manualIds = new Set(
+          [manual.id, manual.uuid, manual.legacyId].filter(
+            (id): id is string => Boolean(id)
+          )
+        );
+        setActiveOrders((prev) =>
+          prev
+            .filter(
+              (o) =>
+                !manualIds.has(o.id) &&
+                !(o.uuid && manualIds.has(o.uuid)) &&
+                !(o.legacyId && manualIds.has(o.legacyId))
+            )
+            .map((o) => (o.id === form.id ? formNext : o))
+        );
+        setMtdRecords((prev) =>
+          prev.map((rec) => {
+            if (!mtdRecordCoversOrder(rec, manual)) return rec;
+            return {
+              ...rec,
+              orderId: form.uuid || form.id,
+              invoice: pickInvoice(matchInvoice, rec.invoice),
+              assignedProducer: null,
+              mixStartDate: "",
+              mixEndDate: undefined,
+              isReassigned: false,
+              isManualScheduleEntry: false,
+            };
+          })
+        );
+        ordersMutatedAtRef.current = Date.now();
+        mtdMutatedAtRef.current = Date.now();
+        const undoMatchCaches = syncOrdersAfterMatch({
+          manual,
+          form,
+          manualPatch: {},
+          formPatch: {
+            suppressManualFormMerge: true,
+            ...(matchInvoice ? { invoice: matchInvoice } : {}),
+          },
+          discardManual: true,
+        });
+        if (coveringBeforeMatch?.id) {
+          patchMtdBoardRecordInCaches(coveringBeforeMatch.id, {
+            orderId: form.uuid || form.id,
+            assignedProducer: null,
+            mixStartDate: "",
+            mixEndDate: undefined,
+            isReassigned: false,
+            ...(matchInvoice ? { invoice: matchInvoice } : {}),
+          });
+        }
+        const restorePulse =
+          assignmentBefore.producer && assignmentBefore.start
+            ? dropDashboardPulseOpenBooking({
+                producer: assignmentBefore.producer,
+                start: assignmentBefore.start,
+                end: assignmentBefore.end,
+              })
+            : null;
+        options?.onApplied?.();
+        try {
+          await updateOrderApi(form.id, { suppressManualFormMerge: true });
+          if (matchInvoice) {
+            const seeded = mergeCollectionStateFromOrder(
+              {
+                ...stagingRecordFromOrder(formNext),
+                invoice: matchInvoice,
+                inMTD: false,
+                orderId: form.uuid || form.id,
+                assignedProducer: null,
+                mixStartDate: "",
+                mixEndDate: "",
+                isReassigned: false,
+                isManualScheduleEntry: false,
+                mergedFormOrderId: undefined,
+                manualOverlapSnapshot: undefined,
+              },
+              formNext
+            );
+            const saved = await createMTDRecordApi(seeded);
+            const mergedSaved = mergeCollectionStateFromOrder(
+              {
+                ...seeded,
+                ...saved,
+                id: saved.id,
+                uuid: saved.uuid,
+                orderId: saved.orderId || form.uuid || form.id,
+                invoice: pickInvoice(saved.invoice, matchInvoice),
+                isManualScheduleEntry: false,
+              },
+              formNext
+            );
+            setMtdRecords((prev) => {
+              const withoutManualMtd = prev.filter((rec) => {
+                if (
+                  coveringBeforeMatch &&
+                  (rec.id === coveringBeforeMatch.id ||
+                    rec.uuid === coveringBeforeMatch.uuid)
+                ) {
+                  return false;
+                }
+                return !mtdRecordCoversOrder(rec, manual);
+              });
+              return collapsePreMtdClonesForOrder(
+                withoutManualMtd,
+                mergedSaved,
+                formNext
+              );
+            });
+          }
+          await deleteOrderApi(manual.id, { allowMissing: true });
+          if (coveringBeforeMatch?.id) {
+            removeMtdBoardRecordsFromCaches(
+              [coveringBeforeMatch.id, coveringBeforeMatch.uuid || ""].filter(
+                Boolean
+              )
+            );
+          }
+          addAlert({
+            tone: "success",
+            title: "Orders matched · form data kept",
+            message: `${
+              getOrderIdentityName(form) || form.programName || "Magento form"
+            } kept${matchInvoice ? ` · invoice ${matchInvoice}` : ""}`,
+            href: "/orders",
+          });
+        } catch (err) {
+          undoMatchCaches();
+          restorePulse?.();
+          setActiveOrders(prevActive);
+          setMtdRecords(prevMtd);
+          notifySaveError("Could not match Magento form to manual order", err);
+          throw err;
+        }
+        return;
+      }
+
       const { manualPatch, formPatch } = mergeFormWinsPatches(manual, form);
       const softPatch = mergePatchFromForm(manual, form);
       let combinedManualPatch: Partial<Order> = {
@@ -4540,8 +4701,14 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
   const applyIncomingOrder = useCallback((incoming: Order) => {
     const mergeList = (prev: Order[], notify: boolean) => {
+      if (isDiscardedOrder(incoming)) {
+        const next = prev.filter((o) => !ordersReferToSame(o, incoming));
+        return next.length === prev.length ? prev : next;
+      }
       const idx = prev.findIndex((o) => ordersReferToSame(o, incoming));
       if (idx === -1) {
+        // This tab's own save is not a new-order notification.
+        const ownWrite = isRecentLocalOrderWrite(incoming);
         // Brand-new Magento form from API/stream: stays unmatched until
         // an admin links it on Match Orders (no automatic name-merge).
         applyingPeerOrdersRef.current = true;
@@ -4555,7 +4722,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
             notifySaveError("Could not open affiliate flag", err);
           });
         }
-        if (notify) {
+        if (notify && !ownWrite) {
           const catalog = [stamped, ...prev];
           const event = incomingOrderBellEvent(stamped, catalog);
           // Immediate flagged / unmatched new-order bells only. Match

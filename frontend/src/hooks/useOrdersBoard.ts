@@ -10,6 +10,7 @@ import {
 } from "@/lib/api/orders-board";
 import {
   applyPeerOrderUpdate,
+  isDiscardedOrder,
   isRecentLocalOrderWrite,
   mergeIncomingOrderPreservingRecentLocalFields,
   mergeStickyChipCounts,
@@ -1139,6 +1140,22 @@ export function useOrdersBoard(
         return;
       }
       if (event.type === "order.updated") {
+        if (isDiscardedOrder(event.order as Order)) {
+          const droppedId = event.order.id;
+          if (pageIdsRef.current.has(droppedId)) {
+            setOrders((prev) => {
+              const next = prev.filter((o) => o.id !== droppedId);
+              pageIdsRef.current = new Set(next.map((o) => o.id));
+              writeOrdersBoardCache(queryKey, {
+                orders: next,
+                nextPageToken:
+                  readOrdersBoardCache(queryKey)?.entry.nextPageToken ?? null,
+              });
+              return next;
+            });
+          }
+          return;
+        }
         const id = event.order.id;
         const q = JSON.parse(queryKey) as OrdersBoardQuery;
         const onThisBoard = orderMatchesActiveBoard(event.order as Order, q);

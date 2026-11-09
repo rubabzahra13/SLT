@@ -2272,6 +2272,44 @@ export const MATCH_POOL_SYNC_EVENT = "slt-match-pool-sync";
 const recentlyMatchedAt = new Map<string, number>();
 const RECENT_MATCH_MS = 60_000;
 
+/** Manuals Confirm match discarded. A late order.updated must not recreate them. */
+const discardedOrderAt = new Map<string, number>();
+const DISCARDED_ORDER_MS = 10 * 60 * 1000;
+
+export function noteDiscardedOrder(
+  ...ids: Array<string | null | undefined>
+): void {
+  const now = Date.now();
+  for (const id of ids) {
+    if (id) discardedOrderAt.set(id, now);
+  }
+}
+
+export function clearDiscardedOrder(
+  ...ids: Array<string | null | undefined>
+): void {
+  for (const id of ids) {
+    if (id) discardedOrderAt.delete(id);
+  }
+}
+
+export function isDiscardedOrder(
+  order:
+    | string
+    | Pick<Order, "id" | "uuid" | "legacyId">
+    | null
+    | undefined
+): boolean {
+  const now = Date.now();
+  for (const [id, at] of discardedOrderAt) {
+    if (now - at > DISCARDED_ORDER_MS) discardedOrderAt.delete(id);
+  }
+  if (!order) return false;
+  const ids =
+    typeof order === "string" ? [order] : [order.id, order.uuid, order.legacyId];
+  return ids.some((id) => Boolean(id && discardedOrderAt.has(id)));
+}
+
 function orderIdsOf(o: Pick<Order, "id" | "uuid" | "legacyId">): string[] {
   return [o.id, o.uuid, o.legacyId].filter((id): id is string => Boolean(id));
 }
@@ -2281,9 +2319,10 @@ export function dropRecentlyMatched(orders: Order[]): Order[] {
   for (const [id, at] of recentlyMatchedAt) {
     if (now - at > RECENT_MATCH_MS) recentlyMatchedAt.delete(id);
   }
-  if (recentlyMatchedAt.size === 0) return orders;
   const kept = orders.filter(
-    (o) => !orderIdsOf(o).some((id) => recentlyMatchedAt.has(id))
+    (o) =>
+      !o.suppressManualFormMerge &&
+      !orderIdsOf(o).some((id) => recentlyMatchedAt.has(id))
   );
   return kept.length === orders.length ? orders : kept;
 }
@@ -2304,7 +2343,8 @@ export function inMatchPoolScope(o: Order): boolean {
     o.status !== "completed" &&
     o.status !== "in_mtd" &&
     !o.mergedIntoManualOrderId &&
-    !o.mergedFormOrderId
+    !o.mergedFormOrderId &&
+    !o.suppressManualFormMerge
   );
 }
 
@@ -2582,6 +2622,121 @@ function notifyOrdersBoardCountsChanged() {
 }
 
 /**
+ * Overwrite confirm: take the manual off every cached Orders page and its
+ * badge counts. The Magento form row is left in place.
+ */
+function discardManualFromOrdersBoard(manual: Order): {
+  undoBoard: () => void;
+  undoCounts: () => void;
+} {
+  noteLocalOrderWrite(manual.id, manual.uuid, manual.legacyId);
+  const boardSnapshots = new Map<string, OrdersBoardCacheEntry>();
+  for (const [key, entry] of boardCache) {
+    if (!entry.orders.some((o) => orderMatchesId(o, manual.id))) continue;
+    boardSnapshots.set(key, entry);
+    const next = {
+      ...entry,
+      orders: entry.orders.filter((o) => !orderMatchesId(o, manual.id)),
+      updatedAt: Date.now(),
+    };
+    boardCache.set(key, next);
+    try {
+      writeBoardSession(ssKey(BOARD_SS_PREFIX, key), next);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const countSnapshots = new Map<
+    string,
+    { counts: OrdersBoardCounts; updatedAt: number }
+  >();
+  if (manual.status !== "in_mtd") {
+    for (const [key, entry] of countsCache) {
+      if (!countsScopeIncludesOrder(key, manual)) continue;
+      countSnapshots.set(key, entry);
+      const cheer =
+        manual.formType === "school-all-star-cheer" &&
+        isConcreteSubtype(manual.cheerFormSubtype)
+          ? manual.cheerFormSubtype
+          : undefined;
+      const dance =
+        manual.formType === "school-all-star-dance" &&
+        isConcreteSubtype(manual.danceFormSubtype)
+          ? manual.danceFormSubtype
+          : undefined;
+      let counts = bumpNormalBoardPresence(entry.counts, manual, -1);
+      if (manual.isManualEntry && counts.manual_by_cheer_form_subtype) {
+        counts = {
+          ...counts,
+          manual_by_cheer_form_subtype: bumpCountMap(
+            counts.manual_by_cheer_form_subtype,
+            cheer,
+            -1
+          ),
+        };
+      }
+      if (manual.isManualEntry && counts.manual_by_dance_form_subtype) {
+        counts = {
+          ...counts,
+          manual_by_dance_form_subtype: bumpCountMap(
+            counts.manual_by_dance_form_subtype,
+            dance,
+            -1
+          ),
+        };
+      }
+      const shifted = {
+        counts,
+        updatedAt: entry.updatedAt,
+      };
+      countsCache.set(key, shifted);
+      try {
+        writeCountsSession(ssKey(COUNTS_SS_PREFIX, key), shifted);
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(
+      new CustomEvent(ORDERS_BOARD_PATCH_EVENT, {
+        detail: {
+          orderId: manual.id,
+          deleted: true,
+          countsChanged: countSnapshots.size > 0,
+        },
+      })
+    );
+  }
+
+  return {
+    undoBoard: () => {
+      for (const [key, entry] of boardSnapshots) {
+        boardCache.set(key, entry);
+        try {
+          writeBoardSession(ssKey(BOARD_SS_PREFIX, key), entry);
+        } catch {
+          /* ignore */
+        }
+      }
+    },
+    undoCounts: () => {
+      for (const [key, entry] of countSnapshots) {
+        countsCache.set(key, entry);
+        try {
+          writeCountsSession(ssKey(COUNTS_SS_PREFIX, key), entry);
+        } catch {
+          /* ignore */
+        }
+      }
+      notifyOrdersBoardCountsChanged();
+    },
+  };
+}
+
+/**
  * Confirm match: the pair leaves every cached Match pool page and badge, and
  * both Orders board rows take their merged values, before the PATCHes return
  * (no pool / counts refetch). Returns an undo for a failed save.
@@ -2591,6 +2746,11 @@ export function syncOrdersAfterMatch(args: {
   form: Order;
   manualPatch: Partial<Order>;
   formPatch: Partial<Order>;
+  /**
+   * Overwrite confirm: the Magento form stays on the Orders board and the
+   * manual is removed. The manual must not be rewritten into a second Form row.
+   */
+  discardManual?: boolean;
 }): () => void {
   const { manual, form } = args;
   const ids = new Set([...orderIdsOf(manual), ...orderIdsOf(form)]);
@@ -2628,20 +2788,36 @@ export function syncOrdersAfterMatch(args: {
     matchCountsVersion += 1;
   }
 
-  // Match can carry the form's producer onto the manual — nothing else bumps it.
-  const undoManual = patchOrdersBoardRowOptimistic(manual.id, args.manualPatch, {
-    shiftAssignment: true,
-  });
-  const undoForm = patchOrdersBoardRowOptimistic(form.id, args.formPatch);
-  const manualAfter = { ...manual, ...args.manualPatch } as Order;
-  const undoSourceCounts = shiftOrdersBoardCountsAfterMatch(
-    manual,
-    form,
-    manualAfter
-  );
+  // Overwrite: drop the manual. The form stays, with invoice / suppress only.
+  // Soft match still rewrites the manual and hides the absorbed form.
+  let undoManual: () => void = () => undefined;
+  let undoForm: () => void = () => undefined;
+  let undoSourceCounts: () => void = () => undefined;
+  if (args.discardManual) {
+    const { undoBoard, undoCounts } = discardManualFromOrdersBoard(manual);
+    undoManual = undoBoard;
+    undoSourceCounts = undoCounts;
+    noteDiscardedOrder(...orderIdsOf(manual));
+    const formKeep: Partial<Order> = { ...args.formPatch };
+    delete formKeep.mergedIntoManualOrderId;
+    undoForm = patchOrdersBoardRowOptimistic(form.id, formKeep);
+  } else {
+    // Match can carry the form's producer onto the manual — nothing else bumps it.
+    undoManual = patchOrdersBoardRowOptimistic(manual.id, args.manualPatch, {
+      shiftAssignment: true,
+    });
+    undoForm = patchOrdersBoardRowOptimistic(form.id, args.formPatch);
+    const manualAfter = { ...manual, ...args.manualPatch } as Order;
+    undoSourceCounts = shiftOrdersBoardCountsAfterMatch(
+      manual,
+      form,
+      manualAfter
+    );
+  }
   notifyMatchPoolSync([...ids]);
 
   return () => {
+    if (args.discardManual) clearDiscardedOrder(...orderIdsOf(manual));
     undoSourceCounts();
     undoForm();
     undoManual();

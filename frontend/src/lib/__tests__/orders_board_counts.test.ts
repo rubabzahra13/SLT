@@ -384,12 +384,12 @@ describe("confirm match syncs pool, match badges and board locally", () => {
     syncOrdersAfterMatch({
       manual,
       form,
-      manualPatch: {
-        routineNotes: "Count 8",
-        assignedProducer: "CH",
-        mergedFormOrderId: form.id,
+      manualPatch: {},
+      formPatch: {
+        suppressManualFormMerge: true,
+        invoice: "12345",
       },
-      formPatch: { mergedIntoManualOrderId: manual.id },
+      discardManual: true,
     });
 
   it("drops the pair everywhere with no refetch, and undo restores it", () => {
@@ -409,8 +409,8 @@ describe("confirm match syncs pool, match badges and board locally", () => {
     assert.equal(mc.manual_by_form_type[cheer], 3);
     assert.equal(mc.manual_by_cheer_form_subtype.rec, 1);
 
-    // Manual takes the form's notes + producer, then the absorbed form leaves
-    // the board. Net Complete/Assigned unchanged; All drops by the hidden form.
+    // The manual is discarded. The Magento form stays, so Form totals do not
+    // change and All / Manual drop by that one manual.
     const c = readOrdersBoardCountsCache(countsKey)!.counts;
     assert.equal(c.all, 190);
     assert.equal(c.complete_data, 2);
@@ -430,7 +430,13 @@ describe("confirm match syncs pool, match badges and board locally", () => {
     assert.equal(manualCounts.not_assigned, 2);
     assert.equal(manualCounts.form, 61);
     assert.equal(manualCounts.manual, 3);
-    assert.equal(readOrdersBoardOrder(form.id)!.mergedIntoManualOrderId, manual.id);
+    assert.equal(readOrdersBoardOrder(manual.id), null);
+    assert.equal(
+      readOrdersBoardOrder(form.id)!.mergedIntoManualOrderId,
+      undefined
+    );
+    assert.equal(readOrdersBoardOrder(form.id)!.invoice, "12345");
+    assert.equal(readOrdersBoardOrder(form.id)!.suppressManualFormMerge, true);
 
     // A stale server page from before the match can't bring the pair back.
     assert.deepEqual(
@@ -458,7 +464,9 @@ describe("confirm match syncs pool, match badges and board locally", () => {
         .counts.all,
       4
     );
+    assert.equal(readOrdersBoardOrder(manual.id)?.id, manual.id);
     assert.equal(readOrdersBoardOrder(form.id)!.mergedIntoManualOrderId, undefined);
+    assert.equal(readOrdersBoardOrder(form.id)!.suppressManualFormMerge, undefined);
     assert.equal(dropRecentlyMatched([manual, other]).length, 2);
   });
 
