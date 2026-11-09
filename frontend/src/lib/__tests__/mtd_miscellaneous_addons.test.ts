@@ -139,8 +139,9 @@ describe("MTD Miscellaneous Payroll Items & Add-On Pricing", () => {
       };
 
       const res = calculateMiscellaneousPayrollAddons(fullRecord);
-      // 150 (Rush) + 50 (8-CS) + 25 (Extend) + 45 (3 Songs) + 90 (3 Editing Time) = 360
-      assert.equal(res.totalPayrollAddOns, 360);
+      // 150 (Rush) + 45 (3 Songs) + 90 (3 Editing Time) = 285
+      // Extend/Process 8-CS are retired and must not add $25/$50.
+      assert.equal(res.totalPayrollAddOns, 285);
     });
   });
 

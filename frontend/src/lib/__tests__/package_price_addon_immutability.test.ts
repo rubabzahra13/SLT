@@ -62,7 +62,7 @@ describe("Add-On Pricing Invariant Tests: Package Price Must Not Change", () => 
     }
   });
 
-  it("Test 5: Multiple Add-Ons: Base Package Price remains $450 (Youth Rec Cheer)", () => {
+  it("Test 5: Youth Rec Cheer Extend/Process 8-CS no longer change payroll", () => {
     const res = calculateCheerOrderPricing({
       cheerFormSubtype: "youth-rec-cheer",
       packageType: "BRONZE 1:00",
@@ -70,7 +70,7 @@ describe("Add-On Pricing Invariant Tests: Package Price Must Not Change", () => 
       hasProcessing8ctSheetsAddon: true,
     });
     assert.equal(res.customerFacingPrice, 450); // Base package price (flat)
-    assert.equal(res.payrollBasePrice, 525); // $450 + $25 + $50
+    assert.equal(res.payrollBasePrice, 450); // Retired 8-CS add-ons ignored
   });
 
   it("Test 6: Dance & Marching Band Add-Ons: Base Package Prices remain immutable", () => {

@@ -411,10 +411,7 @@ function normalizeCompliantAffiliateIds(ids?: string[]): string[] {
 const DEFAULT_CATEGORY_ADDONS: Record<CategoryKey, PricingReferenceAddOn[]> = {
   "All-Star Cheer": [],
   "School Cheer": [],
-  "Youth Rec Cheer": [
-    { name: "Extend 2 8ct Phrase/Raps", price: "+$25" },
-    { name: "Processing 8ct Sheets", price: "+$50" },
-  ],
+  "Youth Rec Cheer": [],
   Pom: [
     { name: "Traditional VO", price: "+$25" },
     { name: "Themed VO (up to 5)", price: "+$75" },

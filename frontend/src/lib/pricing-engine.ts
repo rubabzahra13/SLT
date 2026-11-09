@@ -1044,33 +1044,8 @@ export function calculateMiscellaneousPayrollAddons(
     }
   }
 
-  // 6. Existing Cheer / School Addons
-
-  if (Boolean(item.hasExtend8ctAddon)) {
-    items.push({
-      id: "extend_8ct",
-      label: "Extend 2 8cs Phrase / Raps",
-      customerAmount: 0,
-      payrollAmount: 25,
-      quantity: 1,
-      note: "Add-on (Youth Rec)",
-    });
-    totalPayrollAddOns += 25;
-  }
-
-  if (Boolean(item.hasProcessing8ctSheetsAddon)) {
-    items.push({
-      id: "process_8ct",
-      label: "Processing 8cs Sheets",
-      customerAmount: 0,
-      payrollAmount: 50,
-      quantity: 1,
-      note: "Add-on (Youth Rec)",
-    });
-    totalPayrollAddOns += 50;
-  }
-
-  // Sheet Music and Add Vocals are retired. Stored flags must not change price.
+  // Extend / Process 8-CS and Sheet Music / Add Vocals are retired.
+  // Stored flags must not change price.
   return { items, totalPayrollAddOns };
 }
 
@@ -1080,7 +1055,9 @@ export type PricingEngineInput = {
   timeLengthOfMix?: string;
   musicAffiliate?: string;
   hasRallyMix?: boolean;
+  /** @deprecated Retired — ignored by pricing. */
   hasExtend8ctAddon?: boolean;
+  /** @deprecated Retired — ignored by pricing. */
   hasProcessing8ctSheetsAddon?: boolean;
   danceVoiceover?: "25" | "75" | "100" | null;
   cheerVoiceover20?: boolean;

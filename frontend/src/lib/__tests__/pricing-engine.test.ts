@@ -222,41 +222,21 @@ describe("Central Pricing Engine: Core Rules Unit Tests (Prompt 8)", () => {
       assert.equal(rushResult.payrollBasePrice, 1150); // 1000 + 150
     });
 
-    it("Youth Rec Cheer BRONZE 2:00 with Extend-8ct ($25) and Processing-8ct-Sheets ($50)", () => {
-      const extendOnly = calculateCheerOrderPricing({
+    it("Youth Rec Cheer Extend/Process 8-CS flags are retired and never change price", () => {
+      const base = calculateCheerOrderPricing({
         cheerFormSubtype: "youth-rec-cheer",
         packageType: "BRONZE 2:00",
-        hasExtend8ctAddon: true,
       });
-      assert.equal(extendOnly.customerFacingPrice, 750); // 750 flat package
-      assert.equal(extendOnly.payrollBasePrice, 775); // 750 + 25
-
-      const processOnly = calculateCheerOrderPricing({
-        cheerFormSubtype: "youth-rec-cheer",
-        packageType: "BRONZE 2:00",
-        hasProcessing8ctSheetsAddon: true,
-      });
-      assert.equal(processOnly.customerFacingPrice, 750);
-      assert.equal(processOnly.payrollBasePrice, 800); // 750 + 50
-
-      const bothAddons = calculateCheerOrderPricing({
+      const withRetiredFlags = calculateCheerOrderPricing({
         cheerFormSubtype: "youth-rec-cheer",
         packageType: "BRONZE 2:00",
         hasExtend8ctAddon: true,
         hasProcessing8ctSheetsAddon: true,
       });
-      assert.equal(bothAddons.customerFacingPrice, 750);
-      assert.equal(bothAddons.payrollBasePrice, 825); // 750 + 25 + 50
-    });
-
-    it("Youth Rec Cheer add-ons are ignored on School Cheer and All-Star Cheer", () => {
-      const schoolCheer = calculateCheerOrderPricing({
-        cheerFormSubtype: "school-cheer-viroc-yes",
-        packageType: "GOLD 2:15",
-        hasExtend8ctAddon: true,
-        hasProcessing8ctSheetsAddon: true,
-      });
-      assert.equal(schoolCheer.customerFacingPrice, 1100);
+      assert.equal(base.customerFacingPrice, 750);
+      assert.equal(base.payrollBasePrice, 750);
+      assert.equal(withRetiredFlags.customerFacingPrice, 750);
+      assert.equal(withRetiredFlags.payrollBasePrice, 750);
     });
 
     it("School Cheer SoftSelect Other mix length → Needs Quote for any package", () => {

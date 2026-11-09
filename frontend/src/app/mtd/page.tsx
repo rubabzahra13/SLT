@@ -12,7 +12,6 @@ import { TruncatedText } from "@/components/ui/TruncatedText";
 import {
   InlineCell,
   InlineTriStateCheckGroup,
-  InlineTwoStateToggle,
   InlineSelect,
   InlineDanceVoiceoverPills,
   InlineCheerVoiceoverPills,
@@ -1046,10 +1045,7 @@ function MTDPageContent() {
 
   const columns: Column<MTDRecord>[] = useMemo(() => {
     const showRallyMix = false; // Removed per spec: Rally Mix is a package, not an add-on
-
-    const showYouthAddons =
-      form === "school-all-star-cheer" &&
-      cheerSubtype === "youth-rec-cheer";
+    // Youth Rec Extend / Process 8-CS columns retired — no UI toggle or pricing.
 
     const showCheerVoiceover = false; // Removed from MTD per spec (Voiceover is strictly Payroll internal)
     const showDanceVoiceover = false; // Removed from MTD per spec (Voiceover is strictly Payroll internal)
@@ -1409,8 +1405,6 @@ function MTDPageContent() {
               timeLengthOfMix: order?.timeLengthOfMix,
               musicAffiliate: order?.musicAffiliate,
               hasRallyMix: order?.hasRallyMix,
-              hasExtend8ctAddon: rec.hasExtend8ctAddon,
-              hasProcessing8ctSheetsAddon: rec.hasProcessing8ctSheetsAddon,
             });
             engineCustomerPrice = enginePricing.customerFacingPrice;
             if (enginePricing.isUnpriced) isUnpriced = true;
@@ -1634,52 +1628,6 @@ function MTDPageContent() {
     ];
 
 
-
-    if (showYouthAddons) {
-      baseCols.push({
-        key: "extend8ctCol",
-        header: "Extend 8-CS",
-        width: "90px",
-        align: "center",
-        nowrap: false,
-        cellClassName: "!px-2 !py-2",
-        headerClassName: "!px-2",
-        render: (rec) => (
-            <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
-              <InlineTwoStateToggle
-                value={Boolean(rec.hasExtend8ctAddon)}
-                readOnly={isViewOnly}
-                onToggle={() =>
-                  updateMTD(rec.id, { hasExtend8ctAddon: !rec.hasExtend8ctAddon })
-                }
-              />
-            </div>
-          ),
-      });
-
-      baseCols.push({
-        key: "process8ctCol",
-        header: "Process 8-CS",
-        width: "95px",
-        align: "center",
-        nowrap: false,
-        cellClassName: "!px-2 !py-2",
-        headerClassName: "!px-2",
-        render: (rec) => (
-            <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
-              <InlineTwoStateToggle
-                value={Boolean(rec.hasProcessing8ctSheetsAddon)}
-                readOnly={isViewOnly}
-                onToggle={() =>
-                  updateMTD(rec.id, {
-                    hasProcessing8ctSheetsAddon: !rec.hasProcessing8ctSheetsAddon,
-                  })
-                }
-              />
-            </div>
-          ),
-      });
-    }
 
     if (showDanceVoiceover) {
       baseCols.push({
