@@ -1174,13 +1174,12 @@ export function applyManualFormMerges(orders: Order[]): Order[] {
             ...order,
             mergedFormOrderId: orderKey(form) || order.mergedFormOrderId,
           };
-      // Initial match uses form-wins. Once a snapshot exists, keep persisted
-      // manual values (edit-modal saves) and only fill empties from the form -
-      // hard form-wins on every board load was wiping those edits.
-      if (hasMatchSnapshot(linkedManual.manualOverlapSnapshot)) {
-        return mergeFormIntoManualOrder(linkedManual, form);
-      }
-      return mergeFormWinsIntoManualOrder(linkedManual, form);
+      // The match already copied Magento onto this booking. Later Orders / MTD
+      // edits live on the booking. Fill blanks only — hard form-wins on every
+      // load put the match-time form back over those saves. Overwrite stores
+      // only a Split-restore snapshot, so hasMatchSnapshot stayed false and
+      // the hard path kept running.
+      return mergeFormIntoManualOrder(linkedManual, form);
     }
     if (isMagentoFormOrder(order) && formToManual.has(id)) {
       return {
@@ -1323,17 +1322,13 @@ export function overlayMergedFormForDisplay(
     changed = true;
   }
 
-  // Magento is SoT after Match. Prefer form values on matched pairs (not only
-  // fill-empty): booking rows can keep stale leftovers like musicTheme "(BMI)"
-  // that block overlay of the real Magento song list "m · (BMI)".
-  const matched = Boolean(
-    order.mergedFormOrderId || form.mergedIntoManualOrderId
-  );
+  // Booking row is SoT after Match. Magento fills blanks only. Copying every
+  // non-empty form field put match-time values back over later edits.
   for (const key of Object.keys(form) as (keyof Order)[]) {
     if (PROTECTED_ORDER_KEYS.has(key as string)) continue;
     if (SPLIT_PRESERVE_KEYS.has(key as string)) continue;
     if (isEmptyValue(form[key])) continue;
-    if (!matched && !isEmptyValue(out[key])) continue;
+    if (!isEmptyValue(out[key])) continue;
     if (out[key] === form[key]) continue;
     (out as Record<string, unknown>)[key as string] = form[key];
     changed = true;
@@ -1355,16 +1350,12 @@ export function enrichOrderWithMatchingForm(
   if (!overlaid.isManualEntry) return overlaid;
   const pair = resolveManualFormPair(overlaid, allOrders);
   if (!pair) return overlaid;
-  // Snapshot already frozen at match: display overlay is enough (form-wins).
-  if (hasMatchSnapshot(overlaid.manualOverlapSnapshot)) {
-    return {
-      ...overlaid,
-      // Keep Split restore payload even when display shows Magento SoT.
-      manualOverlapSnapshot: overlaid.manualOverlapSnapshot,
-    };
-  }
-  // Pair exists but not yet form-wins persisted: show form SoT in the editor.
-  return mergeFormWinsIntoManualOrder(overlaid, pair.form);
+  // Link is already persisted. The overlay fills blanks; do not hard-apply
+  // the absorbed form or the editor reverts saved booking edits.
+  return {
+    ...overlaid,
+    manualOverlapSnapshot: overlaid.manualOverlapSnapshot,
+  };
 }
 
 /**

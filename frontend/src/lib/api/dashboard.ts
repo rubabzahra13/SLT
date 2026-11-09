@@ -126,6 +126,55 @@ export function readDashboardPulseForPaint(): {
   };
 }
 
+/**
+ * Drop one assigned span from the cached pulse (no refetch).
+ * Schedule view paints these stubs; clearing the Orders row is not enough.
+ */
+export function dropDashboardPulseOpenBooking(span: {
+  producer: string;
+  start?: string;
+  end?: string;
+}): () => void {
+  const noop = () => undefined;
+  const pulse = readDashboardPulseCache();
+  if (!pulse?.open_bookings?.length) return noop;
+  const producer = span.producer.trim().toUpperCase();
+  const start = (span.start || "").trim();
+  const end = (span.end || "").trim();
+  if (!producer || !start) return noop;
+  let removedBooking: DashboardOpenBooking | null = null;
+  const open_bookings = pulse.open_bookings.filter((booking) => {
+    if (removedBooking) return true;
+    const same =
+      (booking.producer || "").trim().toUpperCase() === producer &&
+      (booking.start || "").trim() === start &&
+      (booking.end || "").trim() === end;
+    if (!same) return true;
+    removedBooking = booking;
+    return false;
+  });
+  if (!removedBooking) return noop;
+  const dropped = removedBooking;
+  writeDashboardPulseCache({
+    ...pulse,
+    open_bookings,
+    ...(typeof pulse.open_assigned === "number"
+      ? { open_assigned: Math.max(0, pulse.open_assigned - 1) }
+      : {}),
+  });
+  return () => {
+    const current = readDashboardPulseCache();
+    if (!current) return;
+    writeDashboardPulseCache({
+      ...current,
+      open_bookings: [...(current.open_bookings || []), dropped],
+      ...(typeof current.open_assigned === "number"
+        ? { open_assigned: current.open_assigned + 1 }
+        : {}),
+    });
+  };
+}
+
 export function writeDashboardPulseCache(pulse: DashboardPulseApi): void {
   const at = Date.now();
   pulseMem = { at, pulse };

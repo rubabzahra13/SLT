@@ -259,9 +259,11 @@ export type OrderFormMtdGap = {
 
 /**
  * Final order values after Match for MTD / Form UI.
- * Magento wins on filled form fields; blank Magento keeps manual.
- * Booking-row assignment, invoice, dates, and the manual overlap snapshot
- * stay on the manual slot so Split can restore pre-match manual values.
+ * The booking row is what Confirm match saved, and what later edits save.
+ * Magento fills fields that are still blank on the booking. It does not
+ * replace a value the booking already has — that was restoring match-time
+ * form text after an Orders or MTD edit. Assignment, invoice, dates, and
+ * the overlap snapshot stay on the manual slot for Split.
  */
 export function resolveFinalMatchedOrder(
   order: Order,
@@ -272,34 +274,50 @@ export function resolveFinalMatchedOrder(
     return overlayMergedFormForDisplay(order, allOrders);
   }
 
-  const preview = previewMatchFormWinsOrder(pair.manual, pair.form);
-  return {
-    ...preview,
-    id: pair.manual.id,
-    uuid: pair.manual.uuid,
-    legacyId: pair.manual.legacyId,
+  const booking = pair.manual;
+  const form = pair.form;
+  const next: Order = {
+    ...booking,
+    id: booking.id,
+    uuid: booking.uuid,
+    legacyId: booking.legacyId,
     isManualEntry: true,
     mergedFormOrderId:
-      pair.manual.mergedFormOrderId ||
-      pair.form.id ||
-      pair.form.uuid ||
-      pair.form.legacyId,
-    manualOverlapSnapshot: pair.manual.manualOverlapSnapshot ?? null,
-    assignedProducer: pair.manual.assignedProducer,
-    invoice: pair.manual.invoice,
-    mixStartDate: pair.manual.mixStartDate,
-    mixEndDate: pair.manual.mixEndDate,
-    isReassigned: pair.manual.isReassigned,
-    eightCountSheet: pair.manual.eightCountSheet || preview.eightCountSheet,
-    haveSongs: pair.manual.haveSongs || preview.haveSongs,
-    collectionStates: {
-      ...(preview.collectionStates || {}),
-      ...(pair.manual.collectionStates || {}),
-    },
-    missingDataEmailSentAt: pair.manual.missingDataEmailSentAt,
-    producerEmailSentAt: pair.manual.producerEmailSentAt,
-    producerEmailSentTo: pair.manual.producerEmailSentTo,
+      booking.mergedFormOrderId ||
+      form.id ||
+      form.uuid ||
+      form.legacyId,
+    manualOverlapSnapshot: booking.manualOverlapSnapshot ?? null,
   };
+
+  for (const section of getOrderDetailSections(form)) {
+    for (const field of section.fields) {
+      const bookingRaw = songFieldRaw(booking, field.key);
+      const formRaw = songFieldRaw(form, field.key);
+      const bookingHas = hasMeaningfulFieldValue(bookingRaw, {
+        fieldKey: field.key,
+      });
+      const formHas = hasMeaningfulFieldValue(formRaw, {
+        fieldKey: field.key,
+      });
+      if (!bookingHas && formHas) {
+        (next as Record<string, unknown>)[field.key] = formRaw;
+      }
+    }
+  }
+
+  const bookingNotes = getFormNotesText(booking);
+  const formNotes = getFormNotesText(form);
+  if (
+    !hasMeaningfulFieldValue(bookingNotes) &&
+    hasMeaningfulFieldValue(formNotes)
+  ) {
+    next.routineNotes = formNotes;
+    next.additionalNotes = formNotes;
+    next.lyricalNotes = formNotes;
+  }
+
+  return next;
 }
 
 /**

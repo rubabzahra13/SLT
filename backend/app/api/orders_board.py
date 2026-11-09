@@ -128,6 +128,34 @@ class OrdersBoardCountsResponse(BaseModel):
     counts: OrdersBoardCounts
 
 
+def _matched_manual_board_expr():
+    """Manual New Order that Confirm match has linked to a Magento form."""
+    return and_(
+        Order.is_manual_entry.is_(True),
+        Order.merged_form_order_id.isnot(None),
+        Order.merged_form_order_id != "",
+    )
+
+
+def _unmatched_manual_board_expr():
+    return and_(
+        Order.is_manual_entry.is_(True),
+        or_(
+            Order.merged_form_order_id.is_(None),
+            Order.merged_form_order_id == "",
+        ),
+    )
+
+
+def _form_board_expr():
+    """Magento forms plus manuals already matched (shown as Form orders)."""
+    return or_(
+        Order.is_manual_entry.is_(False),
+        Order.is_manual_entry.is_(None),
+        _matched_manual_board_expr(),
+    )
+
+
 def _assigned_expr():
     return and_(
         or_(Order.is_reassigned.is_(False), Order.is_reassigned.is_(None)),
@@ -295,12 +323,18 @@ def _board_base_query(
         else:
             query = query.filter(False)
 
-    if source == "manual":
-        query = query.filter(Order.is_manual_entry.is_(True))
-    elif source == "form":
-        query = query.filter(
-            or_(Order.is_manual_entry.is_(False), Order.is_manual_entry.is_(None))
+    # Absorbed Magento forms are not their own Orders row after Confirm match.
+    query = query.filter(
+        or_(
+            Order.merged_into_manual_order_id.is_(None),
+            Order.merged_into_manual_order_id == "",
         )
+    )
+    # Matched manuals count as Form (the booking row). Unmatched manuals stay Manual.
+    if source == "manual":
+        query = query.filter(_unmatched_manual_board_expr())
+    elif source == "form":
+        query = query.filter(_form_board_expr())
 
     if search and search.strip():
         # Keep portable for SQLite tests; remote latency dominates anyway —
@@ -563,8 +597,9 @@ def _get_orders_counts_db(
         Order.affiliate_flag_status.is_(None),
         Order.affiliate_flag_status != "open",
     )
-    is_manual = Order.is_manual_entry.is_(True)
-    is_form = or_(Order.is_manual_entry.is_(False), Order.is_manual_entry.is_(None))
+    # Same split as the source menu: matched manuals are Form, not Manual.
+    is_manual = _unmatched_manual_board_expr()
+    is_form = _form_board_expr()
     tab_row = base.with_entities(
         func.sum(func.cast(not_flagged, Integer)).label("all"),
         func.sum(
@@ -635,9 +670,9 @@ def _get_orders_counts_db(
     # Form/subtype chips + per-form range badges (unscoped by active tab).
     # Cache only the no-search chip scan — search results change every query.
     # v3: Missing/Complete use TBD package/mix + NEED (not needs_attention alone).
-    # v4: + Complete ∩ assignment cross maps.
+    # v5: matched manuals count as Form; absorbed forms are off the board.
     _CHIP_CACHE_LEN = 28
-    chip_key = f"v4|{category or ''}|{source or ''}"
+    chip_key = f"v5|{category or ''}|{source or ''}"
     cached_chips = _form_chip_cache.get(chip_key)
     now = time.monotonic()
     if (

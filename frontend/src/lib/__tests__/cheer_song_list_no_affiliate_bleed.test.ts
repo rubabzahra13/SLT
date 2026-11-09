@@ -50,6 +50,9 @@ describe("All-Star Cheer: Song list must not fill Music Affiliate / Routine Note
     assert.equal(patch.musicTheme, undefined);
     assert.equal(patch.musicAffiliate, undefined);
     assert.equal(patch.routineNotes, undefined);
+    // Empty dance-cover aliases pack over song_list_suggestions and wipe it.
+    assert.equal(patch.powerMusicCovers, undefined);
+    assert.equal(patch.unleashTheBeatsCovers, undefined);
   });
 
   it("mtdPatchFromOrderField for Song list does not write musicTheme", () => {

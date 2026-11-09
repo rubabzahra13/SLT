@@ -285,13 +285,12 @@ export function orderPatchFromOrderField(
   if (key === "songListSuggestions") {
     // Cheer Song list is its own Magento column: never copy into musicTheme.
     // (Legacy copy made normalizeOrder fill Music Affiliate + Routine Notes.)
+    // Empty Power/Unleash aliases pack over song_list_suggestions on save
+    // and wipe a cheer list. Only Dance writes those boxes.
     if (current?.formType === "school-all-star-dance") {
       const covers = parseDanceSongCovers(value);
       patch.powerMusicCovers = covers.power;
       patch.unleashTheBeatsCovers = covers.unleash;
-    } else {
-      patch.powerMusicCovers = "";
-      patch.unleashTheBeatsCovers = "";
     }
   }
   if (key === "powerMusicCovers" || key === "unleashTheBeatsCovers") {

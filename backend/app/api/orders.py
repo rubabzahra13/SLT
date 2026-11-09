@@ -244,12 +244,18 @@ def _coerce_dance_cover_fields(data: dict, unset_ok: bool = False) -> None:
         if unleash_defined
         else current_unleash
     )
-    # If song_list already has non-dance content and neither cover is set,
-    # leave it alone (cheer/anthem SoT).
     packed = pack_dance_song_covers(power, unleash)
-    if packed or power_defined or unleash_defined:
-        if unset_ok or packed or power_defined or unleash_defined:
-            data["song_list_suggestions"] = packed or None
+    existing = data.get("song_list_suggestions")
+    existing_text = existing if isinstance(existing, str) else ""
+    # Cheer / Anthem / MB store free text in this column. A song-list edit
+    # used to send empty cover aliases, and this pack then nulled the column.
+    existing_is_dance = "power music covers:" in existing_text.lower() or (
+        "unleash the beats covers:" in existing_text.lower()
+    )
+    if not packed and not existing_is_dance:
+        return
+    if unset_ok or packed or power_defined or unleash_defined:
+        data["song_list_suggestions"] = packed or None
 
 
 def _coerce_routine_notes_fields(data: dict, unset_ok: bool = False) -> None:

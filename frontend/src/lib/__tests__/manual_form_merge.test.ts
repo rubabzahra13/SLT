@@ -222,6 +222,44 @@ describe("manual ↔ form merge", () => {
     );
   });
 
+  it("keeps post-overwrite edits when the snapshot is Split-restore only", () => {
+    const manual = baseOrder({
+      id: "manual-1",
+      isManualEntry: true,
+      programName: "Spirit Athletics",
+      gymName: "Spirit Athletics",
+      city: "Edited City",
+      songListSuggestions: "Edited song list",
+      routineNotes: "Edited notes",
+      mergedFormOrderId: "form-1",
+      manualOverlapSnapshot: {
+        __splitRestore: {
+          values: { city: "Old Manual City" },
+          clear: [],
+        },
+      },
+    });
+    const form = baseOrder({
+      id: "form-1",
+      isManualEntry: false,
+      programName: "Spirit Athletics",
+      gymName: "Spirit Athletics",
+      city: "Austin",
+      songListSuggestions: "Magento songs",
+      routineNotes: "Magento notes",
+      mergedIntoManualOrderId: "manual-1",
+    });
+    const merged = applyManualFormMerges([manual, form]).find(
+      (o) => o.id === "manual-1"
+    )!;
+    assert.equal(merged.city, "Edited City");
+    assert.equal(merged.songListSuggestions, "Edited song list");
+    assert.equal(merged.routineNotes, "Edited notes");
+    const enriched = enrichOrderWithMatchingForm(manual, [manual, form]);
+    assert.equal(enriched.city, "Edited City");
+    assert.equal(enriched.songListSuggestions, "Edited song list");
+  });
+
   it("listPreMtdOrderRecords keeps manual + Magento form as two rows until admin Match links them", () => {
     const manual = baseOrder({
       id: "manual-1",

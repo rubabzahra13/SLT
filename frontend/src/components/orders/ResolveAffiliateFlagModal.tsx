@@ -38,6 +38,7 @@ import {
   resolveCustomerMailContacts,
 } from "@/lib/forward-order-mail";
 import { DEFAULT_EMAIL_TEMPLATES } from "@/lib/email-templates";
+import { isValidEmailFormat } from "@/lib/email-format";
 import type { MTDRecord, Order } from "@/types";
 
 type ResolveAffiliateFlagModalProps = {
@@ -64,6 +65,8 @@ export function ResolveAffiliateFlagModal({
   const [selectedAffiliate, setSelectedAffiliate] = useState("");
   const [selectOpen, setSelectOpen] = useState(false);
   const [customerContactId, setCustomerContactId] = useState("");
+  /** Editable send-to address; seeded from the dropdown contact. */
+  const [customerEmail, setCustomerEmail] = useState("");
   const [gmailConnected, setGmailConnected] = useState(false);
   const [gmailFrom, setGmailFrom] = useState<string | null>(null);
   const [loadingGmail, setLoadingGmail] = useState(false);
@@ -119,6 +122,7 @@ export function ResolveAffiliateFlagModal({
     );
     setSelectedAffiliate(initialSelections[0] || "");
     setCustomerContactId(initialContacts[0]?.id ?? "");
+    setCustomerEmail(initialContacts[0]?.email ?? "");
     setSelectOpen(false);
     setSendError(null);
     setSent(false);
@@ -163,6 +167,20 @@ export function ResolveAffiliateFlagModal({
   const customerContact = customerContacts.find(
     (c) => c.id === customerContactId
   );
+  const trimmedCustomerEmail = customerEmail.trim();
+  const customerEmailValid = isValidEmailFormat(trimmedCustomerEmail);
+  const sendContact = useMemo(() => {
+    if (!trimmedCustomerEmail) return undefined;
+    if (customerContact) {
+      return { ...customerContact, email: trimmedCustomerEmail };
+    }
+    return {
+      id: "manual",
+      name: record?.contactName?.trim() || "Customer",
+      email: trimmedCustomerEmail,
+      role: "Customer",
+    };
+  }, [customerContact, trimmedCustomerEmail, record?.contactName]);
 
   const template =
     emailTemplates.customer_affiliate_clarification ??
@@ -172,7 +190,7 @@ export function ResolveAffiliateFlagModal({
     record && mode === "email"
       ? buildCustomerAffiliateClarificationDraft(
           record,
-          customerContact,
+          sendContact,
           selectedAffiliate,
           selections,
           template
@@ -235,7 +253,7 @@ export function ResolveAffiliateFlagModal({
 
   async function handleSendEmail() {
     if (!draft || !record || !selectedAffiliate.trim() || isViewOnly) return;
-    if (!draft.to || !gmailConnected) return;
+    if (!customerEmailValid || !draft.to || !gmailConnected) return;
     setIsSending(true);
     setSendError(null);
     try {
@@ -277,6 +295,7 @@ export function ResolveAffiliateFlagModal({
     !isViewOnly;
   const canResolve = resolveReady && !isSaving;
   const sendReady =
+    customerEmailValid &&
     Boolean(draft?.to) &&
     Boolean(selectedAffiliate.trim()) &&
     gmailConnected &&
@@ -383,19 +402,21 @@ export function ResolveAffiliateFlagModal({
 
           {isEmail ? (
             <>
-              <div>
-                <label className="mb-1.5 block text-[12px] font-medium text-brand-ink-secondary">
+              <div className="space-y-2.5">
+                <label className="block text-[12px] font-medium text-brand-ink-secondary">
                   Send to customer
                 </label>
-                {customerContacts.length === 0 ? (
-                  <p className="text-[13px] text-rose-600">
-                    No customer email on this order.
-                  </p>
-                ) : (
+                {customerContacts.length > 0 ? (
                   <select
                     value={customerContactId}
-                    onChange={(e) => setCustomerContactId(e.target.value)}
+                    onChange={(e) => {
+                      const nextId = e.target.value;
+                      setCustomerContactId(nextId);
+                      const next = customerContacts.find((c) => c.id === nextId);
+                      if (next?.email) setCustomerEmail(next.email);
+                    }}
                     disabled={isBusy || sent}
+                    aria-label="Customer contact"
                     className="w-full rounded-xl border border-brand-line/60 bg-white px-3 py-2.5 text-[13px] text-brand-ink disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {customerContacts.map((c) => (
@@ -404,7 +425,42 @@ export function ResolveAffiliateFlagModal({
                       </option>
                     ))}
                   </select>
+                ) : (
+                  <p className="text-[12px] text-brand-ink-tertiary">
+                    No saved customer email on this order — enter one below.
+                  </p>
                 )}
+                <div>
+                  <label className="mb-1 block text-[11px] font-medium text-brand-ink-tertiary">
+                    Email address
+                  </label>
+                  <input
+                    type="email"
+                    value={customerEmail}
+                    onChange={(e) => setCustomerEmail(e.target.value)}
+                    disabled={isBusy || sent}
+                    placeholder="customer@example.com"
+                    aria-label="Customer email address"
+                    aria-invalid={
+                      Boolean(trimmedCustomerEmail) && !customerEmailValid
+                    }
+                    className={clsx(
+                      "w-full rounded-xl border bg-white px-3 py-2.5 text-[13px] text-brand-ink outline-none transition placeholder:text-brand-ink-tertiary disabled:cursor-not-allowed disabled:opacity-60",
+                      !trimmedCustomerEmail || !customerEmailValid
+                        ? "border-brand-danger/50 focus-visible:border-brand-danger focus-visible:ring-2 focus-visible:ring-brand-danger/15"
+                        : "border-brand-line/60 focus-visible:border-brand-signature/50 focus-visible:ring-2 focus-visible:ring-brand-signature/15"
+                    )}
+                  />
+                  {!trimmedCustomerEmail ? (
+                    <p className="mt-1.5 text-[11px] text-brand-ink-tertiary">
+                      Email address is required to send.
+                    </p>
+                  ) : !customerEmailValid ? (
+                    <p className="mt-1.5 text-[11px] text-rose-600">
+                      Enter a valid email address.
+                    </p>
+                  ) : null}
+                </div>
               </div>
 
               {draft ? (

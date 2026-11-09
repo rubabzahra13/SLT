@@ -108,11 +108,11 @@ describe("All-Star Cheer Move-to-MTD form gate", () => {
     });
 
     const final = resolveFinalMatchedOrder(manual, [manual, form]);
-    assert.equal(final.gymBillingAddress, "1 Gym Way");
-    assert.equal(final.teamColors, "Black / Red");
+    // Saved booking values stay. Magento only fills blanks (notes, song list).
+    assert.equal(final.gymBillingAddress, "old manual address");
+    assert.equal(final.teamColors, "manual red");
     assert.equal(final.routineNotes, "Notes");
-    // Magento SoT replaces stale manual theme; normalize may pack notes+affiliate.
-    assert.notEqual(final.musicTheme, "(BMI)");
+    assert.match(String(final.songListSuggestions || ""), /BMI/);
     assert.equal(final.assignedProducer, "CH");
     assert.equal(final.invoice, "9876");
     assert.equal(final.isManualEntry, true);

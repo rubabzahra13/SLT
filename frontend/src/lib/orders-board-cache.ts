@@ -1180,6 +1180,10 @@ export function removeOrdersBoardOrderFromCaches(orderId: string): void {
 export function applyPeerOrderUpdate(order: Order): "shifted" | "recount" | null {
   const before = readOrdersBoardOrder(order.id);
   if (!before) return null;
+  // Absorbed Magento forms are not a board row. Match already moved badges.
+  if (before.mergedIntoManualOrderId || order.mergedIntoManualOrderId) {
+    return null;
+  }
   for (const [key, entry] of boardCache) {
     if (!entry.orders.some((o) => orderMatchesId(o, order.id))) continue;
     const next = {
@@ -2419,6 +2423,164 @@ export function notifyMatchPoolSync(
   );
 }
 
+function restoreFormSourceTotals(
+  next: OrdersBoardCounts,
+  prev: OrdersBoardCounts
+): OrdersBoardCounts {
+  return {
+    ...next,
+    form: prev.form,
+    form_by_form_type: prev.form_by_form_type,
+    form_by_cheer_form_subtype: prev.form_by_cheer_form_subtype,
+    form_by_dance_form_subtype: prev.form_by_dance_form_subtype,
+  };
+}
+
+/** Manual menu −1. Form menu stays (absorbed form leaves, matched manual enters). */
+function decrementManualSourceTotals(
+  counts: OrdersBoardCounts,
+  manual: Order
+): OrdersBoardCounts {
+  const form = manual.formType || undefined;
+  const cheer =
+    form === "school-all-star-cheer" && isConcreteSubtype(manual.cheerFormSubtype)
+      ? manual.cheerFormSubtype
+      : undefined;
+  const dance =
+    form === "school-all-star-dance" && isConcreteSubtype(manual.danceFormSubtype)
+      ? manual.danceFormSubtype
+      : undefined;
+  return {
+    ...counts,
+    ...(typeof counts.manual === "number"
+      ? { manual: Math.max(0, counts.manual - 1) }
+      : {}),
+    ...(counts.manual_by_form_type
+      ? {
+          manual_by_form_type: bumpCountMap(counts.manual_by_form_type, form, -1),
+        }
+      : {}),
+    ...(counts.manual_by_cheer_form_subtype
+      ? {
+          manual_by_cheer_form_subtype: bumpCountMap(
+            counts.manual_by_cheer_form_subtype,
+            cheer,
+            -1
+          ),
+        }
+      : {}),
+    ...(counts.manual_by_dance_form_subtype
+      ? {
+          manual_by_dance_form_subtype: bumpCountMap(
+            counts.manual_by_dance_form_subtype,
+            dance,
+            -1
+          ),
+        }
+      : {}),
+  };
+}
+
+/**
+ * Confirm match: Manual count −1, Form count unchanged, absorbed form leaves
+ * All/Complete/Missing, matched manual leaves the Manual filter.
+ * No /orders/counts refetch.
+ */
+function shiftOrdersBoardCountsAfterMatch(
+  manualBefore: Order,
+  formBefore: Order,
+  manualAfter: Order
+): () => void {
+  if (manualBefore.mergedFormOrderId) return () => undefined;
+  const snapshots = new Map<string, { counts: OrdersBoardCounts; updatedAt: number }>();
+  const asForm = { ...manualAfter, isManualEntry: false } as Order;
+
+  for (const [key, entry] of countsCache) {
+    let source = "";
+    let search = "";
+    let flaggedOnly = false;
+    let excludeFlagged = true;
+    try {
+      const q = JSON.parse(key) as {
+        source?: string;
+        search?: string;
+        flaggedOnly?: boolean;
+        excludeFlagged?: boolean;
+      };
+      source = q.source || "";
+      search = (q.search || "").trim();
+      flaggedOnly = Boolean(q.flaggedOnly);
+      excludeFlagged = q.excludeFlagged !== false;
+    } catch {
+      continue;
+    }
+    if (flaggedOnly) continue;
+    if (
+      excludeFlagged &&
+      (manualBefore.affiliateFlagStatus === "open" ||
+        formBefore.affiliateFlagStatus === "open")
+    ) {
+      continue;
+    }
+    if (
+      search &&
+      (!searchResultsInclude(search, manualBefore.id) ||
+        !searchResultsInclude(search, formBefore.id))
+    ) {
+      continue;
+    }
+
+    snapshots.set(key, entry);
+    let next = entry.counts;
+    if (source === "manual") {
+      // Row leaves this filter (All / Complete / Missing / Assigned).
+      next = bumpNormalBoardPresence(next, manualAfter, -1);
+    } else if (source === "form") {
+      // Absorbed form out, matched manual in as a Form order. Net form total 0.
+      next = bumpNormalBoardPresence(next, formBefore, -1);
+      next = bumpNormalBoardPresence(next, asForm, 1);
+      next = decrementManualSourceTotals(next, manualBefore);
+    } else {
+      // Both: hide the absorbed form (All −1) without changing the Form total.
+      const beforeHide = next;
+      next = bumpNormalBoardPresence(next, formBefore, -1);
+      next = restoreFormSourceTotals(next, beforeHide);
+      next = decrementManualSourceTotals(next, manualBefore);
+    }
+    const shifted = { counts: next, updatedAt: entry.updatedAt };
+    countsCache.set(key, shifted);
+    try {
+      writeCountsSession(ssKey(COUNTS_SS_PREFIX, key), shifted);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  notifyOrdersBoardCountsChanged();
+
+  return () => {
+    for (const [key, entry] of snapshots) {
+      countsCache.set(key, entry);
+      try {
+        writeCountsSession(ssKey(COUNTS_SS_PREFIX, key), entry);
+      } catch {
+        /* ignore */
+      }
+    }
+    notifyOrdersBoardCountsChanged();
+  };
+}
+
+/** Badge shifts dispatch before the source totals move. Re-read after both. */
+function notifyOrdersBoardCountsChanged() {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(
+    new CustomEvent(ORDERS_BOARD_PATCH_EVENT, {
+      detail: { countsChanged: true },
+    })
+  );
+}
+
 /**
  * Confirm match: the pair leaves every cached Match pool page and badge, and
  * both Orders board rows take their merged values, before the PATCHes return
@@ -2471,9 +2633,16 @@ export function syncOrdersAfterMatch(args: {
     shiftAssignment: true,
   });
   const undoForm = patchOrdersBoardRowOptimistic(form.id, args.formPatch);
+  const manualAfter = { ...manual, ...args.manualPatch } as Order;
+  const undoSourceCounts = shiftOrdersBoardCountsAfterMatch(
+    manual,
+    form,
+    manualAfter
+  );
   notifyMatchPoolSync([...ids]);
 
   return () => {
+    undoSourceCounts();
     undoForm();
     undoManual();
     for (const id of ids) recentlyMatchedAt.delete(id);

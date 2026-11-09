@@ -342,7 +342,39 @@ describe("confirm match syncs pool, match badges and board locally", () => {
     } as unknown as Order;
     other = { ...base, id: "form-2", isManualEntry: false } as unknown as Order;
     writeOrdersBoardCache(boardKey, { orders: [manual, form], nextPageToken: null });
-    writeOrdersBoardCountsOnlyCache(countsKey, makeCounts());
+    writeOrdersBoardCountsOnlyCache(
+      countsKey,
+      makeCounts({
+        form: 61,
+        manual: 4,
+        form_by_form_type: { [cheer]: 61 },
+        manual_by_form_type: { [cheer]: 4 },
+        form_by_cheer_form_subtype: { rec: 61 },
+        manual_by_cheer_form_subtype: { rec: 4 },
+      })
+    );
+    writeOrdersBoardCountsOnlyCache(
+      ordersBoardCountsQueryKey({ source: "manual" }),
+      makeCounts({
+        all: 4,
+        complete_data: 1,
+        missing_data: 3,
+        assigned: 1,
+        not_assigned: 3,
+        form: 61,
+        manual: 4,
+        form_by_form_type: { [cheer]: 61 },
+        manual_by_form_type: { [cheer]: 4 },
+        form_by_cheer_form_subtype: { rec: 61 },
+        manual_by_cheer_form_subtype: { rec: 4 },
+        complete_data_by_form_type: { [cheer]: 1 },
+        missing_data_by_form_type: { [cheer]: 3 },
+        assigned_by_form_type: { [cheer]: 1 },
+        not_assigned_by_form_type: { [cheer]: 3 },
+        complete_assigned: 0,
+        complete_not_assigned: 1,
+      })
+    );
     writeMatchPoolCache([form, other, manual], "tok", allPoolKey);
     writeMatchPoolCache([manual, form], null, cheerPoolKey);
     writeMatchCountsCache(matchCounts());
@@ -377,11 +409,27 @@ describe("confirm match syncs pool, match badges and board locally", () => {
     assert.equal(mc.manual_by_form_type[cheer], 3);
     assert.equal(mc.manual_by_cheer_form_subtype.rec, 1);
 
-    // Manual took the form's notes + producer: Complete and Assigned now.
+    // Manual takes the form's notes + producer, then the absorbed form leaves
+    // the board. Net Complete/Assigned unchanged; All drops by the hidden form.
     const c = readOrdersBoardCountsCache(countsKey)!.counts;
-    assert.equal(c.complete_data, 3);
-    assert.equal(c.assigned, 18);
-    assert.equal(c.complete_assigned, 2);
+    assert.equal(c.all, 190);
+    assert.equal(c.complete_data, 2);
+    assert.equal(c.assigned, 17);
+    assert.equal(c.complete_assigned, 1);
+    assert.equal(c.form, 61);
+    assert.equal(c.manual, 3);
+    assert.equal(c.form_by_cheer_form_subtype?.rec, 61);
+    assert.equal(c.manual_by_cheer_form_subtype?.rec, 3);
+    const manualCounts = readOrdersBoardCountsCache(
+      ordersBoardCountsQueryKey({ source: "manual" })
+    )!.counts;
+    assert.equal(manualCounts.all, 3);
+    assert.equal(manualCounts.complete_data, 1);
+    assert.equal(manualCounts.missing_data, 2);
+    assert.equal(manualCounts.assigned, 1);
+    assert.equal(manualCounts.not_assigned, 2);
+    assert.equal(manualCounts.form, 61);
+    assert.equal(manualCounts.manual, 3);
     assert.equal(readOrdersBoardOrder(form.id)!.mergedIntoManualOrderId, manual.id);
 
     // A stale server page from before the match can't bring the pair back.
@@ -397,11 +445,19 @@ describe("confirm match syncs pool, match badges and board locally", () => {
     );
     assert.deepEqual(readMatchCountsCache()!.counts, matchCounts());
     const back = readOrdersBoardCountsCache(countsKey)!.counts;
+    assert.equal(back.all, 191);
     assert.equal(back.complete_data, 2);
     assert.equal(back.missing_data, 189);
     assert.equal(back.assigned, 17);
     assert.equal(back.not_assigned, 174);
     assert.equal(back.complete_assigned, 1);
+    assert.equal(back.form, 61);
+    assert.equal(back.manual, 4);
+    assert.equal(
+      readOrdersBoardCountsCache(ordersBoardCountsQueryKey({ source: "manual" }))!
+        .counts.all,
+      4
+    );
     assert.equal(readOrdersBoardOrder(form.id)!.mergedIntoManualOrderId, undefined);
     assert.equal(dropRecentlyMatched([manual, other]).length, 2);
   });
@@ -451,11 +507,15 @@ describe("confirm match syncs pool, match badges and board locally", () => {
     assert.equal(dropRecentlyMatched([manual, form]).length, 0);
   });
 
-  it("keeps a matched Magento form in board badges (server counts it)", () => {
+  it("does not keep an absorbed Magento form in board badges", () => {
     confirm();
     assert.equal(
-      applyPeerOrderUpdate({ ...form, mergedIntoManualOrderId: manual.id, routineNotes: "" }),
-      "shifted"
+      applyPeerOrderUpdate({
+        ...form,
+        mergedIntoManualOrderId: manual.id,
+        routineNotes: "",
+      }),
+      null
     );
   });
 });

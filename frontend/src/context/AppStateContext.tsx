@@ -110,10 +110,12 @@ import {
   syncOrdersBoardAfterReassign,
 } from "@/lib/orders-board-cache";
 import {
+  collectMtdBoardCachedRecords,
   patchMtdBoardRecordInCaches,
   readCachedMtdBoardRow,
   removeMtdBoardRecordsFromCaches,
 } from "@/lib/mtd-board-cache";
+import { dropDashboardPulseOpenBooking } from "@/lib/api/dashboard";
 import { orderFromMTDRecord } from "@/lib/order-detail-fields";
 import { resolveMTDFormMeta } from "@/lib/mtd-filters";
 import { inferMTDRecordStatus } from "@/lib/mtd-status";
@@ -3279,6 +3281,30 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       const manualFromState = activeOrders.find(
         (o) => o.id === manualId || o.uuid === manualId || o.legacyId === manualId
       );
+      // Capture before MatchConfirm drafts overwrite AppState. Match-pool copies
+      // often omit invoice and can blank a producer that was set on Assign.
+      const invoiceBeforeOverride = pickInvoice(
+        manualFromState?.invoice,
+        options?.manualBefore?.invoice,
+        options?.manualOverride?.invoice
+      );
+      const assignmentBefore = {
+        producer: (
+          manualFromState?.assignedProducer ||
+          options?.manualBefore?.assignedProducer ||
+          ""
+        ).trim(),
+        start: String(
+          manualFromState?.mixStartDate ||
+            options?.manualBefore?.mixStartDate ||
+            ""
+        ).trim(),
+        end: String(
+          manualFromState?.mixEndDate ||
+            options?.manualBefore?.mixEndDate ||
+            ""
+        ).trim(),
+      };
       const formFromState = activeOrders.find(
         (o) => o.id === formId || o.uuid === formId || o.legacyId === formId
       );
@@ -3364,28 +3390,37 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
       const prevActive = activeOrders;
       const prevMtd = mtdRecords;
-      // Keep pre-MTD / schedule rows' assignment + invoice with the manual slot
-      // (Match must not hide Assign or drop invoice that was already set).
-      // Exception: awaiting reassign — never revive a cleared producer from MTD.
-      const awaitingReassign = Boolean(
-        manualNext.isReassigned || manual.isReassigned
-      );
-      const matchAssignment =
-        manualNext.assignedProducer?.trim() ||
-        manual.assignedProducer?.trim() ||
-        "";
-      const coveringBeforeMatch = mtdRecords.find(
-        (r) =>
-          mtdRecordCoversOrder(r, manual) || mtdRecordCoversOrder(r, manualNext)
-      );
+      // Invoice entered on Assign lives on mtd_records (orders has no column).
+      // Confirm match must keep that number. The pre-match producer booking
+      // is released: the Orders row, MTD staging, schedule, and capacity
+      // calendars all drop the same span.
+      const coveringBeforeMatch =
+        mtdRecords.find(
+          (r) =>
+            mtdRecordCoversOrder(r, manual) ||
+            mtdRecordCoversOrder(r, manualNext)
+        ) ||
+        collectMtdBoardCachedRecords().find(
+          (r) =>
+            mtdRecordCoversOrder(r, manual) ||
+            mtdRecordCoversOrder(r, manualNext)
+        );
       const matchInvoice = pickInvoice(
+        invoiceBeforeOverride,
         manualNext.invoice,
         manual.invoice,
         coveringBeforeMatch?.invoice
       );
-      const manualWithInvoice = matchInvoice
-        ? normalizeOrder({ ...manualNext, invoice: matchInvoice })
-        : manualNext;
+      const manualWithInvoice: Order = {
+        ...(matchInvoice
+          ? normalizeOrder({ ...manualNext, invoice: matchInvoice })
+          : manualNext),
+        invoice: matchInvoice,
+        assignedProducer: null,
+        mixStartDate: "",
+        mixEndDate: undefined,
+        isReassigned: false,
+      };
       const matchCs =
         String(manualNext.eightCountSheet || manual.eightCountSheet || "").trim();
       const matchCsIsStatus =
@@ -3410,12 +3445,6 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           if (!mtdRecordCoversOrder(rec, manual) && !mtdRecordCoversOrder(rec, manualNext)) {
             return rec;
           }
-          const nextAssigned = awaitingReassign
-            ? matchAssignment || null
-            : matchAssignment ||
-              rec.assignedProducer?.trim() ||
-              rec.assignedProducer ||
-              null;
           const nextInvoice = pickInvoice(matchInvoice, rec.invoice);
           const nextCs =
             (matchCsIsStatus ? matchCs : "") ||
@@ -3428,14 +3457,10 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           };
           return {
             ...rec,
-            assignedProducer: nextAssigned || null,
-            ...(awaitingReassign
-              ? {
-                  mixStartDate: matchAssignment ? rec.mixStartDate : "",
-                  mixEndDate: matchAssignment ? rec.mixEndDate : undefined,
-                  isReassigned: true,
-                }
-              : {}),
+            assignedProducer: null,
+            mixStartDate: "",
+            mixEndDate: undefined,
+            isReassigned: false,
             invoice: nextInvoice,
             eightCountSheet: nextCs,
             haveSongs: nextHaveSongs,
@@ -3453,8 +3478,25 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         ...(options?.manualEdits || {}),
         ...combinedManualPatch,
         ...(flagPatch || {}),
-        ...(matchAssignment ? { assignedProducer: matchAssignment } : {}),
+        // Persist the release. A local-only clear comes back on refresh and
+        // the schedule pulse stub keeps the span.
+        assignedProducer: null,
+        mixStartDate: "",
+        mixEndDate: null as unknown as undefined,
+        isReassigned: false,
+        // Orders has no invoice column; the board row still needs the mirror
+        // so Move to MTD copies the number typed on Assign.
+        ...(matchInvoice ? { invoice: matchInvoice } : {}),
       };
+      if (coveringBeforeMatch?.id) {
+        patchMtdBoardRecordInCaches(coveringBeforeMatch.id, {
+          assignedProducer: null,
+          mixStartDate: "",
+          mixEndDate: undefined,
+          isReassigned: false,
+          ...(matchInvoice ? { invoice: matchInvoice } : {}),
+        });
+      }
       const formApiPatch: Partial<Order> = {
         ...(options?.formEdits || {}),
         ...combinedFormPatch,
@@ -3465,6 +3507,14 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         manualPatch: manualApiPatch,
         formPatch: { ...formApiPatch, mergedIntoManualOrderId: manual.id },
       });
+      const restorePulse =
+        assignmentBefore.producer && assignmentBefore.start
+          ? dropDashboardPulseOpenBooking({
+              producer: assignmentBefore.producer,
+              start: assignmentBefore.start,
+              end: assignmentBefore.end,
+            })
+          : null;
       options?.onApplied?.();
 
       let linked = false;
@@ -3558,7 +3608,10 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
           });
         }
       } catch (err) {
-        if (!linked) undoMatchCaches();
+        if (!linked) {
+          undoMatchCaches();
+          restorePulse?.();
+        }
         setActiveOrders(prevActive);
         setMtdRecords(prevMtd);
         notifySaveError("Could not match Magento form to manual order", err);
