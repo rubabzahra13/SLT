@@ -75,6 +75,67 @@ describe("incoming Magento match suggestion notify", () => {
     );
   });
 
+  it("notifies for gym/program identity match when teams differ", () => {
+    const form = baseOrder({
+      id: "f1",
+      gymName: "Spirit Elite",
+      programName: "Spirit Elite",
+      teamName: "Open",
+    });
+    const manual = baseOrder({
+      id: "m1",
+      isManualEntry: true,
+      gymName: "Spirit Elite",
+      programName: "Spirit Elite",
+      teamName: "Elite",
+    });
+    const event = incomingOrderBellEvent(form, [form, manual]);
+    assert.equal(event.kind, "match_suggestion");
+    if (event.kind !== "match_suggestion") return;
+    assert.match(event.notification.message, /Matched on Gym Name/);
+    assert.match(event.notification.message, /Spirit Elite/);
+  });
+
+  it("notifies for coach email match when gym names differ", () => {
+    const form = baseOrder({
+      id: "f1",
+      gymName: "Alpha Gym",
+      programName: "Alpha Gym",
+      coachEmail: "coach@wowza.test",
+    });
+    const manual = baseOrder({
+      id: "m1",
+      isManualEntry: true,
+      gymName: "Beta Gym",
+      programName: "Beta Gym",
+      coachEmail: "coach@wowza.test",
+    });
+    const event = incomingOrderBellEvent(form, [form, manual]);
+    assert.equal(event.kind, "match_suggestion");
+    if (event.kind !== "match_suggestion") return;
+    assert.match(event.notification.message, /Matched on Coach Email/);
+  });
+
+  it("notifies for team-only match", () => {
+    const form = baseOrder({
+      id: "f1",
+      gymName: "",
+      programName: "",
+      teamName: "Nabeeha Test Manual 7AM 9 NOV 2",
+    });
+    const manual = baseOrder({
+      id: "m1",
+      isManualEntry: true,
+      gymName: "",
+      programName: "",
+      teamName: "Nabeeha Test Manual 7AM 9 NOV 2",
+    });
+    const event = incomingOrderBellEvent(form, [form, manual]);
+    assert.equal(event.kind, "match_suggestion");
+    if (event.kind !== "match_suggestion") return;
+    assert.match(event.notification.message, /Matched on Team Name/);
+  });
+
   it("lists match bells for reconcile after bootstrap / SSE race", () => {
     const form = baseOrder({
       id: "f1",

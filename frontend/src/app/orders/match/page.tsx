@@ -33,7 +33,10 @@ import {
   MTDTableFilterPanel,
   type MTDTableFilterState,
 } from "@/components/mtd/MTDTableFilters";
-import { useAppProducers } from "@/context/AppStateContext";
+import {
+  useAppBoardMutations,
+  useAppProducers,
+} from "@/context/AppStateContext";
 import {
   prefetchOrdersMatchPoolQuery,
   refreshMatchCounts,
@@ -647,6 +650,15 @@ function MatchOrdersPageContent() {
     danceFormSubtype:
       form === "school-all-star-dance" ? danceSubtype : undefined,
   });
+
+  const { flushMatchSuggestionNotices } = useAppBoardMutations();
+  // Match UI scores against the server match pool — not AppState activeOrders.
+  // Flush bells from the same pool so Suggested-for-You and notifications stay
+  // aligned (program / contact / team). Client-only; session dedupe prevents spam.
+  useEffect(() => {
+    if (matchPool.length === 0) return;
+    flushMatchSuggestionNotices(matchPool);
+  }, [matchPool, flushMatchSuggestionNotices]);
 
   const [matchCounts, setMatchCounts] = useState<OrdersMatchCounts | null>(
     () => readMatchCountsCache()?.counts ?? null

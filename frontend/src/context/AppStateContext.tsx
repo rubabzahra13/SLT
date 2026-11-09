@@ -313,6 +313,12 @@ type AppStateContextValue = {
   maybeNotifyMatchSuggestion: (
     order: Order
   ) => { formId: string; manualId: string } | null;
+  /**
+   * Raise match_suggestion bells for every Magento form in `orders` that
+   * currently has a Suggested-for-You manual. Same scoring as Match Orders.
+   * Safe to call from the match-pool page (session dedupe prevents repeats).
+   */
+  flushMatchSuggestionNotices: (orders: Order[]) => void;
   /** Magento forms with Suggested-for-You that haven’t been opened on Match yet. */
   unseenSuggestedMatchCount: number;
   markMatchOrdersSeen: () => void;
@@ -354,6 +360,7 @@ export type AppBoardMutationsSlice = {
   updateMTD: AppStateContextValue["updateMTD"];
   updateOrder: AppStateContextValue["updateOrder"];
   maybeNotifyMatchSuggestion: AppStateContextValue["maybeNotifyMatchSuggestion"];
+  flushMatchSuggestionNotices: AppStateContextValue["flushMatchSuggestionNotices"];
   isViewOnly: boolean;
 };
 
@@ -5186,6 +5193,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       markNotificationRead,
       markAllNotificationsRead,
       maybeNotifyMatchSuggestion,
+      flushMatchSuggestionNotices,
       unseenSuggestedMatchCount: unseenMatchFormIds.length,
       markMatchOrdersSeen,
       isInMTD,
@@ -5247,6 +5255,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       markNotificationRead,
       markAllNotificationsRead,
       maybeNotifyMatchSuggestion,
+      flushMatchSuggestionNotices,
       unseenMatchFormIds.length,
       markMatchOrdersSeen,
       isInMTD,
@@ -5301,9 +5310,16 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       updateMTD,
       updateOrder,
       maybeNotifyMatchSuggestion,
+      flushMatchSuggestionNotices,
       isViewOnly,
     }),
-    [updateMTD, updateOrder, maybeNotifyMatchSuggestion, isViewOnly]
+    [
+      updateMTD,
+      updateOrder,
+      maybeNotifyMatchSuggestion,
+      flushMatchSuggestionNotices,
+      isViewOnly,
+    ]
   );
 
   const discountCodesSlice = useMemo<AppDiscountCodesSlice>(

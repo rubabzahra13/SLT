@@ -42,6 +42,7 @@ const MATCH_IDENTITY_CONTACT_KEYS = [
   "musicContactName",
   "contactName",
   "coachPhone",
+  "contactPhoneForYouthRecCheer",
   "coachEmail",
   // Billing person
   "billingPersonName",
@@ -93,7 +94,11 @@ const COACH_NAME_KEYS = new Set<string>([
   "contactName",
 ]);
 
-const COACH_PHONE_KEYS = new Set<string>(["coachPhone"]);
+const COACH_PHONE_KEYS = new Set<string>([
+  "coachPhone",
+  // Youth Rec Magento "Contact phone" SoT (not coach_phone).
+  "contactPhoneForYouthRecCheer",
+]);
 const COACH_EMAIL_KEYS = new Set<string>(["coachEmail"]);
 
 const BILLING_NAME_KEYS = new Set<string>(["billingPersonName"]);
@@ -167,6 +172,7 @@ export function matchBasisFieldLabel(key: string): string {
     case "contactName":
       return "Coach Name";
     case "coachPhone":
+    case "contactPhoneForYouthRecCheer":
       return "Coach Phone";
     case "coachEmail":
       return "Coach Email";
@@ -198,6 +204,25 @@ function matchFieldRank(key: string): number {
   if (BILLING_ADDRESS_KEYS.has(key)) return 1;
   if (CONTACT_KEYS.has(key)) return 2;
   return 3;
+}
+
+/** Prefer concrete gym/school keys over the shared programName alias. */
+function orgReportKeyPreference(key: string): number {
+  switch (key) {
+    case "gymName":
+    case "schoolGymName":
+      return 0;
+    case "schoolName":
+    case "schoolProgramName":
+      return 1;
+    case "organizationName":
+    case "schoolOrganizationName":
+      return 2;
+    case "programName":
+      return 3;
+    default:
+      return 4;
+  }
 }
 
 /** Filled gym/school/contact (+ team when that subtype uses Team Name). */
@@ -297,11 +322,22 @@ export function scoreManualFormIdentityMatch(
   };
 
   // Org name: any gym/school/program alias on form vs any on manual.
-  const formNames = valuesForKeys(formFields, ORG_IDENTITY_KEYS);
-  const manualNames = valuesForKeys(manualFields, ORG_IDENTITY_KEYS);
-  const nameScore = bestCrossScore(formNames, manualNames);
-  if (nameScore > 0 && manualNames[0]) {
-    considerHit(state, nameScore, "programName", manualNames[0]);
+  // Attribute the winning pair's field key (not always "programName") so
+  // notification copy matches Suggested-for-You / Match compare labels.
+  for (const formField of formFields) {
+    if (!ORG_IDENTITY_KEYS.has(formField.key)) continue;
+    for (const manualField of manualFields) {
+      if (!ORG_IDENTITY_KEYS.has(manualField.key)) continue;
+      const score = programNameSimilarity(formField.value, manualField.value);
+      if (score <= 0) continue;
+      // Prefer gym/school keys over the generic programName alias when tied.
+      const reportKey =
+        orgReportKeyPreference(manualField.key) <=
+        orgReportKeyPreference(formField.key)
+          ? manualField.key
+          : formField.key;
+      considerHit(state, score, reportKey, manualField.value);
+    }
   }
 
   // Billing address: either address is enough; aliases compared across keys.

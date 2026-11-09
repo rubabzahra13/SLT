@@ -115,9 +115,14 @@ const FIELD_GETTERS: Record<string, (order: Order) => string | undefined> = {
     coalesceFieldAliases(o.coachName, o.coachContactFullName, o.musicContactName),
   coachContactFullName: (o) =>
     coalesceFieldAliases(o.coachContactFullName, o.coachName, o.musicContactName),
-  coachPhone: (o) => coalesceFieldAliases(o.coachPhone, o.musicContactPhone),
+  coachPhone: (o) =>
+    coalesceFieldAliases(
+      o.coachPhone,
+      o.musicContactPhone,
+      o.contactPhoneForYouthRecCheer
+    ),
   contactPhoneForYouthRecCheer: (o) =>
-    coalesceFieldAliases(o.contactPhoneForYouthRecCheer),
+    coalesceFieldAliases(o.contactPhoneForYouthRecCheer, o.coachPhone),
   coachEmail: (o) =>
     coalesceFieldAliases(o.coachEmail, o.coachEmailAddress, o.musicContactEmail),
   coachEmailAddress: (o) =>
