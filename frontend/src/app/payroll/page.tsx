@@ -789,7 +789,8 @@ export default function PayrollPage() {
       searched,
       tableFilters.sortBy ?? "newest",
       producers,
-      orderById
+      orderById,
+      { packagePrice: "stored" }
     );
     return sortMTDRecordsByViewOrder(sorted, viewOrder, producers);
   }, [

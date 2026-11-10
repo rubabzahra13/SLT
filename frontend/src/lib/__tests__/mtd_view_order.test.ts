@@ -4,6 +4,7 @@ import {
   sortMTDRecordsBySortKey,
   sortMTDRecordsByViewOrder,
 } from "../mtd-filters";
+import { resolveOrderPackageDisplayPrice } from "../order-package-price";
 import type { MTDRecord, Order, Producer } from "../../types";
 
 function rec(
@@ -103,18 +104,42 @@ describe("MTD sort by", () => {
     );
   });
 
-  it("sorts package price high / low", () => {
+  it("sorts package price high / low by the price column", () => {
     const rows = [
-      rec("1", null, "a", { price: 100 }),
-      rec("2", null, "b", { price: 300 }),
-      rec("3", null, "c", { finalCustomerPrice: 200 }),
+      rec("1", null, "a", { price: 100, package: "" }),
+      rec("2", null, "b", { price: 300, package: "NOT_A_PACKAGE" }),
+      rec("3", null, "c", { price: 200, package: "" }),
+    ];
+    const shown = (row: MTDRecord) =>
+      resolveOrderPackageDisplayPrice(row, null);
+    const high = sortMTDRecordsBySortKey(rows, "price_high");
+    const low = sortMTDRecordsBySortKey(rows, "price_low");
+    const highPrices = high.map(shown);
+    const lowPrices = low.map(shown);
+    assert.ok(highPrices[0] >= highPrices[1] && highPrices[1] >= highPrices[2]);
+    assert.ok(lowPrices[0] <= lowPrices[1] && lowPrices[1] <= lowPrices[2]);
+    assert.deepEqual(
+      high.map((r) => r.id),
+      [...low].reverse().map((r) => r.id)
+    );
+  });
+
+  it("sorts payroll package price by the stored column amount", () => {
+    const rows = [
+      rec("1", null, "a", { price: 100, finalCustomerPrice: 100 }),
+      rec("2", null, "b", { price: 300, finalCustomerPrice: 300 }),
+      rec("3", null, "c", { price: 200, finalCustomerPrice: 200 }),
     ];
     assert.deepEqual(
-      sortMTDRecordsBySortKey(rows, "price_high").map((r) => r.id),
+      sortMTDRecordsBySortKey(rows, "price_high", [], null, {
+        packagePrice: "stored",
+      }).map((r) => r.id),
       ["2", "3", "1"]
     );
     assert.deepEqual(
-      sortMTDRecordsBySortKey(rows, "price_low").map((r) => r.id),
+      sortMTDRecordsBySortKey(rows, "price_low", [], null, {
+        packagePrice: "stored",
+      }).map((r) => r.id),
       ["1", "3", "2"]
     );
   });
@@ -149,6 +174,47 @@ describe("MTD sort by", () => {
     assert.deepEqual(
       sortMTDRecordsBySortKey(rows, "end_oldest").map((r) => r.id),
       ["1", "3", "2"]
+    );
+    const withBlank = [
+      ...rows,
+      rec("4", null, "d", { mixStartDate: "", mixEndDate: "" }),
+    ];
+    assert.equal(
+      sortMTDRecordsBySortKey(withBlank, "start_earliest").at(-1)?.id,
+      "4"
+    );
+    assert.equal(
+      sortMTDRecordsBySortKey(withBlank, "start_oldest").at(-1)?.id,
+      "4"
+    );
+    assert.equal(
+      sortMTDRecordsBySortKey(withBlank, "end_earliest").at(-1)?.id,
+      "4"
+    );
+    assert.equal(
+      sortMTDRecordsBySortKey(withBlank, "end_oldest").at(-1)?.id,
+      "4"
+    );
+  });
+
+  it("sorts newest by the timestamp, not the mix start date", () => {
+    const rows = [
+      rec("1", null, "a", {
+        createdAt: "2026-01-01T00:00:00Z",
+        mixStartDate: "2026-12-01",
+      }),
+      rec("2", null, "b", {
+        createdAt: "2026-06-01T00:00:00Z",
+        mixStartDate: "2026-01-01",
+      }),
+    ];
+    assert.deepEqual(
+      sortMTDRecordsBySortKey(rows, "newest").map((r) => r.id),
+      ["2", "1"]
+    );
+    assert.deepEqual(
+      sortMTDRecordsBySortKey(rows, "oldest").map((r) => r.id),
+      ["1", "2"]
     );
   });
 

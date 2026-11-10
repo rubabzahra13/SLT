@@ -148,8 +148,15 @@ def paginate_keyset_by_created(
     page_size: int,
     page_token: str | None,
     sort: str = "newest",
+    created_column: Any = None,
+    created_at_of: Any = None,
 ) -> tuple[list[Any], str | None]:
-    """Keyset page on (created_at, id). Sort: newest | oldest."""
+    """Keyset page on (created_at, id). Sort: newest | oldest.
+
+    ``created_column`` overrides the SQL clock (for example the order intake
+    timestamp instead of the row's own created_at). ``created_at_of`` reads
+    that same clock off a loaded row for the next-page cursor.
+    """
     size = min(max(page_size, 1), MAX_PAGE_SIZE)
     cursor = decode_keyset_token(page_token)
     descending = (sort or "newest").strip().lower() not in (
@@ -157,7 +164,7 @@ def paginate_keyset_by_created(
         "created_asc",
     )
 
-    created_col = model.created_at
+    created_col = model.created_at if created_column is None else created_column
     id_col = model.id
 
     if cursor and cursor.get("created_at") is not None:
@@ -196,8 +203,12 @@ def paginate_keyset_by_created(
     if not has_more or not page:
         return page, None
     last = page[-1]
+    if created_at_of is not None:
+        last_created = created_at_of(last)
+    else:
+        last_created = getattr(last, "created_at", None)
     return page, encode_keyset_token(
-        created_at=getattr(last, "created_at", None),
+        created_at=last_created,
         row_id=getattr(last, "id"),
         sort="oldest" if not descending else "newest",
     )

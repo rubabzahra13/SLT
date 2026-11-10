@@ -88,18 +88,14 @@ def _mtd_board_query(
 ):
     query = db.query(MTDRecord).options(*_mtd_load_options())
     query = _apply_mtd_scope(query, scope)
+    # Timestamp column is the order intake time, not when the MTD row was inserted.
+    query = query.outerjoin(Order, MTDRecord.order_id == Order.id)
     query = apply_created_at_bounds(
-        query, MTDRecord.created_at, created_after, created_before
+        query,
+        func.coalesce(Order.created_at, MTDRecord.created_at),
+        created_after,
+        created_before,
     )
-
-    needs_join = bool(
-        (cheer_form_subtype and cheer_form_subtype not in ("all", "All"))
-        or (form_type and form_type not in ("all", "All"))
-        or (category and category != "All")
-        or (search and search.strip())
-    )
-    if needs_join:
-        query = query.join(Order, MTDRecord.order_id == Order.id, isouter=True)
 
     if cheer_form_subtype and cheer_form_subtype not in ("all", "All"):
         query = query.filter(Order.cheer_form_subtype == cheer_form_subtype)
@@ -130,6 +126,13 @@ def _mtd_board_query(
         )
 
     return query
+
+
+def _board_timestamp(row: MTDRecord):
+    """Same clock as the Timestamp column: order intake, else the MTD row."""
+    order = getattr(row, "order", None)
+    order_created = getattr(order, "created_at", None) if order is not None else None
+    return order_created if order_created is not None else row.created_at
 
 
 def _mtd_counts_cache_key(
@@ -185,6 +188,8 @@ def get_mtd_board(
         page_size=size,
         page_token=page_token,
         sort="newest",
+        created_column=func.coalesce(Order.created_at, MTDRecord.created_at),
+        created_at_of=_board_timestamp,
     )
     return MtdListResponse(
         mtd=[_serialize_mtd(row) for row in page],

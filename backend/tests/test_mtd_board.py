@@ -76,6 +76,58 @@ def _mtd(
     return row
 
 
+def test_mtd_board_uses_order_timestamp_for_sort_and_date(db: Session):
+    """Timestamp column is order intake time, not mtd_records.created_at."""
+    older = _order(db)
+    newer = _order(db)
+    older.created_at = datetime(2025, 1, 1, tzinfo=timezone.utc)
+    newer.created_at = datetime(2026, 6, 1, tzinfo=timezone.utc)
+    db.commit()
+
+    # Insert clocks are the opposite of the order intake times.
+    recent_insert = _mtd(db, order=older)
+    recent_insert.created_at = datetime(2026, 8, 1, tzinfo=timezone.utc)
+    old_insert = _mtd(db, order=newer)
+    old_insert.created_at = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    db.commit()
+
+    q = _mtd_board_query(
+        db,
+        scope="live",
+        form_type="school-all-star-cheer",
+        cheer_form_subtype=None,
+        category=None,
+        search=None,
+        status=None,
+    )
+    page, _token = paginate_keyset_by_created(
+        q,
+        model=MTDRecord,
+        page_size=10,
+        page_token=None,
+        sort="newest",
+        created_column=func.coalesce(Order.created_at, MTDRecord.created_at),
+        created_at_of=lambda row: (
+            row.order.created_at
+            if row.order is not None and row.order.created_at is not None
+            else row.created_at
+        ),
+    )
+    assert [row.id for row in page] == [old_insert.id, recent_insert.id]
+
+    window = _mtd_board_query(
+        db,
+        scope="live",
+        form_type="school-all-star-cheer",
+        cheer_form_subtype=None,
+        category=None,
+        search=None,
+        status=None,
+        created_after="2026-01-01T00:00:00+00:00",
+    )
+    assert [row.id for row in window.all()] == [old_insert.id]
+
+
 def test_mtd_board_default_page_size():
     assert BOARD_DEFAULT_PAGE_SIZE == 50
 

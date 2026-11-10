@@ -120,6 +120,7 @@ import {
   resolveMTDFormMeta,
   sortMTDRecordsBySortKey,
 } from "@/lib/mtd-filters";
+import { resolveMtdTimestamp } from "@/lib/mtd-timestamp";
 import { listPreMtdOrderRecords } from "@/lib/order-staging";
 import {
   prefetchOrdersBoard,
@@ -1525,18 +1526,12 @@ function OrdersPageContent() {
           return matchesMTDSearch(rec, q, linked);
         })
       : rows;
-    const sorted = sortMTDRecordsBySortKey(
+    return sortMTDRecordsBySortKey(
       searched,
       tableFilters.sortBy ?? "newest",
       producers,
       orderById
     );
-    // Moved-back (reassigned) orders pin to the top of the list.
-    return [...sorted].sort((a, b) => {
-      const aRe = a.isReassigned ? 1 : 0;
-      const bRe = b.isReassigned ? 1 : 0;
-      return bRe - aRe;
-    });
   }, [
     tableFiltered,
     rangeFilters,
@@ -1769,22 +1764,11 @@ function OrdersPageContent() {
         nowrap: true,
         cellClassName: compactCellClass,
         headerClassName: compactHeaderClass,
-        render: (rec) => {
-          const linked = findLinkedOrder(rec, ordersForUi);
-          const stamp =
-            linked?.createdAt ||
-            rec.createdAt ||
-            (rec.orderId
-              ? readOrdersBoardOrder(rec.orderId)?.createdAt
-              : null) ||
-            readOrdersBoardOrder(rec.id)?.createdAt ||
-            "";
-          return (
-            <span className="tabular-nums text-[11px] text-brand-ink-secondary whitespace-nowrap">
-              {formatDisplayDateTime(stamp)}
-            </span>
-          );
-        },
+        render: (rec) => (
+          <span className="tabular-nums text-[11px] text-brand-ink-secondary whitespace-nowrap">
+            {formatDisplayDateTime(resolveMtdTimestamp(rec, ordersForUi))}
+          </span>
+        ),
       },
       {
         key: "orderSource",

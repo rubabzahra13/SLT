@@ -19,6 +19,7 @@ import {
 import { producerKeysMatch } from "./producer-keys";
 import { titleCase } from "./data";
 import { determineComplianceStatus } from "./pricing-engine";
+import { resolveOrderPackageDisplayPrice } from "./order-package-price";
 import {
   inferCheerFormSubtype,
   inferDanceFormSubtype,
@@ -927,62 +928,81 @@ export const MTD_SORT_BY_OPTIONS: { value: MTDSortBy; label: string }[] = [
   { value: "days_less", label: "Days booked · Less" },
 ];
 
-function recordPackagePrice(
+function linkedSortOrder(
   rec: MTDRecord,
   orderById?: Map<string, Order> | null
+): Order | null {
+  if (!orderById) return null;
+  return (
+    (rec.orderId && orderById.get(rec.orderId)) ||
+    orderById.get(rec.id) ||
+    (rec.uuid && orderById.get(rec.uuid)) ||
+    (rec.legacyId && orderById.get(rec.legacyId)) ||
+    null
+  );
+}
+
+/**
+ * Orders/MTD Package Price chip: live rate card.
+ * Payroll column: stored customer price (override, then system, then row).
+ */
+function recordPackagePrice(
+  rec: MTDRecord,
+  orderById?: Map<string, Order> | null,
+  source: "rateCard" | "stored" = "rateCard"
 ): number {
-  const order =
-    (rec.orderId && orderById?.get(rec.orderId)) ||
-    orderById?.get(rec.id) ||
-    (rec.uuid && orderById?.get(rec.uuid)) ||
-    (rec.legacyId && orderById?.get(rec.legacyId)) ||
-    null;
-  // Orders SoT for stored customer price; MTD price is display fallback.
-  const fromOrder = order?.finalCustomerPrice ?? order?.systemCalculatedCustomerPrice;
-  if (typeof fromOrder === "number" && Number.isFinite(fromOrder)) return fromOrder;
-  if (order?.price != null && Number.isFinite(Number(order.price))) {
-    return Number(order.price);
+  const order = linkedSortOrder(rec, orderById);
+  if (source === "stored") {
+    const value =
+      order?.finalCustomerPrice ??
+      order?.systemCalculatedCustomerPrice ??
+      rec.finalCustomerPrice ??
+      rec.price;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : 0;
   }
-  const final = rec.finalCustomerPrice;
-  if (typeof final === "number" && Number.isFinite(final)) return final;
-  return Number(rec.price) || 0;
+  const meta = resolveMTDFormMeta(rec, orderById ?? new Map());
+  const shown = resolveOrderPackageDisplayPrice(
+    rec,
+    order,
+    meta,
+    orderById ?? undefined
+  );
+  return Number.isFinite(shown) ? shown : 0;
 }
 
 function recordCreatedMs(
   rec: MTDRecord,
   orderById?: Map<string, Order> | null
 ): number {
-  const fromRec = rec.createdAt;
-  if (fromRec) {
-    const ms = Date.parse(fromRec);
-    if (!Number.isNaN(ms)) return ms;
-  }
-  if (orderById) {
-    const linked =
-      (rec.orderId && orderById.get(rec.orderId)) ||
-      orderById.get(rec.id) ||
-      (rec.uuid && orderById.get(rec.uuid)) ||
-      (rec.legacyId && orderById.get(rec.legacyId)) ||
-      null;
-    const created = linked?.createdAt;
-    if (created) {
-      const ms = Date.parse(created);
-      if (!Number.isNaN(ms)) return ms;
-    }
-  }
-  const start = toIsoDateString(rec.mixStartDate || "");
-  if (start) {
-    const ms = Date.parse(start);
-    if (!Number.isNaN(ms)) return ms;
-  }
-  return 0;
+  // Same clock as the Timestamp column. Mix start/end is a different sort.
+  const stamp = resolveMtdTimestamp(
+    rec,
+    orderById ? Array.from(orderById.values()) : []
+  );
+  if (!stamp) return 0;
+  const ms = Date.parse(stamp);
+  return Number.isNaN(ms) ? 0 : ms;
 }
 
-function dateSortKey(isoLike: string | undefined | null): number {
+/** Calendar day for Mix start / Mix due. Null when the cell has no date. */
+function mixDateMs(isoLike: string | undefined | null): number | null {
   const iso = toIsoDateString(isoLike || "");
-  if (!iso) return Number.POSITIVE_INFINITY;
+  if (!iso) return null;
   const ms = Date.parse(iso);
-  return Number.isNaN(ms) ? Number.POSITIVE_INFINITY : ms;
+  return Number.isNaN(ms) ? null : ms;
+}
+
+/** Dated rows in order; rows with no mix date stay at the bottom either way. */
+function compareMixDates(
+  a: number | null,
+  b: number | null,
+  direction: "asc" | "desc"
+): number {
+  if (a == null && b == null) return 0;
+  if (a == null) return 1;
+  if (b == null) return -1;
+  return direction === "asc" ? a - b : b - a;
 }
 
 function daysBookedSortKey(rec: MTDRecord, producers: Producer[]): number {
@@ -997,12 +1017,21 @@ function daysBookedSortKey(rec: MTDRecord, producers: Producer[]): number {
   return Math.floor((b - a) / 86400000) + 1;
 }
 
+export type BoardSortOptions = {
+  /**
+   * rateCard = Orders/MTD Package Price chip.
+   * stored = Payroll Package Price column.
+   */
+  packagePrice?: "rateCard" | "stored";
+};
+
 /** Apply Filters → Sort by (stable). */
 export function sortMTDRecordsBySortKey(
   records: MTDRecord[],
   sortBy: MTDSortBy | string | undefined,
   producers: Producer[] = [],
-  orderById?: Map<string, Order> | null
+  orderById?: Map<string, Order> | null,
+  options?: BoardSortOptions
 ): MTDRecord[] {
   const mode = (sortBy || "newest") as MTDSortBy;
   // Legacy "none" keeps caller order; default sort is newest.
@@ -1039,27 +1068,41 @@ export function sortMTDRecordsBySortKey(
           break;
         case "price_high":
           cmp =
-            recordPackagePrice(b.rec, orderById) -
-            recordPackagePrice(a.rec, orderById);
+            recordPackagePrice(b.rec, orderById, options?.packagePrice) -
+            recordPackagePrice(a.rec, orderById, options?.packagePrice);
           break;
         case "price_low":
           cmp =
-            recordPackagePrice(a.rec, orderById) -
-            recordPackagePrice(b.rec, orderById);
+            recordPackagePrice(a.rec, orderById, options?.packagePrice) -
+            recordPackagePrice(b.rec, orderById, options?.packagePrice);
           break;
         case "start_earliest":
-          cmp =
-            dateSortKey(a.rec.mixStartDate) - dateSortKey(b.rec.mixStartDate);
+          cmp = compareMixDates(
+            mixDateMs(a.rec.mixStartDate),
+            mixDateMs(b.rec.mixStartDate),
+            "asc"
+          );
           break;
         case "start_oldest":
-          cmp =
-            dateSortKey(b.rec.mixStartDate) - dateSortKey(a.rec.mixStartDate);
+          cmp = compareMixDates(
+            mixDateMs(a.rec.mixStartDate),
+            mixDateMs(b.rec.mixStartDate),
+            "desc"
+          );
           break;
         case "end_earliest":
-          cmp = dateSortKey(a.rec.mixEndDate) - dateSortKey(b.rec.mixEndDate);
+          cmp = compareMixDates(
+            mixDateMs(a.rec.mixEndDate),
+            mixDateMs(b.rec.mixEndDate),
+            "asc"
+          );
           break;
         case "end_oldest":
-          cmp = dateSortKey(b.rec.mixEndDate) - dateSortKey(a.rec.mixEndDate);
+          cmp = compareMixDates(
+            mixDateMs(a.rec.mixEndDate),
+            mixDateMs(b.rec.mixEndDate),
+            "desc"
+          );
           break;
         case "days_more":
           cmp =

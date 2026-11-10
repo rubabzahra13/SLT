@@ -174,6 +174,7 @@ export function stagingRecordFromOrder(order: Order): MTDRecord {
     // Rush column: SE customer answer + admin board flag.
     isRushOrder: order.isRushOrder,
     clientRequestedRushOrder: order.clientRequestedRushOrder,
+    createdAt: order.createdAt || null,
   };
 }
 
@@ -667,7 +668,12 @@ export function listPreMtdOrderRecords(
       (rec.uuid && orderById.get(rec.uuid)) ||
       (rec.legacyId && orderById.get(rec.legacyId)) ||
       null;
-    return mergeCollectionStateFromOrder(rec, linked);
+    const merged = mergeCollectionStateFromOrder(rec, linked);
+    // Timestamp column is the order intake time, including for MTD clones.
+    if (linked?.createdAt && merged.createdAt !== linked.createdAt) {
+      return { ...merged, createdAt: linked.createdAt };
+    }
+    return merged;
   });
 
   const coveredKeys = new Set(
