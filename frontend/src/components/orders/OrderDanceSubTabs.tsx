@@ -24,6 +24,7 @@ export function OrderDanceSubTabs({ subtype, onChange, counts }: OrderDanceSubTa
   return (
     <DottedScroll
       orientation="horizontal"
+      mapVerticalWheelToHorizontal
       className="border-b border-brand-line bg-brand-bg/20"
       scrollClassName="overflow-x-scroll scrollbar-hide"
       indicatorPlacement="below"

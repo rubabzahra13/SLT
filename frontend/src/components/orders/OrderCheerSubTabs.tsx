@@ -55,6 +55,7 @@ export function OrderCheerSubTabs({ subtype, onChange, counts }: OrderCheerSubTa
     <div className="border-b border-brand-line bg-brand-bg/20">
       <DottedScroll
         orientation="horizontal"
+        mapVerticalWheelToHorizontal
         scrollClassName="overflow-x-scroll scrollbar-hide"
         indicatorPlacement="below"
         contentClassName="flex w-max min-w-full px-4 py-2"
@@ -85,6 +86,7 @@ export function OrderCheerSubTabs({ subtype, onChange, counts }: OrderCheerSubTa
       {category === "school-cheer" ? (
         <DottedScroll
           orientation="horizontal"
+          mapVerticalWheelToHorizontal
           scrollClassName="overflow-x-scroll scrollbar-hide"
           indicatorPlacement="below"
           contentClassName="flex w-max min-w-full border-t border-brand-line/60 px-4 py-2 pl-6"

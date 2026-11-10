@@ -1158,10 +1158,10 @@ function MTDPageContent() {
       {
         key: "packageE",
         header: "Package type",
-        width: "100px",
+        width: "120px",
         align: "center" as const,
         nowrap: false,
-        cellClassName: clsx(compactCellClass, "max-w-[100px]"),
+        cellClassName: clsx(compactCellClass, "max-w-[120px]"),
         headerClassName: compactHeaderClass,
         render: (rec) => {
           const linked = findLinkedOrder(rec, allOrders);

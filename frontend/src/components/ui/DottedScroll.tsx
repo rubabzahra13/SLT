@@ -27,6 +27,12 @@ type DottedScrollProps = {
   indicatorClassName?: string;
   tone?: "light" | "dark";
   showIndicator?: boolean;
+  /**
+   * When horizontal and the content is wider than the viewport, map vertical
+   * wheel to scrollLeft (tab strips). Leave off for tables so scroll-down
+   * does not also shift right — native horizontal gestures still work.
+   */
+  mapVerticalWheelToHorizontal?: boolean;
 };
 
 export function DottedScroll({
@@ -40,6 +46,7 @@ export function DottedScroll({
   indicatorClassName = "",
   tone = "light",
   showIndicator = true,
+  mapVerticalWheelToHorizontal = false,
 }: DottedScrollProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -161,16 +168,18 @@ export function DottedScroll({
 
   const handleWheel = useCallback(
     (e: React.WheelEvent<HTMLDivElement>) => {
-      if (isHorizontal && containerRef.current) {
-        const el = containerRef.current;
-        if (el.scrollWidth > el.clientWidth) {
-          if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
-            el.scrollLeft += e.deltaY;
-          }
-        }
+      if (!mapVerticalWheelToHorizontal || !isHorizontal || !containerRef.current) {
+        return;
+      }
+      const el = containerRef.current;
+      if (el.scrollWidth <= el.clientWidth) return;
+      // Only remap clearly vertical gestures (tabs). Shift+wheel / trackpad
+      // horizontal deltaX keeps native scrollLeft behavior.
+      if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+        el.scrollLeft += e.deltaY;
       }
     },
-    [isHorizontal]
+    [isHorizontal, mapVerticalWheelToHorizontal]
   );
 
   return (
@@ -185,7 +194,11 @@ export function DottedScroll({
         className
       )}
     >
-      <div ref={containerRef} className={resolvedScrollClass} onWheel={handleWheel}>
+      <div
+        ref={containerRef}
+        className={resolvedScrollClass}
+        onWheel={mapVerticalWheelToHorizontal ? handleWheel : undefined}
+      >
         <div className={resolvedContentClass}>{children}</div>
       </div>
       {dots}
