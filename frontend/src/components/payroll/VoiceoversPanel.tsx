@@ -24,7 +24,10 @@ import {
   countMTDByForm,
 } from "@/lib/mtd-filters";
 import { getPayrollRecords } from "@/lib/mtd-completion";
-import { producerMatchesScheduleFormFilter } from "@/lib/schedule-filters";
+import {
+  producerMatchesScheduleFormFilter,
+  scheduleFormFilterLabel,
+} from "@/lib/schedule-filters";
 import {
   findVoiceoverProgramMatch,
   voiceoverProgramNames,
@@ -261,7 +264,15 @@ export function VoiceoversPanel({
                         {titleCase(addon.programName)}
                       </td>
                       <td className="px-4 py-3 text-[13px] text-brand-ink-secondary">
-                        {addon.category}
+                        {addon.formType
+                          ? scheduleFormFilterLabel(
+                              addon.formType as OrderFormType,
+                              (addon.cheerFormSubtype as CheerFormSubtypeFilter) ||
+                                "all",
+                              (addon.danceFormSubtype as DanceFormSubtypeFilter) ||
+                                "all"
+                            )
+                          : addon.category}
                       </td>
                       <td className="px-4 py-3 text-right text-[13px] font-semibold tabular-nums text-brand-ink">
                         {formatPrice(addon.amount)}
@@ -563,22 +574,23 @@ function VoiceoverEntryModal({
       setProducerId(editing.producerId || "");
       setProgramName(editing.programName || "");
       const nextForm: OrderFormType =
-        editing.category === "Dance"
+        (editing.formType as OrderFormType) ||
+        (editing.category === "Dance"
           ? "school-all-star-dance"
-          : "school-all-star-cheer";
+          : "school-all-star-cheer");
       setForm(nextForm);
       setCheerSubtype(
         nextForm === "school-all-star-cheer"
-          ? initialCheerSubtype === "all"
-            ? "all-star-cheer"
-            : initialCheerSubtype
+          ? ((editing.cheerFormSubtype as CheerFormSubtypeFilter) ||
+              (initialCheerSubtype === "all"
+                ? "all-star-cheer"
+                : initialCheerSubtype))
           : "all-star-cheer"
       );
       setDanceSubtype(
         nextForm === "school-all-star-dance"
-          ? initialDanceSubtype === "all"
-            ? "pom"
-            : initialDanceSubtype
+          ? ((editing.danceFormSubtype as DanceFormSubtypeFilter) ||
+              (initialDanceSubtype === "all" ? "pom" : initialDanceSubtype))
           : "pom"
       );
       const list = editing.category === "Dance" ? DANCE_RATES : CHEER_RATES;
@@ -633,11 +645,25 @@ function VoiceoverEntryModal({
       amount = selectedRate.value!;
     }
 
-    const linked = findVoiceoverProgramMatch(
-      programName,
-      allOrders,
-      mtdRecords
-    );
+    if (form === "school-all-star-cheer" && cheerSubtype === "all") {
+      setError("Pick a cheer subcategory (not All).");
+      return;
+    }
+    if (form === "school-all-star-dance" && danceSubtype === "all") {
+      setError("Pick a dance subcategory (not All).");
+      return;
+    }
+
+    const cheerScope =
+      form === "school-all-star-cheer" ? cheerSubtype : null;
+    const danceScope =
+      form === "school-all-star-dance" ? danceSubtype : null;
+
+    const linked = findVoiceoverProgramMatch(programName, allOrders, mtdRecords, {
+      formType: form,
+      cheerSubtype: cheerScope ?? "all",
+      danceSubtype: danceScope ?? "all",
+    });
 
     // Only attach FKs that exist in the client lists. Never send a record's
     // orderId/id as order_id — that UUID may be gone from `orders` (FK 500).
@@ -657,6 +683,9 @@ function VoiceoverEntryModal({
         contactName:
           linked.order?.contactName || linked.record?.contactName || null,
         category,
+        formType: form,
+        cheerFormSubtype: cheerScope,
+        danceFormSubtype: danceScope,
         addonType: "voiceover",
         amount,
         rateSource: selectedRate.source,

@@ -65,7 +65,8 @@ function findLinkedMixById(
 
 /**
  * Whether a voiceover belongs on the current Send Statements / Voiceovers form tab.
- * Prefer the linked mix's form; unlinked VOs only appear on Cheer/Dance tabs.
+ * Stored form/subtype wins (Add voiceover picker). Legacy rows fall back to the
+ * linked mix, then Cheer/Dance category only.
  */
 export function voiceoverMatchesFormFilter(
   addon: PayrollAddon,
@@ -76,6 +77,26 @@ export function voiceoverMatchesFormFilter(
   orderById: Map<string, Order>
 ): boolean {
   if (addon.addonType !== "voiceover") return true;
+
+  const storedForm = String(addon.formType || "").trim();
+  if (storedForm) {
+    if (storedForm !== form) return false;
+    if (form === "school-all-star-cheer") {
+      if (cheerSubtype === "all") return true;
+      const stored = String(addon.cheerFormSubtype || "").trim();
+      return !stored || stored === cheerSubtype;
+    }
+    if (form === "school-all-star-dance") {
+      if (danceSubtype === "all") return true;
+      const stored = String(addon.danceFormSubtype || "").trim();
+      if (!stored) return true;
+      if (danceSubtype === "team-performance-variety") {
+        return stored.startsWith("team-performance");
+      }
+      return stored === danceSubtype;
+    }
+    return true;
+  }
 
   const linked = findLinkedMixById(addon, allPayrollRecords);
   if (linked) {

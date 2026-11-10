@@ -26,6 +26,7 @@ import {
   renderScheduleMailPlainText,
   stringToBase64,
 } from "@/lib/producer-schedule-mail";
+import { findProducerByAssignmentKey } from "@/lib/editor-assignment";
 import type { MTDRecord, Order, Producer } from "@/types";
 import {
   sendPeriodLabel,
@@ -49,10 +50,20 @@ type SendFeedback = {
   message: string;
 };
 
-function findProducerByName(name: string, producers: Producer[]): Producer | undefined {
-  return producers.find(
-    (producer) => producer.name.toUpperCase() === name.toUpperCase()
-  );
+function resolveSendProducer(
+  name: string,
+  producers: Producer[]
+): Producer | undefined {
+  return findProducerByAssignmentKey(name, producers);
+}
+
+function producerHasSendEmail(producer: Producer | undefined): boolean {
+  return Boolean(producer?.email?.trim());
+}
+
+function formatMissingEmailMessage(names: string[]): string {
+  const list = names.join(", ");
+  return `Missing email for: ${list}. Open Producers, add their email, then send again.`;
 }
 
 function resolveSelectedProducerName(
@@ -192,7 +203,7 @@ export function ScheduleSendPanel({
 
   const previewItems = useMemo<ScheduleSendPreviewItem[]>(() => {
     return targetProducerNames.flatMap((producerName) => {
-      const producer = findProducerByName(producerName, producers);
+      const producer = resolveSendProducer(producerName, producers);
       if (!producer) return [];
 
       const rows = rowsByProducer.get(producerName) ?? [];
@@ -223,8 +234,16 @@ export function ScheduleSendPanel({
   ]);
 
   const missingEmailNames = useMemo(
-    () => previewItems.filter((item) => !item.email).map((item) => item.producerName),
-    [previewItems]
+    () =>
+      targetProducerNames.filter(
+        (name) => !producerHasSendEmail(resolveSendProducer(name, producers))
+      ),
+    [targetProducerNames, producers]
+  );
+
+  const sendableProducerNames = useMemo(
+    () => targetProducerNames.filter((name) => !missingEmailNames.includes(name)),
+    [targetProducerNames, missingEmailNames]
   );
 
   const downloadTargets = useCallback(
@@ -259,9 +278,11 @@ export function ScheduleSendPanel({
 
   const sendScheduleToProducer = useCallback(
     async (producerName: string) => {
-      const producer = findProducerByName(producerName, producers);
-      if (!producer?.email) {
-        throw new Error(`${producerName} has no email on file.`);
+      const producer = resolveSendProducer(producerName, producers);
+      if (!producer || !producerHasSendEmail(producer)) {
+        throw new Error(
+          `${producerName} has no email on file. Add it on the Producers page.`
+        );
       }
 
       const rows = rowsByProducer.get(producerName) ?? [];
@@ -348,18 +369,28 @@ export function ScheduleSendPanel({
 
   const openSendModal = useCallback(() => {
     setFeedback(null);
-    if (missingEmailNames.length > 0) {
+    if (sendableProducerNames.length === 0) {
       setFeedback({
         type: "error",
-        message: `Missing email for: ${missingEmailNames.join(", ")}.`,
+        message: formatMissingEmailMessage(missingEmailNames),
       });
       return;
+    }
+    if (missingEmailNames.length > 0) {
+      setFeedback({
+        type: "warning",
+        message: `Sending ${sendableProducerNames.length} of ${targetProducerNames.length}. ${formatMissingEmailMessage(missingEmailNames)}`,
+      });
     }
     setSendError(null);
     setSent(false);
     setSentSummary(null);
     setMailModalOpen(true);
-  }, [missingEmailNames]);
+  }, [
+    missingEmailNames,
+    sendableProducerNames,
+    targetProducerNames.length,
+  ]);
 
   const closeSendModal = useCallback(() => {
     if (isSending) return;
@@ -371,15 +402,15 @@ export function ScheduleSendPanel({
   }, [isSending]);
 
   const handleConfirmSend = useCallback(() => {
-    void handleSendTargets(targetProducerNames);
-  }, [handleSendTargets, targetProducerNames]);
+    void handleSendTargets(sendableProducerNames);
+  }, [handleSendTargets, sendableProducerNames]);
 
   const sendDisabledReason = isViewOnly
     ? "View-only users cannot send email"
     : !gmailConnected
       ? "Connect Gmail in Settings first"
-      : missingEmailNames.length > 0
-        ? `Missing email for: ${missingEmailNames.join(", ")}`
+      : sendableProducerNames.length === 0
+        ? formatMissingEmailMessage(missingEmailNames)
         : undefined;
 
   const downloadLabel = viewingAll ? "Download all" : "Download";
@@ -485,7 +516,24 @@ export function ScheduleSendPanel({
                   feedback.type === "error" && "text-brand-danger"
                 )}
               >
-                {feedback.message}
+                {feedback.message.includes("Producers") ? (
+                  <>
+                    {feedback.message.replace(
+                      /Open Producers, add their email, then send again\./,
+                      ""
+                    )}
+                    Open{" "}
+                    <Link
+                      href="/producers"
+                      className="font-semibold underline underline-offset-2"
+                    >
+                      Producers
+                    </Link>
+                    , add their email, then send again.
+                  </>
+                ) : (
+                  feedback.message
+                )}
               </p>
             ) : null}
           </div>
@@ -529,7 +577,7 @@ export function ScheduleSendPanel({
         onClose={closeSendModal}
         items={previewItems}
         gmailFrom={gmailFrom}
-        canSend={canSend && missingEmailNames.length === 0}
+        canSend={canSend && sendableProducerNames.length > 0}
         isSending={isSending}
         onSend={handleConfirmSend}
         sendError={sendError}

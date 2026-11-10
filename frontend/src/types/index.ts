@@ -1106,6 +1106,10 @@ export type PayrollAddon = {
   mtdId?: string | null;
   /** "Cheer" | "Dance" | form label for misc_adjustment */
   category: string;
+  /** Orders form taxonomy — scopes voiceovers to one form/subtype tab. */
+  formType?: OrderFormType | string | null;
+  cheerFormSubtype?: string | null;
+  danceFormSubtype?: string | null;
   /** "voiceover" | "rush_fee" | "misc_adjustment" */
   addonType: "voiceover" | "rush_fee" | "misc_adjustment";
   /**

@@ -10,6 +10,9 @@ export interface BackendPayrollAddon {
   order_id?: string | null;
   mtd_id?: string | null;
   category: string;
+  form_type?: string | null;
+  cheer_form_subtype?: string | null;
+  dance_form_subtype?: string | null;
   addon_type: "voiceover" | "rush_fee" | "misc_adjustment";
   amount: number;
   quantity?: number | null;
@@ -42,6 +45,9 @@ function normalizePayrollAddon(raw: BackendPayrollAddon): PayrollAddon {
     orderId,
     mtdId,
     category: raw.category,
+    formType: raw.form_type ?? null,
+    cheerFormSubtype: raw.cheer_form_subtype ?? null,
+    danceFormSubtype: raw.dance_form_subtype ?? null,
     addonType: raw.addon_type,
     amount: Number(raw.amount),
     quantity: raw.quantity ?? null,
@@ -147,6 +153,9 @@ export interface CreatePayrollAddonPayload {
   orderId?: string | null;
   mtdId?: string | null;
   category: string;
+  formType?: string | null;
+  cheerFormSubtype?: string | null;
+  danceFormSubtype?: string | null;
   addonType: "voiceover" | "rush_fee" | "misc_adjustment";
   amount: number;
   quantity?: number | null;
@@ -170,6 +179,9 @@ export async function createPayrollAddonApi(
     order_id: payload.orderId ?? null,
     mtd_id: payload.mtdId ?? null,
     category: payload.category,
+    form_type: payload.formType ?? null,
+    cheer_form_subtype: payload.cheerFormSubtype ?? null,
+    dance_form_subtype: payload.danceFormSubtype ?? null,
     addon_type: payload.addonType,
     amount: payload.amount,
     quantity: payload.quantity ?? null,
@@ -196,6 +208,9 @@ export interface UpdatePayrollAddonPayload {
   unitAmount?: number | null;
   compensationRate?: number | null;
   compensationOverridden?: boolean;
+  formType?: string | null;
+  cheerFormSubtype?: string | null;
+  danceFormSubtype?: string | null;
   producerId?: string | null;
   producerInitials?: string | null;
   notes?: string | null;
@@ -218,6 +233,15 @@ export function mergePayrollAddonPatch(
       patch.compensationOverridden !== undefined
         ? patch.compensationOverridden
         : addon.compensationOverridden,
+    formType: patch.formType !== undefined ? patch.formType : addon.formType,
+    cheerFormSubtype:
+      patch.cheerFormSubtype !== undefined
+        ? patch.cheerFormSubtype
+        : addon.cheerFormSubtype,
+    danceFormSubtype:
+      patch.danceFormSubtype !== undefined
+        ? patch.danceFormSubtype
+        : addon.danceFormSubtype,
     producerId: patch.producerId !== undefined ? patch.producerId : addon.producerId,
     producerInitials:
       patch.producerInitials !== undefined
@@ -241,6 +265,13 @@ export async function updatePayrollAddonApi(
   }
   if (payload.compensationOverridden !== undefined) {
     body.compensation_overridden = payload.compensationOverridden;
+  }
+  if (payload.formType !== undefined) body.form_type = payload.formType;
+  if (payload.cheerFormSubtype !== undefined) {
+    body.cheer_form_subtype = payload.cheerFormSubtype;
+  }
+  if (payload.danceFormSubtype !== undefined) {
+    body.dance_form_subtype = payload.danceFormSubtype;
   }
   if (payload.producerId !== undefined) body.producer_id = payload.producerId;
   if (payload.producerInitials !== undefined) {

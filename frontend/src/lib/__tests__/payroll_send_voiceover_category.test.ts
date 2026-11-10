@@ -140,6 +140,69 @@ describe("Send Statements voiceover category scoping", () => {
     );
   });
 
+  it("scopes stored form/subtype voiceovers to that subcategory only", () => {
+    const gamedayVo: PayrollAddon = {
+      ...cheerVo,
+      id: "vo-gameday",
+      category: "Dance",
+      formType: "school-all-star-dance",
+      cheerFormSubtype: null,
+      danceFormSubtype: "gameday",
+      orderId: null,
+      mtdId: null,
+    };
+    const pomVo: PayrollAddon = {
+      ...gamedayVo,
+      id: "vo-pom",
+      danceFormSubtype: "pom",
+    };
+
+    assert.equal(
+      voiceoverMatchesFormFilter(
+        gamedayVo,
+        "school-all-star-dance",
+        "all",
+        "gameday",
+        allRecords,
+        orderById
+      ),
+      true
+    );
+    assert.equal(
+      voiceoverMatchesFormFilter(
+        gamedayVo,
+        "school-all-star-dance",
+        "all",
+        "pom",
+        allRecords,
+        orderById
+      ),
+      false
+    );
+    assert.equal(
+      voiceoverMatchesFormFilter(
+        gamedayVo,
+        "school-all-star-cheer",
+        "all-star-cheer",
+        "all",
+        allRecords,
+        orderById
+      ),
+      false
+    );
+    assert.equal(
+      voiceoverMatchesFormFilter(
+        pomVo,
+        "school-all-star-dance",
+        "all",
+        "all",
+        allRecords,
+        orderById
+      ),
+      true
+    );
+  });
+
   it("keeps SE-linked voiceovers on sports entertainment only", () => {
     assert.equal(
       voiceoverMatchesFormFilter(

@@ -12,6 +12,9 @@ class PayrollAddonOut(BaseModel):
     order_id: Optional[Union[UUID, str]] = None
     mtd_id: Optional[Union[UUID, str]] = None
     category: str
+    form_type: Optional[str] = None
+    cheer_form_subtype: Optional[str] = None
+    dance_form_subtype: Optional[str] = None
     addon_type: str
     amount: float
     quantity: Optional[int] = None
@@ -35,6 +38,9 @@ class PayrollAddonCreate(BaseModel):
     order_id: Optional[Union[UUID, str]] = None
     mtd_id: Optional[Union[UUID, str]] = None
     category: str = Field(..., min_length=1)
+    form_type: Optional[str] = None
+    cheer_form_subtype: Optional[str] = None
+    dance_form_subtype: Optional[str] = None
     addon_type: str = Field(..., pattern="^(voiceover|rush_fee|misc_adjustment)$")
     amount: float
     quantity: Optional[int] = Field(None, ge=0, le=100)
@@ -57,6 +63,21 @@ class PayrollAddonCreate(BaseModel):
             raise ValueError("Add-on amount must be greater than 0.")
         if self.category not in ("Cheer", "Dance"):
             raise ValueError("Category must be Cheer or Dance for voiceover/rush fee.")
+        # Voiceovers must be scoped to a concrete form (and subtype when cheer/dance).
+        if self.addon_type == "voiceover":
+            form = (self.form_type or "").strip()
+            if not form:
+                raise ValueError(
+                    "Voiceovers require form_type (e.g. school-all-star-dance)."
+                )
+            if form == "school-all-star-cheer" and not (
+                self.cheer_form_subtype or ""
+            ).strip():
+                raise ValueError("Cheer voiceovers require cheer_form_subtype.")
+            if form == "school-all-star-dance" and not (
+                self.dance_form_subtype or ""
+            ).strip():
+                raise ValueError("Dance voiceovers require dance_form_subtype.")
         return self
 
 
@@ -66,6 +87,9 @@ class PayrollAddonUpdate(BaseModel):
     unit_amount: Optional[float] = Field(None, gt=0)
     compensation_rate: Optional[float] = None
     compensation_overridden: Optional[bool] = None
+    form_type: Optional[str] = None
+    cheer_form_subtype: Optional[str] = None
+    dance_form_subtype: Optional[str] = None
     producer_id: Optional[Union[UUID, str]] = None
     producer_initials: Optional[str] = None
     notes: Optional[str] = None

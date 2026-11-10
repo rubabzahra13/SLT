@@ -1,7 +1,20 @@
-import type { MTDRecord, Order } from "@/types";
+import type {
+  CheerFormSubtypeFilter,
+  DanceFormSubtypeFilter,
+  MTDRecord,
+  Order,
+  OrderFormType,
+} from "@/types";
 import { getOrderIdentityName } from "@/lib/order-detail-sections";
 import { collectOrdersBoardCachedOrders } from "@/lib/orders-board-cache";
 import { collectMtdBoardCachedRecords } from "@/lib/mtd-board-cache";
+import { matchesFormFilter } from "@/lib/mtd-filters";
+
+type VoiceoverFormScope = {
+  formType?: OrderFormType;
+  cheerSubtype?: CheerFormSubtypeFilter;
+  danceSubtype?: DanceFormSubtypeFilter;
+};
 
 /**
  * School / program names for Add voiceover.
@@ -93,7 +106,8 @@ export function voiceoverProgramNames(
 export function findVoiceoverProgramMatch(
   programName: string,
   orders: Order[],
-  records: MTDRecord[] = []
+  records: MTDRecord[] = [],
+  scope?: VoiceoverFormScope
 ): { order: Order | null; record: MTDRecord | null } {
   const needle = programName.trim().toLowerCase();
   if (!needle) return { order: null, record: null };
@@ -101,20 +115,58 @@ export function findVoiceoverProgramMatch(
   const liveOrders = liveOrdersForVoiceover(orders);
   const liveRecords = liveRecordsForVoiceover(records);
   const byKey = ordersByKey(liveOrders);
+  const orderById = new Map(liveOrders.map((o) => [o.id, o]));
 
+  const nameMatches = (rec: MTDRecord) => {
+    const linked = linkedOrder(rec, byKey);
+    if (!linked && rec.orderId) return false;
+    const name = linked ? getOrderIdentityName(linked) : rec.programName || "";
+    return name.trim().toLowerCase() === needle;
+  };
+
+  const formMatches = (rec: MTDRecord) => {
+    if (!scope?.formType) return true;
+    return matchesFormFilter(
+      rec,
+      orderById,
+      scope.formType,
+      scope.cheerSubtype ?? "all",
+      scope.danceSubtype ?? "all"
+    );
+  };
+
+  // Prefer a mix that matches the selected form/subtype so the VO does not
+  // attach to another subcategory of the same program.
   const record =
-    liveRecords.find((rec) => {
-      const linked = linkedOrder(rec, byKey);
-      if (!linked && rec.orderId) return false;
-      const name = linked ? getOrderIdentityName(linked) : rec.programName || "";
-      return name.trim().toLowerCase() === needle;
-    }) ?? null;
+    liveRecords.find((rec) => nameMatches(rec) && formMatches(rec)) ??
+    (scope?.formType
+      ? null
+      : liveRecords.find((rec) => nameMatches(rec)) ?? null);
 
   const order =
     (record ? linkedOrder(record, byKey) : null) ??
-    liveOrders.find(
-      (item) => getOrderIdentityName(item).trim().toLowerCase() === needle
-    ) ??
+    liveOrders.find((item) => {
+      if (getOrderIdentityName(item).trim().toLowerCase() !== needle) {
+        return false;
+      }
+      if (!scope?.formType) return true;
+      if (item.formType !== scope.formType) return false;
+      if (
+        scope.formType === "school-all-star-cheer" &&
+        scope.cheerSubtype &&
+        scope.cheerSubtype !== "all"
+      ) {
+        return item.cheerFormSubtype === scope.cheerSubtype;
+      }
+      if (
+        scope.formType === "school-all-star-dance" &&
+        scope.danceSubtype &&
+        scope.danceSubtype !== "all"
+      ) {
+        return item.danceFormSubtype === scope.danceSubtype;
+      }
+      return true;
+    }) ??
     null;
 
   return { order, record };

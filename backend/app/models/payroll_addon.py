@@ -26,8 +26,13 @@ class PayrollAddon(Base):
         index=True,
     )
 
-    # "Cheer" or "Dance"
+    # "Cheer" or "Dance" (rate bucket). Form/subtype below is the real scope.
     category = Column(String, nullable=False)
+
+    # Voiceover form scope (Orders taxonomy). Null on rush/misc and legacy VOs.
+    form_type = Column(String, nullable=True)
+    cheer_form_subtype = Column(String, nullable=True)
+    dance_form_subtype = Column(String, nullable=True)
 
     # "voiceover" or "rush_fee"
     addon_type = Column(String, nullable=False)

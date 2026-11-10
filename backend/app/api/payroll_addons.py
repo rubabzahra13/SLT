@@ -270,6 +270,12 @@ def update_payroll_addon(
         addon.producer_initials = patch.get("producer_initials")
     if "notes" in patch:
         addon.notes = patch.get("notes")
+    if "form_type" in patch:
+        addon.form_type = patch.get("form_type")
+    if "cheer_form_subtype" in patch:
+        addon.cheer_form_subtype = patch.get("cheer_form_subtype")
+    if "dance_form_subtype" in patch:
+        addon.dance_form_subtype = patch.get("dance_form_subtype")
 
     quantity = patch["quantity"] if "quantity" in patch else addon.quantity
     unit_amount = (

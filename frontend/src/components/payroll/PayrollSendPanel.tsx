@@ -34,6 +34,7 @@ import {
   renderPayrollMailPlainText,
   stringToBase64,
 } from "@/lib/producer-payroll-mail";
+import { findProducerByAssignmentKey } from "@/lib/editor-assignment";
 import type { MTDRecord, Order, Producer, PayrollAddon } from "@/types";
 
 type PayrollSendPanelProps = {
@@ -53,10 +54,21 @@ type SendFeedback = {
   message: string;
 };
 
-function findProducerByName(name: string, producers: Producer[]): Producer | undefined {
-  return producers.find(
-    (producer) => producer.name.toUpperCase() === name.toUpperCase()
-  );
+function resolveSendProducer(
+  name: string,
+  producers: Producer[]
+): Producer | undefined {
+  // Statements may list full name or assignment initials (e.g. "DP").
+  return findProducerByAssignmentKey(name, producers);
+}
+
+function producerHasSendEmail(producer: Producer | undefined): boolean {
+  return Boolean(producer?.email?.trim());
+}
+
+function formatMissingEmailMessage(names: string[]): string {
+  const list = names.join(", ");
+  return `Missing email for: ${list}. Open Producers, add their email, then send again.`;
 }
 
 function resolveSelectedProducerName(
@@ -213,7 +225,7 @@ export function PayrollSendPanel({
 
   const previewItems = useMemo<PayrollSendPreviewItem[]>(() => {
     return activeSendTargets.flatMap((producerName) => {
-      const producer = findProducerByName(producerName, producers);
+      const producer = resolveSendProducer(producerName, producers);
       if (!producer) return [];
 
       const rows = rowsByProducer.get(producerName) ?? [];
@@ -247,7 +259,9 @@ export function PayrollSendPanel({
 
   const missingEmailNames = useMemo(() => {
     const names = modalTargets ?? targetProducerNames;
-    return names.filter((name) => !findProducerByName(name, producers)?.email);
+    return names.filter(
+      (name) => !producerHasSendEmail(resolveSendProducer(name, producers))
+    );
   }, [modalTargets, targetProducerNames, producers]);
 
   const downloadTargets = useCallback(
@@ -283,9 +297,11 @@ export function PayrollSendPanel({
 
   const sendStatementToProducer = useCallback(
     async (producerName: string) => {
-      const producer = findProducerByName(producerName, producers);
-      if (!producer?.email) {
-        throw new Error(`${producerName} has no email on file.`);
+      const producer = resolveSendProducer(producerName, producers);
+      if (!producer || !producerHasSendEmail(producer)) {
+        throw new Error(
+          `${producerName} has no email on file. Add it on the Producers page.`
+        );
       }
 
       const rows = rowsByProducer.get(producerName) ?? [];
@@ -375,16 +391,23 @@ export function PayrollSendPanel({
     (names: string[]) => {
       setFeedback(null);
       const missing = names.filter(
-        (name) => !findProducerByName(name, producers)?.email
+        (name) => !producerHasSendEmail(resolveSendProducer(name, producers))
       );
-      if (missing.length > 0) {
+      const sendable = names.filter((name) => !missing.includes(name));
+      if (sendable.length === 0) {
         setFeedback({
           type: "error",
-          message: `Missing email for: ${missing.join(", ")}.`,
+          message: formatMissingEmailMessage(missing),
         });
         return;
       }
-      setModalTargets(names);
+      if (missing.length > 0) {
+        setFeedback({
+          type: "warning",
+          message: `Sending ${sendable.length} of ${names.length}. ${formatMissingEmailMessage(missing)}`,
+        });
+      }
+      setModalTargets(sendable);
       setSendError(null);
       setSent(false);
       setSentSummary(null);
@@ -516,7 +539,24 @@ export function PayrollSendPanel({
                   feedback.type === "error" && "text-brand-danger"
                 )}
               >
-                {feedback.message}
+                {feedback.message.includes("Producers") ? (
+                  <>
+                    {feedback.message.replace(
+                      /Open Producers, add their email, then send again\./,
+                      ""
+                    )}
+                    Open{" "}
+                    <Link
+                      href="/producers"
+                      className="font-semibold underline underline-offset-2"
+                    >
+                      Producers
+                    </Link>
+                    , add their email, then send again.
+                  </>
+                ) : (
+                  feedback.message
+                )}
               </p>
             ) : null}
           </div>
@@ -571,7 +611,7 @@ export function PayrollSendPanel({
         onClose={closeSendModal}
         items={previewItems}
         gmailFrom={gmailFrom}
-        canSend={canSend && missingEmailNames.length === 0}
+        canSend={canSend && (modalTargets?.length ?? 0) > 0}
         isSending={isSending}
         onSend={handleConfirmSend}
         sendError={sendError}

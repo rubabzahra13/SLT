@@ -57,14 +57,32 @@ export function AddVoiceoverModal({
     return findProducerByAssignmentKey(record.assignedProducer, producers) || null;
   }, [record, producers]);
 
-  // Derive Category (Cheer / Dance)
-  const effectiveCategory: "Cheer" | "Dance" = useMemo(() => {
-    if (!record) return "Cheer";
-    const meta = resolveMTDFormMeta(record, new Map(allOrders.map((o) => [o.id, o])));
-    if (meta.formType === "school-all-star-dance") return "Dance";
-    return "Cheer";
-  }, [record, allOrders]);
+  const orderById = useMemo(
+    () => new Map(allOrders.map((o) => [o.id, o])),
+    [allOrders]
+  );
 
+  // Form scope from the payroll row (Order SoT) — VO must stick to this subtype.
+  const formMeta = useMemo(() => {
+    if (!record) {
+      return {
+        formType: "school-all-star-cheer" as const,
+        cheerFormSubtype: "all-star-cheer" as const,
+        danceFormSubtype: null as string | null,
+        category: "Cheer" as const,
+      };
+    }
+    const meta = resolveMTDFormMeta(record, orderById);
+    const isDance = meta.formType === "school-all-star-dance";
+    return {
+      formType: meta.formType,
+      cheerFormSubtype: isDance ? null : meta.cheerFormSubtype,
+      danceFormSubtype: isDance ? meta.danceFormSubtype : null,
+      category: (isDance ? "Dance" : "Cheer") as "Cheer" | "Dance",
+    };
+  }, [record, orderById]);
+
+  const effectiveCategory = formMeta.category;
   const rates = effectiveCategory === "Dance" ? DANCE_RATES : CHEER_RATES;
   const selectedRate = rates[rateIndex] ?? rates[0];
   const isManual = selectedRate.source === "manual";
@@ -185,6 +203,9 @@ export function AddVoiceoverModal({
         teamName: selectedTeamDivision.trim() || null,
         contactName: record.contactName || null,
         category: effectiveCategory,
+        formType: formMeta.formType,
+        cheerFormSubtype: formMeta.cheerFormSubtype,
+        danceFormSubtype: formMeta.danceFormSubtype,
         addonType: "voiceover",
         amount,
         rateSource: selectedRate.source,
