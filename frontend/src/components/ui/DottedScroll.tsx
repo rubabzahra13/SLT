@@ -33,6 +33,8 @@ type DottedScrollProps = {
    * does not also shift right — native horizontal gestures still work.
    */
   mapVerticalWheelToHorizontal?: boolean;
+  /** Fires when horizontal scrollLeft changes (DataTable sticky chrome). */
+  onScrollLeftChange?: (scrollLeft: number) => void;
 };
 
 export function DottedScroll({
@@ -47,6 +49,7 @@ export function DottedScroll({
   tone = "light",
   showIndicator = true,
   mapVerticalWheelToHorizontal = false,
+  onScrollLeftChange,
 }: DottedScrollProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -76,6 +79,7 @@ export function DottedScroll({
 
     if (isHorizontal) {
       const { scrollLeft, scrollWidth, clientWidth } = el;
+      onScrollLeftChange?.(scrollLeft);
       const maxScroll = scrollWidth - clientWidth;
       const scrollable = maxScroll > 4;
       setCanScroll(scrollable);
@@ -98,7 +102,7 @@ export function DottedScroll({
     }
     const progress = scrollTop / maxScroll;
     setActiveIndex(Math.round(progress * (DOT_COUNT - 1)));
-  }, [isHorizontal]);
+  }, [isHorizontal, onScrollLeftChange]);
 
   useEffect(() => {
     const el = containerRef.current;

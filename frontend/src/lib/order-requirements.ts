@@ -464,7 +464,8 @@ function magentoFormFieldKeys(order: Order | MTDRecord): Set<string> {
 
 /**
  * Board Collections / Songs pills follow Magento form fields for this
- * category: never package tier (Platinum/Titanium/Jazz Simple Cut, etc.).
+ * category. Exception: Cheer Platinum/Titanium also require Video (no Magento
+ * field — red until admin marks collected / a video URL is present).
  */
 function magentoBoardPillFlags(order: Order | MTDRecord): {
   needMix: boolean;
@@ -633,7 +634,8 @@ function isEightCountCollected(sheetVal: unknown): boolean {
 /**
  * Canonical 3-State Requirements Engine:
  * Collections / Songs pills follow Magento form fields for the order's
- * category (not package tier). Manual unmatched rows also get Form.
+ * category. Cheer Platinum/Titanium also get Video (red by default).
+ * Manual unmatched rows also get Form.
  *
  * Requirements evaluate to 3 distinct states:
  * - GREEN: Required + Collected
@@ -646,6 +648,7 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
   const category = (order.category || "").trim().toLowerCase();
   const rawFormType = ((order as any).formType || "").trim().toLowerCase();
   const parsedPkg = parsePackage(order.package || (order as any).packageType || "");
+  const pkgTier = String(parsedPkg.tier || "").toUpperCase();
 
   const isCheer =
     category.includes("cheer") ||
@@ -669,8 +672,10 @@ export function getOrderRequirements(order: Order | MTDRecord): OrderRequirement
   const needTimeOfMix = pills.needMix;
   // CS only when Magento has the 8-count question; Yes/No still gates display.
   const needEightCount = pills.needCsField;
-  // No Magento Video field on any current form: never a board pill.
-  const needVideo = false;
+  // No Magento Video field — Cheer Platinum/Titanium still require Video by default.
+  const needVideo =
+    isCheer &&
+    (pkgTier.includes("PLATINUM") || pkgTier.includes("TITANIUM"));
   const needCompliancy = false;
 
   // --- COLLECTIONS GROUP ---

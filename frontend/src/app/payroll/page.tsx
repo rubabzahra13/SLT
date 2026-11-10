@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Check, Trash2 } from "lucide-react";
+import { Check, ChevronDown, Trash2 } from "lucide-react";
 import { PayrollRushFeeControls } from "@/components/payroll/PayrollRushFeeControls";
 import { DeleteForeverConfirmModal } from "@/components/payroll/DeleteForeverConfirmModal";
 import { MarkPaidConfirmModal } from "@/components/payroll/MarkPaidConfirmModal";
@@ -22,7 +22,6 @@ import {
 import { PageHeader } from "@/components/layout/PageHeader";
 import { ReturnNavBanner } from "@/components/layout/ReturnNavBanner";
 import { MTDPageToolbar } from "@/components/mtd/MTDPageToolbar";
-import type { MTDViewOrder } from "@/components/mtd/MTDViewOrderToggle";
 import { OrderFormFilters } from "@/components/orders/OrderFormFilters";
 import { PayrollSendPanel } from "@/components/payroll/PayrollSendPanel";
 import { PayrollSendToolbar } from "@/components/payroll/PayrollSendToolbar";
@@ -32,7 +31,10 @@ import {
 } from "@/components/mtd/MTDTableFilters";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import { Avatar } from "@/components/ui/Avatar";
+import { TruncatedText } from "@/components/ui/TruncatedText";
 import { Tabs } from "@/components/ui/Tabs";
+import { magentoPackageBoardLabel } from "@/components/mtd/PackageTypeField";
+import clsx from "clsx";
 import { useAppState } from "@/context/AppStateContext";
 import {
   prefetchMtdBoard,
@@ -56,12 +58,14 @@ import {
 import {
   calculateDateBounds,
   payPeriodRangeToDateFilter,
+  payPeriodSinceDays,
   todayIso,
   type PayPeriodRange,
 } from "@/lib/date-filters";
 import {
   generatePayrollCsv,
   getProducerFacingPayrollRows,
+  resolveProducerStatementMixLength,
   triggerCsvDownload,
 } from "@/lib/export-csv";
 import { formatPrice, titleCase } from "@/lib/data";
@@ -76,9 +80,21 @@ import {
   resolveMTDFormMeta,
   sortMTDRecordsBySortKey,
   sortMTDRecordsByViewOrder,
+  type MTDSortBy,
 } from "@/lib/mtd-filters";
-import { parsePackage } from "@/lib/package";
-import { findLinkedOrder, findProducerByAssignmentKey } from "@/lib/editor-assignment";
+import {
+  findLinkedOrder,
+  findProducerByAssignmentKey,
+  producerAssignmentKey,
+} from "@/lib/editor-assignment";
+import { normalizeProducerKey } from "@/lib/producer-keys";
+import {
+  getContactColumnHeader,
+  getOrderContactPersonName,
+  getOrderIdentityName,
+  getProgramColumnHeader,
+} from "@/lib/order-detail-sections";
+import { orderFromMTDRecord } from "@/lib/order-detail-fields";
 import { resolveMtdTimestamp } from "@/lib/mtd-timestamp";
 import { payrollRowIsRushOrder } from "@/lib/forward-order-mail";
 import type {
@@ -111,15 +127,7 @@ import {
   sportsEntertainmentIncludedRushFeeAmount,
 } from "@/lib/rush-fee";
 import { HoverTip } from "@/components/ui/HoverTip";
-import {
-  filterPayrollAddonsForForm,
-  getPayrollSendProducerNames,
-  resolvePayrollSendEditorProducers,
-} from "@/lib/payroll-send-filters";
-import {
-  producerMatchesScheduleFormFilter,
-  scheduleFormFilterLabel,
-} from "@/lib/schedule-filters";
+import { getPayrollSendProducerNames } from "@/lib/payroll-send-filters";
 
 /** Survives a dev remount so a rush row is not created twice for the same mix. */
 const rushCreateInflight = new Set<string>();
@@ -127,6 +135,10 @@ const rushCreateInflight = new Set<string>();
 const rushPendingClear = new Set<string>();
 
 const RUSH_SAVE_DEBOUNCE_MS = 200;
+
+const compactCellClass = "!px-1 !py-1 overflow-hidden";
+const compactHeaderClass = "!px-1 !py-2";
+const compactTextClass = "text-[12px] leading-snug text-brand-ink";
 
 type RushFeeOverlay = {
   quantity: number;
@@ -236,6 +248,7 @@ export default function PayrollPage() {
     removePayrollAddon,
     updateMTD,
     removeMTDRecord,
+    removeMTDRecordsBulk,
     ensurePayrollLinkedAddonsLoaded,
     ensureAddonsForMtdIdsLoaded,
     ensureVoiceoverAddonsLoaded,
@@ -250,6 +263,13 @@ export default function PayrollPage() {
   const [addonDeleteId, setAddonDeleteId] = useState<string | null>(null);
   const [deleteForeverRecord, setDeleteForeverRecord] =
     useState<MTDRecord | null>(null);
+  const [archiveSelectedIds, setArchiveSelectedIds] = useState(
+    () => new Set<string>()
+  );
+  /** Snapshot of ids when the bulk confirm modal opens. */
+  const [pendingBulkDeleteIds, setPendingBulkDeleteIds] = useState<
+    string[] | null
+  >(null);
   const [deletingForever, setDeletingForever] = useState(false);
   const [markPaidRecord, setMarkPaidRecord] = useState<MTDRecord | null>(null);
   const [miscAdjustmentRecord, setMiscAdjustmentRecord] =
@@ -257,7 +277,9 @@ export default function PayrollPage() {
   const [payoutViewRecord, setPayoutViewRecord] = useState<MTDRecord | null>(
     null
   );
-  const [viewOrder, setViewOrder] = useState<MTDViewOrder>("sequence");
+  const [collapsedProducerGroups, setCollapsedProducerGroups] = useState(
+    () => new Set<string>()
+  );
 
   const [formState, setFormState] = useState<OrderFormType>(() =>
     typeof window !== "undefined"
@@ -289,7 +311,10 @@ export default function PayrollPage() {
     typeof window !== "undefined" ? readStoredPayrollFilters().search : ""
   );
 
-  const [sendPayPeriod, setSendPayPeriod] = useState<PayPeriodRange>("2weeks");
+  const sendPayPeriod: PayPeriodRange = "2weeks";
+  const [sendSortBy, setSendSortBy] = useState<MTDSortBy>("newest");
+  /** Board-only: one producer across every category (Form/Cheer menus removed). */
+  const [boardProducerFilter, setBoardProducerFilter] = useState("all");
 
   // Sticky Payroll tab badge only — Archive has no count (no /mtd/counts).
   const [payrollBadgeTotal, setPayrollBadgeTotal] = useState<number | null>(
@@ -378,15 +403,13 @@ export default function PayrollPage() {
   const payrollRowsActive = boardTabActive || pageTab === "send";
   const payrollBoardQuery = useMemo(
     () => ({
+      // Board + Send: all categories (producer statements span every form).
       scope: (pageTab === "archive" ? "archive" : "payroll") as
         | "archive"
         | "payroll",
-      formType: form,
-      cheerFormSubtype:
-        form === "school-all-star-cheer" ? cheerSubtype : undefined,
       search: searchQuery.trim() || undefined,
     }),
-    [pageTab, form, cheerSubtype, searchQuery]
+    [pageTab, searchQuery]
   );
   const {
     records: payrollBoardRecords,
@@ -419,17 +442,12 @@ export default function PayrollPage() {
     });
   }, [pageTab, payrollBoardRecords, ensureAddonsForMtdIdsLoaded]);
 
-  // Voiceovers: only when VO / Send needs them, and only a recent window.
+  // Voiceovers: only when VO / Send needs them, and only the selected window
+  // (default 14d). Widen to 366d only when Send period is 1 Year.
   useEffect(() => {
     if (pageTab !== "voiceovers" && pageTab !== "send") return;
     const sinceDays =
-      pageTab === "send"
-        ? sendPayPeriod === "6weeks"
-          ? 42
-          : sendPayPeriod === "4weeks"
-            ? 28
-            : 14
-        : 42;
+      pageTab === "send" ? payPeriodSinceDays(sendPayPeriod) : 14;
     void ensureVoiceoverAddonsLoaded({ sinceDays }).catch(() => {
       /* keep empty */
     });
@@ -618,28 +636,16 @@ export default function PayrollPage() {
     setHighlightId(focusParam);
   }, [focusParam]);
 
-  const confirmDeleteForever = useCallback(async () => {
-    if (isViewOnly || !deleteForeverRecord || deletingForever) return;
-    setDeletingForever(true);
-    try {
-      await removeMTDRecord(deleteForeverRecord.id);
-      setDeleteForeverRecord(null);
-      // Cache already shifted payroll totals — re-read like Orders.
-      syncPayrollBadgeFromCache();
-      void reloadPayrollBoard();
-    } catch {
-      // Error toast from removeMTDRecord
-    } finally {
-      setDeletingForever(false);
+  useEffect(() => {
+    if (pageTab !== "archive") {
+      setArchiveSelectedIds(new Set());
+      setPendingBulkDeleteIds(null);
     }
-  }, [
-    isViewOnly,
-    deleteForeverRecord,
-    deletingForever,
-    removeMTDRecord,
-    reloadPayrollBoard,
-    syncPayrollBadgeFromCache,
-  ]);
+  }, [pageTab]);
+
+  useEffect(() => {
+    setArchiveSelectedIds(new Set());
+  }, [searchQuery, boardProducerFilter, tableFilters]);
 
   // Focus from board pages only — no full live-MTD hydrate for deep links.
   useEffect(() => {
@@ -752,18 +758,21 @@ export default function PayrollPage() {
   const tableFiltered = useMemo(() => {
     // Skip table pipeline on VO/Send — those tabs don't render the board.
     if (!boardTabActive) return [];
+    // Prefer toolbar producer dropdown; fall back to Filters → Assigned producer.
+    const producerFromToolbar =
+      boardProducerFilter && boardProducerFilter !== "all"
+        ? boardProducerFilter
+        : tableFilters.assignedProducer;
     return filterMTDRecords(sourceRecords, {
       packageTier: tableFilters.packageTier,
       timeLimit: tableFilters.timeLimit,
       split: tableFilters.split,
-      assignedProducer: tableFilters.assignedProducer,
+      assignedProducer: producerFromToolbar,
       requestedProducer: tableFilters.requestedProducer,
       dateFilter: tableFilters.dateFilter,
       scheduleFilter: tableFilters.scheduleFilter,
       infoFilter: tableFilters.infoFilter ?? "all",
-      form,
-      cheerSubtype,
-      danceSubtype,
+      // No Form/Cheer scope on board — any category for the selected producer.
       orderById,
       producers,
     });
@@ -771,9 +780,7 @@ export default function PayrollPage() {
     boardTabActive,
     sourceRecords,
     tableFilters,
-    form,
-    cheerSubtype,
-    danceSubtype,
+    boardProducerFilter,
     orderById,
     producers,
   ]);
@@ -792,16 +799,175 @@ export default function PayrollPage() {
       orderById,
       { packagePrice: "stored" }
     );
-    return sortMTDRecordsByViewOrder(sorted, viewOrder, producers);
+    return sortMTDRecordsByViewOrder(sorted, "by_producer", producers);
   }, [
     boardTabActive,
     tableFiltered,
     searchInput,
     tableFilters.sortBy,
-    viewOrder,
     producers,
     orderById,
   ]);
+
+  const confirmDeleteForever = useCallback(async () => {
+    if (isViewOnly || deletingForever) return;
+
+    if (pendingBulkDeleteIds && pendingBulkDeleteIds.length > 0) {
+      const ids = pendingBulkDeleteIds;
+      setDeletingForever(true);
+      try {
+        await removeMTDRecordsBulk(ids);
+        setArchiveSelectedIds(new Set());
+        setPendingBulkDeleteIds(null);
+        syncPayrollBadgeFromCache();
+        void reloadPayrollBoard();
+      } catch {
+        // Error toast from removeMTDRecordsBulk
+        void reloadPayrollBoard();
+      } finally {
+        setDeletingForever(false);
+      }
+      return;
+    }
+
+    if (!deleteForeverRecord) return;
+    setDeletingForever(true);
+    try {
+      await removeMTDRecord(deleteForeverRecord.id);
+      setDeleteForeverRecord(null);
+      setArchiveSelectedIds((prev) => {
+        if (!prev.has(deleteForeverRecord.id)) return prev;
+        const next = new Set(prev);
+        next.delete(deleteForeverRecord.id);
+        return next;
+      });
+      // Cache already shifted payroll totals — re-read like Orders.
+      syncPayrollBadgeFromCache();
+      void reloadPayrollBoard();
+    } catch {
+      // Error toast from removeMTDRecord
+    } finally {
+      setDeletingForever(false);
+    }
+  }, [
+    isViewOnly,
+    deleteForeverRecord,
+    pendingBulkDeleteIds,
+    deletingForever,
+    removeMTDRecord,
+    removeMTDRecordsBulk,
+    reloadPayrollBoard,
+    syncPayrollBadgeFromCache,
+  ]);
+
+  const archiveSelectedCount = archiveSelectedIds.size;
+  const archiveAllLoadedSelected =
+    filtered.length > 0 &&
+    pageTab === "archive" &&
+    filtered.every((rec) => archiveSelectedIds.has(rec.id));
+
+  const selectAllLoadedArchive = useCallback(() => {
+    setArchiveSelectedIds(new Set(filtered.map((rec) => rec.id)));
+  }, [filtered]);
+
+  // Drop selections that left the loaded archive set (after delete / reload).
+  useEffect(() => {
+    if (pageTab !== "archive" || archiveSelectedIds.size === 0) return;
+    const loaded = new Set(filtered.map((rec) => rec.id));
+    let changed = false;
+    const next = new Set<string>();
+    for (const id of archiveSelectedIds) {
+      if (loaded.has(id)) next.add(id);
+      else changed = true;
+    }
+    if (changed) setArchiveSelectedIds(next);
+  }, [pageTab, filtered, archiveSelectedIds]);
+
+  /** Send-style producer cards — only board layout for Payroll / Archive. */
+  const payrollProducerGroups = useMemo(() => {
+    if (!boardTabActive) return [];
+
+    type Group = {
+      key: string;
+      name: string;
+      producer?: (typeof producers)[number];
+      rows: MTDRecord[];
+      total: number;
+    };
+    const groups: Group[] = [];
+    const indexByKey = new Map<string, number>();
+
+    for (const rec of filtered) {
+      const raw = (rec.assignedProducer || "").trim();
+      const producer = raw
+        ? findProducerByAssignmentKey(raw, producers)
+        : undefined;
+      const key = !raw
+        ? "__unassigned__"
+        : producer
+          ? producerAssignmentKey(producer)
+          : normalizeProducerKey(raw);
+      const name = producer?.name?.trim() || raw || "Unassigned";
+      let idx = indexByKey.get(key);
+      if (idx === undefined) {
+        idx = groups.length;
+        indexByKey.set(key, idx);
+        groups.push({ key, name, producer, rows: [], total: 0 });
+      }
+      groups[idx].rows.push(rec);
+    }
+
+    const withTotals = groups.map((group) => {
+      if (group.key === "__unassigned__") {
+        return { ...group, total: 0 };
+      }
+      const statementRows = getProducerFacingPayrollRows(
+        group.rows,
+        allOrders,
+        producers,
+        group.name,
+        undefined,
+        payrollAddons,
+        orderById
+      );
+      const total = statementRows.reduce(
+        (sum, row) => sum + (row.rawTotalPayout || 0),
+        0
+      );
+      return { ...group, total };
+    });
+
+    // A-Z / Z-A = producer card order (not program name). Unassigned stays last.
+    const sortBy = tableFilters.sortBy ?? "newest";
+    if (sortBy !== "name_az" && sortBy !== "name_za") return withTotals;
+
+    const assigned = withTotals.filter((g) => g.key !== "__unassigned__");
+    const unassigned = withTotals.filter((g) => g.key === "__unassigned__");
+    assigned.sort((a, b) => {
+      const cmp = a.name.localeCompare(b.name, undefined, {
+        sensitivity: "base",
+      });
+      return sortBy === "name_az" ? cmp : -cmp;
+    });
+    return [...assigned, ...unassigned];
+  }, [
+    boardTabActive,
+    filtered,
+    producers,
+    allOrders,
+    payrollAddons,
+    orderById,
+    tableFilters.sortBy,
+  ]);
+
+  const toggleProducerGroupCollapsed = useCallback((key: string) => {
+    setCollapsedProducerGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
 
   const rushStateForRecord = useCallback(
     (rec: MTDRecord) => {
@@ -1242,14 +1408,6 @@ export default function PayrollPage() {
     removePayrollAddon,
   ]);
 
-  const categoryFilteredProducers = useMemo(
-    () =>
-      producers.filter((producer) =>
-        producerMatchesScheduleFormFilter(producer, form, cheerSubtype, danceSubtype)
-      ),
-    [producers, form, cheerSubtype, danceSubtype]
-  );
-
   const sendPayPeriodBounds = useMemo(() => {
     const sendPeriodFilter = payPeriodRangeToDateFilter(sendPayPeriod);
     const bounds = calculateDateBounds(sendPeriodFilter.type, sendPeriodFilter.value);
@@ -1259,28 +1417,9 @@ export default function PayrollPage() {
     };
   }, [sendPayPeriod]);
 
-  const sendPayrollRecords = useMemo(
-    () =>
-      payrollRecords.filter((rec) =>
-        matchesFormFilter(rec, orderById, form, cheerSubtype, danceSubtype)
-      ),
-    [payrollRecords, orderById, form, cheerSubtype, danceSubtype]
-  );
-
-  // Voiceovers are Cheer|Dance-tagged; scope them to the active form tab so
-  // Cheer VOs never appear on Sports Entertainment / Band / Anthem statements.
-  const sendPayrollAddons = useMemo(
-    () =>
-      filterPayrollAddonsForForm(
-        payrollAddons,
-        form,
-        cheerSubtype,
-        danceSubtype,
-        payrollRecords,
-        orderById
-      ),
-    [payrollAddons, form, cheerSubtype, danceSubtype, payrollRecords, orderById]
-  );
+  // Send: every unpaid mix + every VO/rush addon (any category / subtype).
+  const sendPayrollRecords = payrollRecords;
+  const sendPayrollAddons = payrollAddons;
 
   const sendProducerNames = useMemo(
     () =>
@@ -1288,9 +1427,9 @@ export default function PayrollPage() {
         sendPayrollRecords,
         orderById,
         producers,
-        form,
-        cheerSubtype,
-        danceSubtype,
+        null,
+        "all",
+        "all",
         sendPayPeriodBounds,
         sendPayrollAddons,
         payrollRecords
@@ -1299,78 +1438,51 @@ export default function PayrollPage() {
       sendPayrollRecords,
       orderById,
       producers,
-      form,
-      cheerSubtype,
-      danceSubtype,
       sendPayPeriodBounds,
       sendPayrollAddons,
       payrollRecords,
     ]
   );
 
-  const sendStatementProducerNames = useMemo(
-    () =>
-      sendProducerNames.filter(
-        (name) =>
-          getProducerFacingPayrollRows(
-            sendPayrollRecords,
-            allOrders,
-            producers,
-            name,
-            sendPayPeriodBounds,
-            sendPayrollAddons,
-            orderById,
-            { form, cheerSubtype, danceSubtype }
-          ).length > 0
-      ),
-    [
-      sendProducerNames,
-      sendPayrollRecords,
-      allOrders,
-      producers,
-      sendPayPeriodBounds,
-      sendPayrollAddons,
-      orderById,
-      form,
-      cheerSubtype,
-      danceSubtype,
-    ]
-  );
-
-  const sendEditorProducers = useMemo(
-    () => resolvePayrollSendEditorProducers(producers, sendStatementProducerNames),
-    [producers, sendStatementProducerNames]
-  );
-
-  const exportCategoryLabel = useMemo(
-    () => scheduleFormFilterLabel(form, cheerSubtype, danceSubtype),
-    [form, cheerSubtype, danceSubtype]
-  );
+  // Names already come from period-scoped mixes/VO — do not rebuild every
+  // producer statement here (1-year Send would OOM on large boards).
+  const sendStatementProducerNames = sendProducerNames;
 
   useEffect(() => {
     if (selectedSendEditor === "all") return;
-    const stillValid = sendEditorProducers.some(
+    const stillValid = producers.some(
       (producer) =>
         producer.name === selectedSendEditor ||
         producer.id === selectedSendEditor ||
         producer.name.toUpperCase() === selectedSendEditor.toUpperCase()
     );
     if (!stillValid) setSelectedSendEditor("all");
-  }, [sendEditorProducers, selectedSendEditor]);
+  }, [producers, selectedSendEditor]);
 
   const addonsLocked = isViewOnly || pageTab === "archive";
 
   const columns: Column<MTDRecord>[] = useMemo(
     () => {
       if (!boardTabActive) return [];
+      const programHeader = getProgramColumnHeader(
+        form,
+        cheerSubtype === "all" ? undefined : cheerSubtype,
+        danceSubtype === "all" ? undefined : danceSubtype
+      );
+      const contactHeader = getContactColumnHeader(
+        form,
+        cheerSubtype === "all" ? undefined : cheerSubtype,
+        danceSubtype === "all" ? undefined : danceSubtype
+      );
       const baseCols: Column<MTDRecord>[] = [
       {
         key: "rowId",
         header: "ID",
         width: "56px",
         align: "center",
-        cellClassName: "!px-2 !py-1.5",
-        headerClassName: "!px-2 !py-2",
+        sticky: "left" as const,
+        cellClassName: compactCellClass,
+        headerClassName: compactHeaderClass,
         render: (_rec, index) => (
           <span className="text-[12px] tabular-nums text-brand-ink">
             {index + 1}
@@ -1383,8 +1495,9 @@ export default function PayrollPage() {
         width: "128px",
         align: "center",
         nowrap: true,
-        cellClassName: "!px-2 !py-1.5",
-        headerClassName: "!px-2 !py-2",
+        sticky: "left" as const,
+        cellClassName: compactCellClass,
+        headerClassName: compactHeaderClass,
         render: (rec) => (
           <span className="whitespace-nowrap text-[11px] tabular-nums text-brand-ink-secondary">
             {formatDisplayDateTime(resolveMtdTimestamp(rec, allOrders))}
@@ -1393,44 +1506,133 @@ export default function PayrollPage() {
       },
       {
         key: "contact",
-        header: "Contact",
-        width: "96px",
-        align: "center",
-        cellClassName: "!px-3 !py-2",
-        headerClassName: "!px-3 !py-2",
-        render: (rec) => (
-          <span className="block truncate text-[12px] leading-snug text-brand-ink">
-            {titleCase(rec.contactName)}
-          </span>
+        header: contactHeader,
+        width: contactHeader.length > 14 ? "150px" : "100px",
+        align: "left" as const,
+        nowrap: false,
+        sticky: "left" as const,
+        cellClassName: clsx(
+          compactCellClass,
+          contactHeader.length > 14 ? "max-w-[150px]" : "max-w-[100px]"
         ),
+        headerClassName: clsx(
+          compactHeaderClass,
+          contactHeader.length > 14 && "whitespace-normal leading-tight"
+        ),
+        render: (rec) => {
+          const linked = findLinkedOrder(rec, allOrders);
+          const name = titleCase(
+            getOrderContactPersonName(
+              linked || orderFromMTDRecord(rec),
+              rec.contactName,
+              rec.programName
+            )
+          ).trim();
+          return (
+            <TruncatedText
+              text={name || "No data"}
+              className={clsx(
+                "w-full min-w-0 text-left",
+                compactTextClass,
+                !name && "text-brand-ink-tertiary"
+              )}
+              style={{ maxWidth: "100%" }}
+            />
+          );
+        },
       },
       {
         key: "program",
-        header: "Program",
-        width: "96px",
-        align: "center",
-        cellClassName: "!px-3 !py-2",
-        headerClassName: "!px-3 !py-2",
-        render: (rec) => (
-          <span className="block truncate text-[12px] leading-snug text-brand-ink">
-            {titleCase(rec.programName)}
-          </span>
+        header: programHeader,
+        width: programHeader.length > 14 ? "150px" : "100px",
+        align: "left" as const,
+        nowrap: false,
+        sticky: "left" as const,
+        cellClassName: clsx(
+          compactCellClass,
+          programHeader.length > 14 ? "max-w-[150px]" : "max-w-[100px]"
         ),
+        headerClassName: clsx(
+          compactHeaderClass,
+          "whitespace-normal leading-tight"
+        ),
+        render: (rec) => {
+          const linked = findLinkedOrder(rec, allOrders);
+          const name = getOrderIdentityName(
+            linked || orderFromMTDRecord(rec)
+          ).trim();
+          return (
+            <TruncatedText
+              text={name || "No data"}
+              className={clsx(
+                "w-full min-w-0 text-left",
+                compactTextClass,
+                !name && "text-brand-ink-tertiary"
+              )}
+              style={{ maxWidth: "100%" }}
+            />
+          );
+        },
+      },
+      {
+        key: "package",
+        header: "Package type",
+        width: "120px",
+        align: "center",
+        nowrap: false,
+        sticky: "left" as const,
+        cellClassName: clsx(compactCellClass, "max-w-[120px]"),
+        headerClassName: compactHeaderClass,
+        render: (rec) => {
+          const linked = findLinkedOrder(rec, allOrders);
+          const meta = resolveMTDFormMeta(rec, orderById);
+          const raw =
+            linked?.packageType || linked?.package || rec.package || "";
+          const label = magentoPackageBoardLabel(
+            meta.formType,
+            raw,
+            meta.danceFormSubtype,
+            meta.cheerFormSubtype
+          );
+          return (
+            <TruncatedText
+              text={label || "No data"}
+              className={clsx(
+                "mx-auto w-full min-w-0 text-center font-medium",
+                compactTextClass,
+                !label && "text-brand-ink-tertiary"
+              )}
+              style={{ maxWidth: "100%" }}
+            />
+          );
+        },
       },
       {
         key: "editor",
         header: "Assigned producer",
-        width: "96px",
+        width: "100px",
         align: "center",
-        cellClassName: "!px-2 !py-1.5",
-        headerClassName: "!px-2 !py-2",
+        cellClassName: clsx(compactCellClass, "max-w-[100px]"),
+        headerClassName: compactHeaderClass,
         render: (rec) => {
-          const producer = rec.assignedProducer
-            ? findProducerByAssignmentKey(rec.assignedProducer, producers)
+          const assigned = rec.assignedProducer?.trim() || "";
+          const producer = assigned
+            ? findProducerByAssignmentKey(assigned, producers)
             : undefined;
+          const tip = producer?.name?.trim() || assigned || "Unassigned";
           return (
             <div className="flex items-center justify-center">
-              <Avatar producer={producer} initials={rec.assignedProducer} size="xs" />
+              {assigned ? (
+                <HoverTip label={tip} placement="top">
+                  <Avatar
+                    producer={producer}
+                    initials={assigned}
+                    size="xs"
+                  />
+                </HoverTip>
+              ) : (
+                <span className="text-[11px] text-brand-ink-tertiary">—</span>
+              )}
             </div>
           );
         },
@@ -1440,8 +1642,8 @@ export default function PayrollPage() {
         header: "Invoice #",
         width: "108px",
         align: "center",
-        cellClassName: "!px-2 !py-1.5",
-        headerClassName: "!px-2 !py-2",
+        cellClassName: clsx(compactCellClass, "max-w-[108px]"),
+        headerClassName: compactHeaderClass,
         render: (rec) => (
           <span className="text-[12px] font-semibold tabular-nums text-brand-ink">
             {rec.invoice}
@@ -1453,8 +1655,11 @@ export default function PayrollPage() {
         header: "Mix start\ndate",
         width: "112px",
         align: "center",
-        cellClassName: "!px-2 !py-1.5",
-        headerClassName: "!px-2 !py-2 whitespace-pre-line leading-tight",
+        cellClassName: compactCellClass,
+        headerClassName: clsx(
+          compactHeaderClass,
+          "whitespace-pre-line leading-tight"
+        ),
         render: (rec) => (
           <span className="text-[12px] tabular-nums text-brand-ink-secondary">
             {formatDisplayDate(toIsoDateString(rec.mixStartDate))}
@@ -1466,29 +1671,16 @@ export default function PayrollPage() {
         header: "Mix due\ndate",
         width: "112px",
         align: "center",
-        cellClassName: "!px-2 !py-1.5",
-        headerClassName: "!px-2 !py-2 whitespace-pre-line leading-tight",
+        cellClassName: compactCellClass,
+        headerClassName: clsx(
+          compactHeaderClass,
+          "whitespace-pre-line leading-tight"
+        ),
         render: (rec) => (
           <span className="text-[12px] tabular-nums text-brand-ink-secondary">
             {formatDisplayDate(toIsoDateString(rec.mixEndDate ?? ""))}
           </span>
         ),
-      },
-      {
-        key: "package",
-        header: "Package type",
-        width: "88px",
-        align: "center",
-        cellClassName: "!px-2 !py-1.5",
-        headerClassName: "!px-2 !py-2",
-        render: (rec) => {
-          const { tier } = parsePackage(rec.package);
-          return (
-            <span className="text-[12px] font-medium text-brand-ink">
-              {titleCase(tier)}
-            </span>
-          );
-        },
       },
       ...(form === "school-all-star-cheer"
         ? [
@@ -1497,12 +1689,26 @@ export default function PayrollPage() {
               header: "Mix Length",
               width: "80px",
               align: "center" as const,
-              cellClassName: "!px-2 !py-1.5",
-              headerClassName: "!px-2 !py-2",
+              cellClassName: compactCellClass,
+              headerClassName: compactHeaderClass,
               render: (rec: MTDRecord) => {
-                const { limit } = parsePackage(rec.package);
+                const linked = findLinkedOrder(rec, allOrders);
+                const order = orderFromMTDRecord(rec, linked, orderById);
+                const limit = resolveProducerStatementMixLength(
+                  rec,
+                  order,
+                  linked,
+                  orderById
+                );
                 return (
-                  <span className="text-[12px] tabular-nums text-brand-ink">
+                  <span
+                    className={clsx(
+                      "text-[12px] tabular-nums",
+                      limit === "-"
+                        ? "text-brand-ink-tertiary"
+                        : "text-brand-ink"
+                    )}
+                  >
                     {limit}
                   </span>
                 );
@@ -1515,8 +1721,8 @@ export default function PayrollPage() {
         header: "Package Price",
         width: "110px",
         align: "center",
-        cellClassName: "!px-2 !py-1.5",
-        headerClassName: "!px-2 !py-2",
+        cellClassName: compactCellClass,
+        headerClassName: compactHeaderClass,
         render: (rec) => {
           const order = findLinkedOrder(rec, allOrders);
           const custPrice =
@@ -1920,6 +2126,8 @@ export default function PayrollPage() {
     [
       boardTabActive,
       form,
+      cheerSubtype,
+      danceSubtype,
       addonsLocked,
       isViewOnly,
       orderById,
@@ -2057,7 +2265,7 @@ export default function PayrollPage() {
           />
         }
         exportAction={
-          pageTab === "view" || pageTab === "archive"
+          pageTab === "view"
             ? {
                 label: "CSV",
                 onClick: () => {
@@ -2067,90 +2275,20 @@ export default function PayrollPage() {
                     producers,
                     payrollAddons
                   );
-                  const prefix =
-                    pageTab === "archive"
-                      ? "Payroll_Archive"
-                      : "Payroll_Export";
-                  triggerCsvDownload(`${prefix}_${todayIso()}.csv`, csv);
+                  triggerCsvDownload(
+                    `Payroll_Export_${todayIso()}.csv`,
+                    csv
+                  );
                 },
-              }
-            : undefined
-        }
-        search={
-          pageTab === "view" || pageTab === "archive"
-            ? {
-                value: searchInput,
-                onChange: setSearchInput,
-                placeholder: "Contact, invoice…",
               }
             : undefined
         }
         toolbar={
           pageTab === "view" || pageTab === "archive" ? (
             <MTDPageToolbar
-              form={form}
-              cheerSubtype={cheerSubtype}
-              danceSubtype={danceSubtype}
-              onFormChange={switchForm}
-              onCheerSubtypeChange={setCheerSubtype}
-              onDanceSubtypeChange={setDanceSubtype}
-              onFormMenuIntent={() => {
-                const byForm = chipCounts.by_form_type || {};
-                const peer = (
-                  [
-                    "school-all-star-cheer",
-                    "school-all-star-dance",
-                    "school-anthem",
-                    "marching-band",
-                    "sports-entertainment",
-                  ] as OrderFormType[]
-                )
-                  .filter((id) => id !== form)
-                  .sort((a, b) => (byForm[b] ?? 0) - (byForm[a] ?? 0))[0];
-                if (!peer || (byForm[peer] ?? 0) <= 0) return;
-                if (peer === "school-all-star-cheer") {
-                  const byCheer = chipCounts.by_cheer_form_subtype || {};
-                  const nextCheer =
-                    CHEER_FORM_SUBTABS.find((t) => (byCheer[t.id] ?? 0) > 0)
-                      ?.id ?? DEFAULT_CHEER_SUBTYPE;
-                  warmBoardQuery({
-                    formType: peer,
-                    cheerFormSubtype: nextCheer,
-                  });
-                  return;
-                }
-                warmBoardQuery({
-                  formType: peer,
-                  cheerFormSubtype: "",
-                });
-              }}
-              onFormOptionIntent={(next) => {
-                if (next === "school-all-star-cheer") {
-                  const byCheer = chipCounts.by_cheer_form_subtype || {};
-                  const nextCheer =
-                    CHEER_FORM_SUBTABS.find((t) => (byCheer[t.id] ?? 0) > 0)
-                      ?.id ?? DEFAULT_CHEER_SUBTYPE;
-                  warmBoardQuery({
-                    formType: next,
-                    cheerFormSubtype: nextCheer,
-                  });
-                  return;
-                }
-                warmBoardQuery({
-                  formType: next,
-                  cheerFormSubtype: "",
-                });
-              }}
-              onCheerOptionIntent={(next) =>
-                warmBoardQuery({
-                  formType: "school-all-star-cheer",
-                  cheerFormSubtype: next,
-                })
-              }
-              formCounts={formCounts}
-              cheerCounts={cheerSubtypeCounts}
-              danceCounts={danceSubtypeCounts}
-              showFormOptionCounts={false}
+              hideFormFilters
+              boardProducerFilter={boardProducerFilter}
+              onBoardProducerFilterChange={setBoardProducerFilter}
               records={sourceRecords}
               producers={producers}
               orderById={orderById}
@@ -2164,8 +2302,6 @@ export default function PayrollPage() {
                   sortBy: prev.sortBy ?? "newest",
                 }))
               }
-              viewOrder={viewOrder}
-              onViewOrderChange={setViewOrder}
             />
           ) : pageTab === "voiceovers" ? (
             <div className="relative z-40 inline-flex flex-wrap items-center gap-0.5 rounded-xl bg-brand-elevated/80 p-0.5 ring-1 ring-inset ring-brand-line/40">
@@ -2186,62 +2322,226 @@ export default function PayrollPage() {
             </div>
           ) : (
             <PayrollSendToolbar
-              form={form}
-              cheerSubtype={cheerSubtype}
-              danceSubtype={danceSubtype}
-              formCounts={formCounts}
-              cheerCounts={cheerSubtypeCounts}
-              danceCounts={danceSubtypeCounts}
-              sendEditorProducers={sendEditorProducers}
+              producers={producers}
               selectedSendEditor={selectedSendEditor}
               onSelectedSendEditorChange={setSelectedSendEditor}
-              payPeriod={sendPayPeriod}
-              onPayPeriodChange={setSendPayPeriod}
-              onFormChange={switchForm}
-              onCheerSubtypeChange={setCheerSubtype}
-              onDanceSubtypeChange={setDanceSubtype}
+              sortBy={sendSortBy}
+              onSortByChange={setSendSortBy}
             />
           )
         }
       />
 
       <div className="min-h-0 flex-1 overflow-auto px-2 pb-6 pt-5 lg:px-3">
-        {pageTab === "view" || pageTab === "archive" ? (
-          <div className="dashboard-panel dashboard-panel-framed overflow-hidden">
-            <DataTable
-              key={`${pageTab}-${viewOrder}`}
-              columns={columns}
-              data={filtered}
-              rowKey={(rec) => rec.id}
-              emptyMessage={emptyMessage}
-              loading={payrollBoardLoading && filtered.length === 0}
-              pageSize={15}
-              totalCount={
-                pageTab === "archive"
-                  ? undefined
-                  : payrollCountsReady
-                    ? mtdActiveChipTotal(payrollBoardCounts, {
-                        formType: form,
-                        cheerFormSubtype:
-                          form === "school-all-star-cheer"
-                            ? cheerSubtype
-                            : undefined,
-                        danceFormSubtype:
-                          form === "school-all-star-dance"
-                            ? danceSubtype
-                            : undefined,
-                      })
-                    : undefined
-              }
-              hasMore={Boolean(payrollNextPageToken)}
-              onLoadMore={loadMorePayrollBoard}
-              loadingMore={payrollBoardLoadingMore}
-              resetKey={`${pageTab}-${viewOrder}-${form}-${cheerSubtype}-${searchQuery}`}
-              embedded
-              showScrollIndicator={false}
-              highlightRowKey={highlightId}
-              onClearHighlight={clearHighlight}
-            />
+        {pageTab === "archive" ? (
+          <div className="min-h-0 space-y-4">
+            {!isViewOnly && archiveSelectedCount > 0 ? (
+              <div className="flex flex-col gap-2 rounded-xl border border-brand-danger/20 bg-brand-danger/[0.06] px-3.5 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0 text-[12px] text-brand-ink">
+                  <span className="font-semibold tabular-nums text-brand-danger">
+                    {archiveSelectedCount}
+                  </span>{" "}
+                  selected
+                  {!archiveAllLoadedSelected && filtered.length > archiveSelectedCount ? (
+                    <>
+                      {" "}
+                      ·{" "}
+                      <button
+                        type="button"
+                        onClick={selectAllLoadedArchive}
+                        className="font-semibold text-brand-orange underline-offset-2 hover:underline"
+                      >
+                        Select all {filtered.length} loaded
+                      </button>
+                    </>
+                  ) : null}
+                </div>
+                <div className="flex shrink-0 flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setArchiveSelectedIds(new Set())}
+                    disabled={deletingForever}
+                    className="inline-flex h-8 items-center rounded-lg px-2.5 text-[12px] font-medium text-brand-ink-secondary transition hover:bg-white/70 hover:text-brand-ink disabled:opacity-60"
+                  >
+                    Clear
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const ids = Array.from(archiveSelectedIds);
+                      if (ids.length === 0) return;
+                      setDeleteForeverRecord(null);
+                      setPendingBulkDeleteIds(ids);
+                    }}
+                    disabled={deletingForever}
+                    className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-brand-danger/35 bg-brand-danger/10 px-3 text-[12px] font-semibold text-brand-danger transition hover:bg-brand-danger/18 disabled:opacity-60"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" strokeWidth={2.25} />
+                    Delete selected ({archiveSelectedCount})
+                  </button>
+                </div>
+              </div>
+            ) : null}
+            <div className="dashboard-panel dashboard-panel-framed overflow-hidden">
+              <DataTable
+                key="archive"
+                columns={columns}
+                data={filtered}
+                rowKey={(rec) => rec.id}
+                emptyMessage={emptyMessage}
+                loading={payrollBoardLoading && filtered.length === 0}
+                pageSize={15}
+                resetKey={`archive-${searchQuery}-${boardProducerFilter}`}
+                embedded
+                showScrollIndicator={false}
+                highlightRowKey={highlightId}
+                onClearHighlight={clearHighlight}
+                selection={
+                  isViewOnly
+                    ? undefined
+                    : {
+                        selectedKeys: archiveSelectedIds,
+                        onChange: setArchiveSelectedIds,
+                        disabled: deletingForever,
+                      }
+                }
+              />
+            </div>
+            {Boolean(payrollNextPageToken) ? (
+              <div className="flex justify-center pt-1">
+                <button
+                  type="button"
+                  onClick={() => void loadMorePayrollBoard()}
+                  disabled={payrollBoardLoadingMore}
+                  className="inline-flex h-9 items-center rounded-xl border border-brand-line/60 bg-white px-4 text-[12px] font-semibold text-brand-ink shadow-sm transition hover:border-brand-line hover:bg-brand-bg disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {payrollBoardLoadingMore ? "Loading…" : "Load more"}
+                </button>
+              </div>
+            ) : null}
+          </div>
+        ) : pageTab === "view" ? (
+          <div className="min-h-0 space-y-4">
+            {payrollBoardLoading && filtered.length === 0 ? (
+              <div className="dashboard-panel dashboard-panel-framed overflow-hidden">
+                <DataTable
+                  columns={columns}
+                  data={[]}
+                  rowKey={(rec) => rec.id}
+                  emptyMessage={emptyMessage}
+                  loading
+                  pageSize={15}
+                  embedded
+                  showScrollIndicator={false}
+                />
+              </div>
+            ) : payrollProducerGroups.length === 0 ? (
+              <div className="dashboard-panel dashboard-panel-framed overflow-hidden">
+                <DataTable
+                  columns={columns}
+                  data={[]}
+                  rowKey={(rec) => rec.id}
+                  emptyMessage={emptyMessage}
+                  pageSize={15}
+                  embedded
+                  showScrollIndicator={false}
+                />
+              </div>
+            ) : (
+              payrollProducerGroups.map((group, index) => {
+                const isCollapsed = collapsedProducerGroups.has(group.key);
+                const mixLabel = `${group.rows.length} mix${
+                  group.rows.length === 1 ? "" : "es"
+                }`;
+                return (
+                  <section
+                    key={group.key}
+                    className="overflow-hidden rounded-2xl border border-brand-line/70 bg-brand-surface/90 shadow-sm"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => toggleProducerGroupCollapsed(group.key)}
+                      aria-expanded={!isCollapsed}
+                      className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left transition hover:bg-brand-bg/50"
+                    >
+                      <div className="flex min-w-0 items-center gap-3">
+                        <span
+                          className={clsx(
+                            "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[11px] font-bold tabular-nums tracking-tight ring-1 ring-inset transition",
+                            !isCollapsed
+                              ? "bg-brand-orange-soft/55 text-brand-orange ring-brand-orange/30"
+                              : "bg-brand-bg/90 text-brand-ink-tertiary ring-brand-line/55"
+                          )}
+                          aria-hidden
+                        >
+                          {String(index + 1).padStart(2, "0")}
+                        </span>
+                        <Avatar
+                          producer={group.producer}
+                          name={group.name}
+                          initials={
+                            group.key === "__unassigned__"
+                              ? "?"
+                              : group.producer?.initials || group.key
+                          }
+                          size="md"
+                        />
+                        <div className="min-w-0">
+                          <h3 className="truncate text-[15px] font-bold text-brand-ink">
+                            {group.name}
+                          </h3>
+                          <p className="text-[12px] text-brand-ink-secondary">
+                            {mixLabel}
+                            {group.key !== "__unassigned__"
+                              ? ` · ${formatPrice(group.total)}`
+                              : null}
+                          </p>
+                        </div>
+                      </div>
+                      <ChevronDown
+                        className={clsx(
+                          "h-4 w-4 shrink-0 text-brand-ink-tertiary transition-transform duration-200",
+                          !isCollapsed && "rotate-180"
+                        )}
+                        strokeWidth={2}
+                        aria-hidden
+                      />
+                    </button>
+                    {!isCollapsed ? (
+                      <div className="border-t border-brand-line/60 px-3 pb-3 pt-3">
+                        <div className="dashboard-panel dashboard-panel-framed overflow-hidden rounded-2xl">
+                          <DataTable
+                            key={`view-${group.key}`}
+                            columns={columns}
+                            data={group.rows}
+                            rowKey={(rec) => rec.id}
+                            emptyMessage={emptyMessage}
+                            pageSize={15}
+                            resetKey={`view-${group.key}-${searchQuery}-${boardProducerFilter}`}
+                            embedded
+                            showScrollIndicator={false}
+                            highlightRowKey={highlightId}
+                            onClearHighlight={clearHighlight}
+                          />
+                        </div>
+                      </div>
+                    ) : null}
+                  </section>
+                );
+              })
+            )}
+            {Boolean(payrollNextPageToken) ? (
+              <div className="flex justify-center pt-1">
+                <button
+                  type="button"
+                  onClick={() => void loadMorePayrollBoard()}
+                  disabled={payrollBoardLoadingMore}
+                  className="inline-flex h-9 items-center rounded-xl border border-brand-line/60 bg-white px-4 text-[12px] font-semibold text-brand-ink shadow-sm transition hover:border-brand-line hover:bg-brand-bg disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {payrollBoardLoadingMore ? "Loading…" : "Load more"}
+                </button>
+              </div>
+            ) : null}
           </div>
         ) : pageTab === "voiceovers" ? (
           <VoiceoversPanel
@@ -2258,18 +2558,15 @@ export default function PayrollPage() {
           />
         ) : (
           <PayrollSendPanel
-            categoryLabel={exportCategoryLabel}
             producerNames={sendStatementProducerNames}
-            categoryProducers={categoryFilteredProducers}
+            categoryProducers={producers}
             selectedSendEditor={selectedSendEditor}
             payPeriod={sendPayPeriod}
             payrollRecords={sendPayrollRecords}
             allOrders={allOrders}
             producers={producers}
             payrollAddons={sendPayrollAddons}
-            form={form}
-            cheerSubtype={cheerSubtype}
-            danceSubtype={danceSubtype}
+            sortBy={sendSortBy}
           />
         )}
       </div>
@@ -2304,11 +2601,17 @@ export default function PayrollPage() {
       />
 
       <DeleteForeverConfirmModal
-        open={Boolean(deleteForeverRecord)}
+        open={
+          Boolean(deleteForeverRecord) ||
+          Boolean(pendingBulkDeleteIds && pendingBulkDeleteIds.length > 0)
+        }
         record={deleteForeverRecord}
+        count={pendingBulkDeleteIds?.length}
         deleting={deletingForever}
         onClose={() => {
-          if (!deletingForever) setDeleteForeverRecord(null);
+          if (deletingForever) return;
+          setDeleteForeverRecord(null);
+          setPendingBulkDeleteIds(null);
         }}
         onConfirm={() => void confirmDeleteForever()}
       />

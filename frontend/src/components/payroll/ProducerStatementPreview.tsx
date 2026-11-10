@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
 import {
   ArrowLeft,
@@ -19,15 +19,20 @@ import { calculateDateBounds, todayIso } from "@/lib/date-filters";
 import { doDateRangesOverlap, toCanonicalIsoDate } from "@/lib/dates";
 import {
   getProducerFacingPayrollRows,
-  generateProducerFacingPayrollCsv,
   isVoiceoverOnlyStatement,
   isVoiceoverStatementRow,
+  producerFacingPayrollRowsToCsv,
   producerStatementColumnsForRows,
   triggerCsvDownload,
   type ProducerFacingPayrollRow,
   type ScheduleSendFormScope,
 } from "@/lib/export-csv";
 import { findProducerByAssignmentKey } from "@/lib/editor-assignment";
+import type { MTDSortBy } from "@/lib/mtd-filters";
+import {
+  sortPayrollSendProducerEntries,
+  sortPayrollSendProducerNamesLean,
+} from "@/lib/payroll-send-sort";
 
 type ProducerStatementPreviewProps = {
   selectedProducer: string;
@@ -48,6 +53,9 @@ type ProducerStatementPreviewProps = {
   isSending?: boolean;
   sendDisabledReason?: string;
   formScope?: ScheduleSendFormScope;
+  sortBy?: MTDSortBy;
+  /** Skip building every producer’s rows up front (1-year / large Send). */
+  deferRows?: boolean;
 };
 
 
@@ -151,6 +159,16 @@ function StatementPreviewTable({ rows }: { rows: ProducerFacingPayrollRow[] }) {
   );
 }
 
+type PreviewSummary = {
+  name: string;
+  mixCount: number;
+  voiceoverCount: number;
+  total: number;
+  producerObj: Producer | undefined;
+  rows: ProducerFacingPayrollRow[];
+  deferred: boolean;
+};
+
 export function ProducerStatementPreview({
   selectedProducer,
   onProducerChange,
@@ -169,11 +187,16 @@ export function ProducerStatementPreview({
   isSending = false,
   sendDisabledReason,
   formScope,
+  sortBy = "newest",
+  deferRows = false,
 }: ProducerStatementPreviewProps) {
   const [activeTabProducer, setActiveTabProducer] = useState("");
   const [collapsedProducers, setCollapsedProducers] = useState<Set<string>>(
     () => new Set()
   );
+  const [loadedRowsByName, setLoadedRowsByName] = useState<
+    Map<string, ProducerFacingPayrollRow[]>
+  >(() => new Map());
 
   const filterPeriod = useMemo(() => {
     const bounds = calculateDateBounds(selectedPeriod.type, selectedPeriod.value);
@@ -193,7 +216,69 @@ export function ProducerStatementPreview({
     return map;
   }, [allOrders]);
 
-  const activeProducerSummaries = useMemo(() => {
+  const buildRowsFor = useCallback(
+    (name: string): ProducerFacingPayrollRow[] =>
+      getProducerFacingPayrollRows(
+        payrollRecords,
+        allOrders,
+        producers,
+        name,
+        filterPeriod,
+        payrollAddons,
+        orderById,
+        formScope
+      ),
+    [
+      payrollRecords,
+      allOrders,
+      producers,
+      filterPeriod,
+      payrollAddons,
+      orderById,
+      formScope,
+    ]
+  );
+
+  useEffect(() => {
+    setLoadedRowsByName(new Map());
+  }, [filterPeriod, payrollRecords, payrollAddons, formScope]);
+
+  const activeProducerSummaries = useMemo((): PreviewSummary[] => {
+    const allowed =
+      allowedProducerNames && allowedProducerNames.length > 0
+        ? new Set(allowedProducerNames.map((name) => name.toUpperCase()))
+        : null;
+
+    if (deferRows && allowedProducerNames && allowedProducerNames.length > 0) {
+      const ordered = sortPayrollSendProducerNamesLean(
+        allowedProducerNames,
+        sortBy
+      );
+      return ordered.map((name) => {
+        const rows = loadedRowsByName.get(name) ?? [];
+        const loaded = loadedRowsByName.has(name);
+        const producerObj =
+          producers.find(
+            (p) => p.name.toUpperCase() === name.toUpperCase() || p.id === name
+          ) || findProducerByAssignmentKey(name, producers);
+        return {
+          name,
+          mixCount: loaded
+            ? rows.filter((row) => !isVoiceoverStatementRow(row)).length
+            : 0,
+          voiceoverCount: loaded
+            ? rows.filter(isVoiceoverStatementRow).length
+            : 0,
+          total: loaded
+            ? rows.reduce((sum, row) => sum + row.rawTotalPayout, 0)
+            : 0,
+          producerObj,
+          rows,
+          deferred: !loaded,
+        };
+      });
+    }
+
     const dateMatching = payrollRecords.filter((rec) => {
       const recStart = rec.completedAt || rec.mixStartDate || "";
       const recEnd = rec.completedAt || rec.mixEndDate || rec.mixStartDate || "";
@@ -259,43 +344,38 @@ export function ProducerStatementPreview({
       }
     }
 
-    const allowed =
-      allowedProducerNames && allowedProducerNames.length > 0
-        ? new Set(allowedProducerNames.map((name) => name.toUpperCase()))
-        : null;
-
-    return Array.from(payoutByProducer.entries())
+    const summaries = Array.from(payoutByProducer.entries())
       .map(([name, mixCount]) => {
-        const rows = getProducerFacingPayrollRows(
-          payrollRecords,
-          allOrders,
-          producers,
-          name,
-          filterPeriod,
-          payrollAddons,
-          orderById,
-          formScope
-        );
+        const rows = buildRowsFor(name);
         const voiceoverCount = rows.filter(isVoiceoverStatementRow).length;
         const total = rows.reduce((sum, row) => sum + row.rawTotalPayout, 0);
         const producerObj =
           producers.find(
             (p) => p.name.toUpperCase() === name.toUpperCase() || p.id === name
           ) || findProducerByAssignmentKey(name, producers);
-        return { name, mixCount, voiceoverCount, total, producerObj, rows };
+        return {
+          name,
+          mixCount,
+          voiceoverCount,
+          total,
+          producerObj,
+          rows,
+          deferred: false,
+        };
       })
       .filter((entry) => !allowed || allowed.has(entry.name.toUpperCase()))
-      .filter((entry) => entry.rows.length > 0)
-      .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
+      .filter((entry) => entry.rows.length > 0);
+    return sortPayrollSendProducerEntries(summaries, sortBy);
   }, [
+    deferRows,
     payrollRecords,
-    allOrders,
     producers,
     filterPeriod,
     allowedProducerNames,
     payrollAddons,
-    orderById,
-    formScope,
+    sortBy,
+    buildRowsFor,
+    loadedRowsByName,
   ]);
 
   const activeProducersInPeriod = useMemo(
@@ -307,14 +387,45 @@ export function ProducerStatementPreview({
 
   useEffect(() => {
     if (!embedded || sendLayout !== "together") return;
+    // Large / deferred: collapse every card until the user opens one.
+    if (deferRows) {
+      setCollapsedProducers(new Set(activeProducersInPeriod));
+      return;
+    }
     setCollapsedProducers(new Set(activeProducersInPeriod.slice(1)));
-  }, [embedded, sendLayout, producerNamesKey, activeProducersInPeriod]);
+  }, [
+    embedded,
+    sendLayout,
+    producerNamesKey,
+    activeProducersInPeriod,
+    deferRows,
+  ]);
+
+  const ensureRowsLoaded = useCallback(
+    (name: string) => {
+      if (!deferRows) return;
+      setLoadedRowsByName((prev) => {
+        if (prev.has(name)) return prev;
+        const rows = buildRowsFor(name);
+        const next = new Map(prev);
+        // Cap cache so expanding many cards cannot accumulate year-scale memory.
+        if (next.size >= 3) {
+          const oldest = next.keys().next().value;
+          if (oldest !== undefined) next.delete(oldest);
+        }
+        next.set(name, rows);
+        return next;
+      });
+    },
+    [deferRows, buildRowsFor]
+  );
 
   const toggleProducerCollapsed = (name: string) => {
     setCollapsedProducers((prev) => {
       const next = new Set(prev);
       if (next.has(name)) {
         next.delete(name);
+        ensureRowsLoaded(name);
       } else {
         next.add(name);
       }
@@ -337,34 +448,38 @@ export function ProducerStatementPreview({
     return activeProducersInPeriod[0] || producers[0]?.name || "";
   }, [selectedProducer, activeTabProducer, activeProducersInPeriod, producers]);
 
+  useEffect(() => {
+    if (!deferRows || !currentProducerToView) return;
+    if (sendLayout === "together" && collapsedProducers.has(currentProducerToView)) {
+      return;
+    }
+    ensureRowsLoaded(currentProducerToView);
+  }, [
+    deferRows,
+    currentProducerToView,
+    sendLayout,
+    collapsedProducers,
+    ensureRowsLoaded,
+  ]);
+
   // Reuse rows already built in activeProducerSummaries — don't rebuild.
   const currentRows = useMemo(() => {
     const cached = activeProducerSummaries.find(
       (entry) =>
         entry.name.toUpperCase() === currentProducerToView.toUpperCase()
     );
-    if (cached) return cached.rows;
+    if (cached && !cached.deferred) return cached.rows;
+    if (deferRows && currentProducerToView) {
+      return loadedRowsByName.get(currentProducerToView) ?? [];
+    }
     if (!currentProducerToView) return [];
-    return getProducerFacingPayrollRows(
-      payrollRecords,
-      allOrders,
-      producers,
-      currentProducerToView,
-      filterPeriod,
-      payrollAddons,
-      orderById,
-      formScope
-    );
+    return buildRowsFor(currentProducerToView);
   }, [
     activeProducerSummaries,
     currentProducerToView,
-    payrollRecords,
-    allOrders,
-    producers,
-    filterPeriod,
-    payrollAddons,
-    orderById,
-    formScope,
+    deferRows,
+    loadedRowsByName,
+    buildRowsFor,
   ]);
 
   const currentProducerTotal = useMemo(() => {
@@ -372,7 +487,7 @@ export function ProducerStatementPreview({
       (entry) =>
         entry.name.toUpperCase() === currentProducerToView.toUpperCase()
     );
-    if (cached) return cached.total;
+    if (cached && !cached.deferred) return cached.total;
     return currentRows.reduce((sum, row) => sum + row.rawTotalPayout, 0);
   }, [activeProducerSummaries, currentProducerToView, currentRows]);
 
@@ -386,25 +501,31 @@ export function ProducerStatementPreview({
     );
   }, [producers, currentProducerToView]);
 
+  const resolveRowsForName = useCallback(
+    (name: string): ProducerFacingPayrollRow[] => {
+      const fromSummary = activeProducerSummaries.find(
+        (entry) => entry.name === name && !entry.deferred
+      );
+      if (fromSummary) return fromSummary.rows;
+      if (loadedRowsByName.has(name)) return loadedRowsByName.get(name) ?? [];
+      return buildRowsFor(name);
+    },
+    [activeProducerSummaries, loadedRowsByName, buildRowsFor]
+  );
+
   const handleDownloadCurrentProducer = () => {
-    const csv = generateProducerFacingPayrollCsv(
-      payrollRecords,
-      allOrders,
-      producers,
-      currentProducerToView,
-      filterPeriod,
-      payrollAddons,
-      formScope
-    );
+    const rows = resolveRowsForName(currentProducerToView);
     triggerCsvDownload(
       `Payroll_Producer_Statement_${currentProducerToView.replace(/\s+/g, "_")}_${todayIso()}.csv`,
-      csv
+      producerFacingPayrollRowsToCsv(rows)
     );
   };
 
-  const handleDownloadAllProducers = () => {
+  const handleDownloadAllProducers = async () => {
     const targets =
-      selectedProducer === "all" ? activeProducersInPeriod : [currentProducerToView];
+      selectedProducer === "all"
+        ? activeProducersInPeriod
+        : [currentProducerToView];
     if (targets.length === 0) {
       if (typeof window !== "undefined") {
         alert("No completed records found for the selected pay period.");
@@ -412,21 +533,19 @@ export function ProducerStatementPreview({
       return;
     }
 
-    targets.forEach((targetName) => {
-      const csv = generateProducerFacingPayrollCsv(
-        payrollRecords,
-        allOrders,
-        producers,
-        targetName,
-        filterPeriod,
-        payrollAddons,
-        formScope
-      );
+    for (let i = 0; i < targets.length; i += 1) {
+      const targetName = targets[i];
+      const rows = resolveRowsForName(targetName);
       triggerCsvDownload(
         `Payroll_Producer_Statement_${targetName.replace(/\s+/g, "_")}_${todayIso()}.csv`,
-        csv
+        producerFacingPayrollRowsToCsv(rows)
       );
-    });
+      if (i < targets.length - 1) {
+        await new Promise<void>((resolve) => {
+          window.setTimeout(resolve, 120);
+        });
+      }
+    }
   };
 
   return (
@@ -489,8 +608,10 @@ export function ProducerStatementPreview({
                   onProducerChange(val);
                   if (val !== "all") setActiveTabProducer("");
                 }}
-                label="Editor:"
-                allLabel="All Editors"
+                label="Producer:"
+                allLabel="All producers"
+                searchable
+                searchPlaceholder="Search producers…"
               />
 
               <div className="flex items-center gap-2">
@@ -585,7 +706,18 @@ export function ProducerStatementPreview({
       <div className="min-h-0 space-y-4">
         {embedded && sendLayout === "together" ? (
           activeProducerSummaries.map(
-            ({ name, mixCount, voiceoverCount, total, producerObj, rows }, index) => {
+            (
+              {
+                name,
+                mixCount,
+                voiceoverCount,
+                total,
+                producerObj,
+                rows,
+                deferred,
+              },
+              index
+            ) => {
             const isCollapsed = collapsedProducers.has(name);
 
             return (
@@ -617,8 +749,9 @@ export function ProducerStatementPreview({
                         {name}
                       </h3>
                       <p className="text-[12px] text-brand-ink-secondary">
-                        {formatMixAndVoSummary(mixCount, voiceoverCount)} ·{" "}
-                        {formatPrice(total)}
+                        {deferred
+                          ? "Expand to load statement"
+                          : `${formatMixAndVoSummary(mixCount, voiceoverCount)} · ${formatPrice(total)}`}
                       </p>
                     </div>
                   </div>

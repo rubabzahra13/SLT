@@ -142,7 +142,7 @@ export function getPayrollSendProducerNames(
   payrollRecords: MTDRecord[],
   orderById: Map<string, Order>,
   producers: Producer[],
-  form: OrderFormType,
+  form: OrderFormType | null | undefined,
   cheerSubtype: CheerFormSubtypeFilter,
   danceSubtype: DanceFormSubtypeFilter,
   filterPeriod: { start: string; end: string },
@@ -151,9 +151,14 @@ export function getPayrollSendProducerNames(
   allPayrollRecords: MTDRecord[] = payrollRecords
 ): string[] {
   const set = new Set<string>();
+  const scopeByForm = Boolean(form);
 
   for (const rec of payrollRecords) {
-    if (!matchesFormFilter(rec, orderById, form, cheerSubtype, danceSubtype)) {
+    if (
+      scopeByForm &&
+      form &&
+      !matchesFormFilter(rec, orderById, form, cheerSubtype, danceSubtype)
+    ) {
       continue;
     }
     const recStart = rec.completedAt || rec.mixStartDate || "";
@@ -168,11 +173,13 @@ export function getPayrollSendProducerNames(
     if (name) set.add(name);
   }
 
-  // VO-only producers must get statements even when they have no mix rows —
-  // but only for VOs that belong to this form tab.
+  // VO-only producers must get statements even when they have no mix rows.
+  // When form is omitted (Send all-categories), include every VO in period.
   for (const addon of payrollAddons) {
     if (addon.addonType !== "voiceover") continue;
     if (
+      scopeByForm &&
+      form &&
       !voiceoverMatchesFormFilter(
         addon,
         form,

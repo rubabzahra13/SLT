@@ -4,6 +4,7 @@ import type { CSSProperties } from "react";
 import clsx from "clsx";
 import { getProducerColor } from "@/lib/producer-avatars";
 import { CANONICAL_PRODUCER_NAMES } from "@/lib/producers";
+import { normalizeProducerKey } from "@/lib/producer-keys";
 import type { Producer } from "@/types";
 
 export type AvatarSize = "xs" | "sm" | "md" | "lg" | "xl";
@@ -65,12 +66,12 @@ function resolveInitials(
   src?: string | null
 ): string {
   // Prefer live roster data when the producer was resolved: assignment keys on
-  // Orders/MTD/Payroll rows can lag after an edit.
+  // Orders/MTD/Payroll rows can lag after an edit. Canonicalize so G/GP match.
   if (producer?.initials?.trim()) {
-    return producer.initials.trim().toUpperCase();
+    return normalizeProducerKey(producer.initials);
   }
 
-  if (initials) return initials.trim().toUpperCase();
+  if (initials) return normalizeProducerKey(initials);
 
   const searchName = (name || alt || producer?.name || "").trim();
   if (searchName) {

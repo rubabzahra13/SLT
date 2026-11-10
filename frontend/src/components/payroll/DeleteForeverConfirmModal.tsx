@@ -8,7 +8,9 @@ import type { MTDRecord } from "@/types";
 
 type DeleteForeverConfirmModalProps = {
   open: boolean;
-  record: MTDRecord | null;
+  record?: MTDRecord | null;
+  /** Bulk archive delete — when set, ignores single-record copy. */
+  count?: number;
   deleting?: boolean;
   onClose: () => void;
   onConfirm: () => void;
@@ -16,7 +18,8 @@ type DeleteForeverConfirmModalProps = {
 
 export function DeleteForeverConfirmModal({
   open,
-  record,
+  record = null,
+  count,
   deleting = false,
   onClose,
   onConfirm,
@@ -24,6 +27,10 @@ export function DeleteForeverConfirmModal({
   const [mounted, setMounted] = useState(false);
   // Arm after open so the row-button click cannot land on Confirm.
   const [confirmReady, setConfirmReady] = useState(false);
+
+  const bulkCount = typeof count === "number" && count > 0 ? count : 0;
+  // Bulk when a count was passed (Delete selected), even for a single row.
+  const isBulk = bulkCount > 0 && !record;
 
   useEffect(() => {
     setMounted(true);
@@ -43,9 +50,10 @@ export function DeleteForeverConfirmModal({
     };
   }, [open]);
 
-  if (!mounted || !open || !record) return null;
+  if (!mounted || !open) return null;
+  if (!isBulk && !record) return null;
 
-  const invoice = record.invoice?.trim();
+  const invoice = record?.invoice?.trim();
 
   return createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -71,18 +79,35 @@ export function DeleteForeverConfirmModal({
             id="delete-forever-title"
             className="mt-4 text-[18px] font-semibold tracking-[-0.02em] text-brand-ink"
           >
-            Delete forever?
+            {isBulk
+              ? `Delete ${bulkCount} forever?`
+              : "Delete forever?"}
           </h2>
           <p className="mt-2 text-[13px] leading-relaxed text-brand-ink-secondary">
-            {titleCase(record.programName)}
-            {invoice ? (
+            {isBulk ? (
               <>
-                {" "}
-                · <span className="font-semibold text-brand-ink">#{invoice}</span>
+                <span className="font-semibold tabular-nums text-brand-ink">
+                  {bulkCount}
+                </span>{" "}
+                paid mix{bulkCount === 1 ? "" : "es"} will be permanently
+                removed from the payroll archive. This cannot be undone.
               </>
-            ) : null}{" "}
-            will be permanently removed from the payroll archive. This cannot be
-            undone.
+            ) : (
+              <>
+                {titleCase(record!.programName)}
+                {invoice ? (
+                  <>
+                    {" "}
+                    ·{" "}
+                    <span className="font-semibold text-brand-ink">
+                      #{invoice}
+                    </span>
+                  </>
+                ) : null}{" "}
+                will be permanently removed from the payroll archive. This
+                cannot be undone.
+              </>
+            )}
           </p>
         </div>
 
@@ -101,7 +126,11 @@ export function DeleteForeverConfirmModal({
             onClick={onConfirm}
             className="py-3.5 text-[15px] font-semibold text-brand-danger transition hover:bg-brand-danger/10 disabled:opacity-60"
           >
-            {deleting ? "Deleting…" : "Delete forever"}
+            {deleting
+              ? "Deleting…"
+              : isBulk
+                ? `Delete ${bulkCount}`
+                : "Delete forever"}
           </button>
         </div>
       </div>

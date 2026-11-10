@@ -954,15 +954,19 @@ function OrdersPageContent() {
       ORDER_FORM_TABS.find((tab) => tab.id === form)?.label ?? form;
     lines.push({ label: "Form", value: formLabel });
 
-    if (form === "school-all-star-cheer" && cheerSubtype !== "all") {
+    if (form === "school-all-star-cheer") {
       const subtypeLabel =
-        CHEER_FORM_SUBTABS.find((tab) => tab.id === cheerSubtype)?.label ??
-        cheerSubtype;
+        cheerSubtype === "all"
+          ? "All"
+          : CHEER_FORM_SUBTABS.find((tab) => tab.id === cheerSubtype)?.label ??
+            cheerSubtype;
       lines.push({ label: "Subtype", value: subtypeLabel });
-    } else if (form === "school-all-star-dance" && danceSubtype !== "all") {
+    } else if (form === "school-all-star-dance") {
       const subtypeLabel =
-        DANCE_FORM_SUBTABS.find((tab) => tab.id === danceSubtype)?.label ??
-        danceSubtype;
+        danceSubtype === "all"
+          ? "All"
+          : DANCE_FORM_SUBTABS.find((tab) => tab.id === danceSubtype)?.label ??
+            danceSubtype;
       lines.push({ label: "Subtype", value: subtypeLabel });
     }
 
@@ -979,6 +983,15 @@ function OrdersPageContent() {
             .join(" + ");
     lines.push({ label: "Status", value: statusLabel });
 
+    const timestampLabel = getDateFilterLabel(tableFilters.dateFilter);
+    const timestampBounds = getDateFilterBoundsLabel(tableFilters.dateFilter);
+    lines.push({
+      label: "Timestamp",
+      value: timestampBounds
+        ? `${timestampLabel} (${timestampBounds})`
+        : timestampLabel,
+    });
+
     const search = searchQuery.trim();
     if (search) {
       lines.push({ label: "Search", value: search });
@@ -992,6 +1005,7 @@ function OrdersPageContent() {
     sourceFilter,
     rangeFilters,
     searchQuery,
+    tableFilters.dateFilter,
   ]);
 
   // Alert when a row changes Orders status tab so it doesn't look like it vanished.
@@ -1752,6 +1766,7 @@ function OrdersPageContent() {
         header: "ID",
         width: "56px",
         align: "center" as const,
+        sticky: "left" as const,
         render: (_rec, index) => (
           <span className="tabular-nums text-[12px] text-brand-ink">{index + 1}</span>
         ),
@@ -1762,6 +1777,7 @@ function OrdersPageContent() {
         width: "128px",
         align: "center" as const,
         nowrap: true,
+        sticky: "left" as const,
         cellClassName: compactCellClass,
         headerClassName: compactHeaderClass,
         render: (rec) => (
@@ -1776,6 +1792,7 @@ function OrdersPageContent() {
         width: "72px",
         align: "center" as const,
         nowrap: true,
+        sticky: "left" as const,
         cellClassName: compactCellClass,
         headerClassName: compactHeaderClass,
         render: (rec) => {
@@ -1809,6 +1826,7 @@ function OrdersPageContent() {
         width: contactHeader.length > 14 ? "150px" : "100px",
         align: "left" as const,
         nowrap: false,
+        sticky: "left" as const,
         cellClassName: clsx(
           compactCellClass,
           contactHeader.length > 14 ? "max-w-[150px]" : "max-w-[100px]"
@@ -1845,6 +1863,7 @@ function OrdersPageContent() {
         width: programHeader.length > 14 ? "150px" : "100px",
         align: "left" as const,
         nowrap: false,
+        sticky: "left" as const,
         cellClassName: clsx(
           compactCellClass,
           programHeader.length > 14 ? "max-w-[150px]" : "max-w-[100px]"
@@ -1874,6 +1893,7 @@ function OrdersPageContent() {
         width: "120px",
         align: "center" as const,
         nowrap: false,
+        sticky: "left" as const,
         cellClassName: clsx(compactCellClass, "max-w-[120px]"),
         headerClassName: compactHeaderClass,
         render: (rec) => {
@@ -2559,7 +2579,11 @@ function OrdersPageContent() {
             (needsReassign || Boolean(rec.isReassigned));
           const producerMailDisabled =
             !showProducerMail || !isAssigned || producerMailSatisfied;
-          const producerMailLabel = producerMailIsResend ? "Resend" : "Producer";
+          const producerMailLabel = producerMailSatisfied
+            ? "Sent"
+            : producerMailIsResend
+              ? "Resend"
+              : "Producer";
           const producerMailTip = !isAssigned
             ? "Assign a producer before emailing"
             : producerMailSatisfied

@@ -70,10 +70,9 @@ describe("Bug Fix Verification: Persistence & Magento Collections", () => {
       assert.ok(csItem, "CS requirement item must exist when form says Yes");
       assert.strictEqual(csItem.state, "red");
       assert.strictEqual(reqs.status, "Missing Data");
-      assert.ok(
-        !reqs.collections.some((i) => i.id === "video" && i.isApplicable),
-        "Video is never a Magento board pill"
-      );
+      const videoItem = reqs.collections.find((i) => i.id === "video");
+      assert.ok(videoItem?.isApplicable, "Cheer Platinum requires Video");
+      assert.strictEqual(videoItem?.state, "red", "Video red by default");
     });
 
     test("All Magento fields filled updates status to Complete data", () => {
@@ -96,7 +95,7 @@ describe("Bug Fix Verification: Persistence & Magento Collections", () => {
         sendingEightCountSheets: "Yes",
         routineNotes: "Routine notes",
         eightCountSheet: "HAVE CS",
-        collectionStates: { cs: true },
+        collectionStates: { cs: true, video: true },
       };
 
       const reqs = getOrderRequirements(order);

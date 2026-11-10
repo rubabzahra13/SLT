@@ -148,7 +148,15 @@ function PayrollMailPreview({
 
         <p className="text-[14px] font-semibold text-brand-ink">{draft.greeting}</p>
         <p className="text-[13px] leading-relaxed text-brand-ink-secondary">{draft.intro}</p>
-        <PayrollMailTablePreview rows={rows} />
+        {rows.length === 0 ? (
+          <p className="rounded-xl border border-brand-line/50 bg-brand-bg/40 px-3 py-3 text-[12px] leading-relaxed text-brand-ink-secondary">
+            Full statement table is built per producer when sending (keeps large
+            periods from freezing the browser). Attachment falls back to CSV or a
+            local download if Excel is too large for email.
+          </p>
+        ) : (
+          <PayrollMailTablePreview rows={rows} />
+        )}
         <p className="text-[13px] leading-relaxed text-brand-ink-secondary">{draft.footer}</p>
         <p className="whitespace-pre-line text-[13px] leading-relaxed text-brand-ink">
           {draft.signature}

@@ -2,7 +2,15 @@
 
 import clsx from "clsx";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type MouseEvent,
+  type ReactNode,
+} from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { DottedScroll } from "@/components/ui/DottedScroll";
 
@@ -15,7 +23,21 @@ export type Column<T> = {
   sticky?: "left" | "right";
   cellClassName?: string;
   headerClassName?: string;
-  render: (row: T, index: number) => React.ReactNode;
+  render: (row: T, index: number) => ReactNode;
+};
+
+/** Parse `56px` / `120px` column widths for stacked sticky-left offsets. */
+function parseColumnWidthPx(width?: string): number {
+  if (!width) return 0;
+  const match = /^(\d+(?:\.\d+)?)px$/i.exec(width.trim());
+  return match ? Number(match[1]) : 0;
+}
+
+export type DataTableSelection = {
+  selectedKeys: ReadonlySet<string>;
+  onChange: (next: Set<string>) => void;
+  /** Disable checkboxes (e.g. view-only / deleting). */
+  disabled?: boolean;
 };
 
 type DataTableProps<T> = {
@@ -49,6 +71,8 @@ type DataTableProps<T> = {
   highlightRowKey?: string | null;
   /** Called when the highlight should be dismissed (any click inside the table). */
   onClearHighlight?: () => void;
+  /** Gmail-style row checkboxes (current page select-all in header). */
+  selection?: DataTableSelection;
 };
 
 const MIN_STRETCH_ROW_HEIGHT = 44;
@@ -76,6 +100,7 @@ export function DataTable<T>({
   className,
   highlightRowKey,
   onClearHighlight,
+  selection,
 }: DataTableProps<T>) {
   const router = useRouter();
   const [page, setPage] = useState(0);
@@ -146,6 +171,83 @@ export function DataTable<T>({
     const start = safePage * pageSize;
     return data.slice(start, start + pageSize);
   }, [data, pageSize, safePage]);
+
+  const visibleKeys = useMemo(
+    () => visibleData.map((row) => rowKey(row)),
+    // rowKey is a stable accessor from the caller.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [visibleData]
+  );
+
+  const selectionEnabled = Boolean(selection);
+  const selectedKeys = selection?.selectedKeys;
+  const selectionDisabled = Boolean(selection?.disabled);
+  const visibleSelectedCount = selectionEnabled
+    ? visibleKeys.filter((key) => selectedKeys?.has(key)).length
+    : 0;
+  const allVisibleSelected =
+    selectionEnabled &&
+    visibleKeys.length > 0 &&
+    visibleSelectedCount === visibleKeys.length;
+  const someVisibleSelected =
+    visibleSelectedCount > 0 && !allVisibleSelected;
+
+  const toggleVisibleSelection = () => {
+    if (!selection || selectionDisabled) return;
+    const next = new Set(selection.selectedKeys);
+    if (allVisibleSelected) {
+      for (const key of visibleKeys) next.delete(key);
+    } else {
+      for (const key of visibleKeys) next.add(key);
+    }
+    selection.onChange(next);
+  };
+
+  const toggleRowSelection = (key: string) => {
+    if (!selection || selectionDisabled) return;
+    const next = new Set(selection.selectedKeys);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    selection.onChange(next);
+  };
+
+  const displayColumns = useMemo(() => {
+    if (!selectionEnabled) return columns;
+    const selectCol: Column<T> = {
+      key: "__select",
+      header: "",
+      width: "44px",
+      align: "center",
+      nowrap: true,
+      sticky: "left",
+      cellClassName: "!px-1.5 !py-1.5",
+      headerClassName: "!px-1.5 !py-2",
+      render: (row) => {
+        const key = rowKey(row);
+        const checked = Boolean(selectedKeys?.has(key));
+        return (
+          <input
+            type="checkbox"
+            checked={checked}
+            disabled={selectionDisabled}
+            aria-label="Select row"
+            onChange={() => toggleRowSelection(key)}
+            onClick={(e) => e.stopPropagation()}
+            className="h-3.5 w-3.5 cursor-pointer rounded border-brand-line accent-brand-orange disabled:cursor-not-allowed"
+          />
+        );
+      },
+    };
+    return [selectCol, ...columns];
+    // Intentionally omit toggleRowSelection — closes over latest selection.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    columns,
+    selectionEnabled,
+    selectionDisabled,
+    selectedKeys,
+    rowKey,
+  ]);
 
   const rangeStart =
     data.length === 0
@@ -218,7 +320,7 @@ export function DataTable<T>({
       )
     );
 
-  const handleRowClick = (row: T, event: React.MouseEvent<HTMLTableRowElement>) => {
+  const handleRowClick = (row: T, event: MouseEvent<HTMLTableRowElement>) => {
     if (isInteractiveTarget(event.target)) return;
 
     const target = href?.(row);
@@ -257,7 +359,7 @@ export function DataTable<T>({
       resizeObserver.disconnect();
       window.removeEventListener("resize", updateLayout);
     };
-  }, [shouldStretchRows, visibleData.length, columns.length]);
+  }, [shouldStretchRows, visibleData.length, displayColumns.length]);
 
   const stretchRowHeight = useMemo(() => {
     if (!shouldStretchRows || layoutHeight == null || visibleData.length === 0) {
@@ -284,20 +386,95 @@ export function DataTable<T>({
     visibleData.length,
   ]);
 
-  const stickyClass = (sticky?: Column<T>["sticky"], header = false) =>
-    sticky === "right"
-      ? clsx(
-          "sticky right-0 z-10 shadow-[-6px_0_10px_-8px_rgba(15,30,45,0.18)]",
-          header ? "bg-[inherit]" : "bg-brand-elevated",
-          variant === "muted" && !header && "bg-brand-surface"
-        )
-      : sticky === "left"
-        ? clsx(
-            "sticky left-0 z-10 shadow-[6px_0_10px_-8px_rgba(15,30,45,0.18)]",
-            header ? "bg-[inherit]" : "bg-brand-elevated",
-            variant === "muted" && !header && "bg-brand-surface"
-          )
-        : undefined;
+  type StickyMeta = { left: number; edge: boolean; first: boolean; z: number };
+  const stickyHeaderEls = useRef(new Map<string, HTMLTableCellElement>());
+  const [stickyLeftMeta, setStickyLeftMeta] = useState(
+    () => new Map<string, StickyMeta>()
+  );
+  const [scrolledX, setScrolledX] = useState(false);
+  const hasStickyColumns = displayColumns.some(
+    (col) => col.sticky === "left" || col.sticky === "right"
+  );
+
+  // Measure real header widths so sticky left offsets stay flush (no white seams).
+  useEffect(() => {
+    if (!hasStickyColumns) {
+      setStickyLeftMeta(new Map());
+      return;
+    }
+    const leftCols = displayColumns.filter((col) => col.sticky === "left");
+    const thead = theadRef.current;
+    const measure = () => {
+      const meta = new Map<string, StickyMeta>();
+      let left = 0;
+      leftCols.forEach((col, index) => {
+        meta.set(col.key, {
+          left,
+          edge: index === leftCols.length - 1,
+          first: index === 0,
+          z: 10 + index,
+        });
+        const el = stickyHeaderEls.current.get(col.key);
+        const width = el?.offsetWidth || parseColumnWidthPx(col.width);
+        // Overlap the next sticky by 1px so border-collapse hairlines can't show through.
+        left += Math.max(width - 1, 0);
+      });
+      setStickyLeftMeta((prev) => {
+        if (prev.size !== meta.size) return meta;
+        for (const [key, value] of meta) {
+          const old = prev.get(key);
+          if (
+            !old ||
+            old.left !== value.left ||
+            old.edge !== value.edge ||
+            old.first !== value.first
+          ) {
+            return meta;
+          }
+        }
+        return prev;
+      });
+    };
+    const raf = window.requestAnimationFrame(measure);
+    const ro = thead ? new ResizeObserver(measure) : null;
+    if (thead && ro) ro.observe(thead);
+    return () => {
+      window.cancelAnimationFrame(raf);
+      ro?.disconnect();
+    };
+  }, [displayColumns, hasStickyColumns, visibleData.length]);
+
+  const stickyClass = (col: Column<T>) => {
+    if (!col.sticky) return undefined;
+    const meta =
+      col.sticky === "left" ? stickyLeftMeta.get(col.key) : undefined;
+    const edge = col.sticky === "left" ? meta?.edge ?? true : true;
+    const first = col.sticky === "left" ? meta?.first ?? false : false;
+    return clsx(
+      "data-table-sticky sticky overflow-hidden",
+      first && "data-table-sticky-first",
+      edge && "data-table-sticky-edge"
+    );
+  };
+
+  const stickyStyle = (
+    col: Column<T>,
+    header = false
+  ): CSSProperties | undefined => {
+    if (!col.sticky) return undefined;
+    // Position only — fills/hover live in CSS so row blue hover reaches sticky cells.
+    if (col.sticky === "left") {
+      const meta = stickyLeftMeta.get(col.key);
+      return {
+        left: meta?.left ?? 0,
+        zIndex: (meta?.z ?? 10) + (header ? 20 : 0),
+      };
+    }
+    return {
+      right: 0,
+      zIndex: header ? 30 : 10,
+    };
+  };
 
   return (
     <div
@@ -322,9 +499,14 @@ export function DataTable<T>({
         }
         className={shouldStretchRows ? "min-h-0 flex-1" : undefined}
         showIndicator={showScrollIndicator}
+        onScrollLeftChange={(left) => {
+          const next = left > 2;
+          setScrolledX((prev) => (prev === next ? prev : next));
+        }}
       >
         <table
           className="w-full min-w-max border-collapse"
+          data-scrolled-x={scrolledX ? "true" : undefined}
           style={
             tableHeight != null
               ? { minHeight: tableHeight, height: tableHeight }
@@ -332,25 +514,48 @@ export function DataTable<T>({
           }
         >
           <colgroup>
-            {columns.map((col) => (
+            {displayColumns.map((col) => (
               <col key={col.key} style={{ width: col.width ?? "auto" }} />
             ))}
           </colgroup>
           <thead ref={theadRef}>
             <tr className="table-header-row">
-              {columns.map((col) => (
+              {displayColumns.map((col) => (
                 <th
                   key={col.key}
                   scope="col"
+                  ref={(node) => {
+                    if (col.sticky === "left") {
+                      if (node) stickyHeaderEls.current.set(col.key, node);
+                      else stickyHeaderEls.current.delete(col.key);
+                    }
+                  }}
+                  style={stickyStyle(col, true)}
                   className={clsx(
                     headerCellClass,
                     "table-header-label table-header-cell border-r last:border-r-0",
                     alignClass(col.align),
-                    stickyClass(col.sticky, true),
+                    stickyClass(col),
                     col.headerClassName
                   )}
                 >
-                  {col.header}
+                  {col.key === "__select" ? (
+                    <input
+                      ref={(node) => {
+                        if (node) node.indeterminate = someVisibleSelected;
+                      }}
+                      type="checkbox"
+                      checked={allVisibleSelected}
+                      disabled={
+                        selectionDisabled || visibleKeys.length === 0
+                      }
+                      aria-label="Select all on this page"
+                      onChange={toggleVisibleSelection}
+                      className="h-3.5 w-3.5 cursor-pointer rounded border-brand-line accent-brand-orange disabled:cursor-not-allowed"
+                    />
+                  ) : (
+                    col.header
+                  )}
                 </th>
               ))}
             </tr>
@@ -366,13 +571,14 @@ export function DataTable<T>({
                   )}
                   aria-hidden
                 >
-                  {columns.map((col, colIndex) => (
+                  {displayColumns.map((col, colIndex) => (
                     <td
                       key={col.key}
+                      style={stickyStyle(col)}
                       className={clsx(
                         cellClass,
                         "border-r border-brand-line-strong align-middle last:border-r-0",
-                        stickyClass(col.sticky)
+                        stickyClass(col)
                       )}
                     >
                       <span
@@ -386,7 +592,7 @@ export function DataTable<T>({
             ) : data.length === 0 ? (
               <tr>
                 <td
-                  colSpan={columns.length}
+                  colSpan={displayColumns.length}
                   className="px-4 py-16 text-center text-[13px] font-medium text-brand-ink-tertiary"
                 >
                   {emptyMessage}
@@ -433,16 +639,17 @@ export function DataTable<T>({
                       isInteractive ? (event) => handleRowClick(row, event) : undefined
                     }
                   >
-                    {columns.map((col) => (
+                    {displayColumns.map((col) => (
                       <td
                         key={col.key}
+                        style={stickyStyle(col)}
                         className={clsx(
                           cellClass,
                           textSize,
                           alignClass(col.align),
                           "border-r border-brand-line-strong align-middle last:border-r-0",
                           col.nowrap !== false && "max-w-0 truncate whitespace-nowrap",
-                          stickyClass(col.sticky),
+                          stickyClass(col),
                           col.cellClassName
                         )}
                       >

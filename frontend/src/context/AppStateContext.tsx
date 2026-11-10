@@ -138,6 +138,7 @@ import {
   createMTDRecordApi,
   updateMTDRecordApi,
   deleteMTDRecordApi,
+  deleteMTDRecordsBulkApi,
   createDiscountCodeApi,
   updateDiscountCodeApi,
   deleteDiscountCodeApi,
@@ -213,6 +214,8 @@ type AppStateContextValue = {
     seed?: MTDRecord
   ) => Promise<void>;
   removeMTDRecord: (id: string) => Promise<void>;
+  /** Lean bulk archive delete — one API round-trip per ≤100 ids. */
+  removeMTDRecordsBulk: (ids: string[]) => Promise<{ deleted: number; missing: number }>;
   updateOrder: (
     id: string,
     patch: Partial<Order>,
@@ -2752,6 +2755,139 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     [isViewOnly, notifySaveError]
   );
 
+  const removeMTDRecordsBulk = useCallback(
+    async (ids: string[]) => {
+      if (isViewOnly) {
+        throw new Error("View-only accounts cannot delete payroll records.");
+      }
+      const unique = Array.from(
+        new Set(ids.map((id) => String(id || "").trim()).filter(Boolean))
+      );
+      if (unique.length === 0) return { deleted: 0, missing: 0 };
+
+      mtdMutatedAtRef.current = Date.now();
+
+      const matchesId = (r: MTDRecord, id: string) =>
+        r.id === id ||
+        r.orderId === id ||
+        r.uuid === id ||
+        r.legacyId === id;
+
+      const removedById = new Map<string, MTDRecord>();
+      const dropKeys = new Set<string>();
+      for (const id of unique) {
+        const cached = readCachedMtdBoardRow(id);
+        if (cached) removedById.set(cached.id, cached);
+        dropKeys.add(id);
+      }
+
+      setMtdRecords((prev) => {
+        for (const r of prev) {
+          if (unique.some((id) => matchesId(r, id))) {
+            removedById.set(r.id, r);
+          }
+        }
+        for (const row of removedById.values()) {
+          for (const key of [row.id, row.uuid, row.orderId, row.legacyId]) {
+            if (key) dropKeys.add(key);
+          }
+        }
+        const next = prev.filter(
+          (r) =>
+            !dropKeys.has(r.id) &&
+            !(r.uuid && dropKeys.has(r.uuid)) &&
+            !(r.orderId && dropKeys.has(r.orderId)) &&
+            !(r.legacyId && dropKeys.has(r.legacyId))
+        );
+        writeTimedCache(CACHE_MTD_KEY, next);
+        return next;
+      });
+
+      const removedRows = Array.from(removedById.values());
+      const orderIds = new Set<string>();
+      for (const row of removedRows) {
+        for (const key of [row.orderId, row.id, row.uuid, row.legacyId]) {
+          if (key) orderIds.add(key);
+        }
+      }
+
+      const removedOrders: Order[] = [];
+      setActiveOrders((prev) => {
+        const next: Order[] = [];
+        for (const o of prev) {
+          const hit =
+            orderIds.has(o.id) ||
+            (o.uuid && orderIds.has(o.uuid)) ||
+            (o.legacyId && orderIds.has(o.legacyId));
+          if (hit) removedOrders.push(o);
+          else next.push(o);
+        }
+        return next;
+      });
+      setPastOrders((prev) =>
+        prev.filter(
+          (o) =>
+            !orderIds.has(o.id) &&
+            !(o.uuid && orderIds.has(o.uuid)) &&
+            !(o.legacyId && orderIds.has(o.legacyId))
+        )
+      );
+      setPayrollAddons((prev) =>
+        prev.filter((a) => {
+          if (a.mtdId && dropKeys.has(a.mtdId)) return false;
+          if (a.orderId && orderIds.has(a.orderId)) return false;
+          return true;
+        })
+      );
+
+      removeMtdBoardRecordsFromCaches(Array.from(dropKeys));
+      for (const order of removedOrders) {
+        removeOrdersBoardOrderFromCaches(order.id);
+        if (order.uuid) removeOrdersBoardOrderFromCaches(order.uuid);
+      }
+
+      try {
+        const result = await deleteMTDRecordsBulkApi(unique);
+        setMtdRecords((prev) => {
+          writeTimedCache(CACHE_MTD_KEY, prev);
+          return prev;
+        });
+        setIsBackendConnected(true);
+        return result;
+      } catch (err) {
+        if (removedRows.length > 0) {
+          setMtdRecords((prev) => {
+            const byId = new Set(prev.map((r) => r.id));
+            const restored = [
+              ...removedRows.filter((r) => !byId.has(r.id)),
+              ...prev,
+            ];
+            writeTimedCache(CACHE_MTD_KEY, restored);
+            return restored;
+          });
+        }
+        if (removedOrders.length > 0) {
+          setActiveOrders((prev) => {
+            const byId = new Set(prev.map((o) => o.id));
+            return [
+              ...removedOrders.filter((o) => !byId.has(o.id)),
+              ...prev,
+            ];
+          });
+        }
+        if (
+          err instanceof ApiClientError &&
+          (err.status === 0 || err.status >= 500)
+        ) {
+          setIsBackendConnected(false);
+        }
+        notifySaveError("Could not delete payroll records", err);
+        throw err;
+      }
+    },
+    [isViewOnly, notifySaveError]
+  );
+
   const updateOrder = useCallback(
     async (id: string, patch: Partial<Order>, seed?: Order) => {
       if (isViewOnly) return;
@@ -3177,8 +3313,23 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
 
   const ensureVoiceoverAddonsLoaded = useCallback(
     async (opts?: { force?: boolean; sinceDays?: number }) => {
-      const sinceDays = opts?.sinceDays ?? 42;
-      if (opts?.force || voiceoverAddonsSinceDaysRef.current !== sinceDays) {
+      // Cap matches API le=366. Default = Send "2 Weeks" (lean egress).
+      const sinceDays = Math.max(
+        1,
+        Math.min(366, Math.floor(opts?.sinceDays ?? 14))
+      );
+      const loadedDays = voiceoverAddonsSinceDaysRef.current;
+      // Already holding a window at least this wide — reuse (client period
+      // filter); avoid refetch when narrowing 1y → 2w.
+      if (
+        !opts?.force &&
+        voiceoverAddonsLoadedRef.current &&
+        loadedDays != null &&
+        loadedDays >= sinceDays
+      ) {
+        return;
+      }
+      if (opts?.force || loadedDays !== sinceDays) {
         voiceoverAddonsLoadedRef.current = false;
         voiceoverAddonsLoadPromiseRef.current = null;
       }
@@ -5381,6 +5532,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       moveOrderToMTD,
       updateMTD,
       removeMTDRecord,
+      removeMTDRecordsBulk,
       updateOrder,
       deleteOrder,
       setSecretMenuPrices,
@@ -5443,6 +5595,7 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
       moveOrderToMTD,
       updateMTD,
       removeMTDRecord,
+      removeMTDRecordsBulk,
       updateOrder,
       deleteOrder,
       setSecretMenuPrices,

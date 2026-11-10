@@ -13,6 +13,8 @@ export type OrdersCsvExportFilterLine = {
 
 type OrdersCsvExportModalProps = {
   open: boolean;
+  title?: string;
+  description?: string;
   /** Active export filters shown in the dialog. */
   filters?: OrdersCsvExportFilterLine[];
   busy?: boolean;
@@ -22,6 +24,8 @@ type OrdersCsvExportModalProps = {
 
 export function OrdersCsvExportModal({
   open,
+  title = "Download Orders CSV?",
+  description,
   filters = [],
   busy = false,
   onClose,
@@ -44,6 +48,10 @@ export function OrdersCsvExportModal({
 
   if (!mounted || !open) return null;
 
+  const body =
+    description ??
+    `Downloads every matching order for these filters, including ones not on this page. Limited to ${EXPORT_ROW_CAP.toLocaleString()} rows.`;
+
   return createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <button
@@ -62,7 +70,7 @@ export function OrdersCsvExportModal({
         aria-labelledby="orders-csv-export-title"
         className="relative w-full max-w-[420px] overflow-hidden rounded-[22px] bg-brand-elevated shadow-[0_24px_80px_rgba(0,0,0,0.28)]"
       >
-        <div className="px-6 pb-5 pt-7 text-center">
+        <div className="px-6 pb-4 pt-7 text-center">
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-brand-blue-soft text-brand-signature ring-1 ring-inset ring-brand-blue/20">
             <Download className="h-7 w-7" strokeWidth={1.75} />
           </div>
@@ -70,11 +78,10 @@ export function OrdersCsvExportModal({
             id="orders-csv-export-title"
             className="mt-4 text-[18px] font-semibold tracking-[-0.02em] text-brand-ink"
           >
-            Download Orders CSV?
+            {title}
           </h2>
           <p className="mt-2 text-[13px] leading-relaxed text-brand-ink-secondary">
-            Downloads every matching order for these filters, including ones not
-            on this page. Limited to {EXPORT_ROW_CAP.toLocaleString()} rows.
+            {body}
           </p>
         </div>
 
@@ -100,7 +107,7 @@ export function OrdersCsvExportModal({
             </dl>
           </div>
         ) : (
-          <div className="mb-2" />
+          <div className="mb-3" />
         )}
 
         <div className="grid grid-cols-2 border-t border-black/[0.08]">

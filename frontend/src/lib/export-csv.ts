@@ -22,12 +22,19 @@ import { resolveMtdTimestamp } from "./mtd-timestamp";
 import {
   isPreMTDOrderRecord,
   matchesFormFilter,
+  recordMixLength,
   resolveMTDFormMeta,
 } from "./mtd-filters";
 import { orderFromMTDRecord } from "./order-detail-fields";
 import { getOrderDetailSections, getFormTypeLabel } from "./order-detail-sections";
+import { magentoPackageBoardLabel } from "@/components/mtd/PackageTypeField";
+import { displayMixLengthLabel } from "./mix-duration";
 import { parsePackage } from "./package";
 import { payrollAmountsForRow } from "./order-package-price";
+import {
+  getOrderRequirements,
+  mergeOrderFormFieldsForRequirements,
+} from "./order-requirements";
 import {
   computeClientPayroll,
   finalizedPayrollRate,
@@ -607,8 +614,7 @@ export const PRODUCER_STATEMENT_COLUMNS: { key: keyof ProducerFacingPayrollRow; 
   { key: "completedDate", label: "Completed Date" },
   { key: "programName", label: "Program Name" },
   { key: "category", label: "Category" },
-  { key: "subtype", label: "Subtype" },
-  { key: "package", label: "Package" },
+  { key: "package", label: "Package Type" },
   { key: "timeLimit", label: "Mix Length" },
   { key: "voiceoverAddon", label: "Voiceover Add-on" },
   { key: "rushFee", label: "Rush Fee Option" },
@@ -631,12 +637,106 @@ export const PRODUCER_VO_STATEMENT_COLUMNS: {
   { key: "completedDate", label: "Completed Date" },
   { key: "programName", label: "Program Name" },
   { key: "category", label: "Category" },
-  { key: "subtype", label: "Subtype" },
-  { key: "package", label: "Package" },
+  { key: "package", label: "Package Type" },
   { key: "timeLimit", label: "Mix Length" },
   { key: "voiceoverAddon", label: "Voiceover Add-on" },
   { key: "totalPayout", label: "My Total Payout" },
 ];
+
+/**
+ * Mix Length for producer statements: same applicability as Orders Mix / Time of
+ * Mix collection pill. When applicable, prefer Length of Mix field (MTD + linked
+ * order), then package limit — same sources as Orders Length of Mix / recordMixLength.
+ */
+export function resolveProducerStatementMixLength(
+  rec: MTDRecord,
+  order: Order | null | undefined,
+  linked: Order | null | undefined,
+  orderById?: Map<string, Order>
+): string {
+  const meta = resolveMTDFormMeta(rec, orderById ?? new Map());
+  const source = linked
+    ? mergeOrderFormFieldsForRequirements(rec, linked)
+    : order || orderFromMTDRecord(rec, null, orderById);
+  const formType = String(
+    (source as Order).formType || meta.formType || ""
+  ).toLowerCase();
+  const category = String(
+    (source as Order).category || rec.category || ""
+  ).toLowerCase();
+  const isAnthem =
+    formType.includes("anthem") || category.includes("anthem");
+  const isMixCategory =
+    formType.includes("cheer") ||
+    formType.includes("dance") ||
+    formType.includes("band") ||
+    formType.includes("sports") ||
+    category.includes("cheer") ||
+    category.includes("dance") ||
+    category.includes("band") ||
+    category.includes("sports");
+
+  // Cheer/dance/band/sports always show Mix Length; do not let a false Magento
+  // form-key miss mark the column N/A ("-") for cheer.
+  const mixReq = getOrderRequirements(source).all.find(
+    (item) => item.id === "mix" || item.id === "time_of_mix"
+  );
+  const mixApplicable = isAnthem
+    ? false
+    : isMixCategory || mixReq?.isApplicable === true;
+  if (!mixApplicable) return "-";
+
+  // Canonical MTD length (field first, then legacy "GOLD 2:30" package).
+  const fromMtd = recordMixLength(rec);
+  if (fromMtd) return fromMtd;
+
+  // Linked Magento Length of Mix when MTD staging is empty.
+  for (const raw of [
+    linked?.timeLengthOfMix,
+    order?.timeLengthOfMix,
+    (source as Order).timeLengthOfMix,
+  ]) {
+    const label = displayMixLengthLabel(String(raw ?? ""));
+    if (label && label !== "-") return label;
+  }
+
+  // Legacy composed package ("PLATINUM 2:30") or linked Magento package string.
+  const fromPackage = parsePackage(
+    String(linked?.package || order?.package || rec.package || "")
+  ).limit;
+  let limit =
+    fromPackage && fromPackage !== "-"
+      ? displayMixLengthLabel(fromPackage) || fromPackage
+      : "";
+  if (meta.cheerFormSubtype === "youth-rec-cheer" && limit === "2:15") {
+    limit = "2:30";
+  }
+  return limit || "-";
+}
+
+/**
+ * Package Type for producer statements — same board label as Payroll/Orders
+ * Package type column (tier / Magento SoftSelect wording, no leaked mix length).
+ */
+export function resolveProducerStatementPackageType(
+  rec: MTDRecord,
+  linked: Order | null | undefined,
+  orderById?: Map<string, Order>
+): string {
+  const meta = resolveMTDFormMeta(rec, orderById ?? new Map());
+  const raw =
+    (linked as { packageType?: string } | null | undefined)?.packageType ||
+    linked?.package ||
+    rec.package ||
+    "";
+  const label = magentoPackageBoardLabel(
+    meta.formType,
+    String(raw),
+    meta.danceFormSubtype,
+    meta.cheerFormSubtype
+  );
+  return label || String(raw).trim() || "-";
+}
 
 export function isVoiceoverStatementRow(row: ProducerFacingPayrollRow): boolean {
   return (
@@ -681,6 +781,8 @@ export function producerStatementColumnsForRows(
   );
 
   return PRODUCER_STATEMENT_COLUMNS.filter((col) => {
+    // Subtype is internal (VO detection) — never shown on send statements.
+    if (col.key === "subtype") return false;
     if (
       col.key === "danceExtraSongs" ||
       col.key === "danceExtraSongTime" ||
@@ -877,7 +979,6 @@ export function getProducerFacingPayrollRows(
     const order = orderFromMTDRecord(rec, linked, orderMap);
     const meta = resolveMTDFormMeta(rec, orderMap);
     const producerObj = findProducerByAssignmentKey(rec.assignedProducer, producers);
-    const parsedPkg = parsePackage(rec.package);
 
     const priced = payrollAmountsForRow(rec, order, meta, orderMap);
     const custPrice = priced.customerPrice;
@@ -957,8 +1058,13 @@ export function getProducerFacingPayrollRows(
       programName: rec.programName,
       category: getFormTypeLabel(meta.formType),
       subtype: getSubtypeLabel(meta.canonicalSubtypeId) || "-",
-      package: rec.package,
-      timeLimit: parsedPkg.limit,
+      package: resolveProducerStatementPackageType(rec, linked, orderMap),
+      timeLimit: resolveProducerStatementMixLength(
+        rec,
+        order,
+        linked,
+        orderMap
+      ),
       voiceoverAddon: "None",
       rushFee: rushLabel,
       danceExtraSongs: isDance
@@ -1080,7 +1186,9 @@ export function getProducerFacingPayrollRows(
       const mixMeta = linkedMix
         ? resolveMTDFormMeta(linkedMix, orderMap)
         : null;
-      const parsedPkg = linkedMix ? parsePackage(linkedMix.package) : null;
+      const linkedMixOrder = linkedMix
+        ? findLinkedOrder(linkedMix, allOrders)
+        : null;
       const standaloneRush =
         addon.addonType === "rush_fee"
           ? resolveRushFeeSelection({
@@ -1107,8 +1215,23 @@ export function getProducerFacingPayrollRows(
         subtype: mixMeta
           ? `${getSubtypeLabel(mixMeta.canonicalSubtypeId) || "-"} · ${typeLabel}`
           : `${typeLabel} Add-on`,
-        package: linkedMix?.package || "-",
-        timeLimit: parsedPkg?.limit || "-",
+        package: linkedMix
+          ? resolveProducerStatementPackageType(
+              linkedMix,
+              linkedMixOrder,
+              orderMap
+            )
+          : "-",
+        timeLimit: linkedMix
+          ? resolveProducerStatementMixLength(
+              linkedMix,
+              linkedMixOrder
+                ? orderFromMTDRecord(linkedMix, linkedMixOrder, orderMap)
+                : null,
+              linkedMixOrder,
+              orderMap
+            )
+          : "-",
         voiceoverAddon:
           addon.addonType === "voiceover" ? formatPrice(addon.amount) : "",
         // Rush is for mix editors only: leave blank on VO rows
@@ -1138,6 +1261,13 @@ export function getProducerFacingPayrollRows(
   return preparedRows;
 }
 
+/** CSV from already-built statement rows (bulk download — no re-scan). */
+export function producerFacingPayrollRowsToCsv(
+  rows: ProducerFacingPayrollRow[]
+): string {
+  return buildCsvString(producerStatementColumnsForRows(rows), rows);
+}
+
 export function generateProducerFacingPayrollCsv(
   records: MTDRecord[],
   allOrders: Order[],
@@ -1157,7 +1287,7 @@ export function generateProducerFacingPayrollCsv(
     undefined,
     formScope
   );
-  return buildCsvString(producerStatementColumnsForRows(rows), rows);
+  return producerFacingPayrollRowsToCsv(rows);
 }
 
 export type ProducerFacingScheduleRow = {
@@ -1187,7 +1317,7 @@ export const PRODUCER_SCHEDULE_COLUMNS = [
   { key: "invoice", label: "Invoice #" },
   { key: "category", label: "Category" },
   { key: "subtype", label: "Subtype" },
-  { key: "package", label: "Package" },
+  { key: "package", label: "Package Type" },
   { key: "status", label: "Status" },
 ];
 
@@ -1262,13 +1392,24 @@ export function getProducerFacingScheduleRows(
       invoice: rec.invoice || "-",
       category: getFormTypeLabel(meta.formType),
       subtype: getSubtypeLabel(meta.canonicalSubtypeId) || "-",
-      package: rec.package || "-",
+      package: resolveProducerStatementPackageType(
+        rec,
+        findLinkedOrder(rec, allOrders),
+        orderById
+      ),
       status: scheduleStatus,
       recId: rec.id,
     });
   }
 
   return preparedRows;
+}
+
+/** CSV from already-built schedule rows (bulk download — no re-scan). */
+export function producerFacingScheduleRowsToCsv(
+  rows: ProducerFacingScheduleRow[]
+): string {
+  return buildCsvString(PRODUCER_SCHEDULE_COLUMNS, rows);
 }
 
 export function generateScheduleCsv(
@@ -1287,6 +1428,6 @@ export function generateScheduleCsv(
     filterPeriod,
     formScope
   );
-  return buildCsvString(PRODUCER_SCHEDULE_COLUMNS, rows);
+  return producerFacingScheduleRowsToCsv(rows);
 }
 

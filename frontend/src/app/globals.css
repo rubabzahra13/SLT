@@ -1487,6 +1487,8 @@ main.app-canvas {
   );
   --dashboard-surface-tone: #f6f8fa;
   --dashboard-surface-border: rgba(15, 20, 25, 0.08);
+  /* Opaque twin of surface-border on white — sticky rules can't use rgba or scroll bleeds through. */
+  --dashboard-col-rule: color-mix(in srgb, rgb(15 20 25) 8%, #ffffff);
   --dashboard-title-bar-bg:
     linear-gradient(
       180deg,
@@ -1560,7 +1562,8 @@ main.app-canvas {
 }
 
 .dashboard-panel .table-header-cell {
-  background: transparent;
+  /* Opaque title-bar fill so sticky + non-sticky headers match (no bleed-through). */
+  background: linear-gradient(180deg, #f7f9fc 0%, #e8ecf2 42%, #d1d8e2 100%);
   border-right-color: var(--dashboard-title-bar-border);
 }
 
@@ -1617,6 +1620,192 @@ main.app-canvas {
   background: var(--dashboard-surface-tone);
 }
 
+/*
+ * Frozen columns: ALWAYS solid fill + grey rules matching other columns.
+ * Paint vertical rules on the LEFT of non-first stickies (overlap would hide a
+ * right-edge rule). Also paint the bottom row rule so the grid matches.
+ */
+th.data-table-sticky,
+td.data-table-sticky {
+  overflow: hidden;
+  background-clip: padding-box;
+  background-origin: padding-box;
+  border-right-style: none !important;
+  border-right-width: 0 !important;
+  border-right-color: transparent !important;
+}
+
+td.data-table-sticky {
+  background-color: #ffffff !important;
+  background-image: none !important;
+  box-shadow:
+    inset 0 -1px 0 var(--dashboard-col-rule),
+    1px 0 0 0 #ffffff;
+}
+
+td.data-table-sticky:not(.data-table-sticky-first) {
+  box-shadow:
+    inset 1px 0 0 var(--dashboard-col-rule),
+    inset 0 -1px 0 var(--dashboard-col-rule),
+    -1px 0 0 0 #ffffff,
+    1px 0 0 0 #ffffff;
+}
+
+td.data-table-sticky-edge {
+  box-shadow:
+    inset -1px 0 0 var(--dashboard-col-rule),
+    inset 0 -1px 0 var(--dashboard-col-rule),
+    1px 0 0 0 #ffffff;
+}
+
+td.data-table-sticky-edge:not(.data-table-sticky-first) {
+  box-shadow:
+    inset 1px 0 0 var(--dashboard-col-rule),
+    inset -1px 0 0 var(--dashboard-col-rule),
+    inset 0 -1px 0 var(--dashboard-col-rule),
+    -1px 0 0 0 #ffffff,
+    1px 0 0 0 #ffffff;
+}
+
+th.data-table-sticky {
+  background-color: #e8ecf2 !important;
+  background-image: linear-gradient(
+    180deg,
+    #f7f9fc 0%,
+    #e8ecf2 42%,
+    #d1d8e2 100%
+  ) !important;
+  box-shadow:
+    inset -1px 0 0 var(--dashboard-col-rule),
+    1px 0 0 0 #e8ecf2;
+}
+
+th.data-table-sticky:not(.data-table-sticky-first) {
+  box-shadow:
+    inset 1px 0 0 var(--dashboard-col-rule),
+    inset -1px 0 0 var(--dashboard-col-rule),
+    -1px 0 0 0 #e8ecf2,
+    1px 0 0 0 #e8ecf2;
+}
+
+table[data-scrolled-x="true"] td.data-table-sticky-edge {
+  box-shadow:
+    inset -1px 0 0 var(--dashboard-col-rule),
+    inset 0 -1px 0 var(--dashboard-col-rule),
+    1px 0 0 0 #ffffff,
+    4px 0 8px -6px rgba(15, 30, 45, 0.14);
+}
+
+table[data-scrolled-x="true"] td.data-table-sticky-edge:not(.data-table-sticky-first) {
+  box-shadow:
+    inset 1px 0 0 var(--dashboard-col-rule),
+    inset -1px 0 0 var(--dashboard-col-rule),
+    inset 0 -1px 0 var(--dashboard-col-rule),
+    -1px 0 0 0 #ffffff,
+    1px 0 0 0 #ffffff,
+    4px 0 8px -6px rgba(15, 30, 45, 0.14);
+}
+
+.dashboard-panel tbody tr:hover td.data-table-sticky {
+  background-color: #e8f6fb !important;
+  background-image: none !important;
+  box-shadow:
+    inset 0 -1px 0 var(--dashboard-col-rule),
+    1px 0 0 0 #e8f6fb;
+}
+
+.dashboard-panel tbody tr:hover td.data-table-sticky:not(.data-table-sticky-first) {
+  box-shadow:
+    inset 1px 0 0 var(--dashboard-col-rule),
+    inset 0 -1px 0 var(--dashboard-col-rule),
+    -1px 0 0 0 #e8f6fb,
+    1px 0 0 0 #e8f6fb;
+}
+
+.dashboard-panel tbody tr:hover td.data-table-sticky-edge {
+  box-shadow:
+    inset -1px 0 0 var(--dashboard-col-rule),
+    inset 0 -1px 0 var(--dashboard-col-rule),
+    1px 0 0 0 #e8f6fb;
+}
+
+.dashboard-panel tbody tr:hover td.data-table-sticky-edge:not(.data-table-sticky-first) {
+  box-shadow:
+    inset 1px 0 0 var(--dashboard-col-rule),
+    inset -1px 0 0 var(--dashboard-col-rule),
+    inset 0 -1px 0 var(--dashboard-col-rule),
+    -1px 0 0 0 #e8f6fb,
+    1px 0 0 0 #e8f6fb;
+}
+
+.dashboard-panel table[data-scrolled-x="true"] tbody tr:hover td.data-table-sticky-edge {
+  box-shadow:
+    inset -1px 0 0 var(--dashboard-col-rule),
+    inset 0 -1px 0 var(--dashboard-col-rule),
+    1px 0 0 0 #e8f6fb,
+    4px 0 8px -6px rgba(15, 30, 45, 0.14);
+}
+
+.dashboard-panel table[data-scrolled-x="true"] tbody tr:hover td.data-table-sticky-edge:not(.data-table-sticky-first) {
+  box-shadow:
+    inset 1px 0 0 var(--dashboard-col-rule),
+    inset -1px 0 0 var(--dashboard-col-rule),
+    inset 0 -1px 0 var(--dashboard-col-rule),
+    -1px 0 0 0 #e8f6fb,
+    1px 0 0 0 #e8f6fb,
+    4px 0 8px -6px rgba(15, 30, 45, 0.14);
+}
+
+.dashboard-panel tbody tr.data-row-highlight td.data-table-sticky {
+  background-color: #d7f0f9 !important;
+  background-image: none !important;
+  box-shadow:
+    inset 0 -1px 0 var(--dashboard-col-rule),
+    1px 0 0 0 #d7f0f9;
+}
+
+.dashboard-panel tbody tr.data-row-highlight td.data-table-sticky:not(.data-table-sticky-first) {
+  box-shadow:
+    inset 1px 0 0 var(--dashboard-col-rule),
+    inset 0 -1px 0 var(--dashboard-col-rule),
+    -1px 0 0 0 #d7f0f9,
+    1px 0 0 0 #d7f0f9;
+}
+
+.dashboard-panel tbody tr.data-row-highlight td.data-table-sticky-edge {
+  box-shadow:
+    inset -1px 0 0 var(--dashboard-col-rule),
+    inset 0 -1px 0 var(--dashboard-col-rule),
+    1px 0 0 0 #d7f0f9;
+}
+
+.dashboard-panel tbody tr.data-row-highlight td.data-table-sticky-edge:not(.data-table-sticky-first) {
+  box-shadow:
+    inset 1px 0 0 var(--dashboard-col-rule),
+    inset -1px 0 0 var(--dashboard-col-rule),
+    inset 0 -1px 0 var(--dashboard-col-rule),
+    -1px 0 0 0 #d7f0f9,
+    1px 0 0 0 #d7f0f9;
+}
+
+.dashboard-panel table[data-scrolled-x="true"] tbody tr.data-row-highlight td.data-table-sticky-edge {
+  box-shadow:
+    inset -1px 0 0 var(--dashboard-col-rule),
+    inset 0 -1px 0 var(--dashboard-col-rule),
+    1px 0 0 0 #d7f0f9,
+    4px 0 8px -6px rgba(15, 30, 45, 0.14);
+}
+
+.dashboard-panel table[data-scrolled-x="true"] tbody tr.data-row-highlight td.data-table-sticky-edge:not(.data-table-sticky-first) {
+  box-shadow:
+    inset 1px 0 0 var(--dashboard-col-rule),
+    inset -1px 0 0 var(--dashboard-col-rule),
+    inset 0 -1px 0 var(--dashboard-col-rule),
+    -1px 0 0 0 #d7f0f9,
+    1px 0 0 0 #d7f0f9,
+    4px 0 8px -6px rgba(15, 30, 45, 0.14);
+}
+
 .dashboard-panel .border-t.border-brand-line-strong,
 .dashboard-panel .dashboard-table-footer {
   border-top-color: var(--dashboard-surface-border);
@@ -1636,6 +1825,76 @@ main.app-canvas {
     0 3px 8px rgba(15, 20, 25, 0.1),
     0 1px 0 rgba(90, 100, 115, 0.16);
   border-bottom: 1px solid rgba(196, 85, 40, 0.32);
+}
+
+/* Same orange top + bottom on every header cell (sticky and Length of Mix). */
+.dashboard-panel-framed th.table-header-cell {
+  box-shadow:
+    inset 0 2px 0 0 var(--color-brand-orange-deep),
+    inset 0 1px 0 0 var(--dashboard-title-bar-highlight),
+    inset 0 -1px 0 rgba(110, 120, 135, 0.22);
+  border-bottom: 1px solid rgba(196, 85, 40, 0.32);
+}
+
+.dashboard-panel-framed th.table-header-cell.data-table-sticky {
+  box-shadow:
+    inset 0 2px 0 0 var(--color-brand-orange-deep),
+    inset 0 1px 0 0 var(--dashboard-title-bar-highlight),
+    inset 0 -1px 0 rgba(110, 120, 135, 0.22),
+    inset -1px 0 0 var(--dashboard-col-rule),
+    1px 0 0 0 #e8ecf2;
+}
+
+.dashboard-panel-framed th.table-header-cell.data-table-sticky:not(.data-table-sticky-first) {
+  box-shadow:
+    inset 0 2px 0 0 var(--color-brand-orange-deep),
+    inset 0 1px 0 0 var(--dashboard-title-bar-highlight),
+    inset 0 -1px 0 rgba(110, 120, 135, 0.22),
+    inset 1px 0 0 var(--dashboard-col-rule),
+    inset -1px 0 0 var(--dashboard-col-rule),
+    -1px 0 0 0 #e8ecf2,
+    1px 0 0 0 #e8ecf2;
+}
+
+/* Soft freeze edge only while scrolling — never replace the orange bottom line. */
+.dashboard-panel-framed table[data-scrolled-x="true"] th.data-table-sticky-edge {
+  box-shadow:
+    inset 0 2px 0 0 var(--color-brand-orange-deep),
+    inset 0 1px 0 0 var(--dashboard-title-bar-highlight),
+    inset 0 -1px 0 rgba(110, 120, 135, 0.22),
+    inset -1px 0 0 var(--dashboard-col-rule),
+    1px 0 0 0 #e8ecf2,
+    4px 0 8px -6px rgba(15, 30, 45, 0.12);
+}
+
+.dashboard-panel-framed table[data-scrolled-x="true"] th.data-table-sticky-edge:not(.data-table-sticky-first) {
+  box-shadow:
+    inset 0 2px 0 0 var(--color-brand-orange-deep),
+    inset 0 1px 0 0 var(--dashboard-title-bar-highlight),
+    inset 0 -1px 0 rgba(110, 120, 135, 0.22),
+    inset 1px 0 0 var(--dashboard-col-rule),
+    inset -1px 0 0 var(--dashboard-col-rule),
+    -1px 0 0 0 #e8ecf2,
+    1px 0 0 0 #e8ecf2,
+    4px 0 8px -6px rgba(15, 30, 45, 0.12);
+}
+
+.dashboard-panel-framed table[data-scrolled-x="true"] td.data-table-sticky-edge {
+  box-shadow:
+    inset -1px 0 0 var(--dashboard-col-rule),
+    inset 0 -1px 0 var(--dashboard-col-rule),
+    1px 0 0 0 #ffffff,
+    4px 0 8px -6px rgba(15, 30, 45, 0.12);
+}
+
+.dashboard-panel-framed table[data-scrolled-x="true"] td.data-table-sticky-edge:not(.data-table-sticky-first) {
+  box-shadow:
+    inset 1px 0 0 var(--dashboard-col-rule),
+    inset -1px 0 0 var(--dashboard-col-rule),
+    inset 0 -1px 0 var(--dashboard-col-rule),
+    -1px 0 0 0 #ffffff,
+    1px 0 0 0 #ffffff,
+    4px 0 8px -6px rgba(15, 30, 45, 0.12);
 }
 
 .dashboard-panel-framed .schedule-chrome-header {

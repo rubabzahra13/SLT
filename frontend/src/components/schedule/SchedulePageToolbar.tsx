@@ -124,8 +124,10 @@ export function SchedulePageToolbar({
                   producers={producers}
                   value={selectedEditor}
                   onChange={onEditorChange}
-                  label="Editor:"
-                  allLabel="All Editors"
+                  label="Producer:"
+                  allLabel="All producers"
+                  searchable
+                  searchPlaceholder="Search producers…"
                 />
               </div>
             </>

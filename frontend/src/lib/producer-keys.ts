@@ -42,11 +42,11 @@ export function producerKeysMatch(assigned: string, key: string): boolean {
   return normalizeProducerKey(assigned) === normalizeProducerKey(key);
 }
 
-/** Assignment key used in MTD (initials / uppercase name). */
+/** Assignment key used in MTD (canonical initials / uppercase name). */
 export function producerAssignmentKey(producer: Producer): string {
-  const initials = producer.initials?.trim().toUpperCase();
-  if (initials) return initials;
-  return producer.name.trim().toUpperCase();
+  const initials = producer.initials?.trim();
+  if (initials) return normalizeProducerKey(initials);
+  return normalizeProducerKey(producer.name.trim());
 }
 
 /** Form-facing first name (matches the order-form requested-editor dropdown). */

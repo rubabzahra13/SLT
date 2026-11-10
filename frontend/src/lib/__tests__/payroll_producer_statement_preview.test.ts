@@ -5,6 +5,7 @@ import {
   PRODUCER_STATEMENT_COLUMNS,
   getProducerFacingPayrollRows,
   generateProducerFacingPayrollCsv,
+  producerStatementColumnsForRows,
 } from "../export-csv";
 
 const mockProducers = [
@@ -104,7 +105,7 @@ const mockMtdRecords = [
 ] as unknown as MTDRecord[];
 
 describe("Payroll Producer Statement Preview & Single Source of Truth Tests", () => {
-  it("1. getProducerFacingPayrollRows generates exact 16-column schema matching PRODUCER_STATEMENT_COLUMNS", () => {
+  it("1. getProducerFacingPayrollRows includes statement keys; Subtype hidden; Mix Length filled when applicable", () => {
     const rows = getProducerFacingPayrollRows(
       mockMtdRecords,
       mockOrders,
@@ -120,10 +121,47 @@ describe("Payroll Producer Statement Preview & Single Source of Truth Tests", ()
         col.key in row,
         `Expected key ${col.key} to exist in producer statement row`
       );
+      assert.notEqual(col.key, "subtype");
+      assert.notEqual(col.label, "Subtype");
     });
 
+    const visible = producerStatementColumnsForRows(rows);
+    assert.ok(!visible.some((c) => c.key === "subtype" || c.label === "Subtype"));
+    assert.ok(visible.some((c) => c.key === "timeLimit"));
+
     assert.equal(row.programName, "Lions Cheer");
-    assert.equal(row.totalPayout, "$400");
+    // Cheer: Mix Length applicable — fill from package when form field empty.
+    assert.equal(row.timeLimit, "1:30");
+    // Package Type uses board label (tier), same as Payroll/Orders column.
+    assert.ok(visible.some((c) => c.key === "package" && c.label === "Package Type"));
+    assert.ok(row.package && row.package !== "-");
+    assert.match(row.package, /gold/i);
+  });
+
+  it("1b. Cheer Mix Length reads timeLengthOfMix when package is tier-only", () => {
+    const tierOnlyRec = {
+      ...mockMtdRecords[0],
+      package: "Platinum Package",
+      timeLengthOfMix: "2:30",
+      formType: "school-all-star-cheer",
+      category: "Cheer",
+    } as unknown as MTDRecord;
+    const blankLinked = {
+      ...mockOrders[0],
+      package: "Platinum Package",
+      timeLengthOfMix: "",
+      formType: "school-all-star-cheer",
+    } as unknown as Order;
+
+    const rows = getProducerFacingPayrollRows(
+      [tierOnlyRec],
+      [blankLinked],
+      mockProducers,
+      "Casey Marlow"
+    );
+
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].timeLimit, "2:30");
   });
 
   it("2. Parity check: generateProducerFacingPayrollCsv produces exact headers and values as getProducerFacingPayrollRows", () => {
@@ -143,9 +181,16 @@ describe("Payroll Producer Statement Preview & Single Source of Truth Tests", ()
     assert.equal(rows.length, 1);
     const row = rows[0];
 
-    // CSV header row check
-    const expectedHeaders = PRODUCER_STATEMENT_COLUMNS.map((c) => c.label).join(",");
-    assert.ok(csv.startsWith(expectedHeaders), "CSV must start with exact column headers");
+    const expectedHeaders = producerStatementColumnsForRows(rows)
+      .map((c) => c.label)
+      .join(",");
+    assert.ok(
+      csv.startsWith(expectedHeaders),
+      "CSV must start with visible column headers"
+    );
+    assert.equal(csv.includes("Subtype"), false);
+    assert.ok(csv.includes("Mix Length"));
+    assert.equal(row.timeLimit, "2:00");
 
     // CSV data row check
     assert.ok(csv.includes("Tigers Dance"), "CSV must include program name");

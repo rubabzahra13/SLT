@@ -264,6 +264,37 @@ export async function deleteMTDRecordApi(
   await apiClient.delete(`/api/mtd/${id}${qs}`);
 }
 
+/** One lean request — counts only, no deleted row payloads (egress). */
+export const MTD_BULK_DELETE_MAX = 100;
+
+export type MtdBulkDeleteResult = {
+  deleted: number;
+  missing: number;
+};
+
+export async function deleteMTDRecordsBulkApi(
+  ids: string[]
+): Promise<MtdBulkDeleteResult> {
+  const unique = Array.from(
+    new Set(ids.map((id) => String(id || "").trim()).filter(Boolean))
+  );
+  if (unique.length === 0) return { deleted: 0, missing: 0 };
+
+  let deleted = 0;
+  let missing = 0;
+  // Chunk to stay under API max; Fluid Active CPU pauses on each await.
+  for (let i = 0; i < unique.length; i += MTD_BULK_DELETE_MAX) {
+    const chunk = unique.slice(i, i + MTD_BULK_DELETE_MAX);
+    const res = await apiClient.post<MtdBulkDeleteResult>(
+      "/api/mtd/bulk-delete",
+      { ids: chunk }
+    );
+    deleted += Number(res?.deleted) || 0;
+    missing += Number(res?.missing) || 0;
+  }
+  return { deleted, missing };
+}
+
 export interface CreateManualSchedulePayload {
   category: string;
   subcategory?: string | null;

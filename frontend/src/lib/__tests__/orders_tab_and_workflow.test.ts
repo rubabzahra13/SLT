@@ -29,7 +29,7 @@ function makeRecord(overrides: Partial<MTDRecord> = {}): MTDRecord {
     category: "Cheer",
     editorInitials: "JD",
     programName: "SPIRIT XTREME AS MIGHTY MINI",
-    package: "PLATINUM 2:30 NO SPLIT",
+    package: "GOLD 2:30 NO SPLIT",
     musicTheme: "Power Music Covers",
     price: 1400,
     priceCompliance: "compliant",
@@ -797,15 +797,18 @@ describe("Orders Tab & Workflow Separation", () => {
       haveSongs: "HAVE SONGS",
       eightCountSheet: "HAVE CS",
       sendingEightCountSheets: "Yes",
+      collectionStates: { video: true },
     };
     const completeRow = mergeCollectionStateFromOrder(
       makeRecord({
         id: "mtd-tab-complete-1",
         orderId: order.id,
+        package: order.package,
         assignedProducer: null,
         isReassigned: false,
         haveSongs: "",
         eightCountSheet: "",
+        collectionStates: { video: true },
       }),
       order
     );

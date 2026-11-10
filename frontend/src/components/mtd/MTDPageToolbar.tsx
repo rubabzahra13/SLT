@@ -13,6 +13,7 @@ import {
   MTDViewOrderToggle,
   type MTDViewOrder,
 } from "@/components/mtd/MTDViewOrderToggle";
+import { ProducerSelect } from "@/components/ui/ProducerSelect";
 import type {
   MTDRecord,
   Order,
@@ -27,9 +28,13 @@ import type {
 } from "@/types";
 
 type MTDPageToolbarProps = {
-  form: OrderFormType;
-  cheerSubtype: CheerFormSubtypeFilter;
-  danceSubtype: DanceFormSubtypeFilter;
+  form?: OrderFormType;
+  cheerSubtype?: CheerFormSubtypeFilter;
+  danceSubtype?: DanceFormSubtypeFilter;
+  /** Payroll board: hide Form/Cheer/Dance; show producer search instead. */
+  hideFormFilters?: boolean;
+  boardProducerFilter?: string;
+  onBoardProducerFilterChange?: (value: string) => void;
   sourceFilter?: OrderSourceFilterId;
   onSourceFilterChange?: (filter: OrderSourceFilterId) => void;
   /** Unfiltered-by-source pool used for Source menu counts. */
@@ -49,17 +54,17 @@ type MTDPageToolbarProps = {
   reassignRushOrdersCount?: number;
   reassignedOrdersCount?: number;
   waitingForDataCount?: number;
-  onFormChange: (form: OrderFormType) => void;
-  onCheerSubtypeChange: (subtype: CheerFormSubtypeFilter) => void;
-  onDanceSubtypeChange: (subtype: DanceFormSubtypeFilter) => void;
+  onFormChange?: (form: OrderFormType) => void;
+  onCheerSubtypeChange?: (subtype: CheerFormSubtypeFilter) => void;
+  onDanceSubtypeChange?: (subtype: DanceFormSubtypeFilter) => void;
   onFormMenuIntent?: () => void;
   onFormOptionIntent?: (form: OrderFormType) => void;
   onCheerOptionIntent?: (subtype: CheerFormSubtypeFilter) => void;
   onDanceOptionIntent?: (subtype: DanceFormSubtypeFilter) => void;
   onRangeIntent?: (filter: OrderViewRangeFilter) => void;
-  formCounts: Record<OrderFormType, number>;
-  cheerCounts: Record<CheerFormSubtypeFilter, number>;
-  danceCounts: Record<DanceFormSubtypeFilter, number>;
+  formCounts?: Record<OrderFormType, number>;
+  cheerCounts?: Record<CheerFormSubtypeFilter, number>;
+  danceCounts?: Record<DanceFormSubtypeFilter, number>;
   /** Hide Form/Cheer/Dance option counts (Payroll). Default true. */
   showFormOptionCounts?: boolean;
   records: MTDRecord[];
@@ -73,8 +78,11 @@ type MTDPageToolbarProps = {
 
 export function MTDPageToolbar({
   form,
-  cheerSubtype,
-  danceSubtype,
+  cheerSubtype = "all",
+  danceSubtype = "all",
+  hideFormFilters = false,
+  boardProducerFilter = "all",
+  onBoardProducerFilterChange,
   sourceFilter,
   onSourceFilterChange,
   sourceCountRecords,
@@ -113,6 +121,15 @@ export function MTDPageToolbar({
   onPricingClick,
 }: MTDPageToolbarProps) {
   const filterVariant = onRangeFilterChange ? "orders" : "mtd";
+  const showFormFilters =
+    !hideFormFilters &&
+    form &&
+    onFormChange &&
+    onCheerSubtypeChange &&
+    onDanceSubtypeChange &&
+    formCounts &&
+    cheerCounts &&
+    danceCounts;
 
   return (
     <div className="space-y-2.5">
@@ -138,44 +155,71 @@ export function MTDPageToolbar({
               />
             </>
           ) : null}
-          <OrderFormFilters
-            grouped
-            form={form}
-            cheerSubtype={cheerSubtype}
-            danceSubtype={danceSubtype}
-            onFormChange={onFormChange}
-            onCheerSubtypeChange={onCheerSubtypeChange}
-            onDanceSubtypeChange={onDanceSubtypeChange}
-            onFormMenuIntent={onFormMenuIntent}
-            onFormOptionIntent={onFormOptionIntent}
-            onCheerOptionIntent={onCheerOptionIntent}
-            onDanceOptionIntent={onDanceOptionIntent}
-            formCounts={formCounts}
-            cheerCounts={cheerCounts}
-            danceCounts={danceCounts}
-            showOptionCounts={showFormOptionCounts}
-          />
-          <span
-            className="mx-0.5 hidden h-5 w-px shrink-0 bg-brand-line/45 sm:block"
-            aria-hidden
-          />
-          <MTDTableFilterPanel
-            grouped
-            variant={filterVariant}
-            records={records}
-            producers={producers}
-            orderById={orderById}
-            filters={filters}
-            onChange={onFiltersChange}
-            onReset={onFiltersReset}
-            form={form}
-            cheerSubtype={cheerSubtype}
-            danceSubtype={danceSubtype}
-          />
-          <span
-            className="mx-0.5 hidden h-5 w-px shrink-0 bg-brand-line/45 sm:block"
-            aria-hidden
-          />
+          {showFormFilters ? (
+            <>
+              <OrderFormFilters
+                grouped
+                form={form}
+                cheerSubtype={cheerSubtype}
+                danceSubtype={danceSubtype}
+                onFormChange={onFormChange}
+                onCheerSubtypeChange={onCheerSubtypeChange}
+                onDanceSubtypeChange={onDanceSubtypeChange}
+                onFormMenuIntent={onFormMenuIntent}
+                onFormOptionIntent={onFormOptionIntent}
+                onCheerOptionIntent={onCheerOptionIntent}
+                onDanceOptionIntent={onDanceOptionIntent}
+                formCounts={formCounts}
+                cheerCounts={cheerCounts}
+                danceCounts={danceCounts}
+                showOptionCounts={showFormOptionCounts}
+              />
+              <span
+                className="mx-0.5 hidden h-5 w-px shrink-0 bg-brand-line/45 sm:block"
+                aria-hidden
+              />
+            </>
+          ) : null}
+          {hideFormFilters && onBoardProducerFilterChange ? (
+            <>
+              <div className="px-1.5 py-0.5">
+                <ProducerSelect
+                  producers={producers}
+                  value={boardProducerFilter}
+                  onChange={onBoardProducerFilterChange}
+                  label="Producer:"
+                  allLabel="All producers"
+                  searchable
+                  searchPlaceholder="Search producers…"
+                />
+              </div>
+              <span
+                className="mx-0.5 hidden h-5 w-px shrink-0 bg-brand-line/45 sm:block"
+                aria-hidden
+              />
+            </>
+          ) : null}
+          {!hideFormFilters ? (
+            <>
+              <MTDTableFilterPanel
+                grouped
+                variant={filterVariant}
+                records={records}
+                producers={producers}
+                orderById={orderById}
+                filters={filters}
+                onChange={onFiltersChange}
+                onReset={onFiltersReset}
+                form={form}
+                cheerSubtype={cheerSubtype}
+                danceSubtype={danceSubtype}
+              />
+              <span
+                className="mx-0.5 hidden h-5 w-px shrink-0 bg-brand-line/45 sm:block"
+                aria-hidden
+              />
+            </>
+          ) : null}
           <MTDSortMenu
             grouped
             value={filters.sortBy ?? "newest"}
@@ -211,18 +255,20 @@ export function MTDPageToolbar({
         </div>
       </div>
 
-      <MTDFilterChipsRow
-        records={records}
-        producers={producers}
-        orderById={orderById}
-        form={form}
-        cheerSubtype={cheerSubtype}
-        danceSubtype={danceSubtype}
-        filters={filters}
-        onChange={onFiltersChange}
-        onReset={onFiltersReset}
-        variant={filterVariant}
-      />
+      {!hideFormFilters ? (
+        <MTDFilterChipsRow
+          records={records}
+          producers={producers}
+          orderById={orderById}
+          form={form}
+          cheerSubtype={cheerSubtype}
+          danceSubtype={danceSubtype}
+          filters={filters}
+          onChange={onFiltersChange}
+          onReset={onFiltersReset}
+          variant={filterVariant}
+        />
+      ) : null}
     </div>
   );
 }

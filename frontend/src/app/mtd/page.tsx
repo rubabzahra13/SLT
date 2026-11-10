@@ -28,6 +28,7 @@ import { SetInvoiceModal } from "@/components/mtd/SetInvoiceModal";
 import { CompleteToPayrollModal } from "@/components/mtd/CompleteToPayrollModal";
 import { MoveToOrdersConfirmModal } from "@/components/mtd/MoveToOrdersConfirmModal";
 import { OrderFormEditModal } from "@/components/orders/OrderFormEditModal";
+import { OrdersCsvExportModal } from "@/components/orders/OrdersCsvExportModal";
 import { patchForReassignRush } from "@/lib/order-reassign";
 import {
   CompletionBlockedModal,
@@ -62,7 +63,6 @@ import {
 } from "@/lib/order-detail-sections";
 import { orderFromMTDRecord } from "@/lib/order-detail-fields";
 import { orderHasSplitField } from "@/lib/order-form-missing";
-import type { MTDViewOrder } from "@/components/mtd/MTDViewOrderToggle";
 import {
   calculateCheerOrderPricing,
   calculateDanceOrderPricing,
@@ -93,9 +93,8 @@ import {
   dateFilterToCreatedAtBounds,
   getDateFilterBoundsLabel,
   getDateFilterLabel,
-  todayIso,
 } from "@/lib/date-filters";
-import { generateMTDCsv, triggerCsvDownload } from "@/lib/export-csv";
+import { downloadMtdBoardCsv } from "@/lib/api/mtd-board";
 import {
   findLinkedOrder,
   findProducerByAssignmentKey,
@@ -115,7 +114,6 @@ import {
   matchesMTDSearch,
   resolveMTDFormMeta,
   sortMTDRecordsBySortKey,
-  sortMTDRecordsByViewOrder,
 } from "@/lib/mtd-filters";
 import {
   cycleEightCsItem,
@@ -142,6 +140,7 @@ import {
   CHEER_FORM_SUBTABS,
   DANCE_FORM_SUBTABS,
   MTD_RECORD_STATUS_OPTIONS,
+  ORDER_FORM_TABS,
 } from "@/types";
 import clsx from "clsx";
 
@@ -313,6 +312,8 @@ function MTDPageContent() {
   const [tableFilters, setTableFilters] = useState<MTDTableFilterState>(
     DEFAULT_MTD_TABLE_FILTERS
   );
+  const [csvExportOpen, setCsvExportOpen] = useState(false);
+  const [csvExportBusy, setCsvExportBusy] = useState(false);
 
   useEffect(() => {
     if (assignedParam) {
@@ -370,7 +371,6 @@ function MTDPageContent() {
     setRecords: setPagedMtdRecords,
   } = useMtdBoard(mtdBoardQuery);
 
-  const [viewOrder, setViewOrder] = useState<MTDViewOrder>("sequence");
   const [assignRecordId, setAssignRecordId] = useState<string | null>(null);
   const assignRecord = useMemo(
     () =>
@@ -994,15 +994,71 @@ function MTDPageContent() {
     return tableFiltered.filter((rec) => matchesMTDSearch(rec, q));
   }, [tableFiltered, searchInput]);
 
-  const displayedRecords = useMemo(() => {
-    const sorted = sortMTDRecordsBySortKey(
-      filtered,
-      tableFilters.sortBy ?? "newest",
-      producers,
-      orderById
-    );
-    return sortMTDRecordsByViewOrder(sorted, viewOrder, producers);
-  }, [filtered, tableFilters.sortBy, viewOrder, producers, orderById]);
+  const displayedRecords = useMemo(
+    () =>
+      sortMTDRecordsBySortKey(
+        filtered,
+        tableFilters.sortBy ?? "newest",
+        producers,
+        orderById
+      ),
+    [filtered, tableFilters.sortBy, producers, orderById]
+  );
+
+  const csvExportFilters = useMemo(() => {
+    const lines: { label: string; value: string }[] = [];
+    const formLabel =
+      ORDER_FORM_TABS.find((tab) => tab.id === form)?.label ?? form;
+    lines.push({ label: "Form", value: formLabel });
+
+    if (form === "school-all-star-cheer") {
+      const subtypeLabel =
+        cheerSubtype === "all"
+          ? "All"
+          : CHEER_FORM_SUBTABS.find((tab) => tab.id === cheerSubtype)?.label ??
+            cheerSubtype;
+      lines.push({ label: "Subtype", value: subtypeLabel });
+    } else if (form === "school-all-star-dance") {
+      const subtypeLabel =
+        danceSubtype === "all"
+          ? "All"
+          : DANCE_FORM_SUBTABS.find((tab) => tab.id === danceSubtype)?.label ??
+            danceSubtype;
+      lines.push({ label: "Subtype", value: subtypeLabel });
+    }
+
+    const timestampLabel = getDateFilterLabel(tableFilters.dateFilter);
+    const timestampBounds = getDateFilterBoundsLabel(tableFilters.dateFilter);
+    lines.push({
+      label: "Timestamp",
+      value: timestampBounds
+        ? `${timestampLabel} (${timestampBounds})`
+        : timestampLabel,
+    });
+
+    const search = searchQuery.trim();
+    if (search) {
+      lines.push({ label: "Search", value: search });
+    }
+
+    return lines;
+  }, [
+    form,
+    cheerSubtype,
+    danceSubtype,
+    searchQuery,
+    tableFilters.dateFilter,
+  ]);
+
+  const confirmExportMtdCsv = useCallback(() => {
+    setCsvExportBusy(true);
+    void downloadMtdBoardCsv(mtdBoardQuery)
+      .then(() => setCsvExportOpen(false))
+      .catch(() => {
+        /* user can retry */
+      })
+      .finally(() => setCsvExportBusy(false));
+  }, [mtdBoardQuery]);
 
   // Form / subtype menu: server chip totals only (sticky via useMtdBoard).
   const formCounts = useMemo(
@@ -1073,6 +1129,7 @@ function MTDPageContent() {
         header: "ID",
         width: "56px",
         align: "center" as const,
+        sticky: "left" as const,
         render: (_rec, index) => (
           <span className="tabular-nums text-[12px] text-brand-ink">
             {index + 1}
@@ -1085,6 +1142,7 @@ function MTDPageContent() {
         width: "128px",
         align: "center" as const,
         nowrap: true,
+        sticky: "left" as const,
         cellClassName: compactCellClass,
         headerClassName: compactHeaderClass,
         render: (rec) => (
@@ -1099,6 +1157,7 @@ function MTDPageContent() {
         width: contactHeader.length > 14 ? "150px" : "100px",
         align: "center" as const,
         nowrap: false,
+        sticky: "left" as const,
         cellClassName: clsx(
           compactCellClass,
           contactHeader.length > 14 ? "max-w-[150px]" : "max-w-[100px]"
@@ -1133,6 +1192,7 @@ function MTDPageContent() {
         width: programHeader.length > 14 ? "150px" : "100px",
         align: "center" as const,
         nowrap: false,
+        sticky: "left" as const,
         cellClassName: clsx(
           compactCellClass,
           programHeader.length > 14 ? "max-w-[150px]" : "max-w-[100px]"
@@ -1161,6 +1221,7 @@ function MTDPageContent() {
         width: "120px",
         align: "center" as const,
         nowrap: false,
+        sticky: "left" as const,
         cellClassName: clsx(compactCellClass, "max-w-[120px]"),
         headerClassName: compactHeaderClass,
         render: (rec) => {
@@ -1911,10 +1972,9 @@ function MTDPageContent() {
         }}
         exportAction={{
           label: "CSV",
-          onClick: () => {
-            const csv = generateMTDCsv(displayedRecords, allOrders, producers);
-            triggerCsvDownload(`MTD_Export_${todayIso()}.csv`, csv);
-          },
+          title:
+            "Export current MTD filters to CSV (server query: search, form, range)",
+          onClick: () => setCsvExportOpen(true),
         }}
         search={{
           value: searchInput,
@@ -2003,8 +2063,6 @@ function MTDPageContent() {
               }))
             }
             onPricingClick={openPricingReference}
-            viewOrder={viewOrder}
-            onViewOrderChange={setViewOrder}
           />
         }
       />
@@ -2012,7 +2070,7 @@ function MTDPageContent() {
       <div className="min-h-0 flex-1 overflow-auto px-2 pb-6 pt-5 lg:px-3">
         <div className="dashboard-panel dashboard-panel-framed overflow-hidden">
           <DataTable
-            key={`${form}-${cheerSubtype}-${danceSubtype}-${tableFilterKey}-${viewOrder}`}
+            key={`${form}-${cheerSubtype}-${danceSubtype}-${tableFilterKey}`}
             columns={columns}
             data={displayedRecords}
             rowKey={(rec) => rec.id}
@@ -2048,7 +2106,7 @@ function MTDPageContent() {
             hasMore={Boolean(mtdNextPageToken)}
             onLoadMore={loadMoreMtd}
             loadingMore={mtdBoardLoadingMore}
-            resetKey={`${form}-${cheerSubtype}-${danceSubtype}-${tableFilterKey}-${viewOrder}`}
+            resetKey={`${form}-${cheerSubtype}-${danceSubtype}-${tableFilterKey}`}
             embedded
             showScrollIndicator={true}
             highlightRowKey={highlightId}
@@ -2151,6 +2209,19 @@ function MTDPageContent() {
           setOrderFormRecord(null);
           setOrderFormRowId(null);
         }}
+      />
+
+      <OrdersCsvExportModal
+        open={csvExportOpen}
+        title="Download MTD CSV?"
+        description="Downloads every matching MTD row for these filters, including ones not on this page. Limited to 5,000 rows."
+        filters={csvExportFilters}
+        busy={csvExportBusy}
+        onClose={() => {
+          if (csvExportBusy) return;
+          setCsvExportOpen(false);
+        }}
+        onConfirm={confirmExportMtdCsv}
       />
     </div>
   );

@@ -1757,32 +1757,33 @@ function ProducerAvailChip({
   const selected =
     Boolean(selectedEditor) && producerKeysMatch(selectedEditor, row.name);
   const displayName = row.producer?.name?.trim() || row.name;
+  const tipLabel = selected
+    ? `${displayName} · click to unselect`
+    : displayName;
 
   return (
-    <button
-      type="button"
-      title={
-        selected
-          ? `${displayName} · click to unselect`
-          : displayName
-      }
-      onClick={() => onSelect(row.name, row.nextOpeningIso || undefined)}
-      className={clsx(
-        "inline-flex items-center justify-center overflow-visible rounded-xl border p-2 transition",
-        selected
-          ? "border-brand-signature bg-brand-signature-soft shadow-sm ring-1 ring-brand-signature/25"
-          : "border-brand-line/60 bg-brand-bg/30 hover:border-brand-line hover:bg-brand-bg/60"
-      )}
-    >
-      <span className="relative inline-flex overflow-visible">
-        <Avatar producer={row.producer} initials={row.name} size="sm" />
-        {selected ? (
-          <span className="pointer-events-none absolute -bottom-1 -right-1 z-10 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-brand-signature text-white shadow-sm ring-2 ring-white">
-            <Check className="h-2 w-2" strokeWidth={3} />
-          </span>
-        ) : null}
-      </span>
-    </button>
+    <HoverTip label={tipLabel} placement="top" zIndex={260}>
+      <button
+        type="button"
+        aria-label={tipLabel}
+        onClick={() => onSelect(row.name, row.nextOpeningIso || undefined)}
+        className={clsx(
+          "inline-flex items-center justify-center overflow-visible rounded-xl border p-2 transition",
+          selected
+            ? "border-brand-signature bg-brand-signature-soft shadow-sm ring-1 ring-brand-signature/25"
+            : "border-brand-line/60 bg-brand-bg/30 hover:border-brand-line hover:bg-brand-bg/60"
+        )}
+      >
+        <span className="relative inline-flex overflow-visible">
+          <Avatar producer={row.producer} initials={row.name} size="sm" />
+          {selected ? (
+            <span className="pointer-events-none absolute -bottom-1 -right-1 z-10 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-brand-signature text-white shadow-sm ring-2 ring-white">
+              <Check className="h-2 w-2" strokeWidth={3} />
+            </span>
+          ) : null}
+        </span>
+      </button>
+    </HoverTip>
   );
 }
 

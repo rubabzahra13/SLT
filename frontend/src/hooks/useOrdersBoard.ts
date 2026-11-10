@@ -10,6 +10,7 @@ import {
 } from "@/lib/api/orders-board";
 import {
   applyPeerOrderUpdate,
+  hasRecentLocalBadgeCountsBump,
   isDiscardedOrder,
   isRecentLocalOrderWrite,
   mergeIncomingOrderPreservingRecentLocalFields,
@@ -844,6 +845,31 @@ export function useOrdersBoard(
         }
         return;
       }
+      // Assign / Complete↔Missing already bumped badges — a lagging /counts
+      // must not paint pre-edit numbers (felt like badges were "too slow").
+      if (hasRecentLocalBadgeCountsBump()) {
+        const known = readOrdersBoardCountsCache(cKey)?.counts;
+        if (known) {
+          const merged = mergeStickyChipCounts(known, cKey);
+          setCounts(merged);
+          lastGoodCountsRef.current = merged;
+          setCountsReady(true);
+          if (!flagged && !q.search) seedEmptyRangeCaches(q, merged);
+          return;
+        }
+        // Cold cache (assign on fresh page): fold pending bumps into /counts.
+        writeOrdersBoardCountsOnlyCache(cKey, boardCounts);
+        writeOrdersBoardChipCountsCache(cKey, boardCounts);
+        const seeded =
+          readOrdersBoardCountsCache(cKey)?.counts ?? boardCounts;
+        const merged = mergeStickyChipCounts(seeded, cKey);
+        setCounts(merged);
+        lastGoodCountsRef.current = merged;
+        setCountsReady(true);
+        writeOrdersBoardCountsCache(queryKey, seeded);
+        if (!flagged && !q.search) seedEmptyRangeCaches(q, merged);
+        return;
+      }
       writeOrdersBoardChipCountsCache(cKey, boardCounts);
       const merged = mergeStickyChipCounts(boardCounts, cKey);
       setCounts(merged);
@@ -1128,8 +1154,11 @@ export function useOrdersBoard(
         });
       }, SSE_OFF_PAGE_RELOAD_MS);
     };
-    const scheduleCountsOnlyReload = () =>
+    const scheduleCountsOnlyReload = () => {
+      // Local assign / data edits already moved badges — don't wait on /counts.
+      if (hasRecentLocalBadgeCountsBump()) return;
       scheduleDeferredReload({ countsOnly: true });
+    };
     const scheduleBoardReload = () => scheduleDeferredReload({});
 
     void subscribeBoardStream((event) => {

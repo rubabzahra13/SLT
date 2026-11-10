@@ -76,11 +76,19 @@ export function buildPayrollMailDraft(
   };
 }
 
+/** Full line-item table stays in the Excel attachment past this size. */
+export const PAYROLL_MAIL_INLINE_ROW_CAP = 25;
+
 export function renderPayrollRowsPlainText(
   rows: ProducerFacingPayrollRow[]
 ): string {
   if (rows.length === 0) {
     return "No completed mixes in this pay period.";
+  }
+
+  // Large 1-year statements: keep the email body tiny; Excel has the detail.
+  if (rows.length > PAYROLL_MAIL_INLINE_ROW_CAP) {
+    return `This statement has ${rows.length} line items. Open the attached Excel file for the full breakdown.`;
   }
 
   const columns = producerStatementColumnsForRows(rows);
@@ -113,6 +121,15 @@ export function renderPayrollMailPlainText(
 
 function renderPayrollRowsHtmlTable(rows: ProducerFacingPayrollRow[]): string {
   // Same column set as UI preview / Download CSV (category-aware).
+  if (rows.length > PAYROLL_MAIL_INLINE_ROW_CAP) {
+    return `<div style="margin:0 0 24px;padding:16px 18px;border-radius:12px;border:1px solid rgba(15,30,45,0.1);background:#fafbfc;">
+      <p style="margin:0;font-size:14px;line-height:1.55;color:rgba(15,20,25,0.72);">
+        This statement has <strong style="color:#0f1419;">${rows.length} line items</strong>.
+        Open the attached Excel file for the full breakdown.
+      </p>
+    </div>`;
+  }
+
   const columns = producerStatementColumnsForRows(rows);
   const headerCells = columns
     .map(

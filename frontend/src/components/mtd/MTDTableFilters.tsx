@@ -19,7 +19,6 @@ import {
   buildTimeLimitOptions,
   matchesFormFilter,
   MTD_SORT_BY_OPTIONS,
-  producersForFormCategory,
   type InfoFilter,
   type MixScheduleFilter,
   type MTDSortBy,
@@ -78,6 +77,8 @@ type MTDTableFilterPanelProps = {
   danceSubtype?: DanceFormSubtypeFilter;
   /** Orders tab hides Data (covered by range toggles). */
   variant?: "mtd" | "orders";
+  /** Payroll board: Assigned editor lives in the toolbar Producer dropdown. */
+  hideAssignedProducerFilter?: boolean;
 };
 
 /** Split/No Split applies to VIROC, School Cheer, Youth Rec: not All Star Cheer. */
@@ -93,7 +94,8 @@ export function hasActiveMTDFilters(
   filters: MTDTableFilterState,
   form?: OrderFormType,
   variant: "mtd" | "orders" = "mtd",
-  cheerSubtype?: CheerFormSubtypeFilter
+  cheerSubtype?: CheerFormSubtypeFilter,
+  hideAssignedProducerFilter = false
 ): boolean {
   const isCheer = !form || form === "school-all-star-cheer";
   const showSplit = showCheerSplitFilter(form, cheerSubtype);
@@ -102,7 +104,7 @@ export function hasActiveMTDFilters(
     filters.packageTier !== "All" ||
     (isCheer && filters.timeLimit !== "All") ||
     (showSplit && filters.split !== "all") ||
-    filters.assignedProducer !== "All" ||
+    (!hideAssignedProducerFilter && filters.assignedProducer !== "All") ||
     filters.requestedProducer !== "All" ||
     (showDataFilter && (filters.infoFilter ?? "all") !== "all") ||
     filters.dateFilter.type !== "all"
@@ -113,7 +115,8 @@ function countTableFilters(
   filters: MTDTableFilterState,
   form?: OrderFormType,
   variant: "mtd" | "orders" = "mtd",
-  cheerSubtype?: CheerFormSubtypeFilter
+  cheerSubtype?: CheerFormSubtypeFilter,
+  hideAssignedProducerFilter = false
 ): number {
   const isCheer = !form || form === "school-all-star-cheer";
   const showSplit = showCheerSplitFilter(form, cheerSubtype);
@@ -122,7 +125,9 @@ function countTableFilters(
   if (filters.packageTier !== "All") count += 1;
   if (isCheer && filters.timeLimit !== "All") count += 1;
   if (showSplit && filters.split !== "all") count += 1;
-  if (filters.assignedProducer !== "All") count += 1;
+  if (!hideAssignedProducerFilter && filters.assignedProducer !== "All") {
+    count += 1;
+  }
   if (filters.requestedProducer !== "All") count += 1;
   if (showDataFilter && (filters.infoFilter ?? "all") !== "all") count += 1;
   if (filters.dateFilter.type !== "all") count += 1;
@@ -141,6 +146,7 @@ export function MTDTableFilterPanel({
   danceSubtype,
   grouped = false,
   variant = "mtd",
+  hideAssignedProducerFilter = false,
 }: MTDTableFilterPanelProps & { grouped?: boolean }) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -178,25 +184,14 @@ export function MTDTableFilterPanel({
     () => buildSplitOptions(formScopedRecords),
     [formScopedRecords]
   );
-  const categoryProducers = useMemo(
-    () =>
-      producersForFormCategory(producers, form, cheerSubtype, danceSubtype),
-    [producers, form, cheerSubtype, danceSubtype]
-  );
   const assignedOptions = useMemo(
-    () =>
-      buildAssignedProducerOptions(formScopedRecords, [], categoryProducers),
-    [formScopedRecords, categoryProducers]
+    () => buildAssignedProducerOptions(formScopedRecords, [], producers),
+    [formScopedRecords, producers]
   );
   const requestedOptions = useMemo(
     () =>
-      buildRequestedProducerOptions(
-        formScopedRecords,
-        [],
-        categoryProducers,
-        orderById
-      ),
-    [formScopedRecords, categoryProducers, orderById]
+      buildRequestedProducerOptions(formScopedRecords, [], producers, orderById),
+    [formScopedRecords, producers, orderById]
   );
 
   const infoOptions = useMemo(
@@ -206,7 +201,13 @@ export function MTDTableFilterPanel({
 
   const isCheer = !form || form === "school-all-star-cheer";
   const showSplit = showCheerSplitFilter(form, cheerSubtype);
-  const activeCount = countTableFilters(filters, form, variant, cheerSubtype);
+  const activeCount = countTableFilters(
+    filters,
+    form,
+    variant,
+    cheerSubtype,
+    hideAssignedProducerFilter
+  );
 
   useEffect(() => {
     setMounted(true);
@@ -316,15 +317,17 @@ export function MTDTableFilterPanel({
                   ) : null}
                 </>
               ) : null}
-              <FilterMenu
-                label={editorFilterLabel}
-                value={filters.assignedProducer}
-                options={assignedOptions}
-                onChange={(value) => onChange({ assignedProducer: value })}
-                accent="orange"
-                className="w-full"
-                triggerClassName="w-full"
-              />
+              {!hideAssignedProducerFilter ? (
+                <FilterMenu
+                  label={editorFilterLabel}
+                  value={filters.assignedProducer}
+                  options={assignedOptions}
+                  onChange={(value) => onChange({ assignedProducer: value })}
+                  accent="orange"
+                  className="w-full"
+                  triggerClassName="w-full"
+                />
+              ) : null}
               <FilterMenu
                 label="Requested"
                 value={filters.requestedProducer}
@@ -440,6 +443,7 @@ export function useMTDFilterChips(
     cheerSubtype,
     danceSubtype,
     variant = "mtd",
+    hideAssignedProducerFilter = false,
   } = props;
   const isCheer = !form || form === "school-all-star-cheer";
   const showSplit = showCheerSplitFilter(form, cheerSubtype);
@@ -471,25 +475,14 @@ export function useMTDFilterChips(
     () => buildSplitOptions(formScopedRecords),
     [formScopedRecords]
   );
-  const categoryProducers = useMemo(
-    () =>
-      producersForFormCategory(producers, form, cheerSubtype, danceSubtype),
-    [producers, form, cheerSubtype, danceSubtype]
-  );
   const assignedOptions = useMemo(
-    () =>
-      buildAssignedProducerOptions(formScopedRecords, [], categoryProducers),
-    [formScopedRecords, categoryProducers]
+    () => buildAssignedProducerOptions(formScopedRecords, [], producers),
+    [formScopedRecords, producers]
   );
   const requestedOptions = useMemo(
     () =>
-      buildRequestedProducerOptions(
-        formScopedRecords,
-        [],
-        categoryProducers,
-        orderById
-      ),
-    [formScopedRecords, categoryProducers, orderById]
+      buildRequestedProducerOptions(formScopedRecords, [], producers, orderById),
+    [formScopedRecords, producers, orderById]
   );
   const infoOptions = useMemo(
     () => buildInfoOptions(formScopedRecords),
@@ -530,7 +523,10 @@ export function useMTDFilterChips(
         onClear: () => onChange({ split: "all" }),
       });
     }
-    if (filters.assignedProducer !== "All") {
+    if (
+      !hideAssignedProducerFilter &&
+      filters.assignedProducer !== "All"
+    ) {
       const label =
         assignedOptions.find((o) => o.value === filters.assignedProducer)
           ?.label ?? filters.assignedProducer;
@@ -573,6 +569,7 @@ export function useMTDFilterChips(
     return items;
   }, [
     filters,
+    hideAssignedProducerFilter,
     packageOptions,
     timeLimitOptions,
     splitOptions,

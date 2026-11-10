@@ -246,6 +246,75 @@ const countsCache = new Map<
   { counts: OrdersBoardCounts; updatedAt: number }
 >();
 
+/** Optimistic badge bumps (assign / Complete↔Missing) — block lagging /counts. */
+const LOCAL_BADGE_COUNTS_ECHO_MS = 15_000;
+let localBadgeCountsBumpAt = 0;
+
+type PendingAssignmentBump = {
+  formType?: string | null;
+  cheerFormSubtype?: string | null;
+  danceFormSubtype?: string | null;
+  delta: 1 | -1;
+  complete?: boolean;
+  at: number;
+};
+
+/** Queued when countsCache is cold so the next /counts paint still moves badges. */
+let pendingAssignmentBumps: PendingAssignmentBump[] = [];
+
+function noteLocalBadgeCountsBump() {
+  localBadgeCountsBumpAt = Date.now();
+}
+
+/** True while optimistic badge numbers must win over a lagging /counts fetch. */
+export function hasRecentLocalBadgeCountsBump(): boolean {
+  return Date.now() - localBadgeCountsBumpAt < LOCAL_BADGE_COUNTS_ECHO_MS;
+}
+
+function queuePendingAssignmentBump(
+  bump: Omit<PendingAssignmentBump, "at">
+) {
+  pendingAssignmentBumps.push({ ...bump, at: Date.now() });
+  noteLocalBadgeCountsBump();
+}
+
+function prunePendingAssignmentBumps() {
+  const cutoff = Date.now() - LOCAL_BADGE_COUNTS_ECHO_MS;
+  pendingAssignmentBumps = pendingAssignmentBumps.filter((b) => b.at >= cutoff);
+}
+
+/** Apply queued assign/unassign bumps onto server counts (once per bump). */
+function applyPendingAssignmentBumps(
+  counts: OrdersBoardCounts
+): OrdersBoardCounts {
+  prunePendingAssignmentBumps();
+  if (pendingAssignmentBumps.length === 0) return counts;
+  let next = counts;
+  for (const bump of pendingAssignmentBumps) {
+    next = bumpAssignmentCounts(next, bump);
+  }
+  pendingAssignmentBumps = [];
+  return next;
+}
+
+function hasFetchedBadgeCountsValue(
+  c: OrdersBoardCounts | undefined
+): c is OrdersBoardCounts {
+  if (!c) return false;
+  return (
+    c.all +
+      c.complete_data +
+      c.missing_data +
+      c.assigned +
+      c.not_assigned +
+      c.reassigned +
+      c.flagged +
+      (c.form ?? 0) +
+      (c.manual ?? 0) >
+    0
+  );
+}
+
 export function readOrdersBoardCountsCache(
   key: string
 ): { counts: OrdersBoardCounts; fresh: boolean } | null {
@@ -278,7 +347,24 @@ export function writeOrdersBoardCountsOnlyCache(
   key: string,
   counts: OrdersBoardCounts
 ) {
-  const entry = { counts, updatedAt: Date.now() };
+  const existing = countsCache.get(key) ?? readOrdersBoardCountsCache(key);
+  prunePendingAssignmentBumps();
+  // Warm optimistic cache already bumped — don't let a lagging /counts clobber.
+  if (
+    existing &&
+    hasRecentLocalBadgeCountsBump() &&
+    pendingAssignmentBumps.length === 0
+  ) {
+    return;
+  }
+  // Cold cache / leftover pending: fold assign bumps into whatever we paint.
+  const base =
+    existing && pendingAssignmentBumps.length > 0 ? existing.counts : counts;
+  const nextCounts =
+    pendingAssignmentBumps.length > 0
+      ? applyPendingAssignmentBumps(base)
+      : counts;
+  const entry = { counts: nextCounts, updatedAt: Date.now() };
   countsCache.set(key, entry);
   writeCountsSession(ssKey(COUNTS_SS_PREFIX, key), entry);
 }
@@ -873,11 +959,14 @@ export function shiftOrdersBoardBadgeCounts(
       form === "school-all-star-dance" && isConcreteSubtype(dance) ? dance : undefined,
   };
   let changed = false;
+  const now = Date.now();
   for (const [key, entry] of countsCache) {
     if (!countsScopeIncludesOrder(key, next)) continue;
     const shifted = {
       counts: shiftBadgeBuckets(entry.counts, from, to, scope),
-      updatedAt: entry.updatedAt,
+      // Must look fresh — stale updatedAt triggered a slow /counts refetch
+      // that overwrote the optimistic Complete↔Missing bump.
+      updatedAt: now,
     };
     countsCache.set(key, shifted);
     try {
@@ -887,6 +976,7 @@ export function shiftOrdersBoardBadgeCounts(
     }
     changed = true;
   }
+  if (changed) noteLocalBadgeCountsBump();
   return changed;
 }
 
@@ -1897,6 +1987,7 @@ export function syncOrdersBoardAfterReassign(
         /* ignore */
       }
     }
+    noteLocalBadgeCountsBump();
   }
 
   noteLocalOrderWrite(id, order.uuid, order.legacyId);
@@ -1927,6 +2018,8 @@ export function syncOrdersBoardAfterAssignment(
   const id = order.id;
   const delta: 1 | -1 = opts.assigned ? 1 : -1;
   const complete = isCompleteDataOrder(order);
+  const now = Date.now();
+  const touchedKeys = new Set<string>();
 
   for (const [key, entry] of [...boardCache.entries()]) {
     let range = "all";
@@ -1972,11 +2065,11 @@ export function syncOrdersBoardAfterAssignment(
       }
     }
 
+    touchedKeys.add(key);
     const next = {
       ...entry,
       orders: nextOrders,
-      counts: bumpAssignmentCounts(entry.counts, { ...opts, delta, complete }),
-      updatedAt: Date.now(),
+      updatedAt: now,
     };
     boardCache.set(key, next);
     try {
@@ -1986,10 +2079,49 @@ export function syncOrdersBoardAfterAssignment(
     }
   }
 
+  // One badge bump across every cached page + counts key (row loop used to
+  // skip untouched pages, leaving Assigned/Not assigned stale on remount).
+  const bumpOpts = { ...opts, delta, complete };
+  queuePendingAssignmentBump(bumpOpts);
+
+  for (const [key, entry] of boardCache) {
+    if (!hasFetchedBadgeCountsValue(entry.counts)) continue;
+    const next = {
+      ...entry,
+      counts: bumpAssignmentCounts(entry.counts, bumpOpts),
+      updatedAt: touchedKeys.has(key) ? entry.updatedAt : now,
+    };
+    boardCache.set(key, next);
+    try {
+      writeBoardSession(ssKey(BOARD_SS_PREFIX, key), next);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  // Hydrate cold counts from session / board so assign on a fresh page still
+  // moves Assigned / Not assigned before /counts returns.
+  if (countsCache.size === 0) {
+    const defaultKey = ordersBoardCountsQueryKey({});
+    const fromSession = readOrdersBoardCountsCache(defaultKey)?.counts;
+    let base = fromSession;
+    if (!hasFetchedBadgeCountsValue(base)) {
+      for (const entry of boardCache.values()) {
+        if (hasFetchedBadgeCountsValue(entry.counts)) {
+          base = entry.counts;
+          break;
+        }
+      }
+    }
+    if (hasFetchedBadgeCountsValue(base)) {
+      countsCache.set(defaultKey, { counts: base, updatedAt: now });
+    }
+  }
+
   for (const [key, entry] of countsCache) {
     const next = {
-      counts: bumpAssignmentCounts(entry.counts, { ...opts, delta, complete }),
-      updatedAt: Date.now(),
+      counts: bumpAssignmentCounts(entry.counts, bumpOpts),
+      updatedAt: now,
     };
     countsCache.set(key, next);
     try {
@@ -1997,6 +2129,11 @@ export function syncOrdersBoardAfterAssignment(
     } catch {
       /* ignore */
     }
+  }
+  // Bumps already applied to warm cache — drop matching pending so a later
+  // /counts does not double-count. Cold path keeps pending for first write.
+  if (countsCache.size > 0) {
+    pendingAssignmentBumps = [];
   }
 
   noteLocalOrderWrite(id, order.uuid, order.legacyId);

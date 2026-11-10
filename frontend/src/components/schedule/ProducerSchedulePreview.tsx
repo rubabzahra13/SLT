@@ -18,12 +18,14 @@ import { todayIso } from "@/lib/date-filters";
 import {
   PRODUCER_SCHEDULE_COLUMNS,
   getProducerFacingScheduleRows,
-  generateScheduleCsv,
+  producerFacingScheduleRowsToCsv,
   triggerCsvDownload,
   type ProducerFacingScheduleRow,
   type ScheduleSendFormScope,
 } from "@/lib/export-csv";
 import { findProducerByAssignmentKey } from "@/lib/editor-assignment";
+import type { MTDSortBy } from "@/lib/mtd-filters";
+import { sortScheduleSendProducerEntries } from "@/lib/schedule-send-sort";
 
 type ProducerSchedulePreviewProps = {
   selectedProducer: string;
@@ -38,6 +40,7 @@ type ProducerSchedulePreviewProps = {
   onViewingProducerChange?: (name: string) => void;
   filterPeriod?: { start: string; end: string };
   formScope?: ScheduleSendFormScope;
+  sortBy?: MTDSortBy;
 };
 
 function SchedulePreviewTable({ rows }: { rows: ProducerFacingScheduleRow[] }) {
@@ -134,6 +137,7 @@ export function ProducerSchedulePreview({
   onViewingProducerChange,
   filterPeriod,
   formScope,
+  sortBy = "newest",
 }: ProducerSchedulePreviewProps) {
   const [activeTabProducer, setActiveTabProducer] = useState<string>("");
   const [sidebarSearch, setSidebarSearch] = useState("");
@@ -171,17 +175,17 @@ export function ProducerSchedulePreview({
         ? new Set(allowedProducerNames.map((name) => name.toUpperCase()))
         : null;
 
-    return Array.from(rowsByProducer.entries())
+    const summaries = Array.from(rowsByProducer.entries())
       .map(([name, rows]) => {
         const producerObj =
           producers.find(
             (p) => p.name.toUpperCase() === name.toUpperCase() || p.id === name
           ) || findProducerByAssignmentKey(name, producers);
-        return { name, mixCount: rows.length, producerObj };
+        return { name, mixCount: rows.length, producerObj, rows };
       })
-      .filter((entry) => !allowed || allowed.has(entry.name.toUpperCase()))
-      .sort((a, b) => b.mixCount - a.mixCount || a.name.localeCompare(b.name));
-  }, [rowsByProducer, producers, allowedProducerNames]);
+      .filter((entry) => !allowed || allowed.has(entry.name.toUpperCase()));
+    return sortScheduleSendProducerEntries(summaries, sortBy);
+  }, [rowsByProducer, producers, allowedProducerNames, sortBy]);
 
   const activeProducersInSchedule = useMemo(
     () => activeProducerSummaries.map((entry) => entry.name),
@@ -259,22 +263,18 @@ export function ProducerSchedulePreview({
     activeProducersInSchedule.length > 0;
 
   const handleDownloadCurrentProducer = () => {
-    const csv = generateScheduleCsv(
-      mtdRecords,
-      allOrders,
-      producers,
-      currentProducerToView,
-      filterPeriod,
-      formScope
-    );
+    const rows = rowsByProducer.get(currentProducerToView) ?? [];
     triggerCsvDownload(
       `Schedule_Producer_Statement_${currentProducerToView.replace(/\s+/g, "_")}_${todayIso()}.csv`,
-      csv
+      producerFacingScheduleRowsToCsv(rows)
     );
   };
 
-  const handleDownloadAllProducers = () => {
-    const targets = selectedProducer === "all" ? activeProducersInSchedule : [currentProducerToView];
+  const handleDownloadAllProducers = async () => {
+    const targets =
+      selectedProducer === "all"
+        ? activeProducersInSchedule
+        : [currentProducerToView];
     if (targets.length === 0) {
       if (typeof window !== "undefined") {
         alert("No ongoing scheduled mixes found for the active producers.");
@@ -282,20 +282,19 @@ export function ProducerSchedulePreview({
       return;
     }
 
-    targets.forEach((targetName) => {
-      const csv = generateScheduleCsv(
-        mtdRecords,
-        allOrders,
-        producers,
-        targetName,
-        filterPeriod,
-        formScope
-      );
+    for (let i = 0; i < targets.length; i += 1) {
+      const targetName = targets[i];
+      const rows = rowsByProducer.get(targetName) ?? [];
       triggerCsvDownload(
         `Schedule_${targetName.replace(/\s+/g, "_")}_${todayIso()}.csv`,
-        csv
+        producerFacingScheduleRowsToCsv(rows)
       );
-    });
+      if (i < targets.length - 1) {
+        await new Promise<void>((resolve) => {
+          window.setTimeout(resolve, 90);
+        });
+      }
+    }
   };
 
   return (
@@ -331,8 +330,8 @@ export function ProducerSchedulePreview({
                 onProducerChange(val);
                 setActiveTabProducer("");
               }}
-              label="Editor:"
-              allLabel="All Editors"
+              label="Producer:"
+              allLabel="All producers"
             />
 
             <button

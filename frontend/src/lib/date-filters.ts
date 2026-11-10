@@ -1,4 +1,11 @@
-export type PayPeriodRange = "2weeks" | "4weeks" | "6weeks";
+/** Send Statements is fixed to the current 2-week pay window (egress). */
+export type PayPeriodRange = "2weeks";
+
+/** API lookback days for VO add-ons — keep Send fetches period-scoped (egress). */
+export function payPeriodSinceDays(range: PayPeriodRange = "2weeks"): number {
+  void range;
+  return 14;
+}
 
 export type DateFilterValue = {
   type:
@@ -179,26 +186,16 @@ export function calculateDateBounds(
   }
 }
 
-export function payPeriodRangeToDateFilter(range: PayPeriodRange): DateFilterValue {
-  switch (range) {
-    case "2weeks":
-      return { type: "last2Weeks", value: null };
-    case "4weeks":
-      return { type: "last4Weeks", value: null };
-    case "6weeks":
-      return { type: "last6Weeks", value: null };
-  }
+export function payPeriodRangeToDateFilter(
+  range: PayPeriodRange = "2weeks"
+): DateFilterValue {
+  void range;
+  return { type: "last2Weeks", value: null };
 }
 
-export function payPeriodRangeLabel(range: PayPeriodRange): string {
-  switch (range) {
-    case "2weeks":
-      return "Last 2 weeks";
-    case "4weeks":
-      return "Last 4 weeks";
-    case "6weeks":
-      return "Last 6 weeks";
-  }
+export function payPeriodRangeLabel(range: PayPeriodRange = "2weeks"): string {
+  void range;
+  return "Last 2 weeks";
 }
 
 /** Human range for chip tooltips / empty-state copy (Timestamp window). */

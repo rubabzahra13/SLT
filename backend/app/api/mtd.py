@@ -1,7 +1,7 @@
 import uuid
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import and_, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
@@ -40,6 +40,21 @@ from app.api.auth import require_full_access
 class MtdListResponse(BaseModel):
     mtd: list[MTDRecordSchema]
     next_page_token: str | None = None
+
+
+# Keep request bodies small (Supabase/PostgREST URL limits) and one Fluid
+# invocation busy with I/O-bound deletes instead of N round-trips.
+_MTD_BULK_DELETE_MAX = 100
+
+
+class MtdBulkDeleteRequest(BaseModel):
+    ids: list[str] = Field(..., min_length=1, max_length=_MTD_BULK_DELETE_MAX)
+
+
+class MtdBulkDeleteResponse(BaseModel):
+    deleted: int
+    missing: int
+
 
 router = APIRouter()
 
@@ -342,6 +357,85 @@ def _publish_mtd_updated(mtd: MTDRecord) -> None:
     )
 
 
+def _parse_mtd_uuids(raw_ids: list[str]) -> list[uuid.UUID]:
+    seen: set[uuid.UUID] = set()
+    out: list[uuid.UUID] = []
+    for raw in raw_ids:
+        value = str(raw or "").strip()
+        if not is_valid_uuid(value):
+            continue
+        parsed = uuid.UUID(value)
+        if parsed in seen:
+            continue
+        seen.add(parsed)
+        out.append(parsed)
+    return out
+
+
+def _bulk_delete_mtd_rows(db: Session, ids: list[uuid.UUID]) -> int:
+    """Delete MTD rows + linked orders/addons. Returns deleted MTD count.
+
+    Selects only id/order_id (no row payloads) and uses set-based deletes to
+    cut Supabase egress and keep the Fluid CPU path I/O-bound.
+    """
+    from app.models.payroll_addon import PayrollAddon
+
+    if not ids:
+        return 0
+
+    rows = (
+        db.query(MTDRecord.id, MTDRecord.order_id)
+        .filter(or_(MTDRecord.id.in_(ids), MTDRecord.order_id.in_(ids)))
+        .all()
+    )
+    if not rows:
+        return 0
+
+    mtd_ids = [row.id for row in rows]
+    order_ids = [row.order_id for row in rows if row.order_id]
+
+    db.query(PayrollAddon).filter(PayrollAddon.mtd_id.in_(mtd_ids)).delete(
+        synchronize_session=False
+    )
+    if order_ids:
+        db.query(PayrollAddon).filter(PayrollAddon.order_id.in_(order_ids)).delete(
+            synchronize_session=False
+        )
+
+    deleted = (
+        db.query(MTDRecord)
+        .filter(MTDRecord.id.in_(mtd_ids))
+        .delete(synchronize_session=False)
+    )
+    if order_ids:
+        db.query(Order).filter(Order.id.in_(order_ids)).delete(
+            synchronize_session=False
+        )
+    return int(deleted or 0)
+
+
+@router.post("/mtd/bulk-delete", response_model=MtdBulkDeleteResponse)
+def bulk_delete_mtd_records(
+    payload: MtdBulkDeleteRequest,
+    db: Session = Depends(get_db),
+    _: None = Depends(require_full_access),
+):
+    """Permanently delete many archived payroll mixes in one lean request."""
+    ids = _parse_mtd_uuids(payload.ids)
+    if not ids:
+        return MtdBulkDeleteResponse(deleted=0, missing=len(payload.ids))
+
+    deleted = _bulk_delete_mtd_rows(db, ids)
+    db.commit()
+
+    from app.services.form_chip_cache import invalidate_order_read_caches
+
+    invalidate_order_read_caches()
+    # Idempotent: already-gone ids count as missing, not errors.
+    missing = max(0, len(ids) - deleted)
+    return MtdBulkDeleteResponse(deleted=deleted, missing=missing)
+
+
 @router.delete("/mtd/{mtd_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_mtd_record(
     mtd_id: str,
@@ -350,27 +444,20 @@ def delete_mtd_record(
     allow_missing: bool = Depends(allow_missing_query),
 ):
     """Permanently delete an archived payroll mix (and its linked order)."""
-    from app.models.payroll_addon import PayrollAddon
+    ids = _parse_mtd_uuids([mtd_id])
+    if not ids:
+        if allow_missing:
+            return None
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="MTD Record not found"
+        )
 
-    mtd = _find_mtd(db, mtd_id)
-    if missing_or_found(
-        mtd, allow_missing=allow_missing, detail="MTD Record not found"
-    ):
-        return None
-
-    order_id = mtd.order_id
-    db.query(PayrollAddon).filter(PayrollAddon.mtd_id == mtd.id).delete(
-        synchronize_session=False
-    )
-    db.delete(mtd)
-
-    if order_id:
-        linked = db.query(Order).filter(Order.id == order_id).first()
-        if linked:
-            db.query(PayrollAddon).filter(PayrollAddon.order_id == order_id).delete(
-                synchronize_session=False
-            )
-            db.delete(linked)
+    deleted = _bulk_delete_mtd_rows(db, ids)
+    if deleted == 0:
+        if missing_or_found(
+            None, allow_missing=allow_missing, detail="MTD Record not found"
+        ):
+            return None
 
     db.commit()
     from app.services.form_chip_cache import invalidate_order_read_caches

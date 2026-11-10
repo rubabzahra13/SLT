@@ -46,7 +46,7 @@ import {
 import {
   DEFAULT_CHEER_SUBTYPE,
   DEFAULT_DANCE_SUBTYPE,
-  matchesFormFilter,
+  type MTDSortBy,
 } from "@/lib/mtd-filters";
 import type {
   CheerFormSubtypeFilter,
@@ -168,6 +168,7 @@ function SchedulePageContent() {
     return "week";
   });
   const [sendView, setSendView] = useState<ScheduleSendPeriod>("complete");
+  const [sendSortBy, setSendSortBy] = useState<MTDSortBy>("newest");
 
   useEffect(() => {
     if (viewParam === "today") {
@@ -213,22 +214,25 @@ function SchedulePageContent() {
 
   useEffect(() => {
     if (selectedEditor === "all") return;
-    const stillValid = categoryFilteredProducers.some(
+    const stillValid = producers.some(
       (producer) =>
         producer.id === selectedEditor ||
         producer.name.toUpperCase() === selectedEditor.toUpperCase()
     );
     if (!stillValid) setSelectedEditor("all");
-  }, [categoryFilteredProducers, selectedEditor]);
+  }, [producers, selectedEditor]);
 
   const viewFilteredProducers = useMemo(() => {
-    if (selectedEditor === "all") return categoryFilteredProducers;
-    return categoryFilteredProducers.filter(
+    // Board rows stay form-scoped; producer dropdown can pick anyone.
+    const base = categoryFilteredProducers;
+    if (selectedEditor === "all") return base;
+    const selected = producers.filter(
       (producer) =>
         producer.id === selectedEditor ||
         producer.name.toUpperCase() === selectedEditor.toUpperCase()
     );
-  }, [categoryFilteredProducers, selectedEditor]);
+    return selected.length > 0 ? selected : base;
+  }, [categoryFilteredProducers, producers, selectedEditor]);
 
   const currentDate = useMemo(() => new Date(), []);
   const anchorDate = useMemo(
@@ -324,24 +328,10 @@ function SchedulePageContent() {
     [sendView, anchorDate]
   );
 
-  const sendOrderById = useMemo(() => {
-    const map = new Map<string, Order>();
-    for (const order of allOrders) {
-      if (order.id) map.set(order.id, order);
-      if (order.uuid) map.set(order.uuid, order);
-      if (order.legacyId) map.set(order.legacyId, order);
-    }
-    return map;
-  }, [allOrders]);
-
+  // Send: every assigned mix in period (any category / subtype).
   const sendProducerNames = useMemo(() => {
-    const allowed = new Set(
-      categoryFilteredProducers.map((p) => p.name.toUpperCase())
-    );
-    const eligibleRecords = scheduleBookings.filter(
-      (rec) =>
-        isEligibleProducerScheduleRecord(rec) &&
-        matchesFormFilter(rec, sendOrderById, form, cheerSubtype, danceSubtype)
+    const eligibleRecords = scheduleBookings.filter((rec) =>
+      isEligibleProducerScheduleRecord(rec)
     );
     const set = new Set<string>();
     for (const r of eligibleRecords) {
@@ -360,21 +350,10 @@ function SchedulePageContent() {
       }
       const prodObj = findProducerByAssignmentKey(r.assignedProducer, producers);
       const name = prodObj?.name || r.assignedProducer;
-      if (name && allowed.has(name.toUpperCase())) {
-        set.add(name);
-      }
+      if (name) set.add(name);
     }
     return Array.from(set).sort();
-  }, [
-    scheduleBookings,
-    producers,
-    categoryFilteredProducers,
-    sendFilterPeriod,
-    sendOrderById,
-    form,
-    cheerSubtype,
-    danceSubtype,
-  ]);
+  }, [scheduleBookings, producers, sendFilterPeriod]);
 
   const sendOrders = useMemo(
     () =>
@@ -387,28 +366,16 @@ function SchedulePageContent() {
     [allOrders, activeOrders, sendAssignedOrders]
   );
 
-  const exportCategoryLabel = useMemo(
-    () => scheduleFormFilterLabel(form, cheerSubtype, danceSubtype),
-    [form, cheerSubtype, danceSubtype]
-  );
-
-  const sendEditorProducers = useMemo(() => {
-    const allowed = new Set(sendProducerNames.map((name) => name.toUpperCase()));
-    return categoryFilteredProducers.filter((producer) =>
-      allowed.has(producer.name.toUpperCase())
-    );
-  }, [categoryFilteredProducers, sendProducerNames]);
-
   useEffect(() => {
     if (selectedSendEditor === "all") return;
-    const stillValid = sendEditorProducers.some(
+    const stillValid = producers.some(
       (producer) =>
         producer.name === selectedSendEditor ||
         producer.id === selectedSendEditor ||
         producer.name.toUpperCase() === selectedSendEditor.toUpperCase()
     );
     if (!stillValid) setSelectedSendEditor("all");
-  }, [sendEditorProducers, selectedSendEditor]);
+  }, [producers, selectedSendEditor]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -448,7 +415,7 @@ function SchedulePageContent() {
               statusFilter={statusFilter}
               offToday={offToday}
               totalProducers={teamRows.length}
-              producers={categoryFilteredProducers}
+              producers={producers}
               selectedEditor={selectedEditor}
               onEditorChange={setSelectedEditor}
               onFormChange={switchForm}
@@ -459,20 +426,13 @@ function SchedulePageContent() {
             />
           ) : (
             <ScheduleSendToolbar
-              form={form}
-              cheerSubtype={cheerSubtype}
-              danceSubtype={danceSubtype}
-              formCounts={formCounts}
-              cheerCounts={cheerSubtypeCounts}
-              danceCounts={danceSubtypeCounts}
-              sendEditorProducers={sendEditorProducers}
+              producers={producers}
               selectedSendEditor={selectedSendEditor}
               onSelectedSendEditorChange={setSelectedSendEditor}
               sendView={sendView}
               onSendViewChange={setSendView}
-              onFormChange={switchForm}
-              onCheerSubtypeChange={setCheerSubtype}
-              onDanceSubtypeChange={setDanceSubtype}
+              sortBy={sendSortBy}
+              onSortByChange={setSendSortBy}
             />
           )
         }
@@ -499,18 +459,15 @@ function SchedulePageContent() {
           )
         ) : (
           <ScheduleSendPanel
-            categoryLabel={exportCategoryLabel}
             producerNames={sendProducerNames}
-            categoryProducers={categoryFilteredProducers}
+            categoryProducers={producers}
             selectedSendEditor={selectedSendEditor}
             mtdRecords={mtdRecords}
             allOrders={sendOrders}
             producers={producers}
             filterPeriod={sendFilterPeriod}
             sendView={sendView}
-            form={form}
-            cheerSubtype={cheerSubtype}
-            danceSubtype={danceSubtype}
+            sortBy={sendSortBy}
           />
         )}
       </div>

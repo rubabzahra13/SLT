@@ -1,4 +1,4 @@
-import { apiClient } from "./client";
+import { API_BASE_URL, apiClient } from "./client";
 import { transformMTDRecord, type BackendMTDRecord } from "./mtd";
 import type { MTDRecord } from "@/types";
 
@@ -59,4 +59,52 @@ export async function fetchMtdCountsApi(
     `/api/mtd/counts?${mtdQueryString(query)}`
   );
   return res.counts;
+}
+
+function authHeaderFromStorage(): string {
+  if (typeof window === "undefined") return "Bearer token-usr-megan";
+  try {
+    const rawSession = localStorage.getItem("slt_auth_session");
+    if (rawSession) {
+      const parsed = JSON.parse(rawSession);
+      const token = typeof parsed?.token === "string" ? parsed.token.trim() : "";
+      const userId =
+        typeof parsed?.user?.id === "string" ? parsed.user.id.trim() : "";
+      if (userId) return `Bearer token-${userId}`;
+      if (token) return `Bearer ${token}`;
+    }
+  } catch {
+    /* ignore */
+  }
+  return "Bearer token-usr-megan";
+}
+
+/** Server-streamed CSV — same filters as /mtd/board, capped at 5,000 rows. */
+export async function downloadMtdBoardCsv(
+  query: MtdBoardQuery = {}
+): Promise<void> {
+  const qs = mtdQueryString({
+    ...query,
+    pageSize: undefined,
+    pageToken: undefined,
+  });
+  const base =
+    typeof window !== "undefined" && (!API_BASE_URL || API_BASE_URL === "/")
+      ? ""
+      : API_BASE_URL || "http://127.0.0.1:8001";
+  const url = `${base.replace(/\/$/, "")}/api/mtd/export.csv?${qs}`;
+  const response = await fetch(url, {
+    headers: { Authorization: authHeaderFromStorage() },
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(`Export failed: ${response.status}`);
+  }
+  const blob = await response.blob();
+  const href = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = href;
+  a.download = "mtd_export.csv";
+  a.click();
+  URL.revokeObjectURL(href);
 }

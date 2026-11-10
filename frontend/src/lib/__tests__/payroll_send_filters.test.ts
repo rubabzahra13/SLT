@@ -73,4 +73,46 @@ describe("payroll send producer names", () => {
 
     assert.deepEqual(names, ["Rubab"]);
   });
+
+  it("includes producers across every category when form scope is omitted", () => {
+    const cheerOrder = {
+      id: "ord-cheer",
+      formType: "school-all-star-cheer",
+      cheerFormSubtype: "all-star-cheer",
+      contactName: "Cheer Contact",
+      programName: "Cheer Team",
+      price: 500,
+      status: "completed",
+      needsAttention: false,
+      createdAt: "2026-09-10T10:00:00Z",
+    } as Order;
+    const cheerRecord = {
+      id: "payroll-cheer",
+      orderId: "ord-cheer",
+      contactName: "Cheer Contact",
+      programName: "Cheer Team",
+      invoice: "INV-9002",
+      package: "SILVER 2:00",
+      assignedProducer: "Anne Jacobs",
+      mixStartDate: "2026-09-01",
+      mixEndDate: "2026-09-05",
+      completedAt: "2026-09-10",
+      inPayroll: true,
+      status: "completed",
+    } as unknown as MTDRecord;
+    const map = new Map(orderById);
+    map.set("ord-cheer", cheerOrder);
+
+    const names = getPayrollSendProducerNames(
+      [rubabPayrollRecord, cheerRecord],
+      map,
+      [rubab, pomProducer],
+      null,
+      "all",
+      "all",
+      { start: "2026-09-01", end: "2026-09-11" }
+    );
+
+    assert.deepEqual(names, ["Anne Jacobs", "Rubab"]);
+  });
 });

@@ -348,13 +348,13 @@ export function findProducerByAssignmentKey(
   // whose initials are FA can never be resolved and stays disabled in Assign.
   const match = producers.find((producer) => {
     const assignmentKey = producerAssignmentKey(producer);
-    const firstName = producer.name.trim().split(/\s+/)[0].toUpperCase();
+    const firstName = producer.name.trim().split(/\s+/)[0] || "";
     return (
-      producer.id.toUpperCase() === normalized ||
+      normalizeProducerKey(producer.id) === normalized ||
       assignmentKey === normalized ||
-      producer.initials.toUpperCase() === normalized ||
-      producer.name.toUpperCase() === normalized ||
-      firstName === normalized
+      normalizeProducerKey(producer.initials || "") === normalized ||
+      normalizeProducerKey(producer.name) === normalized ||
+      normalizeProducerKey(firstName) === normalized
     );
   });
   if (match) return match;
@@ -592,16 +592,22 @@ export function getEditorNamesForCategory(
   producers: Producer[],
   category: string
 ): string[] {
-  const keys = getProducersForCategory(producers, category).map(
-    producerAssignmentKey
+  // Canonicalize first so legacy aliases (G/GP, ANNE/AJ) never double-list.
+  const keys = Array.from(
+    new Set(
+      getProducersForCategory(producers, category).map((producer) =>
+        normalizeProducerKey(producerAssignmentKey(producer))
+      )
+    )
   );
   // Prefer stable EDITOR_NAMES order when present, then any extra roster keys.
   const fromRoster = new Set(keys);
   const ordered: string[] = [];
   for (const name of EDITOR_NAMES) {
-    if (fromRoster.has(name)) {
-      ordered.push(name);
-      fromRoster.delete(name);
+    const canonical = normalizeProducerKey(name);
+    if (fromRoster.has(canonical)) {
+      ordered.push(canonical);
+      fromRoster.delete(canonical);
     }
   }
   for (const key of keys) {

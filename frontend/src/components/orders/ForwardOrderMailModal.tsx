@@ -603,7 +603,7 @@ export function ForwardOrderMailModal({
   }
 
   function handleMarkProducerAlreadySent() {
-    if (isCustomer || isViewOnly || !record || sent) return;
+    if (isCustomer || isViewOnly || !record || sent || isSending) return;
     const sentTo = resolveProducerSentTo();
     if (!sentTo && !editor) return;
     const stamp = {
@@ -621,6 +621,7 @@ export function ForwardOrderMailModal({
       void updateOrder(orderId, stamp, linkedOrder || undefined);
     }
     void updateMTD(record.id, stamp, record);
+    setMarkedAlreadySent(true);
     setSent(true);
     setSendError(null);
     const toLabel = draft.toName?.trim() || sentTo || "producer";
@@ -633,7 +634,7 @@ export function ForwardOrderMailModal({
   }
 
   async function handleSend() {
-    if (!canSend || !hasRecipient) return;
+    if (!canSend || !hasRecipient || isSending || sent) return;
     setIsSending(true);
     setSendError(null);
     try {
@@ -706,6 +707,7 @@ export function ForwardOrderMailModal({
               }${extras}.`
             : "Your email was sent successfully.",
       });
+      onClose();
     } catch (err) {
       setSendError(
         err instanceof ApiClientError
@@ -770,16 +772,22 @@ export function ForwardOrderMailModal({
               </div>
               <div className="min-w-0">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-brand-ink-tertiary">
-                  {isCompose ? composeEyebrow : sent ? "Email sent" : "Review email"}
+                  {sent
+                    ? markedAlreadySent
+                      ? "Marked as sent"
+                      : "Email sent"
+                    : isCompose
+                      ? composeEyebrow
+                      : "Review email"}
                 </p>
                 <h2
                   id="forward-order-mail-title"
                   className="mt-0.5 text-[18px] font-semibold tracking-[-0.02em] text-brand-ink"
                 >
-                  {isCompose
-                    ? composeTitle
-                    : sent
-                      ? "Sent successfully"
+                  {sent
+                    ? "Sent successfully"
+                    : isCompose
+                      ? composeTitle
                       : "Email preview"}
                 </h2>
                 <p className="mt-1 truncate text-[13px] text-brand-ink-secondary">
@@ -799,7 +807,23 @@ export function ForwardOrderMailModal({
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
-          {isCompose ? (
+          {sent ? (
+            <div className="flex flex-col items-center py-8 text-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-brand-success/12 text-brand-success ring-1 ring-inset ring-brand-success/25">
+                <Check className="h-7 w-7" strokeWidth={2} />
+              </div>
+              <p className="mt-4 text-[15px] font-semibold text-brand-ink">
+                {markedAlreadySent
+                  ? `Marked as sent to ${draft.toName || "producer"}`
+                  : `Email sent to ${draft.toName}`}
+              </p>
+              <p className="mt-1 text-[13px] text-brand-ink-secondary">
+                {markedAlreadySent
+                  ? "No email was sent from Studio"
+                  : draft.to}
+              </p>
+            </div>
+          ) : isCompose ? (
             <div className="space-y-4">
               {!loadingGmail && !gmailConnected ? (
                 <div className="flex items-start gap-2.5 rounded-xl border border-brand-warning/30 bg-brand-warning/8 px-3.5 py-3">
@@ -850,7 +874,8 @@ export function ForwardOrderMailModal({
                   <button
                     type="button"
                     onClick={handleMarkProducerAlreadySent}
-                    className="mt-2 text-[12px] font-semibold text-brand-signature hover:underline"
+                    disabled={isSending || sent}
+                    className="mt-2 inline-flex items-center gap-1.5 text-[12px] font-semibold text-brand-signature hover:underline disabled:cursor-not-allowed disabled:no-underline disabled:opacity-60"
                   >
                     Mark as already sent to this producer
                   </button>
@@ -1066,22 +1091,6 @@ export function ForwardOrderMailModal({
                 </button>
               ) : null}
             </div>
-          ) : sent ? (
-            <div className="flex flex-col items-center py-8 text-center">
-              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-brand-success/12 text-brand-success ring-1 ring-inset ring-brand-success/25">
-                <Check className="h-7 w-7" strokeWidth={2} />
-              </div>
-              <p className="mt-4 text-[15px] font-semibold text-brand-ink">
-                {markedAlreadySent
-                  ? `Marked as sent to ${draft.toName || "producer"}`
-                  : `Email sent to ${draft.toName}`}
-              </p>
-              <p className="mt-1 text-[13px] text-brand-ink-secondary">
-                {markedAlreadySent
-                  ? "No email was sent from Studio"
-                  : draft.to}
-              </p>
-            </div>
           ) : (
             <>
               {sendError ? (
@@ -1100,7 +1109,16 @@ export function ForwardOrderMailModal({
         </div>
 
         <div className="flex flex-col border-t border-black/[0.08]">
-          {isCompose ? (
+          {sent ? (
+            <button
+              type="button"
+              onClick={onClose}
+              className="inline-flex items-center justify-center gap-2 py-3.5 text-[15px] font-semibold text-brand-success transition hover:bg-brand-success/8"
+            >
+              <Check className="h-4 w-4" strokeWidth={2.25} />
+              {markedAlreadySent ? "Marked as sent" : "Sent"}
+            </button>
+          ) : isCompose ? (
             <button
               type="button"
               onClick={() => setStep("confirm")}
@@ -1109,20 +1127,12 @@ export function ForwardOrderMailModal({
             >
               Review email
             </button>
-          ) : sent ? (
-            <button
-              type="button"
-              onClick={onClose}
-              className="py-3.5 text-[15px] font-semibold text-brand-signature transition hover:bg-brand-signature/8"
-            >
-              Done
-            </button>
           ) : (
             <>
               <button
                 type="button"
                 onClick={handleSend}
-                disabled={!canSend || isSending}
+                disabled={!canSend || isSending || sent}
                 className="inline-flex items-center justify-center gap-2 border-b border-black/[0.08] py-3.5 text-[15px] font-semibold text-brand-signature transition hover:bg-brand-signature/8 disabled:cursor-not-allowed disabled:text-brand-ink-tertiary disabled:hover:bg-transparent"
               >
                 {isSending ? (
@@ -1136,7 +1146,7 @@ export function ForwardOrderMailModal({
                 <button
                   type="button"
                   onClick={handleMarkProducerAlreadySent}
-                  disabled={isSending}
+                  disabled={isSending || sent}
                   className="inline-flex items-center justify-center gap-2 border-b border-black/[0.08] py-3.5 text-[15px] font-semibold text-brand-ink transition hover:bg-brand-bg disabled:cursor-not-allowed disabled:text-brand-ink-tertiary"
                 >
                   <Check className="h-4 w-4" />
@@ -1149,7 +1159,8 @@ export function ForwardOrderMailModal({
                   setSendError(null);
                   setStep("compose");
                 }}
-                className="inline-flex items-center justify-center gap-2 border-t border-black/[0.08] py-3.5 text-[15px] font-medium text-brand-ink transition hover:bg-brand-bg"
+                disabled={isSending || sent}
+                className="inline-flex items-center justify-center gap-2 border-t border-black/[0.08] py-3.5 text-[15px] font-medium text-brand-ink transition hover:bg-brand-bg disabled:cursor-not-allowed disabled:text-brand-ink-tertiary"
               >
                 <ArrowLeft className="h-4 w-4" />
                 Back to fields

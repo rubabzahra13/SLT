@@ -1,9 +1,12 @@
-"""Paged MTD / payroll board + counts for unbounded growth."""
+"""Paged MTD / payroll board + counts + CSV export for unbounded growth."""
 from __future__ import annotations
 
+import csv
+import io
 import time
 
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
@@ -324,3 +327,114 @@ def _get_mtd_counts_db(
     if cache_key is not None:
         _mtd_counts_cache[cache_key] = (time.monotonic(), counts.model_dump())
     return MtdBoardCountsResponse(counts=counts)
+
+
+# Same hard caps as Orders CSV — keep Fluid peak memory bounded.
+_EXPORT_ROW_CAP = 5000
+_EXPORT_PAGE_SIZE = 250
+_EXPORT_CSV_HEADERS = [
+    "id",
+    "created_at",
+    "form_type",
+    "cheer_form_subtype",
+    "dance_form_subtype",
+    "school_gym_name",
+    "team_name",
+    "coach_name",
+    "contact_name",
+    "package",
+    "invoice",
+    "assigned_producer",
+    "mix_start_date",
+    "mix_end_date",
+    "status",
+    "price",
+]
+
+
+@router.get("/mtd/export.csv")
+def export_mtd_csv(
+    scope: str = "board",
+    form_type: str | None = None,
+    cheer_form_subtype: str | None = None,
+    category: str | None = None,
+    search: str | None = None,
+    status: str | None = None,
+    created_after: str | None = None,
+    created_before: str | None = None,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """Stream matching MTD board rows as CSV (same filters as /mtd/board)."""
+    query = _mtd_board_query(
+        db,
+        scope=scope,
+        form_type=form_type,
+        cheer_form_subtype=cheer_form_subtype,
+        category=category,
+        search=search,
+        status=status,
+        created_after=created_after,
+        created_before=created_before,
+    )
+    query = query.order_by(
+        func.coalesce(Order.created_at, MTDRecord.created_at).desc(),
+        MTDRecord.id.desc(),
+    )
+
+    def iter_csv_chunks():
+        buf = io.StringIO()
+        writer = csv.writer(buf)
+        writer.writerow(_EXPORT_CSV_HEADERS)
+        yield buf.getvalue()
+
+        fetched = 0
+        while fetched < _EXPORT_ROW_CAP:
+            take = min(_EXPORT_PAGE_SIZE, _EXPORT_ROW_CAP - fetched)
+            rows = query.offset(fetched).limit(take).all()
+            if not rows:
+                break
+            buf = io.StringIO()
+            writer = csv.writer(buf)
+            for row in rows:
+                order = getattr(row, "order", None)
+                created = _board_timestamp(row)
+                writer.writerow(
+                    [
+                        str(row.id),
+                        created.isoformat() if created else "",
+                        (order.form_type if order is not None else "") or "",
+                        (order.cheer_form_subtype if order is not None else "")
+                        or "",
+                        (order.dance_form_subtype if order is not None else "")
+                        or "",
+                        (order.school_gym_name if order is not None else "")
+                        or "",
+                        (order.team_name if order is not None else "") or "",
+                        (order.coach_name if order is not None else "") or "",
+                        (order.contact_name if order is not None else "") or "",
+                        (order.package if order is not None else "") or "",
+                        row.invoice or "",
+                        (order.assigned_producer if order is not None else "")
+                        or "",
+                        (order.mix_start_date if order is not None else "")
+                        or "",
+                        (order.mix_end_date if order is not None else "") or "",
+                        row.status or "",
+                        str(row.price or 0),
+                    ]
+                )
+            yield buf.getvalue()
+            n = len(rows)
+            fetched += n
+            db.expire_all()
+            if n < take:
+                break
+
+    return StreamingResponse(
+        iter_csv_chunks(),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": 'attachment; filename="mtd_export.csv"'
+        },
+    )

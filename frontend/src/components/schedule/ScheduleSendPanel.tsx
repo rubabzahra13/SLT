@@ -15,10 +15,9 @@ import { todayIso } from "@/lib/date-filters";
 import { ApiClientError } from "@/lib/api/client";
 import { getGmailStatus, sendGmailEmail } from "@/lib/api/gmail";
 import {
-  generateScheduleCsv,
   getProducerFacingScheduleRows,
+  producerFacingScheduleRowsToCsv,
   triggerCsvDownload,
-  type ScheduleSendFormScope,
 } from "@/lib/export-csv";
 import {
   buildScheduleMailDraft,
@@ -28,21 +27,18 @@ import {
   stringToBase64,
 } from "@/lib/producer-schedule-mail";
 import { findProducerByAssignmentKey } from "@/lib/editor-assignment";
-import type {
-  CheerFormSubtypeFilter,
-  DanceFormSubtypeFilter,
-  MTDRecord,
-  Order,
-  OrderFormType,
-  Producer,
-} from "@/types";
+import type { MTDSortBy } from "@/lib/mtd-filters";
+import { sortScheduleSendProducerNames } from "@/lib/schedule-send-sort";
+import { pickStatementMailAttachment } from "@/lib/statement-scale";
+import type { MTDRecord, Order, Producer } from "@/types";
 import {
   sendPeriodLabel,
   type ScheduleSendPeriod,
 } from "@/lib/schedule-view";
 
 type ScheduleSendPanelProps = {
-  categoryLabel: string;
+  /** Optional scope label (empty = all categories). */
+  categoryLabel?: string;
   producerNames: string[];
   categoryProducers: Producer[];
   selectedSendEditor: string;
@@ -51,9 +47,7 @@ type ScheduleSendPanelProps = {
   producers: Producer[];
   filterPeriod?: { start: string; end: string };
   sendView: ScheduleSendPeriod;
-  form: OrderFormType;
-  cheerSubtype: CheerFormSubtypeFilter;
-  danceSubtype: DanceFormSubtypeFilter;
+  sortBy?: MTDSortBy;
 };
 
 type SendFeedback = {
@@ -102,7 +96,7 @@ function resolveSelectedProducerName(
 }
 
 export function ScheduleSendPanel({
-  categoryLabel,
+  categoryLabel = "",
   producerNames,
   categoryProducers,
   selectedSendEditor,
@@ -111,9 +105,7 @@ export function ScheduleSendPanel({
   producers,
   filterPeriod,
   sendView,
-  form,
-  cheerSubtype,
-  danceSubtype,
+  sortBy = "newest",
 }: ScheduleSendPanelProps) {
   const { token, isViewOnly } = useAuth();
   const { emailTemplates } = useAppEmailTemplates();
@@ -121,6 +113,7 @@ export function ScheduleSendPanel({
   const [gmailFrom, setGmailFrom] = useState<string | null>(null);
   const [loadingGmail, setLoadingGmail] = useState(true);
   const [isSending, setIsSending] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
   const [feedback, setFeedback] = useState<SendFeedback | null>(null);
   const [mailModalOpen, setMailModalOpen] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
@@ -160,12 +153,7 @@ export function ScheduleSendPanel({
     };
   }, [token]);
 
-  const formScope = useMemo<ScheduleSendFormScope>(
-    () => ({ form, cheerSubtype, danceSubtype }),
-    [form, cheerSubtype, danceSubtype]
-  );
-
-  // One collect for all producers — not N× getProducerFacingScheduleRows.
+  // One collect for all producers — every category / subtype in period.
   const allFacingRows = useMemo(
     () =>
       getProducerFacingScheduleRows(
@@ -173,10 +161,9 @@ export function ScheduleSendPanel({
         allOrders,
         producers,
         undefined,
-        filterPeriod,
-        formScope
+        filterPeriod
       ),
-    [mtdRecords, allOrders, producers, filterPeriod, formScope]
+    [mtdRecords, allOrders, producers, filterPeriod]
   );
 
   const rowsByProducer = useMemo(() => {
@@ -190,13 +177,17 @@ export function ScheduleSendPanel({
     return map;
   }, [allFacingRows]);
 
-  // Same rows as the preview/CSV: drop editors who have no mixes in this subcategory.
+  // Same rows as the preview/CSV: producers with mixes, ordered by Sort.
   const scopedProducerNames = useMemo(() => {
     const withRows = new Set(
       [...rowsByProducer.keys()].map((name) => name.toUpperCase())
     );
-    return producerNames.filter((name) => withRows.has(name.toUpperCase()));
-  }, [producerNames, rowsByProducer]);
+    return sortScheduleSendProducerNames(
+      producerNames.filter((name) => withRows.has(name.toUpperCase())),
+      rowsByProducer,
+      sortBy
+    );
+  }, [producerNames, rowsByProducer, sortBy]);
 
   const targetProducerNames = useMemo(() => {
     if (viewingAll) return scopedProducerNames;
@@ -272,7 +263,7 @@ export function ScheduleSendPanel({
   );
 
   const downloadTargets = useCallback(
-    (targets: string[]) => {
+    async (targets: string[]) => {
       if (targets.length === 0) {
         if (typeof window !== "undefined") {
           alert("No ongoing scheduled mixes found for the current send filters.");
@@ -280,26 +271,33 @@ export function ScheduleSendPanel({
         return;
       }
 
-      targets.forEach((targetName) => {
-        const csv = generateScheduleCsv(
-          mtdRecords,
-          allOrders,
-          producers,
-          targetName,
-          filterPeriod,
-          formScope
-        );
-        triggerCsvDownload(
-          `Schedule_${targetName.replace(/\s+/g, "_")}_${todayIso()}.csv`,
-          csv
-        );
-      });
+      setIsDownloading(true);
+      try {
+        // Reuse preview rows (no N× full re-scan). Stagger so bulk download
+        // does not freeze the tab or trip the browser's multi-download block.
+        for (let i = 0; i < targets.length; i += 1) {
+          const targetName = targets[i];
+          const rows = rowsByProducer.get(targetName) ?? [];
+          const csv = producerFacingScheduleRowsToCsv(rows);
+          triggerCsvDownload(
+            `Schedule_${targetName.replace(/\s+/g, "_")}_${todayIso()}.csv`,
+            csv
+          );
+          if (i < targets.length - 1) {
+            await new Promise<void>((resolve) => {
+              window.setTimeout(resolve, 90);
+            });
+          }
+        }
+      } finally {
+        setIsDownloading(false);
+      }
     },
-    [mtdRecords, allOrders, producers, filterPeriod, formScope]
+    [rowsByProducer]
   );
 
   const handleDownload = useCallback(() => {
-    downloadTargets(targetProducerNames);
+    void downloadTargets(targetProducerNames);
   }, [downloadTargets, targetProducerNames]);
 
   const sendScheduleToProducer = useCallback(
@@ -319,21 +317,44 @@ export function ScheduleSendPanel({
         categoryLabel,
         emailTemplates.producer_schedule
       );
-      const excelAttachment = generateScheduleExcelAttachment(rows);
+      const excelHtml = generateScheduleExcelAttachment(rows);
+      const csvText = producerFacingScheduleRowsToCsv(rows);
+      const csvFilename = draft.attachmentFilename.replace(/\.xls$/i, ".csv");
+      const attachment = pickStatementMailAttachment({
+        producerName,
+        excelHtml,
+        csvText,
+        excelFilename: draft.attachmentFilename,
+        csvFilename,
+        toBase64: stringToBase64,
+      });
+
+      const bodyNote =
+        attachment === null
+          ? `\n\n(Attachment omitted — schedule too large for email. A CSV download was started in your browser.)\n`
+          : attachment.mime_type === "text/csv"
+            ? `\n\n(Full schedule attached as CSV — Excel exceeded the email size limit.)\n`
+            : "";
+
+      if (attachment === null) {
+        triggerCsvDownload(csvFilename, csvText);
+      }
 
       await sendGmailEmail(
         {
           to_email: draft.to,
           subject: draft.subject,
-          body: renderScheduleMailPlainText(draft, rows),
+          body: `${renderScheduleMailPlainText(draft, rows)}${bodyNote}`,
           html_body: renderScheduleMailHtml(draft, rows),
-          attachments: [
-            {
-              filename: draft.attachmentFilename,
-              content_base64: stringToBase64(excelAttachment),
-              mime_type: "application/vnd.ms-excel",
-            },
-          ],
+          attachments: attachment
+            ? [
+                {
+                  filename: attachment.filename,
+                  content_base64: attachment.content_base64,
+                  mime_type: attachment.mime_type,
+                },
+              ]
+            : [],
         },
         token
       );
@@ -343,7 +364,6 @@ export function ScheduleSendPanel({
       rowsByProducer,
       categoryLabel,
       token,
-      filterPeriod,
       emailTemplates.producer_schedule,
     ]
   );
@@ -359,7 +379,8 @@ export function ScheduleSendPanel({
       const sentNames: string[] = [];
       const failed: string[] = [];
 
-      for (const targetName of targets) {
+      for (let i = 0; i < targets.length; i += 1) {
+        const targetName = targets[i];
         try {
           await sendScheduleToProducer(targetName);
           sentNames.push(targetName);
@@ -372,13 +393,19 @@ export function ScheduleSendPanel({
                 : "Email could not be sent.";
           failed.push(`${targetName}: ${message}`);
         }
+        // Brief pause between Gmail calls — Fluid-friendly + rate-limit safe.
+        if (i < targets.length - 1) {
+          await new Promise<void>((resolve) => {
+            window.setTimeout(resolve, 150);
+          });
+        }
       }
 
       if (failed.length === 0) {
         const summary =
           sentNames.length === 1
             ? `Schedule sent to ${sentNames[0]}.`
-            : `Schedules sent to ${sentNames.length} editors separately.`;
+            : `Schedules sent to ${sentNames.length} producers separately.`;
         setSent(true);
         setSentSummary(summary);
       } else if (sentNames.length === 0) {
@@ -448,7 +475,8 @@ export function ScheduleSendPanel({
         {canExport ? (
           <div className="mb-4 shrink-0 space-y-3 border-b border-brand-line/60 pb-4">
             <h2 className="text-[14px] font-semibold tracking-[-0.01em] text-brand-ink">
-              Schedule of {onScheduleCount} editor{onScheduleCount === 1 ? "" : "s"}
+              Schedule of {onScheduleCount} producer
+              {onScheduleCount === 1 ? "" : "s"}
             </h2>
 
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -460,7 +488,10 @@ export function ScheduleSendPanel({
                 <span className="font-semibold tabular-nums text-brand-ink">
                   {categoryEditorCount}
                 </span>{" "}
-                {categoryLabel} producers have mixes on this schedule
+                {categoryLabel
+                  ? `${categoryLabel} producers`
+                  : "Producers"}{" "}
+                have mixes on this schedule
                 {filterPeriod
                   ? ` overlapping ${periodLabel.toLowerCase()} (${filterPeriod.start} - ${filterPeriod.end})`
                   : ` (${periodLabel.toLowerCase()})`}
@@ -481,16 +512,27 @@ export function ScheduleSendPanel({
                 <button
                   type="button"
                   onClick={handleDownload}
-                  className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-brand-line/80 bg-white px-3.5 text-[12px] font-semibold text-brand-ink transition hover:border-brand-orange/35 hover:text-brand-orange active:scale-[0.98]"
+                  disabled={isDownloading || isSending || targetCount === 0}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-brand-line/80 bg-white px-3.5 text-[12px] font-semibold text-brand-ink transition hover:border-brand-orange/35 hover:text-brand-orange active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  <Download className="h-3.5 w-3.5 text-brand-orange" strokeWidth={2} />
-                  {downloadLabel}
+                  {isDownloading ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-brand-orange" strokeWidth={2} />
+                  ) : (
+                    <Download className="h-3.5 w-3.5 text-brand-orange" strokeWidth={2} />
+                  )}
+                  {isDownloading ? "Downloading…" : downloadLabel}
                   <span className="tabular-nums text-brand-ink-tertiary">({targetCount})</span>
                 </button>
                 <button
                   type="button"
                   onClick={openSendModal}
-                  disabled={isViewOnly || !gmailConnected || isSending || targetCount === 0}
+                  disabled={
+                    isViewOnly ||
+                    !gmailConnected ||
+                    isSending ||
+                    isDownloading ||
+                    targetCount === 0
+                  }
                   title={sendDisabledReason}
                   className={clsx(
                     "inline-flex h-9 items-center gap-1.5 rounded-lg px-3.5 text-[12px] font-semibold transition active:scale-[0.98]",
@@ -577,7 +619,7 @@ export function ScheduleSendPanel({
               allOrders={allOrders}
               producers={producers}
               filterPeriod={filterPeriod}
-              formScope={formScope}
+              sortBy={sortBy}
             />
           ) : (
             <div className="flex items-start gap-2.5 rounded-xl border border-brand-warning/25 bg-brand-warning/8 px-3.5 py-3">
@@ -589,9 +631,8 @@ export function ScheduleSendPanel({
                   No schedules to send
                 </p>
                 <p className="mt-1 text-[12px] leading-relaxed text-brand-ink-secondary">
-                  No ongoing mixes match {categoryLabel} in{" "}
-                  {periodLabel.toLowerCase()}. Adjust the category or send
-                  period above.
+                  No ongoing mixes in {periodLabel.toLowerCase()}. Adjust the
+                  producer or send period, then try again.
                 </p>
               </div>
             </div>

@@ -24,10 +24,7 @@ import {
   countMTDByForm,
 } from "@/lib/mtd-filters";
 import { getPayrollRecords } from "@/lib/mtd-completion";
-import {
-  producerMatchesScheduleFormFilter,
-  scheduleFormFilterLabel,
-} from "@/lib/schedule-filters";
+import { scheduleFormFilterLabel } from "@/lib/schedule-filters";
 import {
   findVoiceoverProgramMatch,
   voiceoverProgramNames,
@@ -509,25 +506,15 @@ function VoiceoverEntryModal({
   const selectedRate = rates[rateIndex] ?? rates[0];
   const isManual = selectedRate.source === "manual";
 
-  const categoryProducers = useMemo(() => {
-    const matched = producers.filter((p) =>
-      producerMatchesScheduleFormFilter(p, form, cheerSubtype, danceSubtype)
-    );
-    // Keep an already-selected / editing producer visible even if filters changed
-    if (producerId && !matched.some((p) => p.id === producerId)) {
-      const selected = producers.find((p) => p.id === producerId);
-      if (selected) matched.push(selected);
-    }
-    return matched.sort((a, b) => a.name.localeCompare(b.name));
-  }, [producers, form, cheerSubtype, danceSubtype, producerId]);
-
   const producerOptions: SoftSelectOption[] = useMemo(
     () =>
-      categoryProducers.map((p) => ({
-        value: p.id,
-        label: `${p.name} (${p.initials})`,
-      })),
-    [categoryProducers]
+      [...producers]
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((p) => ({
+          value: p.id,
+          label: `${p.name} (${p.initials})`,
+        })),
+    [producers]
   );
 
   const programOptions: SoftSelectOption[] = useMemo(() => {
@@ -555,18 +542,13 @@ function VoiceoverEntryModal({
     setProgramMenuOpen(false);
   }
 
-  // Clear producer when form/subcategory change leaves them out of the roster
+  // Clear producer only if they were removed from the roster entirely.
   useEffect(() => {
-    if (!producerId) return;
-    const stillMatches = producers.some(
-      (p) =>
-        p.id === producerId &&
-        producerMatchesScheduleFormFilter(p, form, cheerSubtype, danceSubtype)
-    );
-    if (!stillMatches && !editing) {
+    if (!producerId || editing) return;
+    if (!producers.some((p) => p.id === producerId)) {
       setProducerId("");
     }
-  }, [producerId, producers, form, cheerSubtype, danceSubtype, editing]);
+  }, [producerId, producers, editing]);
 
   useEffect(() => {
     if (!open) return;

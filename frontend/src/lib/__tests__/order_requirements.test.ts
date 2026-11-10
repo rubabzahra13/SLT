@@ -59,7 +59,7 @@ describe("SLT Implementation 2: Magento form-field Collections / Songs", () => {
     }
   });
 
-  it("Cheer Magento form: Mix + Songs + Notes; CS when Yes; never Video (not package-gated)", () => {
+  it("Cheer Magento form: Mix + Songs + Notes; CS when Yes; Video red for Platinum/Titanium", () => {
     const packages = [
       "Bronze 1:30",
       "Silver 1:45",
@@ -72,6 +72,7 @@ describe("SLT Implementation 2: Magento form-field Collections / Songs", () => {
 
     for (const packageName of packages) {
       for (const isManualEntry of [false, true]) {
+        const expectsVideo = /platinum|titanium/i.test(packageName);
         const subtype = packageName.toUpperCase().includes("RALLY")
           ? ("school-cheer-viroc-yes" as Order["cheerFormSubtype"])
           : ("all-star-cheer" as Order["cheerFormSubtype"]);
@@ -94,13 +95,26 @@ describe("SLT Implementation 2: Magento form-field Collections / Songs", () => {
             .filter((r) => r.isApplicable && r.id !== "form")
             .map((r) => r.id)
             .sort(),
-          ["mix", "notes", "songs"].sort(),
+          (expectsVideo
+            ? ["mix", "notes", "songs", "video"]
+            : ["mix", "notes", "songs"]
+          ).sort(),
           `${packageName} CS=No manual=${isManualEntry}`
         );
-        assert.ok(
-          !noCs.all.some((r) => r.id === "video" && r.isApplicable),
-          `${packageName} must never show Video`
-        );
+        const videoNoCs = noCs.all.find((r) => r.id === "video");
+        if (expectsVideo) {
+          assert.ok(videoNoCs?.isApplicable, `${packageName} Video applicable`);
+          assert.strictEqual(
+            videoNoCs?.state,
+            "red",
+            `${packageName} Video red by default`
+          );
+        } else {
+          assert.ok(
+            !videoNoCs?.isApplicable,
+            `${packageName} must not show Video`
+          );
+        }
 
         const yesCs = getOrderRequirements({
           ...base,
@@ -111,7 +125,10 @@ describe("SLT Implementation 2: Magento form-field Collections / Songs", () => {
             .filter((r) => r.isApplicable && r.id !== "form")
             .map((r) => r.id)
             .sort(),
-          ["cs", "mix", "notes", "songs"].sort(),
+          (expectsVideo
+            ? ["cs", "mix", "notes", "songs", "video"]
+            : ["cs", "mix", "notes", "songs"]
+          ).sort(),
           `${packageName} CS=Yes manual=${isManualEntry}`
         );
 
@@ -367,6 +384,8 @@ describe("SLT Implementation 2: Magento form-field Collections / Songs", () => {
       songListSuggestions: "Song A",
       routineNotes: "Notes",
       sendingEightCountSheets: "No",
+      // Platinum requires Video; mark collected so Form alone is under test.
+      collectionStates: { video: true },
     };
     const reqs = getOrderRequirements(manual as Order);
     assert.equal(

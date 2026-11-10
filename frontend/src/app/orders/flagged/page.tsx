@@ -278,6 +278,7 @@ export default function FlaggedOrdersPage() {
         header: "ID",
         width: "56px",
         align: "center",
+        sticky: "left" as const,
         render: (_rec, index) => (
           <span className="tabular-nums text-[12px] text-brand-ink">
             {index + 1}
@@ -290,6 +291,7 @@ export default function FlaggedOrdersPage() {
         width: "128px",
         align: "center",
         nowrap: true,
+        sticky: "left" as const,
         cellClassName: compactCellClass,
         headerClassName: compactHeaderClass,
         render: (rec) => {
@@ -307,6 +309,7 @@ export default function FlaggedOrdersPage() {
         width: contactHeader.length > 14 ? "150px" : "100px",
         align: "left",
         nowrap: false,
+        sticky: "left" as const,
         cellClassName: clsx(
           compactCellClass,
           contactHeader.length > 14 ? "max-w-[150px]" : "max-w-[100px]"
@@ -341,6 +344,7 @@ export default function FlaggedOrdersPage() {
         width: programHeader.length > 14 ? "150px" : "100px",
         align: "left",
         nowrap: false,
+        sticky: "left" as const,
         cellClassName: clsx(
           compactCellClass,
           programHeader.length > 14 ? "max-w-[150px]" : "max-w-[100px]"
@@ -373,6 +377,7 @@ export default function FlaggedOrdersPage() {
         width: "120px",
         align: "center",
         nowrap: false,
+        sticky: "left" as const,
         cellClassName: clsx(compactCellClass, "max-w-[120px]"),
         headerClassName: compactHeaderClass,
         render: (rec) => {

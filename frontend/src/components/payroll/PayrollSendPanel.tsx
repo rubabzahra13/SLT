@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 import { AlertCircle, Download, Loader2, Send } from "lucide-react";
 import { ProducerStatementPreview } from "@/components/payroll/ProducerStatementPreview";
@@ -22,11 +22,10 @@ import { toCanonicalIsoDate } from "@/lib/dates";
 import { ApiClientError } from "@/lib/api/client";
 import { getGmailStatus, sendGmailEmail } from "@/lib/api/gmail";
 import {
-  generateProducerFacingPayrollCsv,
   getProducerFacingPayrollRows,
+  producerFacingPayrollRowsToCsv,
   triggerCsvDownload,
   type ProducerFacingPayrollRow,
-  type ScheduleSendFormScope,
 } from "@/lib/export-csv";
 import {
   buildPayrollMailDraft,
@@ -36,18 +35,21 @@ import {
   stringToBase64,
 } from "@/lib/producer-payroll-mail";
 import { findProducerByAssignmentKey } from "@/lib/editor-assignment";
-import type {
-  CheerFormSubtypeFilter,
-  DanceFormSubtypeFilter,
-  MTDRecord,
-  Order,
-  OrderFormType,
-  Producer,
-  PayrollAddon,
-} from "@/types";
+import type { MTDSortBy } from "@/lib/mtd-filters";
+import {
+  sortPayrollSendProducerNames,
+  sortPayrollSendProducerNamesLean,
+} from "@/lib/payroll-send-sort";
+import {
+  pickStatementMailAttachment,
+  shouldBuildStatementRowsEagerly,
+  shouldConfirmBulkStatementSend,
+} from "@/lib/statement-scale";
+import type { MTDRecord, Order, Producer, PayrollAddon } from "@/types";
 
 type PayrollSendPanelProps = {
-  categoryLabel: string;
+  /** Optional scope label in the header (empty = all categories). */
+  categoryLabel?: string;
   producerNames: string[];
   categoryProducers: Producer[];
   selectedSendEditor: string;
@@ -56,9 +58,7 @@ type PayrollSendPanelProps = {
   allOrders: Order[];
   producers: Producer[];
   payrollAddons?: PayrollAddon[];
-  form: OrderFormType;
-  cheerSubtype: CheerFormSubtypeFilter;
-  danceSubtype: DanceFormSubtypeFilter;
+  sortBy?: MTDSortBy;
 };
 
 type SendFeedback = {
@@ -108,7 +108,7 @@ function resolveSelectedProducerName(
 }
 
 export function PayrollSendPanel({
-  categoryLabel,
+  categoryLabel = "",
   producerNames,
   categoryProducers,
   selectedSendEditor,
@@ -117,9 +117,7 @@ export function PayrollSendPanel({
   allOrders,
   producers,
   payrollAddons = [],
-  form,
-  cheerSubtype,
-  danceSubtype,
+  sortBy = "newest",
 }: PayrollSendPanelProps) {
   const { token, isViewOnly } = useAuth();
   const { emailTemplates } = useAppEmailTemplates();
@@ -127,6 +125,7 @@ export function PayrollSendPanel({
   const [gmailFrom, setGmailFrom] = useState<string | null>(null);
   const [loadingGmail, setLoadingGmail] = useState(true);
   const [isSending, setIsSending] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
   const [feedback, setFeedback] = useState<SendFeedback | null>(null);
   const [mailModalOpen, setMailModalOpen] = useState(false);
   /** null = use toolbar targets (Send all); otherwise one/few names from preview. */
@@ -184,11 +183,6 @@ export function PayrollSendPanel({
     };
   }, [token]);
 
-  const formScope = useMemo<ScheduleSendFormScope>(
-    () => ({ form, cheerSubtype, danceSubtype }),
-    [form, cheerSubtype, danceSubtype]
-  );
-
   const orderById = useMemo(() => {
     const map = new Map<string, Order>();
     for (const order of allOrders) {
@@ -199,9 +193,13 @@ export function PayrollSendPanel({
     return map;
   }, [allOrders]);
 
-  // Same rows as the preview, CSV, and email attachment.
+  // 2-week boards can still be large — defer past a small producer count.
+  const buildEagerly = shouldBuildStatementRowsEagerly(producerNames.length);
+
+  // Eager map only for small periods — 1-year / many producers build on demand.
   const rowsByProducer = useMemo(() => {
     const map = new Map<string, ProducerFacingPayrollRow[]>();
+    if (!buildEagerly) return map;
     for (const name of producerNames) {
       map.set(
         name,
@@ -212,13 +210,13 @@ export function PayrollSendPanel({
           name,
           filterPeriod,
           payrollAddons,
-          orderById,
-          formScope
+          orderById
         )
       );
     }
     return map;
   }, [
+    buildEagerly,
     producerNames,
     payrollRecords,
     allOrders,
@@ -226,16 +224,63 @@ export function PayrollSendPanel({
     filterPeriod,
     payrollAddons,
     orderById,
-    formScope,
   ]);
 
-  const scopedProducerNames = useMemo(
-    () =>
+  const rowCacheRef = useRef(new Map<string, ProducerFacingPayrollRow[]>());
+
+  useEffect(() => {
+    rowCacheRef.current = new Map();
+  }, [payrollRecords, allOrders, producers, filterPeriod, payrollAddons, orderById]);
+
+  const getRowsForProducer = useCallback(
+    (name: string): ProducerFacingPayrollRow[] => {
+      if (buildEagerly) {
+        return rowsByProducer.get(name) ?? [];
+      }
+      const cached = rowCacheRef.current.get(name);
+      if (cached) return cached;
+      const rows = getProducerFacingPayrollRows(
+        payrollRecords,
+        allOrders,
+        producers,
+        name,
+        filterPeriod,
+        payrollAddons,
+        orderById
+      );
+      // Keep at most two producers’ rows so a 1-year Send all cannot OOM.
+      if (rowCacheRef.current.size >= 2) {
+        const oldest = rowCacheRef.current.keys().next().value;
+        if (oldest !== undefined) rowCacheRef.current.delete(oldest);
+      }
+      rowCacheRef.current.set(name, rows);
+      return rows;
+    },
+    [
+      buildEagerly,
+      rowsByProducer,
+      payrollRecords,
+      allOrders,
+      producers,
+      filterPeriod,
+      payrollAddons,
+      orderById,
+    ]
+  );
+
+  const scopedProducerNames = useMemo(() => {
+    if (!buildEagerly) {
+      // Parent already scoped to period mixes/VO — skip N× row builds for filter.
+      return sortPayrollSendProducerNamesLean(producerNames, sortBy);
+    }
+    return sortPayrollSendProducerNames(
       producerNames.filter(
         (name) => (rowsByProducer.get(name)?.length ?? 0) > 0
       ),
-    [producerNames, rowsByProducer]
-  );
+      rowsByProducer,
+      sortBy
+    );
+  }, [buildEagerly, producerNames, rowsByProducer, sortBy]);
 
   const targetProducerNames = useMemo(() => {
     if (viewingAll) return scopedProducerNames;
@@ -258,12 +303,14 @@ export function PayrollSendPanel({
     : targetProducerNames[0] ?? "";
 
   const previewItems = useMemo<PayrollSendPreviewItem[]>(() => {
+    // Bulk / deferred: draft-only preview — don’t materialize every statement.
+    const leanPreview = !buildEagerly || activeSendTargets.length > 3;
     return activeSendTargets.flatMap((producerName) => {
       const producer = resolveSendProducer(producerName, producers);
       if (!producer) return [];
 
-      const rows = rowsByProducer.get(producerName) ?? [];
-      const mixCount = rows.length;
+      const rows = leanPreview ? [] : getRowsForProducer(producerName);
+      const mixCount = leanPreview ? 0 : rows.length;
       const draft = buildPayrollMailDraft(
         producer,
         mixCount,
@@ -285,21 +332,15 @@ export function PayrollSendPanel({
   }, [
     activeSendTargets,
     producers,
-    rowsByProducer,
+    getRowsForProducer,
+    buildEagerly,
     periodLabel,
     categoryLabel,
     emailTemplates.producer_payroll,
   ]);
 
-  const missingEmailNames = useMemo(() => {
-    const names = modalTargets ?? targetProducerNames;
-    return names.filter(
-      (name) => !producerHasSendEmail(resolveSendProducer(name, producers))
-    );
-  }, [modalTargets, targetProducerNames, producers]);
-
   const downloadTargets = useCallback(
-    (targets: string[]) => {
+    async (targets: string[]) => {
       if (targets.length === 0) {
         if (typeof window !== "undefined") {
           alert("No completed records found for the selected pay period.");
@@ -307,27 +348,32 @@ export function PayrollSendPanel({
         return;
       }
 
-      targets.forEach((targetName) => {
-        const csv = generateProducerFacingPayrollCsv(
-          payrollRecords,
-          allOrders,
-          producers,
-          targetName,
-          filterPeriod,
-          payrollAddons,
-          formScope
-        );
-        triggerCsvDownload(
-          `Payroll_Producer_Statement_${targetName.replace(/\s+/g, "_")}_${todayIso()}.csv`,
-          csv
-        );
-      });
+      setIsDownloading(true);
+      try {
+        // One producer at a time — never hold every statement CSV in memory.
+        for (let i = 0; i < targets.length; i += 1) {
+          const targetName = targets[i];
+          const rows = getRowsForProducer(targetName);
+          const csv = producerFacingPayrollRowsToCsv(rows);
+          triggerCsvDownload(
+            `Payroll_Producer_Statement_${targetName.replace(/\s+/g, "_")}_${todayIso()}.csv`,
+            csv
+          );
+          if (i < targets.length - 1) {
+            await new Promise<void>((resolve) => {
+              window.setTimeout(resolve, 120);
+            });
+          }
+        }
+      } finally {
+        setIsDownloading(false);
+      }
     },
-    [payrollRecords, allOrders, producers, filterPeriod, payrollAddons, formScope]
+    [getRowsForProducer]
   );
 
   const handleDownload = useCallback(() => {
-    downloadTargets(targetProducerNames);
+    void downloadTargets(targetProducerNames);
   }, [downloadTargets, targetProducerNames]);
 
   const sendStatementToProducer = useCallback(
@@ -339,7 +385,7 @@ export function PayrollSendPanel({
         );
       }
 
-      const rows = rowsByProducer.get(producerName) ?? [];
+      const rows = getRowsForProducer(producerName);
       const mixCount = rows.length;
       const draft = buildPayrollMailDraft(
         producer,
@@ -348,28 +394,54 @@ export function PayrollSendPanel({
         categoryLabel,
         emailTemplates.producer_payroll
       );
-      const excelAttachment = generatePayrollExcelAttachment(rows);
+      const excelHtml = generatePayrollExcelAttachment(rows);
+      const csvText = producerFacingPayrollRowsToCsv(rows);
+      const csvFilename = draft.attachmentFilename.replace(
+        /\.xls$/i,
+        ".csv"
+      );
+      const attachment = pickStatementMailAttachment({
+        producerName,
+        excelHtml,
+        csvText,
+        excelFilename: draft.attachmentFilename,
+        csvFilename,
+        toBase64: stringToBase64,
+      });
+
+      const bodyNote =
+        attachment === null
+          ? `\n\n(Attachment omitted — statement too large for email. A CSV download was started in your browser.)\n`
+          : attachment.mime_type === "text/csv"
+            ? `\n\n(Full statement attached as CSV — Excel exceeded the email size limit.)\n`
+            : "";
+
+      if (attachment === null) {
+        triggerCsvDownload(csvFilename, csvText);
+      }
 
       await sendGmailEmail(
         {
           to_email: draft.to,
           subject: draft.subject,
-          body: renderPayrollMailPlainText(draft, rows),
+          body: `${renderPayrollMailPlainText(draft, rows)}${bodyNote}`,
           html_body: renderPayrollMailHtml(draft, rows),
-          attachments: [
-            {
-              filename: draft.attachmentFilename,
-              content_base64: stringToBase64(excelAttachment),
-              mime_type: "application/vnd.ms-excel",
-            },
-          ],
+          attachments: attachment
+            ? [
+                {
+                  filename: attachment.filename,
+                  content_base64: attachment.content_base64,
+                  mime_type: attachment.mime_type,
+                },
+              ]
+            : [],
         },
         token
       );
     },
     [
       producers,
-      rowsByProducer,
+      getRowsForProducer,
       periodLabel,
       categoryLabel,
       token,
@@ -388,7 +460,8 @@ export function PayrollSendPanel({
       const sentNames: string[] = [];
       const failed: string[] = [];
 
-      for (const targetName of targets) {
+      for (let i = 0; i < targets.length; i += 1) {
+        const targetName = targets[i];
         try {
           await sendStatementToProducer(targetName);
           sentNames.push(targetName);
@@ -400,6 +473,12 @@ export function PayrollSendPanel({
                 ? err.message
                 : "Email could not be sent.";
           failed.push(`${targetName}: ${message}`);
+        }
+        // Brief pause between Gmail calls — keeps UI fluid on bulk 1-year sends.
+        if (i < targets.length - 1) {
+          await new Promise<void>((resolve) => {
+            window.setTimeout(resolve, 150);
+          });
         }
       }
 
@@ -452,6 +531,15 @@ export function PayrollSendPanel({
   );
 
   const openSendModal = useCallback(() => {
+    if (
+      typeof window !== "undefined" &&
+      shouldConfirmBulkStatementSend(targetProducerNames.length)
+    ) {
+      const ok = window.confirm(
+        `Send ${targetProducerNames.length} statements for Last 2 weeks? Emails go one at a time. Oversized Excel attachments fall back to CSV or a local download.`
+      );
+      if (!ok) return;
+    }
     openSendModalFor(targetProducerNames);
   }, [openSendModalFor, targetProducerNames]);
 
@@ -496,7 +584,10 @@ export function PayrollSendPanel({
                 <span className="font-semibold tabular-nums text-brand-ink">
                   {categoryEditorCount}
                 </span>{" "}
-                {categoryLabel} producers have statements in {periodLabel}.
+                {categoryLabel
+                  ? `${categoryLabel} producers`
+                  : "Producers"}{" "}
+                have statements in {periodLabel}.
                 {!viewingAll && activeProducerName ? (
                   <>
                     {" "}
@@ -513,16 +604,27 @@ export function PayrollSendPanel({
                 <button
                   type="button"
                   onClick={handleDownload}
-                  className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-brand-line/80 bg-white px-3.5 text-[12px] font-semibold text-brand-ink transition hover:border-brand-orange/35 hover:text-brand-orange active:scale-[0.98]"
+                  disabled={isDownloading || isSending || targetCount === 0}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-brand-line/80 bg-white px-3.5 text-[12px] font-semibold text-brand-ink transition hover:border-brand-orange/35 hover:text-brand-orange active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  <Download className="h-3.5 w-3.5 text-brand-orange" strokeWidth={2} />
-                  {downloadLabel}
+                  {isDownloading ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-brand-orange" strokeWidth={2} />
+                  ) : (
+                    <Download className="h-3.5 w-3.5 text-brand-orange" strokeWidth={2} />
+                  )}
+                  {isDownloading ? "Downloading…" : downloadLabel}
                   <span className="tabular-nums text-brand-ink-tertiary">({targetCount})</span>
                 </button>
                 <button
                   type="button"
                   onClick={openSendModal}
-                  disabled={isViewOnly || !gmailConnected || isSending || targetCount === 0}
+                  disabled={
+                    isViewOnly ||
+                    !gmailConnected ||
+                    isSending ||
+                    isDownloading ||
+                    targetCount === 0
+                  }
                   title={sendDisabledReason}
                   className={clsx(
                     "inline-flex h-9 items-center gap-1.5 rounded-lg px-3.5 text-[12px] font-semibold transition active:scale-[0.98]",
@@ -611,7 +713,8 @@ export function PayrollSendPanel({
               allOrders={allOrders}
               producers={producers}
               payrollAddons={payrollAddons}
-              formScope={formScope}
+              sortBy={sortBy}
+              deferRows={!buildEagerly}
               onSendToProducer={(name) => openSendModalFor([name])}
               canSendToProducer={canSend}
               isSending={isSending}
@@ -633,8 +736,8 @@ export function PayrollSendPanel({
                   No statements to send
                 </p>
                 <p className="mt-1 text-[12px] leading-relaxed text-brand-ink-secondary">
-                  No completed mixes match {categoryLabel} in {periodLabel}. Adjust
-                  the filters above.
+                  No completed mixes or voiceovers in {periodLabel}. Adjust the
+                  producer or pay period, then try again.
                 </p>
               </div>
             </div>

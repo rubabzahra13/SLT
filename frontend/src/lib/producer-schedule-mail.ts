@@ -240,6 +240,11 @@ export function stringToBase64(value: string): string {
   return btoa(binary);
 }
 
+export {
+  assertGmailAttachmentWithinLimit,
+  MAX_GMAIL_ATTACHMENT_BASE64_CHARS,
+} from "@/lib/gmail-attachments";
+
 /** @deprecated Use stringToBase64 */
 export function csvToBase64(csv: string): string {
   return stringToBase64(csv);

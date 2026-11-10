@@ -117,16 +117,18 @@ export async function fetchPayrollAddonsForMtdIdsApi(
 
 /**
  * Voiceovers within a recent window (Send / VO tabs).
- * Default 42 days = widest pay period (6 weeks).
+ * Default 14 days = Send "2 Weeks". Cap at 366 to match API + "1 Year".
  */
 export async function fetchVoiceoverAddonsApi(
   token?: string | null,
   opts?: { sinceDays?: number }
 ): Promise<PayrollAddon[]> {
+  const raw = opts?.sinceDays ?? 14;
+  const sinceDays = Math.max(1, Math.min(366, Math.floor(raw)));
   return fetchPayrollAddonsScopedApi({
     token,
     addonType: "voiceover",
-    sinceDays: opts?.sinceDays ?? 42,
+    sinceDays,
   });
 }
 
