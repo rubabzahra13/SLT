@@ -286,7 +286,7 @@ describe("Producer Schedule Preparation Unit Tests", () => {
       rows.map((row) => row.programName),
       ["Alpha Cheer"]
     );
-    assert.equal(rows[0]?.subtype, "all-star-cheer");
+    assert.equal(rows[0]?.subtype, "All Star Cheer");
 
     const csv = generateScheduleCsv(
       records,

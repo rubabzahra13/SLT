@@ -73,9 +73,11 @@ describe("Rally Mix Package Pricing, Subtype Renaming & Add-On Matrix Tests", ()
       assert.equal(schoolTab.label, "School Cheer");
     });
 
-    it("2. getSubtypeLabel resolves 'school-cheer-viroc-yes' to 'VIROC' and 'school-cheer-viroc-no' to 'School Cheer'", () => {
+    it("2. getSubtypeLabel matches CHEER_FORM_SUBTABS dropdown wording", () => {
+      assert.equal(getSubtypeLabel("all-star-cheer"), "All Star Cheer");
       assert.equal(getSubtypeLabel("school-cheer-viroc-yes"), "VIROC");
       assert.equal(getSubtypeLabel("school-cheer-viroc-no"), "School Cheer");
+      assert.equal(getSubtypeLabel("youth-rec-cheer"), "Youth Rec Cheer");
     });
 
     it("3. Internal data IDs remain unchanged ('school-cheer-viroc-yes' / 'school-cheer-viroc-no')", () => {

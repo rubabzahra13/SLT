@@ -360,7 +360,7 @@ describe("Payroll Producer Statement Preview & Single Source of Truth Tests", ()
       rows.map((row) => row.programName),
       ["School Cheer Program", "School Cheer Program"]
     );
-    assert.ok(rows.every((row) => String(row.subtype).includes("school-cheer-viroc-no")));
+    assert.ok(rows.every((row) => String(row.subtype).includes("School Cheer")));
     assert.equal(
       rows.some((row) => row.programName === "Alpha Cheer"),
       false

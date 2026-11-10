@@ -31,6 +31,7 @@ import { payrollAmountsForRow } from "./order-package-price";
 import {
   computeClientPayroll,
   finalizedPayrollRate,
+  getSubtypeLabel,
   packagePayoutMatchingCompliance,
 } from "./pricing-display";
 import { formatCompensationPercent } from "./producers";
@@ -237,7 +238,7 @@ export function generateOrdersCsv(records: MTDRecord[], allOrders: Order[]): str
           ""
       ),
       formType: getFormTypeLabel(meta.formType),
-      subtype: meta.canonicalSubtypeId,
+      subtype: getSubtypeLabel(meta.canonicalSubtypeId) || "-",
       contactName: rec.contactName || order.contactName || "",
       programName: rec.programName || order.programName || "",
       assignedProducer: rec.assignedProducer?.trim()
@@ -337,7 +338,7 @@ export function generateMTDCsv(
           ""
       ),
       formType: getFormTypeLabel(meta.formType),
-      subtype: meta.canonicalSubtypeId,
+      subtype: getSubtypeLabel(meta.canonicalSubtypeId) || "-",
       contactName: rec.contactName,
       programName: rec.programName,
       invoice: rec.invoice || "",
@@ -507,7 +508,7 @@ export function generatePayrollCsv(
       completedDate:
         toIsoDateString(rec.completedAt) || toIsoDateString(rec.mixEndDate) || "",
       formType: getFormTypeLabel(meta.formType),
-      subtype: meta.canonicalSubtypeId,
+      subtype: getSubtypeLabel(meta.canonicalSubtypeId) || "-",
       contactName: rec.contactName,
       programName: rec.programName,
       assignedProducer: rec.assignedProducer || "",
@@ -955,7 +956,7 @@ export function getProducerFacingPayrollRows(
         toIsoDateString(rec.completedAt) || toIsoDateString(rec.mixEndDate) || "",
       programName: rec.programName,
       category: getFormTypeLabel(meta.formType),
-      subtype: meta.canonicalSubtypeId,
+      subtype: getSubtypeLabel(meta.canonicalSubtypeId) || "-",
       package: rec.package,
       timeLimit: parsedPkg.limit,
       voiceoverAddon: "None",
@@ -1104,7 +1105,7 @@ export function getProducerFacingPayrollRows(
           ? getFormTypeLabel(mixMeta.formType)
           : addon.category,
         subtype: mixMeta
-          ? `${mixMeta.canonicalSubtypeId} · ${typeLabel}`
+          ? `${getSubtypeLabel(mixMeta.canonicalSubtypeId) || "-"} · ${typeLabel}`
           : `${typeLabel} Add-on`,
         package: linkedMix?.package || "-",
         timeLimit: parsedPkg?.limit || "-",
@@ -1260,7 +1261,7 @@ export function getProducerFacingScheduleRows(
       contactName: rec.contactName || "-",
       invoice: rec.invoice || "-",
       category: getFormTypeLabel(meta.formType),
-      subtype: meta.canonicalSubtypeId || "-",
+      subtype: getSubtypeLabel(meta.canonicalSubtypeId) || "-",
       package: rec.package || "-",
       status: scheduleStatus,
       recId: rec.id,

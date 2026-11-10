@@ -1,4 +1,5 @@
 import type { Producer } from "@/types";
+import { CHEER_FORM_SUBTABS, DANCE_FORM_SUBTABS } from "@/types";
 import type { PricingBreakdown } from "./api/pricing";
 import { orderCategoryToProducerCategory } from "./editor-assignment";
 
@@ -19,31 +20,26 @@ export function getFormTypeLabel(formType?: string): string {
   }
 }
 
+/** Display labels for Cheer/Dance subtypes — matches CHEER_FORM_SUBTABS / DANCE_FORM_SUBTABS. */
 export function getSubtypeLabel(subtypeId?: string | null): string {
   if (!subtypeId) return "";
-  switch (subtypeId) {
-    case "all-star-cheer":
-      return "All-Star Cheer";
-    case "school-cheer-viroc-yes":
-      return "VIROC";
-    case "school-cheer":
-    case "school-cheer-viroc-no":
-      return "School Cheer";
-    case "youth-rec-cheer":
-      return "Youth Rec Cheer";
-    case "pom":
-      return "POM";
-    case "hip-hop":
-      return "Hip Hop";
-    case "team-performance-variety":
-      return "Team Performance & Variety";
-    case "gameday":
-      return "Gameday";
-    case "jazz-kick":
-      return "Jazz / Kick";
-    default:
-      return subtypeId;
+  const cheer = CHEER_FORM_SUBTABS.find((t) => t.id === subtypeId);
+  if (cheer) return cheer.label;
+  const dance = DANCE_FORM_SUBTABS.find((t) => t.id === subtypeId);
+  if (dance) return dance.label;
+  // Legacy Magento / stored aliases
+  if (subtypeId === "school-cheer") return "School Cheer";
+  // Form-type IDs are used as canonicalSubtypeId when there is no subcategory
+  if (
+    subtypeId === "school-all-star-cheer" ||
+    subtypeId === "school-all-star-dance" ||
+    subtypeId === "marching-band" ||
+    subtypeId === "sports-entertainment" ||
+    subtypeId === "school-anthem"
+  ) {
+    return "";
   }
+  return subtypeId;
 }
 
 export function getFullClassificationLabel(
