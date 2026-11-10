@@ -18,6 +18,7 @@ import {
   generateScheduleCsv,
   getProducerFacingScheduleRows,
   triggerCsvDownload,
+  type ScheduleSendFormScope,
 } from "@/lib/export-csv";
 import {
   buildScheduleMailDraft,
@@ -27,7 +28,14 @@ import {
   stringToBase64,
 } from "@/lib/producer-schedule-mail";
 import { findProducerByAssignmentKey } from "@/lib/editor-assignment";
-import type { MTDRecord, Order, Producer } from "@/types";
+import type {
+  CheerFormSubtypeFilter,
+  DanceFormSubtypeFilter,
+  MTDRecord,
+  Order,
+  OrderFormType,
+  Producer,
+} from "@/types";
 import {
   sendPeriodLabel,
   type ScheduleSendPeriod,
@@ -43,6 +51,9 @@ type ScheduleSendPanelProps = {
   producers: Producer[];
   filterPeriod?: { start: string; end: string };
   sendView: ScheduleSendPeriod;
+  form: OrderFormType;
+  cheerSubtype: CheerFormSubtypeFilter;
+  danceSubtype: DanceFormSubtypeFilter;
 };
 
 type SendFeedback = {
@@ -100,6 +111,9 @@ export function ScheduleSendPanel({
   producers,
   filterPeriod,
   sendView,
+  form,
+  cheerSubtype,
+  danceSubtype,
 }: ScheduleSendPanelProps) {
   const { token, isViewOnly } = useAuth();
   const { emailTemplates } = useAppEmailTemplates();
@@ -115,26 +129,7 @@ export function ScheduleSendPanel({
 
   const viewingAll = selectedSendEditor === "all";
   const sendLayout = viewingAll ? "together" : "separate";
-
-  const targetProducerNames = useMemo(() => {
-    if (viewingAll) return producerNames;
-    const resolved = resolveSelectedProducerName(
-      selectedSendEditor,
-      producerNames,
-      producers
-    );
-    return resolved ? [resolved] : producerNames;
-  }, [viewingAll, selectedSendEditor, producerNames, producers]);
-
-  const targetCount = targetProducerNames.length;
-  const canExport = targetCount > 0;
-
   const categoryEditorCount = categoryProducers.length;
-  const onScheduleCount = producerNames.length;
-
-  const activeProducerName = viewingAll
-    ? producerNames[0] ?? ""
-    : targetProducerNames[0] ?? "";
 
   useEffect(() => {
     let cancelled = false;
@@ -165,7 +160,10 @@ export function ScheduleSendPanel({
     };
   }, [token]);
 
-  const canSend = canExport && gmailConnected && !isViewOnly && !isSending;
+  const formScope = useMemo<ScheduleSendFormScope>(
+    () => ({ form, cheerSubtype, danceSubtype }),
+    [form, cheerSubtype, danceSubtype]
+  );
 
   // One collect for all producers — not N× getProducerFacingScheduleRows.
   const allFacingRows = useMemo(
@@ -175,9 +173,10 @@ export function ScheduleSendPanel({
         allOrders,
         producers,
         undefined,
-        filterPeriod
+        filterPeriod,
+        formScope
       ),
-    [mtdRecords, allOrders, producers, filterPeriod]
+    [mtdRecords, allOrders, producers, filterPeriod, formScope]
   );
 
   const rowsByProducer = useMemo(() => {
@@ -190,6 +189,32 @@ export function ScheduleSendPanel({
     }
     return map;
   }, [allFacingRows]);
+
+  // Same rows as the preview/CSV: drop editors who have no mixes in this subcategory.
+  const scopedProducerNames = useMemo(() => {
+    const withRows = new Set(
+      [...rowsByProducer.keys()].map((name) => name.toUpperCase())
+    );
+    return producerNames.filter((name) => withRows.has(name.toUpperCase()));
+  }, [producerNames, rowsByProducer]);
+
+  const targetProducerNames = useMemo(() => {
+    if (viewingAll) return scopedProducerNames;
+    const resolved = resolveSelectedProducerName(
+      selectedSendEditor,
+      scopedProducerNames,
+      producers
+    );
+    return resolved ? [resolved] : scopedProducerNames;
+  }, [viewingAll, selectedSendEditor, scopedProducerNames, producers]);
+
+  const targetCount = targetProducerNames.length;
+  const canExport = targetCount > 0;
+  const canSend = canExport && gmailConnected && !isViewOnly && !isSending;
+  const onScheduleCount = scopedProducerNames.length;
+  const activeProducerName = viewingAll
+    ? scopedProducerNames[0] ?? ""
+    : targetProducerNames[0] ?? "";
 
   const mixCountByProducer = useMemo(() => {
     const counts = new Map<string, number>();
@@ -261,7 +286,8 @@ export function ScheduleSendPanel({
           allOrders,
           producers,
           targetName,
-          filterPeriod
+          filterPeriod,
+          formScope
         );
         triggerCsvDownload(
           `Schedule_${targetName.replace(/\s+/g, "_")}_${todayIso()}.csv`,
@@ -269,7 +295,7 @@ export function ScheduleSendPanel({
         );
       });
     },
-    [mtdRecords, allOrders, producers, filterPeriod]
+    [mtdRecords, allOrders, producers, filterPeriod, formScope]
   );
 
   const handleDownload = useCallback(() => {
@@ -434,7 +460,7 @@ export function ScheduleSendPanel({
                 <span className="font-semibold tabular-nums text-brand-ink">
                   {categoryEditorCount}
                 </span>{" "}
-                {categoryLabel} producers are assigned to ongoing mixes
+                {categoryLabel} producers have mixes on this schedule
                 {filterPeriod
                   ? ` overlapping ${periodLabel.toLowerCase()} (${filterPeriod.start} - ${filterPeriod.end})`
                   : ` (${periodLabel.toLowerCase()})`}
@@ -551,6 +577,7 @@ export function ScheduleSendPanel({
               allOrders={allOrders}
               producers={producers}
               filterPeriod={filterPeriod}
+              formScope={formScope}
             />
           ) : (
             <div className="flex items-start gap-2.5 rounded-xl border border-brand-warning/25 bg-brand-warning/8 px-3.5 py-3">

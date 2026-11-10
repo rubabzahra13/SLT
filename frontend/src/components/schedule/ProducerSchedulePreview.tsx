@@ -21,6 +21,7 @@ import {
   generateScheduleCsv,
   triggerCsvDownload,
   type ProducerFacingScheduleRow,
+  type ScheduleSendFormScope,
 } from "@/lib/export-csv";
 import { findProducerByAssignmentKey } from "@/lib/editor-assignment";
 
@@ -36,6 +37,7 @@ type ProducerSchedulePreviewProps = {
   sendLayout?: "together" | "separate";
   onViewingProducerChange?: (name: string) => void;
   filterPeriod?: { start: string; end: string };
+  formScope?: ScheduleSendFormScope;
 };
 
 function SchedulePreviewTable({ rows }: { rows: ProducerFacingScheduleRow[] }) {
@@ -131,6 +133,7 @@ export function ProducerSchedulePreview({
   sendLayout = "separate",
   onViewingProducerChange,
   filterPeriod,
+  formScope,
 }: ProducerSchedulePreviewProps) {
   const [activeTabProducer, setActiveTabProducer] = useState<string>("");
   const [sidebarSearch, setSidebarSearch] = useState("");
@@ -146,9 +149,10 @@ export function ProducerSchedulePreview({
         allOrders,
         producers,
         undefined,
-        filterPeriod
+        filterPeriod,
+        formScope
       ),
-    [mtdRecords, allOrders, producers, filterPeriod]
+    [mtdRecords, allOrders, producers, filterPeriod, formScope]
   );
 
   const rowsByProducer = useMemo(() => {
@@ -260,7 +264,8 @@ export function ProducerSchedulePreview({
       allOrders,
       producers,
       currentProducerToView,
-      filterPeriod
+      filterPeriod,
+      formScope
     );
     triggerCsvDownload(
       `Schedule_Producer_Statement_${currentProducerToView.replace(/\s+/g, "_")}_${todayIso()}.csv`,
@@ -283,7 +288,8 @@ export function ProducerSchedulePreview({
         allOrders,
         producers,
         targetName,
-        filterPeriod
+        filterPeriod,
+        formScope
       );
       triggerCsvDownload(
         `Schedule_${targetName.replace(/\s+/g, "_")}_${todayIso()}.csv`,
@@ -456,7 +462,7 @@ export function ProducerSchedulePreview({
                           {name}
                         </h3>
                         <p className="text-[12px] text-brand-ink-secondary">
-                          {mixCount} ongoing mix{mixCount === 1 ? "" : "es"}
+                          {mixCount} mix{mixCount === 1 ? "" : "es"}
                         </p>
                       </div>
                     </div>
@@ -491,7 +497,7 @@ export function ProducerSchedulePreview({
                       {currentProducerToView}
                     </h3>
                     <p className="text-[12px] text-brand-ink-secondary">
-                      {currentRows.length} ongoing mix
+                      {currentRows.length} mix
                       {currentRows.length === 1 ? "" : "es"}
                     </p>
                   </div>

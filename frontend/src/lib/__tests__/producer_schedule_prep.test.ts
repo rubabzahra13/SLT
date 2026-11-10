@@ -194,4 +194,120 @@ describe("Producer Schedule Preparation Unit Tests", () => {
     ]);
     assert.equal(PRODUCER_SCHEDULE_COLUMNS[0]?.label, "Mix Due Date");
   });
+
+  it("keeps only the selected cheer subcategory in preview rows and CSV", () => {
+    const orders: Order[] = [
+      {
+        id: "ord-asc",
+        formType: "school-all-star-cheer",
+        cheerFormSubtype: "all-star-cheer",
+        contactName: "Coach Amy",
+        programName: "Alpha Cheer",
+        price: 700,
+        status: "active",
+        needsAttention: false,
+        createdAt: "2026-09-01T00:00:00Z",
+        assignedProducer: "Casey Marlow",
+        mixStartDate: "2026-09-12",
+        mixEndDate: "2026-09-15",
+      } as Order,
+      {
+        id: "ord-youth",
+        formType: "school-all-star-cheer",
+        cheerFormSubtype: "youth-rec-cheer",
+        contactName: "Coach Youth",
+        programName: "Youth Rec Program",
+        price: 400,
+        status: "active",
+        needsAttention: false,
+        createdAt: "2026-09-01T00:00:00Z",
+        assignedProducer: "Casey Marlow",
+        mixStartDate: "2026-09-12",
+        mixEndDate: "2026-09-15",
+      } as Order,
+      {
+        id: "ord-viroc",
+        formType: "school-all-star-cheer",
+        cheerFormSubtype: "school-cheer-viroc-no",
+        contactName: "Coach School",
+        programName: "School Viroc No",
+        price: 500,
+        status: "active",
+        needsAttention: false,
+        createdAt: "2026-09-01T00:00:00Z",
+        assignedProducer: "Casey Marlow",
+        mixStartDate: "2026-09-12",
+        mixEndDate: "2026-09-15",
+      } as Order,
+    ];
+    const records: MTDRecord[] = [
+      {
+        ...mockMTDRecords[0],
+        id: "mtd-asc",
+        orderId: "ord-asc",
+        programName: "Alpha Cheer",
+        formType: "school-all-star-cheer",
+        cheerFormSubtype: "all-star-cheer",
+      },
+      {
+        ...mockMTDRecords[0],
+        id: "mtd-youth",
+        orderId: "ord-youth",
+        programName: "Youth Rec Program",
+        invoice: "INV-YOUTH",
+        formType: "school-all-star-cheer",
+        cheerFormSubtype: "youth-rec-cheer",
+      },
+      {
+        ...mockMTDRecords[0],
+        id: "mtd-viroc",
+        orderId: "ord-viroc",
+        programName: "School Viroc No",
+        invoice: "INV-VIROC",
+        formType: "school-all-star-cheer",
+        cheerFormSubtype: "school-cheer-viroc-no",
+      },
+    ];
+    const scope = {
+      form: "school-all-star-cheer" as const,
+      cheerSubtype: "all-star-cheer" as const,
+      danceSubtype: "all" as const,
+    };
+
+    const rows = getProducerFacingScheduleRows(
+      records,
+      orders,
+      mockProducers,
+      "Casey Marlow",
+      undefined,
+      scope
+    );
+    assert.deepStrictEqual(
+      rows.map((row) => row.programName),
+      ["Alpha Cheer"]
+    );
+    assert.equal(rows[0]?.subtype, "all-star-cheer");
+
+    const csv = generateScheduleCsv(
+      records,
+      orders,
+      mockProducers,
+      "Casey Marlow",
+      undefined,
+      scope
+    );
+    assert.ok(csv.includes("Alpha Cheer"));
+    assert.equal(csv.includes("Youth Rec Program"), false);
+    assert.equal(csv.includes("School Viroc No"), false);
+
+    const allCheer = getProducerFacingScheduleRows(
+      records,
+      orders,
+      mockProducers,
+      "Casey Marlow",
+      undefined,
+      { ...scope, cheerSubtype: "all" }
+    );
+    assert.equal(allCheer.length, 3);
+  });
 });

@@ -1,4 +1,12 @@
-import type { MTDRecord, Order, Producer, PayrollAddon } from "@/types";
+import type {
+  CheerFormSubtypeFilter,
+  DanceFormSubtypeFilter,
+  MTDRecord,
+  Order,
+  OrderFormType,
+  PayrollAddon,
+  Producer,
+} from "@/types";
 import { formatPrice } from "./data";
 import {
   doDateRangesOverlap,
@@ -11,7 +19,11 @@ import {
   formatRequestedEditorLabel,
 } from "./editor-assignment";
 import { resolveMtdTimestamp } from "./mtd-timestamp";
-import { isPreMTDOrderRecord, resolveMTDFormMeta } from "./mtd-filters";
+import {
+  isPreMTDOrderRecord,
+  matchesFormFilter,
+  resolveMTDFormMeta,
+} from "./mtd-filters";
 import { orderFromMTDRecord } from "./order-detail-fields";
 import { getOrderDetailSections, getFormTypeLabel } from "./order-detail-sections";
 import { parsePackage } from "./package";
@@ -23,6 +35,7 @@ import {
 } from "./pricing-display";
 import { formatCompensationPercent } from "./producers";
 import { payrollRowIsRushOrder } from "./forward-order-mail";
+import { voiceoverMatchesFormFilter } from "./payroll-send-filters";
 import {
   finalizeMixPayout,
   resolveRushFeeSelection,
@@ -693,6 +706,16 @@ export function producerStatementColumnsForRows(
   });
 }
 
+function orderLookupMap(allOrders: Order[]): Map<string, Order> {
+  const map = new Map<string, Order>();
+  for (const order of allOrders) {
+    if (order.id) map.set(order.id, order);
+    if (order.uuid) map.set(order.uuid, order);
+    if (order.legacyId) map.set(order.legacyId, order);
+  }
+  return map;
+}
+
 export function isCompletedMix(rec: MTDRecord): boolean {
   if (!rec) return false;
   return (
@@ -792,6 +815,13 @@ export function matchAddonToRecord(
   return false;
 }
 
+/** Send Schedule / Send Statements form + subcategory. Omit to keep every mix. */
+export type ScheduleSendFormScope = {
+  form: OrderFormType;
+  cheerSubtype?: CheerFormSubtypeFilter;
+  danceSubtype?: DanceFormSubtypeFilter;
+};
+
 export function getProducerFacingPayrollRows(
   records: MTDRecord[],
   allOrders: Order[],
@@ -800,10 +830,11 @@ export function getProducerFacingPayrollRows(
   filterPeriod?: { start?: string; end?: string },
   payrollAddons?: PayrollAddon[],
   /** Reuse across producers on Send — avoids rebuilding Map per call. */
-  orderById?: Map<string, Order>
+  orderById?: Map<string, Order>,
+  /** Selected form + subcategory. Omit to keep every completed mix. */
+  formScope?: ScheduleSendFormScope
 ): ProducerFacingPayrollRow[] {
-  const orderMap =
-    orderById ?? new Map(allOrders.map((o) => [o.id, o]));
+  const orderMap = orderById ?? orderLookupMap(allOrders);
 
   // Filter for completed mixes assigned to target producer
   let filtered = records.filter((rec) => {
@@ -823,6 +854,18 @@ export function getProducerFacingPayrollRows(
       const recEnd = rec.completedAt || rec.mixEndDate || rec.mixStartDate || "";
       return doDateRangesOverlap({ start: recStart, end: recEnd }, filterPeriod);
     });
+  }
+
+  if (formScope?.form) {
+    filtered = filtered.filter((rec) =>
+      matchesFormFilter(
+        rec,
+        orderMap,
+        formScope.form,
+        formScope.cheerSubtype ?? "all",
+        formScope.danceSubtype ?? "all"
+      )
+    );
   }
 
   const preparedRows: ProducerFacingPayrollRow[] = [];
@@ -979,6 +1022,21 @@ export function getProducerFacingPayrollRows(
           })();
       if (!paysThisProducer) return false;
 
+      if (
+        formScope?.form &&
+        addon.addonType === "voiceover" &&
+        !voiceoverMatchesFormFilter(
+          addon,
+          formScope.form,
+          formScope.cheerSubtype ?? "all",
+          formScope.danceSubtype ?? "all",
+          records,
+          orderMap
+        )
+      ) {
+        return false;
+      }
+
       if (filterPeriod && (filterPeriod.start || filterPeriod.end)) {
         const linked = findMixForPayrollAddon(addon, records);
         const rangeStart =
@@ -1085,7 +1143,8 @@ export function generateProducerFacingPayrollCsv(
   producers: Producer[],
   targetProducerName: string,
   filterPeriod?: { start?: string; end?: string },
-  payrollAddons?: PayrollAddon[]
+  payrollAddons?: PayrollAddon[],
+  formScope?: ScheduleSendFormScope
 ): string {
   const rows = getProducerFacingPayrollRows(
     records,
@@ -1093,7 +1152,9 @@ export function generateProducerFacingPayrollCsv(
     producers,
     targetProducerName,
     filterPeriod,
-    payrollAddons
+    payrollAddons,
+    undefined,
+    formScope
   );
   return buildCsvString(producerStatementColumnsForRows(rows), rows);
 }
@@ -1134,7 +1195,8 @@ export function getProducerFacingScheduleRows(
   allOrders: Order[],
   producers: Producer[],
   targetProducerName?: string,
-  filterPeriod?: { start?: string; end?: string }
+  filterPeriod?: { start?: string; end?: string },
+  formScope?: ScheduleSendFormScope
 ): ProducerFacingScheduleRow[] {
   const orderById = new Map(allOrders.map((o) => [o.id, o]));
 
@@ -1165,6 +1227,18 @@ export function getProducerFacingScheduleRows(
     });
   }
 
+  if (formScope?.form) {
+    filtered = filtered.filter((rec) =>
+      matchesFormFilter(
+        rec,
+        orderById,
+        formScope.form,
+        formScope.cheerSubtype ?? "all",
+        formScope.danceSubtype ?? "all"
+      )
+    );
+  }
+
   const preparedRows: ProducerFacingScheduleRow[] = [];
 
   for (const rec of filtered) {
@@ -1173,7 +1247,7 @@ export function getProducerFacingScheduleRows(
     const prodName = prodObj?.name || rec.assignedProducer || "Unassigned";
 
     const scheduleStatus = isPreMTDOrderRecord(rec)
-      ? "Assigned"
+      ? "Scheduled"
       : inferMTDRecordStatus(rec) === "Outsourced"
         ? "Outsourced"
         : "Ongoing";
@@ -1201,14 +1275,16 @@ export function generateScheduleCsv(
   allOrders: Order[],
   producers: Producer[],
   targetProducerName?: string,
-  filterPeriod?: { start?: string; end?: string }
+  filterPeriod?: { start?: string; end?: string },
+  formScope?: ScheduleSendFormScope
 ): string {
   const rows = getProducerFacingScheduleRows(
     records,
     allOrders,
     producers,
     targetProducerName,
-    filterPeriod
+    filterPeriod,
+    formScope
   );
   return buildCsvString(PRODUCER_SCHEDULE_COLUMNS, rows);
 }

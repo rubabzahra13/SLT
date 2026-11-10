@@ -40,13 +40,17 @@ async function fetchAllAssignedBoardOrders(): Promise<Order[]> {
  * producer conflict dialogs — hydrated only while `enabled` (Assign open,
  * Producers modal, etc.). Idle Producers/Settings stay cold.
  */
-export function useOpenAssignedBookings(enabled: boolean): {
+export function useOpenAssignedBookings(
+  enabled: boolean,
+  opts?: { alwaysFetch?: boolean }
+): {
   bookingRecords: MTDRecord[];
   conflictOrders: Order[];
   mtdRecords: MTDRecord[];
   ready: boolean;
 } {
   const { activeOrders, mtdRecords, ensureLiveMtdLoaded } = useAppState();
+  const alwaysFetch = opts?.alwaysFetch === true;
   const [fetchedOrders, setFetchedOrders] = useState<Order[]>([]);
   const [ready, setReady] = useState(false);
 
@@ -73,8 +77,9 @@ export function useOpenAssignedBookings(enabled: boolean): {
       );
       const cachedHits = collectOpenAssignedMixRecords(cached, mtdRecords);
       // Cache/memory already has open bookings → skip board round-trip.
-      // Fresh MTD from ensure still lands on the next render.
-      if (cachedHits.length > 0) {
+      // Send Schedule must still read the Orders table: MTD hits are not a
+      // substitute for assigned orders that were never loaded into memory.
+      if (!alwaysFetch && cachedHits.length > 0) {
         if (!cancelled) {
           setFetchedOrders([]);
           setReady(true);
@@ -96,7 +101,7 @@ export function useOpenAssignedBookings(enabled: boolean): {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- open gate only
-  }, [enabled, ensureLiveMtdLoaded]);
+  }, [enabled, alwaysFetch, ensureLiveMtdLoaded]);
 
   const conflictOrders = useMemo(
     () =>

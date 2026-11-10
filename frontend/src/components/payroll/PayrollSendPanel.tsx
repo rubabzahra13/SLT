@@ -26,6 +26,7 @@ import {
   getProducerFacingPayrollRows,
   triggerCsvDownload,
   type ProducerFacingPayrollRow,
+  type ScheduleSendFormScope,
 } from "@/lib/export-csv";
 import {
   buildPayrollMailDraft,
@@ -35,7 +36,15 @@ import {
   stringToBase64,
 } from "@/lib/producer-payroll-mail";
 import { findProducerByAssignmentKey } from "@/lib/editor-assignment";
-import type { MTDRecord, Order, Producer, PayrollAddon } from "@/types";
+import type {
+  CheerFormSubtypeFilter,
+  DanceFormSubtypeFilter,
+  MTDRecord,
+  Order,
+  OrderFormType,
+  Producer,
+  PayrollAddon,
+} from "@/types";
 
 type PayrollSendPanelProps = {
   categoryLabel: string;
@@ -47,6 +56,9 @@ type PayrollSendPanelProps = {
   allOrders: Order[];
   producers: Producer[];
   payrollAddons?: PayrollAddon[];
+  form: OrderFormType;
+  cheerSubtype: CheerFormSubtypeFilter;
+  danceSubtype: DanceFormSubtypeFilter;
 };
 
 type SendFeedback = {
@@ -105,6 +117,9 @@ export function PayrollSendPanel({
   allOrders,
   producers,
   payrollAddons = [],
+  form,
+  cheerSubtype,
+  danceSubtype,
 }: PayrollSendPanelProps) {
   const { token, isViewOnly } = useAuth();
   const { emailTemplates } = useAppEmailTemplates();
@@ -140,26 +155,7 @@ export function PayrollSendPanel({
 
   const viewingAll = selectedSendEditor === "all";
   const sendLayout = viewingAll ? "together" : "separate";
-
-  const targetProducerNames = useMemo(() => {
-    if (viewingAll) return producerNames;
-    const resolved = resolveSelectedProducerName(
-      selectedSendEditor,
-      producerNames,
-      producers
-    );
-    return resolved ? [resolved] : producerNames;
-  }, [viewingAll, selectedSendEditor, producerNames, producers]);
-
-  const targetCount = targetProducerNames.length;
-  const canExport = targetCount > 0;
   const categoryEditorCount = categoryProducers.length;
-  const statementCount = producerNames.length;
-  const activeSendTargets = modalTargets ?? targetProducerNames;
-
-  const activeProducerName = viewingAll
-    ? producerNames[0] ?? ""
-    : targetProducerNames[0] ?? "";
 
   useEffect(() => {
     let cancelled = false;
@@ -188,14 +184,22 @@ export function PayrollSendPanel({
     };
   }, [token]);
 
-  const canSend = canExport && gmailConnected && !isViewOnly && !isSending;
-
-  const orderById = useMemo(
-    () => new Map(allOrders.map((order) => [order.id, order])),
-    [allOrders]
+  const formScope = useMemo<ScheduleSendFormScope>(
+    () => ({ form, cheerSubtype, danceSubtype }),
+    [form, cheerSubtype, danceSubtype]
   );
 
-  // Build statement rows once per producer — preview/send reuse this map.
+  const orderById = useMemo(() => {
+    const map = new Map<string, Order>();
+    for (const order of allOrders) {
+      if (order.id) map.set(order.id, order);
+      if (order.uuid) map.set(order.uuid, order);
+      if (order.legacyId) map.set(order.legacyId, order);
+    }
+    return map;
+  }, [allOrders]);
+
+  // Same rows as the preview, CSV, and email attachment.
   const rowsByProducer = useMemo(() => {
     const map = new Map<string, ProducerFacingPayrollRow[]>();
     for (const name of producerNames) {
@@ -208,7 +212,8 @@ export function PayrollSendPanel({
           name,
           filterPeriod,
           payrollAddons,
-          orderById
+          orderById,
+          formScope
         )
       );
     }
@@ -221,7 +226,36 @@ export function PayrollSendPanel({
     filterPeriod,
     payrollAddons,
     orderById,
+    formScope,
   ]);
+
+  const scopedProducerNames = useMemo(
+    () =>
+      producerNames.filter(
+        (name) => (rowsByProducer.get(name)?.length ?? 0) > 0
+      ),
+    [producerNames, rowsByProducer]
+  );
+
+  const targetProducerNames = useMemo(() => {
+    if (viewingAll) return scopedProducerNames;
+    const resolved = resolveSelectedProducerName(
+      selectedSendEditor,
+      scopedProducerNames,
+      producers
+    );
+    return resolved ? [resolved] : scopedProducerNames;
+  }, [viewingAll, selectedSendEditor, scopedProducerNames, producers]);
+
+  const targetCount = targetProducerNames.length;
+  const canExport = targetCount > 0;
+  const canSend = canExport && gmailConnected && !isViewOnly && !isSending;
+  const statementCount = scopedProducerNames.length;
+  const activeSendTargets = modalTargets ?? targetProducerNames;
+
+  const activeProducerName = viewingAll
+    ? scopedProducerNames[0] ?? ""
+    : targetProducerNames[0] ?? "";
 
   const previewItems = useMemo<PayrollSendPreviewItem[]>(() => {
     return activeSendTargets.flatMap((producerName) => {
@@ -280,7 +314,8 @@ export function PayrollSendPanel({
           producers,
           targetName,
           filterPeriod,
-          payrollAddons
+          payrollAddons,
+          formScope
         );
         triggerCsvDownload(
           `Payroll_Producer_Statement_${targetName.replace(/\s+/g, "_")}_${todayIso()}.csv`,
@@ -288,7 +323,7 @@ export function PayrollSendPanel({
         );
       });
     },
-    [payrollRecords, allOrders, producers, filterPeriod, payrollAddons]
+    [payrollRecords, allOrders, producers, filterPeriod, payrollAddons, formScope]
   );
 
   const handleDownload = useCallback(() => {
@@ -576,6 +611,7 @@ export function PayrollSendPanel({
               allOrders={allOrders}
               producers={producers}
               payrollAddons={payrollAddons}
+              formScope={formScope}
               onSendToProducer={(name) => openSendModalFor([name])}
               canSendToProducer={canSend}
               isSending={isSending}

@@ -59,7 +59,11 @@ import {
   todayIso,
   type PayPeriodRange,
 } from "@/lib/date-filters";
-import { generatePayrollCsv, triggerCsvDownload } from "@/lib/export-csv";
+import {
+  generatePayrollCsv,
+  getProducerFacingPayrollRows,
+  triggerCsvDownload,
+} from "@/lib/export-csv";
 import { formatPrice, titleCase } from "@/lib/data";
 import {
   getPayrollRecords,
@@ -371,6 +375,7 @@ export default function PayrollPage() {
   }, [syncPayrollBadgeFromCache]);
 
   const boardTabActive = pageTab === "view" || pageTab === "archive";
+  const payrollRowsActive = boardTabActive || pageTab === "send";
   const payrollBoardQuery = useMemo(
     () => ({
       scope: (pageTab === "archive" ? "archive" : "payroll") as
@@ -392,7 +397,7 @@ export default function PayrollPage() {
     countsReady: payrollCountsReady,
     loadMore: loadMorePayrollBoard,
     reload: reloadPayrollBoard,
-  } = useMtdBoard(payrollBoardQuery, { enabled: boardTabActive });
+  } = useMtdBoard(payrollBoardQuery, { enabled: payrollRowsActive });
 
   // Unpaid rush/misc for Payroll / Archive / Send payouts — not Add Voiceover.
   useEffect(() => {
@@ -442,11 +447,11 @@ export default function PayrollPage() {
   // Form chips stay on unpaid payroll totals — Archive never fetches counts.
   const lastPayrollCountsRef = useRef(payrollBoardCounts);
   useEffect(() => {
-    if (pageTab === "view") {
+    if (pageTab === "view" || pageTab === "send") {
       lastUnpaidPayrollRef.current = payrollBoardRecords;
-      if (payrollCountsReady) {
-        lastPayrollCountsRef.current = payrollBoardCounts;
-      }
+    }
+    if (pageTab === "view" && payrollCountsReady) {
+      lastPayrollCountsRef.current = payrollBoardCounts;
     }
   }, [pageTab, payrollBoardRecords, payrollBoardCounts, payrollCountsReady]);
 
@@ -454,7 +459,9 @@ export default function PayrollPage() {
     pageTab === "archive" ? lastPayrollCountsRef.current : payrollBoardCounts;
 
   const unpaidPayrollForPanels =
-    pageTab === "view" ? payrollBoardRecords : lastUnpaidPayrollRef.current;
+    pageTab === "view" || pageTab === "send"
+      ? payrollBoardRecords
+      : lastUnpaidPayrollRef.current;
 
   // Instant Mark Paid paint — don't wait for useMtdBoard queryKey swap.
   const [optimisticArchiveRow, setOptimisticArchiveRow] =
@@ -527,10 +534,15 @@ export default function PayrollPage() {
     );
   }, [pageTab, payrollBoardRecords, optimisticArchiveRow]);
 
-  const orderById = useMemo(
-    () => new Map(allOrders.map((order) => [order.id, order])),
-    [allOrders]
-  );
+  const orderById = useMemo(() => {
+    const map = new Map<string, (typeof allOrders)[number]>();
+    for (const order of allOrders) {
+      if (order.id) map.set(order.id, order);
+      if (order.uuid) map.set(order.uuid, order);
+      if (order.legacyId) map.set(order.legacyId, order);
+    }
+    return map;
+  }, [allOrders]);
 
   // No Source filter here: manuals are merged/split on Orders/MTD before
   // completion, so Payroll rows are effectively form-sourced.
@@ -1295,9 +1307,38 @@ export default function PayrollPage() {
     ]
   );
 
+  const sendStatementProducerNames = useMemo(
+    () =>
+      sendProducerNames.filter(
+        (name) =>
+          getProducerFacingPayrollRows(
+            sendPayrollRecords,
+            allOrders,
+            producers,
+            name,
+            sendPayPeriodBounds,
+            sendPayrollAddons,
+            orderById,
+            { form, cheerSubtype, danceSubtype }
+          ).length > 0
+      ),
+    [
+      sendProducerNames,
+      sendPayrollRecords,
+      allOrders,
+      producers,
+      sendPayPeriodBounds,
+      sendPayrollAddons,
+      orderById,
+      form,
+      cheerSubtype,
+      danceSubtype,
+    ]
+  );
+
   const sendEditorProducers = useMemo(
-    () => resolvePayrollSendEditorProducers(producers, sendProducerNames),
-    [producers, sendProducerNames]
+    () => resolvePayrollSendEditorProducers(producers, sendStatementProducerNames),
+    [producers, sendStatementProducerNames]
   );
 
   const exportCategoryLabel = useMemo(
@@ -2009,7 +2050,7 @@ export default function PayrollPage() {
               {
                 value: "send",
                 label: "Send Statements",
-                count: sendProducerNames.length || undefined,
+                count: sendStatementProducerNames.length || undefined,
               },
             ]}
           />
@@ -2217,7 +2258,7 @@ export default function PayrollPage() {
         ) : (
           <PayrollSendPanel
             categoryLabel={exportCategoryLabel}
-            producerNames={sendProducerNames}
+            producerNames={sendStatementProducerNames}
             categoryProducers={categoryFilteredProducers}
             selectedSendEditor={selectedSendEditor}
             payPeriod={sendPayPeriod}
@@ -2225,6 +2266,9 @@ export default function PayrollPage() {
             allOrders={allOrders}
             producers={producers}
             payrollAddons={sendPayrollAddons}
+            form={form}
+            cheerSubtype={cheerSubtype}
+            danceSubtype={danceSubtype}
           />
         )}
       </div>

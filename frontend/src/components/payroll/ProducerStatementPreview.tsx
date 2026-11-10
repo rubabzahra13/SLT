@@ -25,6 +25,7 @@ import {
   producerStatementColumnsForRows,
   triggerCsvDownload,
   type ProducerFacingPayrollRow,
+  type ScheduleSendFormScope,
 } from "@/lib/export-csv";
 import { findProducerByAssignmentKey } from "@/lib/editor-assignment";
 
@@ -46,6 +47,7 @@ type ProducerStatementPreviewProps = {
   canSendToProducer?: boolean;
   isSending?: boolean;
   sendDisabledReason?: string;
+  formScope?: ScheduleSendFormScope;
 };
 
 
@@ -166,6 +168,7 @@ export function ProducerStatementPreview({
   canSendToProducer = false,
   isSending = false,
   sendDisabledReason,
+  formScope,
 }: ProducerStatementPreviewProps) {
   const [activeTabProducer, setActiveTabProducer] = useState("");
   const [collapsedProducers, setCollapsedProducers] = useState<Set<string>>(
@@ -180,10 +183,15 @@ export function ProducerStatementPreview({
     };
   }, [selectedPeriod]);
 
-  const orderById = useMemo(
-    () => new Map(allOrders.map((order) => [order.id, order])),
-    [allOrders]
-  );
+  const orderById = useMemo(() => {
+    const map = new Map<string, Order>();
+    for (const order of allOrders) {
+      if (order.id) map.set(order.id, order);
+      if (order.uuid) map.set(order.uuid, order);
+      if (order.legacyId) map.set(order.legacyId, order);
+    }
+    return map;
+  }, [allOrders]);
 
   const activeProducerSummaries = useMemo(() => {
     const dateMatching = payrollRecords.filter((rec) => {
@@ -265,7 +273,8 @@ export function ProducerStatementPreview({
           name,
           filterPeriod,
           payrollAddons,
-          orderById
+          orderById,
+          formScope
         );
         const voiceoverCount = rows.filter(isVoiceoverStatementRow).length;
         const total = rows.reduce((sum, row) => sum + row.rawTotalPayout, 0);
@@ -286,6 +295,7 @@ export function ProducerStatementPreview({
     allowedProducerNames,
     payrollAddons,
     orderById,
+    formScope,
   ]);
 
   const activeProducersInPeriod = useMemo(
@@ -342,7 +352,8 @@ export function ProducerStatementPreview({
       currentProducerToView,
       filterPeriod,
       payrollAddons,
-      orderById
+      orderById,
+      formScope
     );
   }, [
     activeProducerSummaries,
@@ -353,6 +364,7 @@ export function ProducerStatementPreview({
     filterPeriod,
     payrollAddons,
     orderById,
+    formScope,
   ]);
 
   const currentProducerTotal = useMemo(() => {
@@ -381,7 +393,8 @@ export function ProducerStatementPreview({
       producers,
       currentProducerToView,
       filterPeriod,
-      payrollAddons
+      payrollAddons,
+      formScope
     );
     triggerCsvDownload(
       `Payroll_Producer_Statement_${currentProducerToView.replace(/\s+/g, "_")}_${todayIso()}.csv`,
@@ -406,7 +419,8 @@ export function ProducerStatementPreview({
         producers,
         targetName,
         filterPeriod,
-        payrollAddons
+        payrollAddons,
+        formScope
       );
       triggerCsvDownload(
         `Payroll_Producer_Statement_${targetName.replace(/\s+/g, "_")}_${todayIso()}.csv`,

@@ -171,7 +171,7 @@ describe("Producer Schedule Strict Eligibility Rules", () => {
     assert.equal(isEligibleProducerScheduleRecord(missingEnd), false);
   });
 
-  it("displays Assigned / Ongoing / Outsourced statuses in preview and CSV export", () => {
+  it("displays Scheduled / Ongoing / Outsourced statuses in preview and CSV export", () => {
     const mixedRecords: MTDRecord[] = [
       createMockRecord({
         id: "rec-1",
@@ -232,12 +232,81 @@ describe("Producer Schedule Strict Eligibility Rules", () => {
     const byName = Object.fromEntries(rowsCasey.map((r) => [r.programName, r.status]));
     assert.equal(byName["Casey Standard Mix"], "Ongoing");
     assert.equal(byName["Casey Outsourced Mix"], "Outsourced");
-    assert.equal(byName["Casey Orders Assigned"], "Assigned");
+    assert.equal(byName["Casey Orders Assigned"], "Scheduled");
 
     const csvCasey = generateScheduleCsv(mixedRecords, mockOrders, mockProducers, "Casey Marlow");
     assert.ok(csvCasey.includes("Ongoing"));
     assert.ok(csvCasey.includes("Outsourced"));
-    assert.ok(csvCasey.includes("Assigned"));
+    assert.ok(csvCasey.includes("Scheduled"));
     assert.equal(csvCasey.includes("Casey Payroll Mix"), false);
+  });
+
+  it("includes Orders-table rows with a producer and both mix dates as Scheduled", () => {
+    const orders = [
+      {
+        id: "ord-scheduled",
+        formType: "school-all-star-cheer",
+        cheerFormSubtype: "all-star-cheer",
+        programName: "Orders Table Program",
+        contactName: "Coach Orders",
+        price: 500,
+        status: "active",
+        needsAttention: false,
+        createdAt: "2026-09-01T00:00:00Z",
+        assignedProducer: "Casey Marlow",
+        mixStartDate: "2026-09-12",
+        mixEndDate: "2026-09-15",
+      },
+      {
+        id: "ord-open",
+        formType: "school-all-star-cheer",
+        cheerFormSubtype: "all-star-cheer",
+        programName: "No End Date Program",
+        contactName: "Coach Open",
+        price: 400,
+        status: "active",
+        needsAttention: false,
+        createdAt: "2026-09-01T00:00:00Z",
+        assignedProducer: "Casey Marlow",
+        mixStartDate: "2026-09-12",
+      },
+      {
+        id: "ord-paid",
+        formType: "school-all-star-cheer",
+        cheerFormSubtype: "all-star-cheer",
+        programName: "Completed Order Program",
+        contactName: "Coach Paid",
+        price: 600,
+        status: "completed",
+        needsAttention: false,
+        createdAt: "2026-09-01T00:00:00Z",
+        assignedProducer: "Casey Marlow",
+        mixStartDate: "2026-09-12",
+        mixEndDate: "2026-09-15",
+      },
+    ] as Order[];
+    const payrollRecord = createMockRecord({
+      id: "mtd-paid",
+      orderId: "ord-paid",
+      programName: "Completed Order Program",
+      assignedProducer: "Casey Marlow",
+      status: "completed",
+      inPayroll: true,
+      inMTD: false,
+      mixStartDate: "2026-09-12",
+      mixEndDate: "2026-09-15",
+    });
+
+    const rows = getProducerFacingScheduleRows(
+      [payrollRecord],
+      orders,
+      mockProducers,
+      "Casey Marlow"
+    );
+    assert.deepStrictEqual(
+      rows.map((row) => row.programName),
+      ["Orders Table Program"]
+    );
+    assert.equal(rows[0]?.status, "Scheduled");
   });
 });

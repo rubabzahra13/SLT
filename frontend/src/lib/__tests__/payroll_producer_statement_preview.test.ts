@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import type { MTDRecord, Order, Producer } from "@/types";
+import type { MTDRecord, Order, PayrollAddon, Producer } from "@/types";
 import {
   PRODUCER_STATEMENT_COLUMNS,
   getProducerFacingPayrollRows,
@@ -239,5 +239,169 @@ describe("Payroll Producer Statement Preview & Single Source of Truth Tests", ()
     assert.equal(caseyCsv.includes(",1,"), false, "Casey CSV must not dump raw 1");
     assert.ok(mattCsv.includes("53%"), "Matt CSV must include 53%");
     assert.equal(mattCsv.includes("0.53"), false, "Matt CSV must not dump 0.53");
+  });
+
+  it("keeps only the selected cheer subcategory in statement rows and CSV", () => {
+    const orders = [
+      {
+        id: "ord-asc",
+        formType: "school-all-star-cheer",
+        cheerFormSubtype: "all-star-cheer",
+        programName: "Alpha Cheer",
+        price: 700,
+        status: "completed",
+        needsAttention: false,
+        createdAt: "2026-09-01T00:00:00Z",
+      },
+      {
+        id: "ord-youth",
+        formType: "school-all-star-cheer",
+        cheerFormSubtype: "youth-rec-cheer",
+        programName: "Youth Rec Program",
+        price: 400,
+        status: "completed",
+        needsAttention: false,
+        createdAt: "2026-09-01T00:00:00Z",
+      },
+      {
+        id: "ord-school",
+        formType: "school-all-star-cheer",
+        cheerFormSubtype: "school-cheer-viroc-no",
+        programName: "School Cheer Program",
+        price: 500,
+        status: "completed",
+        needsAttention: false,
+        createdAt: "2026-09-01T00:00:00Z",
+      },
+    ] as Order[];
+    const records = [
+      {
+        id: "mtd-asc",
+        orderId: "ord-asc",
+        programName: "Alpha Cheer",
+        package: "GOLD 1:30",
+        assignedProducer: "Casey Marlow",
+        status: "completed",
+        inPayroll: true,
+        completedAt: "2026-09-12T12:00:00Z",
+        formType: "school-all-star-cheer",
+        cheerFormSubtype: "all-star-cheer",
+      },
+      {
+        id: "mtd-youth",
+        orderId: "ord-youth",
+        programName: "Youth Rec Program",
+        package: "GOLD 1:30",
+        assignedProducer: "Casey Marlow",
+        status: "completed",
+        inPayroll: true,
+        completedAt: "2026-09-12T12:00:00Z",
+        formType: "school-all-star-cheer",
+        cheerFormSubtype: "youth-rec-cheer",
+      },
+      {
+        id: "mtd-school",
+        orderId: "ord-school",
+        programName: "School Cheer Program",
+        package: "GOLD 1:30",
+        assignedProducer: "Casey Marlow",
+        status: "completed",
+        inPayroll: true,
+        completedAt: "2026-09-12T12:00:00Z",
+        formType: "school-all-star-cheer",
+        cheerFormSubtype: "school-cheer-viroc-no",
+      },
+    ] as MTDRecord[];
+    const addons = [
+      {
+        id: "vo-asc",
+        addonType: "voiceover",
+        producerId: "p1",
+        producerInitials: "CM",
+        amount: 40,
+        formType: "school-all-star-cheer",
+        cheerFormSubtype: "all-star-cheer",
+        programName: "Alpha Cheer",
+        mtdId: "mtd-asc",
+        category: "Cheer",
+        createdAt: "2026-09-12T12:00:00Z",
+      },
+      {
+        id: "vo-school",
+        addonType: "voiceover",
+        producerId: "p1",
+        producerInitials: "CM",
+        amount: 20,
+        formType: "school-all-star-cheer",
+        cheerFormSubtype: "school-cheer-viroc-no",
+        programName: "School Cheer Program",
+        mtdId: "mtd-school",
+        category: "Cheer",
+        createdAt: "2026-09-12T12:00:00Z",
+      },
+    ] as PayrollAddon[];
+    const schoolCheer = {
+      form: "school-all-star-cheer" as const,
+      cheerSubtype: "school-cheer-viroc-no" as const,
+      danceSubtype: "all" as const,
+    };
+
+    const rows = getProducerFacingPayrollRows(
+      records,
+      orders,
+      mockProducers,
+      "Casey Marlow",
+      undefined,
+      addons,
+      undefined,
+      schoolCheer
+    );
+    assert.deepStrictEqual(
+      rows.map((row) => row.programName),
+      ["School Cheer Program", "School Cheer Program"]
+    );
+    assert.ok(rows.every((row) => String(row.subtype).includes("school-cheer-viroc-no")));
+    assert.equal(
+      rows.some((row) => row.programName === "Alpha Cheer"),
+      false
+    );
+    assert.equal(
+      rows.some((row) => row.programName === "Youth Rec Program"),
+      false
+    );
+
+    const csv = generateProducerFacingPayrollCsv(
+      records,
+      orders,
+      mockProducers,
+      "Casey Marlow",
+      undefined,
+      addons,
+      schoolCheer
+    );
+    assert.ok(csv.includes("School Cheer Program"));
+    assert.equal(csv.includes("Alpha Cheer"), false);
+    assert.equal(csv.includes("Youth Rec Program"), false);
+    assert.equal(csv.includes("all-star-cheer"), false);
+    assert.equal(csv.includes("youth-rec-cheer"), false);
+
+    const allCheer = getProducerFacingPayrollRows(
+      records,
+      orders,
+      mockProducers,
+      "Casey Marlow",
+      undefined,
+      addons,
+      undefined,
+      {
+        form: "school-all-star-cheer",
+        cheerSubtype: "all",
+        danceSubtype: "all",
+      }
+    );
+    assert.equal(allCheer.filter((row) => row.voiceoverAddon === "None").length, 3);
+    assert.ok(allCheer.some((row) => row.programName === "Alpha Cheer"));
+    assert.ok(allCheer.some((row) => row.programName === "Youth Rec Program"));
+    assert.ok(allCheer.some((row) => row.programName === "School Cheer Program"));
   });
 });

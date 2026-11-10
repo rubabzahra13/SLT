@@ -43,7 +43,11 @@ import {
   producerMatchesScheduleFormFilter,
   scheduleFormFilterLabel,
 } from "@/lib/schedule-filters";
-import { DEFAULT_CHEER_SUBTYPE, DEFAULT_DANCE_SUBTYPE } from "@/lib/mtd-filters";
+import {
+  DEFAULT_CHEER_SUBTYPE,
+  DEFAULT_DANCE_SUBTYPE,
+  matchesFormFilter,
+} from "@/lib/mtd-filters";
 import type {
   CheerFormSubtypeFilter,
   DanceFormSubtypeFilter,
@@ -51,12 +55,26 @@ import type {
   OrderFormType,
 } from "@/types";
 
+function orderHasScheduleAssignment(order: Order): boolean {
+  return Boolean(
+    order.assignedProducer?.trim() &&
+      order.mixStartDate?.trim() &&
+      order.mixEndDate?.trim()
+  );
+}
+
 function mergeOrdersForSchedule(...lists: Order[][]): Order[] {
   const byId = new Map<string, Order>();
   for (const list of lists) {
     for (const order of list) {
-      if (!order?.id || byId.has(order.id)) continue;
-      byId.set(order.id, order);
+      if (!order?.id) continue;
+      const prev = byId.get(order.id);
+      if (
+        !prev ||
+        (!orderHasScheduleAssignment(prev) && orderHasScheduleAssignment(order))
+      ) {
+        byId.set(order.id, order);
+      }
     }
   }
   return [...byId.values()];
@@ -112,9 +130,10 @@ function SchedulePageContent() {
   );
   // Send Schedule needs real Assigned Orders + live MTD (program/invoice).
   // View Schedule stays on pulse stubs for egress.
-  const { bookingRecords: sendHydratedBookings } = useOpenAssignedBookings(
-    pageTab === "send"
-  );
+  const {
+    bookingRecords: sendHydratedBookings,
+    conflictOrders: sendAssignedOrders,
+  } = useOpenAssignedBookings(pageTab === "send", { alwaysFetch: true });
 
   // View Schedule: slim pulse open_bookings (same as Dashboard capacity) —
   // never pull full GET /api/mtd?scope=live on every Schedule visit.
@@ -305,12 +324,24 @@ function SchedulePageContent() {
     [sendView, anchorDate]
   );
 
+  const sendOrderById = useMemo(() => {
+    const map = new Map<string, Order>();
+    for (const order of allOrders) {
+      if (order.id) map.set(order.id, order);
+      if (order.uuid) map.set(order.uuid, order);
+      if (order.legacyId) map.set(order.legacyId, order);
+    }
+    return map;
+  }, [allOrders]);
+
   const sendProducerNames = useMemo(() => {
     const allowed = new Set(
       categoryFilteredProducers.map((p) => p.name.toUpperCase())
     );
     const eligibleRecords = scheduleBookings.filter(
-      isEligibleProducerScheduleRecord
+      (rec) =>
+        isEligibleProducerScheduleRecord(rec) &&
+        matchesFormFilter(rec, sendOrderById, form, cheerSubtype, danceSubtype)
     );
     const set = new Set<string>();
     for (const r of eligibleRecords) {
@@ -339,7 +370,22 @@ function SchedulePageContent() {
     producers,
     categoryFilteredProducers,
     sendFilterPeriod,
+    sendOrderById,
+    form,
+    cheerSubtype,
+    danceSubtype,
   ]);
+
+  const sendOrders = useMemo(
+    () =>
+      mergeOrdersForSchedule(
+        allOrders,
+        activeOrders,
+        sendAssignedOrders,
+        collectOrdersBoardCachedOrders()
+      ),
+    [allOrders, activeOrders, sendAssignedOrders]
+  );
 
   const exportCategoryLabel = useMemo(
     () => scheduleFormFilterLabel(form, cheerSubtype, danceSubtype),
@@ -458,10 +504,13 @@ function SchedulePageContent() {
             categoryProducers={categoryFilteredProducers}
             selectedSendEditor={selectedSendEditor}
             mtdRecords={mtdRecords}
-            allOrders={allOrders}
+            allOrders={sendOrders}
             producers={producers}
             filterPeriod={sendFilterPeriod}
             sendView={sendView}
+            form={form}
+            cheerSubtype={cheerSubtype}
+            danceSubtype={danceSubtype}
           />
         )}
       </div>
