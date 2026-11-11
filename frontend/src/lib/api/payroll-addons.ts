@@ -22,6 +22,8 @@ export interface BackendPayrollAddon {
   rate_source: "predefined" | "manual";
   producer_id?: string | null;
   producer_initials?: string | null;
+  original_producer_id?: string | null;
+  original_producer_initials?: string | null;
   notes?: string | null;
   created_at: string;
 }
@@ -59,6 +61,8 @@ function normalizePayrollAddon(raw: BackendPayrollAddon): PayrollAddon {
     rateSource: raw.rate_source,
     producerId: raw.producer_id ?? null,
     producerInitials: raw.producer_initials ?? null,
+    originalProducerId: raw.original_producer_id ?? null,
+    originalProducerInitials: raw.original_producer_initials ?? null,
     notes: raw.notes ?? null,
     createdAt: raw.created_at,
   };
@@ -167,6 +171,8 @@ export interface CreatePayrollAddonPayload {
   rateSource: "predefined" | "manual";
   producerId?: string | null;
   producerInitials?: string | null;
+  originalProducerId?: string | null;
+  originalProducerInitials?: string | null;
   notes?: string | null;
 }
 
@@ -193,6 +199,8 @@ export async function createPayrollAddonApi(
     rate_source: payload.rateSource,
     producer_id: payload.producerId ?? null,
     producer_initials: payload.producerInitials ?? null,
+    original_producer_id: payload.originalProducerId ?? null,
+    original_producer_initials: payload.originalProducerInitials ?? null,
     notes: payload.notes ?? null,
   };
   const data = await apiClient.post<BackendPayrollAddon>(
@@ -215,6 +223,8 @@ export interface UpdatePayrollAddonPayload {
   danceFormSubtype?: string | null;
   producerId?: string | null;
   producerInitials?: string | null;
+  originalProducerId?: string | null;
+  originalProducerInitials?: string | null;
   notes?: string | null;
 }
 
@@ -249,6 +259,14 @@ export function mergePayrollAddonPatch(
       patch.producerInitials !== undefined
         ? patch.producerInitials
         : addon.producerInitials,
+    originalProducerId:
+      patch.originalProducerId !== undefined
+        ? patch.originalProducerId
+        : addon.originalProducerId,
+    originalProducerInitials:
+      patch.originalProducerInitials !== undefined
+        ? patch.originalProducerInitials
+        : addon.originalProducerInitials,
     notes: patch.notes !== undefined ? patch.notes : addon.notes,
   };
 }
@@ -278,6 +296,12 @@ export async function updatePayrollAddonApi(
   if (payload.producerId !== undefined) body.producer_id = payload.producerId;
   if (payload.producerInitials !== undefined) {
     body.producer_initials = payload.producerInitials;
+  }
+  if (payload.originalProducerId !== undefined) {
+    body.original_producer_id = payload.originalProducerId;
+  }
+  if (payload.originalProducerInitials !== undefined) {
+    body.original_producer_initials = payload.originalProducerInitials;
   }
   if (payload.notes !== undefined) body.notes = payload.notes;
 

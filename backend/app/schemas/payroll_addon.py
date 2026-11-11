@@ -24,6 +24,8 @@ class PayrollAddonOut(BaseModel):
     rate_source: str
     producer_id: Optional[Union[UUID, str]] = None
     producer_initials: Optional[str] = None
+    original_producer_id: Optional[Union[UUID, str]] = None
+    original_producer_initials: Optional[str] = None
     notes: Optional[str] = None
     created_at: datetime
 
@@ -50,6 +52,8 @@ class PayrollAddonCreate(BaseModel):
     rate_source: str = Field(..., pattern="^(predefined|manual)$")
     producer_id: Optional[Union[UUID, str]] = None
     producer_initials: Optional[str] = None
+    original_producer_id: Optional[Union[UUID, str]] = None
+    original_producer_initials: Optional[str] = None
     notes: Optional[str] = None
 
     @model_validator(mode="after")
@@ -92,6 +96,8 @@ class PayrollAddonUpdate(BaseModel):
     dance_form_subtype: Optional[str] = None
     producer_id: Optional[Union[UUID, str]] = None
     producer_initials: Optional[str] = None
+    original_producer_id: Optional[Union[UUID, str]] = None
+    original_producer_initials: Optional[str] = None
     notes: Optional[str] = None
 
     @model_validator(mode="after")

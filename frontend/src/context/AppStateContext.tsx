@@ -5320,6 +5320,8 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         rateSource: payload.rateSource,
         producerId: payload.producerId ?? null,
         producerInitials: payload.producerInitials ?? null,
+        originalProducerId: payload.originalProducerId ?? null,
+        originalProducerInitials: payload.originalProducerInitials ?? null,
         notes: payload.notes ?? null,
         createdAt: new Date().toISOString(),
       };

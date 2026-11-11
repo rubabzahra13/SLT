@@ -62,6 +62,15 @@ class PayrollAddon(Base):
     )
     producer_initials = Column(String, nullable=True)
 
+    # Whose mix the voiceover was made for. Informational only — never paid.
+    # Null on rush/misc rows and on voiceovers created before this column.
+    original_producer_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("producers.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    original_producer_initials = Column(String, nullable=True)
+
     notes = Column(Text, nullable=True)
 
     created_at = Column(
@@ -69,5 +78,8 @@ class PayrollAddon(Base):
     )
 
     producer = relationship("Producer", foreign_keys=[producer_id])
+    original_producer = relationship(
+        "Producer", foreign_keys=[original_producer_id]
+    )
     order = relationship("Order", foreign_keys=[order_id])
 

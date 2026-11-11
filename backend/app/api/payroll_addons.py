@@ -225,10 +225,14 @@ def create_payroll_addon(
     # Resolve IDs gracefully for legacy string IDs (e.g. "prod-3", "ord-101").
     # Drop order/mtd FKs that are missing in DB so stale client cache can't 500.
     resolved_producer_id = _resolve_producer_id(data.get("producer_id"), db)
+    resolved_original_producer_id = _resolve_producer_id(
+        data.get("original_producer_id"), db
+    )
     resolved_order_id = _resolve_order_id(raw_order_id, db)
     resolved_mtd_id = _resolve_mtd_id(raw_mtd_id, db)
 
     data["producer_id"] = resolved_producer_id
+    data["original_producer_id"] = resolved_original_producer_id
     data["order_id"] = resolved_order_id
     data["mtd_id"] = resolved_mtd_id
 
@@ -268,6 +272,12 @@ def update_payroll_addon(
         addon.producer_id = _resolve_producer_id(patch.get("producer_id"), db)
     if "producer_initials" in patch:
         addon.producer_initials = patch.get("producer_initials")
+    if "original_producer_id" in patch:
+        addon.original_producer_id = _resolve_producer_id(
+            patch.get("original_producer_id"), db
+        )
+    if "original_producer_initials" in patch:
+        addon.original_producer_initials = patch.get("original_producer_initials")
     if "notes" in patch:
         addon.notes = patch.get("notes")
     if "form_type" in patch:

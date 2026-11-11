@@ -1129,9 +1129,15 @@ export type PayrollAddon = {
   compensationOverridden?: boolean;
   /** "predefined" | "manual" */
   rateSource: "predefined" | "manual";
-  /** Required: which producer this payout goes to */
+  /** Required: which producer this payout goes to (voiceover producer). */
   producerId?: string | null;
   producerInitials?: string | null;
+  /**
+   * Whose original mix the voiceover was made for. Informational only.
+   * Never used for payment, statements, or grouping. Null on older rows.
+   */
+  originalProducerId?: string | null;
+  originalProducerInitials?: string | null;
   notes?: string | null;
   createdAt: string;
 };

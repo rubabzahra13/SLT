@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Check, ChevronDown, Trash2 } from "lucide-react";
+import { Check, Trash2 } from "lucide-react";
 import { PayrollRushFeeControls } from "@/components/payroll/PayrollRushFeeControls";
 import { DeleteForeverConfirmModal } from "@/components/payroll/DeleteForeverConfirmModal";
 import { MarkPaidConfirmModal } from "@/components/payroll/MarkPaidConfirmModal";
@@ -11,6 +11,7 @@ import {
   PayoutCalculationModal,
 } from "@/components/payroll/PayoutCalculationModal";
 import { MiscAdjustmentModal } from "@/components/payroll/MiscAdjustmentModal";
+import { ProducerGroupSection } from "@/components/payroll/ProducerGroupSection";
 import { VoiceoversPanel } from "@/components/payroll/VoiceoversPanel";
 import type { CreatePayrollAddonPayload } from "@/lib/api/payroll-addons";
 import {
@@ -2449,84 +2450,44 @@ export default function PayrollPage() {
               </div>
             ) : (
               payrollProducerGroups.map((group, index) => {
-                const isCollapsed = collapsedProducerGroups.has(group.key);
                 const mixLabel = `${group.rows.length} mix${
                   group.rows.length === 1 ? "" : "es"
                 }`;
+                const summary =
+                  group.key === "__unassigned__"
+                    ? mixLabel
+                    : `${mixLabel} · ${formatPrice(group.total)}`;
                 return (
-                  <section
+                  <ProducerGroupSection
                     key={group.key}
-                    className="overflow-hidden rounded-2xl border border-brand-line/70 bg-brand-surface/90 shadow-sm"
+                    index={index}
+                    name={group.name}
+                    producer={group.producer}
+                    initials={
+                      group.key === "__unassigned__"
+                        ? "?"
+                        : group.producer?.initials || group.key
+                    }
+                    summary={summary}
+                    collapsed={collapsedProducerGroups.has(group.key)}
+                    onToggle={() => toggleProducerGroupCollapsed(group.key)}
                   >
-                    <button
-                      type="button"
-                      onClick={() => toggleProducerGroupCollapsed(group.key)}
-                      aria-expanded={!isCollapsed}
-                      className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left transition hover:bg-brand-bg/50"
-                    >
-                      <div className="flex min-w-0 items-center gap-3">
-                        <span
-                          className={clsx(
-                            "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[11px] font-bold tabular-nums tracking-tight ring-1 ring-inset transition",
-                            !isCollapsed
-                              ? "bg-brand-orange-soft/55 text-brand-orange ring-brand-orange/30"
-                              : "bg-brand-bg/90 text-brand-ink-tertiary ring-brand-line/55"
-                          )}
-                          aria-hidden
-                        >
-                          {String(index + 1).padStart(2, "0")}
-                        </span>
-                        <Avatar
-                          producer={group.producer}
-                          name={group.name}
-                          initials={
-                            group.key === "__unassigned__"
-                              ? "?"
-                              : group.producer?.initials || group.key
-                          }
-                          size="md"
-                        />
-                        <div className="min-w-0">
-                          <h3 className="truncate text-[15px] font-bold text-brand-ink">
-                            {group.name}
-                          </h3>
-                          <p className="text-[12px] text-brand-ink-secondary">
-                            {mixLabel}
-                            {group.key !== "__unassigned__"
-                              ? ` · ${formatPrice(group.total)}`
-                              : null}
-                          </p>
-                        </div>
-                      </div>
-                      <ChevronDown
-                        className={clsx(
-                          "h-4 w-4 shrink-0 text-brand-ink-tertiary transition-transform duration-200",
-                          !isCollapsed && "rotate-180"
-                        )}
-                        strokeWidth={2}
-                        aria-hidden
+                    <div className="dashboard-panel dashboard-panel-framed overflow-hidden rounded-2xl">
+                      <DataTable
+                        key={`view-${group.key}`}
+                        columns={columns}
+                        data={group.rows}
+                        rowKey={(rec) => rec.id}
+                        emptyMessage={emptyMessage}
+                        pageSize={15}
+                        resetKey={`view-${group.key}-${searchQuery}-${boardProducerFilter}`}
+                        embedded
+                        showScrollIndicator={false}
+                        highlightRowKey={highlightId}
+                        onClearHighlight={clearHighlight}
                       />
-                    </button>
-                    {!isCollapsed ? (
-                      <div className="border-t border-brand-line/60 px-3 pb-3 pt-3">
-                        <div className="dashboard-panel dashboard-panel-framed overflow-hidden rounded-2xl">
-                          <DataTable
-                            key={`view-${group.key}`}
-                            columns={columns}
-                            data={group.rows}
-                            rowKey={(rec) => rec.id}
-                            emptyMessage={emptyMessage}
-                            pageSize={15}
-                            resetKey={`view-${group.key}-${searchQuery}-${boardProducerFilter}`}
-                            embedded
-                            showScrollIndicator={false}
-                            highlightRowKey={highlightId}
-                            onClearHighlight={clearHighlight}
-                          />
-                        </div>
-                      </div>
-                    ) : null}
-                  </section>
+                    </div>
+                  </ProducerGroupSection>
                 );
               })
             )}

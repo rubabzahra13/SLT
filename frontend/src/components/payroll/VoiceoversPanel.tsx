@@ -2,22 +2,19 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import {
-  ChevronLeft,
-  ChevronRight,
-  Loader2,
-  Mic,
-  Pencil,
-  Plus,
-  Trash2,
-  X,
-} from "lucide-react";
+import { Loader2, Mic, Pencil, Plus, Trash2, X } from "lucide-react";
 import { OrderFormFilters } from "@/components/orders/OrderFormFilters";
+import { ProducerGroupSection } from "@/components/payroll/ProducerGroupSection";
 import { Avatar } from "@/components/ui/Avatar";
+import { DataTable, type Column } from "@/components/ui/DataTable";
 import { SoftSelect, type SoftSelectOption } from "@/components/ui/SoftSelect";
 import { formatPrice, titleCase } from "@/lib/data";
 import { formatDisplayDate } from "@/lib/dates";
-import { findProducerByAssignmentKey } from "@/lib/editor-assignment";
+import {
+  findProducerByAssignmentKey,
+  producerDisplayName,
+} from "@/lib/editor-assignment";
+import { groupVoiceoversByProducer } from "@/lib/voiceover-groups";
 import {
   countMTDByCheerSubtype,
   countMTDByDanceSubtype,
@@ -94,7 +91,9 @@ export function VoiceoversPanel({
   const [editing, setEditing] = useState<PayrollAddon | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<PayrollAddon | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [page, setPage] = useState(0);
+  const [collapsedGroups, setCollapsedGroups] = useState(
+    () => new Set<string>()
+  );
 
   async function confirmDelete() {
     if (!deleteTarget || deletingId) return;
@@ -138,30 +137,19 @@ export function VoiceoversPanel({
     orderById,
   ]);
 
-  const totalPages = Math.max(
-    1,
-    Math.ceil(voiceovers.length / VOICEOVER_PAGE_SIZE)
+  const voiceoverGroups = useMemo(
+    () => groupVoiceoversByProducer(voiceovers, producers),
+    [voiceovers, producers]
   );
-  const safePage = Math.min(page, totalPages - 1);
-  const pageStart = safePage * VOICEOVER_PAGE_SIZE;
-  const pageVoiceovers = voiceovers.slice(
-    pageStart,
-    pageStart + VOICEOVER_PAGE_SIZE
-  );
-  const rangeEnd = Math.min(
-    voiceovers.length,
-    pageStart + pageVoiceovers.length
-  );
-  const showPager = voiceovers.length > VOICEOVER_PAGE_SIZE;
 
-  // Reset to first page when form filters change or list shrinks past current page.
-  useEffect(() => {
-    setPage(0);
-  }, [pageForm, pageCheerSubtype, pageDanceSubtype]);
-
-  useEffect(() => {
-    if (page > totalPages - 1) setPage(Math.max(0, totalPages - 1));
-  }, [page, totalPages]);
+  function toggleGroup(key: string) {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
 
   function producerFor(addon: PayrollAddon): Producer | null {
     if (addon.producerId) {
@@ -173,9 +161,163 @@ export function VoiceoversPanel({
     return null;
   }
 
+  function originalProducerFor(addon: PayrollAddon): Producer | null {
+    if (addon.originalProducerId) {
+      return producers.find((p) => p.id === addon.originalProducerId) ?? null;
+    }
+    if (addon.originalProducerInitials) {
+      return (
+        findProducerByAssignmentKey(addon.originalProducerInitials, producers) ??
+        null
+      );
+    }
+    return null;
+  }
+
+  const columns: Column<PayrollAddon>[] = useMemo(() => {
+    const cols: Column<PayrollAddon>[] = [
+      {
+        key: "producer",
+        header: "VO producer",
+        render: (addon) => {
+          const producer = producerFor(addon);
+          return (
+            <div className="flex items-center gap-2">
+              <Avatar
+                producer={producer ?? undefined}
+                initials={addon.producerInitials ?? "?"}
+                size="xs"
+              />
+              <div className="min-w-0">
+                <p className="truncate text-[13px] font-medium text-brand-ink">
+                  {producer?.name || addon.producerInitials || "Unknown"}
+                </p>
+                {producer?.initials ? (
+                  <p className="text-[11px] text-brand-ink-tertiary">
+                    {producer.initials}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        key: "originalProducer",
+        header: "Original producer",
+        render: (addon) => {
+          const producer = originalProducerFor(addon);
+          const name =
+            producer?.name ||
+            producerDisplayName(
+              producers,
+              addon.originalProducerId,
+              addon.originalProducerInitials
+            );
+          if (!name) {
+            return (
+              <span className="text-[13px] text-brand-ink-tertiary">—</span>
+            );
+          }
+          return (
+            <div className="min-w-0">
+              <p className="truncate text-[13px] font-medium text-brand-ink">
+                {name}
+              </p>
+              {producer?.initials ? (
+                <p className="text-[11px] text-brand-ink-tertiary">
+                  {producer.initials}
+                </p>
+              ) : null}
+            </div>
+          );
+        },
+      },
+      {
+        key: "program",
+        header: "School / program",
+        render: (addon) => (
+          <span className="block max-w-[200px] truncate text-[13px] text-brand-ink">
+            {titleCase(addon.programName)}
+          </span>
+        ),
+      },
+      {
+        key: "category",
+        header: "Category",
+        render: (addon) => (
+          <span className="text-[13px] text-brand-ink-secondary">
+            {addon.formType
+              ? scheduleFormFilterLabel(
+                  addon.formType as OrderFormType,
+                  (addon.cheerFormSubtype as CheerFormSubtypeFilter) || "all",
+                  (addon.danceFormSubtype as DanceFormSubtypeFilter) || "all"
+                )
+              : addon.category}
+          </span>
+        ),
+      },
+      {
+        key: "amount",
+        header: "Amount",
+        align: "right",
+        render: (addon) => (
+          <span className="text-[13px] font-semibold tabular-nums text-brand-ink">
+            {formatPrice(addon.amount)}
+          </span>
+        ),
+      },
+      {
+        key: "added",
+        header: "Added",
+        render: (addon) => (
+          <span className="text-[12px] tabular-nums text-brand-ink-secondary">
+            {addon.createdAt
+              ? formatDisplayDate(addon.createdAt.slice(0, 10))
+              : "-"}
+          </span>
+        ),
+      },
+    ];
+    if (!readOnly) {
+      cols.push({
+        key: "actions",
+        header: "Actions",
+        align: "center",
+        render: (addon) => (
+          <div className="flex items-center justify-center gap-1">
+            <button
+              type="button"
+              title="Edit"
+              disabled={Boolean(deletingId)}
+              onClick={() => {
+                setEditing(addon);
+                setFormOpen(true);
+              }}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-full text-brand-ink-tertiary transition hover:bg-brand-signature/10 hover:text-brand-signature disabled:pointer-events-none disabled:opacity-40"
+            >
+              <Pencil className="h-3.5 w-3.5" strokeWidth={2} />
+            </button>
+            <button
+              type="button"
+              title="Delete"
+              disabled={Boolean(deletingId)}
+              onClick={() => setDeleteTarget(addon)}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-full text-brand-ink-tertiary transition hover:bg-brand-danger/10 hover:text-brand-danger disabled:pointer-events-none disabled:opacity-40"
+            >
+              <Trash2 className="h-3.5 w-3.5" strokeWidth={2} />
+            </button>
+          </div>
+        ),
+      });
+    }
+    return cols;
+  }, [producers, readOnly, deletingId]);
+
   return (
-    <div className="dashboard-panel dashboard-panel-framed overflow-hidden">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-brand-line/50 px-4 py-3">
+    <div className="min-h-0 space-y-4">
+      <div className="dashboard-panel dashboard-panel-framed overflow-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
         <p className="text-[13px] font-semibold text-brand-ink">Voiceovers</p>
         {!readOnly ? (
           <button
@@ -191,9 +333,10 @@ export function VoiceoversPanel({
           </button>
         ) : null}
       </div>
+      </div>
 
       {voiceovers.length === 0 ? (
-        <div className="flex flex-col items-center justify-center gap-2 px-6 py-16 text-center">
+        <div className="dashboard-panel dashboard-panel-framed flex flex-col items-center justify-center gap-2 px-6 py-16 text-center">
           <Mic className="h-8 w-8 text-brand-ink-tertiary" strokeWidth={1.5} />
           <p className="text-[13px] font-medium text-brand-ink">No voiceovers yet</p>
           <p className="max-w-sm text-[12px] text-brand-ink-tertiary">
@@ -201,150 +344,44 @@ export function VoiceoversPanel({
           </p>
         </div>
       ) : (
-        <>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-max border-collapse text-left">
-              <thead>
-                <tr className="table-header-row">
-                  <th className="table-header-label table-header-cell px-4 py-2.5">
-                    VO producer
-                  </th>
-                  <th className="table-header-label table-header-cell px-4 py-2.5">
-                    School / program
-                  </th>
-                  <th className="table-header-label table-header-cell px-4 py-2.5">
-                    Category
-                  </th>
-                  <th className="table-header-label table-header-cell px-4 py-2.5 text-right">
-                    Amount
-                  </th>
-                  <th className="table-header-label table-header-cell px-4 py-2.5">
-                    Added
-                  </th>
-                  {!readOnly ? (
-                    <th className="table-header-label table-header-cell px-4 py-2.5 text-center">
-                      Actions
-                    </th>
-                  ) : null}
-                </tr>
-              </thead>
-              <tbody>
-                {pageVoiceovers.map((addon) => {
-                  const producer = producerFor(addon);
-                  return (
-                    <tr
-                      key={addon.id}
-                      className="border-b border-brand-line-strong last:border-b-0"
-                    >
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <Avatar
-                            producer={producer ?? undefined}
-                            initials={addon.producerInitials ?? "?"}
-                            size="xs"
-                          />
-                          <div className="min-w-0">
-                            <p className="truncate text-[13px] font-medium text-brand-ink">
-                              {producer?.name ||
-                                addon.producerInitials ||
-                                "Unknown"}
-                            </p>
-                            {producer?.initials ? (
-                              <p className="text-[11px] text-brand-ink-tertiary">
-                                {producer.initials}
-                              </p>
-                            ) : null}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="max-w-[200px] truncate px-4 py-3 text-[13px] text-brand-ink">
-                        {titleCase(addon.programName)}
-                      </td>
-                      <td className="px-4 py-3 text-[13px] text-brand-ink-secondary">
-                        {addon.formType
-                          ? scheduleFormFilterLabel(
-                              addon.formType as OrderFormType,
-                              (addon.cheerFormSubtype as CheerFormSubtypeFilter) ||
-                                "all",
-                              (addon.danceFormSubtype as DanceFormSubtypeFilter) ||
-                                "all"
-                            )
-                          : addon.category}
-                      </td>
-                      <td className="px-4 py-3 text-right text-[13px] font-semibold tabular-nums text-brand-ink">
-                        {formatPrice(addon.amount)}
-                      </td>
-                      <td className="px-4 py-3 text-[12px] tabular-nums text-brand-ink-secondary">
-                        {addon.createdAt
-                          ? formatDisplayDate(addon.createdAt.slice(0, 10))
-                          : "-"}
-                      </td>
-                      {!readOnly ? (
-                        <td className="px-4 py-3">
-                          <div className="flex items-center justify-center gap-1">
-                            <button
-                              type="button"
-                              title="Edit"
-                              disabled={Boolean(deletingId)}
-                              onClick={() => {
-                                setEditing(addon);
-                                setFormOpen(true);
-                              }}
-                              className="inline-flex h-7 w-7 items-center justify-center rounded-full text-brand-ink-tertiary transition hover:bg-brand-signature/10 hover:text-brand-signature disabled:pointer-events-none disabled:opacity-40"
-                            >
-                              <Pencil className="h-3.5 w-3.5" strokeWidth={2} />
-                            </button>
-                            <button
-                              type="button"
-                              title="Delete"
-                              disabled={Boolean(deletingId)}
-                              onClick={() => setDeleteTarget(addon)}
-                              className="inline-flex h-7 w-7 items-center justify-center rounded-full text-brand-ink-tertiary transition hover:bg-brand-danger/10 hover:text-brand-danger disabled:pointer-events-none disabled:opacity-40"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" strokeWidth={2} />
-                            </button>
-                          </div>
-                        </td>
-                      ) : null}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          {showPager ? (
-            <div className="flex items-center justify-between gap-3 border-t border-brand-line-strong bg-brand-elevated/50 px-4 py-3">
-              <p className="text-[12px] font-medium text-brand-ink-tertiary">
-                {pageStart + 1}-{rangeEnd} of {voiceovers.length}
-              </p>
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  disabled={safePage === 0}
-                  onClick={() => setPage((p) => Math.max(0, p - 1))}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-brand-ink-secondary transition hover:bg-brand-bg hover:text-brand-ink disabled:opacity-30"
-                  aria-label="Previous page"
-                >
-                  <ChevronLeft className="h-4 w-4" strokeWidth={2} />
-                </button>
-                <span className="min-w-[4.5rem] text-center text-[12px] font-semibold tabular-nums text-brand-ink-secondary">
-                  {safePage + 1} / {totalPages}
-                </span>
-                <button
-                  type="button"
-                  disabled={safePage >= totalPages - 1}
-                  onClick={() =>
-                    setPage((p) => Math.min(totalPages - 1, p + 1))
-                  }
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-brand-ink-secondary transition hover:bg-brand-bg hover:text-brand-ink disabled:opacity-30"
-                  aria-label="Next page"
-                >
-                  <ChevronRight className="h-4 w-4" strokeWidth={2} />
-                </button>
+        voiceoverGroups.map((group, index) => {
+          const countLabel = `${group.rows.length} voiceover${
+            group.rows.length === 1 ? "" : "s"
+          }`;
+          const summary =
+            group.key === "__unassigned__"
+              ? countLabel
+              : `${countLabel} · ${formatPrice(group.total)}`;
+          return (
+            <ProducerGroupSection
+              key={group.key}
+              index={index}
+              name={group.name}
+              producer={group.producer}
+              initials={
+                group.key === "__unassigned__"
+                  ? "?"
+                  : group.producer?.initials || group.key
+              }
+              summary={summary}
+              collapsed={collapsedGroups.has(group.key)}
+              onToggle={() => toggleGroup(group.key)}
+            >
+              <div className="dashboard-panel dashboard-panel-framed overflow-hidden rounded-2xl">
+                <DataTable
+                  columns={columns}
+                  data={group.rows}
+                  rowKey={(addon) => addon.id}
+                  emptyMessage="No voiceovers yet"
+                  pageSize={VOICEOVER_PAGE_SIZE}
+                  resetKey={`${group.key}-${pageForm}-${pageCheerSubtype}-${pageDanceSubtype}`}
+                  embedded
+                  showScrollIndicator={false}
+                />
               </div>
-            </div>
-          ) : null}
-        </>
+            </ProducerGroupSection>
+          );
+        })
       )}
 
       {/* Mount only while open — avoid allOrders program scan when closed. */}
@@ -454,6 +491,7 @@ function VoiceoverEntryModal({
   onSave,
 }: VoiceoverEntryModalProps) {
   const [producerId, setProducerId] = useState("");
+  const [originalProducerId, setOriginalProducerId] = useState("");
   const [programName, setProgramName] = useState("");
   const [form, setForm] = useState<OrderFormType>("school-all-star-cheer");
   const [cheerSubtype, setCheerSubtype] =
@@ -465,6 +503,7 @@ function VoiceoverEntryModal({
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [producerMenuOpen, setProducerMenuOpen] = useState(false);
+  const [originalProducerMenuOpen, setOriginalProducerMenuOpen] = useState(false);
   const [programMenuOpen, setProgramMenuOpen] = useState(false);
   /** Bumps when Orders/MTD board caches change so program names stay live. */
   const [cacheTick, setCacheTick] = useState(0);
@@ -536,24 +575,31 @@ function VoiceoverEntryModal({
     if (next !== "school-all-star-dance") setDanceSubtype("pom");
     setRateIndex(0);
     setManualAmount("");
-    setProducerId("");
     setProgramName("");
     setProducerMenuOpen(false);
+    setOriginalProducerMenuOpen(false);
     setProgramMenuOpen(false);
   }
 
   // Clear producer only if they were removed from the roster entirely.
   useEffect(() => {
-    if (!producerId || editing) return;
-    if (!producers.some((p) => p.id === producerId)) {
+    if (editing) return;
+    if (producerId && !producers.some((p) => p.id === producerId)) {
       setProducerId("");
     }
-  }, [producerId, producers, editing]);
+    if (
+      originalProducerId &&
+      !producers.some((p) => p.id === originalProducerId)
+    ) {
+      setOriginalProducerId("");
+    }
+  }, [producerId, originalProducerId, producers, editing]);
 
   useEffect(() => {
     if (!open) return;
     if (editing) {
       setProducerId(editing.producerId || "");
+      setOriginalProducerId(editing.originalProducerId || "");
       setProgramName(editing.programName || "");
       const nextForm: OrderFormType =
         (editing.formType as OrderFormType) ||
@@ -588,6 +634,7 @@ function VoiceoverEntryModal({
       }
     } else {
       setProducerId("");
+      setOriginalProducerId("");
       setProgramName("");
       setForm(initialForm);
       setCheerSubtype(
@@ -598,6 +645,7 @@ function VoiceoverEntryModal({
       setManualAmount("");
     }
     setProducerMenuOpen(false);
+    setOriginalProducerMenuOpen(false);
     setProgramMenuOpen(false);
     setError(null);
     setSaving(false);
@@ -611,6 +659,9 @@ function VoiceoverEntryModal({
       setError("Select the voiceover producer.");
       return;
     }
+    const originalProducer = originalProducerId
+      ? producers.find((p) => p.id === originalProducerId) ?? null
+      : null;
     if (!programName.trim()) {
       setError("Select a school / program.");
       return;
@@ -673,6 +724,8 @@ function VoiceoverEntryModal({
         rateSource: selectedRate.source,
         producerId: producer.id,
         producerInitials: producer.initials,
+        originalProducerId: originalProducer?.id ?? null,
+        originalProducerInitials: originalProducer?.initials ?? null,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save voiceover.");
@@ -688,7 +741,7 @@ function VoiceoverEntryModal({
       style={{ backgroundColor: "rgba(0,0,0,0.55)" }}
     >
       <div
-        className="relative flex w-full max-w-md flex-col rounded-xl border border-brand-line bg-brand-surface shadow-2xl"
+        className="relative flex max-h-[90vh] w-full max-w-md flex-col rounded-xl border border-brand-line bg-brand-surface shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-brand-line px-5 py-4">
@@ -746,7 +799,7 @@ function VoiceoverEntryModal({
               searchPlaceholder="Search producers…"
               placeholder={
                 producerOptions.length === 0
-                  ? "No producers for this form…"
+                  ? "No producers…"
                   : "Select producer…"
               }
               value={producerId}
@@ -754,11 +807,50 @@ function VoiceoverEntryModal({
               open={producerMenuOpen}
               onOpenChange={(next) => {
                 setProducerMenuOpen(next);
-                if (next) setProgramMenuOpen(false);
+                if (next) {
+                  setOriginalProducerMenuOpen(false);
+                  setProgramMenuOpen(false);
+                }
               }}
               onChange={(value) => {
                 setProducerId(value);
                 setProducerMenuOpen(false);
+              }}
+            />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-brand-ink-secondary">
+              Original Producer
+            </label>
+            <SoftSelect
+              aria-label="Original Producer"
+              size="md"
+              searchable
+              placement="below"
+              searchPlaceholder="Search producers…"
+              placeholder={
+                producerOptions.length === 0
+                  ? "No producers…"
+                  : "Select producer…"
+              }
+              value={originalProducerId}
+              options={
+                originalProducerId
+                  ? [{ value: "", label: "None" }, ...producerOptions]
+                  : producerOptions
+              }
+              open={originalProducerMenuOpen}
+              onOpenChange={(next) => {
+                setOriginalProducerMenuOpen(next);
+                if (next) {
+                  setProducerMenuOpen(false);
+                  setProgramMenuOpen(false);
+                }
+              }}
+              onChange={(value) => {
+                setOriginalProducerId(value);
+                setOriginalProducerMenuOpen(false);
               }}
             />
           </div>
@@ -783,7 +875,10 @@ function VoiceoverEntryModal({
               open={programMenuOpen}
               onOpenChange={(next) => {
                 setProgramMenuOpen(next);
-                if (next) setProducerMenuOpen(false);
+                if (next) {
+                  setProducerMenuOpen(false);
+                  setOriginalProducerMenuOpen(false);
+                }
               }}
               onChange={(value) => {
                 setProgramName(value);

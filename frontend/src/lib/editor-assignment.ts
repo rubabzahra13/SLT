@@ -363,6 +363,23 @@ export function findProducerByAssignmentKey(
   return undefined;
 }
 
+/** Display name for a stored producer id, then initials/name fallback. */
+export function producerDisplayName(
+  producers: Producer[],
+  id?: string | null,
+  fallback?: string | null
+): string {
+  if (id) {
+    const byId = producers.find((producer) => producer.id === id);
+    const name = byId?.name?.trim();
+    if (name) return name;
+  }
+  const raw = fallback?.trim();
+  if (!raw) return "";
+  const byKey = findProducerByAssignmentKey(raw, producers);
+  return byKey?.name?.trim() || raw;
+}
+
 /**
  * Resolves an assigned producer key for a given order or MTD record.
  * 1. Checks if rawKey resolves to an existing registered producer in producers array (via ID, initials, name, or legacy key).
