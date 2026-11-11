@@ -12,6 +12,7 @@ import {
   applyPeerOrderUpdate,
   hasRecentLocalBadgeCountsBump,
   isDiscardedOrder,
+  isLaggingBadgeCounts,
   isRecentLocalOrderWrite,
   mergeIncomingOrderPreservingRecentLocalFields,
   mergeStickyChipCounts,
@@ -847,9 +848,10 @@ export function useOrdersBoard(
       }
       // Assign / Complete↔Missing already bumped badges — a lagging /counts
       // must not paint pre-edit numbers (felt like badges were "too slow").
+      // Server ahead on Reassign after a partial local bump is catch-up (keep it).
       if (hasRecentLocalBadgeCountsBump()) {
         const known = readOrdersBoardCountsCache(cKey)?.counts;
-        if (known) {
+        if (known && isLaggingBadgeCounts(known, boardCounts)) {
           const merged = mergeStickyChipCounts(known, cKey);
           setCounts(merged);
           lastGoodCountsRef.current = merged;
@@ -857,7 +859,7 @@ export function useOrdersBoard(
           if (!flagged && !q.search) seedEmptyRangeCaches(q, merged);
           return;
         }
-        // Cold cache (assign on fresh page): fold pending bumps into /counts.
+        // Cold cache, or /counts caught up past a partial bump — take server.
         writeOrdersBoardCountsOnlyCache(cKey, boardCounts);
         writeOrdersBoardChipCountsCache(cKey, boardCounts);
         const seeded =
@@ -868,6 +870,15 @@ export function useOrdersBoard(
         setCountsReady(true);
         writeOrdersBoardCountsCache(queryKey, seeded);
         if (!flagged && !q.search) seedEmptyRangeCaches(q, merged);
+        // Badge rose past painted rows (multi-mix reassign) — refetch the page.
+        const rangeTotal = rangeBadgeTotal(merged, q.range, q);
+        if (
+          rangeTotal != null &&
+          rangeTotal > pageIdsRef.current.size &&
+          !countsOnly
+        ) {
+          await paintBoard();
+        }
         return;
       }
       writeOrdersBoardChipCountsCache(cKey, boardCounts);
@@ -910,12 +921,19 @@ export function useOrdersBoard(
     const rangedOrders = hit
       ? filterOrdersForBoardRange(hit.entry.orders, q.range)
       : [];
+    // Badge says more rows than this page holds (and no next page) — incomplete
+    // optimistic seed after multi-mix reassign; don't trust as a full paint.
+    const cacheShortOfBadge =
+      typeof knownTotal === "number" &&
+      knownTotal > rangedOrders.length &&
+      !hit?.entry.nextPageToken;
     // Don't re-paint rows into a 0-badge tab after the sync effect cleared.
     // Also reject All/Assigned pollution cached under Reassign.
     const trustedHit =
       hit &&
       rangedOrders.length > 0 &&
-      !(knownTotal === 0 && rangedOrders.length > 0)
+      !(knownTotal === 0 && rangedOrders.length > 0) &&
+      !cacheShortOfBadge
         ? {
             ...hit,
             entry: { ...hit.entry, orders: rangedOrders },

@@ -32,12 +32,15 @@ export function ProducerDeleteHost({
     addAlert,
     isViewOnly,
   } = useAppState();
-  const { assignedMixes: assignedMixRecords, unpaidPayrollMixes } =
-    useProducerAssignedConflictMixes(producer, true);
+  const {
+    assignedMixes: assignedMixRecords,
+    unpaidPayrollMixes,
+    ready: mixesReady,
+  } = useProducerAssignedConflictMixes(producer, true);
   const [busy, setBusy] = useState(false);
 
   async function confirmDelete() {
-    if (isViewOnly || busy) return;
+    if (isViewOnly || busy || !mixesReady) return;
     if (unpaidPayrollMixes.length > 0 || assignedMixRecords.length > 0) {
       addAlert({
         tone: "warning",
@@ -61,7 +64,7 @@ export function ProducerDeleteHost({
   }
 
   async function handleSendToReassignAndDelete() {
-    if (isViewOnly || busy) return;
+    if (isViewOnly || busy || !mixesReady) return;
     if (unpaidPayrollMixes.length > 0) {
       addAlert({
         tone: "warning",
@@ -124,6 +127,7 @@ export function ProducerDeleteHost({
       producer={producer}
       assignedMixes={assignedMixRecords}
       unpaidPayrollMixes={unpaidPayrollMixes}
+      mixesReady={mixesReady}
       onClose={() => {
         if (busy) return;
         onClose();

@@ -21,6 +21,10 @@ import {
   syncMatchPoolOrderPatch,
   syncOrdersAfterMatch,
   syncOrdersAfterSplit,
+  isLaggingBadgeCounts,
+  resetLocalBadgeCountsBumpForTests,
+  syncOrdersBoardAfterAssignment,
+  syncOrdersBoardAfterReassign,
   syncOrdersBoardOrderPatch,
   writeMatchCountsCache,
   writeMatchPoolCache,
@@ -89,6 +93,7 @@ describe("badge counts follow data changes", () => {
   const counts = () => readOrdersBoardCountsCache(countsKey)!.counts;
 
   beforeEach(() => {
+    resetLocalBadgeCountsBumpForTests();
     seq += 1;
     // Missing only because Notes is empty; not assigned.
     row = {
@@ -207,6 +212,91 @@ describe("badge counts follow data changes", () => {
     assert.equal(c.assigned_by_form_type?.[cheer], 18);
     assert.equal(c.complete_assigned, 2);
     assert.equal(c.complete_not_assigned, 1);
+  });
+
+  it("Reassign badge drops when the row is assigned out of Reassign", () => {
+    writeOrdersBoardCountsOnlyCache(
+      countsKey,
+      makeCounts({ reassigned: 2, reassigned_by_form_type: { [cheer]: 2 } })
+    );
+    const reassignedRow = {
+      ...row,
+      isReassigned: true,
+      assignedProducer: null,
+      routineNotes: "Count 8",
+    } as Order;
+    writeOrdersBoardCache(boardKey, {
+      orders: [reassignedRow],
+      nextPageToken: null,
+    });
+    syncOrdersBoardAfterAssignment(
+      {
+        ...reassignedRow,
+        assignedProducer: "CM",
+        isReassigned: false,
+        mixStartDate: "2026-11-11",
+        mixEndDate: "2026-11-12",
+      },
+      { formType: cheer, assigned: true }
+    );
+    const c = counts();
+    assert.equal(c.reassigned, 1);
+    assert.equal(c.reassigned_by_form_type?.[cheer], 1);
+    assert.equal(c.assigned, 18);
+    // Left Reassign → Assigned, not Not assigned.
+    assert.equal(c.not_assigned, 174);
+  });
+
+  it("Reassign badge rises when Move-to-Orders lands on Reassign", () => {
+    writeOrdersBoardCountsOnlyCache(
+      countsKey,
+      makeCounts({ reassigned: 2, reassigned_by_form_type: { [cheer]: 2 } })
+    );
+    syncOrdersBoardAfterReassign(
+      {
+        ...row,
+        isReassigned: true,
+        status: "active",
+        assignedProducer: null,
+      } as Order,
+      { formType: cheer }
+    );
+    const c = counts();
+    assert.equal(c.reassigned, 3);
+    assert.equal(c.reassigned_by_form_type?.[cheer], 3);
+  });
+
+  it("accepts /counts when Reassign is ahead of a partial local bump", () => {
+    writeOrdersBoardCountsOnlyCache(
+      countsKey,
+      makeCounts({ reassigned: 0, reassigned_by_form_type: { [cheer]: 0 } })
+    );
+    // Producer delete only synced one of three mixes locally.
+    syncOrdersBoardAfterReassign(
+      {
+        ...row,
+        id: `ord-reassign-partial-${seq}`,
+        isReassigned: true,
+        status: "active",
+        assignedProducer: null,
+      } as Order,
+      { formType: cheer }
+    );
+    assert.equal(counts().reassigned, 1);
+    const lagging = makeCounts({
+      reassigned: 0,
+      reassigned_by_form_type: { [cheer]: 0 },
+    });
+    const caughtUp = makeCounts({
+      reassigned: 3,
+      reassigned_by_form_type: { [cheer]: 3 },
+    });
+    assert.equal(isLaggingBadgeCounts(counts(), lagging), true);
+    assert.equal(isLaggingBadgeCounts(counts(), caughtUp), false);
+    writeOrdersBoardCountsOnlyCache(countsKey, lagging);
+    assert.equal(counts().reassigned, 1);
+    writeOrdersBoardCountsOnlyCache(countsKey, caughtUp);
+    assert.equal(counts().reassigned, 3);
   });
 
   it("resolve affiliate flag drops Flagged and returns the row to Orders", () => {

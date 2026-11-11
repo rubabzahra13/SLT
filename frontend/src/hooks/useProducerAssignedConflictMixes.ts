@@ -27,21 +27,25 @@ export function useProducerAssignedConflictMixes(
     conflictOrders,
     mtdRecords,
     ready,
-  } = useOpenAssignedBookings(enabled && Boolean(producer));
+  } = useOpenAssignedBookings(enabled && Boolean(producer), {
+    // Partial board cache can miss mixes for this producer (early-exit when
+    // any assigned hit exists). Delete / category / leave need the full list.
+    alwaysFetch: true,
+  });
 
   const assignedMixes = useMemo(() => {
-    if (!producer || !enabled) return [];
+    if (!producer || !enabled || !ready) return [];
     return collectAssignedMixesForProducer(
       producer,
       conflictOrders,
       mtdRecords
     );
-  }, [producer, enabled, conflictOrders, mtdRecords]);
+  }, [producer, enabled, ready, conflictOrders, mtdRecords]);
 
   const unpaidPayrollMixes = useMemo(() => {
-    if (!producer || !enabled) return [];
+    if (!producer || !enabled || !ready) return [];
     return collectUnpaidPayrollMixesForProducer(producer, mtdRecords);
-  }, [producer, enabled, mtdRecords]);
+  }, [producer, enabled, ready, mtdRecords]);
 
   return {
     assignedMixes,

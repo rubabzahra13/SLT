@@ -22,6 +22,8 @@ type DeleteProducerModalProps = {
   producer: Producer | null;
   assignedMixes?: AssignedMixForDelete[];
   unpaidPayrollMixes?: MTDRecord[];
+  /** False while assigned-board hydrate is still loading. */
+  mixesReady?: boolean;
   onClose: () => void;
   onConfirm: () => void;
   /** Move assigned Orders/MTD mixes to Reassign and delete the producer in place. */
@@ -158,6 +160,7 @@ export function DeleteProducerModal({
   producer,
   assignedMixes = [],
   unpaidPayrollMixes = [],
+  mixesReady = true,
   onClose,
   onConfirm,
   onSendToReassign,
@@ -170,8 +173,9 @@ export function DeleteProducerModal({
   const fromMtdCount = assignedMixes.filter((rec) => rec.onMtdBoard).length;
   const needsPayrollPaid = payrollBlockCount > 0;
   const hasAssignedMixes = assignedMixesCount > 0;
-  const needsReassign = !needsPayrollPaid && hasAssignedMixes;
+  const needsReassign = mixesReady && !needsPayrollPaid && hasAssignedMixes;
   const showSteps = needsPayrollPaid && hasAssignedMixes;
+  const actionsLocked = busy || !mixesReady;
   const returnTo = producersDeleteReturnHref(producer.id);
 
   return (
@@ -281,10 +285,14 @@ export function DeleteProducerModal({
         </div>
 
         <div className="flex flex-col border-t border-black/[0.08]">
-          {needsPayrollPaid ? null : needsReassign ? (
+          {!mixesReady ? (
+            <p className="border-b border-black/[0.08] py-3.5 text-center text-[13px] text-brand-ink-tertiary">
+              Checking assigned mixes…
+            </p>
+          ) : needsPayrollPaid ? null : needsReassign ? (
             <button
               type="button"
-              disabled={busy}
+              disabled={actionsLocked}
               onClick={onSendToReassign}
               className="border-b border-black/[0.08] py-3.5 text-[15px] font-semibold text-brand-blue transition hover:bg-brand-blue-soft/40 disabled:opacity-60"
             >
@@ -293,7 +301,7 @@ export function DeleteProducerModal({
           ) : !needsPayrollPaid ? (
             <button
               type="button"
-              disabled={busy}
+              disabled={actionsLocked}
               onClick={onConfirm}
               className="border-b border-black/[0.08] py-3.5 text-[15px] font-semibold text-brand-danger transition hover:bg-brand-orange-soft/60 disabled:opacity-60"
             >

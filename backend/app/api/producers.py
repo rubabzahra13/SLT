@@ -8,7 +8,7 @@ from typing import Any, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy.orm.attributes import flag_modified
@@ -221,6 +221,78 @@ def _cascade_assignment_key_change(
                     "mtd": _serialize_mtd(mtd).model_dump(mode="json"),
                 }
             )
+
+
+def _cascade_reassign_on_producer_delete(db: Session, producer: Producer) -> None:
+    """Send every open assigned mix to Reassign before the producer row goes away.
+
+    FK only clears assigned_producer_id (SET NULL) — without this, orphaned
+    assigned_producer strings stay Assigned and never enter the Reassign chip.
+    """
+    from app.api.mtd import _serialize_mtd
+
+    key = canonical_producer_assignment_key(producer) or ""
+    key_norm = normalize_producer_key(key)
+    if not key_norm and producer.id is None:
+        return
+
+    clauses = []
+    if producer.id is not None:
+        clauses.append(Order.assigned_producer_id == producer.id)
+    if key_norm:
+        clauses.append(func.upper(Order.assigned_producer) == key_norm)
+    if not clauses:
+        return
+
+    orders = db.query(Order).filter(or_(*clauses)).all()
+    touched: list[Order] = []
+    for order in orders:
+        status = (order.status or "").lower()
+        if status in {"completed", "payroll"}:
+            continue
+        if order.is_past_order:
+            continue
+        linked = (
+            db.query(MTDRecord)
+            .options(selectinload(MTDRecord.order))
+            .filter(MTDRecord.order_id == order.id)
+            .all()
+        )
+        if any(bool(m.in_payroll) for m in linked):
+            # Unpaid/paid payroll stays with history — frontend blocks delete.
+            continue
+
+        order.is_reassigned = True
+        order.assigned_producer = None
+        order.assigned_producer_id = None
+        order.mix_start_date = None
+        order.mix_end_date = None
+        order.editor_initials = "FA"
+        order.order_status = "Reassign: Producer deleted"
+        order.producer_email_sent_at = None
+        order.producer_email_sent_to = None
+        if status in {"in_mtd", "new", ""}:
+            order.status = "active"
+        touched.append(order)
+
+        for mtd in linked:
+            if mtd.in_mtd and not mtd.in_payroll:
+                mtd.in_mtd = False
+                mtd.order = order
+                board_event_hub.publish(
+                    {
+                        "type": "mtd.updated",
+                        "mtd": _serialize_mtd(mtd).model_dump(mode="json"),
+                    }
+                )
+
+    for order in touched:
+        board_event_hub.publish(
+            {
+                "type": "order.updated",
+                "order": OrderSchema.model_validate(order).model_dump(mode="json"),
+            }
+        )
 
 
 def _publish_producer_deleted(producer_id: uuid.UUID) -> None:
@@ -545,6 +617,8 @@ def delete_producer(
     ):
         return None
     deleted_id = producer.id
+    # Reassign open mixes first — FK SET NULL alone leaves ghost Assigned rows.
+    _cascade_reassign_on_producer_delete(db, producer)
     db.delete(producer)
     db.commit()
     invalidate_producer_assignment_roster_cache()

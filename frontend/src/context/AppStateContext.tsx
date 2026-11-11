@@ -2993,7 +2993,31 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
         return prev;
       });
       // Orders table rows come from the board cache, not activeOrders.
+      const priorBoard = readOrdersBoardOrder(id);
+      const priorOrder =
+        prevActive.find((o) => o.id === id) ||
+        prevPast.find((o) => o.id === id) ||
+        seed ||
+        priorBoard ||
+        null;
+      const wasReassigned = Boolean(priorOrder?.isReassigned);
       const undoBoardPatch = patchOrdersBoardRowOptimistic(id, patch);
+      // Producer delete / category remove reassign via updateOrder — same board
+      // + badge path as Move-to-Orders (updateMTD already calls this).
+      if (patch.isReassigned === true && !wasReassigned) {
+        const seedForBoard =
+          priorOrder ||
+          (seed ? merge(seed) : null) ||
+          ({ id } as Order);
+        syncOrdersBoardAfterReassign({
+          ...seedForBoard,
+          ...patch,
+          id,
+          isReassigned: true,
+          status: "active",
+          assignedProducer: null,
+        } as Order);
+      }
 
       // Keep linked MTD board rows in sync (shared fields only).
       const mtdPatch: Partial<MTDRecord> = {};
